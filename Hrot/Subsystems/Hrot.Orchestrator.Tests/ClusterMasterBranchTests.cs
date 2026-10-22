@@ -145,4 +145,40 @@ public sealed class ClusterMasterBranchTests
         Assert.NotEqual(replayed, minted);
         Assert.Equal(minted, master.ActiveExerciseId);
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-3310 (R-3049) — a live LOAD whose request names no exercise gets one the master mints (a node records nothing without
+    /// one); a request that names its exercise keeps it.
+    /// </summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE3310_ALiveLoadWithoutAnExerciseId_GetsOneTheMasterMints_ANamedOneIsKept(bool named)
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = 1, SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var requested = named ? Guid.NewGuid() : Guid.Empty;
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = named
+                ? $"{{\"TargetState\":\"OperatingLive\",\"ExerciseId\":\"{requested}\"}}"
+                : "{\"TargetState\":\"OperatingLive\"}",
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var prepare = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareLive);
+        var sent    = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(prepare.DomainPayload).ExerciseId;
+        Assert.NotEqual(Guid.Empty, sent);
+        if (named) Assert.Equal(requested, sent);
+        Assert.Equal(sent, master.ActiveExerciseId);
+    }
 }

@@ -1408,6 +1408,17 @@ public sealed partial class ClusterMaster : IDisposable
             _activeExerciseId  = exerciseId;
             _currentExerciseId = exerciseId;
         }
+        // ⭐⭐ CE-3310 (R-3049, user 2026-10-22: "master mints the id when missing") — a LIVE LOAD whose request names no exercise
+        //   gets one from the master (mgmt-1 step 5: "Master → Master: Generate ExerciseId"). ⛔ It used to go live with an empty id,
+        //   and a node records nothing without one — so no checkpoint either. A request that names its id keeps it (a script replays
+        //   the exercise it named).
+        else if (exerciseId == Guid.Empty && LoadsLiveFromIdle(capturedSourceState, trajectory))
+        {
+            exerciseId = Guid.NewGuid();
+            FdpLog<ClusterMaster>.Info("[Orchestrator] CE-3310: the live load names no exercise — the master mints {0}.", exerciseId);
+            _activeExerciseId  = exerciseId;
+            _currentExerciseId = exerciseId;
+        }
 
         // ── HN-037: the world boundary resets the ONE id authority ───────────────────────
         // ⭐ BEFORE the fan-out, because PrepareLive is what makes CGF allocate the authored ids.
@@ -1605,6 +1616,19 @@ public sealed partial class ClusterMaster : IDisposable
     /// (<c>OperatingReplay → LoadingLive</c> continues the replayed world). ⭐ ONE rule for both consumers: the id
     /// authority reset (HN-037) and the node world clear (CE-2101).
     /// </summary>
+    // ⭐ CE-3310 — does this trajectory LOAD a live session (a LoadingLive step entered from Idle)?
+    private static bool LoadsLiveFromIdle(ClusterState source, IEnumerable<ISysOpStep> trajectory)
+    {
+        var from = source;
+        foreach (var step in trajectory)
+        {
+            if (step is not TransitionStep t) continue;
+            if (from == ClusterState.Idle && t.TargetState == ClusterState.LoadingLive) return true;
+            from = t.TargetState;
+        }
+        return false;
+    }
+
     internal static bool IsWorldBoundaryLoad(ClusterState enteredFrom, ClusterState target)
         => enteredFrom == ClusterState.Idle
         && (target == ClusterState.LoadingLive || target == ClusterState.LoadingEdit);
