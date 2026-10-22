@@ -21,7 +21,7 @@ known-rot: ⛔ §4 ④ says "hook it in PreviewClusterOpHandler so 'what preview
   ("the two pooled ones do not implement it") is SUPERSEDED by §4c — all five implement it. Do not quote
   §4 ③/④ or §4b's recommendation without §4c and §4d.
 related-designs:
-  - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — the dry run moves off SyncFrom to the recorder keyframe; the §2b participants shrink to the allocator until it is a singleton (CE-3299).
+  - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — §1b U1/D14: the two preview handlers (§2b) become ONE dry-run handler; the dry run moves off SyncFrom to the recorder keyframe; the §2b participants shrink to the allocator until it is a singleton (CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f (CE-3294): every SYSTEM holding entities now pulls `WorldEpoch` too, not only the translators.
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f.1 (CE-3298): ⚠ a preview's Stop rewinds the world but moves no epoch, so the systems' resets and the egress "published once" sets (`EntityMasterEgressTranslator._publishedNetIds`) keep the last Play's state while §4d's allocator reissues the same ids.
   - DESIGN_Building_Interiors.md §3b — terrain-provided objects (doors) get runtime ids from THIS one allocator; their stable key is a string, mapped by TerrainObjectMap

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN (⏳ the decisions in §5 carry leans awaiting the user; §6 measurements come first)
-updated: 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
+updated: 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
@@ -66,6 +66,16 @@ applies). `SyncFrom` stays the every-frame background snapshot. No network buffe
 
 ⇒ the recording every checkpoint is a keyframe of, the seek every restore is, and the dry run run on **every ECS host of the cluster**.
 ⚠ `CgfApplication` (a CGF "skeleton", `liveRepo: null` dry run) is constructed by no production code — not touched here.
+
+### 1b. 🔴 UNIFIED AND SHARED? — measured `2026-10-22` (user: *"and that the implementation across hosts is unified and shared, no duplications"*)
+
+| # | duplication | evidence | ⏳ lean (D14–D16) |
+|---|---|---|---|
+| **U1** | **two dry-run handlers for one concept** — `ReferencePreviewHandler` (nodes, through the cluster's 2PC) and `PreviewClusterOpHandler` (editor, called directly by `EditorPreviewController`, on no slave) | `NodeBootstrapper.cs:335`, `CgfSubsystem.cs:1260` vs `EditorSubsystem.cs:701`; already recorded as diverging — [Deterministic Network Ids §2b](DESIGN_Deterministic_Network_Ids.md) *"one concept, already diverging"* | **D14**: B2 builds ONE dry-run handler (in `Fdp.Toolkits` Orchestration) that both entry points call; the other is deleted. ⛔ never two keyframe paths |
+| **U2** | **the editor builds its recorder by hand, twice** — `new EcsRecordReplayController(...)` instead of `ForNode` (*"the ONE composition every ECS host uses"*, P5a / R-4011), and a SECOND instance on the same world for the debug API | `EditorSubsystem.cs:1605`, `:2362` vs `NodeBootstrapper.cs:276`, `CgfSubsystem.cs:1067` | **D15**: the editor uses `ForNode` (so its seeks clear and gate the ELM like every host), ONE instance shared with the debug API |
+| **U3** | **the cluster-handler set is composed in three hand-written places** — `NodeBootstrapper.BuildOrchestration` (SimHost, IG, traffic, Stride), `CgfSubsystem`, `EditorSubsystem` each register replay-load, live-load, prefetch, load chain and dry run. ⛔ **The checkpoint handler is registered in only ONE** — CGF and the editor take no checkpoint today | `ReferenceCheckpointHandler` only at `NodeBootstrapper.cs:308`; `ReferenceReplayLoadHandler` / `ReferenceLiveLoadHandler` / `ReferencePrefetchHandler` / `LoadPhaseChain.FromRoles` each at the three sites | **D16**: ONE shared composition ("the cluster handlers of an ECS host": recorder controller, replay load, live load, checkpoint keyframe request, dry run, prefetch, load chain) called by all three hosts; a rail asserts every ECS host's slave holds the same set — the pattern of `EveryEcsHostComposesTheLoadPhaseChainRails` |
+
+⇒ the CLASSES are shared; the COMPOSITION is not, and that is where the editor and CGF already drifted (no checkpoint, no ELM gate). ⭐ D16 comes FIRST in the build (B1a), so every later step changes one place.
 
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
@@ -263,8 +273,7 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 
 ## 8. Build order
 
-**B0** M1–M5 → **B1** `AfterRestore` (+ `WorldEpoch.Restored`) and `WorldKeyframes` for the dry run → **B2** the dry run moves (both preview
-handlers; `SyncFrom` leaves them; `PreviewStateBracket` keeps only the allocator until S2) → **B3** checkpoints as labelled keyframes (`RecorderTickSystem` takes a *keyframe at T, label X* request; the label → frame index goes into
+**B0** M1–M5 → **B1a** D16 one shared host composition + D15 the editor's recorder through `ForNode` + its rail → **B1** `AfterRestore` (+ `WorldEpoch.Restored`) and `WorldKeyframes` for the dry run → **B2** the dry run moves into ONE handler (D14 — both entry points; `SyncFrom` leaves them; `PreviewStateBracket` keeps only the allocator until S2) → **B3** checkpoints as labelled keyframes (`RecorderTickSystem` takes a *keyframe at T, label X* request; the label → frame index goes into
 the recording's metadata; `CheckpointIOWorker`'s `'FDPC'` capture retires; `CollectCheckpoint` exports keyframe X) → **B4**
 `RestoreCheckpoint X` = pause → every node seeks to keyframe X → `AfterRestore` → a new recording segment → live paused; a fresh process loads first → **B5** R1
 live. ⚠ R1 stays red until R-3039's S1/S2 (Paused and Stepped §7g.1) land — that red is the work list, not a failure of this design.
