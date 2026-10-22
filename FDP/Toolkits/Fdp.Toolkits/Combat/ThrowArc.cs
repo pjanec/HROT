@@ -20,14 +20,54 @@ namespace Fdp.Toolkit.Combat
         /// <summary>The last segment stops this far short of the aim point, so the ground AT the point does not count as cover.</summary>
         public const float EndClearanceMetres = 0.3f;
 
-        /// <summary>The launch velocity for a round of <paramref name="speed"/> from <paramref name="from"/> to <paramref name="to"/>.</summary>
+        /// <summary>The launch velocity for a round of <paramref name="speed"/> from <paramref name="from"/> to <paramref name="to"/>
+        /// (<see cref="TryLaunch"/>; when no arc clears, the full-speed lob as before).</summary>
         public static Vector3 Launch(Fdp.Toolkit.World.IWorldQuery? world, Vector3 from, Vector3 to, float speed, float penetration)
         {
+            TryLaunch(world, from, to, speed, penetration, out var velocity);
+            return velocity;
+        }
+
+        /// <summary>⭐ <c>CE-3296</c> — the soft tosses tried before the full-speed lob: multiples of the slowest throw that reaches.</summary>
+        private static readonly float[] s_tossFactors = { 1.05f, 1.2f, 1.4f, 1.7f, 2.0f, 2.5f, 3.2f };
+
+        /// <summary>
+        /// ⭐ <c>CE-3296</c> — a THROW (below <see cref="CombatConstants.HighArcMinMuzzleVelocity"/>): the low arc at full speed first; when the
+        /// terrain stops it, the SOFTEST toss that clears — from just above the slowest speed that reaches, low then high, up to full speed —
+        /// and only then the full-speed lob. False when no arc clears (the lob is returned anyway). 📌 behaviors' note
+        /// (<c>bc-room-clear</c>): a 2–3 m throw through a doorway whose low arc was judged blocked was lobbed at 15 m/s — apex ≈ 11 m,
+        /// flight ≈ 3 s — and the stun grenade's 1.5 s fuze burst it 12 m up; a toss at the slowest speed peaks under a metre.
+        /// A launcher keeps the high arc it always flew (true).
+        /// </summary>
+        public static bool TryLaunch(Fdp.Toolkit.World.IWorldQuery? world, Vector3 from, Vector3 to, float speed, float penetration, out Vector3 velocity)
+        {
             if (speed >= CombatConstants.HighArcMinMuzzleVelocity)
-                return FireProcessingSystem.ArcLaunch(from, to, speed, high: true);
-            var low = FireProcessingSystem.ArcLaunch(from, to, speed, high: false);
-            if (world == null || Clears(world, from, to, low, penetration)) return low;
-            return FireProcessingSystem.ArcLaunch(from, to, speed, high: true);
+            {
+                velocity = FireProcessingSystem.ArcLaunch(from, to, speed, high: true);
+                return true;
+            }
+            velocity = FireProcessingSystem.ArcLaunch(from, to, speed, high: false);
+            if (world == null || Clears(world, from, to, velocity, penetration)) return true;
+            float slowest = SlowestReaching(from, to);
+            foreach (float f in s_tossFactors)
+            {
+                float v = slowest * f;
+                if (v >= speed) break;
+                for (int arc = 0; arc < 2; arc++)
+                {
+                    var toss = FireProcessingSystem.ArcLaunch(from, to, v, high: arc == 1);
+                    if (Clears(world, from, to, toss, penetration)) { velocity = toss; return true; }
+                }
+            }
+            velocity = FireProcessingSystem.ArcLaunch(from, to, speed, high: true);
+            return Clears(world, from, to, velocity, penetration);
+        }
+
+        /// <summary>The slowest launch speed that reaches <paramref name="to"/> from <paramref name="from"/> (v² = g·(h + √(d² + h²))).</summary>
+        public static float SlowestReaching(Vector3 from, Vector3 to)
+        {
+            float d = new Vector2(to.X - from.X, to.Y - from.Y).Length(), h = to.Z - from.Z;
+            return MathF.Sqrt(CombatConstants.Gravity * (h + MathF.Sqrt(d * d + h * h)));
         }
 
         /// <summary>True when a round launched at <paramref name="velocity"/> reaches (near) <paramref name="to"/> with nothing stopping it.</summary>

@@ -53,6 +53,44 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(low, ThrowArc.Launch(q, from, to, M67Speed, 0f));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3296</c> — a SHORT throw over cover is TOSSED, not lobbed at full speed: 1.5 m in front of the 1.2 m sandbags, 2.5 m
+        /// behind them, the low arc hits the bags; the throw clears them on the softest toss — its apex under 3 m and its flight inside a
+        /// 1.5 s fuze — where the full-speed lob climbs ~11 m and flies ~3 s (behaviors' note: a stun grenade burst 12 m up).
+        /// ✅ Red-proof: the toss search removed (the full-speed lob) ⇒ apex and flight red.
+        /// </summary>
+        [Fact]
+        public void CE3296_AShortThrowOverCover_IsASoftToss_NotAFullSpeedLob()
+        {
+            var q = BtRange();
+            var from = new Vector3(149f, 38.5f, 1.1f);   // crouched, 1.5 m south of the bags
+            var to   = new Vector3(149f, 42.5f, 0f);     // 2.5 m behind them
+            Assert.False(ThrowArc.Clears(q, from, to, FireProcessingSystem.ArcLaunch(from, to, M67Speed, high: false), 0f),
+                "premise: the low arc hits the 1.2 m sandbags");
+
+            Assert.True(ThrowArc.TryLaunch(q, from, to, M67Speed, 0f, out var v));
+            Assert.True(ThrowArc.Clears(q, from, to, v, 0f));
+            float apex = from.Z + v.Z * v.Z / (2f * CombatConstants.Gravity);
+            float flight = 4f / new Vector2(v.X, v.Y).Length();
+            Assert.True(apex < 3f, $"a toss, not a lob: apex {apex:F1} m");
+            Assert.True(flight < 1.5f, $"inside a stun grenade's fuze: {flight:F2} s");
+            Assert.True(v.Length() < M67Speed, $"softer than the full throw: {v.Length():F1} m/s");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3296</c> — a throw nothing clears says so: from outside closed House A to a point inside it (walls, roof) every toss and
+        /// the lob are stopped ⇒ false — the muscle refuses such a throw (<c>Masked</c>) instead of bursting it on the wall at the thrower's
+        /// feet (behaviors' note: an M67 on the jamb, 143 to the thrower).
+        /// </summary>
+        [Fact]
+        public void CE3296_AThrowNothingClears_IsReportedSo()
+        {
+            var q = BtRange();
+            var from = new Vector3(105f, 98.5f, 1.6f);   // 1.5 m outside House A's south wall
+            var to   = new Vector3(105f, 104f, 0.1f);    // inside, behind closed doors
+            Assert.False(ThrowArc.TryLaunch(q, from, to, M67Speed, 0f, out _));
+        }
+
         [Fact]
         public void WL4_L1_ALauncherKeepsItsHighArc_AndNoTerrainKeepsTheLowThrow()
         {

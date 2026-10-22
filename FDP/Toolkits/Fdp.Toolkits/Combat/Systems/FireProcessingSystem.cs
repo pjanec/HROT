@@ -231,11 +231,14 @@ namespace Fdp.Toolkit.Combat.Systems
                             if (!solved.Ok) { Refuse(repo, in evt, solved.Refusal, now); continue; }
                             velocity = solved.Launch;
                         }
-                        else
+                        else if (charges != null && evt.Charge <= charges.Count)
+                            velocity = ArcLaunch(origin, targetPos, charges[evt.Charge - 1], high: evt.HighArc != 0);
+                        else if (!ThrowArc.TryLaunch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen, out velocity))
                         {
-                            velocity = charges != null && evt.Charge <= charges.Count
-                                ? ArcLaunch(origin, targetPos, charges[evt.Charge - 1], high: evt.HighArc != 0)
-                                : ThrowArc.Launch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen);
+                            // ⭐ CE-3296 (Q94 A, R-2037) — a THROW no arc clears is refused here, where the geometry is: the brain's
+                            //   ledger holds it (the weapon brain's hidden-target throw no longer bursts an M67 on the jamb at its feet)
+                            Refuse(repo, in evt, FireRefusal.Masked, now);
+                            continue;
                         }
                         // ⭐⭐ IF-1 (I4, IF-F) — the arc keeps the mount's SPREAD (it replaced the dispersed direction before): the azimuth by
                         //   θ (the same sequence a direct round turns by), the range by a speed factor on a second stream — ½·σ·d₂, since the
