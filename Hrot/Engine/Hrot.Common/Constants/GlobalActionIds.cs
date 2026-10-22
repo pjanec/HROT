@@ -64,6 +64,11 @@ namespace Hrot.Common.Constants
         /// <summary>⭐ CE-1201 — View › First Person: Over the Shoulder (docs/DESIGN_Entity_Control.md §8p OS-1), on every map host.
         /// ⚠ 256 measured free on backend, ui and behaviors 2026-10-21.</summary>
         public const int ToggleShoulderView = 256;
+        /// <summary>⭐ CE-1150 (canvas-context-menu-design §12 HA-7) — View › Details › Float current view: the current perspective's
+        /// Details panel opens its shown view in a floating window. ⚠ 257–258 measured free on backend, ui and behaviors 2026-10-22.</summary>
+        public const int FloatDetailsView   = 257;
+        /// <summary>⭐ CE-1150 (HA-7) — View › Details › Pin current view: the same, pinned to the context it shows now.</summary>
+        public const int PinDetailsView     = 258;
 
         // --- AI Diagnostics (behav-diag-1) ---
         /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>

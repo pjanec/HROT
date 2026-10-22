@@ -103,14 +103,10 @@ namespace Hrot.ScenarioEditor.Map
 
             var buffer = new DebugPrimitiveBuffer(ctx.BufferCapacity ?? MapInteractionContext.DefaultBufferCapacity);
 
-            // Every host either creates a bus and registers the interaction events over it, or already has
-            // one. Doing it here means a host cannot forget the RegisterAll half.
-            var bus = ctx.InteractionBus;
-            if (bus is null)
-            {
-                bus = new FdpEventBus();
-                Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
-            }
+            // ⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — the HOST's actions: its registry, its interaction bus (the events
+            //   registered over it) and its dispatch. The host made them at its start and passes them; a test gets fresh ones.
+            var host = ctx.Host ?? SharedHostActions.Create();
+            var bus = host.InteractionBus;
 
             // ⭐ CE-3123 (R-228) — the debug view state the pin and AI-trace actions patch, on every map host.
             Hrot.Map.Common.PresentationComponentRegistry.RegisterDebugViewState(ctx.World);
@@ -300,14 +296,11 @@ namespace Hrot.ScenarioEditor.Map
             var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
                 ctx.Inspector ?? (static () => null), tools, selection, ctx.AiEntitySelection);
 
-            // ⭐⭐ MAP ACTIONS + THE LAYER CONTROL, built here so ALL map hosts get them (user, 2026-10-07:
-            //    "the layer on/off control is built today only on Editor, SimHost and the replay browser —
-            //    pls unify and share, as usual"). 📐 Measured: Editor, SimHost and ReplayBrowser each built a
-            //    GlobalActionRegistry + GlobalActionDispatchSystem + LayerControlGizmo by hand (three copies);
-            //    CGF and IG built none, so a map-menu action did nothing on them. ⛔ Construct only — the
-            //    host schedules ActionDispatch, as it schedules the selection systems.
-            var actions        = new Hrot.Common.Interactions.GlobalActionRegistry();
-            var actionDispatch = new Hrot.Common.Systems.GlobalActionDispatchSystem(actions, bus);
+            // ⭐⭐ MAP ACTIONS + THE LAYER CONTROL, on every map host (user, 2026-10-07: "pls unify and share, as usual"). ⭐ CE-1150 (§12
+            //    HA-2) — registered on the HOST's registry (ctx.Host), which the map no longer owns; the actions that need no map (Select,
+            //    Center View, pins, AI trace) are SharedHostActions'. ⛔ Construct only — the host schedules ActionDispatch.
+            var actions        = host.Actions;
+            var actionDispatch = host.Dispatch;
             long layerControlId = GlobalGizmoManager.NewId();
             // ⭐ CE-1203 FL-9 — the operator's remembered layers into the shared settings BEFORE the gizmo reads them; saved on every change
             var layerSettingsPath = ctx.LayerSettingsPath ?? MapLayerPreferences.DefaultPath();
@@ -338,10 +331,6 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1201 (DESIGN_Entity_Control §8p OS-1) — View › First Person: Over the Shoulder; the view-mode layer drains it
             actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent()));
-            // ⭐ CE-3120 (R-227) — the Pin gizmos submenu's actions, on every map host (one registration, not one per host).
-            Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
-            // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
-            Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
             // ⭐ CE-3169 (DESIGN_Entity_Control §4.2) — Move Here · Engage · Stop, once for every LIVE map host. ⛔ Not in a replay
             //   (no live brain to order): there the menu does not offer them (OrdersOffered unset) and nothing is registered.
             var menuOrders = new MenuOrders(ctx.World) { Selected = () => selection.SelectedEntities };   // ⭐ CE-1059 — O6
@@ -394,11 +383,6 @@ namespace Hrot.ScenarioEditor.Map
             }
             var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
 
-            // ⭐ CE-1134 / CE-1135 (canvas-context-menu-design §9) — the map menu's view items, on EVERY map host. 📐 Before, only the
-            //   Editor and the ReplayBrowser registered Center View and only the Editor Select, so both were dead in the menu on CGF,
-            //   SimHost and the IG — and Properties… (an id since the first menu) had no handler anywhere.
-            RegisterViewActions(actions, ctx.Inspector);
-
             var map = new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
@@ -409,37 +393,9 @@ namespace Hrot.ScenarioEditor.Map
                 MenuOrders     = menuOrders,
                 MenuShortcuts  = new MenuShortcuts(ctx.World, bus, selection, tools),   // ⭐ CE-1076
                 OrderForm      = orderForm,
-                World          = ctx.World,      // ⭐ CE-1134
-                Inspector      = ctx.Inspector,  // ⭐ CE-1134 — joins the inspector window (InspectorMapLink)
+                Host           = host,   // ⭐ CE-1150
             };
-            Hrot.UI.Common.Menus.InspectorMapLink.RegisterMap(map);
             return map;
-        }
-
-        /// <summary>
-        /// ⭐ CE-1134 / CE-1135 — Center View (the map's camera, 2-D or 3-D, on the entity — this node only), Select (the one selection
-        /// request) and Properties… (select it, then show the inspector window). One registration for every map host.
-        /// </summary>
-        public static void RegisterViewActions(Hrot.Common.Interactions.GlobalActionRegistry actions,
-            Func<Fdp.Presentation.Abstractions.IInspectorContext?>? inspector)
-        {
-            actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>
-            {
-                if (view is EntityRepository w && MapUiStates.CanvasOf(w)?.Camera is { } camera)
-                    Hrot.ScenarioEditor.Systems.CenterOnEntitySystem.CenterOn(camera, w, target);
-            });
-            actions.Register(Hrot.Common.Constants.GlobalActionIds.Select, (view, target) =>
-            {
-                // ⭐ UXI-11 S-2 — an action handler REQUESTS; the inspector follows the notification (S-3).
-                if (target.IsNull || view is not EntityRepository w) return;
-                w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
-            });
-            actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.Properties, (view, target) =>
-            {
-                if (target.IsNull || view is not EntityRepository w) return;
-                w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Properties"));
-                Hrot.UI.Common.Menus.InspectorMapLink.ShowWindowFor(inspector?.Invoke());
-            });
         }
 
         /// <summary>

@@ -241,6 +241,8 @@ namespace Hrot.IG
                         InspectorState: () => _app.FdpInspectorState,
                         EventBrowser:   _app.FdpEventBrowser,
                         TitleBarColor:  IgWindowColor.TitleBar,
+                        Host:           () => _app.HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                        World:          () => _app.World,
                         // ⭐ This host builds its OWN architecture service, exactly as before — the
                         //   bundle takes the finished panel, so the lazy `() => _app.Kernel` binding
                         //   this host has always used is untouched (design §5c.7 F2).
@@ -250,6 +252,18 @@ namespace Hrot.IG
                         ExecutionStats: () => _app.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS IgWindowColor.TitleBar now.
                         PickBroker:     _app.GetMapPickBroker())),
+                    // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds:
+                    //   the Components view, and Properties… / View ▸ Details on this host's actions. 📐 Before: none on the IG.
+                    new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                        WindowId:    "ig_details",
+                        Perspective: "IG",
+                        World:       () => _app.World,
+                        Inspector:   () => _app.FdpEntityInspector,
+                        Session:     () => _app.GetFdpRepoAdapter(),
+                        RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(
+                                         () => _app.World != null,
+                                         () => Fdp.Toolkit.Time.SimClock.Of(_app.World).IsHalted),
+                        Host:        () => _app.HostActions)),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // Signal IgApplication that these panels must not be double-rendered.

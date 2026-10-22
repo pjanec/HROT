@@ -147,6 +147,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     public ReplayBrowserSubsystem(INetworkFactory networkFactory) { _ = networkFactory; }
 
     /// <summary>Parameterless constructor for unit tests.</summary>
+    /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+    /// actions on them, the Details bundle registers Properties… and View ▸ Details on them.</summary>
+    internal Hrot.Common.Interactions.HostActions HostActions { get; } = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
     public ReplayBrowserSubsystem() { }
 
     // ── ISubsystem lifecycle ──────────────────────────────────────────────
@@ -199,6 +203,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _activeRepo!,
+                    Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (behaviour labels, mission lines). ⭐ CE-3126 — the
                     //   replay's geo transform (origin from the recording), so MissionPresentationGizmo draws here too.
                     Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, behaviorRegistry),
@@ -256,8 +261,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
             // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
-            // ⭐ CE-1134 — Center View is MapInteractionPack.RegisterViewActions now (every map host; 2-D and 3-D, the replicated
-            //   position first). This host's own copy read SimTransform only and moved only the 2-D camera.
+            // ⭐ CE-1134 / CE-1150 — Center View is SharedHostActions' (every host; 2-D and 3-D, the replicated position first). This
+            //   host's own copy read SimTransform only and moved only the 2-D camera.
 
             _actionDispatchSystem = mapInteraction.ActionDispatch;
             // ⭐ CE-3179 — the dispatcher above was ticked here with nothing feeding it: no ingress turned a map-menu click (Center
@@ -981,6 +986,22 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
         if (federationPanel != null)
             RegisterFederationWindow(windowManager, federationPanel);
+
+        // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds: the
+        //   Components view over the replayed world, and Properties… / View ▸ Details on this host's actions. 📐 Before: none here.
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[]
+            {
+                new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                    WindowId:    "rb_details",
+                    Perspective: perspective,
+                    World:       () => _activeRepo,
+                    Inspector:   () => inspectorPanel,
+                    Session:     () => _session,
+                    RunState:    static () => Hrot.Editor.AiShared.Variables.VariableRunState.Replay,
+                    Host:        () => HostActions)),
+            },
+            new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
     }
 
     /// <summary>⭐⭐⭐ U-obs-5 follow-up — shared by <see cref="RegisterWindowsCore"/> (the initial
