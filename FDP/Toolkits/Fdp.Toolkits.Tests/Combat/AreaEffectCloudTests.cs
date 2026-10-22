@@ -124,6 +124,39 @@ namespace Fdp.Toolkit.Combat.Tests
             return _w.Bus.Read<DamageAssessedEvent>().ToArray();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #3) — a cloud's step clock survives a checkpoint restored into a FRESH
+        /// system: stepped each second to t = 10 on a 2 m/s wind, captured at 10.5, applied to a new world with a NEW system, stepped at 11 ⇒ it
+        /// drifts ONE second's worth (2 m). 🔴 Red-proof: the clock back in a system field ⇒ the fresh system steps from the cloud's birth ⇒ it
+        /// jumps eleven seconds' worth (22 m) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R3039_ACloudsStepClock_SurvivesACheckpointRestoredIntoAFreshSystem()
+        {
+            Wind(new Vector2(2f, 0f));
+            var cloud = Cloud(CloudKind.Smoke, Vector3.Zero, seconds: 120f);
+            for (int t = 0; t <= 10; t++) Frame(t);
+            Frame(10.5);
+            float x = _w.GetComponentRO<SimTransform>(cloud).Position.X;
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(_w, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = new EntityRepository();
+            fresh.RegisterComponent<SimTransform>();
+            fresh.RegisterComponent<Health>();
+            fresh.RegisterComponent<AreaEffectCloud>();
+            fresh.RegisterEvent<DamageAssessedEvent>();
+            fresh.RegisterEvent<DetonationNotification>();
+            fresh.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            fresh.RegisterComponent<ScenarioClock>();
+            fresh.RegisterComponent<WeatherConditions>();
+            fresh.SetSingletonManaged(new TerrainWorld { BoundsMin = new Vector2(-100, -100), BoundsMax = new Vector2(100, 100) });
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+
+            fresh.SetSingletonUnmanaged(new GlobalTime { TotalTime = 11 });
+            new AreaEffectCloudSystem().Execute(fresh, 0.5f);
+            Assert.Equal(x + 2f, fresh.GetComponentRO<SimTransform>(cloud).Position.X, 3);
+        }
+
         // ── sight ───────────────────────────────────────────────────────────────────────────
 
         [Fact]

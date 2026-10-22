@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// <summary>
     /// Brain-side danger-area result cache written by <c>DangerAreaRefreshSystem</c>
     /// (squad danger-area pipeline, SS5.2).
-    /// Total size: 4 (Count) + 4 (LastUpdateTick) + 4 (LastUpdateTimeSeconds) + 8*72 (Slots) = 588 bytes.
+    /// Total size: 4 (Count) + 4 (LastUpdateTick) + 4 (LastUpdateTimeSeconds) + 8*72 (Slots) + 8 (the edge memory, R-3039) = 596 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.DangerAreaCognitiveBuffer)]
@@ -47,6 +47,17 @@ namespace Fdp.Toolkit.Squad.DangerArea
 
         /// <summary>Cached danger-area descriptors from the last refresh.</summary>
         public DangerAreaDescriptorArray Slots;
+
+        /// <summary>
+        /// ⭐ <c>R-3039</c> S1 — the edge memory (was <c>DangerAreaSensorSystem._last</c>): the area ahead the last rating saw
+        /// (<see cref="EdgeFeature"/>), whether it counted as threatened (the hysteresis), and whether there was a last rating at all. Here,
+        /// on the sensor, so a checkpoint restored into a fresh process neither re-raises <c>AreaAhead</c> / <c>AreaThreatened</c> nor loses
+        /// the <c>AreaCleared</c> it owes. ⚠ A route change clears the answer, never this (an edge across the change is still an edge).
+        /// 📄 docs/DESIGN_System_State_Inventory.md §6 #10.
+        /// </summary>
+        public uint EdgeFeature;
+        public byte EdgeThreatened;
+        public byte EdgeRated;
 
         /// <summary>True once an answer arrived — ⭐ <c>CE-3072</c> B0: even an answer with NO areas (a clear route is an
         /// answer). It used to be <c>Count &gt; 0</c>, which read "no danger" as "not ready".</summary>

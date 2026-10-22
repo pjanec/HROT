@@ -48,10 +48,8 @@ namespace Fdp.Toolkit.Perception.Systems
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public class ThreatEvaluationSystem : IEcsModuleSystem
     {
-        // CE-3039 — each perceiving unit's health as last seen, to publish the Hit edge. Two maps swapped each tick, so a
-        // destroyed unit's entry drops out instead of accumulating.
-        private System.Collections.Generic.Dictionary<Entity, float> _lastHealth = new();
-        private System.Collections.Generic.Dictionary<Entity, float> _nextHealth = new();
+        // CE-3039 — each perceiving unit's health as last seen, for the Hit edge: ⭐ R-3039 S1 on the unit's TargetMemory (LastHealth), not
+        //   here — a checkpoint restored into a fresh system carries it on.
         // ⭐ CE-2233 (CIV-0) — last frame's THREAT count per unit: the side is read live, so a neutral that turns Hostile changes the
         //   count without changing the memory — the edge needs the previous frame's answer, as Hit needs the previous health.
         private System.Collections.Generic.Dictionary<Entity, int> _lastThreats = new();
@@ -69,7 +67,7 @@ namespace Fdp.Toolkit.Perception.Systems
         {
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
             {
-                _lastHealth.Clear(); _nextHealth.Clear(); _lastThreats.Clear(); _nextThreats.Clear(); _heard.Clear();
+                _lastThreats.Clear(); _nextThreats.Clear(); _heard.Clear();
             }
             var ecb  = view.GetCommandBuffer();
             uint tick = PerceptionClock.Now(view);   // ⭐ CE-3292 — LastSeenTick is stamped in sim steps
@@ -85,7 +83,6 @@ namespace Fdp.Toolkit.Perception.Systems
                 }
 
             // Iterate all entities that have TargetMemory: apply decay and optional boost.
-            _nextHealth.Clear();
             _nextThreats.Clear();
             var memQuery = view.Query().With<TargetMemory>().Build();
             foreach (var entity in memQuery)
@@ -191,6 +188,16 @@ namespace Fdp.Toolkit.Perception.Systems
                     changed = true;
                 }
 
+                // ⭐ CE-3039 — HIT: the unit's health dropped (replicated to this Brain node by EntityDamage) — whoever fired, seen or not.
+                //   ⭐ R-3039 S1 — the previous value is on the memory (LastHealth); the first sight of a unit only records it.
+                if (view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(entity))
+                {
+                    float hp = view.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(entity).Current;
+                    if (mem.HasLastHealth != 0 && hp < mem.LastHealth)
+                        ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.Hit });
+                    if (mem.HasLastHealth == 0 || hp != mem.LastHealth) { mem.LastHealth = hp; mem.HasLastHealth = 1; changed = true; }
+                }
+
                 if (changed)
                     ecb.SetComponent(entity, mem);
 
@@ -212,18 +219,7 @@ namespace Fdp.Toolkit.Perception.Systems
                 //   ids: a heard drone later SEEN is one contact (the sighting absorbs the heard slot, CE-3063), not a second alarm.
                 if (AirContacts.Count(view, in mem) > AirContacts.Count(view, in memRO))
                     ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AirThreat });
-
-                // ⭐ CE-3039 — HIT: the unit's health dropped (replicated to this Brain node by EntityDamage) — whoever fired,
-                //   seen or not. The previous value is this system's own; the first sight of a unit only records it.
-                if (view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(entity))
-                {
-                    float hp = view.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(entity).Current;
-                    if (_lastHealth.TryGetValue(entity, out float before) && hp < before)
-                        ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.Hit });
-                    _nextHealth[entity] = hp;
-                }
             }
-            (_lastHealth, _nextHealth) = (_nextHealth, _lastHealth);
             (_lastThreats, _nextThreats) = (_nextThreats, _lastThreats);
         }
 

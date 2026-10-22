@@ -4388,6 +4388,40 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #13) — the squad sense's memory survives a checkpoint restored into a
+        /// fresh process: two rounds at a man before it, the third after it, in a FRESH <c>SquadSenseChanges</c> ⇒ untenable (the window and
+        /// its count are on the man). 🔴 Red-proof: as fields of the sense (its <c>_members</c>), the fresh one started the window again at one
+        /// round and the man stayed "tenable" under three rounds in a second.
+        /// </summary>
+        [Fact]
+        public void R3039_TheUntenableWindow_SurvivesACheckpointRestoredIntoAFreshSense()
+        {
+            var s = new Squad(members: 1);
+            var m = s.Members[0];
+            Shot(s, m); Shot(s, m);
+            Assert.False(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "two rounds: still tenable");
+            Assert.Equal(2, s.Repo.GetComponentRO<Fdp.Toolkit.Squad.SquadMemberSense>(m).Rounds);
+
+            var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(s.Repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+            using var fresh = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(fresh);
+            CognitiveComponentRegistry.RegisterAll(fresh);
+            BlueprintTierTable.RegisterAll(fresh);
+            if (!fresh.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SensorChangedEvent>())
+                fresh.Bus.Register<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
+            Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+            double now = s.Repo.GetSingleton<GlobalTime>().TotalTime + 0.1;
+
+            var sense = new Fdp.Toolkit.Squad.Systems.SquadSenseChanges();
+            fresh.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+            fresh.Bus.SwapBuffers();
+            sense.Rounds(fresh, gateOnAuthority: false, now);
+            fresh.Bus.SwapBuffers();
+            Assert.Contains(fresh.ReadEvents<Fdp.Toolkit.Perception.Events.SensorChangedEvent>().ToArray(),
+                            e => e.Unit == m && e.What == Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2283</c> (SC-2) — <c>ContactInEngagementArea</c> on the commander, once per contact: a contact entering the squad's arc
         /// raises it (with the contact as Target), staying there does not raise it again, a second contact does, one outside never does; a
         /// squad with no Allow never raises it. ✅ Red-proofs: the once-per-contact memory dropped ⇒ a change every tick; the Allow test

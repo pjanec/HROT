@@ -9,7 +9,7 @@ namespace Hrot.ClusterRunner.Tests;
 /// field is named here with why it needs nothing. 📐 Measured before: 41 systems held per-entity state and ONE reset — after an editor reload
 /// (<c>SoftClear</c>: the next run's units under the SAME handles) an aircraft never ejected, a crowd destroyed an unrelated new entity, an
 /// order with last run's ids was skipped, a passenger was never killed with his vehicle. 📄 <c>docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md</c>
-/// §7f. The Stride assemblies are walked by the same probe in <c>HrotStrideApp.Game.Tests</c>.
+/// §7f. ⚠ The Stride assemblies are NOT walked: <c>HrotStrideApp.Game.Tests</c> links the probe and calls it nowhere (CE-3307).
 /// </summary>
 public sealed class EverySystemForgetsTheLastWorldTests
 {
@@ -41,6 +41,10 @@ public sealed class EverySystemForgetsTheLastWorldTests
         ["Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem._toRemoveHsm"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem._toAddUtility"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem._toRemoveUtility"] = "scratch — cleared at the top of each run and filled from this frame's world",
+        ["Fdp.Toolkit.Civilians.CrowdSystem._civs"] = "scratch — cleared at the top of each run and filled from this frame's world",
+        ["Fdp.Toolkit.Civilians.CrowdSystem._incidentOf"] = "scratch — cleared each frame before use",
+        ["Fdp.Toolkit.Civilians.CrowdSystem._crowdEntity"] = "R-3039 S1 — rebuilt at the top of each run from the Crowd entities",
+        ["Hrot.Common.EntityCreation.EjectionSystem._toEject"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Hrot.Common.EntityCreation.SeatPresetSystem._done"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Hrot.Diagnostics.Breakpoints.DataBreakpointSystem._pendingHitsBuffer"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Hrot.SimHost.Systems.InitialBrainMaterializationSystem._done"] = "scratch — cleared at the top of each run and filled from this frame's world",

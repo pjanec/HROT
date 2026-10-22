@@ -88,6 +88,7 @@ namespace Hrot.SimHost
             // CQRS navigation command — written by the Brain tier (MoveToExecutor)
             // and read by the Muscle tier (NavigationIntentBridgeSystem).
             world.RegisterComponent<NavigationIntent>();
+            world.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied to each mover
 
             // BTree/HSM diagnostic tracing — opt-in 1024-byte ring buffers per entity,
             // plus the generic transient DebugState driving them, and the patch event.

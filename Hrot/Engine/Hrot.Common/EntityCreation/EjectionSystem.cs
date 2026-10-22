@@ -30,8 +30,7 @@ namespace Hrot.Common.EntityCreation
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class EjectionSystem : IEcsModuleSystem
     {
-        private readonly HashSet<Entity> _ejected = new();
-        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (who has ejected)
+        // ⭐ R-3039 S1 — who has ejected is on the aircraft (EjectionDone), not here: a checkpoint restored into a fresh system still knows.
         private readonly Dictionary<long, EjectionDto?> _byType = new();
         private readonly List<Entity> _toEject = new();
 
@@ -40,8 +39,7 @@ namespace Hrot.Common.EntityCreation
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _ejected.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Health>()) return;
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Health>() || !repo.IsComponentTypeRegistered<EjectionDone>()) return;
             _toEject.Clear();
             if (repo.Bus.IsRegistered<EjectRequestEvent>())
                 foreach (var e in repo.ReadEvents<EjectRequestEvent>()) _toEject.Add(e.Aircraft);
@@ -57,14 +55,14 @@ namespace Hrot.Common.EntityCreation
 
         private void Eject(EntityRepository repo, Entity aircraft)
         {
-            if (_ejected.Contains(aircraft) || !repo.IsAlive(aircraft) || !repo.HasComponent<Health>(aircraft)) return;
+            if (!repo.IsAlive(aircraft) || repo.HasComponent<EjectionDone>(aircraft) || !repo.HasComponent<Health>(aircraft)) return;
             ref readonly var health = ref repo.GetComponentRO<Health>(aircraft);
             if (health.Current <= 0f && !Wrecked(repo, aircraft) || !Embarkation.OwnsHealth(repo, aircraft)) return;   // ⭐ CE-3215 — a wreck still ejects
             if (EjectionOf(repo, aircraft) is not { PilotType: > 0 } ej || !repo.HasComponent<SimTransform>(aircraft)) return;
             // ⭐ CE-3228 / CE-3226 (Entity Creation §3.4d) — the pilot is ASKED FOR on the bus; the request system reads it next frame.
             //   A world whose bus cannot carry the request (no shared registry, no creation pack) creates nothing here.
             if (!repo.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>()) return;
-            _ejected.Add(aircraft);
+            repo.AddComponent(aircraft, new EjectionDone());
 
             // ① the pilot, at the seat, with the aircraft's velocity and the rocket's climb, coming down from the start
             // ⭐ CE-2210 — where the jet is and how it moves AS THIS NODE KNOWS IT: the Health owner (the Brain) does not own the jet's

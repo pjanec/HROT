@@ -2629,11 +2629,10 @@ namespace Hrot.Editor.DebugApi
                     throw new InvalidOperationException("Already in preview mode (checkpoint slot occupied). Cannot start preview recording.");
 
                 _activeRecordingExerciseId = Guid.NewGuid();
-                _lastFdpPath = System.IO.Path.Combine(
-                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot(),
-                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName,
-                    _activeRecordingExerciseId.ToString(),
-                    Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeRecordingFileName(0));
+                // ⭐ The path the recorder WRITES (its own node id) — ⛔ was rebuilt here with node 0, which reported a file that never
+                //   exists once the editor moved to node 1 (CE-3228), so /replay/load of the returned path failed.
+                _lastFdpPath = _rrController.GetRecordingFilePath(
+                    _activeRecordingExerciseId, Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot());
 
                 _preview.EnterPreviewMode(startPaused: true);
                 // _isRecording is set by CompleteRecordingStartAsync after PrepareRecordingAsync succeeds.

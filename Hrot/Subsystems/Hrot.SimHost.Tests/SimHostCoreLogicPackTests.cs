@@ -68,6 +68,7 @@ namespace Hrot.SimHost.Tests
 
             // Navigation CQRS
             world.RegisterComponent<NavigationIntent>();
+            world.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
             world.RegisterComponent<NavigationStatus>();
             world.RegisterComponent<FrustrationTicks>();
 

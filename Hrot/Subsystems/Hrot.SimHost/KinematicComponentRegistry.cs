@@ -40,6 +40,7 @@ namespace Hrot.SimHost
 
             // Per-entity stuck-detection counter (replaces static dictionary).
             world.RegisterComponent<FrustrationTicks>();
+            world.RegisterComponent<DoorPassage>();   // ⭐ R-3039 S1 — a walker's passage through a doorway (DoorPassageSystem)
 
             world.RegisterEvent<MoveStartedEvent>();
             world.RegisterEvent<OffMeshTraversalStartedEvent>();

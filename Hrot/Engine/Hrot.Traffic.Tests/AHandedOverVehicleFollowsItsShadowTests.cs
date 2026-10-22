@@ -88,6 +88,45 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         Assert.True(replicas.IsEntity(shadow));
     }
 
+    /// <summary>
+    /// ⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #14) — the follow's memory survives a checkpoint restored into a fresh
+    /// process: the shadow seen before the checkpoint and gone after it ends the mode (the body is taken back), and a shadow still there
+    /// gives the body the speed of the step from the restored sighting. 🔴 Red-proof: as a field of the system, the fresh system read
+    /// "never seen" — the body held (IsBlocked) forever instead of being taken back, and resumed at speed 0.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void R3039_TheFollow_SurvivesACheckpointRestoredIntoAFreshSystem(bool shadowStillThere)
+    {
+        using var world = World(out var e);
+        Frame(world, new[] { Shadow(100, 50, 0f) }, now: 1.0);
+        new TrafficShadowFollowSystem().Execute(world, 0.05f);
+
+        var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(world, Fdp.Toolkit.Replay.CaptureOptions.Recording);
+        using var fresh = new EntityRepository();
+        Register(fresh);
+        Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
+        fresh.SetAuthority<SimTransform>(e, true);
+        Assert.True(fresh.HasComponent<TrafficShadowFollow>(e), "the keyframe carries the follow");
+
+        Frame(fresh, shadowStillThere ? new[] { Shadow(105, 50, 0f) } : Array.Empty<TrafficCarPose>(), now: 1.5);
+        new TrafficShadowFollowSystem().Execute(fresh, 0.05f);
+
+        var nav = fresh.GetComponent<NavState>(e);
+        if (shadowStillThere)
+        {
+            Assert.Equal(KinematicsMode.Traffic, nav.Mode);
+            Assert.Equal(10f, fresh.GetComponent<VehicleState>(e).Speed, 3);   // 5 m in 0.5 s, from the restored sighting
+        }
+        else
+        {
+            Assert.Equal(KinematicsMode.None, nav.Mode);   // taken back, not held
+            Assert.Equal(0, nav.IsBlocked);
+            Assert.False(fresh.HasComponent<TrafficShadowFollow>(e));
+        }
+    }
+
     private static TrafficCarPose Shadow(float x, float y, float yaw)
         => new(Owner: 800, Handle: new VehicleHandle(7, 1), Id: TrafficShadowFollowSystem.ShadowIdOf(Id), NetworkId: Id, TkbType: 0, Color: 0,
                X: x, Y: y, Z: 0f, YawRad: yaw, Length: 5f, Width: 2f);
@@ -101,12 +140,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
     private static EntityRepository World(out Entity e)
     {
         var world = new EntityRepository();
-        world.RegisterComponent<NavState>();
-        world.RegisterComponent<SimTransform>();
-        world.RegisterComponent<SimVelocity>();
-        world.RegisterComponent<VehicleState>();
-        world.RegisterComponent<NetworkIdentity>();
-        world.RegisterManagedComponent<TrafficFrame>();
+        Register(world);
         e = world.CreateEntity();
         world.AddComponent(e, new NavState { Mode = KinematicsMode.Traffic, FinalDestination = new Vector3(400, 400, 0), ArrivalRadius = 5f });
         world.AddComponent(e, new SimTransform { Position = new Vector3(10, 10, 0), Rotation = Quaternion.Identity });
@@ -115,5 +149,16 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         world.AddComponent(e, new NetworkIdentity(Id));
         world.SetAuthority<SimTransform>(e, true);
         return world;
+    }
+
+    private static void Register(EntityRepository world)
+    {
+        world.RegisterComponent<NavState>();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<SimVelocity>();
+        world.RegisterComponent<VehicleState>();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<TrafficShadowFollow>();
+        world.RegisterManagedComponent<TrafficFrame>();
     }
 }

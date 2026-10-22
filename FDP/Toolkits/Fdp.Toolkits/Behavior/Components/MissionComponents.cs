@@ -168,6 +168,12 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-483</c>: non-zero when the current phase's behaviour FAULTED — the plan waits for an operator command
         /// (a jump or a new plan) instead of advancing. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D3.</summary>
         public byte Halted;
+
+        /// <summary>⭐ <c>R-3039</c> S1 — the mission's version for mission control's optimistic concurrency (a draft built on an older version
+        /// is refused). On the mission's OWNER only (⛔ not on the wire: the translators copy named fields). Was a field of
+        /// <c>MissionControlExecutionSystem</c>: a checkpoint restored into a fresh system reset it to 0 and accepted a stale draft.
+        /// 📄 docs/DESIGN_System_State_Inventory.md §6 #7.</summary>
+        public long Version;
     }
 
     /// <summary>⭐ <c>CE-483</c>: how a mission phase ended (maps onto the wire's <c>eTaskState</c>).</summary>

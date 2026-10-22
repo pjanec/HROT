@@ -16,8 +16,11 @@ namespace Fdp.Toolkit.Squad.Systems
     /// already are (<see cref="SquadCoordinationSystem"/>, after its merge) so a play READS them instead of counting them itself:
     /// <see cref="SensorChange.ContactInEngagementArea"/> (commander), <see cref="SensorChange.ContactOutsideSector"/>,
     /// <see cref="SensorChange.PositionUntenable"/> and <see cref="SensorChange.SniperFire"/> (the man; the sniper one on his commander too).
-    /// The per-man memory (rounds in the window, the contact already answered) is held here, by the driver — ⚠ it restarts when authority
-    /// moves to another node (the counts are seconds long). 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §14a.
+    /// The per-man memory (rounds in the window, the contact already answered) is ⭐ <c>R-3039</c> S1 a component on the man
+    /// (<see cref="SquadMemberSense"/>) and the squad's on its commander (<see cref="SquadUnitSense"/>) — never a field here, so a checkpoint
+    /// restored into a fresh process keeps it (📄 docs/DESIGN_System_State_Inventory.md §6 #13). ⚠ It still restarts when authority moves to
+    /// another node (written where the squad is driven; the counts are seconds long).
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §14a.
     /// </summary>
     public sealed class SquadSenseChanges
     {
@@ -41,27 +44,6 @@ namespace Fdp.Toolkit.Squad.Systems
         /// <summary><c>Tkb.Domain.SoundSourceClass</c> SmallArms / HeavyWeapon — a shot, not footsteps or an engine.</summary>
         private const byte SmallArms = 4, HeavyWeapon = 5;
 
-        private sealed class MemberSense
-        {
-            public double WindowStart = double.NegativeInfinity;
-            public int Rounds;
-            public long Flanker;
-            public bool Down;
-        }
-
-        private sealed class UnitSense
-        {
-            public readonly HashSet<long> Inside = new();
-            public readonly HashSet<long> Scratch = new();
-            public bool HeardInside;
-            /// <summary>SC-8 — the point survey asked (−∞ = none), where the fire came from, and when the last was asked.</summary>
-            public double AskedAt = double.NegativeInfinity, LastAsk = double.NegativeInfinity;
-            public Vector3 Source;
-        }
-
-        private readonly Dictionary<ulong, MemberSense> _members = new();
-        private readonly Dictionary<ulong, UnitSense> _units = new();
-
         /// <summary>SC-2 / SC-3 / SC-4 (a friend down) — the per-squad changes, from the fresh pool and the roster.</summary>
         public void Squad(EntityRepository repo, Entity commander, double now)
         {
@@ -70,21 +52,29 @@ namespace Fdp.Toolkit.Squad.Systems
             var pool = MemoryMarshal.CreateReadOnlySpan(
                 ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), PoolCapacity)[..count];
-            InEngagementArea(repo, commander, pool);
-            Structure(repo, commander, now);
+            Require(repo);
+            var unit = UnitOf(repo, commander);
+            var was = unit;
+            InEngagementArea(repo, commander, pool, ref unit);
+            Structure(repo, commander, now, ref unit);
+            Store(repo, commander, in was, in unit);
             ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(commander);
             for (int i = 0; i < roster.Count && i < 16; i++)
             {
                 var man = roster.SubordinateEntities[i];
                 if (man.IsNull || !repo.IsAlive(man)) continue;
-                var sense = Of(man);
+                var sense = MemberOf(repo, man);
+                var before = sense;
                 if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, man))
                 {
-                    if (!sense.Down) { sense.Down = true; FriendDown(repo, in roster, man, now); }
-                    continue;
+                    if (sense.Down == 0) { sense.Down = 1; FriendDown(repo, in roster, man, now); }
                 }
-                sense.Down = false;
-                OutsideSector(repo, man, sense, pool);
+                else
+                {
+                    sense.Down = 0;
+                    OutsideSector(repo, man, ref sense, pool);
+                }
+                Store(repo, man, in before, in sense);
             }
         }
 
@@ -99,7 +89,9 @@ namespace Fdp.Toolkit.Squad.Systems
                 var commander = repo.HasComponent<UnitSubordinate>(man) ? repo.GetComponentRO<UnitSubordinate>(man).Commander : Entity.Null;
                 if (commander.IsNull || !repo.IsAlive(commander) || !repo.HasComponent<SquadCognitiveState>(commander)) continue;
                 if (gateOnAuthority && (!repo.HasComponent<BehaviorState>(commander) || !repo.HasAuthority<BehaviorState>(commander))) continue;
-                var sense = Of(man);
+                Require(repo);   // only where a man's memory is read: a world with no squad needs none
+                var sense = MemberOf(repo, man);
+                var before = sense;
                 if (now - sense.WindowStart > UntenableSeconds) { sense.WindowStart = now; sense.Rounds = 0; }
                 if (++sense.Rounds >= UntenableRounds)
                 {
@@ -107,6 +99,7 @@ namespace Fdp.Toolkit.Squad.Systems
                     sense.WindowStart = double.NegativeInfinity;
                     Publish(repo, man, SensorChange.PositionUntenable);
                 }
+                Store(repo, man, in before, in sense);
                 if (FromBeyond(repo, man))
                 {
                     Publish(repo, man, SensorChange.SniperFire);
@@ -117,28 +110,30 @@ namespace Fdp.Toolkit.Squad.Systems
         }
 
         /// <summary>SC-2 — every pooled contact newly inside the commander's Allow (its geometry), once; a heard one on the edge "none heard inside → one".</summary>
-        private void InEngagementArea(EntityRepository repo, Entity commander, ReadOnlySpan<SquadContact> pool)
+        private static unsafe void InEngagementArea(EntityRepository repo, Entity commander, ReadOnlySpan<SquadContact> pool, ref SquadUnitSense unit)
         {
-            var unit = Of(commander.PackedValue);
-            if (!EngagementAreas.TryAllow(repo, commander, out var area)) { unit.Inside.Clear(); unit.HeardInside = false; return; }
-            unit.Scratch.Clear();
+            if (!EngagementAreas.TryAllow(repo, commander, out var area)) { unit.InsideCount = 0; unit.HeardInside = 0; return; }
+            Span<long> inside = stackalloc long[SquadUnitSense.Capacity];
+            int count = 0;
             bool heard = false;
             foreach (ref readonly var c in pool)
             {
                 if (!EngagementAreas.Contains(repo, in area, new Vector3(c.PositionX, c.PositionY, c.PositionZ))) continue;
                 if ((c.Flags & SquadContact.AnonymousFlag) != 0) { heard = true; continue; }
-                unit.Scratch.Add(c.EntityId);
-                if (!unit.Inside.Contains(c.EntityId))
+                if (inside[..count].Contains(c.EntityId)) continue;
+                inside[count++] = c.EntityId;   // the pool holds ≤ Capacity, so this never overflows
+                if (!unit.Contains(c.EntityId))
                     repo.Bus.Publish(new SensorChangedEvent { Unit = commander, What = SensorChange.ContactInEngagementArea, Target = new Entity((ulong)c.EntityId) });
             }
-            if (heard && !unit.HeardInside) Publish(repo, commander, SensorChange.ContactInEngagementArea);
-            unit.HeardInside = heard;
-            unit.Inside.Clear();
-            unit.Inside.UnionWith(unit.Scratch);
+            if (heard && unit.HeardInside == 0) Publish(repo, commander, SensorChange.ContactInEngagementArea);
+            unit.HeardInside = heard ? (byte)1 : (byte)0;
+            for (int i = 0; i < count; i++) unit.Inside[i] = inside[i];
+            for (int i = count; i < unit.InsideCount; i++) unit.Inside[i] = 0;
+            unit.InsideCount = (byte)count;
         }
 
         /// <summary>SC-3 — a seen hostile within <see cref="FlankedMetres"/> of the man's arc origin and outside his arc; once per contact.</summary>
-        private static void OutsideSector(EntityRepository repo, Entity man, MemberSense sense, ReadOnlySpan<SquadContact> pool)
+        private static void OutsideSector(EntityRepository repo, Entity man, ref SquadMemberSense sense, ReadOnlySpan<SquadContact> pool)
         {
             if (!EngagementAreas.TryArc(repo, man, out var arc)) return;
             foreach (ref readonly var c in pool)
@@ -197,9 +192,9 @@ namespace Fdp.Toolkit.Squad.Systems
 
         /// <summary>⭐ SC-8 — under fire: where the man places the shooter (the nearest heard SHOT within <see cref="SourceMetres"/>, its error
         /// circle; else the nearest seen contact) asked as ONE point survey — the circle's centre and eight points on its rim.</summary>
-        private void AskStructure(EntityRepository repo, Entity commander, Entity man, double now)
+        private static void AskStructure(EntityRepository repo, Entity commander, Entity man, double now)
         {
-            var unit = Of(commander.PackedValue);
+            var unit = UnitOf(repo, commander);
             if (now - unit.LastAsk < StructureAskSeconds || !Source(repo, man, out var at, out float radius)) return;
             var points = new List<Vector3>(9) { at };
             float r = MathF.Max(2f, radius);
@@ -209,15 +204,16 @@ namespace Fdp.Toolkit.Squad.Systems
             if (child.IsNull) child = Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Ensure(repo, commander, StructureSite, request);
             else Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Configure(repo, child, request);
             if (child.IsNull) return;
+            var was = unit;
             unit.AskedAt = unit.LastAsk = now;
             unit.Source = at;
+            Store(repo, commander, in was, in unit);
         }
 
         /// <summary>⭐ SC-8 — the answer: ≥ <see cref="StructureVotes"/> of the nine points in one building ⇒
         /// <see cref="SensorChange.FiredOnFromStructure"/> on the commander and a CONTACT report up (the source, firing).</summary>
-        private void Structure(EntityRepository repo, Entity commander, double now)
+        private static void Structure(EntityRepository repo, Entity commander, double now, ref SquadUnitSense unit)
         {
-            var unit = Of(commander.PackedValue);
             if (double.IsNegativeInfinity(unit.AskedAt)) return;
             var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(repo, commander, StructureSite);
             var read = Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Read(repo, child, now);
@@ -280,16 +276,25 @@ namespace Fdp.Toolkit.Squad.Systems
             return false;
         }
 
-        private MemberSense Of(Entity man)
+        // ⭐ R-3039 S1 — the memory lives on the entities; absent = fresh, and it is written only when it changed.
+        private static SquadMemberSense MemberOf(EntityRepository repo, Entity man)
+            => repo.HasComponent<SquadMemberSense>(man) ? repo.GetComponentRO<SquadMemberSense>(man) : SquadMemberSense.Fresh;
+
+        private static SquadUnitSense UnitOf(EntityRepository repo, Entity commander)
+            => repo.HasComponent<SquadUnitSense>(commander) ? repo.GetComponentRO<SquadUnitSense>(commander) : SquadUnitSense.Fresh;
+
+        private static void Store<T>(EntityRepository repo, Entity e, in T before, in T after) where T : unmanaged
         {
-            if (!_members.TryGetValue(man.PackedValue, out var s)) _members[man.PackedValue] = s = new MemberSense();
-            return s;
+            // unchanged ⇒ nothing to write (and an absent one stays absent: still fresh)
+            if (MemoryMarshal.AsBytes(new ReadOnlySpan<T>(in before)).SequenceEqual(MemoryMarshal.AsBytes(new ReadOnlySpan<T>(in after)))) return;
+            repo.AddComponent(e, after);
         }
 
-        private UnitSense Of(ulong commander)
+        // ⛔ Never a silent fallback to "nothing remembered": the registry every Hrot node runs registers both beside SquadCognitiveState.
+        private static void Require(EntityRepository repo)
         {
-            if (!_units.TryGetValue(commander, out var s)) _units[commander] = s = new UnitSense();
-            return s;
+            if (!repo.IsComponentTypeRegistered<SquadMemberSense>() || !repo.IsComponentTypeRegistered<SquadUnitSense>())
+                throw new InvalidOperationException("SquadSenseChanges needs SquadMemberSense and SquadUnitSense registered (HrotSharedComponentRegistry registers both).");
         }
 
         private static void Publish(EntityRepository repo, Entity unit, SensorChange what)

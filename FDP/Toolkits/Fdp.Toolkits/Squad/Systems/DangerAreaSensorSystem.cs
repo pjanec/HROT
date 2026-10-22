@@ -42,13 +42,9 @@ namespace Fdp.Toolkit.Squad.Systems
         /// <summary>⭐ <c>CE-3272</c> — a remembered contact must move this far (m) before the solver is handed the new point.</summary>
         public const float ContactMoveMetres = 3f;
 
-        private Dictionary<Entity, (uint Feature, bool Threatened)> _last = new(), _next = new();
-        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (last step's areas, for the edges)
-
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _last.Clear(); _next.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<DangerAreaCognitiveBuffer>() || !repo.IsComponentTypeRegistered<EqsSensor>()) return;
             WriteContacts(repo, view.GetCommandBuffer());
@@ -155,12 +151,12 @@ namespace Fdp.Toolkit.Squad.Systems
                     ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
 
         // ── ② the rating and ③ the edges ──
-        private void Rate(EntityRepository repo, ISimulationView view)
+        // ⭐ R-3039 S1 — the edges' memory is on each sensor's buffer (EdgeFeature / EdgeThreatened / EdgeRated), never a field here.
+        private static void Rate(EntityRepository repo, ISimulationView view)
         {
             bool memory = repo.IsComponentTypeRegistered<TargetMemory>();
             bool pooled = repo.IsComponentTypeRegistered<SquadCognitiveState>();
             bool tags = repo.IsComponentTypeRegistered<SensorTag>();
-            _next.Clear();
 
             foreach (var child in repo.Query().With<DangerAreaCognitiveBuffer>().With<PartMetadata>().Build())
             {
@@ -180,19 +176,22 @@ namespace Fdp.Toolkit.Squad.Systems
                 // ③ edges on the next area ahead (slot 0 — the solve keeps route order)
                 uint feature = buffer.Count > 0 ? span[0].FeatureId : 0u;
                 float threat = buffer.Count > 0 ? span[0].ThreatRating : 0f;
-                bool had = _last.TryGetValue(child, out var before);
-                bool threatened = had && before.Threatened && before.Feature == feature
+                bool had = buffer.EdgeRated != 0;
+                uint beforeFeature = buffer.EdgeFeature;
+                bool beforeThreatened = buffer.EdgeThreatened != 0;
+                bool threatened = had && beforeThreatened && beforeFeature == feature
                     ? threat >= ClearedBelow
                     : threat >= ThreatenedAt;
-                _next[child] = (feature, threatened);
+                buffer.EdgeRated = 1;
+                buffer.EdgeFeature = feature;
+                buffer.EdgeThreatened = threatened ? (byte)1 : (byte)0;
                 if (!buffer.IsReady) continue;
 
                 var kind = tags && repo.HasComponent<SensorTag>(child) ? repo.GetComponentRO<SensorTag>(child).Kind : SensorModality.DangerArea;
-                if (!had || before.Feature != feature) Publish(view, unit, child, kind, SensorChange.AreaAhead);
-                if (threatened && !(had && before.Threatened && before.Feature == feature)) Publish(view, unit, child, kind, SensorChange.AreaThreatened);
-                else if (!threatened && had && before.Threatened) Publish(view, unit, child, kind, SensorChange.AreaCleared);
+                if (!had || beforeFeature != feature) Publish(view, unit, child, kind, SensorChange.AreaAhead);
+                if (threatened && !(had && beforeThreatened && beforeFeature == feature)) Publish(view, unit, child, kind, SensorChange.AreaThreatened);
+                else if (!threatened && had && beforeThreatened) Publish(view, unit, child, kind, SensorChange.AreaCleared);
             }
-            (_last, _next) = (_next, _last);
         }
 
         /// <summary>

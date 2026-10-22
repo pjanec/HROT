@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             // CQRS navigation contract components — used by the refactored MoveToExecutor
             // and written by NavigationExecutionSystem.
             world.RegisterComponent<NavigationIntent>();
+            world.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
             world.RegisterComponent<NavigationStatus>();
 
             // Behavior channel — holds action params, state payload, and status.

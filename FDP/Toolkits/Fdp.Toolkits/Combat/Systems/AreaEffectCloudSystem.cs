@@ -27,24 +27,17 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <summary>How often a cloud steps — drifts, and irritates whoever is in it (s).</summary>
         public const double StepSeconds = 1.0;
 
-        private readonly Dictionary<Entity, double> _lastStep = new();
-        private readonly HashSet<Entity> _ending = new();   // ⭐ a networked cloud whose end was asked for (once)
-        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (each cloud's last pulse and asked end)
-        private readonly List<Entity> _gone = new();
+        // ⭐ R-3039 S1 — each cloud's last step and its asked end are on the cloud (AreaEffectCloud.LastStepSimSeconds / Stepped / Ending), not
+        //   here: a checkpoint restored into a fresh system carries them on.
 
         /// <summary>Irritant hits this node published (a rail and a diagnostics counter read it).</summary>
         public long Pulses { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _lastStep.Clear(); _ending.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AreaEffectCloud>()) return;
             double now = SimClock.Of(repo).TotalTime;
             var cmd = view.GetCommandBuffer();
-            _gone.Clear();
-            foreach (var e in _lastStep.Keys) if (!repo.IsAlive(e)) _gone.Add(e);
-            foreach (var e in _gone) _lastStep.Remove(e);
-            _ending.RemoveWhere(e => !repo.IsAlive(e));
 
             foreach (var e in repo.Query().With<AreaEffectCloud>().With<SimTransform>().Build())
             {
@@ -53,12 +46,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (cloud.IsOver(now))
                 {
                     End(repo, cmd, e);
-                    _lastStep.Remove(e);
                     continue;
                 }
-                if (!_lastStep.TryGetValue(e, out double last)) last = cloud.BornAtSimSeconds;   // the first step comes at once (a burst irritates at once)
-                else if (now - last < StepSeconds) continue;
-                _lastStep[e] = now;
+                double last = cloud.Stepped != 0 ? cloud.LastStepSimSeconds : cloud.BornAtSimSeconds;   // the first step comes at once (a burst irritates at once)
+                if (cloud.Stepped != 0 && now - last < StepSeconds) continue;
+                {
+                    ref var step = ref repo.GetComponentRW<AreaEffectCloud>(e);
+                    step.LastStepSimSeconds = now;
+                    step.Stepped = 1;
+                }
 
                 // ① drift on the wind at the cloud (the ground wind: its base height), for the time since its last step — ⭐ CE-3236 (B-14,
                 //   §7.15 VC-4) unless it still sits on its venting canister
@@ -89,7 +85,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
                 && repo.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>())
             {
-                if (!_ending.Add(e)) return;   // asked already; the teardown is under way
+                ref var c = ref repo.GetComponentRW<AreaEffectCloud>(e);
+                if (c.Ending != 0) return;   // asked already; the teardown is under way
+                c.Ending = 1;
                 repo.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
                 {
                     NetworkId = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value,

@@ -37,7 +37,7 @@ namespace Fdp.Tests.Determinism
             ["Hrot/Engine/Hrot.Core/Services/StaticObstacleBake.cs"] =
                 "R-244 (approved): the obstacle rebuild's quiet-period debounce only schedules background work; WHEN an obstacle enters the simulation is the lifecycle gate's",
             ["Hrot/Engine/Hrot.Traffic/TrafficModules.cs"] =
-                "⏳ R-143 exemption NOT YET RULED: SilenceClock (CE-4021) times a traffic node's SILENCE to drop a dead node's cars — accrues only while cluster time advances, decides nothing while the node publishes",
+                "R-3048 (approved): SilenceClock (CE-4021) times a traffic node's SILENCE to drop a dead node's cars — accrues only while cluster time advances, decides nothing while the node publishes",
         };
 
         private static readonly Regex DeclaresSystem = new(@"\bclass\s+\w+[^{;]*\bIEcsModuleSystem\b", RegexOptions.Compiled);

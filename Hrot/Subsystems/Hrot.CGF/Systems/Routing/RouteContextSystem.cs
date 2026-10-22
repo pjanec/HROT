@@ -41,7 +41,8 @@ public sealed class RouteContextSystem : IEcsModuleSystem
     /// <summary>Minimum elapsed time (seconds) between consecutive evaluations.</summary>
     public float TickIntervalSeconds { get; set; } = 0.5f;
 
-    private float _elapsed;
+    // ⭐ R-3039 S1 — no accumulator: the system runs when the SIM clock crosses a multiple of the interval, so the phase is restored with
+    //   the clock (a checkpoint restored into a fresh system keeps the cadence). 📄 docs/DESIGN_System_State_Inventory.md §6 #8.
 
     // -- Query cache (CT-3) --
 
@@ -79,10 +80,12 @@ public sealed class RouteContextSystem : IEcsModuleSystem
             .WithManaged<RoutePlan>()
             .Build();
 
-        _elapsed += deltaTime;
-        if (_elapsed < TickIntervalSeconds)
-            return;
-        _elapsed = 0f;
+        if (TickIntervalSeconds > 0f)
+        {
+            double now = Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime;
+            if (Math.Floor(now / TickIntervalSeconds) == Math.Floor((now - deltaTime) / TickIntervalSeconds))
+                return;   // no interval boundary crossed this step
+        }
 
         // ── Query vehicles following a custom trajectory with a blackboard ────
         foreach (var vehicleEntity in _vehicleQuery)

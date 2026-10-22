@@ -947,6 +947,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // These components live in NedTkbBuilder.WithBehavior templates
             // and are written/read by MoveToExecutor and NavigationExecutionSystem.
             world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
             world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationStatus>();
             world.RegisterComponent<CarKinem.Core.FrustrationTicks>();
 

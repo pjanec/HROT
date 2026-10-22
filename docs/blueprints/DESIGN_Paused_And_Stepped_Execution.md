@@ -4,14 +4,12 @@ build-state: BUILT (2026-10-21: S1–S5, §7a–§7e; the gate is on — FdpConf
 updated: 2026-10-22 (§7g.0c critical review — 12 findings, 4 red) · 2026-10-22 (§7g.0b the solution — four operations on the recorder keyframe; R-3041 no network buffers, in-flight losses accepted) · 2026-10-22 (§7g.0 R0″ R-3040 the dry run on the flight recorder; §7g.0a why SyncFrom was chosen — the record) · 2026-10-22 (§7g.0 R0′ — a checkpoint is a recorder keyframe, a restore is the replay load + go live; R0a′ superseded) · 2026-10-22 (§7g.0 R0a — singletons are valid storage, but SyncFrom snapshots carry only 11, borrowed; checkpoint/Stop/dry run need a copy mode) · 2026-10-22 (§7g.0 the order: checkpoint restore first as the test, CE-3299; the inventory measured incomplete) · 2026-10-22 (§7g R-3039 — systems keep their working memory in components, a checkpoint is a plain ECS snapshot; the change list S1–S4) · 2026-10-22 (§7f.1 — the checkpoint test and classes A/B/C; the counter lean SUPERSEDED after the user's checkpoint point; CE-3298 the editor's Stop rewinds without moving the epoch) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
 current-answer: §7g R-3039 for system state and checkpoints · §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
-known-rot: none.
+known-rot: §7g.1 — its list is "SO FAR" and incomplete; the full inventory is ../DESIGN_System_State_Inventory.md (it measured ThreatEvaluationSystem._lastThreats as A, _lastHealth as C).
 known-conflict: none.
 related-designs:
-<<<<<<< HEAD
   - ../DESIGN_Scenario_Regression.md — the consumer that turns "stepped runs repeat" into a regression suite: every scenario judged and compared with its golden, a fresh process each (CE-3294)
-=======
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the SAVE/RESTORE mechanism (CE-3299): the recorder keyframe, AfterRestore, the pause-first checkpoint; resolves §7g.0c F1–F12 as D1–D12.
->>>>>>> origin/backend
+  - ../DESIGN_System_State_Inventory.md — R-3039's R2 inventory and S4 rail: every field a system, module or translator carries between frames, classified K/A/B/C/X; it REPLACES §7g.1's partial list (the C/X work list is its §2)
   - docs/blueprints/DESIGN_Time_Architecture.md — owns time: who changes it, the zero-delta pause, §17 stepped-mode determinism
     (sim-time cadence, the step wait). Its §17 OPEN item "event visibility across paused frames" is what THIS document settles.
   - docs/designs/mgmt-1/DESIGN.md — owns editing while paused ("Entities placed/modified", :431) and Always Recording (:1941):

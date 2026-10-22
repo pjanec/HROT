@@ -22,6 +22,7 @@
   <ItemGroup>
     <Compile Include="..\..\..\FDP\TestShared\TickModeProbe.cs" Link="Shared\TickModeProbe.cs" />   <!-- CE-3293: every system and module declares its TickMode -->
     <Compile Include="..\..\..\FDP\TestShared\WorldBoundaryProbe.cs" Link="Shared\WorldBoundaryProbe.cs" />   <!-- CE-3294: a system holding entities forgets them at the world boundary -->
+    <Compile Include="..\..\..\FDP\TestShared\SystemStateProbe.cs" Link="Shared\SystemStateProbe.cs" />   <!-- R-3039 S4: every field a system, module or translator carries between frames is classified -->
     <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />

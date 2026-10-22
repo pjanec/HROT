@@ -52,6 +52,7 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NavigationIntent>();
+            repo.RegisterComponent<NavigationApplied>();   // ⭐ R-3039 S1 — what the bridge already applied
             repo.RegisterComponent<NavState>();
             var e = repo.CreateEntity();
             repo.SetComponent(e, default(NavigationIntent));

@@ -1082,6 +1082,23 @@ namespace Fdp.Core
         /// <summary>⭐ <c>CE-3288</c> (backend) — <c>ScenarioDescriptionResident</c>: the loaded scenario's header description, a managed world
         /// singleton a save writes back. 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4d. Backend's block; measured free on every lane 2026-10-20.</summary>
         public const int ScenarioDescriptionResident = 440;
+
+        // ⭐ R-3039 S1 (backend) — a system's memory on the entity it is about (docs/DESIGN_System_State_Inventory.md §6). Backend's block.
+        /// <summary><c>EjectionDone</c> — this aircraft's crew has ejected (was <c>EjectionSystem._ejected</c>).</summary>
+        public const int EjectionDone = 441;
+        /// <summary><c>BleedOut</c> — the bleed carried between steps on an incapacitated man (was <c>BleedOutSystem._pending</c>).</summary>
+        public const int BleedOut = 442;
+        /// <summary><c>DoorPassage</c> — a walker's passage through a doorway (was <c>DoorPassageSystem._passages</c>).</summary>
+        public const int DoorPassage = 443;
+        /// <summary><c>NavigationApplied</c> — the intent and locomotion action a mover already applied (was <c>NavigationIntentBridgeSystem</c>'s latches).</summary>
+        public const int NavigationApplied = 444;
+        /// <summary><c>SquadMemberSense</c> — a man's fighting-position sense (was <c>SquadSenseChanges._members</c>).</summary>
+        public const int SquadMemberSense = 445;
+        /// <summary><c>SquadUnitSense</c> — a squad's sense on its commander (was <c>SquadSenseChanges._units</c>).</summary>
+        public const int SquadUnitSense = 446;
+        /// <summary><c>TrafficShadowFollow</c> — a handed-over body's follow of its SUMO shadow (was <c>TrafficShadowFollowSystem._follow</c>).
+        /// Backend's block, not traffic's 450–459: the traffic owner allocates there, and a backend id can never collide with it.</summary>
+        public const int TrafficShadowFollow = 447;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

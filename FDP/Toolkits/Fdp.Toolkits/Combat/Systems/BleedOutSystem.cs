@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
@@ -25,37 +24,36 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <summary>How much bleeding time is gathered before it is taken off the health (s).</summary>
         public const float StepSeconds = 1f;
 
-        private readonly Dictionary<Entity, float> _pending = new();
-        private int _epoch;   // ⭐ CE-3294 — the world the state below describes (the bleed carried between steps)
-        private readonly List<Entity> _gone = new();
-
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _pending.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
-            if (view is not EntityRepository repo
-                || !repo.IsComponentTypeRegistered<InjuryThresholds>() || !repo.IsComponentTypeRegistered<Health>()) return;
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<InjuryThresholds>()
+                || !repo.IsComponentTypeRegistered<Health>() || !repo.IsComponentTypeRegistered<BleedOut>()) return;
 
+            // ⭐ R-3039 S1 — the bleed gathered between steps lives on the man (BleedOut), not in this system: a checkpoint restored into a
+            //   fresh system carries it on. It stays while he bleeds (no add / remove per step) and goes when he stops.
             foreach (var e in repo.Query().With<InjuryThresholds>().With<Health>().Build())
             {
-                if (repo.HasComponent<NetworkAuthority>(e) && !repo.HasAuthority<Health>(e)) { _pending.Remove(e); continue; }
+                bool bleeding = !(repo.HasComponent<NetworkAuthority>(e) && !repo.HasAuthority<Health>(e));
                 ref readonly var health = ref repo.GetComponentRO<Health>(e);
                 float rate = repo.GetComponentRO<InjuryThresholds>(e).BleedPerSecond;
-                if (rate <= 0f || Injury.StateOf(repo, e, in health) != InjuryState.Incapacitated) { _pending.Remove(e); continue; }
+                bleeding &= rate > 0f && Injury.StateOf(repo, e, in health) == InjuryState.Incapacitated;
+                if (!bleeding)
+                {
+                    if (repo.HasComponent<BleedOut>(e)) repo.RemoveComponent<BleedOut>(e);
+                    continue;
+                }
 
-                _pending.TryGetValue(e, out float bled);
-                bled += deltaTime;
-                if (bled < StepSeconds) { _pending[e] = bled; continue; }
-                _pending.Remove(e);
+                if (!repo.HasComponent<BleedOut>(e)) repo.AddComponent(e, new BleedOut());
+                ref var pending = ref repo.GetComponentRW<BleedOut>(e);
+                pending.Pending += deltaTime;
+                if (pending.Pending < StepSeconds) continue;
+                float bled = pending.Pending;
+                pending.Pending = 0f;
 
                 ref var hp = ref repo.GetComponentRW<Health>(e);
                 hp.Current = MathF.Max(0f, hp.Current - rate * hp.Max * bled);
                 if (hp.Current <= 0f) CombatLife.ApplyHitCapabilities(repo, e, in hp);
             }
-
-            // Entities destroyed while bleeding.
-            foreach (var e in _pending.Keys) if (!repo.IsAlive(e)) _gone.Add(e);
-            foreach (var e in _gone) _pending.Remove(e);
-            _gone.Clear();
         }
     }
 }

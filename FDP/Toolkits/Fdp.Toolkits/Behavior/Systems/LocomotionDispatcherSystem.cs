@@ -20,7 +20,6 @@ namespace Fdp.Toolkit.Behavior.Systems
     {
         public override void Execute(ISimulationView view, float deltaTime)
         {
-            ForgetLastWorld(view);   // ⭐ CE-3076 — _previousAction is per entity INDEX, reused across worlds
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(LocomotionDispatcherSystem)} requires direct EntityRepository access " +
@@ -61,12 +60,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                     //   this `continue` skipped the lifecycle block below, so OnExit never ran and SimHost kept driving the last path:
                     //   measured live, a killed unit walked ~80 m to its mission's destination (U4). BD1 §1.0b: finishing clears every
                     //   channel. If the capability comes back, the behaviour's re-issued action (a new ActionInstanceId) enters afresh.
-                    EnsurePreviousActionCapacity(entity.Index + 1);
-                    ushort running = _previousAction[entity.Index];
+                    ushort running = channel.DispatchedAction;
                     if (running != 0)
                     {
                         _executors[running]?.OnExit(entity, ref channel, repo);
-                        _previousAction[entity.Index] = 0;
+                        channel.DispatchedAction = 0;
                         channel.DispatchedInstanceId = channel.ActionInstanceId;
                     }
                     channel.Status = NodeStatus.Failure;
@@ -76,8 +74,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Lifecycle: detect when a new action has been dispatched.
                 if (channel.ActionInstanceId != channel.DispatchedInstanceId)
                 {
-                    EnsurePreviousActionCapacity(entity.Index + 1);
-                    ushort oldAction = _previousAction[entity.Index];
+                    ushort oldAction = channel.DispatchedAction;
 
                     // Note: at the time OnExit is called, channel.ActiveAction and channel.ActionInstanceId
                     // still hold the OUTGOING action's values. DispatchedInstanceId is updated after this call.
@@ -86,7 +83,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     _executors[channel.ActiveAction]?.OnEnter(entity, ref channel, repo);
 
                     channel.DispatchedInstanceId = channel.ActionInstanceId;
-                    _previousAction[entity.Index] = channel.ActiveAction;
+                    channel.DispatchedAction = channel.ActiveAction;
                 }
 
                 // ── Same-frame OnEnter + Execute safety invariant ────────────────────────────

@@ -966,6 +966,11 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
 | ✅✅ **run 5: 15/15** (`scripts/sumo-accept-slice2.py`, fresh five-process cluster): every node `OperatingLive` · the same 12–13 replicas on CGF, SimHost and IG within 0 s of the wait, each owned by the traffic node (800) everywhere · cars move · pose spread median **0.98 m** (p90 2.9 m) · pause from **CGF** holds every mirror at 0.0000 m · no map buffer drops (~1 400) · SimHost LOS resolves a car · the traffic node killed ⇒ every node stays up, no car moves, every replica cleared in 12.5 s · 0 stepping timeouts. ⚠ Found on the way, the script's own: ⛔ run 1's "0.0000 m" pause was SUMO crawling (CE-4020), not the pause — IG and the orchestrator REFUSE `/sim/pause` (`NOT_SUPPORTED_HERE: no 'time.drive'`), only the time-driving node (CGF) pauses the cluster, and the script had ignored the refusal; a car leaving the vicinity between two reads read as "no owner" | the script pauses through CGF and asserts the pause was accepted; skips a car that left mid-check | `scripts/sumo-accept-slice2.py` |
 | ⛔ run 2 (the first build of CE-4021): IG showed NO car for 100+ s while CGF had 20. 📐 It measured silence on cluster time, and IG's slave clock corrects in JUMPS on a loaded box (`SlaveSyncController` discards sync results with RTT > 200 ms) — every jump > 5 s read as silence and dropped the source. ⭐ Also: SUMO's first cars reach the mirrors ~32 s after the load (the grant, then the session build) — the acceptance now waits for them | `SilenceClock` | `TheSilenceClock_HoldsWhilePaused_AndIgnoresAClockJump` |
 
+⭐ **`R-3048` (`2026-10-22`) — `SilenceClock`'s wall seconds are the third R-143 exemption.** It times how long a source has been
+silent on the NETWORK (a liveness timeout), accrues only on frames where cluster time advanced, at most 1 s per frame; it decides
+when a dead node's replicas are removed, never how a car moves. Sim time alone failed (run 2 above); wall time alone would drop
+every car during a pause. Found by the CE-4044 no-wall-clock rail. 🔒 User: *"you lean about R-143 accepted."*
+
 ## 13. Slice 3 — our bodies into SUMO (E4, R-4027) *(2026-10-17 — build-state: BUILT, ✅ live; §13.7 is the as-built)*
 
 ### 13.1 INVENTORY *(code graph CLI `search_graph` + grep, 2026-10-17)*

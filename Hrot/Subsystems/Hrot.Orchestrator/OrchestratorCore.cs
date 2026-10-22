@@ -55,6 +55,7 @@ public sealed class OrchestratorCore : IDisposable
     private readonly ClusterMaster                 _master;
     private readonly LiveBranchProcessManager      _liveBranch;
     private readonly ReplaySeekProcessManager      _seek;
+    private readonly PreviewClockProcessManager    _previewClock;   // ⭐ CE-3299 B2 / D5
     private readonly GlobalContextProcessManager   _globalContext;
     private readonly AssetPrefetchProcessManager   _prefetch;
     private readonly ReplayProcessManager          _replay;
@@ -144,6 +145,9 @@ public sealed class OrchestratorCore : IDisposable
         // TASK-T002 — the seek. Must tick BEFORE ClusterMaster so its precondition events precede the fan-out.
         _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule
 
+        // ⭐ CE-3299 B2 / D5 — a cluster dry run puts the clock back with the world (the editor's own Play/Stop already does, CE-3156).
+        _previewClock = new PreviewClockProcessManager(bus, timeReads, time);
+
         // TASK-P002 — the prefetch. Must tick BEFORE ClusterMaster so PrefetchStagingCompletedEvent is ready.
         _prefetch = new AssetPrefetchProcessManager(bus, storageGateway, nas, tkbName: config.TkbName);   // ⭐ R-4018
 
@@ -165,6 +169,7 @@ public sealed class OrchestratorCore : IDisposable
     {
         _liveBranch.Tick();
         _seek.Tick();
+        _previewClock.Tick();
         _globalContext.Tick();
         _prefetch.Tick();
         _master.Tick();
