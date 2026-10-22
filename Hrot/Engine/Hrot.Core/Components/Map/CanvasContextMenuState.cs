@@ -11,6 +11,9 @@ namespace Hrot.IG.Components
     /// variant). Read by <c>CanvasContextMenuGizmo</c>, which projects a
     /// <c>ContextMenuBinding</c> meta-primitive keyed by anchor ID <c>-1L</c>.</para>
     /// </summary>
+    // ⭐ D7 (restore design) — content / service / index, never world state: a keyframe must not carry it, and an apply must
+    //   not replace the loaded instance (R-3043).
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
     [ComponentId(HrotComponentIds.CanvasContextMenuState)]
     public sealed class CanvasContextMenuState
     {

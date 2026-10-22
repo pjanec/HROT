@@ -155,22 +155,14 @@ public sealed class TerrainDefinitionTests
     }
 
     /// <summary>
-    /// 🔴 ENGINE HAZARD, measured — <c>[DataPolicy]</c> on a managed type is applied by
-    /// <c>RegisterManagedComponent</c> and by nothing else. <c>SetSingletonManaged</c> auto-registers
-    /// through <c>ManagedComponentType&lt;T&gt;.ID</c>, which does NOT read the attribute, so the type
-    /// keeps the registry defaults (recordable = saveable = TRUE).
-    ///
-    /// <para>⇒ a managed singleton set without a prior registration is <b>recorded into the flight
-    /// recorder despite carrying <c>NoReplay</c></b>, silently. This rail exists so the day someone
-    /// removes the registration from the shared registry, THIS fails loudly and names the reason,
-    /// instead of the policy quietly ceasing to apply.</para>
-    ///
-    /// ⚠ The assertion below documents CURRENT ENGINE BEHAVIOUR, which is a defect, not the behaviour we
-    /// want. If the engine is fixed so auto-registration honours the attribute, this test SHOULD fail —
-    /// delete it then, and keep the one above.
+    /// ✅ <b>ENGINE HAZARD FIXED <c>2026-10-22</c></b> (D7, docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1c). ⛔ SUPERSEDED: this
+    /// rail used to pin the defect — <i>"<c>SetSingletonManaged</c> auto-registers through
+    /// <c>ManagedComponentType&lt;T&gt;.ID</c>, which does NOT read the attribute, so the type keeps the registry defaults
+    /// (recordable = saveable = TRUE)"</i>, and said to delete it once the engine was fixed. ⭐ Kept and INVERTED instead: the
+    /// first registration now reads <c>[DataPolicy]</c>, so the policy holds even with no prior registration.
     /// </summary>
     [Fact]
-    public void SettingTheSingletonWithoutRegistering_SilentlyIgnoresTheDataPolicy()
+    public void SettingTheSingletonWithoutRegistering_HonoursTheDataPolicy()
     {
         ComponentTypeRegistry.Clear();
         using var repo = new EntityRepository();
@@ -180,9 +172,9 @@ public sealed class TerrainDefinitionTests
 
         int id = ManagedComponentType<TerrainDefinition>.ID;
 
-        Assert.True(ComponentTypeRegistry.IsRecordable(id),
-            "MEASURED 2026-09-17: the attribute is ignored on the auto-registration path, so the type "
-          + "defaults to recordable. If this now fails, the engine has been fixed — delete this rail.");
+        Assert.False(ComponentTypeRegistry.IsRecordable(id),
+            "D7: the first registration reads [DataPolicy] — TerrainDefinition is NoReplay even when nothing registered it.");
+        Assert.False(ComponentTypeRegistry.IsSaveable(id), "… and NoScenario.");
     }
 
     // ── CE-3126 (R-229): the geo origin is part of the terrain file ────────────────────────────
