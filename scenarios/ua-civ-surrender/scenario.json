@@ -1,144 +1,144 @@
 {
-  "$meta": {
-    "docType": "Hrot.Scenario",
-    "schemaVersion": 1
-  },
-  "header": {
-    "subsystemType": "Hrot.Scenario",
-    "schemaVersion": "1.0",
-    "terrainName": "test-town",
-    "description": "What: An instigating Rioter strikes a Policeman (and so turns Hostile), and a Rifleman 40 m off is ordered to attack him (CV-13a: a covered hostile raises his hands, the AI holds). Judge: (1) the rioter is Hostile after the blow (2) covered, his hands go up (Gesture HandsUp) on CGF, SimHost and IG (3) the rifleman is seen holding ('hold: hands up') (4) from the first raised-hands sample for 10 s the rifleman spends no round and the rioter is not hurt (5) he stays Hostile. Fail: the rifleman shoots a man with raised hands, or the hands never go up. Check: python3 scripts/utility-demo-check.py --launch ua-civ-surrender"
-  },
-  "entities": {
-    "c2410001-0000-4000-8000-000000000001": {
-      "SimTransform": {
-        "Position": [
-          100,
-          200,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          0,
-          1
-        ]
-      },
-      "Health": {
-        "Current": 100,
-        "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 9901
-      },
-      "TkbIdentity": {
-        "TkbType": 1202
-      },
-      "EntityInfo": {
-        "Name": "Policeman",
-        "ForceId": "Friend"
-      },
-      "TargetMemory": {
-        "Entries": []
-      },
-      "Behavior": {
-        "Name": "Idle",
-        "Params": "{}",
-        "Origin": "Superior"
-      }
+    "$meta": {
+        "docType": "Hrot.Scenario",
+        "schemaVersion": 1
     },
-    "c2410001-0000-4000-8000-000000000002": {
-      "SimTransform": {
-        "Position": [
-          106,
-          200,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          0,
-          1
-        ]
-      },
-      "Health": {
-        "Current": 100,
-        "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 9902
-      },
-      "TkbIdentity": {
-        "TkbType": 1101
-      },
-      "EntityInfo": {
-        "Name": "Rioter",
-        "ForceId": "Neutral"
-      },
-      "TargetMemory": {
-        "Entries": []
-      },
-      "Behavior": {
-        "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true}",
-        "Origin": "Superior"
-      }
+    "header": {
+        "subsystemType": "Hrot.Scenario",
+        "schemaVersion": "1.0",
+        "terrainName": "test-town",
+        "description": "What: An instigating Rioter strikes a Policeman (and so turns Hostile), and a Rifleman 40 m off is ordered to attack him (CV-13a: a covered hostile raises his hands, the AI holds). Judge: (1) the rioter is Hostile after the blow (2) covered, his hands go up (Gesture HandsUp) on CGF, SimHost and IG (3) the rifleman is seen holding ('hold: hands up') (4) from the first raised-hands sample for 10 s the rifleman spends no round and the rioter is not hurt (5) he stays Hostile. Fail: the rifleman shoots a man with raised hands, or the hands never go up. Check: python3 scripts/utility-demo-check.py --launch ua-civ-surrender"
     },
-    "c2410001-0000-4000-8000-000000000003": {
-      "SimTransform": {
-        "Position": [
-          130,
-          224,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          0,
-          1
-        ]
-      },
-      "Health": {
-        "Current": 100,
-        "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 9903
-      },
-      "TkbIdentity": {
-        "TkbType": 2002
-      },
-      "EntityInfo": {
-        "Name": "Rifleman",
-        "ForceId": "Friend"
-      },
-      "TargetMemory": {
-        "Entries": []
-      },
-      "MissionPlan": {
-        "PlanData": {
-          "activeTaskId": "00000000-0000-0000-0000-000000000000",
-          "tasks": [
-            {
-              "taskId": "c2410001-0000-4000-8000-000000000101",
-              "executingEngine": "",
-              "behaviorName": "PersonAttack",
-              "behaviorParams": "{\"Target\":9902}",
-              "triggers": [
-                {
-                  "type": "BehaviorFinished",
-                  "params": ""
-                }
-              ]
+    "entities": {
+        "c2410001-0000-4000-8000-000000000001": {
+            "SimTransform": {
+                "Position": [
+                    100,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9901
+            },
+            "TkbIdentity": {
+                "TkbType": 1202
+            },
+            "EntityInfo": {
+                "Name": "Policeman",
+                "ForceId": "Friend"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "Idle",
+                "Params": "{}",
+                "Origin": "Superior"
             }
-          ]
+        },
+        "c2410001-0000-4000-8000-000000000002": {
+            "SimTransform": {
+                "Position": [
+                    106,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9902
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Rioter",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true}",
+                "Origin": "Superior"
+            }
+        },
+        "c2410001-0000-4000-8000-000000000003": {
+            "SimTransform": {
+                "Position": [
+                    130,
+                    224,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9903
+            },
+            "TkbIdentity": {
+                "TkbType": 2002
+            },
+            "EntityInfo": {
+                "Name": "Rifleman",
+                "ForceId": "Friend"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "MissionPlan": {
+                "PlanData": {
+                    "activeTaskId": "00000000-0000-0000-0000-000000000000",
+                    "tasks": [
+                        {
+                            "taskId": "c2410001-0000-4000-8000-000000000101",
+                            "executingEngine": "",
+                            "behaviorName": "PersonAttack",
+                            "behaviorParams": "{\"Target\":9902}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            "Sop": {
+                "Name": "InertSop",
+                "Params": "{}",
+                "Origin": "Superior"
+            }
         }
-      },
-      "Sop": {
-        "Name": "InertSop",
-        "Params": "{}",
-        "Origin": "Superior"
-      }
     }
-  }
 }
