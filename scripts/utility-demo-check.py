@@ -3977,6 +3977,8 @@ def run_civ_provocation(c, timeout):
     if not c.ok(None not in list(civs.values()) + police, "twelve protesters and three policemen are loaded"):
         return
     rioted, blows, near_at = {}, [None], [None]
+    posts = {police[0]: (194.0, 259.0), police[1]: (194.0, 265.0), police[2]: (194.0, 271.0)}   # each one's MoveToLocation point
+    closest = {n: 1e9 for n in police}
 
     def xy(n):
         p = ((comps(n) or {}).get("SimTransform") or {}).get("Position") or [0, 0, 0]
@@ -3987,6 +3989,7 @@ def run_civ_provocation(c, timeout):
         where = {i: xy(n) for i, n in civs.items()}
         for n in police:
             px, py = xy(n)
+            closest[n] = min(closest[n], ((px - posts[n][0]) ** 2 + (py - posts[n][1]) ** 2) ** 0.5)
             if near_at[0] is None and any(((x - px) ** 2 + (y - py) ** 2) ** 0.5 <= 30.0 for x, y in where.values()):
                 near_at[0] = t
         for i, n in civs.items():
@@ -4002,6 +4005,9 @@ def run_civ_provocation(c, timeout):
     first = min(rioted.values()) if rioted else None
     c.ok(near_at[0] is not None and (first is None or first >= near_at[0]),
          f"① nobody riots before the police are within 30 m (police near at {near_at[0]}, first riot at {first})")
+    # ⭐ CE-4041 — every policeman reaches his post: 📌 two of the three spawned inside Block B, their moves failed unreachable every
+    #   few frames and they never moved; ① and ② still passed on the third man alone
+    c.ok(all(d <= 3.0 for d in closest.values()), f"① every policeman reaches his post (closest m: { {k: round(v, 1) for k, v in closest.items()} })")
     c.ok(blows[0] is not None, f"② the baton charge knocks a protester down (at {blows[0]})")
     c.ok(1 <= len(rioted) < len(civs), f"② a FRACTION riots: {len(rioted)} of {len(civs)} ({sorted(rioted)})")
     hostile = {}

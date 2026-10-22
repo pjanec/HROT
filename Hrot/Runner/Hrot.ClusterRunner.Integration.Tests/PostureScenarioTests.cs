@@ -1070,9 +1070,14 @@ public sealed class PostureScenarioTests : IDisposable
         var lastMode = new Fdp.Toolkit.Civilians.CivilianMode[12];
         var trace = new System.Text.StringBuilder();
         Vector3 At(Entity e) => cgf.GetComponentRO<SimTransform>(e).Position;
+        // ⭐ CE-4041 — each policeman's MoveToLocation point, and the closest he came to it
+        var posts = new[] { new Vector2(194, 259), new Vector2(194, 265), new Vector2(194, 271) };
+        var closest = new float[] { float.MaxValue, float.MaxValue, float.MaxValue };
         void Sample()
         {
             double now = cgf.SimulationTime, fxNow = HitModel.Now(cgf);
+            for (int i = 0; i < police.Length; i++)
+                closest[i] = MathF.Min(closest[i], Vector2.Distance(new Vector2(At(police[i]).X, At(police[i]).Y), posts[i]));
             if (nearAt == null && police.Any(p => civs.Any(c => Vector2.Distance(new Vector2(At(p).X, At(p).Y), new Vector2(At(c).X, At(c).Y)) <= 30f)))
                 nearAt = now;
             for (int i = 0; i < civs.Length; i++)
@@ -1098,6 +1103,9 @@ public sealed class PostureScenarioTests : IDisposable
         _out.WriteLine(State());
         _out.WriteLine("modes:" + trace);
         Assert.True(nearAt != null && (firstRiot == null || firstRiot >= nearAt), $"① nobody riots before the police are within 30 m; {State()}");
+        // ⭐ CE-4041 — 📌 two of the three spawned inside Block B: their moves failed unreachable every few frames and they never moved,
+        //   while ① and ② passed on the third man alone
+        Assert.True(closest.All(m => m <= 3f), $"① every policeman reaches his post: closest [{string.Join(", ", closest.Select(m => m.ToString("0.0")))}] m; {State()}");
         Assert.True(blowAt != null, $"② the baton charge knocks a protester down; {State()}");
         Assert.True(rioted.Count >= 1 && rioted.Count < civs.Length, $"② a FRACTION riots; {State()}");
         Assert.True(hostile().Length > 0 && hostile().All(rioted.Contains), $"③ every Hostile civilian rioted first, and one is; {State()}");
