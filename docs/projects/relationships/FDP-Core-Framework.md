@@ -344,6 +344,8 @@ Modules choose one of four execution profiles via `ExecutionPolicy`:
 
 Systems are the smallest unit of execution. They are stateless value-types or simple classes:
 
+> ⭐ **R-3039** (`2026-10-22`): a system's working memory is entities and components — every frame, no private copy — and a checkpoint is a plain ECS snapshot. A system may hold only derived data (caches, engine objects rebuilt from components). 📄 [`DESIGN_Paused_And_Stepped_Execution.md`](../../blueprints/DESIGN_Paused_And_Stepped_Execution.md) §7g.
+
 ```csharp
 public interface IEcsModuleSystem
 {

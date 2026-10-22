@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-10-21: S1–S5, §7a–§7e; the gate is on — FdpConfig.TickModeGate; acceptance ①–⑤ green, ④ live)
-updated: 2026-10-22 (§7f.1 — the checkpoint test and classes A/B/C; the counter lean SUPERSEDED after the user's checkpoint point; CE-3298 the editor's Stop rewinds without moving the epoch) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
-current-answer: §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
+updated: 2026-10-22 (§7g R-3039 — systems keep their working memory in components, a checkpoint is a plain ECS snapshot; the change list S1–S4) · 2026-10-22 (§7f.1 — the checkpoint test and classes A/B/C; the counter lean SUPERSEDED after the user's checkpoint point; CE-3298 the editor's Stop rewinds without moving the epoch) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
+current-answer: §7g R-3039 for system state and checkpoints · §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -468,7 +468,7 @@ is the preview Stop) — the contract still binds, because `PrepareLive` from a 
 | **B — protocol** | re-derived at the boundary, never recorded (a peer will not resend) | ELM queues · ghost promotion · deferred construction acks · egress "published once" sets (empty ⇒ republish) | ✅ a field + the re-derivation (§2.1d / §2.1m) |
 | **C — simulation memory** | ⛔ **no** — empty ≠ what happened | 📐 `EjectionSystem._ejected` (second pilot) · `AreaEffectCloudSystem._lastStep` (empty ⇒ the step runs from the cloud's BIRTH: it jumps wind × its age, `:59`/`:71`) · `DangerAreaSensorSystem._last` (re-announces; the hysteresis lost) · `BleedOutSystem._pending` (the bleed so far forgotten) | ⛔ **a component** — CE-3297 |
 
-⏳ **Lean** (awaits the user): ① **CE-3297 is the fix, not a "when touched" cleanup** — class C moves into components (each its own
+✅ **RESOLVED by `R-3039` (§7g, `2026-10-22`).** The lean as it stood: ① **CE-3297 is the fix, not a "when touched" cleanup** — class C moves into components (each its own
 small change, with a *restore into a fresh system* rail: the CE-3215 probe above is the template); a component is cleared by a load,
 captured by a checkpoint, restored by Stop and by a replay seek, with no signal at all. ② the CE-3294 probe gains the class: every
 entity-holding field is exempted AS class A or B with its reason, and ⛔ there is no exemption for class C. ③ only then, Stop's remaining
@@ -482,6 +482,62 @@ class-A/B fields (the egress sets above all) take a "the world was restored" sig
     _w.SyncFrom(editSnapshot); Assert.True(_w.IsAlive(jet));                                      // Stop
     _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet }); Assert.Single(Frame().Spawned); }   // Play again
 ```
+
+## 7g. ⭐⭐⭐ `R-3039` — **A SYSTEM'S WORKING MEMORY IS ENTITIES AND COMPONENTS; A CHECKPOINT IS A PLAIN ECS SNAPSHOT** (`2026-10-22`, ⏳ build: CE-3297 / CE-3298)
+
+🔒 **User, verbatim:** *"There is also checkpointing feature solely relying on all non-auto-recoverable state saved in ecs components. So
+the simulation can continue when checkpoint snapshot is restored."* · *"Does it make sense to invent some parallel save/load system for
+systems? Could all be converted to stateles using entities and components?"* · *"Shoukdnt the syatems use entities ans component as their
+working memory?"* · *"Yes write the ruling and summarize what needs changing"*
+
+```mermaid
+graph TD
+  subgraph ECS["the world: entities + components (+ singleton components)"]
+    M["working memory<br/>(class C: latches, last values, timers, route progress)"]
+    P["protocol state, Transient<br/>(class B: acks, promotion, construction)"]
+    G["global sim state as singletons<br/>(trajectory pool, id allocator position)"]
+  end
+  S["a system<br/>(stateless: reads and writes the world each frame)"]
+  K["derived copy only<br/>(class A: caches, physics bodies, gizmos)"]
+  CP["checkpoint / recording / Stop snapshot<br/>= SyncFrom + keyframe, nothing else"]
+  R["restore boundary<br/>(load a checkpoint, go live from replay, Stop)"]
+  S -->|reads / writes| M
+  S -->|reads / writes| P
+  S -->|reads / writes| G
+  S -.->|rebuilds from the world| K
+  CP -->|copies| ECS
+  R -->|re-derives class B from LifecycleState| P
+  R -.->|may clear| K
+```
+*What the picture shows that prose hid:* the checkpoint has **no edge to any system** — it copies the world and nothing else; the only
+thing a restore does beyond the copy is re-derive class B (a peer will not resend its acks) and let class A rebuild. A system holds no
+arrow INTO itself: there is nothing in it to save.
+
+| | the rule |
+|---|---|
+| ① | a system keeps its working memory **in components on the entity it is about** (or a singleton component for world-wide state) — every frame, never a private copy saved at checkpoint time. ⛔ No per-system save/load interface |
+| ② | a checkpoint, a recording and Stop's snapshot are **plain ECS snapshots**; `DataPolicy` (`NoPreview` / `NoReplay` / `NoScenario` / `Transient`) is the one knob for what each keeps |
+| ③ | a system may still hold **derived** data — a cache or an engine object rebuilt from components (class A); losing it changes nothing |
+| ④ | protocol state (class B) lives in `Transient` components and is **re-derived** at a restore from the recorded `LifecycleState` ([replay design §2.1d](../designs/replay-and-modules/DESIGN.md)), never trusted as restored |
+| ⑤ | **the test, per field: empty, with the world restored, does the run continue as if nothing happened?** No ⇒ it belongs in a component |
+| ⑥ | write a persistent component once and update it; ⛔ no tag add/remove churn per frame. A background system on a snapshot writes through the command buffer |
+
+⛔ **Rejected:** a per-system save/load interface — a second persistence path (`PreviewStateBracket` is one already: it serves Stop and
+**not** the checkpoint handler) · a world counter that clears — cannot restore class C (📐 the second pilot, §7f.1) · recording protocol
+progress as-is — deadlocks (§2.1d).
+
+### 7g.1 What needs changing — the inventory (CE-3294's probe: systems holding `Entity` fields; ⚠ fields keyed by an entity INDEX or a NETWORK ID are outside it and were found by reading)
+
+| stage | what | items | why |
+|---|---|---|---|
+| **S1** class C → components (one small change each, each with a *restore into a fresh system* rail; §7f.1's CE-3215 probe is the template) | per-entity memory | `EjectionSystem._ejected` (📐 a second pilot) · `AreaEffectCloudSystem._lastStep` (a cloud jumps wind × its age) · `DangerAreaSensorSystem._last/_next` (edges + hysteresis) · `BleedOutSystem._pending` (bleed so far) · `DoorPassageSystem._passages` (a door being opened) · `VehicleNavigationIntentSystem._routes` (Stride: route progress — restarts at corner 0) · `DispatcherSystemBase._previousAction` (by entity index: action edges) · `NavigationIntentBridgeSystem` applied-intent / applied-action ids (⚠ unmeasured: a re-applied order may replan) · `CrowdSystem` crowd membership | empty ≠ what happened |
+| **S2** global sim state → singleton components | world-wide memory | 🔴 **the trajectory pool** — `NavState.TrajectoryId` points into `GroundKinematicsModule`'s private `TrajectoryPoolManager` (⚠ its doc comment says *"singleton (managed component)"* — it is not), so a checkpoint keeps the id and loses the path · the network-id allocator's position (today restored for Stop only, by the bracket) · `CrowdSystem._nextId` | a checkpoint must carry what ids point into |
+| **S3** class B → re-derived at every restore | protocol | ghost promotion queue · deferred construction (`NetworkGatewaySystem`, `SimulatedInitReadinessParticipant`) · `BrainTickSystem._publishedTerminalForInstanceId` · the egress per-id "published once" sets (onto `EgressPublicationState`, or cleared at the restore) · the ELM queues (✅ already: §2.1m's participant) | one "the world was restored" step on every restore path — Stop, dry run, go-live-from-replay, checkpoint restore — replacing the bracket participants that S2 turns into components |
+| **S4** the rail | enforcement | the CE-3294 probe widened to fields keyed by `Entity`, an entity index or a network id; every such field EXEMPT as class A or B with its reason; ⛔ no exemption for C · one generic Play → Stop → Play rail | a convention nothing checks decays |
+| stays (class A) | derived | `ThreatEvaluationSystem` (an empty map falls back to the memory component) · `EmbarkedStateSystem._killSent` (self-heals) · `OwnershipEgressSystem` (an equality cache) · `WreckSpawnSystem` (first sight records, by design) · `LocalGridBuilderSystem` · `HierarchyOrderSystem` · `StaticObstacleBakeSystem` · `RouteTrajectorySyncSystem` (re-made from route entities) · gizmos · Stride physics bodies · `EffectSystems` · the 31 scratch exemptions | rebuilt from the world |
+
+⚠ **Out of scope:** the named-checkpoint RESTORE operation itself (not built). The contract binds now through go-live-from-replay.
+⭐ Order: S1 and S2 first (they are the behaviour a checkpoint loses); S3 makes Stop and every restore one path; S4 locks it.
 
 ## 8. ✅ Leans — APPROVED by the user `2026-10-21` (*"Approved."*) — the marks in Appendix A carry them
 
