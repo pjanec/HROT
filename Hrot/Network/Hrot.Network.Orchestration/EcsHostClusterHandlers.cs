@@ -41,8 +41,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public NetworkLifecycleSystemGroup?  LifecycleGroup { get; init; }
         public Action<bool>?                 BypassLifecycle { get; init; }
 
-        // ── checkpoint (until B3 makes it a recorder keyframe request) ──
-        public CheckpointIOWorker? CheckpointWorker { get; init; }
+        // ── the dry run's event history (D2) ──
         public EventAccumulator?   EventAccumulator { get; init; }
 
         // ── dry run: the non-ECS state it also puts back (DESIGN_Deterministic_Network_Ids.md §2b) ──
@@ -101,11 +100,9 @@ namespace Hrot.SimHost.Modules.Orchestration
                 // §2.1m step 3 — the ELM's bookkeeping is discarded at EVERY world replacement.
                 worldReplaced:         worldReplaced));
 
-            // 2. Checkpoint (CGF1-S0303) — where the host owns a worker. ⏳ B3 replaces it with a recorder keyframe request
-            //    that every host takes (R-3044).
-            if (h.CheckpointWorker != null)
-                slave.RegisterHandler(new ReferenceCheckpointHandler(
-                    h.CheckpointWorker, h.World, h.EventAccumulator ?? new EventAccumulator()));
+            // 2. Checkpoint — ⭐ CE-3299 B3 (R-3044): a keyframe the node's LIVE recording writes on request, on EVERY host (the
+            //    'FDPC' worker it replaced lived on SimHost only, so CGF, IG, Stride, traffic and the editor took none).
+            slave.RegisterHandler(new ReferenceCheckpointHandler(() => controller.ActiveRecordingModule));
 
             // 3. Dry run (D14) — this node puts back its OWN world, id pool, entity map and ELM queues (HN-017/HN-018).
             var rewindables = new List<IPreviewRewindable>();
@@ -141,7 +138,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             SerializeLocalRegistrar.Register(slave, h.ScenarioSaveHandler, h.StagingRoot, h.NodeId);
 
             // 9. Live load — LAST: FinalizeLive, and a cold PrepareLive nothing above claimed.
-            slave.RegisterHandler(new ReferenceLiveLoadHandler(h.CheckpointWorker, controller, h.StagingRoot));
+            slave.RegisterHandler(new ReferenceLiveLoadHandler(controller, h.StagingRoot));
 
             return new EcsHostClusterHandlers(controller, dryRun);
         }

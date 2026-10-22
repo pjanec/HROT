@@ -19,6 +19,16 @@ namespace Fdp.Toolkit.Orchestration
     public readonly record struct ReplaySeekPayload(long TargetWallTicks, long AnchorWallTicks = 0);
 
     /// <summary>
+    /// ⭐ <c>CE-3299</c> B3 (R-3044, D3) — payload of <see cref="NodeOpType.TakeSnapshot"/>: write a checkpoint KEYFRAME named
+    /// <paramref name="Label"/> at the first frame whose <c>GlobalTime.TotalWallTicks</c> is at or past <paramref name="AtWallTicks"/>
+    /// (0 = the next frame). The master names one wall time for every node.
+    /// </summary>
+    public readonly record struct CheckpointPayload(string Label, long AtWallTicks);
+
+    /// <summary>⭐ <c>CE-3299</c> B3 — payload of <see cref="NodeOpType.ExportCheckpoint"/>: export the checkpoint <paramref name="Label"/>.</summary>
+    public readonly record struct ExportCheckpointPayload(string Label);
+
+    /// <summary>
     /// Result payload returned by a completed <see cref="NodeOpType.NodeReplaySeek"/> operation.
     /// Carries the <see cref="GlobalTime"/> the recording landed on after the seek.
     /// </summary>

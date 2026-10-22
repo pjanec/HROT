@@ -195,17 +195,19 @@ public sealed class FdpOrchestrationCqrsStructTests
         Assert.Equal(typeof(string), scenarioIdType);
     }
 
-    // ── CMC-S003: TakeCheckpointIntent has ONLY RequestId ─────────────────
+    // ── CMC-S003 → ⭐ CE-3299 B3: TakeCheckpointIntent is RequestId + the checkpoint's Label ─────────────────
+    //   (CMC-S003 said "no parameters"; R-3044 makes a checkpoint a NAMED keyframe, so the request carries the name.)
 
     [Fact]
-    public void TakeCheckpointIntent_HasOnlyRequestIdField()
+    public void TakeCheckpointIntent_HasRequestIdAndLabel()
     {
         var fields = typeof(TakeCheckpointIntent)
-            .GetFields(BindingFlags.Public | BindingFlags.Instance);
+            .GetFields(BindingFlags.Public | BindingFlags.Instance)
+            .ToDictionary(f => f.Name, f => f.FieldType);
 
-        Assert.Single(fields);
-        Assert.Equal("RequestId", fields[0].Name);
-        Assert.Equal(typeof(Guid), fields[0].FieldType);
+        Assert.Equal(2, fields.Count);
+        Assert.Equal(typeof(Guid), fields["RequestId"]);
+        Assert.Equal(typeof(string), fields["Label"]);
     }
 
     // ── CMC-S003: LoadZoneIntent field types ──────────────────────────────

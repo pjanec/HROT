@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Replay
     {
         private readonly RecordingConfiguration _config;
         private AsyncRecorder? _recorder;
+        private RecorderTickSystem? _tick;
 
         /// <inheritdoc/>
         public string Name => $"Recording_{_config.ExerciseId:N}";
@@ -55,7 +56,7 @@ namespace Fdp.Toolkit.Replay
             if (_config.EntityFilter != null)
                 _recorder.EntityFilter = _config.EntityFilter;
 
-            registry.RegisterSystem(new RecorderTickSystem(_recorder, _config.Blocking));
+            registry.RegisterSystem(_tick = new RecorderTickSystem(_recorder, _config.Blocking));
         }
 
         /// <inheritdoc/>
@@ -71,6 +72,36 @@ namespace Fdp.Toolkit.Replay
             if (_recorder != null)
                 _recorder.MaxNetworkId = maxNetworkId;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 (R-3044) — asks THIS recording for a checkpoint: a keyframe named <paramref name="label"/> at the
+        /// first frame at or past <paramref name="atWallTicks"/> (<see cref="RecorderTickSystem.RequestCheckpoint"/>). Throws when
+        /// the module is not recording yet or the label is taken.
+        /// </summary>
+        public void RequestCheckpoint(string label, long atWallTicks)
+            => (_tick ?? throw new InvalidOperationException("the recording has not started")).RequestCheckpoint(label, atWallTicks);
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 (R-3044 "collect") — exports the checkpoint <paramref name="label"/> as a ONE-FRAME recording at
+        /// <paramref name="outputPath"/> (+ its <c>.meta.json</c>): a byte copy of this recording's header and that keyframe, readable
+        /// by the replay code. Throws when the checkpoint has not been written (yet).
+        /// </summary>
+        public void ExportCheckpoint(string label, string outputPath)
+        {
+            var recorder = _recorder ?? throw new InvalidOperationException("the recording has not started");
+            var mark = recorder.Metadata.Checkpoints.Find(m => m.Label == label)
+                       ?? throw new InvalidOperationException($"the recording has no checkpoint named '{label}' (yet)");
+            recorder.WaitForWrites();
+            RecordingSlice.CopyFrames(recorder.FilePath, outputPath, mark.Frame, 1);
+            var meta = MetadataSerializer.Deserialize(MetadataSerializer.Serialize(recorder.Metadata));
+            meta.TotalFrames = 1;
+            meta.Checkpoints = new System.Collections.Generic.List<CheckpointMark>
+                { new CheckpointMark { Label = mark.Label, Frame = 0, WallTicks = mark.WallTicks } };
+            System.IO.File.WriteAllText(outputPath + ".meta.json", MetadataSerializer.Serialize(meta));
+        }
+
+        /// <summary>The recording file (null before it starts).</summary>
+        public string? FilePath => _recorder?.FilePath;
 
         /// <summary>
         /// Blocking dispose: drains the LZ4 front-buffer, writes

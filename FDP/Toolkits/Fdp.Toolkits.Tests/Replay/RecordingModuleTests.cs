@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -264,6 +265,150 @@ namespace Fdp.Toolkit.Replay.Tests
                 typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), false);
             Assert.True(attrs.Length > 0,
                 "RecordingConfiguration.NodeId must be decorated with RequiredMemberAttribute");
+        }
+
+        // ── ⭐ CE-3299 B3 (R-3044) — a checkpoint is a named keyframe of the running recording ──────────────
+
+        // A recording module driven by hand: one call = one frame at the given wall time.
+        private (RecordingModule Module, Action<long> Frame, string Path) Recording(EntityRepository world, string name = "ck.fdp")
+        {
+            var config = new RecordingConfiguration { FilePath = Path.Combine(_tempDir, name), ExerciseId = Guid.NewGuid(), NodeId = 3 };
+            var module = new RecordingModule(config);
+            var captured = new CapturingSystemRegistry();
+            module.RegisterSystems(captured);
+            void Frame(long wallTicks)
+            {
+                world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f, TotalWallTicks = wallTicks });
+                world.Tick();
+                foreach (var sys in captured.Systems) sys.Execute(world, 0.016f);
+            }
+            return (module, Frame, config.FilePath);
+        }
+
+        private static string MetaOf(string path) => File.ReadAllText(path + ".meta.json");
+
+        /// <summary>
+        /// ⭐ CE-3299 B3 (D3) — asked for a checkpoint at wall time T, the recorder writes a KEYFRAME on its first frame at or past T
+        /// (never before), names it, and the mark is on disk before the recording ends (a crash keeps it). The periodic count
+        /// restarts there, so the checkpoint costs no extra keyframe.
+        /// </summary>
+        [Fact]
+        public void CE3299_B3_ACheckpointAtT_IsAKeyframe_OnTheFirstFrameAtOrPastT_AndItsMarkIsOnDisk()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            var (module, frame, path) = Recording(world);
+            Fdp.Core.FlightRecorder.Metadata.CheckpointMark mark;
+            try
+            {
+                for (long t = 1; t <= 5; t++) frame(t * 100);         // frames 0..4 (frame 0 is the opening keyframe)
+                module.RequestCheckpoint("before-assault", atWallTicks: 750);
+                frame(600); frame(700);                                // not yet
+                Assert.DoesNotContain("before-assault", File.Exists(path + ".meta.json") ? MetaOf(path) : "");
+                frame(800);                                            // the first frame at or past 750
+                Assert.Throws<InvalidOperationException>(() => module.RequestCheckpoint("before-assault", 0));   // a label is unique
+
+                var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(WaitForMeta(path, "before-assault"));
+                mark = Assert.Single(meta.Checkpoints);
+                Assert.Equal(("before-assault", 800L), (mark.Label, mark.WallTicks));
+            }
+            finally { module.Dispose(); }
+
+            // the mark's frame is the file's frame — counted in frames WRITTEN (the non-blocking recorder may drop a delta)
+            using var playback = new PlaybackController(path);
+            var at = playback.GetFrameMetadata(mark.Frame);
+            Assert.Equal(FrameType.Keyframe, at.FrameType);
+            Assert.Equal(800L, at.WallClockTicks);
+            Assert.True(playback.GetFrameMetadata(mark.Frame - 1).WallClockTicks <= 700, "the keyframe before T was not the checkpoint");
+        }
+
+        /// <summary>
+        /// ⭐ CE-3299 B3 (R-3044 "collect") — a checkpoint EXPORTS as a one-frame recording the replay code reads: applied to an
+        /// empty world it gives back the world as it was at the mark (not as it is later), while the source is still recording.
+        /// </summary>
+        [Fact]
+        public void CE3299_B3_ACheckpoint_ExportsAsAOneFrameRecording_ThatReplaysTheWorldAtTheMark()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(1, 2, 3) });
+            var (module, frame, path) = Recording(world);
+            try
+            {
+                frame(100);
+                module.RequestCheckpoint("cp 1/a", atWallTicks: 0);     // 0 = the next frame; a label no file name can hold
+                frame(200);
+                world.GetComponentRW<SimTransform>(e).Position = new System.Numerics.Vector3(9, 9, 9);   // the world moves on
+                frame(300);
+
+                Assert.Throws<InvalidOperationException>(() => module.ExportCheckpoint("missing", Path.Combine(_tempDir, "x.fdp")));
+                string export = Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler.ExportPath(path, "cp 1/a");
+                module.ExportCheckpoint("cp 1/a", export);                // while the source is still being written
+
+                using var playback = new PlaybackController(export);
+                Assert.Equal(1, playback.TotalFrames);
+                using var replica = CreateWorld();
+                playback.SeekToFrame(replica, 0);
+                var found = new System.Collections.Generic.List<Entity>();
+                foreach (var x in replica.Query().With<SimTransform>().Build()) found.Add(x);
+                var back = Assert.Single(found);
+                Assert.Equal(new System.Numerics.Vector3(1, 2, 3), replica.GetComponentRO<SimTransform>(back).Position);
+                var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(export));
+                Assert.Equal((1, "cp 1/a", 0), (meta.TotalFrames, meta.Checkpoints[0].Label, meta.Checkpoints[0].Frame));
+                Assert.Throws<IOException>(() => module.ExportCheckpoint("cp 1/a", export));   // never overwrites
+            }
+            finally { module.Dispose(); }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3299 B3 — the handler: a TakeSnapshot asks the LIVE recording (Success, the payload echoed); a node that is not
+        /// recording FAILS loudly (the slave reports a faulted prepare as Failure) instead of answering a checkpoint it never took.
+        /// </summary>
+        [Fact]
+        public async Task CE3299_B3_TheHandler_AsksTheLiveRecording_AndFailsOnANodeThatIsNotRecording()
+        {
+            var take = new Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.TakeSnapshot,
+                DomainPayload = new Fdp.Toolkit.Orchestration.CheckpointPayload("x", 500),
+            };
+            var idle = new Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler(() => null);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => idle.PrepareAsync(take, default));
+
+            using var world = CreateWorld();
+            var (module, frame, path) = Recording(world);
+            try
+            {
+                frame(100);
+                var handler = new Fdp.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler(() => module);
+                Assert.True(handler.CanHandle(Fdp.Toolkit.Orchestration.NodeOpType.ExportCheckpoint));
+                Assert.Equal(new Fdp.Toolkit.Orchestration.CheckpointPayload("x", 500), await handler.PrepareAsync(take, default));
+                frame(600);
+                var export = new Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent
+                {
+                    TransactionId = Guid.NewGuid(),
+                    Operation     = Fdp.Toolkit.Orchestration.NodeOpType.ExportCheckpoint,
+                    DomainPayload = new Fdp.Toolkit.Orchestration.ExportCheckpointPayload("x"),
+                };
+                var written = (string?)await handler.PrepareAsync(export, default);
+                Assert.True(File.Exists(written), $"no export at {written}");
+            }
+            finally { module.Dispose(); }
+        }
+
+        // The mark is written by a pool thread right after the keyframe: wait for it (bounded).
+        private static string WaitForMeta(string path, string label)
+        {
+            for (int i = 0; i < 200; i++)
+            {
+                if (File.Exists(path + ".meta.json"))
+                {
+                    try { var text = MetaOf(path); if (text.Contains(label)) return text; } catch (IOException) { }
+                }
+                Thread.Sleep(10);
+            }
+            throw new TimeoutException($"no mark '{label}' in {path}.meta.json");
         }
 
         // ── Helper: bare-minimum ISystemRegistry ─────────────────────────────────

@@ -40,5 +40,8 @@ namespace Fdp.Toolkit.Orchestration
         // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §6.
         PrepareTerrainAsset = 29,
         CommitTerrainAsset = 30,
+
+        // ⭐ CE-3299 B3 (R-3044) — export a checkpoint keyframe as a one-frame recording. ⛔ PERMANENT WIRE VALUE (R-42).
+        ExportCheckpoint = 31,
     }
 }

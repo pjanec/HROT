@@ -32,6 +32,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<ExecuteStorageOpIntent>();
             bus.RegisterManaged<StorageOpCompletedEvent>();
             bus.RegisterManaged<TakeCheckpointIntent>();
+            bus.RegisterManaged<CollectCheckpointIntent>();   // ⭐ CE-3299 B3
             bus.RegisterManaged<LoadZoneIntent>();
             // ⭐ E4 — the terrain-asset build op's intent.
             bus.RegisterManaged<BuildTerrainAssetIntent>();

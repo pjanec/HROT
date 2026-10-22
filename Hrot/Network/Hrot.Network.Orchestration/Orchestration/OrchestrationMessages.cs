@@ -87,6 +87,9 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⛔ The gaps at 6 / 17 / 18 / 19 are historical holes, not reservations — leave them empty.
         PrepareTerrainAsset = 29,
         CommitTerrainAsset = 30,
+
+        // ⭐ CE-3299 B3 (R-3044) — export a checkpoint keyframe as a one-frame recording. ⛔ PERMANENT WIRE VALUE (R-42).
+        ExportCheckpoint = 31,
     }
 
     [DdsTopic("ClusterState")]

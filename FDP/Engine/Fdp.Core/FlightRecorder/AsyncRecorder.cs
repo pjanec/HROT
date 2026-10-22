@@ -116,7 +116,7 @@ namespace Fdp.Core.FlightRecorder
                 filePath, 
                 FileMode.Create, 
                 FileAccess.Write, 
-                FileShare.None, 
+                FileShare.Read,   // ⭐ CE-3299 B3 — a checkpoint is exported from the recording while it is still written 
                 4096, 
                 useAsync: false);
             
@@ -320,11 +320,68 @@ namespace Fdp.Core.FlightRecorder
             _outputStream.Flush();
         }
         
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 — waits until every frame captured so far is on disk (and the latest manifest written), so the file
+        /// can be read up to its last frame — an export of a checkpoint just written.
+        /// </summary>
+        public void WaitForWrites()
+        {
+            WaitForWorker();
+            Task? meta;
+            lock (_metadataLock) meta = _metadataTask;
+            meta?.Wait();
+        }
+
+        /// <summary>The recording file this recorder writes.</summary>
+        public string FilePath => _filePath;
+
+        /// <summary>⭐ <c>CE-3299</c> B3 — true when <paramref name="label"/> already names a checkpoint in this recording.</summary>
+        public bool HasCheckpoint(string label) => _metadata.Checkpoints.Exists(m => m.Label == label);
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 (R-3044) — names the keyframe this recorder JUST captured (call right after <see cref="CaptureKeyframe"/>):
+        /// the mark goes into the metadata and <c>.meta.json</c> is rewritten at once, so a crash keeps every checkpoint taken
+        /// before it (a fresh process restores from it, D10). The manifests are built here (main thread, the registry); the
+        /// JSON is written off it. Returns the mark.
+        /// </summary>
+        public CheckpointMark MarkCheckpoint(string label, long wallClockTicks)
+        {
+            if (HasCheckpoint(label)) throw new InvalidOperationException($"the recording already has a checkpoint named '{label}'");
+            var mark = new CheckpointMark { Label = label, Frame = RecordedFrames - 1, WallTicks = wallClockTicks };
+            _metadata.Checkpoints.Add(mark);
+            WriteMetadataSoon();
+            return mark;
+        }
+
+        private Task? _metadataTask;
+        private readonly object _metadataLock = new();
+
+        // ⭐ CE-3299 B3 — the manifest as it is NOW, serialized here and written by a pool thread (one write at a time, in order).
+        private void WriteMetadataSoon()
+        {
+            _metadata.TotalFrames   = RecordedFrames;
+            _metadata.MaxNetworkId  = MaxNetworkId;
+            _metadata.SchemaManifest = BuildSchemaManifest();
+            _metadata.EventManifest  = BuildEventManifest();
+            string json = MetadataSerializer.Serialize(_metadata);
+            string path = _filePath + ".meta.json";
+            lock (_metadataLock)
+            {
+                var previous = _metadataTask ?? Task.CompletedTask;
+                _metadataTask = previous.ContinueWith(_ =>
+                {
+                    try { File.WriteAllText(path, json); }
+                    catch (Exception ex) { LastError = ex; }
+                }, TaskScheduler.Default);
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
             
             _workerTask?.Wait();
+            lock (_metadataLock) _metadataTask?.Wait();   // ⭐ CE-3299 B3 — a mark's manifest is never written over the final one
             _outputStream?.Dispose();
             _frontWriter.Dispose();
             _backWriter.Dispose();

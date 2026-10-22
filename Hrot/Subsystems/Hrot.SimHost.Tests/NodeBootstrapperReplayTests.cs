@@ -199,8 +199,7 @@ namespace Hrot.SimHost.Tests
                 lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir));
-            slave.RegisterHandler(new ReferenceLiveLoadHandler(
-                checkpointWorker: null, controller, _tempDir));
+            slave.RegisterHandler(new ReferenceLiveLoadHandler(controller, _tempDir));
 
             // ── Step 3: dispatch PrepareLive via ClusterSlave ───────────────────
             var branchedExerciseId = Guid.NewGuid();

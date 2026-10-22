@@ -139,6 +139,88 @@ public sealed class ClusterMasterCheckpointTests
         master.Dispose();
     }
 
+    // ── ⭐ CE-3299 B3 (R-3044, D3) — a checkpoint names ONE wall time for every node, and a label ─────────────
+
+    private static ExecuteNodeOpIntent FannedOut(ClusterMaster master, FdpEventBus bus, ClusterOpRequest request, FdpNodeOpType op)
+    {
+        master.HandleClusterOpRequest(request);
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        return Assert.Single(bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation == op).ToList());
+    }
+
+    /// <summary>
+    /// ⭐ CE-3299 B3 — the master names the checkpoint's wall time on ITS clock, <see cref="ClusterMaster.CheckpointLeadTicks"/>
+    /// ahead (every node writes it on its first frame at or past it), passes the operator's label, and reports both back.
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void CE3299_B3_TakeCheckpoint_CarriesTheLabel_AndOneWallTimeALeadAhead_AndReportsThem()
+    {
+        var (master, bus, nodeId) = BootstrapToOperatingLive();
+        master.WallTicks = () => 1_000_000_000L;
+        var request = new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint,
+            PayloadJson = "{\"label\":\"before-assault\"}",
+        };
+        var sent = FannedOut(master, bus, request, FdpNodeOpType.TakeSnapshot);
+        var expected = new CheckpointPayload("before-assault", 1_000_000_000L + ClusterMaster.CheckpointLeadTicks);
+        Assert.Equal(expected, sent.DomainPayload);
+
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId = sent.TransactionId, Operation = FdpNodeOpType.TakeSnapshot, NodeId = nodeId,
+            StatusCode = OrchestrationStatusCode.Success, IsParticipating = true, ResultPayload = expected,
+        });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        var done = Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>().Where(e => e.RequestId == request.RequestId).ToList());
+        Assert.Equal(expected, done.ResultPayload);
+        master.Dispose();
+    }
+
+    /// <summary>⭐ CE-3299 B3 — with no clock the checkpoint goes to each node's NEXT frame (0), and a missing label is the master's.</summary>
+    [Fact(Timeout = 5_000)]
+    public void CE3299_B3_TakeCheckpoint_WithoutAClock_IsTheNextFrame_AndUnnamed_GetsAName()
+    {
+        var (master, bus, _) = BootstrapToOperatingLive();
+        var sent = FannedOut(master, bus,
+            new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = string.Empty },
+            FdpNodeOpType.TakeSnapshot);
+        var payload = Assert.IsType<CheckpointPayload>(sent.DomainPayload);
+        Assert.Equal(0L, payload.AtWallTicks);
+        Assert.StartsWith("cp1-", payload.Label);
+
+        // a second unnamed one in the same second gets a different name (the recording refuses a repeated label)
+        var second = FannedOut(master, bus,
+            new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = string.Empty },
+            FdpNodeOpType.TakeSnapshot);
+        Assert.StartsWith("cp2-", Assert.IsType<CheckpointPayload>(second.DomainPayload).Label);
+        master.Dispose();
+    }
+
+    /// <summary>⭐ CE-3299 B3 (R-3044 "collect") — a collect fans <c>ExportCheckpoint</c> with the label; one without a label is rejected.</summary>
+    [Fact(Timeout = 5_000)]
+    public void CE3299_B3_CollectCheckpoint_FansOutTheExport_AndRejectsOneWithoutALabel()
+    {
+        var (master, bus, _) = BootstrapToOperatingLive();
+        var sent = FannedOut(master, bus,
+            new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.CollectCheckpoint, PayloadJson = "before-assault" },
+            FdpNodeOpType.ExportCheckpoint);
+        Assert.Equal(new ExportCheckpointPayload("before-assault"), sent.DomainPayload);
+
+        var bare = new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.CollectCheckpoint, PayloadJson = "" };
+        master.HandleClusterOpRequest(bare);
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == bare.RequestId && e.StatusCode == OrchestrationStatusCode.Rejected);
+        master.Dispose();
+    }
+
     /// <summary>
     /// Verifies that <see cref="ClusterOpType.TakeCheckpoint"/> with an empty roster
     /// immediately publishes <see cref="OrchestrationStatusCode.Success"/> (no nodes → no-op).

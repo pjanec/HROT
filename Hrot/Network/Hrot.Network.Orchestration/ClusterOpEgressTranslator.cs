@@ -140,7 +140,15 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = intent.RequestId,
                 OperationType = NedClusterOpType.TakeCheckpoint,
-                PayloadJson   = string.Empty,
+                PayloadJson   = LabelJson(intent.Label),   // ⭐ CE-3299 B3
+            });
+
+        foreach (var intent in _bus.ReadManaged<CollectCheckpointIntent>())   // ⭐ CE-3299 B3
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.CollectCheckpoint,
+                PayloadJson   = LabelJson(intent.Label),
             });
 
         foreach (var intent in _bus.ReadManaged<SeekReplayIntent>())
@@ -204,6 +212,10 @@ public sealed class ClusterOpEgressTranslator : IDisposable
     public void Dispose() => _writer.Dispose();
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    // ⭐ CE-3299 B3 — a checkpoint's label as the request payload ({"label": …}); empty when none.
+    private static string LabelJson(string? label)
+        => string.IsNullOrWhiteSpace(label) ? string.Empty : System.Text.Json.JsonSerializer.Serialize(new { label });
 
     private static string SerializeTransitionPayload(TransitionStateIntent intent)
     {

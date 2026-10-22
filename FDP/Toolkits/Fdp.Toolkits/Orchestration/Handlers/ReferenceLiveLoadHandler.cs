@@ -21,8 +21,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// </para>
     ///
     /// <para>
-    /// <b>FinalizeLive flow:</b> Awaits any pending checkpoint drain
-    /// (<see cref="CheckpointIOWorker.DrainAsync"/>), then calls
+    /// <b>FinalizeLive flow:</b> calls
     /// <see cref="IRecordReplayController.FinalizeRecordingAsync"/> to flush the LZ4
     /// buffer and write the <c>.meta.json</c> manifest (CGF1-S0303 + CGF1-S0304).
     /// </para>
@@ -35,17 +34,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// </summary>
     public sealed class ReferenceLiveLoadHandler : IClusterStateHandler
     {
-        private readonly CheckpointIOWorker?      _checkpointWorker;
         private readonly IRecordReplayController? _controller;
         private readonly string                   _storageDirectory;
         private Guid _pendingExerciseId;
 
-        /// <param name="checkpointWorker">
-        /// Optional <see cref="CheckpointIOWorker"/>; when provided,
-        /// <see cref="PrepareAsync"/> calls <see cref="CheckpointIOWorker.DrainAsync"/>
-        /// before returning for <c>FinalizeLive</c> to ensure all in-flight checkpoint
-        /// writes complete before the live session is torn down (CGF1-S0303).
-        /// </param>
         /// <param name="controller">
         /// Optional record/replay controller; when provided, <see cref="PrepareAsync"/>
         /// calls <see cref="IRecordReplayController.PrepareRecordingAsync"/> for
@@ -57,12 +49,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <see cref="IRecordReplayController.PrepareRecordingAsync"/>.
         /// Defaults to <see cref="OrchestrationConstants.ResolveStagingRoot"/>.
         /// </param>
+        /// <remarks>⭐ CE-3299 B3 — the <c>CheckpointIOWorker</c> it drained before <c>FinalizeLive</c> is retired: a checkpoint is now
+        /// a keyframe of the recording this handler finalizes, so the recorder's own flush covers it.</remarks>
         public ReferenceLiveLoadHandler(
-            CheckpointIOWorker?       checkpointWorker = null,
             IRecordReplayController?  controller       = null,
             string?                   storageDirectory = null)
         {
-            _checkpointWorker = checkpointWorker;
             _controller       = controller;
             _storageDirectory = storageDirectory ?? OrchestrationConstants.ResolveStagingRoot();
         }
@@ -100,9 +92,6 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             }
             else if (intent.Operation == NodeOpType.FinalizeLive)
             {
-                if (_checkpointWorker != null)
-                    await _checkpointWorker.DrainAsync().ConfigureAwait(false);
-
                 if (_controller != null)
                     await _controller.FinalizeRecordingAsync().ConfigureAwait(false);
 

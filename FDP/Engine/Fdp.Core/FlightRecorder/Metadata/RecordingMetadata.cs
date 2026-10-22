@@ -74,6 +74,27 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// pre-date this field. 📄 docs/DESIGN_Geo_Origin.md §2 E/F.
         /// </summary>
         public GeoOriginRecord? GeoOrigin { get; set; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 (R-3044) — the CHECKPOINTS in this recording: each a keyframe the recorder wrote on request and
+        /// named. A restore seeks straight to one by its label. Empty for recordings without any (and for those that pre-date it).
+        /// 📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1g.
+        /// </summary>
+        public List<CheckpointMark> Checkpoints { get; set; } = new List<CheckpointMark>();
+    }
+
+    /// <summary>⭐ <c>CE-3299</c> B3 — one named keyframe of a recording: its label, its frame (0-based, in file order) and its wall time.</summary>
+    [Serializable]
+    public sealed class CheckpointMark
+    {
+        /// <summary>The checkpoint's name — unique within the recording.</summary>
+        public string Label { get; set; } = "";
+
+        /// <summary>The keyframe's position among the recording's frames (0 = the first written).</summary>
+        public int Frame { get; set; }
+
+        /// <summary>The keyframe's frame-locked wall time (<c>GlobalTime.TotalWallTicks</c>).</summary>
+        public long WallTicks { get; set; }
     }
 
     /// <summary>A geodetic point — latitude and longitude in degrees, altitude in metres — as written into a recording.</summary>

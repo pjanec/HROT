@@ -77,6 +77,10 @@ public sealed partial class ClusterMaster : IDisposable
         /// <c>_pendingBusTransitionAcks</c> (TransitionState, TakeCheckpoint, ReplaySeek).
         /// </summary>
         public bool BroadcastClusterStateOnComplete;
+        /// <summary>⭐ CE-3299 B3 — what a SUCCESSFUL round reports to its requester when the master already knows it (a checkpoint's label and time).</summary>
+        public object? SuccessResult;
+        /// <summary>⭐ CE-3299 B3 — report each node's answer (node id → its result) on success: a checkpoint export's file per node.</summary>
+        public bool ResultFromResponses;
         /// <summary>
         /// ⭐ When non-null this tracker is a <b>NON-TERMINAL PHASE</b> of a multi-phase round
         /// (today: <c>PrepareZone</c> → <c>CommitZone</c>). On all-ACK success the continuation runs
@@ -496,23 +500,12 @@ public sealed partial class ClusterMaster : IDisposable
                 break;
 
             case ClusterOpType.TakeCheckpoint:
-            {
-                var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
-                if (nodeIds.Count == 0)
-                {
-                    PublishOpStatus(req.RequestId, OrchestrationStatusCode.Success);
-                    break;
-                }
-                var txId = Guid.NewGuid();
-                FanOutNodeOp(NodeOpType.TakeSnapshot, txId, null, nodeIds);
-                _pendingTransactions[txId] = new GenericTransactionTracker
-                {
-                    RequestId                       = req.RequestId,
-                    Expected                        = nodeIds.Count,
-                    BroadcastClusterStateOnComplete = true,
-                };
+                StartCheckpoint(req.RequestId, LabelOf(req.PayloadJson));
                 break;
-            }
+
+            case ClusterOpType.CollectCheckpoint:
+                CollectCheckpoint(req.RequestId, LabelOf(req.PayloadJson));
+                break;
 
             case ClusterOpType.ReplaySeek:
                 ProcessSeekReplayIntent(ClusterOpRequestAdapter.ToSeekReplayIntent(req));
@@ -788,22 +781,107 @@ public sealed partial class ClusterMaster : IDisposable
     private void ProcessTakeCheckpointIntents()
     {
         foreach (var intent in _eventBus.ReadManaged<TakeCheckpointIntent>())
+            StartCheckpoint(intent.RequestId, intent.Label);
+        foreach (var intent in _eventBus.ReadManaged<CollectCheckpointIntent>())
+            CollectCheckpoint(intent.RequestId, intent.Label);
+    }
+
+    // ── ⭐ CE-3299 B3 (R-3044) — a checkpoint is a named keyframe every node's recording writes at ONE wall time ──
+
+    /// <summary>
+    /// ⭐ CE-3299 B3 (D3) — how far ahead of NOW the master names a checkpoint's wall time: long enough for the request to reach
+    /// every node first, so each writes it on its first frame at or past that time — within one frame of each other.
+    /// </summary>
+    public static readonly long CheckpointLeadTicks = TimeSpan.FromMilliseconds(500).Ticks;
+
+    /// <summary>
+    /// ⭐ CE-3299 B3 — the cluster's frame-locked wall clock (<c>GlobalTime.TotalWallTicks</c>, which the slaves follow), set by the
+    /// host that owns the time controller (<c>OrchestratorCore</c>). ⚠ Null ⇒ a checkpoint is written at each node's NEXT frame
+    /// (logged): correct, but the nodes then differ by the message latency.
+    /// </summary>
+    public Func<long>? WallTicks { get; set; }
+
+    private int _checkpointSeq;
+
+    private void StartCheckpoint(Guid requestId, string? label)
+    {
+        var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
+        long now = WallTicks?.Invoke() ?? 0;
+        if (WallTicks == null)
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] TakeCheckpoint: no wall clock — each node writes the checkpoint at its next frame.");
+        long at = now == 0 ? 0 : now + CheckpointLeadTicks;
+        // an unnamed checkpoint is numbered as well as timed: two in one second must not share a name (the recording refuses it)
+        var payload = new CheckpointPayload(
+            string.IsNullOrWhiteSpace(label)
+                ? $"cp{++_checkpointSeq}-{new DateTime(at == 0 ? DateTime.UtcNow.Ticks : at, DateTimeKind.Utc):HHmmss}"
+                : label!,
+            at);
+        if (nodeIds.Count == 0)
         {
-            var ckNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
-            if (ckNodeIds.Count == 0)
-            {
-                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
-                continue;
-            }
-            var ckTxId = Guid.NewGuid();
-            FanOutNodeOp(NodeOpType.TakeSnapshot, ckTxId, null, ckNodeIds);
-            _pendingTransactions[ckTxId] = new GenericTransactionTracker
-            {
-                RequestId                       = intent.RequestId,
-                Expected                        = ckNodeIds.Count,
-                BroadcastClusterStateOnComplete = true,
-            };
+            PublishOpStatus(requestId, OrchestrationStatusCode.Success, payload);
+            return;
         }
+        var txId = Guid.NewGuid();
+        FanOutNodeOp(NodeOpType.TakeSnapshot, txId, payload, nodeIds);
+        _pendingTransactions[txId] = new GenericTransactionTracker
+        {
+            RequestId                       = requestId,
+            Expected                        = nodeIds.Count,
+            BroadcastClusterStateOnComplete = true,
+            SuccessResult                   = payload,
+        };
+    }
+
+    private void CollectCheckpoint(Guid requestId, string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] CollectCheckpoint: no label — nothing to collect.");
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
+        var nodeIds = Participants();
+        if (nodeIds.Count == 0)
+        {
+            PublishOpStatus(requestId, OrchestrationStatusCode.Success);
+            return;
+        }
+        var txId = Guid.NewGuid();
+        FanOutNodeOp(NodeOpType.ExportCheckpoint, txId, new ExportCheckpointPayload(label!), nodeIds);
+        _pendingTransactions[txId] = new GenericTransactionTracker
+        {
+            RequestId           = requestId,
+            Expected            = nodeIds.Count,
+            ResultFromResponses = true,
+        };
+    }
+
+    /// <summary>
+    /// ⭐ CE-3299 B3 — a checkpoint request's label: the payload's <c>label</c> field when it is a JSON object, else the payload
+    /// text itself; null when there is none.
+    /// </summary>
+    internal static string? LabelOf(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson)) return null;
+        var text = payloadJson.Trim();
+        if (!text.StartsWith("{")) return text.Trim('"');
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            foreach (var p in doc.RootElement.EnumerateObject())
+                if (string.Equals(p.Name, "label", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
+                    return p.Value.GetString();
+        }
+        catch (JsonException) { }
+        return null;
+    }
+
+    private static Dictionary<int, string> ResponsesByNode(Dictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>> responses)
+    {
+        var byNode = new Dictionary<int, string>();
+        foreach (var (node, ops) in responses)
+            foreach (var answer in ops.Values) byNode[node] = answer;
+        return byNode;
     }
 
     private void ProcessSeekReplayIntents()
@@ -1990,7 +2068,8 @@ public sealed partial class ClusterMaster : IDisposable
                 foreach (var id in tracker.Targets)
                     if (_roster.ActiveNodes.ContainsKey(id)) _inSync.Add(id);
             }
-            var aggregated = TryAggregate(txId, tracker.NodeResponses);
+            var aggregated = tracker.SuccessResult
+                ?? (tracker.ResultFromResponses ? ResponsesByNode(tracker.NodeResponses) : TryAggregate(txId, tracker.NodeResponses));
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
             OnRoundSucceededForReplay(txId, aggregated);   // ⭐ C9 — the replay zero, and the seek that enters a replay
         }

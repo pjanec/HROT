@@ -25,6 +25,30 @@ namespace Fdp.Toolkit.Replay
         private int _framesSinceKeyframe;
         private uint _prevTick;
 
+        // ⭐ CE-3299 B3 (R-3044) — checkpoints asked for and not yet written: (label, the wall time to write at).
+        private readonly System.Collections.Generic.List<(string Label, long AtWallTicks)> _requested = new();
+        private readonly object _requestedLock = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 (R-3044, D3) — asks for a checkpoint: a KEYFRAME named <paramref name="label"/> on this node's first
+        /// frame whose <c>GlobalTime.TotalWallTicks</c> is at or past <paramref name="atWallTicks"/> (0 = the next frame). Every node
+        /// is asked for the same wall time, so the checkpoint lands within one frame on all of them; nothing pauses. A label the
+        /// recording already has, or already asked for, is refused.
+        /// </summary>
+        public void RequestCheckpoint(string label, long atWallTicks)
+        {
+            if (string.IsNullOrWhiteSpace(label)) throw new ArgumentException("a checkpoint needs a label", nameof(label));
+            lock (_requestedLock)
+            {
+                if (_recorder.HasCheckpoint(label) || _requested.Exists(r => r.Label == label))
+                    throw new InvalidOperationException($"the recording already has a checkpoint named '{label}'");
+                _requested.Add((label, atWallTicks));
+            }
+        }
+
+        /// <summary>⭐ CE-3299 B3 — checkpoints asked for and not yet written (diagnostics, rails).</summary>
+        public int PendingCheckpoints { get { lock (_requestedLock) return _requested.Count; } }
+
         /// <param name="recorder">The <see cref="AsyncRecorder"/> that owns the output file.</param>
         /// <param name="blocking">
         /// When <c>true</c>, each <c>CaptureFrame</c> / <c>CaptureKeyframe</c> call blocks
@@ -55,11 +79,14 @@ namespace Fdp.Toolkit.Replay
                 ? globalTime.TotalWallTicks
                 : DateTime.UtcNow.Ticks;
 
-            if (++_framesSinceKeyframe >= KeyframeInterval)
+            bool checkpoint = CheckpointsDue(wallClockTicks, _due);
+            if (++_framesSinceKeyframe >= KeyframeInterval || checkpoint)
             {
                 StampWorld(repo, _recorder.Metadata);   // CE-3126 — cheap; once per keyframe keeps it current
                 _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking, eventBus: repo.Bus);
-                _framesSinceKeyframe = 0;
+                _framesSinceKeyframe = 0;   // ⭐ CE-3299 B3 — a checkpoint IS this interval's keyframe: the next periodic one moves on
+                foreach (var label in _due) _recorder.MarkCheckpoint(label, wallClockTicks);
+                _due.Clear();
             }
             else
             {
@@ -67,6 +94,24 @@ namespace Fdp.Toolkit.Replay
             }
 
             _prevTick = repo.GlobalVersion;
+        }
+
+        private readonly System.Collections.Generic.List<string> _due = new();
+
+        // ⭐ CE-3299 B3 — moves every request whose wall time has come into due; true when there is one.
+        private bool CheckpointsDue(long wallClockTicks, System.Collections.Generic.List<string> due)
+        {
+            lock (_requestedLock)
+            {
+                if (_requested.Count == 0) return false;
+                for (int i = _requested.Count - 1; i >= 0; i--)
+                {
+                    if (_requested[i].AtWallTicks > wallClockTicks) continue;
+                    due.Insert(0, _requested[i].Label);
+                    _requested.RemoveAt(i);
+                }
+            }
+            return due.Count > 0;
         }
 
         /// <summary>

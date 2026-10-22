@@ -79,6 +79,9 @@ public sealed class OrchestratorCore : IDisposable
 
         _master = new ClusterMaster(bus, config);
         _master.LocalNodeId = o.StagingNodeId;   // ⭐ P3 — the master never waits for the node it runs in
+        // ⭐ CE-3299 B3 (D3) — a checkpoint is named for ONE wall time on the clock every slave follows (silent-default rule:
+        //   every host builds its master here, with its time reads, so none can forget it).
+        _master.WallTicks = () => o.TimeReads.GetCurrentState().TotalWallTicks;
         // ⭐⭐⭐ HN-037 — the world's ONE id authority, so a scenario load resets it to 1000.
         //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11.
         _master.IdAuthority = o.IdAuthority;

@@ -1,99 +1,77 @@
 using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
-using Fdp.Core.Orchestration;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.Replay;
 
 namespace Fdp.Toolkit.Orchestration.Handlers
 {
     /// <summary>
-    /// Reference implementation of the checkpoint Cluster handler (CGF1-G0405).
-    /// Handles <c>TakeSnapshot</c> — 3-step binary checkpointing protocol (CGF1-S0303).
+    /// ⭐⭐ <c>CE-3299</c> B3 (R-3044) — the checkpoint handler: a checkpoint is a KEYFRAME the node's running recording writes on
+    /// request and names. <see cref="NodeOpType.TakeSnapshot"/> asks the recording for one at the master's wall time (nothing
+    /// pauses, the recorder already runs every frame); <see cref="NodeOpType.ExportCheckpoint"/> copies that keyframe out as a
+    /// one-frame recording. Both answer at once: Success when done or queued, Failure (thrown, so the slave reports it) when this
+    /// node is not recording or the label is wrong. ⛔ The <c>'FDPC'</c> capture (<c>SyncFrom</c> + a writer of its own) it
+    /// replaced is gone. 📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1g.
     /// </summary>
-    public sealed class ReferenceCheckpointHandler : ITickableClusterStateHandler
+    public sealed class ReferenceCheckpointHandler : IClusterStateHandler
     {
-        private readonly CheckpointIOWorker          _worker;
-        private readonly EntityRepository?           _liveRepo;
-        private readonly EventAccumulator            _eventAccumulator;
+        private readonly Func<RecordingModule?> _recording;
 
-        private readonly Dictionary<Guid, ExecuteNodeOpIntent> _pendingPrepares = new();
-
-        /// <param name="worker">Background I/O worker that owns the LZ4+disk pipeline.</param>
-        /// <param name="liveRepo">Live <see cref="EntityRepository"/> to snapshot.</param>
-        /// <param name="eventAccumulator">Accumulator that flushes event history into each checkpoint snapshot.</param>
-        public ReferenceCheckpointHandler(
-            CheckpointIOWorker        worker,
-            EntityRepository?         liveRepo,
-            EventAccumulator          eventAccumulator)
-        {
-            _worker           = worker           ?? throw new ArgumentNullException(nameof(worker));
-            _liveRepo         = liveRepo;
-            _eventAccumulator = eventAccumulator ?? throw new ArgumentNullException(nameof(eventAccumulator));
-        }
+        /// <param name="recording">The node's LIVE recording, or null when it is not recording (the record/replay controller's).</param>
+        public ReferenceCheckpointHandler(Func<RecordingModule?> recording)
+            => _recording = recording ?? throw new ArgumentNullException(nameof(recording));
 
         /// <inheritdoc />
-        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.TakeSnapshot;
+        public bool CanHandle(NodeOpType operation) => operation is NodeOpType.TakeSnapshot or NodeOpType.ExportCheckpoint;
 
-        /// <summary>Step 1: Records intent as in-progress.</summary>
+        /// <inheritdoc />
         public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
-            if (intent.Operation != NodeOpType.TakeSnapshot)
-                return Task.FromResult<object?>(null);
-
-            _pendingPrepares[intent.TransactionId] = intent;
-
-            FdpLog<ReferenceCheckpointHandler>.Info(
-                "[ReferenceCheckpointHandler] InProgress for TakeSnapshot {0}.",
-                intent.TransactionId);
-
-            return Task.FromResult<object?>(null);
-        }
-
-        /// <summary>Step 2: Synchronous RAM clone + enqueue to background worker.</summary>
-        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)
-        {
-            if (intent.Operation != NodeOpType.TakeSnapshot) return;
-            _pendingPrepares.Remove(intent.TransactionId);
-
-            var source = repo ?? _liveRepo;
-            if (source == null)
+            try
             {
-                FdpLog<ReferenceCheckpointHandler>.Error(
-                    "[ReferenceCheckpointHandler] Commit: no EntityRepository available — " +
-                    "snapshot for request {0} cannot be taken.", intent.TransactionId);
-                return;
+                var recording = _recording() ?? throw new InvalidOperationException("this node is not recording — no checkpoint can be written");
+                if (intent.Operation == NodeOpType.TakeSnapshot)
+                {
+                    var take = intent.DomainPayload is CheckpointPayload p && !string.IsNullOrWhiteSpace(p.Label)
+                        ? p : new CheckpointPayload($"cp-{DateTime.UtcNow:HHmmss}", 0);
+                    recording.RequestCheckpoint(take.Label, take.AtWallTicks);
+                    FdpLog<ReferenceCheckpointHandler>.Info("[Checkpoint] '{0}' asked of the recording at wall ticks {1}.", take.Label, take.AtWallTicks);
+                    return Task.FromResult<object?>(take);
+                }
+
+                var label = intent.DomainPayload is ExportCheckpointPayload e ? e.Label : "";
+                if (string.IsNullOrWhiteSpace(label)) throw new ArgumentException("an export names its checkpoint");
+                string path = ExportPath(recording.FilePath!, label);
+                recording.ExportCheckpoint(label, path);
+                FdpLog<ReferenceCheckpointHandler>.Info("[Checkpoint] '{0}' exported to {1}.", label, path);
+                return Task.FromResult<object?>(path);
             }
-
-            var snap = new EntityRepository();
-            snap.SyncFrom(source);
-            _eventAccumulator.FlushToReplica(snap.Bus, source.GlobalVersion - 1);
-            _worker.Enqueue(snap, intent.TransactionId);
-
-            FdpLog<ReferenceCheckpointHandler>.Info(
-                "[ReferenceCheckpointHandler] Commit: snapshot enqueued to I/O worker for request {0}.",
-                intent.TransactionId);
+            catch (Exception ex)
+            {
+                FdpLog<ReferenceCheckpointHandler>.Error("[Checkpoint] {0} refused: {1}", intent.Operation, ex.Message);
+                return Task.FromException<object?>(ex);
+            }
         }
 
         /// <inheritdoc />
-        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
-        {
-            _pendingPrepares.Remove(intent.TransactionId);
-        }
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }   // the work is the prepare's (it answers at once)
+
+        /// <inheritdoc />
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
 
         /// <summary>
-        /// Step 3 (poll): Drains completed results and logs deferred results.
-        /// Called each frame from <c>ClusterSlave.Tick()</c>.
+        /// Where checkpoint <paramref name="label"/> of the recording <paramref name="recordingPath"/> is exported: a
+        /// <c>checkpoints</c> folder beside it, named after the recording and the label (characters a file name cannot hold become '_').
         /// </summary>
-        public void DrainDeferredAcks()
+        public static string ExportPath(string recordingPath, string label)
         {
-            foreach (var (requestId, success) in _worker.TakeCompletedResults())
-            {
-                FdpLog<ReferenceCheckpointHandler>.Info(
-                    "[ReferenceCheckpointHandler] Deferred result — request {0} → {1}.",
-                    requestId, success ? "Success" : "Timeout");
-            }
+            var safe = label;
+            foreach (var c in Path.GetInvalidFileNameChars()) safe = safe.Replace(c, '_');
+            return Path.Combine(Path.GetDirectoryName(Path.GetFullPath(recordingPath))!, "checkpoints",
+                $"{Path.GetFileNameWithoutExtension(recordingPath)}.{safe}.fdp");
         }
     }
 }

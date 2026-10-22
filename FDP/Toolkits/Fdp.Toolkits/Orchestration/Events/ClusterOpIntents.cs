@@ -118,14 +118,28 @@ namespace Fdp.Toolkit.Orchestration
 
     /// <summary>
     /// Published by <c>ClusterOpMasterTranslator</c> when a DDS <c>ClusterOpRequest</c>
-    /// with <c>OperationType == TakeCheckpoint</c> arrives. Contains no payload fields
-    /// beyond <see cref="RequestId"/> — the checkpoint operation requires no parameters.
+    /// with <c>OperationType == TakeCheckpoint</c> arrives (and by local panels). ⭐ CE-3299 B3 (R-3044): it names a keyframe
+    /// every node's recording writes at one wall time; the optional <see cref="Label"/> rides the request's <c>PayloadJson</c>.
     /// </summary>
     [EventId(9056)]
     [DataPolicy(DataPolicy.NoReplay)]
     public struct TakeCheckpointIntent
     {
         public Guid RequestId;
+        /// <summary>⭐ CE-3299 B3 — the checkpoint's name; null ⇒ the master names it after its wall time.</summary>
+        public string? Label;
+    }
+
+    /// <summary>
+    /// ⭐ CE-3299 B3 (R-3044 "collect") — export checkpoint <see cref="Label"/> on every node as a one-frame recording beside that
+    /// node's recording (a bug report's state). Published by <c>ClusterOpMasterTranslator</c> for a DDS <c>CollectCheckpoint</c>.
+    /// </summary>
+    [EventId(9067)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct CollectCheckpointIntent
+    {
+        public Guid RequestId;
+        public string? Label;
     }
 
     /// <summary>

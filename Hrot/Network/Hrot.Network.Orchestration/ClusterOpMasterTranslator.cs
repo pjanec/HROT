@@ -234,6 +234,17 @@ public sealed class ClusterOpMasterTranslator
                 _bus.PublishManaged(new TakeCheckpointIntent
                 {
                     RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),   // ⭐ CE-3299 B3
+                });
+                break;
+            }
+
+            case NedClusterOpType.CollectCheckpoint:   // ⭐ CE-3299 B3 (R-3044 "collect")
+            {
+                _bus.PublishManaged(new CollectCheckpointIntent
+                {
+                    RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),
                 });
                 break;
             }
@@ -320,6 +331,23 @@ public sealed class ClusterOpMasterTranslator
             default:
                 break;
         }
+    }
+
+    // ⭐ CE-3299 B3 — a checkpoint request's label: a JSON object's "label", else the payload text (the same rule as the master's).
+    private static string? ClusterMaster_LabelOf(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson)) return null;
+        var text = payloadJson.Trim();
+        if (!text.StartsWith("{")) return text.Trim('"');
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(text);
+            foreach (var p in doc.RootElement.EnumerateObject())
+                if (string.Equals(p.Name, "label", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                    return p.Value.GetString();
+        }
+        catch (System.Text.Json.JsonException) { }
+        return null;
     }
 
     private void WriteError(Guid requestId, int statusCode)

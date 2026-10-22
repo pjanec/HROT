@@ -151,9 +151,6 @@ namespace Hrot.SimHost
         private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
         // HEXAG2-S012: factory-managed slave translator (was NodeOpSlaveTranslator directly).
         private Hrot.Core.Network.ISlaveOrchestrationTranslator? _slaveTranslator;
-        // CheckpointIOWorker owns the background I/O thread; created in OnLoad,
-        // passed to BuildOrchestration, and disposed in Shutdown (CGF1-S0303 A.1).
-        private CheckpointIOWorker? _checkpointWorker;
         // Bootstrapper for SM-009: delegates 7-phase initialization to SharedApplicationBootstrapper.
         private SimHostNodeBootstrapper? _bootstrapper;
 
@@ -372,7 +369,7 @@ namespace Hrot.SimHost
 
             // -- 6. Bootstrapper setup (SM-009) -----------------------------------------------
             // Create SimHostNodeBootstrapper and delegate 7-phase initialization.
-            // The bootstrapper creates: CoreLogicPack, ClusterSlave, CheckpointWorker,
+            // The bootstrapper creates: CoreLogicPack, ClusterSlave,
             // PhysicsModule, PerceptionModule, and wires all network translators.
             _bootstrapper = new SimHostNodeBootstrapper(
                 _networkFactory,
@@ -545,7 +542,6 @@ namespace Hrot.SimHost
             _idAllocator    = _context.IdAllocator;
             _clusterSlave   = _context.ClusterSlave;
             _slaveTranslator = _bootstrapper.SlaveTranslator;
-            _checkpointWorker = _bootstrapper.CheckpointWorker;
             _simCorePack    = _bootstrapper.CoreLogicPack;
             _physicsModule  = _bootstrapper.PhysicsModule;
             _behaviorRegistry = _bootstrapper.BehaviorRegistry;
@@ -688,9 +684,6 @@ namespace Hrot.SimHost
             _clusterSlave?.Dispose();
             _clusterSlave = null;
 
-            // ── Dispose CheckpointIOWorker (lets background I/O finish before kernel teardown)
-            _checkpointWorker?.Dispose();
-            _checkpointWorker = null;
 
             // ── Dispose simulation resources ──────────────────────────────────
             // ⭐⭐⭐ CE-197 — free the node's RESOURCE PROVIDERS (B4b step 3).

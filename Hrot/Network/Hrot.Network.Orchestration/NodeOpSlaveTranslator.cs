@@ -276,6 +276,21 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 catch { return null; }
             }
 
+            // ⭐ CE-3299 B3 (R-3044) — a checkpoint: its label and the wall time every node writes it at; an export names it.
+            case NedNodeOpType.TakeSnapshot:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<CheckpointPayload>(payloadJson!, DefaultOptions); }
+                catch { return null; }
+            }
+
+            case NedNodeOpType.ExportCheckpoint:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<ExportCheckpointPayload>(payloadJson!, DefaultOptions); }
+                catch { return null; }
+            }
+
             default:
                 return null;
         }

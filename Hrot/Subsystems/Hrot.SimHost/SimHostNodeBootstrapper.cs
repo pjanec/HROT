@@ -80,10 +80,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// </summary>
     public ISlaveOrchestrationTranslator? SlaveTranslator { get; private set; }
 
-    /// <summary>
-    /// Checkpoint I/O worker. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
-    /// </summary>
-    public CheckpointIOWorker? CheckpointWorker { get; private set; }
 
     /// <summary>
     /// Physics toolkit module. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
@@ -378,9 +374,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         var diagHandler = new DiagnosticsDumpClusterOpHandler(
             _eventHistoryService!, archService, entityService, logService, _hrotConfig);
 
-        var checkpointPath = System.IO.Path.Combine(_localTempRoot, "checkpoints");
-        CheckpointWorker = new CheckpointIOWorker(checkpointPath, context.NodeId);
-
         _nodeBootstrapper = new NodeBootstrapper(_networkFactory);
         // ⭐ W6 — the terrain this node loads bakes into the shared navmesh (silent-default rule: we hold it, so pass it).
         if (NavmeshFactory != null) _nodeBootstrapper.AttachNavmesh(NavmeshFactory, Navmesh);
@@ -397,7 +390,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             scenarioSerializer:   serializer,
             localTempRoot:        _localTempRoot,
             tkbDb:                _tkbDb,         // TKB-020
-            checkpointWorker:     CheckpointWorker,
             simGroup:             simGroup,
             lifecycleGroup:       context.NedReplication?.NetworkLifecycleGroup,
             ghostCreationSystem:  context.GhostCreationSystem,
