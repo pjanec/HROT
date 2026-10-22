@@ -35,6 +35,40 @@ namespace Fdp.Toolkit.Perception.Tests
             w.Bus.SwapBuffers();
         }
 
+        private static void At(EntityRepository w, double t) => w.SetSingletonUnmanaged(new GlobalTime { TotalTime = t, DeltaTime = 0.1f, TimeScale = 1f });
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3315</c> (restore design §1k) — the system keeps the world's count of sounds (<see cref="SoundTimeline"/>, which a checkpoint
+        /// carries) and, when the world is PUT BACK, numbers on from it: a carried count from the restored moment wins; a count newer than the
+        /// restored clock (a dry run puts no singleton back) gives way to what the ring had made before it. 🔴 Red-proof: drop the restore
+        /// branch ⇒ the ring numbers on from 3 (the abandoned future's) — and in a fresh process from 0.
+        /// </summary>
+        [Fact]
+        public void CE3315_AWorldPutBack_NumbersItsNextSoundWhereTheRestoredWorldStood()
+        {
+            var (w, e) = World();
+            var s = new SoundEmissionSystem();
+            for (int i = 1; i <= 3; i++) { At(w, i); w.Bus.Publish(new WeaponFireNotification { Shooter = e }); w.Bus.SwapBuffers(); Step(w, s); }
+            var ring = SoundEmissionRing.Of(w);
+            Assert.Equal(3, ring.Places);
+            Assert.Equal(3, w.GetSingleton<SoundTimeline>().Places);           // the world keeps the count beside the ring
+
+            // a checkpoint restore at 1.5 s: the keyframe brought back the count of that moment
+            w.SetSingletonUnmanaged(new SoundTimeline { Places = 1, At = 1.0 });
+            At(w, 1.5);
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(w);
+            Step(w, s);
+            Assert.Equal(1, ring.Places);                                        // numbers on from 1, the abandoned 2 and 3 left behind
+
+            // a dry-run exit at 1.2 s: no singleton put back — the count (1, at 1.0) is still the restored moment's; then one that is not
+            At(w, 2.0); w.Bus.Publish(new WeaponFireNotification { Shooter = e }); w.Bus.SwapBuffers(); Step(w, s);
+            Assert.Equal(2, w.GetSingleton<SoundTimeline>().Places);
+            At(w, 1.8);                                                         // the world goes back to 1.8 s; the count says 2 at 2.0 s
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(w);
+            Step(w, s);
+            Assert.Equal(1, ring.Places);                                        // ⇒ the ring's own count before 1.8 s (place 1)
+        }
+
         /// <summary>⭐ <c>CE-3063</c> (R-207) — the TKB authors what each sound sounds LIKE; a detonation with no class is an explosion.</summary>
         [Fact]
         public void TheTkbAuthorsTheSourceClass_AndADetonationDefaultsToAnExplosion_CE3063()

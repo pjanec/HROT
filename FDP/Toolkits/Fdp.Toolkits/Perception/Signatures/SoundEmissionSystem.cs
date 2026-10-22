@@ -22,6 +22,9 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// <summary>How long a shot or a detonation can still be heard (s) — covers a sensor deferred by the solver's budget.</summary>
         public const float SoundLingerSeconds = 0.5f;
 
+        // ⭐ CE-3315 — the world restores this system has numbered on from (WorldEpoch.RestoresOf)
+        private int _restoresSeen;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AcousticEmitter>()) return;
@@ -29,7 +32,29 @@ namespace Fdp.Toolkit.Perception.Signatures
             // ⭐ CE-3282 (Q95 C; Sensing §8.3) — the lossless ring HEARING reads (the emitter's 0.5 s linger below now only feeds the map's
             //   hearing gizmo); its clock moves every frame, so "too old" is measured on this node's time
             var ring = SoundEmissionRing.Of(repo);
-            ring.Tick(repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d);
+            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+            // ⭐ CE-3315 (restore design §1k) — the world was put back: the ring numbers on where the restored world stood — the count the
+            //   world carries (a checkpoint restore, here or in a fresh process), or, when that count is the abandoned future's (a dry run
+            //   puts no singleton back), what this ring had made before the restored clock
+            int restores = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(view);
+            //   ⭐ CE-3316 — and with it the newest sounds, so one a sensor had not read yet is still heard
+            if (restores != _restoresSeen)
+            {
+                _restoresSeen = restores;
+                Span<SoundEmission> tail = stackalloc SoundEmission[SoundTimeline.TailCapacity];
+                long places;
+                int n;
+                if (repo.HasSingleton<SoundTimeline>() && repo.GetSingleton<SoundTimeline>().At <= now + 1e-6)
+                {
+                    ref readonly var carried = ref repo.GetSingleton<SoundTimeline>();
+                    places = carried.Places;
+                    n = carried.TailCount;
+                    carried.TailRO().CopyTo(tail);
+                }
+                else n = ring.TailBefore(now, tail, out places);
+                ring.Resume(places, tail[..n], now);
+            }
+            ring.Tick(now);
 
             bool flight = repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>();
             foreach (var e in repo.Query().With<AcousticEmitter>().With<SimTransform>().Build())
@@ -86,6 +111,16 @@ namespace Fdp.Toolkit.Perception.Signatures
                         ring.Append(Emission(repo, det.Shooter, SoundKind.Detonation, a.DetonationClass, new System.Numerics.Vector3(det.HitX, det.HitY, det.HitZ),
                                              a.DetonationAudibleRange, ring.Now, det.Ammo, a.Family));   // a burst's signature is its munition (Q95 A)
                 }
+
+            // ⭐ CE-3315/CE-3316 — the world's count of this timeline's sounds and the newest of them, kept beside the ring (a checkpoint
+            //   carries them; the ring it cannot)
+            long count = ring.Places;
+            if (!repo.HasSingleton<SoundTimeline>() || repo.GetSingleton<SoundTimeline>().Places != count)
+            {
+                var timeline = new SoundTimeline { At = now };
+                timeline.TailCount = ring.TailBefore(double.PositiveInfinity, timeline.TailSpan(), out timeline.Places);
+                repo.SetSingletonUnmanaged(timeline);
+            }
         }
 
         // ⭐ CE-3282 — one ring entry: the source (anonymous to the listener — only the error's seed and the own-force test read it).

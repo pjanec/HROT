@@ -137,9 +137,9 @@ internal static class VerifyCommand
     /// on. Every unit's full component state from <paramref name="at"/> on must be the same in both — a difference names the first
     /// snapshot, the units and the components (each is the next thing a checkpoint does not carry, R-3039). Exit 0 when all match.
     /// </summary>
-    public static int RunRestoreChecks(string[] args, IReadOnlyList<string> scenarios, double at, string report, string outDir)
+    public static int RunRestoreChecks(string[] args, IReadOnlyList<string> scenarios, double at, string report, string outDir, double every = 1d)
     {
-        const double every = 1d;   // the snapshot grid; the checkpoint lands on it, so both runs snapshot the same moments
+        if (!(every > 0)) every = 1d;   // the snapshot grid; the checkpoint lands on it, so both runs snapshot the same moments
         double t1 = Math.Max(every, Math.Round(at / every) * every);
         var dir = !string.IsNullOrWhiteSpace(outDir) ? Path.GetFullPath(outDir)
             : Path.Combine(Path.GetTempPath(), "hrot-verify-r1", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture));
@@ -231,9 +231,10 @@ internal static class VerifyCommand
         for (int i = 0; i < args.Length; i++)
         {
             var a = args[i];
-            if (a is "--verify" or "--verify-report" or "--verify-out" or "--verify-restore-at") { i++; continue; }
+            if (a is "--verify" or "--verify-report" or "--verify-out" or "--verify-restore-at" or "--verify-restore-every") { i++; continue; }
             if (a.StartsWith("--verify=", StringComparison.Ordinal) || a.StartsWith("--verify-report=", StringComparison.Ordinal)
-                || a.StartsWith("--verify-out=", StringComparison.Ordinal) || a.StartsWith("--verify-restore-at=", StringComparison.Ordinal)) continue;
+                || a.StartsWith("--verify-out=", StringComparison.Ordinal) || a.StartsWith("--verify-restore-at=", StringComparison.Ordinal)
+                || a.StartsWith("--verify-restore-every=", StringComparison.Ordinal)) continue;
             keep.Add(a);
         }
         return keep;

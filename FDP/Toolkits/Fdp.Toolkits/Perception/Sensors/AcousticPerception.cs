@@ -148,7 +148,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             if (ring == null) return;
             bool cursors = view is EntityRepository repo && repo.IsComponentTypeRegistered<AcousticCursor>();
             bool known = cursors && view.HasComponent<AcousticCursor>(sensorEntity);
-            long after = known ? view.GetComponentRO<AcousticCursor>(sensorEntity).LastSerial : 0L;
+            long after = known ? view.GetComponentRO<AcousticCursor>(sensorEntity).LastPlace : 0L;
             // ⭐ CE-3293 — read as of THIS view's time (a background solve's snapshot carries its frame's clock), never the writer's: the
             //   main thread goes on appending the dispatching step's sounds while the solve runs, so only what came before it is fixed
             //   (a view with no clock reads everything, as before)
@@ -166,14 +166,15 @@ namespace Fdp.Toolkit.Perception.Sensors
                 if (n == candidates.Length) { last = e.Serial - 1; break; }   // no room: this one and the rest wait for the next solve
                 if (e.Source == unit.PackedValue || e.Force == ourForce) continue;   // not his own sound, not his own side's (the broadphase's rule)
                 // ⭐ CE-3292 — the error's seed is the sound's place in THIS timeline: the ring's serial keeps counting across loads, so the
-                //   raw serial gave the same shot a different mishearing in every run.
-                uint seed = unchecked((uint)(e.Serial - ring.FirstOfTimeline + 1));
+                //   raw serial gave the same shot a different mishearing in every run. ⭐ CE-3315 — the ring hands out the place itself
+                //   (it goes on across a restore, where serial − first did not).
+                uint seed = unchecked((uint)e.Serial);
                 Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, seed, e.Family, e.Token);
             }
             if (!cursors || (known && last == after)) return;   // ⭐ a sensor's FIRST solve always plants its cursor, even with nothing to read —
             var cmd = view.GetCommandBuffer();                       //   else a sound after a long skip would meet the no-cursor window
-            if (known) cmd.SetComponent(sensorEntity, new AcousticCursor { LastSerial = last });
-            else cmd.AddComponent(sensorEntity, new AcousticCursor { LastSerial = last });
+            if (known) cmd.SetComponent(sensorEntity, new AcousticCursor { LastPlace = last });
+            else cmd.AddComponent(sensorEntity, new AcousticCursor { LastPlace = last });
         }
 
         /// <summary>One listener's ears for this tick: where, how far they reach (masked), the weather's masking, the uncertainty.</summary>

@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: docs/designs/mgmt-1/DESIGN.md §9.1/§9.3 still DESCRIBE the SyncFrom snapshot and the .dds supplement as the mechanism — both carry SUPERSEDED / WITHDRAWN banners pointing here (R-3040, R-3041).
 related-designs:
+  - DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS the sound ring (§8.3); §8.3a makes hearing survive a restore (CE-3315: the world carries the sound count)
   - DESIGN_Scenario_Regression.md — OWNS the editor verifier R1 runs on (a fresh process per run, one step per frame, full component snapshots, the golden compare); §1k adds the checkpoint around it
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7g (R-3039 system memory in components; R-3040 the recorder; R-3041 no network buffers) and §7g.0c the review this resolves. It owns the STATE rules; this owns the SAVE/RESTORE mechanism.
   - docs/designs/mgmt-1/DESIGN.md — §9 checkpoints and dry runs (the operator contract), §8.12 Always Recording, §8.10 lifecycle during replay.
@@ -524,6 +525,12 @@ again, SAME; a lossy checkpoint DIFFERENT naming the unit and component; the car
 (60 s) SAME in every carried component of every unit. 🔴 `ua-civ-routine-alarm` — the near civilians do not hear the 3.1 s shot after a
 restore: the sound ring is not carried while each ear's read position is (**CE-3315**, and in the same process the reverse — the abandoned
 timeline's sounds heard again). 🔴 `ua-civ-melee` — the Policeman's threat freshness drifts a few float ULPs a step (**CE-3316**, not run down).
+
+📐 **After CE-3315/CE-3316's ring work (`2026-10-22`):** `bt-grenade-posture`, `ua-tank-ammo` SAME; `ua-civ-routine-alarm` SAME through the 3.1 s
+shot — its first difference is now at 7 s, NAVIGATION HANDLES only (labels from a process-static counter, **CE-3318**); `ua-civ-melee` run down
+step by step: a background hearing solve IN FLIGHT across the checkpoint is lost and the restored run dispatches that slot a step late
+(**CE-3316**, re-diagnosed — a decision for the stepped scheduler, Time Architecture §17). ⭐ `--verify-restore-every <s>` snapshots at any grid
+(1/60 = every step) to run a difference down.
 
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
