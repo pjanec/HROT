@@ -336,7 +336,12 @@ namespace Hrot.Editor.Director
                 var p = ConditionBook.At(comps, "SimTransform.Position");
                 units[name] = new JsonObject
                 {
-                    ["position"] = p is JsonObject o ? new JsonArray(R(o["X"]), R(o["Y"]), R(o["Z"])) : p?.DeepClone(),
+                    ["position"] = p switch
+                    {
+                        JsonObject o => new JsonArray(R(o["X"]), R(o["Y"]), R(o["Z"])),
+                        JsonArray a => new JsonArray(a.Select(R).ToArray()),   // the dump writes a vector as [x, y, z]
+                        _ => p?.DeepClone(),
+                    },
                     ["health"] = ConditionBook.At(comps, "Health.Current")?.DeepClone(),
                     ["components"] = hashes,
                 };

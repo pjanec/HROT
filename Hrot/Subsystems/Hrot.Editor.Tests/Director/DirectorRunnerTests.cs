@@ -345,8 +345,19 @@ public sealed class DirectorRunnerTests : IDisposable
         public IShotWorld Units { get; }
         public string? BehaviourName(int hash) => null;
 
+        private int _loads;
+
+        /// <summary>A load rebuilds the world: the edited health goes with the old one (⛔ a fake that kept it would leak like CE-3294).</summary>
+        private void Fresh()
+        {
+            if (_h.Loads.Count == _loads) return;
+            _loads = _h.Loads.Count;
+            Health.Clear();
+        }
+
         public System.Text.Json.Nodes.JsonObject? Components(long id)
         {
+            Fresh();
             foreach (var e in _h.Repo.Query().With<NetworkIdentity>().Build())
             {
                 if (_h.Repo.GetComponentRO<NetworkIdentity>(e).Value != id) continue;
@@ -365,6 +376,7 @@ public sealed class DirectorRunnerTests : IDisposable
 
         public string? SetComponent(long id, string component, System.Text.Json.Nodes.JsonObject patch)
         {
+            Fresh();
             if (component != "Health") return "only Health here";
             Health[id] = patch["Current"]!.GetValue<double>();
             Edits.Add((_h.SimTime, id, component));
