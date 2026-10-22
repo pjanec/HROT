@@ -94,7 +94,10 @@ namespace Hrot.CGF.Systems
                     var task = activePlan.Plan.Tasks[queue.CurrentPhase];
                     jsonParams = task.BehaviorParams ?? "{}";
 
-                    uint currentDefHash = (uint)(jsonParams.GetHashCode() ^ phase.BehaviorId);
+                    // ⭐ CE-4043 — a STABLE hash: string.GetHashCode() is randomised per process, so this component differed in every
+                    //   process (measured by the scenario verifier, CE-4042: LastPlanVersion 83239098 · 2673561298 · 1681038897 in three
+                    //   runs of ua-civ-routine-alarm). The engine's one string hash (UtilityIdHash, through In.Fnv1a32).
+                    uint currentDefHash = Fdp.Toolkit.Utility.In.Fnv1a32(jsonParams) ^ (uint)phase.BehaviorId;
 
                     // Skip if nothing changed
                     if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
