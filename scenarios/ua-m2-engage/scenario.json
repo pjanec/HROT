@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: a manned M2 engages an intruder (CE-4035 G-11), on basic-desert. 'M2 Gunner' (default SOP) sets up a stowed 'M2 HMG' 8 m away at (300, 330), facing north; while it is set up an 'Intruder' (Hostile) walks from (330, 480) toward it (to (310, 400)). Judge: (1) the gunner mans the M2 and it deploys (2) the M2 fires on the intruder. Fail: the M2 never fires. Note: split out of ua-weapon-systems, whose automatic sentry gun (360° traverse, 900 m range) shot every intruder anywhere on the terrain first. Check: python3 scripts/utility-demo-check.py --launch ua-m2-engage"
+    "description": "What: a manned M2 engages an intruder (CE-4035 G-11), on basic-desert. 'M2 Gunner' (default SOP) sets up a stowed 'M2 HMG' 8 m away at (300, 330), facing north; while it is set up an 'Intruder' (Hostile) walks from (330, 480) toward it (to (310, 400)). The M2 itself holds (WeaponSystemHold): a man in its seat is ABOARD, and the soldier SOP stands aside for a man aboard (\"the vehicle decides\", AQ97), so without the weapon's own order nobody fires — 📐 measured live. Judge: (1) the gunner mans the M2 and it deploys (2) the M2 fires on the intruder. Fail: the M2 never fires. Note: split out of ua-weapon-systems, whose automatic sentry gun (360° traverse, 900 m range) shot every intruder anywhere on the terrain first. Check: python3 scripts/utility-demo-check.py --launch ua-m2-engage"
   },
   "entities": {
     "c4035011-0000-4000-8000-000000000001": {
@@ -37,6 +37,11 @@
       "WeaponSystemState": {
         "Deploy": "Stowed",
         "Until": 0
+      },
+      "Behavior": {
+        "Name": "WeaponSystemHold",
+        "Params": "{}",
+        "Origin": "Superior"
       }
     },
     "c4035011-0000-4000-8000-000000000002": {
