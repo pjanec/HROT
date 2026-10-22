@@ -24,6 +24,7 @@ supersedes: DESIGN_Time_Control_And_Reporting.md and DESIGN_Time_And_Write_Archi
 roadmap: PLAN_Time_System_Refactor.md -- the ORDER. T0 (make the integration net work) blocks
   every task derived from this document.
 related-designs:
+  - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — D5: a dry-run Stop never restores the clock (§12a), a checkpoint restore does (CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS which systems run on a paused frame (an explicit TickMode on every
     system and module, no default) and the step event window that settles §17's OPEN event-visibility item (CE-3293, R-3036)
   - docs/DESIGN_Film_Director.md — a CONSUMER: paces fixed steps (StepOneTick) against the wall clock for deterministic real-time playback (D-1)
