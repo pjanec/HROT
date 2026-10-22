@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: an aircraft shot down, and its pilot ejecting by himself (CE-4035 G-1; EjectionSystem: below 20 % health, or a wreck), on basic-desert. An 'A-10', already damaged (600 of 1500 health, so one real hit takes it below the 20 % line), flies a racetrack loop (100,500)-(900,500)-(900,900)-(100,900) at 150 m and 100 m/s with NO eject task. Under it stand a hostile 'Stinger Gunner' at (500, 700) and a 'ZU-23 Technical' at (600, 300) on their default SOPs; a hostile patrol (Patrol 1-3) waits at (806-818, 150). ⚠ Everything stays inside basic-desert's perception grid [0, 1000)² — outside it nobody sees or hears anything. Judge: (1) the air defence fires at the A-10 and hits it (2) exactly one new Pilot (type 206) appears, with no order given (3) his canopy is open within about 3-4.5 s (4) the pilot comes down and stays down. Fail: no shot, no pilot, or a pilot without the jet being hit. Compare: ua-eject (the ordered eject). Check: python3 scripts/utility-demo-check.py --launch ua-shootdown-eject"
+    "description": "What: an aircraft shot down, and its pilot ejecting by himself (CE-4035 G-1; EjectionSystem: below 20 % health, or a wreck), on basic-desert. An 'A-10', badly damaged (330 of 1500 = 22 %, so a few hits take it below the 20 % eject line), flies a racetrack loop (100,500)-(900,500)-(900,900)-(100,900) at 150 m and 100 m/s with NO eject task. Under it stand a hostile 'Stinger Gunner' at (500, 700) and a 'ZU-23 Technical' at (600, 300) on their default SOPs; a hostile patrol (Patrol 1-3) waits at (806-818, 150). ⚠ Everything stays inside basic-desert's perception grid [0, 1000)² — outside it nobody sees or hears anything. Judge: (1) the air defence fires at the A-10 and hits it (2) exactly one new Pilot (type 206) appears, with no order given (3) his canopy is open within about 3-4.5 s (4) the pilot comes down and stays down. ⚠ Measured `2026-10-22`: the Stinger gunner engages with his RIFLE, never the Stinger, and the ZU-23 does not fire (CE-4035 finding). Fail: no shot, no pilot, or a pilot without the jet being hit. Compare: ua-eject (the ordered eject). Check: python3 scripts/utility-demo-check.py --launch ua-shootdown-eject"
   },
   "entities": {
     "c4035001-0000-4000-8000-000000000001": {
@@ -35,7 +35,7 @@
         "ForceId": "Friend"
       },
       "Health": {
-        "Current": 600,
+        "Current": 330,
         "Max": 1500
       },
       "MissionPlan": {

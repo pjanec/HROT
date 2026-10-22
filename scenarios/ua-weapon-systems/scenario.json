@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: Basic-desert south of the y 210 ridge, three vignettes: an automatic \"Sentry Gun\" (60,100, WeaponSystemHold) vs an \"Intruder\" walking at it; \"M2 Gunner\" sets up a stowed \"M2 HMG\" 8 m away; \"Javelin Man\" carries a stowed \"Javelin\" 8 m away (Weapon Systems WS-6). The M2 and its gunner stand at (620,100), 560 m east of the sentry gun; an 'Intruder 2' walks from (700,230) toward the M2 (to (660,170)), into its arc and beyond the sentry gun's reach; the M2 gunner, once set up, is on his type's default SOP, so he engages what he sees (CE-4035 G-11). Judge: (1) the sentry gun fires on its own and hurts the Intruder (health < 100) (2) the gunner takes the M2's gunner seat and the M2 becomes Deployed (20 s deploy) (3) the Javelin man carries the Javelin (it is aboard him) (4) the manned M2 fires on Intruder 2. Fail: the sentry stays silent, or the M2 or Javelin never changes state. Check: python3 scripts/utility-demo-check.py --launch ua-weapon-systems"
+    "description": "What: Basic-desert south of the y 210 ridge, three vignettes: an automatic \"Sentry Gun\" (60,100, WeaponSystemHold) vs an \"Intruder\" walking at it; \"M2 Gunner\" sets up a stowed \"M2 HMG\" 8 m away; \"Javelin Man\" carries a stowed \"Javelin\" 8 m away (Weapon Systems WS-6). The M2 and its gunner stand at (300,330), NORTH of the y 210 ridge and facing north, so the ridge hides them and their intruder from the sentry gun; an 'Intruder 2' walks from (330,480) toward the M2 (to (310,400)), into its arc; the M2 gunner, once set up, is on his type's default SOP, so he engages what he sees (CE-4035 G-11). Judge: (1) the sentry gun fires on its own and hurts the Intruder (health < 100) (2) the gunner takes the M2's gunner seat and the M2 becomes Deployed (20 s deploy) (3) the Javelin man carries the Javelin (it is aboard him) (4) the manned M2 fires on Intruder 2. Fail: the sentry stays silent, or the M2 or Javelin never changes state. Check: python3 scripts/utility-demo-check.py --launch ua-weapon-systems"
   },
   "entities": {
     "a2222d00-0000-4000-8000-000000000001": {
@@ -88,15 +88,15 @@
     "a2222d00-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          620,
-          100,
+          300,
+          330,
           0
         ],
         "Rotation": [
           0,
           0,
-          0,
-          1
+          0.70710678,
+          0.70710678
         ]
       },
       "NetworkIdentity": {
@@ -117,15 +117,15 @@
     "a2222d00-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          628,
-          100,
+          308,
+          330,
           0
         ],
         "Rotation": [
           0,
           0,
-          0,
-          1
+          0.70710678,
+          0.70710678
         ]
       },
       "NetworkIdentity": {
@@ -225,8 +225,8 @@
     "a2222d00-0000-4000-8000-000000000099": {
       "SimTransform": {
         "Position": [
-          700,
-          230,
+          330,
+          480,
           0
         ],
         "Rotation": [
@@ -255,7 +255,7 @@
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"x\": 660, \"y\": 170, \"speed\": 1.2, \"arrivalRadius\": 1}",
+        "Params": "{\"x\": 310, \"y\": 400, \"speed\": 1.2, \"arrivalRadius\": 1}",
         "Origin": "Superior"
       },
       "Sop": {
