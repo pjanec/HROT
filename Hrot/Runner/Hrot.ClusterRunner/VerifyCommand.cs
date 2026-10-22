@@ -62,6 +62,11 @@ internal static class VerifyCommand
             var childReport = Path.Combine(dir, s + ".json");
             var log = Path.Combine(dir, s + ".log");
             var psi = CommandLineVerify.SelfStartInfo(keep.Concat(new[] { "--verify", s, "--verify-report", childReport }));
+            // ⭐ a PRIVATE staging root per child: every editor boot seeds the curated scenarios into its working copy, and a sibling
+            //    capturing a golden there made the boot throw "used by another process" (📐 measured, three streams in parallel). The
+            //    golden that is kept goes to the source tree anyway (TakeStore.SaveScenarioJson).
+            var staging = Path.Combine(dir, ".staging", s);
+            psi.Environment["FDP_STAGING_ROOT"] = staging;
             var started = Stopwatch.StartNew();
             int code;
             using (var writer = new StreamWriter(log))
@@ -75,6 +80,7 @@ internal static class VerifyCommand
                 if (!p.WaitForExit((int)childLimit.TotalMilliseconds)) { try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } code = 124; }
                 else { p.WaitForExit(); code = p.ExitCode; }
             }
+            try { Directory.Delete(staging, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             JsonNode? r = File.Exists(childReport) ? JsonNode.Parse(File.ReadAllText(childReport)) : null;
             var item = r?["scenarios"]?[0]?.DeepClone() ?? new JsonObject { ["scenario"] = s, ["status"] = "no report", ["exitCode"] = code, ["log"] = log };
             reports.Add(item);
