@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Replication.Tests
             => throw new NotImplementedException();
     }
 
-    class SlowMockTkbDatabase : ITkbDatabase
+    class CountingMockTkbDatabase : ITkbDatabase
     {
         public TkbTemplate TemplateToReturn;
         public int CallCount = 0;
@@ -43,7 +43,6 @@ namespace Fdp.Toolkit.Replication.Tests
         public TkbTemplate GetByType(long tkbType)
         {
             CallCount++;
-            System.Threading.Thread.Sleep(5); // 5ms per entity, exceeds 2ms budget
             return TemplateToReturn;
         }
         public TkbTemplate GetTemplateByEntityType(Fdp.Core.DISEntityType entityType) => null;
@@ -91,22 +90,27 @@ namespace Fdp.Toolkit.Replication.Tests
                 "GhostStateTracker must be removed on promotion.");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4044</c> — the promotion budget is a COUNT (<see cref="GhostPromotionSystem.PromotionsPerFrame"/>), not a wall-clock
+        /// slice: how many ghosts a frame promotes must not depend on how fast the machine is. ⛔ SUPERSEDED: this rail asserted a 2 ms
+        /// stopwatch budget (a 5 ms lookup ⇒ fewer than 10 of 10 promoted) — the very non-determinism CE-4044 removed.
+        /// </summary>
         [Fact]
-        public void Execute_RespectsTimeBudget()
+        public void Execute_PromotesAtMostTheCountBudget_PerFrame_TheRestNextFrame()
         {
             using var repo = new EntityRepository();
 
             var template = new TkbTemplate("Test", 123);
-            var slowTkb = new SlowMockTkbDatabase { TemplateToReturn = template };
-            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(slowTkb, Array.Empty<int>());
-            var sys = new GhostPromotionSystem(slowTkb, elm);
+            var tkb = new CountingMockTkbDatabase { TemplateToReturn = template };
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(tkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(tkb, elm);
 
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<ConstructionOrder>();
 
-            // Create 10 ghost entities; each GetByType call sleeps 5ms, well over the 2ms budget
-            for (int i = 0; i < 10; i++)
+            int ghosts = GhostPromotionSystem.PromotionsPerFrame + 10;
+            for (int i = 0; i < ghosts; i++)
             {
                 var e = repo.CreateEntity();
                 repo.AddComponent(e, new TkbIdentity { TkbType = 123 });
@@ -115,12 +119,11 @@ namespace Fdp.Toolkit.Replication.Tests
             }
 
             sys.Execute(repo, 0f);
-
-            Assert.True(slowTkb.CallCount < 10,
-                $"Processed too many ghosts: {slowTkb.CallCount}. Should be limited by 2ms time budget.");
-            Assert.True(slowTkb.CallCount > 0, "Should have processed at least one ghost.");
+            Assert.Equal(GhostPromotionSystem.PromotionsPerFrame, tkb.CallCount);
+            sys.Execute(repo, 0f);
+            Assert.Equal(ghosts, tkb.CallCount);
         }
-        
+
         [Fact]
         public void Execute_DoesNotPromote_EntityNotInGhostLifecycle()
         {

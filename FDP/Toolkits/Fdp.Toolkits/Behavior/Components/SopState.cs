@@ -80,7 +80,9 @@ namespace Fdp.Toolkit.Behavior.Components
         /// by <see cref="OccurrenceWorkingState"/> when it attaches inside the SOP's <see cref="BrainSlotScope"/>; protected
         /// from the task's sweep; detached when the SOP run ends. 📄 docs/DESIGN_Sensors_And_Doctrine.md §6.
         /// </summary>
-        public System.Collections.Generic.List<int> HostedKeys { get; } = new();
+        // ⭐ CE-3305 — `private set`, not get-only: the recorder writes public settable members, so a get-only list was LOST from every
+        //   recording, checkpoint and dry-run keyframe.
+        public System.Collections.Generic.List<int> HostedKeys { get; private set; } = new();
 
         /// <summary>Notes <paramref name="key"/> as attached by the SOP run currently in scope for <paramref name="self"/>.</summary>
         internal static void NoteHosted(Fdp.Core.EntityRepository world, Fdp.Core.Entity self, int key)

@@ -178,6 +178,30 @@ namespace Fdp.Toolkit.Lifecycle
         public void RegisterTemplateRequirement(Func<TkbTemplate, bool> applies, int moduleId)
             => _templateRequirements.Add((applies ?? throw new ArgumentNullException(nameof(applies)), moduleId));
 
+        // ⭐ CE-3304 — a participant whose work can take longer than the default timeout (frames) waits this long instead.
+        private readonly Dictionary<int, int> _moduleTimeoutFrames = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-3304</c> (Peek &amp; Fire §9 O2's own mitigation) — a construction still waiting for <paramref name="moduleId"/> times
+        /// out after <paramref name="timeoutFrames"/> frames instead of the default. 📐 Measured: the terrain module's bake (a 0.5 s quiet
+        /// period, then 100–270 ms off-thread) outlived 300 frames in a headless editor load, whose frames run unthrottled — the static
+        /// obstacles were DESTROYED by the timeout. A participant that always acks in the end (the bake acks on failure too) may take longer.
+        /// </summary>
+        public void SetModuleTimeout(int moduleId, int timeoutFrames)
+        {
+            if (timeoutFrames <= 0) throw new ArgumentOutOfRangeException(nameof(timeoutFrames));
+            _moduleTimeoutFrames[moduleId] = timeoutFrames;
+        }
+
+        private int TimeoutFor(HashSet<int> remainingAcks)
+        {
+            int timeout = _timeoutFrames;
+            if (_moduleTimeoutFrames.Count == 0) return timeout;
+            foreach (var module in remainingAcks)
+                if (_moduleTimeoutFrames.TryGetValue(module, out var t) && t > timeout) timeout = t;
+            return timeout;
+        }
+
         public void AcknowledgeConstruction(Entity entity, int moduleId, uint frame, IEntityCommandBuffer cmd)
         {
             cmd.PublishEvent(new ConstructionAck
@@ -390,7 +414,7 @@ namespace Fdp.Toolkit.Lifecycle
             var timedOutConstruction = new List<Entity>();
             foreach (var kvp in _pendingConstruction)
             {
-                if (currentFrame - kvp.Value.StartFrame > _timeoutFrames)
+                if (currentFrame - kvp.Value.StartFrame > TimeoutFor(kvp.Value.RemainingAcks))
                 {
                     timedOutConstruction.Add(kvp.Key);
                 }

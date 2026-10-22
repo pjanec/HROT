@@ -23,6 +23,35 @@ namespace Fdp.Toolkit.Replay
         public int SizeBytes => Bytes.Length;
     }
 
+    /// <summary>⭐ B2 — which component types a keyframe carries.</summary>
+    public enum KeyframeTypes
+    {
+        /// <summary>What a recording carries: no <c>NoReplay</c> (checkpoints, replays).</summary>
+        Recorded,
+        /// <summary>What a world snapshot carries: no <c>NoSnapshot</c> / <c>Transient</c> (the cluster nodes' dry run).</summary>
+        Snapshotable,
+        /// <summary>Every registered type (the editor's dry run — it copied <c>Transient</c> too, HN-016).</summary>
+        All,
+    }
+
+    /// <summary>⭐ B2 — what <see cref="WorldKeyframes.Capture(EntityRepository, CaptureOptions, long)"/> writes.</summary>
+    /// <param name="Types">The component types.</param>
+    /// <param name="Singletons">Write the singletons too. ⛔ A dry run's never are: its rewind never touched a singleton (the content
+    /// a scenario loaded stays, R-3043).</param>
+    public sealed record CaptureOptions(KeyframeTypes Types = KeyframeTypes.Recorded, bool Singletons = true)
+    {
+        public static readonly CaptureOptions Recording = new();
+        public static readonly CaptureOptions NodeDryRun = new(KeyframeTypes.Snapshotable, Singletons: false);
+        public static readonly CaptureOptions EditorDryRun = new(KeyframeTypes.All, Singletons: false);
+
+        internal Func<int, bool>? Filter => Types switch
+        {
+            KeyframeTypes.Recorded => null,
+            KeyframeTypes.Snapshotable => ComponentTypeRegistry.IsSnapshotable,
+            _ => static _ => true,
+        };
+    }
+
     /// <summary>
     /// ⭐ <c>D2</c>/<c>D12</c> — what a keyframe apply puts back besides the components.
     /// </summary>
@@ -48,12 +77,18 @@ namespace Fdp.Toolkit.Replay
     {
         /// <summary>Captures <paramref name="repo"/> as a keyframe (no events — a world, not a moment's traffic).</summary>
         public static WorldKeyframe Capture(EntityRepository repo, long wallClockTicks = 0)
+            => Capture(repo, CaptureOptions.Recording, wallClockTicks);
+
+        /// <summary>⭐ B2 — captures <paramref name="repo"/> with the type set <paramref name="options"/> names.</summary>
+        public static WorldKeyframe Capture(EntityRepository repo, CaptureOptions options, long wallClockTicks = 0)
         {
             if (repo is null) throw new ArgumentNullException(nameof(repo));
+            if (options is null) throw new ArgumentNullException(nameof(options));
             using var ms = new MemoryStream();
             using (var writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
             {
-                new RecorderSystem().RecordKeyframe(repo, writer, wallClockTicks, eventBus: null);
+                new RecorderSystem { ComponentTypeFilter = options.Filter, RecordSingletonTables = options.Singletons }
+                    .RecordKeyframe(repo, writer, wallClockTicks, eventBus: null);
                 writer.Flush();
             }
             return new WorldKeyframe(ms.ToArray(), repo.GlobalVersion);
