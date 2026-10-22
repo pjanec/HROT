@@ -169,7 +169,8 @@ namespace Hrot.AI.Behaviors.Brains
                 bool isLead = s == lead;
                 if (!isLead) rank++;
                 if (PlatoonHoldBehavior.Fighting(world, squad)) continue;   // UM-6 — its own reaction runs; ordered when it ends
-                var want = isLead ? p.Point(Math.Min(p.Leg, p.Count - 1)) : PointAt(ref p, along - p.Spacing * rank);
+                var want = isLead ? p.Point(Math.Min(p.Leg, p.Count - 1))
+                                  : AlongTheRoute(ref p, StaffComposerSystem.CentreOf(world, squad), along - p.Spacing * rank);
                 // UM-4 — keep the point last given while the wanted one is within ReorderMetres of it (no restart every tick)
                 if (p.HasGiven[s] != 0 && p.GivenLead[s] == (isLead ? 1 : 0)
                     && Flat(new Vector3(p.GivenX[s], p.GivenY[s], p.GivenZ[s]), want) < (isLead ? 0.01f : ReorderMetres))
@@ -292,6 +293,21 @@ namespace Hrot.AI.Behaviors.Brains
                 walked += len;
             }
             return bestAlong;
+        }
+
+        /// <summary>⭐ UM-4 (as built) — where a follower standing at <paramref name="at"/> marches for its point <paramref name="target"/> metres
+        /// along: the next corner of the route ahead of him when one lies before the point, else the point — 📐 live (pc-urban-move) a
+        /// follower sent straight to a point round the corner cut across the block.</summary>
+        public static Vector3 AlongTheRoute(ref UrbanPlan p, Vector3 at, float target)
+        {
+            float mine = Along(ref p, at), walked = 0f;
+            for (int i = 1; i < p.Count - 1; i++)
+            {
+                walked += Flat(p.Point(i - 1), p.Point(i));
+                if (walked <= mine + p.ArrivalRadius) continue;   // a corner behind him, or the one he stands at
+                return walked < target ? p.Point(i) : PointAt(ref p, target);
+            }
+            return PointAt(ref p, target);
         }
 
         /// <summary>The route point <paramref name="along"/> metres from its start (clamped to the route).</summary>

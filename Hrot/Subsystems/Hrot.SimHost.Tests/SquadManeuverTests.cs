@@ -6766,6 +6766,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new Vector3(0f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                  // the same leg
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-1 (UM-4, as built) — a follower whose point lies round a corner of the route marches to the CORNER first, then
+        /// on: 📐 live (pc-urban-move) a follower sent straight to its point cut across the block. One whose point is before the corner goes
+        /// straight to it. ✅ Red-proof: the corner skipped ⇒ Bravo is sent across the block to (10,100).
+        /// </summary>
+        [Fact]
+        public void CE2284_UrbanMovement_AFollowerWalksTheRouteRoundACorner_NotAcrossTheBlock()
+        {
+            var p = OnTheMove();
+            p.S.Teleport(p.Alpha, new Vector3(0f, 95f, 0f));
+            p.Ticks(3);
+            p.S.Teleport(p.Alpha, new Vector3(40f, 100f, 0f));   // round the corner, 40 m down the second leg
+            p.S.Teleport(p.Bravo, new Vector3(0f, 40f, 0f));
+            p.S.Teleport(p.Charlie, new Vector3(0f, -20f, 0f));
+            p.Ticks(5);
+            Assert.Equal(new Vector3(0f, 100f, 0f), MarchOf(p, p.Bravo).Objective);                                  // its point (10,100): the corner first
+            Assert.InRange(Vector3.Distance(MarchOf(p, p.Charlie).Objective, new Vector3(0f, 80f, 0f)), 0f, 0.01f);   // its point is before the corner
+            p.S.Teleport(p.Bravo, new Vector3(0f, 99f, 0f));
+            p.Ticks(5);
+            Assert.InRange(Vector3.Distance(MarchOf(p, p.Bravo).Objective, new Vector3(10f, 100f, 0f)), 0f, 0.01f);   // at the corner: on to it
+        }
+
         /// <summary>⭐ <c>CE-2284</c> U-1 (UM-2) — the lead squad wiped out: the next live squad leads, with the crossing drill, to the same
         /// leg's end. ✅ Red-proof: the lead fixed at slot 0 ⇒ nobody leads.</summary>
         [Fact]
