@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN (⏳ the decisions in §5 carry leans awaiting the user; §6 measurements come first)
-updated: 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
+updated: 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
@@ -241,7 +241,7 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 | **D4** | F4: no reset fires after a keyframe apply | `AfterRestore`: ELM re-arm (exists) → `NetworkEntityMap.RebuildFromWorld` (exists) → `WorldEpoch.Restored` (NEW count; R-3039 class A/B fields reset through `Rebuilt`) → `EventAccumulator.Restart` (+ D2) → a forced keyframe in the running recording (D8) | reuse `Moved` — makes the network cleanup delete every owned entity on the wire |
 | **D5** | F5: the clock | `restoreClock`: dry-run exit **false** (Time Architecture §12a owns the Stop), checkpoint restore **true** | one rule for both — Stop would rewind time behind the time system's back |
 | **D6** | F6: `NoPreview` vs `NoReplay` | M4 diffs the sets; ONE recorded set if they agree; editor-only state moves to D12's keep list | two filters in the recorder |
-| **D7** | F7: recordability is decided at registration, unregistered ⇒ silently not recorded | a rail: every registered component and singleton type has an EXPLICIT `DataPolicy`; M1 lists what a keyframe holds per host | trust the default |
+| **D7** | F7: recordability is decided at registration — 📐 **confirmed for singletons (§6a)**: `ITkbDatabase`, `INavmeshProvider`, `NetworkEntityMap`, `WorldEpoch` (marked `Transient`) … are all recorded | ⭐ singletons honour `DataPolicy` like components (the recorder reads the policy, not only the registry default); content / service singletons are `NoReplay`; a rail: every registered component AND singleton has an explicit policy | trust the default — it records the TKB and the navmesh provider into every keyframe |
 | **D8** | F8: `GlobalVersion` goes back to the recorded tick | apply under `max(live, recorded) + 1` (versions only grow); ⭐ **a restore starts a new recording segment** (a fork) — the frames after the mark stay intact for another restore, the new segment begins with a keyframe | let it go back — the always-on recorder skips changes until its next keyframe · overwrite the recording past the mark — loses the other branch |
 | **D9** | F9: a fixed 32 MB recorder buffer | M2 measures the largest world; the buffer grows when a keyframe does not fit | a bigger constant |
 | **D10** | F10: a fresh process — content and node ids | ⭐ **a restore keeps what is loaded (R-3043)**: in a running process the seek keeps every singleton (`Clear` spares them) — 📐 terrain, TKB, navmesh stay; only a fresh process runs the load chain first, which skips resident content (`TerrainLoadStep:55`, `KnowledgeBaseLoadStep:99`). ⏳ Node ids: the recordings are per node, so each node restores its OWN recording — ids match by construction; in a fresh cluster the master grants each node the id its recording carries | a restore as a full load from Idle — reloads content and stops everything |
@@ -258,6 +258,21 @@ shared wall-clock zero. A restore then FORKS the recording: the frames after the
 | M3 | apply time on the same world | the same | the dry-run Stop (accepted by the user; recorded) |
 | M5 | a forced keyframe mid-run: its extra cost on the recorder frame, and the step-window events it carries | force one on a recorded `uc-urban-battle` | D2, R-3042's "does not interfere" |
 | M4 | the 86 `NoReplay`/`Transient` types, each classed: sim state / protocol / network shadow / event / editor-only; and `NoPreview` vs `NoReplay` | read + `search_graph` per type | D1, D6, D12 |
+
+### 6a. 📐 MEASURED `2026-10-22` — M1, M2, M3 (throwaway probe in the in-process cluster harness, `uc-urban-battle` live, 600 frames after spawn; Debug build, four hosts in one process — absolute times are high)
+
+| host | live entities | keyframe (raw, uncompressed) | capture (median of 5) | components NOT recorded but in use | singletons NOT recorded |
+|---|---|---|---|---|---|
+| SimHost | 731 | 6.2 MiB | 20 ms | `NetworkTransform`/`NetworkVelocity` (555), `ReportLifecycleOnActive` (555), **`SensorCapability` (68)**, **`AirPath` (1)**, `WorldSurveyRequest` (1) | `TerrainDefinition`, `TerrainWorld`, `TrafficFrame`, `TrafficNetCache` |
+| CGF | 759 | 7.8 MiB | 31 ms | `NetworkTransform` (555), `NetworkVelocity` (40), `EgressPublicationState` (97), **`MissionAdapterState` (45)**, **`SensorCapability` (68)**, **`PausedTask` (3)**, **`SubordinateOrders` (3)**, `BehaviorStartRecord` (34), `SopStartRecord` (36), `SquadDrillTrace` (3), `SensorConfigPayload` (1), `WorldSurvey*` (1+1) | the same four + `ScenarioDescriptionResident` |
+| IG | 589 | 3.8 MiB | 19 ms | `NetworkTransform`/`NetworkVelocity` (555), `ReportLifecycleOnActive` (555) | the same four |
+
+| finding | ⇒ |
+|---|---|
+| ⭐ **M3: applying the SimHost keyframe in place took 36 ms**; 731 entities before and after; 30 more frames ran without an exception | the restore cost is small — the dry-run Stop and a checkpoint restore are tens of ms per host |
+| ⭐ **M2: 4–8 MiB raw and 19–31 ms per keyframe per host** — well inside the 32 MiB buffer (F9) at this size; the recorder already pays this every 60 frames | a forced checkpoint keyframe (R-3044) costs ONE such capture on the frame it lands — the same hitch the recorder already takes once a second; ⚠ M2 in a Release build is still owed before calling R-3042's "does not interfere" measured |
+| 🔴 **M1: singletons ignore `DataPolicy`.** RECORDED on every host: `ITkbDatabase`, `INavmeshProvider`, `ICoverProvider`, `IGeographicTransform`, `IPathRegistry`, `RoadNetworkHolder`, `StaticObstacleBakery`, `NetworkEntityMap`, `WorldEpoch` (marked `Transient`!), `CanvasContextMenuState` (editor UI); recordability is the REGISTRATION default (F7, confirmed) | a keyframe restore would REPLACE loaded content and services with deserialized copies — against R-3043. **D7 becomes:** singletons honour `DataPolicy` like components; content and service singletons are `NoReplay`; a rail fails on any singleton without an explicit policy. ⚠ Replays restore these today too — what that does to a live navmesh provider is unmeasured |
+| 🔴 **M1: sim state in use, not recorded** — `SubordinateOrders`, `PausedTask`, `MissionAdapterState`, `AirPath`, and `SensorCapability` (68 sensors) | D1's list, now measured in use; M4 classifies |
 
 ## 7. Rails
 
