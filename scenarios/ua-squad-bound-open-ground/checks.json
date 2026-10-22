@@ -1,15 +1,17 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S10/S7 (CE-2161): the squad crosses open ground. Judge (5) the march gathers the riflemen near (175,60) (x >= 160 and y <= 75, all, at the end) and nobody fires are encoded. CE-4042 triage: the old 'the squad runs BoundingOverwatch' was a bad name match — the live check read the MANEUVER kind (`maneuver.kindName`), the BEHAVIOUR name of the squad is SquadMarch then SquadDangerCrossing from 0.25 s (measured) — so Judge (2) is a §9 gap (squad drill), replaced by the honest 'the crossing task engages'. NOT expressible: (1) the route sensor, (2) the BOUND choice, (3) one half moving at a time, (4) the last bound's side. Golden: the squad's component dump.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S10/S7 (CE-2161): the squad crosses open ground by bounding overwatch. Judge (2) the squad runs the BoundingOverwatch drill (`SquadDrillTrace.Kind == 2`, measured from 0.25 s; the squad's behaviour name is SquadMarch/SquadDangerCrossing, which is what the first draft misread), (5) the march gathers the riflemen near (175,60) (x >= 160 and y <= 75, all, at the end), nobody fires. NOT expressible: (1) the route sensor, (3) one half moving at a time, (4) the last bound's side. Golden: the squad's component dump.",
   "runFor": 180,
   "golden": {
     "every": 10
   },
   "expect": [
     {
-      "name": "the squad's crossing task engages (SquadDangerCrossing; its BOUND choice is not readable)",
-      "on": "task",
+      "name": "the squad crosses by bounding overwatch (drill BoundingOverwatch)",
+      "on": "field",
       "who": "Squad",
-      "is": "SquadDangerCrossing"
+      "path": "SquadDrillTrace.Kind",
+      "op": "==",
+      "value": 2
     },
     {
       "name": "nobody fires (riflemen)",
