@@ -28,3 +28,10 @@ passenger under index 2 and 3 ⇒ SAME).
 follows allocation order — it cannot be told from any other number. A change that creates one entity more re-records those scenarios'
 goldens, in the commit that makes the change (the rule in TESTING_Harness_And_Goldens §4). ⭐ If those turn out to churn, the next
 step is the same rewrite for the fields whose TYPE says they hold a network id — your call whether such a marker exists.
+
+## §3 — added `2026-10-22` after merging `backend@6e5723798`
+
+| | |
+|---|---|
+| CE-3304 (`bt-window-duel`; static obstacles join on step 0) | ✅ received and merged — its golden is re-recorded once more in my full run on the merged tree (handles by meaning, §2) |
+| ⚠ **seen by behaviors, yours:** `GhostProtocolTests.Execute_RespectsTimeBudget` (Fdp.Toolkits) fails deterministically since the `GhostPromotionSystem` change — promotion is budgeted by COUNT (`PromotionsPerFrame = 256`), the test still asserts a 2 ms TIME budget | relayed from [behaviors' reply §4](NOTE_Behaviors_To_Coordinator_Scenario_Check_Findings_Reply.md) |

@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — U1 (CP-1): the utility posture reacts to health. The Judge's winners (Suppress, TakeCover, Flee) are utility decisions a check cannot read, so only the parts that show in shots and health are kept: the healthy man fights before the wound (10 s), he fires again after he is healed (30 s), and survives; (2) the defensive pick and (4) the no-flicker rule are not expressible. Health is set by the check, as the old script did (40 at 10 s, 10 at 20 s, 100 at 30 s).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — U1 (CP-1): the utility posture reacts to health. The Judge's winners (Suppress, TakeCover, Flee) are utility decisions a check cannot read, so only the parts that show in shots and health are kept: the healthy man fights before the wound (10 s), he fires again after he is healed (30 s), and survives; (2) the defensive pick and (4) the no-flicker rule are not expressible. Health is set by the check, as the old script did (40 at 10 s, 10 at 20 s, 100 at 30 s). 'healed, he fights again' removed: the Hostile is INCAPACITATED below 30 % of max health (designed, user 2026-10-13; behaviors' reply §3) — at 10-30 HP there is nobody to fight. Behaviors may give it a sturdier Hostile; then the condition comes back.",
   "runFor": 60,
   "golden": {
     "every": 10
@@ -46,13 +46,6 @@
       "by": "Rifleman",
       "at": "Armed Hostile",
       "before": "hurt"
-    },
-    {
-      "name": "healed, he fights again",
-      "on": "shot",
-      "by": "Rifleman",
-      "at": "Armed Hostile",
-      "after": "healed"
     },
     {
       "name": "the Rifleman survives",
