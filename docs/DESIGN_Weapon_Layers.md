@@ -916,12 +916,13 @@ muscle answers, and the ledger the brain already reads turns the answer into a h
 |---|---|---|
 | the toss | the slowest speed that reaches, v² = g·(h + √(d² + h²)), × 1.05 … 3.2, each low then high, before the full-speed lob | a fixed soft speed — a 15 m throw needs more than a 3 m one |
 | the refusal | a throw no arc clears is refused `Masked` on the muscle | behaviors' lean "the weapon brain checks the arc before it throws" — that is a geometry read on the brain (R-2037); the refusal reaches it through the ledger instead |
+| the fuze | ★ a TIME-fused round takes no arc that outlasts its fuze (`maxFlightSeconds` = the round's fuze); none left ⇒ refused | measured on behaviors' check: after the toss fix a stun grenade was still lobbed at full speed and burst 12.4 m up |
 | the friend check | unchanged, round the TARGET point — a throw that flies now clears, so it stops at the point | a friend check at a computed stop point — only needed for a throw that does not clear, which no longer flies |
 
 ⚠ **Not fixed here:** why the drill's low arc was judged blocked although its 2-D line crosses the doorway 0.1 m inside the jambs — an
 origin (eye / barrel) offset, or the open leaf. Every arc lies in one vertical plane, so if that plane meets the jamb no toss clears and
 the throw is now REFUSED (no burst at the feet). Rails: `ThrowArcTests.CE3296_AShortThrowOverCover_IsASoftToss_NotAFullSpeedLob`
-(red-proved), `CE3296_AThrowNothingClears_IsReportedSo`.
+(red-proved), `CE3296_AThrowNothingClears_IsReportedSo`, `CE3296_ATimeFusedRound_NeverTakesAnArcThatOutlastsItsFuze` (red-proved). 📐 **behaviors' check** (`CE2257` with the squad on 2009 and the room Suspected, two runs, before the fuze rule): the drill's stun now bursts on the room's floor (45.3, 107.8, 0.0); no M67 on the jamb; one lob still burst 12.4 m up ⇒ the fuze rule. The twin's remaining reds (③ an insurgent up, ④ no RoomClear) involve no grenade damage — behaviors'.
 
 ### 5g. WL-5 — W-12b/c: which categories use the turret task, and the ATGM one round at a time *(✅ built `2026-10-11`, as drawn; backend; 🔒 user: *"Approved, add the Rifleman check then W-12b/c"*)*
 

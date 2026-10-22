@@ -39,7 +39,10 @@ namespace Fdp.Toolkit.Combat
         /// flight ≈ 3 s — and the stun grenade's 1.5 s fuze burst it 12 m up; a toss at the slowest speed peaks under a metre.
         /// A launcher keeps the high arc it always flew (true).
         /// </summary>
-        public static bool TryLaunch(Fdp.Toolkit.World.IWorldQuery? world, Vector3 from, Vector3 to, float speed, float penetration, out Vector3 velocity)
+        /// <param name="maxFlightSeconds">⭐ CE-3296 — a TIME-fused round's fuze: an arc that flies longer would burst in the air above the
+        /// point, so it does not count as clearing (📌 a stun grenade lobbed at full speed burst 12 m up, live).</param>
+        public static bool TryLaunch(Fdp.Toolkit.World.IWorldQuery? world, Vector3 from, Vector3 to, float speed, float penetration, out Vector3 velocity,
+                                     float maxFlightSeconds = float.PositiveInfinity)
         {
             if (speed >= CombatConstants.HighArcMinMuzzleVelocity)
             {
@@ -47,7 +50,7 @@ namespace Fdp.Toolkit.Combat
                 return true;
             }
             velocity = FireProcessingSystem.ArcLaunch(from, to, speed, high: false);
-            if (world == null || Clears(world, from, to, velocity, penetration)) return true;
+            if (world == null || (InTime(from, to, velocity, maxFlightSeconds) && Clears(world, from, to, velocity, penetration))) return true;
             float slowest = SlowestReaching(from, to);
             foreach (float f in s_tossFactors)
             {
@@ -56,11 +59,20 @@ namespace Fdp.Toolkit.Combat
                 for (int arc = 0; arc < 2; arc++)
                 {
                     var toss = FireProcessingSystem.ArcLaunch(from, to, v, high: arc == 1);
-                    if (Clears(world, from, to, toss, penetration)) { velocity = toss; return true; }
+                    if (InTime(from, to, toss, maxFlightSeconds) && Clears(world, from, to, toss, penetration)) { velocity = toss; return true; }
                 }
             }
             velocity = FireProcessingSystem.ArcLaunch(from, to, speed, high: true);
-            return Clears(world, from, to, velocity, penetration);
+            return InTime(from, to, velocity, maxFlightSeconds) && Clears(world, from, to, velocity, penetration);
+        }
+
+        /// <summary>Does a round launched at <paramref name="velocity"/> reach <paramref name="to"/> within <paramref name="seconds"/>?</summary>
+        private static bool InTime(Vector3 from, Vector3 to, Vector3 velocity, float seconds)
+        {
+            if (float.IsPositiveInfinity(seconds) || seconds <= 0f) return true;
+            float horizontal = new Vector2(velocity.X, velocity.Y).Length();
+            float d = new Vector2(to.X - from.X, to.Y - from.Y).Length();
+            return horizontal > 1e-3f ? d / horizontal <= seconds : d < 1e-3f;
         }
 
         /// <summary>The slowest launch speed that reaches <paramref name="to"/> from <paramref name="from"/> (v² = g·(h + √(d² + h²))).</summary>

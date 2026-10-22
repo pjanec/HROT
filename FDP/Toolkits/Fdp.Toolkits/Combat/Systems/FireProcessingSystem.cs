@@ -233,7 +233,8 @@ namespace Fdp.Toolkit.Combat.Systems
                         }
                         else if (charges != null && evt.Charge <= charges.Count)
                             velocity = ArcLaunch(origin, targetPos, charges[evt.Charge - 1], high: evt.HighArc != 0);
-                        else if (!ThrowArc.TryLaunch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen, out velocity))
+                        else if (!ThrowArc.TryLaunch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen, out velocity,
+                                                     (warheadBits & WarheadRound.TimeFuze) != 0 && fuze > 0f ? fuze : float.PositiveInfinity))
                         {
                             // ⭐ CE-3296 (Q94 A, R-2037) — a THROW no arc clears is refused here, where the geometry is: the brain's
                             //   ledger holds it (the weapon brain's hidden-target throw no longer bursts an M67 on the jamb at its feet)

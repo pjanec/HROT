@@ -91,6 +91,25 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(ThrowArc.TryLaunch(q, from, to, M67Speed, 0f, out _));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3296</c> — a TIME-fused round never takes an arc that outlasts its fuze: whatever clears within a limit flies within it,
+        /// and a limit nothing can meet (15 m in 0.8 s needs more than the throw's 15 m/s) reports the throw unclear — the muscle refuses
+        /// it. 📌 Live, behaviors' check: a stun grenade lobbed at full speed burst 12 m up. ✅ Red-proof: the limit ignored ⇒ the 0.8 s
+        /// case returns a clearing toss ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3296_ATimeFusedRound_NeverTakesAnArcThatOutlastsItsFuze()
+        {
+            var q = BtRange();
+            var from = new Vector3(149f, 27.5f, 1.1f);
+            var to   = new Vector3(149f, 42.5f, 0f);
+            foreach (float limit in new[] { 1.2f, 1.45f, 2f, 3f })
+                if (ThrowArc.TryLaunch(q, from, to, M67Speed, 0f, out var v, maxFlightSeconds: limit))
+                    Assert.True(15f / new Vector2(v.X, v.Y).Length() <= limit + 1e-3f, $"within a {limit} s fuze");
+            Assert.False(ThrowArc.TryLaunch(q, from, to, M67Speed, 0f, out _, maxFlightSeconds: 0.8f));
+            Assert.True(ThrowArc.TryLaunch(q, from, to, M67Speed, 0f, out _));
+        }
+
         [Fact]
         public void WL4_L1_ALauncherKeepsItsHighArc_AndNoTerrainKeepsTheLowThrow()
         {
