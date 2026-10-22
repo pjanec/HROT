@@ -637,7 +637,8 @@ namespace Hrot.SimHost.Tests
         /// ⭐⭐ <c>CE-2215</c> — a dangerous threat I do NOT see still bounds my exposure when it can see me: the RPG man on my side, not in
         /// my tracks, with a clear line from where I remember him ⇒ 1.4 s; a wall between us ⇒ the full exposure. 📐 Live <c>ua-javelin-lock</c>:
         /// the tank did not see the Javelin gunner it knew of, exposed for 8 s, and gave him his 4 s lock.
-        /// 🔴 Red-proof (mutant): <c>CanSeeMe</c> = <c>SightNow.Sees</c> only ⇒ the open case is 6 s ⇒ red.
+        /// 🔴 Red-proof (mutant): <c>CanSeeMe</c> = <c>SightNow.Sees</c> only ⇒ the open case is 6 s ⇒ red. ⭐ <c>CE-2352</c>: beyond his own
+        /// sight range (<c>VisionRange</c>) he cannot see me ⇒ the full exposure (red-proof: drop the range test ⇒ 1.4 s ⇒ red).
         /// </summary>
         [Fact]
         public void CE2215_AnUnseenThreat_ThatCanSeeMe_BoundsTheExposure_AWallBetweenUsDoesNot()
@@ -658,6 +659,14 @@ namespace Hrot.SimHost.Tests
                                                                        Min = new Vector2(-10f, 40f), Max = new Vector2(10f, 41f) } },
             });
             Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+
+            // ⭐ CE-2352 — the open line again, but his eyes reach 60 m and he stands 80 m off: he cannot see me ⇒ the full exposure
+            d.Repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld { BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200) });
+            if (!d.Repo.IsComponentTypeRegistered<PerceptionReceptor>()) d.Repo.RegisterComponent<PerceptionReceptor>();
+            d.Repo.AddComponent(d.Enemy, new PerceptionReceptor { VisionRange = 60f });
+            Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+            d.Repo.GetComponentRW<PerceptionReceptor>(d.Enemy).VisionRange = 100f;   // 100 m: he can
+            Assert.InRange(VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self), 1.39f, 1.41f);
         }
 
         /// <summary>

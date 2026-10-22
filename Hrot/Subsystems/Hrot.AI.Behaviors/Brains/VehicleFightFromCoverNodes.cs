@@ -648,7 +648,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// me) — or, when I do not, the line from where I remember him (his eye, 1.6 m up) to my hull's top is clear of the terrain. Sight is
         /// not symmetric: a Javelin gunner at a window with a thermal sight sees a hull it does not show itself to. 📐 Live
         /// <c>ua-javelin-lock</c>: the tank, not seeing the gunner it knew of, exposed for its full 8 s and gave him his 4 s lock.
-        /// No terrain ⇒ only the R-246 half (as before).
+        /// No terrain ⇒ only the R-246 half (as before). ⭐ <c>CE-2352</c> — and never beyond HIS sight range (his receptor's
+        /// <c>VisionRange</c>): 📐 the editor's <c>hill-attack-close</c> (flat, every line clear) started the clock the moment a tank left its
+        /// hide 140 m from targets that see 100 m (CE-174: the range stands in for the hill), so no tank ever reached its firing point. The
+        /// cluster hid it — its brain node holds no terrain.
         /// </summary>
         internal static unsafe bool CanSeeMe(EntityRepository world, Entity self, in TargetMemory mem, int i, Entity threat)
         {
@@ -656,6 +659,12 @@ namespace Hrot.AI.Behaviors.Brains
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
             if (terrain == null || !world.HasComponent<SimTransform>(self)) return false;
             var me = world.GetComponentRO<SimTransform>(self).Position;
+            if (world.IsAlive(threat) && world.HasComponent<PerceptionReceptor>(threat))
+            {
+                float range = world.GetComponentRO<PerceptionReceptor>(threat).VisionRange;
+                float dx = mem.PositionsX[i] - me.X, dy = mem.PositionsY[i] - me.Y;
+                if (range > 0f && dx * dx + dy * dy > range * range) return false;   // beyond his eyes
+            }
             float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, self);
             var top = me + new Vector3(0f, 0f, hull > 0f ? hull : 2f);
             var him = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i] + ThreatEyeHeightM);
