@@ -244,6 +244,7 @@
             "LookAtChannelStatus": "d3ef62d339c96d1a",
             "LookAtExecutorState": "ddb00c66b845dca5",
             "LookState": "663601c4529aab25",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionPlanQueue": "e2b3c231f77f2afe",
             "NavState": "bd7fb42373c5ab11",
             "NavigationIntent": "5aa218f5dffd32e4",
@@ -267,7 +268,7 @@
             "SopState": "1694448c349579f3",
             "StanceIntent": "225c1f1d17cc5623",
             "StanceStatus": "b0da919299ec29f4",
-            "TargetMemory": "29e7f7bb51392af0",
+            "TargetMemory": "effb186e05edb4cd",
             "TkbIdentity": "1cf1b11761e25ed8",
             "VehicleParams": "8b5fd3c82ca3ad8b",
             "VehicleState": "93adbcbd112837d3",
@@ -314,6 +315,7 @@
             "LookAtChannelStatus": "d3ef62d339c96d1a",
             "LookAtExecutorState": "ddb00c66b845dca5",
             "LookState": "663601c4529aab25",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionPlanQueue": "e2b3c231f77f2afe",
             "NavState": "bd7fb42373c5ab11",
             "NavigationIntent": "5aa218f5dffd32e4",
@@ -337,7 +339,7 @@
             "SopState": "5af0e9ef1467b812",
             "StanceIntent": "225c1f1d17cc5623",
             "StanceStatus": "b0da919299ec29f4",
-            "TargetMemory": "6726d4b12ce29ec3",
+            "TargetMemory": "fed4ef27d26cb248",
             "TkbIdentity": "1cf1b11761e25ed8",
             "VehicleParams": "8b5fd3c82ca3ad8b",
             "VehicleState": "93adbcbd112837d3",
@@ -420,7 +422,7 @@
             "SopState": "11f1a97ba29ddec8",
             "StanceIntent": "f085482b3805c6e8",
             "StanceStatus": "b0d3959299e61212",
-            "TargetMemory": "2f9839b585a3edfe",
+            "TargetMemory": "ca4d1f4bbf940c6f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFireMove": "9e26fbe95eaf1d98",
             "VehicleParams": "8b5fd3c82ca3ad8b",
@@ -429,6 +431,52 @@
             "WeaponChannel": "0a1c9b4a3cd2ddca",
             "WeaponPosture": "07dd037dab4c4adf",
             "WeaponState": "848739ff8b12d037"
+          }
+        },
+        "Van 1": {
+          "position": [
+            104,
+            82,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "b00654821c3c57b1",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "740fc5379e1c23ec",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2"
+          }
+        },
+        "Van 2": {
+          "position": [
+            113,
+            76,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "9f831d66150de2cc",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "7ae5febe96552b79",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2"
           }
         },
         "Window Rifleman": {
@@ -500,7 +548,7 @@
             "SopState": "6898b984932ac0b0",
             "StanceIntent": "24b82ad7a9a0a412",
             "StanceStatus": "83dfe006afe50ee0",
-            "TargetMemory": "d32f7450648e86b2",
+            "TargetMemory": "71562bc4fbd67df9",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFireMove": "22996e094e6eebc1",
             "VehicleParams": "8b5fd3c82ca3ad8b",
@@ -585,7 +633,7 @@
             "SopState": "e6d5f16367f0421d",
             "StanceIntent": "146d407d67500b99",
             "StanceStatus": "fd7306a0253be780",
-            "TargetMemory": "5b10edaea902b846",
+            "TargetMemory": "cd3e391996cbee99",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFireMove": "9830954372a82a10",
             "VehicleParams": "8b5fd3c82ca3ad8b",
@@ -594,6 +642,52 @@
             "WeaponChannel": "47bdb1649c1d0d44",
             "WeaponPosture": "c24dca2d551c2d0e",
             "WeaponState": "c701112efd07e60f"
+          }
+        },
+        "Van 1": {
+          "position": [
+            104,
+            82,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "b00654821c3c57b1",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "740fc5379e1c23ec",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2"
+          }
+        },
+        "Van 2": {
+          "position": [
+            113,
+            76,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "9f831d66150de2cc",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "7ae5febe96552b79",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2"
           }
         },
         "Window Rifleman": {
@@ -665,7 +759,7 @@
             "SopState": "76aa763a697b066d",
             "StanceIntent": "1fa2b2754abde203",
             "StanceStatus": "d02e7f5cca8e1395",
-            "TargetMemory": "43da868afe1525d4",
+            "TargetMemory": "1005e49a3762830b",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFireMove": "22996e094e6eebc1",
             "VehicleParams": "8b5fd3c82ca3ad8b",
@@ -751,7 +845,7 @@
             "SopState": "e93e01748f57c4e5",
             "StanceIntent": "34ffedf153a25412",
             "StanceStatus": "79423e53f3584136",
-            "TargetMemory": "503349ebc0edf457",
+            "TargetMemory": "2edea78721180d84",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFire": "278e55168f99f19c",
             "UnderFireMove": "9e26fbe95eaf1d98",
@@ -761,6 +855,54 @@
             "WeaponChannel": "9c85ea2ccc22b20b",
             "WeaponPosture": "4c6baa35547683c2",
             "WeaponState": "a64028bd010f341b"
+          }
+        },
+        "Van 1": {
+          "position": [
+            104,
+            82,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "b00654821c3c57b1",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "740fc5379e1c23ec",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2"
+          }
+        },
+        "Van 2": {
+          "position": [
+            113,
+            76,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "9f831d66150de2cc",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "RecentSenses": "5d786f3cc724b68a",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "7ae5febe96552b79",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2",
+            "UnderFire": "278e55168f99f19c"
           }
         },
         "Window Rifleman": {
@@ -833,7 +975,7 @@
             "SopState": "e033add3aad00219",
             "StanceIntent": "e674b2113b5a4e6f",
             "StanceStatus": "d0217f5cca838939",
-            "TargetMemory": "1bd57d2cc056a299",
+            "TargetMemory": "63d3fcbd0c1743c4",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFireMove": "22996e094e6eebc1",
             "VehicleParams": "8b5fd3c82ca3ad8b",
@@ -919,7 +1061,7 @@
             "SopState": "e5a64ba76fa34a85",
             "StanceIntent": "2a9f1d16a2952034",
             "StanceStatus": "50f3dda673d7c28f",
-            "TargetMemory": "875199a834ec1b2a",
+            "TargetMemory": "bd5909874ffe17e9",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFire": "adc737f15fc45124",
             "UnderFireMove": "ac62947df6a523b5",
@@ -929,6 +1071,54 @@
             "WeaponChannel": "3ef791c6612a7454",
             "WeaponPosture": "f1400e92b8ef14c8",
             "WeaponState": "8f697333d1a343d2"
+          }
+        },
+        "Van 1": {
+          "position": [
+            104,
+            82,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "b00654821c3c57b1",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "740fc5379e1c23ec",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2"
+          }
+        },
+        "Van 2": {
+          "position": [
+            113,
+            76,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "9f831d66150de2cc",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "RecentSenses": "159518daa94d57ea",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "7ae5febe96552b79",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2",
+            "UnderFire": "eee76296a48c0c63"
           }
         },
         "Window Rifleman": {
@@ -1001,7 +1191,7 @@
             "SopState": "9bb91df3bd9cf8f0",
             "StanceIntent": "1fbdb2754ad4a9bb",
             "StanceStatus": "d0137f5cca774bdd",
-            "TargetMemory": "2db629d4dd61b6b3",
+            "TargetMemory": "670df523132c49d6",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFire": "f741403238f379f6",
             "UnderFireMove": "22996e094e6eebc1",
@@ -1088,7 +1278,7 @@
             "SopState": "7a8c481dcf2aa329",
             "StanceIntent": "2a9f1d16a2952034",
             "StanceStatus": "50f3dda673d7c28f",
-            "TargetMemory": "dff5939c39e61c40",
+            "TargetMemory": "b2e278ec3813cd19",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFire": "adc737f15fc45124",
             "UnderFireMove": "796cee52f8ccf5ca",
@@ -1098,6 +1288,54 @@
             "WeaponChannel": "3ef791c6612a7454",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "8f697333d1a343d2"
+          }
+        },
+        "Van 1": {
+          "position": [
+            104,
+            82,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "b00654821c3c57b1",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "740fc5379e1c23ec",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2"
+          }
+        },
+        "Van 2": {
+          "position": [
+            113,
+            76,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "9f831d66150de2cc",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "RecentSenses": "159518daa94d57ea",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "7ae5febe96552b79",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2",
+            "UnderFire": "eee76296a48c0c63"
           }
         },
         "Window Rifleman": {
@@ -1170,7 +1408,7 @@
             "SopState": "a1403c33b3d69099",
             "StanceIntent": "3aec2d755a90d050",
             "StanceStatus": "c711565cc543afb2",
-            "TargetMemory": "a5e8726594f03255",
+            "TargetMemory": "3d0998281fba4b40",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFire": "f741403238f379f6",
             "UnderFireMove": "22996e094e6eebc1",
@@ -1257,7 +1495,7 @@
             "SopState": "de2aee735d9c79b2",
             "StanceIntent": "2a9f1d16a2952034",
             "StanceStatus": "50f3dda673d7c28f",
-            "TargetMemory": "5dc1a69e4718ce3e",
+            "TargetMemory": "a255b0979cf08c21",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFire": "adc737f15fc45124",
             "UnderFireMove": "9e26fbe95eaf1d98",
@@ -1267,6 +1505,54 @@
             "WeaponChannel": "3ef791c6612a7454",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "8f697333d1a343d2"
+          }
+        },
+        "Van 1": {
+          "position": [
+            104,
+            82,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "b00654821c3c57b1",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "740fc5379e1c23ec",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2"
+          }
+        },
+        "Van 2": {
+          "position": [
+            113,
+            76,
+            0
+          ],
+          "health": null,
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "896a615102acc098",
+            "EntityInfo": "9f831d66150de2cc",
+            "MapDisplayComponent": "cd072677ba963b7b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ObstacleShape": "a3208e1e5dbe5604",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PhysicsCollider": "b5b53527352afc48",
+            "RecentSenses": "159518daa94d57ea",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "SimTransform": "7ae5febe96552b79",
+            "StaticObstacle": "f40d1be8d8ac20fd",
+            "TkbIdentity": "8823592b2d4a8bf2",
+            "UnderFire": "eee76296a48c0c63"
           }
         },
         "Window Rifleman": {
@@ -1339,7 +1625,7 @@
             "SopState": "e0a5f1ad979c338e",
             "StanceIntent": "3ad731755a7e7b12",
             "StanceStatus": "c726525cc55604f0",
-            "TargetMemory": "6ad95a56a94534bb",
+            "TargetMemory": "eecb06458c777b6a",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UnderFire": "f741403238f379f6",
             "UnderFireMove": "22996e094e6eebc1",
