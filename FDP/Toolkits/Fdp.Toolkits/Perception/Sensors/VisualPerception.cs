@@ -53,6 +53,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             Template     = AssetGuid,
             SearchRadius = dto.VisionRange,
             Visual       = new VisualSensorDto { Range = dto.VisionRange, FieldOfViewDegrees = dto.FieldOfViewDegrees },
+            FromReceptor = true,   // ⭐ CE-2349 — listed or implicit, these eyes read the live receptor
         };
 
         /// <summary>The (range, FOV cosine) a visual sensor looks with: the unit's receptor for the implicit sensor (or when
