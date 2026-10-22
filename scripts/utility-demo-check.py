@@ -3115,9 +3115,12 @@ def run_civ_routine_alarm(c, timeout):
     down_below = (th.get("IncapacitatedBelow") or 0.3) * 100
     wait_for(lambda: (far_sample(), (h := health(hostile)) is not None and h < down_below)[1], timeout * 2)
 
-    # ③ quiet again: each alarmed man goes back to his routine
-    calm = wait_for(lambda: (far_sample(), all(civ_mode(n) == "Routine" for n in near))[1], 90)
-    c.ok(calm is not None, f"③ once the firing stops, both near civilians go back to Routine ({[civ_mode(n) for n in near]})")
+    # ③ quiet again: each alarmed man calms — back to his routine, or ⭐ CIV-3 (CE-2237, §5f) straight on to GATHER at the man who
+    #   fell (Routine → Gather on an incident within AttractMetres). 📐 sweep 2026-10-22: live both were Gather for good; the
+    #   in-process twin, sampling every frame, still sees Routine (inferred: a frame between). Afraid (Alarmed and beyond) is the failure.
+    calm = wait_for(lambda: (far_sample(), all(civ_mode(n) in ("Routine", "Gather") for n in near))[1], 90)
+    c.ok(calm is not None, f"③ once the firing stops, both near civilians calm — Routine, or gathering at the man who fell (CIV-3) "
+                           f"({[civ_mode(n) for n in near]})")
     far_sample()
     c.ok(not far_alarmed, f"② …and none of the 4 far civilians (150+ m, beyond hearing) was ever alarmed ({sorted(far_alarmed)})")
     moved = [n for n in far if start[n] and (p := position(n)) and flat(p, start[n]) > 1.0]
