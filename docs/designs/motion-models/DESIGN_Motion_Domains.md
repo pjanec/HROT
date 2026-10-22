@@ -471,9 +471,10 @@ kill (CE-2197), so it never reached the wall. The runs vary; the table's tank ru
 | ⭐ as built | why |
 |---|---|
 | the rise test is `SurfaceZ(b) − SurfaceZ(a)` — the point's own ground step; the "already above" clause is gone | a corner stepping onto a solid block still rises by the block's height (⑤ in §5f holds); one already on it rises 0 and may move out (`CE3286_AHullLeftHalfInsideABlock_CanDriveOut` green) |
+| the barrier trace runs at each point's OWN ground + `HullProbeM`, not the centre's height + it | at the centre's height a front corner's line on a slope runs under the slope's surface; measured on a slab ramp (a corner a step up the slab held the hull at its foot even with the rise fixed) |
 | ⛔ rejected: a slope allowance on the centre-relative test | a tolerance would only move the false wall up the slope |
 
-✅ Rail `CarKinematicsSystemTests.CE4041_AHullDrivesUpARampItCanClimb_NeverHeld` (a tank up a 0.3 m/m ramp), red with the centre-relative rise; every `CarKinem` rail green.
+✅ Rail `CarKinematicsSystemTests.CE4041_AHullDrivesUpARampItCanClimb_NeverHeld` (a tank up a HEIGHT-GRID hillside, flat then 0.3 m/m — the ridge's own ground model), red with the centre-relative rise; `CarKinem` + `Terrain` rails 537/537. ⚠ On a SLAB ramp (a prism over flat ground) `SurfaceZ` hinted with the centre's height returns the ground UNDER the slab once a corner is a step above it — a hull on a built ramp steeper than StepHeight ÷ (L/2) is still not covered; the terrain uses height grids, and no scenario has such a ramp.
 
 ## 5g. A wreck never moves, and a vehicle that is not driving is never pushed — `CE-3287` (`2026-10-20`, backend; R-3026)
 
