@@ -40,6 +40,9 @@ namespace Hrot.SimHost.Tests
                 SimHostComponentRegistry.RegisterAll(Repo);
                 CognitiveComponentRegistry.RegisterAll(Repo);
                 BlueprintTierTable.RegisterAll(Repo);
+                // ⭐ SimulationTick runs AHEAD of perception's clock (GlobalTime.FrameNumber, CE-3292), as measured in the cluster harness
+                //   (3272 vs 3028): a reader comparing LastSeenTick with SimulationTick reads every sighting as stale ⇒ red.
+                for (int i = 0; i < 5000; i++) Repo.Tick();
                 if (!Repo.Bus.IsRegistered<SensorChangedEvent>()) Repo.Bus.Register<SensorChangedEvent>();
                 var geo = new WGS84Transform();
                 geo.SetOrigin(0.0, 0.0, 0.0);
@@ -99,7 +102,7 @@ namespace Hrot.SimHost.Tests
                 ref var mem = ref Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit);
                 mem.EntityIds[0] = (long)enemy.PackedValue;
                 mem.Freshness[0] = 10f;
-                mem.LastSeenTick[0] = Repo.SimulationTick;
+                mem.LastSeenTick[0] = Fdp.Toolkit.Perception.PerceptionClock.Now(Repo);   // as perception stamps it (CE-3292)
                 mem.Modalities[0] = seen ? (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual : (byte)0;
                 mem.Count = 1;
                 return enemy;
@@ -109,7 +112,7 @@ namespace Hrot.SimHost.Tests
             public unsafe void KeepSeeing()
             {
                 ref var mem = ref Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit);
-                mem.LastSeenTick[0] = Repo.SimulationTick;
+                mem.LastSeenTick[0] = Fdp.Toolkit.Perception.PerceptionClock.Now(Repo);   // as perception stamps it (CE-3292)
             }
 
             public void Order(string behaviour)
@@ -352,6 +355,28 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 700; i++) { w.KeepSeeing(); w.Tick(); }     // > QuietSeconds, nothing landing near him
             Assert.Equal("FightFromCover", w.TaskName);
             Assert.Equal(run, w.Task.InstanceId);
+        }
+
+        /// <summary>⭐ <c>CE-3306</c> — under HOLD FIRE the enemy-in-sight row stands aside: a man with no task who sees an enemy, the
+        /// first-threat edge not yet read, does NOT start fighting from cover — and once the edge arrives the withdraw row takes him
+        /// (FallBack, D5). 📐 Live (the in-process cluster): row C took him a frame before the edge. ✅ Red-proof: the <c>MayFire</c>
+        /// condition removed from the asset ⇒ FightFromCover ⇒ red.</summary>
+        [Fact]
+        public void CE3306_UnderHoldFire_AnEnemyInSight_DoesNotStartTheFight_TheWithdrawRowDecides()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new Roe { Fire = RoeFire.HoldFire, SetBy = BehaviorOrigin.Superior });
+            w.StartSop();
+            w.Run(0.3);
+            w.RememberEnemy(seen: true);
+            w.Tick();
+            w.KeepSeeing();
+            w.Run(0.5);
+            Assert.Equal("Idle", w.TaskName);                                  // seen, but no fight under Hold Fire
+            w.Sense(SensorChange.FirstThreat);
+            w.KeepSeeing();
+            w.Run(0.3);
+            Assert.Equal("FallBack", w.TaskName);                              // row 2 (ROE ≤ HoldFire)
         }
 
         /// <summary>⭐ AQ98 C — the row's limits: a man WITH a task keeps it (the task decides the fight); only HEARD (not seen) ⇒ nothing;

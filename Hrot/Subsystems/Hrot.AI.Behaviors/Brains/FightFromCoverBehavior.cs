@@ -7,6 +7,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
@@ -144,7 +145,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.IsComponentTypeRegistered<TargetMemory>() || !world.HasComponent<TargetMemory>(self)) return false;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
-            uint now = world.SimulationTick;
+            uint now = PerceptionClock.Now(world);   // ⭐ the clock LastSeenTick is stamped in (CE-3292: sim steps), never SimulationTick
             for (int i = 0; i < mem.Count && i < PerceptionConstants.MaxTrackedTargets; i++)
             {
                 if (mem.EntityIds[i] <= 0 || TargetMemory.IsAnonymous(in mem, i)) continue;
@@ -156,6 +157,12 @@ namespace Hrot.AI.Behaviors.Brains
             }
             return false;
         }
+
+        /// <summary>⭐ <c>CE-3306</c> — his ROE lets him fire now (the aimed-fire executor's own gate): the enemy-in-sight row FIGHTS, so
+        /// under Hold Fire it stands aside and the SOP's withdraw row decides (D5). 📐 Found once that row could fire at all (the
+        /// perception-clock fix): under Hold Fire it took the man before the withdraw row's edge arrived.</summary>
+        [SharedAiCondition]
+        public static bool MayFire(Entity self, EntityRepository world) => AimAndFireExecutor.RoePermitsFire(world, self);
 
         /// <summary>His task slot is empty or runs only <c>Idle</c> (the SOP's do-when-idle): nobody gave him anything to do.</summary>
         [SharedAiCondition]
