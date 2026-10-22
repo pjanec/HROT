@@ -20,3 +20,12 @@ Measured on `uc-urban-battle`, `--mode all`, seven runs, probed through the debu
 
 ⭐ Your `SquadSopConditions` rule (a carrier that cannot move stands for getting out) stays right whatever ② says: with ② fixed the
 replica now also reads still.
+
+## Added `2026-10-22` — your `CE2259_BcHouseClear` twin is red on `backend`
+
+📐 `ClearingScenarioTests.CE2259_BcHouseClear_*` fails on `backend@833c88218` (③ *both insurgents down* — the second insurgent stays up)
+**and** with backend's door change (CE-4040) removed (① *E cleared exactly once*), so not caused by it. ⚠ Two things on `backend` you do
+not have yet that move this scenario: **CE-4039** (a Regular+ ear hears rifles again — the insurgents and the squad now hear each other's
+shots; [Sensing §8.4](../../DESIGN_Thermal_And_Acoustic_Sensing.md)) and **CE-4040** (turns at a doorway: at an OPEN door only the man
+nearest it goes, the others in reach wait, and he walks the door's axis without giving way; [Building Interiors §3j 5d-5](../../DESIGN_Building_Interiors.md)).
+A stack at a door now enters one at a time — if your entry wants two through together, tell backend.
