@@ -15,6 +15,9 @@ namespace Hrot.Editor.AiShared.Tests.Menus;
 /// ✅ Red-proof: drawing the icon after <c>ImGui.BeginMenu</c> onto <c>GetWindowDrawList()</c> (the old order) ⇒ the row gains 0 extra
 /// vertices instead of the icon's 4.
 /// </summary>
+// ⭐ Real ImGui frames: never in parallel with another test that touches the ImGui context (a swapped context mid-frame made
+//   the frame rails order-dependent — measured 2026-10-22, 1 red in 3 full runs).
+[Collection(Hrot.Editor.AiShared.Tests.PanelSnapshotTestCollection.Name)]
 public sealed class AnOpenMenuKeepsItsIconTests
 {
     [SkippableFact]
