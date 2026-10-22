@@ -9,8 +9,12 @@ using Hrot.UI.Common.Map3D.Director;
 
 namespace Hrot.Editor.Director
 {
-    /// <summary>How the director runs a reel: on screen in real time, frame by frame to files, or as a scout that bakes anchor times.</summary>
-    public enum DirectorMode { Live, Capture, Scout }
+    /// <summary>How the director runs a reel: on screen in real time, frame by frame to files, as a scout that bakes anchor times, or as
+    /// a VERIFY run that judges each scenario's checks and compares it with its golden (CE-4042, docs/DESIGN_Scenario_Regression.md).</summary>
+    public enum DirectorMode { Live, Capture, Scout, Verify }
+
+    /// <summary>⭐ <c>CE-4042</c> — a verify run: <see cref="Capture"/> re-records each scenario's golden (refused for a failing run).</summary>
+    public sealed record VerifyOptions(bool Capture = false);
 
     /// <summary>Where and how a capture writes: frames under <see cref="Dir"/>, one movie at <see cref="Movie"/> (§4a: a reel is ONE movie).</summary>
     public sealed record CaptureOptions(string Dir, int Fps = 30, int Width = 1280, int Height = 720, int Supersample = 1,
@@ -20,9 +24,9 @@ namespace Hrot.Editor.Director
     /// <remarks><see cref="Inline"/>: takes given with the request (by <c>scenario/take</c>), not read from a file — film.py's one-off
     /// plans (D-9). A scout of an inline take bakes nothing.</remarks>
     public sealed record PlayRequest(Reel Reel, double Speed = 1d, bool Loop = false, CaptureOptions? Capture = null, bool Scout = false,
-                                     IReadOnlyDictionary<string, Take>? Inline = null, bool Bake = true)
+                                     IReadOnlyDictionary<string, Take>? Inline = null, bool Bake = true, VerifyOptions? Verify = null)
     {
-        public DirectorMode Mode => Scout ? DirectorMode.Scout : Capture != null ? DirectorMode.Capture : DirectorMode.Live;
+        public DirectorMode Mode => Verify != null ? DirectorMode.Verify : Scout ? DirectorMode.Scout : Capture != null ? DirectorMode.Capture : DirectorMode.Live;
     }
 
     public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped }
@@ -34,7 +38,7 @@ namespace Hrot.Editor.Director
         public string Scenario { get; init; } = "";
         public string Take { get; init; } = "";
         public string? Title { get; init; }
-        /// <summary>pending · loading · playing · ok · beat-missing · failed · stopped</summary>
+        /// <summary>pending · loading · playing · ok · beat-missing · failed · stopped — a verify run: pass · fail</summary>
         public string Status { get; set; } = "pending";
         public List<string> Problems { get; } = new();
         public List<string> Missing { get; } = new();
@@ -58,6 +62,8 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ B0′ (R-3038) — the world at every cut: each named unit's position and health, and the rounds fired so far — what two
         /// runs of one take must agree on once stepped runs repeat (CE-3293 S5).</summary>
         public List<CutSnapshot> Cuts { get; } = new();
+        /// <summary>⭐ CE-4042 — a verify run's verdicts and golden (null on a film or a scout).</summary>
+        public VerifyResult? Verify { get; set; }
 
         public JsonObject ToJson()
         {
@@ -74,6 +80,7 @@ namespace Hrot.Editor.Director
                 ["waitFrames"] = WaitFrames, ["maxStepsInAFrame"] = MaxStepsInAFrame, ["maxRetiredInAFrame"] = MaxRetiredInAFrame, ["frames"] = Frames,
                 ["simEnd"] = Math.Round(SimEnd, 3), ["wallSeconds"] = Math.Round(WallSeconds, 2),
                 ["cuts"] = new JsonArray(Cuts.Select(c => (JsonNode?)c.ToJson()).ToArray()),
+                ["verify"] = Verify?.ToJson(),
             };
         }
     }
@@ -136,7 +143,10 @@ namespace Hrot.Editor.Director
         private readonly ILayerOverride _layers;
         private readonly IFrameSink? _sink;
         private readonly IDirectorSound? _sound;
+        private readonly IVerifyWorld? _verifyWorld;
         private readonly WorldUnits _units;
+        private ScenarioVerification? _verification;
+        private bool _firstLoad;
 
         private PlayRequest? _request;
         private int _item;
@@ -163,7 +173,10 @@ namespace Hrot.Editor.Director
         private readonly List<(int FirstFrame, string Title)> _chapters = new();
         private Task<string?>? _encoding;
 
-        public DirectorRunner(IDirectorHost host, ICinema cinema, ILayerOverride layers, IFrameSink? sink = null, IDirectorSound? sound = null)
+        /// <param name="verifyWorld">⭐ CE-4042 — what a verify run reads and edits (the editor's entity dump, combat rows and component edit);
+        /// a host without one refuses a verify run.</param>
+        public DirectorRunner(IDirectorHost host, ICinema cinema, ILayerOverride layers, IFrameSink? sink = null, IDirectorSound? sound = null,
+                              Func<IShotWorld, IVerifyWorld?>? verifyWorld = null)
         {
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _cinema = cinema ?? throw new ArgumentNullException(nameof(cinema));
@@ -171,6 +184,7 @@ namespace Hrot.Editor.Director
             _sink = sink;
             _sound = sound;
             _units = new WorldUnits(() => _host.World);
+            _verifyWorld = verifyWorld?.Invoke(_units);
         }
 
         public DirectorPhase Phase { get; private set; } = DirectorPhase.Idle;
@@ -193,10 +207,16 @@ namespace Hrot.Editor.Director
             if (request.Reel.Items.Count == 0) problems.Add("the reel has no items");
             foreach (var it in request.Reel.Items)
             {
+                if (request.Mode == DirectorMode.Verify)
+                {
+                    foreach (var p in LoadChecks(it.Scenario).Problems) problems.Add($"{it.Scenario}: {p}");
+                    continue;
+                }
                 var t = LoadTake(request, it);
                 foreach (var p in t.Problems) problems.Add($"{it.Scenario}/{it.Take}: {p}");
             }
             if (request.Capture != null && _sink == null) problems.Add("this host cannot capture (no map to film)");
+            if (request.Mode == DirectorMode.Verify && _verifyWorld == null) problems.Add("this host cannot verify (no entity dump / component edit wired)");
             if (problems.Count > 0) return problems;
 
             if (Busy) Stop();
@@ -212,7 +232,7 @@ namespace Hrot.Editor.Director
             _paused = false;
             if (request.Capture != null) Directory.CreateDirectory(FramesDir);
             if (request.Mode == DirectorMode.Capture) _sound?.BeginLog();
-            _cinema.Enter();
+            if (request.Mode != DirectorMode.Verify) _cinema.Enter();   // ⭐ a verify run leaves the editor as it is: no camera, no cinema
             BeginItem(0);
             return Array.Empty<string>();
         }
@@ -294,7 +314,7 @@ namespace Hrot.Editor.Director
         {
             _item = index;
             _take = null; _book = null; _timeline = null; _clock = null; _probe = null; _shot = null; _inGap = true;
-            _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0;
+            _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0; _verification = null;
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -311,6 +331,9 @@ namespace Hrot.Editor.Director
                 // ⛔ never a rewind as a run (R-3034): leave the last preview, then open the file again
                 if (_host.InPreview && !_exitedForLoad) { _host.ExitPreview(); _exitedForLoad = true; return; }
                 int? before = _host.EntityCount;
+                // ⭐ a first load in a fresh process: nothing loaded by a runner yet and no scenario open (the editor's own load leaves it
+                //   OperatingEdit) — the only run a golden may be recorded from (Regression_Net §6 ④, CE-3294)
+                _firstLoad = !_host.HasLoadedAScenario;
                 _host.LoadScenario(Item.Scenario);
                 _probe = new ScenarioReadyProbe(before);
                 _phaseStartWall = _host.WallNow;
@@ -331,6 +354,7 @@ namespace Hrot.Editor.Director
             if (!_host.InPreview) { if (++_enterFrames > 120) Fail("the preview did not start"); return; }
             if (!_host.Paused) { _host.Pause(); return; }
 
+            if (_request!.Mode == DirectorMode.Verify) { BeginVerify(); return; }
             var loaded = LoadTake(_request!, Item);
             if (loaded.Value is not { } take) { Fail(string.Join("; ", loaded.Problems)); return; }
             _units.Reset();
@@ -363,6 +387,37 @@ namespace Hrot.Editor.Director
             _clock.Start(_host.WallNow);
         }
 
+        /// <summary>⭐ CE-4042 — the scenario's checks (and its golden): no take, no camera; the run lasts <c>runFor</c>, one step per frame.</summary>
+        private void BeginVerify()
+        {
+            var loaded = LoadChecks(Item.Scenario);
+            if (loaded.Value is not { } checks) { Fail(string.Join("; ", loaded.Problems)); return; }
+            _units.Reset();
+            var missing = ScenarioVerification.MissingNames(checks, _units);
+            if (missing.Count > 0) { Report.Problems.AddRange(missing); Fail("the checks name what this scenario does not have"); return; }
+            var golden = checks.GoldenEvery is null ? null : _host.Takes.LoadScenarioJson(Item.Scenario, ScenarioGolden.FileName).Value;
+            _take = new Take { Scenario = Item.Scenario, Name = "_verify", TickHz = 60, EndAt = new AtExpr(checks.RunFor) };
+            Report.TickHz = 60;
+            _book = new AnchorBook(_take.Anchors, null, _host.BehaviourName);
+            _t0 = _host.SimTime;
+            _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
+            _verification = new ScenarioVerification(checks, golden, _request!.Verify!.Capture, _verifyWorld!, _t0);
+            Replan();
+            _clock = new PacedClock(60, 1d);
+            Phase = DirectorPhase.Playing;
+            Report.Status = "playing";
+            _clock.Start(_host.WallNow);
+        }
+
+        private Loaded<ScenarioChecks> LoadChecks(string scenario)
+        {
+            var json = _host.Takes.LoadScenarioJson(scenario, ChecksJson.FileName);
+            if (json.Value is null) return new Loaded<ScenarioChecks>(null, json.Problems);
+            var problems = new List<string>();
+            var checks = ChecksJson.Parse(json.Value, scenario, problems);
+            return new Loaded<ScenarioChecks>(problems.Count == 0 ? checks : null, problems);
+        }
+
         private Loaded<Take> LoadTake(PlayRequest request, ReelItem item)
             => request.Inline != null && request.Inline.TryGetValue(item.Scenario + "/" + item.Take, out var inline)
                 ? new Loaded<Take>(inline, Array.Empty<string>())
@@ -387,6 +442,7 @@ namespace Hrot.Editor.Director
             bool masterBehind = _issued - retired >= 2;
 
             _book!.Observe(_host.World!, _units, rel);
+            _verification?.Observe(rel);
             if (_book.Live.Count != _liveCount)
             {
                 _liveCount = _book.Live.Count;
@@ -412,6 +468,7 @@ namespace Hrot.Editor.Director
             {
                 _host.Hold(_clock!.HoldFor(_host.WallNow));
             }
+            _verification?.ApplyDue(rel);   // ⭐ an action lands on its exact step (every frame is a step boundary)
             StepOnce();
         }
 
@@ -432,6 +489,7 @@ namespace Hrot.Editor.Director
         private bool Finished(double rel)
         {
             double cap = _take!.EndAt is { IsFixed: true } end ? end.Offset : CapSeconds;
+            if (_request!.Mode == DirectorMode.Verify) return rel >= cap - 1e-9;
             if (rel >= cap) return true;
             if (_request!.Mode == DirectorMode.Scout) return !_book!.Unseen.Any() && rel >= _timeline!.End;
             if (_timeline!.Unresolved.Count > 0) return rel >= _timeline.End + UnseenGraceSeconds;
@@ -525,6 +583,16 @@ namespace Hrot.Editor.Director
             if (_clock != null) { r.RealtimeFactor = _clock.RealtimeFactor; r.LateFrames += _clock.LateFrames; }
             r.SimEnd = _take != null ? Rel : 0d;
             r.WallSeconds = _host.WallNow - _itemStartWall;
+            if (_verification != null && r.Status == "playing")
+            {
+                var v = _verification.Finish(Rel, r.Steps);
+                if (!_firstLoad) v.MarkReload();
+                if (v.Golden == "captured" && v.GoldenJson != null)
+                    v.Written.AddRange(_host.Takes.SaveScenarioJson(Item.Scenario, ScenarioGolden.FileName, v.GoldenJson));
+                r.Verify = v;
+                r.Status = v.Passed ? "pass" : "fail";
+                _verification = null;
+            }
             if (r.Status == "playing") r.Status = r.Missing.Count > 0 ? "beat-missing" : "ok";
             if (_request!.Mode == DirectorMode.Scout && _request.Bake && _take != null && _request.Inline?.ContainsKey(Item.Scenario + "/" + Item.Take) != true) Bake(r);
 

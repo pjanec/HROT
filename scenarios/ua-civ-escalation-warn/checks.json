@@ -1,0 +1,80 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — EL-2 a WARN ceiling holds every round. From the header's Judge (1)-(3): the riot starts, no police round at all, nobody stunned/irritated/down/hurt, the Warning cue shown. who '*s' = Instigator and the three Protesters. NOT expressed: (4) rounds held as 'hold: warning' - that is the weapon status read over HTTP, not a component. A baton blow is covered through its effects (down/hurt), not as a shot.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the riot starts",
+      "on": "field",
+      "who": "*s",
+      "path": "CivilianState.Mode",
+      "op": "==",
+      "value": "Riot"
+    },
+    {
+      "name": "the Warning cue is shown",
+      "on": "gesture",
+      "who": "*Police",
+      "is": "Warning"
+    },
+    {
+      "name": "no police round at all",
+      "never": {
+        "on": "shot",
+        "by": "*Police"
+      }
+    },
+    {
+      "name": "no rioter is stunned",
+      "never": {
+        "on": "field",
+        "who": "*s",
+        "path": "EffectState.StunnedUntil",
+        "op": ">",
+        "value": "$now"
+      }
+    },
+    {
+      "name": "no rioter is irritated",
+      "never": {
+        "on": "field",
+        "who": "*s",
+        "path": "EffectState.IrritatedUntil",
+        "op": ">",
+        "value": "$now"
+      }
+    },
+    {
+      "name": "no rioter is knocked down",
+      "never": {
+        "on": "field",
+        "who": "*s",
+        "path": "EffectState.KnockedDownUntil",
+        "op": ">",
+        "value": "$now"
+      }
+    },
+    {
+      "name": "no rioter is hurt",
+      "never": {
+        "on": "field",
+        "who": "*s",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "the Gunman is not hurt",
+      "never": {
+        "on": "field",
+        "who": "Gunman",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}

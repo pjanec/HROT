@@ -1,0 +1,27 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L7 (dry): the live check POSTs a faked SPOT IndirectFire from Blue Squad 1 — an injected report is NOT a component edit, so `do` cannot make it. Only Judge (1) 'nothing is sent without a report' is encoded (no report ever arrives in this run: the Apache never gets a task). Judge (2)-(4) (request, AirArmedSearch, flies 300 m closer, attacks) need a report-injection action the grammar does not have — PARTIAL, see the report. DEMO: no golden.",
+  "runFor": 30,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the HQ runs SupportCommand",
+      "on": "task",
+      "who": "Blue HQ",
+      "is": "SupportCommand"
+    },
+    {
+      "name": "the platoon defends (PlatoonDefend)",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonDefend"
+    },
+    {
+      "name": "nothing is sent without a report: the Apache never gets an armed search",
+      "never": {
+        "on": "task",
+        "who": "Apache",
+        "is": "AirArmedSearch"
+      }
+    }
+  ]
+}

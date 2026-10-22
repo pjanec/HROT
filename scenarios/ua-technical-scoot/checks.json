@@ -1,0 +1,34 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — shoot and scoot against an M1. Judge (1)/(2) both technicals fire, (3) the tank's first round goes at the ATGM technical. NOT expressible: the 'scoot' (>= 5 m from where it fired, or killed after its shot) is an either/or over distances. UNVERIFIED: shooter/target names — a technical's mounted gun may be its own entity whose name lacks 'ATGM'/'HMG' (the live check also matched 'Kornet'/'M2'); if a row is red look at the shot rows' names first.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the ATGM technical fires",
+      "on": "shot",
+      "by": "*ATGM"
+    },
+    {
+      "name": "the HMG technical fires",
+      "on": "shot",
+      "by": "*HMG"
+    },
+    {
+      "name": "the tank fires at the ATGM technical",
+      "on": "shot",
+      "by": "Tank",
+      "at": "*ATGM"
+    },
+    {
+      "name": "the tank's first round is not at the HMG technical",
+      "never": {
+        "on": "shot",
+        "by": "Tank",
+        "at": "*HMG"
+      },
+      "before": "the tank fires at the ATGM technical"
+    }
+  ]
+}

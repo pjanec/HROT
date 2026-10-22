@@ -1,0 +1,50 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-2284 U-3: fired on from H5 beside the route. DEMO (20 units). Judge (2) the platoon reacts with ReactToFireFromBuilding and a squad clears H5 (ClearBuilding), (3) the movement resumes and goes on east to (280,190). The insurgents' fire is the cue for (1). Left out: the squad's FiredOnFromStructure contact (a report). runFor 300 is the cap; the twin allowed 600 s, so 'resumes' may need a longer run.",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the platoon runs UrbanMovement",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "UrbanMovement",
+      "before": 10
+    },
+    {
+      "name": "the insurgents in H5 fire on the platoon",
+      "on": "shot",
+      "by": "*Insurgent"
+    },
+    {
+      "name": "the platoon reacts with ReactToFireFromBuilding",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "ReactToFireFromBuilding"
+    },
+    {
+      "name": "a squad clears H5 (ClearBuilding)",
+      "on": "task",
+      "who": "*Blue Squad ",
+      "is": "ClearBuilding",
+      "after": "the platoon reacts with ReactToFireFromBuilding"
+    },
+    {
+      "name": "the movement resumes (UrbanMovement again)",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "UrbanMovement",
+      "after": "the platoon reacts with ReactToFireFromBuilding"
+    },
+    {
+      "name": "the platoon goes on east to (280,190)",
+      "on": "near",
+      "who": "*Rifleman",
+      "point": [
+        280,
+        190
+      ],
+      "within": 20,
+      "after": "the movement resumes (UrbanMovement again)"
+    }
+  ]
+}

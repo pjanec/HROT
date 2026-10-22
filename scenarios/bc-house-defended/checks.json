@@ -1,0 +1,37 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — BC-5 (CE-2261): a squad clears the CQB house with a defender on the front door's axis. Conditions are the header's 'Ends with' line: both insurgents down, no friend hit by a friend, plus the squad's order. ⚠ KNOWN RED: the design (DESIGN_Building_Clearing §7.3) records this demo as a STALEMATE (the pie men never fire), so 'both insurgents down' is expected to fail until that is fixed; golden false for the same reason. Not expressible: the 3 s of quiet, the pie points, the re-stack (squad drill state).",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the squad runs ClearBuilding",
+      "on": "task",
+      "who": "Blue Squad",
+      "is": "ClearBuilding",
+      "before": 10
+    },
+    {
+      "name": "the hallway defender fires on the stack",
+      "on": "shot",
+      "by": "Insurgent 1"
+    },
+    {
+      "name": "both insurgents are down",
+      "on": "field",
+      "who": "*Insurgent",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue",
+        "hit": "*Blue"
+      }
+    }
+  ]
+}

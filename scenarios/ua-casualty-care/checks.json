@@ -1,0 +1,101 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — C1-C5 (CE-2152) the squad's casualty-care drill. From the header's Judge (2)-(4): the check drops Rifleman 3 to 25 HP at contact (the live check's set_health; contact = the first round at the Hostile), the Medic and only he carries, covering rounds precede him, the man is carried then put down alive. 'Medic goes' is his CarryCasualty task, so 'covering fire first' is stricter than the live '1 m out'. NOT expressed: (1) Rescue winning the decision (an unreadable utility winner), (4) the squad leaving CasualtyCare (a task cue cannot be negated), (5) no order to the man down and the 2.5 m cover-point distance (maneuver data read over HTTP, not components). The take never fired its cues (it had no action).",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "contact": {
+      "on": "shot",
+      "at": "*Hostile"
+    }
+  },
+  "do": [
+    {
+      "name": "the check drops Rifleman 3 to 25 HP",
+      "at": "contact",
+      "set": {
+        "who": "Rifleman 3",
+        "component": "Health",
+        "patch": {
+          "Current": 25
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "the squad makes contact (a round at the Hostile)",
+      "on": "shot",
+      "at": "*Hostile"
+    },
+    {
+      "name": "the squad runs the care drill (CasualtyCare)",
+      "on": "task",
+      "who": "Squad",
+      "is": "CasualtyCare",
+      "after": "the check drops Rifleman 3 to 25 HP"
+    },
+    {
+      "name": "the Medic goes for him (CarryCasualty)",
+      "on": "task",
+      "who": "Medic",
+      "is": "CarryCasualty",
+      "after": "the check drops Rifleman 3 to 25 HP"
+    },
+    {
+      "name": "the coverers' rounds go down before the Medic goes",
+      "on": "shot",
+      "by": "*Rifleman",
+      "after": "the check drops Rifleman 3 to 25 HP",
+      "before": "the Medic goes for him (CarryCasualty)"
+    },
+    {
+      "name": "the Medic takes the man (the casualty is carried)",
+      "on": "field",
+      "who": "Rifleman 3",
+      "path": "IsEmbarkedTag.Mode",
+      "op": "in",
+      "value": [
+        "Carried",
+        "Dragged",
+        "Stretcher"
+      ],
+      "after": "the Medic goes for him (CarryCasualty)"
+    },
+    {
+      "name": "he puts him down (no longer carried)",
+      "on": "field",
+      "who": "Rifleman 3",
+      "path": "IsEmbarkedTag.Mode",
+      "op": "==",
+      "value": null,
+      "after": "the Medic takes the man (the casualty is carried)"
+    },
+    {
+      "name": "the casualty is alive",
+      "on": "field",
+      "who": "Rifleman 3",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "nobody but the Medic carries (a rifleman)",
+      "never": {
+        "on": "task",
+        "who": "*Rifleman",
+        "is": "CarryCasualty"
+      }
+    },
+    {
+      "name": "nobody but the Medic carries (the Leader)",
+      "never": {
+        "on": "task",
+        "who": "Leader",
+        "is": "CarryCasualty"
+      }
+    }
+  ]
+}

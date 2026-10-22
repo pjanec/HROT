@@ -1,0 +1,61 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — B4 warheads: a mortar round on a roof. Judge (1)-(4): both bombs burst, one on the roof (z > 5.5), one in the courtyard (z < 0.5), Downstairs keeps 90+ HP, the courtyard man drops below 80. 'Reaches Downstairs only through the slabs' is a blast-effect row, not a field: left out (Downstairs' HP covers it). ⚠ The take's scout never saw a shot or a blast (baked.missing tube, blast): if this goes red, check that the mortars fire at all.",
+  "runFor": 45,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "both bombs burst",
+      "on": "blast",
+      "n": 2
+    },
+    {
+      "name": "one burst lands on the roof (z above 5.5)",
+      "on": "blast",
+      "where": {
+        "burst.2": [
+          ">",
+          5.5
+        ]
+      }
+    },
+    {
+      "name": "one burst lands in the courtyard (z below 0.5)",
+      "on": "blast",
+      "where": {
+        "burst.2": [
+          "<",
+          0.5
+        ]
+      }
+    },
+    {
+      "name": "the man in the open courtyard drops below 80 HP",
+      "on": "field",
+      "who": "Courtyard",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 80
+    },
+    {
+      "name": "Downstairs is never hurt (stays at 90+)",
+      "never": {
+        "on": "field",
+        "who": "Downstairs",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 90
+      }
+    },
+    {
+      "name": "Downstairs keeps 90+ HP",
+      "on": "field",
+      "who": "Downstairs",
+      "path": "Health.Current",
+      "op": ">=",
+      "value": 90,
+      "atEnd": true
+    }
+  ]
+}

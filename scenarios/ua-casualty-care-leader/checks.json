@@ -1,0 +1,113 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — C7 (CE-2152) the Leader himself goes down: succession, then the same rescue. From the header's Judge (1)-(3): a rifleman (not the Medic) holds UnitSubordinate.Designation SquadLeader within 5 s of the fall; the Medic and only he carries the Leader, covering rounds first, put down alive. Same cues and caveats as ua-casualty-care (the drop is done at contact, the first round at the Hostile). NOT expressed: Rescue winning, the squad's return to the fight, the 2.5 m cover point.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "contact": {
+      "on": "shot",
+      "at": "*Hostile"
+    }
+  },
+  "do": [
+    {
+      "name": "the check drops the Leader to 25 HP",
+      "at": "contact",
+      "set": {
+        "who": "Leader",
+        "component": "Health",
+        "patch": {
+          "Current": 25
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "the squad makes contact (a round at the Hostile)",
+      "on": "shot",
+      "at": "*Hostile"
+    },
+    {
+      "name": "a rifleman takes command (SquadLeader)",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "UnitSubordinate.Designation",
+      "op": "==",
+      "value": "SquadLeader",
+      "after": "the check drops the Leader to 25 HP",
+      "before": "the check drops the Leader to 25 HP+5"
+    },
+    {
+      "name": "the Medic never takes command",
+      "never": {
+        "on": "field",
+        "who": "Medic",
+        "path": "UnitSubordinate.Designation",
+        "op": "==",
+        "value": "SquadLeader"
+      }
+    },
+    {
+      "name": "the squad runs the care drill (CasualtyCare)",
+      "on": "task",
+      "who": "Squad",
+      "is": "CasualtyCare",
+      "after": "the check drops the Leader to 25 HP"
+    },
+    {
+      "name": "the Medic goes for him (CarryCasualty)",
+      "on": "task",
+      "who": "Medic",
+      "is": "CarryCasualty",
+      "after": "the check drops the Leader to 25 HP"
+    },
+    {
+      "name": "the coverers' rounds go down before the Medic goes",
+      "on": "shot",
+      "by": "*Rifleman",
+      "after": "the check drops the Leader to 25 HP",
+      "before": "the Medic goes for him (CarryCasualty)"
+    },
+    {
+      "name": "the Medic takes the man (the casualty is carried)",
+      "on": "field",
+      "who": "Leader",
+      "path": "IsEmbarkedTag.Mode",
+      "op": "in",
+      "value": [
+        "Carried",
+        "Dragged",
+        "Stretcher"
+      ],
+      "after": "the Medic goes for him (CarryCasualty)"
+    },
+    {
+      "name": "he puts him down (no longer carried)",
+      "on": "field",
+      "who": "Leader",
+      "path": "IsEmbarkedTag.Mode",
+      "op": "==",
+      "value": null,
+      "after": "the Medic takes the man (the casualty is carried)"
+    },
+    {
+      "name": "the casualty is alive",
+      "on": "field",
+      "who": "Leader",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "nobody but the Medic carries (a rifleman)",
+      "never": {
+        "on": "task",
+        "who": "*Rifleman",
+        "is": "CarryCasualty"
+      }
+    }
+  ]
+}

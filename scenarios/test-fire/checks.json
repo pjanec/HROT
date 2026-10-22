@@ -1,0 +1,24 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — The simplest shooting test. Judge (1) the friendly Bradley fires at the hostile, (2) the hostile takes damage. Both vehicles are named 'M2 Bradley IFV' and a name resolves to ONE unit, so the cues use a hit on '*M2 Bradley IFV' with damage > 0 (only the friendly fires, so a hit is on the hostile).",
+  "runFor": 20,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "rounds leave the friendly Bradley",
+      "on": "shot"
+    },
+    {
+      "name": "the hostile Bradley is struck and takes damage",
+      "on": "shot",
+      "hit": "*M2 Bradley IFV",
+      "where": {
+        "damage": [
+          ">",
+          0
+        ]
+      }
+    }
+  ]
+}

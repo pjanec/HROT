@@ -1,0 +1,121 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Airborne Insertion §8 (CE-1118 H-2): fast-rope eight men onto a roof. From the header's Judge (1)-(2): all eight leave the carrier within 15 s of the first, all end on the roof (x 40-90, y 230-280, above 10 m); (3) 'the helicopter leaves only after the last man landed' needs the landing times and is not expressible, and 'no two within 1 m' is a pairwise test a check cannot state.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "a man goes down the rope",
+      "on": "embark",
+      "who": "*SF operator",
+      "is": false
+    },
+    {
+      "name": "SF operator 1 leaves the helicopter",
+      "on": "embark",
+      "who": "SF operator 1",
+      "is": false,
+      "before": "a man goes down the rope+15"
+    },
+    {
+      "name": "SF operator 2 leaves the helicopter",
+      "on": "embark",
+      "who": "SF operator 2",
+      "is": false,
+      "before": "a man goes down the rope+15"
+    },
+    {
+      "name": "SF operator 3 leaves the helicopter",
+      "on": "embark",
+      "who": "SF operator 3",
+      "is": false,
+      "before": "a man goes down the rope+15"
+    },
+    {
+      "name": "SF operator 4 leaves the helicopter",
+      "on": "embark",
+      "who": "SF operator 4",
+      "is": false,
+      "before": "a man goes down the rope+15"
+    },
+    {
+      "name": "SF operator 5 leaves the helicopter",
+      "on": "embark",
+      "who": "SF operator 5",
+      "is": false,
+      "before": "a man goes down the rope+15"
+    },
+    {
+      "name": "SF operator 6 leaves the helicopter",
+      "on": "embark",
+      "who": "SF operator 6",
+      "is": false,
+      "before": "a man goes down the rope+15"
+    },
+    {
+      "name": "SF operator 7 leaves the helicopter",
+      "on": "embark",
+      "who": "SF operator 7",
+      "is": false,
+      "before": "a man goes down the rope+15"
+    },
+    {
+      "name": "SF operator 8 leaves the helicopter",
+      "on": "embark",
+      "who": "SF operator 8",
+      "is": false,
+      "before": "a man goes down the rope+15"
+    },
+    {
+      "name": "all eight end on the roof (x >= 40)",
+      "on": "field",
+      "who": "*SF operator",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 40,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "all eight end on the roof (x <= 90)",
+      "on": "field",
+      "who": "*SF operator",
+      "path": "SimTransform.Position.0",
+      "op": "<=",
+      "value": 90,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "all eight end on the roof (y >= 230)",
+      "on": "field",
+      "who": "*SF operator",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 230,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "all eight end on the roof (y <= 280)",
+      "on": "field",
+      "who": "*SF operator",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 280,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "all eight end above 10 m (none on the ground)",
+      "on": "field",
+      "who": "*SF operator",
+      "path": "SimTransform.Position.2",
+      "op": ">",
+      "value": 10,
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}

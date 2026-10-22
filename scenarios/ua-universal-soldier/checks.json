@@ -1,0 +1,37 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-3094 tutorial: posture + approach + mission against a group; he is NOT asserted to win. Judge (1) unseen for most of the walk => never hit before 60 s (header: first hit after ~f4000 = 66.7 s; the twin test asserts > 4000), (2) the mission reaches its second leg (MissionPlanQueue.CurrentPhase >= 1), (3) a round hits a hostile and one loses health. NOT expressible: (4) 'if hit, picks a defensive posture' (posture winner not readable). DEMO: no golden.",
+  "runFor": 120,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the approach keeps him unseen: he is not hit early",
+      "never": {
+        "on": "hit",
+        "target": "Rifleman"
+      },
+      "before": 60
+    },
+    {
+      "name": "the mission reaches its second leg",
+      "on": "field",
+      "who": "Rifleman",
+      "path": "MissionPlanQueue.CurrentPhase",
+      "op": ">=",
+      "value": 1
+    },
+    {
+      "name": "his rounds reach a hostile",
+      "on": "shot",
+      "by": "Rifleman",
+      "hit": "*Hostile"
+    },
+    {
+      "name": "at least one hostile loses health",
+      "on": "field",
+      "who": "*Hostile",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100
+    }
+  ]
+}

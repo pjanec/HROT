@@ -1,0 +1,63 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — BC-3 (CE-2259): a squad clears the CQB house room by room. The header has no Judge text: conditions are its 'Ends with' line and the twin CE2259_* (entry, insurgents down, civilians unhurt, no friend hit by a friend). 'Every room cleared once' and the BuildingClear report are squad reports, not components: left out.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "entry": {
+      "on": "near",
+      "who": "Blue Leader",
+      "point": [
+        40,
+        104
+      ],
+      "within": 3
+    }
+  },
+  "expect": [
+    {
+      "name": "the leader is in the hallway (the foothold)",
+      "on": "near",
+      "who": "Blue Leader",
+      "point": [
+        40,
+        104
+      ],
+      "within": 3
+    },
+    {
+      "name": "both insurgents are down",
+      "on": "field",
+      "who": "*Insurgent",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "no round hits a civilian",
+      "never": {
+        "on": "shot",
+        "hit": "*Civilian"
+      }
+    },
+    {
+      "name": "no civilian is ever hurt",
+      "never": {
+        "on": "health",
+        "who": "*Civilian",
+        "below": 1
+      }
+    },
+    {
+      "name": "no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue",
+        "hit": "*Blue"
+      }
+    }
+  ]
+}

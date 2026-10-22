@@ -1,0 +1,55 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S7 (CE-2158 F-c) bounding overwatch. From the header's Judge (4)-(5), reduced: the squad runs the BoundingOverwatch task, nobody fires until a rifleman is within 100 m of the Hostile (it is unseen until ~70 m; 100 m leaves margin so a sampled step cannot misfire the rule), and once they close, the squad fires at the Hostile (the take's contact at 17.8 s was the first round). NOT expressed: (1) halves not moving together, (2) bounds ending within 1.5 m of cover, (3) swaps on 'set' - they read the squad maneuver's history over HTTP, not a component; (5)'s 3.5 s / 5.5 s suppress windows - contact itself is not readable.",
+  "runFor": 50,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the squad runs BoundingOverwatch",
+      "on": "task",
+      "who": "Squad",
+      "is": "BoundingOverwatch",
+      "before": 5
+    },
+    {
+      "name": "a rifleman closes to 100 m of the Hostile",
+      "on": "near",
+      "who": "*Rifleman",
+      "point": [
+        195,
+        300
+      ],
+      "within": 100
+    },
+    {
+      "name": "the Leader fires no round before they close",
+      "never": {
+        "on": "shot",
+        "by": "Leader"
+      },
+      "before": "a rifleman closes to 100 m of the Hostile"
+    },
+    {
+      "name": "no rifleman fires before they close",
+      "never": {
+        "on": "shot",
+        "by": "*Rifleman"
+      },
+      "before": "a rifleman closes to 100 m of the Hostile"
+    },
+    {
+      "name": "on contact the squad fires at the Hostile",
+      "on": "shot",
+      "at": "Hostile",
+      "after": "a rifleman closes to 100 m of the Hostile"
+    },
+    {
+      "name": "the Hostile never fires",
+      "never": {
+        "on": "shot",
+        "by": "Hostile"
+      }
+    }
+  ]
+}

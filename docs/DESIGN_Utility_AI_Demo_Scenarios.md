@@ -8,6 +8,7 @@ known-rot: (2026-10-19, CE-3272) §10.7's "rate every tick from the Brain's memo
 known-conflict:
   - docs/DESIGN_Decision_Layer.md §3 INVENTORY says five decisions are registered at CGF start — four are (ManeuverSelect has no [UtilityDecision]); its STATUS line still calls §3.3 "not started" while its body records CE-2067…2073 BUILT. Noted there, 2026-10-05.
 related-designs:
+  - DESIGN_Scenario_Regression.md — where the live checks' conditions move as data (scenarios/<s>/checks.json), judged in the editor's stepped preview
   - blueprints/Architect_Question_94_Brain_Geometry_Sites.md — §5.3 owns WHERE the danger area's contact sight is judged (the solver, CE-3272); this doc owns the sensor and its rating
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — BUILD design extending §9's armour model: a Top face from the round's 3-D arrival, a shaped-charge armour column, the penetrator on the round (formula unchanged)

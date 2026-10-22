@@ -18,6 +18,8 @@ known-conflict: none. ⭐ §4b REFINES charter D5 (golden key: PanelId, not Pane
 known-rot: §2's inventory row "the frame boundary ... Fine here" was WRONG about the reader and is
   corrected in place (HN-007). It listed ClearCaptured() as an asset; measured, its ORDER relative to the
   API job drain made every HTTP panel read return an empty set.
+related-designs:
+  - DESIGN_Scenario_Regression.md — applies D7 (golden + conditions, paired), first-load-fresh-process capture and no masking to WHOLE SCENARIOS in the stepped preview (CE-4042)
 -->
 # DESIGN — **the regression net**: what protects the unification, and how we know it works
 

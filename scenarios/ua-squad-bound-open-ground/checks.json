@@ -1,0 +1,49 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S10/S7 (CE-2161): the squad crosses open ground by bounding overwatch. From the header's Judge (2), (5): BoundingOverwatch runs (⚠ the old check read the maneuver kind, not the behaviour name, so the task name is unverified), nobody fires, the march gathers the riflemen near the objective (175,60) (read as x >= 160 and y <= 75). (1) the route sensor, (3) one half moving at a time and (4) the last bound's side are not expressible.",
+  "runFor": 180,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the squad runs BoundingOverwatch",
+      "on": "task",
+      "who": "Squad",
+      "is": "BoundingOverwatch"
+    },
+    {
+      "name": "nobody fires (riflemen)",
+      "never": {
+        "on": "shot",
+        "by": "*Rifleman"
+      }
+    },
+    {
+      "name": "nobody fires (leader)",
+      "never": {
+        "on": "shot",
+        "by": "Leader"
+      }
+    },
+    {
+      "name": "the squad gathers at the far side (x >= 160)",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 160,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "the squad gathers at the far side (y <= 75)",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 75,
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}

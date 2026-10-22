@@ -134,6 +134,61 @@ public sealed class TakeStore
         }
     }
 
+    /// <summary>⭐ <c>CE-4042</c> (docs/DESIGN_Scenario_Regression.md §4) — a scenario's own JSON beside it (<c>checks.json</c>, <c>golden.json</c>).</summary>
+    public string ScenarioFilePath(string scenario, string file) => Path.Combine(ScenariosRoot, scenario, file);
+
+    /// <summary>The scenarios that carry <paramref name="file"/> beside them (<c>checks.json</c> — the ones that can be verified).</summary>
+    public IReadOnlyList<string> ScenariosWith(string file)
+    {
+        var root = ScenariosRoot;
+        if (!Directory.Exists(root)) return Array.Empty<string>();
+        return Directory.EnumerateDirectories(root).Where(d => File.Exists(Path.Combine(d, file)))
+            .Select(Path.GetFileName).OfType<string>().OrderBy(n => n, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>A scenario's own JSON file; null with the reason when there is none or it does not parse.</summary>
+    public Loaded<JsonObject> LoadScenarioJson(string scenario, string file)
+    {
+        var path = ScenarioFilePath(scenario, file);
+        if (!File.Exists(path)) return new Loaded<JsonObject>(null, new[] { $"no {file} for scenario '{scenario}' ({path})" });
+        try
+        {
+            return JsonNode.Parse(File.ReadAllText(path)) is JsonObject json
+                ? new Loaded<JsonObject>(json, Array.Empty<string>())
+                : new Loaded<JsonObject>(null, new[] { $"{path} is not a JSON object" });
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            return new Loaded<JsonObject>(null, new[] { $"{path}: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Writes a scenario's own JSON file to the working root AND, when the scenario is one of the source tree's
+    /// (<see cref="Hrot.ScenarioEditor.Services.CuratedScenarios.TryFindSourceScenariosDirectory"/>), to the source tree too — ⛔ never only
+    /// the working copy, which the next launch re-seeds over (the take-bake trap, PLAN_Feature_Films §6). Returns every path written.
+    /// </summary>
+    public IReadOnlyList<string> SaveScenarioJson(string scenario, string file, JsonNode json)
+    {
+        var text = json.ToJsonString(Indented) + "\n";
+        var written = new List<string>();
+        var path = ScenarioFilePath(scenario, file);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, text);
+        written.Add(path);
+        if (Hrot.ScenarioEditor.Services.CuratedScenarios.TryFindSourceScenariosDirectory() is { } source
+            && Directory.Exists(Path.Combine(source, scenario)))
+        {
+            var src = Path.GetFullPath(Path.Combine(source, scenario, file));
+            if (!string.Equals(src, Path.GetFullPath(path), StringComparison.Ordinal))
+            {
+                File.WriteAllText(src, text);
+                written.Add(src);
+            }
+        }
+        return written;
+    }
+
     /// <summary>The SHA-256 of the scenario's file (the scout's bake records it; a changed scenario re-scouts). Empty when there is no file.</summary>
     public string ScenarioHash(string scenario)
     {

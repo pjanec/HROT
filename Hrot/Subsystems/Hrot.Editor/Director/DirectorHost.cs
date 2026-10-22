@@ -18,6 +18,10 @@ namespace Hrot.Editor.Director
         void LoadScenario(string scenario);
 
         bool IsOperatingEdit { get; }
+
+        /// <summary>⭐ CE-4042 — this process has loaded a scenario already (by the director or the user): the next load is a RELOAD, and a
+        /// reload is not where a golden may be recorded (CE-3294; Regression_Net §6 ④).</summary>
+        bool HasLoadedAScenario { get; }
         int? EntityCount { get; }
 
         bool InPreview { get; }

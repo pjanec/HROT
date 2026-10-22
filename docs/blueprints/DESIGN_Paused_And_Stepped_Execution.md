@@ -7,7 +7,11 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+<<<<<<< HEAD
+  - ../DESIGN_Scenario_Regression.md — the consumer that turns "stepped runs repeat" into a regression suite: every scenario judged and compared with its golden, a fresh process each (CE-3294)
+=======
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the SAVE/RESTORE mechanism (CE-3299): the recorder keyframe, AfterRestore, the pause-first checkpoint; resolves §7g.0c F1–F12 as D1–D12.
+>>>>>>> origin/backend
   - docs/blueprints/DESIGN_Time_Architecture.md — owns time: who changes it, the zero-delta pause, §17 stepped-mode determinism
     (sim-time cadence, the step wait). Its §17 OPEN item "event visibility across paused frames" is what THIS document settles.
   - docs/designs/mgmt-1/DESIGN.md — owns editing while paused ("Entities placed/modified", :431) and Always Recording (:1941):

@@ -1,0 +1,67 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4035 G-10: night shortens sight (150 x 0.25 = ~38 m). From the header's Judge: each observer's memory is empty while his target is beyond 75 m, and holds him later. ⚠ reads TargetMemory.Count (any modality, the old check filtered Visual only) and the dump of that struct is not verified.",
+  "runFor": 140,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "Target Clear within 75 m": {
+      "on": "near",
+      "who": "Target Clear",
+      "point": [
+        0,
+        0
+      ],
+      "within": 75
+    },
+    "Target Second within 75 m": {
+      "on": "near",
+      "who": "Target Second",
+      "point": [
+        0,
+        300
+      ],
+      "within": 75
+    }
+  },
+  "expect": [
+    {
+      "name": "Observer Clear sees nothing beyond 75 m",
+      "never": {
+        "on": "field",
+        "who": "Observer Clear",
+        "path": "TargetMemory.Count",
+        "op": ">",
+        "value": 0
+      },
+      "before": "Target Clear within 75 m"
+    },
+    {
+      "name": "Observer Second sees nothing beyond 75 m",
+      "never": {
+        "on": "field",
+        "who": "Observer Second",
+        "path": "TargetMemory.Count",
+        "op": ">",
+        "value": 0
+      },
+      "before": "Target Second within 75 m"
+    },
+    {
+      "name": "Observer Clear sees his target",
+      "on": "field",
+      "who": "Observer Clear",
+      "path": "TargetMemory.Count",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "name": "Observer Second sees his target",
+      "on": "field",
+      "who": "Observer Second",
+      "path": "TargetMemory.Count",
+      "op": ">",
+      "value": 0
+    }
+  ]
+}
