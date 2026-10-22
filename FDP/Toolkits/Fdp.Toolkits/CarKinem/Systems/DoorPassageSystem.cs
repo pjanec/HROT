@@ -126,8 +126,11 @@ namespace CarKinem.Systems
                 {
                     case TerrainDoorState.Open:
                     case TerrainDoorState.Destroyed:
-                        // ⭐ CE-4040 — another walker's turn at this doorway: wait in reach (one at a time)
-                        if (inReach && _turn.TryGetValue(doorIndex, out var turn) && turn.Who != e) Hold(repo, e, ref p);
+                        // ⭐ CE-4040 — another walker's turn at this doorway: wait in reach (one at a time). ⭐ CE-2259 — never a walker
+                        //   already THROUGH it (the turn's own test): 📌 bc-house-clear, a rifleman just past the front door was held there
+                        //   (his path still shows the door 1.5 m behind) and stood in the way of the man whose turn it was, for good
+                        if (inReach && _turn.TryGetValue(doorIndex, out var turn) && turn.Who != e
+                            && DoorToPass(traj, nav.ProgressS, terrain, new Vector2(pos.X, pos.Y)) is not null) Hold(repo, e, ref p);
                         else Unhold(repo, e, ref p);
                         break;
 

@@ -132,6 +132,26 @@ namespace CarKinem.Tests.Systems
             Assert.False(SecondHeld());                                              // his turn
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2259</c> — a walker already THROUGH an open door is never held for the next man's turn, though he is still in reach
+        /// and his path still shows the door just behind him. 📌 bc-house-clear: a rifleman 0.3 m past the front door was held there and
+        /// blocked the man whose turn it was — the squad never stacked. ✅ Red-proof: the through-test dropped from the hold ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2259_AWalkerThroughTheDoor_IsNotHeldForTheNextMansTurn()
+        {
+            using var f = new Fixture(TerrainDoorState.Open, agentY: 20.6f);          // 0.6 m past the door's centre, inside: through
+            var nav = f.Repo.GetComponent<NavState>(f.Agent);
+            Assert.Equal(10.6f, nav.ProgressS, 3);                                   // the door mark (9.8) still in the look-behind window
+            var next = f.Repo.CreateEntity();
+            f.Repo.AddComponent(next, new SimTransform { Position = new Vector3(25, 19f, 0), Rotation = Quaternion.Identity });
+            f.Repo.AddComponent(next, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 5, ProgressS = 9f });   // 1 m out: his turn
+
+            f.Tick();
+            Assert.False(f.Repo.GetComponent<NavState>(next).IsBlocked != 0);        // the next man goes
+            Assert.False(f.Held);                                                    // and the man through is not held in his way
+        }
+
         /// <summary>⭐ 5d-3 — a closed door still out of reach does not stop the agent yet; an open door never does.</summary>
         [Fact]
         public void Stage5d_ADoorNotYetInReach_OrOpen_DoesNotHold()
