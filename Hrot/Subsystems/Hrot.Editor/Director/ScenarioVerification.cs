@@ -390,20 +390,24 @@ namespace Hrot.Editor.Director
         /// change in meaning. 📌 Measured by backend on <c>ua-tank-ammo</c> (CE-2349 created one item fewer ⇒ <c>IsEmbarkedTag</c> and
         /// <c>PassengerBuffer</c> differed). ⚠ A network id held as a NUMBER is not rewritten — it cannot be told from any other number.
         /// </summary>
-        private JsonNode? ByMeaning(JsonNode? n)
+        private JsonNode? ByMeaning(JsonNode? n) => Meant(n) ?? n;
+
+        /// <summary>The name a held handle means, or null when <paramref name="n"/> is not one — containers are rewritten in place, and only
+        /// a REPLACED child is assigned back (⛔ assigning a node to its own slot throws "The node already has a parent").</summary>
+        private JsonNode? Meant(JsonNode? n)
         {
             switch (n)
             {
                 case JsonObject o:
-                    foreach (var k in o.Select(kv => kv.Key).ToList()) o[k] = ByMeaning(o[k]);
-                    return o;
+                    foreach (var k in o.Select(kv => kv.Key).ToList()) if (Meant(o[k]) is { } r) o[k] = r;
+                    return null;
                 case JsonArray a:
-                    for (int i = 0; i < a.Count; i++) a[i] = ByMeaning(a[i]);
-                    return a;
+                    for (int i = 0; i < a.Count; i++) if (Meant(a[i]) is { } r) a[i] = r;
+                    return null;
                 case JsonValue v when v.TryGetValue<string>(out var text) && HandleShape.Match(text) is { Success: true } m:
                     return JsonValue.Create("@" + (_w.NameOfEntityIndex(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)) ?? "?"));
                 default:
-                    return n;
+                    return null;
             }
         }
 

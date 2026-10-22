@@ -190,7 +190,8 @@ public sealed class ScenarioChecksTests
         JsonObject Run(int technicalId)
         {
             var w = new FakeWorld().Unit("Rider", 1, 100, 0).Unit("Technical", technicalId, 100, 0);
-            w.Comps[1]["IsEmbarkedTag"] = new JsonObject { ["VehicleEntity"] = $"[{technicalId}, v1]" };
+            // ⭐ a plain field beside the handle, and one inside an array: the real dump's shape (a handle-only component hid a throw)
+            w.Comps[1]["IsEmbarkedTag"] = new JsonObject { ["VehicleEntity"] = $"[{technicalId}, v1]", ["Seat"] = 2, ["Slots"] = new JsonArray(1, $"[{technicalId}, v1]") };
             var g = new ScenarioGolden(w);
             g.Snapshot(0);
             var book = new ConditionBook(checks, w, 0);
