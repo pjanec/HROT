@@ -39,11 +39,14 @@ namespace Hrot.Editor.Director
     }
 
     /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
-    public sealed record Verdict(string Name, bool Ok, double? Time, string Kind)
+    /// <remarks><see cref="Outside"/>: a failed expectation's cue DID hold, but outside its window (at that time) — "it moved" is not
+    /// "it never happened", and the report must tell them apart.</remarks>
+    public sealed record Verdict(string Name, bool Ok, double? Time, string Kind, double? Outside = null)
     {
         public JsonObject ToJson() => new()
         {
             ["name"] = Name, ["ok"] = Ok, ["t"] = Time is { } t ? Math.Round(t, 4) : null, ["kind"] = Kind,
+            ["heldOutsideItsWindowAt"] = Outside is { } o ? Math.Round(o, 4) : null,
         };
     }
 
@@ -58,6 +61,7 @@ namespace Hrot.Editor.Director
         private readonly double _t0;
         private readonly Dictionary<string, double> _times = new(StringComparer.Ordinal);
         private readonly Dictionary<string, double> _broken = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, double> _outside = new(StringComparer.Ordinal);
         private readonly SortedDictionary<long, JsonObject> _shots = new();
         private readonly List<JsonObject> _blasts = new();
         private long _shotFloor = -1, _blastFloor = -1, _blastSeen = -1;
@@ -110,6 +114,8 @@ namespace Hrot.Editor.Director
                 }
                 else if (!_times.ContainsKey(e.Name) && When(e.Cue, lo) is { } t && (lo is null || t >= lo - 1e-9) && (hi is null || t <= hi + 1e-9))
                     _times[e.Name] = t;
+                else if (!_times.ContainsKey(e.Name) && !_outside.ContainsKey(e.Name) && When(e.Cue) is { } any)
+                    _outside[e.Name] = any;   // held, but not in its window — kept to tell "moved" from "never"
             }
         }
 
@@ -123,7 +129,8 @@ namespace Hrot.Editor.Director
 
         public IReadOnlyList<Verdict> Verdicts() => _checks.Expect.Select(e =>
             e.Never ? new Verdict(e.Name, !_broken.ContainsKey(e.Name), _broken.TryGetValue(e.Name, out var b) ? b : null, "never")
-                    : new Verdict(e.Name, _times.ContainsKey(e.Name), _times.TryGetValue(e.Name, out var t) ? t : null, e.AtEnd ? "atEnd" : "once"))
+                    : new Verdict(e.Name, _times.ContainsKey(e.Name), _times.TryGetValue(e.Name, out var t) ? t : null, e.AtEnd ? "atEnd" : "once",
+                                  _times.ContainsKey(e.Name) ? null : _outside.TryGetValue(e.Name, out var o) ? o : null))
             .ToList();
 
         // ── the cues ──────────────────────────────────────────────────────────────────────────

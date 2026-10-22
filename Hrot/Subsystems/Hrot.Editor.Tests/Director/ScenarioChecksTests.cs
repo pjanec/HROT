@@ -139,6 +139,25 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ A failed expectation whose cue held LATE says when ("it moved" is not "it never happened" — measured on pc-defend-house, whose
+    /// Red line opened fire after its window). 🔴 Red-proof: drop the outside record ⇒ heldOutsideItsWindowAt is null.
+    /// </summary>
+    [Fact]
+    public void CE4042_AFailedExpectation_SaysWhenItHeldOutsideItsWindow()
+    {
+        var checks = Parse("""{ "runFor": 60, "expect": [{"name": "fires early", "on": "shot", "by": "Tank", "before": 10}, {"name": "never fires", "on": "shot", "by": "Ghost"}] }""", out _);
+        var w = new FakeWorld().Unit("Tank", 1, 100, 0).Unit("Ghost", 2, 100, 0);
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(0);
+        w.Shot(0, 42.0, 1, null, 30);
+        book.Finish(60);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.False(v["fires early"].Ok);
+        Assert.Equal(42.0, v["fires early"].Outside!.Value, 6);
+        Assert.Null(v["never fires"].Outside);
+    }
+
+    /// <summary>
     /// ⭐⭐ The golden: two equal runs compare SAME; a unit moved 0.2 m at the second snapshot is named — the FIRST differing snapshot, the
     /// unit, the value — and a component that differs only in a field the golden hashes is named by its component. Positions and health are
     /// compared within 0.001 (the /diff/compare tolerance); a component's hash is exact. 🔴 Red-proof: compare snapshots in reverse ⇒ the first line names t=2, not t=1.
