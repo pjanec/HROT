@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: weather shortens sight (CE-4035 G-3; PerceptionWeather S2-1: sight capped by the visibility), on basic-desert at noon local, clear. Two identical pairs: 'Observer Clear' at (0, 0) and 'Observer Fog' at (0, 300) inside a 'Fog bank' (x -50..270, y 230..370, visibility 60 m); 'Target Clear' and 'Target Fog' (insurgents) walk west to them from 220 m at 1.4 m/s. Judge: (1) the clear observer first SEES his target at about his full 150 m (2) the fog observer only at 60 m or less. Fail: both seen at the same distance. Compare: ua-night-sensing (the same pairs at night). Check: python3 scripts/utility-demo-check.py --launch ua-weather-sensing"
+    "description": "What: weather shortens sight (CE-4035 G-3; PerceptionWeather S2-1: sight capped by the visibility), on basic-desert at noon local, clear. Two identical pairs: 'Observer Clear' at (0, 0) and 'Observer Fog' at (0, 300) at the centre of a 'Fog bank' (x -160..160, y 230..370, visibility 60 m; a region weighs 1 only at its centre, W-1); 'Target Clear' and 'Target Fog' (insurgents) walk west to them from 220 m at 1.4 m/s. Judge: (1) the clear observer first SEES his target at about his full 150 m (2) the fog observer only at 60 m or less. Fail: both seen at the same distance. Compare: ua-night-sensing (the same pairs at night). Check: python3 scripts/utility-demo-check.py --launch ua-weather-sensing"
   },
   "entities": {
     "c4035003-0000-4000-8000-000000000001": {
@@ -124,7 +124,7 @@
       },
       "SimTransform": {
         "Position": [
-          110,
+          0,
           300,
           0
         ],

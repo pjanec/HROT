@@ -831,8 +831,13 @@ def run_casualty_care(c, timeout, casualty_name="Rifleman 3"):
     t_down = sim_time()
     down = wait_for(lambda: (comps(sq).get("RecentSenses") or {}).get("SquadMemberDown", 0) > 0 and comps(sq)["RecentSenses"], 10)
     c.ok(down is not None, "the squad knows a man is down (SquadMemberDown on the commander)")
-    d = wait_for(lambda: (x := decision(utility(sq), "Squad contact response")) and x.get("winner") == "Rescue" and x, 15)
-    c.ok(d is not None, f"Rescue wins the squad's decision ({decision(utility(sq), 'Squad contact response')})")
+    # ⭐ CE-2344 (R-2066 E, 4e8ac7075) — in a LULL (no round at the squad for 10 s) the running ReactToContact takes Rescue directly, with no
+    #   utility pass, so no decision is recorded. This Hostile's rifle is empty: the squad is never fired on, so it is always the lull path
+    #   (📐 bisected 2026-10-22). The Rescue is read from the drill the reaction runs (kindName CasualtyCare), or from the decision.
+    d = wait_for(lambda: ((x := decision(utility(sq), "Squad contact response")) and x.get("winner") == "Rescue" and x)
+                         or ((m := maneuver(sq)) and m.get("kindName") == "CasualtyCare" and m), 15)
+    c.ok(d is not None, f"Rescue wins — the decision, or the lull's direct Rescue (CE-2344) "
+                        f"({decision(utility(sq), 'Squad contact response') or (maneuver(sq) or {}).get('kindName')})")
     if casualty_name == "Leader":
         newl = wait_for(lambda: any(((comps(n).get("UnitSubordinate") or {}).get("Designation") == "SquadLeader")
                                      for k, n in members.items() if k != "Leader") and True, 5)
@@ -3115,9 +3120,12 @@ def run_civ_routine_alarm(c, timeout):
     down_below = (th.get("IncapacitatedBelow") or 0.3) * 100
     wait_for(lambda: (far_sample(), (h := health(hostile)) is not None and h < down_below)[1], timeout * 2)
 
-    # ③ quiet again: each alarmed man goes back to his routine
-    calm = wait_for(lambda: (far_sample(), all(civ_mode(n) == "Routine" for n in near))[1], 90)
-    c.ok(calm is not None, f"③ once the firing stops, both near civilians go back to Routine ({[civ_mode(n) for n in near]})")
+    # ③ quiet again: each alarmed man calms — back to his routine, or ⭐ CIV-3 (CE-2237, §5f) straight on to GATHER at the man who
+    #   fell (Routine → Gather on an incident within AttractMetres). 📐 sweep 2026-10-22: live both were Gather for good; the
+    #   in-process twin, sampling every frame, still sees Routine (inferred: a frame between). Afraid (Alarmed and beyond) is the failure.
+    calm = wait_for(lambda: (far_sample(), all(civ_mode(n) in ("Routine", "Gather") for n in near))[1], 90)
+    c.ok(calm is not None, f"③ once the firing stops, both near civilians calm — Routine, or gathering at the man who fell (CIV-3) "
+                           f"({[civ_mode(n) for n in near]})")
     far_sample()
     c.ok(not far_alarmed, f"② …and none of the 4 far civilians (150+ m, beyond hearing) was ever alarmed ({sorted(far_alarmed)})")
     moved = [n for n in far if start[n] and (p := position(n)) and flat(p, start[n]) > 1.0]

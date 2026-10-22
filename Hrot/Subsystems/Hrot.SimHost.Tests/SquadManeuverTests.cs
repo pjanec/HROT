@@ -919,6 +919,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
 
+        /// <summary>⭐ <c>CE-2351</c> (user, option 1) — a squad ORDERED TO HOLD does not break contact on its own: outmatched (six in the
+        /// pool), the reaction paused on <c>SquadHold</c> holds instead of breaking; the same squad on a bound breaks as before.
+        /// ✅ Red-proof: <c>Firm</c> removed ⇒ the held squad breaks contact too.</summary>
+        [Theory]
+        [InlineData("SquadHold", "{}", false)]
+        [InlineData("BoundingOverwatch", "{\"Objective\":[0,100,0],\"BoundMetres\":30}", true)]
+        public void CE2351_ReactToContact_ASquadOrderedToHold_DoesNotBreakContact_OnItsOwn(string task, string json, bool breaks)
+        {
+            var s = new Squad(members: 2);
+            s.Order(json, task);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) s.Tick();
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            Assert.Equal(task, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            for (int i = 0; i < 250; i++) s.Tick();   // 4 s: past the return-fire hold, the choice made
+            Assert.Equal(breaks, s.Kind == BreakContactManeuver.ManeuverKind);
+        }
+
         /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — <c>BreakContact {To}</c>: told where to go, the squad asks no terrain and needs no contact;
         /// element 0 goes there while element 1 covers, then element 1; both there ⇒ Success. ✅ Red-proof: the <c>To</c> arm dropped ⇒
         /// no contact, so the play fails at once.</summary>
@@ -1106,6 +1127,20 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 4; i++) s.Tick();
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        /// <summary>⭐ <c>CE-2351</c> — a LULL is quiet counted from the fight's start: a contact 2 s old with no round yet is not a lull;
+        /// 10 s on, still no round, it is. ✅ Red-proof: the contact clause removed ⇒ a lull at once.</summary>
+        [Fact]
+        public void CE2351_ALull_IsCountedFromTheContact_NotFromBeforeTheFight()
+        {
+            var s = new Squad(members: 2);
+            s.Tick();
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 125; i++) s.Tick();   // 2 s
+            Assert.False(SquadSopConditions.InALull(s.Repo, s.Commander));
+            for (int i = 0; i < 560; i++) s.Tick();   // ~11 s since the contact
+            Assert.True(SquadSopConditions.InALull(s.Repo, s.Commander));
         }
 
         // ── ⭐ CE-2123 (S3) — the squad march (DESIGN_Squad_Tactics §6.1) ─────────────────────────────────────────────────────────────

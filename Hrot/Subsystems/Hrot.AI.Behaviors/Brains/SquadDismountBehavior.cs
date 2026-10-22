@@ -166,9 +166,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no round at the squad for this long (s) is a LULL: the squad brings its wounded in itself.</summary>
         public const double LullSeconds = 10d;
 
-        /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no near miss or hit on the squad for <see cref="LullSeconds"/>.</summary>
+        /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no near miss or hit on the squad for <see cref="LullSeconds"/> — ⭐ <c>CE-2351</c> and no NEW
+        /// contact in that time: the quiet is counted from the fight's start, not from before it. 📐 Live <c>ua-casualty-care-heavy</c>: the
+        /// reaction chose 4 s after the contact, before the first enemy round (5.5 s), so "no round for 10 s" held and it went for the man.</summary>
         public static bool InALull(EntityRepository world, Entity self)
-            => !Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire, LullSeconds);
+            => !Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire, LullSeconds)
+               && !Fdp.Toolkit.Behavior.Components.RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.SquadContact, LullSeconds);
 
         /// <summary>
         /// ⭐ <c>CE-2344</c> (R-2066 E; Squad Tactics §7.5.4) — the lull row: a man down still to care for (<see cref="Fdp.Toolkit.Squad.SquadCasualties"/>)
