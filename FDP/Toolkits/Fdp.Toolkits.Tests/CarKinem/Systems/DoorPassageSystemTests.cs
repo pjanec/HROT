@@ -152,6 +152,27 @@ namespace CarKinem.Tests.Systems
             Assert.False(f.Held);                                                    // and the man through is not held in his way
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2259</c> — the door funnel aims a walker on the wall's plane, or a hair past it, ON THROUGH: his side is the one his path
+        /// comes from, not the one he stands on. 📌 bc-house-clear: an entry man 0–5 cm into room A (not yet "through") was aimed a metre
+        /// back out, rocked on the plane, and the drill never cleared the room. ✅ Red-proof: the side read from where he stands ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2259_TheDoorFunnel_AimsAWalkerOnThePlane_OnThrough_NotBack()
+        {
+            using var f = new Fixture(TerrainDoorState.Open, agentY: 20.02f);         // 2 cm past the south wall's plane (centre y 20)
+            var terrain = f.Repo.GetSingletonManaged<TerrainWorld>();
+            var from = new Vector2(25, 10);                                           // his path comes from the south
+            Assert.True(f.Pool.TryGetTrajectory(5, out var traj));
+            Assert.Equal(0, DoorPassageSystem.DoorToPass(traj, 10.02f, terrain, new Vector2(25, 20.02f), out var cameFrom));
+            Assert.Equal(from, cameFrom);                                             // not through yet (Through wants 5 cm) …
+
+            Assert.True(DoorApproach.Funnel(terrain, 0, cameFrom, new Vector2(25, 20.02f), out var aim));
+            Assert.True(aim.Y > 20.5f, $"… and the funnel sends him on into the room, not back out: aim {aim}");
+            Assert.True(DoorApproach.Funnel(terrain, 0, from, new Vector2(25, 19.5f), out aim));
+            Assert.True(aim.Y > 20.5f, $"from his own side he is aimed through as before: aim {aim}");
+        }
+
         /// <summary>⭐ 5d-3 — a closed door still out of reach does not stop the agent yet; an open door never does.</summary>
         [Fact]
         public void Stage5d_ADoorNotYetInReach_OrOpen_DoesNotHold()

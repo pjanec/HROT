@@ -287,9 +287,9 @@ namespace CarKinem.Systems
                         //   doorway's axis, then straight through) instead of cutting to the next corner past the jamb
                         if (@params.Class == VehicleClass.Pedestrian && repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
                             && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is { Doors.Count: > 0 } doorWorld
-                            && DoorPassageSystem.DoorToPass(pursued, nav.ProgressS, doorWorld, pos2D) is int doorAhead
+                            && DoorPassageSystem.DoorToPass(pursued, nav.ProgressS, doorWorld, pos2D, out var doorFrom) is int doorAhead
                             && Vector2.Distance(pos2D, doorWorld.Doors[doorAhead].Center) <= Fdp.Toolkit.Terrain.DoorRules.ReachMetres
-                            && Fdp.Toolkit.Terrain.DoorApproach.Funnel(doorWorld, doorAhead, pos2D, out var doorAim)
+                            && Fdp.Toolkit.Terrain.DoorApproach.Funnel(doorWorld, doorAhead, doorFrom, pos2D, out var doorAim)   // ⭐ CE-2259 — his side is where his path comes from
                             && Vector2.DistanceSquared(doorAim, pos2D) > 1e-4f)
                         {
                             targetHeading = Vector2.Normalize(doorAim - pos2D);

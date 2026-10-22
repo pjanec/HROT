@@ -81,6 +81,15 @@ namespace Fdp.Toolkit.Terrain
         /// terrain gives no wall panel.
         /// </summary>
         public static bool Funnel(TerrainWorld terrain, int doorIndex, Vector2 at, out Vector2 aim)
+            => Funnel(terrain, doorIndex, at, at, out aim);
+
+        /// <summary>
+        /// ⭐ <c>CE-2259</c> — as <see cref="Funnel(TerrainWorld, int, Vector2, out Vector2)"/>, "his side" being the side his path comes
+        /// FROM (<paramref name="from"/>), not the side he stands on. 📌 bc-house-clear: an entry man a few centimetres past the wall's plane
+        /// (not yet through — <see cref="Through"/> wants 5 cm) read the room as his side and was aimed a metre back OUT; he rocked on the
+        /// plane and the drill never cleared the room.
+        /// </summary>
+        public static bool Funnel(TerrainWorld terrain, int doorIndex, Vector2 from, Vector2 at, out Vector2 aim)
         {
             aim = default;
             var def = terrain.Doors[doorIndex];
@@ -90,8 +99,8 @@ namespace Fdp.Toolkit.Terrain
             var u = Vector2.Normalize(along);
             var n = new Vector2(-u.Y, u.X);
             var c = def.Center;
-            float depth = Vector2.Dot(at - c, n);
-            if (depth < 0f) { n = -n; depth = -depth; }
+            if (Vector2.Dot(from - c, n) < 0f) n = -n;   // n points to the side he comes from
+            float depth = Vector2.Dot(at - c, n);         // ≤ 0: on the plane or past it — straight through
             float lateral = Vector2.Dot(at - c, u);
             aim = System.MathF.Abs(lateral) > AxisToleranceMetres && depth > 0.1f
                 ? c + n * System.Math.Clamp(depth, 0.5f, ApproachMetres)   // onto the axis, on his side

@@ -205,17 +205,24 @@ namespace CarKinem.Systems
         /// beside the doorway projects onto the path at its door mark, and read as through he was neither held nor led in.
         /// </summary>
         public static int? DoorToPass(in CustomTrajectory traj, float progressS, TerrainWorld terrain, Vector2 at)
+            => DoorToPass(traj, progressS, terrain, at, out _);
+
+        /// <summary>As <see cref="DoorToPass(in CustomTrajectory, float, TerrainWorld, Vector2)"/>; <paramref name="from"/> is the path
+        /// point he comes to the door from (⭐ CE-2259 — the door funnel orients by it).</summary>
+        public static int? DoorToPass(in CustomTrajectory traj, float progressS, TerrainWorld terrain, Vector2 at, out Vector2 from)
         {
+            from = at;
             if (NextDoorAhead(traj, progressS, terrain, out float markS) is not int door) return null;
             var c = terrain.Doors[door].Center;
             var wps = traj.Waypoints;
-            Vector2? from = null;   // the last path point before the mark that stands off the doorway
+            Vector2? cameFrom = null;   // the last path point before the mark that stands off the doorway
             for (int i = 0; i < wps.Length && wps[i].CumulativeDistance < markS; i++)
             {
                 var p = new Vector2(wps[i].Position.X, wps[i].Position.Y);
-                if (Vector2.Distance(p, c) > 0.5f) from = p;
+                if (Vector2.Distance(p, c) > 0.5f) cameFrom = p;
             }
-            return from is { } f && DoorApproach.Through(terrain, door, f, at) ? null : door;
+            if (cameFrom is { } f) from = f;
+            return cameFrom is { } g && DoorApproach.Through(terrain, door, g, at) ? null : door;
         }
 
         private void CannotPass(EntityRepository repo, Entity e, ref Passage p)
