@@ -140,6 +140,11 @@ namespace Hrot.SimHost
         /// </summary>
         public void SetPanelsWindowManaged() => _panelsWindowManaged = true;
 
+        /// <summary>⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor bound to <paramref name="perspective"/>.</summary>
+        public void RegisterMainMenu(Fdp.Presentation.WindowManager.GlobalMenuRegistry menu, string perspective)
+            => Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(menu, "simhost/map-menus", perspective,
+                   () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
         /// <summary>
@@ -471,22 +476,7 @@ namespace Hrot.SimHost
             _gizmoLayer?.DrawContextMenu();
             _gizmoLayer?.DrawStructInspector();
 
-            var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-            if (gizmoMenus != null && gizmoMenus.Count > 0)
-            {
-                if (ImGuiNET.ImGui.BeginMainMenuBar())
-                {
-                    GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                    {
-                        _interactionBus?.Publish(new GizmoMenuActionEvent
-                        {
-                            AnchorId = 0,
-                            ActionId = actionId
-                        });
-                    });
-                    ImGuiNET.ImGui.EndMainMenuBar();
-                }
-            }
+            // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterMainMenu).
 
             // When panels are Window Manager managed, skip rendering them here.
             if (!_panelsWindowManaged && _ui != null)

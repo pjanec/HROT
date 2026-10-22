@@ -510,6 +510,11 @@ public class IgApplication : IDisposable
     /// <summary>The FDP entity inspector panel.</summary>
     public FdpEntityInspectorPanel FdpEntityInspector => _fdpEntityInspector;
 
+    /// <summary>⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor bound to <paramref name="perspective"/>.</summary>
+    public void RegisterMainMenu(Fdp.Presentation.WindowManager.GlobalMenuRegistry menu, string perspective)
+        => Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(menu, "ig/map-menus", perspective,
+               () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+
     /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
     /// actions on them, the inspector menu and the Details bundle request through them.</summary>
     public Hrot.Common.Interactions.HostActions HostActions { get; } = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
@@ -1427,23 +1432,7 @@ public class IgApplication : IDisposable
         _gizmoLayer?.DrawContextMenu();
         _gizmoLayer?.DrawStructInspector();
 
-        // Render gizmo-contributed main menu items (e.g. "View > Tactical Map Layers...").
-        var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-        if (gizmoMenus != null && gizmoMenus.Count > 0)
-        {
-            if (ImGui.BeginMainMenuBar())
-            {
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                {
-                    _interactionBus?.Publish(new GizmoMenuActionEvent
-                    {
-                        AnchorId = 0,
-                        ActionId = actionId,
-                    });
-                });
-                ImGui.EndMainMenuBar();
-            }
-        }
+        // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterMainMenu, from IgSubsystem).
 
         if (!_panelsWindowManaged)
         {

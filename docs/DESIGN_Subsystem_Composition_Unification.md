@@ -4179,7 +4179,7 @@ links the inspector window to the host's map through the inspector state both ar
 (the host's actions) and `World`, and the menu handler reads those
 ([canvas-context-menu-design §12](designs/gizmos-1/canvas-context-menu-design.md) HA-5).
 
-#### 5c.7.8 DESIGN — the ReplayBrowser composes THIS bundle; its two copied windows retire (`CE-1244`, `2026-10-22`, ui) — build-state: BUILDING (✅ RI-1…RI-3 APPROVED by the user `2026-10-22`: *"CE-1243 and CE-1244 leans approved"*)
+#### 5c.7.8 DESIGN — the ReplayBrowser composes THIS bundle; its two copied windows retire (`CE-1244`, `2026-10-22`, ui) — build-state: BUILT (✅ RI-1…RI-3 APPROVED by the user `2026-10-22`: *"CE-1243 and CE-1244 leans approved"*)
 
 🔒 User, `2026-10-22`: *"pls explain "The ReplayBrowser's inspector sits outside the shared diagnostics bundle" … what is that inspector
 window, does it needs to be specific?"* ⇒ measured: it need not. ⚠ **This section supersedes §5c.7.1's ⛔ ReplayBrowser column and the
@@ -4251,6 +4251,17 @@ the two windows every host has move to the one bundle — and with them the Repl
 **Rejected — one line each:** *keep the copies, add the map menu to them* — a second implementation of the inspector grows a second copy
 of every feature added to it; *keep the old ids through a bundle option* — an id override per host is the drift §5c.7.1's two-string
 scheme exists to stop.
+
+**As-built `2026-10-22` (ui)** — matches RI-1…RI-3. `ReplayBrowserSubsystem.RegisterWindowsCore` composes
+`DiagnosticsWindowsBundle(rb_, Replay, …, Host: HostActions, World: _activeRepo)` beside the CE-1150 Details bundle; the two FDP copies
+are deleted; their dump rails are re-homed onto the PANELS (`EntityInspectorPanelDumpsItsSelectionTests`,
+`EventBrowserPanelDumpsItsEventsTests` — the window rails live with the one window in `FdpPanelWindowsDumpTheirModelsTests`);
+`ReplayBrowserSubsystemTests` pins the exact six ids. Goldens, deliberate and exact: `ui-baseline-replaybrowser` −`rb_events`
+−`rb_inspector` +`rb_details` +`rb_fdp_events` +`rb_fdp_inspector`; `ui-baseline-all` +`cgf_details` +`ig_details` +`simhost_details`
+(⚠ CE-1150's Details panels, which that change had not folded into the goldens — found here). Gates: `Hrot.ReplayBrowser.Tests` 34/0
+(⚠ it first needed `dotnet restore`: its assets predated the Bepu merge, so `BepuPhysics.dll` was missing and the CE-3118 terrain rail
+failed — the stale-restore trap, proved by the same rail passing on a clean worktree), `Hrot.Presentation.Tests` 824/0,
+`Fdp.Presentation.Tests` 576/0. ⏳ The `ui-baseline` system rails (T3) were not run here.
 
 ### 5c.8 🔴🔴 SLICE ③ — **MOSTLY ALREADY DONE. The measurement, and the little that remains.** `build-state: READY-TO-BUILD` *(`2026-08-27`)*
 

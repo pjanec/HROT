@@ -502,19 +502,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         _gizmoLayer?.DrawContextMenu();
         _gizmoLayer?.DrawStructInspector();
 
-        // Render gizmo-contributed main menu items (e.g., "View > Tactical Map Layers...")
-        var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-        if (gizmoMenus != null && gizmoMenus.Count > 0)
-        {
-            if (ImGuiNET.ImGui.BeginMainMenuBar())
-            {
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                {
-                    _interactionBus?.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId });
-                });
-                ImGuiNET.ImGui.EndMainMenuBar();
-            }
-        }
+        // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterWindowsCore).
     }
 
     public void Shutdown()
@@ -979,6 +967,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
         // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds: the
         //   Components view over the replayed world, and Properties… / View ▸ Details on this host's actions. 📐 Before: none here.
+        // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor.
+        Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "replay/map-menus", perspective,
+            () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+
         // ⭐⭐ CE-1244 (DESIGN_Subsystem_Composition_Unification §5c.7.8 RI-1…RI-3) — the entity inspector and the event browser come
         //   from the SAME diagnostics bundle every host composes (with the map's entity menu and "Inspect…"); no kernel here ⇒ no
         //   architecture / profiler window. ⛔ SUPERSEDED: this host's own copies of the two window classes (rb_inspector / rb_events).

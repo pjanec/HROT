@@ -3032,19 +3032,7 @@ namespace Hrot.Editor
             _gizmoLayer?.DrawContextMenu();
             _gizmoLayer?.DrawStructInspector();
 
-            // Render gizmo-contributed main menu items (e.g. "View > Tactical Map Layers...").
-            var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-            if (gizmoMenus != null && gizmoMenus.Count > 0)
-            {
-                if (ImGuiNET.ImGui.BeginMainMenuBar())
-                {
-                    GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                    {
-                        _interactionBus?.Publish(new GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId });
-                    });
-                    ImGuiNET.ImGui.EndMainMenuBar();
-                }
-            }
+            // ⭐ CE-1243 — the map's menus (View ▸ Tactical Map Layers…) are a contributor of the one menu bar (RegisterWindows).
 
             // ⭐⭐⭐ CE-051 — the ~35-line inline rename modal MOVED to the shared
             //    Hrot.Editor.AiShared.Browser.EntityRenameModal. 📄 design §3 ③.
@@ -3761,6 +3749,10 @@ namespace Hrot.Editor
 
             // ⭐⭐ L6.1c — the Scenario Details panel joins the window manager beside the other three.
             //    ⛔ Not through a registrar: Scenario has a PerspectiveWorkspace, not the AI bag.
+            // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor (Scenario, where the map is).
+            Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "editor/map-menus", "Scenario",
+                () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+
             // ⭐ CE-1150 — composed as a bundle: the panel AND its actions (Properties…, View ▸ Details ▸ Float / Pin).
             if (_scenarioDetailsBundle is not null)
                 Fdp.Toolkit.Runner.UiBundleHost.Compose(

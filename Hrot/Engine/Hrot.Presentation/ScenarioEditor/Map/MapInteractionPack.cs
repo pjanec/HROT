@@ -403,6 +403,25 @@ namespace Hrot.ScenarioEditor.Map
         /// host renderer's schema registry — one call instead of a hand-written block per host.
         /// </summary>
         /// <summary>
+        /// ⭐⭐ <c>CE-1243</c> MB-4 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — a host's map menus (the gizmos' main-menu bindings:
+        /// <i>View ▸ Tactical Map Layers…, 2-D / 3-D Map …</i>) become a CONTRIBUTOR of the one menu bar, bound to the host's perspective
+        /// (UXI-05: they follow focus); a click is the same <c>GizmoMenuActionEvent</c> on the host's interaction bus as before. ⛔ SUPERSEDED:
+        /// each host's own <c>BeginMainMenuBar</c> block (UXI-13). One registration for every map host.
+        /// </summary>
+        public static void RegisterMainMenu(Fdp.Presentation.WindowManager.GlobalMenuRegistry menu, string id, string perspective,
+            Func<System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>?> consume,
+            Func<FdpEventBus?> interactionBus)
+        {
+            ArgumentNullException.ThrowIfNull(menu);
+            ArgumentNullException.ThrowIfNull(consume);
+            ArgumentNullException.ThrowIfNull(interactionBus);
+            menu.RegisterContributor(id,
+                () => consume() ?? Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>(),
+                actionId => interactionBus()?.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId }),
+                perspective);
+        }
+
+        /// <summary>
         /// ⭐⭐ THE map renderer layer, built the same way on every host (user, 2026-10-07: "unify and share, as
         /// usual"). 📐 Five hosts built it by hand with different arguments: SimHost and CGF passed no panel
         /// schemas (the layer-control panel could not draw there), and CGF passed no shape library and no
