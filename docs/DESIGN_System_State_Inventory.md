@@ -1026,6 +1026,19 @@ as — *"a transient, read-optimised performance cache"* — and becomes class A
 | B — re-plan after a restore | nothing recorded; at a restore every mover asks for a new path from where it stands | none in the recording | ⛔ a restored run DIVERGES from the original (a new path, progress reset) — R1 can never pass |
 | C — a recorded pool singleton | the recorder learns to write a managed singleton that opts in | a recorder change in the engine (D7 decided against recording managed singletons); the WHOLE pool is rewritten each time any path changes | ⛔ the cost lands in every frame of every recording |
 
+### 7c-bis — measured `2026-10-22` (user: *"store paths as a component on the unit, owned by the muscle, not replicated … custom serialization … avoid allocations every tick during replay"*)
+
+| ⭐ fact | where |
+|---|---|
+| a solved path's whole life is on the MUSCLE: request (`NavigationIntentBridgeSystem.RequestPath`, the entity packed in the request id) → solve (`PathfindingSolverSystem`, background) → response (`EngineBackedPathResponseSystem`, main thread, writes `NavState.TrajectoryId`) | `EngineBackedPathResponseSystem.cs:47-60` |
+| `NavState` is muscle-owned and has no network translator ⇒ a path component beside it is muscle-local, never on the wire | `HrotOwnershipGroups.cs:105` |
+| ⛔ **a MANAGED component is recorded and replayed per 16 384-entity chunk** — one changed unit rewrites every unit's component of that type, and playback allocates a new `T?[16384]` and a new object per occupied slot (`Deserialize<T?[]>` + `SetChunk`); no "read into the existing object" hook exists | `ManagedComponentTable.cs:18` · `RecorderSystem.cs:634` · `PlaybackSystem.cs:367` |
+| ⭐ an UNMANAGED component replays as a raw copy into the existing 64 KB chunk — no allocation | `PlaybackSystem.cs:446` |
+| ⭐ prior art: `PathTrace` (CE-3117) — an unmanaged, recorded, fixed-capacity (32) copy of each mover's path, written only when the path changes, not replicated — ⚠ lossy (thinned past 32 points, for the map) | `PathTrace.cs` · `PathTraceSystem.cs` |
+| 📐 solved path lengths, `--verify` runs: `uc-urban-battle` 410 paths, median 2, p99 10, **max 12** points (≤ 227 m) · `pc-urban-move` 363, max 2 · `sl0-platoon-march` 344, max 3 · `cc-platoon-bound` 215, max 4 — ⚠ none drives a long ROAD route (the planner allows 128 navmesh points per leg plus a road leg) | probe, reverted |
+
+⇒ ⭐ **lean (refines A):** the path lives in an UNMANAGED fixed-capacity component on the mover — `PathTrace` made exact (not a second component): the points as registered + their traversals, `Exact = 1` when the whole path fits (32 holds every path measured). The restore step re-registers each mover's trajectory from it under its handle (`RegisterTrajectoryWithKey`) and lifts `NavigationHandleAllocator` above the largest restored handle; a path longer than the capacity (thinned, `Exact = 0`) is RE-PLANNED for that unit after a restore — the one accepted divergence. ⭐ The managed-replay allocation is an engine item of its own (CE-3309), not this one.
+
 ## 8. ⭐ S3 — one re-derive step on every restore (design `2026-10-22`; build-state: BUILT `2026-10-22`)
 
 ```mermaid
