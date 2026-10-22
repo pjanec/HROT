@@ -214,6 +214,10 @@ frame-copy helper existed — `RecordingExportService` decodes a recording to JS
 the window also holds the periodic keyframes, so 112 ms is an UPPER bound for the checkpoint frame (three hosts in one thread, debug).
 ⏳ the isolated cost of `MarkCheckpoint` (manifests + JSON on the main thread) is not separated.
 
+📐 **Reds at B3's gate, both pre-existing** (red at `a0c2e318b`, a clean build before B2/B3, in a worktree):
+`ClusterOpE2eScriptTests.RecordAndReplaySeek_Passes` (already `QA-031`) · `RecordReplayIntegrationTests.NodeBootstrapper_ImageGeneratorRole_NoControllerRegistered`
+— it asserts the role gate R-4011 retired (`CE-3311`).
+
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 
 ```mermaid
