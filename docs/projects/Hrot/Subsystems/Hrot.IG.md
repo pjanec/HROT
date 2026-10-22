@@ -273,7 +273,7 @@ SimHost                    DDS                         IG
 |------|------|-------------|
 | `StyleResolutionSystem.cs` | `class StyleResolutionSystem` | PostSimulation: 3-layer style merge writes `ResolvedStyle` per entity |
 | `MapCullingSystem.cs` | `class MapCullingSystem` | PostSimulation: viewport AABB test + LOD calculation writes `CullingState` |
-| `MapLayerAssignmentSystem.cs` | `class MapLayerAssignmentSystem` | PostSimulation: time-sliced bitmask assignment writes `MapDisplayComponent` |
+| `MapLayerAssignmentSystem.cs` | `class MapLayerAssignmentSystem` | PostSimulation: a full pass every frame writes `MapDisplayComponent` on change (CE-4044 — was wall-clock time-sliced) |
 | `MapLayerRegistry.cs` | `static class MapLayerRegistry` | Ordered list of 5 `MapLayerDefinition` records with DIS-based predicates |
 | `MapLayerDefinition.cs` | `record MapLayerDefinition` | Name, BitMask, and `IsMember` predicate for one map layer |
 | `HistoryRecordingSystem.cs` | `class HistoryRecordingSystem` | Simulation: appends sampled XY positions to `HistoryTrail` circular buffer |

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Lifecycle;
@@ -130,9 +129,12 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
         private int _epoch;   // ⭐ CE-3294 — the world the state below describes (ghosts waiting to be promoted)
-        private readonly Stopwatch _stopwatch = new();
-        private static readonly long PROMOTION_BUDGET_TICKS =
-            (long)(0.002 * Stopwatch.Frequency);
+        /// <summary>
+        /// ⭐ <c>CE-4044</c> — at most this many ghosts are promoted per frame, the rest wait for the next. ⛔ It was a 2 ms STOPWATCH
+        /// budget: how many promoted on a frame depended on the machine's load, so a node's world at a given step did too (the
+        /// determinism rail <c>NoSystemSchedulesOnTheWallClockTests</c>). A COUNT is the same on every machine.
+        /// </summary>
+        public const int PromotionsPerFrame = 256;
 
         private EntityRepository? _world;
         private EntityQuery? _readyGhostQuery;
@@ -184,13 +186,13 @@ namespace Fdp.Toolkit.Replication.Systems
 
             if (_promotionQueue.Count == 0) return;
 
-            _stopwatch.Restart();
             var cmdBuffer = view.GetCommandBuffer();
             var tick = view.Tick;
 
+            int promoted = 0;
             while (_promotionQueue.Count > 0)
             {
-                if (_stopwatch.ElapsedTicks > PROMOTION_BUDGET_TICKS) break;
+                if (promoted == PromotionsPerFrame) break;
 
                 var entity = _promotionQueue.Dequeue();
                 _inQueue.Remove(entity);
@@ -199,8 +201,8 @@ namespace Fdp.Toolkit.Replication.Systems
                 if (!_world.HasComponent<TkbIdentity>(entity)) continue;
 
                 PromoteGhost(entity, cmdBuffer, tick);
+                promoted++;
             }
-            _stopwatch.Stop();
         }
 
         private void EnqueueReadyGhosts()
