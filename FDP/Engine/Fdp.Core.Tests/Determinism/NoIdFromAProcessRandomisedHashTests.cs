@@ -40,6 +40,56 @@ namespace Fdp.Tests.Determinism
             Assert.Equal(FdpEventBus.ManagedTypeId<ManagedProbeEvent>.Id, id);
         }
 
+        // ⭐ CE-3303 — System.HashCode is seeded per process too. Legal inside a GetHashCode override (a dictionary key never
+        //   leaves the process); anywhere else it is a value that may reach a component, a recording or a golden.
+        private static readonly Regex SeededHashCode = new(@"\bHashCode\.Combine\b|\bnew\s+(System\.)?HashCode\s*\(", RegexOptions.Compiled);
+
+        private static readonly Dictionary<string, string> SeededHashCodeExempt = new()
+        {
+            ["Hrot/Editor/Hrot.Utility.Editor/Emit/UtilityAssetHasher.cs"] =
+                "compares an asset's two hashes inside one editor process to pick the hot-reload tier; never stored",
+        };
+
+        [Fact]
+        public void NoProductionCode_UsesSystemHashCode_OutsideAGetHashCodeOverride()
+        {
+            var root = RepoRoot();
+            Assert.NotNull(root);
+            var offenders = new List<string>();
+            foreach (var (rel, src) in ProductionSources(root!))
+            {
+                if (SeededHashCodeExempt.ContainsKey(rel)) continue;
+                var lines = src.Split('\n');
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var t = lines[i].TrimStart();
+                    if (t.StartsWith("//") || t.StartsWith("*")) continue;
+                    var code = lines[i];
+                    int comment = code.IndexOf("//", StringComparison.Ordinal);
+                    if (comment >= 0) code = code.Substring(0, comment);
+                    if (!SeededHashCode.IsMatch(code)) continue;
+                    bool inOverride = false;   // the override's signature on this line or within the three above (expression or block body)
+                    for (int k = i; k >= Math.Max(0, i - 3); k--)
+                        if (lines[k].Contains("GetHashCode(")) { inOverride = true; break; }
+                    if (!inOverride)
+                        offenders.Add($"{rel}:{i + 1} — System.HashCode is seeded per process; use Fdp.Core.StableHash (or exempt it with its reason)");
+                }
+            }
+            foreach (var stale in SeededHashCodeExempt.Keys.Where(k => !File.Exists(Path.Combine(root!, k))))
+                offenders.Add($"{stale}: exempt but gone — remove the exemption");
+            Assert.True(offenders.Count == 0, string.Join(Environment.NewLine, offenders));
+        }
+
+        [Fact]
+        public void StableHash_Combine_IsFnv1aOverTheBytes()
+        {
+            // FNV-1a over the bytes 01 00 00 00 · 02 00 00 00 · 03 00 00 00 — written out, so a change of the fold shows here.
+            uint h = 2166136261u;
+            foreach (byte b in new byte[] { 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0 }) { h ^= b; h *= 16777619u; }
+            Assert.Equal(unchecked((int)h), StableHash.Combine(1, 2, 3));
+            Assert.NotEqual(StableHash.Combine(1, 2, 3), StableHash.Combine(3, 2, 1));
+        }
+
         [Fact]
         public void NoProductionCode_DerivesAnIdFromStringGetHashCode()
         {

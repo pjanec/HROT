@@ -1,3 +1,5 @@
+using System;
+
 namespace Fdp.Core
 {
     /// <summary>
@@ -22,6 +24,30 @@ namespace Fdp.Core
                 return hash;
             }
         }
+
+        /// <summary>The FNV-1a offset basis — the start of an <see cref="Add(uint, int)"/> chain.</summary>
+        public const uint Basis = 2166136261u;
+
+        /// <summary>⭐ CE-3303 — folds an <c>int</c> (its four bytes, low first) into an FNV-1a hash: the stable replacement for
+        /// <c>System.HashCode</c>, whose seed is random per process.</summary>
+        public static uint Add(uint hash, int value)
+        {
+            unchecked
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    hash ^= (byte)(value >> (8 * i));
+                    hash *= 16777619u;
+                }
+                return hash;
+            }
+        }
+
+        /// <summary>⭐ CE-3303 — folds a <c>float</c> by its bits.</summary>
+        public static uint Add(uint hash, float value) => Add(hash, BitConverter.SingleToInt32Bits(value));
+
+        /// <summary>⭐ CE-3303 — three ints combined, the same in every process (where <c>HashCode.Combine</c> is not).</summary>
+        public static int Combine(int a, int b, int c) => unchecked((int)Add(Add(Add(Basis, a), b), c));
 
         /// <summary>A non-negative <c>int</c> id: <see cref="Fnv1a32"/> with the sign bit cleared.</summary>
         public static int NonNegativeId(string s) => unchecked((int)(Fnv1a32(s) & 0x7FFFFFFF));
