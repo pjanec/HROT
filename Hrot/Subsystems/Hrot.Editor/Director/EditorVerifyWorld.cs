@@ -33,6 +33,18 @@ namespace Hrot.Editor.Director
 
         private DebugApiService Service => _service() ?? throw new InvalidOperationException(NoService);
 
+        public System.Collections.Generic.IReadOnlyList<(long Id, string Name)> Named()
+        {
+            var list = new System.Collections.Generic.List<(long, string)>();
+            if (_world() is not { } w || !w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) return list;
+            foreach (var e in w.Query().With<EntityInfo>().With<Fdp.Toolkit.Replication.Components.NetworkIdentity>().Build())
+            {
+                var name = w.GetComponentRO<EntityInfo>(e).Name.ToString();
+                if (name.Length > 0) list.Add((w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value, name));
+            }
+            return list;
+        }
+
         public JsonObject? Components(long networkId) => Service.DumpEntity(networkId)?["Components"] as JsonObject;
 
         public JsonArray Shots() => Service.GetShots(int.MaxValue, null, null)["shots"] as JsonArray ?? new JsonArray();

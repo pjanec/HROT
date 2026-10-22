@@ -372,6 +372,14 @@ public sealed class DirectorRunnerTests : IDisposable
             return null;
         }
 
+        public IReadOnlyList<(long Id, string Name)> Named()
+        {
+            var list = new List<(long, string)>();
+            foreach (var e in _h.Repo.Query().With<NetworkIdentity>().With<EntityInfo>().Build())
+                list.Add((_h.Repo.GetComponentRO<NetworkIdentity>(e).Value, _h.Repo.GetComponentRO<EntityInfo>(e).Name.ToString()));
+            return list;
+        }
+
         public System.Text.Json.Nodes.JsonArray Shots() => new();
         public System.Text.Json.Nodes.JsonArray Blasts() => new();
 
