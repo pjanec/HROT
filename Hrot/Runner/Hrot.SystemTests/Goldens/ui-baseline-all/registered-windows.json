@@ -45,6 +45,7 @@
   "cgf_shared_orbat",
   "cgf_spawner",
   "cgf_system_profiler",
+  "cgf_waypoint_editor",
   "excon_cluster_control",
   "excon_config",
   "excon_data_monitor",
@@ -53,6 +54,7 @@
   "excon_mission",
   "excon_observer",
   "excon_orbat",
+  "excon_reports",
   "excon_spawner",
   "fdp_message_log",
   "global_menu",
@@ -74,5 +76,6 @@
   "simhost_details",
   "simhost_fdp_events",
   "simhost_fdp_inspector",
+  "simhost_reports",
   "simhost_system_profiler"
 ]
