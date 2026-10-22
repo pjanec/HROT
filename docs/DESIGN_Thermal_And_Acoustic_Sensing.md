@@ -763,7 +763,16 @@ enemy round bursting among us places an "enemy, about here" contact ON us, and i
 
 ⇒ ⏳ **awaits the user** — it changes what behaviors' readers count (their lane's half: which readers skip the class).
 
-### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: BUILT)*
+### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
+
+⛔ **`2026-10-22`, later the same day — the catalogue no longer gives the M1 / Bradley a `ThermalRange`.** 📐 A/B live on `ua-hill-attack`
+(same build, only the two ranges changed): with the sight **4 tanks on the slope at once, 4 checks red**; without it **2 at once, all green**
+— twice deterministic. The sight saw nothing (no `ThermalState` exists without `SignaturesDto.Thermal`), so the change came from carrying
+the extra sensor child, not from a detection. ⚠ **Mechanism NOT found**: the listed eyes and ears are identical to the implicit ones
+(same entries, eyes tagged `Implicit`, `SearchRadius`, index 0/1) and thermal registers vision's LOS strategy — the one structural
+difference is the third sensor child. ⇒ the builder path, `FromReceptor` and the translator tag below stay; the rail now builds its own
+test vehicles. ⏭ Re-carry with the signatures slice, after the hill-attack difference is understood. Everything below describes the
+withdrawn carriage as built.
 
 📐 **Measured:** `ThermalPerception` (CE-3061) and its weather cap were built, but no TKB template listed a sensor, so every unit ran
 the implicit visual + acoustic pair (§8.1) and no demo could show a thermal sight (CE-4035 G-10). ⭐ The open question — does listing a

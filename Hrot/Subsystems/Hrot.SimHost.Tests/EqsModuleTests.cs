@@ -1582,12 +1582,14 @@ namespace Hrot.SimHost.Tests
         /// thermal sight (G-10). ✅ Red-proof: the builder ignoring ThermalRange ⇒ no thermal sensor ⇒ red.
         /// </summary>
         [Fact]
-        public void CE2349_TheM1AndBradley_CarryAThermalSight_AndStillSeeAndHear()
+        public void CE2349_AVehicleWithAThermalSight_CarriesIt_AndStillSeesAndHears()
         {
+            // ⭐ the builder path, on test vehicles: the catalogue carries no thermal sight yet (withdrawn — see BdcTkbCatalog, M1)
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
-            Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(db);
-            foreach (var (type, vision, thermal) in new[] { (Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams, 8000f, 3000f),
-                                                            (Hrot.Map.Common.TkbEntityTypes.IFV_Bradley, 5000f, 2500f) })
+            var builder = new Hrot.Map.Definitions.Tkb.NedTkbBuilder(db);
+            foreach (var (type, vision, thermal) in new[] { (990_001L, 8000f, 3000f), (990_002L, 5000f, 2500f) })
+                builder.DefineVehicle(type, $"thermal test {type}").WithCombat(type, c => { c.SensorRange = vision; c.ThermalRange = thermal; });
+            foreach (var (type, vision, thermal) in new[] { (990_001L, 8000f, 3000f), (990_002L, 5000f, 2500f) })
             {
                 var unit = _world.CreateEntity();
                 new PerceptionTkbTranslator().Inject(_world, unit, db.GetByType(type));

@@ -654,7 +654,8 @@ namespace Hrot.Map.Definitions.Tkb
                     });
                     c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));   // ⭐ M5 — the coaxial M240
                     c.SensorRange = 8000;
-                    c.ThermalRange = 3000;   // ⭐ CE-2349 — the gunner's thermal sight / the commander's independent viewer
+                    // ⛔ CE-2349 — NO thermal sight here yet (WITHDRAWN `2026-10-22`): carried, it changed ua-hill-attack (A/B: 4 tanks on the
+                    //   slope at once vs 2 without) while seeing nothing — no template has a heat signature. Re-add with the signatures slice.
                 })
                 // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — the turret: pivot aft of centre, −10…+20° gun, 40°/s traverse.
                 .WithTurrets(TkbEntityTypes.Tank_M1Abrams, new TurretDto { PivotX = -0.55f, PivotZ = 1.9f, TrunnionX = 1.65f,
@@ -707,7 +708,8 @@ namespace Hrot.Map.Definitions.Tkb
                         Category = WeaponCategory.Atgm, TurretIndex = 0,
                         MuzzleOffset = new System.Numerics.Vector3(0.4f, 1.0f, 0.35f) });   // ⭐ E4 — the launcher on the turret's left
                     c.SensorRange = 5000;
-                    c.ThermalRange = 2500;   // ⭐ CE-2349 — the gunner's thermal sight (ISU)
+                    // ⛔ CE-2349 — NO thermal sight here yet (WITHDRAWN `2026-10-22`): carried, it changed ua-hill-attack (A/B: 4 tanks on the
+                    //   slope at once vs 2 without) while seeing nothing — no template has a heat signature. Re-add with the signatures slice.
                 })
                 .WithTurrets(TkbEntityTypes.IFV_Bradley, new TurretDto { PivotX = -0.33f, PivotZ = 2.3f, TrunnionX = 0.65f,
                     ElevationMinDeg = -10f, ElevationMaxDeg = 60f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 30f })
