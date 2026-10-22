@@ -491,7 +491,7 @@ brains share a node (the CGF norm); ⛔ not measured for a squad split across no
 | **DA-35** | hold fire | ⭐ *(corrected 2026-10-19 — the first lean claimed to revise Platoon §6a; it did not: §6a's "alone" is the squad with no platoon play above it, and under a platoon the PLATOON holds and lifts, §5 Occupy / Engage)* **The hold is an ROE the order-giver sets** (the operator in `sq-defend-house`, the platoon in `PlatoonDefend`) — ROE persists across tasks by design (`Roe.cs`), so it is never the play's to withdraw. **Under a platoon** the play never touches ROE. **Alone** — a `HoldFire` set on the squad commander itself by a non-Superior origin — the play LIFTS it to `FireAtWill` (origin Self, the order-giver's rank) on the first pooled contact inside the squad's sector, or the first round at one of its men (DA-7's "a post is fired upon"). Its sector keeps every man choosing inside it before and after. ✅ **BUILT 2026-10-19**: `SquadDefendPlay.LiftOwnHold` (every tick, either phase; once) | the play SETTING `HoldFire` itself: `SetRoeEvent` has no withdraw and a task clear runs no play `Release` (DA-32) ⇒ the hold would outlive a cleared defence · the sector alone (the first lean): a `HoldFire` order then has no lift at all, and an alone squad shot at from outside its sector could never answer |
 | **DA-36** | the EA | the squad commander's own Allow (an operator's *Set sector*, a platoon's `SquadSector`); its point for the asks = the area's position, or the arc's middle at half its range. **None ⇒ all-round**: the window ask without a target (every window within the radius), arcs outward, no hold | an EA in the order: a second place a sector lives, and a squad sector is an area entity by DA-24 |
 | **DA-37** | each man's arc | `MemberArc` from his post: centred on the bearing to the EA point, ±45°; all-round ⇒ centred on the bearing position → post, ±60° | splitting the EA between men by bearing (DA-24's `ForMembers`): needs `SectorPlanner`, which D-1 does not — it returns with roles (DA-K) |
-| **DA-38** | displace | the play counts each man's hits / near misses (a new `RecentSenses` time = one) ⇒ **3 within 10 s** ⇒ his alternate post (the nearest unused point ≥ 2.5 m from every post), PROGRESS `Displacing`; his count restarts | waiting for DA-21's `PositionUntenable`: the same count, one sensor later — it may replace this when it lands |
+| **DA-38** | displace | ⛔ SUPERSEDED by §14a SC-4 / SC-7 (`CE-2283`): the count is the `PositionUntenable` sensor's — the play counts each man's hits / near misses (a new `RecentSenses` time = one) ⇒ **3 within 10 s** ⇒ his alternate post (the nearest unused point ≥ 2.5 m from every post), PROGRESS `Displacing`; his count restarts | waiting for DA-21's `PositionUntenable`: the same count, one sensor later — it may replace this when it lands |
 | **DA-39** | the order | a new library behaviour **`SquadDefend`** {Position, SearchRadius 30 m, Speed}; `DefendArea` on a unit with a roster ⇒ `SquadDefend` at the area's centre (radius ⇒ `SearchRadius`); runs until the next order; Failure when no man is alive | a `Defend` preset of `SquadHold`: the hold has no posts and no memory |
 
 **As built (D-1, 2026-10-19)** — as drawn, with these names: `SquadDefendBehavior` / `SquadDefendPlay` / `DefencePosts` / `DefencePostPicker`
@@ -2013,6 +2013,148 @@ hold no longer leaves the squads with nothing.
 | ⚠ what it does not do | a vehicle with nobody out drives on during contact, and while the platoon's hold pauses the task NO vehicle is held — an empty carrier may drive on before the task picks up (measure live) · a squad split over two vehicles rides as one (the embark drill boards one vehicle) | — |
 | rails | `SquadManeuverTests.CE2347_*` — the cycle; the dead vehicle (room / no room); the wounded first + the retry. Mutants: `CarriesDismounted` always true, seats ignoring occupants, `Casualty` → Null each turn a rail red; `Quiet` ignoring a fighting squad stays green — `ContactAgain` checks the same squad, so CSecure hands straight back to CContact before any order (a redundant guard) | `Hrot.SimHost.Tests` |
 
+### 11b. `UrbanMovement` — DA-17 on foot *(behaviors, `CE-2284`, `2026-10-21`; build-state: BUILDING — slices U-1 and U-2 built, U-3 (the ambush demos) open; leans UM-1…UM-9 under DA-17 / DA-18 (approved R-2036), built under the user's "do as much as you can autonomously")*
+
+**INVENTORY** *(2026-10-21 — codebase-memory CLI `search_graph` `.*Platoon.*` over Class / Method, the `[Behavior]` table of every platoon task;
+one read-only sweep: `SquadMarch`, `PlatoonConvoy`, `CommandOrders`, `BasicPlatoonSop`, `PlatoonAttack`, the picture, the scenarios. `check_index_coverage`
+is CLI-unavailable — no completeness claim)*
+
+| what exists | where | ⭐ used as |
+|---|---|---|
+| no on-foot platoon route task; the "platoon march" is `SquadMarch` ON the platoon (one objective, squads as members 5 m apart, no roles) | `SquadMarchBehavior.cs`; rail `CE2262_*` | ⛔ not reused for the platoon: no route, no roles |
+| `SquadMarch` on a SQUAD — File / Wedge, starts from where the squad stands, `DangerAreas` = the crossing drill at intersections | `SquadMarchBehavior.cs:113-137, 214-225` | ⭐ every squad's order |
+| `Order.Move` → `InfantrySquadMove` = a `SquadMarch` with `DangerAreas` never set | `SquadOrderBehaviors.cs:19-46` | ⛔ not used: the lead must cross with the drill |
+| `PlatoonConvoy`: an HSM + ONE order writer, `CommandOrders.Assign / Gave / StillRunning`, `PlatoonHoldBehavior.Fighting`, re-orders on resume | `PlatoonConvoyBehavior.cs:103-364` | ⭐ the task's form, copied |
+| `HrotRouteSource.TryGetRoute` → the route's waypoints | `HrotRouteSource.cs:31-44` | ⭐ the legs when a route entity is given |
+| `BasicPlatoonSop`'s one row (`ElementReported` → `PlatoonHold`, urgency Contact) pauses any task; a new order drops a squad's paused task | `BasicPlatoonSop.btree.json`; `BehaviorIngressSystem.cs:418` | ⭐ unchanged — the task re-orders when it resumes (§11's catch) |
+| `cqb-village`: Main Street y 184..196, no road graph | Platoon Attack design :506-511 | ⭐ the demo — so legs may be POINTS |
+
+```mermaid
+classDiagram
+  class UrbanMovementBehavior {
+    <<HSM task, NEW>>
+    +Resolve(UrbanMovementParamsJsonDto)
+    +PlanRoute() the legs, from the route entity or the points
+    +KeepMoving() the ONE order writer
+    +LegDone() Arrived()
+  }
+  class UrbanPlan {
+    <<blackboard, NEW>>
+    Points[16] Count Leg Lead
+    Speed Spacing ArrivalRadius
+    Given[6] (the point last ordered per slot)
+  }
+  class UrbanMovementParamsJsonDto { <<ParamsDto, NEW>> Route: EntityRef; Legs: Vector3[]; Speed; Spacing; ArrivalRadius }
+  class SquadMarch { <<existing, squad>> Objective Shape DangerAreas }
+  class CommandOrders { <<existing>> Assign() Gave() StillRunning() }
+  class HrotRouteSource { <<existing>> TryGetRoute() }
+  class PlatoonHold { <<existing platoon SOP reaction>> }
+  class RoutePath { <<NEW, pure>> Project() PointAt() Length() }
+  UrbanMovementBehavior --> UrbanPlan
+  UrbanMovementBehavior ..> UrbanMovementParamsJsonDto : resolves
+  UrbanMovementBehavior ..> HrotRouteSource : a route entity's waypoints
+  UrbanMovementBehavior ..> RoutePath : where each squad stands on the route
+  UrbanMovementBehavior --> CommandOrders : every order
+  CommandOrders ..> SquadMarch : each squad, concrete
+  PlatoonHold ..> UrbanMovementBehavior : pauses, it re-orders on resume
+```
+*What the picture shows that prose hid:* one blackboard, one order writer and one pure helper are new; every squad still marches with the
+EXISTING `SquadMarch` — the lead with its crossing drill on, the followers on points that trail it along the route.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> UPlan
+  UPlan --> UMove : the legs are known
+  UMove --> UMove : the lead within ArrivalRadius of its leg's end, the next leg
+  UMove --> UDone : the last leg done and every squad at its point
+  UDone --> [*]
+```
+
+```mermaid
+sequenceDiagram
+  participant U as UrbanMovement (platoon task)
+  participant L as lead squad
+  participant F as follow / reserve squads
+  participant H as platoon SOP (PlatoonHold)
+  U->>L: SquadMarch(leg end, File, DangerAreas)
+  U->>F: SquadMarch(the route point Spacing x k behind the lead, File)
+  Note over L: an intersection: its own SOP crosses it (SquadDangerCrossing), the march waits
+  U->>F: a new point each time the lead moves 10 m on (their march restarts from where they stand)
+  L-->>U: (polled) within ArrivalRadius of the leg's end
+  U->>L: SquadMarch(the next leg's end)
+  H-->>U: an element reported: the task pauses, every squad holds
+  Note over U: the hold ends: the task resumes at its leg, and re-orders every squad (none still runs its march)
+  U-->>U: last leg, everyone at his point: Success
+```
+
+```mermaid
+graph TD
+  SOPP[BasicPlatoonSop, platoon SOP slot] -->|PlatoonHold pauses it| UM[UrbanMovement, platoon task slot]
+  BT[BrainTickSystem, the node owning the platoon brain] --> UM
+  UM -->|AssignTacticalIntentEvent, Superior| ING[BehaviorIngressSystem]
+  ING --> SQ[squad task: SquadMarch]
+  SOPS[BasicSquadSop, squad SOP slot] -->|ReactToContact / SquadDangerCrossing pause the squad's march| SQ
+  RT[HrotRouteSource: a route entity] -.->|when Route is set| UM
+```
+*What it shows:* nothing new is scheduled — the task runs in the platoon's existing task slot; a squad's own reactions (contact, the
+crossing drill) pause ITS march, and the platoon leaves a squad in its own reaction alone.
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **UM-1** | the route | `Legs` (points, ≤ 16) or `Route` (a route entity's waypoints) — the points win when both are set; the first leg starts where the lead stands | a route entity only: `cqb-village` has no road graph |
+| **UM-2** | who leads | slot order: the first live squad leads, the next follows, the rest are the reserve (DA-17's lead / bound / reserve); a dead lead hands over to the next live squad | by distance: the lead would change as squads overtake |
+| **UM-3** | the lead's order | concrete `SquadMarch { Objective = leg end, File, DangerAreas }` — the existing crossing drill at intersections and open stretches (DA-17) | `Order.Move`: its march never runs the danger-area drill |
+| **UM-4** | the others | `SquadMarch { File }` to the route point **`Spacing` × k (30 m)** behind where the lead stands on the route; re-sent when that point moved ≥ 10 m — travelling overwatch, the follower one bound behind (DA-17); the reserve trails it | a full bounding overwatch per leg: halves the pace on every street; the existing `BoundingOverwatch` covers an open objective, not a route |
+| **UM-5** | a leg's end | the lead within `ArrivalRadius` (8 m) of it ⇒ the next leg; after the last ⇒ done when every live squad is within 2 × `ArrivalRadius` of its point | the lead's PROGRESS Set: `SquadMarch` reports it only after its settle time (20 s) |
+| **UM-6** | a squad in its own reaction | never ordered (`PlatoonHoldBehavior.Fighting`), re-ordered when it ends (`StillRunning` no longer true) | order through it: a superior order replaces the squad's fight (the CE-4032 defect) |
+| **UM-7** | after a platoon reaction | the task resumes at its leg and every squad gets its order again from where it stands (§11's catch: squads never resume on their own) | a fresh route from the start: the CE-4032 defect |
+| **UM-8** | the squads' watch sectors (§13a "platoon commander (`UrbanMovement`)") | ⏭ not in U-1 — the men's own look direction runs (LD-3) | — |
+| **UM-9** | fire from a building | ⏭ slice **U-2**: §14a SC-8 `FiredOnFromStructure` on the squad ⇒ the platoon SOP row ⇒ `ReactToFireFromBuilding` (the attack play's preset, §10) with DA-18's clear / bypass; ⚠ bypass's smoke waits on `CE-2278` | — |
+
+**U-2 in detail — fire from a building while moving** *(designed 2026-10-22; reuses §14a SC-8 and the attack play, §10)*
+
+```mermaid
+sequenceDiagram
+  participant M as squad man
+  participant SQ as squad (SquadSenseChanges)
+  participant PL as platoon picture + SOP
+  participant UM as UrbanMovement (task)
+  participant RF as ReactToFireFromBuilding (the attack play's preset)
+  M->>SQ: shot at (Hit / NearMiss)
+  SQ->>SQ: one PointSurvey of where the shot came from: 5 of 9 in one building
+  SQ->>PL: FiredOnFromStructure (the squad) + CONTACT up (the source, firing)
+  PL->>PL: row: moving, a squad fired on from a building, DA-18 says clear
+  PL->>RF: React (urgency Contact): the task pauses
+  RF->>SQ: the squad fired on supports from where it stands (SquadDefend, arc on the building, fire at will)
+  RF->>RF: the next squad bounds to the flank, then ClearBuilding, the rest reserve
+  RF-->>UM: BuildingClear, consolidate, Set: the reaction ends, the task resumes and orders every squad again (UM-7)
+```
+*What it shows:* nothing new fights — the squad's sense, the report, the SOP row and the attack play exist; U-2 adds one condition, one
+preset and one row.
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **UM-10** | the trigger | a `BasicPlatoonSop` row BEFORE the hold: the platoon's task is `UrbanMovement`, a squad of it sensed `FiredOnFromStructure` within 15 s, a report arrived (3 s), and DA-18 says clear ⇒ React `ReactToFireFromBuilding` (urgency Contact) | the hold row: a single firing man is Individual-size, below its Team floor — and holding is not clearing |
+| **UM-11** | DA-18's choice | **clear** when the platoon is Untrained / Militia, or the source is within **50 m** of the task's route (its legs, from the start record); **bypass** otherwise | the REMAINING route only: the leg index lives in the task's blackboard, the SOP cannot read it — the whole route errs toward clearing |
+| **UM-12** | the reaction | `ReactToFireFromBuilding` = the `PlatoonAttack` play under a second name, preset 2 (§10: one play, presets): its objective is the newest FIRING element in the picture (the squad's CONTACT, ≤ 30 s), searched 15 m round; the squad that sent it is the SUPPORT, posted where it stands; the next live squad the assault; no wait for the support's Set (it is in contact already) | a new play: a second attack implementation (ruling 9) |
+| **UM-13** | the bypass | **no platoon reaction**: the movement carries on; the squad in contact fights its own drill (`ReactToContact`) and is ordered back into the movement when it ends (UM-6). ⚠ No suppress-and-smoke yet — the smoke waits on `CE-2278` | suppress with the squad in contact, the others hold: it stops the column in the kill zone the bypass exists to leave |
+
+**As built** *(`2026-10-22`)*:
+
+| piece | as built | where |
+|---|---|---|
+| the trigger | `UrbanMovementBehavior.FireFromBuildingToClear` (the row's one new condition: moving, a squad's `FiredOnFromStructure` ≤ 15 s, a FIRING element in the picture, DA-18 clear) — a `BasicPlatoonSop` row before the hold | `UrbanMovementBehavior.cs`, `BasicPlatoonSop.btree.json` |
+| the reaction | `ReactToFireFromBuilding` = `PlatoonAttack`'s graph under a second name, preset 2 (`PlatoonAttackPreset.ReactToFireFromBuilding`); `FiringElement` finds the objective and the reporter; `ReactRoles` makes the reporter the support (posted where it stands), the next live squad the assault; `NotAttacking` covers both names | `PlatoonAttackBehavior.cs` |
+| ⚠ deviation — the answer is struck | at consolidation the reaction removes the FIRING elements it answered (within its 15 m round) from the picture — 📐 rail: the same CONTACT, still fresh, re-triggered the reaction the moment it ended | `PlatoonAttackBehavior.Answered` |
+| ⚠ deviation — a follower round a corner | a follower whose point lies past a corner of the route marches to that CORNER first (`AlongTheRoute`), then on — 📐 live `pc-urban-move`: sent straight to a point round the corner, Squad 2 cut across the block; rail `CE2284_UrbanMovement_AFollowerWalksTheRouteRoundACorner_*` | `UrbanMovementBehavior.AlongTheRoute` |
+| ⚠ deviation — a follower's progress is its FRONT man *(`2026-10-22`)* | how far along a follower stands is its live man farthest along the route (`Front`), not its centre — the corner counts as passed once he is within `ArrivalRadius` of it. 📐 live `pc-urban-move`: the march to the corner ended on the point man's arrival with the centre 18 m short, so by the centre the corner stayed ahead, the same order counted as already given, and Squads 2 and 3 stood at (182, 190) to the end. The lead's leg had the same trap (UM-5, `Nearest`) | `UrbanMovementBehavior.Front` |
+| ⚠ deviation — the lead's leg | judged by the lead squad's NEAREST man, not its centre — 📐 live `pc-urban-move`: the march ended on the point man's arrival, the centre stood 9 m short of the leg's end, and the leg never advanced | `UrbanMovementBehavior.Nearest` |
+| rails | `SquadManeuverTests.CE2284_FiredOnFromABuildingNearTheRoute_*` (react, support where it stands, clear, resume), `CE2284_FiredOnFromABuildingFarOffTheRoute_*` (Regular bypasses, Militia clears) | `Hrot.SimHost.Tests` |
+
+**Slices.** **U-1** = UM-1…UM-7 (the task, rails `SquadManeuverTests.CE2284_*`, a dry demo on `cqb-village`). **U-2** = UM-9 + §14a M-2.
+**U-3** = the ambush demos `pc-urban-ambush` / `pc-ambush-bypass` (Platoon Attack design §stage C).
+
 ## 12. Roles in the squad *(✅ approved R-2036 — DA-19)*
 
 **Measured:** roles exist as **`TacticalDesignation`** — `Commander · SquadLeader · Wingman · Support · TeamLeader · Medic`
@@ -2471,6 +2613,127 @@ plus `DangerAreaAhead` (an SOP condition).
 ⚠ **DA-14's backend need is downgraded:** the round's origin on `NearMissEvent` is no longer required for v1, because the gunshot
 sound already carries the shooter's position. It is kept as an option if sound proves too coarse at sniper ranges (⛔ not measured:
 the audible range of a rifle shot in `SoundEmissionSystem`).
+
+### 14a. DA-M in detail — the sensor changes as built *(`CE-2283`, behaviors, 2026-10-21; build-state: BUILT — slices M-1 and M-2 below; leans SC-1…SC-8, built under the user's "do as much as you can autonomously")*
+
+**INVENTORY** *(2026-10-21 — codebase-memory CLI `search_graph` `.*(PointSurvey|SensorChange|FiredOnFromStructure|SniperFire|ContactInEngagementArea|ContactOutsideSector|PositionUntenable).*` → 14 nodes, `has_more:false`; one read-only sweep of every `SensorChangedEvent` producer and consumer, every `SquadDefend` in-play precursor, `SoundContactEvent` / `TargetMemory`, the WorldSurvey child sensor. `check_index_coverage` NOT run — CLI only)*
+
+| what | where | ⭐ what it means here |
+|---|---|---|
+| squad changes 11–15 are published by `SquadSensing`, called once a frame by `SquadCoordinationSystem` after its merge (CGF, Simulation) | `SquadSensing.cs:24-153`; `SquadCoordinationSystem.cs:57-86`; `CgfLogicPack.cs:248` | ⭐ the home for the new ones — the pool is fresh there |
+| a new kind must grow THREE tables: `RecentSenses` (field + `Record` + `TryGetLast`), `BuiltInHsmEvents.SensorNames` (HSM id `0xFF00+kind`), the rails that walk the enum | `RecentSenses.cs:21-104`; `BuiltInHsmEvents.cs:16-31`; `BrainTickSystemHsmArmTests.cs:491`, `RoeAndRecentSensesTests.cs:221` | ⛔ a kind missing from `Record` is silently dropped |
+| `ContactOutsideSector` counted IN the play: `SquadDefendPlay.Flanked` | `SquadDefendBehavior.cs:724-756` | ⚠ no hostility test — a seen civilian in the pool flanks him |
+| `PositionUntenable` counted IN the play: `SquadDefendPlay.Displace` (3 rounds / 10 s) | `SquadDefendBehavior.cs:699-721` | ⚠ counts `RecentSenses` TIMES — several rounds in one frame are one; the "friend down at the post" half is missing |
+| `ContactInEngagementArea` precursor: `ContactInSector` (any pooled contact the squad's EA allows) | `SquadDefendBehavior.cs:800-810` | lifts the alone squad's hold (DA-35) |
+| a man's arc reaches him as his `EngagementArea` (`ArcOrigin` = his post) | `SquadManeuverRunner.Sector`, `:461-470` | ⭐ a MEMBER sensor can read it — no play state needed |
+| a heard slot keeps `Radius` and `SourceClass` (SmallArms 4, HeavyWeapon 5), not the shot/footstep kind | `PerceptionComponents.cs:94-104` | enough to tell a gunshot from footsteps |
+| `NearMissEvent` carries the muzzle (`OriginX/Y/Z`, `HasOrigin`, `CE-3262`) — nothing on the brain reads it | `NearMissEvent.cs:16-34` | ⛔ ground truth: not used as a sense (SC-6) |
+| PointSurvey: `WorldSurveyRequest.OfPoints` (≤ 16) → `SurveyPoint{Building, Level, Room, Indoors}`; no production caller | `WorldSurveyModel.cs:101-106, 193-208` | M-2's `BuildingOf(point)` |
+
+```mermaid
+classDiagram
+  class SquadCoordinationSystem {
+    <<existing, CGF Simulation>>
+    Execute()
+  }
+  class SquadSensing {
+    <<existing static>>
+    PoolEdges()
+    UnderFire()
+  }
+  class SquadSenseChanges {
+    <<NEW, owned by the system>>
+    Squad() EA, flanked, friend down, the structure answer
+    Rounds() untenable, sniper, the structure ask
+    Flanks() the one flank rule
+  }
+  class SquadSenseMemory {
+    <<NEW, inside SquadSenseChanges>>
+    Dictionary~ulong,MemberSense~ members
+    Dictionary~ulong,UnitSense~ units
+  }
+  class WorldSurveyChildSensor { <<existing>> Ensure() Configure() Read() }
+  class MemberSense {
+    double WindowStart
+    int Rounds
+    long Flanker
+  }
+  class SensorChange {
+    <<existing enum>>
+    SniperFire = 20 NEW
+    ContactInEngagementArea = 21 NEW
+    ContactOutsideSector = 22 NEW
+    PositionUntenable = 23 NEW
+    FiredOnFromStructure = 24 NEW
+  }
+  class RecentSenses { <<existing>> +4 times }
+  class BuiltInHsmEvents { <<existing>> +4 names }
+  class SquadDefendPlay {
+    <<existing>>
+    Flanked() reads ContactOutsideSector
+    Displace() reads PositionUntenable
+    LiftOwnHold() reads ContactInEngagementArea
+  }
+  class EngagementAreas { <<existing>> AllowsUnit() InArc() }
+  SquadCoordinationSystem --> SquadSensing : calls after the merge
+  SquadCoordinationSystem *-- SquadSenseChanges
+  SquadSenseChanges *-- SquadSenseMemory
+  SquadSenseMemory *-- MemberSense
+  SquadSenseChanges ..> EngagementAreas
+  SquadSenseChanges ..> WorldSurveyChildSensor : one PointSurvey per ask
+  SquadSenseChanges ..> SensorChange : publishes
+  RecentSenses ..> SensorChange : records
+  SquadDefendPlay ..> RecentSenses : reads the change
+```
+*What the picture shows that prose hid:* every new change comes from the ONE place the squad changes already come from, and the
+three counts the defence play keeps today become READERS of a change — one implementation each (ruling 9), not a second copy.
+
+```mermaid
+sequenceDiagram
+  participant P as Perception (frame N)
+  participant B as Bus
+  participant C as SquadCoordinationSystem (N+1)
+  participant S as SquadSensing
+  participant R as RecentSensesSystem (N+2, Input)
+  participant D as SquadDefendPlay (N+2)
+  P->>B: NearMiss / Hit on a man
+  C->>S: merge the pool, then UnderFire + Untenable + Sniper (the member edges)
+  S->>S: count the man's rounds in 10 s, a friend down within 3 m in 10 s
+  S->>B: PositionUntenable (the man), SniperFire (the man + his commander)
+  C->>S: InEngagementArea + OutsideSector (the fresh pool)
+  S->>B: ContactInEngagementArea (commander, once per contact), ContactOutsideSector (the man, once per contact)
+  R->>R: record each change into RecentSenses
+  D->>D: a change fresher than the post was given ⇒ displace / face / lift the hold
+```
+*What it shows:* a change is read by the play one frame after it is published — the latency every existing squad change already has.
+
+```mermaid
+graph TD
+  CGF["CgfLogicPack (CGF node)"] -->|registers, Simulation| SCS[SquadCoordinationSystem]
+  SCS -->|each frame, after the merge| SS[SquadSensing: the new four]
+  CRM["CognitiveRuntimeModule"] -->|registers, Input| RSS[RecentSensesSystem]
+  BT[BrainTickSystem] -->|SOP wake + HSM 0xFF14..0xFF17| SOP[SOPs / HSMs]
+  SS -.->|bus| RSS
+  SS -.->|bus| BT
+  SimHost["SimHost / IG"]:::dead -.->|"⛔ never: no SquadCoordinationSystem there"| SS
+  classDef dead stroke:#c00,stroke-dasharray: 4 4
+```
+*What it shows:* the changes exist only where the squad brain runs (the CGF node, authority-gated by the driver) — a SimHost-only
+twin must register `SquadCoordinationSystem` to see them.
+
+| id | decision | ⭐ lean (built) | rejected — one line each |
+|---|---|---|---|
+| **SC-1** | where | `SquadSensing`, called by `SquadCoordinationSystem` after the merge; per-man memory (`SquadSenseMemory`) held by the system | a component per man: a new id and registration on every host for four counters · in each play: the duplicate this slice removes |
+| **SC-2** | `ContactInEngagementArea` (21) | on the COMMANDER, once per contact: a pooled contact inside the squad's Allow (`EngagementAreas.Contains` — geometry, no tier) that was not inside last frame; `Target` = the man when seen; a heard contact raises it on the edge "no heard contact inside → one" | every frame while inside: a wake storm on the SOP |
+| **SC-3** | `ContactOutsideSector` (22) | on the MAN: a SEEN, hostile (not neutral, in the fight) pooled contact within **50 m** of his arc's origin and outside his arc (his `EngagementArea`), once per contact; `Target` = the contact | heard contacts: an anonymous id would dither (DA-43) · any force: a civilian beside the post moved him (the precursor's gap) |
+| **SC-4** | `PositionUntenable` (23) | on the MAN: **3 rounds** (Hit / NearMiss EVENTS, not times) within **10 s**, or a squad friend DOWN within **3 m** of him within 10 s; the count restarts after it is raised | counting `RecentSenses` times: several rounds in a frame count one (measured gap) |
+| **SC-5** | `SniperFire` (20) | on the man AND his commander: a Hit / NearMiss edge while his memory holds no SEEN contact within **250 m** and no heard SHOT (`SourceClass` SmallArms / HeavyWeapon) centred within 250 m | the round's origin: SC-6 |
+| **SC-6** | the shooter's position | from what the man SENSES (sight, the gunshot's sound) — ⛔ never `NearMissEvent.Origin*` (the muzzle, ground truth) | the origin: free omniscience · a near miss carrying the shooter: backend downgraded it (§14) |
+| **SC-7** | the defence play | reads the change (`RecentSenses` fresher than the post was given) — ⛔ its own counts go: `Displace` reads `PositionUntenable`, `Flanked` reads `ContactOutsideSector` and finds the contact with the sensor's own rule (`SquadSenseChanges.Flanks`). ⚠ **As built:** `LiftOwnHold` keeps reading a STATE ("a contact is inside now", `EngagementAreas.AllowsUnit` — the shared reader, not a copy): the change is an EDGE, and a contact already inside when the order lands would never lift the hold | keep both counts: two implementations of one rule (ruling 9) |
+| **SC-8** | `FiredOnFromStructure` (24) | ✅ **M-2 built:** on a round at a man, where he places the shooter (the nearest heard SHOT within 300 m — its error circle; else the nearest seen contact) is asked as ONE PointSurvey (centre + 8 on the rim, site `0x22830001`, at most one ask per squad per 10 s, dropped after 5 s unanswered); ≥ 5 of 9 points in one building ⇒ the change on the commander and a **CONTACT report up** (the source, `Firing`) — ⚠ **as built, not the `FireFromStructure` component first leaned:** the platoon reads its picture, and a CONTACT is the report doctrine sends (no new component, no new id) | a component on the commander: a new id on every host for a point the report already carries · the near miss's muzzle: ground truth (SC-6) |
+
+**Slices.** **M-1** = SC-1…SC-7 (four kinds, the defence play rerouted, rails in `SquadManeuverTests.CE2283_*`) ✅. **M-2** = SC-8 ✅
+(rail `CE2283_FiredOnFromStructure_*`); its reader is CE-2284 U-2. ⚠ Not built here: the counter-sniper reaction (`CE-2279`, waits on it).
 
 ## 15. Every behaviour, what it does, how they work together
 

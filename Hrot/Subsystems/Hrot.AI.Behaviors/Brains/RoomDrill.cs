@@ -65,7 +65,12 @@ namespace Hrot.AI.Behaviors.Brains
         public double StepSince, BangAt;
         /// <summary>CB-72 — 1 while contact at the way in holds the entry · since when it has been quiet.</summary>
         public byte Contact;
-        public double QuietSince;
+        public double QuietSince, ContactSince;
+        /// <summary>CB-72 — the pie slice last issued (0 = the first, widest off the doorway's line).</summary>
+        public byte PieStepIssued;
+        /// <summary>⭐ CB-72 (as built) — 1 once this room's contact hold ran its <see cref="RoomDrill.HoldLimitSeconds"/>: the entry goes, under
+        /// fire or not, and the hold is not taken again for this room.</summary>
+        public byte HoldSpent;
         /// <summary>CB-73 — the turn the stack was placed with · the roster slots that were live when it was.</summary>
         public int Turn;
         public ushort Placed;
@@ -210,9 +215,12 @@ namespace Hrot.AI.Behaviors.Brains
                     {
                         // ⭐ CE-2261 (CB-72) — contact at the way in: the first two fight from pie points beside the doorway, leaning toward it
                         if (d.Contact != 0 && k < 2 && d.Threshold != 0) return PiePoint(ref d, k, speed, role);
-                        // ⭐ CE-2260 (CB-68) — the thrower: to the door front, then the throw
+                        // ⭐ CE-2260 (CB-68, as built) — the thrower steps to the JAMB on his side (the opening's edge, 0.4 m out), throws across
+                        //   through the far half of the opening, and is back on his stack point for the bang. 📐 live, a throw from the door
+                        //   front put him in the doorway the defenders were aimed at and he was shot there; from the stack point the line
+                        //   through the opening runs along the wall and no aim in the room is reachable
                         if (member == d.Thrower && d.GrenadeStep == GrenadeToDoor)
-                            return new MemberOrder { Kind = MemberOrderKind.AdvanceTo, Point = d.Plan.DoorFront, Speed = speed, RoleId = role, ArrivalRadius = ThresholdArrival };
+                            return new MemberOrder { Kind = MemberOrderKind.AdvanceTo, Point = ThrowFrom(ref d), Speed = speed, RoleId = role, ArrivalRadius = JambArrival };
                         if (member == d.Thrower && d.GrenadeStep == GrenadeThrowing)
                             return new MemberOrder { Kind = MemberOrderKind.FireAtPoint, Point = d.Aim, Mount = d.GrenadeMount, Rounds = 1, RoleId = role, Speed = speed };
                         return atStack;
@@ -240,12 +248,31 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The grenade steps (CB-68, CB-69).</summary>
         public const byte GrenadeUndecided = 0, GrenadeToDoor = 1, GrenadeThrowing = 2, GrenadeThrown = 3, GrenadeDone = 4;
-        /// <summary>CB-69 — the thrower given up reaching the door (s) · the throw given up (s) · the entry released this long after the bang (s) ·
+        /// <summary>CB-69 — the thrower given up reaching his throwing point (s) · the throw given up (s) · the entry released this long after the bang (s) ·
         /// a hand grenade's speed for its flight time (m/s) · how far into the room it is thrown (m).</summary>
+        /// <summary>CB-68 — the jamb point lies this far out from the wall (m) · reached within this (m).</summary>
+        public const float JambBackMetres = 0.4f, JambArrival = 0.3f;
+        /// <summary>CB-68 — the jamb point lies this far inside the opening's edge (a shoulder exposed, m) · a throw passes the opening this far
+        /// clear of its edges (m).</summary>
+        public const float JambInsetMetres = 0.15f, JambClearMetres = 0.1f;
         public const float ToDoorTimeoutSeconds = 8f, ThrowTimeoutSeconds = 6f, AfterBangSeconds = 0.3f, ThrowSpeed = 15f, ThrowInMetres = 3f;
         /// <summary>CB-72 — fired on within this long holds the entry (s) · quiet this long releases it (s) · the pie points' distance (m) and
         /// their angles off the doorway's line (°, #1 then #2).</summary>
         public const float FiredOnSeconds = 3f, QuietSeconds = 3f, PieMetres = 1.8f, PieAngle0 = 60f, PieAngle1 = 30f;
+        /// <summary>CB-72 — a pie slice every this long (s), this much nearer the doorway's line each (°), never nearer than these (°, #1, #2).</summary>
+        public const float PieStepSeconds = 2f, PieStepDegrees = 15f, PieMinAngle0 = 10f, PieMinAngle1 = 5f;
+        /// <summary>⭐ CB-72 (as built) — the longest the contact hold keeps the stack out of a room (s): 📐 live (bc-house-clear) a defender
+        /// kept firing at the stack, every round renewed the hold, the pie men never got him, and the house was never cleared.</summary>
+        public const float HoldLimitSeconds = 20f;
+
+        private static int PieStep(ref RoomDrillState d, double now)
+            => Math.Min(8, (int)((now - d.ContactSince) / PieStepSeconds));
+
+        /// <summary>The slices it takes the first man's pie point to reach the doorway's line (60° → 10° in 15° steps: 4, 8 s).</summary>
+        public static readonly int PieSlices = (int)MathF.Ceiling((PieAngle0 - PieMinAngle0) / PieStepDegrees);
+
+        /// <summary>⭐ CB-72 (as built) — the pie is sliced: both pie points have stepped to the doorway's line.</summary>
+        private static bool PieSliced(ref RoomDrillState d, double now) => PieStep(ref d, now) >= PieSlices;
 
         /// <summary>
         /// ⭐ The gate (CB-69, CB-72): true once the entry may flow. While no entry man has crossed, contact at the way in (a hostile SEEN in
@@ -259,10 +286,17 @@ namespace Hrot.AI.Behaviors.Brains
             var know = Knowledge(ref d, in ctx);
             bool firedOn = FiredOnAtTheWayIn(ref d, in ctx);
             if (firedOn) d.FiredOn = 1;
-            if (know.HostileSeen || firedOn)
+            // ⭐ CB-72 (as built) — once in contact, a hostile the squad still holds in the room (alive, seen lately or not) keeps it
+            //   until the pie is sliced: 📐 live (bc-house-defended), a defender down the hallway's axis was unseen from behind the wall,
+            //   the 3 s "quiet" came, the next man went in and was shot. ⛔ Not for as long as he is known: 📐 live (bc-room-clear), the
+            //   pie men were shot, nobody else could see in, and the stack waited at the door for ever
+            if (d.Contact != 0 && ctx.Now - d.ContactSince >= HoldLimitSeconds) d.HoldSpent = 1;   // the hold ran out: in, under fire or not
+            if (d.HoldSpent == 0 && (know.HostileSeen || firedOn || (d.Contact != 0 && know.HostileKnown && !PieSliced(ref d, ctx.Now))))
             {
                 if (d.Contact == 0 || d.GateOpen != 0)
                 {
+                    d.ContactSince = ctx.Now;
+                    d.PieStepIssued = 0;
                     d.Contact = 1;
                     d.GateOpen = 0;
                     d.Released = 0;
@@ -270,12 +304,14 @@ namespace Hrot.AI.Behaviors.Brains
                     ws.Reissue = 1;
                 }
                 d.QuietSince = 0;
+                int step = PieStep(ref d, ctx.Now);
+                if (step != d.PieStepIssued) { d.PieStepIssued = (byte)step; ws.Reissue = 1; }   // the next slice
                 return false;
             }
             if (d.Contact != 0)
             {
-                if (d.QuietSince == 0) { d.QuietSince = ctx.Now; return false; }
-                if (ctx.Now - d.QuietSince < QuietSeconds) return false;
+                if (d.HoldSpent == 0 && d.QuietSince == 0) { d.QuietSince = ctx.Now; return false; }
+                if (d.HoldSpent == 0 && ctx.Now - d.QuietSince < QuietSeconds) return false;
                 d.Contact = 0;
                 if (d.Thrown == 0) d.GrenadeStep = GrenadeUndecided;   // the room is suspected now: decide again
                 ws.Reissue = 1;
@@ -326,7 +362,8 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     if (!ThrowerLive(ref d, in ctx, out var man) || ctx.Now - d.StepSince > ToDoorTimeoutSeconds) { d.GrenadeStep = GrenadeDone; return true; }
                     var at = ctx.At(man);
-                    if (Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(d.Plan.DoorFront.X, d.Plan.DoorFront.Y)) > DoorFrontMetres + 0.2f) return false;
+                    var from = ThrowFrom(ref d);
+                    if (Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(from.X, from.Y)) > JambArrival + 0.2f) return false;
                     d.RoundsBefore = GrenadeCheck.Rounds(ctx.World, man, d.GrenadeMount);
                     d.GrenadeStep = GrenadeThrowing;
                     d.StepSince = ctx.Now;
@@ -337,7 +374,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     if (!ThrowerLive(ref d, in ctx, out var man) || ctx.Now - d.StepSince > ThrowTimeoutSeconds) { d.GrenadeStep = GrenadeDone; return true; }
                     if (GrenadeCheck.Rounds(ctx.World, man, d.GrenadeMount) >= d.RoundsBefore) return false;
-                    float flight = Vector3.Distance(d.Plan.DoorFront, d.Aim) / ThrowSpeed;
+                    float flight = Vector3.Distance(ThrowFrom(ref d), d.Aim) / ThrowSpeed;
                     d.BangAt = ctx.Now + d.Fuze + flight;
                     d.Thrown = 1;
                     d.GrenadeStep = GrenadeThrown;
@@ -351,6 +388,32 @@ namespace Hrot.AI.Behaviors.Brains
                 default:
                     return true;
             }
+        }
+
+        /// <summary>CB-68 — the jamb he throws from: just inside the opening's edge on his side (<see cref="JambInsetMetres"/>),
+        /// <see cref="JambBackMetres"/> out from the wall.</summary>
+        private static unsafe Vector3 ThrowFrom(ref RoomDrillState d)
+            => d.Thrower >= 0 && d.OrderOf[d.Thrower] != RoomDrillState.NotInIt
+                ? new Vector3(Jamb(ref d, JambSide(ref d, d.OrderOf[d.Thrower])), d.Plan.StackZ) : d.Plan.DoorFront;
+
+        private static Vector2 Jamb(ref RoomDrillState d, float side)
+            => d.Plan.Door + d.Plan.Along * side * MathF.Max(0f, d.Plan.Half - JambInsetMetres) - d.Plan.Into * JambBackMetres;
+
+        /// <summary>CB-68 — does a throw from <paramref name="from"/> to <paramref name="to"/> pass the wall's plane INSIDE the opening (clear of its
+        /// edges by <see cref="JambClearMetres"/>)?</summary>
+        private static bool ThrowClears(ref RoomDrillState d, Vector2 from, Vector2 to)
+        {
+            float a = Vector2.Dot(d.Plan.Door - from, d.Plan.Into), b = Vector2.Dot(to - from, d.Plan.Into);
+            if (b <= 1e-4f || a < 0f || a > b) return false;
+            var cross = from + (to - from) * (a / b);
+            return MathF.Abs(Vector2.Dot(cross - d.Plan.Door, d.Plan.Along)) <= d.Plan.Half - JambClearMetres;
+        }
+
+        /// <summary>+1 when the <paramref name="k"/>-th stack point is on the <c>Along</c> side of the way in, −1 on the far side (a split stack).</summary>
+        private static float JambSide(ref RoomDrillState d, int k)
+        {
+            var at = d.Plan.Stack(k);
+            return Vector2.Dot(new Vector2(at.X, at.Y) - d.Plan.Door, d.Plan.Along) >= 0f ? 1f : -1f;
         }
 
         private static unsafe bool ThrowerLive(ref RoomDrillState d, in SquadPlayContext ctx, out Entity man)
@@ -378,17 +441,31 @@ namespace Hrot.AI.Behaviors.Brains
             var query = Fdp.Toolkit.World.WorldQuery.Of(ctx.World);
             var scratch = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
             float depth = Depth(ref d);
-            Span<float> ins = stackalloc float[] { MathF.Min(ThrowInMetres, depth * 0.5f), depth * 2f / 3f };
-            foreach (float into in ins)
-            {
-                var aim = new Vector3(d.Plan.Door + d.Plan.Into * into, d.FloorZ + 0.3f);
-                if (!GrenadeCheck.SafeFor(query, warhead, aim, men[..n], scratch)) continue;
-                d.Aim = aim;
-                d.Thrower = (sbyte)slot;
-                d.GrenadeMount = (byte)mount;
-                d.Fuze = warhead.FuzeDelayS > 0f ? warhead.FuzeDelayS : 1.5f;
-                return true;
-            }
+            // ⭐ CB-68 (as built) — thrown from the jamb on his side. The aims sweep from STRAIGHT IN (the point the wall shields the stack
+            //   from) toward the far side; the first the throw clears through the opening AND that spares every friend is taken. 📐 live: a
+            //   throw across the room from the jamb is seen back through the opening by the men stacked beside him — every one refused.
+            float side = JambSide(ref d, d.OrderOf[slot]);
+            var jamb = Jamb(ref d, side);
+            Span<float> corners = stackalloc float[8];
+            for (int c = 0; c < 8; c++) corners[c] = d.Corners[c];
+            Span<float> reaches = stackalloc float[] { MathF.Min(ThrowInMetres, depth * 0.5f), depth * 2f / 3f, MathF.Min(2f, depth * 0.4f) };
+            Span<float> drifts = stackalloc float[] { 0f, 0.5f, 1f, 1.5f };
+            foreach (float reach0 in reaches)
+                foreach (float drift in drifts)
+                {
+                    float reach = reach0;
+                    var lateral = -d.Plan.Along * side * drift;
+                    while (reach > 0.5f && !RoomEntryPlan.Inside(corners, d.Plan.Door + d.Plan.Into * reach + lateral)) reach -= 0.25f;   // inside the room
+                    var flat = d.Plan.Door + d.Plan.Into * reach + lateral;
+                    if (!ThrowClears(ref d, jamb, flat)) continue;
+                    var aim = new Vector3(flat, d.FloorZ + 0.3f);
+                    if (!GrenadeCheck.SafeFor(query, warhead, aim, men[..n], scratch)) continue;
+                    d.Aim = aim;
+                    d.Thrower = (sbyte)slot;
+                    d.GrenadeMount = (byte)mount;
+                    d.Fuze = warhead.FuzeDelayS > 0f ? warhead.FuzeDelayS : 1.5f;
+                    return true;
+                }
             return false;   // CB-70 — every aim point would hurt a friend
         }
 
@@ -429,7 +506,9 @@ namespace Hrot.AI.Behaviors.Brains
         {
             var stack = d.Plan.Stack(k);
             float s = Vector2.Dot(new Vector2(stack.X, stack.Y) - d.Plan.Door, d.Plan.Along) >= 0f ? 1f : -1f;
-            float a = (k == 0 ? PieAngle0 : PieAngle1) * MathF.PI / 180f;
+            // ⭐ CB-22 / CB-72 (as built) — SLICE THE PIE: each slice steps toward the doorway's line, so the leaning man comes to see down it
+            float swing = d.PieStepIssued * PieStepDegrees;
+            float a = MathF.Max(k == 0 ? PieMinAngle0 : PieMinAngle1, (k == 0 ? PieAngle0 : PieAngle1) - swing) * MathF.PI / 180f;
             Vector2 door = d.Plan.Door, into = d.Plan.Into, along = d.Plan.Along;
             Vector2 At(float side) => door + PieMetres * (MathF.Cos(a) * -into + MathF.Sin(a) * side * along);
             var point = new Vector3(At(s), d.Plan.StackZ);

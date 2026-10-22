@@ -235,6 +235,7 @@ sequenceDiagram
   participant S as SimHost
   participant M as RecentDetonations (observer's node)
   O->>O: sees the target? else Failure
+  O->>O: the battery ready (a gun with an indirect weapon)? else wait, up to 180 s (CE-4035 G-5)
   O->>P: Strike(target + location error, Adjust, Rounds 1, Observer self)
   P->>A: FireAtPoint(call, rounds 1) — the gun nearest the battery's centre
   A->>S: WeaponFireIntent
@@ -294,6 +295,7 @@ Report: [`REPORT_Backend_Indirect_Fire.md`](../../blueprints/batches/REPORT_Back
 | **the bracket** (FM-6) | `PersonObserveFireBehavior.Correct`: lateral removed at once; range first step = the smallest of 50 / 100 / 200 / 400 / 800 that covers the error; halve once a round has burst on each side; fire for effect within 50 m, or when split to 50 | — |
 | **errors** (IF-F, observer half) | the first call off by ≤ 150 m (map) / 10 m (laser); each judged burst off by ≤ 1 % of its distance; both deterministic (`AcousticPerception.Error`, the hash hearing uses) | ⚠ not keyed on the mission id `k` as IF-F said: keyed on (observer, battery) and (observer, burst serial) — replay-exact all the same |
 | **observer lost** | no battery round seen 180 s after a call ⇒ Failure; after fire for effect ⇒ Success (*"end of mission (not observed)"*) | FM-7's *shot* / *splash* messages to the observer are not sent — he waits for what he sees |
+| **a battery not ready** *(CE-4035 G-5, `2026-10-22`)* | `PersonObserveFireBehavior.Ready`: the battery, or one of its live guns, has an indirect weapon (`IndirectFireNodes.MountOf` — the test the battery's own `Plan` uses). Not ready ⇒ the first call waits, up to `BurstWaitSeconds`, then Failure *"the battery never got ready"*; a battery with no roster on the observer's node counts as ready | 📐 measured: an order given at load (the demo file) called the mortar section before its gunners had manned the tubes ⇒ the section refused *"no gun reaches"* and the observer then waited 180 s for a round that never came. Rail `CE4035_TheObserver_WaitsForTheBatteryToBeReady_ThenCalls` |
 
 Rails (`SquadManeuverTests`): `CE2176_AnAdjustingRound_IsOneRoundFromTheGunNearestTheBatteryCentre`,
 `CE2176_TheObserver_BracketsTheRoundsOntoTheTarget_ThenCallsFireForEffect` (800 → 400 → 200 → 100, then fire for effect),
@@ -499,6 +501,10 @@ standing in for a ridge**, and a **walled compound** (a courtyard with 6 m walls
 
 The live check (`utility-demo-check.py`): each vignette's shot, splash and rounds-complete lines; the three impact times of ② within one tick;
 ③'s solution `High`; ④'s refusal line.
+
+⭐ **Self-running (CE-4035 G-5, `2026-10-22`):** ① and ② are in the file — the observer's `PersonObserveFire` and the battery's
+`ArtilleryUnitStrike` (time on target) — so loading the scenario plays them; the check only watches those two and still sends ③ and ④
+(one battery runs one Strike at a time, and ④ is a refusal followed by a resend).
 
 ## 7. Design docs checked
 

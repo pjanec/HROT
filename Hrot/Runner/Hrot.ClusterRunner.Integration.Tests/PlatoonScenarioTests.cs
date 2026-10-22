@@ -317,4 +317,115 @@ public sealed class PlatoonScenarioTests : IDisposable
         Assert.False(cgf.HasComponent<PausedTask>(platoon), "④ the platoon's SOP did not pause the defence (DA-55)");
         Assert.True(squads.All(s => Task(ByName(cgf, s)) == defend), "④ …no squad was pulled off to hold");
     }
+    /// <summary>
+    /// ⭐⭐ <c>CE-2284</c> U-1 — <c>pc-urban-move</c>: a Blue platoon on <c>UrbanMovement</c> along Main Street, then south down the Cross Road,
+    /// no enemy. ① the lead squad marches with its crossing drill · ② the others trail it along the route (never with it) · ③ all three
+    /// end in order at the route's end and the task ends. 📄 Defend and Attack §11b.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2284_PcUrbanMove_TheLeadWalksTheLegs_TheOthersTrailIt_AndTheTaskEnds()
+    {
+        using var harness = await Live("pc-urban-move");
+        var cgf = harness.Cgf!.World!;
+        string[] squads = { "Blue Squad 1", "Blue Squad 2", "Blue Squad 3" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Blue Platoon").IsNull && squads.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the platoon and its squads must spawn");
+        var platoon = ByName(cgf, "Blue Platoon");
+        int urban = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.UrbanMovement);
+        int march = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.SquadMarch);
+        int Task(Entity e) => cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash : 0;
+        Vector3 At(string n) => StaffComposerSystem.CentreOf(cgf, ByName(cgf, n));
+        string Where() => string.Join(" ", squads.Select(n => $"{n.Replace("Blue ", "")}({At(n).X:F0},{At(n).Y:F0})"));
+
+        Assert.True(harness.PumpUntil(() => squads.All(n => Task(ByName(cgf, n)) == march), timeoutFrames: 1200),
+            "① every squad is ordered to march");
+        float closest = float.MaxValue;
+        bool ended = harness.PumpUntil(() =>
+        {
+            closest = MathF.Min(closest, Vector2.Distance(new Vector2(At(squads[0]).X, At(squads[0]).Y), new Vector2(At(squads[1]).X, At(squads[1]).Y)));
+            return Task(platoon) != urban;
+        }, timeoutFrames: 24000);
+        _out.WriteLine($"end: {Where()} · platoon task {Task(platoon)} · closest lead–follower {closest:F1} m");
+        Assert.True(ended, $"③ the task ends; {Where()}");
+        Assert.True(Vector2.Distance(new Vector2(At(squads[0]).X, At(squads[0]).Y), new Vector2(200f, 120f)) < 16f, $"③ the lead at the route's end; {Where()}");
+        Assert.True(At(squads[1]).Y > At(squads[0]).Y + 15f && At(squads[2]).Y > At(squads[1]).Y + 15f, $"③ in order down the Cross Road; {Where()}");
+        Assert.True(closest > 12f, $"② the follower never walked with the lead (closest {closest:F1} m)");
+    }
+    /// <summary>The platoon task's name hash and the squads' own task hashes, sampled each frame, for the U-2 twins.</summary>
+    private static (bool Reacted, bool Cleared, bool Resumed) WatchAmbush(HrotRunnerHarness harness, EntityRepository cgf, Entity platoon,
+                                                                          string[] squads, int frames, Func<bool>? stop = null,
+                                                                          Action<string>? log = null)
+    {
+        // the task names by hash, for the timeline a failing run prints
+        var names = typeof(Hrot.Map.Definitions.Behavior.BehaviorNames).GetFields()
+            .Where(f => f.IsLiteral && f.FieldType == typeof(string))
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .GroupBy(n => Fdp.Toolkit.Behavior.BehaviorHash.FromName(n)).ToDictionary(g => g.Key, g => g.First());
+        string Name(int h) => h == 0 ? "-" : names.TryGetValue(h, out var n) ? n : h.ToString();
+        int frame = 0;
+        string last = "";
+        int urban = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.UrbanMovement);
+        int react = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.ReactToFireFromBuilding);
+        int clear = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.ClearBuilding);
+        int Task(Entity e) => cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash : 0;
+        bool reacted = false, cleared = false, resumed = false;
+        harness.PumpUntil(() =>
+        {
+            int t = Task(platoon);
+            if (t == react) reacted = true;
+            else if (reacted && t == urban) resumed = true;
+            if (squads.Any(n => Task(ByName(cgf, n)) == clear)) cleared = true;
+            if (log != null && frame++ % 120 == 0)
+            {
+                string now = $"{Name(t)} | " + string.Join(" ", squads.Select(n => $"{n.Replace("Blue ", "")}:{Name(Task(ByName(cgf, n)))}"));
+                if (now != last) { log($"f{frame - 1}: {now}"); last = now; }
+            }
+            return (stop?.Invoke() ?? false) || (reacted && resumed);
+        }, timeoutFrames: frames);
+        return (reacted, cleared, resumed);
+    }
+
+    private static int Down(EntityRepository cgf, string prefix, int count)
+        => Enumerable.Range(1, count).Count(i => { var e = ByName(cgf, $"{prefix} {i}"); return e.IsNull || !cgf.IsAlive(e) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(cgf, e); });
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2284</c> U-3 — <c>pc-urban-ambush</c>: moving east down Main Street, the platoon is fired on from H5 beside the route ⇒ the
+    /// SOP reacts with <c>ReactToFireFromBuilding</c> (DA-18: within 50 m of the route), a squad clears H5, and the movement resumes.
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE2284_PcUrbanAmbush_FiredOnFromABuildingBesideTheRoute_ThePlatoonClearsIt_AndMovesOn()
+    {
+        using var harness = await Live("pc-urban-ambush");
+        var cgf = harness.Cgf!.World!;
+        string[] squads = { "Blue Squad 1", "Blue Squad 2", "Blue Squad 3" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Blue Platoon").IsNull && squads.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the platoon and its squads must spawn");
+        var (reacted, cleared, resumed) = WatchAmbush(harness, cgf, ByName(cgf, "Blue Platoon"), squads, 36000, log: _out.WriteLine);
+        _out.WriteLine($"reacted {reacted} · a squad cleared {cleared} · resumed {resumed} · insurgents down {Down(cgf, "Insurgent", 4)}/4");
+        Assert.True(reacted, "① the platoon reacts to the fire from H5 with ReactToFireFromBuilding");
+        Assert.True(cleared, "② a squad clears H5");
+        Assert.True(resumed, "③ the movement resumes");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2284</c> U-3 — <c>pc-ambush-bypass</c>: the route turns south at the Cross Road; fire from SNP, ~100 m off the route — a
+    /// Regular platoon BYPASSES it (DA-18): no <c>ReactToFireFromBuilding</c>, no squad sent into SNP, the movement reaches its end.
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE2284_PcAmbushBypass_FireFromABuildingOffTheRoute_ThePlatoonBypassesIt()
+    {
+        using var harness = await Live("pc-ambush-bypass");
+        var cgf = harness.Cgf!.World!;
+        string[] squads = { "Blue Squad 1", "Blue Squad 2", "Blue Squad 3" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Blue Platoon").IsNull && squads.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the platoon and its squads must spawn");
+        var platoon = ByName(cgf, "Blue Platoon");
+        bool Ended() => cgf.HasComponent<BehaviorState>(platoon) && cgf.GetComponent<BehaviorState>(platoon).ActiveBehaviorHash == 0;   // the task done
+        harness.PumpFrames(600);
+        var (reacted, cleared, _) = WatchAmbush(harness, cgf, platoon, squads, 30000, Ended, _out.WriteLine);
+        _out.WriteLine($"reacted {reacted} · a squad cleared {cleared} · ended {Ended()}");
+        Assert.False(reacted, "① no ReactToFireFromBuilding — SNP is off the route");
+        Assert.False(cleared, "② no squad sent into SNP");
+        Assert.True(Ended(), "③ the movement reaches its end");
+    }
 }

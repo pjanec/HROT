@@ -1,0 +1,272 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: night shortens sight (CE-4035 G-10; PerceptionWeather S2-1n: range x the light factor, floor 0.25), on basic-desert at 00:30 local (22:30 UTC), clear sky. Two identical pairs: 'Observer Clear' at (0, 0) and 'Observer Second' at (0, 300) (riflemen, sight 150 m, holding); 'Target Clear' and 'Target Second' (insurgents) walk west to them from 220 m at 1.4 m/s. Judge: each observer first SEES his target well inside 150 m — about 40 m (150 x 0.25). Compare: ua-weather-sensing (the same pairs by day, one in fog). Fail: a target seen beyond 75 m. Note: thermal sights are not in the catalogue yet (CE-4035 G-10 open). Check: python3 scripts/utility-demo-check.py --launch ua-night-sensing"
+  },
+  "entities": {
+    "c4035010-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8810
+      },
+      "NetworkIdentity": {
+        "Value": 41000
+      },
+      "ScenarioClock": {
+        "StartUtcTicks": 638861418000000000,
+        "DisplayUtcOffsetMinutes": 120
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.6,
+        "WindCount": 0,
+        "CloudCount": 1,
+        "VisibilityM": 25000,
+        "FogTopM": 0,
+        "FogVisibilityM": 200,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 0,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          1500,
+          0,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          600,
+          0,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "CloudKind": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "c4035010-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 41010
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer Clear",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035010-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          220,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 41011
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Target Clear",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": "{\"x\": 15, \"y\": 0, \"speed\": 1.4, \"arrivalRadius\": 2}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035010-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          0,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 41012
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer Second",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035010-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          220,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 41013
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Target Second",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": "{\"x\": 15, \"y\": 300, \"speed\": 1.4, \"arrivalRadius\": 2}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

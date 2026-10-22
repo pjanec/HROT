@@ -1,0 +1,279 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: an aircraft shot down, and its pilot ejecting by himself (CE-4035 G-1; EjectionSystem: below 20 % health, or a wreck), on basic-desert. An 'A-10' flies east along a route at 300 m and 150 m/s with NO eject task. Under its route stand a hostile 'Stinger Gunner' at (-1200, 250) and a 'ZU-23 Technical' at (-1000, -200) on their default SOPs; a hostile patrol (Patrol 1-3) waits near (2150, 260). Judge: (1) the air defence fires at the A-10 and hits it (2) exactly one new Pilot (type 206) appears, with no order given (3) his canopy is open within about 3-4.5 s (4) the pilot comes down and stays down. Fail: no shot, no pilot, or a pilot without the jet being hit. Compare: ua-eject (the ordered eject). Check: python3 scripts/utility-demo-check.py --launch ua-shootdown-eject"
+  },
+  "entities": {
+    "c4035001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -4000,
+          0,
+          300
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9000
+      },
+      "TkbIdentity": {
+        "TkbType": 405
+      },
+      "EntityInfo": {
+        "Name": "A-10",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 1500,
+        "Max": 1500
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "ActiveTaskId": "a1118300-0000-4000-8000-0000000000a1",
+          "Tasks": [
+            {
+              "TaskId": "a1118300-0000-4000-8000-0000000000a1",
+              "ExecutingEngine": "",
+              "BehaviorName": "FollowRoute",
+              "BehaviorParams": "{\"routeEntityId\": 9002, \"Speed\": 150}",
+              "Triggers": []
+            }
+          ]
+        }
+      }
+    },
+    "c4035001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          4000,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9002
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "A-10 route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 4000,
+            "Y": 0,
+            "Z": 0,
+            "TargetSpeed": 150,
+            "HeightAgl": 300
+          }
+        ],
+        "IsLoop": false
+      }
+    },
+    "c4035001-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          2150,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9010
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035001-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          2160,
+          262,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9011
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035001-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          2140,
+          270,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9012
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035001-0000-4000-8000-000000000030": {
+      "SimTransform": {
+        "Position": [
+          -1200,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9020
+      },
+      "TkbIdentity": {
+        "TkbType": 202
+      },
+      "EntityInfo": {
+        "Name": "Stinger Gunner",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "c4035001-0000-4000-8000-000000000031": {
+      "SimTransform": {
+        "Position": [
+          -1000,
+          -200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9021
+      },
+      "TkbIdentity": {
+        "TkbType": 110
+      },
+      "EntityInfo": {
+        "Name": "ZU-23 Technical",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

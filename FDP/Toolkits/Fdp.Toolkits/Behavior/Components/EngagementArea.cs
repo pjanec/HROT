@@ -186,6 +186,21 @@ namespace Fdp.Toolkit.Behavior.Components
         public static bool IsNoFire(ISimulationView view, Entity shooter, Entity target)
             => TryPosition(view, target, out var p) && IsNoFire(view, shooter, p);
 
+        /// <summary>⭐ <c>CE-2283</c> (SC-2) — <paramref name="unit"/>'s sector when it has an Allow (an arc or an area); test a point against
+        /// it with <see cref="Contains"/> (geometry only — no tier, no self-defence).</summary>
+        public static bool TryAllow(ISimulationView view, Entity unit, out EngagementArea a)
+        {
+            a = default;
+            return Registered(view) && TryGet(view, unit, out a) && HasAllow(in a);
+        }
+
+        /// <summary>⭐ <c>CE-2283</c> (SC-3) — <paramref name="man"/>'s own arc (its origin and bounds); false when he has none.</summary>
+        public static bool TryArc(ISimulationView view, Entity man, out EngagementArea arc)
+        {
+            arc = default;
+            return Registered(view) && TryGet(view, man, out arc) && arc.ArcSet != 0;
+        }
+
         /// <summary>Is <paramref name="point"/> inside the arc (compass bearings, ranges) — exposed for the planner and the rails.</summary>
         public static bool InArc(Vector3 origin, float left, float right, float minRange, float maxRange, Vector3 point)
         {

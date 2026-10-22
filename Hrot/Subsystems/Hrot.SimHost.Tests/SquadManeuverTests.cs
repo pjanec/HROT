@@ -99,6 +99,8 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSimulationTime((float)_time);
                 Repo.Bus.SwapBuffers();
                 foreach (var o in Repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) (o.Kind == TacticalIntentKind.Clear ? Clears : Orders).Add(o);
+                Sensing.Squad(Repo, Commander, _time);           // ⭐ CE-2283 — what SquadCoordinationSystem raises after its merge (no merge here:
+                Sensing.Rounds(Repo, false, _time);              //   the rails write the pool themselves)
                 _sectors.Execute(Repo, 0.016f);
                 _roe.Execute(Repo, 0.016f);
                 _senses.Execute(Repo, 0.016f);
@@ -111,6 +113,8 @@ namespace Hrot.SimHost.Tests
             /// <summary>⭐ <c>CE-2275</c> D-2l — the answer the squad's frame survey gets at once (standing in for SimHost's solve): empty by
             /// default (no windows found ⇒ no frame posts, DA-84); null = never answered (the 5 s fallback).</summary>
             public Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? FrameSurvey = new();
+            /// <summary>⭐ <c>CE-2283</c> — the fighting-position sensor changes, raised each tick as the squad driver raises them.</summary>
+            public readonly Fdp.Toolkit.Squad.Systems.SquadSenseChanges Sensing = new();
             /// <summary>⭐ <c>CE-2257</c> BC-1 — the answers other plays' building surveys get at once, by site (absent = never answered).</summary>
             public readonly Dictionary<int, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload> Surveys = new();
 
@@ -2469,7 +2473,7 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members) s.Teleport(m, given[m].Objective);
             s.Tick();
 
-            void RoundAt(Entity m) { s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss }); s.Tick(); s.Tick(); }
+            void RoundAt(Entity m) { s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss }); s.Tick(); s.Tick(); s.Tick(); }   // ⭐ CE-2283 — the count is the sensor's: one frame more
             s.Orders.Clear();
             RoundAt(first); RoundAt(first);
             Assert.DoesNotContain(s.Orders, o => o.Entity.Equals(first));
@@ -2501,7 +2505,7 @@ namespace Hrot.SimHost.Tests
         private static void RoundAt(Squad s, Entity m)
         {
             s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2283 — the round → PositionUntenable (the sensor) → the play: one frame more than the play's own count
         }
 
         /// <summary>
@@ -2610,7 +2614,7 @@ namespace Hrot.SimHost.Tests
             var flanker = new Vector3(20, -10, 0);   // 25 m behind and beside the posts, outside every arc
             var enemy = s.Repo.CreateEntity();
             s.Pool(enemy, flanker, reporters: 1);
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2283 — the pool → ContactOutsideSector → the play
             Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
             ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(first);
             Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(new Vector3(0, 9, 0), arc.LeftBearing, arc.RightBearing, 0f, 0f, flanker),
@@ -4020,12 +4024,12 @@ namespace Hrot.SimHost.Tests
         // ── ⭐ CE-2260 / CE-2261 (BC-4, BC-5 — Building Clearing §7.3) — the grenade before the entry, contact at the way in ───────────
 
         /// <summary>A 6 × 12 m room entered by a gap at (1.5, 10) — deep enough that a stun grenade at its far third spares the stack.</summary>
-        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload DeepRoomAnswer(float depth = 12f)
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload DeepRoomAnswer(float depth = 12f, float width = 6f)
         {
             var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
-            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 4, CentreX = 3f, CentreY = 10f + depth / 2f });
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 4, CentreX = width / 2f, CentreY = 10f + depth / 2f });
             a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
-                { Building = 4, Index = 1, Indoors = true, FloorZ = 0f, Corners = new[] { 0f, 10f, 6f, 10f, 6f, 10f + depth, 0f, 10f + depth } });
+                { Building = 4, Index = 1, Indoors = true, FloorZ = 0f, Corners = new[] { 0f, 10f, width, 10f, width, 10f + depth, 0f, 10f + depth } });
             a.Portals.Add(new Fdp.Toolkit.Perception.Survey.SurveyPortal { Building = 4, Kind = 2, RoomA = 1, RoomB = -1, X = 1.5f, Y = 10f, Width = 1f });
             return a;
         }
@@ -4104,39 +4108,46 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ <c>CE-2260</c> BC-4 (CB-68, CB-69) — "bang out": four AssaultRiflemen at a SUSPECTED room (the order says so); the way in reached,
-        /// #2 goes to the door front (#1 is not released), throws a STUN grenade from his stun mount into the room's far third (the 3 m point
-        /// would stun the stack — no wall in this world), goes back to his stack point, and the entry is released only after the bang
-        /// (fuze + flight) — then #1 goes first. ✅ Red-proofs: the entry released on the throw ⇒ #1 into his own grenade; the friend check
+        /// #2 steps to the JAMB on his side (a shoulder in the opening — never the door front: 📐 live, the defenders aimed at the doorway shot
+        /// him there) and throws a STUN grenade from his stun mount through the opening, as near straight in as spares the stack (the near
+        /// point would stun it — no wall in this world); he is back on his stack point for the bang; #1 is not released until after it. ✅ Red-proofs: the entry released on the throw ⇒ #1 into his own grenade; the friend check
         /// dropped ⇒ the 3 m point.
         /// </summary>
         [Fact]
-        public void CE2260_BC4_ASuspectedRoom_GetsAStunFromNumberTwo_AtTheDoorFront_AndTheEntryGoesAfterTheBang()
+        public void CE2260_BC4_ASuspectedRoom_GetsAStunFromNumberTwo_FromTheJamb_AndTheEntryGoesAfterTheBang()
         {
             var s = new Squad(members: 4);
             AssaultRiflemen(s);
             Assert.True(GrenadeCheck.Carried(s.Repo, s.Members[1], RoomGrenadeKind.Stun, out int stunMount, out _, out _), "#2 carries stun grenades");
             Assert.Equal(1, stunMount);
-            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer();
-            s.Order("{\"Room\":[3,16,0],\"Suspected\":true}", BehaviorNames.ClearRoom);
+            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer(width: 12f);   // the far diagonal clear of the stack (no wall in this world)
+            s.Order("{\"Room\":[6,16,0],\"Suspected\":true}", BehaviorNames.ClearRoom);
             for (int i = 0; i < 4; i++) s.Tick();
-            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 12f, 10f, 12f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
             for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
             TickFor(s, 0.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
-            Near(plan.DoorFront, AdvanceOf(s, s.Members[1]), "#2 to the door front to throw");
             Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);
             Near(plan.Stack(0), PostureOf(s, s.Members[0]).Post.Point, "#1 is not released");
-
-            s.Teleport(s.Members[1], plan.DoorFront);
+            var jamb = new Vector3(plan.Door + plan.Along * (plan.Half - RoomDrill.JambInsetMetres) - plan.Into * RoomDrill.JambBackMetres, 0f);
+            Near(jamb, AdvanceOf(s, s.Members[1]), "#2 to the jamb on his side — a shoulder in the opening, not the door front");
+            s.Teleport(s.Members[1], jamb);
             TickFor(s, 0.1);
             var fire = FireOf(s, s.Members[1]);
             Assert.Equal(1, fire.Mount);                                                  // his stun grenades
             Assert.Equal(1, fire.Rounds);
-            Assert.InRange(fire.Y, 17f, 19f);                                              // the far third (10 + 12 × 2/3), not 13
+            var at = new Vector2(fire.X, fire.Y);
+            Assert.True(RoomEntryPlan.Inside(new[] { 0f, 10f, 12f, 10f, 12f, 22f, 0f, 22f }, at), "the aim is inside the room");
+            // the throw passes the wall's plane inside the opening
+            var from = new Vector2(jamb.X, jamb.Y);
+            float a = Vector2.Dot(plan.Door - from, plan.Into), b = Vector2.Dot(at - from, plan.Into);
+            var cross = from + (at - from) * (a / b);
+            Assert.InRange(Vector2.Dot(cross - plan.Door, plan.Along), -plan.Half + RoomDrill.JambClearMetres - 0.01f, plan.Half - RoomDrill.JambClearMetres + 0.01f);
+            Assert.True(Vector2.Distance(at, new Vector2(plan.Stack(0).X, plan.Stack(0).Y)) > 7.5f, "far from the stack (the near point would stun it — no wall here)");
             var mount = Fdp.Toolkit.Combat.PersonHands.MountEntity(s.Repo, s.Members[1], 1);
             s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount).Ammo--;   // the throw
             TickFor(s, 0.1);
-            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 back behind the wall");
+            Near(plan.Stack(1), PostureOf(s, s.Members[1]).Post.Point, "#2 back on his stack point, behind the wall");
             TickFor(s, 1.5);
             Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // nothing newer than his stack order
             Near(plan.Stack(0), PostureOf(s, s.Members[0]).Post.Point, "#1 waits for the bang");
@@ -4200,12 +4211,249 @@ namespace Hrot.SimHost.Tests
             }
             Near(plan.Stack(2), PostureOf(s, s.Members[2]).Post.Point, "#3 holds the stack");
 
+            // ⭐ slice the pie: each slice (2 s) nearer the doorway's line — the leaning man comes to see down it
+            float Off(Entity m) => Vector2.Dot(new Vector2(PostureOf(s, m).Post.Point.X, PostureOf(s, m).Post.Point.Y) - plan.Door, plan.Along);
+            float first = Off(s.Members[0]);
+            TickFor(s, RoomDrill.PieStepSeconds + 0.1);
+            Assert.True(Off(s.Members[0]) < first - 0.2f, $"#1's next slice is nearer the doorway's line ({first:F2} → {Off(s.Members[0]):F2})");
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // still held
+
             s.ClearPool();
             TickFor(s, RoomDrill.QuietSeconds - 0.5);
             Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // not released again yet
             Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "not quiet long enough yet");
             TickFor(s, 1.0);
             Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "quiet: #1 goes again");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2261</c> BC-5 (CB-72, as built) — a hostile the squad still holds in the room, no longer seen: the entry stays held while
+        /// the pie is sliced (📐 bc-house-defended: the "quiet" came while he waited down the doorway's axis), and no longer — then 3 s quiet
+        /// and #1 goes (📐 bc-room-clear: held for as long as he was known, the stack waited at the door for ever). ✅ Red-proofs: the known
+        /// hostile ignored ⇒ released 3 s after he was last seen; held while known ⇒ never released.
+        /// </summary>
+        [Fact]
+        public void CE2261_BC5_AKnownHostile_HoldsTheEntryWhileThePieIsSliced_NotForEver()
+        {
+            var s = new Squad(members: 4);
+            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer();
+            s.Order("{\"Room\":[3,16,0]}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            TickFor(s, 0.5);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "#1 goes");
+
+            var enemy = s.PoolMany(1, new Vector3(3f, 18f, 0f))[0];   // seen once, then only known: the pool keeps him, nobody sees him again
+            s.Repo.AddComponent(enemy, new EntityInfo { ForceId = ForceId.Hostile });
+            TickFor(s, 0.2);
+            Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "contact: #1 pies");
+            for (uint t = 0; t <= RoomSuspicion.SeenTicks; t++) s.Repo.Tick();   // the frame clock moves on: no longer "seen now", still held
+            double sliced = RoomDrill.PieSlices * RoomDrill.PieStepSeconds;
+            TickFor(s, sliced - 1.0);   // long past "3 s after he was last seen"
+            Assert.Equal(BehaviorNames.CombatPosture, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);
+            Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "known, the pie not sliced yet: still held");
+            TickFor(s, 1.0 + RoomDrill.QuietSeconds + 0.5);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "sliced, then quiet: #1 goes although he is still known");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2261</c> BC-5 (CB-72, as built) — a stack kept under fire: the entry is held, but no longer than
+        /// <see cref="RoomDrill.HoldLimitSeconds"/>; then #1 goes in under fire (📐 live bc-house-clear: a defender firing at the stack renewed
+        /// the hold for ever and the house was never cleared). ✅ Red-proofs: the limit dropped ⇒ still held at 25 s; the limit not latched ⇒
+        /// the next round holds it again.
+        /// </summary>
+        [Fact]
+        public void CE2261_BC5_AStackKeptUnderFire_IsHeldNoLongerThanTheHoldLimit()
+        {
+            var s = new Squad(members: 4);
+            s.Surveys[ClearRoomPlay.RoomSite] = DeepRoomAnswer();
+            s.Order("{\"Room\":[3,16,0]}", BehaviorNames.ClearRoom);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(new[] { 0f, 10f, 6f, 10f, 6f, 22f, 0f, 22f }, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            TickFor(s, 0.5);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "#1 goes");
+            void UnderFireFor(double seconds)
+            {
+                for (double t = 0; t < seconds; t += 1.0)
+                {
+                    s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = s.Members[2], What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+                    TickFor(s, 1.0);
+                }
+            }
+            UnderFireFor(RoomDrill.HoldLimitSeconds - 5);
+            Assert.True(PostureOf(s, s.Members[0]).Post.Frame, "under fire: #1 pies, the entry is held");
+            UnderFireFor(7);
+            Near(plan.DoorFront, AdvanceOf(s, s.Members[0]), "the hold ran out: #1 goes in under fire");
+            UnderFireFor(3);
+            Assert.Equal(BehaviorNames.AdvanceTo, s.Orders.Last(o => o.Entity.Equals(s.Members[0])).IntentId);   // not held again
+        }
+
+        private static bool Sensed(Squad s, Entity unit, Fdp.Toolkit.Perception.Events.SensorChange kind, out double at)
+        {
+            at = double.NegativeInfinity;
+            return s.Repo.HasComponent<RecentSenses>(unit) && s.Repo.GetComponentRO<RecentSenses>(unit).TryGetLast(kind, out at);
+        }
+
+        private static void Shot(Squad s, Entity m)
+        {
+            s.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = m, What = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss });
+            s.Tick(); s.Tick();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> (SC-4) — <c>PositionUntenable</c>: three rounds at a man within 10 s raise it, two do not, three spread over more
+        /// than 10 s do not; and a squad friend going down within 3 m raises it for him (not for a man farther off). ✅ Red-proofs: the window
+        /// dropped ⇒ the spread rounds raise it; the friend-down half dropped ⇒ the man beside him never hears it.
+        /// </summary>
+        [Fact]
+        public void CE2283_PositionUntenable_ThreeRoundsInTenSeconds_OrAFriendDownBesideHim()
+        {
+            var s = new Squad(members: 3);
+            var m = s.Members[0];
+            Shot(s, m); Shot(s, m);
+            Assert.False(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "two rounds: still tenable");
+            TickFor(s, Fdp.Toolkit.Squad.Systems.SquadSenseChanges.UntenableSeconds + 0.5);
+            Shot(s, m);
+            Assert.False(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "three rounds over more than 10 s");
+            Shot(s, m); Shot(s, m);
+            Assert.True(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "three rounds within 10 s");
+
+            s.Teleport(s.Members[1], new Vector3(20f, 0f, 0f));
+            s.Teleport(s.Members[2], new Vector3(22f, 0f, 0f));   // 2 m from #2
+            Down(s, s.Members[1], 10f);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.True(Sensed(s, s.Members[2], Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "his friend went down beside him");
+            Assert.False(Sensed(s, s.Members[1], Fdp.Toolkit.Perception.Events.SensorChange.PositionUntenable, out _), "not on the man who fell");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> (SC-2) — <c>ContactInEngagementArea</c> on the commander, once per contact: a contact entering the squad's arc
+        /// raises it (with the contact as Target), staying there does not raise it again, a second contact does, one outside never does; a
+        /// squad with no Allow never raises it. ✅ Red-proofs: the once-per-contact memory dropped ⇒ a change every tick; the Allow test
+        /// dropped ⇒ the contact outside raises it.
+        /// </summary>
+        [Fact]
+        public void CE2283_ContactInEngagementArea_OncePerContact_OnTheCommander()
+        {
+            var s = new Squad(members: 2);
+            s.Pool(s.Repo.CreateEntity(), new Vector3(0f, 50f, 0f), reporters: 1);
+            s.Tick(); s.Tick();
+            Assert.False(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out _), "no Allow, no change");
+
+            s.Repo.Bus.Publish(new SetEngagementAreaEvent { Entity = s.Commander, Origin = BehaviorOrigin.Operator, ArcSet = 1, ArcOrigin = Vector3.Zero,
+                                                            LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f });   // north, ±30°
+            s.ClearPool();
+            s.Tick(); s.Tick();
+            s.Pool(s.Repo.CreateEntity(), new Vector3(100f, 0f, 0f), reporters: 1);   // east: outside
+            s.Tick(); s.Tick();
+            Assert.False(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out _), "outside the arc");
+            s.Pool(s.Repo.CreateEntity(), new Vector3(0f, 100f, 0f), reporters: 1);   // north: inside
+            s.Tick(); s.Tick();
+            Assert.True(Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double first));
+            TickFor(s, 0.5);
+            Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double still);
+            Assert.Equal(first, still);   // he stays inside: no second change
+            s.Pool(s.Repo.CreateEntity(), new Vector3(10f, 120f, 0f), reporters: 1);   // another man inside
+            s.Tick(); s.Tick();
+            Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.ContactInEngagementArea, out double second);
+            Assert.True(second > first, "a new contact inside raises it again");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> (SC-3) — <c>ContactOutsideSector</c> on the man: a SEEN hostile within 50 m of his arc's origin and outside his
+        /// arc; not a civilian, not a heard contact, not one in his arc, not one beyond 50 m. ✅ Red-proofs: the neutral test dropped ⇒ the
+        /// civilian flanks him; the arc test dropped ⇒ the man in front does.
+        /// </summary>
+        [Fact]
+        public void CE2283_ContactOutsideSector_ASeenHostileBesideHim_NotACivilianNorOneInHisArc()
+        {
+            var s = new Squad(members: 1);
+            var m = s.Members[0];
+            s.Repo.Bus.Publish(new SetEngagementAreaEvent { Entity = m, Origin = BehaviorOrigin.Superior, ArcSet = 1, ArcOrigin = Vector3.Zero,
+                                                            LeftBearing = 315f, RightBearing = 45f });   // he watches north
+            s.Tick(); s.Tick();
+            Entity Contact(Vector3 at, ForceId force)
+            {
+                var e = s.Repo.CreateEntity();
+                s.Repo.AddComponent(e, new EntityInfo { ForceId = force });
+                s.Pool(e, at, reporters: 1);
+                s.Tick(); s.Tick();
+                return e;
+            }
+            Contact(new Vector3(0f, 30f, 0f), ForceId.Hostile);      // in front, in his arc
+            Contact(new Vector3(30f, -5f, 0f), ForceId.Neutral);     // beside him, a civilian
+            Contact(new Vector3(-70f, 0f, 0f), ForceId.Hostile);     // beside him, 70 m off
+            Assert.False(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.ContactOutsideSector, out _));
+            Contact(new Vector3(30f, -5f, 0f), ForceId.Hostile);     // beside him, a hostile
+            Assert.True(Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.ContactOutsideSector, out _), "flanked");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> M-2 (SC-8) — <c>FiredOnFromStructure</c>: a round at a man who HEARD the shot 50 m off — its circle asked as one
+        /// point survey on the commander's WorldSurvey sensor; 6 of the 9 points in one building ⇒ the change on the commander and a CONTACT
+        /// report queued up (the source, firing); 4 of 9 ⇒ nothing. ✅ Red-proofs: the vote threshold at 1 ⇒ the 4-of-9 squad raises it; the
+        /// report dropped ⇒ nothing queued.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2283_FiredOnFromStructure_TheHeardShotsCircleInOneBuilding_RaisesItAndReportsUp()
+        {
+            foreach (int inside in new[] { 6, 4 })
+            {
+                var s = new Squad(members: 1);
+                var m = s.Members[0];
+                var mem = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 1 };
+                mem.EntityIds[0] = -1;
+                mem.PositionsX[0] = 50f;
+                mem.Anonymous[0] = 1;
+                mem.SourceClass[0] = 4;   // SmallArms: a shot
+                mem.Radius[0] = 5f;
+                s.Repo.AddComponent(m, mem);
+                if (!s.Repo.HasComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander))
+                    s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Squad.Command.ReportOutbox());
+                var answer = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.PointSurvey };
+                for (int k = 0; k < 9; k++) answer.Points.Add(new Fdp.Toolkit.Perception.Survey.SurveyPoint { Building = k < inside ? 3 : -1 });
+                s.Surveys[Fdp.Toolkit.Squad.Systems.SquadSenseChanges.StructureSite] = answer;
+                Shot(s, m);
+                s.Tick(); s.Tick();
+                bool raised = Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.FiredOnFromStructure, out _);
+                var q = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander).Queued;
+                bool reported = false;
+                for (int i = 0; i < q.Count; i++)
+                    if (q.Items[i].Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Contact && q.Items[i].Report.At == new Vector3(50f, 0f, 0f)
+                        && q.Items[i].Report.Activity == Fdp.Toolkit.Squad.Command.ElementActivity.Firing) reported = true;
+                Assert.Equal((inside >= 5, inside >= 5), (raised, reported));
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2283</c> (SC-5) — <c>SniperFire</c>: a round at a man who sees nothing within 250 m and heard no SHOT centred within it
+        /// raises it on him and his commander; a seen contact 100 m off, or a heard shot there, does not; heard FOOTSTEPS there do not count
+        /// as the shot. ✅ Red-proofs: the heard-shot test dropped ⇒ fire from a heard rifle at 100 m reads as a sniper; the class test
+        /// dropped ⇒ footsteps hide the sniper.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2283_SniperFire_ARoundFromBeyondWhatHeCanPlace()
+        {
+            foreach (var (what, sniper) in new[] { ("nothing", true), ("seen", false), ("heard shot", false), ("heard steps", true) })
+            {
+                var s = new Squad(members: 1);
+                var m = s.Members[0];
+                var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
+                if (what != "nothing")
+                {
+                    mem.Count = 1;
+                    mem.EntityIds[0] = what == "seen" ? (long)s.Repo.CreateEntity().PackedValue : -1;
+                    mem.PositionsX[0] = 100f;
+                    mem.Anonymous[0] = (byte)(what == "seen" ? 0 : 1);
+                    mem.SourceClass[0] = (byte)(what == "heard shot" ? 4 : what == "heard steps" ? 1 : 0);
+                }
+                s.Repo.AddComponent(m, mem);
+                Shot(s, m);
+                Assert.Equal(sniper, Sensed(s, m, Fdp.Toolkit.Perception.Events.SensorChange.SniperFire, out _));
+                Assert.Equal(sniper, Sensed(s, s.Commander, Fdp.Toolkit.Perception.Events.SensorChange.SniperFire, out _));
+            }
         }
 
         /// <summary>
@@ -6304,6 +6552,28 @@ namespace Hrot.SimHost.Tests
             Assert.Single(Calls(s));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4035</c> G-5 — the observer does not call a battery that cannot fire yet: while none of its guns has an indirect weapon
+        /// (the tubes still being manned) he sends nothing and keeps the mission; once one has, his adjusting call goes. 🔴 Red-proof: no
+        /// readiness test ⇒ a call goes at once, to a battery that refuses it ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4035_TheObserver_WaitsForTheBatteryToBeReady_ThenCalls()
+        {
+            var target = new Vector3(5000f, 0f, 0f);
+            var s = Battery(new Vector3(0f, 0f, 0f), new Vector3(0f, 40f, 0f));
+            foreach (var g in s.Members) s.Repo.RemoveComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(g);
+            var observer = Observer(s, new Vector3(5000f, -1500f, 0f), target);
+            for (int i = 0; i < 5; i++) s.Tick();
+            Assert.Empty(Calls(s));
+            Assert.False(ObserverFinished(s, observer, out _));
+
+            s.Repo.AddComponent(s.Members[1], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfGunType });
+            for (int i = 0; i < 3; i++) s.Tick();
+            var first = Assert.Single(Calls(s));
+            Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust, first.Order.Method);
+        }
+
         // ── CE-2308 — the spotter: an observer who picks his own target (Indirect Fire §3.11, SP-1…SP-5) ─────────────────────
 
         /// <summary>A HOSTILE spotter at <paramref name="at"/> told to <c>SpotForFire</c> for <paramref name="s"/>'s battery.</summary>
@@ -6426,6 +6696,242 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, Fdp.Toolkit.Combat.RecentDetonations.Since(s.Repo, -1.0, got));
             Assert.Equal(new Vector3(10f, 20f, 1f), got[0].At);
             Assert.Equal(s.Members[0], got[0].Shooter);
+        }
+
+        // ── CE-2284 U-1 — UrbanMovement: a platoon on foot along legs, the lead with its crossing drill, the others trailing it (§11b) ──
+
+        private static SquadMarchParamsJsonDto MarchOf(Platoon p, Entity squad)
+            => System.Text.Json.JsonSerializer.Deserialize<SquadMarchParamsJsonDto>(
+                p.S.Orders.Last(o => o.Entity.Equals(squad) && o.IntentId == BehaviorNames.SquadMarch).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        private static Platoon OnTheMove(string legs = "[[0,100,0],[100,100,0]]")
+        {
+            var p = new Platoon(squads: 3);
+            p.S.Teleport(p.Alpha, Vector3.Zero);
+            p.S.Teleport(p.Bravo, new Vector3(0f, -30f, 0f));
+            p.S.Teleport(p.Charlie, new Vector3(0f, -60f, 0f));
+            p.S.Order("{\"Legs\":" + legs + ",\"Spacing\":30}", BehaviorNames.UrbanMovement);
+            p.Ticks(5);
+            return p;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2284</c> U-1 (UM-2…UM-5) — the first squad leads to each leg's end WITH its crossing drill; the others march in file
+        /// to the route point 30 m × k behind where the lead stands, re-ordered only when that point moved ≥ 10 m; the lead within 8 m of a
+        /// leg's end takes the next; after the last leg the task succeeds once every squad stands at its point. ✅ Red-proofs: the followers
+        /// ordered to the lead's own point ⇒ Bravo's march is not 30 m behind; the ≥ 10 m guard dropped ⇒ a new order every metre the lead
+        /// walks; the leg never advancing ⇒ the lead is never sent down the second leg.
+        /// </summary>
+        [Fact]
+        public void CE2284_UrbanMovement_TheLeadMarchesLegByLeg_TheOthersTrailItOnTheRoute_DoneAtTheEnd()
+        {
+            var p = OnTheMove();
+            Assert.Equal(BehaviorNames.UrbanMovement, p.S.TaskName);
+            var lead = MarchOf(p, p.Alpha);
+            Assert.Equal((new Vector3(0f, 100f, 0f), true, 0), (lead.Objective, lead.DangerAreas, lead.Shape));
+            Assert.False(MarchOf(p, p.Bravo).DangerAreas);
+            Assert.Equal(Vector3.Zero, MarchOf(p, p.Bravo).Objective);   // the lead has not moved on yet: the route's start
+
+            p.S.Teleport(p.Alpha, new Vector3(1f, 50f, 0f));
+            p.Ticks(3);
+            Assert.InRange(Vector3.Distance(MarchOf(p, p.Bravo).Objective, new Vector3(0f, 20f, 0f)), 0f, 0.01f);   // 30 m behind him
+            Assert.Equal(Vector3.Zero, MarchOf(p, p.Charlie).Objective);                                           // 60 m behind: the start
+            int bravoOrders = p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch);
+            p.S.Teleport(p.Alpha, new Vector3(1f, 55f, 0f));
+            p.Ticks(3);
+            Assert.Equal(bravoOrders, p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch));                                // moved 5 m: kept
+
+            p.S.Teleport(p.Alpha, new Vector3(0f, 95f, 0f));
+            p.Ticks(3);
+            Assert.Equal(new Vector3(100f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                // the next leg
+            Assert.True(MarchOf(p, p.Alpha).DangerAreas);
+
+            p.S.Teleport(p.Alpha, new Vector3(100f, 100f, 0f));
+            p.Ticks(3);
+            Assert.False(p.S.Finished(out _), "the others are not at their points yet");
+            p.S.Teleport(p.Bravo, new Vector3(70f, 100f, 0f));
+            p.S.Teleport(p.Charlie, new Vector3(40f, 100f, 0f));
+            Fbt.NodeStatus? result = null;
+            for (int i = 0; i < 6 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-1 (UM-6, UM-7) — a squad in its OWN reaction is never ordered and is ordered when it ends; a platoon reaction
+        /// (the SOP's hold on a reported enemy) pauses the task, and when it ends the task picks up at its leg and orders every squad again —
+        /// the hold dropped their marches. ✅ Red-proof: orders kept on "given once" (not this run's LAST order) ⇒ after the hold nobody is
+        /// re-ordered.
+        /// </summary>
+        [Fact]
+        public void CE2284_UrbanMovement_ASquadInItsOwnReactionIsLeftAlone_AndAfterThePlatoonHoldEverySquadIsOrderedAgain()
+        {
+            var p = OnTheMove();
+            p.S.StartSop("BasicPlatoonSop");
+            Reacting(p.S, p.Bravo, BehaviorNames.ReactToContact);
+            int before = p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch);
+            p.S.Teleport(p.Alpha, new Vector3(1f, 60f, 0f));
+            p.Ticks(3);
+            Assert.Equal(before, p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch));                                     // it fights: left alone
+            Reacting(p.S, p.Bravo, null);
+            p.Ticks(3);
+            Assert.Equal(before + 1, p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch));                                 // its fight ended
+
+            int alpha = p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch), charlie = p.OrdersTo(p.Charlie, BehaviorNames.SquadMarch);
+            p.ReportSpot(p.Charlie, new Vector3(30f, 120f, 0f), 3);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.PlatoonHold, p.S.TaskName);
+            p.S.Pause(31);   // the spot goes stale: the hold ends
+            p.Ticks(15);
+            Assert.Equal(BehaviorNames.UrbanMovement, p.S.TaskName);
+            Assert.Equal((alpha + 1, charlie + 1), (p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch), p.OrdersTo(p.Charlie, BehaviorNames.SquadMarch)));
+            Assert.Equal(new Vector3(0f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                  // the same leg
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-1 (UM-4, as built) — a follower whose point lies round a corner of the route marches to the CORNER first, then
+        /// on: 📐 live (pc-urban-move) a follower sent straight to its point cut across the block. One whose point is before the corner goes
+        /// straight to it. ✅ Red-proof: the corner skipped ⇒ Bravo is sent across the block to (10,100).
+        /// </summary>
+        [Fact]
+        public void CE2284_UrbanMovement_AFollowerWalksTheRouteRoundACorner_NotAcrossTheBlock()
+        {
+            var p = OnTheMove();
+            p.S.Teleport(p.Alpha, new Vector3(0f, 95f, 0f));
+            p.Ticks(3);
+            p.S.Teleport(p.Alpha, new Vector3(40f, 100f, 0f));   // round the corner, 40 m down the second leg
+            p.S.Teleport(p.Bravo, new Vector3(0f, 40f, 0f));
+            p.S.Teleport(p.Charlie, new Vector3(0f, -20f, 0f));
+            p.Ticks(5);
+            Assert.Equal(new Vector3(0f, 100f, 0f), MarchOf(p, p.Bravo).Objective);                                  // its point (10,100): the corner first
+            Assert.InRange(Vector3.Distance(MarchOf(p, p.Charlie).Objective, new Vector3(0f, 80f, 0f)), 0f, 0.01f);   // its point is before the corner
+            p.S.Teleport(p.Bravo, new Vector3(0f, 99f, 0f));
+            p.Ticks(5);
+            Assert.InRange(Vector3.Distance(MarchOf(p, p.Bravo).Objective, new Vector3(10f, 100f, 0f)), 0f, 0.01f);   // at the corner: on to it
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-1 (UM-4, as built `2026-10-22`) — a follower's progress is its FRONT man: in file, its point man at the corner
+        /// and the rest 18 m back, it has passed the corner and marches on to its point. 📐 Live (pc-urban-move) by the centre the corner stayed
+        /// ahead, the order counted as given, and the squad stood there. ✅ Red-proof: measured by the centre ⇒ sent to the corner again.
+        /// </summary>
+        [Fact]
+        public void CE2284_UrbanMovement_AFollowerInFile_IsMeasuredByItsFrontMan()
+        {
+            var p = OnTheMove();
+            p.S.Teleport(p.Alpha, new Vector3(0f, 95f, 0f));
+            p.Ticks(3);
+            p.S.Teleport(p.Alpha, new Vector3(40f, 100f, 0f));
+            var men = MakeSquad(p.S, 1, 4, 100f);
+            float[] ys = { 99f, 81f, 80f, 79f };
+            for (int k = 0; k < men.Length; k++) p.S.Repo.GetComponentRW<SimTransform>(men[k]).Position = new Vector3(0f, ys[k], 0f);
+            p.Ticks(5);
+            Assert.InRange(Vector3.Distance(MarchOf(p, p.Bravo).Objective, new Vector3(10f, 100f, 0f)), 0f, 0.01f);
+        }
+
+        /// <summary>⭐ <c>CE-2284</c> U-1 (UM-2) — the lead squad wiped out: the next live squad leads, with the crossing drill, to the same
+        /// leg's end. ✅ Red-proof: the lead fixed at slot 0 ⇒ nobody leads.</summary>
+        [Fact]
+        public void CE2284_UrbanMovement_TheLeadWipedOut_TheNextSquadLeads()
+        {
+            var p = OnTheMove();
+            p.S.Teleport(p.Alpha, new Vector3(0f, 40f, 0f));
+            p.Ticks(3);
+            Down(p.S, p.Alpha, 0f);
+            p.S.Repo.DestroyEntity(p.Alpha);
+            p.Ticks(3);
+            var lead = MarchOf(p, p.Bravo);
+            Assert.Equal((new Vector3(0f, 100f, 0f), true), (lead.Objective, lead.DangerAreas));
+        }
+
+        // ── CE-2284 U-2 — fired on from a building on the move: clear it (the attack play's preset) or bypass (DA-18, UM-10…UM-13) ──
+
+        private static void FiredOnFromABuilding(Platoon p, Entity squad, Vector3 source)
+        {
+            p.S.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = squad, What = Fdp.Toolkit.Perception.Events.SensorChange.FiredOnFromStructure });
+            p.Report(squad, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Contact, At = source, Count = 1,
+                Size = Fdp.Toolkit.Squad.Command.ElementSize.Individual, Activity = Fdp.Toolkit.Squad.Command.ElementActivity.Firing,
+            });
+        }
+
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload HouseAt(Vector3 c)
+        {
+            var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 7, CentreX = c.X, CentreY = c.Y });
+            a.Rooms.Add(new Fdp.Toolkit.Perception.Survey.SurveyRoom
+                { Building = 7, Index = 0, Indoors = true, Corners = new[] { c.X - 5f, c.Y - 5f, c.X + 5f, c.Y - 5f, c.X + 5f, c.Y + 5f, c.X - 5f, c.Y + 5f } });
+            return a;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2284</c> U-2 (UM-10, UM-12, UM-7) — moving, Bravo is fired on from a house 20 m off the route: the platoon SOP reacts with
+        /// <c>ReactToFireFromBuilding</c> (the task pauses); Bravo — the squad fired on — supports from where it stands, Alpha bounds to the
+        /// flank and on its Set clears the house; the house clear and every squad Set, the reaction ends and the movement resumes, every squad
+        /// ordered again. ✅ Red-proofs: the reporter not made the support ⇒ Bravo is sent off to the stand-off point; the row missing ⇒ no
+        /// reaction.
+        /// </summary>
+        [Fact]
+        public void CE2284_FiredOnFromABuildingNearTheRoute_ThePlatoonClearsIt_ThenMovesOn()
+        {
+            var p = OnTheMove();
+            p.S.StartSop("BasicPlatoonSop");
+            p.S.Teleport(p.Alpha, new Vector3(0f, 40f, 0f));
+            p.S.Teleport(p.Bravo, new Vector3(0f, 10f, 0f));
+            p.S.Teleport(p.Charlie, new Vector3(0f, -20f, 0f));
+            p.Ticks(3);
+            var house = new Vector3(20f, 60f, 0f);
+            p.S.Surveys[PlatoonAttackBehavior.AreaSite] = HouseAt(house);
+            FiredOnFromABuilding(p, p.Bravo, house);
+            p.Ticks(10);
+            Assert.Equal(BehaviorNames.ReactToFireFromBuilding, p.S.TaskName);
+            var support = System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(
+                p.S.Orders.Last(o => o.Entity.Equals(p.Bravo)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(BehaviorNames.SquadDefend, p.S.Orders.Last(o => o.Entity.Equals(p.Bravo)).IntentId);
+            Assert.InRange(Vector3.Distance(support.Position, new Vector3(0f, 10f, 0f)), 0f, 0.5f);                 // where it stands
+            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).IntentId);   // to the flank
+
+            p.ReportSet(p.Alpha);
+            p.Ticks(5);
+            Assert.Equal(BehaviorNames.ClearBuilding, p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).IntentId);
+            Assert.Contains("20", p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams);
+
+            p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
+                { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear });
+            int alpha = p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch);
+            bool Consolidating() => new[] { p.Alpha, p.Bravo, p.Charlie }.All(sq =>
+                p.S.Orders.Last(o => o.Entity.Equals(sq)).IntentId == BehaviorNames.SquadDefend
+                && System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(p.S.Orders.Last(o => o.Entity.Equals(sq)).JsonParams,
+                       Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Position == house);
+            for (int i = 0; i < 60 && !Consolidating(); i++) p.Tick();
+            Assert.True(Consolidating(), "the house clear: every squad consolidates round it");
+            foreach (var sq in new[] { p.Alpha, p.Bravo, p.Charlie }) p.ReportSet(sq);
+            for (int i = 0; i < 60 && p.S.TaskName != BehaviorNames.UrbanMovement; i++) p.Tick();
+            Assert.Equal(BehaviorNames.UrbanMovement, p.S.TaskName);                                                 // the movement resumes
+            p.Ticks(15);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch) > alpha, $"the lead is ordered on again; Alpha's orders: {string.Join(" ", p.S.Orders.Where(o => o.Entity.Equals(p.Alpha)).Select(o => o.IntentId))}; Charlie's: {string.Join(" ", p.S.Orders.Where(o => o.Entity.Equals(p.Charlie)).Select(o => o.IntentId))}");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-2 (UM-11, UM-13; DA-18) — fire from a house 120 m off the route: a Regular platoon BYPASSES it — no reaction, the
+        /// movement goes on; a Militia platoon assaults it all the same. ✅ Red-proof: the route distance ignored ⇒ the Regular platoon reacts.
+        /// </summary>
+        [Fact]
+        public void CE2284_FiredOnFromABuildingFarOffTheRoute_ARegularPlatoonBypassesIt_AMilitiaOneClearsIt()
+        {
+            foreach (var (militia, reacts) in new[] { (false, false), (true, true) })
+            {
+                var p = OnTheMove();
+                if (militia)
+                    p.S.Repo.AddComponent(p.S.Commander, new Fdp.Toolkit.Behavior.Components.CombatProficiency
+                        { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Militia, Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet });
+                p.S.StartSop("BasicPlatoonSop");
+                p.Ticks(3);
+                FiredOnFromABuilding(p, p.Bravo, new Vector3(120f, 30f, 0f));
+                p.Ticks(10);
+                Assert.Equal(reacts ? BehaviorNames.ReactToFireFromBuilding : BehaviorNames.UrbanMovement, p.S.TaskName);
+            }
         }
 
         // ── CE-2347 (R-2069) — PlatoonConvoy: ride, halt on contact, secure when quiet, remount, carry on (Defend & Attack §11a) ─────────

@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "demo-city",
-    "description": "What: On demo-city, an insurgent mortar cell ('Insurgent Mortar', 'Mortar Tube 1-2', crew) at (790-800,790) lies ~1.1 km from 'Blue Platoon' (PlatoonDefend, (40,40)); a covert 'Spotter' (Neutral, SpotForFire) at (40,150) calls the mortar on the platoon; 'Blue HQ' (SupportCommand) owns the 'Apache'. Nothing faked or timed. Judge: (1) mortar rounds land after the spotter's call; (2) a Blue squad hears the launch and SPOTs IndirectFire near the tubes; (3) the platoon sends REQUEST FireSupport to the HQ; (4) only then does the HQ send the Apache on an AirArmedSearch of that point. Fail: no SPOT (the launch is not heard), or an aircraft is sent with no request. Check: python3 scripts/utility-demo-check.py --launch uc-request-chain"
+    "description": "What: On demo-city, an insurgent mortar cell ('Insurgent Mortar', 'Mortar Tube 1-2', crew) at (-2300..-2290,40) lies ~2.3 km west of 'Blue Platoon' (PlatoonDefend, (40,40)) — OFF the terrain (Q95 E3: heard by distance alone, beyond what the old 1 km rule could pass by luck); a covert 'Spotter' (Neutral, SpotForFire) at (40,150) calls the mortar on the platoon; 'Blue HQ' (SupportCommand) owns the 'Apache'. Nothing faked or timed. Judge: (1) mortar rounds land after the spotter's call; (2) a Blue squad hears the launch and SPOTs IndirectFire near the tubes; (3) the platoon sends REQUEST FireSupport to the HQ; (4) only then does the HQ send the Apache on an AirArmedSearch of that point. Fail: no SPOT (the launch is not heard), or an aircraft is sent with no request. Check: python3 scripts/utility-demo-check.py --launch uc-request-chain"
   },
   "entities": {
     "d0c70000-0000-4000-8000-000000009700": {
@@ -455,8 +455,8 @@
     "d0c70000-0000-4000-8000-000000009750": {
       "SimTransform": {
         "Position": [
-          795,
-          790,
+          -2295.0,
+          40.0,
           0
         ],
         "Rotation": [
@@ -480,8 +480,8 @@
     "d0c70000-0000-4000-8000-000000009751": {
       "SimTransform": {
         "Position": [
-          790,
-          790,
+          -2300.0,
+          40.0,
           0
         ],
         "Rotation": [
@@ -505,8 +505,8 @@
     "d0c70000-0000-4000-8000-000000009753": {
       "SimTransform": {
         "Position": [
-          788,
-          790,
+          -2302.0,
+          40.0,
           0
         ],
         "Rotation": [
@@ -546,8 +546,8 @@
     "d0c70000-0000-4000-8000-000000009752": {
       "SimTransform": {
         "Position": [
-          800,
-          790,
+          -2290.0,
+          40.0,
           0
         ],
         "Rotation": [
@@ -571,8 +571,8 @@
     "d0c70000-0000-4000-8000-000000009754": {
       "SimTransform": {
         "Position": [
-          798,
-          790,
+          -2292.0,
+          40.0,
           0
         ],
         "Rotation": [
@@ -612,8 +612,8 @@
     "d0c70000-0000-4000-8000-000000009757": {
       "SimTransform": {
         "Position": [
-          794,
-          784,
+          -2296.0,
+          34.0,
           0
         ],
         "Rotation": [

@@ -28,6 +28,7 @@
       "kind": "Selector",
       "VisualId": "c2294000-0000-0000-0000-000000000002",
       "ChildVisualIds": [
+        "c2284000-0000-0000-0000-000000000020",
         "c2294000-0000-0000-0000-000000000010"
       ],
       "DisplayLabel": "Rows — first true wins",
@@ -35,6 +36,125 @@
         "X": 300,
         "Y": 120,
         "Comment": "The platoon commander's standing orders (CE-2294 CC-D, Command Chain §6): each row reads the platoon's PICTURE — what its squads reported — never their state. The reaction pauses the platoon's task; when it ends, the task resumes in its state.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c2284000-0000-0000-0000-000000000020",
+      "ChildVisualIds": [
+        "c2284000-0000-0000-0000-000000000021",
+        "c2284000-0000-0000-0000-000000000022",
+        "c2284000-0000-0000-0000-000000000023",
+        "c2284000-0000-0000-0000-000000000024",
+        "c2284000-0000-0000-0000-000000000025",
+        "c2284000-0000-0000-0000-000000000026"
+      ],
+      "DisplayLabel": "Fired on from a building on the move → clear it",
+      "EditorMetadata": {
+        "X": -400,
+        "Y": 260,
+        "Comment": "CE-2284 U-2 (UM-10, UM-11; DA-18): moving through town, a squad was fired on from a building (CE-2283 FiredOnFromStructure, its CONTACT in the picture) and DA-18 says clear — Untrained / Militia, or the building within 50 m of the route. Bypass = no row: the movement carries on.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PlatoonDefendBehavior.NotDefending"
+      },
+      "VisualId": "c2284000-0000-0000-0000-000000000021",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Not defending a position",
+      "EditorMetadata": {
+        "X": -720,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.PlatoonAttackBehavior.NotAttacking"
+      },
+      "VisualId": "c2284000-0000-0000-0000-000000000022",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Not attacking",
+      "EditorMetadata": {
+        "X": -560,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.SupportCommandBehavior.NotCommandingSupport"
+      },
+      "VisualId": "c2284000-0000-0000-0000-000000000023",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Not commanding support",
+      "EditorMetadata": {
+        "X": -400,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.SensedFresh",
+        "ExpressionTargetField": "reportReceived"
+      },
+      "VisualId": "c2284000-0000-0000-0000-000000000024",
+      "ChildVisualIds": [],
+      "DisplayLabel": "A report arrived (fresh, 3 s)",
+      "EditorMetadata": {
+        "X": -240,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.UrbanMovementBehavior.FireFromBuildingToClear"
+      },
+      "VisualId": "c2284000-0000-0000-0000-000000000025",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Fired on from a building, to clear",
+      "EditorMetadata": {
+        "X": -80,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "ReactToFireFromBuilding",
+        "Urgency": "Contact"
+      },
+      "VisualId": "c2284000-0000-0000-0000-000000000026",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: ReactToFireFromBuilding",
+      "EditorMetadata": {
+        "X": 80,
+        "Y": 400,
+        "Comment": "The squad fired on supports from where it stands; the next squad clears the building; the movement resumes after.",
         "Collapsed": false,
         "Color": null
       }

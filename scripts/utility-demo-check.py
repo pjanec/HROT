@@ -2098,6 +2098,18 @@ def run_rpg_window(c, timeout):
     print(f"    health: IFV {health(ifv)} · IFV 2 {health(ifv2)} · RPG man {health(rpg)}")
 
 
+def run_weather_regions(c, timeout):
+    """⭐ CE-4035 F-01 — ua-weather-regions: the IFV drives east through the fog bank and the overcast region by itself."""
+    ids = ids_by_name()
+    ifv = ids.get("IFV (drive east)")
+    if not c.ok(ifv is not None, "the IFV is loaded"):
+        return
+    x0 = (position(ifv) or [0, 0, 0])[0]
+    call("POST", "/sim/play", {})
+    ok = wait_for(lambda: (position(ifv) or [0, 0, 0])[0] > 360, timeout)
+    c.ok(ok, f"the IFV drives east through both regions by itself (x {x0:.0f} -> {(position(ifv) or [0, 0, 0])[0]:.0f})")
+
+
 # ── ua-weapon-systems (Weapon Systems §10, WS-6) — a sentry gun holds a gate, a soldier sets up an M2, a soldier picks up a Javelin ─────
 #   basic-desert (x, y 0…600 — ⚠ y −4 is off the map: an M2 at y 0 put its boarding point there and every walk to it failed
 #   FailedUnreachable), three vignettes south of the y 210 ridge. ① "Sentry Gun" (608, automatic) on WeaponSystemHold; an "Intruder" walks at it from 90 m:
@@ -2147,6 +2159,16 @@ def run_weapon_systems(c, timeout):
     c.ok(manned is not None, f"② the gunner mans the M2 — aboard after {manned} s ({_aboard(gunner)})")
     c.ok(deployed is not None, f"② the M2 is set up — Deployed after {deployed} s (now {deploy(m2)})")
     c.ok(carried is not None, f"③ the Javelin man carries the Javelin — after {carried} s ({_aboard(jav)})")
+    # ⭐ CE-4035 G-11 — the manned M2 fires on the man walking into its arc (watched for up to 90 s more)
+    intruder2 = ids.get("Intruder 2")
+    if intruder2 is not None:
+        end2 = time.time() + 90
+        while time.time() < end2 and not any(x.get("shooter") in (m2, gunner) for x in shots.values()):
+            for x in _if_shots_all():
+                shots[x.get("seq")] = x
+            time.sleep(1.0)
+        by_m2 = [x for x in shots.values() if x.get("shooter") in (m2, gunner)]
+        c.ok(len(by_m2) >= 1, f"④ the manned M2 fires on Intruder 2 — {len(by_m2)} round(s), his health {health(intruder2)}")
 
 
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
@@ -2434,6 +2456,10 @@ def run_indirect_fire(c, timeout):
     sec, bat, obs = ids.get("Mortar Section"), ids.get("Artillery Battery"), ids.get("Observer")
     if not c.ok(None not in gunners + tubes + guns + [sec, bat, obs, ids.get("Friendly 1")], "the mortar section, the battery, the observer are loaded"):
         return
+    # ⭐ CE-4035 G-5 — ① and ② play by themselves: the file gives the observer his ObserveFire (he waits for the tubes to be manned) and
+    #   the battery its time-on-target Strike, so a viewer who just loads the scenario sees them. The check only watches those two.
+    target, p2 = (340, 300), (720, -195)
+    t0, _ = _if_mark()
     call("POST", "/sim/play", {})
     call("POST", "/sim/timescale", {"scale": 4})
     comps = lambda n: ((data(call("GET", f"/entities/{n}")) or {}).get("Components") or {})
@@ -2441,15 +2467,7 @@ def run_indirect_fire(c, timeout):
     if not c.ok(boarded, "the three gunners man their tubes"):
         return
 
-    # ① the observer calls the mortars (it runs while the battery does ② – ④)
-    target = (340, 300)
-    t0, _ = _if_mark()
-    c.ok(_if_order(obs, "ObserveFire", {"Location": geo_of("ua-indirect-fire", *target[:2]), "Battery": sec, "Sheaf": "Parallel", "Rounds": 2}),
-         "① the observer takes the ObserveFire order")
-
-    # ② time on target
-    p2 = (720, -195)
-    c.ok(_if_order(bat, "Strike", {"Location": geo_of("ua-indirect-fire", *p2[:2]), "Control": "TimeOnTarget", "Sheaf": "Parallel", "Rounds": 1}), "② the battery takes the Strike")
+    # ② time on target (the observer's ① runs while the battery does ② – ④)
     b2 = wait_for(lambda: (x := _if_bursts(guns, t0)) and len({d.get("shooter") for d in x}) >= 3 and x, timeout + 120)
     if c.ok(b2 is not None, f"② every gun's round burst — {len(_if_bursts(guns, t0))}"):
         first = {}
@@ -2778,6 +2796,89 @@ def run_eject(c, timeout):
     st = data(call("GET", f"/entities/{pilot}/state")) or {}
     c.ok(not _descent(pilot) and near >= 100, f"④ ★ the pilot is down, {near:.0f} m from the nearest of the patrol")
     c.ok(pp2 is not None and flat(pp, pp2) < 2.0, f"④ ★ and stays down — moved {flat(pp, pp2) if pp2 else None} m in 6 s; behaviour {(st.get('behavior') or {}).get('name')}, stance {st.get('stance')}")
+
+
+def run_weather_sensing(c, timeout, night=False):
+    """⭐ CE-4035 G-3 / G-10 — ua-weather-sensing (noon, one pair in a 60 m fog bank) and ua-night-sensing (00:30, both clear): two identical
+    observer / target pairs; each target walks to its observer from 220 m. The distance at which each observer FIRST sees his target
+    (visual memory) is the measurement — PerceptionWeather caps sight by the visibility (S2-1) and scales it by the light (S2-1n)."""
+    ids = ids_by_name()
+    labels = ("Clear", "Second") if night else ("Clear", "Fog")
+    pairs = [(ids.get(f"Observer {l}"), ids.get(f"Target {l}")) for l in labels]
+    if not c.ok(all(None not in pr for pr in pairs), "the two observer / target pairs are loaded"):
+        return
+    seen = {}
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    end = time.time() + timeout + 120
+    while time.time() < end and len(seen) < len(pairs):
+        for (o, t), l in zip(pairs, labels):
+            if l not in seen and _remembers(o, t):
+                po, pt = position(o), position(t)
+                seen[l] = flat(po, pt) if po and pt else None
+        if all((flat(position(o) or (0, 0), position(t) or (0, 0)) < 20) for o, t in pairs):
+            break
+        time.sleep(0.2)
+    print(f"    first seen at: {seen}")
+    if night:
+        for l in labels:
+            c.ok(seen.get(l) is not None and seen[l] <= 75, f"① at night '{l}' is first seen well inside 150 m (≈ 40 m expected) — {seen.get(l)}")
+    else:
+        c.ok(seen.get("Clear") is not None and seen["Clear"] >= 120, f"① clear: seen at about the full 150 m — {seen.get('Clear')}")
+        c.ok(seen.get("Fog") is not None and seen["Fog"] <= 65, f"② in the fog bank: seen only at 60 m or less — {seen.get('Fog')}")
+
+
+def run_shootdown_eject(c, timeout):
+    """⭐ CE-4035 G-1 — ua-shootdown-eject: the A-10 has NO eject task; the Stinger and the ZU-23 under its route shoot it, and the pilot
+    ejects by EjectionSystem alone (below 20 % health, or a wreck — CE-3215). 🔒 User: "the pilot ejecting from a destroyed aircraft
+    falling down should be some kind of natural behavior"."""
+    ids = ids_by_name()
+    jet, aa = ids.get("A-10"), [ids.get("Stinger Gunner"), ids.get("ZU-23 Technical")]
+    if not c.ok(jet is not None and None not in aa, "the A-10 and the air defence are loaded"):
+        return
+    h0 = health(jet)
+    before = {r.get("networkId") for r in data(call("GET", "/entities")) or []}
+    call("POST", "/sim/play", {})
+    pilot, spawned_at, canopy_at, hit_at, timeline, next_sample = None, None, None, None, [], 0.0
+    end = time.time() + timeout + 180
+    while time.time() < end:
+        t = sim_time() or 0.0
+        if hit_at is None and (health(jet) or 0) < (h0 or 0):
+            hit_at = t
+        if pilot is None:
+            for r in data(call("GET", "/entities")) or []:
+                if r.get("networkId") not in before and (comps(r["networkId"]).get("TkbIdentity") or {}).get("TkbType") == 206:
+                    pilot, spawned_at = r["networkId"], t
+                    break
+        else:
+            d = _descent(pilot)
+            if canopy_at is None and d and _phase(d) in ("Canopy", "Flare", "Landing", "Landed"):
+                canopy_at = t
+        if time.time() >= next_sample:
+            next_sample = time.time() + 2.0
+            jp, pp = position(jet), position(pilot) if pilot else None
+            timeline.append((round(t, 1), tuple(round(v) for v in jp) if jp else None, health(jet),
+                             tuple(round(v) for v in pp) if pp else None, _phase(_descent(pilot)) if pilot and _descent(pilot) else None))
+        if pilot and spawned_at is not None and t - spawned_at > 90:
+            break
+        if pilot is None and t > 240:
+            break
+        time.sleep(0.25)
+    for row in timeline[:90]:
+        print("      shootdown @", row)
+    shots = _if_shots(aa)
+    print(f"    air-defence shots {len(shots)}: " + ", ".join(f"{x.get('shooter')}" for x in shots[:12]))
+    c.ok(bool(shots), f"① the air defence fires — {len(shots)} shots")
+    c.ok(hit_at is not None, f"① …and hits the A-10 — health {h0} → {health(jet)}")
+    c.ok(pilot is not None and (hit_at is None or spawned_at >= hit_at), f"② ★ one Pilot (206) ejects with no order, after the hit — {spawned_at} s (hit {hit_at} s)")
+    if pilot is None:
+        return
+    c.ok(canopy_at is not None and canopy_at - spawned_at <= 4.5, f"③ the canopy open by ~3 s (≤ 4.5 s over the wire) — {None if canopy_at is None else round(canopy_at - spawned_at, 2)} s")
+    pp = position(pilot)
+    time.sleep(6)
+    pp2 = position(pilot)
+    c.ok(not _descent(pilot) and pp2 is not None and pp is not None and flat(pp, pp2) < 2.0,
+         f"④ the pilot is down and stays down — at {pp}, moved {flat(pp, pp2) if pp and pp2 else None} m in 6 s")
 
 
 def run_drone_shelter(c, timeout):
@@ -4250,6 +4351,49 @@ def run_uc_convoy_hit(c, timeout):
 
 
 
+def run_car_bomb(c, timeout):
+    """⭐ CE-4035 G-6 — ua-car-bomb: TriggerIed + the civilian car's boot charge (ST-9) as ONE composition, never measured before. A civilian
+    car drives to a checkpoint; its driver watches his own boot charge and sets it off with the APC in its 15 m kill zone. Nothing is
+    faked. ① the car drives up and nobody fires at it · ② the charge bursts AT THE CAR, set off by the driver, the APC within 15 m ·
+    ③ the soldiers nearest it are hurt."""
+    ids = ids_by_name()
+    car, drv, chg, apc = ids.get("Car"), ids.get("Driver"), ids.get("Car charge"), ids.get("Checkpoint APC")
+    men = [ids.get(f"Checkpoint Soldier {i}") for i in (1, 2, 3)]
+    if not c.ok(None not in (car, drv, chg, apc) and None not in men, f"the car, its driver and charge, the checkpoint are loaded"):
+        return
+    h0 = {m: health(m) for m in men}
+    before = len(_detonations())
+    call("POST", "/sim/timescale", {"scale": 2})
+    call("POST", "/sim/play", {})
+    c.ok(wait_for(lambda: (position(car) or (-999, 0))[0] > -240, 30), f"① the car drives east (at {position(car)}; driver {task_name(drv)})")
+    det, at, track = None, None, []
+    end = time.time() + timeout
+    while time.time() < end:
+        pc = position(car)
+        track.append((sim_time(), pc, task_name(car), task_name(drv)))
+        ds = _detonations()
+        if len(ds) > before:
+            det, at = ds[-1], pc
+            break
+        time.sleep(0.25)
+    for row in track[-8:]:
+        print(f"      {row}")
+    shots = _if_shots(men + [apc])
+    c.ok(not [x for x in shots if det is None or (x.get("tick") or 0) < (det.get("tick") or 1e18)], f"① nobody fired at the car before the blast ({len(shots)} shots)")
+    if not c.ok(det is not None, f"② the charge goes off ({len(_detonations()) - before} new detonations)"):
+        print(f"    driver: {json.dumps(data(call('GET', f'/entities/{drv}/state')))[:600]}")
+        return
+    burst = det.get("burst") or det.get("at") or det.get("position")
+    pa = position(apc)
+    print(f"    detonation {json.dumps(det)[:300]}; the car at {at}; the APC at {pa}")
+    c.ok(burst is not None and at is not None and flat(burst, at) <= 6, f"② …at the car ({flat(burst, at) if burst and at else None} m from it)")
+    c.ok(at is not None and pa is not None and flat(at, pa) <= 15, f"② …with the APC in the kill zone ({flat(at, pa) if at and pa else None} m)")
+    c.ok(det.get("shooter") in (drv, chg, car), f"② …set off by the driver (shooter {det.get('shooter')}, driver {drv})")
+    time.sleep(3)
+    hurt = [m for m in men if (health(m) or 0) < (h0[m] or 0)]
+    c.ok(bool(hurt), f"③ the soldiers nearest it are hurt — {[(m, health(m)) for m in men]}")
+
+
 # ── Urban Battle §6 L7 — uc-request-chain (demo-city): spotter → mortar → heard launch → SPOT → REQUEST → HQ → armed search ────────
 def run_uc_request_chain(c, timeout):
     """⭐ Urban Battle §6 L7 — uc-request-chain (DESIGN_Urban_Battle_Demo.md §6; Command Chain §8d / §8d-a; Indirect Fire §3.11a;
@@ -4749,16 +4893,19 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-technical-scoot": run_technical_scoot,
              "ua-rpg-window": run_rpg_window,
              "ua-weapon-systems": run_weapon_systems,
+             "ua-weather-regions": run_weather_regions,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2230 H-3 — the hull-down hill attack on the ridge (hill-attack DESIGN §0, R-2022)
              "ua-hill-attack": run_hill_attack,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire,
+             "ua-shootdown-eject": run_shootdown_eject,
+             "ua-weather-sensing": run_weather_sensing, "ua-night-sensing": lambda c, t: run_weather_sensing(c, t, night=True),
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():

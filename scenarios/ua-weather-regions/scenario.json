@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: weather regions you can drive through (CE-1159), on basic-desert at dusk (19:05 UTC). Global weather is clear (25 km visibility, light cloud). A 'Fog bank' (x 140-360, visibility 300 m, fog up to 40 m) and an 'Overcast' region (x 290-510, 8/8 cloud, 6 km visibility) overlap in the middle. An 'IFV (drive east)' at (60, 300) and a 'Rifleman (walk east)' at (60, 280) wait west of both for the user to possess and move. Judge: (1) west of x 140 the sky is clear dusk and distant things are visible (2) entering the fog bank, visibility closes in towards 300 m (3) in the overlap (x 290-360) fog and overcast blend, and east of it the sky is overcast. Fail: the sky or fog does not change at the region edges. Check: none (no live check)"
+    "description": "What: weather regions you can drive through (CE-1159), on basic-desert at dusk (19:05 UTC). Global weather is clear (25 km visibility, light cloud). A 'Fog bank' (x 140-360, visibility 300 m, fog up to 40 m) and an 'Overcast' region (x 290-510, 8/8 cloud, 6 km visibility) overlap in the middle. An 'IFV (drive east)' at (60, 300) drives east through both by itself (MoveToLocation to (580, 300), 6 m/s — CE-4035 F-01, so a film sees the regions pass); a 'Rifleman (walk east)' at (60, 280) waits for the user to possess and move. Judge: (1) west of x 140 the sky is clear dusk and distant things are visible (2) entering the fog bank, visibility closes in towards 300 m (3) in the overlap (x 290-360) fog and overcast blend, and east of it the sky is overcast. Fail: the sky or fog does not change at the region edges. Check: none (no live check)"
   },
   "entities": {
     "a1159000-0000-4000-8000-000000000001": {
@@ -378,6 +378,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": "{\"x\": 580, \"y\": 300, \"speed\": 6, \"arrivalRadius\": 5}",
+        "Origin": "Superior"
       }
     },
     "a1159000-0000-4000-8000-000000000005": {

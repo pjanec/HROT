@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "bt-range",
-  "description": "BC-1 (CE-2257): a six-man squad (Veteran) clears room A of the CQB test house on bt-range through its north side door: it stacks beside the door out of the window's view, breaches, and the entry team crosses the threshold one man at a time to its points of domination. Two Militia insurgents hold the room's far corners; the house's other doors are locked. BC-4 (CE-2260): the men are AssaultRiflemen and the order says the room is held (Suspected), so #2 bangs it out with a stun grenade from the door front and the entry goes in after the bang. Ends with both insurgents down and a RoomClear report."
+  "description": "BC-1 (CE-2257): a six-man squad (Veteran) clears room A of the CQB test house on bt-range through its north side door: it stacks beside the door out of the window's view, breaches, and the entry team crosses the threshold one man at a time to its points of domination. Two Militia insurgents hold the room's far corners; the house's other doors are locked. Ends with both insurgents down and a RoomClear report."
  },
  "entities": {
   "bc000001-0000-4000-8000-000000000001": {
@@ -27,7 +27,7 @@
    },
    "Behavior": {
     "Name": "ClearRoom",
-    "Params": "{\"Room\": [43.5, 108, 0], \"Speed\": 2, \"Suspected\": true}",
+    "Params": "{\"Room\": [43.5, 108, 0], \"Speed\": 2}",
     "Origin": "Superior"
    },
    "Sop": {
@@ -56,7 +56,7 @@
     "Value": 12002
    },
    "TkbIdentity": {
-    "TkbType": 2009
+    "TkbType": 2002
    },
    "EntityInfo": {
     "Name": "Blue Leader",
@@ -83,7 +83,7 @@
     "Value": 12003
    },
    "TkbIdentity": {
-    "TkbType": 2009
+    "TkbType": 2002
    },
    "EntityInfo": {
     "Name": "Blue Rifleman 1",
@@ -110,7 +110,7 @@
     "Value": 12004
    },
    "TkbIdentity": {
-    "TkbType": 2009
+    "TkbType": 2002
    },
    "EntityInfo": {
     "Name": "Blue Rifleman 2",
@@ -137,7 +137,7 @@
     "Value": 12005
    },
    "TkbIdentity": {
-    "TkbType": 2009
+    "TkbType": 2002
    },
    "EntityInfo": {
     "Name": "Blue Rifleman 3",
@@ -164,7 +164,7 @@
     "Value": 12006
    },
    "TkbIdentity": {
-    "TkbType": 2009
+    "TkbType": 2002
    },
    "EntityInfo": {
     "Name": "Blue Rifleman 4",
@@ -191,7 +191,7 @@
     "Value": 12007
    },
    "TkbIdentity": {
-    "TkbType": 2009
+    "TkbType": 2002
    },
    "EntityInfo": {
     "Name": "Blue Rifleman 5",

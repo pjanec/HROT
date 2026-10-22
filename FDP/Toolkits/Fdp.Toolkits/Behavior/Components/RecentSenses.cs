@@ -40,6 +40,10 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-2293</c> — kind 19: a subordinate's report reached this commander's picture. Last, so the earlier fields keep
         /// their offsets.</summary>
         public double ReportReceived;
+        /// <summary>⭐ <c>CE-2283</c> — kinds 20–23 (DA-21). Last, so the earlier fields keep their offsets.</summary>
+        public double SniperFire, ContactInEngagementArea, ContactOutsideSector, PositionUntenable;
+        /// <summary>⭐ <c>CE-2283</c> M-2 — kind 24. Last.</summary>
+        public double FiredOnFromStructure;
 
         /// <summary>Record a change of <paramref name="kind"/> at <paramref name="now"/>.</summary>
         public void Record(SensorChange kind, double now)
@@ -65,6 +69,11 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.MissileWarning: MissileWarning = now; break;
                 case SensorChange.SurveyReady:    SurveyReady    = now; break;   // CE-3249
                 case SensorChange.ReportReceived: ReportReceived = now; break;   // CE-2293
+                case SensorChange.SniperFire:              SniperFire              = now; break;   // CE-2283
+                case SensorChange.ContactInEngagementArea: ContactInEngagementArea = now; break;
+                case SensorChange.ContactOutsideSector:    ContactOutsideSector    = now; break;
+                case SensorChange.PositionUntenable:       PositionUntenable       = now; break;
+                case SensorChange.FiredOnFromStructure:    FiredOnFromStructure    = now; break;
                 default: return;
             }
             SeenMask |= 1u << (int)kind;
@@ -100,6 +109,11 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.AirThreat       => AirThreat,
                 SensorChange.SurveyReady     => SurveyReady,      // ⭐ CE-3249
                 SensorChange.ReportReceived  => ReportReceived,   // ⭐ CE-2293
+                SensorChange.SniperFire              => SniperFire,   // ⭐ CE-2283
+                SensorChange.ContactInEngagementArea => ContactInEngagementArea,
+                SensorChange.ContactOutsideSector    => ContactOutsideSector,
+                SensorChange.PositionUntenable       => PositionUntenable,
+                SensorChange.FiredOnFromStructure    => FiredOnFromStructure,
                 _                        => double.NegativeInfinity,
             };
             return true;

@@ -24,7 +24,9 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>⭐ <c>CE-2260</c> / <c>CE-2261</c> (CB-66) — what the squad knows about a room before it goes in.</summary>
-    public readonly record struct RoomKnowledge(bool Suspected, bool CiviliansKnown, bool HostileSeen);
+    /// <param name="HostileKnown">⭐ CE-2261 (CB-72, as built) — a hostile the squad's picture still holds in the room, alive and in the fight,
+    /// seen lately or not: the contact is not over while he is there.</param>
+    public readonly record struct RoomKnowledge(bool Suspected, bool CiviliansKnown, bool HostileSeen, bool HostileKnown = false);
 
     /// <summary>
     /// ⭐⭐ <c>CE-2260</c> / <c>CE-2261</c> (CB-66) — pure over the squad's pooled picture: is the room SUSPECTED (the order says so, a man of the
@@ -38,7 +40,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         public static unsafe RoomKnowledge Of(EntityRepository world, Entity commander, ReadOnlySpan<float> corners, float floorZ, bool ordered, bool firedOn)
         {
-            bool suspected = ordered || firedOn, civilians = false, seen = false;
+            bool suspected = ordered || firedOn, civilians = false, seen = false, known = false;
             if (!world.HasComponent<SquadCognitiveState>(commander)) return new RoomKnowledge(suspected, false, false);
             ref readonly var squad = ref world.GetComponentRO<SquadCognitiveState>(commander);
             var pool = MemoryMarshal.CreateReadOnlySpan(
@@ -54,9 +56,10 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!world.IsAlive(e) || ThreatDanger.IsOutOfTheFight(world, e)) continue;
                 if (ThreatDanger.IsNeutral(world, e)) { civilians = true; continue; }
                 suspected = true;
+                known = true;
                 if (pool[c].LastSeenTick <= now && now - pool[c].LastSeenTick <= SeenTicks) seen = true;
             }
-            return new RoomKnowledge(suspected, civilians, seen);
+            return new RoomKnowledge(suspected, civilians, seen, known);
         }
     }
 

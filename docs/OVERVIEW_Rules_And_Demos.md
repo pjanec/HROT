@@ -171,6 +171,7 @@ related-designs:
 | `ua-armed-self-defence` | NonLethal police; a Neutral aims a rifle at them | lethal fire at him only; others non-lethal | AW-18, FL-3, CO-1 | ✅ 4/4 |
 | `ua-armed-celebration` | police patrol near a wedding; a guest fires in the air, later aims at them | warned, no round during the volley; shot once he aims; no guest hurt | AW-17, EL-5′ | ✅ 5/5 |
 | `ua-armed-bomber` | a civilian with a hidden vest walks into a crowd | never seen armed, no round; vest bursts, he dies; casualties follow the warhead | AW-12, BM-1/2 | ✅ 5/5 · ⛔ `CE-2247` spent vest stays live on CGF/IG |
+| `ua-car-bomb` | a civilian car with a charge in its boot drives to a checkpoint; its driver sets it off (TriggerIed) | nobody fires at the car; the burst at the car with the APC within 15 m; the soldiers nearest hurt | ST-9 + DA-93 (CE-4035 G-6) | ⏳ new |
 | `ua-armed-identify` | phone / pistol / toy gun at 20 m and 150 m, binoculars | identified at 20 m; unidentified at 150 m unless binoculars | AW-15 | ⏳ needs a toy-gun item |
 | `ua-armed-knife` · `ua-armed-stones` · `ua-armed-status` · `ua-player-fratricide` | knife / stone throwers / combatant guard rail / player kills friends | — | AW-19, AW-2, AW-21/24, AW-23 | ⏳ |
 
@@ -229,8 +230,11 @@ related-designs:
 | `ua-danger-crossing` (+ `-bp`) | a rifleman's route crosses two roads, one watched | holds ≥ 10 s at the watched one; crosses once the watcher leaves (BTree and blueprint) | T10–T12 | ✅ |
 | `ua-fire-distribution` | a squad vs three hostiles | all assigned, ≥ 2 targets, ≤ 2 per target; a 10 HP member goes prone | W1–W3 | ✅ |
 | `ua-weapon-choice` | an IFV vs a tank and an insurgent | TOW at the tank, 25 mm at the man | W4, W5 | ✅ |
-| `ua-three-hosts` | the posture decision on each host | the same winner at every health step | P1 (one tree) | ✅ |
+| `ua-three-hosts` | ⚠ no longer three hosts (all run the one C#-built CombatPosture since CE-3160) — three identical riflemen under the same health edits | the same class (fight / defend) at every health step | P1 (one tree) | ✅ |
 | `ua-attack-approach` | target lost from sight | Flank or FiringPosition; regains sight and fires | P4 | ✅ |
+| `ld-sentry-surprise` (+ `-360`) | a sentry with a 200° view cone holds a sector | A crossing in front is seen; B walking up behind is NOT, until he fires; the 360° control sees B | LD-5 (CE-2298) | ✅ |
+| `ua-grenade-or-rifle` | rifle or grenade against a man who ducks out of sight | the grenadier throws, the rifleman does not | WL-4 | ⏳ in-process rail only, no live check |
+| `ua-weather-sensing` · `ua-night-sensing` | two identical observer / target pairs: one in a 60 m fog bank · the same at night | first seen at ~150 m clear, ≤ 60 m in fog · ~40 m at night (light floor 0.25) | S2-1, S2-1n (CE-4035 G-3, G-10) | ⏳ new |
 
 ## 5. Squads — [Squad tactics](designs/group-maneuvers/DESIGN_Squad_Tactics.md) · [Entity interactions](DESIGN_Entity_Interactions.md)
 
@@ -275,6 +279,12 @@ related-designs:
 | `ua-squad-danger-crossing-hold` | crossing choice picks Hold | — | S10 | ⏳ no live check yet |
 | `pc-attack-dry` | a platoon attacks the area round OBJ on faked reports | base of fire → bound → lift + ClearBuilding → consolidate → won | AT-1…AT-12 | ✅ 12/12 |
 | `pc-defend-house` | a platoon attack against a platoon defence, AI on both sides | both plays run, the line opens fire, both sides fire, the assault or a break-off — no winner asserted | AT, DA-98, E-3a | ✅ |
+| `pc-urban-move` | a platoon moves through town on foot (UrbanMovement, CE-2284 U-1) | the lead walks each leg with its crossing drill; the others trail it 30 m / 60 m along the route, round the corner; the task ends at the route's end | UM-1…UM-7 | ⏳ re-run after the front-man fix (`2026-10-22`) |
+| `pc-urban-ambush` · `pc-ambush-bypass` | fired on from a building on the move (CE-2284 U-2) | beside the route (≤ 50 m) or a Militia platoon: the squad fired on supports, the next clears it, the movement resumes · 100 m off a Regular platoon's route: bypassed, no reaction | UM-10…UM-13, DA-18 | ⏳ twins running |
+| `sl0-platoon-march` | a body-less platoon marches three squads (one of them dead) | each squad fulfils its own march order; the dead squad is left | SL-0 (CE-2262) | ⏳ no live pass recorded |
+| `cc-platoon-bound` | the first command chain: Bravo supports, Alpha bounds on its SET; contact ⇒ SPOT ⇒ the platoon holds both | all five end conditions | CC-D (CE-2294) | ✅ |
+| `uf-alone-under-fire` · `uf-squad-under-fire` | one man ordered across open ground into fire · a squad's fire and movement under fire | he drops prone and crawls / bounds to cover · rushing half crouched, a near-missed mover goes prone | AQ96 (CE-2319, CE-2320) | ✅ alone · ⏳ squad |
+| `df-lone-soldier-reflex` · `df-civilian-ordered` | default SOPs with no orders: a soldier under fire, civilians ordered to stand | the soldier on his type's SOP reacts, the InertSop one does not · the ordered civilian still flees on CivilianSop | AQ97 (CE-2322) | ✅ both |
 | `uc-convoy-hit` / `-ifv` | demo-city: an IED under a convoy | the charge only in the kill zone; an APC halts and its squad fights / a Bradley pushes through with its squad aboard | CE-2306, CH-1…CH-4, CE-2313 | ✅ 8/8 · 9/9 |
 | `uc-request-chain` (+ `-dry`) | spotter → mortar → heard launch → SPOT → FireSupport → the HQ's AH-64 armed search | nothing sent without a report; the AH-64 attacks the cell | HQ-1…HQ-9 | 🟡 once (terrain size) · ✅ dry 9/9 |
 | `uc-a10-zu23-dry` · `uc-reinforce-dry` | air defence near the point · a Red platoon with the enemy near | the A-10 at the ZU-23 first, the AH-64 waits · the reserve sent, never the requester | HQ-7, HQ-9 | ✅ 7/7 · 6/6 |
@@ -292,6 +302,9 @@ related-designs:
 
 | demo | shows | ends with | proves | status |
 |---|---|---|---|---|
+| `bc-room-clear` | a squad clears room A of the CQB house through its side door | stack out of the window's view, breach, one man at a time to his point; both insurgents down | BC-1 (CE-2257) | ✅ twin · ⚠ live flaky (the flaky lane) |
+| `bc-house-clear` | the squad clears the whole house room by room | foothold, then each reachable room; civilians unharmed | BC-3 (CE-2259) | ✅ 2/2 (`2026-10-22`) |
+| `bc-house-defended` | a defender on the front door's axis | the stack holds outside and fights from the pie points; the hold ends after the pie is sliced (BC-5, 20 s cap) | BC-5 (CE-2261) | ⚠ losses 3 → 1; the pie men barely fire back |
 | `bt-doors` | a visitor and a locksmith at a house | locked front avoided; back door opened; locksmith unlocks the front and walks in | B1–B3 | ✅ |
 | `bt-grenade-posture` | an M67 between a standing and a prone man | standing man hurt; prone man (exposure ≤ 0.1) unhurt | B4 | ✅ |
 | `bt-mortar-roof` | a mortar round on a roof | courtyard man badly hurt; man downstairs ≥ 90 HP | B5, B6 | ✅ |
@@ -363,7 +376,7 @@ related-designs:
 
 | demo | shows | ends with | proves | status |
 |---|---|---|---|---|
-| `ua-indirect-fire` | four vignettes: adjust, time on target, high arc, danger close | adjust then fire for effect; rounds land together; high arc over a mask; danger close refused / allowed | I1–I9 | ✅ all four |
+| `ua-indirect-fire` | four vignettes: adjust, time on target, high arc, danger close — ① and ② now play from the file (CE-4035 G-5; the observer waits for the tubes to be manned) | adjust then fire for effect; rounds land together; high arc over a mask; danger close refused / allowed | I1–I9 | ✅ all four · ⏳ re-run self-running |
 
 ## 10. Weapon systems, airborne — [Weapon systems](designs/weapons/DESIGN_Weapon_Systems.md) · [Weapon layers](DESIGN_Weapon_Layers.md) · [Airborne](designs/airborne/DESIGN_Airborne_Insertion.md)
 
@@ -380,10 +393,11 @@ related-designs:
 
 | demo | shows | ends with | proves | status |
 |---|---|---|---|---|
-| `ua-weapon-systems` | sentry gun, M2 set-up, Javelin carry, Kornet team | sentry fires on its own; the M2 deploys and fires; carried weapons fire | W1–W10 | ✅ 5/5 |
+| `ua-weapon-systems` | sentry gun, M2 set-up, Javelin carry, an intruder walking into the M2's arc *(CE-4035 G-11; the Kornet team this row named is not in the file — removed)* | sentry fires on its own; the M2 deploys and fires on Intruder 2; the Javelin is carried | W1–W10 | ⏳ re-run after G-11 |
 | `ua-fast-rope-roof` | 8 men rope onto a roof | 8 down in 7.6 s, a ring on the roof; helicopter leaves after | AB2, AB3, AB7, AB8 | ✅ |
 | `ua-airborne-drop` | a stick of 8 jumps | each lands 7.8–10.5 m from his point; squad assembles | AB4–AB7 | ✅ |
 | `ua-eject` | an A-10 is hit; the pilot ejects | pilot out before the jet dies; lands; evades | AB9–AB11 | ⚠ 4/5 — canopy at 3.96 s vs the check's 3.5 s |
+| `ua-shootdown-eject` | the A-10 with NO eject task is shot by a Stinger and a ZU-23 under its route | the pilot ejects by himself (≤ 20 % health or a wreck), canopy open, down | AB10 (CE-4035 G-1) | ⏳ new |
 
 ## 11. Not built, open, or known wrong
 

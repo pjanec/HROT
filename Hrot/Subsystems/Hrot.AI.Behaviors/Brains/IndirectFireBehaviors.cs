@@ -535,6 +535,15 @@ namespace Hrot.AI.Behaviors.Brains
                     BehaviorLog.Warn(self, world, "observe fire: I cannot see the target");
                     return NodeStatus.Failure;
                 }
+                // ⭐ CE-4035 G-5 — no call to a battery that cannot fire yet (its tubes still being manned): it would refuse "no gun reaches"
+                //   and the observer would then wait 180 s for a round that never comes. He waits for it instead, the same 180 s.
+                if (!Ready(world, p.Battery))
+                {
+                    if (p.CalledAt <= 0d) { p.CalledAt = now; BehaviorLog.Trace(self, world, "observe fire: waiting for the battery to be ready"); }
+                    if (now - p.CalledAt <= BurstWaitSeconds) return NodeStatus.Running;
+                    BehaviorLog.Warn(self, world, "observe fire: the battery never got ready");
+                    return NodeStatus.Failure;
+                }
                 var err = Fdp.Toolkit.Perception.Sensors.AcousticPerception.Error(self.PackedValue, p.Battery.PackedValue, 0u,
                                                                                   LocationErrorMetres((FireMissionLocating)p.Locating));
                 p.Call = Ground(world, p.Target + new Vector3(err.X, err.Y, 0f));
@@ -617,6 +626,24 @@ namespace Hrot.AI.Behaviors.Brains
             if (Vector2.Distance(new Vector2(eye.X, eye.Y), new Vector2(at.X, at.Y)) > MaxObservationMetres) return false;
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
             return terrain == null || !terrain.SightBlocked(eye + new Vector3(0f, 0f, 1.7f), at + new Vector3(0f, 0f, 2f));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4035</c> G-5 — <paramref name="battery"/> can fire: it, or one of its live guns, has an indirect weapon (own, or a tube a
+        /// gunner mans — <see cref="IndirectFireNodes.MountOf"/>, the battery's own plan test). A battery with no roster on this node is taken
+        /// as ready: nothing here says otherwise.
+        /// </summary>
+        public static bool Ready(EntityRepository world, Entity battery)
+        {
+            if (IndirectFireNodes.MountOf(world, battery, out _, out _) >= 0 || !world.HasComponent<UnitRoster>(battery)) return true;
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(battery);
+            if (roster.Count == 0) return true;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var gun = roster.SubordinateEntities[i];
+                if (world.IsAlive(gun) && IndirectFireNodes.MountOf(world, gun, out _, out _) >= 0) return true;
+            }
+            return false;
         }
 
         /// <summary>A round of <paramref name="battery"/>: fired by it, by one of its guns, or by a tube one of its guns mans.</summary>
