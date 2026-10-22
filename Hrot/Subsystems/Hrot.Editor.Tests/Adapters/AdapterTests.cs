@@ -16,7 +16,6 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Common.Events;
-using Hrot.Common.Orchestration.Handlers;
 using Hrot.Editor.Adapters;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.UI.Common.Adapters;
@@ -1041,13 +1040,13 @@ namespace Hrot.Editor.Tests.Adapters
     public sealed class EditorPreviewAdapterTests : IDisposable
     {
         private readonly EntityRepository    _repo;
-        private readonly PreviewClusterOpHandler _handler;
+        private readonly Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler _handler;
         private readonly FakeStateProvider   _state;
 
         public EditorPreviewAdapterTests()
         {
             _repo    = new EntityRepository();
-            _handler = new PreviewClusterOpHandler(_repo);
+            _handler = new Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler(_repo, includeTransient: true);
             _state   = new FakeStateProvider();
         }
 

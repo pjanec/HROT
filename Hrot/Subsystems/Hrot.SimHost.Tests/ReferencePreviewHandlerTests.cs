@@ -1,9 +1,8 @@
 using System;
-using System.Text.Json;
 using System.Threading.Tasks;
-using Hrot.NED.Descriptors.Orchestration;
-using Hrot.Common.Orchestration.Handlers;
 using Fdp.Core;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -22,13 +21,16 @@ namespace Hrot.SimHost.Tests
     }
 
     /// <summary>
-    /// Tests for <see cref="PreviewClusterOpHandler"/> — CGF1-S0309 success conditions.
+    /// Tests for <see cref="ReferencePreviewHandler"/> — THE dry-run handler (CGF1-S0309 success conditions).
+    /// <para>⭐ <c>D14</c> — re-homed from the editor's twin (<c>PreviewClusterOpHandler</c>, deleted): the same claims, now
+    /// through the cluster slave's intent path AND the editor's local entry points, which reach the one handler.
+    /// 📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1b U1.</para>
     /// </summary>
-    public sealed class PreviewClusterOpHandlerTests : IDisposable
+    public sealed class ReferencePreviewHandlerTests : IDisposable
     {
         private readonly EntityRepository _liveRepo;
 
-        public PreviewClusterOpHandlerTests()
+        public ReferencePreviewHandlerTests()
         {
             _liveRepo = new EntityRepository();
             _liveRepo.RegisterComponent<PreviewTestPos>();
@@ -38,11 +40,11 @@ namespace Hrot.SimHost.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private static NodeOpCommand MakePrepareStateCmd(ClusterState target) => new()
+        private static ExecuteNodeOpIntent MakePrepareStateCmd(ClusterState target) => new()
         {
             TransactionId = Guid.NewGuid(),
             Operation     = NodeOpType.PrepareState,
-            PayloadJson   = JsonSerializer.Serialize(new { TargetState = (int)target }),
+            DomainPayload = new EditLoadHandlerPayload(ScenarioId: null, TargetState: target),
         };
 
         // ── S0309-T1: LoadingPreview captures live state ───────────────────────
@@ -67,7 +69,7 @@ namespace Hrot.SimHost.Tests
             }
             Assert.Equal(4, _liveRepo.EntityCount);
 
-            var handler = new PreviewClusterOpHandler(_liveRepo);
+            var handler = new ReferencePreviewHandler(_liveRepo);
             var cmd     = MakePrepareStateCmd(ClusterState.LoadingPreview);
 
             await handler.PrepareAsync(cmd, default);
@@ -108,7 +110,7 @@ namespace Hrot.SimHost.Tests
             }
             Assert.Equal(4, _liveRepo.EntityCount);
 
-            var handler = new PreviewClusterOpHandler(_liveRepo);
+            var handler = new ReferencePreviewHandler(_liveRepo);
 
             // 2. Enter dry run — snapshot captures 4 entities with original positions.
             var loadCmd = MakePrepareStateCmd(ClusterState.LoadingPreview);
@@ -149,7 +151,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public async Task UnloadingPreview_DisposesSnapshot()
         {
-            var handler  = new PreviewClusterOpHandler(_liveRepo);
+            var handler  = new ReferencePreviewHandler(_liveRepo);
             var loadCmd  = MakePrepareStateCmd(ClusterState.LoadingPreview);
             var unloadCmd = MakePrepareStateCmd(ClusterState.UnloadingPreview);
 
@@ -173,7 +175,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public async Task Abort_DuringLoadingPreview_DiscardsSnap()
         {
-            var handler = new PreviewClusterOpHandler(_liveRepo);
+            var handler = new ReferencePreviewHandler(_liveRepo);
             var loadCmd = MakePrepareStateCmd(ClusterState.LoadingPreview);
 
             await handler.PrepareAsync(loadCmd, default);
@@ -195,7 +197,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public async Task OtherPrepareStateTargets_AreNoOps()
         {
-            var handler = new PreviewClusterOpHandler(_liveRepo);
+            var handler = new ReferencePreviewHandler(_liveRepo);
 
             foreach (var state in new[]
             {
@@ -204,6 +206,7 @@ namespace Hrot.SimHost.Tests
             })
             {
                 var cmd = MakePrepareStateCmd(state);
+                Assert.False(handler.CanHandle(cmd));   // the slave never hands it to this handler
                 await handler.PrepareAsync(cmd, default);
                 handler.Commit(cmd, _liveRepo);
 
@@ -223,7 +226,7 @@ namespace Hrot.SimHost.Tests
             var e = _liveRepo.CreateEntity();
             _liveRepo.SetComponent(e, new PreviewTestPos { X = 5f, Y = 5f, Z = 5f });
 
-            var handler   = new PreviewClusterOpHandler(_liveRepo);
+            var handler   = new ReferencePreviewHandler(_liveRepo);
             var unloadCmd = MakePrepareStateCmd(ClusterState.UnloadingPreview);
 
             // No LoadingPreview was committed — snapshot is null.
@@ -238,6 +241,55 @@ namespace Hrot.SimHost.Tests
             // Live repo must be unchanged.
             var pos = _liveRepo.GetComponent<PreviewTestPos>(e);
             Assert.Equal(5f, pos.X);
+        }
+
+        // ── D14: the local entry points reach the same handler ─────────────────
+
+        /// <summary>
+        /// ⭐ <c>D14</c> — the editor's toolbar drives <see cref="ReferencePreviewHandler.TriggerLoadingPreview"/> /
+        /// <see cref="ReferencePreviewHandler.TriggerUnloadingPreview"/> on the SAME instance its slave holds; they capture
+        /// and rewind exactly as the master's PrepareState does.
+        /// </summary>
+        [Fact]
+        public void LocalEntryPoints_CaptureAndRewind()
+        {
+            var e = _liveRepo.CreateEntity();
+            _liveRepo.SetComponent(e, new PreviewTestPos { X = 1f });
+            var handler = new ReferencePreviewHandler(_liveRepo);
+
+            handler.TriggerLoadingPreview();
+            Assert.True(handler.HasSnapshot);
+            _liveRepo.Tick();
+            _liveRepo.SetComponent(e, new PreviewTestPos { X = 42f });
+            _liveRepo.CreateEntity();
+
+            handler.TriggerUnloadingPreview();
+            Assert.False(handler.HasSnapshot);
+            Assert.Equal(1, _liveRepo.EntityCount);
+            Assert.Equal(1f, _liveRepo.GetComponent<PreviewTestPos>(e).X);
+        }
+
+        /// <summary>
+        /// ⭐ <c>D14</c> — two entry points reach one handler (the master's LoadingPreview, the editor's Play). A second
+        /// capture while one is held must NOT move the rewind point: the Stop puts back the FIRST capture.
+        /// </summary>
+        [Fact]
+        public async Task SecondCapture_WhileHeld_KeepsTheFirst()
+        {
+            var e = _liveRepo.CreateEntity();
+            _liveRepo.SetComponent(e, new PreviewTestPos { X = 1f });
+            var handler = new ReferencePreviewHandler(_liveRepo);
+
+            handler.TriggerLoadingPreview();               // the toolbar's Play
+            _liveRepo.Tick();
+            _liveRepo.SetComponent(e, new PreviewTestPos { X = 7f });
+
+            var load = MakePrepareStateCmd(ClusterState.LoadingPreview);   // then the master's Preview
+            await handler.PrepareAsync(load, default);
+            handler.Commit(load, _liveRepo);
+
+            handler.TriggerUnloadingPreview();
+            Assert.Equal(1f, _liveRepo.GetComponent<PreviewTestPos>(e).X);
         }
     }
 }

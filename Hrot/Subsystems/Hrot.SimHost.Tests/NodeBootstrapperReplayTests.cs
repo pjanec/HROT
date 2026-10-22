@@ -109,15 +109,14 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// When replay params (<paramref name="simGroup"/>) are absent,
-        /// <see cref="ReplayLoadClusterOpHandler"/> must <em>not</em> be registered.
-        /// Uses <see cref="NodeRole.Map2D"/> which does not require DDS and does
-        /// not create an <see cref="EcsRecordReplayController"/> — the guard condition
-        /// <c>controller != null</c> in <see cref="NodeBootstrapper.BuildOrchestration"/>
-        /// ensures no partial-wired handler is constructed.
+        /// ⭐ <c>D16</c> (<c>R-3046</c>) — every ECS host's slave holds the SAME cluster handlers, so the replay handler is
+        /// registered even with no replay groups. ⛔ SUPERSEDED: <i>"must NOT be registered when replay params are
+        /// absent"</i> — a conditional that only a test ever exercised (every production host passes its groups), and that
+        /// R-4000 forbids: a behaviour that must differ is decided by role, never by a missing handler.
+        /// 📄 docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1b U3.
         /// </summary>
         [Fact]
-        public void BuildOrchestration_WithoutReplayParams_DoesNotRegisterReplayHandler()
+        public void BuildOrchestration_WithoutReplayParams_StillRegistersTheReplayHandler()
         {
             var bootstrapper = new NodeBootstrapper();
             var slave = bootstrapper.BuildOrchestration(
@@ -126,9 +125,9 @@ namespace Hrot.SimHost.Tests
                 _world,
                 nodeId: 1);
 
-            Assert.False(
+            Assert.True(
                 slave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
-                "ReferenceReplayLoadHandler must NOT be registered when replay params are absent.");
+                "D16: the replay handler is part of the one set every ECS host composes.");
         }
 
         // ── BATCH-18 A.1: Dispatch routing — PrepareLive reaches ReplayLoadClusterOpHandler when replay active ──

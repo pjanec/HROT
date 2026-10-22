@@ -1,4 +1,3 @@
-using Hrot.Common.Orchestration.Handlers;
 using Hrot.ScenarioEditor;
 using Hrot.UI.Common.Facades;
 
@@ -9,7 +8,7 @@ namespace Hrot.Editor.Adapters
     ///
     /// <para>
     /// Bypasses the distributed two-phase commit orchestrator and calls directly into
-    /// the local <see cref="PreviewClusterOpHandler"/> to perform an in-memory ECS
+    /// the local <see cref="Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler"/> to perform an in-memory ECS
     /// snapshot (enter preview) or rewind (exit preview).
     /// </para>
     ///
@@ -22,7 +21,7 @@ namespace Hrot.Editor.Adapters
     /// </summary>
     public sealed class EditorPreviewAdapter : IPreviewController
     {
-        private readonly PreviewClusterOpHandler _handler;
+        private readonly Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler _handler;
         private readonly IScenarioStateProvider  _stateProvider;
 
         /// <param name="handler">
@@ -33,7 +32,7 @@ namespace Hrot.Editor.Adapters
         /// report whether preview mode is currently active.
         /// </param>
         public EditorPreviewAdapter(
-            PreviewClusterOpHandler handler,
+            Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler handler,
             IScenarioStateProvider  stateProvider)
         {
             _handler       = handler;
