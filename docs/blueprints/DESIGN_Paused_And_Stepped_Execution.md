@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-10-21: S1–S5, §7a–§7e; the gate is on — FdpConfig.TickModeGate; acceptance ①–⑤ green, ④ live)
-updated: 2026-10-22 (§7g.0 R0″ R-3040 the dry run on the flight recorder; §7g.0a why SyncFrom was chosen — the record) · 2026-10-22 (§7g.0 R0′ — a checkpoint is a recorder keyframe, a restore is the replay load + go live; R0a′ superseded) · 2026-10-22 (§7g.0 R0a — singletons are valid storage, but SyncFrom snapshots carry only 11, borrowed; checkpoint/Stop/dry run need a copy mode) · 2026-10-22 (§7g.0 the order: checkpoint restore first as the test, CE-3299; the inventory measured incomplete) · 2026-10-22 (§7g R-3039 — systems keep their working memory in components, a checkpoint is a plain ECS snapshot; the change list S1–S4) · 2026-10-22 (§7f.1 — the checkpoint test and classes A/B/C; the counter lean SUPERSEDED after the user's checkpoint point; CE-3298 the editor's Stop rewinds without moving the epoch) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
+updated: 2026-10-22 (§7g.0b the solution — four operations on the recorder keyframe; R-3041 no network buffers, in-flight losses accepted) · 2026-10-22 (§7g.0 R0″ R-3040 the dry run on the flight recorder; §7g.0a why SyncFrom was chosen — the record) · 2026-10-22 (§7g.0 R0′ — a checkpoint is a recorder keyframe, a restore is the replay load + go live; R0a′ superseded) · 2026-10-22 (§7g.0 R0a — singletons are valid storage, but SyncFrom snapshots carry only 11, borrowed; checkpoint/Stop/dry run need a copy mode) · 2026-10-22 (§7g.0 the order: checkpoint restore first as the test, CE-3299; the inventory measured incomplete) · 2026-10-22 (§7g R-3039 — systems keep their working memory in components, a checkpoint is a plain ECS snapshot; the change list S1–S4) · 2026-10-22 (§7f.1 — the checkpoint test and classes A/B/C; the counter lean SUPERSEDED after the user's checkpoint point; CE-3298 the editor's Stop rewinds without moving the epoch) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
 current-answer: §7g R-3039 for system state and checkpoints · §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
 known-rot: none.
@@ -542,6 +542,21 @@ progress as-is — deadlocks (§2.1d).
 | **S4** | the widened probe as the permanent rail (fields keyed by `Entity`, an entity index or a network id; services; statics) — every hit classified A/B with a reason, no C | R1 proves behaviour on the scenarios run; S4 stops the next violator being written | |
 
 ⚠ **What neither test sees, said up front:** R1 only covers what its scenarios exercise ⇒ it runs on a SET of scenarios chosen to touch every mechanism (vehicles on routes and paths, civilians, gas, ejection, door passage, embark, squads, fire missions); R2/S4 only see field TYPES, not meaning ⇒ the A/B/C call per field is a read, recorded here with its reason.
+
+#### 7g.0b ⭐⭐ THE SOLUTION — four operations, one mechanism (the flight-recorder KEYFRAME; `R-3040`, `R-3041`)
+
+| operation | each node | then |
+|---|---|---|
+| **dry run enter** (Play) | writes a keyframe of its live world into a RAM buffer (no disk, no compression) | the simulation starts |
+| **dry run exit** (Stop) | applies the RAM keyframe (`PlaybackSystem`: clear, restore under the recorded handles) · ⚠ the clock is left to the time system ([Time Architecture §12a](DESIGN_Time_Architecture.md) — one writer) | the AFTER-RESTORE step → edit mode |
+| **checkpoint save** (`TakeCheckpoint`, existing 2PC) | writes a keyframe of its live world as a one-frame RECORDING file + `.meta.json`; acks after the flush (existing deferred ACK); the `'FDPC'` format retires | — |
+| **checkpoint restore** (NEW cluster op) | opens its own file (`PlaybackController`), applies the keyframe | the AFTER-RESTORE step → the cluster PAUSED; Resume = the shipped go-live-from-replay path |
+
+**The AFTER-RESTORE step** — re-derive what is deliberately not saved: protocol state from the restored `LifecycleState` (ELM queues ✅ already, ghost promotion, deferred construction); the network-id ↔ entity map rebuilt from the world; the egress "already sent" state cleared ⇒ every owner republishes its full state and peers resync.
+
+⭐ **`R-3041` — no network buffers are captured; what was in flight is LOST, accepted.** 🔒 User, verbatim: *"No capturing of network buffers. accepting the losses."* ⇒ a one-shot message in flight at the save (a shot crossing to another node) never arrives after a restore; STATE heals by the republish above. ⛔ mgmt-1 §9.1's `.dds` in-flight supplement is withdrawn (it was never built).
+
+**Preconditions** — a keyframe holds only what is in the ECS: R-3039 (system memory in components) and S2 (the trajectory pool, the id allocator into singletons; until then the allocator keeps its `PreviewStateBracket` participant). **Proof:** R1 — checkpoint at T1 → run to T2 ≡ restore in a fresh process → run to T2.
 
 #### 7g.0a 📜 WHY `SyncFrom` WAS CHOSEN — the design record (searched `2026-10-22`: `docs/` then `.dev/`)
 
