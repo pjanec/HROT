@@ -67,18 +67,21 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         protected override void Layout(ISimulationView view, Entity observer, ref EqsSensor sensor, Vector2 anchor, ref Emitter emit)
         {
-            float outer = sensor.SearchRadius, inner = outer * InnerFraction;
+            float outer = sensor.SearchRadius;
             if (outer <= 0f || Rings <= 0 || PointsPerRing <= 0) return;
             for (int r = 0; r < Rings && !emit.Full; r++)
-            {
-                float radius = Rings == 1 ? outer : inner + ((outer - inner) * r / (Rings - 1));
-                float phase  = (r % 2) * MathF.PI / PointsPerRing;
                 for (int k = 0; k < PointsPerRing && !emit.Full; k++)
-                {
-                    float a = phase + (2f * MathF.PI * k / PointsPerRing);
-                    emit.Add(anchor + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius);
-                }
-            }
+                    emit.Add(Point(anchor, outer, Rings, PointsPerRing, InnerFraction, r, k));
+        }
+
+        /// <summary>The <paramref name="k"/>-th point of ring <paramref name="r"/> — the pattern's one geometry, shared with
+        /// <see cref="FiringReachTest"/> (<c>CE-2232</c>), which samples a firing query's donut round each hide.</summary>
+        public static Vector2 Point(Vector2 anchor, float outer, int rings, int perRing, float innerFraction, int r, int k)
+        {
+            float inner  = outer * innerFraction;
+            float radius = rings == 1 ? outer : inner + ((outer - inner) * r / (rings - 1));
+            float a      = ((r % 2) * MathF.PI / perRing) + (2f * MathF.PI * k / perRing);
+            return anchor + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius;
         }
     }
 
