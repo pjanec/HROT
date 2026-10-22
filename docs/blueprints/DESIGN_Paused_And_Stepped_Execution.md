@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-10-21: S1–S5, §7a–§7e; the gate is on — FdpConfig.TickModeGate; acceptance ①–⑤ green, ④ live)
-updated: 2026-10-22 (§7f.1 CE-3298 — the editor's Stop rewinds the world without moving the epoch; measured, lean awaits the user) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
+updated: 2026-10-22 (§7f.1 — the checkpoint test and classes A/B/C; the counter lean SUPERSEDED after the user's checkpoint point; CE-3298 the editor's Stop rewinds without moving the epoch) · 2026-10-21 (§7f CE-3294 — system state resets at the world boundary; rail) · 2026-10-21 (§7e acceptance ④ measured live and green; two leaks it found fixed, the wider one filed CE-3294) · 2026-10-21 (§10 F5–F14 leans APPROVED by the user and folded into §1/§7; READY-TO-BUILD) · 2026-10-21 (§10 F1/F2/F3/F4/F9/F13 resolved by measurement and R-3038; Appendix A: BehaviorIngressSystem + RoeSystem → EveryFrame) · 2026-10-21 (§10 critical review: 14 findings, build-state back to DESIGN) · 2026-10-21 (created — backend; CE-3293, R-3036, R-3037)
 current-answer: §1 the rules (they carry §10's resolutions) · §7 the build order · §10 the review record · §2–§4 the diagrams · §7 the build order. Appendix A/B are the per-system and per-module verdicts.
 stale-below: nothing.
 known-rot: none.
@@ -15,6 +15,7 @@ related-designs:
   - FDP/Engine/Fdp.ModuleHost/docs/UserGuide/05_EventBus.md — owns the bus and its one-frame double buffer.
   - docs/DESIGN_Deterministic_Network_Ids.md — §11b / §11g.5a own the world boundary and `WorldEpoch` (CE-2101), which §7f's reset pulls.
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — owns the sound ring (§8.3); its read-as-of-the-reader's-time rule came from ④ (§7e).
+  - docs/designs/mgmt-1/DESIGN.md — §9 owns checkpoints and dry runs (a checkpoint is a recorder keyframe; restoring one must continue the run) — the contract §7f.1's classes A/B/C serve.
   - docs/designs/replay-and-modules/DESIGN.md — owns what runs during replay and the rewind seam (§2.1l, PreviewStateBracket); §7f.1 is the same rewind reached by Stop.
 -->
 # ⭐⭐⭐ PAUSED AND STEPPED EXECUTION — **every system says when it runs; a step-only system reads every event since the last step**
@@ -449,10 +450,29 @@ was rewound" are two signals; the first implies the second, not the reverse.
 replay session is entered from `Idle` and left through it, so the epoch moves around it; ⚠ the systems registered OUTSIDE the togglable
 groups (that design's §2.1a) and the per-id egress sets at a seek are not classified here.
 
-⏳ **Lean** (awaits the user): ① `WorldEpoch` carries a second number, *rewinds*, which the preview handlers bump after `SyncFrom` (and
-which a replay keyframe restore may bump later); `Moved` fires on either, and a new `Ended` fires only on the first — the network cleanup
-moves to `Ended`, every other caller keeps `Moved` (a translator re-publishing after a rewind is harmless; a stale "published once" is
-not). One mechanism, no participant list to rot. ② `CE-3297`: the latches move into components, which a rewind restores by itself.
+⛔ **SUPERSEDED the same day — the earlier lean here was "a *rewinds* count beside the epoch; every caller clears on it".** 🔒 User
+(`2026-10-22`): *"There is also checkpointing feature solely relying on all non-auto-recoverable state saved in ecs components. So the
+simulation can continue when checkpoint snapshot is restored. Not sure that relying on world counter fixes this."* ⇒ ⭐ **right, and
+measured**: a counter can only CLEAR, and clearing is exactly what a checkpoint restored into a FRESH process does — 📐 the CE-3215 rail
+(a jet wrecked by its tail), the world restored by `SyncFrom` and a NEW `EjectionSystem` ⇒ **a second pilot** (the wreck still qualifies;
+only the field said "done"). A checkpoint is a recorder keyframe (`CheckpointIOWorker` → `RecorderSystem.RecordKeyframe`), so continuing
+from one is the same act as going live from a replay — [replay design §2.1d](../designs/replay-and-modules/DESIGN.md): *restore the world,
+re-derive the protocol*. ⚠ The named-checkpoint RESTORE op is not built (`ClusterOpType` has none; the debug API's `/checkpoint/restore`
+is the preview Stop) — the contract still binds, because `PrepareLive` from a replay is shipped.
+
+#### ⭐ The checkpoint test — one question per field: *with this field EMPTY and the world restored, does the run continue as if nothing happened?*
+
+| class | answer | examples | home |
+|---|---|---|---|
+| **A — recoverable** | ✅ yes: rebuilt from the world, or falls back to a component | scratch (the 31 exemptions) · caches (`LocalGridBuilderSystem`, sort order) · engine-object maps reconciled each frame (Stride bodies, gizmos) · `ThreatEvaluationSystem` (an empty map falls back to `ThreatCount(memRO)`, `:203`) | ✅ a field; any restore may clear it |
+| **B — protocol** | re-derived at the boundary, never recorded (a peer will not resend) | ELM queues · ghost promotion · deferred construction acks · egress "published once" sets (empty ⇒ republish) | ✅ a field + the re-derivation (§2.1d / §2.1m) |
+| **C — simulation memory** | ⛔ **no** — empty ≠ what happened | 📐 `EjectionSystem._ejected` (second pilot) · `AreaEffectCloudSystem._lastStep` (empty ⇒ the step runs from the cloud's BIRTH: it jumps wind × its age, `:59`/`:71`) · `DangerAreaSensorSystem._last` (re-announces; the hysteresis lost) · `BleedOutSystem._pending` (the bleed so far forgotten) | ⛔ **a component** — CE-3297 |
+
+⏳ **Lean** (awaits the user): ① **CE-3297 is the fix, not a "when touched" cleanup** — class C moves into components (each its own
+small change, with a *restore into a fresh system* rail: the CE-3215 probe above is the template); a component is cleared by a load,
+captured by a checkpoint, restored by Stop and by a replay seek, with no signal at all. ② the CE-3294 probe gains the class: every
+entity-holding field is exempted AS class A or B with its reason, and ⛔ there is no exemption for class C. ③ only then, Stop's remaining
+class-A/B fields (the egress sets above all) take a "the world was restored" signal — where clearing IS correct by definition of A/B.
 
 ```csharp
 // EjectionSystemTests — red today (the second Play's Single() is empty); restore it with the fix
