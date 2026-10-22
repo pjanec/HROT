@@ -1,14 +1,15 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-09-22
+updated: 2026-10-22 (§8 BP-515 — tabs or stacked headers, a request for a view, Properties… → Details on the Editor)
 current-answer: sections 1-7. Section 1 is the PLACEMENT SPEC (where every type lives and
   who owns it); section 6 is the task breakdown; SECTION 7 IS THE TARGET STATE for the one shell
   (user ruling 2026-08-22) and re-stages BP-399 against it. L0-L5 are BUILT (L3 partial: 4 views
   migrated, its remaining rows are BP-399, re-staged in §7.6); L6 is RE-STAGED as-built (see §6 L6
   and its sequence). Everything from "## HISTORY" down is the record of how the answer was reached.
 stale-below: "## HISTORY" and everything under it. Do NOT quote it as the design.
-known-rot: none. L6's original wording (entity already-in-context, brain-equipped predicate exists,
+known-rot: §1's "Hrot.Presentation and Hrot.Editor.AiShared do not reference each other" is STALE — AiShared references
+  Presentation (CE-046, `Hrot.Editor.AiShared.csproj:37`); found 2026-10-22 for §8. L6's original wording (entity already-in-context, brain-equipped predicate exists,
   L6.1 as one item) was corrected 2026-08-22 in §6 L6 against the as-built; the prior phrasing is in HISTORY.
   §6 L3's "Node properties" row is SUPERSEDED BY §7.6 (see §7.7): it named two sources and no order.
   §4's BlueprintDetailsWindow row stands but §7.3 turns it into a dated, ordered commitment.
@@ -989,6 +990,117 @@ existed to prevent.
 | `BP-427`'s claim that *"the design gates two of `BP-399`'s five rows"* | ⛔⛔ **WRONG, corrected here.** *"Do not delegate this one"* is a **strategy** constraint *(extract, don't wrap)*, ⛔ not a blocker. Only **parameter sync** is genuinely sequenced |
 
 ---
+
+## 8. ⭐⭐⭐ `BP-515` — **tabs or stacked headers, and a request for a view** — DESIGN + AS-BUILT `2026-10-22` (ui)
+
+🔒 User, `2026-09-17`: *"there is a detail panel on each host, 'chameleon style' switching the views (via radiobuttons now, **should have
+been tabs** …)"* · `2026-10-06` (the spec, tracker `BP-515`): *two modes chosen by a small icon button — **tabbed** (one tab per view) or
+**stacked** (every view in its own collapsing header). An event that asks for a view selects its tab, or expands its header AND scrolls it
+into view. **Float** and **pin** stay as icon buttons: right-aligned on each header (… allow-overlap), right-aligned in the tab bar in tabbed
+mode* · `2026-10-22`: *"when i select 'Properties…' from context on an entity, it should open the 'Details' panel (which already contains the
+entity component view), not the entity inspector panel."*
+
+**INVENTORY** (`2026-10-22`; a read-only corpus + code sweep): the switch is ONE draw (`DetailsWindow.DrawToolbar`, radio buttons
+`DetailsWindow.cs:563-578`, float / pin `:585-591`); ⛔ no request / event asks the shell for a view (searched `ShowDetails`,
+`DetailsRequest`, `RequestView`, `FocusView`, `OpenDetailsFor` — none); the entity components view is `ScenarioComponentsViewDescriptor`
+(`details.components`, Rank 30, `ScenarioComponentsView.cs:128-191`), registered on the **Editor's Scenario** shell only
+(`EditorSubsystem.cs:3441-3467`) — CGF / SimHost / IG have no Scenario Details; "Properties…" is registered by the map pack
+(`MapInteractionPack.cs:437`) and reaches the inspector through `InspectorMapLink`. FontAwesome 6's whole private-use range is baked into the
+UI face (`IconsFontAwesome6.IconMin…IconMax`) — any glyph is an icon once named.
+
+| the build rests on | code — how it is | design basis |
+|---|---|---|
+| a pick for a view NOT in the offer set is dropped, and the key ignores the entities | ✅ `DetailsViewSelector.Resolve` `:84-92`, `KeyOf` `:129-136` | §2 "the toolbar's remembered pick" |
+| the map pack cannot see `DetailsWindow` (AiShared references Presentation, never the reverse) | ✅ `Hrot.Editor.AiShared.csproj:37`; ⚠ §1's "they do not reference each other" is stale | §1 |
+| the action registry throws on a second `Register` | ✅ `GlobalActionRegistry.cs:21-27` | CE-1150 ② — *"Properties… registered by whoever has the window manager"* |
+| the Editor builds its map (`Initialize`) BEFORE its windows (`RegisterWindows`) | ✅ `EditorSubsystem.cs:2044` in `Initialize`, `:3441`/`:3776` in `RegisterWindows` | — |
+| the entity inspector is KEPT, not retired | ✅ no code retires it | ✅ `Q47-E` *"no retiring yet"* (`Architect_Question_47_The_Entity_Context.md:137-141`) |
+
+```mermaid
+classDiagram
+    direction LR
+    class DetailsWindow { <<existing, grows>> + Layout: DetailsLayout · + RequestView(viewId) · + OpenFloat(wm, d) · + Pin(wm, d) · instances: 0..N }
+    class DetailsLayout { <<NEW enum>> Tabs · Stacked }
+    class DetailsViewSelector { <<existing>> Resolve · Pick · ClearPick }
+    class DetailsWindowPanelViewModel { <<existing, grows>> + Layout }
+    class GlobalActionRegistry { <<existing, grows>> + Replace(actionId, handler) }
+    class EditorSubsystem { <<existing, grows>> RegisterWindows: Properties → the Scenario Details }
+    class MapInteractionPack { <<existing>> Properties default: select + the inspector }
+    class IconsFontAwesome6 { <<existing, grows>> Thumbtack · UpRightFromSquare · TableColumns · LayerGroup }
+    DetailsWindow --> DetailsLayout
+    DetailsWindow o-- DetailsViewSelector
+    DetailsWindow ..> DetailsWindowPanelViewModel
+    DetailsWindow ..> IconsFontAwesome6
+    EditorSubsystem ..> GlobalActionRegistry : Replace(Properties)
+    EditorSubsystem ..> DetailsWindow : RequestView(details.components)
+    MapInteractionPack ..> GlobalActionRegistry : Register default
+```
+
+```mermaid
+sequenceDiagram
+    participant U as the user
+    participant A as GlobalActionRegistry
+    participant E as Editor Properties handler
+    participant B as bus
+    participant M as WindowManager
+    participant D as scenario_details
+    U->>A: Properties… on an entity
+    A->>E: handler(view, entity)
+    E->>B: SelectionChangeRequest.ReplaceWith(entity)
+    E->>M: FocusWindow(scenario_details)
+    E->>D: RequestView(details.components) - pending
+    Note over D: next frames - the selection lands, Components joins the offer
+    D->>D: Pick(context, details.components) and reveal it
+    D->>U: Tabs - its tab selected · Stacked - its header open and scrolled into view
+```
+
+```mermaid
+graph TD
+    P[MapInteractionPack.Build - every map host] -->|Register default| R[GlobalActionRegistry]
+    ED[Editor RegisterWindows] -->|Replace Properties| R
+    ED --> SD[scenario_details - Components view]
+    CG[CGF / SimHost / IG] -.->|no Components view - keep the default| I[entity inspector via InspectorMapLink]
+    R -->|default| I
+    style CG stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: the request has to WAIT — the selection reaches the shell a frame later, and until it does the
+Components view is not offered, so a plain `Pick` would be dropped by the selector; and only ONE host replaces the action, because only the
+Editor's Scenario shell has the Components view — every other host keeps the inspector by construction, not by a flag.*
+
+| decision | rule |
+|---|---|
+| **DS-1 two layouts** | `DetailsLayout { Tabs, Stacked }` on the shell, **Tabs** by default; one glyph button switches (it shows the OTHER layout's glyph, with a tooltip); remembered per window for the session — ⏳ saving it with the layout is a follow-up |
+| **DS-2 tabs** | one tab per offered view in `Rank` order, drawn even for a single view (the bar carries the buttons); the selected tab IS `Choice.View` (R-98 unchanged); a click is `Pick`; ImGui is told `SetSelected` whenever the choice changed from outside (a `Rank` fallback, a request) |
+| **DS-3 stacked** | every offered view in its own collapsing header, `Rank` order; on first sight only the chosen view's header is open; ImGui keeps each header's open state; OPENING a header is `Pick` (so the tabs show it next) |
+| **DS-4 instances** | one per DRAWN view — tabs: one, switching disposes as before; stacked: one per open header; a view no longer offered is disposed; an empty offer still disposes nothing (unchanged). §2's `0..1` becomes `0..N` in stacked mode |
+| **DS-5 float / pin** | glyph buttons — tabs: trailing in the tab bar, acting on the selected tab; stacked: right-aligned on EACH header (`SetNextItemAllowOverlap`), acting on THAT header's view. `OpenFloat` / `Pin` gain a descriptor overload |
+| **DS-6 the request** | `RequestView(viewId)` is PENDING until the view is offered (at most `RequestFrames` = 120 frames), then `Pick` + reveal: tabs select it, stacked opens its header and scrolls it into view. ⭐ A method on the window the host already holds — ⏳ a bus event only once a caller cannot reach the window |
+| **DS-7 Properties… on the Editor** | the host that holds the window manager and the Scenario shell REPLACES the pack's default (`GlobalActionRegistry.Replace`, still local-only): select, focus `scenario_details`, `RequestView("details.components")`. Other hosts keep select + the inspector. ⭐ CE-1150 ② for the one host that has the view; ① (host actions off the map) and ④ (delete `InspectorMapLink`) stay CE-1150 |
+| **DS-8 the model** | `DetailsWindowPanelViewModel` gains `Layout` — an additive dump field, a deliberate change, ⛔ not a regenerated golden; `ChosenViewId` / `OfferedViewIds` / `ShowsViewSwitch` keep their meaning |
+
+**Rejected — one line each:** *a second static link like `InspectorMapLink`* — CE-1150 is deleting that pattern; *`Pick` straight from the
+handler* — the selector drops it before the selection lands; *a "show view" bus event now* — its only caller holds the window; *stacked as the
+default* — today's users see one view at a time, tabs are the closest affordance.
+
+**As-built `2026-10-22`** — matches the diagrams, with one measured deviation: ⚠ **ImGui's "trailing" tab buttons sit right after the
+last tab, not at the bar's right edge** ⇒ the tabbed layout draws its layout / float / pin glyph buttons as an overlay right-aligned on the
+tab bar's row (many wide tabs could run under them — four views fit). ⚠ **ImGui.NET's managed `BeginTabItem` with flags takes a `p_open`,
+which adds a close button** ⇒ the shell calls `igBeginTabItem` with a null `p_open`. `GetContentRegionMax` is gone in this ImGui ⇒ the right
+edge is the cursor plus the available width. `DetailsWindow`: `DetailsLayout`, `Layout`, `RequestView` / `PendingViewRequest` /
+`RevealViewId` / `FrameForDraw`, `InstantiatedViewIds`, `OpenFloat(wm, d)` / `Pin(wm, d)`, `DrawTabs` / `DrawStacked` (the radio buttons
+are gone); `GlobalActionRegistry.Replace`; `EditorSubsystem.WirePropertiesToDetails` / `PropertiesToDetails`; glyphs `Thumbtack`,
+`UpRightFromSquare`, `TableColumns` in `IconsFontAwesome6`. Rails: `TheDetailsPanelHonoursARequestForAViewTests` ×4 (the request waits
+then picks and reveals · expires · the dump's `layout` · pin / float a given view) and the frame rail
+`TheDetailsPanelDrawsTabsAndStackedHeadersTests` (real ImGui frames: tabs, a request switching the tab, stacked with two headers open, back
+to tabs with one instance) — ✅ red-proved (the request ignored · the stacked reveal ignored); `Hrot.Editor.Tests`
+`PropertiesOpensTheDetailsPanelTests` ×2 (select + show + ask for Components · `Replace` keeps local-only) — ✅ red-proved (no request).
+The existing Details suites stay green unchanged (`DetailsWindowDumpsItsChoiceTests`, `TheFloatAndPinEntryPointsAreReachableTests`,
+`TheOneShellIsOnEveryPerspectiveTests`, …). ⚠ Not yet seen on the Windows GL.
+
+| tabbed (the layout glyph right-aligned on the bar) | stacked (both headers open after a request) |
+|---|---|
+| ![](../assets/details/details-tabs.png) | ![](../assets/details/details-stacked.png) |
 
 ## ⛔ HISTORY — **how the answer was reached. ⛔ Not the design; do not quote it.**
 
