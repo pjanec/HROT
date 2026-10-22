@@ -3184,8 +3184,10 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(tube, shot.Shooter);
             Assert.Equal(0, shot.WeaponIndex);
             Assert.True(shot.AtPoint);
-            Assert.Equal((byte)2, shot.Charge);   // 60 m/s reaches ≈ 367 m; 80 m/s ≈ 652 m — the lowest that reaches 500 m
-            Assert.Equal((byte)1, shot.HighArc);
+            // ⭐ CE-3269 A-5 — the MUSCLE solves on its terrain: the intent asks (SolveHere) with the order's arc preference. ⛔ SUPERSEDED: the
+            //   intent carried the brain's charge (2: 80 m/s, the lowest that reaches 500 m) and HighArc 1.
+            Assert.Equal(FireSolution.SolveHere, shot.Charge);
+            Assert.Equal((byte)ArcPreference.Auto, shot.HighArc);
             TestMuscle.FireAll(_world);   // ⭐ Q94 A-3 — the muscle's answer spends the round
             Assert.Equal(9, _world.GetComponent<WeaponState>(tube).Ammo);
             Assert.Equal(NodeStatus.Success, channel.Status);
@@ -3266,8 +3268,8 @@ namespace Fdp.Toolkit.Combat.Tests
             var shot = Assert.Single(shots);
             Assert.True(frame / 60d >= 20d, $"the round left at {frame / 60d:F2} s, before FireAt");
             Assert.Equal(tube, shot.Shooter);
-            Assert.Equal(solution.Charge, shot.Charge);
-            Assert.Equal((byte)1, shot.HighArc);
+            Assert.Equal(FireSolution.SolveHere, shot.Charge);   // ⭐ CE-3269 A-5 — laid on the brain's terrain-free solution, solved on the muscle
+            Assert.Equal((byte)ArcPreference.Auto, shot.HighArc);
         }
 
         /// <summary>

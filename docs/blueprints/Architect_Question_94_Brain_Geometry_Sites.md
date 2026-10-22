@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — ANSWERED 2026-10-19 (R-3018): A–F approved as leaned, A refined by the user (§0a).
-updated: 2026-10-19
-build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); C BUILT 2026-10-19 (§5.1a, `CE-3270`); D BUILT 2026-10-19 (§5.2a, `CE-3271`); B BUILT (§5.3, `CE-3272`); A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED (R-3022).
+updated: 2026-10-22 (§4.1a — A-5 and A-7 built, A-6 kept deferred with the measured reason)
+build-state: BUILDING — E BUILT (`CE-3258`); A-1…A-4 BUILT 2026-10-19 (§4.1 as-built); C BUILT 2026-10-19 (§5.1a, `CE-3270`); D BUILT 2026-10-19 (§5.2a, `CE-3271`); B BUILT (§5.3, `CE-3272`); A-5 indirect and A-7 battery plan BUILT 2026-10-22 (§4.1a, CE-3269); A-6 bomb still DEFERRED (§4.1a).
 current-answer: §0a the ruling · §4 A as ruled + §4.1 A as built · §5 C and D carriers + §5.1a C as built · §2 the sub-questions with leans.
 stale-below: nothing.
 known-rot: §2 B's "a re-pointed contact list bumps the epoch" — SUPERSEDED by §5.3 B-3 (no bump). §5.2 D-1 "resolve at 8b if the position stays here" and the §5 diagrams' "8b: resolve if the position stays here" / "remove the request" — SUPERSEDED by §5.2a (one path, the request stays Resolved). §5.1 C-1 and the §5 classDiagram's "Mode ApproachDoor" — SUPERSEDED by §5.1a (no new mode; PathToPoint + RouteEntityId names the door).
@@ -254,7 +254,36 @@ M4, A6, CE2173 ×2, CE2180, IF1 ×2; `ActionStatusTests.Masked_IsAHold`; spend-a
 `CountermeasureSystemTests:135`, `StarterPackIntegrationTests:694`, `AimAndFireExecutorTests:855`. ⚠ `BS-1-DESIGN.md` §5.4c ("one
 counter, the brain's, as for every round") stays true — the counter is the brain's — but its spend MOMENT changes; fold on build.
 
-### 4.1 A — AS BUILT *(backend, `2026-10-19`; A-1…A-4 BUILT; A-5 indirect, A-6 bomb, A-7 battery plan DEFERRED — R-3022)*
+### 4.1 A — AS BUILT *(backend, `2026-10-19`; A-1…A-4 BUILT; ⭐ A-5 and A-7 BUILT `2026-10-22` (CE-3269, 🔒 user: *"And 3269 CE 3269"*) — §4.1a; A-6 the bomb still DEFERRED — §4.1a)*
+
+#### 4.1a A-5 / A-7 as built, A-6 kept deferred *(backend, `2026-10-22`)*
+
+```mermaid
+sequenceDiagram
+    participant B as brain: FireAtPointExecutor / IndirectFireBehaviors
+    participant M as muscle: FireProcessingSystem
+    B->>B: FireSolution.For(null, …) — reach and arc only, no terrain (laying the gun, and A-7 the battery plan)
+    B->>M: WeaponFireIntent { Charge = SolveHere (255), HighArc = ArcPreference }
+    M->>M: FireSolution.For(WorldQuery.Of(muscle), …) — the lowest charge that reaches on its live terrain
+    alt solved
+        M-->>B: WeaponFireNotification { Fired, RequestId }
+    else TooFar / TooClose / Masked
+        M-->>B: WeaponFireNotification { Refusal, RequestId } (no round)
+        B->>B: ShotLedger holds the reason ⇒ the action FAILS with it (Masked / TooClose / OutOfRange)
+    end
+```
+*What it shows that prose hid:* the brain still SOLVES (for laying and for the battery plan), but terrain-free; the only terrain read is
+the muscle's, and its answer comes back on the request id the ledger already matches (A-1).
+
+| item | as built | rationale | rejected (one line) |
+|---|---|---|---|
+| A-5 | `FireSolution.SolveHere = 255` in `Charge`; `HighArc` carries the `ArcPreference`; the muscle solves (`FireProcessingSystem`) and refuses with the solve's reason; the executor FAILS on Masked / TooClose / OutOfRange for a muscle-solved round | the charge byte already rides the intent; 255 is never a charge table index (tables are 3–5 long) | a new wire field — the byte exists |
+| A-7 | `IndirectFireBehaviors.SolutionFor` → `FireSolution.For(null, …)` | the plan needs reach and arc; a masked gun learns it from its refusal (A-5) | the plan reading terrain — R-2037 |
+| ⏸ A-6 | **still deferred** — the brain's release cue keeps reading its terrain | 📐 measured on the way: an authored strike point carries its own Z (`FireAtPointBehavior` reads X, Y, Z), which is not guaranteed to be the ground ⇒ a terrain-free cue "flat at the point's height" could release late over raised ground. The safe form is the muscle hold (release on its live cue, or `Expired`), which re-times CE-2180's catch-up — a larger change, not taken blind | flat at the point's Z — tried, reverted for the above |
+
+Rails: `FireProcessingSystemTests.CE3269_A5_TheMuscleSolves_TheLowestChargeThatReaches_OrRefusesOutOfReach` (red-proved: the muscle
+ignoring SolveHere ⇒ red); the IF-1 rail (an explicit charge is still flown exactly) unchanged and green.
+
 
 ⏸ **A-5…A-7 DEFERRED (R-3022).** 🔒 User, `2026-10-19`: *"yes, postpone them and start CE-2304 and the points C,B,D, leaving A-5…A-7 deferred until destruction is designed or until suitable opportunity comes"*. Why it is safe: the brain's terrain is the muscle's today — every host runs the same load steps (`HrotUniversalLoadParts.cs:27`), static obstacles bake on every node (`EntityCreationPack.cs:111-116`), breached doors replicate, and no wall or building destruction exists (only the hook `BuildingLayout.Invalidate`, `BuildingLayout.cs:388`). The muscle flies an arc round and a bomb exactly as the brain decided (`FireProcessingSystem.cs:202-213, 241-257`) and answers every request, so the ledger holds for them. Residual windows: a shot while this node's terrain still loads (the brain solves terrain-free) and the obstacle-bake debounce. ⭐ **Trigger to resume:** destruction designed, or a Stride / production muscle owning world state the brain does not mirror — or a suitable opportunity (work in `FireAtPointExecutor` / `IndirectFireBehaviors` anyway).
 

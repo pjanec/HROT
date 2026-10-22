@@ -475,6 +475,61 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3269</c> A-5 (Q94 §4, R-3018, R-2037) — the brain asks the MUSCLE to solve (<see cref="FireSolution.SolveHere"/>, the arc
+        /// preference in <c>HighArc</c>): the muscle flies the lowest charge that reaches on its own terrain, and a point out of reach is
+        /// REFUSED (<c>TooFar</c>, no round) — the brain no longer solves with the ground. ✅ Red-proof: the muscle ignoring SolveHere (the
+        /// old charge path) ⇒ no charge 255 ⇒ ThrowArc's 60 m/s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3269_A5_TheMuscleSolves_TheLowestChargeThatReaches_OrRefusesOutOfReach()
+        {
+            const long Tube = 9611, Bomb = 9003;
+            (Vector3? Round, FireRefusal Refusal) Fire(Vector3 at)
+            {
+                using var w = new EntityRepository();
+                w.RegisterComponent<SimTransform>(); w.RegisterComponent<SimVelocity>(); w.RegisterComponent<WeaponState>();
+                w.RegisterComponent<BallisticProjectile>(); w.RegisterComponent<PhysicsCollider>(); w.RegisterComponent<TkbIdentity>();
+                w.RegisterComponent<ShotOrdinal>();
+                w.RegisterEvent<WeaponFireIntent>(); w.RegisterEvent<WeaponFireNotification>();
+                var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+                var tube = new Fdp.Interfaces.TkbTemplate("tube", Tube);
+                tube.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                    { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar, AmmoGuid = Bomb, InitialAmmunition = 30, DamagePerHit = 100,
+                      Arc = Fdp.Toolkit.Tkb.Domain.IndirectArc.HighOnly, MuzzleVelocity = 60f } } });
+                db.Register(tube);
+                var bomb = new Fdp.Interfaces.TkbTemplate("bomb", Bomb);
+                bomb.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive, Indirect = true,
+                    BlastInjuryRadiusM = 10f, BlastLethalRadiusM = 3f, BlastLethalDamage = 150f });
+                bomb.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AmmoWeaponBallisticsDto { ChargeSpeedsMps = new() { 99f, 147f, 183f } });
+                db.Register(bomb);
+                w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+                var shooter = w.CreateEntity();
+                w.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+                w.AddComponent(shooter, new WeaponState { MuzzleVelocity = 60f, Ammo = 30 });
+                w.AddComponent(shooter, new TkbIdentity { TkbType = Tube });
+                w.Bus.Publish(new WeaponFireIntent { Shooter = shooter, AtPoint = true, TargetPoint = at, RequestId = 7,
+                                                     Charge = FireSolution.SolveHere, HighArc = (byte)ArcPreference.Auto });
+                w.Bus.SwapBuffers();
+                new FireProcessingSystem().Execute(w, 0.016f);
+                Vector3? round = null;
+                foreach (var e in w.Query().With<BallisticProjectile>().Build()) round = w.GetComponent<SimVelocity>(e).Linear;
+                w.Bus.SwapBuffers();
+                var answer = System.Linq.Enumerable.Single(w.Bus.Read<WeaponFireNotification>().ToArray());
+                Assert.Equal(7u, answer.RequestId);
+                return (round, answer.Refusal);
+            }
+
+            var reach = Fire(new Vector3(2000f, 0f, 0f));                     // 99 m/s carries ~1 km, 147 m/s ~2.2 km: charge 2
+            Assert.NotNull(reach.Round);
+            Assert.InRange(reach.Round!.Value.Length(), 147f * 0.99f, 147f * 1.01f);
+            Assert.True(reach.Round.Value.Z > new Vector2(reach.Round.Value.X, reach.Round.Value.Y).Length(), "the mount fires high only");
+
+            var far = Fire(new Vector3(5000f, 0f, 0f));                       // beyond 183 m/s's ~3.4 km
+            Assert.Null(far.Round);
+            Assert.Equal(FireRefusal.TooFar, far.Refusal);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2183</c> (AT2, R-2021, DESIGN_Air_Operations §7c) — a rifleman's round at a helicopter crossing at 60 m/s, 300 m out, is
         /// aimed AHEAD of it by its velocity × the round's flight time (± 1 m, <see cref="TargetLead"/>); a ground vehicle at the same speed
         /// is aimed where it is (unchanged). 🔴 Red-proof: without the lead the round passes where the helicopter WAS — ~23 m behind it.

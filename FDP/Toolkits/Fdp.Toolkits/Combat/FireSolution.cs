@@ -58,6 +58,11 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     public static class FireSolution
     {
+        /// <summary>⭐⭐ <c>CE-3269</c> A-5 (Q94, R-3018) — <c>WeaponFireIntent.Charge</c> meaning "SOLVE IT THERE": the muscle runs
+        /// <see cref="For"/> on its live terrain and flies that solution or refuses with its reason; <c>HighArc</c> then carries the
+        /// <see cref="ArcPreference"/>. The brain no longer solves with the terrain (R-2037).</summary>
+        public const byte SolveHere = 255;
+
         /// <summary>The arc is checked in segments of about this length (m) — a 5 km arc is ~200 segments, a 20 m throw still 12.</summary>
         public const float SampleSpacingMetres = 25f;
 
