@@ -50,7 +50,7 @@ public sealed class AnOpenMenuKeepsItsIconTests
                 int before = row.VtxBuffer.Size;
                 open = MenuIconRenderer.BeginMenu(padded, true, icons, key, p0, gutter);
                 delta = row.VtxBuffer.Size - before;
-                if (open) ImGui.EndMenu();
+                if (open) { ImGui.CloseCurrentPopup(); ImGui.EndMenu(); }   // ⛔ leave no popup open in the shared harness window
                 ImGui.EndMenuBar();
             }
             ImGui.End();
