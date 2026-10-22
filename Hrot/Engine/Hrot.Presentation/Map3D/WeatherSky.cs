@@ -34,7 +34,7 @@ public static class WeatherSky
     private static readonly Color NoonSun = new(255, 250, 228, 255), LowSun = new(255, 176, 110, 255);
 
     /// <summary>The atmosphere for one weather sample.</summary>
-    public static SceneAtmosphere Of(in WeatherSample s)
+    public static SceneAtmosphere Of(in WeatherSample s, ReadOnlySpan<Vector2> drift = default)
     {
         float light = Math.Clamp(float.IsFinite(s.RelativeLight) ? s.RelativeLight : 1f, 0f, 1f);
         float shown = TwilightFloor + (1f - TwilightFloor) * light;
@@ -57,7 +57,44 @@ public static class WeatherSky
             ? DaySunLight * Math.Clamp(MathF.Sin(el) / 0.25f, 0f, 1f) * (1f - 0.75f * MathF.Pow(cloud, 3.4f))   // Kasten–Czeplak, as the field
             : 0f;
         var disc = elDeg > -1f && cloud < 0.85f && murk < 0.9f ? Mix(LowSun, NoonSun, Math.Clamp(elDeg / 20f, 0f, 1f)) : default;
-        return new SceneAtmosphere(top, horizon, toSun, ambient, sunLight, visibility, disc);
+        var atmosphere = new SceneAtmosphere(top, horizon, toSun, ambient, sunLight, visibility, disc);
+        return atmosphere with { Clouds = CloudsOf(s, ambient, sunLight, drift) };
+    }
+
+    /// <summary>⭐ CE-1146 CL-2 (§6aa.CL) — each kind's look, texture tile (m) and shade (1 = white in full light).</summary>
+    public static (CloudLook Look, float TileM, float Shade) LookOf(CloudKind kind) => kind switch
+    {
+        CloudKind.Stratus => (CloudLook.Sheet, 6000f, 0.88f),
+        CloudKind.Cirrus => (CloudLook.Streaks, 8000f, 1f),
+        CloudKind.Stratocumulus => (CloudLook.Puffy, 2000f, 0.94f),
+        CloudKind.Cumulonimbus => (CloudLook.Puffy, 3000f, 0.62f),
+        _ => (CloudLook.Puffy, 3000f, 1f),   // cumulus
+    };
+
+    /// <summary>
+    /// ⭐ CE-1146 CL-1…CL-5 (§6aa.CL; 🔒 user, 2026-10-22: <i>"yes exactly that"</i>) — the sample's cloud deck as the layers the 3-D view
+    /// draws: covering octas / 8 of the sky, each kind its look, white lit by the scene's ambient + sun (a night deck a dark grey), carried by
+    /// <paramref name="drift"/> (m, per layer; the wind at its base × the sim time — <see cref="WeatherSkyLayer"/>). Null when clear.
+    /// </summary>
+    public static SceneCloudLayer[]? CloudsOf(in WeatherSample s, float ambient, float sunLight, ReadOnlySpan<Vector2> drift = default)
+    {
+        var deck = s.Clouds;
+        int count = 0;
+        for (int i = 0; i < deck.Count; i++) if (deck.Layer(i).Octas > 0) count++;
+        if (count == 0) return null;
+        float light = Math.Clamp((ambient + 0.85f * sunLight) / (DayAmbient + 0.85f * DaySunLight), 0.22f, 1f);
+        var layers = new SceneCloudLayer[count];
+        int n = 0;
+        for (int i = 0; i < deck.Count; i++)
+        {
+            var l = deck.Layer(i);
+            if (l.Octas == 0) continue;
+            var (look, tile, shade) = LookOf(l.Kind);
+            float k = light * shade;
+            var tint = new Color((byte)(246 * k), (byte)(247 * k), (byte)(250 * k), (byte)255);
+            layers[n++] = new SceneCloudLayer(l.BaseM, l.ThicknessM, Math.Clamp(l.Octas / 8f, 0f, 1f), look, tile, i < drift.Length ? drift[i] : Vector2.Zero, tint);
+        }
+        return layers;
     }
 
     internal static Color Mix(Color a, Color b, float t)
@@ -101,13 +138,24 @@ public sealed class WeatherSkyLayer : IMapLayer
         {
             _sample = WeatherField.At(world, point);
             _hasSample = true;
-            camera.Atmosphere = WeatherSky.Of(_sample);
+            camera.Atmosphere = WeatherSky.Of(_sample, DriftOf(world, point, _sample));
         }
         else camera.Atmosphere = null;
     }
 
     private WeatherSample _sample;
     private bool _hasSample;
+    private readonly Vector2[] _drift = new Vector2[WeatherConditions.MaxCloudLayers];
+
+    /// <summary>⭐ CE-1146 CL-5 (§6aa.CL) — how far the wind AT EACH LAYER'S BASE has carried it by the SIM time (paused ⇒ still).</summary>
+    private Vector2[] DriftOf(EntityRepository world, Vector3 point, in WeatherSample sample)
+    {
+        var deck = sample.Clouds;
+        double t = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
+        for (int i = 0; i < _drift.Length; i++)
+            _drift[i] = i < deck.Count ? WeatherField.WindAt(world, new Vector3(point.X, point.Y, deck.Layer(i).BaseM)) * (float)t : Vector2.Zero;
+        return _drift;
+    }
     private readonly List<(Vector2 A, Vector2 B, float Size)> _drops = new(Precipitation.MaxDrops);
 
     /// <summary>Drops drawn by the last frame (rails).</summary>

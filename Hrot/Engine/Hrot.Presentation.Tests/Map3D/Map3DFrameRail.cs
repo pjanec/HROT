@@ -2295,6 +2295,118 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1146 CL (docs/DESIGN_Map_3D_Mode.md §6aa.CL; 🔒 user, 2026-10-22: <i>"yes exactly that"</i>) — the cloud decks through the
+    /// production camera: from eye height looking up, scattered cumulus, an overcast stratus and cirrus streaks, each a sky unlike the clear
+    /// one; and a FREE camera high above a deck still sees the map (the deck is background — the world is drawn over it). Screenshots
+    /// <c>weather-clouds-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1146_V_CL_CloudLayers_FromBelow_AndTheMapStaysVisibleFromAbove()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        sw.Set(true, animate: false);
+        float ground = G(spot.X, spot.Y);
+
+        var noon = new Fdp.Toolkit.Weather.WeatherSample { SunElevationDeg = 50, SunAzimuthDeg = 180, RelativeLight = 1f, VisibilityM = 20000f };
+        Fdp.Toolkit.Weather.WeatherSample With(byte octas, Fdp.Toolkit.Weather.CloudKind kind, float baseM)
+        {
+            var w = Fdp.Toolkit.Weather.WeatherConditions.Standard;
+            w.CloudCount = 1;
+            w.SetCloud(0, baseM, 500f, octas, kind);
+            return noon with { Clouds = Fdp.Toolkit.Weather.CloudDeck.Of(w), CloudOctasAbove = octas };
+        }
+        Image Shot(string name, Fdp.Toolkit.Weather.WeatherSample sample, bool deck = true)
+        {
+            sw.Camera3D.Atmosphere = deck ? WeatherSky.Of(sample) : WeatherSky.Of(sample) with { Clouds = null };
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            string path = Path.Combine(shots, name);
+            frame.Screenshot(path);
+            return Raylib.LoadImage(path);
+        }
+        // the share of the sky band (the top third) that is CLOUD — grey to white, not the sky's blue (an octas count greys the sky
+        //   itself, WS-3, so "differs from the clear shot" would count the gaps too)
+        static float Cloud(Image a)
+        {
+            int cloud = 0, n = 0;
+            for (int y = 0; y < a.Height / 3; y += 4)
+                for (int x = 0; x < a.Width; x += 4)
+                {
+                    var p = Raylib.GetImageColor(a, x, y);
+                    int lo = Math.Min(p.R, Math.Min(p.G, p.B)), hi = Math.Max(p.R, Math.Max(p.G, p.B));
+                    if (lo > 90 && hi - lo < 22) cloud++;   // grey to white: a lit top or an overcast's underside
+                    n++;
+                }
+            return cloud / (float)Math.Max(1, n);
+        }
+        // the share of the sky band that a translucent deck (cirrus) BRIGHTENS against the clear sky
+        static float Brighter(Image clearShot, Image a)
+        {
+            int lit = 0, n = 0;
+            for (int y = 0; y < a.Height / 3; y += 4)
+                for (int x = 0; x < a.Width; x += 4)
+                {
+                    var p = Raylib.GetImageColor(clearShot, x, y); var q = Raylib.GetImageColor(a, x, y);
+                    if (q.R + q.G + q.B - (p.R + p.G + p.B) > 60) lit++;
+                    n++;
+                }
+            return lit / (float)Math.Max(1, n);
+        }
+
+        // from eye height, looking south and up
+        const float up = 0.35f;   // the pose names the LOOK-AT point: put it 8 m ahead of an eye 1.6 m above the ground
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y - 8f * MathF.Cos(up), ground + 1.6f + 8f * MathF.Sin(up)), 8f, MathF.PI * 1.5f, up);
+        var clear = Shot("weather-clouds-clear.png", noon);
+        var scattered = Shot("weather-clouds-scattered-cumulus.png", With(4, Fdp.Toolkit.Weather.CloudKind.Cumulus, ground + 1500f));
+        var overcast = Shot("weather-clouds-overcast-stratus.png", With(8, Fdp.Toolkit.Weather.CloudKind.Stratus, ground + 600f));
+        var cirrus = Shot("weather-clouds-cirrus.png", With(3, Fdp.Toolkit.Weather.CloudKind.Cirrus, ground + 7000f));
+        Assert.Equal(1, CloudDeckRenderer.LayersDrawn);
+        try
+        {
+            float cl = Cloud(clear), sc = Cloud(scattered), ov = Cloud(overcast), ci = Brighter(clear, cirrus);
+            Assert.True(cl < 0.01f, $"a clear sky has no cloud ({cl:P0})");
+            Assert.True(sc > 0.2f && sc < 0.85f, $"scattered cumulus: part of the sky ({sc:P0})");
+            Assert.True(ov > 0.9f, $"an overcast hides the blue ({ov:P0})");
+            Assert.True(ci > 0.1f && ci < 0.85f, $"cirrus: streaks brighten part of the sky ({ci:P0})");
+        }
+        finally { Raylib.UnloadImage(clear); Raylib.UnloadImage(scattered); Raylib.UnloadImage(overcast); Raylib.UnloadImage(cirrus); }
+
+        // a FREE camera 3 km up, looking down through a deck 600 m up: the map is not covered
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground), 3000f, MathF.PI * 1.5f, -1.2f);
+        // ⚠ the same weather with the deck taken out: an overcast dims the light (WS-2), so only the DECK may differ
+        var overcastAbove = With(8, Fdp.Toolkit.Weather.CloudKind.Stratus, ground + 600f);
+        var mapClear = Shot("weather-clouds-from-above-no-deck.png", overcastAbove, deck: false);
+        var mapCloud = Shot("weather-clouds-from-above-overcast.png", overcastAbove);
+        try
+        {
+            var c0 = Raylib.GetImageColor(mapClear, mapClear.Width / 2, mapClear.Height / 2);
+            var c1 = Raylib.GetImageColor(mapCloud, mapCloud.Width / 2, mapCloud.Height / 2);
+            Assert.True(Math.Abs(c0.R - c1.R) + Math.Abs(c0.G - c1.G) + Math.Abs(c0.B - c1.B) < 40,
+                $"the map under a deck stays visible: {c0.R},{c0.G},{c0.B} vs {c1.R},{c1.G},{c1.B}");
+        }
+        finally { Raylib.UnloadImage(mapClear); Raylib.UnloadImage(mapCloud); sw.Camera3D.Atmosphere = null; }
+    }
+
+    /// <summary>
     /// ⭐ CE-1146 PR-1 (docs/DESIGN_Map_3D_Mode.md §6aa) — rain and snow over the 3-D scene, through the PRODUCTION path: a global weather entity
     /// (<c>WeatherConditions</c>) raining 6 mm/h with a wind, <c>WeatherSkyLayer.Update</c> sampling it at what the camera looks at, its overlay
     /// drawing the drops. Dry ⇒ none; rain ⇒ as many as the rate asks, and the frame differs from the dry one; then snow. Screenshots
