@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§5.2b CE-3200: the scale-out path request carries the turn radius) · 2026-10-19 (§3.4a CE-2304: a walker in a crowded house — a re-sent move continues, the no-progress watchdog, kept on the mesh, the storey gap) · 2026-10-19 (§14: a partial path ends at the goal's height — completeness is PathExists', ui CE-1189) · 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
+updated: 2026-10-22 (§3.4a pointer: a crowded door takes turns — CE-4040, Building Interiors 5d-5) · 2026-10-20 (§5.2b CE-3200: the scale-out path request carries the turn radius) · 2026-10-19 (§3.4a CE-2304: a walker in a crowded house — a re-sent move continues, the no-progress watchdog, kept on the mesh, the storey gap) · 2026-10-19 (§14: a partial path ends at the goal's height — completeness is PathExists', ui CE-1189) · 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
 current-answer: §5.2b (CE-3029 — a vehicle's corners rounded for its turn radius, R-3006); §5.2a (CE-3128 — the road network as a chosen layer, DESIGN 2026-10-08, R-230/R-231); §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
   navmesh change, rewritten 2026-10-08, R-218; "P2 as built" for the tiled bake and the tile cache); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
@@ -435,6 +435,8 @@ Brain BTree (only at hard failure):
 Critically: Brain **never publishes a path request**. It writes `NavigationIntent` and observes `NavigationStatus`. The Solver is Muscle's tool.
 
 ### 3.4a A walker in a crowded house — `CE-2304` *(backend, `2026-10-19`; `build-state: BUILT`; behaviors' [note](../../blueprints/batches/NOTE_Behaviors_To_Backend_Interior_Move_Stall.md), answer [here](../../blueprints/batches/NOTE_Backend_To_Behaviors_Interior_Move_Stall_Answer.md))*
+
+⚠ **`2026-10-22`, CE-4040 — the no-progress watchdog meets a crowded DOOR:** four civilians at one doorway jostled with no progress and every move failed. The watchdog is unchanged; the door now takes TURNS and leads the walker through (a funnel onto the doorway's axis, the walker whose turn it is does not give way) — 📄 [Building Interiors §3j 5d-5](../../DESIGN_Building_Interiors.md).
 
 📐 **Measured live** (`sq-defend-house`, seven men posted on two storeys of one house, a two-node probe): four of seven never reached
 their posts and their moves stayed `InProgress` for good. Four backend causes, each fixed where it lives:

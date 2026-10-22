@@ -19,6 +19,7 @@ public sealed class EverySystemForgetsTheLastWorldTests
         ["Fdp.Toolkit.Vis2D.Systems.HierarchyOrderSystem._visited"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["CarKinem.Systems.PathTraceSystem._writes"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["CarKinem.Systems.SpatialHashSystem._warned"] = "a warn-once log set (cleared on a new terrain fit); changes no behaviour",
+        ["CarKinem.Systems.DoorPassageSystem._turn"] = "whose turn it is at each doorway, rebuilt every frame (CE-4040)",
         ["Fdp.Toolkit.Squad.Command.StaffComposerSystem._launches"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem._pending"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Fdp.Toolkit.Replication.Systems.OwnershipRecomputeSystem._touched"] = "scratch — cleared at the top of each run and filled from this frame's world",
