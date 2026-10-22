@@ -29,11 +29,13 @@ namespace Fdp.Core.Orchestration
         /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — opens a recording that BRANCHES: its first frames are a copy of
         /// <paramref name="branch"/>'s parent up to the branch point, then every frame is captured after them. Null = an empty start
         /// (<see cref="PrepareRecordingAsync(Guid, string)"/>). ⚠ The default supports only null — a controller that records implements it.
+        /// <para>⭐ CE-3299 D17 (R-3045) — <paramref name="checkpointingSeconds"/> &gt; 0 records in CHECKPOINTING mode (a keyframe every N s of sim
+        /// time, nothing else); 0 = FULL. A branch records in its PARENT's mode (one session, one mode) and ignores it.</para>
         /// </summary>
-        Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, FlightRecorder.RecordingBranch? branch)
-            => branch == null
+        Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, FlightRecorder.RecordingBranch? branch, double checkpointingSeconds = 0)
+            => branch == null && checkpointingSeconds <= 0
                 ? PrepareRecordingAsync(exerciseId, storageDirectory)
-                : throw new NotSupportedException($"{GetType().Name} cannot record a branch");
+                : throw new NotSupportedException($"{GetType().Name} cannot record a branch or a checkpointing session");
 
         /// <summary>
         /// ⭐ <c>D18</c> — where a branch from the replay on screen would start: this node's recording up to the frame it shows.

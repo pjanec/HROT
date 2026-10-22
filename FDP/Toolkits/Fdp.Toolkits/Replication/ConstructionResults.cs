@@ -53,6 +53,7 @@ namespace Fdp.Toolkit.Replication
     /// (id 153) on the creator's world; written by the gateway, read by the requestor.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.ConstructionResults)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public sealed class ConstructionResults
     {
         private struct Entry

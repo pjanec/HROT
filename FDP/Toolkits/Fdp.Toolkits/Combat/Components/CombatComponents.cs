@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeaponState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WeaponState
     {
         /// <summary>Current ammo count. Fire is refused when 0.</summary>
@@ -66,6 +67,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeaponMountInfo)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WeaponMountInfo
     {
         /// <summary>Index into WeaponSuiteDto.Mounts (0 = primary, already on owner entity).</summary>
@@ -90,6 +92,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.BallisticProjectile)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct BallisticProjectile
     {
         /// <summary>Entity that fired this bullet (excluded from self-hit).</summary>

@@ -10,6 +10,7 @@ namespace CarKinem.Core
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.VehicleState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct VehicleState
     {
         public float Speed;         // Scalar forward speed (m/s, >= 0)

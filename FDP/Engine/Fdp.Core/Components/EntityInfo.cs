@@ -9,6 +9,7 @@ namespace Fdp.Core
     // ⛔ NOT [BirthCritical] — an entity can correctly exist for a frame with a default affiliation; it is
     //   a position that cannot start empty.
     [PerInstanceValue]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct EntityInfo
     {
         public FixedString64 Name;

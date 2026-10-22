@@ -19,13 +19,8 @@ namespace Hrot.SimHost.Tests;
 /// </summary>
 public sealed class EveryRecordedManagedComponentShowsItsStateRails
 {
-    private static readonly Dictionary<string, string> Exempt = new()
-    {
-        ["Fdp.Toolkit.Perception.Signatures.SoundEmissionRing"] = "a managed singleton — never recorded",
-        ["Fdp.Toolkit.Replication.ConstructionResults"]        = "a managed singleton — never recorded",
-        ["Fdp.Toolkit.Replication.Services.BlockIdManager"]    = "a managed singleton — never recorded",
-        ["Hrot.Common.Orders.OrderDesignations"]               = "a managed singleton — never recorded",
-    };
+    // ⭐ CE-3299 D7 — the four managed singletons that sat here now declare NoReplay, so the rail skips them by policy.
+    private static readonly Dictionary<string, string> Exempt = new();
 
     [Fact]
     public void NoRecordedManagedComponent_HidesStateFromTheRecorder()

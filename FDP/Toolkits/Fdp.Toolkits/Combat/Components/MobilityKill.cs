@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.MobilityKill)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct MobilityKill
     {
         /// <summary>Health fraction (0..1] below which a non-lethal hit strips <c>CanMove</c>. 1 = any hit.</summary>

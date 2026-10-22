@@ -75,6 +75,13 @@ namespace Hrot.Editor.DebugApi
             if (!string.IsNullOrWhiteSpace(exText) && !Guid.TryParse(exText, out exerciseId))
                 return (null, $"exerciseId '{exText}' is not a GUID.", DebugApiHints.Scenario);
 
+            // ⭐ CE-3299 D17 — the live session's recording mode: 0 / absent = FULL, N > 0 = a keyframe every N s of sim time only
+            double checkpointingSeconds = 0;
+            var cpText = body?["checkpointingSeconds"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(cpText)
+                && !double.TryParse(cpText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out checkpointingSeconds))
+                return (null, $"checkpointingSeconds '{cpText}' is not a number.", DebugApiHints.Scenario);
+
             long wallTicks = 0;
             var wtText = body?["targetWallTicks"]?.ToString();
             if (!string.IsNullOrWhiteSpace(wtText) && !long.TryParse(wtText, out wallTicks))
@@ -91,6 +98,7 @@ namespace Hrot.Editor.DebugApi
                 ScenarioId      = body?["scenario"]?.ToString(),
                 ExerciseId      = exerciseId,
                 TimeMode        = body?["timeMode"]?.ToString(),
+                CheckpointingSeconds = checkpointingSeconds,
             };
             publish(intent);
             return (new JsonObject

@@ -13,6 +13,7 @@ namespace Fdp.Core
     // ⭐ …and the real value is authored (SpawnEntityCommand.InitialTransform) or replicated, never
     //   derivable from the template. 📄 PerInstanceValueAttribute.
     [PerInstanceValue]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct SimTransform
     {
         // Flat-Earth Cartesian (meters)
@@ -39,6 +40,7 @@ namespace Fdp.Core
     //   excluded because nothing ingresses it, NOT by mislabelling the component.
     // ⛔ NOT [BirthCritical] — zero velocity IS a correct starting value.
     [PerInstanceValue]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct SimVelocity
     {
 		// linear velocity in world coordinates (m/s) [x, y, z]

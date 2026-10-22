@@ -8,6 +8,7 @@ namespace Hrot.Common.Orders
     /// it is set — ⛔ never in a replay, which has no live brain to order.
     /// </summary>
     [ComponentId(GlobalComponentIds.OrdersOffered)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public sealed class OrdersOffered
     {
     }

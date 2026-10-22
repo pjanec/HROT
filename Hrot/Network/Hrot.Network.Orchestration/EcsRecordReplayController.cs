@@ -167,12 +167,16 @@ namespace Hrot.SimHost.Modules.Orchestration
         public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory)
             => PrepareRecordingAsync(exerciseId, storageDirectory, branch: null);
 
+        /// <summary>⭐ CE-3299 D17 (R-3045) — the mode the session's FIRST recording was opened in; a branch of it (a checkpoint restore) keeps it.</summary>
+        public double SessionCheckpointingSeconds { get; private set; }
+
         /// <summary>
         /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — a recording that branches: <paramref name="branch"/>'s frames up to the branch
         /// point are copied in first, then every frame is captured after them. ⛔ Never over an existing recording (a loud failure).
         /// </summary>
-        public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch)
+        public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch, double checkpointingSeconds = 0)
         {
+            if (branch == null) SessionCheckpointingSeconds = Math.Max(0, checkpointingSeconds);   // D17 — a branch inherits its parent's mode
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             var config = new RecordingConfiguration
@@ -182,6 +186,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 ExerciseId      = exerciseId,
                 NodeId = _nodeId,
                 Branch = branch,
+                CheckpointingSeconds = branch == null ? SessionCheckpointingSeconds : 0,   // D17 — a branch reads its parent's (StartBranch)
             };
             _activeRecordingModule = new RecordingModule(config);
             await _kernel.InstallModuleAsync(_activeRecordingModule);

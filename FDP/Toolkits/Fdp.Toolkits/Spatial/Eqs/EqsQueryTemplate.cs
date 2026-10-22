@@ -174,6 +174,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     }
 
     [ComponentId(GlobalComponentIds.IEqsTemplateRegistry)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public interface IEqsTemplateRegistry
     {
         /// <summary>

@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.PartDamage)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public unsafe struct PartDamage
     {
         public const int MaxParts = 16;

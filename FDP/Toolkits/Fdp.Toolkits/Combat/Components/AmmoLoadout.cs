@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AmmoLoadout)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct AmmoLoadout
     {
         public const int MaxTypes = 4;

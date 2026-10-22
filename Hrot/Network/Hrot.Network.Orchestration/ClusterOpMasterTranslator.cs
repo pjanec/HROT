@@ -133,6 +133,7 @@ public sealed class ClusterOpMasterTranslator
                     ScenarioId      = dto.ScenarioId,
                     ExerciseId      = dto.ExerciseId,
                     TimeMode        = dto.TimeMode,
+                    CheckpointingSeconds = dto.CheckpointingSeconds,   // D17
                     TargetWallTicks = 0,
                 });
                 break;

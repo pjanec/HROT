@@ -228,4 +228,54 @@ public sealed class CheckpointClusterTests : IDisposable
             Assert.True(branch.GetFrameMetadata(mark.Frame + 1).WallClockTicks >= mark.WallTicks, "the branch's own frames come after its history");
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-3299 D17 (R-3045) — a live session started in CHECKPOINTING mode records, on EVERY recording node, a keyframe every N s of
+    /// sim time and nothing between: the request's one number crosses the master, the wire and the load chain to each node's recorder.
+    /// </summary>
+    [Fact]
+    public async Task CE3299_D17_ALiveSessionInCheckpointingMode_RecordsKeyframesOnly_OnEveryNode()
+    {
+        var recipe = Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        var exercise = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = exercise, CheckpointingSeconds = 1.0,
+            }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(3.5)) harness.PumpFrames(1);
+        // a named checkpoint is still exact in this mode (R-3044) — and its mark puts each node's .meta.json on disk
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),
+        });
+        Assert.True(harness.PumpUntil(() => Recordings(exercise).Count(r => r.Meta.Checkpoints.Any(c => c.Label == _label)) >= 3, timeoutFrames: 600),
+            "simhost, ig and cgf must each record, and mark the checkpoint");
+        var simSeconds = harness.SimHost.World!.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime;
+        harness.Dispose();   // ends the recordings: every frame is on disk
+
+        var recordings = Recordings(exercise).ToList();
+        foreach (var (path, meta) in recordings)
+        {
+            Assert.Equal(1.0, meta.CheckpointingSeconds);
+            using var playback = new PlaybackController(path);
+            for (int f = 0; f < playback.TotalFrames; f++) Assert.Equal(FrameType.Keyframe, playback.GetFrameMetadata(f).FrameType);
+            // one keyframe per started second of sim time (+ the first), not one per frame
+            Assert.InRange(playback.TotalFrames, 2, (int)Math.Ceiling(simSeconds) + 3);   // + the checkpoint's own keyframe
+            _out.WriteLine($"[D17] {Path.GetFileName(path)}: {playback.TotalFrames} keyframes over {simSeconds:F1} s of sim time");
+        }
+    }
 }

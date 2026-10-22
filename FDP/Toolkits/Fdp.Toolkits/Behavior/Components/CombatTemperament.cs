@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CombatTemperament)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct CombatTemperament
     {
         /// <summary>Bravery: how much exposure he accepts on his own initiative (0 = none, 1 = reckless).</summary>

@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// <see cref="Epoch"/> is a new order; the muscle echoes it in <see cref="WeaponTaskStatus.Epoch"/>.
     /// </summary>
     [ComponentId(GlobalComponentIds.WeaponTask)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WeaponTask
     {
         public WeaponTaskMode Mode;
@@ -71,6 +72,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// crosses the wire (the MuscleGround group's never-sent state, like <c>FrustrationTicks</c>).
     /// </summary>
     [ComponentId(GlobalComponentIds.WeaponMuscleState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WeaponMuscleState
     {
         public float CooldownRemaining;
@@ -78,6 +80,7 @@ namespace Fdp.Toolkit.Combat.Components
 
     /// <summary>⭐ WL-2 (W-3) — the weapon muscle's report on the turret's current <see cref="WeaponTask"/>, on the same part.</summary>
     [ComponentId(GlobalComponentIds.WeaponTaskStatus)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WeaponTaskStatus
     {
         /// <summary>The <see cref="WeaponTask.Epoch"/> this report is about.</summary>

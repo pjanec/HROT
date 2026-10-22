@@ -6,6 +6,7 @@ using Fdp.Toolkit.NetworkSpawning;
 namespace Fdp.Toolkit.Replication.Services
 {
     [ComponentId(GlobalComponentIds.BlockIdManager)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public class BlockIdManager : INetworkIdAllocator, IRestorableIdAllocator
     {
         private readonly Queue<long> _localPool = new();

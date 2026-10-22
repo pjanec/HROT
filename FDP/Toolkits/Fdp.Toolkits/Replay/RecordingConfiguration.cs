@@ -61,5 +61,12 @@ namespace Fdp.Toolkit.Replay
         /// to the branch point, then it records on (null: a recording that starts empty).
         /// </summary>
         public Fdp.Core.FlightRecorder.RecordingBranch? Branch { get; init; }
+
+        /// <summary>
+        /// ⭐ CE-3299 D17 (R-3045) — 0: FULL (a keyframe every 60 frames and a delta every other frame). N &gt; 0: CHECKPOINTING — a keyframe every N
+        /// seconds of SIM time (and at every named checkpoint), nothing else: restore points, no smooth replay. A branch records in its
+        /// parent's mode, whatever this says.
+        /// </summary>
+        public double CheckpointingSeconds { get; init; }
     }
 }

@@ -17,6 +17,8 @@ namespace Fdp.Toolkit.Orchestration
         public string? ScenarioId;
         public Guid ExerciseId;
         public string? TimeMode;
+        /// <summary>⭐ CE-3299 D17 (R-3045) — the live session's recording mode: 0 = FULL, N &gt; 0 = a keyframe every N s of sim time.</summary>
+        public double CheckpointingSeconds;
     }
 
     /// <summary>

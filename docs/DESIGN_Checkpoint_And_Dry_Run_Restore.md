@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING (B1a, B1, B2, B3, B4, D1 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h, §6b as-built; D7 rail / D17 + B5 next)
-updated: 2026-10-22 (D1 BUILT — the 9 SIM-STATE types are recorded, §6b) · 2026-10-22 (B4 BUILT — §1h: the two-phase restore round, a branch that copies its history, CE-3300 closed, CE-3312 filed) · 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
+build-state: BUILDING (B1a, B1, B2, B3, B4, D1, D7, D17 built 2026-10-22 — §1b, §1c, §1f, §1g, §1h, §1i, §1j, §6b as-built; B5 next)
+updated: 2026-10-22 (D7 BUILT — every registrable type declares its DataPolicy, §1j; D17 BUILT — the checkpointing mode, §1i) · 2026-10-22 (D1 BUILT — the 9 SIM-STATE types are recorded, §6b) · 2026-10-22 (B4 BUILT — §1h: the two-phase restore round, a branch that copies its history, CE-3300 closed, CE-3312 filed) · 2026-10-22 (D18 APPROVED, R-3047 — a branch copies its history up to the branch point into a new master-minted exercise) · 2026-10-22 (D18 — a branch never overwrites history: the master mints the branch's exercise id, the recorder refuses an existing file; CE-3300) · 2026-10-22 (D17 the recorder's CHECKPOINTING MODE (R-3045); D5 CORRECTED — the clock is moved by SnapTo in both, never from the keyframe; D13 WITHDRAWN — no in-recording trim exists; D1–D4, D6–D12, D14–D16 APPROVED (R-3046)) · 2026-10-22 (§6b M4 classified: 9 sim-state types to make recordable, ReplicatedBrainIntent and GhostStateTracker watch items) · 2026-10-22 (§6a M1–M3 measured: keyframes 4–8 MiB, 19–31 ms capture, 36 ms apply; singletons ignore DataPolicy — D7 rewritten) · 2026-10-22 (§1b unified? U1–U3 measured, D14–D16, B1a first) · 2026-10-22 (§1a cluster-wide coverage measured) · 2026-10-22 (R-3044 — a checkpoint IS a named keyframe the flight recorder writes on request; restore seeks straight to it; §0/§2/§3/§4/D2/D3/M5/B3 updated) · 2026-10-22 (REVISED after the user's correction — R-3042 a checkpoint never stops the cluster, it is a mark in the running recording; R-3043 a restore keeps what is loaded, it is a seek; §0/§2/§4/D3/D10 rewritten, the pause-first lean moved to HISTORY) · 2026-10-22 (created — backend; CE-3299; R-3039, R-3040, R-3041; resolves the critical review F1–F12 of Paused and Stepped §7g.0c)
 current-answer: §0 the decision · §2–§4 the diagrams · §5 decisions with leans · §6 what is measured before any build · §8 build order
 stale-below: nothing
 known-rot: none
@@ -97,7 +97,7 @@ applies). `SyncFrom` stays the every-frame background snapshot. No network buffe
 | **`WorldKeyframes`** (`Fdp.Toolkits/Replay`) | `Capture(repo)` = `RecorderSystem.RecordKeyframe` into RAM (no events); `Apply(repo, keyframe, RestoreOptions)` = `PlaybackSystem.ApplyFrame` on a copy whose header tick is rewritten to `max(live, recorded) + 1` — ⭐ D8 without touching the reader (versions only grow; the keyframe is reused unchanged). `RestoreOptions.RestoreEvents` off by default (D2). ⚠ **Deviation:** `CaptureOptions` / `keepTypes` (D12) NOT built here — they belong to B2, where the dry run's type set is decided against the determinism rails |
 | **`AfterRestore.Run(repo, accumulator?)`** | entity map `RebuildFromWorld` → `WorldEpoch.Restored` → `EventAccumulator.Restart`. ⏳ The ELM re-arm stays with the dry run's participant (it already re-derives) until S2; the running recording's forced keyframe is B4 |
 | **`WorldEpoch`** | ⚠ **Deviation from §3's names:** `Restored(world)` bumps `RestoreCount` and a `Generation`; ⭐ **`Moved` now watches `Generation`** (a boundary OR a restore — the ~70 per-id caches clear on both, with no call-site change) and the NEW **`Ended`** watches the world number only. `CycloneNetworkCleanupSystem` (the one reaction that acts on the wire) moved to `Ended`; `WorldBoundaryProbe` accepts either. ⛔ §3's `Rebuilt` was not added — `Moved` IS it |
-| **D7 — root cause found and fixed** | 🔴 `ComponentTypeRegistry.GetOrRegisterManaged` (the ONLY registration a singleton gets — `SetSingleton*` → `ManagedComponentType<T>.ID`) set every type recordable/snapshotable/saveable and IGNORED `[DataPolicy]`: that is why `WorldEpoch` (`Transient`) and `StaticObstacleBakery` (already `NoReplay`!) were flagged recordable (§6a M1). ⚠ For a MANAGED singleton the flag did not reach the bytes — it has no table version, so no keyframe carries it (measured, pinned by a rail); an unmanaged one is versioned and was recorded. It now reads the attribute at first registration. `[DataPolicy]` may sit on an interface (a service singleton is keyed by one); `NoScenario \| NoReplay` added to `ITkbDatabase`, `INavmeshProvider`, `ICoverProvider`, `IGeographicTransform`, `IPathRegistry`, `NetworkEntityMap`, `CanvasContextMenuState`. ⚠ Replays are affected too, intentionally: a seek no longer replaces the loaded TKB / navmesh / entity map with a deserialized copy. ⏳ The "every registered type has an explicit policy" rail is not built |
+| **D7 — root cause found and fixed** | 🔴 `ComponentTypeRegistry.GetOrRegisterManaged` (the ONLY registration a singleton gets — `SetSingleton*` → `ManagedComponentType<T>.ID`) set every type recordable/snapshotable/saveable and IGNORED `[DataPolicy]`: that is why `WorldEpoch` (`Transient`) and `StaticObstacleBakery` (already `NoReplay`!) were flagged recordable (§6a M1). ⚠ For a MANAGED singleton the flag did not reach the bytes — it has no table version, so no keyframe carries it (measured, pinned by a rail); an unmanaged one is versioned and was recorded. It now reads the attribute at first registration. `[DataPolicy]` may sit on an interface (a service singleton is keyed by one); `NoScenario \| NoReplay` added to `ITkbDatabase`, `INavmeshProvider`, `ICoverProvider`, `IGeographicTransform`, `IPathRegistry`, `NetworkEntityMap`, `CanvasContextMenuState`. ⚠ Replays are affected too, intentionally: a seek no longer replaces the loaded TKB / navmesh / entity map with a deserialized copy. ✅ **The "every registered type has an explicit policy" rail — BUILT `2026-10-22`** (§1j) |
 
 ### 1d. ⚠ A recording must name the same event types in every process — CE-3302 (`2026-10-22`)
 
@@ -324,6 +324,98 @@ phase 2 — and the recording E1 is never written again after X, so every later 
 | `ClusterMasterCheckpointTests.CE3299_B4_*` (4) | pause → stage → restore in ONE round as a minted exercise, the earliest time reported · a failed stage aborts the round and restores nothing · rejected without a label or outside live · the aggregator picks the earliest |
 | `ClusterMasterBranchTests.D18_*` · `LiveBranchProcessManagerTests.CE3299_B4_*` · `FullBranchPipelineTests` (its `Broken` mark removed) | the master mints a replay branch's id · a restore result snaps the clock, paused, with no replay freeze · a replay branch keeps its history byte-for-byte and leaves the parent byte-identical |
 | ⭐ `CheckpointClusterTests.CE3299_B4_*` (the in-process cluster: simhost, ig, excon, cgf, live `tt-take-cover`) | 📐 the units moved up to 1.86 m after the checkpoint; after the restore every SimHost unit is within **0.00 m** of it · sim time back at the checkpoint and paused · each node records a new exercise opening with its old one up to X, the old one keeps its frames after X |
+
+### 1i. D17 — the recorder's CHECKPOINTING MODE (R-3045) (`2026-10-22`; build-state: BUILT — as-built table at the end)
+
+📐 **What D17 starts from** (graph + grep, `2026-10-22`): the recorder has ONE behaviour — a keyframe every `KeyframeInterval = 60` frames
+and a delta every other frame (`RecorderTickSystem.cs:21,83`); no recording mode exists anywhere (`grep RecordingMode|Checkpointing` = 0
+hits). A live session's settings reach a node on ONE path — the live-load request, the same eight hops as its exercise id: the request DTO →
+`TransitionStateIntent` → `ClusterMaster` fan-out → `EditLoadHandlerPayload` → wire DTO → the node's `EditLoadHandlerPayload` →
+`LoadPhaseContext` → `LoadPhaseChain` → `PrepareRecordingAsync`. ⇒ the mode rides that path; nothing new decides it.
+
+```mermaid
+classDiagram
+  class TransitionPayloadDto { <<existing, wire>> CheckpointingSeconds NEW }
+  class TransitionStateIntent { <<existing>> CheckpointingSeconds NEW }
+  class ClusterMaster { <<existing>> fan-out carries it on the live load }
+  class EditLoadHandlerPayload { <<existing>> CheckpointingSeconds NEW }
+  class NodeTransitionPayloadDto { <<existing, wire>> CheckpointingSeconds NEW }
+  class LoadPhaseChain { <<existing>> passes it to the recording it starts }
+  class IRecordReplayController { <<existing>> PrepareRecordingAsync(id, dir, branch, checkpointingSeconds) }
+  class RecordingConfiguration { <<existing>> CheckpointingSeconds NEW }
+  class RecorderTickSystem { <<existing>> FULL: keyframe every 60 frames + deltas ; CHECKPOINTING: a keyframe every N s of sim time, nothing else }
+  class RecordingMetadata { <<existing>> CheckpointingSeconds NEW }
+  TransitionPayloadDto --> TransitionStateIntent
+  TransitionStateIntent --> ClusterMaster
+  ClusterMaster --> EditLoadHandlerPayload
+  EditLoadHandlerPayload --> NodeTransitionPayloadDto : the wire
+  NodeTransitionPayloadDto --> LoadPhaseChain
+  LoadPhaseChain --> IRecordReplayController
+  IRecordReplayController --> RecordingConfiguration
+  RecordingConfiguration --> RecorderTickSystem
+  RecorderTickSystem --> RecordingMetadata : written into .meta.json
+```
+*What the picture shows that prose hid:* the mode is ONE number carried on the path every live session already takes, and the only
+behaviour that changes is one branch in the recorder; a branch (restore, replay → live) reads it back from its parent's `.meta.json`.
+
+```mermaid
+sequenceDiagram
+  participant Op as Operator
+  participant M as ClusterMaster
+  participant N as each node (LoadPhaseChain)
+  participant R as RecorderTickSystem
+  Op->>M: go live, CheckpointingSeconds 15
+  M->>N: PrepareLive / OperatingLive, CheckpointingSeconds 15
+  N->>R: record exercise E, checkpointing every 15 s
+  loop every frame
+    R->>R: sim time 15 s past the last keyframe, or a named checkpoint due, or the first frame?
+    R-->>R: yes - a keyframe, no - nothing written
+  end
+  Note over R: a restore or a replay branch records on in the parent's mode (its .meta.json)
+```
+*What the picture shows that prose hid:* a paused cluster writes nothing (sim time does not advance), and a named checkpoint (R-3044) is still
+exact — it forces its keyframe in either mode.
+
+| decision | why | rejected — one line |
+|---|---|---|
+| ONE optional number on the live-load request, `CheckpointingSeconds`: 0 = FULL (the default, today's behaviour), N &gt; 0 = keyframes only, every N s of sim time | R-3045 "chosen per session"; additive on the wire (an older peer omits it ⇒ 0 ⇒ FULL) | an enum + an interval — two fields for one choice · a cluster-config setting — not per session |
+| sim time (`GlobalTime.TotalTime`), not frames | R-3045 "every N seconds of simulation time"; a paused cluster writes nothing | a frame count — a paused cluster would write keyframes of an unchanged world |
+| a branch inherits its parent's mode (from the parent's `.meta.json`) | one session, one mode | the request's — a restore carries no live-load request |
+| the mode is written into `.meta.json` | a replay can say "restore points only" | — |
+
+⏳ Not in D17: choosing the mode in the operator panel (the ui lane's) — the request field and the debug API take it.
+
+**✅ As-built `2026-10-22`** — the diagrams above hold; no deviation.
+
+| what | where |
+|---|---|
+| the request field `CheckpointingSeconds` (0 = FULL) on `TransitionPayloadDto` → `TransitionStateIntent` → the node payload and wire DTO → `LoadPhaseContext` | `ClusterOpRequestAdapter`, `ClusterOpMasterTranslator`, `ClusterOpEgressTranslator`, `NodeOpMasterTranslator`, `NodeOpSlaveTranslator` |
+| the master keeps the live load's mode (`_currentCheckpointingSeconds`) and sends it in the fan-out AND the catch-up payload (a node that joins late records in the session's mode) | `ClusterMaster.InSync.cs` |
+| `PrepareRecordingAsync(id, dir, branch, checkpointingSeconds)`; a branch ignores the argument and inherits its parent's mode from the parent's `.meta.json` | `IRecordReplayController`, `EcsRecordReplayController`, `RecordingModule` |
+| the recorder's one branch: CHECKPOINTING writes a keyframe on the first frame, when sim time is N s past the last keyframe (or went back), or at a named checkpoint — and returns otherwise | `RecorderTickSystem.Execute` |
+| the mode in `.meta.json` (`RecordingMetadata.CheckpointingSeconds`) | `RecordingModule` |
+| the debug API: `POST /cluster/transition` takes `checkpointingSeconds` | `DebugApiService.Cluster.cs` |
+
+Rails: `RecordingModuleTests.CE3299_D17_*` (keyframes every 1 s over 3 s, none while paused, a named mark exact; FULL unchanged; a branch
+keeps its parent's mode) · `ClusterMasterBranchTests.D17_*` (the mode rides the PrepareLive fan-out) · `CheckpointClusterTests.CE3299_D17_*`
+(the in-process cluster, 1 s: simhost / IG / CGF wrote 4–5 keyframes over 4.5 s of sim time, only keyframes). ⚠ Found on the way, filed as
+CE-3313: a live recording's `.meta.json` is written only at a checkpoint mark or at finalize — a node killed mid-session leaves a recording
+with no manifest (the rail takes a checkpoint for that reason).
+
+### 1j. ✅ D7 — every registrable type declares its `DataPolicy` (`2026-10-22`; build-state: BUILT)
+
+📐 **Measured before the rail** (`DataPolicyProbe`, the same assembly walk as `TickModeProbe`): **108** of the `[ComponentId]` types (the
+complete set the ECS can register — `ComponentType.cs:139` throws without the id) declared no policy and took the registration default.
+
+| class (count) | declared | why |
+|---|---|---|
+| unmanaged structs and records (87) | `DataPolicy.Default` | world state — recorded, scenario-saved, snapshotted (what the default already did; now said) |
+| managed mutable classes (11) | `DataPolicy.NoPreview` | world state, but a preview must clone, not share, it — the convention `RegisterComponent` already applied to an undeclared mutable class |
+| services and singletons that are not the world (10): `ISerializationRegistry`, `INetworkTopology`, `IEqsTemplateRegistry`, `IOrderForm`, `BlockIdManager`, `ConstructionResults`, `SoundEmissionRing`, `ActivePerspective`, `OrderDesignations`, `OrdersOffered` | `NoScenario \| NoReplay` | content, caches, session or UI state — a keyframe restore must leave them in place (R-3043) |
+
+⭐ Rail `EveryComponentTypeDeclaresItsDataPolicyTests` (`Hrot.ClusterRunner.Tests`; walks > 250 types, 0 undeclared). ⚠ The Stride
+assemblies are not in that binary's folder and are not walked (CE-3307). ⭐ Side effect: CE-3305's state rail no longer needs its four
+"managed singleton — never recorded" exemptions — they are `NoReplay` now, so it skips them by policy.
 
 ## 2. Modules — who calls what (only the recorder runs every frame, and it already does)
 

@@ -658,6 +658,11 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Physics.Systems.RaycastSolverSystem._sphereRejects` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Physics/Systems/RaycastSolverSystem.cs:230 |
 | `Fdp.Toolkit.Replay.RecorderTickSystem._framesSinceKeyframe` | **A** | keyframe cadence counter; phase irrelevant to sim | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:58 |
 | `Fdp.Toolkit.Replay.RecorderTickSystem._prevTick` | **A** | recorder delta baseline; empty only forces larger delta | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:69 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._requested` | **A** | checkpoint marks asked for and not yet written (CE-3299 B2); recorder output, not the world | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:29 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._due` | **A** | per-frame scratch list of marks due this frame; cleared every tick | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:115 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._wroteBranchManifest` | **A** | a branch recording has written its manifest (CE-3299 B4); recorder output only | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:116 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._lastKeyframeSimTime` | **A** | CHECKPOINTING mode cadence (CE-3299 D17): sim time of the last keyframe; empty only forces the next keyframe early | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:118 |
+| `Fdp.Toolkit.Replay.RecordingModule._tick` | **A** | the module's handle on its own recorder system, to route checkpoint requests; not the world | FDP/Toolkits/Fdp.Toolkits/Replay/RecordingModule.cs:28 |
 | `Fdp.Toolkit.Replication.Systems.DeferredConstructionParticipant._completeBuffer` | **A** | scratch cleared before each use | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/DeferredConstructionParticipant.cs:126 |
 | `Fdp.Toolkit.Replication.Systems.DeferredConstructionParticipant._timedOutBuffer` | **A** | scratch cleared before each use | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/DeferredConstructionParticipant.cs:156 |
 | `Fdp.Toolkit.Replication.Systems.GhostCreationSystem.<BypassLifecycle>k__BackingField` | **A** | replay-mode flag toggled by load handler; never read anywhere | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/GhostCreationSystem.cs:41 |

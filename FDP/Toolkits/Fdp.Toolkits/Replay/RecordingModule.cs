@@ -50,7 +50,10 @@ namespace Fdp.Toolkit.Replay
         /// <inheritdoc/>
         public void RegisterSystems(ISystemRegistry registry)
         {
-            var metadata = new RecordingMetadata { ExerciseId = _config.ExerciseId, NodeId = _config.NodeId };
+            var metadata = new RecordingMetadata
+            {
+                ExerciseId = _config.ExerciseId, NodeId = _config.NodeId, CheckpointingSeconds = Math.Max(0, _config.CheckpointingSeconds),
+            };
             // ⭐ D18 (R-3047) — a branch copies its parent's frames up to the branch point and appends after them; ⛔ never over a file.
             _recorder = _config.Branch is { } branch
                 ? new AsyncRecorder(_config.FilePath, StartBranch(branch, _config.FilePath, metadata), branch.FrameCount)
@@ -59,7 +62,8 @@ namespace Fdp.Toolkit.Replay
             if (_config.EntityFilter != null)
                 _recorder.EntityFilter = _config.EntityFilter;
 
-            registry.RegisterSystem(_tick = new RecorderTickSystem(_recorder, _config.Blocking));
+            // D17 — the mode is the metadata's: a branch's StartBranch put its parent's there
+            registry.RegisterSystem(_tick = new RecorderTickSystem(_recorder, _config.Blocking, _recorder.Metadata.CheckpointingSeconds));
         }
 
         /// <summary>
@@ -79,6 +83,7 @@ namespace Fdp.Toolkit.Replay
                 metadata.TerrainName = parent.TerrainName;
                 metadata.GeoOrigin   = parent.GeoOrigin;
                 metadata.MaxNetworkId = parent.MaxNetworkId;
+                metadata.CheckpointingSeconds = parent.CheckpointingSeconds;   // D17 — one session, one mode
             }
             metadata.ParentExerciseId = branch.ParentExerciseId;
             metadata.BranchWallTicks  = branch.BranchWallTicks;

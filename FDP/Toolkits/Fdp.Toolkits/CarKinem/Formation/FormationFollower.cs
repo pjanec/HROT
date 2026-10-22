@@ -9,6 +9,7 @@ namespace CarKinem.Formation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.FormationFollower)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct FormationFollower
     {
         public ushort SlotIndex;            // Which slot in template (0-15)

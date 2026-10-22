@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Perception.Signatures
     /// silently misread.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.SoundEmissionRing)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public sealed class SoundEmissionRing
     {
         /// <summary>How many sounds the ring holds: 4096 / 10 s (the solver circuit's worst skip) ≈ 400 sounds a second, sustained.</summary>

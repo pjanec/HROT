@@ -33,6 +33,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.ActorCapabilityState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct ActorCapabilityState
     {
         public ActorCapabilities Capabilities;
@@ -59,6 +60,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.SimTier)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct SimTier
     {
         public byte Value;

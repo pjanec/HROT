@@ -21,6 +21,7 @@ namespace Hrot.IG.Components;
 /// SimHost/Runner projects can reference it without circular dependencies.</para>
 /// </summary>
 [ComponentId(GlobalComponentIds.MapOverlayStyle)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct MapOverlayStyle
 {
     // ── Fill colour ───────────────────────────────────────────────────────────

@@ -564,6 +564,96 @@ namespace Fdp.Toolkit.Replay.Tests
 
         private static void Move(EntityRepository world, Entity e, System.Numerics.Vector3 to) => world.GetComponentRW<SimTransform>(e).Position = to;
 
+        // ── ⭐ CE-3299 D17 (R-3045) — the CHECKPOINTING mode: keyframes every N s of sim time, nothing between ──────────────
+
+        // a hand-driven recording whose frames carry SIM time too (the checkpointing mode keys on it)
+        private (RecordingModule Module, Action<double, long> Frame, string Path) TimedRecording(
+            EntityRepository world, string name, double checkpointingSeconds, RecordingBranch? branch = null)
+        {
+            var config = new RecordingConfiguration
+            {
+                FilePath = Path.Combine(_tempDir, name), ExerciseId = Guid.NewGuid(), NodeId = 3,
+                CheckpointingSeconds = checkpointingSeconds, Branch = branch,
+                Blocking = true,   // a non-blocking recorder drops a frame while its writer is busy — the rails count frames
+            };
+            var module = new RecordingModule(config);
+            var captured = new CapturingSystemRegistry();
+            module.RegisterSystems(captured);
+            void Frame(double simSeconds, long wallTicks)
+            {
+                world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.25f, TimeScale = 1f, TotalTime = simSeconds, TotalWallTicks = wallTicks });
+                world.Tick();
+                foreach (var sys in captured.Systems) sys.Execute(world, 0.25f);
+            }
+            return (module, Frame, config.FilePath);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3299 D17 (R-3045) — in CHECKPOINTING mode the recorder writes a KEYFRAME on its first frame and then every N seconds of
+        /// SIM time, and nothing on the frames between (no deltas); a PAUSED stretch (sim time still) writes nothing; a named checkpoint
+        /// still forces its keyframe at once (R-3044). The mode is in the recording's metadata.
+        /// </summary>
+        [Fact]
+        public void CE3299_D17_CheckpointingMode_WritesAKeyframeEveryNSecondsOfSimTime_AndNothingBetween()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            var (module, frame, path) = TimedRecording(world, "checkpointing.fdp", checkpointingSeconds: 1.0);
+            try
+            {
+                long wall = 1000;
+                for (double t = 0; t <= 3.0; t += 0.25) frame(t, wall += 10);   // 13 frames over 3 s of sim time: keyframes at 0, 1, 2, 3
+                for (int i = 0; i < 20; i++) frame(3.0, wall += 10);             // paused: sim time stands still — nothing
+                module.RequestCheckpoint("named", 0);
+                frame(3.25, wall += 10);                                          // a named checkpoint forces its keyframe
+                frame(3.5, wall += 10);                                           // ...and the next periodic one counts from it
+            }
+            finally { module.Dispose(); }
+
+            using var playback = new PlaybackController(path);
+            Assert.Equal(5, playback.TotalFrames);
+            for (int i = 0; i < playback.TotalFrames; i++) Assert.Equal(FrameType.Keyframe, playback.GetFrameMetadata(i).FrameType);
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(path));
+            Assert.Equal(1.0, meta.CheckpointingSeconds);
+            Assert.Equal(("named", 4), (meta.Checkpoints.Single().Label, meta.Checkpoints.Single().Frame));
+        }
+
+        /// <summary>⭐ CE-3299 D17 — FULL is the default (no setting): a keyframe, then a delta on every frame, as before.</summary>
+        [Fact]
+        public void CE3299_D17_FullIsTheDefault_EveryFrameIsWritten()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            var (module, frame, path) = TimedRecording(world, "full.fdp", checkpointingSeconds: 0);
+            try { for (int i = 0; i < 5; i++) frame(i * 0.25, 1000 + i); }
+            finally { module.Dispose(); }
+            using var playback = new PlaybackController(path);
+            Assert.Equal(5, playback.TotalFrames);
+            Assert.Equal(FrameType.Keyframe, playback.GetFrameMetadata(0).FrameType);
+            Assert.Equal(FrameType.Delta, playback.GetFrameMetadata(1).FrameType);
+        }
+
+        /// <summary>⭐ CE-3299 D17 — a BRANCH (a restore, a replay going live) records in its PARENT's mode: one session, one mode.</summary>
+        [Fact]
+        public void CE3299_D17_ABranchRecordsInItsParentsMode()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            var (parent, frame, parentPath) = TimedRecording(world, "cp-parent.fdp", checkpointingSeconds: 2.0);
+            try { frame(0, 100); frame(2, 200); }
+            finally { parent.Dispose(); }
+
+            var (branch, bframe, branchPath) = TimedRecording(world, "cp-branch.fdp", checkpointingSeconds: 0,   // the request says FULL...
+                new RecordingBranch(parentPath, 2, Guid.NewGuid(), 200));
+            try { bframe(2.5, 300); bframe(3.0, 310); bframe(4.5, 320); }
+            finally { branch.Dispose(); }
+
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(branchPath));
+            Assert.Equal(2.0, meta.CheckpointingSeconds);                       // ...the branch keeps its parent's
+            using var playback = new PlaybackController(branchPath);
+            Assert.Equal(4, playback.TotalFrames);                              // 2 copied + its first keyframe (2.5) + 4.5; 3.0 skipped
+        }
+
         // ⭐ B4 — a record/replay controller over a hand-driven RecordingModule (the real one installs modules on kernel ticks).
         private sealed class HandDrivenController : Fdp.Core.Orchestration.IRecordReplayController
         {
@@ -580,11 +670,12 @@ namespace Fdp.Toolkit.Replay.Tests
                 foreach (var sys in _systems!.Systems) sys.Execute(_world, 0.016f);
             }
             public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => PrepareRecordingAsync(exerciseId, storageDirectory, null);
-            public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch)
+            public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch, double checkpointingSeconds = 0)
             {
                 Module = new RecordingModule(new RecordingConfiguration
                 {
                     FilePath = Path.Combine(storageDirectory, $"{exerciseId:N}.fdp"), ExerciseId = exerciseId, NodeId = 3, Branch = branch,
+                    CheckpointingSeconds = checkpointingSeconds,
                 });
                 Module.RegisterSystems(_systems = new CapturingSystemRegistry());
                 return Started = Task.CompletedTask;

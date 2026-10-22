@@ -172,6 +172,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.EqsSensor)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct EqsSensor
     {
         /// <summary>FNV-1a 32-bit hash of the query template BlueprintId.</summary>
