@@ -484,6 +484,38 @@ namespace Hrot.Editor
         /// 📌 <c>R-67</c>, a rail must reach the CONSTRUCTED object.</summary>
         internal Hrot.Editor.AiShared.Windows.DetailsWindow? ScenarioDetails { get; private set; }
 
+        private Fdp.Presentation.WindowManager.WindowManager? _propertiesWindows;
+        private bool _propertiesWired;
+
+        /// <summary>
+        /// ⭐ <c>BP-515</c> DS-7 (docs/blueprints/DESIGN_Details_Panel_View_Switching.md §8; 🔒 user, 2026-10-22: <i>"when i select
+        /// 'Properties...' from context on an entity, it should open the 'Details' panel (which already contains the entity component
+        /// view), not the entity inspector panel"</i>) — this host holds the window manager AND the Scenario Details with its Components
+        /// view, so it TAKES OVER the map pack's default "Properties…" (select + the inspector). ⭐ CE-1150 ② for the one host that has
+        /// the view; the other hosts keep the default. Runs once, when both the map and the window exist.
+        /// </summary>
+        private void WirePropertiesToDetails()
+        {
+            if (_propertiesWired || _editorMapInteraction is not { } map || ScenarioDetails is not { } details
+                || _propertiesWindows is not { } windows) return;
+            map.Actions.Replace(Hrot.Common.Constants.GlobalActionIds.Properties,
+                (view, target) => PropertiesToDetails(view, target, details, windows));
+            _propertiesWired = true;
+        }
+
+        /// <summary>⭐ <c>BP-515</c> DS-7 — select the entity, show the Details window and ask it for the Components view.</summary>
+        internal static void PropertiesToDetails(Fdp.ModuleHost.Abstractions.ISimulationView view, Fdp.Core.Entity target,
+            Hrot.Editor.AiShared.Windows.DetailsWindow details, Fdp.Presentation.WindowManager.WindowManager windows)
+        {
+            if (target.IsNull || view is not Fdp.Core.EntityRepository w) return;
+            w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Properties"));
+            windows.FocusWindow(details.Id);
+            details.RequestView(Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.ViewId);
+        }
+
+        /// <summary>⭐ <c>BP-515</c> DS-7 — true once "Properties…" opens the Scenario Details (a rail surface).</summary>
+        internal bool PropertiesOpensDetails => _propertiesWired;
+
         /// <summary>⭐ <c>L6.1c</c> — exposed so a rail can assert the Scenario workspace was built and
         /// carries a REAL entity source *(<c>R-67</c>)</summary>
         internal Hrot.Editor.AiShared.Shell.PerspectiveWorkspace? ScenarioWorkspace => _scenarioWorkspace;
@@ -2089,6 +2121,7 @@ namespace Hrot.Editor
                             writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For));   // ⭐ AX-007
                     },
                 });
+            WirePropertiesToDetails();   // ⭐ BP-515 DS-7 — whichever of the map and the Details window comes second wires it
 
             _gizmoBuffer                 = _editorMapInteraction.Buffer;
             var editorGizmoRegistry      = _editorMapInteraction.GizmoRegistry;
@@ -3774,6 +3807,8 @@ namespace Hrot.Editor
             // ⭐⭐ L6.1c — the Scenario Details panel joins the window manager beside the other three.
             //    ⛔ Not through a registrar: Scenario has a PerspectiveWorkspace, not the AI bag.
             if (ScenarioDetails is not null) windowManager.RegisterWindow(ScenarioDetails);
+            _propertiesWindows = windowManager;
+            WirePropertiesToDetails();   // ⭐ BP-515 DS-7
 
             // ── MVE-BATCH-03: "Run Blueprint on Selected Entity" toolbar button ────────────────
             // Register via IWindowRegistrar.RegisterToolbarEntry so the button appears in the
