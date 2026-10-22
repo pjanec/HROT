@@ -9,7 +9,7 @@ namespace Hrot.ClusterRunner.Tests;
 /// field is named here with why it needs nothing. 📐 Measured before: 41 systems held per-entity state and ONE reset — after an editor reload
 /// (<c>SoftClear</c>: the next run's units under the SAME handles) an aircraft never ejected, a crowd destroyed an unrelated new entity, an
 /// order with last run's ids was skipped, a passenger was never killed with his vehicle. 📄 <c>docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md</c>
-/// §7f. The Stride assemblies are walked by the same probe in <c>HrotStrideApp.Game.Tests</c>.
+/// §7f. ⚠ The Stride assemblies are NOT walked: <c>HrotStrideApp.Game.Tests</c> links the probe and calls it nowhere (CE-3307).
 /// </summary>
 public sealed class EverySystemForgetsTheLastWorldTests
 {

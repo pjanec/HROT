@@ -13,6 +13,7 @@ related-designs:
   - docs/DESIGN_Cluster_Load_Phase.md — the load chain a checkpoint restore runs through (ILoadPartProvider, the world boundary).
   - docs/DESIGN_Deterministic_Network_Ids.md — §2b the preview participants (allocator, entity map, ELM) this narrows.
   - docs/blueprints/DESIGN_Time_Architecture.md — §12a who writes the clock across a Stop.
+  - docs/DESIGN_System_State_Inventory.md — R-3039 S4: the system state a keyframe does NOT carry (its §2 C/X list is what keeps R1 red).
   - docs/DESIGN_Distributed_Scenario_Persistence.md — the SCENARIO save (JSON, ownership-gated); checkpoints are out of its scope and stay so.
 -->
 # Checkpoint and dry-run restore — **one mechanism: the flight-recorder keyframe**
