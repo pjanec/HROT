@@ -202,6 +202,28 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ A non-finite number in a component is written by NAME — JSON cannot hold one, and 📐 a component carrying +∞ made the whole verify
+    /// of ua-casualty-care-heavy fail at step 256. 🔴 Red-proof: drop the non-finite case ⇒ ArgumentException from the hash.
+    /// </summary>
+    [Fact]
+    public void CE4042_ANonFiniteNumber_IsWrittenByName()
+    {
+        var checks = Parse("""{ "runFor": 1, "golden": {"every": 1, "full": true}, "expect": [{"name": "x", "on": "field", "who": "Rider", "path": "Health.Current", "op": ">", "value": 0}] }""", out _);
+        var w = new FakeWorld().Unit("Rider", 1, 100, 0);
+        w.Comps[1]["SquadMemberSense"] = new JsonObject { ["Since"] = JsonValue.Create(float.PositiveInfinity), ["Gap"] = JsonValue.Create(double.NaN), ["Ok"] = 1.5 };
+        var g = new ScenarioGolden(w, full: true);
+        g.Snapshot(0);
+        var book = new ConditionBook(checks, w, 0);
+        book.Finish(0);
+        var json = g.ToJson("s", 1, book).ToJsonString();
+        Assert.Contains("\"Infinity\"", json);
+        Assert.Contains("\"NaN\"", json);
+        var hashed = new ScenarioGolden(w);
+        hashed.Snapshot(0);
+        _ = hashed.ToJson("s", 1, book).ToJsonString();   // the hash path does not throw either
+    }
+
+    /// <summary>
     /// ⭐ A failed expectation whose cue held LATE says when ("it moved" is not "it never happened" — measured on pc-defend-house, whose
     /// Red line opened fire after its window). 🔴 Red-proof: drop the outside record ⇒ heldOutsideItsWindowAt is null.
     /// </summary>
