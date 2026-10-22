@@ -87,6 +87,7 @@ namespace Fdp.Toolkit.CarKinem.Modules
             // Accessing TrajectoryPool and FormationTemplates here triggers lazy allocation.
             SimulationSystems = new IEcsModuleSystem[]
             {
+                new TrajectoryRestoreSystem(TrajectoryPool),   // ⭐ R-3039 S2 §7c — first: a restored mover's path is back before anything drives it
                 new SpatialHashSystem(),
                 new FormationTargetSystem(FormationTemplates, TrajectoryPool),
                 new VehicleCommandSystem(),

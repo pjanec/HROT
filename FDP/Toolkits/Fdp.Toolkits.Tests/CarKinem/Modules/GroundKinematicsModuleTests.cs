@@ -22,14 +22,16 @@ namespace CarKinem.Tests.Modules
             // Arrange
             var module = new GroundKinematicsModule();
 
-            // Assert — 5 simulation + 3 post-simulation systems (⭐ 5d-3: + DoorPassageSystem; ⭐ CE-3117: + PathTraceSystem)
-            Assert.Equal(5, module.SimulationSystems.Count);
+            // Assert — 6 simulation + 5 post-simulation systems (⭐ 5d-3: + DoorPassageSystem; ⭐ CE-3117: + PathTraceSystem;
+            //   ⭐ R-3039 §7c: + TrajectoryRestoreSystem, FIRST — a restored mover's path is back before anything drives it)
+            Assert.Equal(6, module.SimulationSystems.Count);
             Assert.Equal(5, module.PostSimulationSystems.Count);   // ⭐ CE-3252: + LookFollowSystem after the gait; ⭐ CE-3293: + the paused clamp
-            Assert.IsType<SpatialHashSystem>(module.SimulationSystems[0]);
-            Assert.IsType<FormationTargetSystem>(module.SimulationSystems[1]);
-            Assert.IsType<VehicleCommandSystem>(module.SimulationSystems[2]);
-            Assert.IsType<NavigationExecutionSystem>(module.SimulationSystems[3]);
-            Assert.IsType<DoorPassageSystem>(module.SimulationSystems[4]);
+            Assert.IsType<TrajectoryRestoreSystem>(module.SimulationSystems[0]);
+            Assert.IsType<SpatialHashSystem>(module.SimulationSystems[1]);
+            Assert.IsType<FormationTargetSystem>(module.SimulationSystems[2]);
+            Assert.IsType<VehicleCommandSystem>(module.SimulationSystems[3]);
+            Assert.IsType<NavigationExecutionSystem>(module.SimulationSystems[4]);
+            Assert.IsType<DoorPassageSystem>(module.SimulationSystems[5]);
             Assert.IsType<CarKinematicsSystem>(module.PostSimulationSystems[0]);
             Assert.IsType<GroundClampWhilePausedSystem>(module.PostSimulationSystems[1]);   // CarKinematics' paused half
             Assert.IsType<Fdp.Toolkit.Perception.Look.LookFollowSystem>(module.PostSimulationSystems[2]);   // the head, after the body moved

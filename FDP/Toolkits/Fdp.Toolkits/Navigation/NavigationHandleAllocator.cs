@@ -19,5 +19,17 @@ namespace Fdp.Toolkit.Navigation
         /// Safe to call from multiple threads simultaneously.
         /// </summary>
         public static int Allocate() => Interlocked.Increment(ref _counter);
+
+        /// <summary>
+        /// ⭐ <c>R-3039</c> S2 §7d — the next handle is above <paramref name="handle"/>: after a world was put back (a restore into a fresh
+        /// process starts this counter over), no new path may take a handle a restored mover still drives. Muscle handles only.
+        /// </summary>
+        public static void EnsureAbove(int handle)
+        {
+            if (handle < MuscleHandleBase) return;
+            int seen;
+            do { seen = Volatile.Read(ref _counter); if (seen >= handle) return; }
+            while (Interlocked.CompareExchange(ref _counter, handle, seen) != seen);
+        }
     }
 }

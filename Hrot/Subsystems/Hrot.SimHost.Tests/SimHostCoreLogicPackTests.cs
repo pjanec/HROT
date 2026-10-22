@@ -143,7 +143,8 @@ namespace Hrot.SimHost.Tests
             //    ⇒ sim = 9 - 2 = 7.
             // ⭐ Buildings 5d-3 (2026-10-08) — +1: DoorPassageSystem in GroundKinematicsModule (stops at a closed door, opens it) ⇒ 8.
             // ⭐ Buildings Stage 6 (CE-1032, 2026-10-08) — +1: AreaEffectSystem in DamageAssessmentModule (blast and fragments) ⇒ 9.
-            Assert.Equal(9, pack.SimulationSystems.Count);
+            // ⭐ R-3039 S2 §7c (2026-10-22) — +1: TrajectoryRestoreSystem in GroundKinematicsModule (a restored mover's path is back) ⇒ 10.
+            Assert.Equal(10, pack.SimulationSystems.Count);
 
             // ⛔ And assert the REMOVAL, so a silent re-add is caught rather than merely changing a
             //    count somebody would re-baseline.

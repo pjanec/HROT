@@ -28,6 +28,8 @@ namespace CarKinem.Core
     /// Rebuilt by <c>PathTraceSystem</c> only when the trajectory changes, so its chunk is not re-recorded every frame. The look-ahead
     /// point is NOT stored (it moves every tick): the gizmo recomputes it from <see cref="NavState.ProgressS"/>, the vehicle parameters
     /// and the speed with <c>CarKinematicsSystem.PathLookahead</c>. NoScenario; not replicated. 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5a.
+    /// ⭐ <c>R-3039</c> S2 §7c — and the path's RECORD: when <see cref="Exact"/>, a restore registers the trajectory again from it
+    /// (<c>TrajectoryRestoreSystem</c>); unmanaged, so a replay copies it into place with no allocation. 📄 docs/DESIGN_System_State_Inventory.md §7c.
     /// </summary>
     [ComponentId(GlobalComponentIds.PathTrace)]
     [DataPolicy(DataPolicy.NoScenario)]
@@ -42,6 +44,12 @@ namespace CarKinem.Core
         public int SourceCount;
         public float TotalLength;
         public byte IsLooped;
+        /// <summary>⭐ <c>R-3039</c> S2 §7c — 1 when the trace holds the WHOLE path as registered (no point thinned away): a restore can
+        /// register the trajectory again from it. 0: thinned for the map (longer than <see cref="Capacity"/>) — a restore re-plans.</summary>
+        public byte Exact;
+        /// <summary>⭐ §7c — the trajectory's <c>TrajectoryInterpolation</c> (a solved path is Linear; a route, re-derived from its
+        /// <c>RoutePlan</c> instead, is not).</summary>
+        public byte Interpolation;
         /// <summary>Valid points.</summary>
         public int Count;
         public PathTracePoints Points;

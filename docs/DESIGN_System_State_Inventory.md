@@ -65,12 +65,10 @@ system* rail.
 
 ### 2b. S2 — world-wide memory into singleton components (pools and counters that components point into)
 
-⏳ **Left: the solver's paths (§7c — awaits the user).** Routes are re-derived (§7b), the counters lifted (§7d), the two test-only types are K (§7a).
+⭐ **Empty — S2 is built** (`2026-10-22`): routes re-derived (§7b), solved paths re-registered from each mover's exact `PathTrace` (§7c), the counters lifted (§7d), the two test-only types are K (§7a).
 
 | key | class | why empty is wrong | evidence |
 |---|---|---|---|
-| `type:EngineBackedPathRegistry` | **C** | per-handle path meta keyed by TrajectoryId; IsCached gates FetchPathDetails success | FDP/Toolkits/Fdp.Toolkits/Navigation/EngineBacked/EngineBackedPathRegistry.cs:20 |
-| `type:TrajectoryPoolManager` | **C** | trajectory pool; NavState.TrajectoryId in components points into it | FDP/Toolkits/Fdp.Toolkits/CarKinem/Trajectory/TrajectoryPoolManager.cs:15 |
 
 ### 2c. X — state in an engine outside the ECS (a checkpoint cannot hold it by moving a field)
 
@@ -146,6 +144,8 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:AnimationCapabilityChangeReactorSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationCapabilityChangeReactorSystem.cs:31 |
 | `type:AnimationDispatcherSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationDispatcherSystem.cs:23 |
 | `type:AnimationRuntimeBridgeSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationRuntimeBridgeSystem.cs:20 |
+| `type:TrajectoryPoolManager` | **A** | R-3039 S2 (§7b/§7c; was C): a per-process cache re-derived at a world replacement — routes from their RoutePlan (RouteTrajectorySyncSystem), solved paths from each mover's exact PathTrace (TrajectoryRestoreSystem) | FDP/Toolkits/Fdp.Toolkits/CarKinem/Trajectory/TrajectoryPoolManager.cs:15 |
+| `type:EngineBackedPathRegistry` | **A** | R-3039 S2 (§7c; was C): its per-handle entry is re-registered by TrajectoryRestoreSystem for every restored path (the solver's backend tag is not recorded and reads 0 after a restore) | FDP/Toolkits/Fdp.Toolkits/Navigation/EngineBacked/EngineBackedPathRegistry.cs:20 |
 | `type:SquadSenseChanges` | **K** | R-3039 S1 (was C): holds nothing between frames — its memory is SquadMemberSense on the man and SquadUnitSense on the commander | FDP/Toolkits/Fdp.Toolkits/Squad/Systems/SquadSenseChanges.cs |
 | `type:SharedPathRegistry` | **K** | built only by `NavigationFakesModule`, which only tests construct (R-3039 S2, §7a; was C) | FDP/Toolkits/Fdp.Toolkits/Navigation/Fake/SharedPathRegistry.cs:12 |
 | `type:BlockIdManager` | **K** | no production host constructs it (only tests; `IdAllocationMonitorSystem` reads one only if present) — the live allocators are owned by Deterministic Network Ids §4d (R-3039 S2, §7a; was C) | FDP/Toolkits/Fdp.Toolkits/Replication/Services/BlockIdManager.cs:11 |
@@ -978,7 +978,7 @@ sequenceDiagram
 *What the picture shows:* the rail is the §7f.1 `EjectionSystem` probe generalised — ⭐ a FRESH system after a keyframe restore. A move is
 done when its rail is green and its inventory row has gone from §2 (the ratchet in the S4 rail drops with it).
 
-## 7. ⭐ S2 — the world-wide memory components point into (design `2026-10-22`; build-state: 7a/7b/7d BUILT `2026-10-22` · 7c DESIGN, awaits the user)
+## 7. ⭐ S2 — the world-wide memory components point into (design `2026-10-22`; build-state: BUILT `2026-10-22` — 7c as §7c-bis's lean, approved by the user)
 
 **INVENTORY** (the §2b rows, each measured — corpus sweep + reads, `2026-10-22`): `TrajectoryPoolManager` (one per process: SimHost
 `SimHostNodeBootstrapper.cs:123` via `TrajectoryPoolProvider`; the editor's `GroundKinematicsModule.cs:108` lazy default; Stride
@@ -995,16 +995,17 @@ classDiagram
   class RoutePlan { <<managed component, recorded>> +Waypoints +IsLoop +Version }
   class RouteTrajectoryCache { <<component, recorded>> +int TrajectoryId +CompiledVersion }
   class NavState { <<component, recorded>> +int TrajectoryId +ProgressS }
-  class NavPathRecord { <<7c — NEW, the user's call>> +int Id +Vector3[] Points +byte[] Traversals +meta }
+  class PathTrace { <<existing, unmanaged, recorded>> +Points[32] +Exact NEW +Interpolation NEW }
   class RouteTrajectorySyncSystem { -_knownTrajectories (DERIVED: re-made from RouteTrajectoryCache) }
-  class TrajectoryRestore { <<7d NEW: the pool's re-derive step>> +Run(repo, pool) }
+  class TrajectoryRestoreSystem { <<NEW, first in Simulation>> +Execute() on WorldEpoch.Moved }
   RouteTrajectorySyncSystem ..> RoutePlan : compiles
   RouteTrajectorySyncSystem ..> TrajectoryPoolManager : registers under cache.TrajectoryId
   NavState ..> TrajectoryPoolManager : TrajectoryId points INTO
   RouteTrajectoryCache ..> TrajectoryPoolManager : TrajectoryId points INTO
-  NavPathRecord ..> TrajectoryPoolManager : re-registered from (7c)
-  TrajectoryRestore ..> TrajectoryPoolManager : EnsureIdsAbove(max restored id)
-  TrajectoryRestore ..> NavigationHandleAllocator : EnsureAbove(max restored handle)
+  TrajectoryRestoreSystem ..> PathTrace : reads the exact copy
+  TrajectoryRestoreSystem ..> TrajectoryPoolManager : RegisterTrajectoryWithKey(handle)
+  RouteTrajectorySyncSystem ..> TrajectoryPoolManager : EnsureIdsAbove(max restored route id)
+  TrajectoryRestoreSystem ..> NavigationHandleAllocator : EnsureAbove(max restored handle)
 ```
 *What the picture shows that prose hid:* every arrow INTO the pool comes from a recorded component, but the pool itself is in no keyframe
 (a managed singleton is in none either — Checkpoint Restore §1c D7, rail `WorldKeyframesTests.ManagedSingleton_SetBySetSingletonManaged_IsNotInAKeyframe`).
@@ -1015,10 +1016,10 @@ as — *"a transient, read-optimised performance cache"* — and becomes class A
 |---|---|---|---|
 | 7a | `BlockIdManager` · `SharedPathRegistry` | ⭐ **K** — no production host constructs either (only tests; `IdAllocationMonitorSystem` reads a `BlockIdManager` only if present) | the same call as `FakeDtCrowdProvider` (§1). The live allocators (`SequentialIdAllocator`, `DdsIdAllocator`) are owned by Deterministic Network Ids §4d |
 | 7b | route trajectories (`RouteTrajectorySyncSystem`) | ⭐ **derived (as built):** at a world replacement the system forgets what it knew and compiles EVERY route again under the id its restored `RouteTrajectoryCache` names — `TrajectoryPoolManager.RegisterTrajectoryAt` (NEW: the full registration — CatmullRom, speeds, loop — at a pool-issued id; ⛔ not `RegisterTrajectoryWithKey`, which is linear-only and for caller-keyed handles) ⇒ `_knownTrajectories` is A | 🔴 measured by reading: today it frees its entries at `WorldEpoch.Moved` (`:69`) and then skips every route whose restored cache says "compiled" (`:103`) ⇒ after any restore the route's vehicle points at a freed / never-made trajectory |
-| 7c | the solver's and the ingress's paths | ⏳ **the user's call** — see below | |
+| 7c | the solver's paths | ⭐ **as built:** `PathTrace` made exact (`Exact`, `Interpolation` in its padding — size unchanged); `TrajectoryRestoreSystem` (first in Simulation, after §7b's routes in BeforeSync) re-registers every mover's solved path from it under its handle, re-registers the path registry's entry, lifts `NavigationHandleAllocator`; a thinned trace is planned again (`PathRequests.FromIntent`) | §7c-bis — the user's design (a muscle-owned, unreplicated component on the unit), unmanaged so a replay allocates nothing |
 | 7d | the id counters | ⭐ **derived:** at a world replacement the pool's `_nextId` is lifted above every restored route's id (`EnsureIdsAbove`, a pre-pass before anything compiles; `RegisterTrajectoryAt` lifts it too) — ✅ built. ⏳ `NavigationHandleAllocator._counter` (the muscle's handles) is lifted with 7c, whose records are what name those handles | the `CrowdSystem._nextId` precedent (§6 #9). ⛔ Without it, a fresh process re-issues a restored id: a new path overwrites one a vehicle is still driving |
 
-### 7c — ⏳ the solver's paths: where do the points live? (lean **A**)
+### 7c — the solver's paths: where do the points live? (⛔ HISTORY — decided: §7c-bis, built)
 
 | option | what | ⭐ cost | verdict |
 |---|---|---|---|

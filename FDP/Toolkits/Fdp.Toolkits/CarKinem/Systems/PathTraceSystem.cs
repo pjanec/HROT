@@ -62,6 +62,8 @@ namespace CarKinem.Systems
             var t = new PathTrace
             {
                 TrajectoryId = traj.Id, SourceCount = traj.Waypoints.Length, TotalLength = traj.TotalLength, IsLooped = traj.IsLooped,
+                Exact = traj.Waypoints.Length <= PathTrace.Capacity ? (byte)1 : (byte)0,   // ⭐ R-3039 §7c — every point kept: restorable
+                Interpolation = (byte)traj.Interpolation,
             };
             var pts = t.PointsRW();
             int n = traj.Waypoints.Length;
