@@ -95,6 +95,29 @@ namespace Hrot.Core.Tests.Weather
             AssertWeights(new Vector2(0, 0), (Entity.Null, 1f));
         }
 
+        /// <summary>
+        /// ⭐ CE-4035 G-3 (📐 live <c>ua-weather-sensing</c>: the observer inside the fog bank saw at 148 m, as in the clear) — a man
+        /// inside a fog REGION samples its visibility, whichever way the region's outline winds. The scenario's exact numbers: the bank at
+        /// (110, 300), ±160 × ±70, fog 60 m to 40 m, feather 10 m; the observer at (0, 300), 50 m inside its west edge.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void G3_AManInsideAFogRegion_SamplesItsVisibility_WhicheverWayTheOutlineWinds(bool clockwise)
+        {
+            var fog = WeatherConditions.Standard;
+            fog.CloudCount = 0; fog.RelativeHumidity = 0.97f; fog.VisibilityM = 60f; fog.FogTopM = 40f; fog.FogVisibilityM = 60f; fog.FeatherM = 10f;
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = new Vector3(110, 300, 0), Rotation = Quaternion.Identity });
+            var pts = clockwise
+                ? new List<Vector2> { new(-160, -70), new(-160, 70), new(160, 70), new(160, -70) }   // as ua-weather-sensing authors it
+                : new List<Vector2> { new(-160, -70), new(160, -70), new(160, 70), new(-160, 70) };
+            _w.SetManagedComponent(e, new EditablePolyline { Points = pts });
+            _w.AddComponent(e, fog);
+            var s = WeatherField.At(_w, new Vector3(0, 300, 1.7f), ScenarioClock.Default.StartUtc, 0f);
+            Assert.InRange(s.VisibilityM, 55f, 65f);
+        }
+
         // ── helpers ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
         private Entity Region(Vector2 centre, float half, WeatherConditions weather)
