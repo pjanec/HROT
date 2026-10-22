@@ -6552,6 +6552,28 @@ namespace Hrot.SimHost.Tests
             Assert.Single(Calls(s));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4035</c> G-5 — the observer does not call a battery that cannot fire yet: while none of its guns has an indirect weapon
+        /// (the tubes still being manned) he sends nothing and keeps the mission; once one has, his adjusting call goes. 🔴 Red-proof: no
+        /// readiness test ⇒ a call goes at once, to a battery that refuses it ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4035_TheObserver_WaitsForTheBatteryToBeReady_ThenCalls()
+        {
+            var target = new Vector3(5000f, 0f, 0f);
+            var s = Battery(new Vector3(0f, 0f, 0f), new Vector3(0f, 40f, 0f));
+            foreach (var g in s.Members) s.Repo.RemoveComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(g);
+            var observer = Observer(s, new Vector3(5000f, -1500f, 0f), target);
+            for (int i = 0; i < 5; i++) s.Tick();
+            Assert.Empty(Calls(s));
+            Assert.False(ObserverFinished(s, observer, out _));
+
+            s.Repo.AddComponent(s.Members[1], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfGunType });
+            for (int i = 0; i < 3; i++) s.Tick();
+            var first = Assert.Single(Calls(s));
+            Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust, first.Order.Method);
+        }
+
         // ── CE-2308 — the spotter: an observer who picks his own target (Indirect Fire §3.11, SP-1…SP-5) ─────────────────────
 
         /// <summary>A HOSTILE spotter at <paramref name="at"/> told to <c>SpotForFire</c> for <paramref name="s"/>'s battery.</summary>
@@ -6786,6 +6808,25 @@ namespace Hrot.SimHost.Tests
             p.S.Teleport(p.Bravo, new Vector3(0f, 99f, 0f));
             p.Ticks(5);
             Assert.InRange(Vector3.Distance(MarchOf(p, p.Bravo).Objective, new Vector3(10f, 100f, 0f)), 0f, 0.01f);   // at the corner: on to it
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2284</c> U-1 (UM-4, as built `2026-10-22`) — a follower's progress is its FRONT man: in file, its point man at the corner
+        /// and the rest 18 m back, it has passed the corner and marches on to its point. 📐 Live (pc-urban-move) by the centre the corner stayed
+        /// ahead, the order counted as given, and the squad stood there. ✅ Red-proof: measured by the centre ⇒ sent to the corner again.
+        /// </summary>
+        [Fact]
+        public void CE2284_UrbanMovement_AFollowerInFile_IsMeasuredByItsFrontMan()
+        {
+            var p = OnTheMove();
+            p.S.Teleport(p.Alpha, new Vector3(0f, 95f, 0f));
+            p.Ticks(3);
+            p.S.Teleport(p.Alpha, new Vector3(40f, 100f, 0f));
+            var men = MakeSquad(p.S, 1, 4, 100f);
+            float[] ys = { 99f, 81f, 80f, 79f };
+            for (int k = 0; k < men.Length; k++) p.S.Repo.GetComponentRW<SimTransform>(men[k]).Position = new Vector3(0f, ys[k], 0f);
+            p.Ticks(5);
+            Assert.InRange(Vector3.Distance(MarchOf(p, p.Bravo).Objective, new Vector3(10f, 100f, 0f)), 0f, 0.01f);
         }
 
         /// <summary>⭐ <c>CE-2284</c> U-1 (UM-2) — the lead squad wiped out: the next live squad leads, with the crossing drill, to the same

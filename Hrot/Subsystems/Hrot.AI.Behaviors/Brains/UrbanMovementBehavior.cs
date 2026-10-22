@@ -170,7 +170,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!isLead) rank++;
                 if (PlatoonHoldBehavior.Fighting(world, squad)) continue;   // UM-6 — its own reaction runs; ordered when it ends
                 var want = isLead ? p.Point(Math.Min(p.Leg, p.Count - 1))
-                                  : AlongTheRoute(ref p, StaffComposerSystem.CentreOf(world, squad), along - p.Spacing * rank);
+                                  : AlongTheRoute(ref p, Front(ref p, world, squad), along - p.Spacing * rank);
                 // UM-4 — keep the point last given while the wanted one is within ReorderMetres of it (no restart every tick)
                 if (p.HasGiven[s] != 0 && p.GivenLead[s] == (isLead ? 1 : 0)
                     && Flat(new Vector3(p.GivenX[s], p.GivenY[s], p.GivenZ[s]), want) < (isLead ? 0.01f : ReorderMetres))
@@ -295,12 +295,12 @@ namespace Hrot.AI.Behaviors.Brains
             return bestAlong;
         }
 
-        /// <summary>⭐ UM-4 (as built) — where a follower standing at <paramref name="at"/> marches for its point <paramref name="target"/> metres
-        /// along: the next corner of the route ahead of him when one lies before the point, else the point — 📐 live (pc-urban-move) a
-        /// follower sent straight to a point round the corner cut across the block.</summary>
-        public static Vector3 AlongTheRoute(ref UrbanPlan p, Vector3 at, float target)
+        /// <summary>⭐ UM-4 (as built) — where a follower whose front man stands <paramref name="mine"/> metres along marches for its point
+        /// <paramref name="target"/> metres along: the next corner of the route ahead of him when one lies before the point, else the point —
+        /// 📐 live (pc-urban-move) a follower sent straight to a point round the corner cut across the block.</summary>
+        public static Vector3 AlongTheRoute(ref UrbanPlan p, float mine, float target)
         {
-            float mine = Along(ref p, at), walked = 0f;
+            float walked = 0f;
             for (int i = 1; i < p.Count - 1; i++)
             {
                 walked += Flat(p.Point(i - 1), p.Point(i));
@@ -341,6 +341,27 @@ namespace Hrot.AI.Behaviors.Brains
                 best = MathF.Min(best, Flat(world.GetComponentRO<SimTransform>(m).Position, point));
             }
             return best == float.MaxValue ? Flat(StaffComposerSystem.CentreOf(world, squad), point) : best;
+        }
+
+        /// <summary>
+        /// UM-4 — how far along the route <paramref name="squad"/>'s FRONT man stands (its live man farthest along; a stand-in squad: its
+        /// centre). 📐 Live (pc-urban-move, `2026-10-22`): a follower's march to the corner ended on its point man's arrival with the centre
+        /// 18 m short, so measured by the centre the corner stayed ahead, the same order was "already given", and squads 2 and 3 stood there.
+        /// </summary>
+        public static float Front(ref UrbanPlan p, EntityRepository world, Entity squad)
+        {
+            float best = float.MinValue;
+            if (world.HasComponent<UnitRoster>(squad))
+            {
+                ref readonly var roster = ref world.GetComponentRO<UnitRoster>(squad);
+                for (int i = 0; i < roster.Count; i++)
+                {
+                    var m = roster.SubordinateEntities[i];
+                    if (m.IsNull || !world.IsAlive(m) || !world.HasComponent<SimTransform>(m) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(world, m)) continue;
+                    best = MathF.Max(best, Along(ref p, world.GetComponentRO<SimTransform>(m).Position));
+                }
+            }
+            return best == float.MinValue ? Along(ref p, StaffComposerSystem.CentreOf(world, squad)) : best;
         }
 
         /// <summary>UM-2 — the lead: the first roster slot whose squad has a live man (−1 = none).</summary>
