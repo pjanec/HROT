@@ -60,7 +60,12 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
         //    items, run by the same map actions); the inspector's own items (Inspect…, and each host's) follow. And the map's
         //    Properties… shows THIS window. Both find each other through the inspector state the host gives the map and this bundle.
         h.Inspector.RegisterContextMenuHandler(new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => h.InspectorState()));
-        Hrot.UI.Common.Menus.InspectorMapLink.RegisterWindow(ctx.Windows, InspectorId(h.IdPrefix), () => h.InspectorState());
+
+        // ⭐ BP-515 DS-7 (🔒 user, 2026-10-22: "Properties activation from menu is a global ui action … no direct calls") — the inspector
+        //   ANSWERS the map's "show its properties" request: the action only publishes it; this window shows itself when it is there.
+        //   ⛔ Not on a host whose Details panel answers it (the Editor). ⚠ The bus is found through the map that shares this
+        //   inspector's state — the InspectorMapLink lookup CE-1150 replaces with host actions handed to the bundle.
+        if (h.AnswersProperties) AnswerProperties(ctx.Windows, InspectorId(h.IdPrefix), () => h.InspectorState());
 
         // ⭐ The component-editor reflector + the "Inspect…" context menu.
         // ⚠ This registers NOTHING eagerly — the helper's own RegisterWindow sits inside the
@@ -102,6 +107,18 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
                 ProfilerId(h.IdPrefix), $"{h.TitlePrefix} System Profiler", h.Perspective,
                 h.ExecutionStats,
                 h.TitleBarColor));
+    }
+
+    /// <summary>⭐ <c>BP-515</c> DS-7 — every frame, the inspector <paramref name="windowId"/> shows itself when the map that shares
+    /// <paramref name="state"/> carries a "show its properties" request.</summary>
+    public static void AnswerProperties(Fdp.Presentation.WindowManager.WindowManager windows, string windowId, Func<object?> state)
+    {
+        windows.FrameStarted += () =>
+        {
+            if (Hrot.UI.Common.Menus.InspectorMapLink.MapFor(state())?.InteractionBus is { } requests
+                && requests.Read<Hrot.Common.Diagnostics.Gizmos.ShowEntityPropertiesEvent>().Length > 0)
+                windows.FocusWindow(windowId);
+        };
     }
 
     // ⭐ The id scheme, in one place and PUBLIC — so the equivalence rail asserts against the same
@@ -164,6 +181,7 @@ public sealed record DiagnosticsHostServices(
     Func<InspectorState> InspectorState,
     EventBrowserPanel EventBrowser,
     Vector4? TitleBarColor,
+    bool AnswersProperties = true,
     ArchitectureDiagnosticsPanel? ArchitecturePanel = null,
     Func<List<ModuleStats>?>? ExecutionStats = null,
     MapPickBroker? PickBroker = null);

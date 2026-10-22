@@ -9,7 +9,8 @@ namespace Hrot.UI.Common.Menus;
 /// <summary>
 /// ⭐ CE-1134 / CE-1135 (docs/designs/gizmos-1/canvas-context-menu-design.md §9) — joins a host's MAP (<see cref="MapInteraction"/>, built
 /// by <see cref="MapInteractionPack.Build"/>) to its ENTITY INSPECTOR window (registered by <c>DiagnosticsWindowsBundle</c>), so the
-/// inspector's right-click menu is the map's entity menu and the map's "Properties…" shows the inspector.
+/// inspector's right-click menu is the map's entity menu, and the inspector finds the map's request bus (⭐ BP-515 DS-7: "Properties…"
+/// is a request the inspector ANSWERS — the window list that let the map call the inspector is gone; CE-1150 retires the rest).
 /// <para>⭐ The key is the INSPECTOR STATE both are already given by every host — the pack's <c>MapInteractionContext.Inspector</c>
 /// and the bundle's <c>DiagnosticsHostServices.InspectorState</c> return the same object (measured on all four hosts, 2026-10-16).
 /// ⛔ Not a constructor argument: three of the four hosts do not keep their window manager, and the pack and the bundle are built
@@ -20,18 +21,11 @@ public static class InspectorMapLink
 {
     private static readonly object Gate = new();
     private static readonly List<WeakReference<MapInteraction>> Maps = new();
-    private static readonly List<(WeakReference<WindowManager> Windows, string WindowId, Func<object?> State)> Windows = new();
 
     /// <summary>The pack registers each map it builds.</summary>
     public static void RegisterMap(MapInteraction map)
     {
         lock (Gate) { Prune(); Maps.Add(new WeakReference<MapInteraction>(map)); }
-    }
-
-    /// <summary>The bundle registers the inspector window it shows for <paramref name="state"/>.</summary>
-    public static void RegisterWindow(WindowManager windows, string windowId, Func<object?> state)
-    {
-        lock (Gate) { Prune(); Windows.Add((new WeakReference<WindowManager>(windows), windowId, state)); }
     }
 
     /// <summary>The newest live map whose inspector is <paramref name="state"/>, or null.</summary>
@@ -46,31 +40,14 @@ public static class InspectorMapLink
         return null;
     }
 
-    /// <summary>Opens and focuses the inspector window that shows <paramref name="state"/>. False when none is registered.</summary>
-    public static bool ShowWindowFor(object? state)
-    {
-        if (state is null) return false;
-        lock (Gate)
-        {
-            for (int i = Windows.Count - 1; i >= 0; i--)
-                if (Windows[i].Windows.TryGetTarget(out var wm) && ReferenceEquals(Windows[i].State(), state))
-                {
-                    wm.FocusWindow(Windows[i].WindowId);
-                    return true;
-                }
-        }
-        return false;
-    }
-
     /// <summary>Forget everything (tests).</summary>
     public static void Reset()
     {
-        lock (Gate) { Maps.Clear(); Windows.Clear(); }
+        lock (Gate) Maps.Clear();
     }
 
     private static void Prune()
     {
         Maps.RemoveAll(w => !w.TryGetTarget(out _));
-        Windows.RemoveAll(w => !w.Windows.TryGetTarget(out _));
     }
 }

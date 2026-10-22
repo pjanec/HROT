@@ -38,17 +38,6 @@ namespace Hrot.Common.Interactions
 
         private readonly HashSet<int> _localOnly = new();
 
-        // ⭐ BP-515 DS-7 / CE-1150 ② — a host that holds what an action needs (the window manager, a panel) TAKES OVER the default a
-        //   shared pack registered: the handler is replaced, its local-only flag kept. Throws when nothing is registered (a typo, or a
-        //   host replacing before the pack built) — ⛔ never a silent second registration.
-        public void Replace(int actionId, GlobalActionHandler handler)
-        {
-            ArgumentNullException.ThrowIfNull(handler, nameof(handler));
-            if (!_handlers.ContainsKey(actionId))
-                throw new InvalidOperationException($"GlobalActionRegistry: ActionId {actionId} has no handler to replace.");
-            _handlers[actionId] = handler;
-        }
-
         // Returns true and sets <paramref name="handler"/> when a handler exists for
         // <paramref name="actionId"/>.
         public bool TryGetHandler(int actionId, out GlobalActionHandler handler)

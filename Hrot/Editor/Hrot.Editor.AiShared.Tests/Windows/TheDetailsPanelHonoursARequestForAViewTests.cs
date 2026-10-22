@@ -128,4 +128,29 @@ public sealed class TheDetailsPanelHonoursARequestForAViewTests : IDisposable
         Assert.Same(pin, shell.Pin(windows, variables));
         Assert.NotNull(shell.OpenFloat(windows, variables));
     }
+
+    /// <summary>
+    /// ⭐ DS-7 (🔒 user, 2026-10-22: <i>"a global ui action … no direct calls"</i>) — the shell ANSWERS a request on the window manager's
+    /// per-frame hook, open or closed: nothing asked ⇒ it stays closed; asked ⇒ it shows itself and requests the view. ✅ Red-proof: the
+    /// shell not subscribing to <c>FrameStarted</c> ⇒ it stays closed.
+    /// </summary>
+    [Fact]
+    public void BP515_TheShell_AnswersARequest_ShowingItselfOnTheAskedView()
+    {
+        var shell = MakeShell("details_bp515_5");
+        var windows = new WindowManager(new IconAtlas(nint.Zero, 1, 1, 16f));
+        windows.RegisterWindow(shell);
+        shell.IsOpen = false;
+        bool asked = false;
+        shell.Answer(() => asked, "components");
+
+        windows.RaiseFrameStarted();
+        Assert.False(shell.IsOpen);
+        Assert.Null(shell.PendingViewRequest);
+
+        asked = true;
+        windows.RaiseFrameStarted();
+        Assert.True(shell.IsOpen, "it showed itself");
+        Assert.Equal("components", shell.PendingViewRequest);
+    }
 }

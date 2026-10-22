@@ -397,7 +397,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1134 / CE-1135 (canvas-context-menu-design §9) — the map menu's view items, on EVERY map host. 📐 Before, only the
             //   Editor and the ReplayBrowser registered Center View and only the Editor Select, so both were dead in the menu on CGF,
             //   SimHost and the IG — and Properties… (an id since the first menu) had no handler anywhere.
-            RegisterViewActions(actions, ctx.Inspector);
+            RegisterViewActions(actions, bus);
 
             var map = new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
@@ -418,10 +418,10 @@ namespace Hrot.ScenarioEditor.Map
 
         /// <summary>
         /// ⭐ CE-1134 / CE-1135 — Center View (the map's camera, 2-D or 3-D, on the entity — this node only), Select (the one selection
-        /// request) and Properties… (select it, then show the inspector window). One registration for every map host.
+        /// request) and Properties… (select it and REQUEST its properties on <paramref name="bus"/> — ⭐ BP-515 DS-7 / R-1024: the
+        /// window that answers shows itself). One registration for every map host.
         /// </summary>
-        public static void RegisterViewActions(Hrot.Common.Interactions.GlobalActionRegistry actions,
-            Func<Fdp.Presentation.Abstractions.IInspectorContext?>? inspector)
+        public static void RegisterViewActions(Hrot.Common.Interactions.GlobalActionRegistry actions, FdpEventBus bus)
         {
             actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>
             {
@@ -434,11 +434,14 @@ namespace Hrot.ScenarioEditor.Map
                 if (target.IsNull || view is not EntityRepository w) return;
                 w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
             });
+            // ⭐ BP-515 DS-7 (🔒 user, 2026-10-22: "a global ui action, as any other menu action should be, no direct calls") — the
+            //   handler only REQUESTS: the selection, and "show its properties" on this bus; the window that answers it drains the event
+            //   and shows itself (the Editor's Scenario Details · the other hosts' entity inspector). ⛔ No window is called from here.
             actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.Properties, (view, target) =>
             {
                 if (target.IsNull || view is not EntityRepository w) return;
                 w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Properties"));
-                Hrot.UI.Common.Menus.InspectorMapLink.ShowWindowFor(inspector?.Invoke());
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ShowEntityPropertiesEvent { Target = target });
             });
         }
 

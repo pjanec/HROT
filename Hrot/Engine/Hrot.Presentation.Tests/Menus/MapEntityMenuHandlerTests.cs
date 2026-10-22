@@ -131,23 +131,35 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
         Assert.InRange(Vector3.Distance(three.LookAt, new Vector3(300, -120, 4f)), 0f, 0.05f);
     }
 
+    /// <summary>
+    /// ⭐ BP-515 DS-7 (🔒 user, 2026-10-22: <i>"Properties activation from menu is a global ui action, as any other menu action should be,
+    /// no direct calls please"</i>) — "Properties…" REQUESTS: the selection, and a <c>ShowEntityPropertiesEvent</c> on the map's bus; it
+    /// opens no window itself. Then the inspector that ANSWERS it (on a host whose Details does not) shows itself on the next frame.
+    /// ✅ Red-proof: the handler not publishing the event ⇒ the inspector stays closed.
+    /// </summary>
     [Fact]
-    public void CE1135_Properties_SelectsTheEntity_AndShowsTheInspectorWindow()
+    public void BP515_Properties_IsARequest_AndTheInspectorAnswersIt()
     {
         var unit = Unit(9, Vector3.Zero);
         var windows = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 512, 512));
         var win = new Blank("t_fdp_inspector");
         windows.RegisterWindow(win);
         win.IsOpen = false;
-        InspectorMapLink.RegisterWindow(windows, "t_fdp_inspector", () => _state);
+        Hrot.Presentation.Windows.DiagnosticsWindowsBundle.AnswerProperties(windows, "t_fdp_inspector", () => _state);
         Assert.True(_map.Actions.TryGetHandler(GlobalActionIds.Properties, out var properties));
 
         properties(_w, unit);
 
-        Assert.True(win.IsOpen, "the inspector window is shown");
+        Assert.False(win.IsOpen, "the action opens no window itself");
         _w.Bus.SwapBuffers();
         var request = Assert.Single(_w.Bus.ReadManaged<SelectionChangeRequest>());
         Assert.Equal(unit, Assert.Single(request.Entities));
+        _map.InteractionBus.SwapBuffers();
+        var shown = Assert.Single(_map.InteractionBus.Read<Hrot.Common.Diagnostics.Gizmos.ShowEntityPropertiesEvent>().ToArray());
+        Assert.Equal(unit, shown.Target);
+
+        windows.RaiseFrameStarted();
+        Assert.True(win.IsOpen, "the inspector answered the request");
     }
 
     private sealed class Blank : Fdp.Presentation.WindowManager.ManagedWindow

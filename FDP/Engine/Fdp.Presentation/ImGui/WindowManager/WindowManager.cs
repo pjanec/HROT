@@ -112,6 +112,16 @@ public class WindowManager
     }
 
     /// <summary>The icon atlas supplied at construction time.</summary>
+    /// <summary>
+    /// ⭐ <c>BP-515</c> (docs/blueprints/DESIGN_Details_Panel_View_Switching.md §8 DS-7) — raised once a frame before the windows draw, so a
+    /// window that ANSWERS a UI request (an event a menu action published) can show itself even while closed — a closed window is
+    /// never rendered, so it has no other per-frame call.
+    /// </summary>
+    public event Action? FrameStarted;
+
+    /// <summary>Raises <see cref="FrameStarted"/> outside a render (rails).</summary>
+    public void RaiseFrameStarted() => FrameStarted?.Invoke();
+
     public IconAtlas Atlas => _atlas;
 
     // �� Registration �����������������������������������������������������������
@@ -684,6 +694,9 @@ public class WindowManager
             if (!settingsOpen)
                 Gui.CloseCurrentPopup();
         }
+
+        // ⭐ BP-515 — a window (open OR closed) reacts to its UI requests here, before the windows draw
+        FrameStarted?.Invoke();
 
         // Iterate a copy to allow safe removal of closed volatile windows.
         foreach (var win in _windows.Values.ToList())

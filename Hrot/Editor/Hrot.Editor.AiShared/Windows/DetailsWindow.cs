@@ -801,6 +801,30 @@ public sealed class DetailsWindow
     {
         _windowManager = manager ?? throw new ArgumentNullException(nameof(manager));
         RegisterViewMenu(manager);
+        manager.FrameStarted += AnswerRequests;   // ⭐ BP-515 DS-7 — every frame, open or closed
+    }
+
+    private readonly List<(Func<bool> Requested, string ViewId)> _answers = new();
+
+    /// <summary>
+    /// ⭐ <c>BP-515</c> DS-7 (🔒 user, 2026-10-22: <i>"Properties activation from menu is a global ui action … no direct calls"</i>) —
+    /// this shell ANSWERS a UI request: whenever <paramref name="requested"/> reports one (the host reads its event — e.g. the map's
+    /// <c>ShowEntityPropertiesEvent</c>), it shows itself and asks for <paramref name="viewId"/> (<see cref="RequestView"/>). ⛔ The
+    /// action that published the request never calls this window.
+    /// </summary>
+    public void Answer(Func<bool> requested, string viewId)
+        => _answers.Add((requested ?? throw new ArgumentNullException(nameof(requested)),
+                         viewId ?? throw new ArgumentNullException(nameof(viewId))));
+
+    /// <summary>⭐ <c>BP-515</c> DS-7 — the per-frame answer (<see cref="WindowManager.FrameStarted"/>).</summary>
+    internal void AnswerRequests()
+    {
+        foreach (var (requested, viewId) in _answers)
+        {
+            if (!requested()) continue;
+            _windowManager?.FocusWindow(Id);
+            RequestView(viewId);
+        }
     }
 
     /// <summary>
