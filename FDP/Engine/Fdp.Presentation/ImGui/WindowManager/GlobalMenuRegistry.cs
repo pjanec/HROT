@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Fdp.Diagnostics.Contracts.Panels;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 
 namespace Fdp.Presentation.WindowManager;
 
@@ -140,16 +141,21 @@ public class GlobalMenuRegistry
     /// <summary>The first menu that draws AFTER the <c>Perspective</c> menu: it and everything ranked after it trail the bar.</summary>
     public const string FirstTrailingMenu = "Settings";
 
-    /// <summary>The rank of a top-level menu named <paramref name="name"/> in <see cref="TopLevelOrder"/> (an unlisted name ranks just before <see cref="FirstTrailingMenu"/>).</summary>
+    /// <summary>⭐ CE-1243 — the perspective switcher's menu: after every leading menu (unlisted ones too), before <see cref="FirstTrailingMenu"/>.</summary>
+    public const string PerspectiveMenu = "Perspective";
+
+    /// <summary>The rank of a top-level menu named <paramref name="name"/> in <see cref="TopLevelOrder"/> (an unlisted name ranks just before
+    /// the <see cref="PerspectiveMenu"/>, which ranks just before <see cref="FirstTrailingMenu"/>).</summary>
     public static int TopLevelRank(string name)
     {
         for (int i = 0; i < TopLevelOrder.Count; i++)
             if (string.Equals(TopLevelOrder[i], name, StringComparison.Ordinal)) return i * 10;
+        if (string.Equals(name, PerspectiveMenu, StringComparison.Ordinal)) return TopLevelRank(FirstTrailingMenu) - 2;
         return TopLevelRank(FirstTrailingMenu) - 5;
     }
 
     /// <summary>True when the top-level menu <paramref name="name"/> draws before the <c>Perspective</c> menu.</summary>
-    public static bool IsLeadingMenu(string name) => TopLevelRank(name) < TopLevelRank(FirstTrailingMenu);
+    public static bool IsLeadingMenu(string name) => TopLevelRank(name) < TopLevelRank(PerspectiveMenu);
 
     /// <summary>The top-level menus in bar order (rank, then registration order).</summary>
     public IReadOnlyList<MenuItemNode> TopLevelMenus()
@@ -203,6 +209,65 @@ public class GlobalMenuRegistry
         node.IsSeparator = true;
     }
 
+    // ── Contributors (CE-1243 MB-2) ────────────────────────────────────────────
+
+    private readonly List<MenuContributor> _contributors = new();
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1243</c> MB-2 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — menus COMPUTED EACH FRAME (the window list, the
+    /// perspectives, a host's gizmo menus), merged into the bar by their top-level label (a contributed <c>View</c> lands in the one View
+    /// menu); a click on a contributed row goes to <paramref name="onAction"/> with the row's id. <paramref name="perspective"/> null =
+    /// global (UXI-05). Last-write-wins on <paramref name="id"/>. ⛔ SUPERSEDED: the window manager's own DTO menus and each host's own
+    /// <c>BeginMainMenuBar</c> block.
+    /// </summary>
+    public void RegisterContributor(string id, Func<IReadOnlyList<ContextMenuItemDto>> items, Action<int> onAction, string? perspective = null)
+    {
+        if (string.IsNullOrEmpty(id)) throw new ArgumentException("A contributor needs an id.", nameof(id));
+        var c = new MenuContributor(id, perspective, items ?? throw new ArgumentNullException(nameof(items)),
+                                    onAction ?? throw new ArgumentNullException(nameof(onAction)));
+        int at = _contributors.FindIndex(x => x.Id == id);
+        if (at >= 0) _contributors[at] = c; else _contributors.Add(c);
+    }
+
+    /// <summary>The registered contributors, in registration order.</summary>
+    public IReadOnlyList<MenuContributor> Contributors => _contributors;
+
+    /// <summary>
+    /// ⭐ Asks every contributor bound to <paramref name="currentPerspective"/> (or global) for its menus — ONCE a frame: a contributor may
+    /// CONSUME what it returns (a gizmo layer's main-menu feed does), so the bar and the snapshot share this one answer.
+    /// </summary>
+    public IReadOnlyList<MenuContribution> CollectContributions(string currentPerspective)
+    {
+        var list = new List<MenuContribution>();
+        foreach (var c in _contributors)
+        {
+            if (c.Perspective != null && c.Perspective != currentPerspective) continue;
+            var items = c.Items();
+            if (items is { Count: > 0 }) list.Add(new MenuContribution(c, items));
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// ⭐ The bar's top-level menus, in bar order: every tree menu and every contributed top-level label, merged by name (rank, then the
+    /// tree's registration order, then the contributors').
+    /// </summary>
+    public IReadOnlyList<BarMenu> BarMenus(IReadOnlyList<MenuContribution> contributions)
+    {
+        var byName = new Dictionary<string, BarMenu>(StringComparer.Ordinal);
+        var order = new List<BarMenu>();
+        BarMenu Get(string name)
+        {
+            if (!byName.TryGetValue(name, out var m)) { m = new BarMenu(name); byName[name] = m; order.Add(m); }
+            return m;
+        }
+        foreach (var node in Root.Children.Values) Get(node.Name).Node = node;
+        foreach (var contribution in contributions)
+            foreach (var top in contribution.Items)
+                if (!string.IsNullOrEmpty(top.Label)) Get(top.Label!).Parts.Add((contribution.Contributor, top));
+        return order.Select((m, i) => (m, i)).OrderBy(t => TopLevelRank(t.m.Name)).ThenBy(t => t.i).Select(t => t.m).ToList();
+    }
+
     // ── Observability (UXI-05 item ⑤) ─────────────────────────────────────────
 
     /// <summary>⭐ The panel id every host publishes this singleton under.</summary>
@@ -227,17 +292,39 @@ public class GlobalMenuRegistry
     /// different claims, and telling them apart is the point.</para>
     /// </summary>
     public GlobalMenuPanelViewModel BuildViewModel(string currentPerspective)
+        => BuildViewModel(currentPerspective, CollectContributions(currentPerspective));
+
+    /// <summary>⭐ CE-1243 — as above, over contributions already collected this frame (the bar's own answer).</summary>
+    public GlobalMenuPanelViewModel BuildViewModel(string currentPerspective, IReadOnlyList<MenuContribution> contributions)
     {
         var items = new List<GlobalMenuItemView>();
         // ⭐ CE-1026: the top level in BAR order, so the dump lists what the bar draws in the order it draws it.
-        foreach (var top in TopLevelMenus())
+        // ⭐ CE-1243: contributed menus are part of the bar, so they are part of the dump (scope = the contributor's perspective).
+        foreach (var bar in BarMenus(contributions))
         {
-            var single = new MenuItemNode { Name = Root.Name };
-            single.Children[top.Name] = top;
-            Walk(single, "", items, currentPerspective);
+            if (bar.Node is { } top)
+            {
+                var single = new MenuItemNode { Name = Root.Name };
+                single.Children[top.Name] = top;
+                Walk(single, "", items, currentPerspective);
+            }
+            foreach (var (contributor, dto) in bar.Parts)
+                WalkDto(dto, "", items, contributor.Perspective ?? "*");
         }
         return new GlobalMenuPanelViewModel(
             PanelIdLiteral, PanelKindLiteral, currentPerspective, items);
+
+        static void WalkDto(ContextMenuItemDto dto, string prefix, List<GlobalMenuItemView> into, string scope)
+        {
+            var path = prefix.Length == 0 ? dto.Label ?? "" : $"{prefix}/{dto.Label}";
+            if (dto.Children is { Length: > 0 } children)
+            {
+                foreach (var c in children) WalkDto(c, path, into, scope);
+                return;
+            }
+            bool separator = string.IsNullOrEmpty(dto.Label) || dto.IsSeparator == true;
+            into.Add(new GlobalMenuItemView(path, separator ? "separator" : "item", new[] { scope }, Visible: true));
+        }
 
         static void Walk(MenuItemNode node, string prefix, List<GlobalMenuItemView> into, string perspective)
         {
@@ -272,11 +359,15 @@ public class GlobalMenuRegistry
     /// was never instrumented"*.
     /// </summary>
     public void PublishSnapshot(string currentPerspective)
+        => PublishSnapshot(currentPerspective, CollectContributions(currentPerspective));
+
+    /// <summary>⭐ CE-1243 — as above, over the contributions the bar collected this frame.</summary>
+    public void PublishSnapshot(string currentPerspective, IReadOnlyList<MenuContribution> contributions)
     {
         PanelSnapshot.DeclareInstrumented(PanelIdLiteral);
         if (!PanelSnapshot.CaptureEnabled) return;
 
-        PanelSnapshot.Register(BuildViewModel(currentPerspective));
+        PanelSnapshot.Register(BuildViewModel(currentPerspective, contributions));
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
@@ -368,3 +459,20 @@ public sealed record GlobalMenuPanelViewModel(
 /// <param name="Visible">Whether the CURRENT perspective resolves a binding — i.e. whether it draws.</param>
 public sealed record GlobalMenuItemView(
     string Path, string Kind, IReadOnlyList<string> Scopes, bool Visible);
+
+/// <summary>⭐ CE-1243 MB-2 — a source of menus computed each frame (see <see cref="GlobalMenuRegistry.RegisterContributor"/>).</summary>
+public sealed record MenuContributor(
+    string Id, string? Perspective, Func<IReadOnlyList<ContextMenuItemDto>> Items, Action<int> OnAction);
+
+/// <summary>⭐ CE-1243 — what one contributor offered this frame.</summary>
+public sealed record MenuContribution(MenuContributor Contributor, IReadOnlyList<ContextMenuItemDto> Items);
+
+/// <summary>⭐ CE-1243 — one top-level menu of the bar: the tree's node of that name (if any) and every contributed top-level item of that
+/// label, drawn as ONE menu.</summary>
+public sealed class BarMenu
+{
+    public BarMenu(string name) => Name = name;
+    public string Name { get; }
+    public MenuItemNode? Node { get; set; }
+    public List<(MenuContributor Contributor, ContextMenuItemDto Item)> Parts { get; } = new();
+}

@@ -4,7 +4,6 @@ using System.Numerics;
 using Fdp.Core.Diagnostics;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Panels;
-using Fdp.Presentation.Windows.ReplayBrowser;
 using Xunit;
 
 namespace Fdp.Presentation.Tests.ImGui.Panels;
@@ -14,6 +13,9 @@ namespace Fdp.Presentation.Tests.ImGui.Panels;
 /// <c>PanelSnapshot</c> contract.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example ·
 /// <c>docs/blueprints/batches/QUEUE_Panel_Observability_Sweep.md</c> group 4 ("the HOST registers" gotcha
 /// — <c>EventBrowserPanel</c> is the plain panel, <c>FdpEventBrowserWindow</c> the host).
+/// <para>⭐ <c>CE-1244</c> (DESIGN_Subsystem_Composition_Unification §5c.7.8) — the ReplayBrowser's copy of the window is gone (it
+/// composes the shared diagnostics bundle). The window rails (instrumented at construction, capture off) live with the one window in
+/// <c>Hrot.Presentation.Tests/Windows/FdpPanelWindowsDumpTheirModelsTests</c>; these keep the PANEL's dump content.</para>
 /// </summary>
 [Collection(PanelSnapshotTestCollection.Name)]
 public sealed class EventBrowserPanelDumpsItsEventsTests : IDisposable
@@ -40,21 +42,6 @@ public sealed class EventBrowserPanelDumpsItsEventsTests : IDisposable
         public void RewindHistory(uint frame) { }
     }
 
-    // ── Rail 1 — instrumented at construction, on the PRODUCTION object ─────────────────────────
-
-    [Fact]
-    public void ConstructingTheWindow_DeclaresItInstrumented_BeforeItHasEverDrawn()
-    {
-        Assert.DoesNotContain("fdp_event_browser_test", PanelSnapshot.RegisteredPanels);   // ⛔ anti-vacuity
-
-        var window = MakeWindow(new EventBrowserPanel());
-
-        Assert.Contains("fdp_event_browser_test", PanelSnapshot.RegisteredPanels);
-        Assert.DoesNotContain("fdp_event_browser_test", PanelSnapshot.CapturedPanels);
-        Assert.Null(PanelSnapshot.TryGet("fdp_event_browser_test"));
-        Assert.NotNull(window);
-    }
-
     // ── Rail 2 — the dump carries a real field ───────────────────────────────────────────────────
 
     [Fact]
@@ -63,14 +50,10 @@ public sealed class EventBrowserPanelDumpsItsEventsTests : IDisposable
         PanelSnapshot.CaptureEnabled = true;
         var svc = new FakeHistoryService(new CapturedEventDto(7, "World", "DamageEvent", false, "boom", null));
         var panel = new EventBrowserPanel(svc);
-        var window = MakeWindow(panel);
-
-        window.SimulateDrawClientArea();
-
-        var vm = PanelSnapshot.TryGet("fdp_event_browser_test");
+        var vm = panel.BuildViewModel("fdp_event_browser_test", PanelIds.EventBrowser);
         Assert.NotNull(vm);
         Assert.Equal("fdp_event_browser_test", vm!.PanelId);
-        Assert.Equal(FdpEventBrowserWindow.Kind, vm.PanelKind);
+        Assert.Equal(PanelIds.EventBrowser, vm.PanelKind);
 
         var dump = vm.Dump();
         Assert.Equal(1, dump["totalEventCount"]!.GetValue<int>());
@@ -94,32 +77,10 @@ public sealed class EventBrowserPanelDumpsItsEventsTests : IDisposable
             .GetField("_disabledTypes", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .GetValue(panel)!;
         disabledTypes.Add("NoisyEvent");
-        var window = MakeWindow(panel);
-
-        window.SimulateDrawClientArea();
-
-        var dump = PanelSnapshot.TryGet("fdp_event_browser_test")!.Dump();
+        var dump = panel.BuildViewModel("fdp_event_browser_test", PanelIds.EventBrowser).Dump();
         Assert.Equal(1, dump["totalEventCount"]!.GetValue<int>());
         Assert.Equal(0, dump["visibleEventCount"]!.GetValue<int>());
         Assert.Empty(dump["events"]!.AsArray());
     }
 
-    // ── Rail 3 — the flag gates the DUMP, not the BUILD ──────────────────────────────────────────
-
-    [Fact]
-    public void WithCaptureOff_TheProductionPathPublishesNothing()
-    {
-        var svc = new FakeHistoryService(new CapturedEventDto(1, "World", "E", false, "s", null));
-        var window = MakeWindow(new EventBrowserPanel(svc));   // CaptureEnabled stays false
-
-        var vm = window.SimulateDrawClientArea();
-
-        Assert.Empty(PanelSnapshot.CapturedPanels);
-        Assert.Contains("fdp_event_browser_test", PanelSnapshot.RegisteredPanels);
-        Assert.NotNull(vm);   // ⭐ the BUILD is unaffected by the flag
-        Assert.Equal(1, vm.TotalEventCount);
-    }
-
-    private static FdpEventBrowserWindow MakeWindow(EventBrowserPanel panel) =>
-        new FdpEventBrowserWindow("fdp_event_browser_test", "Event Browser", "test-perspective", panel, new Vector4(1, 1, 1, 1));
 }

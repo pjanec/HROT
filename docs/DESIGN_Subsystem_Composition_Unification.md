@@ -4179,7 +4179,7 @@ links the inspector window to the host's map through the inspector state both ar
 (the host's actions) and `World`, and the menu handler reads those
 ([canvas-context-menu-design §12](designs/gizmos-1/canvas-context-menu-design.md) HA-5).
 
-#### 5c.7.8 DESIGN — the ReplayBrowser composes THIS bundle; its two copied windows retire (`CE-1244`, `2026-10-22`, ui) — build-state: DESIGN (leans with the user)
+#### 5c.7.8 DESIGN — the ReplayBrowser composes THIS bundle; its two copied windows retire (`CE-1244`, `2026-10-22`, ui) — build-state: BUILDING (✅ RI-1…RI-3 APPROVED by the user `2026-10-22`: *"CE-1243 and CE-1244 leans approved"*)
 
 🔒 User, `2026-10-22`: *"pls explain "The ReplayBrowser's inspector sits outside the shared diagnostics bundle" … what is that inspector
 window, does it needs to be specific?"* ⇒ measured: it need not. ⚠ **This section supersedes §5c.7.1's ⛔ ReplayBrowser column and the
@@ -4242,7 +4242,7 @@ graph TD
 *What the pictures show that prose hid: the ReplayBrowser's replay-only windows (timeline, diff, search, federation) stay its own; only
 the two windows every host has move to the one bundle — and with them the ReplayBrowser gains the map's entity menu and "Inspect…".*
 
-| decision | ⏸ lean |
+| decision | ✅ approved |
 |---|---|
 | **RI-1** | the ReplayBrowser composes `DiagnosticsWindowsBundle` (`IdPrefix "rb_"`, `TitlePrefix "Replay"` — the titles stay *"Replay Entity Inspector"* / *"Replay Event Browser"*), passing `Host` and `World` |
 | **RI-2** | delete `Fdp.Presentation.Windows.ReplayBrowser.FdpEntityInspectorWindow` and `…FdpEventBrowserWindow` (cross-lane: FDP) |

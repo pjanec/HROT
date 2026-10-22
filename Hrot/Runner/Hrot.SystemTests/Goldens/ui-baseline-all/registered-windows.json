@@ -38,6 +38,7 @@
   "ai_watch_hsm",
   "cgf_architecture_diagnostics",
   "cgf_config",
+  "cgf_details",
   "cgf_fdp_events",
   "cgf_fdp_inspector",
   "cgf_mission",
@@ -57,6 +58,7 @@
   "global_menu",
   "ig_architecture_diagnostics",
   "ig_debug",
+  "ig_details",
   "ig_entity_properties",
   "ig_fdp_events",
   "ig_fdp_inspector",
@@ -69,6 +71,7 @@
   "orchestrator_main",
   "simhost_architecture_diagnostics",
   "simhost_controls",
+  "simhost_details",
   "simhost_fdp_events",
   "simhost_fdp_inspector",
   "simhost_system_profiler"

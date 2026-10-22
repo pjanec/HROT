@@ -139,7 +139,7 @@ change with it while File/Settings/Help/Window stay put — the two-tier rule fr
 | ⚠ [UXI-06](UX_Issues.md#uxi-06) is adjacent | perspective *restore* validates against subsystem names and drops the Editor's internal ones. If a menu item is bound to `BTree`, a bad restore hides it. Fix UXI-06 first or accept the coupling |
 | ⚠ Behaviour change is invisible in every mode we normally test | see the acceptance note above — this needs a deliberate `--mode all` walk on Windows |
 
-## MB. DESIGN — ONE MENU BAR: one model, one row renderer (`CE-1243`, `2026-10-22`, ui) — build-state: DESIGN (leans with the user)
+## MB. DESIGN — ONE MENU BAR: one model, one row renderer (`CE-1243`, `2026-10-22`, ui) — build-state: BUILDING (✅ MB-1…MB-4 APPROVED by the user `2026-10-22`: *"CE-1243 and CE-1244 leans approved"*)
 
 🔒 User, `2026-10-22`, on `CE-1027` (a menu's icon vanishing while it is open): *"what is strange how comes it behaves differently,
 shouldnt the manin menu bar rendering be unified and shared?"* ⇒ this section is the answer: UXI-13's *"one bar"* plus the shell's own
@@ -216,7 +216,7 @@ graph TD
 list, the perspectives, a host's gizmo menus — is a contributor that tree asks each frame, merged by label into the same menus (a gizmo's
 *View ▸ …* lands in the one View menu); and only the shell opens the bar, so a host can no longer append a second one.*
 
-| decision | ⏸ lean |
+| decision | ✅ approved |
 |---|---|
 | **MB-1 one row renderer** | `MenuRows.DrawRow` (GizmoMap.Presentation, beside `MenuIconRenderer`) draws a row — label, icon, check, enabled, shortcut, submenu — and both walks call it. A pure refactor; the bar looks the same |
 | **MB-2 contributors in the tree** | `GlobalMenuRegistry.RegisterContributor(id, perspective?, items, onAction)`: a node whose children are DTOs computed each frame, merged by label path; the click goes to the contributor that produced the row. The menu snapshot (`PublishSnapshot`) includes them, so a rail sees the whole bar |

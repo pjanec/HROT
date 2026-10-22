@@ -19,10 +19,10 @@ namespace Hrot.Presentation.Windows;
 /// copy-paste. ⛔ 20 sites is 20 chances to drift, and three had already drifted *(see the
 /// <c>DiagnosticsHostServices</c> remarks)</para>.
 ///
-/// <para>⚠⚠ <b>NOT five hosts.</b> ReplayBrowser registers
-/// <c>Fdp.Presentation.Windows.ReplayBrowser.FdpEntityInspectorWindow</c> — a <b>different type in a
-/// different assembly</b> — and has no profiler or architecture window at all. ⇒ ⛔ it cannot join this
-/// bundle, and an earlier plan that counted it as a fifth adopter was wrong.</para>
+/// <para>⭐ <c>CE-1244</c> (design §5c.7.8, <c>2026-10-22</c>) — the ReplayBrowser composes it too: its own copies of the inspector
+/// and event-browser windows were the same panels with the same code, and are deleted. It has no kernel, so it passes no
+/// architecture panel and no stats (absent, ruling 49). ⛔ SUPERSEDED: <i>"NOT five hosts … it cannot join this bundle"</i> — that
+/// recorded a different TYPE, not a reason for one.</para>
 ///
 /// <para>⭐⭐ <b>The ids and titles are DERIVED from two strings</b>, because measurement showed all four
 /// hosts already followed one scheme exactly: <c>{IdPrefix}fdp_inspector</c> titled
