@@ -25,6 +25,7 @@ known-rot: ⭐ RESOLVED 2026-09-21 — §4's closed question Q-iii ("RuntimeInsp
   IRuntimeInspectorPane.Draw a DetailsContext — which is what lets a pinned runtime view honour
   its frozen entity. As-built in DESIGN_Editor_Entity_Selection_Source.md §12.
 related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — registers the per-node Runtime view and the Variables view (DBG-4, DBG-5)
   - ../DESIGN_Entity_Brain_View.md — adds the details.brain view to every host's bundle
   - ../designs/gizmos-1/canvas-context-menu-design.md — §12 (CE-1150): the Properties… action opens THIS shell on every ECS host (EntityDetailsBundle) — DS-7 below
   - docs/DESIGN_Orders_Params_Entity_Classes.md — a possible asset-level view for params DTO / classes

@@ -2002,6 +2002,7 @@ namespace Hrot.Editor.DebugApi
                     ["awaited"] = false,
                     ["target"]  = target.ToString(),
                     ["via"]     = requested?["via"]?.GetValue<string>(),
+                    ["stoppedRun"] = requested?["stoppedRun"]?.DeepClone(),
                 });
 
             // ⭐⭐⭐ READINESS IS AN EDGE, NOT A LEVEL — the rule (state = target AND the world seen changing AND settled, with the
@@ -2029,6 +2030,8 @@ namespace Hrot.Editor.DebugApi
                         //   that only ever passed on grace is worth knowing about.
                         ["sawWorldChange"] = probe.SawWorldChange,
                         ["hadWorldAnchor"] = probe.HadWorldAnchor,
+                        // ⭐ CE-1025 — the run this load stopped ("a live run" / "a dry run"), or null (non-interactive: no prompt).
+                        ["stoppedRun"] = requested?["stoppedRun"]?.DeepClone(),
                     });
             }
             return Fail(504, $"Scenario '{name}' did not reach a settled {target} within "

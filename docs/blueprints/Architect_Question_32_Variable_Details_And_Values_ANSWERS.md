@@ -3,6 +3,8 @@ state: LIVE
 updated: 2026-09-22
 current-answer: section 0 is the ruling spec; section 4 is the MASTER SEQUENCING TABLE (56-61)
 note: carries the standing NO VISUAL CHECKS suspension until the Details panel and access infrastructure are unified
+related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — the Variables view (DBG-5) shows and writes values by these rulings
 -->
 # Architect Question #32 — **ANSWERS**: the variable Details panel
 

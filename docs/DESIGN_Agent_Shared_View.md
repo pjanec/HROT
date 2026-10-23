@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — OWNS the debugging workflow (CE-1270) whose views get routes here (DBG-11)
   - docs/DESIGN_Director_Timeline_Editor.md — OWNS films cut from one editor recording in the Replay Browser; its HTTP (TE-15) follows this design's "a route only when none answers"
   - docs/DESIGN_Entity_Brain_View.md — OWNS what the brain view, the journal and "Debug this unit" ARE (§1–§10); this doc owns how an agent reaches them over HTTP
   - docs/designs/ai-debug-api/DESIGN.md — OWNS the AI debug HTTP API and its endpoint groups (historical intent; G = breakpoints, K = traces); every route here joins one of its groups

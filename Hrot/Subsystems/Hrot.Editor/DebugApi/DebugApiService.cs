@@ -1188,10 +1188,12 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
 
+            var stopped = LeaveRunForLoad();
             if (_editorLogic is not null)
             {
                 _editorLogic.LoadScenarioByName(name);
-                return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver" };
+                return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver",
+                                        ["stoppedRun"] = stopped };
             }
 
             ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
@@ -1204,7 +1206,7 @@ namespace Hrot.Editor.DebugApi
                 ExerciseId    = Guid.Empty,
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent",
-                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle };
+                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
         }
 
         /// <summary>
@@ -1223,6 +1225,7 @@ namespace Hrot.Editor.DebugApi
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
+            var stopped = LeaveRunForLoad();
 
             ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
             {
@@ -1236,7 +1239,17 @@ namespace Hrot.Editor.DebugApi
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
                                     ["startPaused"] = startPaused,
-                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle };
+                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
+        }
+
+        /// <summary>⭐ <c>CE-1025</c> (R-1031, load design §9.1) — the HTTP load is non-interactive (ruling 53): no prompt; a running dry run
+        /// is left WITHOUT a rewind (its restore point forgotten) and a live run is stopped by the load's own unload to Idle. Returns the run
+        /// it stopped ("a live run" / "a dry run"), or null — the answer says so.</summary>
+        private string? LeaveRunForLoad()
+        {
+            var run = Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(_preview.IsInPreviewMode, CurrentClusterState());
+            if (_preview.IsInPreviewMode) _preview.ForgetPreview();
+            return run;
         }
 
         // ⭐⭐ CE-295 — loads go through the ONE shared sequence: from any state but Idle it asks for Idle (the unload),

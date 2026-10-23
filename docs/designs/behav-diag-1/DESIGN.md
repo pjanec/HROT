@@ -1,3 +1,13 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-10-23
+current-answer: the whole file — implemented intent (the BTree / HSM trace rings (opt-in, per unit)); newer intent lives in the related designs
+stale-below: nothing marked
+known-rot: none recorded
+known-conflict: none recorded
+related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — OWNS the debugging workflow built on this (CE-1270)
+-->
 # Behavior Diagnostics — FastBTree & FastHSM Per-Entity Trace Buffers
 
 **Reference design talk:** [design-talk.md](./design-talk.md)

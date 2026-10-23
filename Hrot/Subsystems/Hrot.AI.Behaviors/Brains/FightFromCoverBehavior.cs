@@ -116,12 +116,16 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>He is at his hide point or fighting from it (not choosing one, not on his way to one).</summary>
         public static bool InCover(in FightFromCoverState ws) => ws.Peek.Phase >= PeekPhase.Hidden;
 
-        /// <summary>⭐ The quiet end exists so the paused TASK resumes; with no task to resume (none paused, or only <c>Idle</c>) and the
-        /// enemy still in sight, ending would only let the SOP's enemy-in-sight row start the reaction again a frame later — the cover
-        /// search restarting every few seconds. ⇒ he fights on; <c>PeekAndFire</c>'s own end (nothing left to fight) still ends it.</summary>
+        /// <summary>⭐ The quiet end exists so the paused TASK resumes; with no task to resume (none paused, or only <c>Idle</c>) and an
+        /// enemy he has SEEN still remembered, ending would only let the SOP's enemy-in-sight row start the reaction again the moment he
+        /// looks — the cover search restarting every few seconds. ⇒ he fights on; <c>PeekAndFire</c>'s own end (nothing left to fight —
+        /// the enemy forgotten) still ends it.
+        /// <para>⭐ <c>CE-1269</c> — "still remembered", not "in sight": the quiet end is checked while he HIDES, and a hidden man does
+        /// not see. 📐 Measured live (<c>df-lone-soldier-reflex</c>): all three ends came through the quiet end with <c>EnemyInSight</c>
+        /// false (phase Hidden / Expose), and the row restarted the reaction 0.1–0.2 s later, every 1–3 s.</para></summary>
         public static bool WouldReturn(EntityRepository world, Entity self)
         {
-            if (!CoverFightConditions.EnemyInSight(self, world)) return false;
+            if (!CoverFightConditions.EnemySeenAndRemembered(self, world)) return false;
             var paused = BehaviorIngressSystem.PausedTaskOf(world, self);
             return paused == null || paused.BehaviorName == BehaviorNames.Idle;
         }
@@ -141,7 +145,13 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>A hostile he SAW (not only heard) within <see cref="InSightTicks"/>, alive and in the fight.</summary>
         [SharedAiCondition]
-        public static unsafe bool EnemyInSight(Entity self, EntityRepository world)
+        public static bool EnemyInSight(Entity self, EntityRepository world) => SeenHostile(self, world, InSightTicks);
+
+        /// <summary>⭐ <c>CE-1269</c> — a hostile he has SEEN (not only heard) and still remembers, however long ago: what the enemy-in-sight
+        /// row will see again once he looks out of cover.</summary>
+        public static bool EnemySeenAndRemembered(Entity self, EntityRepository world) => SeenHostile(self, world, uint.MaxValue);
+
+        private static unsafe bool SeenHostile(Entity self, EntityRepository world, uint withinTicks)
         {
             if (!world.IsComponentTypeRegistered<TargetMemory>() || !world.HasComponent<TargetMemory>(self)) return false;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
@@ -150,7 +160,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (mem.EntityIds[i] <= 0 || TargetMemory.IsAnonymous(in mem, i)) continue;
                 if ((mem.Modalities[i] & (byte)SensorModality.Visual) == 0) continue;
-                if (mem.LastSeenTick[i] <= now && now - mem.LastSeenTick[i] > InSightTicks) continue;
+                if (mem.LastSeenTick[i] <= now && now - mem.LastSeenTick[i] > withinTicks) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
                 if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, self, e)) continue;
                 return true;

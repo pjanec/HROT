@@ -357,6 +357,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(run, w.Task.InstanceId);
         }
 
+        /// <summary>⭐ <c>CE-1269</c> — the same, once he HIDES and stops seeing the enemy (the eye stamps nothing while he is down in cover):
+        /// the enemy is still remembered, so the quiet lapse still does not end it — ending would only let the row restart him the moment he
+        /// looks out (📐 measured live: a restart every 1–3 s). ✅ Red-proof: <c>WouldReturn</c> reading <c>EnemyInSight</c> again ⇒ it ends
+        /// after the quiet lapse ⇒ red.</summary>
+        [Fact]
+        public void CE1269_HiddenAndNoLongerSeeing_TheRememberedEnemy_StillKeepsTheReaction()
+        {
+            var w = new World();
+            w.StartSop();
+            w.Run(0.3);
+            w.RememberEnemy(seen: true);
+            w.Tick();
+            w.KeepSeeing();
+            w.Run(0.5);
+            Assert.Equal("FightFromCover", w.TaskName);
+
+            uint run = w.Task.InstanceId;
+            w.Run(FightFromCoverBehavior.DefaultQuietSeconds + 3);             // hidden: nothing seen, nothing landing near him
+            Assert.Equal("FightFromCover", w.TaskName);
+            Assert.Equal(run, w.Task.InstanceId);
+        }
+
         /// <summary>⭐ <c>CE-3306</c> — under HOLD FIRE the enemy-in-sight row stands aside: a man with no task who sees an enemy, the
         /// first-threat edge not yet read, does NOT start fighting from cover — and once the edge arrives the withdraw row takes him
         /// (FallBack, D5). 📐 Live (the in-process cluster): row C took him a frame before the edge. ✅ Red-proof: the <c>MayFire</c>

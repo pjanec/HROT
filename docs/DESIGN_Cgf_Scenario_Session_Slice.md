@@ -10,6 +10,7 @@ stale-below: nothing. §9 is the as-built delta; where §3a and §9 disagree, **
 known-conflict: extends CgfSubsystem.cs + EditorSubsystem.cs + ScenarioMenuCommands.cs (UI/CGF lane) and
   moves EditorApplication's scenario half into Hrot.Editor.AiShared ⇒ UI/CGF lane; rule-4 re-pull.
 related-designs:
+  - docs/DESIGN_Cluster_Load_Phase.md — §9.1 OWNS what a load does during a live run or a dry run (the warning before Live… / Edit…, the forgotten restore point; CE-1025, R-1031)
   - DESIGN_Film_Director.md — a CONSUMER: loads each reel item through IScenarioSession and waits on the extracted ScenarioReadyProbe (D-11)
 -->
 # DESIGN — **CGF scenario session: the shared facade + distinct File/Scenario menu** *(AQ60 Slice A = Axis-C E1)*

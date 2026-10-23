@@ -38,6 +38,26 @@ namespace Hrot.SimHost.Tests
 
         public void Dispose() => _liveRepo.Dispose();
 
+        /// <summary>⭐ <c>CE-1025</c> (R-1031) — a dry run left by a LOAD is forgotten, not rewound: the world stays as it is, the restore
+        /// point is gone, and the next Play captures afresh (it used to keep the OLD capture, so Stop rewound the new world to the old).
+        /// 🔴 Red-proof: make <c>TriggerForgetPreview</c> call <c>UnloadingPreviewCommit</c> ⇒ red (the extra entity is rewound away).</summary>
+        [Fact]
+        public void CE1025_AForgottenDryRun_IsNotRewound_AndTheNextPlayCapturesAfresh()
+        {
+            for (int i = 0; i < 4; i++) _liveRepo.CreateEntity();
+            var handler = new ReferencePreviewHandler(_liveRepo);
+            handler.TriggerLoadingPreview();
+            _liveRepo.CreateEntity();                                          // the "new world" after the load
+            handler.TriggerForgetPreview();
+            Assert.Null(handler.TestHook_Keyframe);
+            Assert.Equal(5, _liveRepo.EntityCount);                            // not rewound
+
+            handler.TriggerLoadingPreview();                                   // the next Play
+            _liveRepo.CreateEntity();
+            handler.TriggerUnloadingPreview();                                 // Stop
+            Assert.Equal(5, _liveRepo.EntityCount);                            // back to the NEW world, not the old 4
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────
 
         private static ExecuteNodeOpIntent MakePrepareStateCmd(ClusterState target) => new()
