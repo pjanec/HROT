@@ -71,7 +71,9 @@ public sealed class UnitDebugControllerTests : IDisposable
     }
 
     /// <summary>⭐ The map's AI-trace submenu offers it only where a host composes the controller, and the pack registers the action that
-    /// toggles it. 🔴 Red-proof: drop the 128 flag from the unit-menu cache key ⇒ red (a cached menu without the item is served).</summary>
+    /// toggles it. 🔴 Red-proof: build the submenu without the item (<c>Children = false ? …</c> in <c>AiTraceActions.Submenu</c>) ⇒ red.
+    /// ⚠ Dropping the cache key's 128 flag stayed GREEN: the unit-menu cache is rebuilt when the order vocabulary changes, which it does
+    /// between these calls — the flag is a guard for a stable vocabulary this rail cannot reach.</summary>
     [Fact]
     public void TheMapMenu_OffersIt_WhereAControllerIsComposed_AndItsActionToggles()
     {

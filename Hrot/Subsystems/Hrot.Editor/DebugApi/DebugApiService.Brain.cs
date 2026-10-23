@@ -262,12 +262,8 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["count"] = hits.Count, ["truncated"] = hits.Count > limit, ["hits"] = list }, null);
         }
 
+        // ⭐ BP-508 — the ONE resolver (ThereIsOneNetworkIdResolverTests): no inline network-id scan here.
         private static Entity FindByNetworkId(EntityRepository repo, long networkId)
-        {
-            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) return Entity.Null;
-            foreach (var e in repo.Query().With<Fdp.Toolkit.Replication.Components.NetworkIdentity>().Build())
-                if (repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == networkId) return e;
-            return Entity.Null;
-        }
+            => NetworkIdResolver.FindEntityByNetworkId(repo, networkId);
     }
 }
