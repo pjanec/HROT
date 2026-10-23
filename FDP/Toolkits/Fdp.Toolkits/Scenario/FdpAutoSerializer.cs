@@ -217,8 +217,12 @@ namespace Fdp.Toolkit.Scenario
         /// and <see cref="Fdp.Core.Serialization.Converters.StrictStringEnumConverter"/>
         /// to reject silent integer-as-enum parsing.
         /// </summary>
+        // ⭐ named non-finite numbers (CE-1292): a component may hold ±Infinity / NaN as a real value ("never", e.g. SquadMemberSense's
+        //   WindowStart = -Infinity); the plain options THREW on it, so every entity dump, scenario save and checkpoint of such a unit
+        //   failed (the verify golden of ua-casualty-care, bc-room-clear …). Written as "-Infinity" and read back the same.
         private static readonly JsonSerializerOptions _fieldAwareOptions =
-            Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            Fdp.Core.Serialization.FdpJsonOptionsRegistry.Derive(o =>
+                o.NumberHandling |= System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals);
 
         /// <summary>
         /// Serializes a value of type <typeparamref name="T"/> to a <see cref="JsonNode"/>
