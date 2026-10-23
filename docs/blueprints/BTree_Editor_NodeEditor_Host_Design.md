@@ -7,6 +7,7 @@ known-rot: ⚠ predates the JSON substrate; `BTree_HSM_Editor_State_And_Forward_
   substrate assumptions here while leaving this the feature/UX spec. ⛔ Do not quote it for
   persistence shape.
 related-designs:
+  - ../DESIGN_Entity_Brain_View.md — §9 opens a unit's running C#-built tree from its Brain tab, read-only and pinned to the unit (reuses §3.4 layout, §12.4 overlay)
   - DESIGN_Occurrence_Scoped_Storage.md — ⭐⭐ §33 (`E6`) owns the BTree-hosts-BTree RUNTIME + EMIT
     half that this document's §S1 does not: the thunk, the slot declaration and the tick. §32 owns
     the HSM twin (`E5`).

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-23 (BV-15, BV-16 folded in — R-1013)
-build-state: READY-TO-BUILD — Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1012); nothing built yet
-current-answer: §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance
+build-state: READY-TO-BUILD — Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1014); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1012); nothing built yet
+current-answer: §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1230…CE-1234)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -18,6 +18,10 @@ related-designs:
   - docs/DESIGN_Terrain_Combat_Tuning.md — §5b OWNS the gizmo family pins ("Show on map")
   - docs/designs/replay-browser-2/DESIGN.md — OWNS the replay browser; a recorded journal makes the tab work at a scrubbed frame
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the map; its diagnostics row points here
+  - docs/blueprints/BTree_Editor_NodeEditor_Host_Design.md — OWNS the BTree canvas, its tidy-tree layout and runtime overlay (§3.4, §12.4) Phase 3 reuses
+  - docs/blueprints/HSM_Editor_NodeEditor_Host_Design.md — OWNS the HSM canvas, the planned statechart layout (§3.4) and the live overlay (§13.4) Phase 3 completes
+  - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — §3.2 OWNS pinning, which Phase 3 uses to keep the overlay on one unit
+  - docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md — §32.22 (CE-348) OWNS the debug pump that follows the selection
 -->
 
 # Entity Brain View — what a unit is doing and why *(Phase 1 the Brain tab, Phase 2 the brain journal)*
@@ -224,3 +228,133 @@ Unknown` until P2b lands — the journal is useful from day one (task changes wi
 | P2a | a reaction pausing a task writes Paused + Started with origin and urgency; a refused assign writes Refused with its reason; a move command writes MoveStarted once (not per tick); a utility switch writes one DecisionSwitched and a steady winner writes none; the ring wraps at 24; the journal is recorded (a replay seek restores it); with the setting off the component is never attached and every writer is a no-op (BV-16); a write allocates nothing (an allocation-count rail around a burst of writes) |
 | P2b | a near miss → the reaction's entry names NearMiss; a squad post move → `Source = SquadPost`; a play phase change → `PlayPhase` with its cause |
 | live | `ua-*` / `pc-defend-house`: open the tab on a defender and on the platoon leader; every line reads true against what the unit visibly does |
+
+## 9. Phase 3 — the running graph: a hard-coded behaviour shown as its graph *(approved 2026-10-23 — R-1014)*
+
+🔒 **User, `2026-10-23`:** *"whether we could somehow show the currently running behavior on an entity as a read-only debug view of
+the Btree or HSM, and if these are implemented as hard-coded in C#, if we can automatically convert them into their graph
+representation"* · *"I meant conversions for behaviors that have never been a json graph asset, always just hardcided. Using auto
+layout."* · *"for grubs that exist as assets, I do not need to decompile them because they are still existing on the disk"* · on the
+lean: *"Approved, write it into the design. Is the auto-layouting code for btrees and hsms already existing? can the conversion to
+graph for csharp only assets be done just in memory, not writing any assets to the disk?"*
+
+### 9.1 INVENTORY *(2026-10-23 — `scripts/cbm.sh search_graph` + grep + reads; coverage not provable through the CLI)*
+
+| query | total | what matters |
+|---|---|---|
+| `search_graph .*(AutoLayout\|AssetProjector\|AssetContributor)$` (Class) | 10 | `BTreeAutoLayout` (Reingold-Tilford tidy tree, 218 lines) · `HsmAutoLayout` (grid, 73 lines) · `BehaviorTreeAssetProjector` · `HsmAssetProjector` · `BTreeAssetContributor` / `HsmAssetContributor` (C#-side catalog) · `BTreeJsonAssetContributor` / `HsmJsonAssetContributor` (assets on disk) · `BlueprintAssetContributor` |
+| grep `[BTreeDefinition(` / `[HsmDefinition(` (production) | 77 / 12 | curated C#: **74 BTrees** (`BTreeBuilder`) + **12 HSMs** (`HsmBuilder` → `StateMachineGraph`); plus 39 `*.btree.json` / 10 `*.hsm.json` assets on disk (not in scope — they open as they are) |
+| `BehaviorDefinition.BrainTier` values | 3 | HSM, BTree, Blueprint — ⭐ **no plain-imperative brain**: every hard-coded behaviour is a builder graph |
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the compiled form holds the whole graph | HSM: `HsmDefinitionBlob` states (parent, children, flags, regions, history) + `TransitionDef` (source, target, event, guard, priority, polled) + `MachineMetadata` names and stable ids · BTree: `BehaviorTreeBlob` depth-first `Nodes[]` + `DebugMetadata` labels and visual ids | — |
+| blob → editor graph already exists, **in memory** | `BehaviorTreeAssetProjector.Project` / `HsmAssetProjector.Project` build the editor model from a blob; auto-layout runs when no layout entry exists (`BehaviorTreeAssetProjector.cs:66`, `HsmAssetProjector.cs:290`) | BTree / HSM editor host designs §3.4 |
+| ✅ **C#-only BTrees already open as graphs** (in memory, auto-laid out, debuggable) | `BTreeAssetContributor.LoadFrom` compiles builder-returning methods (CE-3160) | [Decision Layer §3.3h](DESIGN_Decision_Layer.md); R-266 |
+| ⛔ the 12 C#-only HSMs never reach the HSM editor | `HsmAssetContributor.cs:37` accepts only methods returning `HsmDefinitionBlob`; all 12 return `StateMachineGraph` | — the CE-3160 fix was made on the BTree side only |
+| ⛔ the live HSM highlight never draws (for asset HSMs too) | `HsmDebugSession.SetMetadata` has no production caller ⇒ `DecodeLeaves` returns empty | [HSM host design §13.4](blueprints/HSM_Editor_NodeEditor_Host_Design.md) |
+| ⛔ nothing opens THE RUNNING behaviour of a chosen unit, pinned to it | the overlay lights the OPEN document only; `AiDebugSessionPump.SelectedEntity` follows the global selection; pinning deferred | [Occurrence storage §32.22](blueprints/DESIGN_Occurrence_Scoped_Storage.md) (CE-348); [entity selection §3.2](blueprints/DESIGN_Editor_Entity_Selection_Source.md) |
+| nothing is written to disk unless a person asks | a code-built document has no `SourceFilePath` ⇒ Save falls to Save As (`ShellSaveCommands.cs:174`); "auto-layout saved on next save" applies to editor-owned documents | AI editor shared infrastructure (layout persistence) |
+| ⛔ the HSM grid layout's readability on nested / parallel machines | **not measured** — `HsmAutoLayout` does top level in a row, children in a 3-wide grid; the host design itself says *"readable but not optimal. Users will manually arrange"* — and a read-only C# graph cannot be arranged by hand | HSM host design §3.4 |
+
+### 9.2 Classes
+
+```mermaid
+classDiagram
+  class BrainDetailsView { <<Phase 1>> NEW button Open running behaviour }
+  class RunningBehaviourLocator {
+    <<NEW, ui, pure>>
+    Resolve(world, unit, registry) RunningRef
+  }
+  class RunningRef { <<NEW record>> Kind · AssetId · IsCodeBuilt · HostedChild path }
+  class HsmAssetContributor {
+    <<exists, changed>>
+    LoadFrom also accepts StateMachineGraph methods: Compile, Metadata
+  }
+  class BTreeAssetContributor { <<exists>> builder methods since CE-3160 }
+  class HsmAssetProjector { <<exists>> blob + metadata to HsmAsset, in memory }
+  class BehaviorTreeAssetProjector { <<exists>> blob to editor asset, in memory }
+  class BTreeAutoLayout { <<exists>> tidy tree }
+  class HsmAutoLayout { <<exists, maybe improved, BV-23>> statechart layout }
+  class AiDocument { <<exists, changed>> IsReadOnly : code-built and no source file }
+  class HsmDebugSession { <<exists, changed>> SetMetadata now called from the registry definition }
+  class AiDebugSessionPump { <<exists, changed>> SelectedEntity : pinned unit, else the selection }
+  BrainDetailsView --> RunningBehaviourLocator
+  RunningBehaviourLocator --> RunningRef
+  HsmAssetContributor ..> HsmAssetProjector
+  BTreeAssetContributor ..> BehaviorTreeAssetProjector
+  HsmAssetProjector ..> HsmAutoLayout
+  BehaviorTreeAssetProjector ..> BTreeAutoLayout
+  AiDocument ..> HsmAssetProjector : opened from
+  AiDebugSessionPump ..> HsmDebugSession
+```
+*What the picture shows that prose hid:* nothing new is built to CONVERT — the projectors and the two layouts exist; the work is one
+missing catalog branch (HSM), one missing metadata call, a read-only flag, a pin, and one locator that turns "the unit's running
+behaviour" into the catalog id the editor already opens by.
+
+### 9.3 Sequence — "Open running behaviour" on a unit
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant B as BrainDetailsView
+  participant L as RunningBehaviourLocator
+  participant C as editor catalog (BTree / HSM contributors)
+  participant D as AiDocumentManager
+  participant P as AiDebugSessionPump
+  U->>B: Open running behaviour
+  B->>L: Resolve(world, unit, registry)
+  L-->>B: RunningRef (Hsm, asset id, code-built)
+  B->>D: open the catalog entry by asset id in its perspective
+  D->>C: the entry, built at catalog load from the C# builder (Compile, project, auto-layout) — in memory
+  D-->>U: the graph, read-only (no source file, no save)
+  B->>P: pin the session to this unit (until unpinned)
+  loop each frame while the canvas draws
+    P->>P: active node / states of the PINNED unit, gold overlay on the graph
+  end
+  U->>D: double-click a hosted child state / subtree
+  D-->>U: its own graph, same pin
+```
+
+### 9.4 Modules
+
+```mermaid
+graph TD
+  REG["generated CuratedBehaviorRegistrar — the 74 + 12 C# builders"] --> BTC["BTreeAssetContributor (exists)"]
+  REG --> HSC["HsmAssetContributor (changed: StateMachineGraph)"]
+  BTC --> CAT["editor asset catalog — built at editor start, in memory"]
+  HSC --> CAT
+  JSON["*.btree.json / *.hsm.json on disk — unchanged"] --> CAT
+  CAT --> DOC["AiDocumentManager — opens by asset id"]
+  BV["Brain tab — Open running behaviour"] --> DOC
+  BV --> PUMP["AiDebugSessionPump — canvas AfterDraw, each frame it draws"]
+  PUMP --> SES["BTree / HSM debug session (HSM: metadata now set)"]
+  DOC -.->|"Save / Save As blocked for read-only code-built documents"| DISK[("disk")]
+  classDef dead stroke-dasharray: 5 5
+  class DISK dead
+```
+*Who calls it each frame:* only the canvas's `AfterDraw` hook while the graph is drawn — the brain never pays for this view.
+
+### 9.5 Decisions *(approved 2026-10-23 as leaned — R-1014)*
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **BV-17** | scope | only behaviours that have **never been a graph asset** (the 74 C# BTrees, the 12 C# HSMs); assets on disk open as they are | decompile assets too — they exist on disk |
+| **BV-18** | how the graph is made | **from the compiled form, in memory, at editor catalog load**: builder → `Compile` → projector → auto-layout — the BTree path that exists since CE-3160, extended to HSMs (`StateMachineGraph` → `Compile()` + `.Metadata`) | Roslyn decompilation of the C# source — the compiled form already holds everything |
+| **BV-19** | disk | ⛔ **nothing is written**: a code-built document is `IsReadOnly` (no source file) — edits and Save / Save As are blocked, with the line *"built in C# — edit `<Type>.<Method>`"*; the auto-layout is recomputed on every open | write JSON copies — a second copy of each behaviour, and R-223 / R-266 moved them TO C# |
+| **BV-20** | the HSM live highlight | `HsmDebugSession.SetMetadata` fed from the registry's `HsmDefinition` / `HsmMetadata` (the session already resolves the running blob) — fixes every HSM, asset or C# | — |
+| **BV-21** | opening the right graph | the Brain tab's **Open running behaviour**: `RunningBehaviourLocator` reads `BehaviorState` → the registry definition → the catalog asset id (the existing `AssetIdHasher` / attribute id) and asks the document manager to open it | search the catalog by name in the UI — the locator is one pure function, testable |
+| **BV-22** | which unit the overlay follows | **pinned** to the unit the button was pressed on (the pump's `SelectedEntity` returns the pin while set, else the selection) — the pinning [entity selection §3.2](blueprints/DESIGN_Editor_Entity_Selection_Source.md) defined; unpin from the canvas toolbar | follow the global selection only — clicking elsewhere on the map loses the unit you are watching |
+| **BV-23** | the HSM layout | ⛔ check first: a frame of PlatoonDefend / PlatoonAttack / CivilianHsm under `HsmAutoLayout`; if unreadable, implement the host design's §3.4 statechart layout (composites sized to their children, parallel regions as side-by-side strips, initial state first, children ordered by transitions) — a read-only graph cannot be tidied by hand | MSAGL or a new layout library — the BTree tidy tree exists, only the HSM needs better |
+| **BV-24** | hosted children | an HSM state hosting a BTree, or a BTree subtree: double-click opens the child's graph with the same pin (`HsmHostedSubtrees`, `BTreeHostedSites` resolve it) | flatten children into one canvas — the editors already treat them as separate documents |
+| **BV-25** | adjacent bug | the Blueprint live highlight follows whichever unit ran last (`BlueprintDebugSession.SetEntityFilter` has no production caller) — set it from the same pin | — |
+
+### 9.6 Slices and acceptance
+
+| slice | owner | what | tracker | acceptance |
+|---|---|---|---|---|
+| **P3a** | ui *(cross-lane: the HSM editor, behaviors' editor area)* | `HsmAssetContributor` accepts `StateMachineGraph` methods; `AiDocument.IsReadOnly` for code-built documents (edits, Save, Save As blocked) | `CE-1230` | all 12 C# HSMs listed in the HSM editor and open as graphs; a code-built document refuses an edit and a save; nothing new appears on disk |
+| **P3b** | ui | `HsmDebugSession.SetMetadata` from the registry definition | `CE-1231` | a running HSM's active leaf is named in the runtime pane and glows on the canvas |
+| **P3c** | ui | `RunningBehaviourLocator`, the Brain tab button, the pin in the pump, hosted-child step-in | `CE-1232` | from a unit's Brain tab the right graph opens with ITS node / state lit; clicking another unit on the map does not move the pin |
+| **P3d** | ui | the HSM statechart layout — only if the BV-23 frame shows the grid unreadable | `CE-1233` | a frame of PlatoonDefend: composites enclose their children, parallel regions side by side, no overlaps |
+| **bug** | ui or behaviors | Blueprint entity filter from the pin | `CE-1234` | a Blueprint graph lights only the pinned unit's nodes |

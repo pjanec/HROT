@@ -280,7 +280,8 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 - [`DESIGN_Entity_Brain_View.md`](../DESIGN_Entity_Brain_View.md) (`R-1012`): Phase 1 the Brain tab (`CE-1226`, ui), Phase 2 the brain journal (`CE-1227` ui, `CE-1228` behaviors), the HSM history-list bug (`CE-1229`). READY-TO-BUILD; ⛔ ask before starting.
 - Two pre-existing reds after the merge, on backend's head too: `EntityTypeCatalogTests.CE2138_…` (behaviors' type 2009 AssaultRifleman missing from the golden — ui's picker test) and `FilmDirectorTests.CE4038_…` (reel key "waiting").
-- ids: ui tracker next free **`CE-1230`**, rulings **`R-1014`**.
+- Phase 3 (§9, R-1014): C#-only behaviours as read-only graphs in memory — `CE-1230`…`CE-1234`.
+- ids: ui tracker next free **`CE-1235`**, rulings **`R-1015`**.
 
 ### Next, in order (leans — ask the user before starting any; they gate starts explicitly)
 
