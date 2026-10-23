@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — ui → behaviors: the brain journal's causes and play entries (`CE-1250`)
 
-**Dispatched at** `ui@<this commit>` · **tracker:** [`CE-1250`](../Blueprint_Issues_Tracker.md) (filed by ui; renumber in your block on
+**Dispatched at** `ui@16bf5faa5` · **tracker:** [`CE-1250`](../Blueprint_Issues_Tracker.md) (filed by ui; renumber in your block on
 pickup if you like — the row stays) · **design:** [Entity Brain View](../../DESIGN_Entity_Brain_View.md) BV-10, BV-12, BV-14, §7 P2b ·
 ruling `R-1026` (approved by the user).
 
