@@ -1209,6 +1209,12 @@ export const TOOLS_CATALOG = [
         "required": false,
         "description": "Number of steps to advance (default 1)",
         "default": 1
+      },
+      {
+        "name": "dt",
+        "type": "number",
+        "required": false,
+        "description": "Seconds per step, in (0, 0.1] (default 1/60). The film director's coarser rates: 0.05 (20 Hz) or 0.0667 (15 Hz), CE-4038 / DESIGN_Film_Director.md D-1"
       }
     ],
     "returns": "ok:true envelope.",
@@ -1225,7 +1231,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "advance 5 simulation ticks"
     },
-    "hint": "No required params. Optional: count (number, def 1). Example: step({count:5})",
+    "hint": "No required params. Optional: count (number, def 1), dt (seconds per step, def 1/60). Example: step({count:5})",
     "manualVerify": false
   },
 
@@ -1393,7 +1399,7 @@ export const TOOLS_CATALOG = [
     ],
     "example": {
       "args": {
-        "tkbType": 1001,
+        "tkbType": 1101,
         "transform": {
           "position": {
             "x": 100,
@@ -1408,7 +1414,7 @@ export const TOOLS_CATALOG = [
           }
         }
       },
-      "gist": "spawn entity type 1001 at position (100,0,50)"
+      "gist": "spawn entity type 1101 at position (100,0,50)"
     },
     "hint": "Req: tkbType (number/long from list_entity_types). Optional: transform ({position,rotation}), components (array), attributesJson (string). Example: spawn_entity({tkbType:1001})",
     "manualVerify": false
@@ -1739,6 +1745,226 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_entity_reports",
+    "group": "K — AI behavior traces",
+    "summary": "Reports up the chain of command (CE-2295, CC-12): on a commander its picture — the elements its subordinates reported, each subordinate's last progress / colours / age / overdue, open requests; on any unit the extra requirements its superior set and its outbox (queued, posture, muted).",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/reports"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ networkId, now, onBrainNode?, picture?:{elements:[{from, size, count, activity, equipment, at, radius, observedAt, ageSeconds, receivedAt, seq, synthetic}], subordinates:[{networkId, name?, progress, strength, ammo, phase, lastSeq, lastReportAt, ageSeconds, overdue}], requests:[{from, kind, at, receivedAt, seq}]}, requirements?:{pir, ffir, sitrepEverySeconds, pirArea, setBy}, outbox?:{queued:[report + dueAt], nextSeq, posture, muted, mutedUntil} }",
+    "notes": [
+      "The INTERPRETED view; the raw components (CommandPicture, ReportingRequirements, ReportOutbox) are in get_entity, each buffer a plain array (CC-16).",
+      "A report ages from observedAt (when the sender saw it), not from its arrival; overdue = nothing heard for 60 s."
+    ],
+    "example": {
+      "args": {
+        "networkId": 5001
+      },
+      "gist": "what has the platoon heard from its squads"
+    },
+    "hint": "Req: networkId of a commander (a platoon, a squad). Read on its BRAIN node (Scenario on a cluster). Example: get_entity_reports({networkId:5001})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "fake_entity_report",
+    "group": "K — AI behavior traces",
+    "summary": "A report AS IF this unit's staff sent it to its superior (CE-2295, CC-13) — it enters before the wire, ages from observedAgoSeconds, and the superior's whole decision path runs as for a real one. Marked synthetic: always taken, replaced by the unit's next real report (CC-14).",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/reports"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "The unit the report comes FROM (its superior receives it)"
+      },
+      {
+        "name": "kind",
+        "type": "string",
+        "required": true,
+        "description": "Contact · Spot · Sitrep · Lace · Progress · Request"
+      },
+      {
+        "name": "subtype",
+        "type": "string",
+        "required": false,
+        "description": "Progress: Set · PhaseLine · Foothold · RoomClear · … · FireLifted · TaskFailed; Request: Casevac · FireSupport · Resupply · Reinforce · Permission"
+      },
+      {
+        "name": "count",
+        "type": "number",
+        "required": false,
+        "description": "Spot / Contact: how many (0 = the element is lost); PhaseLine: the line's index"
+      },
+      {
+        "name": "size",
+        "type": "string",
+        "required": false,
+        "description": "Individual · Team · SquadSize · PlatoonSize"
+      },
+      {
+        "name": "at",
+        "type": "array",
+        "required": false,
+        "description": "[x, y, z] where (default: the unit's own position)"
+      },
+      {
+        "name": "strength",
+        "type": "string",
+        "required": false,
+        "description": "Sitrep: Green · Amber · Red · Black"
+      },
+      {
+        "name": "observedAgoSeconds",
+        "type": "number",
+        "required": false,
+        "description": "how old the observation already is"
+      }
+    ],
+    "returns": "{ networkId, sent:true, synthetic:true, report }",
+    "notes": [
+      "Run on any node that holds the unit; BR-3 carries the report to the superior's brain node."
+    ],
+    "example": {
+      "args": {
+        "networkId": 5002,
+        "kind": "Spot",
+        "size": "Team",
+        "count": 3,
+        "at": [
+          200,
+          320,
+          0
+        ]
+      },
+      "gist": "tell the platoon squad 5002 sees three enemies"
+    },
+    "hint": "Req: networkId of the SENDING unit (a squad), kind. Example: fake_entity_report({networkId:5002, kind:'Spot', size:'Team', count:3, at:[200,320,0]})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "mute_entity_reports",
+    "group": "K — AI behavior traces",
+    "summary": "Lost comms (CE-2295, CC-15): the unit's staff sends nothing for `seconds` — CONTACT included; its outbox keeps filling. 0 restores the radio.",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/reports/mute"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "The unit whose radio fails"
+      },
+      {
+        "name": "seconds",
+        "type": "number",
+        "required": true,
+        "description": "How long (0 = restore)"
+      }
+    ],
+    "returns": "{ networkId, mutedSeconds }",
+    "example": {
+      "args": {
+        "networkId": 5002,
+        "seconds": 60
+      },
+      "gist": "squad 5002 goes silent for a minute"
+    },
+    "hint": "Req: networkId, seconds. Run on the unit's BRAIN node (the outbox lives there). Example: mute_entity_reports({networkId:5002, seconds:60})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_entity_sector",
+    "group": "K — AI behavior traces",
+    "summary": "Set a man's or a commander's sector — the arc he may choose to shoot into, where he watches, his NoFire areas (CE-2298, DA-26).",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/sector"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "left",
+        "type": "number",
+        "required": false,
+        "description": "Arc's left bearing (compass degrees)"
+      },
+      {
+        "name": "right",
+        "type": "number",
+        "required": false,
+        "description": "Arc's right bearing (compass degrees)"
+      },
+      {
+        "name": "minRange",
+        "type": "number",
+        "required": false,
+        "description": "Arc's min range (m)"
+      },
+      {
+        "name": "maxRange",
+        "type": "number",
+        "required": false,
+        "description": "Arc's max range (m); 0 = none"
+      },
+      {
+        "name": "watch",
+        "type": "number",
+        "required": false,
+        "description": "Where he looks (compass degrees)"
+      },
+      {
+        "name": "allowArea",
+        "type": "number",
+        "required": false,
+        "description": "An area entity's network id he may shoot into"
+      },
+      {
+        "name": "noFire",
+        "type": "array",
+        "required": false,
+        "description": "Up to four area entities' network ids no round may end in"
+      }
+    ],
+    "returns": "{ networkId, arc:{left,right,minRange,maxRange}|null, watch|null, allowArea|null, noFire, setBy } — or { networkId, forwarded:true } when his brain is elsewhere",
+    "notes": [
+      "Origin Operator through the one writer (EngagementAreaSystem.Apply): it replaces the whole sector; a higher setter refuses it.",
+      "The arc's origin is where he stands now. On a node that does not run his brain the sector is forwarded to the one that does (kind 4) — the answer says forwarded.",
+      "His eyes follow it: a holding or fighting man looks at his sector when no threat or sound holds them (Look Direction §3.3a)."
+    ],
+    "example": {
+      "args": {
+        "networkId": 5301,
+        "watch": 0
+      },
+      "gist": "point a sentry north, or give a man his arc of fire"
+    },
+    "hint": "Req: networkId. Body (all optional): left, right (compass, 0 = north, clockwise), minRange, maxRange, watch (compass), allowArea, noFire:[areaIds]. Empty body withdraws. Example: set_entity_sector({networkId:5301, watch:0})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_entity_sensors",
     "group": "K — AI behavior traces",
     "summary": "Every sensor of a unit — kind, result family and last answer in its own shape (CE-3072).",
@@ -1767,6 +1993,38 @@ export const TOOLS_CATALOG = [
       "gist": "read which danger areas a unit sees ahead on its route, and how threatened each is"
     },
     "hint": "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — the answers land there. Example: get_entity_sensors({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_entity_slots",
+    "group": "K — AI behavior traces",
+    "summary": "Every behaviour occurrence slot a unit carries — the task's, the SOP's, a paused task's, hosted children's — named and decoded (CE-2288).",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/slots"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ networkId, count, slots:[{key, kind, payloadSize, structureHash, owner (Task|Sop|PausedTask|OwnerUnknown), behaviour, role (Params|State|Hsm|Working|HostedChild|RoleUnknown), label, layout, value}] }",
+    "notes": [
+      "GET /entities/{id} projects only the running task's params; this route lists every slot, including a hosted drill's own block and the SOP's.",
+      "A slot stores no owner: each is named by recomputing the keys of the task, the SOP and a paused task; an unmatched slot is listed with owner OwnerUnknown.",
+      "value is the slot decoded through its behaviour's layout (params, a hosted child's params, a stateful node's working state); null when no layout is known."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "see a commander's whole brain — the play, the SOP, a paused task and the drill it hosts"
+    },
+    "hint": "Req: networkId (number). Read on the Brain perspective (Scenario on a cluster) — the slots live where the brain runs. Example: get_entity_slots({networkId:1000})",
     "manualVerify": false
   },
 
@@ -1941,6 +2199,42 @@ export const TOOLS_CATALOG = [
       "gist": "find out which wall hides the enemy from the rifleman"
     },
     "hint": "Req: observer, target (network ids). Example: explain_line_of_sight({observer:1001, target:1002})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_squad_reports",
+    "group": "K — AI behavior traces",
+    "summary": "The reports this node's inbox saw, newest first (CE-2295, PC-11) — folded, stale (a late older one dropped) or not addressed here; a ring of 256 per node.",
+    "http": {
+      "method": "GET",
+      "path": "/squad/reports"
+    },
+    "params": [
+      {
+        "name": "last",
+        "type": "number",
+        "required": false,
+        "description": "How many (default 50)"
+      },
+      {
+        "name": "unit",
+        "type": "number",
+        "required": false,
+        "description": "Only reports from or to this unit"
+      }
+    ],
+    "returns": "{ count, returned, reports:[{serial, seenAt, from, to, originNode, verdict, kind, subtype, at, observedAt, ageSeconds, seq, synthetic, …}] }",
+    "notes": [
+      "⛔ Not GET /events: that ring holds 500 events of every type and a fight's shots evict a report within seconds."
+    ],
+    "example": {
+      "args": {
+        "last": 20
+      },
+      "gist": "the last reports up the chain"
+    },
+    "hint": "Optional: last (default 50), unit (from or to). Read on a brain node. Example: get_squad_reports({last:20, unit:5001})",
     "manualVerify": false
   },
 
@@ -2199,11 +2493,11 @@ export const TOOLS_CATALOG = [
     "returns": "Full TKB descriptor including mandatory components, child blueprints, descriptors. No spawn.",
     "example": {
       "args": {
-        "tkbType": 1001
+        "tkbType": 1101
       },
-      "gist": "inspect TKB descriptor for type 1001"
+      "gist": "inspect TKB descriptor for type 1101"
     },
-    "hint": "Req: tkbType (number/long from list_entity_types). Example: get_entity_type({tkbType:1001})",
+    "hint": "Req: tkbType (number/long from list_entity_types). Example: get_entity_type({tkbType:1101})",
     "manualVerify": false
   },
 
@@ -3114,10 +3408,12 @@ export const TOOLS_CATALOG = [
         "description": "Network id of the entity"
       }
     ],
-    "returns": "{ networkId, alive, position:{x,y,z}, rotation:{yawDeg,pitchDeg,rollDeg}, velocity:{x,y,z}, speed, behavior:{hash,name,brainTier} }",
+    "returns": "{ networkId, alive, position:{x,y,z}, rotation:{yawDeg,pitchDeg,rollDeg}, velocity:{x,y,z}, speed, behavior:{hash,name,brainTier}, roeEffective:{fire,reactions,forceLevel,returnFireWindowSeconds}, look:{bodyYawDeg,headYawDeg,eyeYawDeg,source,hasTarget,target,fovDegrees} }",
     "notes": [
       "A field whose component the entity does not carry is OMITTED, never defaulted — a zero position would be indistinguishable from the origin.",
-      "A convenience over get_entity, reading the same components: the two cannot disagree."
+      "A convenience over get_entity, reading the same components: the two cannot disagree.",
+      "roeEffective (CE-2289) is the ROE the unit OBEYS: its own where an order set it, else its nearest commander's, else its type default — a squad's HoldFire shows on every man.",
+      "look (CE-3252, LD-D) is where a PERSON looks: eyeYawDeg = body + head, the cone vision uses; source order / aim / glance / free. Omitted for a body with no look (a vehicle's eyes are its body)."
     ],
     "example": {
       "args": {
@@ -4148,6 +4444,63 @@ export const TOOLS_CATALOG = [
   // ── Group Y — node diagnostics ──────────────────────────────────────────────
 
   {
+    "name": "get_audio",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 B11 (R-4059) — the Sound switch (the scene heard from the camera in 2-D and 3-D; FPS always sounds), a film take's own switch, the master volume and mute.",
+    "http": {
+      "method": "GET",
+      "path": "/audio"
+    },
+    "params": [],
+    "returns": "{ sound, takeSound, master, muted, note }",
+    "example": {
+      "args": {},
+      "gist": "read the sound switch"
+    },
+    "hint": "Example: get_audio({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_audio",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 B11 (R-4059) — set the Sound switch, the master volume and mute, as the menu does (saved to the user's file).",
+    "http": {
+      "method": "POST",
+      "path": "/audio"
+    },
+    "params": [
+      {
+        "name": "sound",
+        "type": "boolean",
+        "required": false,
+        "description": "Settings ▸ Sound: the scene heard from the camera outside FPS"
+      },
+      {
+        "name": "master",
+        "type": "number",
+        "required": false,
+        "description": "Master volume 0…1"
+      },
+      {
+        "name": "muted",
+        "type": "boolean",
+        "required": false,
+        "description": "Mute"
+      }
+    ],
+    "returns": "as get_audio",
+    "example": {
+      "args": {
+        "sound": true
+      },
+      "gist": "turn the sound on"
+    },
+    "hint": "Optional: sound (bool), master (0…1), muted (bool). Example: set_audio({sound:true})",
+    "manualVerify": false
+  },
+
+  {
     "name": "trigger_cluster_diagnostic_dump",
     "group": "Y — node diagnostics",
     "summary": "Collect diagnostics on the named cluster nodes and pull them to the NAS — the same operation the ExCon's Execute Diagnostic Dump button drives.",
@@ -4271,7 +4624,7 @@ export const TOOLS_CATALOG = [
         "description": "Restrict to one subsystem or perspective name (e.g. SimHost, IG, Scenario)"
       }
     ],
-    "returns": "{ subsystems[{ subsystem, perspective, modules[], systems[], translators[], moduleCount, systemCount, translatorCount }], note }",
+    "returns": "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors }], translators[], moduleCount, systemCount, translatorCount }], note }",
     "notes": [
       "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, IG, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
       "Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.",
@@ -4302,6 +4655,793 @@ export const TOOLS_CATALOG = [
       "gist": "read the map view's frame rate and camera"
     },
     "hint": "Zeros until the window has drawn a frame (a headless host never draws). Example: get_render_diagnostics({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_get_checks",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4042 — a scenario's machine-checkable conditions (scenarios/<s>/checks.json) as JSON, what is wrong with them, and its golden's size.",
+    "http": {
+      "method": "GET",
+      "path": "/director/checks/{scenario}"
+    },
+    "params": [
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": true,
+        "description": "The scenario's name"
+      }
+    ],
+    "returns": "{ scenario, path, json{…}, problems[], golden?{ path, steps, snapshots, shots } }",
+    "notes": [
+      "docs/DESIGN_Scenario_Regression.md §3 (the grammar), §4 (the golden)."
+    ],
+    "example": {
+      "args": {
+        "scenario": "ua-tank-ammo"
+      },
+      "gist": "read a scenario's checks"
+    },
+    "hint": "Req: scenario. Example: director_get_checks({scenario:\"ua-tank-ammo\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_put_checks",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4042 — write a scenario's checks (authoring by an agent): refused, with every problem, when a key, a cue or a time is wrong. Written to the working copy AND the source tree.",
+    "http": {
+      "method": "PUT",
+      "path": "/director/checks/{scenario}"
+    },
+    "params": [
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": true,
+        "description": "The scenario's name"
+      },
+      {
+        "name": "expect",
+        "type": "array",
+        "required": true,
+        "description": "The expectations"
+      },
+      {
+        "name": "runFor",
+        "type": "number",
+        "required": false,
+        "description": "Sim seconds the run lasts (default 60)"
+      },
+      {
+        "name": "golden",
+        "required": false,
+        "description": "{every: seconds} — compare with a golden; false — conditions only (a demo)"
+      },
+      {
+        "name": "anchors",
+        "type": "object",
+        "required": false,
+        "description": "Named cues other times refer to"
+      },
+      {
+        "name": "do",
+        "type": "array",
+        "required": false,
+        "description": "Changes made during the run: [{name?, at, set:{who, component, patch}}]"
+      },
+      {
+        "name": "sampleEvery",
+        "type": "number",
+        "required": false,
+        "description": "Sim seconds between reads of the world (default 0.25)"
+      }
+    ],
+    "returns": "{ saved[], expect, anchors, do, golden }",
+    "example": {
+      "args": {
+        "scenario": "ua-tank-ammo",
+        "runFor": 60,
+        "expect": [
+          {
+            "name": "fires",
+            "on": "shot",
+            "by": "Tank"
+          }
+        ]
+      },
+      "gist": "write a scenario's checks"
+    },
+    "hint": "Req: scenario, expect[{name, on, …, after?, before?} | {name, never:{on,…}} | {name, on,…, atEnd:true}]. Cues: shot{by?, at?, hit?, n?, where?} · blast{by?, n?, where?} · hit{target} · field{who, path, op, value, quantifier?} · near · task · side · health · embark · gesture. Example: director_put_checks({scenario:\"ua-tank-ammo\", runFor:60, golden:{every:10}, expect:[{name:\"the M1 fires at the T-72\", on:\"shot\", by:\"Tank\", at:\"Enemy Tank\", before:30}]})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_next",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — end this reel item (reported as stopped) and go on to the next.",
+    "http": {
+      "method": "POST",
+      "path": "/director/next"
+    },
+    "params": [],
+    "returns": "the director's status",
+    "example": {
+      "args": {},
+      "gist": "skip to the next take"
+    },
+    "hint": "Example: director_next({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_pause",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — pause the live show (⚠ a paused frame changes the run — the report says so).",
+    "http": {
+      "method": "POST",
+      "path": "/director/pause"
+    },
+    "params": [],
+    "returns": "the director's status",
+    "example": {
+      "args": {},
+      "gist": "pause the show"
+    },
+    "hint": "Example: director_pause({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_play",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — play a reel or one take: each scenario opened from its file, the take's shots held on the 3-D camera, ONE fixed step per rendered frame (R-3038). Without capture it plays LIVE on screen and saves nothing; with capture it renders frame by frame and writes ONE movie of the reel.",
+    "http": {
+      "method": "POST",
+      "path": "/director/play"
+    },
+    "params": [
+      {
+        "name": "reel",
+        "type": "string",
+        "required": false,
+        "description": "A reel's name (films/<name>.reel.json)"
+      },
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "A scenario, to play one take"
+      },
+      {
+        "name": "take",
+        "required": false,
+        "description": "The take's name (default main), or a take object"
+      },
+      {
+        "name": "speed",
+        "type": "number",
+        "required": false,
+        "description": "Live: sim seconds per wall second (default 1)"
+      },
+      {
+        "name": "loop",
+        "type": "boolean",
+        "required": false,
+        "description": "Live: play the reel again and again"
+      },
+      {
+        "name": "capture",
+        "type": "object",
+        "required": false,
+        "description": "To film: {dir, fps (30), size (1280x720), supersample (1), captions (true: burned in), movie (dir/<reel>.mp4), encode (true)}"
+      }
+    ],
+    "returns": "the director's status (see director_status)",
+    "notes": [
+      "docs/DESIGN_Film_Director.md §0, §3a, §3b, §4a. Plays in the editor's PREVIEW (R-4061); every item loads again (R-3034). Capture needs a window (Xvfb) and ffmpeg."
+    ],
+    "example": {
+      "args": {
+        "reel": "highlights"
+      },
+      "gist": "play a reel live"
+    },
+    "hint": "One of: {reel} · {scenario, take?} (take: a name, default main, or the take itself as an object — played, never saved). Optional: speed (live), loop (live), capture{dir, fps?, size?\"1280x720\", supersample?, captions?, movie?, encode?}. Poll director_status. Example: director_play({reel:\"highlights\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_list_reels",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — the reels (films/<name>.reel.json): playlists of takes, each ONE movie on film.",
+    "http": {
+      "method": "GET",
+      "path": "/director/reels"
+    },
+    "params": [],
+    "returns": "{ root, reels[{ name, title, items, problems[] }] }",
+    "example": {
+      "args": {},
+      "gist": "list the reels"
+    },
+    "hint": "Example: director_list_reels({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_resume",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — resume the live show.",
+    "http": {
+      "method": "POST",
+      "path": "/director/resume"
+    },
+    "params": [],
+    "returns": "the director's status",
+    "example": {
+      "args": {},
+      "gist": "resume the show"
+    },
+    "hint": "Example: director_resume({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_scout",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — scout a take or a reel: run each take once, stepped as the film will be, and BAKE its anchor times (with the step rate, the scenario's hash) into the take. The report names every beat that did not happen — a scenario health check.",
+    "http": {
+      "method": "POST",
+      "path": "/director/scout"
+    },
+    "params": [
+      {
+        "name": "reel",
+        "type": "string",
+        "required": false,
+        "description": "A reel's name"
+      },
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "A scenario"
+      },
+      {
+        "name": "take",
+        "type": "string",
+        "required": false,
+        "description": "The take (default main)"
+      },
+      {
+        "name": "bake",
+        "type": "boolean",
+        "required": false,
+        "description": "Write the found times into the take (default true; false = a measurement only, e.g. the two-run identity report)"
+      }
+    ],
+    "returns": "the director's status; per item: found{anchor: time}, missing[], mismatches[] (a beat that moved since the last scout = a determinism finding)",
+    "notes": [
+      "docs/DESIGN_Film_Director.md §0 (R-3038): the filmed run IS the scouted run once CE-3293 S5 lands; until then re-scout after S5."
+    ],
+    "example": {
+      "args": {
+        "scenario": "ua-tank-ammo"
+      },
+      "gist": "bake a take's anchor times"
+    },
+    "hint": "{reel} or {scenario, take?}. Example: director_scout({scenario:\"ua-tank-ammo\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_status",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — what the director does: phase (Idle · Loading · Entering · Playing · Encoding · Done · Stopped), the reel item, the shot, sim time, the realtime factor, and a report per item.",
+    "http": {
+      "method": "GET",
+      "path": "/director/status"
+    },
+    "params": [],
+    "returns": "{ phase, mode, reel, item, items, paused, speed, shot, simTime, realtimeFactor, tickHz, frames, movie, error, reports[{ scenario, take, status, problems[], missing[], mismatches[], skippedReplays[], unresolved[], found{}, tickHz, usedBake, realtimeFactor, steps, lateFrames, waitFrames, maxStepsInAFrame, maxRetiredInAFrame, frames, simEnd, wallSeconds, cuts[{ shot, t, rounds, units{ name: [x, y, z, health] } }] }], anchorsSeen?, mismatches? }",
+    "example": {
+      "args": {},
+      "gist": "read the director's status"
+    },
+    "hint": "maxStepsInAFrame is 1 by construction (the stepping rule); maxRetiredInAFrame is what the master took in one frame (1 when the rule holds at the kernel); waitFrames counts frames with two steps still outstanding. Example: director_status({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_stop",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — stop the director (the preview is left, the camera released, the user's layers and sound back).",
+    "http": {
+      "method": "POST",
+      "path": "/director/stop"
+    },
+    "params": [],
+    "returns": "the director's status",
+    "example": {
+      "args": {},
+      "gist": "stop the director"
+    },
+    "hint": "Example: director_stop({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_get_take",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — one take as JSON (its shots, anchors, baked anchor times) and what is wrong with it.",
+    "http": {
+      "method": "GET",
+      "path": "/director/take/{scenario}/{take}"
+    },
+    "params": [
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": true,
+        "description": "The scenario's name"
+      },
+      {
+        "name": "take",
+        "type": "string",
+        "required": true,
+        "description": "The take's name (main)"
+      }
+    ],
+    "returns": "{ scenario, take, path, json{…}, problems[] }",
+    "example": {
+      "args": {
+        "scenario": "ua-tank-ammo",
+        "take": "main"
+      },
+      "gist": "read a take"
+    },
+    "hint": "Req: scenario, take (main is the default take). Example: director_get_take({scenario:\"ua-tank-ammo\", take:\"main\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_put_take",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — write a take (authoring by an agent): the body is the take; refused, with every problem, when a key or a value is wrong.",
+    "http": {
+      "method": "PUT",
+      "path": "/director/take/{scenario}/{take}"
+    },
+    "params": [
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": true,
+        "description": "The scenario's name"
+      },
+      {
+        "name": "take",
+        "type": "string",
+        "required": true,
+        "description": "The take's name"
+      },
+      {
+        "name": "shots",
+        "type": "array",
+        "required": true,
+        "description": "The shots, in order"
+      },
+      {
+        "name": "anchors",
+        "type": "object",
+        "required": false,
+        "description": "Named beats the scout bakes (on: shot · blast · hit · near · task · side · health · embark · gesture)"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "description": "The take's title (its card)"
+      },
+      {
+        "name": "caption",
+        "type": "string",
+        "required": false,
+        "description": "The caption shown under the picture"
+      },
+      {
+        "name": "tickHz",
+        "type": "number",
+        "required": false,
+        "description": "The fixed step rate: 60 (default), 20 or 15 when 60 cannot keep up in real time"
+      },
+      {
+        "name": "endAt",
+        "required": false,
+        "description": "When the take ends: sim seconds or an anchor expression (default: the last shot's end)"
+      }
+    ],
+    "returns": "{ saved, shots, anchors }",
+    "notes": [
+      "docs/DESIGN_Film_Director.md §4. The shot keys are film.py's plan keys plus to, ease, speed, caption, layers, sound."
+    ],
+    "example": {
+      "args": {
+        "scenario": "ua-tank-ammo",
+        "take": "short",
+        "shots": [
+          {
+            "at": 1,
+            "seconds": 4,
+            "follow": "Tank",
+            "distance": 20
+          }
+        ]
+      },
+      "gist": "write a take"
+    },
+    "hint": "Req: scenario, take, and the take's keys: title?, caption?, tickHz? (60 | 20 | 15), endAt?, anchors{name:{on, who?, by?, target?, is?, n?, point?, within?, below?}}, shots[{at, seconds, follow | over+toward | lookAt | eye+target, distance?, yaw?, pitch?, orbit?, lift?, back?, height?, ahead?, fov?, to?, ease?, speed?, caption?, layers?, sound?}]. 'at' is sim seconds or '<anchor>[+-offset]'. Example: director_put_take({scenario:\"ua-tank-ammo\", take:\"short\", shots:[{at:1, seconds:4, follow:\"Tank\", distance:20}]})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_list_takes",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 — the film takes: every scenario with a takes/ folder and its takes (scenarios/<s>/takes/<t>.take.json).",
+    "http": {
+      "method": "GET",
+      "path": "/director/takes"
+    },
+    "params": [
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "Only this scenario's takes"
+      }
+    ],
+    "returns": "{ root, count, scenarios[{ scenario, takes[] }] }",
+    "notes": [
+      "docs/DESIGN_Film_Director.md §4, D-2: a take lives beside its scenario; 'Save As' copies the takes."
+    ],
+    "example": {
+      "args": {},
+      "gist": "list the film takes"
+    },
+    "hint": "Optional: scenario (one scenario's takes). Example: director_list_takes({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_verify",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4042 — verify scenarios: each loaded from its file, stepped once per frame for runFor, judged by its checks.json and compared with its golden.json (the first difference named). Read the verdicts in director_status's reports[].verify.",
+    "http": {
+      "method": "POST",
+      "path": "/director/verify"
+    },
+    "params": [
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "One scenario"
+      },
+      {
+        "name": "scenarios",
+        "type": "array",
+        "required": false,
+        "description": "Several scenarios (one process: each after the first is a reload)"
+      },
+      {
+        "name": "all",
+        "type": "boolean",
+        "required": false,
+        "description": "Every scenario with a checks.json"
+      },
+      {
+        "name": "capture",
+        "type": "boolean",
+        "required": false,
+        "description": "Re-record each golden (default false)"
+      },
+      {
+        "name": "fresh",
+        "type": "boolean",
+        "required": false,
+        "description": "Run in a fresh child process per scenario (the regression verdict); answers a job id"
+      }
+    ],
+    "returns": "the director's status (phase, reports[{ status: pass|fail, verify{ passed, verdicts[{name, ok, t, kind}], golden: none|same|different|missing|captured|not-captured, goldenDiff[], written[], problems[] } }])",
+    "notes": [
+      "docs/DESIGN_Scenario_Regression.md — R-4065 (conditions for all, a golden for a feature scenario, a fresh process each), R-4066 (the engine runs it; HTTP and the command line drive it)."
+    ],
+    "example": {
+      "args": {
+        "scenario": "ua-tank-ammo"
+      },
+      "gist": "verify a scenario against its checks and golden"
+    },
+    "hint": "{scenario} or {scenarios:[…]} or {all:true}; capture:true re-records the golden (refused for a failing run, and refused on a RELOAD). ⭐ fresh:true runs it in a FRESH child process per scenario — the regression verdict and the only safe re-record; it answers {job} at once, read the report with director_verify_job. Without fresh it plays in THIS editor (on screen; each run after the first is a reload, CE-3294). Example: director_verify({scenario:\"ua-tank-ammo\", fresh:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_verify_jobs",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4042 — the fresh-process verify jobs this editor started (POST /director/verify {fresh:true}): each one's state, exit code and output folder.",
+    "http": {
+      "method": "GET",
+      "path": "/director/verify/jobs"
+    },
+    "params": [],
+    "returns": "{ jobs[{ job, state: running|done, exitCode, passed, scenarios[], capture, out, junit, log, seconds }] }",
+    "example": {
+      "args": {},
+      "gist": "list the fresh verify jobs"
+    },
+    "hint": "Example: director_verify_jobs({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_verify_job",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4042 — one fresh-process verify job: running or done, and when done its full report (every scenario's verdicts, golden, first difference).",
+    "http": {
+      "method": "GET",
+      "path": "/director/verify/jobs/{job}"
+    },
+    "params": [
+      {
+        "name": "job",
+        "type": "string",
+        "required": true,
+        "description": "The job id"
+      }
+    ],
+    "returns": "{ job, state, exitCode, passed, scenarios[], out, junit, log, seconds, report?{ passed, failed[], scenarios[{ scenario, status, verdicts[], golden, goldenDiff[], written[] }] } }",
+    "example": {
+      "args": {
+        "job": "v1-101500"
+      },
+      "gist": "read a fresh verify job's report"
+    },
+    "hint": "Req: job (from director_verify {fresh:true}). Poll until state is done. Example: director_verify_job({job:\"v1-101500\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "film_capture",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-3289 — write the next drawn frame's 3-D SCENE (sky, terrain, bodies, effects, rounds — no panels, gizmos, cards or HUD) as a PNG, at any size.",
+    "http": {
+      "method": "POST",
+      "path": "/film/capture"
+    },
+    "params": [
+      {
+        "name": "path",
+        "type": "string",
+        "required": true,
+        "description": "Where to write the PNG"
+      },
+      {
+        "name": "width",
+        "type": "number",
+        "required": false,
+        "description": "Frame width in px (default 1280)"
+      },
+      {
+        "name": "height",
+        "type": "number",
+        "required": false,
+        "description": "Frame height in px (default 720)"
+      },
+      {
+        "name": "supersample",
+        "type": "number",
+        "required": false,
+        "description": "Render this many times larger and scale down, 1-4 (default 1)"
+      }
+    ],
+    "returns": "{ path, width, height, simTime }",
+    "notes": [
+      "docs/DESIGN_Map_3D_Mode.md §6ab; scripts/film.py drives it."
+    ],
+    "example": {
+      "args": {
+        "path": "/tmp/film/0001.png"
+      },
+      "gist": "capture the scene to a PNG"
+    },
+    "hint": "Req: path (.png). Optional: width (1280), height (720), supersample (1, up to 4 — renders larger and scales down). Needs a window (Xvfb) and the map on screen; 504 after 30 s otherwise. Pause the sim and step it between captures for a smooth film. Example: film_capture({path:\"/tmp/f/0001.png\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "film_release",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-3289 — give the 3-D map's camera back to the operator (it keeps the last pose).",
+    "http": {
+      "method": "DELETE",
+      "path": "/film/shot"
+    },
+    "params": [],
+    "returns": "{ released: true }",
+    "example": {
+      "args": {},
+      "gist": "release the film camera"
+    },
+    "hint": "Example: film_release({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "film_shot",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-3289 — hold the 3-D map's camera on a shot (a pose, an eye and a target, or a unit to follow) until released; switches the map to 3-D. The operator's and the scenario's camera are left alone.",
+    "http": {
+      "method": "POST",
+      "path": "/film/shot"
+    },
+    "params": [
+      {
+        "name": "follow",
+        "type": "number",
+        "required": false,
+        "description": "Network id of the unit to follow (its position, every frame)"
+      },
+      {
+        "name": "eye",
+        "type": "array",
+        "required": false,
+        "description": "The camera position [x,y,z] (with target)"
+      },
+      {
+        "name": "target",
+        "type": "array",
+        "required": false,
+        "description": "The point looked at [x,y,z] (with eye)"
+      },
+      {
+        "name": "lookAt",
+        "type": "array",
+        "required": false,
+        "description": "The point looked at [x,y,z] (a pose, with distance / yawDeg / pitchDeg)"
+      },
+      {
+        "name": "distance",
+        "type": "number",
+        "required": false,
+        "description": "Metres from the point looked at (follow: 30, lookAt: 100)"
+      },
+      {
+        "name": "yawDeg",
+        "type": "number",
+        "required": false,
+        "description": "View heading, degrees from east counter-clockwise (default 0)"
+      },
+      {
+        "name": "pitchDeg",
+        "type": "number",
+        "required": false,
+        "description": "View elevation, degrees, negative looks down (follow: -20, lookAt: -30)"
+      },
+      {
+        "name": "lift",
+        "type": "number",
+        "required": false,
+        "description": "Follow: metres above the unit's position looked at (default 1)"
+      },
+      {
+        "name": "fovDeg",
+        "type": "number",
+        "required": false,
+        "description": "Vertical field of view, degrees (default: the camera's 45; narrow = telephoto)"
+      },
+      {
+        "name": "spec",
+        "type": "object",
+        "required": false,
+        "description": "⭐ CE-4038 — a take's shot in its own keys (docs/DESIGN_Film_Director.md §4), units by name"
+      },
+      {
+        "name": "t",
+        "type": "number",
+        "required": false,
+        "description": "With spec: sim seconds into the shot (its orbit and its 'to')"
+      }
+    ],
+    "returns": "{ follow, lookAt[3], distance, yawDeg, pitchDeg, fovDeg } — the shot held",
+    "notes": [
+      "docs/DESIGN_Map_3D_Mode.md §6ab. The camera is a driver, like first person: never saved to the scenario."
+    ],
+    "example": {
+      "args": {
+        "follow": 1000,
+        "distance": 25,
+        "yawDeg": 200,
+        "pitchDeg": -15
+      },
+      "gist": "follow unit 1000 from behind and above"
+    },
+    "hint": "One of: {follow, distance?, yawDeg?, pitchDeg?, lift?} · {eye:[x,y,z], target:[x,y,z]} · {lookAt:[x,y,z], distance?, yawDeg?, pitchDeg?} · ⭐ CE-4038 {spec:{a take's shot — follow · over+toward · lookAt · eye+target, by NAME, with orbit, to, fov}, t:sim seconds into it} (evaluated by the director's shot math). Yaw from east counter-clockwise (90 = looking north), pitch negative looks down; any shot may add fovDeg (a telephoto lens). Example: film_shot({follow:1000, distance:25, yawDeg:200, pitchDeg:-15})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_map_layers",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 B10 (R-4060) — the tactical map's layers, by the names and hover text the Layers panel shows, per view (2-D and 3-D sets), and whether a film take's override is in force.",
+    "http": {
+      "method": "GET",
+      "path": "/map/layers"
+    },
+    "params": [
+      {
+        "name": "view",
+        "type": "string",
+        "required": false,
+        "description": "2d or 3d (default both)"
+      }
+    ],
+    "returns": "{ shown: \"2d\"|\"3d\", override, 2d[{ name, display, on, doc }], 3d[…] }",
+    "example": {
+      "args": {
+        "view": "3d"
+      },
+      "gist": "list the map's layers"
+    },
+    "hint": "Optional: view (2d | 3d). Example: get_map_layers({view:\"3d\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_map_layers",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4038 B10 (R-4060) — turn map layers on and off EXACTLY as the user's click does (saved to the user's file like one).",
+    "http": {
+      "method": "POST",
+      "path": "/map/layers"
+    },
+    "params": [
+      {
+        "name": "view",
+        "type": "string",
+        "required": false,
+        "description": "2d or 3d (default: the view shown)"
+      },
+      {
+        "name": "on",
+        "type": "array",
+        "required": false,
+        "description": "Layers to turn on"
+      },
+      {
+        "name": "off",
+        "type": "array",
+        "required": false,
+        "description": "Layers to turn off"
+      }
+    ],
+    "returns": "the view's layers (as get_map_layers)",
+    "notes": [
+      "A film take's layers are NOT this: they are a transient override, never saved (docs/DESIGN_Film_Director.md §4b)."
+    ],
+    "example": {
+      "args": {
+        "view": "3d",
+        "on": [
+          "Ai.VisionCones"
+        ]
+      },
+      "gist": "show the vision cones"
+    },
+    "hint": "Optional: view (2d | 3d, default the one shown), on[], off[] — names as get_map_layers lists them (Group.Row). Example: set_map_layers({view:\"3d\", on:[\"Ai.VisionCones\"], off:[\"Units.Labels\"]})",
     "manualVerify": false
   },
 
@@ -4450,7 +5590,7 @@ export const TOOLS_CATALOG = [
         "description": "Network id of the unit"
       }
     ],
-    "returns": "{ networkId, onBrainNode, state, behavior?, params?, since?, interruptedBy?, finishedAt?, fault?, current:{behavior, origin} }",
+    "returns": "{ networkId, onBrainNode, state, behavior?, params?, since?, interruptedBy?, finishedAt?, fault?, current:{behavior, origin}, task?:{behavior, origin, since, params} }",
     "example": {
       "args": {
         "networkId": 1000
@@ -4530,7 +5670,7 @@ export const TOOLS_CATALOG = [
         "name": "roadUse",
         "type": "string",
         "required": false,
-        "description": "move: Never · Neutral · Prefer · StronglyPrefer"
+        "description": "move: Never · Neutral · Prefer · StronglyPrefer · InTraffic (a vehicle handed to SUMO, AQ93 R-4023)"
       },
       {
         "name": "targetId",
