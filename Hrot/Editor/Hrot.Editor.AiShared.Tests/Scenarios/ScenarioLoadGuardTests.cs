@@ -34,7 +34,7 @@ public sealed class ScenarioLoadGuardTests
 
         ScenarioMenuCommands.Guarded("b", loaded.Add, () => "a dry run", (title, msg, label, run) => { message = msg; pending = run; });
         Assert.Empty(loaded);                                                  // asked, not loaded
-        Assert.Contains("a dry run", message);
+        Assert.Contains("stops the dry run", message);
         Assert.Contains("forgets its restore point", message);
         pending!();                                                            // Stop & Load
         Assert.Equal(new[] { "b" }, loaded);
