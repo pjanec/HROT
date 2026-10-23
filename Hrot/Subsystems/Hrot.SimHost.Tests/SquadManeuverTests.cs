@@ -2155,6 +2155,46 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2359</c> (AQ102 H, R-2072) — a known enemy under the wall, seen by nobody for 2 s, is hunted by ONE man: the posted man
+        /// nearest him gets his post widened to the squad's window search (any opening of the building, the window way) with his arc on the
+        /// enemy; the others keep theirs. After 20 s he is sent back to his own post, and the same contact is not hunted twice. ✅ Red-proofs:
+        /// the unseen test dropped ⇒ a hunt at once ⇒ red; every man hunting ⇒ not single ⇒ red; the end dropped ⇒ no return ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2359_SquadDefend_AKnownEnemyNobodySees_IsHuntedByOneMan_FromAnyOpening_ThenHeGoesBack()
+        {
+            var s = Defending(out _);
+            const float search = 25f;   // Defending's SearchRadius
+            var under = new Vector3(2f, 26.5f, 0f);   // under the wall by the first window, seen by none of them
+            s.Pool(Enemy(s, under), under, reporters: 0b0001);
+            ref var pooled = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+            System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pooled.Contacts.Contacts), 16)[0].LastSeenTick =
+                Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo);   // seen just now
+            s.Orders.Clear();
+            for (int i = 0; i < 60; i++) s.Tick();
+            Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.CombatPosture && PostureOf(s, o.Entity).Post.Radius == search);   // seen within 2 s
+
+            for (int i = 0; i < 90; i++) s.Tick();
+            var hunters = s.Members.Where(m => s.Orders.Any(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture)
+                                               && PostureOf(s, m).Post.Radius == search).ToList();
+            var hunter = Assert.Single(hunters);
+            Assert.Equal(s.Members.OrderBy(m => Vector2.Distance(new Vector2(s.At(m).X, s.At(m).Y), new Vector2(under.X, under.Y))).First(), hunter);
+            var dto = PostureOf(s, hunter);
+            Assert.True(dto.Post.Window, "he fights an opening the window way");
+            ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(hunter);
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Advance.Objective, arc.LeftBearing, arc.RightBearing, 0f, 0f, under),
+                "his arc faces the hunted man");
+            foreach (var m in s.Members.Where(m => !m.Equals(hunter))) Assert.Equal(SquadDefendPlay.PostRadius, PostureOf(s, m).Post.Radius);
+
+            for (int i = 0; i < (int)(SquadDefendPlay.HuntSeconds / 0.016f) + 10; i++) s.Tick();
+            Assert.Equal(SquadDefendPlay.PostRadius, PostureOf(s, hunter).Post.Radius);   // back to his own post
+            s.Orders.Clear();
+            for (int i = 0; i < 120; i++) s.Tick();
+            Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.CombatPosture && PostureOf(s, o.Entity).Post.Radius == search);   // once per contact
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — each man is sent his POST SET with his post: a window man fights it the window way (the
         /// window column, prone under the sill), a cover man from his cover — both anchored to the post (4 m) — and a man with a free point
         /// near him has it as his alternate. ✅ Red-proofs: the post dropped from the order ⇒ an unanchored posture; every post marked cover
