@@ -47,6 +47,21 @@ namespace Hrot.UI.Common.Map3D
         /// the next possession.</summary>
         public bool OverShoulder { get; set; }
 
+        /// <summary>⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-11, R-1033) — the shoulder view's camera distance per kind (a person,
+        /// a vehicle, a flyer), set with Alt + wheel; a station setting, so it stays for the next possession.</summary>
+        public float ShoulderDistance(ControlScheme scheme)
+            => _shoulderDistances.TryGetValue(Kind(scheme), out var d) ? d : UnitCameraRig.DefaultDistance(Kind(scheme));
+
+        /// <summary>⭐ <c>CE-1293</c> — sets <see cref="ShoulderDistance"/>, kept within 0 … the kind's playing maximum.</summary>
+        public void SetShoulderDistance(ControlScheme scheme, float distance)
+            => _shoulderDistances[Kind(scheme)] = Math.Clamp(distance, 0f, UnitCameraRig.MaxPlayDistance(Kind(scheme)));
+
+        private static ControlScheme Kind(ControlScheme scheme) => scheme == ControlScheme.FixedWing ? ControlScheme.Rotorcraft : scheme;
+        private readonly Dictionary<ControlScheme, float> _shoulderDistances = new();
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-6) — which shoulder the camera is over: +1 right (the default), −1 left; Q / E set it.</summary>
+        public int ShoulderSide { get; set; } = 1;
+
         public string Name => "Possession (FPS)";
         public int LayerBitIndex => -1;
         public bool Has3D => true;
@@ -808,7 +823,7 @@ namespace Hrot.UI.Common.Map3D
             /// <summary>⭐ <c>CE-1210</c> (§8n MS-3) — the seat line of a vehicle with manned guns: <c>SEAT driver  (G: next seat)</c> or
             /// <c>SEAT M134  (G: next seat)</c>; null when there is no other seat to go to.</summary>
             /// <summary>⭐ <c>CE-1201</c> (§8p OS-1) — the HUD says the view is over his shoulder, and how back.</summary>
-            public const string ShoulderLine = "VIEW  over the shoulder  (O: his eyes)";
+            public const string ShoulderLine = "VIEW  over the shoulder  (O: his eyes · Alt+wheel: distance · Q/E: shoulder · RMB: aim)";
 
             public static string? SeatLine(EntityRepository w, Entity unit)
             {
@@ -1014,6 +1029,9 @@ namespace Hrot.UI.Common.Map3D
         private bool _crouchHeld;                          // ⭐ CE-1143 — Ctrl held: crouched while held
         private Vector3 _eye;                              // ⭐ CE-1073 — where the eye was placed this frame
         private bool _eyeKnown;
+        private Vector3 _centre;                           // ⭐ CE-1293 — the unit's middle (the far end of the camera continuum)
+        private float _arm;                                // ⭐ CE-1293 (UC-4) — the spring arm's length this frame
+        private readonly List<Fdp.Toolkit.World.TraceCrossing> _armTrace = new();
         private byte _shotSeq, _cancelSeq, _ammoSeq;       // ⭐ CE-1078 / CE-1079 — presses, counted (DESIGN_Entity_Control §8e)
         private long _shotTarget;
         private int _ammoAtPress;
@@ -1079,7 +1097,23 @@ namespace Hrot.UI.Common.Map3D
         public bool LookFree => Scheme == ControlScheme.Person && _station.PersonLookFree;
 
         /// <summary>⭐ <c>CE-1204</c> — the heading the frame asks for: the body's own while the look is free, else the look's.</summary>
-        public float BodyYaw => LookFree ? _bodyYaw : _yaw;
+        public float BodyYaw => LookFree || ShoulderBody ? _bodyYaw : _yaw;
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-5) — a person on foot in the shoulder view (locked look): his body lags the aim.</summary>
+        public bool ShoulderBody => Scheme == ControlScheme.Person && _station.OverShoulder && !_station.PersonLookFree && !Aboard;
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-5) — standing, the body follows the aim only past this (rad, 45°).</summary>
+        public static readonly float ShoulderLag = 45f * MathF.PI / 180f;
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-5) — moving, the body turns to the aim this fast (rad/s, 540°/s).</summary>
+        public static readonly float BodyTurnRate = 540f * MathF.PI / 180f;
+
+        /// <summary>⭐ <c>CE-1293</c> — <paramref name="from"/> turned toward <paramref name="to"/> by at most <paramref name="step"/> (radians).</summary>
+        public static float TurnToward(float from, float to, float step)
+        {
+            float off = Fdp.Toolkit.Perception.Look.LookOf.Wrap(to - from);
+            return MathF.Abs(off) <= step ? to : from + MathF.CopySign(step, off);
+        }
 
         /// <summary>⭐ CE-2168 (Motion Domains MD-D) — the control scheme, chosen by the body's locomotion class (not "vehicle or not"):
         /// a rotorcraft flies (W/S forward, A/D sideways, the mouse yaws, Space / C climb and descend), a ground vehicle drives, the
@@ -1139,6 +1173,7 @@ namespace Hrot.UI.Common.Map3D
             if (vehicle && HullLocked) _yaw = hullYaw;
             _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);   // ⭐ CE-1210 (MS-5) — at his seat
             _eyeKnown = true;
+            _centre = new Vector3(_eye.X, _eye.Y, (tf.Position.Z + _eye.Z) * 0.5f);   // ⭐ CE-1293 — the far end of the continuum
             StepKick(w, dt);   // ⭐ CE-1216 (§8k S-3)
             // ⭐ CE-1095 (§8f P-3) — a flyer's view banks with the body (the horizon tilts into the turn); its pitch stays the look's
             _roll = IsFlyer ? Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(tf.Rotation).Roll : 0f;
@@ -1173,15 +1208,43 @@ namespace Hrot.UI.Common.Map3D
             camera.Pitch = _pitch + Kick;   // ⭐ CE-1216 (§8k S-3) — the recoil kick, on the view only (his look is _pitch)
             camera.Roll = _roll;
             camera.Distance = camera.MinDistance;
-            bool shoulder = _station.OverShoulder;
-            var at = shoulder ? ShoulderCamera(_eye, camera.Forward, Scheme, camera.GroundHeight) : _eye;
+            // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md §4, UC-1/UC-4/UC-11) — one continuum: the shoulder view stands ShoulderDistance back
+            //   (Alt + wheel), RMB aims from the eyes (UC-11), and the spring arm pulls the camera in front of a wall
+            var scheme = Scheme;
+            float distance = ShoulderViewOn ? _station.ShoulderDistance(scheme) : 0f;
+            var pivot = UnitCameraRig.Pivot(_centre, _eye, camera.Forward, distance, scheme, _station.ShoulderSide);
+            var wanted = UnitCameraRig.Camera(pivot, camera.Forward, distance, orbitPitch: false);
+            var free = UnitCameraRig.SpringArm(pivot, wanted, FirstHit);
+            _arm = distance > 0f ? UnitCameraRig.EaseArm(_arm, Vector3.Distance(pivot, free), _dt) : 0f;
+            var at = distance > 0f && Vector3.DistanceSquared(wanted, pivot) > 1e-6f
+                ? pivot + Vector3.Normalize(wanted - pivot) * _arm : _eye;
+            if (distance > 0f && camera.GroundHeight is { } ground) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + CameraAboveGround);
             camera.LookAt = at + camera.Forward * camera.Distance;
             camera.FovyDegrees = ZoomFovDegrees;   // ⭐ CE-1211 (§8j Z-1) — narrower while RMB is held
-            if (_station.Bodies is { } bodies) bodies.ShowFirstPersonHead = shoulder;   // ⭐ CE-1201 (OS-5) — he is seen whole
+            if (_station.Bodies is { } bodies) bodies.ShowFirstPersonHead = distance > 0.5f;   // ⭐ CE-1201 (OS-5) — he is seen whole
         }
 
         /// <summary>⭐ <c>CE-1201</c> (§8p OS-1) — O toggles the over-the-shoulder view while in first person.</summary>
         public const KeyboardKey ShoulderKey = KeyboardKey.O;
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-11) — the camera stands back this frame: the shoulder view is on and RMB is not aiming from the eyes.</summary>
+        public bool ShoulderViewOn => _station.OverShoulder && !Zooming;
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-4) — the first wall, roof or ground between the pivot and the camera, as a fraction of the line.</summary>
+        private float? FirstHit(Vector3 from, Vector3 to)
+        {
+            if (_world() is not { } w || Fdp.Toolkit.World.WorldQuery.Of(w) is not { } query) return null;
+            query.Trace(from, to, Fdp.Toolkit.World.TracePurpose.Sight, _armTrace);
+            foreach (var c in _armTrace)
+                if (c.ClosedBarrier || c.Loss < ArmOpaque) return c.T;
+            return null;
+        }
+
+        /// <summary>⭐ <c>CE-1293</c> — a crossing letting less light through than this stops the camera (glass does not).</summary>
+        public const float ArmOpaque = 0.5f;
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-11) — Alt + wheel moves the camera this far per notch (a person; a vehicle × its scale).</summary>
+        public const float DistanceStep = 0.5f;
 
         /// <summary>⭐ <c>CE-1201</c> (§8p OS-2) — a person's over-the-shoulder camera: behind his eye, to his right, a little up (m).</summary>
         public const float ShoulderBack = 2.2f, ShoulderSide = 0.55f, ShoulderLift = 0.2f;
@@ -1200,15 +1263,10 @@ namespace Hrot.UI.Common.Map3D
         /// </summary>
         public static Vector3 ShoulderCamera(Vector3 eye, Vector3 forward, ControlScheme scheme, Func<float, float, float>? ground)
         {
-            var level = new Vector3(forward.X, forward.Y, 0f);
-            level = level.LengthSquared() > 1e-6f ? Vector3.Normalize(level) : Vector3.UnitX;
-            var right = new Vector3(level.Y, -level.X, 0f);   // Z up, Y left: the right of a heading
-            var at = scheme switch
-            {
-                ControlScheme.Person => eye - level * ShoulderBack + right * ShoulderSide + Vector3.UnitZ * ShoulderLift,
-                ControlScheme.Rotorcraft or ControlScheme.FixedWing => eye - level * FlyerChaseBack + Vector3.UnitZ * FlyerChaseLift,
-                _ => eye - level * ChaseBack + Vector3.UnitZ * ChaseLift,
-            };
+            // ⭐ CE-1293 — the continuum at the kind's default distance (UnitCameraRig): the same point §8p placed by hand
+            float distance = UnitCameraRig.DefaultDistance(scheme == ControlScheme.FixedWing ? ControlScheme.Rotorcraft : scheme);
+            var pivot = UnitCameraRig.Pivot(eye, eye, forward, distance, scheme, side: 1);
+            var at = UnitCameraRig.Camera(pivot, forward, distance, orbitPitch: false);
             if (ground != null) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + CameraAboveGround);
             return at;
         }
@@ -1435,6 +1493,16 @@ namespace Hrot.UI.Common.Map3D
                 _bodyYaw = DragBody(_bodyYaw, _yaw, _world() is { } nw ? Fdp.Toolkit.Perception.Look.LookOf.HeadLimit(nw, Unit)
                                                                        : Fdp.Toolkit.Perception.Look.LookOf.MaxHeadYaw);
             }
+            else if (ShoulderBody)
+            {
+                // ⭐ CE-1293 (UC-5) — over the shoulder: the upper body is drawn turned to the aim at once (the twist); the body itself lags —
+                //   standing, it follows only past ShoulderLag; moving, it turns to the look at BodyTurnRate — and W / A / S / D move
+                //   relative to the CAMERA (the frame's axes turned from the look into the body's)
+                bool moving = forward != 0f || side != 0f;
+                _bodyYaw = moving ? TurnToward(_bodyYaw, _yaw, BodyTurnRate * _dt) : DragBody(_bodyYaw, _yaw, ShoulderLag);
+                float off = Fdp.Toolkit.Perception.Look.LookOf.Wrap(_yaw - _bodyYaw);
+                (forward, side) = (forward * MathF.Cos(off) - side * MathF.Sin(off), forward * MathF.Sin(off) + side * MathF.Cos(off));
+            }
             else _bodyYaw = _yaw;
             // ⭐ CE-2168 (MD-D) — a flyer's climb axis; ⭐ CE-1095 (§8f P-2) — a plane's is its look's pitch (mouse-aim), and it does not strafe
             var scheme = Scheme;
@@ -1460,6 +1528,15 @@ namespace Hrot.UI.Common.Map3D
                 for (int k = 0; k < 4; k++)
                     if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < verbs) _listIndex = k;
             }
+            else if (wheel != 0f && (input.IsKeyDown((MapKeyboardKey)KeyboardKey.LeftAlt) || input.IsKeyDown((MapKeyboardKey)KeyboardKey.RightAlt)))
+            {
+                // ⭐ CE-1293 (UC-11, R-1033) — Alt + wheel: the camera distance (the plain wheel stays the weapons); out of the eyes
+                //   switches the shoulder view on, all the way in switches it off
+                float now = _station.OverShoulder ? _station.ShoulderDistance(scheme) : 0f;
+                float farther = Math.Clamp(now - wheel * DistanceStep * UnitCameraRig.ScaleOf(scheme), 0f, UnitCameraRig.MaxPlayDistance(scheme));
+                if (farther < DistanceStep * 0.5f) _station.OverShoulder = false;
+                else { _station.SetShoulderDistance(scheme, farther); _station.OverShoulder = true; }
+            }
             else
             {
                 if (wheel != 0f)
@@ -1477,6 +1554,9 @@ namespace Hrot.UI.Common.Map3D
             bool leftHeld = input.IsKeyDown((MapKeyboardKey)LeanLeftKey), rightHeld = input.IsKeyDown((MapKeyboardKey)LeanRightKey);
             Leaning = Scheme != ControlScheme.Person || leftHeld == rightHeld ? Fdp.Toolkit.Combat.LeanSide.LeanNone
                     : leftHeld ? Fdp.Toolkit.Combat.LeanSide.LeanLeft : Fdp.Toolkit.Combat.LeanSide.LeanRight;
+            // ⭐ CE-1293 (UC-6) — the lean also puts the camera over that shoulder (it stays there)
+            if (Leaning == Fdp.Toolkit.Combat.LeanSide.LeanLeft) _station.ShoulderSide = -1;
+            else if (Leaning == Fdp.Toolkit.Combat.LeanSide.LeanRight) _station.ShoulderSide = 1;
             BinocularsHeld = Scheme == ControlScheme.Person && input.IsKeyDown((MapKeyboardKey)BinocularsKey);   // ⭐ CE-1219 (§8k B-1)
             // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
             if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
