@@ -272,6 +272,11 @@ E changes the approach gate (more flanking everywhere); the rest are additive.
 | **S4** `rf-wall-hugger` | defenders duck within 2 s of Blue's fire (3 times — `SquadDefend`'s posture already crouches/prones under fire) · Blue never reached the wall in 90 s (stalled at y 116 under fire; recast to start 15 m out) · nobody hunted, no grenade, no look through the wall | **H**, **I-4** · ⚠ **C** passes — re-check once Blue is under the wall |
 | **S5** `rf-grenade-reaction` | the M67 lands 1.9 m from the group; **all four stand, exposure 1.0, nobody moves** | **I** entirely |
 
+**After A–D (`348183766`, live):** S1 — idle-hidden 9.9 / 9.8 s (was 12.3 / 8.4), repeated spots 2 / 1 (was 4 / 5) · S4 — a defender ducks
+within 2 s of the Shooter (was 0); all three defenders move to see the Hugger (H wants one); no grenade; one look sample tracked an unseen
+man (⚠ C's heard-stamp caveat, or the judge's sample timing) · S3 — both fight, both go through House A, 4 grenades; Red 2 spots / 0
+repeats, Blue 1 burst.
+
 ## 8. As built *(the sub-questions as they landed; each row names its deviation, if any)*
 
 | # | as built | deviation from §4 |
