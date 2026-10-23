@@ -187,6 +187,10 @@ public sealed class BTreeCallShapeTests
         ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000025", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.NoParams),
+        // ⭐ CE-3306 — the enemy-in-sight row's CoverFightConditions.MayFire · ⭐ CE-2358 (AQ102 G) — the squad's SopConditions.UnderCommand
+        //   guard: both (Entity, EntityRepository) ⇒ NoParams
+        ("BasicInfantrySop.btree.json", "c2331000-0000-0000-0000-000000000005", BTreeDelegateShapeDto.NoParams),
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000c1", BTreeDelegateShapeDto.NoParams),
         ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
         ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000012", BTreeDelegateShapeDto.NoParams),
         // CE-2230: the run's ONE node is the vehicle exposure cycle (lane mode) — its a1..a4 bespoke nodes are retired.

@@ -675,6 +675,7 @@ namespace Hrot.Map.Common.Tests
             var brain = platoon.GetDescriptor<BehaviorProfileDto>();
             Assert.NotNull(brain);
             Assert.Equal("BasicPlatoonSop", brain!.DefaultSop);   // ⭐ CE-2294 CC-D
+            Assert.Equal("BasicSquadSop", squad.GetDescriptor<BehaviorProfileDto>()!.DefaultSop);   // ⭐ CE-2358 (AQ102 G) — every squad type, by default
         }
 
         /// <summary>

@@ -25,6 +25,10 @@ namespace Hrot.AI.Behaviors.Brains
         public PeekAndFireParams Peek;
         /// <summary>No cover anywhere: down in the open until a point comes (<c>TakeCover</c>, AQ96 C — the library defaults).</summary>
         public EqsTacticsParams Open;
+        /// <summary>⭐ <c>CE-2357</c> (AQ102 E) — the flank (<c>EqsTacticsNodes.Flank</c>) a trained man runs once the enemy has been out of
+        /// sight for <see cref="FlankAfterSeconds"/> (s).</summary>
+        public EqsTacticsParams Flank;
+        public float FlankAfterSeconds;
     }
 
     /// <summary>⭐ <c>CE-2331</c> — what <see cref="FightFromCoverBehavior.Run"/> keeps: the fight's own state.</summary>
@@ -35,6 +39,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>1 once <c>PeekAndFire</c> found no cover (it answered Failure): the rest of the run is <see cref="Open"/>.</summary>
         public byte InTheOpen;
         public EqsTacticsState Open;
+        /// <summary>⭐ <c>CE-2357</c> — 1 while he flanks (the PeekAndFire half released); how many flanks this run has tried.</summary>
+        public byte Flanking, FlanksTried;
+        public EqsTacticsState Flank;
     }
 
     /// <summary>
@@ -55,6 +62,16 @@ namespace Hrot.AI.Behaviors.Brains
             SearchRadius = 60f, MinRepositionMetres = 5f, Speed = 2.5f, ArrivalRadius = 1f, ScoreDeltaThreshold = 0.05f, FireWhileMoving = 1,
         };
 
+        /// <summary>⭐ <c>CE-2357</c> (AQ102 E) — the flank: within 40 m, at the rush, firing on the way when he sees him.</summary>
+        public static readonly EqsTacticsParams FlankDefaults = new()
+        {
+            SearchRadius = 40f, MinRepositionMetres = 5f, Speed = 4f, ArrivalRadius = 1f, ScoreDeltaThreshold = 0.05f, FireWhileMoving = 1,
+        };
+
+        /// <summary>⭐ AQ102 E — how long the enemy must be out of his sight before he flanks (s), and how many flanks one run tries.</summary>
+        public const float DefaultFlankAfterSeconds = 10f;
+        public const byte MaxFlanks = 3;
+
         [StructLayout(LayoutKind.Sequential)]
         public struct FightFromCoverBlackboard
         {
@@ -69,6 +86,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 QuietSeconds = authored.QuietSeconds > 0f ? authored.QuietSeconds : DefaultQuietSeconds,
                 Open = OpenDefaults,
+                Flank = FlankDefaults,
+                FlankAfterSeconds = DefaultFlankAfterSeconds,
             };
             block.State = default;
         }
@@ -88,6 +107,24 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (ws.InTheOpen == 0)
             {
+                // ⭐⭐ AQ102 E (CE-2357, R-2072) — the enemy out of sight for FlankAfterSeconds: a trained man FLANKS him (a point side-on
+                //   to him that sees where he was), then fights from cover again there — instead of peeking at the same car for ever
+                if (ws.Flanking == 1)
+                {
+                    var flank = EqsTacticsNodes.Flank(ref p.Flank, ref ws.Flank, self, world);
+                    if (flank == NodeStatus.Running) return NodeStatus.Running;
+                    EqsTacticsNodes.Deactivate_Flank(ref p.Flank, ref ws.Flank, self, world);
+                    ws.Flanking = 0;
+                    ws.Peek = default;   // a fresh fight from where the flank left him
+                }
+                else if (ShouldFlank(in p, in ws, self, world))
+                {
+                    PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
+                    ws.Flank = default;
+                    ws.Flanking = 1;
+                    ws.FlanksTried++;
+                    return NodeStatus.Running;
+                }
                 if (InCover(in ws) && Quiet(world, self, p.QuietSeconds) && !WouldReturn(world, self))
                 {
                     PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
@@ -109,8 +146,20 @@ namespace Hrot.AI.Behaviors.Brains
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.FightFromCoverBehavior.Run")]
         public static void Deactivate_Run(ref FightFromCoverParams p, ref FightFromCoverState ws, Entity self, EntityRepository world)
         {
-            if (ws.InTheOpen == 0) PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
+            if (ws.Flanking == 1) EqsTacticsNodes.Deactivate_Flank(ref p.Flank, ref ws.Flank, self, world);
+            else if (ws.InTheOpen == 0) PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
             else EqsTacticsNodes.Deactivate_TakeCover(ref p.Open, ref ws.Open, self, world);
+        }
+
+        /// <summary>⭐ <c>CE-2357</c> (AQ102 E, J) — he is in cover; a hostile he has SEEN is remembered but not seen for
+        /// <see cref="FightFromCoverParams.FlankAfterSeconds"/>; he is trained (Regular and up — militia only duck and fire blind, J);
+        /// he holds no post (a posted man stays on it, DA-44); and this run has flanks left.</summary>
+        public static bool ShouldFlank(in FightFromCoverParams p, in FightFromCoverState ws, Entity self, EntityRepository world)
+        {
+            if (p.FlankAfterSeconds <= 0f || ws.FlanksTried >= MaxFlanks || !InCover(in ws) || p.Peek.AnchorRadius > 0f) return false;
+            if (ProficiencyOf.Tier(world, self) is ProficiencyTier.Untrained or ProficiencyTier.Militia) return false;
+            if (!CoverFightConditions.EnemySeenAndRemembered(self, world)) return false;
+            return !CoverFightConditions.SeenWithin(self, world, (uint)(p.FlankAfterSeconds * 60f));
         }
 
         /// <summary>He is at his hide point or fighting from it (not choosing one, not on his way to one).</summary>
@@ -150,6 +199,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-1269</c> — a hostile he has SEEN (not only heard) and still remembers, however long ago: what the enemy-in-sight
         /// row will see again once he looks out of cover.</summary>
         public static bool EnemySeenAndRemembered(Entity self, EntityRepository world) => SeenHostile(self, world, uint.MaxValue);
+
+        /// <summary>⭐ <c>CE-2357</c> — a hostile he SAW within <paramref name="ticks"/> (the clock perception stamps <c>LastSeenTick</c> with).</summary>
+        public static bool SeenWithin(Entity self, EntityRepository world, uint ticks) => SeenHostile(self, world, ticks);
 
         private static unsafe bool SeenHostile(Entity self, EntityRepository world, uint withinTicks)
         {

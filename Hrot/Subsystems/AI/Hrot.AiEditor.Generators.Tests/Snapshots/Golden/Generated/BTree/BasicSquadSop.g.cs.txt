@@ -66,6 +66,8 @@ public static class BasicSquadSop
                         visualId: new Guid("c2123000-0000-0000-0000-000000000082"));
                 },
                     visualId: new Guid("c2123000-0000-0000-0000-000000000080"));
+                sel.Condition("Fdp.Toolkit.Behavior.SopConditions.UnderCommand",
+                    visualId: new Guid("c2123000-0000-0000-0000-0000000000c1"));
                 sel.Sequence(seq =>
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",

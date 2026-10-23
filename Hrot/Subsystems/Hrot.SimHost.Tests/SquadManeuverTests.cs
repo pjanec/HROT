@@ -1133,6 +1133,35 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐ <c>CE-2358</c> (AQ102 G, R-2072) — a squad under a LIVE platoon lets its own contact rows stand aside (the platoon's
+        /// play fights for it, AQ97 A at the squad level): the same <c>SquadContact</c> that pauses a lone squad's bound leaves this one's
+        /// bound running. ✅ Red-proof: drop the <c>UnderCommand</c> row from <c>BasicSquadSop</c> ⇒ ReactToContact ⇒ red.</summary>
+        [Fact]
+        public void CE2358_BasicSquadSop_UnderALivePlatoon_ASquadContact_LeavesTheTaskToThePlatoon()
+        {
+            var s = new Squad(members: 4);
+            var platoon = s.Repo.CreateEntity();
+            s.Repo.AddComponent(platoon, new UnitEntity());
+            s.Repo.AddComponent(s.Commander, new UnitSubordinate { Commander = platoon });
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
+
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 6; i++) s.Tick();
+
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);               // the platoon reacts, not the squad's own row
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+
+            s.Repo.DestroyEntity(platoon);                                            // the platoon gone ⇒ the squad is its own master again
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+        }
+
         // ── ⭐ CE-2125 — the leader falls: a lull, then the squad goes on ─────────────────────────────────────────────────
 
         private static void Silence(Squad s, double seconds)

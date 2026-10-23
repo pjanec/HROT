@@ -72,6 +72,8 @@ public static class BasicInfantrySop
                         visualId: new Guid("c2331000-0000-0000-0000-000000000002"));
                     seq.Condition("Hrot.AI.Behaviors.Brains.CoverFightConditions.NoTask",
                         visualId: new Guid("c2331000-0000-0000-0000-000000000003"));
+                    seq.Condition("Hrot.AI.Behaviors.Brains.CoverFightConditions.MayFire",
+                        visualId: new Guid("c2331000-0000-0000-0000-000000000005"));
                     seq.Action("Fdp.Toolkit.Behavior.SopActions.React:FightFromCover:Contact@-1",
                         visualId: new Guid("c2331000-0000-0000-0000-000000000004"));
                 },

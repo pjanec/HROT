@@ -898,7 +898,7 @@ namespace Hrot.Map.Definitions.Tkb
                     v.Scale = 1.2f;
                 })
                 .WithFaction(TkbEntityTypes.Unit_InfantrySquad, 1)
-                .WithBehavior(TkbEntityTypes.Unit_InfantrySquad)   // ⭐ CE-2125 (R-272) — the squad's body-less commander runs the squad SOP and drills
+                .WithBehavior(TkbEntityTypes.Unit_InfantrySquad, defaultSop: "BasicSquadSop")   // ⭐ CE-2125 (R-272) — the squad's body-less commander runs the squad SOP and drills; ⭐ CE-2358 (AQ102 G) — by default: a squad with no SOP authored did nothing at all (rf-car-squads: 0 rounds, no task, 120 s)
                 .AsComposite(TkbEntityTypes.Unit_InfantrySquad, comp =>
                 {
                     comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Officer, Count = 1, Designation = TacticalDesignation.SquadLeader });

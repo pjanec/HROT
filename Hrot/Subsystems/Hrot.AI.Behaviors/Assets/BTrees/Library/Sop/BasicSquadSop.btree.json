@@ -34,6 +34,7 @@
         "c2123000-0000-0000-0000-000000000040",
         "c2123000-0000-0000-0000-0000000000b0",
         "c2123000-0000-0000-0000-000000000080",
+        "c2123000-0000-0000-0000-0000000000c1",
         "c2123000-0000-0000-0000-000000000010",
         "c2123000-0000-0000-0000-000000000030",
         "c2123000-0000-0000-0000-000000000050",
@@ -652,6 +653,22 @@
         "X": 1120,
         "Y": 400,
         "Comment": "Security watches the near side; the rest cross by pairs on new lanes; the far side watches; security follows; reform. The march resumes after.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Fdp.Toolkit.Behavior.SopConditions.UnderCommand"
+      },
+      "VisualId": "c2123000-0000-0000-0000-0000000000c1",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Under a platoon → the platoon reacts for the squad",
+      "EditorMetadata": {
+        "X": 280,
+        "Y": 260,
+        "Comment": "CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride). Every squad type now carries this SOP by default.",
         "Collapsed": false,
         "Color": null
       }
