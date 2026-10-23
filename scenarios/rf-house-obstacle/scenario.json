@@ -1,0 +1,136 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: AQ102 S3 (CE-2355) - on bt-range, House A (front door south, back door north) stands between 'Blue' (Friend grenadier) behind 'Blue Car' at (105.5,88) and 'Red' (Hostile grenadier) behind 'Red Car' at (105.5,121); no orders, default SOP (immortal). Judge (120 s): (1) neither idles hidden more than 12 s; (2) one of them flanks: around House A or through its two doors; the route taken is printed (through / around); (3) neither stays in the house's dead ground longer than 20 s. Check: python3 scripts/utility-demo-check.py --launch rf-house-obstacle. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
+  },
+  "entities": {
+    "a1020003-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          105.5,
+          88,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10310
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020003-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          105.5,
+          121,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10311
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020003-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          105.5,
+          85.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10301
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1020003-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          105.5,
+          123.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10302
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Red",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

@@ -4864,6 +4864,223 @@ def run_df_civilian_ordered(c, timeout):
     c.ok(all(r[1] == "Idle" for r in i if r[1]), "(3) Inert civilian keeps standing on his order (Idle) however frightened")
 
 
+
+# ── AQ102 §5 (CE-2355) — responsive fighting reflexes: duck, find him again, grenades, flank ─────────────────────────────────────
+#   docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md. Every judge PRINTS its number first (the baseline is the
+#   point of writing them before the build), then asserts it.
+
+def _rf_sample(names, ids, seconds, every=0.25, extra=None):
+    """Each man's samples over `seconds` of sim time: (t, position, stance, ammo, task, memory {networkId: lastSeenTick})."""
+    out = {n: [] for n in names}
+    end = (sim_time() or 0) + seconds
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        for n in names:
+            cs = comps(ids[n])
+            p = (cs.get("SimTransform") or {}).get("Position")
+            w = cs.get("WeaponState") or {}
+            task, _ = _task_of(ids[n])
+            mem = {}
+            for x in (data(call("GET", f"/entities/{ids[n]}/memory")) or {}).get("slots") or []:
+                if x.get("networkId") is not None and not x.get("anonymous"):
+                    mem[x["networkId"]] = (x.get("lastSeenTick") or 0, x.get("modalities") or 0)
+            out[n].append((t, tuple(p) if p else None, (cs.get("StanceIntent") or {}).get("TargetStance"), w.get("Ammo"), task, mem,
+                           cs.get("LookAtChannel")))
+        if extra: extra(t)
+        time.sleep(every)
+    return out
+
+
+def _rf_idle_gap(rows):
+    """The longest stretch (s) in which the man neither moved 1 m from where it began nor fired."""
+    best, start = 0.0, 0
+    for i in range(1, len(rows)):
+        t0, p0, _, a0, *_ = rows[start]
+        t, p, _, a, *_ = rows[i]
+        if (p and p0 and flat(p, p0) > 1.0) or (a is not None and a0 is not None and a < a0):
+            start = i
+            continue
+        best = max(best, t - t0)
+    return best
+
+
+def _rf_fire_spots(rows, cluster=1.0):
+    """Burst starts (s) and the spot (cluster index) each was fired from, in order."""
+    spots, seq, last_fire = [], [], -9.0
+    for i in range(1, len(rows)):
+        t, p, _, a, *_ = rows[i]
+        a0 = rows[i - 1][3]
+        if a is None or a0 is None or a >= a0 or not p:
+            continue
+        if t - last_fire > 1.5:   # a new burst
+            k = next((j for j, q in enumerate(spots) if flat(q, p) <= cluster), None)
+            if k is None:
+                spots.append(p)
+                k = len(spots) - 1
+            seq.append(k)
+        last_fire = t
+    return spots, seq
+
+
+def _rf_bursts_by(shooters):
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        ds = (data(call("GET", "/combat/detonations?last=64")) or {}).get("detonations") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    return [d for d in ds if d.get("shooter") in shooters]
+
+
+def _rf_duel(c, names, cars_of, seconds):
+    ids = ids_by_name()
+    if not c.ok(all(ids.get(n) for n in names), f"{', '.join(names)} are loaded"):
+        return None, None
+    nets = {n: ids[n] for n in names}
+    call("POST", "/sim/play", {})
+    rows = _rf_sample(names, ids, seconds)
+    for n in names:
+        gap = _rf_idle_gap(rows[n])
+        spots, seq = _rf_fire_spots(rows[n])
+        repeats = sum(1 for i in range(1, len(seq)) if seq[i] == seq[i - 1])
+        start = rows[n][0][1]
+        far = max((flat(r[1], start) for r in rows[n] if r[1] and start), default=0.0)
+        print(f"    {n}: longest idle-hidden {gap:.1f} s · {len(seq)} bursts from {len(spots)} spots, {repeats} repeated · "
+              f"furthest from start {far:.1f} m · tasks {sorted({r[4] for r in rows[n] if r[4]}, key=str)}")
+        c.ok(gap <= 12.0, f"(1) {n} never idles hidden more than 12 s ({gap:.1f} s)")
+        c.ok(len(spots) >= 2 and repeats == 0, f"(2) {n} fires from ≥ 2 spots, never the same twice running ({len(spots)} spots, {repeats} repeats)")
+    moved = [n for n in names if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 6.0]
+    c.ok(bool(moved), f"(3) at least one flank or firing-position move (> 6 m from the start: {moved})")
+    closest = min((flat(a[1], b[1]) for a, b in zip(rows[names[0]], rows[names[1]]) if a[1] and b[1]), default=99.0)
+    nades = _rf_bursts_by(set(nets.values()))
+    print(f"    closest approach {closest:.1f} m · grenade bursts by the two: {len(nades)}")
+    if closest <= 25.0:
+        c.ok(bool(nades), f"(4) within 25 m a grenade goes over cover ({len(nades)} bursts)")
+    else:
+        print("    (4) never within 25 m — the grenade judge does not apply this run")
+    return rows, ids
+
+
+def run_rf_car_duel(c, timeout):
+    _rf_duel(c, ["Blue", "Red"], None, 90)
+
+
+def run_rf_house_obstacle(c, timeout):
+    rows, ids = _rf_duel(c, ["Blue", "Red"], None, 120)
+    if not rows:
+        return
+    house = (99.5, 111.5, 98.5, 109.5)   # House A's footprint on bt-range (the window positions bound it)
+    for n in ("Blue", "Red"):
+        inside = any(r[1] and house[0] <= r[1][0] <= house[1] and house[2] <= r[1][1] <= house[3] for r in rows[n])
+        crossed = any(r[1] and house[2] <= r[1][1] <= house[3] and not (house[0] <= r[1][0] <= house[1]) for r in rows[n])
+        print(f"    {n}'s route: {'THROUGH the house' if inside else 'AROUND it' if crossed else 'stayed on his side'}")
+    c.ok(any(any(r[1] and house[2] <= r[1][1] <= house[3] for r in rows[n]) for n in ("Blue", "Red")),
+         "(2) one of them flanks past House A (through or around)")
+
+
+def run_rf_car_squads(c, timeout):
+    ids = ids_by_name()
+    blue = [f"Blue {i}" for i in range(1, 6)]
+    red = [f"Red {i}" for i in range(1, 6)]
+    if not c.ok(all(ids.get(n) for n in blue + red), "both squads are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _rf_sample(blue + red, ids, 120, every=0.5)
+    for side, men, foes in (("Blue", blue, red), ("Red", red, blue)):
+        moved = [n for n in men if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 8.0]
+        held = [n for n in men if n not in moved]
+        seen, total = 0, 0
+        for n in moved:
+            for i in range(1, len(rows[n])):
+                total += 1
+                me = ids[n]
+                if any((rows[f][i][5].get(me, (0, 0))[0]) > (rows[f][i - 1][5].get(me, (0, 0))[0]) for f in foes):
+                    seen += 1
+        hidden = 1.0 - (seen / total) if total else 0.0
+        near = min((flat(rows[m][-1][1], rows[f][-1][1]) for m in moved for f in foes if rows[m][-1][1] and rows[f][-1][1]), default=99.0)
+        print(f"    {side}: movers {moved} · held {held} · movers hidden {hidden:.0%} of samples · closest mover-enemy at the end {near:.1f} m")
+    blue_moved = [n for n in blue if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 8.0]
+    red_moved = [n for n in red if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 8.0]
+    c.ok(any(0 < len(m) < 5 for m in (blue_moved, red_moved)), "(1) a side holds a base of fire while others move")
+    c.ok(any(len(m) > 0 for m in (blue_moved, red_moved)), "(3) someone manoeuvres at all")
+
+
+def run_rf_wall_hugger(c, timeout):
+    ids = ids_by_name()
+    reds = ["Red 1", "Red 2", "Red 3"]
+    if not c.ok(all(ids.get(n) for n in reds + ["Blue"]), "the three defenders and Blue are loaded"):
+        return
+    blue = ids["Blue"]
+    call("POST", "/sim/play", {})
+    rows = _rf_sample(reds + ["Blue"], ids, 90)
+    wall = (124, 156.3)
+    at_wall = next((r[0] for r in rows["Blue"] if r[1] and flat(r[1], wall) <= 1.5), None)
+    print(f"    Blue at the wall at t={at_wall}")
+    # (1) a defender ducks within 2 s of Blue's shots
+    blue_fire = [rows["Blue"][i][0] for i in range(1, len(rows["Blue"]))
+                 if rows["Blue"][i][3] is not None and rows["Blue"][i - 1][3] is not None and rows["Blue"][i][3] < rows["Blue"][i - 1][3]]
+    ducks = 0
+    for n in reds:
+        for i in range(1, len(rows[n])):
+            t = rows[n][i][0]
+            lower = rows[n][i][2] in ("Crouched", "Prone") and rows[n][i - 1][2] in (None, "Standing")
+            if lower and any(0 <= t - bt <= 2.0 for bt in blue_fire):
+                ducks += 1
+    print(f"    Blue fired in {len(blue_fire)} samples · defender ducks within 2 s of it: {ducks} · stances "
+          f"{ {n: sorted({str(r[2]) for r in rows[n]}) for n in reds} }")
+    c.ok(ducks > 0, f"(1) a defender shot at ducks within 2 s ({ducks})")
+    # (2) one defender moves to a new opening that sees Blue once he is under the wall
+    movers = []
+    if at_wall is not None:
+        for n in reds:
+            before = next((r[1] for r in rows[n] if r[0] >= at_wall and r[1]), None)
+            later = [r for r in rows[n] if r[0] >= at_wall + 2 and r[1] and before]
+            if any(flat(r[1], before) > 2.0 for r in later):
+                seen_after = any(later[i][5].get(blue, (0, 0))[0] > later[i - 1][5].get(blue, (0, 0))[0] for i in range(1, len(later)))
+                movers.append((n, seen_after))
+    print(f"    defenders who moved after Blue reached the wall (and saw him again): {movers}")
+    c.ok(any(s for _, s in movers), "(2) a defender moves to an opening that sees Blue under the wall")
+    c.ok(len(movers) <= 1, f"(2) only ONE defender hunts ({len(movers)})")
+    nades = [d for d in _rf_bursts_by({ids[n] for n in reds}) if flat(d.get("burst") or [0, 0, 0], wall) <= 8.0]
+    c.ok(bool(nades), f"(3) a grenade is dropped at Blue ({len(nades)})")
+    # (4) the look: a defender's LookAtChannel naming Blue while Blue was not seen in that sample
+    tracked = 0
+    for n in reds:
+        for i in range(1, len(rows[n])):
+            look = rows[n][i][6] or {}
+            if not look or "Entity" not in str(look.get("ActiveAction", "")) and look.get("ActiveAction") not in (2,):
+                continue
+            seen_now = rows[n][i][5].get(blue, (0, 0))[0] > rows[n][i - 1][5].get(blue, (0, 0))[0]
+            if not seen_now and blue in rows[n][i][5]:
+                tracked += 1
+    print(f"    samples where a defender's look followed Blue unseen: {tracked} (LookAtChannel sample: {rows[reds[0]][-1][6]})")
+    c.ok(tracked == 0, f"(4) no look follows Blue while he is out of sight ({tracked})")
+
+
+def run_rf_grenade_reaction(c, timeout):
+    ids = ids_by_name()
+    blues = [f"Blue {i}" for i in range(1, 5)]
+    if not c.ok(all(ids.get(n) for n in blues + ["Thrower"]), "the Thrower and Blue 1-4 are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _rf_sample(blues + ["Thrower"], ids, 12, every=0.2)
+    dets = _rf_bursts_by({ids["Thrower"]} | {ids[n] for n in blues})
+    if not c.ok(bool(dets), f"the grenade burst ({len(dets)})"):
+        return
+    d = dets[0]
+    b = d.get("burst") or [0, 0, 0]
+    print(f"    burst at {b} by {'a Blue man (thrown BACK)' if d.get('shooter') != ids['Thrower'] else 'the Thrower'}")
+    safe = 0
+    for n in blues:
+        e = effect_on(d, ids[n])
+        far = e is None
+        prone = e is not None and e.get("stance") == "Prone"
+        print(f"    {n}: {'out of reach' if far else e.get('stance')} · exposure {e and e.get('fragmentExposure')} · moved "
+              f"{max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0):.1f} m")
+        safe += 1 if (far or prone) else 0
+    c.ok(safe == len(blues), f"(1) every Blue man is out of reach or prone at the burst ({safe}/{len(blues)})")
+    c.ok(d.get("shooter") != ids["Thrower"] or flat(b, (280, 365)) < flat(b, (280, 380)),
+         "(2) one man throws it back (the burst is the Blue man's, or nearer the Thrower)")
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -4934,6 +5151,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ AQ97 (CE-2322) — default reflexes; InertSop is the explicit none
              "df-lone-soldier-reflex": run_df_lone_soldier_reflex,
              "df-civilian-ordered": run_df_civilian_ordered,
+             # ⭐ AQ102 §5 (CE-2355) — responsive fighting reflexes, written first as a baseline
+             "rf-car-duel": run_rf_car_duel, "rf-car-squads": run_rf_car_squads, "rf-house-obstacle": run_rf_house_obstacle,
+             "rf-wall-hugger": run_rf_wall_hugger, "rf-grenade-reaction": run_rf_grenade_reaction,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)

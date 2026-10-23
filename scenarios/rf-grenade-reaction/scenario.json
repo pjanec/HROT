@@ -1,0 +1,179 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: AQ102 S5 (CE-2355) - on open basic-desert, 'Thrower' (Hostile grenadier) at (280,365) throws ONE M67 at (280,380), the middle of 'Blue 1-4' (Friend riflemen, no orders, immortal) standing 2 m apart and facing him. Judge: (1) every Blue man who sees or hears it either leaves its lethal radius before the burst or is prone when it bursts; (2) one man with enough fuse left picks it up and throws it back. Check: python3 scripts/utility-demo-check.py --launch rf-grenade-reaction. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
+  },
+  "entities": {
+    "a1020005-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          280,
+          365,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10501
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Thrower",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Params": "{\"x\": 280, \"y\": 380, \"z\": 0, \"mount\": 1, \"rounds\": 1, \"cooldownSeconds\": 30}",
+        "Origin": "Superior"
+      }
+    },
+    "a1020005-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          278,
+          381,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10511
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1020005-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          282,
+          381,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10512
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1020005-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          278,
+          379,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10513
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1020005-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          282,
+          379,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10514
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

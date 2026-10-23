@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
 known-conflict: none — IsolateAndClear (CB-17/CB-18, PL-1) IS the ClearBuilding preset of AttackPositionPlay (docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §10, R-2035); the clearing stays its own order.
 related-designs:
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) I-4: RoomGrenade.GrenadeCheck (CB-6) also gates an attacker's grenade through any door / window outside ClearBuilding
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the platoon attack HSM whose Clear phase runs ClearBuildingPlay; NoFire per cleared room by the staff (PC-5)
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — the first concrete form of §5b–§5d: CC-1 revises CB-33 (elements into a CommandPicture component), CC-2 revises CB-42 (requirements by their own event, the ROE pattern)
   - docs/blueprints/batches/NOTE_Behaviors_To_Backend_Report_Ageing.md — the BR-3 amendment §5b needs (ObservedAt, Seq, the Status kind)
