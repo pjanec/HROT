@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Entity_Brain_View.md — the read-only Brain tab (what / why / recent changes) beside §7.6's AI edit tab, and the brain journal
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-3 OWNS the requirement (acquisition time by exposure, R-2035); §5.7 here is its engine (CE-3260); DA-1/DA-2 own the proficiency it reads
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §2 builds §11.2's G1: ThreatDanger.ToMe (the threat's weapon vs MY armour) for a vehicle self

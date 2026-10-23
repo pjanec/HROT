@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - DESIGN_Entity_Brain_View.md — the Brain tab's "Show on map" pins the §5b gizmo families on one unit
   - docs/DESIGN_Film_Director.md — §4b: takes turn these layers on and off as a TRANSIENT override (never saved), and GET/POST /map/layers sets them like a click (R-4060)
   - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — HL-12 builds this file's reserved ReferenceByDis step for PLATFORM body profiles (bodies.json); ammo stays matched by name
   - docs/designs/mgmt-1/DESIGN.md — §13.3a owns the exercise archive's scenario copy (CE-3119, a §5a follow-up here)

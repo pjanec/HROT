@@ -276,6 +276,12 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | `CE-1158` | the live cluster run is still owed |
 | `CE-1197` | sidewalks need a SumoSharp `SceneKind` (cross-lane, coordinator) |
 
+### ⭐ `2026-10-23` — backend merged (ff to `e894d95a1`, behaviors included); the ENTITY BRAIN VIEW designed and approved
+
+- [`DESIGN_Entity_Brain_View.md`](../DESIGN_Entity_Brain_View.md) (`R-1012`): Phase 1 the Brain tab (`CE-1226`, ui), Phase 2 the brain journal (`CE-1227` ui, `CE-1228` behaviors), the HSM history-list bug (`CE-1229`). READY-TO-BUILD; ⛔ ask before starting.
+- Two pre-existing reds after the merge, on backend's head too: `EntityTypeCatalogTests.CE2138_…` (behaviors' type 2009 AssaultRifleman missing from the golden — ui's picker test) and `FilmDirectorTests.CE4038_…` (reel key "waiting").
+- ids: ui tracker next free **`CE-1230`**, rulings **`R-1013`**.
+
 ### Next, in order (leans — ask the user before starting any; they gate starts explicitly)
 
 🔒 User, `2026-10-20`: *"leans accepted. please keep working on the open points autonomously overnight"* — work on down this list.

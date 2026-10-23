@@ -449,3 +449,16 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 | ⚠ weapons and numbers | tanks: main gun + APFSDS only; the RPG `Insurgent` has 1 rocket, no rifle; RPG 300 mm cannot hurt an M1's front (side ≈ 57 of 3000 HP) | `BdcTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs:81-89,214-229` |
 
 *Owner of the next step:* [DESIGN_Urban_Armour_Tactics](designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md) §4a — four READY-TO-BUILD designs (2026-10-14).
+
+## 11. Seeing what a unit does and why *(measured 2026-10-23)*
+
+| what you want | where it is today | planned |
+|---|---|---|
+| what it is doing now, per channel ("W hold: not seen", "L moving 12m") | `ActionStatus` (always on, recorded) — `Actions` gizmo, `GET /entities/{id}/weapons` | the Brain tab's "Right now" |
+| its task, SOP, ROE and who set each | `EntityAiEditModel.Read()` (AI tab, Editor only), `GET /entities/{id}/order` / `/slots` | the Brain tab's "Doing / Ordered by" |
+| why a utility decision picked what it did | `UtilityDecisionLog` — ⚠ only while the unit is observed (`POST /trace/observe`) | shown while the Brain tab is open on it |
+| a squad drill's phase history and orders | `SquadDrillTrace` (commander, 16 steps with cause, transient) — `GET /entities/{id}/squad` | the Brain tab's "Squad" |
+| BTree / HSM node-level history | trace rings — opt-in, ~63 records, BTree has no causes | linked from the Brain tab |
+| ⛔ a unit's history of task / decision / move changes WITH their causes | none — refusals are log lines, a reaction does not name its sense, a move point does not name its source | the brain journal (Phase 2) |
+
+*Owner:* [DESIGN_Entity_Brain_View](DESIGN_Entity_Brain_View.md) (R-1012).
