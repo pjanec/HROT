@@ -4946,6 +4946,15 @@ def _rf_duel(c, names, cars_of, seconds):
         far = max((flat(r[1], start) for r in rows[n] if r[1] and start), default=0.0)
         print(f"    {n}: longest idle-hidden {gap:.1f} s · {len(seq)} bursts from {len(spots)} spots, {repeats} repeated · "
               f"furthest from start {far:.1f} m · tasks {sorted({r[4] for r in rows[n] if r[4]}, key=str)}")
+        # ⭐ AQ102 — the task timeline: each change with what he remembers of the other (ticks since seen, modalities) and where he is
+        other = [m for m in names if m != n]
+        last = None
+        for t, p, stance, ammo, task, mem, _ in rows[n]:
+            if task == last:
+                continue
+            last = task
+            seen = {k: v for k, v in mem.items() if other and str(k) == str(nets.get(other[0]))}
+            print(f"      t={t:6.1f} {task or '-':<16} stance={stance} at={tuple(round(v, 1) for v in p) if p else None} memory-of-{other[0] if other else '?'}={seen or 'NONE'}")
         c.ok(gap <= 12.0, f"(1) {n} never idles hidden more than 12 s ({gap:.1f} s)")
         c.ok(len(spots) >= 2 and repeats == 0, f"(2) {n} fires from ≥ 2 spots, never the same twice running ({len(spots)} spots, {repeats} repeats)")
     moved = [n for n in names if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 6.0]
