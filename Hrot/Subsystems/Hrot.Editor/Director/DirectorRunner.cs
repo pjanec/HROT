@@ -309,6 +309,9 @@ namespace Hrot.Editor.Director
             catch (Exception ex) when (ex is not DirectorSteppingException)
             {
                 Error = $"{ex.GetType().Name}: {ex.Message}";
+                // ⭐ the report keeps the message only; the stack goes to the log so a failed run says WHERE (2026-10-23: six verify runs
+                //   failed on "infinity cannot be written as JSON" with no trace to follow).
+                Console.Error.WriteLine($"[Director] the run stopped on an exception:\n{ex}");
                 if (_item < _reports.Count) { _reports[_item].Status = "failed"; _reports[_item].Problems.Add(Error); }
                 EndRun();
                 Phase = DirectorPhase.Stopped;
