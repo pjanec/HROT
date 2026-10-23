@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — ui → behaviors: a measured behaviour finding to check (CE-1269); ui builds nothing for it.
+state: WITHDRAWN `2026-10-23` before pickup (rule 1a — no started marker on `behaviors`) — ⭐ FIXED BY ui, see the banner below. Kept for the record.
 updated: 2026-10-23
 current-answer: the whole file.
 stale-below: nothing.
@@ -11,6 +11,13 @@ related-designs:
 -->
 
 # HANDOFF — ui → behaviors: a lone soldier restarts FightFromCover every 1–3 s against the same contact (`CE-1269`)
+
+> ⛔ **WITHDRAWN — FIXED BY ui `2026-10-23`** (the user: *"if you have done the full analysis maybe you can fix it right here"*).
+> ⚠ **The claim table below inferred the WRONG exit.** A probe at the three exits of `FightFromCoverBehavior.Run` measured all three ends
+> going through the **quiet end** with `EnemyInSight` **false** (phase Hidden / Expose): a man hiding in cover does not see, so the
+> `WouldReturn` guard lapsed exactly while he hid. ⇒ `WouldReturn` now asks `CoverFightConditions.EnemySeenAndRemembered` (a hostile he
+> has SEEN and still remembers) instead of "seen within 1 s". Rail `BasicInfantrySopTests.CE1269_*`; design: AQ98 row C″. Cross-lane
+> edit in behaviors' files — please review on your next merge.
 
 **Dispatched at** `ui@180c4845a` · **tracker:** [`CE-1269`](../Blueprint_Issues_Tracker.md) (filed by ui for behaviors) · **your
 design:** [AQ98](../Architect_Question_98_Cover_Reaction_Fights_Back.md) / `R-2070` · **found by** the brain journal's live check
