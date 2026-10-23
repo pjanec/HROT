@@ -3,6 +3,7 @@ state: LIVE
 updated: 2026-09-20 (STATUS block added; selection content re-measured with the graph)
 current-answer: the body below.
 related-designs:
+  - docs/DESIGN_Director_Timeline_Editor.md — TE-21 (lean): §15's Trace Timeline and the exercise timeline become ONE shared panel; ITraceLaneProvider is its row seam, generalised
   - HSM_Editor_NodeEditor_Host_Design.md — §11.1a owns the HSM state's hosted-subtree field, its
     walker and its validator rule; this doc owns the picker and the heal RULE they share.
   - BTree_Editor_NodeEditor_Host_Design.md — §S1 owns BTree's subtree node, including the resolver
