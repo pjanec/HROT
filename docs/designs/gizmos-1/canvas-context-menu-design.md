@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (§12 CE-1150 — host actions off the map; Properties… opens the Details panel on every ECS host)
+updated: 2026-10-23 (§11.4 CE-1271 / CE-1272 fixes) · 2026-10-22 (§12 CE-1150 — host actions off the map; Properties… opens the Details panel on every ECS host)
 current-answer: §1-§3 — the hit-test → interned JSON → popup path, which is what SimHost and the Editor
   run today for both canvas and entity right-click. ⭐ §10 (CE-1134 / CE-1135, 2026-10-16) — the ENTITY INSPECTOR's
   menu as built: the map's entity menu heads it on every host; Center View / Select / Properties… on every map host.
@@ -431,6 +431,8 @@ logged no-op).
 | OM-2 / OM-3 | ✅ `GlobalActionIds.Disembark` (26) on a unit aboard, `Embark` (25) — *"Embark…"* — on a unit that is neither aboard, a vehicle nor a weapon (`EmbarkOrders.CanOffer`); a menu-cache flag (32 / 64); handlers in `MenuOrders` (LOCAL, only where a pick exists): Disembark at once, Embark… an entity pick then `EmbarkOrders.Embark` | the items sit in the common part of the menu (not only on a live map with orders) — the tree is also an authoring tool |
 | one implementation | ✅ `Hrot.Common.Orders.EmbarkOrders` (`Embark`, `Disembark`, `IsAboard`, `CanOffer`); `ScenarioOrbatAdapter.RequestEmbark / RequestDisembark` route through it | `IOrbatController.RequestDisembark` kept (ExCon's adapter, a logged no-op, implements it; OM-4) — no caller in the panel any more |
 | OM-4 / OM-5 | ✅ the panel's own "Disembark" popup removed; ExCon sets no `RowMenu` ⇒ no row menu | |
+| ⛔ **as-built defect, FIXED `2026-10-23` (CE-1271)** | ⚠ the menu came up EMPTY on the Editor: the scenario adapter's row id is the entity INDEX (`ScenarioOrbatAdapter`, `EntityId: idx`, by design for its controller calls), and `PopulateMenuFor` looked it up as a NETWORK id ⇒ a miss. ⭐ `OrbatNodeViewModel.NetworkId` added (scenario: `NetworkIdentity.Value`; ExCon: its own id); the panel passes it; `EntityId` documented as the adapter's own key. The OM-1 host rail checked that a `RowMenu` was SET, not that it resolved a row | rail `AdapterTests.CE1271_ARow_CarriesTheNetworkId_TheMenuLooksUp` (red-proved) |
+| ⛔ **CE-1272, same day** | a collapsed commander showed its subordinates: the scenario adapter expanded EVERY node while no node was in the expanded set; the shortcut is gone, the tree starts collapsed (as ExCon's) | rail `AdapterTests.CE1272_ACollapsedCommander_HidesItsSubordinates` (red-proved) |
 
 📐 **Rails:** `MenuOrdersTests.CE1230_*`, `TheScenarioWindowsAreSharedTests.EveryMapHostGivesTheOrbatRowTheMapsMenu`.
 
