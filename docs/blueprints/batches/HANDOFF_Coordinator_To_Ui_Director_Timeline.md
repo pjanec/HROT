@@ -6,7 +6,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
-  - docs/DESIGN_Director_Timeline_Editor.md — THE design this hands over (approved, R-4071…R-4074); TE-21 still waits for the user's nod
+  - docs/DESIGN_Director_Timeline_Editor.md — THE design this hands over (approved, R-4071…R-4075)
   - docs/DESIGN_Behaviour_Debugging.md — the ui lane's own debugging design (CE-1270); §4 below says where the two meet
   - docs/blueprints/AI_Editor_Shared_Infrastructure.md — §15, the Trace Timeline this timeline becomes one panel with (TE-21)
 -->
@@ -66,15 +66,15 @@ as separate panel allowing for navigation"*.
 
 | | |
 |---|---|
-| ✅ **ruled** | R-4067 (a take names its source; a film from one recording) · R-4068 (one panel, one runner) · R-4069 (the Replay Browser loads the TKB) · R-4070 (film graphics are film-only) · R-4071 (approved) · R-4072 (anchors ARE existing conditions) · R-4073 (the Timeline is its own panel, over a cached index) · R-4074 (the nine anchor shorthands lower to predicates) |
-| ⚠ **open — TE-21** | **the Trace Timeline and this Timeline are ONE panel**, `ITraceLaneProvider` generalised as its row seam. The coordinator's lean; the user has not nodded yet. ⭐ You own both the panel and CE-1270, so you are best placed to settle its shape — propose it in your design pass and put it to the user |
+| ✅ **ruled** | R-4075 (TE-21, one timeline — row below) · R-4067 (a take names its source; a film from one recording) · R-4068 (one panel, one runner) · R-4069 (the Replay Browser loads the TKB) · R-4070 (film graphics are film-only) · R-4071 (approved) · R-4072 (anchors ARE existing conditions) · R-4073 (the Timeline is its own panel, over a cached index) · R-4074 (the nine anchor shorthands lower to predicates) |
+| ✅ **R-4075 — TE-21** | **the Trace Timeline and this Timeline are ONE panel**, `ITraceLaneProvider` generalised as its row seam (🔒 user: *"TE-21 approved"*). ⭐ You own both the panel and CE-1270, so its detailed shape (where the panel lives, how `TraceTimelineWindow` hosts it) is yours to design |
 | ⭐ **leans you may refine** | every other TE row — argue a change in the design doc, as obligation ③ asks |
 
 ## 4. Where this meets your Behaviour Debugging work (CE-1270)
 
 | your design | this one | the joint |
 |---|---|---|
-| the Trace Timeline (§15 of the AI shared infrastructure), a shell today; BV-30's Brain lane deferred | the shared Timeline (R-4073) | ⭐ **one panel** (TE-21): a pinned unit's swimlane shows its trace lanes; the Brain lane is the index's Behaviour lane over the recorded journal — BV-30 gets built by R1 |
+| the Trace Timeline (§15 of the AI shared infrastructure), a shell today; BV-30's Brain lane deferred | the shared Timeline (R-4073) | ⭐ **one panel** (TE-21, R-4075): a pinned unit's swimlane shows its trace lanes; the Brain lane is the index's Behaviour lane over the recorded journal — BV-30 gets built by R1 |
 | *Debug this unit* / *Observe all* | "focus, not filter" and the pinned-unit swimlane (§2b) | the debugged unit is the focused unit |
 | the breakpoint list (DBG-6, Q44) over `SearchPredicateDto` | anchors are `SearchPredicateDto` (R-4072) | ⭐ **one condition editor** for breakpoints, search and anchors; the polygon / line extensions serve all three |
 | the journal break (DBG-8), *Recent changes* (DBG-10) | the Behaviour lane, next / previous event | a journal entry is a timeline event; a click seeks to it in a recording |
