@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-23
-build-state: DESIGN — the leans in §6 await the user's approval (CE-1293)
+build-state: READY-TO-BUILD — §6 UC-1…UC-10 APPROVED 2026-10-23 (R-1032); C0 (CE-1294) first
 current-answer: §1 what each use needs · §2 INVENTORY + claim table · §3 diagrams · §4 the camera continuum · §5 control in the shoulder view · §6 decisions with leans · §7 slices
 stale-below: nothing
 known-rot: none
@@ -159,7 +159,9 @@ two ends of one zoom; one wheel crosses them without a mode key. The blend (the 
 | walls | the spring arm pulls the camera in front of a wall, out again slowly |
 | the fire | unchanged — from the muzzle to the crosshair point; when the muzzle is blocked but the crosshair is not, the crosshair says so (a small mark where the round would really hit) |
 
-## 6. Decisions — ⭐ leans for approval
+## 6. Decisions — ✅ APPROVED `2026-10-23` (R-1032)
+
+🔒 **User, `2026-10-23`:** *"UC leans approved, start with CE-1294."*
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
