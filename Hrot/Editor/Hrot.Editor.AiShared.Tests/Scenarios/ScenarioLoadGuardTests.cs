@@ -17,9 +17,11 @@ public sealed class ScenarioLoadGuardTests
         Assert.Null(ScenarioLoadGuard.RunningRun(false, ClusterState.Idle));
         Assert.Null(ScenarioLoadGuard.RunningRun(false, ClusterState.OperatingEdit));
         Assert.Equal("a dry run", ScenarioLoadGuard.RunningRun(true, ClusterState.OperatingEdit));   // a paused dry run too
-        Assert.Equal("a live run", ScenarioLoadGuard.RunningRun(true, ClusterState.OperatingLive));
+        Assert.Equal("a dry run", ScenarioLoadGuard.RunningRun(true, ClusterState.OperatingLive));    // the editor's dry run plays inside a live-loaded cluster
         Assert.Equal("a live run", ScenarioLoadGuard.RunningRun(false, ClusterState.OperatingLive));
         Assert.Equal("a dry run", ScenarioLoadGuard.RunningRun(false, ClusterState.OperatingPreview));
+        Assert.DoesNotContain("restore point", ScenarioLoadGuard.Prompt("a live run", "b"));        // only a dry run has one to forget
+        Assert.Contains("restore point", ScenarioLoadGuard.Prompt("a dry run", "b"));
     }
 
     /// <summary>🔴 Red-proof: load at once in <c>ScenarioMenuCommands.Guarded</c> (skip the prompt) ⇒ red.</summary>

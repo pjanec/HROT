@@ -1018,7 +1018,7 @@ classDiagram
 Rails: `ScenarioLoadSequenceTests` (6) · `EditorScenarioSessionLoadTests` (4, red-proved on the old session) — live:
 `scripts/utility-demo-check.py` loads scenarios one after another in ONE `--mode all` process.
 
-### 9.1 ⭐⭐⭐ `CE-1025` — **A LOAD DURING A LIVE RUN OR A DRY RUN: warn (interactive only), stop it, FORGET its restore point, load from Idle** *(design `2026-10-23`, ui; `build-state: READY-TO-BUILD`; R-1031)*
+### 9.1 ⭐⭐⭐ `CE-1025` — **A LOAD DURING A LIVE RUN OR A DRY RUN: warn (interactive only), stop it, FORGET its restore point, load from Idle** *(design `2026-10-23`, ui; `build-state: BUILT 2026-10-23` — as-built at the end of this section; R-1031)*
 
 🔒 **User, `2026-10-23`:** *"scenario load should warn about it breaks existing live or dryrun and once approved it stop it first
 forgetting the dry run restoration point then performs the load from standby state. Of course the warn dialog only if not tasked
@@ -1073,7 +1073,7 @@ sequenceDiagram
   participant Q as ScenarioLoadSequence
   U->>M: File ▸ Live… / Edit… → picks "b"
   alt a live run or a dry run is running
-    M->>G: Request("Load Scenario", "A dry run is running — loading stops it and forgets its restore point", "Stop & Load")
+    M->>G: Request("Load Scenario", "Loading b stops the dry run and forgets its restore point", "Stop & Load")
     U->>G: Stop & Load (Cancel ⇒ nothing happens)
   end
   M->>S: LoadForLive("b") / OpenForEdit("b")
@@ -1104,12 +1104,31 @@ session and menu with neither seam: it has no editor dry run.
 | leave the dry run | **forget** (drop keyframe + bracket, keep the world as it is, pause) — the world is replaced by the load anyway | ExitPreviewMode (rewind) — wasted work, and on the film director's path it would flash the old world |
 | where | **the session, at the request** (every load passes it: menu, HTTP edit, director) + `LoadScenarioLive` (its own sequence) | in `ScenarioLoadSequence.beforeLoad` — fires only once `Idle` is reached, after the unload already ran with the dry run held |
 | when to warn | **after the pick**, only if a run is running | before opening the picker — warns about a load the operator may cancel anyway |
-| what counts as "running" | the editor's dry run (`IsInPreviewMode`) or the cluster `OperatingLive` / `OperatingPreview` | the clock running — a paused dry run still holds a restore point |
+| what counts as "running" | the editor's dry run (`IsInPreviewMode`, which wins the name) or the cluster `OperatingLive` / `OperatingPreview` | the clock running — a paused dry run still holds a restore point |
 | the clock | not snapped back: every load resets it to 0 (AQ86 §4-G) | SnapTo(entered) — the load resets it a frame later |
 
 Acceptance: ① a load during a dry run, then Stop ⇒ the NEW scenario stays (no rewind); the next Play captures afresh. ② the menu warns
 only while a run is running; Cancel does nothing. ③ `POST /scenario/load/live` during a dry run forgets it without a prompt and says
 so. Rails beside `EditorScenarioSessionLoadTests` and `ScenarioMenuCommands`' tests; a live check over HTTP.
+
+**As-built (`2026-10-23`)** — the diagrams above hold as drawn. Where the build differs from the plan, or adds to it:
+- `ScenarioMenuCommands.Guarded` is the one confirm-then-load helper. `ScenarioLoadGuard.Prompt` names a restore point only for a dry
+  run; a live run has none ("Loading 'b' stops the live run.").
+- The editor draws both confirm prompts (new exercise, load) through one `DrawConfirmModal(controller, popupId, ref opened)`.
+- ⚠ **Measured live, then fixed:** the editor's dry run plays INSIDE a live-loaded cluster — the state reads `OperatingLive` while
+  `IsInPreviewMode` is true, and `/sim/play` itself enters the dry run. The first build checked the state first and named an editor
+  dry run "a live run". ⇒ `RunningRun` asks `inPreview` FIRST.
+- The HTTP answer carries `stoppedRun` in both shapes: the service's immediate one, and the awaited one that `DebugApiHost` builds
+  (`waitForReady`).
+- Rails: `ReferencePreviewHandlerTests.CE1025_*` · `EditorScenarioSessionLoadTests.CE1025_*` ·
+  `ScenarioLoadGuardTests` (2). Each was red-proved by a compiling mutation: the session skips `leaveRun`, the guard skips the prompt,
+  the forget rewinds.
+- Live (headless editor, HTTP, `2026-10-23`):
+  - acceptance ① and ③ hold: live-load `df-lone-soldier-reflex`, a dry run of 120 steps, then `POST /scenario/load/live bt-doors` ⇒
+    out of preview, 26 entities (Locksmith, Visitor), and Stop keeps them;
+  - a fresh dry run on bt-doors and Stop ⇒ simTime back to 0 on the next frame;
+  - a load over a playing run ⇒ the new scenario, simTime 0.
+  - ② (the menu prompt) is rail-only; a Windows look is owed.
 
 ## 10. ⭐⭐ `CE-3075` — **A SCENARIO NAMING NO TERRAIN UNLOADS THE RESIDENT ONE** *(AS-BUILT `2026-10-05`, backend)*
 
