@@ -16,6 +16,7 @@ known-rot: ⛔ §10.3 step 5's reason ("the kernel computes it at compile time")
   says so explicitly and SUPERSEDES the substrate assumptions here, while leaving this the
   feature/UX spec. ⛔ Do not quote this doc for persistence shape.
 related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-4 demotes §13.5's kernel panels to a collapsed Kernel section under a per-node Runtime view; DBG-3 the layout of a code-built machine; DBG-7 makes §13.3's breakpoints break
   - ../DESIGN_Entity_Brain_View.md — §9 brings the 12 C#-built HSMs to this editor (in memory, read-only), wires the live overlay's metadata, and may build §3.4's statechart layout (BV-23)
   - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — owns the BLUEPRINT-hosted action/guard binding and
     the POLLED transition. ⚠ It supersedes this doc's §10.1/§10.2 on WHERE the pickers get their

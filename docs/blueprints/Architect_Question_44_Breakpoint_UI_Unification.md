@@ -8,6 +8,8 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none. Q38 owns the DETAILS/variable family; this owns the
   BREAKPOINT family. Section 5 states the boundary.
+related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-6 BUILDS this question's rulings (CE-1270 / CE-1285), and DBG-7 makes the node-breakpoint kind actually break
 -->
 # ⭐ Architect Question 44 — **breakpoint UI unification**
 
