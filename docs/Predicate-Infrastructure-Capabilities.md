@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-23 (STATUS block added by the coordinator when linking the director timeline editor)
+current-answer: the body below (a capabilities reference, not a design)
+stale-below: none
+known-rot: §6 said "enter the polygon" — the predicate is a BOX (BoundingBox2D); corrected 2026-10-23
+known-conflict: none
+related-designs:
+  - docs/DESIGN_Director_Timeline_Editor.md — R-4072: film anchors ARE these predicates, edited by this editor; it owns the planned EXTENSIONS (a polygon area, a line crossing, drawing them on the map)
+  - docs/designs/breakpoints-1/DESIGN.md — OWNS the data breakpoints that evaluate these predicates live
+-->
 # Predicate Infrastructure — Capabilities & Reuse Surface
 
 > ## Storage model — occurrence slots
@@ -256,7 +267,7 @@ A condition over entity state and AI memory can be expressed as one of these sha
 | "Is `BehaviorState.ActiveBehaviorHash` == HillAttack AND the active behavior's root-params `Aggression` field > 0.8?" | `BehaviorParamPredicateDto(WorkingSlotKey=0, BehaviorId=HillAttack.Hash, "Aggression", Numeric{Min=0.8})` (the behaviour-hash check is implicit; `WorkingSlotKey=0` selects the root params slot) |
 | "Did a Blueprint variable `AmmoCount` reach 0?" | `BlueprintVariablePredicateDto(MyAsset.Guid, "AmmoCount", Numeric{Min=Max=0})` |
 | "Has a `HitEvent` with `Damage > 50` been published this tick?" | `TransientEventPredicateDto(HitEvent, AnyOccurrence=false, "Damage", >, "50")` |
-| "Did the entity enter the polygon over there?" | `SpatialBoundingPredicateDto(SimTransform, "Position.X", "Position.Y", bounds=…, Entry)` |
+| "Did the entity enter the box over there?" *(a box, `BoundingBox2D` — a polygon is a planned extension, `DESIGN_Director_Timeline_Editor.md` TE-3)* | `SpatialBoundingPredicateDto(SimTransform, "Position.X", "Position.Y", bounds=…, Entry)` |
 | "Was `EntityInfo.Name` 'EnemyTank' born this tick?" | `LifecyclePredicateDto(NameSubstring, "EnemyTank", EntityInfo, "Name")` — fires on births and deaths |
 | "Multiple of the above together" | `CompoundPredicateDto(And, [...])` / `Or` |
 
