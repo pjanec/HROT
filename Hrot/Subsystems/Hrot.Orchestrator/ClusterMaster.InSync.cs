@@ -35,6 +35,8 @@ public sealed partial class ClusterMaster
     /// <summary>The scenario and exercise of the world the cluster runs — what a catch-up stages and records under.</summary>
     private string? _currentScenarioId;
     private Guid _currentExerciseId;
+    /// <summary>⭐ CE-3299 D17 — the live session's recording mode (0 = FULL), set by its load and told to a late joiner.</summary>
+    private double _currentCheckpointingSeconds;
 
     /// <summary>One catch-up in flight per node.</summary>
     private sealed class CatchUp
@@ -162,7 +164,7 @@ public sealed partial class ClusterMaster
                 //   learns the master's session (its gate is not closed yet); a boundary clear here destroyed that entity and DDS
                 //   never re-delivers a taken sample — the joiner lost entity 1000. A joiner already in Idle holds only the CURRENT
                 //   world; a node with a stale one is wiped by the Idle step above (F2, R-4019).
-                IsWorldBoundary: false, IsCatchUp: true), targets);
+                IsWorldBoundary: false, IsCatchUp: true, CheckpointingSeconds: _currentCheckpointingSeconds), targets);
         FanOutNodeOp(NodeOpType.CommitState, c.TransactionId, new CommitStatePayload(loading), targets);
 
         FanOutNodeOp(NodeOpType.PrepareState, c.TransactionId,

@@ -67,6 +67,7 @@ public struct RouteWaypoint
 /// </para>
 /// </summary>
 [ComponentId(HrotComponentIds.RoutePlan)]
+[DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
 public sealed class RoutePlan
 {
     // ⭐ CE-3305 — [RecordedMember]: the recorder sees public members only, so a recording (replay, checkpoint, a dry run's keyframe)

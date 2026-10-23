@@ -226,6 +226,7 @@ namespace Fdp.Toolkit.Perception.Survey
     /// last answered and whether the content moved. The answer itself is <see cref="WorldSurveyAnswer"/>.</summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WorldSurveyStatus)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WorldSurveyStatus
     {
         /// <summary>The solver's tick of the answer held (0 = none yet for this epoch).</summary>

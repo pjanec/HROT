@@ -24,6 +24,7 @@ namespace Hrot.AI.Behaviors
     [ComponentId(191)] // Hrot application-level block (160-199, HrotComponentIds); next free after 190 (BpManagedCollectionDemo).
     [StructLayout(LayoutKind.Sequential)]
     [BlueprintWritable]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct BpFixedListDemo
     {
         /// <summary>Maximum number of elements <see cref="Items"/> can hold.</summary>

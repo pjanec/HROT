@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using Xunit;
 using Fdp.Core;
@@ -161,6 +162,8 @@ namespace Fdp.ModuleHost.Tests
             public GlobalTime GetCurrentState() => new() { TotalTime = Total, FrameNumber = Frame };
             public void SeedState(GlobalTime state) { Total = state.TotalTime; Frame = state.FrameNumber; }
             public void Dispose() { }
+            /// <summary>⭐ CE-3316 — a snap (SnapAndPause) bumps it, as the real clock does.</summary>
+            public long TimelineEpoch { get; set; }
         }
 
         [ComponentId(107)] private struct StepProbe { public int Value; }
@@ -279,6 +282,86 @@ namespace Fdp.ModuleHost.Tests
             Step(kernel, clock, 0f);                                   // the new timeline begins (paused)
             Step(kernel, clock, 1f / 60f);                             // first step: the old job harvested — and discarded
             Assert.Equal(before, world.GetComponentRO<StepProbe>(module.Probe).Value);
+            kernel.Dispose(); world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design §1l) — a slot-paced background run is IN FLIGHT from the step that dispatches it to the step that
+        /// harvests it, and only then: what a checkpoint waits out. Not in continuous play (nothing there repeats).
+        /// </summary>
+        [Fact]
+        public void CE3316_ASlotRunIsInFlight_FromItsDispatchToItsHarvest_InSteppedModeOnly()
+        {
+            var (kernel, world, clock, _) = SteppedKernel(sleepMs: 0);
+            var inFlight = new System.Collections.Generic.List<bool>();
+            for (int i = 0; i < 8; i++) { Step(kernel, clock, 1f / 60f); inFlight.Add(kernel.SlotRunInFlight); }
+            // steps 1 (slot 0) and 6 (slot 1, t = 0.1 s) dispatch; the step after each harvests
+            Assert.Equal(new[] { true, false, false, false, false, true, false, false }, inFlight);
+            clock.Mode = TimeMode.Continuous;
+            for (int i = 0; i < 12; i++) { Step(kernel, clock, 1f / 60f); Assert.False(kernel.SlotRunInFlight); }
+            kernel.Dispose(); world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3316</c> — a checkpoint written on a quiet step (0.15 s) and restored into a FRESH kernel runs its slow module on the
+        /// SAME steps as the straight run: the restore counts the slot it stands in as run. 📌 Found by R1 on <c>ua-civ-melee</c>: restored,
+        /// every module counted as never run and dispatched on the first step — a hearing solve a step late, a threat boost off by 5.
+        /// A load (no <c>ResumeSlotsAfterRestore</c>) still runs on the first step. 🔴 Red-proof: the kernel ignores the resume ⇒ an extra
+        /// run at 0.1667 s.
+        /// </summary>
+        [Fact]
+        public void CE3316_ARestoredKernel_RunsItsSlowModulesOnTheStraightRunsSteps()
+        {
+            double[] After(double[] runs, double t) => runs.Where(r => r > t + 1e-9).ToArray();
+
+            var (straight, sw, sc, sm) = SteppedKernel(sleepMs: 0);
+            for (int i = 0; i < 9; i++) Step(straight, sc, 1f / 60f);
+            double checkpointAt = sc.Total;                                  // the quiet step the checkpoint was written on
+            for (int i = 0; i < 21; i++) Step(straight, sc, 1f / 60f);
+            Step(straight, sc, 1f / 60f);
+            straight.Dispose(); sw.Dispose();
+            double[] straightRuns; lock (sm.RunAt) straightRuns = sm.RunAt.ToArray();
+
+            double[] Restored(bool resume)
+            {
+                var (kernel, world, clock, module) = SteppedKernel(sleepMs: 0);
+                Step(kernel, clock, 0f);                                    // the fresh process, paused
+                if (resume) kernel.ResumeSlotsAfterRestore();               // PutBack, for a checkpoint
+                clock.Total = checkpointAt; clock.Frame = 9; clock.TimelineEpoch++;   // the snap to the checkpoint's clock
+                Step(kernel, clock, 0f);
+                for (int i = 0; i < 22; i++) Step(kernel, clock, 1f / 60f);
+                kernel.Dispose(); world.Dispose();
+                lock (module.RunAt) return module.RunAt.ToArray();
+            }
+
+            Assert.Equal(After(straightRuns, checkpointAt), Restored(resume: true));
+            Assert.Equal(10.0 / 60.0, Restored(resume: false)[0], 5);      // a load-like snap: the first step runs it
+        }
+
+        [EventId(932961)] private struct HeardPing { public int Value; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (D2's checkpoint half) — the checkpoint's UNCONSUMED events (its recorded pending buffer, handed over in a holding
+        /// bus) are delivered at the restore's clock snap: in the live bus's read buffer on the snap frame — after the history restart, so
+        /// not erased — and only that frame (read once). 📌 Found by R1 on <c>ua-civ-melee</c>: a heard contact published in the checkpoint's
+        /// frame was lost, and the Policeman's threat score came out 5 lower. 🔴 Red-proof: drop the publish at the snap ⇒ nothing arrives.
+        /// </summary>
+        [Fact]
+        public void CE3316_ACheckpointsUnconsumedEvents_ArriveOnceAtTheRestoresSnap()
+        {
+            var (kernel, world, clock, _) = SteppedKernel(sleepMs: 0);
+            world.RegisterEvent<HeardPing>();
+            Step(kernel, clock, 0f);
+            var holding = new FdpEventBus();
+            holding.Register<HeardPing>();
+            holding.Publish(new HeardPing { Value = 5 });
+            holding.SwapBuffers();                                     // the keyframe's pending events, read into the holding bus's current
+            kernel.ResumeAfterRestore(holding);
+            clock.Total = 3.0; clock.Frame = 180; clock.TimelineEpoch++;   // the snap to the checkpoint's clock
+            Step(kernel, clock, 0f);
+            Assert.Equal(new[] { 5 }, world.ReadEvents<HeardPing>().ToArray().Select(p => p.Value).ToArray());
+            Step(kernel, clock, 1f / 60f);
+            Assert.Empty(world.ReadEvents<HeardPing>().ToArray());   // delivered once
             kernel.Dispose(); world.Dispose();
         }
 

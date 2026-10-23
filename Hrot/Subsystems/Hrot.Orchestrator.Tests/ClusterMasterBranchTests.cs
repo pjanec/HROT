@@ -181,4 +181,31 @@ public sealed class ClusterMasterBranchTests
         if (named) Assert.Equal(requested, sent);
         Assert.Equal(sent, master.ActiveExerciseId);
     }
+
+    /// <summary>
+    /// ⭐ CE-3299 D17 (R-3045) — the live load's recording mode reaches every node on the load it starts: the request's
+    /// <c>CheckpointingSeconds</c> rides the PrepareLive fan-out (0 / omitted = FULL).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void D17_TheLiveLoadsRecordingMode_RidesThePrepareLiveFanOut()
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = 1, SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = "{\"TargetState\":\"OperatingLive\",\"CheckpointingSeconds\":15}",
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var prepare = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareLive);
+        Assert.Equal(15.0, Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(prepare.DomainPayload).CheckpointingSeconds);
+    }
 }

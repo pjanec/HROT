@@ -317,6 +317,15 @@ namespace Fdp.Core.FlightRecorder
                 }
             }
             
+            // ⭐ CE-3299 B5 (D10) — a type the recording's process registered on first use, which this world has not used yet: register it
+            //   now (its [ComponentId] names it), as a fresh process restoring a checkpoint or replaying a recording must
+            if (targetTable == null && ComponentTypeRegistry.FindType(typeId) is { } missing)
+            {
+                typeof(EntityRepository).GetMethod(nameof(EntityRepository.RegisterComponent))!.MakeGenericMethod(missing)
+                    .Invoke(repo, new object?[] { null });
+                repo.TryGetTable(missing, out targetTable!);
+            }
+
             if (targetTable == null)
             {
                 throw new InvalidOperationException(
@@ -388,7 +397,7 @@ namespace Fdp.Core.FlightRecorder
             {
                 // We need to auto-register the singleton if it doesn't exist on playback.
                 // This requires the Type.
-                Type? type = ComponentTypeRegistry.GetType(typeId);
+                Type? type = ComponentTypeRegistry.FindType(typeId);   // ⭐ B5 (D10) — also a type this process has not touched yet
                 if (type == null) 
                 {
                     // Warn or skip? If we don't know the type, we can't restore.

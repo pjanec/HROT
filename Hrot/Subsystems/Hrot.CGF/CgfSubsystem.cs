@@ -1219,6 +1219,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 SimGroup            = _toggleSim,
                 IdAllocator         = _context.IdAllocator,
                 EntityMap           = _context.EntityMap,   // CE-2101 — the world boundary clears it
+                EventAccumulator    = _context.EventAccumulator,   // CE-3314 — a restore restarts the step window (D4)
                 LoadProviders       = cgfLoadProviders,
                 ScenarioHandlers    = new[] { cgfEpisodeHandler },
                 ScenarioSaveHandler = cgfScenarioSaveHandler,

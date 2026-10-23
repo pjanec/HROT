@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(251)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PerceptionReceptor
     {
         /// <summary>Maximum distance (meters) at which this entity can hear audio stimuli.</summary>
@@ -42,6 +43,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.TargetMemory)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public unsafe struct TargetMemory
     {
         /// <summary>Number of valid entries currently stored (0–<see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>

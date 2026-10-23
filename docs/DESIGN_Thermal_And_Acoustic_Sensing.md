@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-22 (§8.3a CE-3315 — cursors and seeds are timeline PLACES; the world carries the count, so a restored world goes on hearing) · 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS checkpoint restore and R1 (§1k), which found that a restored world stopped hearing; §8.3a here is the fix
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — step-only systems, step windows and the reload probe (§7e) that measured the ring's thread race (§8.3)
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — a sound signature per weapon (A), hearing bounded by distance not terrain (B), a lossless emission ring (C) — OPEN, leans await the user
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (R-3015, CE-1148): the shot / detonation ingress moves to every node with an own-sample skip, replacing §3a's Perception && !MuscleGround branch and its named limit.
@@ -625,7 +626,7 @@ classDiagram
   class SoundEmissionSystem { <<existing, SimHost main thread>> Execute() appends every shot / burst }
   class SoundEmissionRing { <<NEW managed singleton, id 438>> SoundEmission[] slots (4096) ; long Head ; double Now ; long Overflow ; Append() ; ReadAfter() }
   class SoundEmission { <<NEW struct>> long Serial ; ulong Source ; byte Force ; byte Kind ; byte Class ; Vector3 At ; float Carry ; double Time ; long Signature }
-  class AcousticCursor { <<NEW component on the sensor, id 439>> long LastSerial }
+  class AcousticCursor { <<NEW component on the sensor, id 439>> long LastPlace (CE-3315, was LastSerial) }
   class AcousticSensorGenerator { <<existing>> movement via the grid ; shots / bursts via the ring }
   class EntityRepository_SyncFrom { <<existing, FDP>> borrows allow-listed singletons BY REFERENCE }
   SoundEmissionSystem --> SoundEmissionRing : Append (single writer)
@@ -670,6 +671,35 @@ and with it the cursor, so a skipped or discarded solve re-reads instead of losi
 | a new sensor starts at the current Head | it does not "hear" the minutes before it existed | ⛔ from 0 |
 | ⭐ **a read is AS OF the reader's own time** *(`CE-3293`, `2026-10-21`)*: only sounds made before the snapshot's clock are read, and the cursor stops at the first that is not | 📐 the writer goes on appending the DISPATCHING step's sounds while the background solve runs, so whether those were heard depended on the threads — measured live, four loads of `ua-tank-ammo` 15 Hz stepped: one run heard a burst at 18.40 s, the other three at 18.53 s (one solve later). Every sound before the snapshot's own time was written before the snapshot was taken ⇒ fixed. Cost: a sound is heard by the solve AFTER the step that made it (≤ one step). A view with no clock reads everything, as before | ⛔ copying the ring into the snapshot — 256 KB per dispatch · ⛔ a head captured at sync time — Fdp.Core would have to know the ring's type |
 | N = 4096 entries, T = 30 s | 4096 / 10 s (the circuit's worst skip) ≈ 400 shots / s sustained; T stops a long-silent sensor hearing old news | — the overflow counter tells when N is too small |
+
+#### 8.3a `CE-3315` / `CE-3316` — a restored world goes on hearing *(backend, `2026-10-22`; build-state: BUILT)* — ⛔ SUPERSEDES "the cursor is a serial" above
+
+📐 **Found by R1** ([restore design §1k](DESIGN_Checkpoint_And_Dry_Run_Restore.md)): restored from a checkpoint in a FRESH process, `ua-civ-routine-alarm`'s
+near civilians never heard the 3.1 s shot. The ring is a node object no keyframe carries; the cursors are recorded components holding
+RING SERIALS, so the fresh ring's serials sat below every restored cursor. And the mishearing seed (place = serial − first + 1) restarted
+at the fresh ring's own count. (A restore in the SAME process was already safe from re-hearing: a clock going back starts a new timeline, CE-3292.)
+
+```mermaid
+classDiagram
+  class SoundEmissionRing { <<existing>> PlaceOf(serial) NEW ; Places NEW ; TailBefore(t) NEW ; Resume(places, tail, now) NEW ; ReadAfter(afterPlace) — PLACES in and out }
+  class SoundTimeline { <<NEW unmanaged singleton, id 455, recorded>> long Places ; double At ; SoundEmission Tail[64] (CE-3316) }
+  class SoundEmissionSystem { <<existing>> keeps SoundTimeline = count + newest 64 ; on WorldEpoch.RestoresOf moving — ring.Resume(carried, or the ring's own before now) }
+  class AcousticCursor { <<existing>> long LastPlace }
+  class AcousticPerception { <<existing>> cursor and seed are places }
+  SoundEmissionSystem --> SoundTimeline : writes when the count moves
+  SoundEmissionSystem --> SoundEmissionRing : Restart after a restore
+  AcousticPerception --> SoundEmissionRing : ReadAfter(LastPlace)
+  AcousticPerception --> AcousticCursor
+```
+*What the picture shows that prose hid:* the WORLD owns the count (a recorded singleton a checkpoint carries); the ring only maps its own
+serials onto the world's places — so a cursor and a seed mean the same in the straight run, a restore in this process and a fresh one.
+
+| decision | why | rejected — one line |
+|---|---|---|
+| readers see PLACES (`serial − first + 1 + offset`); the cursor and the seed are places | a place is the world's number; in a fresh process place = serial, so nothing recorded so far changes (goldens hold) | keep serials and remap cursors at a restore — every recorded cursor would still be a ring number |
+| the count is a recorded singleton, `SoundTimeline {Places, At}` | the ring cannot be carried cheaply (a managed singleton has no table version; 256 KB a frame in deltas) | carry the ring — size, and its unread sounds are in flight anyway |
+| on a restore the ring starts a new timeline at the carried count; if the carried count is NEWER than the restored clock (a dry run puts no singleton back) it uses its own count of the sounds before that clock | one rule for a checkpoint restore here, in a fresh process, and a dry-run exit | trust the singleton always — after a dry run it is the abandoned future's |
+| ⭐ **`CE-3316`: the world also carries the 64 NEWEST sounds**; a restore re-appends them at their own places (`Resume`) | 📐 R1 run down step by step: on the first step after 3 s the straight run's Policeman heard a sound made before the checkpoint that his sensor had not read yet; restored, he did not, and his threat freshness kept the gap (decaying). A sensor reads at least every solver slot, so an unread sound is among the last few; ~4 KB | ⛔ *(the first version, `CE-3315`)* accept it as in flight (R-3041) — R1 showed it changes behaviour · carry the whole ring — 256 KB |
 
 ### 8.4 `CE-3283` — a SIGNATURE per weapon, and what the ear can tell *(backend, `2026-10-20`; Q95 A, approved; build-state: BUILT)*
 

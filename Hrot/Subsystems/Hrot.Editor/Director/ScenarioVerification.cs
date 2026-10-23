@@ -471,6 +471,42 @@ namespace Hrot.Editor.Director
             return lines;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B5 (R1, restore design §1k) — two runs' snapshots from <paramref name="t1"/> on, compared as
+        /// <see cref="Compare"/> does: <paramref name="straight"/> ran from 0, <paramref name="restored"/> began from a checkpoint at
+        /// <paramref name="t1"/>. ⛔ The rows before t1 (times, shots, blasts) are not the restored run's to have, so only state is compared.
+        /// <para>⭐ <paramref name="carried"/> (a component's name ⇒ the checkpoint carries it; null = every one): with it, only the CARRIED
+        /// components (and the position and health) are compared here — a component a checkpoint does not carry by design (<c>NoReplay</c>)
+        /// is listed by <see cref="CompareNotCarried"/> instead, since what it changes shows up in the carried state.</para>
+        /// </summary>
+        public static IReadOnlyList<string> CompareFrom(JsonObject straight, JsonObject restored, double t1, Func<string, bool>? carried = null)
+            => Compare(From(straight, t1, carried, true), From(restored, t1, carried, true));
+
+        /// <summary>⭐ B5 — the differences from <paramref name="t1"/> on in the components the checkpoint does NOT carry (for information).</summary>
+        public static IReadOnlyList<string> CompareNotCarried(JsonObject straight, JsonObject restored, double t1, Func<string, bool> carried)
+            => Compare(From(straight, t1, carried, false), From(restored, t1, carried, false));
+
+        private static JsonObject From(JsonObject run, double t1, Func<string, bool>? carried, bool keepCarried)
+        {
+            var snapshots = new JsonArray();
+            foreach (var n in (run["snapshots"] as JsonArray) ?? new JsonArray())
+            {
+                if (ConditionBook.Num(n?["t"]) is not { } t || t < t1 - 1e-6) continue;
+                var snap = n!.DeepClone().AsObject();
+                if (carried != null && snap["units"] is JsonObject units)
+                    foreach (var (_, unit) in units)
+                    {
+                        if (unit is not JsonObject u) continue;
+                        if (!keepCarried) { u.Remove("position"); u.Remove("health"); }
+                        if (u["components"] is JsonObject comps)
+                            foreach (var name in comps.Select(kv => kv.Key).ToList())
+                                if (carried(name) != keepCarried) comps.Remove(name);
+                    }
+                snapshots.Add(snap);
+            }
+            return new JsonObject { ["snapshots"] = snapshots };
+        }
+
         private static IEnumerable<string> Modified(DiffNode? node, string path)
         {
             if (node is null || !node.IsModified) yield break;
@@ -543,17 +579,38 @@ namespace Hrot.Editor.Director
         private readonly ConditionBook _book;
         private readonly ScenarioGolden? _run;
         private readonly HashSet<CheckAction> _done = new();
+        private readonly double? _every;
         private double _nextSample, _nextSnapshot;
         public List<string> ActionProblems { get; } = new();
 
-        public ScenarioVerification(ScenarioChecks checks, JsonObject? golden, bool capture, IVerifyWorld world, double t0)
+        /// <param name="startAt">⭐ <c>CE-3299</c> B5 (R1) — the run begins at this relative time (a checkpoint restored at T1): samples and
+        /// snapshots fall on the same grid as a run from 0, so the two can be compared snapshot for snapshot.</param>
+        /// <param name="snapshotEvery">⭐ B5 — snapshot every this many seconds, every component in full, whatever the checks say (R1
+        /// compares full component state, and a red must name the component).</param>
+        public ScenarioVerification(ScenarioChecks checks, JsonObject? golden, bool capture, IVerifyWorld world, double t0,
+                                    double startAt = 0, double? snapshotEvery = null)
         {
             _checks = checks ?? throw new ArgumentNullException(nameof(checks));
             _golden = golden;
             _capture = capture;
             _w = world ?? throw new ArgumentNullException(nameof(world));
             _book = new ConditionBook(checks, world, t0);
-            _run = checks.GoldenEvery is null ? null : new ScenarioGolden(world, checks.GoldenFull);
+            _every = snapshotEvery ?? checks.GoldenEvery;
+            _run = _every is null ? null : new ScenarioGolden(world, checks.GoldenFull || snapshotEvery != null);
+            _nextSample = FirstAtOrAfter(startAt, checks.SampleEvery);
+            _nextSnapshot = _every is { } e ? FirstAtOrAfter(startAt, e) : 0;
+        }
+
+        private static double FirstAtOrAfter(double t, double step) => t <= 0 || !(step > 0) ? 0 : Math.Ceiling(t / step - 1e-4) * step;   // a run's time carries float dust
+
+        /// <summary>⭐ B5 — the indexes (in <see cref="ScenarioChecks.Do"/>) of the actions applied so far: a checkpoint carries them to the
+        /// process that restores it, which must not apply them again.</summary>
+        public IReadOnlyList<int> DoneActions => _checks.Do.Select((a, i) => (a, i)).Where(x => _done.Contains(x.a)).Select(x => x.i).ToList();
+
+        /// <summary>⭐ B5 — the actions the checkpoint's own run had already applied count as done here.</summary>
+        public void MarkDone(IEnumerable<int> indexes)
+        {
+            foreach (var i in indexes) if (i >= 0 && i < _checks.Do.Count) _done.Add(_checks.Do[i]);
         }
 
         public ScenarioChecks Checks => _checks;
@@ -567,7 +624,7 @@ namespace Hrot.Editor.Director
         public void Observe(double rel)
         {
             if (rel + 1e-9 >= _nextSample) { _book.Observe(rel); _nextSample += _checks.SampleEvery; }
-            if (_run != null && rel + 1e-9 >= _nextSnapshot) { _run.Snapshot(rel); _nextSnapshot += _checks.GoldenEvery!.Value; }
+            if (_run != null && rel + 1e-9 >= _nextSnapshot) { _run.Snapshot(rel); _nextSnapshot += _every!.Value; }
         }
 
         /// <summary>Each action due by <paramref name="rel"/> is applied now (before this frame's step).</summary>

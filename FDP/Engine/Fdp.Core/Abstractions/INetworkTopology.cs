@@ -4,6 +4,7 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Replication
 {
     [ComponentId(GlobalComponentIds.INetworkTopology)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public interface INetworkTopology
     {
         /// <summary>

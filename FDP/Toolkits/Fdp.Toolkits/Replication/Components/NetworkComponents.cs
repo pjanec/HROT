@@ -41,6 +41,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// (DESIGN_Cross_Node_Construction_Barrier.md §3a.3).
     /// </summary>
     [ComponentId(GlobalComponentIds.NetworkAckPeerSet)]
+    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
     public class NetworkAckPeerSet
     {
         /// <summary>The peer node ids to wait for. Empty ⇒ no cross-node wait (immediate ack).</summary>

@@ -73,6 +73,7 @@ internal static class ClusterOpRequestAdapter
             ScenarioId      = dto.ScenarioId,
             ExerciseId      = dto.ExerciseId,
             TimeMode        = dto.TimeMode,
+            CheckpointingSeconds = dto.CheckpointingSeconds,   // D17
         };
     }
 

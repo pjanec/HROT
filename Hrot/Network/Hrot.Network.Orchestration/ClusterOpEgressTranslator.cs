@@ -223,13 +223,14 @@ public sealed class ClusterOpEgressTranslator : IDisposable
 
     // ⭐ CE-3299 B3 — a checkpoint's label as the request payload ({"label": …}); empty when none.
     private static string LabelJson(string? label)
-        => string.IsNullOrWhiteSpace(label) ? string.Empty : System.Text.Json.JsonSerializer.Serialize(new { label });
+        => string.IsNullOrWhiteSpace(label) ? string.Empty : System.Text.Json.JsonSerializer.Serialize(new { label }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
     private static string SerializeTransitionPayload(TransitionStateIntent intent)
     {
         var nedState = (Hrot.NED.Descriptors.Orchestration.ClusterState)(int)intent.TargetState;
         return JsonSerializer.Serialize(
-            new TransitionPayloadDto(TargetState: nedState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode),
+            new TransitionPayloadDto(TargetState: nedState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode,
+                                     CheckpointingSeconds: intent.CheckpointingSeconds),   // D17
             OrchestrationJsonOptions.Default);
     }
 

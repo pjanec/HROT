@@ -27,14 +27,21 @@ namespace Hrot.Editor.Director
         private readonly Action _pause;
         private readonly Action<float> _stepBy;
         private readonly Func<int, string?> _behaviourName;
+        private readonly Action<string, string> _writeCheckpoint;
+        private readonly Func<string, double> _restoreCheckpoint;
+        private readonly Func<bool> _slotRunInFlight;
         private readonly System.Diagnostics.Stopwatch _wall = System.Diagnostics.Stopwatch.StartNew();
 
         public EditorDirectorHost(Func<EntityRepository?> world, Action<string> load, Func<bool> operatingEdit, Func<bool> inPreview,
                                   Action<bool> enterPreview, Action exitPreview, Func<bool> paused, Action pause, Action<float> stepBy,
-                                  Func<int, string?> behaviourName, TakeStore takes)
+                                  Func<int, string?> behaviourName, TakeStore takes, Func<bool> slotRunInFlight,
+                                  Action<string, string> writeCheckpoint, Func<string, double> restoreCheckpoint)
         {
             _world = world; _load = load; _operatingEdit = operatingEdit; _inPreview = inPreview; _enterPreview = enterPreview;
             _exitPreview = exitPreview; _paused = paused; _pause = pause; _stepBy = stepBy; _behaviourName = behaviourName;
+            _writeCheckpoint = writeCheckpoint ?? throw new ArgumentNullException(nameof(writeCheckpoint));
+            _restoreCheckpoint = restoreCheckpoint ?? throw new ArgumentNullException(nameof(restoreCheckpoint));
+            _slotRunInFlight = slotRunInFlight ?? throw new ArgumentNullException(nameof(slotRunInFlight));
             Takes = takes;
         }
 
@@ -56,6 +63,9 @@ namespace Hrot.Editor.Director
         public double WallNow => _wall.Elapsed.TotalSeconds;
         public string? BehaviourName(int hash) => _behaviourName(hash);
         public TakeStore Takes { get; }
+        public void WriteCheckpoint(string path, string label) => _writeCheckpoint(path, label);
+        public double RestoreCheckpoint(string path) => _restoreCheckpoint(path);
+        public bool SlotRunInFlight => _slotRunInFlight();
 
         /// <summary>⭐ Holding the frame: the main thread sleeps until the step is due (a ms or two of it spun, so it is not overslept).</summary>
         public void Hold(double seconds)

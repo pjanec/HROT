@@ -28,6 +28,7 @@ namespace Hrot.IG.Components;
 /// </summary>
 [ComponentId(GlobalComponentIds.HistoryTrail)]
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public unsafe struct HistoryTrail
 {
     // ── Circular buffer storage ───────────────────────────────────────────────

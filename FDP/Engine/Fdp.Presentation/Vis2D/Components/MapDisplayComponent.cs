@@ -5,6 +5,7 @@ namespace Fdp.Toolkit.Vis2D.Components
     /// Uses bitmask for layer membership (entity can appear on multiple layers).
     /// </summary>
     [Fdp.Core.ComponentId(Fdp.Core.GlobalComponentIds.MapDisplayComponent)]
+    [Fdp.Core.DataPolicy(Fdp.Core.DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct MapDisplayComponent
     {
         /// <summary>

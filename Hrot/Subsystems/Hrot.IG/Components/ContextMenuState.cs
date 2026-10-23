@@ -14,6 +14,7 @@ namespace Hrot.IG.Components;
 /// <c>repo.RegisterManagedComponent&lt;ContextMenuState&gt;()</c>.
 /// </summary>
 [ComponentId(GlobalComponentIds.ContextMenuState)]
+[DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
 public sealed class ContextMenuState
 {
     /// <summary>

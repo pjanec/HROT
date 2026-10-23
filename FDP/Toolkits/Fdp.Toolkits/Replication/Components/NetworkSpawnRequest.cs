@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// </summary>
     [Obsolete("Use TkbIdentity and EntityHeader.DisType instead. NetworkSpawnRequest is scheduled for removal.")]
     [ComponentId(GlobalComponentIds.NetworkSpawnRequest)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NetworkSpawnRequest
     {
         public ulong DisType;

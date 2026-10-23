@@ -18,6 +18,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// </para>
     /// </summary>
     [ComponentId(GlobalComponentIds.PendingAuthorityGrants)]
+    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
     public class PendingAuthorityGrants
     {
         /// <summary>

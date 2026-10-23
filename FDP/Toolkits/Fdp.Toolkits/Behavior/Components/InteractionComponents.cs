@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.PassengerBuffer)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PassengerBuffer
     {
         /// <summary>The most seats a carrier declares — the list's and its wire topic's width. ⭐ F4 (Air Ops §7a, 🔒 user `2026-10-14`:
@@ -80,6 +81,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.IsEmbarkedTag)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct IsEmbarkedTag
     {
         /// <summary>The vehicle entity this soldier is currently aboard.</summary>
@@ -104,6 +106,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.OpenPassengerCabin)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct OpenPassengerCabin
     {
         /// <summary>Unused; FDP components carry at least one field.</summary>
@@ -139,6 +142,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CarrierSeats)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct CarrierSeats
     {
         /// <summary>How many seats the type declares (0–<see cref="PassengerBuffer.Capacity"/>, the wire maximum).</summary>
@@ -175,6 +179,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.PersonCarrier)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PersonCarrier
     {
         /// <summary>Top-speed factor while carrying (on the shoulder).</summary>
@@ -249,6 +254,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.SeatPresetsFilled)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct SeatPresetsFilled
     {
         /// <summary>1 once filled.</summary>

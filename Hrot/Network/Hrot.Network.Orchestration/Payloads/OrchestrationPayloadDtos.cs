@@ -48,7 +48,12 @@ public record TransitionPayloadDto(
     Guid          ExerciseId,
 
     [property: JsonPropertyName("TimeMode")]
-    string?        TimeMode
+    string?        TimeMode,
+
+    // ⭐ CE-3299 D17 (R-3045) — the recording mode of the live session this request starts: 0 / omitted = FULL (every frame), N > 0 =
+    //   CHECKPOINTING (a keyframe every N s of sim time, nothing else). Additive on the wire.
+    [property: JsonPropertyName("CheckpointingSeconds")]
+    double         CheckpointingSeconds = 0
 );
 
 /// <summary>Payload DTO for <c>ClusterOpType.ManageEpisode</c> DDS requests.</summary>
@@ -150,7 +155,11 @@ public record NodeTransitionPayloadDto(
 
     // ⭐⭐ C7 (Q91 §4-M) — a late joiner's catch-up load: universal parts only, no scenario. Additive; omitted ⇒ false.
     [property: JsonPropertyName("IsCatchUp")]
-    bool           IsCatchUp = false
+    bool           IsCatchUp = false,
+
+    // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (see TransitionPayloadDto). Additive; omitted ⇒ 0 ⇒ FULL.
+    [property: JsonPropertyName("CheckpointingSeconds")]
+    double         CheckpointingSeconds = 0
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

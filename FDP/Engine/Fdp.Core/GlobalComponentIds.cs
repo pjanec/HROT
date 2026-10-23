@@ -1079,6 +1079,14 @@ namespace Fdp.Core
         /// <summary>⭐ <c>CE-3282</c> — <c>AcousticCursor</c>: the last ring serial a hearing sensor consumed. Sensing §8.3.</summary>
         public const int AcousticCursor = 439;
 
+        /// <summary>⭐ <c>CE-3315</c> (backend) — <c>SoundTimeline</c>: how many sounds the world's timeline has made, so a restore numbers on
+        /// where it stood (restore design §1k).</summary>
+        public const int SoundTimeline = 455;
+
+        /// <summary>⭐ <c>CE-3318</c> (backend) — <c>NavigationHandleMark</c>: the world's copy of the navigation handle counter, so a restore
+        /// numbers its next path where the straight run did (restore design §1m).</summary>
+        public const int NavigationHandleMark = 456;
+
         /// <summary>⭐ <c>CE-3288</c> (backend) — <c>ScenarioDescriptionResident</c>: the loaded scenario's header description, a managed world
         /// singleton a save writes back. 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4d. Backend's block; measured free on every lane 2026-10-20.</summary>
         public const int ScenarioDescriptionResident = 440;

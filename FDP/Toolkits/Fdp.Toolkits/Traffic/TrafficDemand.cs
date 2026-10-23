@@ -18,6 +18,7 @@ namespace Fdp.Toolkit.Traffic
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.TrafficDemand)]
     [PerInstanceValue]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct TrafficDemand
     {
         /// <summary>How many cars SUMO keeps on the whole net at once (its live-city closed-loop target).</summary>

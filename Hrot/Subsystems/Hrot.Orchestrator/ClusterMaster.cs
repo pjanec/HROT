@@ -1420,6 +1420,10 @@ public sealed partial class ClusterMaster : IDisposable
             _currentExerciseId = exerciseId;
         }
 
+        // ⭐ CE-3299 D17 (R-3045) — a live LOAD sets the session's recording mode; a branch keeps the session's (the nodes inherit the
+        //   parent recording's), and a late joiner's catch-up is told the current one.
+        if (LoadsLiveFromIdle(capturedSourceState, trajectory)) _currentCheckpointingSeconds = Math.Max(0, intent.CheckpointingSeconds);
+
         // ── HN-037: the world boundary resets the ONE id authority ───────────────────────
         // ⭐ BEFORE the fan-out, because PrepareLive is what makes CGF allocate the authored ids.
         ResetIdAuthorityIfWorldBoundary(trajectory, capturedSourceState);
@@ -1483,7 +1487,8 @@ public sealed partial class ClusterMaster : IDisposable
                             ExerciseId:  exerciseId,
                             TerrainName: contentNames.TerrainName,
                             // ⭐ CE-2101 — every node clears its world before this load (the world boundary).
-                            IsWorldBoundary: worldBoundary);
+                            IsWorldBoundary: worldBoundary,
+                            CheckpointingSeconds: _currentCheckpointingSeconds);   // D17 — the session's recording mode
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,

@@ -8,6 +8,7 @@ namespace Fdp.Toolkit.Vis2D.Components;
 /// Forms a linked-list tree structure.
 /// </summary>
 [ComponentId(GlobalComponentIds.VisHierarchyNode)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct VisHierarchyNode
 {
     public Entity Parent;
@@ -20,6 +21,7 @@ public struct VisHierarchyNode
 /// Updated automatically by the aggregation system.
 /// </summary>
 [ComponentId(GlobalComponentIds.AggregateState)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct AggregateState
 {
     public Vector2 Centroid;       // Average position of children
@@ -35,5 +37,6 @@ public struct AggregateState
 /// Tag component to mark root entities in hierarchy.
 /// </summary>
 [ComponentId(GlobalComponentIds.AggregateRoot)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct AggregateRoot { }
 

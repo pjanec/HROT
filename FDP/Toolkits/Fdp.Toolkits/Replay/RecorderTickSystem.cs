@@ -55,10 +55,17 @@ namespace Fdp.Toolkit.Replay
         /// until the front-buffer swap completes, preventing delta drops in tight loops.
         /// Mirrors <see cref="RecordingConfiguration.Blocking"/>.
         /// </param>
-        public RecorderTickSystem(AsyncRecorder recorder, bool blocking = false)
+        /// <param name="checkpointingSeconds">⭐ <c>CE-3299</c> D17 (R-3045) — 0: FULL. N &gt; 0: CHECKPOINTING — a keyframe every N
+        /// seconds of sim time (<c>GlobalTime.TotalTime</c>) and at every named checkpoint, and NOTHING on the frames between (no deltas):
+        /// restore points, no smooth replay. A paused cluster writes nothing (its sim time does not move).</param>
+        /// <param name="slotRunInFlight">⭐ <c>CE-3316</c> — the kernel's "a slot-paced background run is in flight": a due checkpoint waits for a
+        /// step where it is not (at most <see cref="MaxCheckpointDeferSteps"/> steps), so a restore continues exactly. Null = never.</param>
+        public RecorderTickSystem(AsyncRecorder recorder, bool blocking = false, double checkpointingSeconds = 0, Func<bool>? slotRunInFlight = null)
         {
+            _slotRunInFlight = slotRunInFlight;
             _recorder = recorder;
             _blocking = blocking;
+            _checkpointingSeconds = Math.Max(0, checkpointingSeconds);
             // Start at KeyframeInterval - 1 so the very first Execute call issues a keyframe.
             _framesSinceKeyframe = KeyframeInterval - 1;
         }
@@ -80,17 +87,36 @@ namespace Fdp.Toolkit.Replay
                 : DateTime.UtcNow.Ticks;
 
             bool checkpoint = CheckpointsDue(wallClockTicks, _due);
-            if (++_framesSinceKeyframe >= KeyframeInterval || checkpoint)
+            // ⭐ CE-3316 (restore design §1l) — not while a slot-paced background run is in flight: its input is an earlier frame's world,
+            //   which the keyframe cannot hold, so a restore would run it again a step late. In stepped mode one is in flight for one step
+            //   at most (held over paused frames, which do not count).
+            if (checkpoint && _slotRunInFlight != null && _deferredSteps < MaxCheckpointDeferSteps && _slotRunInFlight())
+            {
+                if (deltaTime > 0f) _deferredSteps++;
+                checkpoint = false;
+            }
+            else if (checkpoint) _deferredSteps = 0;
+            // ⭐ D17 — CHECKPOINTING: a keyframe on the first frame, every N s of sim time, or at a named checkpoint; nothing else
+            bool keyframe = _checkpointingSeconds > 0
+                ? checkpoint || _lastKeyframeSimTime is not { } last || globalTime.TotalTime - last >= _checkpointingSeconds || globalTime.TotalTime < last
+                : ++_framesSinceKeyframe >= KeyframeInterval || checkpoint;
+            if (_checkpointingSeconds > 0 && !keyframe) return;
+            if (keyframe)
             {
                 StampWorld(repo, _recorder.Metadata);   // CE-3126 — cheap; once per keyframe keeps it current
                 _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking, eventBus: repo.Bus);
                 _framesSinceKeyframe = 0;   // ⭐ CE-3299 B3 — a checkpoint IS this interval's keyframe: the next periodic one moves on
-                foreach (var label in _due) _recorder.MarkCheckpoint(label, wallClockTicks, globalTime);
-                _due.Clear();
-                // ⭐ CE-3299 B4 / D18 — a branch's manifest (its parent, its inherited checkpoints) goes to disk with its first frame
-                if (!_wroteBranchManifest && _recorder.Metadata.ParentExerciseId != Guid.Empty)
+                _lastKeyframeSimTime = globalTime.TotalTime;   // D17 — the same in checkpointing mode
+                if (checkpoint)   // ⭐ CE-3316 — a periodic keyframe while a checkpoint waits is not that checkpoint
                 {
-                    _wroteBranchManifest = true;
+                    foreach (var label in _due) _recorder.MarkCheckpoint(label, wallClockTicks, globalTime);
+                    _due.Clear();
+                }
+                // ⭐ CE-3313 — every recording's manifest goes to disk with its first frame (a branch's carries its parent and inherited
+                //   checkpoints — CE-3299 B4 / D18), so a node killed mid-session leaves a recording that names itself; finalize rewrites it
+                if (!_wroteManifest)
+                {
+                    _wroteManifest = true;
                     _recorder.WriteMetadata();
                 }
             }
@@ -103,14 +129,24 @@ namespace Fdp.Toolkit.Replay
         }
 
         private readonly System.Collections.Generic.List<string> _due = new();
-        private bool _wroteBranchManifest;
+        private readonly Func<bool>? _slotRunInFlight;   // CE-3316
+        private int _deferredSteps;
+
+        /// <summary>⭐ <c>CE-3316</c> — how many steps a due checkpoint waits for a frame with no slot run in flight, at most.</summary>
+        public const int MaxCheckpointDeferSteps = 8;
+        private bool _wroteManifest;
+        private readonly double _checkpointingSeconds;   // D17 — 0 = FULL
+        private double? _lastKeyframeSimTime;
+
+        /// <summary>⭐ <c>CE-3299</c> D17 — the recording mode: 0 = FULL, N &gt; 0 = a keyframe every N s of sim time only.</summary>
+        public double CheckpointingSeconds => _checkpointingSeconds;
 
         // ⭐ CE-3299 B3 — moves every request whose wall time has come into due; true when there is one.
         private bool CheckpointsDue(long wallClockTicks, System.Collections.Generic.List<string> due)
         {
             lock (_requestedLock)
             {
-                if (_requested.Count == 0) return false;
+                if (_requested.Count == 0) return due.Count > 0;   // ⭐ CE-3316 — a checkpoint still waiting for a quiet step
                 for (int i = _requested.Count - 1; i >= 0; i--)
                 {
                     if (_requested[i].AtWallTicks > wallClockTicks) continue;

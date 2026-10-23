@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// Replaces the DDS-aware <c>EntityMissionHolder</c> and <c>IgMissionHolder</c> components.
     /// </summary>
     [ComponentId(BehaviorApplicationComponentIds.ActiveMissionPlan)]
+    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
     public class ActiveMissionPlan
     {
         public DomainMissionPlan Plan { get; set; } = new();

@@ -1580,6 +1580,11 @@ classDiagram
 | perception's clock = `GlobalTime.FrameNumber` (`PerceptionClock.Now`) at every `LastSeenTick` writer and reader; the EQS solver skips dt = 0 | solver, acoustic seed, threat evaluation, squad merge, `LookNodes`, `PostureNodes`, `VehicleFightFromCoverNodes`, `KnownCombatants`, the editor's perception layer | via the live measurement below |
 | ⭐ **found while measuring:** the sound ring (a node singleton) outlived a load — every fresh sensor heard the PREVIOUS runs' shots, and each reload heard more. A clock going back now starts a new timeline in the ring; a short sound's mishearing is seeded by its place in the timeline, not the node-wide serial | `SoundEmissionRing.Tick/FirstOfTimeline`, `AcousticPerception.HearRing` | `SoundEmissionRingTests.CE3292_*` (red with the marker removed) |
 
+⭐ **`2026-10-22` (CE-3316, backend) — the stepped rules across a CHECKPOINT:** `ModuleHostKernel.SlotRunInFlight` (a slot-paced background run
+dispatched and not yet harvested) — the recorder writes a checkpoint only on a step where it is false; `ResumeSlotsAfterRestore()` — the next
+clock snap, when it is a checkpoint restore, sets each slow module's `LastRunSlot` to the restored time's slot instead of `MinValue` (a load and
+a dry-run exit unchanged). 📄 [restore design §1l](../DESIGN_Checkpoint_And_Dry_Run_Restore.md).
+
 📐 **Measured** (`ua-tank-ammo`, `--mode editor`, 15 Hz HTTP steps, three loads in one process, cuts every 5 s to 30 s): before — the first
 load played a different story and reloads drifted; after — **behaviour identical at 6/6 cuts in all three pairs** (every position, every
 health, every shot). Byte-identical components still differ only in labels (`SopInstanceId`, route/trajectory handles) and — fixed last —

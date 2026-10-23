@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// read by every viewer. Not saved — a turret is a derived part.
     /// </summary>
     [ComponentId(GlobalComponentIds.TurretPose)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct TurretPose
     {
         public float Azimuth;

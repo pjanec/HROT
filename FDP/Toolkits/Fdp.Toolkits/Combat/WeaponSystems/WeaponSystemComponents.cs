@@ -60,6 +60,7 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeaponSystemState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct WeaponSystemState
     {
         public WeaponDeploy Deploy;

@@ -254,6 +254,7 @@ namespace Fdp.Toolkit.Navigation
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationIntent)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationIntent
     {
         /// <summary>Active navigation mode; <see cref="NavigationMode.None"/> = inactive.</summary>
@@ -439,6 +440,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavAgentProfile)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavAgentProfile
     {
         /// <summary>Bitfield of navmesh layers this agent can traverse. 0xFFFFFFFF = all layers.</summary>
@@ -525,6 +527,7 @@ namespace Fdp.Toolkit.Navigation
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationCorridorPreview)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationCorridorPreview
     {
         /// <summary>Incremented each time this buffer is refreshed; allows Brain to detect staleness.</summary>
@@ -564,6 +567,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationPathDetailsBuffer)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationPathDetailsBuffer
     {
         /// <summary>Route handle this buffer corresponds to.</summary>
@@ -585,6 +589,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.CrowdAgent)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct CrowdAgent
     {
     }

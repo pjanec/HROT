@@ -33,6 +33,7 @@ public enum EffectType : byte
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.VisualEffectState)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct VisualEffectState
 {
     /// <summary>Rendering type that drives effect visuals.</summary>
@@ -88,6 +89,7 @@ public struct VisualEffectState
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.TracerTarget)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct TracerTarget
 {
     /// <summary>World-space X coordinate of the tracer line endpoint (target position).</summary>

@@ -41,6 +41,7 @@ namespace Fdp.Toolkit.Navigation.Executors
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.InFormationTag)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct InFormationTag
     {
         /// <summary>ECS entity index of the formation leader.</summary>

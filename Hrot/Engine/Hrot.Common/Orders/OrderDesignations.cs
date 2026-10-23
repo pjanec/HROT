@@ -21,6 +21,7 @@ namespace Hrot.Common.Orders
     /// on the wire is complete and the HTTP / AI path (<see cref="EntityOrders"/>) never sees a designation.
     /// </summary>
     [ComponentId(GlobalComponentIds.OrderDesignations)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public sealed class OrderDesignations
     {
         /// <summary>The <c>[MapPickableEntity]</c> preset that makes an entity field a route.</summary>

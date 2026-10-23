@@ -13,6 +13,7 @@ namespace Fdp.Modules.Geographic.Components
     /// have been removed.</para>
     /// </summary>
     [ComponentId(GeographicComponentIds.TerrainClampBaseline)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct TerrainClampBaseline
     {
         /// <summary>

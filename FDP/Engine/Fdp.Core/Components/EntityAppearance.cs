@@ -15,6 +15,7 @@ namespace Fdp.Core
     //   exists a ghost waits for the real value. ⚠ Without an egress declaring it the component is not ingressible, and the
     //   mandatory set (MandatoryComponentResolver) does not include it — no stall in the meantime.
     [PerInstanceValue]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct EntityAppearance
     {
         /// <summary><c>0xRRGGBBAA</c>. Alpha 0 = no colour: draw the TKB's / the family's default.</summary>

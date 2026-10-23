@@ -91,6 +91,10 @@ namespace Fdp.Core.FlightRecorder.Metadata
 
         /// <summary>⭐ <c>D18</c> — the wall time of the branch point (0 when not a branch).</summary>
         public long BranchWallTicks { get; set; }
+
+        /// <summary>⭐ CE-3299 D17 (R-3045) — 0: a FULL recording (every frame). N &gt; 0: a CHECKPOINTING recording — a keyframe every N s of sim time
+        /// (and at each named checkpoint), nothing between: restore points, no smooth replay.</summary>
+        public double CheckpointingSeconds { get; set; }
     }
 
     /// <summary>⭐ <c>CE-3299</c> B3 — one named keyframe of a recording: its label, its frame (0-based, in file order) and its wall time.</summary>
@@ -115,6 +119,12 @@ namespace Fdp.Core.FlightRecorder.Metadata
 
         /// <summary>⭐ B4 — <c>GlobalTime.FrameNumber</c> at the keyframe.</summary>
         public long FrameNumber { get; set; }
+
+        /// <summary>⭐ <c>CE-3299</c> B5 — the clock this mark stood at, as the one value a restore snaps the clock to (D5).</summary>
+        public GlobalTime ToGlobalTime() => new()
+        {
+            TotalWallTicks = WallTicks, TotalTime = TotalTime, UnscaledTotalTime = UnscaledTotalTime, FrameNumber = FrameNumber,
+        };
     }
 
     /// <summary>A geodetic point — latitude and longitude in degrees, altitude in metres — as written into a recording.</summary>

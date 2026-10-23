@@ -47,6 +47,18 @@ namespace Hrot.Editor.Director
 
         /// <summary>The scenarios root's takes and reels.</summary>
         TakeStore Takes { get; }
+
+        /// <summary>⭐ <c>CE-3299</c> B5 (R1, restore design §1k) — writes the world as it is NOW as checkpoint <paramref name="label"/> at
+        /// <paramref name="path"/> (a one-frame recording, <c>CheckpointFile</c>).</summary>
+        void WriteCheckpoint(string path, string label) => throw new NotSupportedException("this host cannot write a checkpoint");
+
+        /// <summary>⭐ B5 — puts the checkpoint at <paramref name="path"/> back (the cluster restore's own <c>PutBack</c>) and asks the
+        /// clock to its mark (D5; the clock moves on a later frame). Returns the mark's sim time.</summary>
+        double RestoreCheckpoint(string path) => throw new NotSupportedException("this host cannot restore a checkpoint");
+
+        /// <summary>⭐ <c>CE-3316</c> — a slot-paced background run is in flight (the kernel's <c>SlotRunInFlight</c>): R1 writes its checkpoint
+        /// on a step where this is false, as the recorder does.</summary>
+        bool SlotRunInFlight => false;
     }
 
     /// <summary>

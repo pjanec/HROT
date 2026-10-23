@@ -42,7 +42,10 @@ namespace Hrot.SimHost.Modules.Orchestration
         public Action<bool>?                 BypassLifecycle { get; init; }
 
         // ── the dry run's event history (D2) ──
-        public EventAccumulator?   EventAccumulator { get; init; }
+        /// <summary>⭐ <c>CE-3314</c> — the step-event window a restore restarts (dry-run exit and checkpoint restore, D4). ⛔ REQUIRED:
+        /// the editor and CGF held it (<c>HrotNodeContext.EventAccumulator</c>) and did not pass it, so a restore there kept the old
+        /// window (the silent-default rule). A host with no step window says so with an explicit null.</summary>
+        public required EventAccumulator? EventAccumulator { get; init; }
 
         // ── dry run: the non-ECS state it also puts back (DESIGN_Deterministic_Network_Ids.md §2b) ──
         public Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator? IdAllocator { get; init; }
@@ -104,7 +107,8 @@ namespace Hrot.SimHost.Modules.Orchestration
             //    'FDPC' worker it replaced lived on SimHost only, so CGF, IG, Stride, traffic and the editor took none).
             //    ⭐ B4 (§1h): and the RESTORE — so it is handed everything a restore touches (the silent-default rule).
             slave.RegisterHandler(new ReferenceCheckpointHandler(
-                () => controller.ActiveRecordingModule, controller, h.World, h.EventAccumulator, worldReplaced, h.StagingRoot));
+                () => controller.ActiveRecordingModule, controller, h.World, h.EventAccumulator, worldReplaced, h.StagingRoot,
+                resumeSchedule: h.Kernel.ResumeAfterRestore));   // ⭐ CE-3316
 
             // 3. Dry run (D14) — this node puts back its OWN world, id pool, entity map and ELM queues (HN-017/HN-018).
             var rewindables = new List<IPreviewRewindable>();

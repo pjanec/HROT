@@ -47,6 +47,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     private LoadPhaseContext?  _loadContext;
     private TaskCompletionSource<object?>? _holdTcs;
     private Guid _pendingExerciseId;
+    private double _pendingCheckpointingSeconds;   // ⭐ CE-3299 D17 (R-3045) — the recording mode the load's session asked for
 
     private LoadPhaseChain(
         IReadOnlyList<ILoadPartProvider> steps,
@@ -189,7 +190,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
              && context.TargetState == ClusterState.OperatingLive)
             {
                 await _recordingController
-                    .PrepareRecordingAsync(exercise, _storageDirectory ?? string.Empty)
+                    .PrepareRecordingAsync(exercise, _storageDirectory ?? string.Empty, branch: null, _pendingCheckpointingSeconds)
                     .ConfigureAwait(false);
             }
             return null;
@@ -198,6 +199,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         if (!context.IsLoadingPhase) return null;
 
         _pendingExerciseId = context.ExerciseId;
+        _pendingCheckpointingSeconds = context.CheckpointingSeconds;
         _loadTransactionId = intent.TransactionId;   // ⭐ P8 — the load an abort may name
         _loadContext       = context;
 

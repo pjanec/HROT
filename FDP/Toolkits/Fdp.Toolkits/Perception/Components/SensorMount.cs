@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// (🔒 R-182 <i>"sensor height must follow posture"</i>). 📄 docs/DESIGN_Terrain_World.md §7.1 W5.
     /// </summary>
     [ComponentId(GlobalComponentIds.SensorMount)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct SensorMount
     {
         public float Standing;
