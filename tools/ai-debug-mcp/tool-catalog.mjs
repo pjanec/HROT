@@ -3280,7 +3280,7 @@ export const TOOLS_CATALOG = [
         "description": "How many in-view units to list, nearest first (query; default 50, max 500)"
       }
     ],
-    "returns": "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged } — camera:null (with a note) where no map canvas draws the world.",
+    "returns": "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
     "notes": [
       "The operator points by SELECTING (click; in first person the select key on the unit under the crosshair) — read primary / selection.",
       "aimTarget is what the first-person crosshair rests on right now; it moves with the aim.",
@@ -3294,6 +3294,44 @@ export const TOOLS_CATALOG = [
       "gist": "see what the operator sees and which unit they mean"
     },
     "hint": "Optional limit (number, query, default 50). Example: get_view({limit:20})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "follow_unit",
+    "group": "O — Manual-assist (focus / annotations)",
+    "summary": "The map's 3-D camera follows a unit (CE-1293): far away it orbits and looks at him, near it is over his shoulder, at distance 0 it is at his eyes looking where he looks. entity:null hands the camera back to the operator.",
+    "http": {
+      "method": "POST",
+      "path": "/view/follow"
+    },
+    "params": [
+      {
+        "name": "entity",
+        "type": "number",
+        "required": true,
+        "description": "The unit's networkId (body); null stops following"
+      },
+      {
+        "name": "distance",
+        "type": "number",
+        "required": false,
+        "description": "Metres from him on the continuum (body; default 14; 0 = his eyes; max 400)"
+      }
+    ],
+    "returns": "{ following, distance } — or { following:null } after entity:null. 409 where no map canvas draws the world, or while the station possesses a unit.",
+    "notes": [
+      "The operator takes the camera back with W/A/S/D, Esc or a middle-button drag; get_view reports following / followDistance while it lasts.",
+      "Distances are a person's: a vehicle's orbit / shoulder band is 4x, a flyer's 8x."
+    ],
+    "example": {
+      "args": {
+        "entity": 4242,
+        "distance": 20
+      },
+      "gist": "watch a unit the agent is debugging"
+    },
+    "hint": "Example: follow_unit({entity:4242, distance:20}); stop: follow_unit({entity:null})",
     "manualVerify": false
   },
 

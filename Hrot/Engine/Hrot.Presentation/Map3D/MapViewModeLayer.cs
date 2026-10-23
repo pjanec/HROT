@@ -29,18 +29,50 @@ public sealed class MapViewModeLayer : IMapLayer
     /// <c>AttachMapLayers</c> to the host's first-person station. Null: the item does nothing.</summary>
     public Action? ToggleShoulder { get; set; }
 
-    /// <summary>⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — what a unit's "Follow with the camera" does: wired by <c>AttachMapLayers</c>
-    /// to the 3-D camera. Null: the item does nothing.</summary>
-    public Action<Entity>? Follow { get; set; }
+    /// <summary>⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — the world this map draws: set by <c>AttachMapLayers</c>, so a unit's "Follow
+    /// with the camera" (and <c>POST /view/follow</c>, through <see cref="ViewControl"/>) can follow its units. Null: following refuses.</summary>
+    public Func<EntityRepository?>? World { get; set; }
+
+    /// <summary>⭐ CE-1293 — the drawn bodies, so the follow camera's eyes are the drawn head's.</summary>
+    public EntityBodyLayer3D? Bodies { get; set; }
+
+    /// <summary>⭐ CE-1293 — the follow camera now driving the 3-D camera, or null.</summary>
+    public FollowCameraDriver? Following => _switch.Camera3D.Driver as FollowCameraDriver;
+
+    private EntityRepository? _registered;
 
     public void Update(float dt)
     {
+        if (World?.Invoke() is { } w && !ReferenceEquals(w, _registered)) { ViewControl.Register(w, this); _registered = w; }
         foreach (ref readonly var _ in _bus.Read<ToggleMap3DEvent>())
             _switch.Toggle();
         foreach (ref readonly var _ in _bus.Read<ToggleShoulderViewEvent>())
             ToggleShoulder?.Invoke();
         foreach (ref readonly var follow in _bus.Read<FollowUnitEvent>())
-            Follow?.Invoke(follow.Target);
+            FollowUnit(follow.Target);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1293 (UC-2, UC-10) — the 3-D camera follows <paramref name="target"/> from <paramref name="distance"/> (default
+    /// <see cref="FollowCameraDriver.StartDistance"/>), switching the map to 3-D. Returns why it refuses, or null: no such unit, or the
+    /// station possesses one (that IS the view).
+    /// </summary>
+    public string? FollowUnit(Entity target, float? distance = null)
+    {
+        if (World is not { } world || world() is not { } w || target.IsNull || !w.IsAlive(target) || !w.HasComponent<SimTransform>(target))
+            return "No such unit on this map.";
+        if (_switch.Camera3D.Driver is FpsCameraDriver)
+            return "The station possesses a unit: its view is his eyes. Release it first.";
+        _switch.Set(true);
+        _switch.Camera3D.Driver = new FollowCameraDriver(world, target, Bodies,
+            Math.Clamp(distance ?? FollowCameraDriver.StartDistance, 0f, FollowCameraDriver.MaxDistance));
+        return null;
+    }
+
+    /// <summary>⭐ CE-1293 — the camera back to the operator, when it follows a unit.</summary>
+    public void StopFollowing()
+    {
+        if (Following != null) _switch.Camera3D.Driver = null;
     }
 
     public void Draw(RenderContext ctx) { }

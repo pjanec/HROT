@@ -73,10 +73,10 @@ public sealed partial class PossessionStationTests
 
     /// <summary>
     /// ⭐ CE-1293 (UC-2) — "Follow with the camera" is on every unit's map menu, its action publishes the event, and the view-mode layer
-    /// hands the target to whatever the host wired.
+    /// has the 3-D camera follow him (not while the station possesses one); the map registers itself for <c>POST /view/follow</c>.
     /// </summary>
     [Fact]
-    public void CE1293_Follow_IsOnTheUnitMenu_ItsActionReachesTheViewModeLayer()
+    public void CE1293_Follow_IsOnTheUnitMenu_ItsActionHasTheCameraFollowHim_NotWhilePossessing()
     {
         var (w, unit, _) = World();
         using (w)
@@ -90,11 +90,24 @@ public sealed partial class PossessionStationTests
             host.InteractionBus.SwapBuffers();
 
             var (_, sw, _) = Map();
-            var layer = new MapViewModeLayer(sw, host.InteractionBus);
-            Entity followed = Entity.Null;
-            layer.Follow = e => followed = e;
+            var layer = new MapViewModeLayer(sw, host.InteractionBus) { World = () => w };
             layer.Update(0.016f);
-            Assert.Equal(unit, followed);
+            Assert.True(sw.Is3D);                                                                   // the map goes 3-D …
+            Assert.Equal(unit, Assert.IsType<FollowCameraDriver>(sw.Camera3D.Driver).Unit);         // … and follows him
+            Assert.Same(layer, ViewControl.Of(w));                                                  // POST /view/follow finds this map
+
+            Assert.Null(layer.FollowUnit(unit, 0f));                                                // the HTTP distance: his eyes
+            Assert.Equal(0f, layer.Following!.Distance);
+            layer.StopFollowing();
+            Assert.Null(sw.Camera3D.Driver);
+
+            // possessing, the station's view IS his eyes: following refuses
+            w.AddComponent(unit, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = 0, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            Assert.NotNull(layer.FollowUnit(unit));
+            Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
         }
     }
 }

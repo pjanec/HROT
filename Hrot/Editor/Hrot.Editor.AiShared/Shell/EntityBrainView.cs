@@ -361,6 +361,14 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (ImGui.Checkbox("Debug this unit", ref on)) c.Set(w, unit, on);
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Arms its traces, pins its map gizmos and keeps the AI graph's live overlay on it (not on the selection).");
+        // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — watch him: the map's 3-D camera follows this unit (wheel: in to his eyes)
+        if (Hrot.UI.Common.Map3D.ViewControl.Of(w) is { } view)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Follow"))
+                _breakNote = view.FollowUnit(unit) ?? "the map camera follows it (W/A/S/D or Esc lets go)";
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("The map's 3-D camera follows this unit: the wheel goes in to his eyes, RMB orbits.");
+        }
         // ⭐ CE-1254 (BV-21, BV-22) — open THE RUNNING behaviour's graph, with the overlay pinned to this unit ("Debug this unit").
         if (c.OpenGraph is { } open && RunningBehaviourLocator.Resolve(w, unit, _behaviorName, _definition) is { } running)
         {

@@ -2147,7 +2147,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_view",
             Group:   "O — Manual-assist (focus / annotations)",
             Summary: "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, the debugged unit, and the units in view nearest first with their screen point.",
-            Returns: "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged } — camera:null (with a note) where no map canvas draws the world.",
+            Returns: "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
             Hint:    "Optional limit (number, query, default 50). Example: get_view({limit:20})",
             Params: new RouteParam[]
             {
@@ -2162,6 +2162,25 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"limit\":20}",
             ExampleGist: "see what the operator sees and which unit they mean"),
+
+        [("POST", "/view/follow")] = new RouteDoc(
+            Tool:    "follow_unit",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "The map's 3-D camera follows a unit (CE-1293): far away it orbits and looks at him, near it is over his shoulder, at distance 0 it is at his eyes looking where he looks. entity:null hands the camera back to the operator.",
+            Returns: "{ following, distance } — or { following:null } after entity:null. 409 where no map canvas draws the world, or while the station possesses a unit.",
+            Hint:    "Example: follow_unit({entity:4242, distance:20}); stop: follow_unit({entity:null})",
+            Params: new RouteParam[]
+            {
+                new("entity", "number", true, "The unit's networkId (body); null stops following"),
+                new("distance", "number", false, "Metres from him on the continuum (body; default 14; 0 = his eyes; max 400)"),
+            },
+            Notes: new[]
+            {
+                "The operator takes the camera back with W/A/S/D, Esc or a middle-button drag; get_view reports following / followDistance while it lasts.",
+                "Distances are a person's: a vehicle's orbit / shoulder band is 4x, a flyer's 8x.",
+            },
+            ExampleArgsJson: "{\"entity\":4242,\"distance\":20}",
+            ExampleGist: "watch a unit the agent is debugging"),
 
         [("GET", "/selection")] = new RouteDoc(
             Tool:    "get_selection",

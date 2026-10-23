@@ -52,7 +52,32 @@ namespace Hrot.Editor.DebugApi
             result["selection"] = all;
             result["primary"] = primary;
             result["debugged"] = Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current?.Debugged is { } d ? NetworkIdOrNull(d) : null;
+            if (ViewControl.Of(_world)?.Following is { } follow)   // ⭐ CE-1293 (UC-10) — the unit the camera follows
+            {
+                result["following"] = NetworkIdOrNull(follow.Unit);
+                result["followDistance"] = MathF.Round(follow.Distance, 2);
+            }
             return result;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-10) — <c>POST /view/follow {entity, distance?}</c>: the map's 3-D camera follows the
+        /// unit on the distance continuum (far: orbit, near: over the shoulder, 0: his eyes); <c>entity: null</c> hands the camera back.
+        /// Refused where no map draws this world, and while the station possesses a unit (its view is the eyes).
+        /// </summary>
+        public (JsonNode? Result, string? Error) FollowUnit(long? networkId, float? distance)
+        {
+            if (ViewControl.Of(_world) is not { } view)
+                return (null, "No map canvas draws this world (a headless host): there is no camera to follow with.");
+            if (networkId is not { } id)
+            {
+                view.StopFollowing();
+                return (new JsonObject { ["following"] = null }, null);
+            }
+            if (!_entityMap.TryGetEntity(id, out var entity) || !_world.IsAlive(entity))
+                return (null, $"Entity {id} not found.");
+            if (view.FollowUnit(entity, distance) is { } refusal) return (null, refusal);
+            return (new JsonObject { ["following"] = id, ["distance"] = MathF.Round(view.Following!.Distance, 2) }, null);
         }
 
         public JsonNode GetSelection()

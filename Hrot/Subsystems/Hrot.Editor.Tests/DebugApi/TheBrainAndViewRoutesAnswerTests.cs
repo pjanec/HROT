@@ -138,4 +138,33 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
         Assert.Single(inView);
         Assert.Equal(3000L, inView[0]!["networkId"]!.GetValue<long>());
     }
+
+    /// <summary>⭐ <c>CE-1293</c> (Unit Camera UC-10) — <c>POST /view/follow</c>: refused where no map draws the world; on a map, the camera
+    /// follows the unit at the asked distance and <c>GET /view</c> says so; <c>entity: null</c> hands it back. 🔴 Red-proof: skip
+    /// <c>ViewControl.Register</c> in <c>MapViewModeLayer.Update</c> ⇒ red (the route finds no map).</summary>
+    [Fact]
+    public void FollowUnit_IsRefusedHeadless_FollowsOnAMap_AndLetsGo()
+    {
+        var unit = Unit(4000, new Vector3(5, 5, 0), brain: false);
+        Assert.NotNull(_svc.FollowUnit(4000, null).Error);                                   // a headless host: no camera
+
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var sw = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, new Fdp.Toolkit.Vis2D.Components.MapCamera());
+        var layer = new MapViewModeLayer(sw, _world.Bus) { World = () => _world };
+        layer.Update(0.016f);                                                                  // the map registers itself
+
+        var (ok, error) = _svc.FollowUnit(4000, 20f);
+        Assert.Null(error);
+        Assert.Equal(4000L, ok!["following"]!.GetValue<long>());
+        Assert.Equal(unit, Assert.IsType<FollowCameraDriver>(sw.Camera3D.Driver).Unit);
+        Assert.Equal(20f, layer.Following!.Distance);
+        Assert.NotNull(_svc.FollowUnit(9999, null).Error);                                    // no such unit
+
+        ViewTelemetry.Publish(_world, new ViewSnapshot("3D", Vector3.Zero, Vector3.UnitY, 90f, 0f, 20f, 45f, new Vector2(1600, 900),
+            null, null, Entity.Null, AimTarget: 0, ZoomFovDeg: null, PublishedAtSeconds: 0));
+        Assert.Equal(4000L, _svc.GetView(50)["following"]!.GetValue<long>());
+
+        Assert.Null(_svc.FollowUnit(null, null).Error);                                       // entity: null — let go
+        Assert.Null(sw.Camera3D.Driver);
+    }
 }

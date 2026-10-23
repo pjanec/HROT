@@ -547,13 +547,9 @@ namespace Hrot.ScenarioEditor.Map
             stats.Possession = possession;   // ⭐ CE-1262 (AV-1) — the view snapshot names the possessed unit and its crosshair target
             canvas.AddLayer(possession);
             viewMode.ToggleShoulder = () => possession.OverShoulder = !possession.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
-            // ⭐ CE-1293 (UC-2) — watching a unit: the 3-D camera follows it (not while this station possesses one — that IS the view)
-            viewMode.Follow = target =>
-            {
-                if (target.IsNull || viewSwitch.Camera3D.Driver is Hrot.UI.Common.Map3D.FpsCameraDriver) return;
-                viewSwitch.Set(true);
-                viewSwitch.Camera3D.Driver = new Hrot.UI.Common.Map3D.FollowCameraDriver(worldProvider, target, bodies);
-            };
+            // ⭐ CE-1293 (UC-2, UC-10) — watching a unit: the 3-D camera follows it (menu and POST /view/follow; not while possessing)
+            viewMode.World = worldProvider;
+            viewMode.Bodies = bodies;
             // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-3) — the scene's sound, only while the station holds a unit
             var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);
             canvas.AddLayer(audio);

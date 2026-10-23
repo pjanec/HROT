@@ -12,6 +12,7 @@ related-designs:
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — OWNS where a unit's eyes sit and point (LookOf.EyeForward, the neck, the vision cone) — the "through his eyes" diagnostic view reads it
   - docs/DESIGN_Behaviour_Debugging.md — the observer camera is part of watching a debugged unit (DBG-1: everything follows the debugged unit)
   - docs/DESIGN_Director_Timeline_Editor.md — the director's camera keys (fly / cut) may use the follow camera as a shot type
+  - docs/DESIGN_Agent_Shared_View.md — OWNS the /view route family (R-1029) that POST /view/follow (UC-10) joins, and the per-world view store it mirrors
 -->
 
 # Unit camera — one camera that follows a unit, from far away to its eyes *(CE-1293)*
@@ -189,3 +190,17 @@ two ends of one zoom; one wheel crosses them without a mode key. The blend (the 
 | **C2** | UC-3, UC-5, UC-6, UC-9 | the shoulder view as the person's default |
 | **C3** | UC-7, UC-8 (CE-1293's vehicle part) | driver and gunner |
 | **C4** | UC-10 | HTTP + the catalog |
+
+🔒 **User, `2026-10-23`:** *"let's go directly to implementing the new design of camera, and let's fix the issues once this is
+implemented"* — ⇒ C0 (CE-1294, measured but not reproduced) is deferred until after C1–C4; the slices are built in the order C1 → C4 → C2/C3.
+
+## 8. AS-BUILT *(2026-10-23, ui)*
+
+| slice | built as | ⚠ deviation from §3 / §6 |
+|---|---|---|
+| **C1** the rig (UC-1, UC-4) | `Hrot.Presentation/Map3D/UnitCameraRig.cs` — pure statics: `Pivot`, `Camera(orbitPitch)`, `SpringArm(firstHit)`, `EaseArm`, `NearBlend`, the per-kind `DefaultDistance` / `MaxPlayDistance` / `ScaleOf` | ⚠ §3's `PivotOf` and `SpringArm` classes are **methods on the one static rig**, not classes — nothing holds state but the drivers. ⚠ the spring arm's ray is `WorldQuery.Trace(Sight)`, stopping at a closed barrier or a crossing that lets through less than half the light (`ArmOpaque`) — glass does not stop it |
+| **C1** playing (UC-5, UC-6, UC-11) | `FpsCameraDriver.Place` asks the rig at `PossessionStation.ShoulderDistance(scheme)` (per kind, Alt + wheel by `DistanceStep` 0.5 m, to zero = the eyes); Q / E set `ShoulderSide` (sticky); the body lags the aim (`ShoulderLag` 45° standing, `BodyTurnRate` 540°/s moving); W/A/S/D turned into the body's frame | ⚠ `ShoulderCamera` (§8p) kept as a pure entry that delegates to the rig at the default distance — its CE-1201 rail stays as a pin of the old offsets |
+| **C1** watching (UC-2) | `FollowCameraDriver` (an `ICameraDriver` on `MapCamera3D`): the plain wheel walks the continuum (×1.2 per notch, in below 0.8 m ⇒ his eyes, out from the eyes ⇒ 1.5 m), far it looks at his centre, at 0 his eye along `LookOf.EyeForward`; RMB orbits (at the eyes it offsets the look and springs back); W/A/S/D, Esc, a middle-button drag or his end hand the camera back. The unit menu's **"Follow with the camera"** (`GlobalActionIds.FollowUnit` 476 → `FollowUnitEvent` 8066) and the Brain tab's **Follow** both reach `MapViewModeLayer.FollowUnit` | ⚠ **no View-menu entry** — the unit menu and the Brain tab cover it; a View item would need a target picker. ⚠ **not built:** UC-2's vision cone at the eyes — the follow camera only looks along the gaze |
+| **C4** HTTP (UC-10) | `POST /view/follow {entity, distance?}` → `ViewControl.Of(world)` (the map's view-mode layer, keyed by world like `ViewTelemetry`) → the same `FollowUnit`; `GET /view` adds `following` / `followDistance`; MCP `follow_unit`, catalog + SKILL regenerated (R-1030) | ⚠ a second per-world store (`ViewControl`) because `ViewTelemetry` is a read-only snapshot. 409 headless or while possessing |
+
+⭐ Rails: `PossessionStationTests.CE1293_*` (continuum, spring arm, playing controls, Follow continuum + let-go, menu → layer → camera + the possession refusal) — ✅ red-proved: 6 mutations on the rig/station, 5 on Follow; `TheBrainAndViewRoutesAnswerTests.FollowUnit_IsRefusedHeadless_FollowsOnAMap_AndLetsGo`.
