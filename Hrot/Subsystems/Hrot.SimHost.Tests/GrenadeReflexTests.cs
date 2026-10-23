@@ -223,8 +223,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>⭐ I-1 (measured live, <c>rf-grenade-reaction</c>) — on the BRAIN's node a thrown grenade is only a lying REPLICA
         /// (<c>LightweightRound</c>, flown by the thrower's body node, no fuze here): the men react all the same — its fuze estimated from its
-        /// warhead less the time since it appeared, its thrower where it appeared. ✅ Red-proof: the replica pass dropped from
-        /// <c>GrenadeDanger.Lying</c> ⇒ nobody reacts ⇒ red (as live).</summary>
+        /// warhead less the time since it appeared, its thrower where it appeared — once it has LANDED (kept still), never in flight. ✅ Red-proofs:
+        /// the replica pass dropped from <c>GrenadeDanger.Lying</c> ⇒ nobody reacts ⇒ red (as live); the still test dropped ⇒ a reaction in flight ⇒ red.</summary>
         [Fact]
         public void CE2360_AGrenadeSeenOnlyAsAReplica_IsReactedTo_ItsFuzeEstimated()
         {
@@ -239,9 +239,14 @@ namespace Hrot.SimHost.Tests
             w.Repo.AddComponent(replica, new SimTransform { Position = new Vector3(0, 20, 0), Rotation = Quaternion.Identity });
             w.Repo.AddComponent(replica, new Fdp.Toolkit.Replication.Components.LightweightRound());
             w.Repo.AddComponent(replica, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = GrenadeAmmo });
-            w.Run(0.2);
-            w.Repo.GetComponentRW<SimTransform>(replica).Position = Vector3.Zero;
-            w.Run(0.2);
+            for (int i = 0; i < 12; i++)   // in FLIGHT: it moves every frame — 📐 live, a still-less replica read as lying in the air
+            {
+                w.Repo.GetComponentRW<SimTransform>(replica).Position = new Vector3(0, 20 - i * 1.6f, 0);
+                w.Tick();
+            }
+            Assert.NotEqual(BehaviorNames.EvadeGrenade, w.TaskOf(runner));
+            w.Repo.GetComponentRW<SimTransform>(replica).Position = Vector3.Zero;   // it lands …
+            w.Run(0.4);                                                               // … and keeps still
 
             Assert.Equal(BehaviorNames.EvadeGrenade, w.TaskOf(runner));
             Assert.Equal(BehaviorNames.EvadeGrenade, w.TaskOf(far));

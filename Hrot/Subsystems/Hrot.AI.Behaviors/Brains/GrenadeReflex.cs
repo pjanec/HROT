@@ -20,6 +20,14 @@ using Hrot.MuscleCharacter.Animation.Stance;
 
 namespace Hrot.AI.Behaviors.Brains
 {
+    /// <summary>⭐ <c>CE-2360</c> (I-1) — what this node saw of a round's replica: when and where it first appeared (the throw), where it
+    /// last moved to and since when it has kept still.</summary>
+    public struct ReplicaSighting
+    {
+        public double FirstAt, StillSince;
+        public Vector3 From, Last;
+    }
+
     /// <summary>⭐ <c>CE-2360</c> — one live fragmentation grenade lying on this node: where, how far it kills, the fuze it has left (−1 =
     /// not known here: a replica), who threw it.</summary>
     public readonly record struct LiveGrenade(Entity Round, Vector3 At, long Ammo, float LethalMetres, float FuzeLeft, Vector3 From);
@@ -46,6 +54,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float PickSeconds = 1.0f, ThrowSeconds = 0.8f, SpareSeconds = 0.6f;
         /// <summary>How far past the lethal radius he runs (m).</summary>
         public const float ClearMetres = 2f;
+        /// <summary>⭐ I-1 — a replica that moved no more than this (m) for <see cref="StillSeconds"/> (s) has landed.</summary>
+        public const float StillMetres = 0.1f, StillSeconds = 0.25f;
         /// <summary>A replica's fuze is not known here: he assumes this much is left (s) — the run must be short to be worth it.</summary>
         public const float UnknownFuzeSeconds = 1.5f;
 
@@ -56,7 +66,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// warhead's (<see cref="WarheadRound.BitsOf(WarheadDto?, out float)"/>) less the time since it first appeared here, and whose
         /// thrower is where it first appeared (his hand). <paramref name="seen"/> keeps those first sightings (the system's).
         /// </summary>
-        public static void Lying(EntityRepository world, List<LiveGrenade> into, Dictionary<ulong, (double At, Vector3 From)>? seen = null, double now = 0)
+        public static void Lying(EntityRepository world, List<LiveGrenade> into, Dictionary<ulong, ReplicaSighting>? seen = null, double now = 0)
         {
             into.Clear();
             var db = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
@@ -75,11 +85,16 @@ namespace Hrot.AI.Behaviors.Brains
             foreach (var e in world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>().With<SimTransform>().Build())
             {
                 var at = world.GetComponentRO<SimTransform>(e).Position;
-                if (!seen.TryGetValue(e.PackedValue, out var first)) seen[e.PackedValue] = first = (now, at);   // it appeared: thrown from here
-                if (RoundPickUp.OwnsRound(world, e) || !RoundPickUp.IsLying(world, e)) continue;
+                // it appeared: thrown from here · ⭐ a replica carries no velocity here, so RoundPickUp.IsLying reads it as lying in FLIGHT —
+                //   📐 live: all four men ran from where it was in the air, lost it and gave up. It lies once it has kept still StillSeconds.
+                if (!seen.TryGetValue(e.PackedValue, out var s))
+                    s = new ReplicaSighting { FirstAt = now, From = at, Last = at, StillSince = now };
+                else if (Vector3.Distance(at, s.Last) > StillMetres) { s.Last = at; s.StillSince = now; }
+                seen[e.PackedValue] = s;
+                if (RoundPickUp.OwnsRound(world, e) || now - s.StillSince < StillSeconds || !RoundPickUp.IsLying(world, e)) continue;
                 long ammo = RoundPickUp.AmmoOf(world, e);
                 if (!Fragments(db, ammo, out float lethal, out float fuze) || fuze <= 0f) continue;
-                into.Add(new LiveGrenade(e, at, ammo, lethal, MathF.Max(0.01f, fuze - (float)(now - first.At)), first.From));
+                into.Add(new LiveGrenade(e, at, ammo, lethal, MathF.Max(0.01f, fuze - (float)(now - s.FirstAt)), s.From));
             }
         }
 
@@ -336,7 +351,7 @@ namespace Hrot.AI.Behaviors.Brains
         private readonly bool _gateOnAuthority;
         private readonly List<LiveGrenade> _rounds = new();
         private readonly HashSet<(ulong Man, ulong Round)> _reacted = new();
-        private readonly Dictionary<ulong, (double At, Vector3 From)> _seen = new();
+        private readonly Dictionary<ulong, ReplicaSighting> _seen = new();
         private readonly List<(Entity Man, float Distance)> _near = new();
         private EntityQuery? _people;
 
