@@ -1247,8 +1247,11 @@ namespace Hrot.Editor.DebugApi
         /// it stopped ("a live run" / "a dry run"), or null — the answer says so.</summary>
         private string? LeaveRunForLoad()
         {
-            var run = Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(_preview.IsInPreviewMode, CurrentClusterState());
-            if (_preview.IsInPreviewMode) _preview.ForgetPreview();
+            // ⭐ a host with NO preview controller (a `--mode all` cluster node) is never in a dry run: degrade, as InPreviewOrNull does —
+            //   📌 behaviors, 2026-10-23: reading _preview directly made every live load answer NOT_SUPPORTED_HERE(preview.control) there
+            bool inPreview = InPreviewOrNull() == true;
+            var run = Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(inPreview, CurrentClusterState());
+            if (inPreview) _preview.ForgetPreview();
             return run;
         }
 
