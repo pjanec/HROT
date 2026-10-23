@@ -5105,6 +5105,13 @@ def run_rf_grenade_reaction(c, timeout):
     c.ok(safe == len(blues), f"(1) every Blue man is out of reach or prone at the burst ({safe}/{len(blues)})")
     c.ok(d.get("shooter") != ids["Thrower"] or flat(b, (280, 365)) < flat(b, (280, 380)),
          "(2) one man throws it back (the burst is the Blue man's, or nearer the Thrower)")
+    # ⭐ CE-2360 — what each brain says it did (task starts / ends, their cause)
+    for n in ("Blue 1", "Blue 3"):
+        j = data(call("GET", f"/entities/{ids[n]}/journal")) or {}
+        rows_j = j.get("entries") or j.get("journal") or (j if isinstance(j, list) else [])
+        print(f"    {n} journal ({len(rows_j)}):")
+        for e in rows_j[-14:]:
+            print(f"      {json.dumps(e)[:220]}")
 
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
