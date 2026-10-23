@@ -262,6 +262,12 @@ E changes the approach gate (more flanking everywhere); the rest are additive.
 
 ## 7. Baseline *(filled by step 1)*
 
-| scenario | measured | |
+*(2026-10-23, `--mode all`, at `a0d776ebd` + the load fix `36d95ffda`; the numbers each check prints)*
+
+| scenario | measured | ⇒ the gap, by sub-question |
 |---|---|---|
-| S1 … S5 | — | — |
+| **S1** `rf-car-duel` | both fight (FightFromCover); Blue idles hidden **12.3 s**, Red 8.4 s · Blue 6 bursts from 2 spots, **4 repeated**; Red 8 from 3, **5 repeated** · both move ~18 m · closest 43 m ⇒ no grenade | **D** (the same peek spot over and over — `PickPeek` takes the sensor's first answer, `PeekAndFireNodes.cs:923-944`) · **E** (never closes to throw) |
+| **S2** `rf-car-squads` | **0 rounds fired, no task on any man, nobody moves** in 120 s | **G** — the squads carry no SOP (type 302 has no default) and the men stand aside under command (R-2062) ⇒ nothing at all happens |
+| **S3** `rf-house-obstacle` | without prior knowledge: both Idle 120 s (the house hides them). With each other in memory (as now): FightFromCover, **both go THROUGH House A**, close to 5 m, **6 grenades** — but only 1 burst between them | **F** (through was taken with no safety test) · **D/E** (they barely fire) |
+| **S4** `rf-wall-hugger` | defenders duck within 2 s of Blue's fire (3 times — `SquadDefend`'s posture already crouches/prones under fire) · Blue never reached the wall in 90 s (stalled at y 116 under fire; recast to start 15 m out) · nobody hunted, no grenade, no look through the wall | **H**, **I-4** · ⚠ **C** passes — re-check once Blue is under the wall |
+| **S5** `rf-grenade-reaction` | the M67 lands 1.9 m from the group; **all four stand, exposure 1.0, nobody moves** | **I** entirely |
