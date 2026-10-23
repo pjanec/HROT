@@ -101,7 +101,8 @@ classDiagram
   class BrainJournalEntry { <<NEW>> At · Kind · Origin · Urgency · Cause · A · B · Point }
   class BrainJournalOf { <<NEW>> Write(repo, unit, entry) no-op when absent }
   class AssignBehaviorEvent { <<exists, changed>> Cause : SensorChange, new }
-  class MoveToParams { <<exists, changed>> Source : MoveSource, new }
+  class MoveSource { <<NEW, enum>> Order · CoverSearch · SquadPost · FollowLeader · Flee · Door · Route · Wander · Operator }
+  class BrainJournalOf2["BrainJournalOf (move source)"] { <<NEW, CE-1250>> NoteMoveSource(unit, instance, source) · MoveSourceOf(unit, instance) }
   EntityDetailsBundle --> DetailsViewRegistry
   EntityDetailsBundle ..> BrainDetailsViewDescriptor
   BrainDetailsViewDescriptor --> BrainDetailsView
@@ -114,9 +115,14 @@ classDiagram
   BrainView ..> BrainJournal
   BrainJournal "1" *-- "24" BrainJournalEntry
   BrainJournalOf ..> BrainJournal
+  BrainJournalOf2 ..> MoveSource
+  BrainJournalOf2 ..> BrainJournal : PendingMoveSource + PendingMoveInstance
 ```
 *What the picture shows that prose hid:* the tab adds ONE reader (`BrainView`) over records that already exist; the only new brain data
-is `BrainJournal` and two small fields — `Cause` on the reaction's assign and `Source` on the move order — everything else is reused.
+is `BrainJournal` and two small causes — `Cause` on the reaction's assign and the move's source — everything else is reused.
+⚠ **SUPERSEDED `2026-10-23` (CE-1250):** the move's source was first drawn as a `Source` field on `MoveToParams`. That struct is at its
+32-byte limit and all 8 `Flags` bits are taken, so the source is noted in the journal for the command INSTANCE (`NoteMoveSource`) and the
+dispatcher's `MoveStarted` entry reads it — §11.
 ⚠ `EntityAiEditModel` lives in `Hrot.Editor`; the reader it holds moves to a shared assembly (or is re-read by `BrainView`) so the tab
 works on every host — decided at build, the snapshot shape is unchanged.
 
@@ -217,7 +223,7 @@ node's recording). The dashed edge is the case to show honestly, never as empty 
 |---|---|---|---|
 | **P1** | ui | `BrainView` + `BrainSnapshot`, `BrainDetailsView` + descriptor in `EntityDetailsBundle`, observe-while-open, show-on-map, links, the no-brain line, `PanelSnapshot` dump, `GET /entities/{id}/brain` | `CE-1248` |
 | **P2a** | ui *(cross-lane: FDP Toolkits Behavior)* | `BrainJournal` + `BrainJournalEntry` + `BrainJournalOf`; attach in `BehaviorTkbTranslator`, register in `CognitiveComponentRegistry`, brain-only in `HrotRoleComponentSets`; writers in the gate (`Start`, pause / resume, `Clear`, refusals, SOP), `BrainTickSystem.Finish`, `LocomotionDispatcherSystem`, `UtilityScorer.LogDecision`; the tab's Recent changes; the `BrainJournal` setting (BV-16, default on, attach-time only) | `CE-1249` |
-| **P2b** | behaviors | `AssignBehaviorEvent.Cause` from `SopActions`; `MoveToParams.Source` + the first sites (squad posts, EQS cover, orders, flee, door); the play / platoon phase and `OrderIssued` writers | `CE-1250` (filed by ui; behaviors may renumber in its own block on pickup — the row stays) |
+| **P2b** | behaviors | `AssignBehaviorEvent.Cause` from `SopActions`; ⚠ the move source via `BrainJournalOf.NoteMoveSource` in `LocomotionMoveTo.Issue` (not `MoveToParams.Source` — §11) + the first sites (squad posts, EQS cover, orders, flee, door); the play / platoon phase and `OrderIssued` writers | `CE-1250` (filed by ui; behaviors may renumber in its own block on pickup — the row stays) |
 | **bug** | behaviors or ui | `HsmDebugSession` stores `Guid.Empty` for state ids — the HSM history list cannot name its states | `CE-1251` |
 
 ⭐ P1 needs nothing from P2 (its Recent changes section appears when the journal exists). ⭐ P2a's entries carry `Cause = 0` / `Source =
@@ -514,10 +520,12 @@ second debugger.
 | **brain journal** (CE-1249) | `FDP/Toolkits/Fdp.Toolkits/Behavior/Diagnostics/BrainJournal.cs` (component id **460**, ui block); attached in `BehaviorTkbTranslator` beside `ActionStatus`; registered in `CognitiveComponentRegistry`; brain-only in `HrotRoleComponentSets`; writers in `BehaviorIngressSystem` (start / pause / resume / clear / refusals with reason / SOP), `BrainTickSystem.Finish` (ended, result, fault), `LocomotionDispatcherSystem` (move start with the executor's destination), `UtilityScorer.ChooseOption` (option switch); `--brain-journal off` on the runner | ⚠ an entry carries its own `Seq`; ⚠ **a refusal identical to the newest entry refreshes its time instead of appending** (an SOP or a sense retrying every tick would wash the ring out); ⚠ `BrainRefusal`'s zero is `Unspecified` — the DDS IDL generator puts a file's enums in one scope, two `None` collide |
 | **"Debug this unit"** (CE-1257) | `Hrot.Common/Diagnostics/Gizmos/UnitDebugController.cs` (static `Current`, set in `EditorSubsystem`); the Brain tab checkbox; the map's **AI trace ▸ Debug this unit (on / off)** (action 475, offered only where a controller is composed); the editor pump follows `Follow(...)` | ⚠ lives in `Hrot.Common`, not the editor composition — the menu, the tab and the route all reach it there; the label is static (menus are cached per flag set) |
 | **break when it changes its mind** (CE-1258) | `PredicateCompiler.BuildChangedMatcher` + `PredicateChangeBaseline` (the breakpoint system sets the manager's pre-tick copy as the baseline); `BrainJournalBreak.Condition(kinds)`; `IDataBreakpointManager.ChangeBaseline` / `PostTickView`; the tab button; `POST /entities/{id}/journal/break` | — as designed (BV-28 revised). The hit report adds `journalWrittenByTheTick` from the post-tick copy |
+| **causes — the ui half** (CE-1250) | `AssignBehaviorEvent.Cause` (`SensorChange`) → the ingress's `TaskStarted` entry `Cause`; `MoveSource` + `BrainJournalOf.NoteMoveSource` / `MoveSourceOf` (journal header `PendingMoveSource` + `PendingMoveInstance`, replacing `Reserved`) → `LocomotionDispatcherSystem`'s `MoveStarted` `Cause`; the tab / route text (*"… after NearMiss"*, *"… (CoverSearch)"*). The producers (`SopActions`, `LocomotionMoveTo.Issue` + its 46 callers, the `SquadDrillTrace` statics, the commander's order) are behaviors' — [HANDOFF](blueprints/batches/HANDOFF_Ui_To_Behaviors_Brain_Journal_Causes.md) | ⚠ **BV-12's `MoveToParams.Source` is NOT built — it cannot fit** (32-byte struct, every `Flags` bit used); the source rides in the journal per command instance. ⚠ a move not issued through `Issue` reads Unknown until its writer notes one |
 | **regions** (CE-1261) | `HsmRunner` (root machine only) → `StateChanged`, Origin = region, **A = from \| to << 16, B = the behaviour** (so the display names the states from that behaviour's `HsmMetadata`); `BrainRegions.Of` for the tab's per-region lines | ⚠ the guard that fired is NOT named (BV-33's display-time lookup is not built) |
 
 | rails *(red-proved by compiling mutations)* | |
 |---|---|
+| CE-1250 ui half | `SopSlotTests.CE1249_AReactionPausingTheTask…` asserts the reaction's `Cause` · `BrainJournalTests.AMoveSource_BelongsToTheCommandItWasNotedFor` |
 | `BrainJournalTests` (5) | ring order and wrap ✅ red · refusal coalescing ✅ red · zero allocation ✅ red · switch off · 32-byte entry |
 | `SopSlotTests.CE1249_*` (3) | paused-then-started ✅ red · refusal reasons ✅ red (a value swap) · ended / cleared ✅ red |
 | `TheChangedConditionIsPerEntityTests` | a neighbour's write does not hit, the unit's own does |

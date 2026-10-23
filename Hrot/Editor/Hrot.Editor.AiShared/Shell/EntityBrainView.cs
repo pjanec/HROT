@@ -189,7 +189,8 @@ public static class BrainJournalText
         {
             BrainJournalKind.TaskStarted => $"started {name(e.A)} ({origin}"
                 + (e.Urgency != 0 ? $", {(ReactionUrgency)e.Urgency}" : "") + ")"
-                + (e.B != 0 ? $", replacing {name(e.B)}" : ""),
+                + (e.B != 0 ? $", replacing {name(e.B)}" : "")
+                + (e.Cause != 0 ? $" after {(Fdp.Toolkit.Perception.Events.SensorChange)e.Cause}" : ""),
             BrainJournalKind.TaskPaused => $"paused {name(e.A)} for {name(e.B)}",
             BrainJournalKind.TaskResumed => $"resumed {name(e.A)}",
             BrainJournalKind.TaskEnded => $"{name(e.A)} ended: {(Fbt.NodeStatus)e.Urgency}"
@@ -199,9 +200,10 @@ public static class BrainJournalText
             BrainJournalKind.SopStarted => $"SOP {name(e.A)} set ({origin})",
             BrainJournalKind.SopEnded => $"SOP {name(e.A)} ended",
             BrainJournalKind.DecisionSwitched => $"decision {e.A}: option {e.Cause} → {e.B} (score {e.Point.X:0.##})",
-            BrainJournalKind.MoveStarted => e.Point == Vector3.Zero
+            BrainJournalKind.MoveStarted => (e.Point == Vector3.Zero
                 ? $"move action {e.A} started"
-                : $"move action {e.A} to ({e.Point.X:0}, {e.Point.Y:0})",
+                : $"move action {e.A} to ({e.Point.X:0}, {e.Point.Y:0})")
+                + (e.Cause != 0 ? $" ({(MoveSource)e.Cause})" : ""),
             BrainJournalKind.PlayStarted => $"play {e.A} started",
             BrainJournalKind.PlayPhase => $"play {e.A}: phase {e.B}",
             BrainJournalKind.PlayEnded => $"play {e.A} ended",

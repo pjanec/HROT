@@ -154,9 +154,9 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Ingress.Execute(World, 0.016f);
             }
 
-            public void React(string name, ReactionUrgency urgency)
+            public void React(string name, ReactionUrgency urgency, Fdp.Toolkit.Perception.Events.SensorChange cause = 0)
             {
-                World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = name, JsonParams = "", Origin = BehaviorOrigin.Reaction, Urgency = urgency });
+                World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Unit, BehaviorName = name, JsonParams = "", Origin = BehaviorOrigin.Reaction, Urgency = urgency, Cause = cause });
                 World.Bus.SwapBuffers();
                 Ingress.Execute(World, 0.016f);
             }
@@ -364,7 +364,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             using var f = new Fixture();
             WithJournal(f);
             f.Task("SopT_Task", BehaviorOrigin.Superior);
-            f.React("SopT_Cover", ReactionUrgency.Hit);
+            f.React("SopT_Cover", ReactionUrgency.Hit, Fdp.Toolkit.Perception.Events.SensorChange.NearMiss);
 
             var j = Journal(f);
             Assert.Equal(3, j.Count);
@@ -379,6 +379,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(0, j.At(2).B);                                         // it paused the task, not replaced it
             Assert.Equal((byte)BehaviorOrigin.Reaction, j.At(2).Origin);
             Assert.Equal((byte)ReactionUrgency.Hit, j.At(2).Urgency);
+            Assert.Equal((byte)Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, j.At(2).Cause);   // ⭐ CE-1250 — the sense it answers
+            Assert.Equal(0, j.At(0).Cause);                                      // an order has none
         }
 
         /// <summary>⭐ BV-13 — a refusal says why: a reaction under a more urgent one, and one the ROE keeps out.

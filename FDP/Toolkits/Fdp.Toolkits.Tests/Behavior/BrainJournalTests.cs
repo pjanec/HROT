@@ -86,6 +86,17 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>⭐ The entry stays 32 bytes (BV-15: ~0.8 KB per unit).</summary>
+        /// <summary>⭐ <c>CE-1250</c> — a move's source is noted for ITS command instance only: the next command reads Unknown.
+        /// 🔴 Red-proof: drop the instance check in <c>MoveSourceOf</c> ⇒ red.</summary>
+        [Fact]
+        public void AMoveSource_BelongsToTheCommandItWasNotedFor()
+        {
+            var (w, u) = Unit();
+            BrainJournalOf.NoteMoveSource(w, u, 7, MoveSource.CoverSearch);
+            Assert.Equal(MoveSource.CoverSearch, BrainJournalOf.MoveSourceOf(w, u, 7));
+            Assert.Equal(MoveSource.SourceUnknown, BrainJournalOf.MoveSourceOf(w, u, 8));
+        }
+
         [Fact]
         public unsafe void AnEntry_Is32Bytes() => Assert.Equal(32, sizeof(BrainJournalEntry));
     }

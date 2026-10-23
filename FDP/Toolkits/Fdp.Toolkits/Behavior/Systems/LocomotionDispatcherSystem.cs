@@ -85,6 +85,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     if (channel.ActiveAction != 0)
                         Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, entity,
                             Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.MoveStarted, a: channel.ActiveAction,
+                            cause: (byte)Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.MoveSourceOf(repo, entity, channel.ActionInstanceId),
                             point: repo.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity)
                                 ? repo.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(entity).FinalDestination
                                 : default);

@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause, behaviorId)) continue;
                 var paused = pause ? PauseRecord(repo, evt.Entity, behaviorId, def) : null;
                 if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency, paused)) continue;
-                JournalStarted(repo, evt.Entity, behaviorId, replaced, evt.Origin, evt.Urgency, pause);
+                JournalStarted(repo, evt.Entity, behaviorId, replaced, evt.Origin, evt.Urgency, pause, (byte)evt.Cause);
                 AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
             }
@@ -263,13 +263,13 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>⭐ <c>CE-1249</c> (BV-10) — an admitted start, in the journal: the task it paused (a reaction), then the start
         /// with what it replaced (0 when it paused it or the slot was empty).</summary>
         private static void JournalStarted(EntityRepository repo, Entity entity, int started, int before, BehaviorOrigin origin,
-            ReactionUrgency urgency, bool paused)
+            ReactionUrgency urgency, bool paused, byte cause = 0)
         {
             if (paused && before != BehaviorIds.None)
                 BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskPaused, a: before, b: started);
             int replaced = paused || before == started ? 0 : before;
             BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskStarted, a: started, b: replaced, origin: (byte)origin,
-                urgency: (byte)urgency);
+                urgency: (byte)urgency, cause: cause);
         }
 
         /// <summary>

@@ -65,6 +65,33 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         ParseFailed,
     }
 
+    /// <summary>⭐ <c>CE-1250</c> (BV-12) — why a unit moves, carried by its <see cref="BrainJournalKind.MoveStarted"/> entry's
+    /// <c>Cause</c>. ⚠ Not on <c>MoveToParams</c> as BV-12 first said: that struct is at its 32-byte limit and every Flags bit is taken —
+    /// the issuer notes it with <see cref="BrainJournalOf.NoteMoveSource"/> instead.</summary>
+    public enum MoveSource : byte
+    {
+        /// <summary>Nobody said (⚠ not <c>None</c>: this file's enums share one IDL scope).</summary>
+        SourceUnknown = 0,
+        /// <summary>An order (an operator's or a commander's move order).</summary>
+        Order,
+        /// <summary>A cover search (EQS) picked the point.</summary>
+        CoverSearch,
+        /// <summary>The unit's post in its squad's formation or play.</summary>
+        SquadPost,
+        /// <summary>Following its leader.</summary>
+        FollowLeader,
+        /// <summary>Getting away from a threat.</summary>
+        Flee,
+        /// <summary>Through or to a door.</summary>
+        Door,
+        /// <summary>The next point of a route.</summary>
+        Route,
+        /// <summary>An idle wander.</summary>
+        Wander,
+        /// <summary>The operator drives the unit (possession).</summary>
+        Operator,
+    }
+
     /// <summary>One change, numbers only (32 bytes) — names are resolved when it is shown.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct BrainJournalEntry
@@ -109,7 +136,11 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         public byte Count;
         /// <summary>The newest entry's kind (a breakpoint condition can filter on it).</summary>
         public BrainJournalKind LastKind;
-        public byte Reserved;
+        /// <summary>⭐ <c>CE-1250</c> — the source noted for the move command <see cref="PendingMoveInstance"/> (one shot: the
+        /// dispatcher's <see cref="BrainJournalKind.MoveStarted"/> entry reads it when that instance starts).</summary>
+        public MoveSource PendingMoveSource;
+        /// <summary>The locomotion channel's action instance <see cref="PendingMoveSource"/> belongs to.</summary>
+        public uint PendingMoveInstance;
         public BrainJournalEntries Entries;
 
         /// <summary>The entries oldest first — <paramref name="i"/> = 0 is the oldest kept.</summary>
@@ -163,6 +194,24 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             j.Head = (byte)((j.Head + 1) % BrainJournal.Capacity);
             if (j.Count < BrainJournal.Capacity) j.Count++;
             j.LastKind = kind;
+        }
+
+        /// <summary>⭐ <c>CE-1250</c> — notes why the move command just issued as <paramref name="instance"/> (the locomotion channel's new
+        /// <c>ActionInstanceId</c>) was issued; its <see cref="BrainJournalKind.MoveStarted"/> entry carries it. A no-op without a journal.</summary>
+        public static void NoteMoveSource(EntityRepository world, Entity unit, uint instance, MoveSource source)
+        {
+            if (!world.IsComponentTypeRegistered<BrainJournal>() || !world.HasComponent<BrainJournal>(unit)) return;
+            ref var j = ref world.GetComponentRW<BrainJournal>(unit);
+            j.PendingMoveSource = source;
+            j.PendingMoveInstance = instance;
+        }
+
+        /// <summary>The source noted for <paramref name="instance"/>, else <see cref="MoveSource.SourceUnknown"/>.</summary>
+        public static MoveSource MoveSourceOf(EntityRepository world, Entity unit, uint instance)
+        {
+            if (!world.IsComponentTypeRegistered<BrainJournal>() || !world.HasComponent<BrainJournal>(unit)) return MoveSource.SourceUnknown;
+            ref readonly var j = ref world.GetComponentRO<BrainJournal>(unit);
+            return j.PendingMoveInstance == instance ? j.PendingMoveSource : MoveSource.SourceUnknown;
         }
 
         /// <summary>Attaches an empty journal when the switch is on and the world registers it (the brain's attach point).</summary>
