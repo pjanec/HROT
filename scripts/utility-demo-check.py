@@ -5009,17 +5009,17 @@ def run_rf_car_squads(c, timeout):
 def run_rf_wall_hugger(c, timeout):
     ids = ids_by_name()
     reds = ["Red 1", "Red 2", "Red 3"]
-    if not c.ok(all(ids.get(n) for n in reds + ["Blue"]), "the three defenders and Blue are loaded"):
+    if not c.ok(all(ids.get(n) for n in reds + ["Shooter", "Hugger"]), "the three defenders, the Shooter and the Hugger are loaded"):
         return
-    blue = ids["Blue"]
+    blue = ids["Hugger"]
     call("POST", "/sim/play", {})
-    rows = _rf_sample(reds + ["Blue"], ids, 90)
+    rows = _rf_sample(reds + ["Shooter", "Hugger"], ids, 90)
     wall = (130, 159.2)
-    at_wall = next((r[0] for r in rows["Blue"] if r[1] and flat(r[1], wall) <= 1.5), None)
-    print(f"    Blue at the wall at t={at_wall} · Blue ended at {rows['Blue'][-1][1]} · tasks {sorted({r[4] for r in rows['Blue'] if r[4]}, key=str)}")
+    at_wall = rows["Hugger"][0][0]
+    print(f"    Hugger at {rows['Hugger'][-1][1]} · Shooter tasks {sorted({r[4] for r in rows['Shooter'] if r[4]}, key=str)}")
     # (1) a defender ducks within 2 s of Blue's shots
-    blue_fire = [rows["Blue"][i][0] for i in range(1, len(rows["Blue"]))
-                 if rows["Blue"][i][3] is not None and rows["Blue"][i - 1][3] is not None and rows["Blue"][i][3] < rows["Blue"][i - 1][3]]
+    sh = rows["Shooter"]
+    blue_fire = [sh[i][0] for i in range(1, len(sh)) if sh[i][3] is not None and sh[i - 1][3] is not None and sh[i][3] < sh[i - 1][3]]
     ducks = 0
     for n in reds:
         for i in range(1, len(rows[n])):
@@ -5027,7 +5027,7 @@ def run_rf_wall_hugger(c, timeout):
             lower = rows[n][i][2] in ("Crouched", "Prone") and rows[n][i - 1][2] in (None, "Standing")
             if lower and any(0 <= t - bt <= 2.0 for bt in blue_fire):
                 ducks += 1
-    print(f"    Blue fired in {len(blue_fire)} samples · defender ducks within 2 s of it: {ducks} · stances "
+    print(f"    the Shooter fired in {len(blue_fire)} samples · defender ducks within 2 s of it: {ducks} · stances "
           f"{ {n: sorted({str(r[2]) for r in rows[n]}) for n in reds} }")
     c.ok(ducks > 0, f"(1) a defender shot at ducks within 2 s ({ducks})")
     # (2) one defender moves to a new opening that sees Blue once he is under the wall
@@ -5039,11 +5039,11 @@ def run_rf_wall_hugger(c, timeout):
             if any(flat(r[1], before) > 2.0 for r in later):
                 seen_after = any(later[i][5].get(blue, (0, 0))[0] > later[i - 1][5].get(blue, (0, 0))[0] for i in range(1, len(later)))
                 movers.append((n, seen_after))
-    print(f"    defenders who moved after Blue reached the wall (and saw him again): {movers}")
-    c.ok(any(s for _, s in movers), "(2) a defender moves to an opening that sees Blue under the wall")
+    print(f"    defenders who moved (and then saw the Hugger): {movers}")
+    c.ok(any(s for _, s in movers), "(2) a defender moves to an opening that sees the Hugger")
     c.ok(len(movers) <= 1, f"(2) only ONE defender hunts ({len(movers)})")
     nades = [d for d in _rf_bursts_by({ids[n] for n in reds}) if flat(d.get("burst") or [0, 0, 0], wall) <= 8.0]
-    c.ok(bool(nades), f"(3) a grenade is dropped at Blue ({len(nades)})")
+    c.ok(bool(nades), f"(3) a grenade is dropped at the Hugger ({len(nades)})")
     # (4) the look: a defender's LookAtChannel naming Blue while Blue was not seen in that sample
     tracked = 0
     for n in reds:
@@ -5054,8 +5054,8 @@ def run_rf_wall_hugger(c, timeout):
             seen_now = rows[n][i][5].get(blue, (0, 0))[0] > rows[n][i - 1][5].get(blue, (0, 0))[0]
             if not seen_now and blue in rows[n][i][5]:
                 tracked += 1
-    print(f"    samples where a defender's look followed Blue unseen: {tracked} (LookAtChannel sample: {rows[reds[0]][-1][6]})")
-    c.ok(tracked == 0, f"(4) no look follows Blue while he is out of sight ({tracked})")
+    print(f"    samples where a defender's look followed the Hugger unseen: {tracked} (LookAtChannel sample: {rows[reds[0]][-1][6]})")
+    c.ok(tracked == 0, f"(4) no look follows the Hugger while he is out of sight ({tracked})")
 
 
 def run_rf_grenade_reaction(c, timeout):
