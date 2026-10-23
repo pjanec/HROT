@@ -191,6 +191,11 @@ public sealed class BTreeCallShapeTests
         //   guard: both (Entity, EntityRepository) ⇒ NoParams
         ("BasicInfantrySop.btree.json", "c2331000-0000-0000-0000-000000000005", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000c1", BTreeDelegateShapeDto.NoParams),
+        // ⭐ CE-2359 — the contact rows' SquadDefendBehavior.NotDefending guards (Entity, EntityRepository) ⇒ NoParams
+        ("BasicSquadSop.btree.json", "c2359000-0000-0000-0000-0000000000d1", BTreeDelegateShapeDto.NoParams),
+        ("BasicSquadSop.btree.json", "c2359000-0000-0000-0000-0000000000d2", BTreeDelegateShapeDto.NoParams),
+        ("BasicSquadSop.btree.json", "c2359000-0000-0000-0000-0000000000d3", BTreeDelegateShapeDto.NoParams),
+        ("BasicSquadSop.btree.json", "c2359000-0000-0000-0000-0000000000d4", BTreeDelegateShapeDto.NoParams),
         ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
         ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000012", BTreeDelegateShapeDto.NoParams),
         // CE-2230: the run's ONE node is the vehicle exposure cycle (lane mode) — its a1..a4 bespoke nodes are retired.

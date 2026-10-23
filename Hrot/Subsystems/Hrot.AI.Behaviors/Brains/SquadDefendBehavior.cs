@@ -280,6 +280,16 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
+        private static readonly int DefendHash = BehaviorHash.FromName(BehaviorNames.SquadDefend);
+
+        /// <summary>⭐ <c>CE-2359</c> (AQ102 H; DA-55 at the squad level, as the platoon's <c>PlatoonDefendBehavior.NotDefending</c>) — the
+        /// squad's task is NOT a defence. <c>BasicSquadSop</c>'s contact rows ask it first: a defending squad's own play answers a contact
+        /// (its posts, displacement, flank turns, the hunter), and <c>ReactToContact</c> would pause it and assault out. 📐 Live
+        /// (<c>rf-wall-hugger</c>): a grenade, then a contact, and two posted defenders were sent 50–60 m out of the house.</summary>
+        [SharedAiCondition]
+        public static bool NotDefending(Entity self, EntityRepository world)
+            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != DefendHash;
+
         internal static SquadDefendParams Defaults(Vector3 position, float radius, float speed) => new()
         {
             Position     = position,

@@ -2194,6 +2194,27 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.CombatPosture && PostureOf(s, o.Entity).Post.Radius == search);   // once per contact
         }
 
+        /// <summary>⭐ <c>CE-2359</c> (DA-55 at the squad level) — a DEFENDING squad's own SOP does not answer a contact with
+        /// <c>ReactToContact</c>: its defence does (the posts, displacement, the hunter). ✅ Red-proof: drop the <c>NotDefending</c> guard from
+        /// the contact row ⇒ ReactToContact pauses SquadDefend ⇒ red (📐 live, <c>rf-wall-hugger</c>: two defenders sent 50–60 m out).</summary>
+        [Fact]
+        public void CE2359_BasicSquadSop_ADefendingSquad_KeepsItsDefence_OnAContact()
+        {
+            var s = Defending(out _);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadDefend, s.TaskName);
+
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            for (int i = 0; i < 6; i++) s.Tick();
+
+            Assert.Equal(BehaviorNames.SquadDefend, s.TaskName);                     // the defence answers it, not ReactToContact
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — each man is sent his POST SET with his post: a window man fights it the window way (the
         /// window column, prone under the sill), a cover man from his cover — both anchored to the post (4 m) — and a man with a free point
