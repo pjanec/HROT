@@ -119,13 +119,13 @@ for i, (x, y) in enumerate(((127, 163), (130, 163), (133, 163))):
 s.ents[rq]["Behavior"] = {"Name": "SquadDefend", "Params": json.dumps({"Position": [130, 165, 0], "SearchRadius": 14, "Speed": 2}),
                           "Origin": "Superior"}
 s.man("Blue", "Friend", (130, 145, 0), 0, tkb=2004, nid=10401,
-      behavior={"Name": "AdvanceTo", "Params": json.dumps({"Objective": [130, 160.3, 0], "Speed": 4, "ArrivalRadius": 0.5}),
+      behavior={"Name": "AdvanceTo", "Params": json.dumps({"Objective": [130, 159.2, 0], "Speed": 4, "ArrivalRadius": 1.0}),
                 "Origin": "Superior"},
       sop={"Name": "InertSop", "Params": "{}", "Origin": "Superior"})
 s.write("rf-wall-hugger", "cqb-village",
         "What: AQ102 S4 (CE-2355) - on cqb-village, 'Red Squad' (Hostile, 'Red 1-3', default squad SOP) defends the OBJ house (house-3f, its footprint x 125-135 / "
         "y 161-169) with SquadDefend; 'Blue' (Friend grenadier, immortal, InertSop - he plays the player) runs north from (130,145) firing "
-        "and stops against OBJ's south wall at (130,160.3). Judge (90 s): (1) a defender shot at ducks within 2 s (stance lower or off the "
+        "and stops against OBJ's south wall at (130,159.2). Judge (90 s): (1) a defender shot at ducks within 2 s (stance lower or off the "
         "window); (2) once Blue is under the wall, ONE defender moves to an opening that sees him; (3) a grenade is dropped at him; (4) no "
         "defender's look follows Blue while he is out of that defender's sight. " + CHECK.format(sid="rf-wall-hugger"))
 

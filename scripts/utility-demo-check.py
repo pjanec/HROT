@@ -5014,7 +5014,7 @@ def run_rf_wall_hugger(c, timeout):
     blue = ids["Blue"]
     call("POST", "/sim/play", {})
     rows = _rf_sample(reds + ["Blue"], ids, 90)
-    wall = (130, 160.3)
+    wall = (130, 159.2)
     at_wall = next((r[0] for r in rows["Blue"] if r[1] and flat(r[1], wall) <= 1.5), None)
     print(f"    Blue at the wall at t={at_wall} · Blue ended at {rows['Blue'][-1][1]} · tasks {sorted({r[4] for r in rows['Blue'] if r[4]}, key=str)}")
     # (1) a defender ducks within 2 s of Blue's shots
