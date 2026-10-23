@@ -5059,6 +5059,10 @@ def run_rf_wall_hugger(c, timeout):
                 seen_after = any(later[i][5].get(blue, (0, 0))[0] > later[i - 1][5].get(blue, (0, 0))[0] for i in range(1, len(later)))
                 movers.append((n, seen_after))
             print(f"      {n}: furthest from his manned post (t ≥ {settled:.0f} s) {far:.1f} m")
+            if far > 4.5:   # ⭐ what moved him: his brain's task changes and moves
+                j = data(call("GET", f"/entities/{ids[n]}/journal")) or {}
+                for e in [e for e in (j.get("entries") or []) if e.get("kind") in ("MoveStarted", "TaskStarted", "TaskEnded", "TaskRefused")][-10:]:
+                    print(f"        @{e.get('at')} {e.get('kind')}: {str(e.get('text'))[:120]}")
     print(f"    defenders who moved beyond their room (and then saw the Hugger): {movers}")
     c.ok(any(s for _, s in movers), "(2) a defender moves to an opening that sees the Hugger")
     c.ok(len(movers) <= 1, f"(2) only ONE defender hunts ({len(movers)})")
