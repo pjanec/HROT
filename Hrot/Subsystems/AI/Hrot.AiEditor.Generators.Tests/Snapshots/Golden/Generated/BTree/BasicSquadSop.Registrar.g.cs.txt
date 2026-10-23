@@ -147,6 +147,12 @@ public static class BasicSquadSopRegistrar
                 var status = global::Fdp.Toolkit.Behavior.SopConditions.UnderCommand(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
                 return status;
             });
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                var status = global::Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                return status;
+            });
 
         // CE-2079: SOP orders — Fdp.Toolkit.Behavior.SopActions, keyed as the topology keys them.
         actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:SquadFastRope:Contact@-1",
