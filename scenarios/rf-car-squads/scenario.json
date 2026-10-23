@@ -1,0 +1,714 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: AQ102 S2 (CE-2355) - on open basic-desert, 'Blue Squad' (Friend, 'Blue 1-5' behind five parked cars at y=360) and 'Red Squad' (Hostile, 'Red 1-5' behind five cars at y=400), ~43 m apart; no orders, the squads' default SOP (all immortal). Judge (120 s): (1) a base of fire holds while others move; (2) at least 70 % of the movers' sampled path is out of every enemy's sight; (3) the moving side ends within 15 m of an enemy flank (an assault) or the other side breaks off. Check: python3 scripts/utility-demo-check.py --launch rf-car-squads. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
+  },
+  "entities": {
+    "a1020002-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          250,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10260
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          262,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10261
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          277,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10262
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car 3"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          292,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10263
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car 4"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          304,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10264
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car 5"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          256,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10270
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          268,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10271
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          283,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10272
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car 3"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          298,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10273
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car 4"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          310,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10274
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car 5"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020002-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          277,
+          356,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10240
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad",
+        "ForceId": "Friend"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          283,
+          404,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10250
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Squad",
+        "ForceId": "Hostile"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          250,
+          357,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10241
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000011",
+        "Designation": "Wingman"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          262,
+          357,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10242
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000011",
+        "Designation": "Wingman"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          277,
+          357,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10243
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000011",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000016": {
+      "SimTransform": {
+        "Position": [
+          292,
+          357,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10244
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000011",
+        "Designation": "Wingman"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000017": {
+      "SimTransform": {
+        "Position": [
+          304,
+          357,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10245
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue 5",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000011",
+        "Designation": "Wingman"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000018": {
+      "SimTransform": {
+        "Position": [
+          256,
+          403,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10251
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Red 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000012",
+        "Designation": "Wingman"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000019": {
+      "SimTransform": {
+        "Position": [
+          268,
+          403,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10252
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000012",
+        "Designation": "Wingman"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          283,
+          403,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10253
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Red 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000012",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          298,
+          403,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10254
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 4",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000012",
+        "Designation": "Wingman"
+      }
+    },
+    "a1020002-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          310,
+          403,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10255
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Red 5",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1020002-0000-4000-8000-000000000012",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}
