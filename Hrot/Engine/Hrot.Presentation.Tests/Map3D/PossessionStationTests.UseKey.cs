@@ -301,7 +301,8 @@ public sealed partial class PossessionStationTests
         var (_, sw, _) = Station(u, 0);
         Assert.Equal(WeaponSystems.ControlledMountBase, Frame(u, sw, Key(Raylib_cs.KeyboardKey.Two, down: false)).Mount);
         Assert.Contains("> 2 WEAPON  100/100", PossessionStation.Hud.Lines(u.W, u.Me, WeaponSystems.ControlledMountBase, false, false));
-        Assert.Equal(0, Frame(u, sw, new Input { MouseWheelMove = 1f }).Mount);   // the wheel walks the same list
+        Assert.Equal(0, Frame(u, sw, Key(Raylib_cs.KeyboardKey.One, down: false)).Mount);   // 1: his own rifle again
+        Assert.Equal(0, Frame(u, sw, new Input { MouseWheelMove = 1f }).Mount);   // ⭐ R-1034 — the wheel is the camera, never the weapon
     }
 
     /// <summary>⭐ U-4, the driving sequence — Drive: once the passenger list shows him in the driver seat the station RIDES the soldier, and

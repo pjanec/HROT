@@ -66,7 +66,7 @@ public sealed partial class PossessionStationTests
 
     /// <summary>
     /// ⭐ CE-1293 (UC-8) — a man in a seat (a gunner at his gun) rides the VEHICLE's chase camera from his seat — the vehicle's distance,
-    /// not a person's shoulder — and Alt + wheel sets the vehicle's distance.
+    /// not a person's shoulder — and the wheel sets the vehicle's distance.
     /// </summary>
     [Fact]
     public void CE1293_AManInASeat_RidesTheVehiclesChaseCamera_FromHisSeat()
@@ -91,9 +91,7 @@ public sealed partial class PossessionStationTests
             float back = Vector3.Distance(sw.Camera3D.Eye, driver.Eye);
             Assert.True(back > UnitCameraRig.VehicleDefault * 0.9f, $"the vehicle's chase distance, not a person's shoulder ({back:0.0} m)");
 
-            var alt = new Input { MouseWheelMove = -1f };
-            alt.Keys.Add((int)Raylib_cs.KeyboardKey.LeftAlt);
-            sw.Camera3D.HandleInput(alt);
+            sw.Camera3D.HandleInput(new Input { MouseWheelMove = -1f });
             Assert.Equal(UnitCameraRig.VehicleDefault + FpsCameraDriver.DistanceStep * UnitCameraRig.ScaleOf(ControlScheme.Vehicle),
                          station.ShoulderDistance(ControlScheme.Vehicle), 3);
             Assert.Equal(UnitCameraRig.PersonDefault, station.ShoulderDistance(ControlScheme.Person));
@@ -148,5 +146,41 @@ public sealed partial class PossessionStationTests
 
         w.SetComponent(man, new SimTransform { Position = open!.Value, Rotation = Quaternion.Identity });
         Assert.Null(PossessionStation.BlockedShot(w, man, 0, openTo!.Value));                                          // open ground: no mark
+    }
+
+    /// <summary>
+    /// ⭐ CE-1307 — the crosshair looks past the operator's own ride: a gunner possessed in a truck skips himself, the truck and whatever
+    /// rides it (its roof weapon, the crew) — from the chase camera the ray crossed the truck first and the gun aimed at its own hull; a
+    /// stranger is still aimed at. Driving, his vehicle's riders are skipped too.
+    /// </summary>
+    [Fact]
+    public void CE1307_TheCrosshairLooksPastHisOwnVehicle_AndWhatRidesIt()
+    {
+        var (w, gunner, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<IsEmbarkedTag>();
+            w.RegisterComponent<PassengerBuffer>();
+            var truck = w.CreateEntity();
+            var gun = w.CreateEntity();
+            var stranger = w.CreateEntity();
+            w.AddComponent(gunner, new IsEmbarkedTag { VehicleEntity = truck });
+            var riders = new PassengerBuffer();
+            riders.Passengers[0] = gunner;
+            riders.Passengers[1] = gun;
+            w.AddComponent(truck, riders);
+
+            var own = new System.Collections.Generic.HashSet<Fdp.Core.Entity>();
+            EntityPartPicker.OwnRide(w, gunner, own);
+            Assert.Contains(gunner, own);
+            Assert.Contains(truck, own);
+            Assert.Contains(gun, own);
+            Assert.DoesNotContain(stranger, own);
+
+            EntityPartPicker.OwnRide(w, truck, own);   // driving it
+            Assert.Contains(truck, own);
+            Assert.Contains(gun, own);
+            Assert.DoesNotContain(stranger, own);
+        }
     }
 }

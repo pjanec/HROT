@@ -2258,7 +2258,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_entity_weapons",
             Group:   "K — AI behavior traces",
             Summary: "A unit's weapon mounts (owner = mount 0, then mount children) — ammo, cooldown, TKB numbers; with ?target= the WeaponSelection inputs per mount and the chosen mount (CE-3089).",
-            Returns: "{ count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], choice? }",
+            Returns: "{ count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, turret?, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], turrets:[{index, part, azimuthDeg?, elevationDeg?, task?:{mode, mount, epoch, target, point, roundsGranted}, muscle?:{state, failure, epoch, roundsFired}}], choice? }",
             Hint:    "Req: networkId (number); optional target (number, query). Read on the Brain perspective. Example: get_entity_weapons({networkId:1000, target:1002})",
             Params: new RouteParam[]
             {

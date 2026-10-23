@@ -49,7 +49,7 @@ namespace Hrot.UI.Common.Map3D
         public bool OverShoulder { get; set; } = true;
 
         /// <summary>⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-11, R-1033) — the shoulder view's camera distance per kind (a person,
-        /// a vehicle, a flyer), set with Alt + wheel; a station setting, so it stays for the next possession.</summary>
+        /// a vehicle, a flyer), set with the wheel (R-1034); a station setting, so it stays for the next possession.</summary>
         public float ShoulderDistance(ControlScheme scheme)
             => _shoulderDistances.TryGetValue(Kind(scheme), out var d) ? d : UnitCameraRig.DefaultDistance(Kind(scheme));
 
@@ -73,7 +73,7 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The unit driven now (<see cref="Entity.Null"/> when not in FPS).</summary>
         public Entity Unit => _driver?.Unit ?? Entity.Null;
 
-        /// <summary>The weapon mount the operator has selected (the wheel).</summary>
+        /// <summary>The weapon mount the operator has selected (1-4).</summary>
         public int SelectedMount => _driver?.Mount ?? 0;
 
         /// <summary>⭐ <c>CE-1262</c> (AV-1) — what the crosshair rests on (network id, 0 = none) while in first person.</summary>
@@ -856,7 +856,7 @@ namespace Hrot.UI.Common.Map3D
             /// <summary>⭐ <c>CE-1210</c> (§8n MS-3) — the seat line of a vehicle with manned guns: <c>SEAT driver  (G: next seat)</c> or
             /// <c>SEAT M134  (G: next seat)</c>; null when there is no other seat to go to.</summary>
             /// <summary>⭐ <c>CE-1201</c> (§8p OS-1) — the HUD says the view is over his shoulder, and how back.</summary>
-            public const string ShoulderLine = "VIEW  over the shoulder  (O: his eyes · Alt+wheel: distance · Q/E: shoulder · RMB: aim)";
+            public const string ShoulderLine = "VIEW  over the shoulder  (O: his eyes · wheel: distance · Q/E: shoulder · RMB: aim)";
 
             public static string? SeatLine(EntityRepository w, Entity unit)
             {
@@ -1025,7 +1025,7 @@ namespace Hrot.UI.Common.Map3D
     /// <summary>
     /// ⭐ <c>CE-3174</c> (M-2, M-3, M-9; §8d) — the first-person camera on a possessed unit, and the operator's controls. Update puts the
     /// eye on the unit (a person: its posture's eye height — the eye perception uses; a vehicle: above the hull); HandleInput reads the
-    /// mouse (look), W/A/S/D (a person: forward + strafe; a vehicle: throttle + steer), Shift (run), the wheel (weapon), LMB (fire),
+    /// mouse (look), W/A/S/D (a person: forward + strafe; a vehicle: throttle + steer), Shift (run), 1-4 (weapon), the wheel (camera distance, R-1034), LMB (fire),
     /// V (a vehicle's hull-locked view, where the mouse steers) and Esc (release), and sends ONE control frame per frame. It consumes
     /// the input, so no click or menu reaches the map's layers while the operator is in the unit.
     /// </summary>
@@ -1287,7 +1287,7 @@ namespace Hrot.UI.Common.Map3D
             camera.Roll = _roll;
             camera.Distance = camera.MinDistance;
             // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md §4, UC-1/UC-4/UC-11) — one continuum: the shoulder view stands ShoulderDistance back
-            //   (Alt + wheel), RMB aims from the eyes (UC-11), and the spring arm pulls the camera in front of a wall
+            //   (the wheel, R-1034), RMB aims from the eyes (UC-11), and the spring arm pulls the camera in front of a wall
             var scheme = RigScheme;   // ⭐ UC-7 / UC-8 — a man in a seat: the vehicle's chase camera from his seat
             float distance = ShoulderViewOn ? _station.ShoulderDistance(scheme) : 0f;
             var centre = scheme == Scheme ? _centre : _eye;
@@ -1325,7 +1325,18 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ <c>CE-1293</c> — a crossing letting less light through than this stops the camera (glass does not).</summary>
         public const float ArmOpaque = 0.5f;
 
-        /// <summary>⭐ <c>CE-1293</c> (UC-11) — Alt + wheel moves the camera this far per notch (a person; a vehicle × its scale).</summary>
+        /// <summary>⭐ <c>CE-1293</c> (R-1034) — the wheel moves the camera along the continuum: out of the eyes switches the shoulder view
+        /// on, all the way in switches it off; a man in a seat sets the vehicle's distance (UC-8).</summary>
+        private void WheelDistance(float wheel)
+        {
+            var rig = RigScheme;
+            float now = _station.OverShoulder ? _station.ShoulderDistance(rig) : 0f;
+            float farther = Math.Clamp(now - wheel * DistanceStep * UnitCameraRig.ScaleOf(rig), 0f, UnitCameraRig.MaxPlayDistance(rig));
+            if (farther < DistanceStep * 0.5f) _station.OverShoulder = false;
+            else { _station.SetShoulderDistance(rig, farther); _station.OverShoulder = true; }
+        }
+
+        /// <summary>⭐ <c>CE-1293</c> (R-1034) — the wheel moves the camera this far per notch (a person; a vehicle × its scale).</summary>
         public const float DistanceStep = 0.5f;
 
         /// <summary>⭐ <c>CE-1201</c> (§8p OS-2) — a person's over-the-shoulder camera: behind his eye, to his right, a little up (m).</summary>
@@ -1611,23 +1622,11 @@ namespace Hrot.UI.Common.Map3D
                 for (int k = 0; k < 4; k++)
                     if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < verbs) _listIndex = k;
             }
-            else if (wheel != 0f && (input.IsKeyDown((MapKeyboardKey)KeyboardKey.LeftAlt) || input.IsKeyDown((MapKeyboardKey)KeyboardKey.RightAlt)))
-            {
-                // ⭐ CE-1293 (UC-11, R-1033) — Alt + wheel: the camera distance (the plain wheel stays the weapons); out of the eyes
-                //   switches the shoulder view on, all the way in switches it off
-                var rig = RigScheme;   // ⭐ UC-8 — in a seat: the vehicle's distance
-                float now = _station.OverShoulder ? _station.ShoulderDistance(rig) : 0f;
-                float farther = Math.Clamp(now - wheel * DistanceStep * UnitCameraRig.ScaleOf(rig), 0f, UnitCameraRig.MaxPlayDistance(rig));
-                if (farther < DistanceStep * 0.5f) _station.OverShoulder = false;
-                else { _station.SetShoulderDistance(rig, farther); _station.OverShoulder = true; }
-            }
             else
             {
-                if (wheel != 0f)
-                {
-                    int at = Math.Max(0, slots.Slice(0, slotCount).IndexOf(Mount));
-                    Mount = slots[((at + (wheel > 0f ? -1 : 1)) % slotCount + slotCount) % slotCount];
-                }
+                // ⭐ CE-1293 (R-1034, superseding R-1033's wheel) — the wheel is the camera distance, possessed as when watching; out of the
+                //   eyes switches the shoulder view on, all the way in switches it off. Weapons are 1-4 only.
+                if (wheel != 0f) WheelDistance(wheel);
                 // ⭐ CE-1079 (§8e D-2) — 1-4 pick a weapon directly; ⭐ CE-1158 (U-5) the weapons he controls follow his own
                 for (int k = 0; k < 4; k++)
                     if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < slotCount) Mount = slots[k];

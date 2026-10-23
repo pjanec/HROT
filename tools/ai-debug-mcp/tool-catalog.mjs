@@ -2481,7 +2481,7 @@ export const TOOLS_CATALOG = [
         "description": "Network id of a target to score the mounts against (query)"
       }
     ],
-    "returns": "{ count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], choice? }",
+    "returns": "{ count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, turret?, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], turrets:[{index, part, azimuthDeg?, elevationDeg?, task?:{mode, mount, epoch, target, point, roundsGranted}, muscle?:{state, failure, epoch, roundsFired}}], choice? }",
     "notes": [
       "choice is the mount the AimAndFire executor fires on Mount=Auto (the posture's fire step): 0 = the owner's primary.",
       "rangeFit is distance / mount range (≈ 1 inside the range in the decision's curve); 10 = unknown."

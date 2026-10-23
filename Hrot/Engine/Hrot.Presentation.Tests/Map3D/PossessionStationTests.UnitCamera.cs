@@ -51,17 +51,32 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
-    /// ⭐⭐ CE-1293 (UC-5, UC-6, UC-11, R-1033) — playing over the shoulder: the plain wheel still switches weapons, Alt + wheel moves the
-    /// camera (in to the eyes switches the view off); RMB aims from the eyes; E / Q put the camera over that shoulder; standing, the body
+    /// ⭐⭐ CE-1293 (UC-5, UC-6, R-1034 superseding R-1033's wheel) — playing over the shoulder: the wheel moves the camera (in to the eyes
+    /// switches the view off) and never the weapon — 1-4 pick it; RMB aims from the eyes; E / Q put the camera over that shoulder; standing, the body
     /// lags the aim up to 45°; moving, the frame's W is along the CAMERA (turned into the body's frame).
     /// </summary>
     [Fact]
-    public void CE1293_OverTheShoulder_AltWheelIsTheDistance_RmbAimsFromTheEyes_TheBodyLagsTheAim_AndWMovesAlongTheCamera()
+    public void CE1293_OverTheShoulder_TheWheelIsTheDistance_NumbersPickTheWeapon_RmbAimsFromTheEyes_TheBodyLagsTheAim_AndWMovesAlongTheCamera()
     {
         var (w, unit, _) = World();
         using (w)
         {
             w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 2 };                                       // two weapons
+            ammo.Set(0, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 30, MaxAmmo = 30 });
+            ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 10, MaxAmmo = 10 });
+            w.AddComponent(unit, ammo);
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Rifleman", 4713);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1 },
+            } });
+            db.Register(type);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4713 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w) { OverShoulder = true };
             station.Update(0.016f);
@@ -80,12 +95,15 @@ public sealed partial class PossessionStationTests
 
             float d0 = station.ShoulderDistance(ControlScheme.Person);
             Assert.Equal(UnitCameraRig.PersonDefault, d0);
-            Frame(wheel: -1f, hold: Raylib_cs.KeyboardKey.LeftAlt);                                                    // Alt + wheel back
-            Assert.Equal(d0 + FpsCameraDriver.DistanceStep, station.ShoulderDistance(ControlScheme.Person), 3);
             int mount = driver.Mount;
-            Frame(wheel: -1f);                                                                                          // the plain wheel …
-            Assert.Equal(mount, driver.Mount);                                                                          // … one weapon here: still it, the distance unchanged
-            Assert.Equal(d0 + FpsCameraDriver.DistanceStep, station.ShoulderDistance(ControlScheme.Person), 3);
+            Frame(wheel: -1f);                                                                                          // the wheel back …
+            Assert.Equal(d0 + FpsCameraDriver.DistanceStep, station.ShoulderDistance(ControlScheme.Person), 3);        // … moves the camera
+            Assert.Equal(mount, driver.Mount);                                                                          // … never the weapon
+            var two = new Input();
+            two.Pressed.Add((int)Raylib_cs.KeyboardKey.Two);
+            sw.Camera3D.HandleInput(two);
+            w.Bus.SwapBuffers();
+            Assert.NotEqual(mount, driver.Mount);                                                                       // 2: the second weapon
 
             Assert.True(driver.ShoulderViewOn);
             Frame(rmb: true);
@@ -116,8 +134,10 @@ public sealed partial class PossessionStationTests
             Assert.Equal(MathF.Cos(off), walk.Forward, 2);
             Assert.Equal(MathF.Sin(off), walk.Lateral, 2);
 
-            Frame(wheel: 10f, hold: Raylib_cs.KeyboardKey.LeftAlt);                                                    // Alt + wheel all the way in
+            Frame(wheel: 10f);                                                                                          // the wheel all the way in
             Assert.False(station.OverShoulder);                                                                         // the eyes
+            Frame(wheel: -1f);                                                                                          // and out again
+            Assert.True(station.OverShoulder);
         }
     }
 }
