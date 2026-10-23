@@ -175,6 +175,8 @@ declares a `LayerBitIndex`; `MapCanvas.Draw` skips the object entirely when its 
 ⇒ It is the *"which renderers run"* switch — coarse, cheap, and it never inspects a primitive. The
 `ConfigPanel` checkboxes (Satellite / Roads / Grid) drive it, and they are the right UI for it.
 
+> ⚠ **2026-10-23 (CE-1288, ui) — one part has moved on:** a retained 2-D layer now takes its checkbox from the layer panel's own row (`CE-1227`: `TerrainLayer2D` ← the buffer's `Terrain2D` bit), and the 2-D helper grid does the same (`Grid (2-D)`, `DebugTraceLayers.Grid`); the Config window's Grid tick still forces it on. Reasoned in [DESIGN_Map_3D_Mode.md §6ac](../DESIGN_Map_3D_Mode.md).
+
 🔒 **RULED (user, 2026-08-12): `ActiveLayerMask` survives.** It answers *"draw the road network at all?"*,
 while §B answers *"is this hostile air unit visible?"*. Folding them together would mean walking every
 primitive to decide something that is currently one bit test per renderer. ⚠ **Stop calling it a layer

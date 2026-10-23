@@ -689,6 +689,8 @@ class Program
                     orchestrator.Update(dt);
                     frameStats?.EndUpdate();
 
+                    windowCtrl.UpdateWindowTitle();   // ⭐ CE-1290 — the loaded scenario's name in the title
+
                     // Apply any queued font/DPI rebake at the frame boundary (atlas rebuild
                     // must happen outside rlImGui.Begin/End).
                     shell.FontService.ApplyPendingRebuild();

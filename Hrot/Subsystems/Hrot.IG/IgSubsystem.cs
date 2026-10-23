@@ -214,6 +214,8 @@ namespace Hrot.IG
         {
             if (_app == null) return;
             windowManager.RegisterWindow(new IgDebugWindow(_app.DebugPanel));
+            // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+            Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _app?.Canvas, "IG");
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(   // ⭐ CE-1096 — the shared window
                 _app.WaypointEditorPanel, Hrot.Presentation.Windows.ScenarioPanelWindowIds.IgWaypoint, "IG", IgWindowColor.TitleBar));
             windowManager.RegisterWindow(new IgMiniExConWindow(_app.MiniExConPanel));

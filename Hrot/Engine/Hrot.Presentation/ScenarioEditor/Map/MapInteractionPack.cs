@@ -52,7 +52,9 @@ namespace Hrot.ScenarioEditor.Map
         Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null,
         Hrot.UI.Common.Map3D.PossessionStation? Possession = null,
         Hrot.UI.Common.Audio.AudioLayer? Audio = null,
-        Hrot.UI.Common.Map2D.TerrainLayer2D? Terrain2D = null);
+        Hrot.UI.Common.Map2D.TerrainLayer2D? Terrain2D = null,
+        Fdp.Toolkit.Vis2D.Layers.GridMapLayer? Grid = null,
+        MapCursorReadout? Cursor = null);
 
     public static class MapInteractionPack
     {
@@ -461,7 +463,8 @@ namespace Hrot.ScenarioEditor.Map
             FdpEventBus bus,
             Func<EntityRepository?> worldProvider,
             Func<Fdp.Interfaces.ITkbDatabase?>? tkbProvider = null,
-            int layerBitIndex = 31)
+            int layerBitIndex = 31,
+            Func<bool>? gridAlsoWhen = null)
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
             // ⭐⭐ CE-1227 (docs/DESIGN_Terrain_World.md §10) — the 2-D terrain FIRST, under every gizmo, as a retained layer: it takes no
@@ -470,11 +473,22 @@ namespace Hrot.ScenarioEditor.Map
             var terrain2D = new Hrot.UI.Common.Map2D.TerrainLayer2D(worldProvider,
                 () => buffer.IsLayerActive(DebugTraceLayers.Terrain2D), () => canvas.Camera);
             canvas.AddLayer(terrain2D);
+            // ⭐ CE-1288 (DESIGN_Map_3D_Mode.md §6ac) — the 2-D helper grid: above the terrain's fills (they would hide it),
+            //   below every gizmo (the entities draw over it). Its checkbox is the buffer's Grid bit (the "Grid (2-D)" row of the layer
+            //   panel, on by default); a host's own switch (the editor's Config window "Grid" tick) may also force it on.
+            var grid = new Fdp.Toolkit.Vis2D.Layers.GridMapLayer(
+                () => buffer.IsLayerActive(DebugTraceLayers.Grid) || (gridAlsoWhen?.Invoke() ?? false), () => canvas.Camera);
+            canvas.AddLayer(grid);
             var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
             if (UiStatesOf.TryGetValue(buffer, out var uiStates)) gizmoLayer.UiStates = uiStates;   // ⭐ CE-1234 — the panel follows its gizmo
             gizmoLayer.CurrentCamera = () => canvas.Camera;   // ⭐ CE-1033 S2 — gizmo input picks in 3-D too
             canvas.AddLayer(gizmoLayer);
             canvas.DrawBuffer = buffer;
+            // ⭐ CE-1289 — the cursor's reading, measured every frame in both views and shown by MapCursorStatusBarSection; it lives on the
+            //   canvas, so a host finds it with `canvas.Get<MapCursorReadout>()`. The ground height is the 3-D camera's (one terrain
+            //   resolution per tick, CE-1054), so the 2-D reading's altitude is the terrain's at that spot.
+            var cursor = new MapCursorReadout();
+            canvas.AddResource(cursor);
 
             var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                           ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
@@ -499,6 +513,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1126 (DESIGN_Entity_Control §8g F-4) — the FPS crosshair's: the parts a round meets (PickFilter.EntityParts)
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityPartPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
+            canvas.AddLayer(new MapCursorLayer(canvas, cursor, worldProvider, viewSwitch.Camera3D.GroundHeight));   // ⭐ CE-1289
             // ⭐ AQ93 R-4024 / V7 — the SUMO roads and lights, TerrainLayer3D's sibling (idle when the terrain has no SUMO net); its far
             //   people and cars are bodies (CE-4031).
             canvas.AddLayer(new Hrot.UI.Common.Map3D.TrafficLayer3D(worldProvider));
@@ -537,7 +552,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-3289 (§6ab, R-3032) — the film: a director camera and a clean capture of the scene, on every map host; LAST, so its
             //   update runs after every other layer's (the frame it captures is complete) and its director wins the camera.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.FilmCaptureLayer(canvas, viewSwitch, worldProvider));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D, grid, cursor);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

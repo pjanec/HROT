@@ -924,6 +924,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             _searchPanel!,
             _federationPanel);
 
+        // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+        Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _canvas, "ReplayBrowser");
+
         // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
         // Harmless no-op for the Win32 backend: WindowManager only draws the service
         // when it is an ImGuiFileDialogService.

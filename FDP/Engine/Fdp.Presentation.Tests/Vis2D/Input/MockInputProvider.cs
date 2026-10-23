@@ -13,6 +13,8 @@ namespace Fdp.Toolkit.Vis2D.Tests.Input
         public bool IsRightPressed { get; set; }
         public bool IsLeftDown { get; set; }
         public bool IsRightDown { get; set; }
+        /// <summary>⭐ CE-1287 — the middle button (the 2-D map's second pan button, as in 3-D).</summary>
+        public bool IsMiddleDown { get; set; }
         public bool IsLeftReleased { get; set; }
         public bool IsRightReleased { get; set; }
         
@@ -34,6 +36,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Input
         {
             if (button == MapMouseButton.Left) return IsLeftDown;
             if (button == MapMouseButton.Right) return IsRightDown;
+            if (button == MapMouseButton.Middle) return IsMiddleDown;
             return false;
         }
 

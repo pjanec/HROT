@@ -38,6 +38,9 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         TryApplyTaskbarIcons();
     }
 
+    /// <inheritdoc/>
+    public void SetWindowTitle(string title) => Raylib_cs.Raylib.SetWindowTitle(title);
+
     // ── Windows taskbar icon (console + GUI windows) ─────────────────────────────
 
     private const uint WM_SETICON = 0x0080;

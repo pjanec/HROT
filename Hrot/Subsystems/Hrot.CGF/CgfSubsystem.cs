@@ -75,8 +75,11 @@ namespace Hrot.CGF;
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider,
     Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
-    Hrot.Common.EntityCreation.IEntityCreationHost
+    Hrot.Common.EntityCreation.IEntityCreationHost, Fdp.Toolkit.Runner.IWindowTitleSource
 {
+    /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
+    public string? WindowTitleDetail => _scenarioSession?.LoadedScenarioName;
+
     /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised).</summary>
     public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
 
@@ -1877,6 +1880,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    of it, and folding it in would hand them a capability they do not have — the very trap
         //    `IUiBundle`'s doc warns about. ⭐ One implementation, exactly two callers (§5c.7 F5 / G3).
         Hrot.Presentation.Windows.BlackboardReflection.Apply(_fdpEntityInspector, _behaviorRegistry);
+
+        // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+        Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _canvas, "Scenario");
 
         // ── Time transport controls in status bar ─────────────────────────
         var bus = _context?.EventBus;

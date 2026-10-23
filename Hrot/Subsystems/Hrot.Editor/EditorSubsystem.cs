@@ -170,6 +170,7 @@ namespace Hrot.Editor
     /// </para>
     /// </summary>
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
+        Fdp.Toolkit.Runner.IWindowTitleSource,
         Hrot.Common.EntityCreation.IEntityCreationHost
     {
         /// <summary>⭐ <c>CE-3228</c> (Entity Creation §3.4d) — the editor's node id. 🔒 User, <c>2026-10-17</c>: <i>"No valid node ID should be
@@ -2665,12 +2666,12 @@ namespace Hrot.Editor
                 //   which was stored nowhere. See DebugGizmoLayer._world.
                 // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode (View › 2-D / 3-D Map), the same on
                 //   every host. The TKB is passed because this host HOLDS it (silent-default rule), not left to the singleton.
+                // ⭐ CE-1288 — the 2-D helper grid is the shared attach's now (the layer panel's "Grid (2-D)" row, on by default, and under
+                //   the entities — this host used to add its own above them). The Config window's "Grid" tick (MapViewConfig.ShowGrid) is
+                //   passed so it still forces the grid on rather than becoming a control that does nothing.
                 _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                    _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase).GizmoLayer;
-
-                // Grid map layer ? reads MapViewConfig.ShowGrid each frame.
-                var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
-                _canvas!.AddLayer(gridLayer);
+                    _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase,
+                    gridAlsoWhen: () => _mapViewConfig?.ShowGrid ?? false).GizmoLayer;
 
 
                 // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
@@ -2873,6 +2874,9 @@ namespace Hrot.Editor
             if (_headless) return;
             _canvas?.Draw();
         }
+
+        /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
+        public string? WindowTitleDetail => _editorLogic?.LoadedScenarioName;
 
         /// <inheritdoc/>
         /// <remarks>
@@ -5179,6 +5183,9 @@ namespace Hrot.Editor
                 Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
                     windowManager.MainToolbar, timeTransportFacade);
             }
+
+            // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+            Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _canvas, "Scenario");
 
             // ?? Message Log notification icon in status bar ???????????????????
             // The MessageLogWindow is registered globally by Program.cs; we look it
