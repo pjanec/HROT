@@ -1,54 +1,246 @@
 {
-  "ActivePerspective": "Blueprint",
+  "ActivePerspective": "Scenario",
   "UiScale": 1,
   "Windows": {
-    "fdp_message_log": { "IsOpen": true, "IsPinned": false },
-    "ai_find_results_btree": { "IsOpen": false, "IsPinned": false },
-    "ai_trace_timeline_btree": { "IsOpen": false, "IsPinned": false },
-    "ai_blackboard_variables_btree": { "IsOpen": true, "IsPinned": false },
-    "ai_diagnostics_btree": { "IsOpen": true, "IsPinned": false },
-    "ai_breakpoints_btree": { "IsOpen": true, "IsPinned": false },
-    "ai_watch_btree": { "IsOpen": false, "IsPinned": false },
-    "ai_variable_values_btree": { "IsOpen": false, "IsPinned": false },
-    "ai_my_blueprint_btree": { "IsOpen": true, "IsPinned": false },
-    "ai_details_btree": { "IsOpen": true, "IsPinned": false },
-    "ai_find_results_hsm": { "IsOpen": false, "IsPinned": false },
-    "ai_trace_timeline_hsm": { "IsOpen": false, "IsPinned": false },
-    "ai_blackboard_variables_hsm": { "IsOpen": true, "IsPinned": false },
-    "ai_diagnostics_hsm": { "IsOpen": false, "IsPinned": false },
-    "ai_breakpoints_hsm": { "IsOpen": true, "IsPinned": false },
-    "ai_watch_hsm": { "IsOpen": false, "IsPinned": false },
-    "ai_variable_values_hsm": { "IsOpen": true, "IsPinned": false },
-    "ai_my_blueprint_hsm": { "IsOpen": true, "IsPinned": false },
-    "ai_details_hsm": { "IsOpen": false, "IsPinned": false },
-    "ai_find_results_blueprint": { "IsOpen": false, "IsPinned": false },
-    "ai_trace_timeline_blueprint": { "IsOpen": false, "IsPinned": false },
-    "ai_blackboard_variables_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_diagnostics_blueprint": { "IsOpen": false, "IsPinned": false },
-    "ai_breakpoints_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_watch_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_variable_values_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_asset_browser": { "IsOpen": false, "IsPinned": false },
-    "ai_canvas_btree": { "IsOpen": true, "IsPinned": false },
-    "ai_canvas_hsm": { "IsOpen": true, "IsPinned": false },
-    "ai_canvas_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_my_blueprint_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_bookmarks_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_details_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_variables_blueprint": { "IsOpen": true, "IsPinned": false },
-    "ai_graph_signature_blueprint": { "IsOpen": true, "IsPinned": false },
-    "editor_toolbar": { "IsOpen": true, "IsPinned": false },
-    "excon_cluster_control": { "IsOpen": false, "IsPinned": false },
-    "orchestrator_diagnostics": { "IsOpen": false, "IsPinned": false },
-    "editor_bp_manager": { "IsOpen": true, "IsPinned": false },
-    "editor_spawner": { "IsOpen": true, "IsPinned": false },
-    "editor_mission": { "IsOpen": true, "IsPinned": false },
-    "editor_config": { "IsOpen": true, "IsPinned": false },
-    "editor_shared_orbat": { "IsOpen": true, "IsPinned": false },
-    "editor_preview": { "IsOpen": true, "IsPinned": false },
-    "editor_zone_editor": { "IsOpen": true, "IsPinned": false },
-    "editor_fdp_inspector": { "IsOpen": true, "IsPinned": false },
-    "editor_fdp_events": { "IsOpen": true, "IsPinned": false },
-    "editor_architecture_diagnostics": { "IsOpen": false, "IsPinned": false }
+    "fdp_message_log": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_asset_browser_find_results": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_find_results_btree": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_trace_timeline_btree": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_blackboard_variables_btree": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_diagnostics_btree": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_breakpoints_btree": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_watch_btree": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_comparison_summary_btree": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_comparison_changes_btree": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_variable_values_btree": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_my_blueprint_btree": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_details_btree": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_find_results_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_trace_timeline_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_blackboard_variables_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_diagnostics_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_breakpoints_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_watch_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_comparison_summary_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_comparison_changes_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_variable_values_hsm": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_my_blueprint_hsm": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_details_hsm": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_find_results_blueprint": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_trace_timeline_blueprint": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_blackboard_variables_blueprint": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_diagnostics_blueprint": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_breakpoints_blueprint": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_watch_blueprint": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_comparison_summary_blueprint": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_comparison_changes_blueprint": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_variable_values_blueprint": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_details_blueprint": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "scenario_details": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_asset_browser": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "ai_canvas_btree": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_canvas_hsm": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_canvas_blueprint": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_my_blueprint_blueprint": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_bookmarks_blueprint": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "ai_graph_signature_blueprint": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_toolbar": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "excon_cluster_control": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "orchestrator_diagnostics": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_bp_manager": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "editor_spawner": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_mission": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_config": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_shared_orbat": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "editor_waypoint_editor": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_reports": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "editor_preview": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_zone_editor": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_blueprint_tools": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_director": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_fdp_inspector": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "editor_fdp_events": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "editor_architecture_diagnostics": {
+      "IsOpen": false,
+      "IsPinned": false
+    },
+    "editor_system_profiler": {
+      "IsOpen": false,
+      "IsPinned": false
+    }
   }
 }
