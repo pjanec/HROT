@@ -31,7 +31,7 @@ try {
   const { JSDOM } = await load('jsdom');
   const dom = new JSDOM('<!doctype html><html><body></body></html>');
   globalThis.window = dom.window;
-  globalThis.document = dom.window.document;
+  globalThis.document = dom.window.document; for (const k of ["Element","HTMLElement","SVGElement","Node","DocumentFragment","navigator"]) { try { globalThis[k] = dom.window[k]; } catch {} }
   mermaid = (await load('mermaid')).default;
 } catch {
   console.log('SKIP: mermaid/jsdom not resolvable here.');

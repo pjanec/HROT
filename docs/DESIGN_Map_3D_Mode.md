@@ -14,6 +14,7 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Director_Timeline_Editor.md — OWNS the director timeline editor on every film host; RULES §6b's "ReplayBrowser sets no TKB" finding (R-4069, TE-12) and adds the film-only graphics layer (R-4070)
   - docs/DESIGN_Film_Director.md — OWNS who holds a camera SCRIPT and when the shot changes (takes, reels, paced real-time play, the /director routes); drives §6ab's FilmStudio
   - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) that §6ab's filming runs under
   - docs/RUNBOOK_Filming.md — OWNS HOW to film (film.py, plans, finding the moments, the traps); §6ab here is the design
@@ -868,7 +869,7 @@ happen by construction."* ⇒ ⛔ S6 ("all five hosts") is **withdrawn as a slic
 
 ⚠ The TKB the bodies are classified from defaults to the world's `ITkbDatabase` singleton — IG, CGF, SimHost and the editor set
 one; the editor passes its own. ⚠ **ReplayBrowser sets none** (searched its subsystem) ⇒ replayed entities draw as unknown
-boxes until a replay carries or loads its TKB — a finding, not fixed here.
+boxes until a replay carries or loads its TKB — a finding, not fixed here. ⭐ RULED `2026-10-23` (R-4069): the Replay Browser loads the same TKB as every other host — [`DESIGN_Director_Timeline_Editor.md`](DESIGN_Director_Timeline_Editor.md) TE-12.
 
 **Gates:** `Hrot.Presentation.Tests` **427/428** (1 skip — the frame rail without a display), the frame rail **1/1** under Xvfb;
 `Hrot.Editor.Tests` **474/476**; `Hrot.IG.Tests` **461/462**; `Hrot.ReplayBrowser.Tests` **34/34**; `Hrot.SimHost.Tests`

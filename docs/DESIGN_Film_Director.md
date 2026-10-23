@@ -7,6 +7,7 @@ stale-below: none
 known-rot: §2's Scout, CaptureSink, CinemaMode, LayerOverride and SoundTrack.Log boxes are SUPERSEDED by §8.3 (as built). §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
 known-conflict: none — the determinism question ("I still believe we could make this deterministic") is RULED by R-3038; the mechanism is DESIGN_Paused_And_Stepped_Execution.md (CE-3293).
 related-designs:
+  - DESIGN_Director_Timeline_Editor.md — OWNS the EDITOR over takes (timeline panel, camera keys, tracks), the RECORDING source, promote and the recording scout; it builds §3e / D-18 here (R-4067, R-4068)
   - DESIGN_Scenario_Regression.md — REUSES the take anchor grammar for a scenario's machine-checkable conditions (checks.json) and, in its phase 2, AnchorBook and a DirectorRunner verify mode
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS stepped-run event delivery (CE-3293): the determinism this director's stepped takes rely on
   - DESIGN_Map_3D_Mode.md §6ab — OWNS the film camera this drives (FilmStudio, FilmDirector as an ICameraDriver, FilmCaptureLayer, the /film routes); this design adds WHO holds the script and WHEN the shot changes
@@ -407,6 +408,8 @@ behaviour starts, a vehicle closes on a point), and a shot is held UNTIL the nex
 | **every run loads again** | 🔒 *"do not use rewind, always load again"* (R-3034): a re-run, a retake or the scout's next run is a fresh load, never the preview's rewind |
 
 ### 3e. Later — shoot, then edit, from a RECORDING (the user's path)
+
+⭐ **Designed `2026-10-23`:** [`DESIGN_Director_Timeline_Editor.md`](DESIGN_Director_Timeline_Editor.md) — the editor, the recording source and promote (R-4067…R-4070).
 
 🔒 *"which might lead to the replay from recording path."* ⭐ The final films come from a recorded run: **shoot** (a live, recorded run;
 retake until the beats happen) → **scout the recording** (its events are fixed now) → **edit**: play the recording back with the take's
