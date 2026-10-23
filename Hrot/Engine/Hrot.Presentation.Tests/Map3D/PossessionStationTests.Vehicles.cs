@@ -143,7 +143,8 @@ public sealed partial class PossessionStationTests
         var stop = PossessionStation.BlockedShot(w, man, 0, to!.Value);
         Assert.NotNull(stop);
         Assert.True(stop!.Value.X > from.Value.X && stop.Value.X < to.Value.X - PossessionStation.BlockedMargin, $"stopped short, at the wall ({stop})");
-        Assert.Null(PossessionStation.BlockedShot(w, man, 0, stop.Value));                                             // the crosshair ON the wall: no mark
+        var into = Vector3.Normalize(to.Value - stop.Value);
+        Assert.Null(PossessionStation.BlockedShot(w, man, 0, stop.Value + into * 0.3f));                               // the crosshair on the wall: no mark
 
         w.SetComponent(man, new SimTransform { Position = open!.Value, Rotation = Quaternion.Identity });
         Assert.Null(PossessionStation.BlockedShot(w, man, 0, openTo!.Value));                                          // open ground: no mark
