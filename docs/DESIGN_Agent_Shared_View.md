@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-23 (new — R-1029)
+updated: 2026-10-23 (new — R-1029; value review the same day: marks, POST /selection, one-shot EQS and /replay/view withdrawn, the FPS crosshair target added, the catalog regenerated with every route change — R-1030)
 build-state: READY-TO-BUILD — approved 2026-10-23 on the proposal ("ok write it!"); nothing built yet
-current-answer: §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 THE ROUTE TABLE (live and replay) · §7 decisions AV-1…AV-12 · §8 slices · §9 acceptance
+current-answer: §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 THE ROUTE TABLE (live and replay) · §7 decisions AV-1…AV-13 · §8 slices · §9 acceptance
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -35,10 +35,10 @@ features you are planning"*.
 
 | the agent asks | live | after the exercise (one editor recording) |
 |---|---|---|
-| *what is the operator looking at?* | `GET /view` — mode, camera, possessed unit, selection, marks, the units in view | `GET /replay/view` at the seeked frame |
-| *which unit does the operator mean?* | `GET /selection`, `GET /marks?since=` | `GET /replay/marks` (the whole file) |
+| *what is the operator looking at?* | `GET /view` — mode, camera, possessed unit, the crosshair target, selection, the units in view | — (withdrawn, AV-7) |
+| *which unit does the operator mean?* | `GET /selection` (RTS / free flight) · `/view`'s `aimTarget` (first person: what the crosshair rests on) · `/view`'s `debugged` | `GET /replay/selection` at a frame · `POST /replay/search` for when the selection changed |
 | *what is it doing and why?* | `GET /entities/{id}/brain`, `/journal?since=` | `GET /replay/entities/{id}/brain`, `/journal`, `/journal/history` |
-| *stop when it changes its mind* | `POST /entities/{id}/debug`, `POST /entities/{id}/journal/break`, then the existing `/breakpoints/*` | `GET /replay/entities/{id}/journal/history` lists every change; `POST /replay/seek` to each |
+| *stop when it changes its mind* | `POST /entities/{id}/debug`, `POST /entities/{id}/journal/break`, then the existing `/breakpoints/*` and `/sim/step` | `GET /replay/entities/{id}/journal/history` lists every change; `POST /replay/seek` to each |
 | *find the moment X happened* | — | `POST /replay/search {condition}` |
 
 ⭐ Every route is a thin shell over a reader the UI already uses (the brain view's `BrainView.Read`, the journal, the breakpoint
@@ -52,6 +52,10 @@ manager, the selection). ⭐ A replay route is the SAME reader pointed at the re
 | `DebugApiRouteDocs` (`RouteDoc(` count) | 156 | every route carries a RouteDoc; a route without one reddens a C# rail; `gen-catalog.mjs` projects them into the MCP catalog |
 | read `RenderTelemetry` + grep `RenderTelemetry.Camera(` | 1 writer | `MapStatsOverlay.Update` publishes mode (2D / 3D / FPS), eye, forward, yaw, pitch, distance, height, viewport EVERY frame under a lock; the overlay is added by `MapInteractionPack` (`:523`) ⇒ on every map host. ⛔ no FOV, no 2-D view rectangle, one process-wide slot |
 | `MapLayers` record + `AttachMapLayers` call sites | 1 + 5 hosts | Editor, CGF, SimHost, IG, ReplayBrowser; the editor keeps only `.GizmoLayer` (`EditorSubsystem.cs:2629`) |
+| `PossessionStation` (read) | 1 | `AimTarget` / `AimAt` — the unit and point the crosshair rests on, every frame (CE-1078); `LockedTarget`; ⛔ in first person LMB FIRES (or designates with binoculars up, CE-1219) — **no selection is possible there** |
+| `FocusEntity` / `AddAnnotation` (read) | 2 | the agent already POINTS BACK: `POST /entities/{id}/focus` centres the operator's camera (`CenterOnEntityCommand`), `POST /annotations` draws a sphere / anchor / line |
+| `GetEntitySensors` (read) | 1 | lists every sensor of a unit with its last answer — EQS sensors included (`EqsSensor`, `EqsCognitiveBuffer`) |
+| `tools/ai-debug-mcp/tool-catalog.mjs` vs the route table | — | ⛔ STALE today: none of the 10 `/director/*` routes is in it; `EveryRouteIsDocumentedTests` checks RouteDocs, nothing checks the catalog |
 | `CullingState` (read) | 1 | per entity `IsVisible` this frame in the 2-D viewport — "in view" in 2-D is already computed |
 | `SelectionState` / `SelectEntityCommand` (read) | 2 | `SelectionState { IsSelected, IsPrimarySelection }`, `NoScenario` (recorded); `SelectEntityCommand { NetworkId }` → `SelectionRequestSystem` (the one writer, CE-051) |
 | `DataBreakpointManager.AddBreakpoint` (read) | 1 | `SearchPredicateDto` condition + optional filter entity + threshold — the journal break is one of these (Brain View BV-28) |
@@ -73,16 +77,15 @@ manager, the selection). ⭐ A replay route is the SAME reader pointed at the re
 ```mermaid
 classDiagram
   class DebugApiHost { <<exists, changed>> NEW routes, each a RouteDoc }
-  class DebugApiService { <<exists, changed>> NEW View · Selection · Marks · Brain · Journal · Debug · JournalBreak · replay twins · ReplaySearch }
+  class DebugApiService { <<exists, changed>> NEW View · Selection · Brain · Journal · Debug · JournalBreak · replay twins · ReplaySearch }
   class RenderTelemetry { <<exists, changed>> Camera(host, mode, pose, fovy, viewRect2D, possessed) per host }
   class MapStatsOverlay { <<exists, changed>> publishes fovy, the 2-D rect, the possessed unit }
   class ViewReader {
     <<NEW, pure>>
     InView(world, camera, filter) units with distance, screen xy
   }
-  class AgentMarkEvent { <<NEW, recorded event>> Target · Seq · Note · By }
-  class AgentMarkLog { <<NEW>> ring of marks for GET /marks?since }
-  class AgentMarkGizmo { <<NEW>> a badge on a marked unit for 30 s }
+  class PossessionStation { <<exists, changed>> NEW key: select the unit under the crosshair }
+  class SelectEntityCommand { <<exists>> the one selection writer }
   class BrainView { <<Brain View P1>> Read(world, unit) BrainSnapshot }
   class BrainJournalReader { <<Brain View P2>> Since(world, unit, seq) }
   class UnitDebugController { <<Brain View BV-26>> SetDebugged · BreakOnChange }
@@ -93,9 +96,8 @@ classDiagram
   MapStatsOverlay --> RenderTelemetry
   DebugApiService --> RenderTelemetry : last pose
   DebugApiService --> ViewReader
-  DebugApiService --> AgentMarkLog
-  AgentMarkLog ..> AgentMarkEvent
-  AgentMarkGizmo ..> AgentMarkEvent
+  PossessionStation ..> SelectEntityCommand
+  PossessionStation ..> RenderTelemetry : aimTarget
   DebugApiService --> BrainView : live world or sandbox
   DebugApiService --> BrainJournalReader : live world or sandbox
   DebugApiService --> UnitDebugController
@@ -104,8 +106,8 @@ classDiagram
   JournalHistoryScan --> RecordingSearchService
   DebugApiService --> RecordingSearchService
 ```
-*What the picture shows that prose hid:* the only new mechanisms are the mark (an event, a ring, a badge) and `ViewReader`'s frustum
-test; everything else is an existing reader called with either the live world or the replay sandbox — which is what makes "the same
+*What the picture shows that prose hid:* the only new mechanism is `ViewReader`'s frustum test (plus one key in first person that
+feeds the EXISTING selection); everything else is an existing reader called with either the live world or the replay sandbox — which is what makes "the same
 route over a recording" nearly free.
 
 ## 4. Sequences
@@ -115,17 +117,15 @@ route over a recording" nearly free.
 ```mermaid
 sequenceDiagram
   participant O as Operator
-  participant M as map (unit menu)
+  participant M as map or FPS station
   participant W as editor world
   participant A as Agent
   participant S as DebugApiService (main thread)
-  O->>M: right-click a unit, Mark for AI, note "why is he running away"
-  M->>W: AgentMarkEvent (target, seq 7, note)
-  W-->>S: AgentMarkLog keeps it, the badge shows on the unit
-  A->>S: GET /marks?since=6
-  S-->>A: mark 7, unit 1042, the note
+  O->>M: click the unit (RTS), or in first person aim at it and press the select key
+  M->>W: SelectEntityCommand 1042, the selection ring shows
+  O->>A: (chat) why is the selected one running away
   A->>S: GET /view
-  S-->>A: mode FPS, eye, fovy 45, possessed 1007, selection, units in view by distance
+  S-->>A: mode FPS, eye, fovy 45, possessed 1007, aimTarget 1042, selection 1042, units in view by distance
   A->>S: GET /entities/1042/brain and /journal?since=0
   S-->>A: Doing, Ordered by, Knows, the last 24 changes with causes
   A->>S: POST /entities/1042/debug on, then POST /entities/1042/journal/break
@@ -144,17 +144,17 @@ sequenceDiagram
   participant R as ReplayBrowserContext (sandbox)
   participant Q as RecordingSearchService
   A->>S: POST /replay/load (the editor recording)
-  A->>S: GET /replay/marks
-  S->>Q: TransientEvent search for AgentMarkEvent over the file
-  S-->>A: every mark with its frame, unit and note
+  A->>S: POST /replay/search (SelectionState.IsSelected Changed)
+  S->>Q: the frames where the operator's selection changed
+  S-->>A: frame, unit
   A->>S: GET /replay/entities/1042/journal/history
   S->>Q: frames where unit 1042's journal chunk changed
   S->>R: seek each, read the ring, keep each Seq once
   S-->>A: every change of that unit in the file, with frame and cause
   A->>S: POST /replay/seek (the frame before a change)
-  A->>S: GET /replay/entities/1042/brain and GET /replay/view
+  A->>S: GET /replay/entities/1042/brain
   S->>R: the same BrainView.Read on the sandbox world
-  S-->>A: what it was doing, what it knew, where the operator was looking
+  S-->>A: what it was doing and what it knew
 ```
 *What the sequences show that prose hid:* the live and the replay paths call the SAME readers in the same order — the agent's
 procedure is identical, only the world differs; the replay adds one thing the live run cannot have, the whole-file history.
@@ -171,9 +171,8 @@ graph TD
   SVC --> VR["ViewReader — per request only"]
   SVC --> LIVE[("live world: SelectionState, PossessedBy, BrainJournal, CullingState")]
   SVC --> SBX[("replay sandbox: the same components at the seeked frame")]
-  MENU["unit menu Mark for AI — on a click"] --> EV["AgentMarkEvent — recorded"]
-  EV --> LOG["AgentMarkLog — drained once per frame"]
-  EV --> REC["RecorderSystem"]
+  FPS["PossessionStation — each frame in first person: AimTarget"] --> RT
+  FPS -->|"the select key"| SEL["SelectEntityCommand → SelectionRequestSystem (recorded SelectionState)"]
   HEAD["a host with no canvas (headless node, a test harness)"] -.->|"nothing publishes a pose: /view says camera unavailable"| RT
   classDef dead stroke-dasharray: 5 5
   class HEAD dead
@@ -190,15 +189,14 @@ replay ones under `/replay`, the debug ones editor-only like `/breakpoints`). Id
 
 | route | returns / does | reuses | slice |
 |---|---|---|---|
-| `GET /view` | `{mode: 2D\|3D\|FPS, camera: {eye, forward, yawDeg, pitchDeg, fovyDeg, viewport, rect2D?}, possessed: id?, zoomFovDeg?, selection: [ids], primary: id?, marks: [recent], inView: [{id, name, type, distance, screen: [x,y], inFront}]}`; `?los=true` adds a line-of-sight flag per unit from the eye; `?limit=` (default 50) | `RenderTelemetry` (AV-1), `CullingState` in 2-D, `ViewReader` frustum in 3-D (AV-2), `/perception/los`'s ray | `CE-1262` |
-| `GET /selection` · `POST /selection {networkId}` | the primary and all selected · select one | `SelectionState`; `SelectEntityCommand` (AV-4) | `CE-1263` |
-| `GET /marks?since=` · `DELETE /marks` | the marks after a seq, newest first · clear | `AgentMarkLog` (AV-5) | `CE-1264` |
+| `GET /view` | `{mode: 2D\|3D\|FPS, camera: {eye, forward, yawDeg, pitchDeg, fovyDeg, viewport, rect2D?}, possessed: id?, aimTarget: id?, lockedTarget: id?, zoomFovDeg?, selection: [ids], primary: id?, debugged: id?, inView: [{id, name, type, distance, screen: [x,y], inFront}]}`; `?los=true` adds a line-of-sight flag per unit from the eye; `?limit=` (default 50) | `RenderTelemetry` (AV-1), `CullingState` in 2-D, `ViewReader` frustum in 3-D (AV-2), `/perception/los`'s ray | `CE-1262` |
+| `GET /selection` | the primary and all selected | `SelectionState` (AV-4) | `CE-1263` |
+| *(no route)* first-person select key | selects the unit under the crosshair, so `GET /selection` names it after you leave first person too | `PossessionStation.AimTarget` → `SelectEntityCommand` (AV-5) | `CE-1264` |
 | `GET /entities/{id}/brain` | the `BrainSnapshot` as JSON (or `onBrainNode: false` and where to look) | `BrainView.Read` (BV-8) | `CE-1248` (already filed) |
 | `GET /entities/{id}/journal?since=` | the entries after `Seq`, oldest first, names resolved; `gap: true` when more than 24 were written since | the journal (BV-27) | `CE-1249` (scope added) |
 | `POST /entities/{id}/debug {on}` | "Debug this unit" on / off | `UnitDebugController` (BV-26) | `CE-1257` |
 | `POST /entities/{id}/journal/break {kinds?}` | a breakpoint id; hits come through the EXISTING `GET /breakpoints/hits` (with the new entries), resume through `/breakpoints/continue` / `/step`, remove through `DELETE /breakpoints/{id}` | `JournalBreakArm` over `DataBreakpointManager` (BV-28) | `CE-1258` |
-| `POST /eqs/query {querier, query, params}` | one EQS answer for a unit, outside its sensors | — needs its own design (AV-10) | `CE-1267` |
-| already there, named in `/view` | `/entities/{id}/sensors`, `/memory`, `/utility`, `/trace`, `/slots`, `/squad` for the possessed or a marked unit; `/annotations` and `/entities/{id}/focus` for the agent to point back | — | — |
+| already there, named in `/view` | `/entities/{id}/sensors` (every EQS sensor's last answer included), `/memory`, `/utility`, `/trace`, `/slots`, `/squad` for the possessed or selected unit; `/entities/{id}/focus` and `/annotations` for the agent to point back | — | — |
 
 ### 6b. Over one editor recording *(after `POST /replay/load`; every read is at the frame of the last seek / step)*
 
@@ -207,26 +205,25 @@ replay ones under `/replay`, the debug ones editor-only like `/breakpoints`). Id
 | `GET /replay/entities/{id}/brain` | the same `BrainSnapshot` from the sandbox | `BrainView.Read(sandbox)` (AV-6) | `CE-1265` |
 | `GET /replay/entities/{id}/journal?since=` | the ring as it was at that frame | the journal reader on the sandbox | `CE-1265` |
 | `GET /replay/entities/{id}/journal/history?from=&to=` | EVERY entry of that unit in the file (or the frame range), each once, with its frame | `JournalHistoryScan` (AV-8) | `CE-1265` |
-| `GET /replay/view` | the possessed unit and its eye at that frame; else the recorded camera entity's last pose, with `cameraAge` | `PossessedBy` + the camera entity (AV-7) | `CE-1265` |
 | `GET /replay/selection` | the selection at that frame | `SelectionState` on the sandbox | `CE-1265` |
-| `GET /replay/marks` | every mark in the file with its frame | `RecordingSearchService` TransientEvent search (AV-5) | `CE-1265` |
 | `POST /replay/search {condition, networkId?}` | the frames (and units) where the condition holds | `RecordingSearchService.ExecuteSearch` — the same `SearchPredicateDto` breakpoints take (AV-9) | `CE-1266` |
 
-## 7. Decisions *(approved 2026-10-23 on the proposal — R-1029)*
+## 7. Decisions *(approved 2026-10-23 on the proposal — R-1029; value review the same day, on the user's question "if this has no real value and can be obtained from other sources by the AI agent … no need for it (this question might be asked also for other parts...)")*
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **AV-1** | where the camera comes from | ⭐ extend the per-frame publish that exists on every map host (`MapStatsOverlay.Update` → `RenderTelemetry.Camera`): add the vertical FOV (the possession station's zoom FOV when zoomed), the 2-D view rectangle and the possessed unit; key the slot by host so two canvases in one process (the editor map and the replay browser) do not overwrite each other | a probe seam through the `MapLayers` record in each host — five hosts, five forwarding rails, for a publish that already exists · read the camera from the HTTP thread — banned |
 | **AV-2** | "in view" | ⭐ 2-D: `CullingState.IsVisible` (already computed each frame); 3-D and FPS: `ViewReader` tests each unit against the published frustum on the main thread, sorted by distance, with its screen point; occlusion only on `?los=true` (one ray per unit) | occlusion always — a ray per unit per request for an answer usually not needed |
 | **AV-3** | what the possessed unit perceives | ⭐ `/view` names it; the agent calls the existing `/entities/{id}/sensors` and `/memory` | a perception block inside `/view` — duplicates two routes |
-| **AV-4** | selection | ⭐ `GET` reads `SelectionState`; `POST` sends `SelectEntityCommand` — the one writer — so the operator sees the agent's pick; one unit per call (the command carries one id) | write `SelectionState` directly — bypasses `SelectionRequestSystem` |
-| **AV-5** | marks | ⭐ **Mark for AI…** on the map unit menu (and on the selection), an optional note; a recorded `AgentMarkEvent` (target, seq, note, by operator); `AgentMarkLog` keeps the last 64 for `GET /marks?since=`; a badge on the unit for 30 s; the replay finds them with the event search. The menu letter is picked at build against the unit menu's own letters (M, B, K, V, G are taken) | a component on the unit — a managed note and an unmark that removes it · marks only in process memory — lost to the recording |
+| **AV-4** | selection | ⭐ `GET /selection` only; the agent points back with the existing `/entities/{id}/focus` and `/annotations` | `POST /selection` — **withdrawn in the value review**: `/focus` + `/annotations` already show the operator a unit · write `SelectionState` directly — bypasses `SelectionRequestSystem` |
+| **AV-5** | how the operator says "this one" *(revised 2026-10-23 — user: "it is for telling ai what i am looking at, is that about aiming at entity in fps mode when no entity selection possible?")* | ⭐ **the selection is the pointer** — in RTS / free flight a click selects (already recorded, `SelectionState` is `NoScenario`), the note goes in the chat. ⭐ **First person is the one gap** — LMB fires there, so: `/view` reports `aimTarget` (what the crosshair rests on, already computed each frame) and one first-person key SELECTS the unit under the crosshair through `SelectEntityCommand`, so the pointer survives moving the aim and leaving first person; the key is picked at build against the station's keys | a separate "Mark for AI" (event, log, badge) — **withdrawn in the value review**: the selection already does it, recorded · `aimTarget` alone — the aim moves before the agent asks |
 | **AV-6** | one reader, two worlds | ⭐ every reader takes the world (and network map) as an argument; a replay route passes `_replayContext.SandboxRepo` and the map `BuildReplayExtractionService` builds at the seek | a replay copy of each reader — two implementations (ruling 9) |
-| **AV-7** | the camera in a recording | ⭐ the possessed unit's eye when possessed (recorded); else the recorded camera entity's last pose, reported with `cameraAge` (it is written only when still, never in FPS); no recorder change now | record the camera every frame — not needed for "what was the operator looking at" when possession covers FPS |
+| **AV-7** | the camera in a recording — ⛔ **WITHDRAWN in the value review** (`/replay/view`): the after-action questions are about units — the brain, the journal, the selection — and the recorded camera is partial (still for 0.5 s, never in first person) | ~~the possessed unit's eye when possessed (recorded); else the recorded camera entity's last pose, reported with `cameraAge`~~ | ~~record the camera every frame~~ |
 | **AV-8** | the whole-file history of a unit | ⭐ `JournalHistoryScan`: candidate frames from `RecordingSearchService` (`PropertyMatch BrainJournal.Seq Changed` with the unit as filter — chunk-granular, a superset, fine offline), seek each, read the ring, keep each `Seq` once; every change dirties the chunk and the recorder writes that frame, so no entry is skipped | step every frame of the file — the same answer, slower · trust a single read at the end — the ring holds 24 |
 | **AV-9** | general search over the recording | ⭐ `POST /replay/search` exposes `RecordingSearchService.ExecuteSearch` with the condition DTO breakpoints already take — one condition language for "stop when" live and "find when" afterwards | a route per question — the predicate DTO already covers them |
-| **AV-10** | EQS from the agent | ⭐ filed as its own item: a one-shot query needs the solver callable outside the sensor tick and a design note of its own; the sensors route answers the possessed unit's EQS today | fold it into this design — a solver change hidden in an HTTP item |
-| **AV-11** | the catalog | ⭐ each new route ships its `RouteDoc` and `CapabilityManifest` row (the C# rails redden otherwise); one sweep regenerates `tools/ai-debug-mcp` (`gen-catalog.mjs`, `--check`) and the skill — it also clears the tools that are stale today (film, director, layers) | hand-edit the catalog — the rot `gen-catalog.mjs` exists to stop |
+| **AV-10** | EQS from the agent — ⛔ **WITHDRAWN in the value review** | ⭐ none: `/entities/{id}/sensors` already returns every EQS sensor's last answer for any unit (the possessed one included); a one-shot "what if" query would need the solver outside the sensor tick for a tuning question, not a diagnosis | a one-shot `POST /eqs/query` — no question it answers that the unit's own sensors do not |
+| **AV-11** | the catalog *(revised 2026-10-23 — 🔒 user: "regenerating of the docs must be part of every ai debug http change, no way as some time later" — R-1030)* | ⭐ **every commit that adds or changes a route regenerates `tools/ai-debug-mcp` (`gen-catalog.mjs`) and the skill in the SAME commit**, beside its `RouteDoc` and `CapabilityManifest` row; ⭐ enforced by a new C# rail beside `EveryRouteIsDocumentedTests`: every route's tool name appears in `tool-catalog.mjs` (no node, no build of the editor) — red the moment a route lands without regeneration; ⭐ the catalog is regenerated NOW (the `/director/*` routes are missing today) | one regeneration sweep after the routes — the user ruled it out · rely on `gen-catalog.mjs --check` by hand — nothing runs it, which is how it went stale |
+| **AV-13** | the value test for every route here | ⭐ a route is built only when no existing route answers its question — the value review withdrew four (marks, `POST /selection`, one-shot EQS, `/replay/view`) | — |
 | **AV-12** | scope | ⭐ the editor process and one editor recording; on a `--mode all` host the live reads follow the active perspective (Q54-2) and a brain-less one answers `onBrainNode: false` (BV-6); no cluster-wide merge of recordings | merge node recordings — the user ruled it out for now |
 
 ## 8. Slices
@@ -234,24 +231,24 @@ replay ones under `/replay`, the debug ones editor-only like `/breakpoints`). Id
 | slice | owner | what | tracker |
 |---|---|---|---|
 | **V1** | ui | AV-1 publish fields; `ViewReader`; `GET /view` | `CE-1262` |
-| **V2** | ui | `GET` / `POST /selection` | `CE-1263` |
-| **V3** | ui | marks: the menu items, `AgentMarkEvent`, `AgentMarkLog`, the badge, `GET` / `DELETE /marks` | `CE-1264` |
-| **V4** | ui | the replay twins (brain, journal, history, view, selection, marks) | `CE-1265` |
+| **V2** | ui | `GET /selection` | `CE-1263` |
+| **V3** | ui | the first-person select key (aim + key → `SelectEntityCommand`) | `CE-1264` |
+| **V4** | ui | the replay twins (brain, journal, history, selection) | `CE-1265` |
 | **V5** | ui | `POST /replay/search` | `CE-1266` |
-| **V6** | behaviors or ui | a one-shot EQS query — design note first | `CE-1267` |
-| **V7** | ui | catalog + skill regeneration, after the routes above land | `CE-1268` |
+| ~~V6~~ | — | withdrawn (AV-10) | `CE-1267` |
+| **V7** | ui | regenerate the catalog now; the catalog rail (AV-11); from then on every route slice regenerates in its own commit | `CE-1268` |
 
-⭐ Order: V1–V3 need nothing from the brain work; the brain / journal / debug routes ride on `CE-1248`, `CE-1249`, `CE-1257`,
-`CE-1258`; V4 needs `CE-1248` + `CE-1249`.
+⭐ Order: V7 first (the rail then guards every later slice); V1–V3 need nothing from the brain work; the brain / journal / debug routes ride on `CE-1248`, `CE-1249`, `CE-1257`,
+`CE-1258`; V4 needs `CE-1248` + `CE-1249`; each slice's commit carries its regenerated catalog (R-1030).
 
 ## 9. Acceptance
 
 | | rail / check |
 |---|---|
-| V1 | `ViewReader` on a fixture: units inside / outside a frustum, sorted by distance, screen points; 2-D uses `CullingState`; two hosts in one process keep their own pose; `/view` on a headless host says the camera is unavailable |
-| V2 | `POST /selection` selects through `SelectionRequestSystem` (the selection ring appears on the map); `GET` lists primary and all |
-| V3 | a menu click publishes one recorded event; `GET /marks?since=` returns it once; the badge draws (frame rail); the mark survives a replay load |
-| V4 | over a recorded fixture: brain and journal at a seek match the live reads at that frame; the history lists every entry once in order; `/replay/view` names the possessed unit at an FPS frame |
+| V1 | `ViewReader` on a fixture: units inside / outside a frustum, sorted by distance, screen points; 2-D uses `CullingState`; two hosts in one process keep their own pose; first person reports `aimTarget`; `/view` on a headless host says the camera is unavailable |
+| V2 | `GET /selection` lists primary and all |
+| V3 | in first person, aim at a unit and press the key: it becomes the primary selection (the ring shows after leaving first person); aiming at nothing selects nothing |
+| V4 | over a recorded fixture: brain and journal at a seek match the live reads at that frame; the history lists every entry once in order; `/replay/selection` matches the live selection at that frame |
 | V5 | a component condition and an event condition each return the right frames over a recorded fixture |
-| V7 | `gen-catalog.mjs --check` green; the skill names the new tools |
-| live | `pc-defend-house`: mark a defender, the agent finds it in `/marks`, reads its brain, arms the journal break, steps through one change |
+| V7 | the catalog rail is red on a route missing from `tool-catalog.mjs` (red-proved by deleting one entry) and green after regeneration; the `/director/*` tools appear |
+| live | `pc-defend-house`: select a defender (and once in first person with the key), the agent finds it in `/selection` / `/view`, reads its brain, arms the journal break, steps through one change |
