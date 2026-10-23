@@ -1058,6 +1058,7 @@ namespace Hrot.UI.Common.Map3D
         private float _bodyYaw, _dt;   // ⭐ CE-1204 (§8l LK-2, LK-4) — a person's heading while his look is free; the last frame's dt
         private bool _lookInitialised;
         private uint _seq;
+        private int _seatedGun = -1;   // ⭐ CE-1307 — the controlled weapon his seat gave him, as last seen
         private Fdp.Toolkit.Tkb.Domain.StanceId? _stance;   // ⭐ CE-1074 — the stance the operator asked for (null: not yet)
         private bool _crouchHeld;                          // ⭐ CE-1143 — Ctrl held: crouched while held
         private Vector3 _eye;                              // ⭐ CE-1073 — where the eye was placed this frame
@@ -1614,6 +1615,12 @@ namespace Hrot.UI.Common.Map3D
             int slotCount = _world() is { } mw ? PossessionStation.Hud.Slots(mw, Unit, slots) : 0;
             if (slotCount == 0) slots[slotCount++] = 0;
             if (slots.Slice(0, slotCount).IndexOf(Mount) < 0) Mount = slots[0];   // ⭐ CE-1158 — a controlled weapon gone (he left the seat)
+            // ⭐ CE-1307 — a man who takes a seat that works a weapon starts ON that weapon (a gunner's job is the gun): the first controlled
+            //   index, once per seat; 1 still picks his own. 📌 Live: the APC gunner's frames said Mount 0, his rifle — the M2 never moved.
+            int controlled = -1;
+            for (int k = 0; k < slotCount && controlled < 0; k++)
+                if (Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(slots[k])) controlled = slots[k];
+            if (controlled != _seatedGun) { if (controlled >= 0) Mount = controlled; _seatedGun = controlled; }
             if (UseListOpen)
             {
                 // ⭐ CE-1158 (O-1) — while the hold-use list is open the wheel and 1-4 pick a verb, not a weapon

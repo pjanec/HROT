@@ -1985,6 +1985,10 @@ which already crosses nodes (`EntityOrders.Possess`).
 
 ### 8n.5 AS-BUILT (`2026-10-21`, ui) — build-state: BUILT
 
+> ⭐ **`2026-10-23` (CE-1307) — a man who takes a seat that works a weapon starts ON that weapon** (the first controlled index `32+k`, once per
+> seat; 1 still picks his own). 📌 Measured live on the MilitaryAPC's gunner: his frames said `Mount 0`, his rifle, so the roof M2 never got an order
+> and "the turret doesn't follow". `FpsCameraDriver` `_seatedGun`; rail `CE1158_AMannedWeapon_JoinsTheKeys_AfterHisOwn_AsMount32`.
+
 | design said | built | why / note |
 |---|---|---|
 | MS-1 possess the man | ✅ `SeatSwitch.Seats` (the vehicle, then the man at each station's operating seat, in seat order) / `Next`; G → `PossessionStation.SwitchTo` (the one Tab path) | `FpsCameraDriver.Aboard`: W/A/S/D send 0 |
