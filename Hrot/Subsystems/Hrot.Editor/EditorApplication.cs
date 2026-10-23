@@ -82,7 +82,8 @@ public sealed class EditorApplication : IEditorLogic
         FdpEventBus orchestrationBus,
         EntityRepository world,
         HotReloadMessageLogSource? hotReloadSource = null,
-        string[]? aiProjectPathSegments            = null)
+        string[]? aiProjectPathSegments            = null,
+        Action? leaveRun                           = null)
     {
         _simBus               = simBus           ?? throw new ArgumentNullException(nameof(simBus));
 
@@ -95,7 +96,8 @@ public sealed class EditorApplication : IEditorLogic
             fileService      ?? throw new ArgumentNullException(nameof(fileService)),
             orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus)),
             world            ?? throw new ArgumentNullException(nameof(world)),
-            () => EditorBootstrap.ScenariosRoot);
+            () => EditorBootstrap.ScenariosRoot,
+            leaveRun: leaveRun);   // ⭐ CE-1025 — the editor's dry run, left without a rewind at each load
 
         _hotReloadSource      = hotReloadSource;
         _aiProjectPathSegments = aiProjectPathSegments

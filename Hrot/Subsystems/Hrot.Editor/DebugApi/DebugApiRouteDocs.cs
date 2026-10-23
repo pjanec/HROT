@@ -1242,7 +1242,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "load_scenario_edit",
             Group:   "E — Scenario",
             Summary: "Load a scenario for AUTHORING (Edit state), cluster-wide.",
-            Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.",
+            Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
             Hint:    "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
             Params: new RouteParam[]
             {
@@ -1252,6 +1252,7 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
+                "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
                 "Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).",
                 "Edit state freezes sim time — nothing ticks until enter_preview or play.",
                 "CE-102 (2026-08-28) gave CGF the shared edit-load handler, so an edit load is NO LONGER partial on that node. This note previously said CGF had none -- that is now stale. Still prefer load_scenario_live for a real run, and verify either load by reading state.",
@@ -1271,7 +1272,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "load_scenario_live",
             Group:   "E — Scenario",
             Summary: "Load a scenario for RUNNING (Live state), cluster-wide, on any host.",
-            Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.",
+            Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
             Hint:    "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_live({name:\"test-move\",waitForReady:true})",
             Params: new RouteParam[]
             {
@@ -1281,6 +1282,7 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
+                "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
                 "Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).",
                 "Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.",
                 "A live load starts a new exercise run (a fresh ExerciseId), which is what recording and replay key off.",

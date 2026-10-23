@@ -567,6 +567,9 @@ namespace Hrot.Editor
         /// </summary>
         private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new();
         private bool _newExercisePopupOpened;
+        // ⭐ CE-1025 (R-1031) — the warning before a load over a running live run or dry run (the same modal as New Exercise).
+        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _loadConfirm = new();
+        private bool _loadConfirmPopupOpened;
 
         // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
         private ImGuiInputSource? _shellInputSource;
@@ -732,6 +735,17 @@ namespace Hrot.Editor
                 //   and wall ticks, so nothing is left from the abandoned timeline.
                 _timeCommands.SnapTo(_enteredAt);
 
+                _inPreview = false;
+            }
+
+            /// <summary>⭐ <c>CE-1025</c> (R-1031) — a load during the dry run: the restore point is dropped, the clock paused and NOT put
+            /// back (every load resets it to 0, AQ86 §4-G). ⛔ ExitPreviewMode here was the defect: nothing left the dry run, so Stop
+            /// rewound the newly loaded world to the one before the load.</summary>
+            public void ForgetPreview()
+            {
+                if (!_inPreview) return;
+                _handler.TriggerForgetPreview();
+                _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
                 _inPreview = false;
             }
         }
@@ -2240,7 +2254,10 @@ namespace Hrot.Editor
             var app = new EditorApplication(
                 fileService, _world.Bus, _orchestrationBus!, _world,
                 hotReloadSource: _hotReloadSource,
-                aiProjectPathSegments: AiBehaviorsProjectPath);
+                aiProjectPathSegments: AiBehaviorsProjectPath,
+                // ⭐ CE-1025 (R-1031) — every load (menu, HTTP edit, the film director) leaves the editor's dry run first, WITHOUT a
+                //   rewind. Late-bound: the preview controller is built below (step 8).
+                leaveRun: () => _previewController?.ForgetPreview());
             _editorLogic = app;
             _editorApp   = app;
 
@@ -2939,13 +2956,19 @@ namespace Hrot.Editor
         /// </summary>
         private void DrawNewExerciseConfirmModal()
         {
-            if (!_newExerciseConfirm.IsPrompting) return;
+            DrawConfirmModal(_newExerciseConfirm, "New Exercise###scenario_new_exercise_confirm", ref _newExercisePopupOpened);
+            // ⭐ CE-1025 — the load warning, the same modal shape (Cancel / [X] / Esc never load)
+            DrawConfirmModal(_loadConfirm, "Load Scenario###scenario_load_over_run_confirm", ref _loadConfirmPopupOpened);
+        }
 
-            const string popupId = "New Exercise###scenario_new_exercise_confirm";
-            if (!_newExercisePopupOpened)
+        private static void DrawConfirmModal(Hrot.Editor.AiShared.Scenarios.ConfirmPromptController confirm, string popupId, ref bool opened)
+        {
+            if (!confirm.IsPrompting) return;
+
+            if (!opened)
             {
                 ImGuiNET.ImGui.OpenPopup(popupId);
-                _newExercisePopupOpened = true;
+                opened = true;
             }
 
             var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
@@ -2955,21 +2978,21 @@ namespace Hrot.Editor
             if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
                     ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
             {
-                ImGuiNET.ImGui.TextUnformatted(_newExerciseConfirm.Message);
+                ImGuiNET.ImGui.TextUnformatted(confirm.Message);
                 ImGuiNET.ImGui.Spacing();
 
-                if (ImGuiNET.ImGui.Button(_newExerciseConfirm.ConfirmLabel))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _newExercisePopupOpened = false; _newExerciseConfirm.ResolveConfirm(); }
+                if (ImGuiNET.ImGui.Button(confirm.ConfirmLabel))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); opened = false; confirm.ResolveConfirm(); }
                 ImGuiNET.ImGui.SameLine();
                 if (ImGuiNET.ImGui.Button("Cancel"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _newExercisePopupOpened = false; _newExerciseConfirm.ResolveCancel(); }
+                { ImGuiNET.ImGui.CloseCurrentPopup(); opened = false; confirm.ResolveCancel(); }
 
                 ImGuiNET.ImGui.EndPopup();
             }
             else if (!stayOpen)
             {
-                _newExercisePopupOpened = false;
-                _newExerciseConfirm.ResolveCancel();
+                opened = false;
+                confirm.ResolveCancel();
             }
         }
 
@@ -4355,7 +4378,13 @@ namespace Hrot.Editor
                     _saveAllStatus = written.Count == 0
                         ? "[Curated] No curated scenarios saved (not a source checkout, or none present)."
                         : $"[Curated] Saved {written.Count} scenario(s) to git: " + string.Join(", ", written);
-                });
+                },
+                // ⭐ CE-1025 (R-1031) — Live… / Edit… over a running live run or dry run warn first (this host is the interactive one;
+                //   the HTTP routes never prompt, ruling 53).
+                runningRun:  () => Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(
+                                       _previewController?.IsInPreviewMode == true,
+                                       _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle),
+                confirmLoad: (title, message, label, run) => _loadConfirm.Request(title, message, label, run));
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

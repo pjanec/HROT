@@ -135,6 +135,10 @@ public static class ScenarioMenuCommands
     /// Seam that surfaces the migration sidecar list. When null the command is still registered but its
     /// handler only reads the sidecars.
     /// </param>
+    /// <param name="runningRun">⭐ <c>CE-1025</c> (R-1031) — the run a load would break ("a live run" / "a dry run"), or null
+    /// (<see cref="ScenarioLoadGuard.RunningRun"/>). Null seam: never warn.</param>
+    /// <param name="confirmLoad">⭐ <c>CE-1025</c> — confirms a load over a running run (title, message, label, continuation) — the same
+    /// prompt as <paramref name="confirmNewExercise"/> (ruling 53). Asked AFTER the pick, only while a run is running.</param>
     /// <param name="isCuratedSaveEnabled">Whether the curated-scenarios git copy can run here.</param>
     /// <param name="saveCuratedToGit">Performs the curated-scenarios git copy.</param>
     public static void Register(
@@ -147,7 +151,9 @@ public static class ScenarioMenuCommands
         Action<Action>?                                            confirmNewExercise   = null,
         Action<IReadOnlyList<SidecarFileInfo>>?                    showMigrationHistory = null,
         Func<bool>?                                               isCuratedSaveEnabled = null,
-        Action?                                                   saveCuratedToGit     = null)
+        Action?                                                   saveCuratedToGit     = null,
+        Func<string?>?                                            runningRun           = null,
+        Action<string, string, string, Action>?                   confirmLoad          = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -176,7 +182,7 @@ public static class ScenarioMenuCommands
             LoadLiveId, "Load Scenario", $"{LiveMenuPrefix}/Load Scenario",
             "Load a scenario and run it live (cluster-wide)",
             isEnabled: () => openPicker != null,
-            handler: _ => PickScenario(openPicker, session.LoadForLive),
+            handler: _ => PickScenario(openPicker, name => Guarded(name, session.LoadForLive, runningRun, confirmLoad)),
             dynamicDisplayName: Unavailable("Load Scenario", openPicker != null, NoPickerReason));
 
         // ══ File/Edit — authoring on a scenario opened for edit ═════════════════
@@ -187,7 +193,7 @@ public static class ScenarioMenuCommands
             LoadId, "Open Scenario", $"{EditMenuPrefix}/Open Scenario",
             "Open a scenario for editing (cluster-wide)",
             isEnabled: () => openPicker != null,
-            handler: _ => PickScenario(openPicker, session.OpenForEdit),
+            handler: _ => PickScenario(openPicker, name => Guarded(name, session.OpenForEdit, runningRun, confirmLoad)),
             dynamicDisplayName: Unavailable("Open Scenario", openPicker != null, NoPickerReason));
 
         RegisterCommand(
@@ -272,6 +278,17 @@ public static class ScenarioMenuCommands
     /// </summary>
     private static Func<string>? Unavailable(string displayName, bool serviceable, string reason)
         => serviceable ? null : () => $"{displayName} (unavailable — {reason})";
+
+    /// <summary>⭐ <c>CE-1025</c> (R-1031) — a load over a running live run or dry run asks first; otherwise it loads at once. The load
+    /// itself (the session) stops the run and forgets its restore point.</summary>
+    internal static void Guarded(string scenario, Action<string> load, Func<string?>? runningRun,
+        Action<string, string, string, Action>? confirmLoad)
+    {
+        if (confirmLoad != null && runningRun?.Invoke() is { } run)
+            confirmLoad(ScenarioLoadGuard.Title, ScenarioLoadGuard.Prompt(run, scenario), ScenarioLoadGuard.ConfirmLabel, () => load(scenario));
+        else
+            load(scenario);
+    }
 
     private static void PickScenario(
         Action<AssetKindFilter, Action<IEditableAsset?>>? openPicker,
