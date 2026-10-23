@@ -4997,7 +4997,9 @@ def run_rf_car_squads(c, timeout):
                     seen += 1
         hidden = 1.0 - (seen / total) if total else 0.0
         near = min((flat(rows[m][-1][1], rows[f][-1][1]) for m in moved for f in foes if rows[m][-1][1] and rows[f][-1][1]), default=99.0)
-        print(f"    {side}: movers {moved} · held {held} · movers hidden {hidden:.0%} of samples · closest mover-enemy at the end {near:.1f} m")
+        spent = sum((rows[n][0][3] or 0) - (rows[n][-1][3] or 0) for n in men if rows[n][0][3] is not None and rows[n][-1][3] is not None)
+        print(f"    {side}: movers {moved} · held {held} · movers hidden {hidden:.0%} of samples · closest mover-enemy at the end {near:.1f} m"
+              f" · rounds fired {spent} · tasks {sorted({r[4] for n in men for r in rows[n] if r[4]}, key=str)}")
     blue_moved = [n for n in blue if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 8.0]
     red_moved = [n for n in red if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 8.0]
     c.ok(any(0 < len(m) < 5 for m in (blue_moved, red_moved)), "(1) a side holds a base of fire while others move")
@@ -5012,9 +5014,9 @@ def run_rf_wall_hugger(c, timeout):
     blue = ids["Blue"]
     call("POST", "/sim/play", {})
     rows = _rf_sample(reds + ["Blue"], ids, 90)
-    wall = (124, 156.3)
+    wall = (130, 160.3)
     at_wall = next((r[0] for r in rows["Blue"] if r[1] and flat(r[1], wall) <= 1.5), None)
-    print(f"    Blue at the wall at t={at_wall}")
+    print(f"    Blue at the wall at t={at_wall} · Blue ended at {rows['Blue'][-1][1]} · tasks {sorted({r[4] for r in rows['Blue'] if r[4]}, key=str)}")
     # (1) a defender ducks within 2 s of Blue's shots
     blue_fire = [rows["Blue"][i][0] for i in range(1, len(rows["Blue"]))
                  if rows["Blue"][i][3] is not None and rows["Blue"][i - 1][3] is not None and rows["Blue"][i][3] < rows["Blue"][i - 1][3]]

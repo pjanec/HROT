@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "bt-range",
-    "description": "What: AQ102 S3 (CE-2355) - on bt-range, House A (front door south, back door north) stands between 'Blue' (Friend grenadier) behind 'Blue Car' at (105.5,88) and 'Red' (Hostile grenadier) behind 'Red Car' at (105.5,121); no orders, default SOP (immortal). Judge (120 s): (1) neither idles hidden more than 12 s; (2) one of them flanks: around House A or through its two doors; the route taken is printed (through / around); (3) neither stays in the house's dead ground longer than 20 s. Check: python3 scripts/utility-demo-check.py --launch rf-house-obstacle. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
+    "description": "What: AQ102 S3 (CE-2355) - on bt-range, House A (front door south, back door north) stands between 'Blue' (Friend grenadier) behind 'Blue Car' at (105.5,88) and 'Red' (Hostile grenadier) behind 'Red Car' at (105.5,121); each starts knowing where the other is (as bt-window-duel); no orders, default SOP (immortal). Judge (120 s): (1) neither idles hidden more than 12 s; (2) one of them flanks: around House A or through its two doors; the route taken is printed (through / around); (3) neither stays in the house's dead ground longer than 20 s. Check: python3 scripts/utility-demo-check.py --launch rf-house-obstacle. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
   },
   "entities": {
     "a1020003-0000-4000-8000-000000000001": {
@@ -97,7 +97,17 @@
         "ForceId": "Friend"
       },
       "TargetMemory": {
-        "Entries": []
+        "Entries": [
+          {
+            "Entity": "a1020003-0000-4000-8000-000000000004",
+            "PosX": 105.5,
+            "PosY": 123.5,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
       }
     },
     "a1020003-0000-4000-8000-000000000004": {
@@ -129,7 +139,17 @@
         "ForceId": "Hostile"
       },
       "TargetMemory": {
-        "Entries": []
+        "Entries": [
+          {
+            "Entity": "a1020003-0000-4000-8000-000000000003",
+            "PosX": 105.5,
+            "PosY": 85.5,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
       }
     }
   }
