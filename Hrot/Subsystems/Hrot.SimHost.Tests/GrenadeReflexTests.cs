@@ -195,21 +195,27 @@ namespace Hrot.SimHost.Tests
             w.Run(0.6);
             Assert.Equal(StanceId.Prone, w.Repo.GetComponentRO<StanceIntent>(far).TargetStance);                       // outside it: flat
 
-            w.Run(0.3);
-            Assert.False(w.Repo.IsAlive(round), "the nearest man picked it up (the owner granted it)");
-            Assert.True(PersonHands.HoldsLethal(w.Repo, near) || w.Repo.GetComponentRO<WeaponChannel>(near).ActiveAction == CombatConstants.ActionIdFireAtPoint);
-            w.Run(0.1);
-            unsafe
+            // the throw: the first tick his weapon channel carries a FireAtPoint (the executor would take it from there)
+            Vector3? throwAt = null;
+            int throwMount = -1;
+            for (int i = 0; i < 40 && throwAt == null; i++)
             {
-                ref readonly var weapon = ref w.Repo.GetComponentRO<WeaponChannel>(near);
-                Assert.Equal(CombatConstants.ActionIdFireAtPoint, weapon.ActiveAction);
-                fixed (byte* p = weapon.Params)
+                w.Tick();
+                unsafe
                 {
-                    var throwAt = ((Fdp.Toolkit.Combat.Executors.FireAtPointParams*)p)->Point;
-                    Assert.True(Vector3.Distance(throwAt, new Vector3(0, 20, 0)) < 0.1f, $"thrown back at its thrower: {throwAt}");
-                    Assert.Equal(PersonHands.MountIndex(w.Repo, near), ((Fdp.Toolkit.Combat.Executors.FireAtPointParams*)p)->Mount);
+                    ref readonly var weapon = ref w.Repo.GetComponentRO<WeaponChannel>(near);
+                    if (weapon.ActiveAction != CombatConstants.ActionIdFireAtPoint) continue;
+                    fixed (byte* p = weapon.Params)
+                    {
+                        throwAt = ((Fdp.Toolkit.Combat.Executors.FireAtPointParams*)p)->Point;
+                        throwMount = ((Fdp.Toolkit.Combat.Executors.FireAtPointParams*)p)->Mount;
+                    }
                 }
             }
+            Assert.False(w.Repo.IsAlive(round), "the nearest man picked it up (the owner granted it)");
+            Assert.True(throwAt.HasValue, $"he throws it from his hands (holding a live round: {PersonHands.HoldsLethal(w.Repo, near)})");
+            Assert.True(Vector3.Distance(throwAt!.Value, new Vector3(0, 20, 0)) < 0.1f, $"thrown back at its thrower: {throwAt}");
+            Assert.Equal(PersonHands.MountIndex(w.Repo, near), throwMount);
 
             w.Run(EvadeGrenadeBehavior.AfterBurstSeconds + 4.5);                                                         // it is gone; after its burst
             Assert.All(new[] { near, mid, far }, m => Assert.Equal("Idle", w.TaskOf(m)));                                // each back to his task
