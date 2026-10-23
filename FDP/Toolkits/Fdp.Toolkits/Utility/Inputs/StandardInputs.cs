@@ -58,6 +58,8 @@ namespace Fdp.Toolkit.Utility
         /// <summary>⭐ AQ102 A (CE-2356) — the unit was hit or near-missed lately: 1 within <see cref="StandardInputs.UnderFireFullSeconds"/>,
         /// falling to 0 at <see cref="StandardInputs.UnderFireSeconds"/> (<see cref="StandardInputs.UnderFire"/>).</summary>
         public const ushort UnderFire                = 0x2C71;
+        /// <summary>⭐ AQ102 A (CE-2356, as reworked) — max(1 − health, <see cref="UnderFire"/>) (<see cref="StandardInputs.HurtOrUnderFire"/>).</summary>
+        public const ushort HurtOrUnderFire          = 0x5EF1;
     }
 
     /// <summary>
@@ -503,6 +505,15 @@ namespace Fdp.Toolkit.Utility
             return (float)(1.0 - (age - UnderFireFullSeconds) / (UnderFireSeconds - UnderFireFullSeconds));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 A, reworked) — what makes a man want to get down: how hurt he is (1 − health) or how freshly he is shot
+        /// at (<see cref="UnderFire"/>), whichever is more. 📐 A product of a health floor and an under-fire boost (the first build) made
+        /// an UNHURT man with nobody shooting score HoldProne over Hold and AdvanceAndAttack (StarterPackIntegrationTests SC-SP-03 / -04):
+        /// out of fire this is exactly the old 1 − health (CE-3090: a wounded man holds prone), under fire it is 1 for anyone.
+        /// </summary>
+        [UtilityInput("HurtOrUnderFire")]
+        public static float HurtOrUnderFire(in UtilityInputCtx ctx) => Math.Max(1f - HealthFraction(in ctx), UnderFire(in ctx));
+
         public static void RegisterAll()
         {
             UtilityInputReaderStore.Register(StandardInputIds.AmmoFraction,             &AmmoFraction);
@@ -528,6 +539,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.ThreatInSight,            &ThreatInSight);
             UtilityInputReaderStore.Register(StandardInputIds.CarriesThrowable,         &CarriesThrowable);
             UtilityInputReaderStore.Register(StandardInputIds.UnderFire,                &UnderFire);
+            UtilityInputReaderStore.Register(StandardInputIds.HurtOrUnderFire,          &HurtOrUnderFire);   // ⭐ CE-2356
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

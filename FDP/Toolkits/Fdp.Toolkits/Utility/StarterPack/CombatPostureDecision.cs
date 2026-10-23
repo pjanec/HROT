@@ -36,8 +36,8 @@ namespace Fdp.Toolkit.Utility
         /// <summary>⭐ CE-3160 — the decision's asset id, for a C# tree that names it (CombatPostureBehavior).</summary>
         public const string DecisionAssetId = "3c6f9e42-5d10-6f3a-ac23-posture0000001";
 
-        // ⭐ AQ102 A — the curves (inline: Build() must be pure, UT0130): HealthFloor = 1 − 0.5·health (a wounded man still prefers cover
-        //   more, an unhurt one is no longer zeroed out) · UnderFireBoost = 0.6 + 0.4·UnderFire · UnderFireDamp = 1 − 0.7·UnderFire.
+        // ⭐ AQ102 A — HurtOrUnderFire = max(1 − health, UnderFire): out of fire the old 1 − health, shot at 1 for anyone ·
+        //   UnderFireDamp = 1 − 0.7·UnderFire (inline: Build() must be pure, UT0130).
 
         /// <summary>Builds the decision definition via the fluent builder.</summary>
         public static void Build(IUtilityDecisionBuilder b) => b
@@ -45,11 +45,10 @@ namespace Fdp.Toolkit.Utility
                 .Consider(In.HealthFraction(),     0.7f, Curve.Linear)
                 .Consider(In.AmmoFraction(),       0.9f, Curve.Threshold)
                 .Consider(In.EnemyStrengthRatio(), 0.8f, Curve.InverseLinear))
-            // ⭐ AQ102 A (CE-2356, R-2072) — under fire an UNHURT man takes cover too: health is a floor (0.5 at full health, not 0)
-            //   and being shot at lifts the option (0.6 → 1); Suppress loses 70 % under fire (it is fired from cover by PeekAndFire)
+            // ⭐ AQ102 A (CE-2356, R-2072) — under fire an UNHURT man takes cover too: hurt OR shot at (max), so out of fire it scores
+            //   as before; Suppress loses 70 % under fire (it is fired from cover by PeekAndFire)
             .Option((ushort)Posture.TakeCover, ScoringMode.WeightedProduct, o => o
-                .Consider(In.HealthFraction(),              0.8f, Curve.WithSlope(CurveKind.InverseLinear, 0.5f))
-                .Consider(In.UnderFire(),                   1.0f, new ResponseCurve(CurveKind.Linear, slope: 0.4f, xShift: -1.5f))
+                .Consider(In.HurtOrUnderFire(),             0.8f, Curve.Linear)
                 .Consider(In.EqsTopScore(FindCoverFromTarget.AssetId),  1.0f, Curve.Linear)
                 .Consider(In.EnemyStrengthRatio(),          0.6f, Curve.Logistic))
             .Option((ushort)Posture.Suppress, ScoringMode.WeightedProduct, o => o
@@ -64,8 +63,7 @@ namespace Fdp.Toolkit.Utility
                 .Consider(In.EqsTopScore(FindSafeRetreatPoint.AssetId), 0.8f, Curve.Linear)
                 .Consider(In.EnemyStrengthRatio(),           0.7f, Curve.Logistic))
             .Option((ushort)Posture.HoldProne, ScoringMode.WeightedProduct, o => o
-                .Consider(In.HealthFraction(),              0.8f, Curve.WithSlope(CurveKind.InverseLinear, 0.5f))
-                .Consider(In.UnderFire(),                   1.0f, new ResponseCurve(CurveKind.Linear, slope: 0.4f, xShift: -1.5f))
+                .Consider(In.HurtOrUnderFire(),             0.8f, Curve.Linear)
                 .Consider(In.HaveLiveTarget(),              1.0f, Curve.Step)
                 .Consider(In.EqsTopScore(FindCoverFromTarget.AssetId),  1.0f, Curve.InverseLinear)   // no cover
                 .Consider(In.EnemyStrengthRatio(),          0.6f, Curve.Logistic))
