@@ -163,6 +163,16 @@ namespace Hrot.AI.Behaviors.Brains
                    Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity);
 
         /// <summary>
+        /// ⭐ <c>CE-2357</c> (AQ102 E) — a FLANK on where the hidden top threat was LAST SEEN (its memory slot, L-5): the same
+        /// <see cref="FindFlankingPosition"/> as <see cref="Flank"/>, pointed at the remembered point, never the live entity. 📐 Measured
+        /// live (<c>rf-house-obstacle</c>): two men flanking each other's LIVE positions chased each other round House A and swapped sides
+        /// without a shot. Success on arrival.
+        /// </summary>
+        public static NodeStatus FlankRemembered(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindFlankingPosition.BlueprintId, FlankSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint);
+
+        /// <summary>
         /// ⭐ <c>CE-2108</c> — moves to a FIRING POSITION on the top identified threat (<see cref="FindOpenFiringPosition"/>: a
         /// nearby point that sees it, higher and less exposed scoring more), as <see cref="Flank"/> does. 📄 §9.
         /// </summary>

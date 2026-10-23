@@ -250,6 +250,9 @@ namespace Hrot.CGF
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffInboxSystem(gateOnAuthority));
             // ⭐ CE-2273 DA-A — a unit's authored proficiency reaches its men (written on each man: the hit model reads only him).
             simList.Add(new Fdp.Toolkit.Behavior.Systems.ProficiencyFillSystem(gateOnAuthority));
+            // ⭐ CE-2360 (AQ102 I) — a live grenade lying near a man: his reflex (run, drop, throw it back) as a reaction, before the brain
+            //   tick — every man, under command or not (it is no SOP row).
+            simList.Add(new Hrot.AI.Behaviors.Brains.GrenadeDangerSystem(gateOnAuthority));
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             // ⭐ CE-2319 / CE-2320 (AQ96 §2c) — a soldier's move under fire: AFTER the dispatchers, so a move issued this frame already has its

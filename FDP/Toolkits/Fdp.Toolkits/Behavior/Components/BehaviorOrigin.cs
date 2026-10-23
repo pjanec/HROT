@@ -47,6 +47,8 @@ namespace Fdp.Toolkit.Behavior.Components
         UnderFire = 3,
         /// <summary>Being hit.</summary>
         Hit = 4,
+        /// <summary>⭐ <c>CE-2360</c> (AQ102 I) — a live grenade lying near him: the most urgent (APPENDED).</summary>
+        Grenade = 5,
     }
 
     /// <summary>⭐ <c>CE-3034</c> — the rank rule, in one place.</summary>

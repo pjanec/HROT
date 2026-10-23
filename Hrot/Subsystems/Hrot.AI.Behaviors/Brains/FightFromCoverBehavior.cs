@@ -62,10 +62,11 @@ namespace Hrot.AI.Behaviors.Brains
             SearchRadius = 60f, MinRepositionMetres = 5f, Speed = 2.5f, ArrivalRadius = 1f, ScoreDeltaThreshold = 0.05f, FireWhileMoving = 1,
         };
 
-        /// <summary>⭐ <c>CE-2357</c> (AQ102 E) — the flank: within 40 m, at the rush, firing on the way when he sees him.</summary>
+        /// <summary>⭐ <c>CE-2357</c> (AQ102 E) — the flank on the remembered point: within 20 m (the next cover or two — 📐 40 m sent a man round a
+        /// house and past his enemy, <c>rf-house-obstacle</c>), at the rush, firing on the way when he sees him.</summary>
         public static readonly EqsTacticsParams FlankDefaults = new()
         {
-            SearchRadius = 40f, MinRepositionMetres = 5f, Speed = 4f, ArrivalRadius = 1f, ScoreDeltaThreshold = 0.05f, FireWhileMoving = 1,
+            SearchRadius = 20f, MinRepositionMetres = 5f, Speed = 4f, ArrivalRadius = 1f, ScoreDeltaThreshold = 0.05f, FireWhileMoving = 1,
         };
 
         /// <summary>⭐ AQ102 E — how long the enemy must be out of his sight before he flanks (s), and how many flanks one run tries.</summary>
@@ -107,11 +108,12 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (ws.InTheOpen == 0)
             {
-                // ⭐⭐ AQ102 E (CE-2357, R-2072) — the enemy out of sight for FlankAfterSeconds: a trained man FLANKS him (a point side-on
-                //   to him that sees where he was), then fights from cover again there — instead of peeking at the same car for ever
+                // ⭐⭐ AQ102 E (CE-2357, R-2072) — the enemy out of sight for FlankAfterSeconds: a trained man FLANKS where he was LAST SEEN
+                //   (a point side-on to it that sees it — never his live position), then fights from cover again there — instead of peeking
+                //   at the same car for ever
                 if (ws.Flanking == 1)
                 {
-                    var flank = EqsTacticsNodes.Flank(ref p.Flank, ref ws.Flank, self, world);
+                    var flank = EqsTacticsNodes.FlankRemembered(ref p.Flank, ref ws.Flank, self, world);
                     if (flank == NodeStatus.Running) return NodeStatus.Running;
                     EqsTacticsNodes.Deactivate_Flank(ref p.Flank, ref ws.Flank, self, world);
                     ws.Flanking = 0;
@@ -119,10 +121,7 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 else if (ShouldFlank(in p, in ws, self, world))
                 {
-                    PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
-                    ws.Flank = default;
-                    ws.Flanking = 1;
-                    ws.FlanksTried++;
+                    StartFlank(ref p, ref ws, self, world);
                     return NodeStatus.Running;
                 }
                 if (InCover(in ws) && Quiet(world, self, p.QuietSeconds) && !WouldReturn(world, self))
@@ -131,6 +130,13 @@ namespace Hrot.AI.Behaviors.Brains
                     return NodeStatus.Success;
                 }
                 var status = PeekAndFireNodes.PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
+                // ⭐ CE-2357 — PeekAndFire's own end (no LIVE threat: ~14 s unseen) while the enemy he saw is still remembered: he goes to
+                //   look for him rather than idle where he hid. 📐 Live (rf-car-duel): both men ended their fights so and idled 28–33 s.
+                if (status == NodeStatus.Success && MayFlank(in p, in ws, self, world) && WouldReturn(world, self))
+                {
+                    StartFlank(ref p, ref ws, self, world);
+                    return NodeStatus.Running;
+                }
                 if (status != NodeStatus.Failure || !world.HasComponent<LocomotionChannel>(self)) return status;
                 ws.InTheOpen = 1;   // no cover: PeekAndFire released its sensors, its move and its fire
             }
@@ -156,10 +162,22 @@ namespace Hrot.AI.Behaviors.Brains
         /// he holds no post (a posted man stays on it, DA-44); and this run has flanks left.</summary>
         public static bool ShouldFlank(in FightFromCoverParams p, in FightFromCoverState ws, Entity self, EntityRepository world)
         {
-            if (p.FlankAfterSeconds <= 0f || ws.FlanksTried >= MaxFlanks || !InCover(in ws) || p.Peek.AnchorRadius > 0f) return false;
-            if (ProficiencyOf.Tier(world, self) is ProficiencyTier.Untrained or ProficiencyTier.Militia) return false;
+            if (!InCover(in ws) || !MayFlank(in p, in ws, self, world)) return false;
             if (!CoverFightConditions.EnemySeenAndRemembered(self, world)) return false;
             return !CoverFightConditions.SeenWithin(self, world, (uint)(p.FlankAfterSeconds * 60f));
+        }
+
+        /// <summary>⭐ <c>CE-2357</c> — he may flank at all: flanking on, flanks left this run, no post (DA-44), trained (J).</summary>
+        public static bool MayFlank(in FightFromCoverParams p, in FightFromCoverState ws, Entity self, EntityRepository world)
+            => p.FlankAfterSeconds > 0f && ws.FlanksTried < MaxFlanks && p.Peek.AnchorRadius <= 0f
+               && ProficiencyOf.Tier(world, self) is not (ProficiencyTier.Untrained or ProficiencyTier.Militia);
+
+        private static void StartFlank(ref FightFromCoverParams p, ref FightFromCoverState ws, Entity self, EntityRepository world)
+        {
+            PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
+            ws.Flank = default;
+            ws.Flanking = 1;
+            ws.FlanksTried++;
         }
 
         /// <summary>He is at his hide point or fighting from it (not choosing one, not on his way to one).</summary>
