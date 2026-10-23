@@ -1037,7 +1037,7 @@ newly loaded world to the one before the load**. No interactive load warns.
 | a "forget" exists but has no local entry | `ReferencePreviewHandler.Abort:154` drops the keyframe and discards the id/map bracket WITHOUT rewinding; the local entries are only `TriggerLoadingPreview` / `TriggerUnloadingPreview` | restore design §1f: *"a dry run ended any other way (a load, an abort) forgets it"* (the clock half) |
 | the confirm seam to copy | `confirmNewExercise` + `ConfirmPromptController` (`EditorSubsystem.cs:568, 4335`) | ruling 53 (`UX_Feature_Modal_Surfaces`) |
 | the HTTP path must not prompt | `/scenario/load/live|edit` are non-interactive | ruling 53: headless never pre-flights, the origin logs what it did |
-| ⚠ a CLUSTER dry run (`OperatingPreview`, master-driven) has no forget edge | `HrotStateGraph`: the only way out is `UnloadingPreview → OperatingEdit` (a rewind) | ⛔ searched, none — **not in this item** (backend's graph; the editor's toolbar dry run never enters it) |
+| a CLUSTER dry run (`OperatingPreview`, master-driven) leaves by its own rewind | `HrotStateGraph`: `OperatingPreview → UnloadingPreview → OperatingEdit → UnloadingEdit → Idle`, which the Idle request plans (`TransitionPlannerTests.CE1025_ClusterDryRunToIdle_GoesThroughTheRewind`) | 🔒 user, `2026-10-23`: *"we might follow this path (via rewind to pre-preview state) into the standby cluster state before loading, no problem with that if that makes things more regular"* ⇒ no forget edge is built |
 
 ```mermaid
 classDiagram
@@ -1092,7 +1092,7 @@ graph TD
   MENU --> EA
   EA -.->|"leaveRun, at each load request"| PC
   DBG -.->|"ForgetPreview, at each HTTP load"| PC
-  CGF["CgfSubsystem — passes no leaveRun / confirmLoad"] -.->|"no editor dry run; a cluster preview is §9.1's open gap"| EA
+  CGF["CgfSubsystem — passes no leaveRun / confirmLoad"] -.->|"no editor dry run; a cluster dry run leaves by its rewind"| EA
   classDef dead stroke-dasharray: 5 5
   class CGF dead
 ```
@@ -1128,6 +1128,8 @@ so. Rails beside `EditorScenarioSessionLoadTests` and `ScenarioMenuCommands`' te
     out of preview, 26 entities (Locksmith, Visitor), and Stop keeps them;
   - a fresh dry run on bt-doors and Stop ⇒ simTime back to 0 on the next frame;
   - a load over a playing run ⇒ the new scenario, simTime 0.
+  - from a CLUSTER dry run (`POST /cluster/transition OperatingPreview`, played 1 s), `POST /scenario/load/live bt-doors` ⇒
+    `stoppedRun: "a dry run"`, `OperatingLive`, 26 entities (Locksmith, Visitor) — the master walked the rewind → Edit → Idle path.
   - ② (the menu prompt) is rail-only; a Windows look is owed.
 
 ## 10. ⭐⭐ `CE-3075` — **A SCENARIO NAMING NO TERRAIN UNLOADS THE RESIDENT ONE** *(AS-BUILT `2026-10-05`, backend)*
