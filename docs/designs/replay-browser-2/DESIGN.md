@@ -11,6 +11,7 @@ related-designs:
   - docs/DESIGN_Entity_Brain_View.md — a recorded brain journal makes the Brain tab an after-action "why" at any scrubbed frame
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: the one selection store and the request/notification
     protocol every host including ReplayBrowser now uses. This file owns the replay browser itself.
+  - docs/DESIGN_Agent_Shared_View.md — OWNS the HTTP replay twins of the brain / journal / view reads and /replay/search over RecordingSearchService (AV-6…AV-9)
 -->
 # FDP Replay Browser — Design
 

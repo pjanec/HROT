@@ -10,6 +10,7 @@ known-conflict: none. tools/ai-debug-mcp/SKILL.md documents the SAME surface thr
 related-designs:
   - docs/RUNBOOK_Filming.md — OWNS filming the 3-D map over these routes (/film/shot, /film/capture with /sim/pause and /sim/step)
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the utility AI demo scenarios and their per-scenario runbook (§5.3 there), which builds on this one.
+  - docs/DESIGN_Agent_Shared_View.md — OWNS the routes for what the operator sees (/view, /selection, /marks) and for debugging one unit live and over a recording; a line goes here when they are built
 -->
 
 # RUNBOOK — debugging a running HROT cluster over plain HTTP

@@ -9,6 +9,8 @@ current-answer: this is the DESIGN AS BUILT ON origin/feat/ai-debug-api. It was 
   Read this for the WHY and the endpoint-group intent; read docs/MCP_Integration.md for what is live on trunk.
 known-rot: the "New Work / Task Decomposition / Staging" sections describe the original build and are DONE;
   do not treat them as pending. Group A-N endpoint semantics still hold.
+related-designs:
+  - docs/DESIGN_Agent_Shared_View.md — OWNS the 2026-10-23 additions to these endpoint groups: /view, /selection, /marks, the brain / journal / debug / journal-break routes and their /replay twins, /replay/search (R-1029)
 -->
 
 ## Overview

@@ -61,6 +61,7 @@ related-designs:
     §5.3 (the DDS bridge as ingress) and §5.4 (the per-window ChainToMap toggle).
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store, the
     request/notification protocol and the egress. It does NOT own this file's SharedEntitySelection.
+  - docs/DESIGN_Entity_Brain_View.md — §10 BV-30 draws the Trace Timeline's first lane (Brain, from the journal) in the window §15 owns
 -->
 # AI Editor — Shared Infrastructure Detailed Design
 

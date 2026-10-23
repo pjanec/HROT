@@ -30,6 +30,7 @@ known-rot: §"Group Q" says the runtime hot-attach mechanism "already exists; ju
 known-conflict: none.
 related-designs:
   - docs/DESIGN_Entity_Control.md — OWNS the order routes (/entities/{id}/order, /orders, /sitrep, /possess) and the /entities/command payload fix (CE-3168)
+  - docs/DESIGN_Agent_Shared_View.md — OWNS the shared-view, brain-debug and replay routes added 2026-10-23 (R-1029); its AV-11 regenerates the catalog and skill here
 -->
 # AI-debug API + MCP server — integration status
 

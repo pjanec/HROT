@@ -42,6 +42,7 @@ related-designs:
   - docs/DESIGN_Terrain_Zones_And_Assets.md — §11 (R-4042): zones are fidelity areas; observer sensors need not see entities outside a zone. HOW sensors honour it is this doc's to design (not yet).
   - docs/DESIGN_Civilians_And_Crowd_Control.md — §5h AW-1 (R-2025): §7.8a's "armed" becomes ONE Armament rule (a visible usable lethal weapon; non-lethal and Hidden arm nobody); binoculars lengthen vision while held. ⭐ BUILT there §7.8 (CE-3229): status for combatants, per-observer identification for civilians.
   - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; its near-miss / hit edges feed stress; the doctrine swap stays the coarse lever above it
+  - docs/DESIGN_Agent_Shared_View.md — OWNS GET /view, which points an agent at the possessed unit's existing /sensors and /memory routes (AV-3)
 -->
 
 # Sensors and Doctrine — one sensor form, and who decides what a unit does

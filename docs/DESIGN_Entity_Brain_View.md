@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-23 (BV-15, BV-16 folded in — R-1027)
-build-state: READY-TO-BUILD — Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256)
+updated: 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!")
+build-state: READY-TO-BUILD — §10 live debugging (CE-1257…CE-1261) APPROVED 2026-10-23 (R-1029); Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
+current-answer: §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257…CE-1261; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -22,6 +22,9 @@ related-designs:
   - docs/blueprints/HSM_Editor_NodeEditor_Host_Design.md — OWNS the HSM canvas, the planned statechart layout (§3.4) and the live overlay (§13.4) Phase 3 completes
   - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — §3.2 OWNS pinning, which Phase 3 uses to keep the overlay on one unit
   - docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md — §32.22 (CE-348) OWNS the debug pump that follows the selection
+  - docs/DESIGN_Agent_Shared_View.md — OWNS the AI debug HTTP routes for everything here (brain, journal, debug, journal break), live and over one editor recording, plus the shared view (camera, selection, marks)
+  - docs/blueprints/AI_Editor_Shared_Infrastructure.md — §15 OWNS the Trace Timeline window; §10 BV-30 draws its first lane
+  - docs/designs/ai-debug-api/DESIGN.md — OWNS the data breakpoints (group G) the journal break is built from
 -->
 
 # Entity Brain View — what a unit is doing and why *(Phase 1 the Brain tab, Phase 2 the brain journal)*
@@ -358,3 +361,153 @@ graph TD
 | **P3c** | ui | `RunningBehaviourLocator`, the Brain tab button, the pin in the pump, hosted-child step-in | `CE-1254` | from a unit's Brain tab the right graph opens with ITS node / state lit; clicking another unit on the map does not move the pin |
 | **P3d** | ui | the HSM statechart layout — only if the BV-23 frame shows the grid unreadable | `CE-1255` | a frame of PlatoonDefend: composites enclose their children, parallel regions side by side, no overlaps |
 | **bug** | ui or behaviors | Blueprint entity filter from the pin | `CE-1256` | a Blueprint graph lights only the pinned unit's nodes |
+
+## 10. Live debugging of one unit, and the platoon's parallel regions *(approved 2026-10-23 on the proposal — R-1029)*
+
+🔒 **User, `2026-10-23`:** *"the goal of the graph views is to see what they do in live run of course (likely stepped), together with
+the decision history and various tracer stuff and watch window, how could it help giving the view of what is happening in entity's
+brain? btw the platoon uses parallel regions each running its own behavior, how that is covered"* · on the proposal: *"ok write it!
+turning "Debug this unit" ON as well the other debugging means need to be available to the ai debug http as well."*
+
+⭐ The HTTP side of every item here — the routes, live and over a recording — is designed in
+[`DESIGN_Agent_Shared_View.md`](DESIGN_Agent_Shared_View.md) §6. This section owns what the debugging DOES; that one owns how an agent
+reaches it. One controller serves both (BV-26).
+
+### 10.1 INVENTORY *(2026-10-23 — `scripts/cbm.sh search_graph` + grep + reads; coverage not provable through the CLI)*
+
+| query | total | what matters |
+|---|---|---|
+| `search_graph .*(Breakpoint\|DebugSession\|TraceLane\|TraceTimeline).*` (Class) + reads | — | `DataBreakpointManager` (conditions are `SearchPredicateDto`, an optional filter entity, an occurrence threshold; `OnHit` pauses the clock and rewinds to the start of the tick, keeping a post-tick snapshot) · `BTreeDebugSession` / `HsmDebugSession` / `BlueprintDebugSession` · `TraceTimelineWindow` · `BTreeTraceLaneProvider`, `HsmTraceLaneProvider`, `UtilityTraceLaneProvider` |
+| grep `RaiseBreakpointHit(` (non-test) | 0 callers | both sessions define it; only tests call it ⇒ the BTree / HSM Step and Continue commands stay greyed |
+| read `TraceTimelineWindow.DrawClientArea` | 1 line | draws *"No trace data."*; `ITraceLaneProvider` (as built) carries lane DESCRIPTORS only, no data path; the BTree and HSM providers are registered (`EditorSubsystem.cs:4146`) and never drawn |
+| read `PredicateCompiler.BuildConditionExpression` | — | the `Changed` operator compiles to `true` (`:433`) and relies on `QueryDelta(sinceVersion)` ⇒ it means *"this unit's CHUNK changed"*, not *"this unit's field changed"* |
+| read `HsmRunner` around `HsmKernel.Update` | 1 site | one call per tick per HSM unit; `HsmKernel.GetActiveLeafIds(instance, size, out regionCount)` gives the active leaf of every region (already used at `HsmRunner.cs:233`) |
+| platoon HSMs (read) | 3 | `PlatoonDefend`: root `Defending` is a Parallel — region 0 the phase (DPlan, Occupy / Ready, Engage, FallBack), region 1 the control (DWatch, OpBack, Supplementary, Reinforce, BlockStair, DLift, DAnswer). `PlatoonAttack` / `ReactToFireFromBuilding`: region 0 APlan … AWon / ABreaking, region 1 AWatch, ARelieve, AAnswer, AAbort. All transitions are polled named guards; no hosted children |
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a data breakpoint can already stop on ONE unit | `AddBreakpoint(condition, filterEntity, threshold, name)`, `POST /breakpoints {condition, filterNetworkId}` | ai-debug-api DESIGN group G |
+| a pause shows the world BEFORE the tick that changed it | `DataBreakpointManager.OnHit`: `_postTickSnapshot.SyncFrom(live)`, then `live.SyncFrom(_preTickSnapshot)` | Blueprint debug protocol: break before, step to see |
+| the timeline was meant to show swim lanes for the selected unit | the shell draws nothing | [AI editor shared infrastructure §15](blueprints/AI_Editor_Shared_Infrastructure.md) |
+| the HSM's per-region state is readable after every tick | `GetActiveLeafIds` + `MachineMetadata` state names | HSM host design §13.4 (the live overlay) |
+| one controller can hold the pin for the graph, the traces and the gizmos | `AiDebugSessionPump.SelectedEntity` is a `Func<Entity?>`; `EditorAiTracerCoordinator.ArmEntity`; gizmo pins (R-227) | §9 BV-22; [entity selection §3.2](blueprints/DESIGN_Editor_Entity_Selection_Source.md) |
+
+### 10.2 Classes
+
+```mermaid
+classDiagram
+  class UnitDebugController {
+    <<NEW, ui, editor composition>>
+    Debugged : Entity or none
+    SetDebugged(unit, on)
+    BreakOnChange(unit, kinds) BreakpointId
+  }
+  class BrainDetailsView { <<Phase 1>> NEW toggle Debug this unit · NEW Break when it changes its mind }
+  class UnitMenuItem { <<NEW>> Debug this unit, on the map unit menu }
+  class DebugApiService { <<exists, changed>> POST /entities/id/debug · POST /entities/id/journal/break }
+  class AiDebugSessionPump { <<exists, changed BV-22>> SelectedEntity returns the debugged unit while set }
+  class EditorAiTracerCoordinator { <<exists>> ArmEntity · DisarmEntity }
+  class GizmoPins { <<exists, R-227>> Toggle(unit, families) }
+  class DataBreakpointManager { <<exists>> AddBreakpoint · UpdateCondition · OnBreakpointHit · post-tick snapshot }
+  class JournalBreakArm { <<NEW>> re-arms Seq greater than n on every hit }
+  class BrainJournal { <<Phase 2, changed>> NEW Seq · NEW LastKind }
+  class BTreeDebugSession { <<exists, changed>> RaiseBreakpointHit now called }
+  class HsmDebugSession { <<exists, changed>> RaiseBreakpointHit now called }
+  class TraceTimelineWindow { <<exists, changed>> draws the Brain lane of the debugged unit }
+  class BrainJournalLane { <<NEW>> entries as marks on a time axis }
+  class HsmRunner { <<exists, changed>> writes StateChanged per region }
+  BrainDetailsView --> UnitDebugController
+  UnitMenuItem --> UnitDebugController
+  DebugApiService --> UnitDebugController
+  UnitDebugController --> AiDebugSessionPump : pin
+  UnitDebugController --> EditorAiTracerCoordinator : arm traces
+  UnitDebugController --> GizmoPins : show on map
+  UnitDebugController --> JournalBreakArm
+  JournalBreakArm --> DataBreakpointManager
+  DataBreakpointManager ..> BTreeDebugSession : OnBreakpointHit
+  DataBreakpointManager ..> HsmDebugSession : OnBreakpointHit
+  TraceTimelineWindow --> BrainJournalLane
+  BrainJournalLane ..> BrainJournal
+  HsmRunner ..> BrainJournal
+```
+*What the picture shows that prose hid:* "Debug this unit" is ONE controller holding ONE pin that the graph overlay, the trace arming
+and the gizmo pins all read — the Brain tab, the map menu and the HTTP route are three buttons on it, not three implementations. The
+break-on-change adds no breakpoint machinery: it is an ordinary data breakpoint over two new header fields.
+
+### 10.3 Sequence — debug a unit, stop when it changes its mind, step
+
+```mermaid
+sequenceDiagram
+  participant H as Operator or agent
+  participant C as UnitDebugController
+  participant P as pump, tracer, gizmo pins
+  participant M as DataBreakpointManager
+  participant A as JournalBreakArm
+  participant W as brain world
+  H->>C: Debug this unit (tab, map menu, or POST /entities/id/debug)
+  C->>P: pin the unit, arm its traces, pin its gizmo families
+  H->>C: Break when it changes its mind (kinds optional)
+  C->>A: arm for this unit
+  A->>M: AddBreakpoint(BrainJournal.Seq greater than now, filter = unit)
+  W->>W: a tick, the gate writes TaskStarted, Seq + 1
+  M->>M: condition true, keep post-tick snapshot, rewind to tick start, pause
+  M-->>A: OnBreakpointHit
+  A->>M: UpdateCondition(Seq greater than the new Seq)
+  M-->>H: the hit, with the new entries read from the post-tick snapshot
+  H->>W: read the Brain tab, the graph, Watch (the world before the change)
+  H->>M: Step (one tick, the change happens) or Continue
+```
+*What the sequence shows that prose hid:* the pause lands on the frame BEFORE the change (the manager rewinds), so the operator sees
+the cause still in place and steps once to watch it happen; the arm moves its threshold on each hit, so Continue does not stop again on
+the same entry.
+
+### 10.4 Modules — who calls it each frame
+
+```mermaid
+graph TD
+  ED["Editor host (in-process brain)"] --> UDC["UnitDebugController — editor composition, beside AiDebugSessionPump"]
+  API["DebugApiService (editor)"] --> UDC
+  TAB["Brain tab (every host)"] -->|"button shown where a controller is composed"| UDC
+  UDC --> PUMP["AiDebugSessionPump — canvas AfterDraw, each frame the graph draws"]
+  UDC --> DBM["DataBreakpointManager — evaluated each tick while any breakpoint is armed"]
+  DBM --> SES["BTree / HSM debug sessions — RaiseBreakpointHit"]
+  RUN["HsmRunner — every HSM unit, every brain tick"] --> BJ[("BrainJournal")]
+  TL["TraceTimelineWindow — draws each frame it is open"] --> BJ
+  CGF["CGF / SimHost / IG Brain tab"] -.->|"no controller composed: the button is hidden, the journal still reads"| UDC
+  classDef dead stroke-dasharray: 5 5
+  class CGF dead
+```
+*What the picture shows that prose hid:* the controller lives where the debug sessions and the breakpoint manager live — the editor
+(the `/breakpoints` routes are editor-only today, 501 on the cluster). Other hosts keep the read-only tab; they do not grow a
+second debugger.
+
+### 10.5 The regions in the tab and the journal
+
+| shows | from |
+|---|---|
+| **Doing** for an HSM unit with regions: `Defending ‖ phase: Engage (since 12 s) · control: DWatch (since 3 s)` — one line per region, the parallel parent named once | `GetActiveLeafIds` + `MachineMetadata` names + `StateChanged` times from the journal |
+| **Recent changes**: `StateChanged — control: DWatch → Reinforce (via ReinforceNeeded)` | the journal entry (BV-33); the guard resolved at display |
+| the running graph (§9) | both regions lit at once — the HSM overlay already lights every active leaf |
+
+### 10.6 Decisions *(approved 2026-10-23 as proposed — R-1029; BV-28's mechanism and BV-29 were measured while writing, flagged in the report)*
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **BV-26** | "Debug this unit" | ⭐ ONE `UnitDebugController` in the editor composition; on = pin the pump (BV-22) and the Blueprint filter (BV-25), arm the unit's traces (`EditorAiTracerCoordinator.ArmEntity` — fills the BTree / HSM rings and `UtilityDecisionLog`), pin its gizmo families (BV-4); off = undo all of it. Buttons: the Brain tab, the map unit menu, `POST /entities/{id}/debug`. ⭐ One debugged unit at a time (the pin is single); arming traces on more units stays `POST /trace/observe` | three switches (pin, trace, gizmos) — the operator must remember all three · a route with its own logic — two debuggers drift |
+| **BV-27** | the journal header | ⭐ `BrainJournal` gains `Seq` (uint, every entry ever written, never reset) and `LastKind` (the newest entry's kind) — `?since=` reads, the break condition and the replay dedupe all key on `Seq` | the ring `Head` — wraps at 24, cannot tell "one new" from "twenty-five new" |
+| **BV-28** | break when it changes its mind | ⭐ an ordinary `DataBreakpointManager` breakpoint: `PropertyMatch(BrainJournal.Seq, GreaterThan n)` [AND `LastKind` in the chosen kinds], filtered to the unit; `JournalBreakArm` moves `n` to the new `Seq` on every hit (`UpdateCondition`) | the `Changed` operator — chunk-granular (`PredicateCompiler.cs:433`), fires when any of ~83 neighbours in the chunk writes · a journal event per write — a second copy of every entry |
+| **BV-29** | what a stop shows | ⭐ the world at the START of the tick (the manager's rewind) plus the new entries read from its post-tick snapshot (a read-only accessor is added) — the tab shows *"about to: TaskStarted CombatPosture (Reaction, NearMiss)"*; Step runs the tick | show the post-tick world — the cause is already overwritten |
+| **BV-30** | the Trace Timeline | ⭐ draw a **Brain** lane from the journal for the debugged unit (every asset kind, always available because the journal is always on); hover = the entry, click = jump the replay scrub / select the entry. The §15 trace-ring lanes (states, events, actions) follow later — the provider has no data path yet | wait for the trace-ring lanes — they need the ring armed BEFORE the event, the journal does not |
+| **BV-31** | Step / Continue in the graph editors | ⭐ wire `DataBreakpointManager.OnBreakpointHit` to the active BTree / HSM session's `RaiseBreakpointHit` (no production caller today) and `OnPauseStateChanged` to clear it — the editors' step commands then work for every breakpoint, the journal break included | a second pause path in the sessions — the manager already owns pause (ruling 9) |
+| **BV-32** | regions in Doing | ⭐ one line per region (`region: leaf (since)`), the parallel parent named once; the region names from `MachineMetadata` (index when unnamed) | one flattened "current state" — hides that the control region is doing something else than the phase |
+| **BV-33** | region changes in the journal | ⭐ `HsmRunner` copies the active leaves before `HsmKernel.Update` (a stack copy of `regionCount` ushorts) and writes `StateChanged(region, from, to)` for each region whose leaf changed — every HSM unit, not only platoons; the region in the entry's Origin byte; the guard named at display from the transition table (source ancestor-or-self of `from`, target ancestor-or-self of `to`), marked "?" when two fit | write only for platoon HSMs — the civilians' and squads' HSMs need the same answer · record the firing guard inside the kernel — an `ExtDeps/FastHSM` change for a name the table already holds |
+
+### 10.7 Slices and acceptance
+
+| slice | owner | what | tracker | acceptance |
+|---|---|---|---|---|
+| **P4a** | ui | `UnitDebugController`; the Brain tab toggle and the map unit menu item; `POST /entities/{id}/debug` | `CE-1257` | on: the graph overlay, the traces and the gizmo pins follow the unit and stay on it when the selection moves; off: all three restored; the route and the button produce the same state (one rail on the controller, one per button) |
+| **P4b** | ui *(cross-lane: FDP Toolkits Behavior)* | `Seq` + `LastKind`; `JournalBreakArm`; the post-tick accessor; "Break when it changes its mind" in the tab; `POST /entities/{id}/journal/break` | `CE-1258` | a reaction pauses the sim once on that unit only (a neighbour's change does not); the hit names the new entry; Continue does not stop again on it; Step shows the change applied |
+| **P4c** | ui | the Trace Timeline's Brain lane | `CE-1259` | a frame of the timeline on a debugged defender: one mark per journal entry, hover names it |
+| **P4d** | ui | `OnBreakpointHit` → `RaiseBreakpointHit` | `CE-1260` | after any data-breakpoint hit, the BTree / HSM editor's Step and Continue are enabled and work |
+| **P4e** | ui *(cross-lane: FDP Toolkits Behavior; behaviors may take it)* | per-region Doing lines; `StateChanged` writes in `HsmRunner` | `CE-1261` | `PlatoonDefend`: the tab shows both regions; a control-region change writes one `StateChanged` with the right region, from and to; a tick with no change writes nothing; no allocation (the BV-15 rail) |

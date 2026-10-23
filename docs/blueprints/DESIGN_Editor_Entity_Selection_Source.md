@@ -43,6 +43,7 @@ related-designs:
     yellow pending display. §6 here measures that it is ONE implementation, not two.
   - docs/blueprints/DESIGN_Variable_Details_And_Editing.md — owns the Details/Watch table, the
     colours and the optimistic display that the pinned-write question (§5.4) lands in.
+  - docs/DESIGN_Agent_Shared_View.md — OWNS GET / POST /selection (AV-4), which reads SelectionState and writes through SelectEntityCommand
 -->
 
 # DESIGN — **where an AI-editor view gets its entity**: follow when docked, frozen when pinned
