@@ -154,12 +154,15 @@ two ends of one zoom; one wheel crosses them without a mode key. The blend (the 
 |---|---|
 | movement | **relative to the camera**: W forward along the camera's yaw, A/D strafe, S back — as every shoulder shooter |
 | the body | the **upper body twists to the aim at once** (≤ 75°, drawn already); the **legs and hips turn to the aim with a lag** — when the aim is more than ~45° off them, or as soon as he moves (turn-in-place) — the "torso turns to where we aim" look the user liked, kept from §8l's `DragBody` |
-| aiming | **RMB = aim from the eyes** (first person, the zoom of §8j) — release returns to the shoulder. ⭐ precision in first person, awareness over the shoulder |
+| aiming | **RMB = aim from the eyes** (first person, the zoom of §8j) — release returns to the shoulder. ⭐ precision in first person, awareness over the shoulder (UC-11) |
+| the wheel | **weapons**, as today (UC-11); the camera distance is Alt + wheel |
 | corners | **Q / E lean also swaps the shoulder** (lean left ⇒ camera on the left shoulder) — no new key |
 | walls | the spring arm pulls the camera in front of a wall, out again slowly |
 | the fire | unchanged — from the muzzle to the crosshair point; when the muzzle is blocked but the crosshair is not, the crosshair says so (a small mark where the round would really hit) |
 
-## 6. Decisions — ✅ APPROVED `2026-10-23` (R-1032)
+## 6. Decisions — ✅ APPROVED `2026-10-23` (R-1032; UC-11 R-1033)
+
+🔒 **User, `2026-10-23`:** *"Accepting your suggestion, mouse wheel should switch weapons as this is the usual way in first-person shooters."*
 
 🔒 **User, `2026-10-23`:** *"UC leans approved, start with CE-1294."*
 
@@ -175,6 +178,7 @@ two ends of one zoom; one wheel crosses them without a mode key. The blend (the 
 | **UC-8** | a gunner | ⭐ the camera behind the gun mount (the pivot is the mount), the mouse is the turret (as today), RMB = the gun's sight in first person; replaces today's crew-eye gunner view as the default | the crew eye — the hull blocks it (the reason for §8o's drawing) |
 | **UC-9** | the muzzle is blocked | ⭐ a small second mark where the round from the muzzle would hit, shown only when it differs from the crosshair point | ignore — the shot hits a wall the player cannot see coming |
 | **UC-10** | the HTTP side | ⭐ `POST /view/follow {entity, distance}` (Agent Shared View family, R-1029) | — |
+| **UC-11** *(R-1033, user 2026-10-23)* | the inputs while PLAYING vs WATCHING | ⭐ **playing (possessed):** the plain **wheel and 1–4 switch weapons** (unchanged); **O** switches eyes ⇄ shoulder; **RMB held** = the scope zoom of §8j Z-1 — in the eyes view as today, in the shoulder view the camera goes to the eyes AND zooms (aim down the sights), release returns to the shoulder; **Alt + wheel** = the fine camera distance (eyes … a short chase), rarely needed. **watching (Follow):** the plain wheel is the §4 distance continuum (no weapons there) | the plain wheel as the camera distance while playing — every weapon switch would move the camera, and the wheel switching weapons is the shooter convention |
 
 ## 7. Slices *(order = the lean)*
 

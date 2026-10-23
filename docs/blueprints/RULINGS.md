@@ -104,7 +104,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 
 | lane | block | next free *(update when you allocate)* |
 |---|---|---|
-| `ui` | **`R-1000` – `R-1999`** | `R-1033` |
+| `ui` | **`R-1000` – `R-1999`** | `R-1034` |
 | `behaviors` | **`R-2000` – `R-2999`** | `R-2072` |
 | `backend` | **`R-3000` – `R-3999`** | `R-3050` |
 | `coordinator` *(added `2026-10-15`, user: "give coordinator a range")* | **`R-4000` – `R-4999`** | `R-4076` |
@@ -422,6 +422,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-1006** | ✅ **A PERSON IN FIRST PERSON GETS A SWITCHABLE MOUSE-LOOK MODE: W/S move, A/D turn the body, the look free within his twist plus a neck limit, the body following past it; the locked mode stays.** Vehicles already have both (M-3, `V`). Source: [`DESIGN_Entity_Control.md`](../DESIGN_Entity_Control.md) §8i LK-1 (`CE-1204`). |
 | ⭐ **R-1007** | ✅ **THE OPERATOR PICKS UP LYING STONES / ROUNDS AND TAKES LYING WEAPONS INTO HIS HANDS WITH THE USE KEY; A LYING WEAPON IS NOT POSSESSED.** Source: [`DESIGN_Entity_Control.md`](../DESIGN_Entity_Control.md) §8i PK-1 (`CE-1207`, `CE-1205`). |
 | ⭐ **R-1008** | ✅ **A VEHICLE WITH SEVERAL CREWED WEAPONS IS PLAYED BY SWITCHING SEATS: the driver / pilot seat drives and fires what it can aim; a gunner seat puts the camera at its gun, the look clamped to the station arc, while the vehicle's own brain keeps driving its order.** Source: [`DESIGN_Entity_Control.md`](../DESIGN_Entity_Control.md) §8i MW-1 (`CE-1210`). |
+| ⭐ **R-1033** | ✅ **WHILE PLAYING THE MOUSE WHEEL SWITCHES WEAPONS (as in every shooter); O switches eyes ⇄ shoulder; RMB keeps the scope zoom (from the shoulder it goes to the eyes and zooms); Alt + wheel is the camera distance. While WATCHING (Follow) the wheel is the distance.** [Unit Camera](../DESIGN_Unit_Camera.md) §6 UC-11. 🔒 **User, `2026-10-23`: "Accepting your suggestion, mouse wheel should switch weapons as this is the usual way in first-person shooters."** | CE-1293 |
 | ⭐ **R-1032** | ✅ **ONE UNIT CAMERA, ONE ZOOM FROM ORBIT TO SHOULDER TO EYES — FOR WATCHING A UNIT (Follow, the diagnostic use) AND FOR PLAYING (the shoulder view the person's default, aiming from the eyes, camera-relative strafe, the torso to the aim and the legs after, a spring arm at walls, Q/E swap the shoulder, chase driver, gunner behind the gun).** [Unit Camera](../DESIGN_Unit_Camera.md) §6 UC-1…UC-10. 🔒 **User, `2026-10-23`: "UC leans approved, start with CE-1294."** | CE-1293, CE-1294 |
 | ⭐ **R-1031** | ✅ **A SCENARIO LOAD DURING A LIVE RUN OR A DRY RUN WARNS (interactive only), THEN STOPS THE RUN, FORGETS THE DRY RUN'S RESTORE POINT AND LOADS FROM IDLE ("standby"); THE AI DEBUG HTTP LOAD DOES THE SAME WITHOUT A PROMPT.** Load design §9.1. 🔒 **User, `2026-10-23`: "scenario load should warn about it breaks existing live or dryrun and once approved it stop it first forgetting the dry run restoration point then performs the load from standby state. Of course the warn dialog only if not tasked from ai debug http which is non interactive by design"**. Tracker `CE-1025`. | [`../DESIGN_Cluster_Load_Phase.md`](../DESIGN_Cluster_Load_Phase.md) §9.1 |
 | ⭐ **R-1030** | ✅ **EVERY AI DEBUG HTTP CHANGE REGENERATES THE MCP CATALOG AND SKILL IN THE SAME COMMIT** — never as a later sweep; a C# rail beside `EveryRouteIsDocumentedTests` makes a route missing from `tools/ai-debug-mcp/tool-catalog.mjs` red. 🔒 **User, `2026-10-23`:** *"regenerating of the docs must be part of every ai debug http change, no way as some time later"*. Source: [`DESIGN_Agent_Shared_View.md`](../DESIGN_Agent_Shared_View.md) §7 AV-11 (`CE-1268`). |
@@ -909,6 +910,7 @@ R-1027 | docs/DESIGN_Entity_Brain_View.md | Recording cost is no issue, no need 
 R-1028 | docs/DESIGN_Entity_Brain_View.md | Approved, write it into the design. Is the auto-layouting code for btrees and hsms already existing?
 R-1029 | docs/DESIGN_Agent_Shared_View.md | ON as well the other debugging means need to be
 R-1030 | docs/DESIGN_Agent_Shared_View.md | regenerating of the docs must be part of every ai debug http change
+R-1033 | docs/DESIGN_Unit_Camera.md | mouse wheel should switch weapons as this is the usual way in first-person shooters
 R-1032 | docs/DESIGN_Unit_Camera.md | UC leans approved, start with CE-1294.
 R-1031 | docs/DESIGN_Cluster_Load_Phase.md | forgetting the dry run restoration point then performs the load from standby state
 R-1012 | docs/DESIGN_Add_Entity_Picker.md | enabled in Preview
