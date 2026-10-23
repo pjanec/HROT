@@ -372,6 +372,19 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, second.Flanking);                                                          // … closes in on the remembered point
             FightFromCoverBehavior.Deactivate_Run(ref p, ref second, w.Unit, w.Repo);
 
+            var justMoved = hidden;
+            justMoved.EscalatedAt = w.Repo.SimulationTime - 1.0;
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in justMoved, w.Unit, w.Repo));     // the last escalation was a second ago
+
+            Assert.True(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));         // nothing paused: he may
+            w.Order("HoldStance");                                                                     // an ORDERED task …
+            w.Run(0.1);
+            w.Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = w.Unit, BehaviorName = "FightFromCover", JsonParams = "{}",
+                                                                  Origin = BehaviorOrigin.Reaction, Urgency = ReactionUrgency.Hit });
+            w.Run(0.1);
+            Assert.Equal("HoldStance", BehaviorIngressSystem.PausedTaskOf(w.Repo, w.Unit)!.BehaviorName);   // … the fight paused it
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));        // it waits for him: no flank away from it
+
             w.Repo.AddComponent(w.Unit, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
             Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));        // militia only duck and fire blind (J)
         }

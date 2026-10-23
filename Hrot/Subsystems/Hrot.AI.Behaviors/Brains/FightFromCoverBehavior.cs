@@ -43,6 +43,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// how many of those this run has tried.</summary>
         public byte Flanking, FlanksTried;
         public EqsTacticsState Flank;
+        /// <summary>⭐ <c>CE-2357</c> — when the last escalation ended (sim s): the next waits another <c>FlankAfterSeconds</c>.</summary>
+        public double EscalatedAt;
     }
 
     /// <summary>
@@ -72,7 +74,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ AQ102 E — how long the enemy must be out of his sight before he flanks (s), and how many flanks one run tries.</summary>
         public const float DefaultFlankAfterSeconds = 10f;
-        public const byte MaxFlanks = 3;
+        public const byte MaxFlanks = 6;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct FightFromCoverBlackboard
@@ -120,6 +122,7 @@ namespace Hrot.AI.Behaviors.Brains
                         : EqsTacticsNodes.FlankRemembered(ref p.Flank, ref ws.Flank, self, world);
                     if (flank == NodeStatus.Running) return NodeStatus.Running;
                     Release(ref p, ref ws, self, world);
+                    ws.EscalatedAt = world.SimulationTime > 0 ? world.SimulationTime : 1e-6;
                     ws.Flanking = 0;
                     ws.Peek = default;   // a fresh fight from where the flank left him
                 }
@@ -167,6 +170,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool ShouldFlank(in FightFromCoverParams p, in FightFromCoverState ws, Entity self, EntityRepository world)
         {
             if (!InCover(in ws) || !MayFlank(in p, in ws, self, world)) return false;
+            if (ws.EscalatedAt > 0 && world.SimulationTime - ws.EscalatedAt < p.FlankAfterSeconds) return false;   // he only just moved
             if (!CoverFightConditions.EnemySeenAndRemembered(self, world)) return false;
             return !CoverFightConditions.SeenWithin(self, world, (uint)(p.FlankAfterSeconds * 60f));
         }
@@ -174,7 +178,17 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2357</c> — he may flank at all: flanking on, flanks left this run, no post (DA-44), trained (J).</summary>
         public static bool MayFlank(in FightFromCoverParams p, in FightFromCoverState ws, Entity self, EntityRepository world)
             => p.FlankAfterSeconds > 0f && ws.FlanksTried < MaxFlanks && p.Peek.AnchorRadius <= 0f
-               && ProficiencyOf.Tier(world, self) is not (ProficiencyTier.Untrained or ProficiencyTier.Militia);
+               && ProficiencyOf.Tier(world, self) is not (ProficiencyTier.Untrained or ProficiencyTier.Militia)
+               && NothingElseToDo(world, self);
+
+        /// <summary>⭐ <c>CE-2357</c> — the fight paused nothing but his idle: an ORDERED task (a post, a move) waits for him where its order
+        /// put him, so he never flanks away from it. 📐 Live (<c>rf-wall-hugger</c>): hit at their windows, two defenders' fights
+        /// escalated three times and took them 50–59 m out of the house they were posted in.</summary>
+        private static bool NothingElseToDo(EntityRepository world, Entity self)
+        {
+            var paused = BehaviorIngressSystem.PausedTaskOf(world, self);
+            return paused == null || paused.BehaviorName == BehaviorNames.Idle;
+        }
 
         private static void StartFlank(ref FightFromCoverParams p, ref FightFromCoverState ws, Entity self, EntityRepository world)
         {

@@ -4955,6 +4955,11 @@ def _rf_duel(c, names, cars_of, seconds):
             last = task
             seen = {k: v for k, v in mem.items() if other and str(k) == str(nets.get(other[0]))}
             print(f"      t={t:6.1f} {task or '-':<16} stance={stance} at={tuple(round(v, 1) for v in p) if p else None} memory-of-{other[0] if other else '?'}={seen or 'NONE'}")
+        # ⭐ CE-2357 — the moves his brain made, with their source (a flank / a close-in shows as CoverSearch / Attack)
+        j = data(call("GET", f"/entities/{ids[n]}/journal")) or {}
+        moves = [e for e in (j.get("entries") or []) if e.get("kind") in ("MoveStarted", "TaskStarted", "TaskEnded")]
+        for e in moves[-12:]:
+            print(f"      @{e.get('at')} {e.get('kind')}: {str(e.get('text'))[:120]}")
         c.ok(gap <= 12.0, f"(1) {n} never idles hidden more than 12 s ({gap:.1f} s)")
         c.ok(len(spots) >= 2 and repeats == 0, f"(2) {n} fires from ≥ 2 spots, never the same twice running ({len(spots)} spots, {repeats} repeats)")
     moved = [n for n in names if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 6.0]
