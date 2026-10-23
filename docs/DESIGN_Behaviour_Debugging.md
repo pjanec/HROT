@@ -231,4 +231,5 @@ missing feature, each is a wire that was never connected or connects one phase t
 | **S2 — the graph** | CE-1273, CE-1274, CE-1275, CE-1276, CE-1277 (DBG-3) | the graph is where ③④⑤ happen |
 | **S3 — the node and its data** | CE-1279 (DBG-4), CE-1286 (DBG-5) | |
 | **S4 — the hub** | CE-1280, CE-1281, CE-1282 (DBG-10), CE-1283 (DBG-2), CE-1278 (DBG-9) | |
-| **separately (bugs)** | CE-1271 (the ORBAT id), CE-1272 (to reproduce) | not workflow — fix now |
+| **separately (bugs)** | CE-1271 (the ORBAT id), CE-1272 (to reproduce) | ✅ both fixed `2026-10-23` |
+| **the joint with the Timeline** *(coordinator handoff, R-4075)* | CE-1302 (R1) | ⭐ the Trace Timeline and the director's Timeline are ONE panel: the debugged unit is the focused unit (its swimlane = its trace lanes), the Brain lane (BV-30, CE-1259) is the index's Behaviour lane, a journal entry is a timeline event a click seeks to. ⭐ DBG-6's breakpoint list edits conditions in the SAME existing condition editor the timeline's anchors use (R-4072) — one editor for breakpoints, search and anchors |

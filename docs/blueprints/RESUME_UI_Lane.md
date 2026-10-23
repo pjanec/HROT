@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22
-current-answer: ⭐⭐⭐ 2026-10-22 EVENING — START AT "SESSION 2026-10-22 — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH" directly below
+updated: 2026-10-23
+current-answer: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
+  open work: behaviour debugging CE-1270, the coordinator's Timeline handoff CE-1301…1306, the camera CE-1293, the regressions).
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-22 EVENING — START AT "SESSION 2026-10-22 — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH" directly below
   this STATUS block (state at ui@88a60d1c8, what is owed, the next items). The overnight-results section under it still lists the leans
   the user has not confirmed.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-22 MORNING — START AT "OVERNIGHT 2026-10-21 → 22 — RESULTS AND WHAT THE USER CONFIRMS" directly below
@@ -163,6 +165,20 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION `2026-10-23` — THE PLAN *(the order is the lean; the user gates starts)*
+
+| # | work | why here |
+|---|---|---|
+| 0 | ⏳ **the scenario regressions**: 12 scenarios fail their own checks since `18c6e3770` (not CE-1269 — measured at its parent); a bisect is finding the commit; 7 crashed on ±Infinity — fixed (CE-1292), their goldens to re-record; `uc-urban-battle` times out, `uc-a10-zu23-dry` does not load | the regression suite is the net under everything below |
+| 1 | **Behaviour Debugging S1 — make "stop me" work** ([design](../DESIGN_Behaviour_Debugging.md) DBG-6…8): CE-1284 (journal break baseline before Input), CE-1291 (node breakpoints break), CE-1285 + Q44 (one breakpoint list, in the existing condition editor) | the debugger's core promise is broken in three places; ⏸ waits for the user's DBG approval |
+| 2 | **Timeline R0 + R1** (CE-1301, CE-1302 — the coordinator's [handoff](batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md), dispatched at `7cca2013e`): measure, then THE Timeline panel — also the Trace Timeline (R-4075) | R1 is useful on its own and is the joint with debugging (the debugged unit's swimlane, the Brain lane BV-30); R0 is measurement and may start any time |
+| 3 | **Behaviour Debugging S2–S4**: the graph (CE-1273…1277), node runtime + variables (CE-1279, CE-1286), the hub (CE-1278, CE-1280…1283) | S4's "seek to this change in a recording" lands on R1 |
+| 4 | **Camera**: CE-1294 (over-the-shoulder movement stutters) first, then the CE-1293 design (over-the-shoulder on any unit / FPS default / vehicle seats / orbit) with leans | the stutter blocks the default; the design can be drafted while R1 builds |
+| 5 | **Timeline R2 → R2b → R3 → R4** (CE-1303…1306): the director on the Timeline, promote + predicate extensions, graphics / audio / stills, reels + HTTP | the handoff's own order; R2b's predicate extensions also serve the breakpoint conditions |
+| ↔ | **quick bugs in parallel** (a background agent while waiting): CE-1295 `M` key, CE-1296 crouch camera, CE-1297 prone, CE-1298 bare-hand melee, CE-1299 mounted-gun aim, CE-1300 select only the carrier | independent, small |
+
+⭐ Built today: CE-1025 (load over a run), CE-1269 (FightFromCover restarts), CE-1271/1272 (ORBAT), CE-1287…1290 (2-D map middle-drag + grid, cursor coordinates, title), CE-1292 (±Infinity in the serializer); designed: CE-1270 (Behaviour Debugging, leans DBG-1…11 await approval). Ids: ui tracker next free **CE-1307**, rulings **R-1032**.
 
 ## ⭐⭐⭐ SESSION `2026-10-22` — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH
 
