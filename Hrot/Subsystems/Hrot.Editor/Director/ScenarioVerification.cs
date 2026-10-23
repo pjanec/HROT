@@ -406,12 +406,20 @@ namespace Hrot.Editor.Director
                     return null;
                 case JsonValue v when v.TryGetValue<string>(out var text) && HandleShape.Match(text) is { Success: true } m:
                     return JsonValue.Create("@" + (_w.NameOfEntityIndex(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)) ?? "?"));
+                case JsonValue v when ConditionBook.Num(v) is { } d && !double.IsFinite(d):
+                    return Unwritable(d);
                 default:
                     return null;
             }
         }
 
-        private static JsonNode? R(JsonNode? n) => ConditionBook.Num(n) is { } d ? JsonValue.Create(Math.Round(d, 3)) : n?.DeepClone();
+        private static JsonNode? R(JsonNode? n) => ConditionBook.Num(n) is { } d
+            ? (double.IsFinite(d) ? JsonValue.Create(Math.Round(d, 3)) : Unwritable(d))
+            : n?.DeepClone();
+
+        /// <summary>⛔ JSON cannot write a non-finite number (it throws) — 📐 measured: a component held one and the whole verify failed at
+        /// step 256. Written as its name instead: deterministic, and still says what the value was.</summary>
+        private static JsonNode Unwritable(double d) => JsonValue.Create(double.IsNaN(d) ? "NaN" : d > 0 ? "Infinity" : "-Infinity");
 
         /// <summary>FNV-1a 64 of the value's JSON — the dump writes a component's fields in one fixed order, so equal values hash alike.</summary>
         public static string Hash(JsonNode? value)

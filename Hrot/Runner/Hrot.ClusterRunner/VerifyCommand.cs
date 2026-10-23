@@ -19,9 +19,6 @@ namespace Hrot.ClusterRunner;
 /// </summary>
 internal static class VerifyCommand
 {
-    /// <summary>A child's wall-clock limit (a run that hangs is a failure, never a wait forever).</summary>
-    private static readonly TimeSpan ChildLimit = TimeSpan.FromMinutes(30);
-
     /// <summary><c>a,b,c</c> as named, or <c>all</c> — every scenario of the source tree with a <c>checks.json</c>.</summary>
     public static IReadOnlyList<string> Scenarios(string arg)
     {
@@ -47,8 +44,10 @@ internal static class VerifyCommand
 
     /// <param name="outDir">⭐ the nightly's folder (<c>--verify-out</c>): a log and a report per scenario, <c>summary.json</c>, <c>junit.xml</c>;
     /// empty = a fresh folder under the temp directory.</param>
-    public static int RunChildren(string[] args, IReadOnlyList<string> scenarios, bool capture, string report, string outDir = "")
+    /// <param name="limitMinutes">a child's wall-clock limit (<c>--verify-timeout</c>) — a run that hangs is a failure, never a wait forever.</param>
+    public static int RunChildren(string[] args, IReadOnlyList<string> scenarios, bool capture, string report, string outDir = "", int limitMinutes = 60)
     {
+        var childLimit = TimeSpan.FromMinutes(Math.Max(1, limitMinutes));
         var dir = !string.IsNullOrWhiteSpace(outDir) ? Path.GetFullPath(outDir)
             : Path.Combine(Path.GetTempPath(), "hrot-verify", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture));
         Directory.CreateDirectory(dir);
@@ -63,6 +62,11 @@ internal static class VerifyCommand
             var childReport = Path.Combine(dir, s + ".json");
             var log = Path.Combine(dir, s + ".log");
             var psi = CommandLineVerify.SelfStartInfo(keep.Concat(new[] { "--verify", s, "--verify-report", childReport }));
+            // ⭐ a PRIVATE staging root per child: every editor boot seeds the curated scenarios into its working copy, and a sibling
+            //    capturing a golden there made the boot throw "used by another process" (📐 measured, three streams in parallel). The
+            //    golden that is kept goes to the source tree anyway (TakeStore.SaveScenarioJson).
+            var staging = Path.Combine(dir, ".staging", s);
+            psi.Environment["FDP_STAGING_ROOT"] = staging;
             var started = Stopwatch.StartNew();
             int code;
             using (var writer = new StreamWriter(log))
@@ -73,9 +77,10 @@ internal static class VerifyCommand
                 p.Start();
                 p.BeginOutputReadLine();
                 p.BeginErrorReadLine();
-                if (!p.WaitForExit((int)ChildLimit.TotalMilliseconds)) { try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } code = 124; }
+                if (!p.WaitForExit((int)childLimit.TotalMilliseconds)) { try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } code = 124; }
                 else { p.WaitForExit(); code = p.ExitCode; }
             }
+            try { Directory.Delete(staging, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             JsonNode? r = File.Exists(childReport) ? JsonNode.Parse(File.ReadAllText(childReport)) : null;
             var item = r?["scenarios"]?[0]?.DeepClone() ?? new JsonObject { ["scenario"] = s, ["status"] = "no report", ["exitCode"] = code, ["log"] = log };
             reports.Add(item);
@@ -137,8 +142,9 @@ internal static class VerifyCommand
     /// on. Every unit's full component state from <paramref name="at"/> on must be the same in both — a difference names the first
     /// snapshot, the units and the components (each is the next thing a checkpoint does not carry, R-3039). Exit 0 when all match.
     /// </summary>
-    public static int RunRestoreChecks(string[] args, IReadOnlyList<string> scenarios, double at, string report, string outDir, double every = 1d)
+    public static int RunRestoreChecks(string[] args, IReadOnlyList<string> scenarios, double at, string report, string outDir, double every = 1d, int limitMinutes = 60)
     {
+        var childLimit = TimeSpan.FromMinutes(Math.Max(1, limitMinutes));
         if (!(every > 0)) every = 1d;   // the snapshot grid; the checkpoint lands on it, so both runs snapshot the same moments
         double t1 = Math.Max(every, Math.Round(at / every) * every);
         var dir = !string.IsNullOrWhiteSpace(outDir) ? Path.GetFullPath(outDir)
@@ -156,10 +162,10 @@ internal static class VerifyCommand
             string cp = Path.Combine(dir, s + ".r1.fdp"), runA = Path.Combine(dir, s + ".r1-a.json"), runB = Path.Combine(dir, s + ".r1-b.json");
             foreach (var f in new[] { cp, cp + ".meta.json", cp + ".r1.json", runA, runB }) if (File.Exists(f)) File.Delete(f);
             int codeA = RunChild(keep, s, Path.Combine(dir, s + ".r1-a.report.json"), Path.Combine(dir, s + ".r1-a.log"),
-                                 new RestoreCheck(t1, cp, Restore: false, runA, every));
+                                 new RestoreCheck(t1, cp, Restore: false, runA, every), childLimit);
             int codeB = File.Exists(cp)
                 ? RunChild(keep, s, Path.Combine(dir, s + ".r1-b.report.json"), Path.Combine(dir, s + ".r1-b.log"),
-                           new RestoreCheck(t1, cp, Restore: true, runB, every))
+                           new RestoreCheck(t1, cp, Restore: true, runB, every), childLimit)
                 : -1;
             var item = new JsonObject { ["scenario"] = s, ["checkpointAt"] = t1, ["exitA"] = codeA, ["exitB"] = codeB };
             var problems = new JsonArray();
@@ -211,7 +217,7 @@ internal static class VerifyCommand
     }
 
     // ⭐ B5 — one child: this binary again, verifying one scenario as one half of R1 (the half rides in the environment)
-    private static int RunChild(IEnumerable<string> keep, string scenario, string childReport, string log, RestoreCheck half)
+    private static int RunChild(IEnumerable<string> keep, string scenario, string childReport, string log, RestoreCheck half, TimeSpan limit)
     {
         var psi = CommandLineVerify.SelfStartInfo(keep.Concat(new[] { "--verify", scenario, "--verify-report", childReport }));
         psi.Environment[CommandLineVerify.RestoreCheckVariable] = JsonSerializer.Serialize(half, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
@@ -222,7 +228,7 @@ internal static class VerifyCommand
         p.Start();
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
-        if (!p.WaitForExit((int)ChildLimit.TotalMilliseconds)) { try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } return 124; }
+        if (!p.WaitForExit((int)limit.TotalMilliseconds)) { try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } return 124; }
         p.WaitForExit();
         return p.ExitCode;
     }
@@ -234,10 +240,10 @@ internal static class VerifyCommand
         for (int i = 0; i < args.Length; i++)
         {
             var a = args[i];
-            if (a is "--verify" or "--verify-report" or "--verify-out" or "--verify-restore-at" or "--verify-restore-every") { i++; continue; }
+            if (a is "--verify" or "--verify-report" or "--verify-out" or "--verify-restore-at" or "--verify-restore-every" or "--verify-timeout") { i++; continue; }
             if (a.StartsWith("--verify=", StringComparison.Ordinal) || a.StartsWith("--verify-report=", StringComparison.Ordinal)
                 || a.StartsWith("--verify-out=", StringComparison.Ordinal) || a.StartsWith("--verify-restore-at=", StringComparison.Ordinal)
-                || a.StartsWith("--verify-restore-every=", StringComparison.Ordinal)) continue;
+                || a.StartsWith("--verify-restore-every=", StringComparison.Ordinal) || a.StartsWith("--verify-timeout=", StringComparison.Ordinal)) continue;
             keep.Add(a);
         }
         return keep;

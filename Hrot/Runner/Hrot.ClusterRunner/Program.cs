@@ -133,9 +133,9 @@ class Program
             }
             // ⭐ CE-3299 B5 — R1: this process is the parent of two children per scenario (a child carries its half in the environment)
             if (config.VerifyRestoreAt > 0 && Hrot.Editor.Director.CommandLineVerify.RestoreCheckFromEnvironment() == null)
-                return Hrot.ClusterRunner.VerifyCommand.RunRestoreChecks(args, verify, config.VerifyRestoreAt, config.VerifyReport, config.VerifyOut, config.VerifyRestoreEvery);
+                return Hrot.ClusterRunner.VerifyCommand.RunRestoreChecks(args, verify, config.VerifyRestoreAt, config.VerifyReport, config.VerifyOut, config.VerifyRestoreEvery, config.VerifyTimeout);
             if (verify.Count > 1 || !string.IsNullOrWhiteSpace(config.VerifyOut))
-                return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut);
+                return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut, config.VerifyTimeout);
             Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport);
         }
 

@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — H-3 hill attack on flat Berlin: four M1s attack two idle M1 Abrams in alternating waves. Judge (1) the tanks advance east (any tank past x 466 within 6 s: about 30 m of the 447 start, 20 of them required), (2) they fire at the M1 Abrams, (3) the target dies, (4) the tanks end back near the baseline (x < 480, a guess at the baseline from the start column). ⚠ Both targets share the name 'M1 Abrams' and a name resolves to ONE unit, so only one of the two is checked dead; the 'commander finishes' is a MissionPlan end, not read.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — H-3 hill attack on flat Berlin: four M1s attack two idle M1 Abrams in alternating waves. Judge (1) the tanks advance east (any tank past x 466 within 6 s: about 30 m of the 447 start, 20 of them required), (2) they fire at the M1 Abrams, (3) the target dies, (4) the tanks end back near the baseline (x < 480, a guess at the baseline from the start column). ⚠ Both targets share the name 'M1 Abrams' and a name resolves to ONE unit, so only one of the two is checked dead; the 'commander finishes' is a MissionPlan end, not read. The baseline is the commander's (x 523-532, read live by behaviors), not the start column — reply note §3.",
   "runFor": 200,
   "golden": {
     "every": 10
@@ -30,12 +30,12 @@
       "atEnd": true
     },
     {
-      "name": "the four tanks end back near the baseline (x < 480)",
+      "name": "the four tanks end back near the baseline (x < 540)",
       "on": "field",
       "who": "*Spawn)-",
       "path": "SimTransform.Position.0",
       "op": "<",
-      "value": 480,
+      "value": 540,
       "quantifier": "all",
       "atEnd": true
     }
