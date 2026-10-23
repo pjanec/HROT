@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — ui → behaviors: a lone soldier restarts FightFromCover every 1–3 s against the same contact (`CE-1269`)
 
-**Dispatched at** `ui@<this commit>` · **tracker:** [`CE-1269`](../Blueprint_Issues_Tracker.md) (filed by ui for behaviors) · **your
+**Dispatched at** `ui@180c4845a` · **tracker:** [`CE-1269`](../Blueprint_Issues_Tracker.md) (filed by ui for behaviors) · **your
 design:** [AQ98](../Architect_Question_98_Cover_Reaction_Fights_Back.md) / `R-2070` · **found by** the brain journal's live check
 ([Agent Shared View §10.1](../../DESIGN_Agent_Shared_View.md)).
 
