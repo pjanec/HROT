@@ -5044,18 +5044,19 @@ def run_rf_wall_hugger(c, timeout):
     c.ok(len(movers) <= 1, f"(2) only ONE defender hunts ({len(movers)})")
     nades = [d for d in _rf_bursts_by({ids[n] for n in reds}) if flat(d.get("burst") or [0, 0, 0], wall) <= 8.0]
     c.ok(bool(nades), f"(3) a grenade is dropped at the Hugger ({len(nades)})")
-    # (4) the look: a defender's LookAtChannel naming Blue while Blue was not seen in that sample
+    # (4) the look: LookAtEntity (action 11) in a sample where the defender saw NEITHER Friend ⇒ his eyes follow a man he cannot see
+    shooter = ids["Shooter"]
     tracked = 0
     for n in reds:
         for i in range(1, len(rows[n])):
             look = rows[n][i][6] or {}
-            if not look or "Entity" not in str(look.get("ActiveAction", "")) and look.get("ActiveAction") not in (2,):
+            if look.get("ActiveAction") != 11:
                 continue
-            seen_now = rows[n][i][5].get(blue, (0, 0))[0] > rows[n][i - 1][5].get(blue, (0, 0))[0]
-            if not seen_now and blue in rows[n][i][5]:
+            seen = any(rows[n][i][5].get(x, (0, 0))[0] > rows[n][i - 1][5].get(x, (0, 0))[0] for x in (blue, shooter))
+            if not seen:
                 tracked += 1
-    print(f"    samples where a defender's look followed the Hugger unseen: {tracked} (LookAtChannel sample: {rows[reds[0]][-1][6]})")
-    c.ok(tracked == 0, f"(4) no look follows the Hugger while he is out of sight ({tracked})")
+    print(f"    samples where a defender's look followed someone he did not see: {tracked}")
+    c.ok(tracked == 0, f"(4) no look follows a man while he is out of sight ({tracked})")
 
 
 def run_rf_grenade_reaction(c, timeout):

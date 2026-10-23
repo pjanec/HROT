@@ -271,3 +271,17 @@ E changes the approach gate (more flanking everywhere); the rest are additive.
 | **S3** `rf-house-obstacle` | without prior knowledge: both Idle 120 s (the house hides them). With each other in memory (as now): FightFromCover, **both go THROUGH House A**, close to 5 m, **6 grenades** — but only 1 burst between them | **F** (through was taken with no safety test) · **D/E** (they barely fire) |
 | **S4** `rf-wall-hugger` | defenders duck within 2 s of Blue's fire (3 times — `SquadDefend`'s posture already crouches/prones under fire) · Blue never reached the wall in 90 s (stalled at y 116 under fire; recast to start 15 m out) · nobody hunted, no grenade, no look through the wall | **H**, **I-4** · ⚠ **C** passes — re-check once Blue is under the wall |
 | **S5** `rf-grenade-reaction` | the M67 lands 1.9 m from the group; **all four stand, exposure 1.0, nobody moves** | **I** entirely |
+
+## 8. As built *(the sub-questions as they landed; each row names its deviation, if any)*
+
+| # | as built | deviation from §4 |
+|---|---|---|
+| **A** (CE-2356) | `StandardInputs.UnderFire` (id `0x2C71`): 1 within 1.5 s of a hit / near miss, falling to 0 at 4 s (`RecentSenses`). `CombatPostureDecision`: TakeCover and HoldProne take health on `1 − 0.5·h` (a floor, not 0) × UnderFire on `0.6 + 0.4·u`; Suppress × `1 − 0.7·u`. Curves inline (UT0130: `Build()` must be pure) | the boost is 0.6 + 0.4 (not "doubles"): 0.5 + 0.5 would have halved a wounded man's unhurried choice of cover · ⚠ the boost and Suppress's damp overlap: under fire the damp alone tips an unhurt man into cover (the boost-only mutant survives; the damp-only one is killed) |
+| **B** (CE-2356) | `PostureNodes.AtOpeningPost` (a post with a window / set-back / roof template or a frame); `CombatPosture`'s Suppress branch runs `PeekAndFire` first for such a man | — |
+| **C** (CE-2356) | `LookAt.Want`: the top threat is followed only when `InSightNow` (a Visual slot stamped ≤ 30 ticks); otherwise `LookAtPoint` at `Remembered` (memory position + the eyes of the stance he was seen in) | ⚠ a SOUND of a seen man also stamps the slot, so a seen man heard nearby still counts as in sight |
+| **D** (CE-2356) | `PickPeek` (internal, for the draw rail): a seeded draw (`SeedOf(unit, picks)`) among ≤ 3 answers within 85 % of the best, never the last used (`LastPeek`). `Skilled`: behind open-ground cover (the default template, no post) a Regular+ man has ONE exposure per spot; windows keep PC-15 (R-2047) | the per-spot override is how "never the same twice" reaches a STANCE peek (which has no step-out point); three exposures at a single answered spot still burn it (B2–B4) and he waits to cool |
+
+**Rails (CE-2356):** `StarterPackIntegrationTests.CE2356_AnUnhurtMan_ShotAt_TakesCover_AndSuppressesWhenItWearsOff` ·
+`TacticsTreesTests.CE2356_AThreatOutOfSight_IsLookedForWhereRemembered_NotFollowed` · `TacticsTreesTests.CE2356_AtOpeningPost_IsAWindowOrFramePost_NotACoverPost` ·
+`PeekAndFireNodesTests.CE2356_AStepPeek_NeverStepsOutAtTheSameSpotTwiceRunning` · `…CE2356_ThePeekDraw_NeverRepeatsTheLastSpot_OverManyPicks` ·
+`…CE2356_OpenCover_OneExposurePerSpot_AWindowKeepsItsCount`. Mutants: 6 of 7 killed (the boost-only one survives, above).

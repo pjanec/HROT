@@ -144,6 +144,33 @@ namespace Fdp.Toolkit.Tests
                 "EqsTopScore consideration for TakeCover branch should be > 0.5");
         }
 
+        // ⭐ CE-2356 (AQ102 A, R-2072) — an UNHURT man with cover and a live target suppresses — until he is shot at: a near miss half a
+        //   second ago makes him take cover, and once it has worn off (4 s) he suppresses again. 🔴 Before: TakeCover carried only health
+        //   on an inverse curve (0 at full health) in a product, so an unhurt man never took cover however hard he was fired on.
+        //   🔴 Red-proof: drop the UnderFire consideration from TakeCover (or restore the inverse-linear health curve) ⇒ red.
+        [Fact]
+        public void CE2356_AnUnhurtMan_ShotAt_TakesCover_AndSuppressesWhenItWearsOff()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<RecentSenses>()) _world.Repo.RegisterComponent<RecentSenses>();
+            Entity Man()
+            {
+                var enemy = _world.Repo.CreateEntity();
+                var agent = _world.SpawnAgent(1.0f, 1.0f);
+                _world.SeedContact(agent, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
+                _world.SetEnemyStrengthRatio(agent, 0.8f);
+                _world.SpawnEqsSensor(agent, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, topScore: 0.85f, count: 3, instanceId: 0);
+                var senses = new RecentSenses();
+                senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, 9.5);
+                _world.Repo.AddComponent(agent, senses);
+                return agent;
+            }
+            _world.Repo.SetSingleton(new GlobalTime { TotalTime = 10.0 });
+            Assert.Equal((byte)Posture.TakeCover, _world.Scorer.SelectPosture(_world.Repo, Man(), CombatPostureDecision.Id));
+            var later = Man();
+            _world.Repo.SetSingleton(new GlobalTime { TotalTime = 14.0 });
+            Assert.Equal((byte)Posture.Suppress, _world.Scorer.SelectPosture(_world.Repo, later, CombatPostureDecision.Id));
+        }
+
         // SC-P1-07-3 / SC-P1-08-4: Hurt with cover available takes cover
         [Fact]
         public void Hurt_With_Cover_Available_Takes_Cover()

@@ -55,6 +55,9 @@ namespace Fdp.Toolkit.Utility
         public const ushort ThreatInSight            = 0x2D27;
         /// <summary>⭐ WL-4 W-12f — the unit carries a hand-thrown indirect round it can still throw (<see cref="StandardInputs.CarriesThrowable"/>).</summary>
         public const ushort CarriesThrowable         = 0x4054;
+        /// <summary>⭐ AQ102 A (CE-2356) — the unit was hit or near-missed lately: 1 within <see cref="StandardInputs.UnderFireFullSeconds"/>,
+        /// falling to 0 at <see cref="StandardInputs.UnderFireSeconds"/> (<see cref="StandardInputs.UnderFire"/>).</summary>
+        public const ushort UnderFire                = 0x2C71;
     }
 
     /// <summary>
@@ -476,6 +479,30 @@ namespace Fdp.Toolkit.Utility
         /// Registers every standard input reader into <see cref="UtilityInputRegistrar"/>.
         /// Call once at application startup before any scoring pass.
         /// </summary>
+        /// <summary>⭐ AQ102 A — how long a hit or a near miss keeps the unit fully "under fire" (s), and when it has worn off (s).</summary>
+        public const double UnderFireFullSeconds = 1.5, UnderFireSeconds = 4.0;
+
+        /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 A, R-2072) — 1 when ctx.Self was hit or near-missed within <see cref="UnderFireFullSeconds"/>, falling
+        /// linearly to 0 at <see cref="UnderFireSeconds"/> (the newer of the two, <see cref="RecentSensesOf"/>). A self input: what makes an
+        /// UNHURT man duck — 📐 before it, TakeCover carried only health (0 at full health) and could never win for him.
+        /// </summary>
+        [UtilityInput("UnderFire")]
+        public static float UnderFire(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.RecentSenses>(ctx.Self)) return 0f;
+            ref readonly var rs = ref ctx.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.RecentSenses>(ctx.Self);
+            double last = double.NegativeInfinity;
+            if (rs.TryGetLast(Fdp.Toolkit.Perception.Events.SensorChange.Hit, out double hit)) last = hit;
+            if (rs.TryGetLast(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, out double miss) && miss > last) last = miss;
+            if (double.IsNegativeInfinity(last)) return 0f;
+            double now = ctx.Repo.HasSingleton<GlobalTime>() ? ctx.Repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+            double age = now - last;
+            if (age <= UnderFireFullSeconds) return 1f;
+            if (age >= UnderFireSeconds) return 0f;
+            return (float)(1.0 - (age - UnderFireFullSeconds) / (UnderFireSeconds - UnderFireFullSeconds));
+        }
+
         public static void RegisterAll()
         {
             UtilityInputReaderStore.Register(StandardInputIds.AmmoFraction,             &AmmoFraction);
@@ -500,6 +527,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.RoundsLeft,               &RoundsLeft);
             UtilityInputReaderStore.Register(StandardInputIds.ThreatInSight,            &ThreatInSight);
             UtilityInputReaderStore.Register(StandardInputIds.CarriesThrowable,         &CarriesThrowable);
+            UtilityInputReaderStore.Register(StandardInputIds.UnderFire,                &UnderFire);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

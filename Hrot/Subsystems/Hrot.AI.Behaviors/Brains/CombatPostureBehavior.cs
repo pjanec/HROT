@@ -207,6 +207,11 @@ namespace Hrot.AI.Behaviors.Brains
                         .Sequence(suppress => suppress
                             .StatefulCondition(bb => bb.IsSuppress, bb => bb.Choice, UtilityNodes.IsOption)
                             .ObserverSelector(how => how
+                                // ⭐ AQ102 B (CE-2356, R-2072) — a man POSTED at a window / frame / roof fights through PeekAndFire (duck,
+                                //   peek, fire, change window) instead of standing in the opening to suppress
+                                .Sequence(window => window
+                                    .Condition(bb => bb.Peek, PostureNodes.AtOpeningPost)
+                                    .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))
                                 .Sequence(close => close
                                     .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
                                     .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))

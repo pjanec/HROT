@@ -1468,6 +1468,47 @@ namespace Hrot.SimHost.Tests
             Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, LookPoint(w)), 0f) < 1f);
         }
 
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 C, R-2072) — a threat IN SIGHT is followed; once out of sight he is looked for where he is
+        /// remembered, at the eyes of the stance he was seen in — never followed through the wall. 📌 User, 2026-10-23 (a defender's head
+        /// tracked a player under the wall). 🔴 Red-proof: drop the InSightNow branch (always AtEntity) ⇒ the second half is red.</summary>
+        [Fact]
+        public unsafe void CE2356_AThreatOutOfSight_IsLookedForWhereRemembered_NotFollowed()
+        {
+            var w = new World();
+            w.Arm();
+            CanLook(w);
+            var enemy = w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 5f; mem.PositionsY[0] = 20f; mem.PositionsZ[0] = 0f;
+            mem.SeenStance[0] = (byte)Fdp.Toolkit.Tkb.Domain.StanceId.Crouched + 1;
+            mem.LastSeenTick[0] = 100;
+            var p = new LookParams();
+            var ws = new LookNodeState();
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = 2.0, FrameNumber = 110 });   // seen 10 ticks ago: in sight
+            Assert.Equal(LookChoice.Threat, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 2.0));
+            Assert.Equal(LookAtActionIds.LookAtEntity, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).ActiveAction);
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = 5.0, FrameNumber = 300 });   // 200 ticks ago: out of sight
+            Assert.Equal(LookChoice.Threat, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 5.0));
+            Assert.Equal(new Vector3(5f, 20f, 1.0f), LookPoint(w));                       // the remembered spot, crouched eyes
+            Assert.False(enemy.IsNull);
+        }
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 B) — a post at an OPENING (window shape, frame) is one PeekAndFire fights from; a plain cover post
+        /// and an unposted man are not. 🔴 Red-proof: return Success for any post ⇒ the cover-post half is red.</summary>
+        [Fact]
+        public void CE2356_AtOpeningPost_IsAWindowOrFramePost_NotACoverPost()
+        {
+            var w = new World();
+            var window = new PeekAndFireParams();
+            CombatPostureBehavior.Post(new Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto { Point = new Vector3(1, 2, 3), Radius = 4f, Window = true }, ref window);
+            var cover = new PeekAndFireParams();
+            CombatPostureBehavior.Post(new Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto { Point = new Vector3(1, 2, 0), Radius = 4f }, ref cover);
+            var none = new PeekAndFireParams();
+            Assert.Equal(Fbt.NodeStatus.Success, PostureNodes.AtOpeningPost(ref window, w.Unit, w.Repo));
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.AtOpeningPost(ref cover, w.Unit, w.Repo));
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.AtOpeningPost(ref none, w.Unit, w.Repo));
+        }
+
         /// <summary>⭐ LD-3b — SHOT AT: with a threat in sight in front of him, a near miss turns his eyes to the sound of the shot behind
         /// him; without the near miss the seen threat keeps them. 📌 Found live in ld-sentry-surprise. ✅ Red-proof: the under-fire branch
         /// removed ⇒ he keeps looking at the threat.</summary>

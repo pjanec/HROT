@@ -174,6 +174,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2330</c> (R-2064) — 1 once the muscle refused a round from this hide point at the peek stance: he LOOKS at the
         /// peek stance and SHOOTS one stance taller from here (a low wall, a window sill). Reset with the hide point.</summary>
         public byte ShootTaller;
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 D) — the last step-out point used, and how many peeks were picked (the pick's seed).</summary>
+        public Vector3 LastPeek;
+        public int PeeksPicked;
     }
 
     /// <summary>
@@ -270,13 +273,19 @@ namespace Hrot.AI.Behaviors.Brains
                     s.BlindRounds = Math.Max(p.BlindRounds, magazine);
                     break;
             }
-            s.ExposuresPerPosition = ProficiencyOf.Tier(world, self) switch
+            var tier = ProficiencyOf.Tier(world, self);
+            s.ExposuresPerPosition = tier switch
             {
                 ProficiencyTier.Untrained or ProficiencyTier.Militia => int.MaxValue,   // PC-15: stays at the sill (heat still burns a spot)
                 ProficiencyTier.Veteran => Math.Max(1, p.ExposuresPerPosition - 1),
                 ProficiencyTier.Elite => 1,
                 _ => p.ExposuresPerPosition,
             };
+            // ⭐ AQ102 D (CE-2356, R-2072) — behind OPEN-GROUND cover (a car, a wall — the default template, no post) a trained man comes up
+            //   somewhere else every time (the car's other end); a window keeps PC-15's count (R-2047)
+            if (tier is not (ProficiencyTier.Untrained or ProficiencyTier.Militia) && p.AnchorRadius <= 0f
+                && (p.HideTemplate == 0 || p.HideTemplate == FindCoverFromTarget.BlueprintId))
+                s.ExposuresPerPosition = 1;
             return s;
         }
 
@@ -920,7 +929,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The step-out point: the peek sensor's best answer within <c>PeekSearchRadius</c> of the hide point.</summary>
-        private static bool PickPeek(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem,
+        internal static bool PickPeek(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem,
                                      EntityRepository world, double now, out Vector3 point, out StanceId? stance, Entity self = default)
         {
             point = default; stance = null;
@@ -929,18 +938,56 @@ namespace Hrot.AI.Behaviors.Brains
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.PeekSensor.ChildId);
             if (!buffer.IsReady || buffer.Count == 0) return false;
             var span = buffer.GetSpanRO()[..buffer.Count];   // ⭐ CE-3144 — the span is all 16 slots; past Count they are (0,0,0) score 0
-            for (int i = 0; i < span.Length; i++)
+            // ⭐ AQ102 D (CE-2356, R-2072) — not always the sensor's first answer: a SEEDED pick among the usable answers within
+            //   PeekPickShare of the best, never the last one used — repeatable per run (unit, peek count), never learnable
+            Span<int> picks = stackalloc int[PeekPickCount];
+            int n = 0;
+            float bestScore = float.NaN;
+            for (int i = 0; i < span.Length && n < PeekPickCount; i++)
             {
                 var r = span[i];
                 var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
                 if (Vector3.Distance(at, ws.HidePoint) > p.PeekSearchRadius + ArrivalRadius) continue;
                 if (ClaimedByAFriend(world, self, at, now)) continue;   // ⭐ CE-3158 G5
-                point = at;
-                stance = r.TryGetStance(out var s) ? s : null;
-                ws.PeekFire = FireMark(in r);
-                return true;   // the sensor's order is its ranking
+                if (float.IsNaN(bestScore)) bestScore = r.Score;
+                else if (r.Score < bestScore * PeekPickShare) break;   // the sensor's order is its ranking
+                if (ws.PeeksPicked > 0 && Vector3.Distance(at, ws.LastPeek) <= MatchRadiusOf(in p)) continue;   // never the last one
+                picks[n++] = i;
             }
-            return false;
+            if (n == 0)   // only the last one is usable: take it again rather than none
+                for (int i = 0; i < span.Length; i++)
+                {
+                    var r = span[i];
+                    var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
+                    if (Vector3.Distance(at, ws.HidePoint) > p.PeekSearchRadius + ArrivalRadius || ClaimedByAFriend(world, self, at, now)) continue;
+                    picks[n++] = i;
+                    break;
+                }
+            if (n == 0) return false;
+            var chosen = span[picks[(int)(SeedOf(self, ws.PeeksPicked) % (uint)n)]];
+            point = new Vector3(chosen.PositionX, chosen.PositionY, chosen.PositionZ);
+            stance = chosen.TryGetStance(out var cs) ? cs : null;
+            ws.PeekFire = FireMark(in chosen);
+            ws.LastPeek = point;
+            ws.PeeksPicked++;
+            return true;
+        }
+
+        /// <summary>⭐ AQ102 D — the peek pick takes up to this many answers into the draw, each within this share of the best's score.</summary>
+        public const int PeekPickCount = 3;
+        public const float PeekPickShare = 0.85f;
+
+        private static float MatchRadiusOf(in PeekAndFireParams p) => p.MatchRadius > 0f ? p.MatchRadius : 1f;
+
+        /// <summary>⭐ AQ102 D — a deterministic draw for <paramref name="self"/>'s <paramref name="count"/>-th pick (a 32-bit mix of both).</summary>
+        internal static uint SeedOf(Entity self, int count)
+        {
+            unchecked
+            {
+                uint h = (uint)self.Index * 2654435761u ^ (uint)count * 40503u;
+                h ^= h >> 15; h *= 2246822519u; h ^= h >> 13;
+                return h;
+            }
         }
 
         /// <summary>⭐ <c>CE-2327</c> — an answer's fire mark: 0 not marked · 1 a round clears from it · 2 it only sees.</summary>

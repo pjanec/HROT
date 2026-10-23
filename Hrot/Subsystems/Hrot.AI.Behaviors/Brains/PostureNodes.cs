@@ -455,6 +455,17 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 B, R-2072) — the man is POSTED (<see cref="PeekAndFireParams.AnchorRadius"/> &gt; 0) at an OPENING: his
+        /// post set a window, set-back, roof or frame shape (<see cref="CombatPostureBehavior.Post(in Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto, ref PeekAndFireParams)"/>
+        /// leaves a plain cover post on the defaults, template 0). There he fights through PeekAndFire whatever the decision says — 📌 user,
+        /// 2026-10-23: <i>"They are standing in the windows … without trying to take cover when the player starts firing at them."</i>
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus AtOpeningPost(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => p.AnchorRadius > 0f && (p.Frame != 0 || (p.HideTemplate != 0 && p.HideTemplate != Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId))
+                ? NodeStatus.Success : NodeStatus.Failure;
+
         /// <summary>⭐ D-2e — this close to his post he has occupied it (m): the advance's own arrival (1 m) plus a step.</summary>
         public const float OccupiedMetres = 1.5f;
 
