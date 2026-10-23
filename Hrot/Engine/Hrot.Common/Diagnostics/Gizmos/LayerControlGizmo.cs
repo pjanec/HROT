@@ -31,6 +31,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [DataPolicy(DataPolicy.NoReplay)]
     public struct ToggleShoulderViewEvent { }
 
+    /// <summary>⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — a unit's menu "Follow with the camera": the map's view-mode layer drains it
+    /// and puts the 3-D camera on the unit. ⚠ 8066 measured free on every lane 2026-10-23.</summary>
+    [EventId(8066)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct FollowUnitEvent { public Entity Target; }
+
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     // ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — 🔒 user, 2026-10-14: "overwhelmed with the amount of gizmos shown on the

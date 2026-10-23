@@ -333,6 +333,9 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1201 (DESIGN_Entity_Control §8p OS-1) — View › First Person: Over the Shoulder; the view-mode layer drains it
             actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent()));
+            // ⭐ CE-1293 (DESIGN_Unit_Camera UC-2) — a unit's "Follow with the camera"; the view-mode layer drains it
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.FollowUnit, (_, target) =>
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.FollowUnitEvent { Target = target }));
             // ⭐ CE-3169 (DESIGN_Entity_Control §4.2) — Move Here · Engage · Stop, once for every LIVE map host. ⛔ Not in a replay
             //   (no live brain to order): there the menu does not offer them (OrdersOffered unset) and nothing is registered.
             var menuOrders = new MenuOrders(ctx.World) { Selected = () => selection.SelectedEntities };   // ⭐ CE-1059 — O6
@@ -544,6 +547,13 @@ namespace Hrot.ScenarioEditor.Map
             stats.Possession = possession;   // ⭐ CE-1262 (AV-1) — the view snapshot names the possessed unit and its crosshair target
             canvas.AddLayer(possession);
             viewMode.ToggleShoulder = () => possession.OverShoulder = !possession.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
+            // ⭐ CE-1293 (UC-2) — watching a unit: the 3-D camera follows it (not while this station possesses one — that IS the view)
+            viewMode.Follow = target =>
+            {
+                if (target.IsNull || viewSwitch.Camera3D.Driver is Hrot.UI.Common.Map3D.FpsCameraDriver) return;
+                viewSwitch.Set(true);
+                viewSwitch.Camera3D.Driver = new Hrot.UI.Common.Map3D.FollowCameraDriver(worldProvider, target, bodies);
+            };
             // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-3) — the scene's sound, only while the station holds a unit
             var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);
             canvas.AddLayer(audio);

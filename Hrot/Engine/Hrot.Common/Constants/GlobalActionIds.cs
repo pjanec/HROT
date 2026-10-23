@@ -99,6 +99,10 @@ namespace Hrot.Common.Constants
         /// backend, ui and behaviors 2026-10-23.</summary>
         public const int DebugThisUnit   = 475;
 
+        /// <summary>⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-2) — "Follow with the camera": the 3-D camera follows the unit (watching,
+        /// not possessing). ⚠ 476 measured free on backend, behaviors and coordinator 2026-10-23.</summary>
+        public const int FollowUnit      = 476;
+
         // --- Order with options (CE-1059, §13.12 O5) — the unit menu's submenu opening the ORDER FORM for an order, prefilled:
         //     id = OrderWithOptionsBase + the order's index (OrderMenu.ActionBase + index ⇒ +80). ⚠ 480–543 measured free 2026-10-13.
         public const int OrderWithOptionsBase = 480;

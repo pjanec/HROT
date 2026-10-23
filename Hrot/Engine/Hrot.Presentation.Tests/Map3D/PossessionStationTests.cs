@@ -34,9 +34,10 @@ public sealed partial class PossessionStationTests
         public bool LeftPressed { get; set; }    // ⭐ CE-1078
         public bool RightPressed { get; set; }
         public bool RightDown { get; set; }       // ⭐ CE-1211 — the zoom is held
+        public bool MiddleDown { get; set; }      // ⭐ CE-1293 — a map drag
         public bool? Locked { get; private set; }
         public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right && RightPressed;
-        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right && RightDown;
+        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right ? RightDown : b == MapMouseButton.Middle && MiddleDown;
         public bool IsMouseButtonReleased(MapMouseButton b) => false;
         public bool IsKeyPressed(MapKeyboardKey k) => Pressed.Contains((int)k);
         public bool IsKeyDown(MapKeyboardKey k) => Keys.Contains((int)k);
