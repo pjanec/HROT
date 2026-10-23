@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Xunit;
 using Fdp.Toolkit.Vis2D.Components;
@@ -134,6 +135,61 @@ namespace Fdp.Toolkit.Vis2D.Tests.Components
             // ⭐ CE-1040 — the 2-D map is north-up: dragging the map UP-left (mouse −Y) shows more of the SOUTH, so the target
             //   moves south (−Y). Under the old mirror it moved +Y. 📄 docs/DESIGN_Map_North_Up.md.
             Assert.True(camera.Target.Y < 0);
+        }
+
+        /// <summary>One three-frame drag (down at 100,100 → 90,90 → 80,80) with the given button held; returns the camera's target after.</summary>
+        private static Vector2 DragWith(Action<MockInputProvider> hold)
+        {
+            var camera = new TestableMapCamera { Zoom = 1.0f, Target = Vector2.Zero };
+            var input = new MockInputProvider();
+            hold(input);
+            foreach (var p in new[] { new Vector2(100, 100), new Vector2(90, 90), new Vector2(80, 80) })
+            {
+                input.MousePosition = p;
+                camera.HandleInput(input);
+            }
+            camera.Update(1.0f);
+            return camera.Target;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1287</c> — the MIDDLE button drags the 2-D map, as it does the 3-D one (<c>MapCamera3D.HandleInput</c>: MMB pans).
+        /// 🔒 User, 2026-10-23: <i>"2d map need to support also middle button to drag map to be consistent with the 3d map"</i>.
+        /// The drag must move the map exactly as the right button's does. ⛔ Red-proof: drop <c>SecondaryPanButton</c> from
+        /// <c>MapCamera.IsPanDown</c> and the target stays at the origin.
+        /// </summary>
+        [Fact]
+        public void MapCamera_MiddleButtonDrag_PansTheMap_LikeTheRightButton()
+        {
+            var middle = DragWith(i => i.IsMiddleDown = true);
+            var right  = DragWith(i => i.IsRightDown = true);
+
+            Assert.NotEqual(Vector2.Zero, middle);
+            Assert.Equal(right, middle);
+        }
+
+        /// <summary>A button that is not a pan button (the left one selects) moves nothing — the second pan button did not turn every
+        /// button into a pan.</summary>
+        [Fact]
+        public void MapCamera_LeftButtonDrag_DoesNotPan()
+        {
+            Assert.Equal(Vector2.Zero, DragWith(i => i.IsLeftDown = true));
+        }
+
+        /// <summary>The pan buttons are configuration: with the middle one reassigned away, a middle drag pans nothing.</summary>
+        [Fact]
+        public void MapCamera_SecondaryPanButton_IsConfigurable()
+        {
+            var camera = new TestableMapCamera { Zoom = 1.0f, Target = Vector2.Zero };
+            camera.InputMap.SecondaryPanButton = MapMouseButton.Left;
+            var input = new MockInputProvider { IsMiddleDown = true };
+            foreach (var p in new[] { new Vector2(100, 100), new Vector2(60, 60) })
+            {
+                input.MousePosition = p;
+                camera.HandleInput(input);
+            }
+            camera.Update(1.0f);
+            Assert.Equal(Vector2.Zero, camera.Target);
         }
 
         // ══ A NON-FINITE CAMERA UN-CLICKS THE WHOLE MAP ═══════════════════════════

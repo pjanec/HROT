@@ -186,6 +186,9 @@ public class IgApplication : IDisposable
 
     private MapCanvas _canvas = null!;
 
+    /// <summary>⭐ CE-1289 — the map canvas (the status bar's cursor section reads its reading).</summary>
+    public MapCanvas Canvas => _canvas;
+
     private MapCamera _camera = null!;
 
 

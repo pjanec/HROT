@@ -186,6 +186,39 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Equal(rows.Count, rows.Select(r => r.Metadata.DisplayName).Distinct().Count());
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1288</c> — the 2-D helper grid is a row of the layer panel ("Grid (2-D)", Map group): its own bit, ON by default, inside the
+        /// toggled range (the selection ring stays above it), and unticking it clears only its own bit — the terrain beside it stays.
+        /// ⛔ Red-proof: leave <c>FirstUntoggledLayer</c> at 27 and the bit is "always on" (the first assertion fails); drop the
+        /// <c>mask.SetBit</c> line and the default-on assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE1288_TheGridIsALayerPanelRow_OnByDefault_WithItsOwnBit()
+        {
+            var all = new LayerControlDto().ToMask();
+            Assert.True(all.IsSet(DebugTraceLayers.Grid), "the grid defaults on");
+            Assert.True(DebugTraceLayers.Grid < LayerControlDto.FirstUntoggledLayer, "the grid lies below the always-on range");
+            Assert.True(DebugTraceLayers.Selection >= LayerControlDto.FirstUntoggledLayer, "the selection ring stays above every toggle");
+
+            var off = new LayerControlDto { Map = { Grid = false } }.ToMask();
+            Assert.False(off.IsSet(DebugTraceLayers.Grid), "unticking the row clears the bit");
+            for (int other = 0; other < 256; other++)
+                if (other != DebugTraceLayers.Grid) Assert.Equal(all.IsSet(other), off.IsSet(other));   // and nothing else
+            Assert.True(new LayerControlDto { Map = { Terrain2D = false } }.ToMask().IsSet(DebugTraceLayers.Grid), "the terrain's box does not hide the grid");
+
+            // its bit is nobody else's
+            var bits = typeof(DebugTraceLayers).GetFields().Where(f => f.IsLiteral && f.FieldType == typeof(byte) && f.Name != nameof(DebugTraceLayers.Selection))
+                .Select(f => (byte)f.GetRawConstantValue()!).ToList();
+            Assert.Equal(bits.Count, bits.Distinct().Count());
+
+            // the panel shows it: a display name and a hover line, in the Map group
+            using var session = MakeEditService().Open(new LayerControlDto(), typeof(LayerControlDto));
+            var map = session.Document.Root.Children.Single(n => n.Metadata.DisplayName == "Map");
+            Assert.Contains(map.Children, n => n.Metadata.DisplayName == "Grid (2-D)");
+            // and the user's file remembers it per view like every other row
+            Assert.Contains(LayerControlSets.RowNames, r => r.Name == "Map.Grid" && r.Display == "Grid (2-D)" && r.Doc.Length > 0);
+        }
+
         private static string JsonOf(LayerControlDto dto)
         {
             using var s = MakeEditService().Open(dto, typeof(LayerControlDto));

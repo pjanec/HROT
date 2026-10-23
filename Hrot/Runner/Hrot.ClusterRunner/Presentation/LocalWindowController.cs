@@ -19,6 +19,21 @@ internal sealed class LocalWindowController
     private bool _isLocalWindowOpen;
     internal bool IsLocalWindowOpen => _isLocalWindowOpen;
 
+    /// <summary>⭐ CE-1290 — the window's title with nothing to name.</summary>
+    internal const string BaseTitle = "HROT Cluster Runner";
+
+    /// <summary>
+    /// ⭐ CE-1290 — the title for a loaded scenario's name (pure): <c>HROT Cluster Runner — bt-doors</c>; with nothing to name, the base title.
+    /// </summary>
+    internal static string TitleFor(string? detail)
+        => string.IsNullOrWhiteSpace(detail) ? BaseTitle : $"{BaseTitle} — {detail!.Trim()}";
+
+    private readonly IWindowTitleSource[] _titleSources;
+    private string _title = BaseTitle;
+
+    /// <summary>The title the window carries now.</summary>
+    internal string CurrentTitle => _title;
+
     internal Fdp.Presentation.WindowManager.WindowManager? WindowManager { get; private set; }
 
     internal LocalWindowController(
@@ -31,13 +46,32 @@ internal sealed class LocalWindowController
         _subsystems  = subsystems;
         _options     = options;
         _coordinator = coordinator;
+        _titleSources = subsystems.OfType<IWindowTitleSource>().ToArray();
+    }
+
+    /// <summary>
+    /// ⭐ CE-1290 — once a frame: composes the title from the first title source that has a detail (the editor's or CGF's loaded
+    /// scenario; the runner never runs both) and sets the window's only when it CHANGED — a load names it, New / clear drops the name.
+    /// A no-op while the window is closed (headless).
+    /// </summary>
+    internal void UpdateWindowTitle()
+    {
+        if (!_isLocalWindowOpen) return;
+        string? detail = null;
+        foreach (var source in _titleSources)
+            if (!string.IsNullOrWhiteSpace(source.WindowTitleDetail)) { detail = source.WindowTitleDetail; break; }
+        var title = TitleFor(detail);
+        if (title == _title) return;
+        _title = title;
+        _shell.SetWindowTitle(title);
     }
 
     internal void OpenLocalWindow()
     {
         if (_isLocalWindowOpen) return;
 
-        _shell.InitWindow(_options.WindowWidth, _options.WindowHeight, "HROT Cluster Runner", _options.TargetFps);
+        _title = BaseTitle;
+        _shell.InitWindow(_options.WindowWidth, _options.WindowHeight, BaseTitle, _options.TargetFps);
 
         // ⭐⭐⭐ Batch 103 (103a) — THE LAYOUT IS RESOLVED BEFORE ImGui IS SET UP, and in this order.
         //

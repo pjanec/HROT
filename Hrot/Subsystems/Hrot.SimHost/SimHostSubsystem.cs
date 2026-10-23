@@ -372,6 +372,9 @@ namespace Hrot.SimHost
             vis.SetPanelsWindowManaged();
             vis.RegisterMainMenu(windowManager.GlobalMenu, "SimHost");   // ⭐ CE-1243 MB-4 — the map's menus, in the one bar
 
+            // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+            Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => vis.Canvas, "SimHost");
+
             // ── Time transport controls in status bar ─────────────────────────
             var bus = _app?.OrchestrationEventBus;
             if (bus != null)

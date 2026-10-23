@@ -60,7 +60,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 27;
+        public const int FirstUntoggledLayer = 28;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -124,6 +124,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Fire.Blast) mask.SetBit(DebugTraceLayers.Blast);
             if (Fire.Hearing) mask.SetBit(DebugTraceLayers.Hearing);
             if (Map.Terrain2D) mask.SetBit(DebugTraceLayers.Terrain2D);
+            if (Map.Grid) mask.SetBit(DebugTraceLayers.Grid);
             if (Map.TerrainZones) mask.SetBit(DebugTraceLayers.TerrainZones);
             if (Map.Roads) mask.SetBit(DebugTraceLayers.Roads);
             if (Map.Traffic) mask.SetBit(DebugTraceLayers.Traffic);
@@ -215,6 +216,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         [EditDisplayName("Terrain (2-D)"), EditDoc("The 2-D map's ground cover, buildings, walls and their labels (CE-1227).")]
         public bool Terrain2D { get; set; } = true;
+        [EditDisplayName("Grid (2-D)"), EditDoc("The 2-D map's helper grid: thin grey lines for the fine step, thicker for the coarse one, the step chosen by the zoom (CE-1288).")]
+        public bool Grid { get; set; } = true;
         [EditDisplayName("Terrain zones"), EditDoc("The terrain zones and whether each is loaded.")]
         public bool TerrainZones { get; set; } = true;
         [EditDisplayName("Roads"), EditDoc("The loaded terrain's road network.")]

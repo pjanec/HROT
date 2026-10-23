@@ -60,6 +60,8 @@ namespace Hrot.SimHost
 
         // ── Visualization ─────────────────────────────────────────────────────
         private MapCanvas?              _map;
+        /// <summary>⭐ CE-1289 — the map canvas (the status bar's cursor section reads its reading); null until the map is built.</summary>
+        public MapCanvas?               Canvas => _map;
         // ⭐⭐⭐ UXI-11 S-3b — SimHost is NOT SPECIAL (user ruling, 2026-09-20). It holds the SAME view
         //    over the SAME ECS truth as the editor, CGF, IG and ReplayBrowser.
         // 🔴 It used to hold TWO extra stores: SimHostSelectionManager (a HashSet) reached through

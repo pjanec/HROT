@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
-updated: 2026-10-22 (§6aa.CL cloud layers — approved and built, CE-1146) · 2026-10-21 (§6aa.PR-1 precipitation over the 3-D scene + §6aa.next leans CL, MO, NL, SW, CE-1146) · 2026-10-21 (§6ab-i the film director drives it — newest shot per camera update, captions and cards, /film/shot {spec}, CE-4038) · 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+updated: 2026-10-23 (§6ac middle-button pan, the 2-D helper grid, the cursor's flat + lat/long/alt coordinates in the status bar, the scenario name in the window title — CE-1287/1288/1289/1290) · 2026-10-22 (§6aa.CL cloud layers — approved and built, CE-1146) · 2026-10-21 (§6aa.PR-1 precipitation over the 3-D scene + §6aa.next leans CL, MO, NL, SW, CE-1146) · 2026-10-21 (§6ab-i the film director drives it — newest shot per camera update, captions and cards, /film/shot {spec}, CE-4038) · 2026-10-21 (§6ab filming — a director camera and a clean scene capture, CE-3289, R-3032, backend cross-lane) · 2026-10-21 (§6q O-4a — a soldier's side picks his CLOTH, friend woodland / hostile desert, CE-1235, R-1020) · 2026-10-20 (§6z CA-4 — one ground depth bias for the SUMO roads and the draped gizmo fills, CE-1196) · 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice; 2026-10-19 the free camera too) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
@@ -14,6 +14,8 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Geo_Origin.md §4 — OWNS the node's one IGeographicTransform and where its origin comes from (the terrain); §6ac's cursor readout converts through it, from the world singleton
+  - docs/UX/Architect_Question_28_Map_Layers.md E′ — OWNS the ruling that ActiveLayerMask switches whole layer objects and the Config window's Grid tick drives it; §6ac's Grid row follows CE-1227's layer-panel precedent beyond it (reasoned there)
   - docs/DESIGN_Film_Director.md — OWNS who holds a camera SCRIPT and when the shot changes (takes, reels, paced real-time play, the /director routes); drives §6ab's FilmStudio
   - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) that §6ab's filming runs under
   - docs/RUNBOOK_Filming.md — OWNS HOW to film (film.py, plans, finding the moments, the traps); §6ab here is the design
@@ -202,7 +204,7 @@ classDiagram
   }
   class DebugGizmoLayer { <<exists>> +Draw3D via triage }
   class SelectionRenderSystem { <<exists>> +Draw3D wire cubes }
-  class GridMapLayer { <<exists>> +Draw3D ground grid }
+  class GridMapLayer { <<exists>> no Draw3D - 2-D only (see 6ac) }
   class TerrainLayer3D { <<new>> lit terrain mesh }
   class EntityBodyLayer3D { <<new>> vehicle boxes, human figures }
   class ShapeKit { <<new>> parts as fractions of L W H }
@@ -753,7 +755,7 @@ It adopts the camera entity's pose and mode once when the scenario opens (`MapCa
 | `MapCanvas` — layers, input routing, right-drag vs right-click | ✅ reused; **2 edits**: `Draw()` branches to `Draw3D` when the camera is 3-D; `deltaWorld` comes from the camera instead of `delta / Zoom` (2-D result unchanged) | `MapCanvas.cs:115-140` (Draw), `:168` (`deltaWorld = delta * (1/Camera.Zoom)`) |
 | `MapCamera` | ✅ reused as the base — its `Update`, `HandleInput`, `BeginMode`, `EndMode`, `ScreenToWorld`, `WorldToScreen` are already `virtual` | `MapCamera.cs:144-354` |
 | `IMapLayer` | ✅ + one **default** method `Draw3D` (no-op) — no existing layer is forced to change | `CoreInterfaces.cs:37-92` |
-| `DebugGizmoLayer`, `SelectionRenderSystem`, `GridMapLayer` | ✅ + a `Draw3D` each | — |
+| `DebugGizmoLayer`, `SelectionRenderSystem`, `GridMapLayer` | ✅ + a `Draw3D` each — ⚠ **`GridMapLayer` never got one** (measured `2026-10-23`, §6ac: it is absent in 3-D and `LayersWithout3D` counts it) | — |
 | the whole input side: selection store + request, `ContextMenuAdapter`, tools | ✅ **unchanged** — they receive world XY as today | §3.3 |
 | `MapInteractionPack` | ✅ builds the 3-D camera and the two new layers for all five hosts | 5 host call sites |
 | `DebugPrimitiveRenderer3D` triage + `IDebugDrawSink3D` | 🔁 **extract** to a shared net8 assembly; Stride keeps its sink, the map adds a Raylib sink | `Stride/Hrot.Stride.Core/DebugPrimitiveRenderer3D.cs:50-292,373-392` |
@@ -3034,6 +3036,157 @@ edge, red) — so the film is of what is on screen, and a hidden host's map neve
 | ⭐ **`--mode editor` — the demo host** *(user, `2026-10-21`)* | a cut STEPS to the next segment (frame-exact, the same every run — CE-202); 📐 ~0.8 s per film frame (vs 1.85 on the cluster); the first editor film caught the T-72 impact on the planned frame. `RUNBOOK_Filming.md` §0 |
 | ⏭ not built | a smaller window while filming (the window's own frame is most of the cost) · `--mode all` only films the perspective on screen (the default, Scenario) |
 | ⭐ **CE-4038 (ui, `2026-10-21`) — the film director drives this** | 📄 [DESIGN_Film_Director.md §8](DESIGN_Film_Director.md). Three changes HERE: ① `FilmDirector.Update` takes the NEWEST `FilmStudio.Shot` when the camera updates, so a cut lands in the same frame, before the layers read the camera — ⛔ SUPERSEDES the "first frame of a new shot" row above for every shot after the first (film.py's one throwaway settle capture is kept for the first) · ② `FilmCaptureRequest` gained `Caption` (burned in under the scene) and `Card` (a title card instead of the scene, served in 2-D too), drawn by `FilmText` · ③ `POST /film/shot {spec, t}` — a take's shot evaluated by the director's `ShotEvaluator`, so `film.py` keeps no shot math (D-9) |
+
+### 6ac. CE-1287 · CE-1288 · CE-1289 · CE-1290 — middle-button pan, the helper grid, the cursor's coordinates, the scenario in the window title — DESIGN + AS-BUILT `2026-10-23` (ui)
+
+🔒 User, `2026-10-23` (the first visual pass over the Brain View work, [`CE-1270`](blueprints/Blueprint_Issues_Tracker.md)'s children):
+*"2d map need to support also middle button to drag map to be consistent with the 3d map"* · *"the 2d map is missing any aux grid system with thicker gray lines for larger step grid and thinner gray lines for fines step grid, with auto selection of the grid stepping based on zoom"* · *"in status bar we should see the coordinates of point under cursor (2d map as well 3d map) - both flat coordinates, lat/long coordinates with altitude"* · *"i need to see currently loaded scenario name in the title of the clusterrunner as editors usually do"*.
+The status-bar half folds in backend's [`CE-3151`](blueprints/Blueprint_Issues_Tracker.md) (`2026-10-09`: *"I would like to see map cursor coordinates (the local flat ones) in the status bar when cursor moves over map area"*).
+
+**INVENTORY** *(measured `2026-10-23`, branch `ui`; `check_index_coverage` is not available through the CLI, so every "none" below is "none found by these queries")*
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph name_pattern=".*(Grid\|Cursor\|Readout).*" label=Class` | 40 | the only 2-D map one is **`GridMapLayer`** (in-degree 1: `EditorSubsystem`). ⭐ it was a grid all along: one weight, a fixed 1 000 m base, bounds taken **around the mouse** (`ctx.MouseWorldPos`), `MapViewConfig.ShowGrid` default **off**, added AFTER the gizmo layer so drawn **over** the entities. The rest is unrelated (`SpatialGrid*`, `PerceptionGrid*`, the node editor's `GridRenderer`). **No cursor-coordinate class exists** |
+| `search_graph name_pattern=".*StatusBar.*" label=Class` | 6 | `StatusBarManager` (the seam, `RegisterSection(id, sortOrder, render, perspective?)`), `ClusterTimeControlStatusBarSection`, `MessageLogStatusBarSection`, `TimeControlStatusBarSection` + 2 test classes. Sections registered today: `system_health`(0), `msg_log_notify`(90), `*_time_controls`(100) |
+| grep `PanButton` | 4 | `Vis2DInputMap.PanButton = Right` is the 2-D map's ONLY pan binding; `MapCamera3D.HandleInput` hard-codes `MapMouseButton.Middle` for its pan (`MapCamera3D.cs:349`) |
+| grep `SetWindowTitle` / `InitWindow(` in the runner | 0 / 1 | the title is set ONCE, `"HROT Cluster Runner"`, at `LocalWindowController.OpenLocalWindow` — nothing renames it |
+| grep `LoadedScenarioName` (non-test) | 12 | `IScenarioSession.LoadedScenarioName` (`EditorScenarioSession`) is the one source: set by every load (`ScenarioLoadSequence.beforeLoad`) and `SaveAs`, nulled by `ClearWorld` (⇒ New Exercise). The editor reads it via `_editorLogic`, CGF via `_scenarioSession` |
+| grep `Mouse World` | 1 | `IgApplication.cs:1707` — the standalone IG's raylib text overlay (`Mouse World: (x, y) m`); ⚠ left as it is (see "Not done") |
+
+**Design basis** *(R-129 — `docs/` first, then `.dev/`)*
+
+| doc | does it settle this? |
+|---|---|
+| [UX/Architect_Question_28_Map_Layers.md](UX/Architect_Question_28_Map_Layers.md) E′ (ruled `2026-08-12`) | ⚠ **applies in part.** It keeps `ActiveLayerMask` as the "which renderers run" switch and calls the `ConfigPanel` Grid tick *"the right UI"* for it. Since then **`CE-1227` (`TerrainLayer2D`) put a retained 2-D layer behind the layer panel's own row** (the buffer's `Terrain2D` bit), and that panel — View ▸ Tactical Map Layers, a set per view, remembered in the user's file — is where the user looks. ⇒ the grid follows the newer precedent (a `Grid (2-D)` row), and the Config window's tick is KEPT honest (it forces the grid on) rather than deleted: that duplicate's removal is Q28's, not this slice's |
+| [DESIGN_Map_North_Up.md](DESIGN_Map_North_Up.md) | applies: the 2-D camera draws world Y up; screen-down is world-south — so the grid's view rectangle folds both corners into min/max and the pan sign comes from `MapCamera.FlipY` |
+| §3.8 (M17–M20) / `MapCamera3D.Pick` | applies to the cursor: the 3-D point is `ScreenToWorld3D` — an entity's own position when its box is hit, else the terrain, else the look-at plane — the same call the click and hover already make |
+| [DESIGN_Geo_Origin.md](DESIGN_Geo_Origin.md) §4 | applies to lat/long: the origin comes from the loaded terrain and is held by the node's ONE `IGeographicTransform`, which the world singleton exposes (Editor, SimHost, CGF, Stride — ⚠ not IG, see below) |
+| [UX/UX_Feature_Modal_Surfaces.md](UX/UX_Feature_Modal_Surfaces.md) · `UXI-27` | the status-bar surface (progress half only) — nothing here conflicts |
+| searched `docs/` and `.dev/` for a cursor readout, a map grid design and a window-title design | **none found** — no owning design existed for any of the four; this section is it |
+
+**Decisions** *(each with the fact that settled it)*
+
+| # | decision | rejected |
+|---|---|---|
+| **MMB pan** | `Vis2DInputMap.SecondaryPanButton = Middle`; `MapCamera.IsPanDown` = either pan button down. The right button still pans, and `MapCanvas`'s drag-vs-click guard (`_rightButtonDragged`) is untouched | hard-coding `Middle` in `HandleInput` — the bindings are configuration (`PanButton` already was), and the rail reassigns it |
+| **grid, rebuilt in place** | `GridMapLayer` keeps its class and its place in `Fdp.Presentation` (the seam law: it was the grid), and gains `GridSteps` — the 1-2-5 × 10ⁿ ladder: the minor step is the first rung ≥ 18 px on screen, the major step is the rung two above it (×5, ×5, ×4 — always a whole number of minor steps, so every major line lies on a minor one). Lines sit on multiples of the step from the local origin. Minor 1 px translucent grey, major 2 px | a new layer beside the old one (two grids); a fixed ladder per zoom band (a step table to keep in sync) |
+| **grid: where in the stack** | after `TerrainLayer2D`, before the gizmo layer — the terrain's fills are opaque and would hide a grid beneath them; the entities draw over it. It was added by `EditorSubsystem` after the gizmos (over them): the shared attach now adds it, so **every host with a 2-D map has it by construction** (rail `NoHostBuildsAMapLayerOfItsOwn`) | one per host (what made "not on every host" possible) |
+| **grid: the toggle, and its default** | the `Grid (2-D)` row of the layer panel = `DebugTraceLayers.Grid` = bit 27, **on by default** (the user found no grid because it was off); `LayerControlDto.FirstUntoggledLayer` 27 → 28; the Config window's `MapViewConfig.ShowGrid` tick also forces it on (`gridAlsoWhen`) | a ConfigPanel-only toggle (the panel the user does not use, no per-view memory) |
+| **cursor: one measurement** | `MapCursorLayer.Update` asks the camera for the point under the mouse (`ScreenToWorld3D`) once a frame, in both views, and writes a `MapCursorReadout` held as a **`MapCanvas` resource** (`canvas.Get<MapCursorReadout>()`), so a host that swaps its canvas keeps the section | a per-host reader (five), a `MapUiStates` entry (needs the world the status bar does not have) |
+| **cursor: the altitude** | 3-D: the pick's own height. **2-D: the terrain's ground height at that spot** (`viewSwitch.Camera3D.GroundHeight`, the cached one), 0 with no terrain — the flat map has no height of its own | showing 0 in 2-D |
+| **cursor: lat/long** | `IGeographicTransform.ToGeodetic(local)` from the world singleton, resolved each frame (a terrain commit changes the origin); with no transform the section shows the flat point alone | a second transform per section (`CE-236`: one per node) |
+| **cursor: off the map** | **the last reading HOLDS.** While the mouse belongs to a UI surface (`IsMouseCaptured` — a panel, or the status bar itself) nothing is measured. *Reason:* the status bar is not the map, so blanking on the way to read it would make it unreadable. Before the cursor has ever been over the map the section reads `Cursor: -` | blanking off-map |
+| **cursor: where it shows** | `MapCursorStatusBarSection.Register(statusBar, () => canvas, perspective)`, one call per host in `RegisterWindows`: Editor + CGF `"Scenario"`, SimHost, IG, ReplayBrowser their own; sort order 50 (between `system_health` and the message-log icon). Pinned: every host that calls `AttachMapLayers` must call `Register` (rail) | a runner-level section (the runner does not know the canvases) |
+| **title** | `IWindowTitleSource.WindowTitleDetail` (next to `IAppExitGuard`): the Editor and CGF offer `LoadedScenarioName`; `LocalWindowController.UpdateWindowTitle()` (once a frame, from the render loop) composes `HROT Cluster Runner — <name>` and calls `IPresentationShell.SetWindowTitle` only when the text changed. New Exercise / clear nulls the name ⇒ the base title | polling the session from the runner (it cannot see it); renaming on the load event (a second path to forget) |
+
+```mermaid
+classDiagram
+  direction LR
+  class Vis2DInputMap { <<exists, changed>> PanButton = Right
+    SecondaryPanButton = Middle }
+  class MapCamera { <<exists, changed>> +HandleInput(input)
+    +IsPanDown(input, map) }
+  class MapCanvas { <<exists>> +Input
+    +Camera
+    +AddResource~T~()
+    +Get~T~() }
+  class GridMapLayer { <<exists, rebuilt>> +Draw(ctx)
+    +ViewBounds(camera, w, h) }
+  class GridSteps { <<new, pure>> +For(zoom) Steps
+    +Lines(min, max, steps) }
+  class MapCursorLayer { <<new>> +Update(dt)
+    +Measure(camera, screen, ground) }
+  class MapCursorReadout { <<new>> +Set(sample)
+    +Text }
+  class MapCursorStatusBarSection { <<new>> +Register(bar, canvas, perspective)
+    +Render() }
+  class StatusBarManager { <<exists>> +RegisterSection() }
+  class IGeographicTransform { <<exists>> +ToGeodetic(local) }
+  class LayerControlDto { <<exists, changed>> Map.Grid = on
+    FirstUntoggledLayer = 28 }
+  class MapInteractionPack { <<exists, changed>> +AttachMapLayers() }
+  class IWindowTitleSource { <<new>> +WindowTitleDetail }
+  class LocalWindowController { <<exists, changed>> +UpdateWindowTitle()
+    +TitleFor(detail) }
+  class IPresentationShell { <<exists, changed>> +SetWindowTitle(title) }
+  class EditorScenarioSession { <<exists>> +LoadedScenarioName }
+  MapCamera --> Vis2DInputMap : reads both pan buttons
+  MapCanvas o-- MapCamera
+  MapCanvas "1" o-- "1" MapCursorReadout : resource
+  GridMapLayer ..> GridSteps : step + line set
+  GridMapLayer ..> LayerControlDto : visible = buffer bit Grid
+  MapCursorLayer ..> MapCanvas : Input + Camera
+  MapCursorLayer ..> IGeographicTransform : world singleton
+  MapCursorLayer --> MapCursorReadout : Set
+  MapCursorStatusBarSection --> MapCursorReadout : Text
+  MapCursorStatusBarSection ..> StatusBarManager : registered on
+  MapInteractionPack ..> GridMapLayer : adds, under the gizmos
+  MapInteractionPack ..> MapCursorLayer : adds + the readout resource
+  LocalWindowController ..> IWindowTitleSource : first with a detail
+  LocalWindowController ..> IPresentationShell : SetWindowTitle on change
+  EditorScenarioSession <.. IWindowTitleSource : EditorSubsystem and CgfSubsystem offer its name
+```
+*What the picture shows that the prose hides: the cursor has ONE measurement and ONE store (the canvas resource) with five readers of the registration, not five measurements; and the title seam is the exit-guard's twin — the subsystems offer, the runner composes.*
+
+```mermaid
+sequenceDiagram
+  participant H as host frame
+  participant C as MapCanvas
+  participant K as MapCamera / MapCamera3D
+  participant L as MapCursorLayer
+  participant G as IGeographicTransform
+  participant R as MapCursorReadout
+  participant S as status bar
+  H->>C: Update(dt)
+  C->>K: HandleInput - RMB or MMB held ⇒ pan
+  C->>L: Update(dt)
+  alt mouse captured by a panel or the status bar
+    L-->>R: nothing - the last reading holds
+  else over the map
+    L->>K: ScreenToWorld3D(mouse)
+    K-->>L: point (3-D: the pick incl. height)
+    Note over L: 2-D: z = ground height at (x, y)
+    L->>G: ToGeodetic(point)
+    G-->>L: lat, lon, alt
+    L->>R: Set(sample)
+  end
+  H->>S: Render()
+  S->>R: Text (via canvas.Get)
+```
+
+```mermaid
+graph TD
+  subgraph per frame
+    LOOP[ClusterRunner render loop] -->|"orchestrator.Update(dt)"| SUB[Editor / CGF / SimHost / IG / ReplayBrowser subsystems]
+    SUB -->|Update| CANVAS[MapCanvas]
+    CANVAS -->|Update + Draw| GRID[GridMapLayer]
+    CANVAS -->|Update| CUR[MapCursorLayer]
+    LOOP -->|UpdateWindowTitle| LWC[LocalWindowController]
+    LOOP -->|"WindowManager.Render"| SB[StatusBarManager]
+    SB --> SEC[MapCursorStatusBarSection]
+  end
+  PACK[MapInteractionPack.AttachMapLayers] -.->|registers once| GRID
+  PACK -.->|registers once| CUR
+  HOSTREG[each host RegisterWindows] -.->|"Register(...)"| SEC
+  GRID -.-x|"no Draw3D: absent in 3-D (LayersWithout3D counts it)"| V3[3-D view]
+  IGOV[IgApplication raylib 'Mouse World' overlay]:::dead
+  classDef dead stroke-dasharray: 4 4,stroke:#c00,color:#c00
+```
+*Caption — the dead edges: the grid has no 3-D path (it was documented above as "+ a `Draw3D` each" — it never had one; corrected here), and the standalone IG's own `Mouse World` text overlay is still a second, unrouted readout of the same fact.*
+
+**As built `2026-10-23`**
+
+| item | code | rails |
+|---|---|---|
+| `CE-1287` | `Vis2DInputMap.SecondaryPanButton`, `MapCamera.IsPanDown` (`Fdp.Presentation`) | `MapCameraTests`: `MapCamera_MiddleButtonDrag_PansTheMap_LikeTheRightButton`, `…_LeftButtonDrag_DoesNotPan`, `…_SecondaryPanButton_IsConfigurable` |
+| `CE-1288` | `GridMapLayer` + `GridSteps` (`Fdp.Presentation/Vis2D/Layers`); `DebugTraceLayers.Grid`, `LayerControlDto.Map.Grid` (`Hrot.Common`); `MapInteractionPack.AttachMapLayers` (+ `gridAlsoWhen`); `EditorSubsystem` no longer adds its own | `GridStepsTests` (ladder, step per zoom, spacing floor/ceiling over a zoom sweep, lines on multiples + major flags, view-edge, degenerate/huge views, the view is the camera's); `LayerControlGizmoTests.CE1288_TheGridIsALayerPanelRow_…`; `EveryMapHostAttachesTheSharedLayersTests` (`GridMapLayer` may not be built outside the pack) |
+| `CE-1289` | `MapCursor.cs` (`MapCursorSample`, `MapCursorReadout`, `MapCursorFormat`, `MapCursorLayer`), `Panels/MapCursorStatusBarSection.cs` (`Hrot.Presentation`); the readout is a canvas resource; five `Register` calls; `SimHostVisualization.Canvas`, `IgApplication.Canvas` accessors | `MapCursorTests` (text in a decimal-comma locale, hemispheres, 2-D point + terrain altitude, 3-D centre pixel, non-finite camera, the layer's geodetic reading + hold off-map + no-transform, the section's placeholder); `EveryHostThatAttachesTheSharedLayers_ShowsTheCursorInItsStatusBar` |
+| `CE-1290` | `IWindowTitleSource` (`Fdp.Toolkits/Runner`), `EditorSubsystem.WindowTitleDetail`, `CgfSubsystem.WindowTitleDetail`, `LocalWindowController.TitleFor/UpdateWindowTitle`, `IPresentationShell.SetWindowTitle`, one call in `Program.cs`'s render loop | `CE1290_WindowTitleTests` (the text, base title on open, follows load → reload → clear and sets only on change, first source with a detail wins, headless renames nothing) |
+
+⚠ **Not seen:** nothing here was looked at on a display. The grid's pixel look (colours, widths, whether 18 px is the right floor), the status-bar text's width and the title bar are un-eyeballed — the rails prove the steps, the lines, the numbers and the text, not the picture. The first look may want the alpha or the floor tuned (`GridMapLayer` constants, `GridSteps.MinMinorPixels`).
+
+⏭ **Not done:** the standalone IG's `Mouse World` raylib overlay is not routed through the status-bar section (it has no status bar of its own outside the cluster window, and `ruling 9`'s "one readout" is satisfied only inside `ClusterRunner`; IG's world singleton also carries no `IGeographicTransform`, so its status-bar section shows the flat point alone — `DESIGN_Geo_Origin.md` §1) · the Config window's `Grid` tick is a duplicate of the layer row (Q28 E′ deletes the duplicate `ConfigPanel` — not this slice) · a grid in the 3-D view · the title names the Editor's/CGF's loaded scenario only — a SimHost-only or IG-only run has no session to ask.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
