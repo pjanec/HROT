@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-23 (STATUS block added by the coordinator when linking the director timeline editor)
+current-answer: the body below
+stale-below: none
+known-rot: not reviewed when this block was added — read against newer docs before quoting
+known-conflict: none
+related-designs:
+  - docs/Predicate-Infrastructure-Capabilities.md — the reuse surface of the predicate model these breakpoints evaluate
+  - docs/DESIGN_Director_Timeline_Editor.md — R-4072: film anchors are the same predicates, edited by the same editor; it plans the polygon / line extensions
+-->
 # Universal Breakpoints — Design
 
 **Scope:** Slice 2 universal-breakpoint diagnostic substrate for the HROT/FDP engine.

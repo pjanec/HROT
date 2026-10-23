@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (approved in part, 2026-10-23: R-4067…R-4070 ruled; TE-1, TE-3…TE-16 are leans waiting for approval; TE-2 decided under the user's delegation)
-updated: 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: §0 the rulings and leans · §1 the picture · §2 the workspace · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). ⚠ TE-3b (fold the nine anchor shorthands into predicates) waits for a nod
+updated: 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
-known-rot: none
+known-rot: TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
 related-designs:
   - DESIGN_Film_Director.md — OWNS the take and reel formats, DirectorRunner, the stepping rule (R-3038), capture and the sound track; this design adds the EDITOR, the recording source, keys, tracks and promote. Its §3e / D-18 ("final films later from a recording") is the path this design builds
@@ -15,6 +15,9 @@ related-designs:
   - DESIGN_Subsystem_Composition_Unification.md — OWNS "one catalogue per node" (§4.1ae.1, HrotNodeBuilder step 9) that TE-12 extends to the Replay Browser
   - designs/audio/DESIGN_FPS_Audio.md — OWNS the spatializer and the ear; TE-11 adds the rule for sound at a playback rate other than 1×
   - DESIGN_Terrain_Combat_Tuning.md — OWNS the map layers (§5e) a View track switches, through the film's transient override (R-4060)
+  - Predicate-Infrastructure-Capabilities.md — OWNS the condition model this design's anchors ARE (SearchPredicateDto: DTOs, compiler, StructEdit editor and drawers, JSON) — R-4072. ⚠ its §6 row "enter the polygon" is a BOX (BoundingBox2D) today
+  - designs/breakpoints-1/DESIGN.md — OWNS the data breakpoints that evaluate the same predicates LIVE and their editor (DataBreakpointManagerPanel / PredicateBuilderState)
+  - blueprints/DESIGN_Time_Architecture.md — OWNS cluster replay and its seek (ClusterOpType.ReplaySeek, §11) and the transport facade (ITimeTransportFacade) the timeline's transport row drives (TE-19)
   - designs/mgmt-1/DESIGN.md — OWNS the exercise archive (`exercises/<id>/` with the .fdp files and Orchestrator.json, §12) that TE-13 keeps films' recordings in
 -->
 
@@ -35,7 +38,10 @@ some tactical map graphics, composing reels from takes."*
 - *"replay browser of course need to load same type database as other hosts."*
 - *"films can be made from single recording only (coming from editor usually)."*
 - *"Audio layer in replay browser would be nice (just not idea how to handle faster or slower that real time modes)."*
+- *"cool pls record it to a design document."*
 - On the five decisions: *"extend Take with a source: yes, but allow the take produced on a recording to be used with live scenario"* (with *"storing takes for replay on different place next to the recordings and promote to scenario-take only as explicit operation?"*) · *"sounds correct, you decide"* (camera keys) · *"One shared timeline panel.: for sure. also "unifying and sharing" is desired wherever to avoid duplications"* · *"sure film only; tactiocal graphics in scenario is different story"*
+
+🔒 **User, 2026-10-23 (second pass):** *"looks good!"* · *"these should the already existing conditions editable using already existing conditions editor, ple reuse do not invent anything new, if something missing (area/line picking or drawing) we will extend"* · *"timeline is usefull regardless of director cut window and i guess it should become one of the most important central pieces of the replay browser as separate panel allowing for navigation.  (needs thinking how other hosts should use it, if it is part of director cut panel only there)"* · *"of course the recording scout needs to read the recorded events and cache them for fast timeline rendering - this part is important, there could be thousands of events and entities  etc so it needs smart choices to make it usable -and zoomable without clutter etc. - use your experience from other products"*
 
 **Words used here.** A **key** is a camera keyframe: a time, a camera pose, and how the camera gets there. The **program** is the
 film as cut (skips, speeds, cuts applied); the **source** is the raw recording or scenario run. The **pilot camera** is the one you fly
@@ -49,10 +55,14 @@ to author; the **program camera** is the one the film shows.
 | ✅ **R-4068** | **One timeline panel and one runner on every host that plays a take: the editor and the Replay Browser. Unify and share; no second implementation.** | user: decision 3 |
 | ✅ **R-4069** | **The Replay Browser loads the same type database (TKB) as every other host.** | user |
 | ✅ **R-4070** | **Film graphics are film-only: stored in the take, drawn by the film, never written to a recording or a scenario.** Tactical graphics in a scenario are a separate subject | user: decision 5 |
+| ✅ **R-4071** | **The director timeline editor is APPROVED** — the leans of this table, as amended below | user: *"looks good!"* |
+| ✅ **R-4072** | **An anchor IS an existing condition — a `SearchPredicateDto`, edited in the existing StructEdit predicate editor. Nothing new is invented; what is missing (a polygon area, a line, picking or drawing them on the map) is an EXTENSION of that model and editor** | user, second pass |
+| ✅ **R-4073** | **The timeline is a panel of its own — the Replay Browser's central navigation — useful without the director; the director adds its tracks to it. The recording's events are read once and cached so the timeline draws fast** | user, second pass |
 | ⭐ **TE-2** *(decided, delegated)* | **The camera key is the unit.** A key = `at` + camera + transition in + fov + optional still. Today's `shots[]` read as keys (a shot → a cut key; its `to` → a fly key at the shot's end), so every seeded take keeps working | user: *"you decide"* |
 | ⭐ TE-1 | **A recording's takes live beside the recording** (`exercises/<id>/takes/`). **Promote** is an explicit operation that copies a take to `scenarios/<s>/takes/`, drops `source`, and re-expresses each fixed-time key relative to the nearest marker before it (listed for you to confirm). ⭐ The reverse needs no operation: a scenario take plays on any recording of that scenario | rejected: a take with no source used everywhere — an unpromoted recording take would then sit in the scenario folder with recording-only times |
-| ⭐ TE-3 | **Keys are anchored to events.** `at` is the existing anchor expression (`"fire-0.5"`). The anchor kinds gain **`cross`** (a unit crosses a line, with a side) and **`enter` / `leave`** (a unit enters or leaves an area). A line or area is points in the take, or the name of a scenario tactical graphic | rejected: times only — they hold on one recording and break on the next run |
-| ⭐ TE-4 | **One scout, two sources.** `AnchorBook` resolves anchors everywhere. On a scenario it watches the stepped preview (as built); on a recording it watches the sandbox world stepped headless by `RecordingSearchService`'s frame loop. The scout fills the **Markers track**: every anchor of the take plus an automatic catalogue (each shot, blast, death, crossing) and bookmarks | rejected: translating anchors into search predicates — two vocabularies for one question |
+| ⭐ TE-3 *(amended, R-4072)* | **Keys are anchored to conditions.** `at` stays the anchor expression (`"blue-0.5"`); an anchor is **the n-th time a `SearchPredicateDto` becomes true** — stored as the predicate's own JSON (`$type` discriminator, as the breakpoint clipboard and the search presets already save it), edited by the StructEdit predicate editor (`ReplaySearchPanel` and `DataBreakpointManagerPanel` host it today). **Enter / leave an area exist** (`SpatialBoundingPredicateDto`, `BoundaryEvent.Entry / Exit`, a map-picked box). ⭐ **Extensions, of that model only:** a polygon area and a line crossing (with a side) as spatial predicates, and drawing them on the map beside the existing box picker (`BoundingBoxFieldDrawer` → `ISpatialPickerContext`) | rejected: new anchor kinds `cross` / `enter` / `leave` (the first wording) — a parallel condition vocabulary |
+| ⭐ TE-3b *(needs a nod)* | **The nine existing anchor shorthands** (`shot`, `blast`, `hit`, `near`, `task`, `side`, `health`, `embark`, `gesture` — `Take.cs:129`, also used by `checks.json`) **are read as shorthands that LOWER to predicates**, so one evaluator answers every anchor and check. A shorthand that does not lower is a missing predicate to add, not a kind to keep. ⛔ Each lowering is measured in R0 ⑦ before it is built | keep the nine as a second vocabulary: two evaluators (AnchorBook and the compiler) that can disagree |
+| ⭐ TE-4 *(amended)* | **The scout is the recording's INDEX, built once per recording, not per take** (§2b). It runs **automatically the first time a recording is opened** in any host, in the background, filling the timeline as it goes, and is cached beside the recording; every later open reads the cache (milliseconds). A take's anchors are QUERIES over the index; a predicate the index cannot answer (a new area drawn later) runs one targeted pass of the search service, narrowed by the index's position track, and its hits are added to the cache | rejected: scouting on every open (minutes per open on a long recording) · scouting per take (the same scan repeated for every take) |
 | ⭐ TE-5 | **The runner moves to the shared assembly.** `DirectorRunner` and `DirectorWindow` move from `Hrot.Editor/Director` to `Hrot.Presentation/Map3D/Director` (their usings are already only director, window-manager and ImGui types). A new `ReplayDirectorHost : IDirectorHost` plays a recording; `IDirectorHost` gains `Seek` / `CanSeek` (default not supported, like `WriteCheckpoint`) | rejected: a replay copy of the runner — R-4068 |
 | ⭐ TE-6 | **The program is one pure function:** `TakeTimeline.ProgramAt(filmTime)` → source time, camera pose, fade, subtitles, view, graphics, audio rate. The panel's scrub, the runner, capture and the regression stills all call it | rejected: the panel computing its own preview — it would drift from the film |
 | ⭐ TE-7 | **Skips and speeds are the Time track**: segments kept at a speed (0.25× … 8×); a gap is crossed by a cut, a dip, or a fast-forward with an on-screen clock (*"+12 min"*). On a recording a skip is a seek. ⚠ On a scenario source a skip still steps one step per frame (R-3038), so it costs wall time: it shows a card, and long skips are why films come from recordings | — |
@@ -64,6 +74,10 @@ to author; the **program camera** is the one the film shows.
 | ⭐ TE-13 | **A film's recording is kept in the exercise archive layout** (`exercises/<id>/` with its `.fdp`, `Orchestrator.json` and the archived scenario). An editor run writes `/tmp/FDP_Temp/exercises/<id>/`; **"Keep for films"** copies it into the archive, and its takes live there | ⛔ whether an editor run is archived today: measure in R0 |
 | ⭐ TE-14 | **Undo/redo is a snapshot of the take per edit**, kept by one of the four existing undo stacks (Blueprints `CommandHistory`, the two `GizmoUndoStack`s, NodeEditor `UndoStack`). ⛔ No fifth | — |
 | ⭐ TE-15 | **HTTP** (R-1029's rule: a route only when none answers): the existing `/director/take`, `/director/play` and `/director/scout` take `recording=` beside `scenario=`; one new `POST /director/promote`. The MCP catalog is regenerated in the same commit (R-1030) | — |
+| ⭐ TE-17 *(R-4073)* | **One Timeline panel, shared by every host** (`Hrot.Presentation`), over an `ITimelineSource`: the **recording** source (the index; seekable) and the **live** source (the same extractors run on the live world each frame, appended; history only). It **replaces** the Replay Browser's scrubber row (`ReplayTimelinePanel` keeps its export options). The director window becomes bin + inspector; its tracks are **contributed** to the Timeline when a take is open (§2a) | rejected: the timeline inside the director window (the user: useful without it) · a second scrubber beside the old one |
+| ⭐ TE-18 | **Draw cost follows pixels, not events** (§2b): a level-of-detail pyramid per lane (counts, top priority, one representative per bucket) like an audio editor's peak file or a map's tiles; density strips when crowded, glyphs when sparse, clusters with a count, priority on top | rejected: drawing every event (thousands per lane per pixel when zoomed out) |
+| ⭐ TE-19 | **One transport for every host:** `ITimeTransportFacade` gains `CanSeek` + `Seek(t)`. Replay Browser: a new adapter over `ReplayBrowserContext`; cluster replay: the existing `ClusterOpType.ReplaySeek` round; editor and live cluster: `CanSeek = false` (R-3034: never rewind) — the past is a history to read | rejected: the timeline calling each host's seek itself |
+| ⭐ TE-20 | **The event list reads the same index.** The shared Event Browser (`EventBrowserPanel`) shows the index around the playhead in a recording, so the list and the timeline cannot disagree | rejected: a second scan for the list |
 | ⭐ TE-16 | **Reels are unchanged**; an item may name `{recording, take}`. The reel composer is the bin plus a sequence row in the same panel (reorder, trim, transition per item) | — |
 
 ## 1. The picture — who calls what each frame
@@ -81,7 +95,8 @@ graph TD
   end
   subgraph SH["shared (Hrot.Presentation / Map3D / Director)"]
     RUN["DirectorRunner (MOVED)"]:::moved
-    WIN["DirectorWindow → timeline panel (MOVED, grown)"]:::moved
+    WIN["DirectorWindow: bin + inspector (MOVED)"]:::moved
+    TLP["TimelinePanel (NEW, R-4073)"]:::new
     TL["TakeTimeline.ProgramAt (grown)"]:::moved
     AB["AnchorBook (grown: cross, enter, leave)"]:::moved
     FG["FilmGraphicsLayer (NEW)"]:::new
@@ -100,7 +115,8 @@ graph TD
   RUN --> FS
   RUN --> FG
   WIN --> RUN
-  AB -.->|"recording scout"| RSS
+  WIN -->|"contributes tracks"| TLP
+  AB -.->|"targeted search, 4e"| RSS
   RB -->|"NEW: R-4069"| TKB
   classDef new fill:#d9f2d9,stroke:#2a7a2a
   classDef moved fill:#fff2cc,stroke:#a68a00
@@ -130,6 +146,97 @@ and autosave (TE-14) · 16:9 safe frame, letterbox, thirds · film length and ex
 (right-click a shot → over the shooter 0.5 s before, then the target, then the result; reuses D-10's draft rules) · a key whose unit is
 gone holds its last pose · validation lists missing units and a stale recording.
 
+## 2a. The timeline — a panel of its own, on every host (R-4073, TE-17, TE-19)
+
+```mermaid
+graph TD
+  subgraph HOSTS["hosts"]
+    RBH["Replay Browser"]
+    EDH2["Editor"]
+    CLH["CGF / SimHost / IG (map hosts)"]
+  end
+  TLP2["TimelinePanel (NEW, Hrot.Presentation)"]:::new
+  subgraph SRC["ITimelineSource (NEW)"]
+    RSRC["RecordingTimelineSource: the index file, complete, seekable"]:::new
+    LSRC["LiveTimelineSource: the same extractors on the live world, appended"]:::new
+  end
+  subgraph TRK["ITimelineTrackProvider (NEW): extra rows"]
+    DIR["Director: Time, Camera, Subtitles, View, Graphics, Audio"]
+    SRCH["Search results (ReplaySearchPanel)"]
+    BKM["Bookmarks + back/forward history (PlaybackHistoryTracker)"]
+  end
+  subgraph TR["ITimeTransportFacade (exists) + CanSeek / Seek (grown)"]
+    RBA["ReplayBrowserTransportAdapter (NEW) → ReplayBrowserContext.SeekToFrame"]:::new
+    CTA["ClusterTimeTransportAdapter (exists) → ClusterOpType.ReplaySeek in a cluster replay"]
+    ETF["EditorTimeTransportFacade (exists), CanSeek = false"]
+  end
+  RBH --> TLP2
+  EDH2 --> TLP2
+  CLH --> TLP2
+  TLP2 --> RSRC
+  TLP2 --> LSRC
+  TLP2 --> TRK
+  TLP2 --> TR
+  EVB["EventBrowserPanel (exists, shared)"] -->|"reads the same source (TE-20)"| SRC
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+```
+
+*What the picture shows that prose hid: the timeline knows nothing about any host. A host chooses a source and a transport; the
+director, the search and the bookmarks are only extra rows. That is what lets the Replay Browser make it central while the editor and
+the cluster hosts show the same panel.*
+
+| host · mode | source | seek | a click in the past |
+|---|---|---|---|
+| ⭐ **Replay Browser** | recording (the index) | ✅ local sandbox | seeks |
+| **a node in a cluster REPLAY** | recording (its own `.fdp`, the same index) | ✅ through the master's `ReplaySeek` round | seeks the cluster |
+| **editor preview, a live cluster** | live (appended) | ⛔ never rewind (R-3034) | shows the event; "Open in Replay Browser" when the run was recorded |
+| **editor, a director take playing** | live + the take's tracks | ⛔ | the director's own controls (Play / Next) |
+
+## 2b. The event index — read once, cached, drawn by pixels (TE-4, TE-18, TE-20)
+
+**What goes in.** One background pass over the recording, on the search service's own isolated context (replay-browser-2's isolation
+invariant: the GUI's sandbox is never touched, so a background thread is safe here):
+
+| lane group | lanes | read from |
+|---|---|---|
+| **Combat** | shots, hits, detonations | recorded transient events (the event scanner, `IEventScannerCompiler`) — ⛔ which event types are recorded: R0 ② |
+| **Life** | spawned, killed / destroyed | lifecycle (`GetDestructionLog`) and `Health` crossing zero |
+| **Behaviour** | task / behaviour changes, a brain journal entry | `BehaviorState` changes; the journal's `Seq` (recorded, BV-9) |
+| **Movement** | area entries / exits, line crossings | each entity's **position track** (below) against the scenario's areas and lines |
+| **Orders** | mission tasks issued and finished | mission state changes |
+| *rows added by providers* | search hits, bookmarks, the director's tracks | §2a |
+
+**What the cache holds** — a sidecar beside the recording (`<recording>.timeline`), invalidated by its header (the recording's size,
+its last frame's ticks, the index schema version):
+
+| table | per row | why |
+|---|---|---|
+| **events** | frame, lane, subject id, other id, x, y, one value | the glyphs, the tooltips, the queries — columns, so a lane is one contiguous array |
+| **entities** | network id, name, type, side, spawn and despawn frame | names and side colours without opening the recording |
+| **position track** | per entity, one sample per second, quantised | a NEW area or line is answered from the cache, then refined by a short local scan from the nearest keyframe (≤ 1 s) — no full rescan |
+| **pyramid** | per lane, per level (each level halves the resolution): count, top priority, one representative event | drawing costs pixels × lanes, never events |
+
+📐 Sizes are estimates to measure in R0 ⑧: an hour at 60 Hz is 216 000 frames; 100 000 events × ~24 bytes ≈ 2.4 MB; 1 000 entities ×
+3 600 position samples × 8 bytes ≈ 29 MB (moving entities only, delta-coded, is much less).
+
+**How it draws without clutter** — what works in Perfetto/Tracy (profilers), audio editors (peak files), video editors (marker
+lanes), Grafana (annotations) and game replay timelines (kill markers):
+
+| rule | |
+|---|---|
+| **density when crowded, glyphs when sparse** | more than ~1 event per pixel ⇒ a density strip (log-scaled intensity, side colour); fewer ⇒ an icon per event |
+| **cluster, never overlap** | glyphs closer than their width merge into one with a count (*×37*); its tooltip lists them grouped by kind |
+| **priority on top** | death > detonation > hit > shot > behaviour > movement; a cluster shows its highest |
+| **collapsible lane groups** | Combat, Life, Behaviour, Movement, Orders; collapsed, a group is ONE density strip |
+| **focus, not filter** | "selected unit" dims every other event instead of hiding it, so context stays; a pinned unit gets its own swimlane (alive span, its shots, hits taken, behaviour bars, like a Gantt row) |
+| **the overview strip** | the whole recording always visible above, with the zoomed window as a bracket you drag |
+| **zoom about the cursor** | Ctrl+wheel; drag to pan; drag on the ruler to zoom to a range; the ruler's ticks adapt (hours … frames) with the exercise clock |
+| **jump, don't hunt** | next / previous event in the lane under the cursor; a search box filters lanes from the index, not the file |
+| **progressive** | while scanning, the scanned part is drawn and the rest shaded; the timeline is usable from the first second |
+
+📐 **Budgets** (to hold in R1): the timeline draws in < 1 ms per frame at any zoom; a cached index opens in < 200 ms for an hour;
+the first scan's rate is measured in R0 ⑧ — it bounds how soon the first open is useful, not whether.
+
 ## 3. Classes
 
 ```mermaid
@@ -144,7 +251,7 @@ classDiagram
   class FilmGraphic { <<NEW>> +AtExpr At +AtExpr Until +GraphicKind Kind +points or unit +Style }
   class CameraSpec { <<exists>> follow · over-toward · lookAt · eye-target }
   class AtExpr { <<exists>> }
-  class AnchorSpec { <<exists, grown>> +Kinds += cross, enter, leave +Line +Area }
+  class AnchorSpec { <<exists, grown>> +When SearchPredicateDto +N · nine shorthands lower to predicates (TE-3b) }
   class AnchorBook { <<exists, grown>> +Observe(world, units, t) +TimeOf(anchor) +Markers() }
   class TakeTimeline { <<exists, grown>> +ProgramAt(filmTime) ProgramFrame +FilmLength }
   class ProgramFrame { <<NEW>> +double SourceTime +FilmShot Pose +float Fade +subtitles +view +graphics +double AudioRate }
@@ -155,7 +262,17 @@ classDiagram
   class ReplayDirectorHost { <<NEW>> over ReplayBrowserContext }
   class ReplayBrowserContext { <<exists>> +SeekToFrame(i) }
   class RecordingSearchService { <<exists>> frame-step loop }
-  class TimelinePanel { <<NEW, grows DirectorWindow>> tracks · bin · inspector · transport }
+  class DirectorWindow { <<exists, MOVED, grown>> bin · inspector · the director's track provider }
+  class TimelinePanel { <<NEW, R-4073>> lanes · overview · zoom · transport row }
+  class ITimelineSource { <<NEW>> +Extent +Lanes +Pyramid(lane, level) +Events(lane, range) +Progress }
+  class RecordingTimelineSource { <<NEW>> over the index file }
+  class LiveTimelineSource { <<NEW>> the extractors on the live world, appended }
+  class TimelineIndexBuilder { <<NEW>> one pass, its own context; writes the sidecar }
+  class EventExtractors { <<NEW>> shot · hit · blast · death · behaviour · movement · orders }
+  class ITimelineTrackProvider { <<NEW>> +Rows +Draw(row, range) }
+  class ITimeTransportFacade { <<exists, grown>> +bool CanSeek +Seek(t) }
+  class SearchPredicateDto { <<exists — R-4072>> the anchor's condition }
+  class PredicateCompiler { <<exists>> }
   class FilmGraphicsLayer { <<NEW>> draws ProgramFrame.graphics }
   class FilmStudio { <<exists>> +Direct(FilmShot) +Capture() }
   class ShotEvaluator { <<exists>> +Evaluate(spec, t, world) FilmShot }
@@ -182,10 +299,21 @@ classDiagram
   EditorDirectorHost ..|> IDirectorHost
   ReplayDirectorHost ..|> IDirectorHost
   ReplayDirectorHost --> ReplayBrowserContext
-  AnchorBook ..> RecordingSearchService : recording scout steps with
-  TimelinePanel --> DirectorRunner
-  TimelinePanel --> TakeStore
-  TimelinePanel --> UndoStack
+  DirectorWindow --> DirectorRunner
+  DirectorWindow --> TakeStore
+  DirectorWindow --> UndoStack
+  DirectorWindow ..|> ITimelineTrackProvider
+  TimelinePanel --> ITimelineSource
+  TimelinePanel --> ITimelineTrackProvider
+  TimelinePanel --> ITimeTransportFacade
+  RecordingTimelineSource ..|> ITimelineSource
+  LiveTimelineSource ..|> ITimelineSource
+  TimelineIndexBuilder --> EventExtractors
+  LiveTimelineSource --> EventExtractors
+  TimelineIndexBuilder ..> RecordingSearchService : steps with its loop
+  AnchorSpec ..> SearchPredicateDto : IS one (R-4072)
+  AnchorBook ..> RecordingTimelineSource : answers from the index first
+  AnchorBook ..> PredicateCompiler
 ```
 
 *What the class picture forces: every new type is DATA in the take, plus one host and one layer. The pose maths stays in
@@ -241,19 +369,52 @@ sequenceDiagram
   Note over R: capture mode: the same frame goes to the PNG sink, as built
 ```
 
-### 4c. Scout a recording → the Markers track
+### 4c. Open a recording — the index, built once, then cached (TE-4)
 
 ```mermaid
 sequenceDiagram
-  participant P as TimelinePanel
-  participant A as AnchorBook
-  participant S as RecordingSearchService loop (headless, its own context)
-  P->>A: scout(recording, take anchors + the auto catalogue)
-  loop every recorded frame
-    S->>A: Observe(sandbox world, units, t)
+  actor U as User
+  participant H as Replay Browser (any host opening a recording)
+  participant S as RecordingTimelineSource
+  participant B as TimelineIndexBuilder (background, its own context)
+  participant T as TimelinePanel
+  U->>H: open recording
+  H->>S: Open(recording)
+  alt the sidecar exists and its header matches
+    S-->>T: complete index (milliseconds)
+  else first open, or the recording changed
+    S->>B: Build(recording)
+    loop every recorded frame, on the search service's loop
+      B->>B: EventExtractors → events, entities, position track
+      B-->>S: a chunk every ~N frames (pyramid levels updated)
+      S-->>T: Progress (drawn up to here, the rest shaded)
+    end
+    B->>S: write the sidecar
   end
-  A-->>P: markers: anchor → time, plus every shot, blast, death, crossing
-  Note over P: the GUI's sandbox is untouched (replay-browser-2 isolation invariant)
+  U->>T: zoom, pan, click
+  T->>S: Pyramid(lane, level) for the visible range (pixels × lanes)
+  T->>H: Seek(t) through ITimeTransportFacade
+```
+
+*What the sequence shows: the expensive pass happens once per recording; every take, search lane and later open reuses it. The GUI's
+sandbox is never touched while it runs.*
+
+### 4e. A take's anchor that the index cannot answer yet
+
+```mermaid
+sequenceDiagram
+  participant A as AnchorBook
+  participant S as RecordingTimelineSource
+  participant Q as RecordingSearchService (targeted)
+  A->>S: TimeOf(n-th time the predicate is true)
+  alt an indexed lane answers it (a shot, a death)
+    S-->>A: time
+  else a spatial predicate on a new area or line
+    S-->>A: candidate seconds from the position track
+    A->>Q: ExecuteSearch(predicate) on those windows only (keyframe + ≤ 1 s each)
+    Q-->>A: exact frame
+    A->>S: add the hits to the cache
+  end
 ```
 
 ### 4d. Promote a recording take to a scenario take
@@ -278,7 +439,8 @@ sequenceDiagram
 {
   "source": {"recording": "7f3a…", "scenarioHash": "…"},
   "anchors": {"fire": {"on": "shot", "who": "Tank 1", "n": 1},
-              "blue": {"on": "cross", "who": "Tank 1", "line": "Phase line BLUE"}},
+              "blue": {"n": 1, "when": {"$type": "SpatialBounding", "TriggerEvent": "Entry",
+                                        "Bounds": {"Min": [180, 40], "Max": [260, 90]}, "…": "the predicate's own JSON"}}},
   "segments": [{"from": 0, "to": "blue-5", "speed": 1},
                {"from": "fire-1", "to": "fire+3", "speed": 0.25, "gap": "dip"}],
   "keys": [
@@ -292,15 +454,16 @@ sequenceDiagram
 }
 ```
 
-A scenario take is the same with `source` absent. ⭐ `shots[]` is still read; the editor writes `keys[]`.
+A scenario take is the same with `source` absent. ⭐ `shots[]` is still read; the editor writes `keys[]`. ⭐ `"on": "shot"` is a shorthand that lowers to a predicate (TE-3b); `when` holds any predicate, written by the existing editor (R-4072). A line crossing is the extension TE-3 names; until it exists, an area entry is the box above.
 
 ## 6. Phases and acceptance
 
 | phase | builds | accepted when |
 |---|---|---|
-| **R0** *(measure)* | ① a recording plays back faithfully (types, effects, deaths, poses, doors) · ② what the recording holds for anchors (shots and blasts as recorded events? `ShotLog` / `DetonationLog` are kept beside the live world) · ③ the TKB from the recording's scenario (TE-12) · ④ sound sources in replay · ⑤ is an editor run archived (TE-13) · ⑥ which class draws tactical graphics (TE-9) | a report per item, each with its file:line; the TKB loaded in the Replay Browser |
-| **R1** | format v2 + `shots[]` as keys · `ProgramAt` · move the runner and window (TE-5) · `ReplayDirectorHost` · the panel with Time and Camera tracks, K, cut / fly / dip · undo | a recording take plays in the Replay Browser with skips, slow motion and the three transitions; the same take's keys play in the editor |
-| **R2** | the recording scout + Markers track · `cross` / `enter` / `leave` · Subtitles and View tracks · promote | a take authored on a recording, promoted, plays on a fresh editor run of its scenario with every event-anchored key on its event |
+| **R0** *(measure)* | ① a recording plays back faithfully (types, effects, deaths, poses, doors) · ② which events a recording holds (shots, hits, blasts as recorded transient events? `ShotLog` / `DetonationLog` live beside the live world only) · ③ the TKB from the recording's scenario (TE-12) · ④ sound sources in replay · ⑤ is an editor run archived (TE-13) · ⑥ which class draws tactical graphics (TE-9) · ⑦ each of the nine anchor shorthands as a predicate (TE-3b) · ⑧ the scan rate of the search service's loop and the index's size on a real hour | a report per item, each with its file:line; the TKB loaded in the Replay Browser |
+| **R1** ⭐ *(the timeline first — useful without the director, R-4073)* | `TimelineIndexBuilder` + extractors + the sidecar · `ITimelineSource` (recording, live) · `TimelinePanel` with the rules of §2b · `ITimeTransportFacade.CanSeek / Seek` and the Replay Browser adapter · the Event Browser on the index | an hour's recording opens with its timeline filling progressively; the second open is instant; zoomed out it draws densities, zoomed in glyphs, < 1 ms per frame; a click seeks |
+| **R2** | format v2 + `shots[]` as keys · `ProgramAt` · move the runner and window (TE-5) · `ReplayDirectorHost` · the director's tracks (Time, Camera) on the Timeline, K, cut / fly / dip · undo · anchors as predicates in the existing editor (R-4072) | a recording take plays in the Replay Browser with skips, slow motion and the three transitions; the same take's keys play in the editor |
+| **R2b** | Subtitles and View tracks · promote · the predicate extensions (polygon area, line crossing, drawing them on the map) | a take authored on a recording, promoted, plays on a fresh editor run of its scenario with every condition-anchored key on its event |
 | **R3** | Graphics track + `FilmGraphicsLayer` · shot templates · audio at any rate (TE-11) · still keys in Verify (TE-10) | a regression run writes a PNG per still key; slow motion sounds as TE-11 says |
 | **R4** | reel composer · render queue · HTTP (TE-15) + MCP catalog | a reel of two recording takes renders to one movie with sound |
 
@@ -318,7 +481,13 @@ A scenario take is the same with `source` absent. ⭐ `shots[]` is still read; t
 | a headless frame loop over a recording exists, isolated from the GUI | ✅ `RecordingSearchService` | ✅ replay-browser-2 §1 isolation invariants, §6.3 |
 | anchors already carry events + offsets | ✅ `AtExpr`, `AnchorSpec.Kinds` (shot, blast, hit, near, task, side, health, embark, gesture — `Take.cs:129`) | ✅ `DESIGN_Film_Director.md` §4, `DESIGN_Scenario_Regression.md` (checks.json reuses it) |
 | a recording names its scenario | ✅ an archived exercise's `Orchestrator.json` carries the scenario id (`AssetInventoryProcessManager.cs:265`) · ⛔ an editor run's temp folder: not measured | ✅ mgmt-1 §12 · ⛔ R0 ⑤ |
-| the anchors can be resolved from a recording | ⛔ `AnchorBook` reads `ShotLog` / `DetonationLog`, kept beside the LIVE world (`DESIGN_Film_Director.md` §8.3) — in a replay sandbox: not measured | ⛔ R0 ② — ⚠ load-bearing for TE-4; if they are not recorded, the scout reads the recorded events instead |
+| the anchors can be resolved from a recording | ⛔ `AnchorBook` reads `ShotLog` / `DetonationLog`, kept beside the LIVE world (`DESIGN_Film_Director.md` §8.3) — in a replay sandbox: not measured | ⛔ R0 ② — ⚠ load-bearing for the Combat lanes; the index reads RECORDED events (the event scanner), which is why it is the source and not AnchorBook's logs |
+| the existing condition model is one, shared, editable and serialisable | ✅ `SearchPredicateDto` (`SearchPredicateDto.cs`, `$type` discriminators) used by data breakpoints (`Hrot.Diagnostics.Breakpoints`), Replay Browser search, `/replay/search`, BTree/HSM/Blueprint breakpoint menus; StructEdit editor hosted by `ReplaySearchPanel` and `DataBreakpointManagerPanel` | ✅ `Predicate-Infrastructure-Capabilities.md` §1–§5 · R-4072 |
+| enter / leave an area exists; a polygon and a line do not | ✅ `SpatialBoundingPredicateDto` + `BoundaryEvent { Entry, Exit, EntryOrExit }` over a `BoundingBox2D` (`SearchPredicateDto.cs:161-183`), picked with `[MapPickableBoundingBox]` · ⛔ no polygon, no line predicate found (graph + grep; coverage not checkable) | ⚠ the capabilities doc §6 calls the box "the polygon" — it is a box |
+| the predicates evaluate both on a recording and live | ✅ `RecordingSearchService` (recording) · `DataBreakpointManager` (live, per tick) | ✅ capabilities doc §3.3 |
+| no event index or cache of a recording exists | ✅ `PlaybackController` keeps only an in-memory FRAME index (`_frameIndex`: offsets, wall ticks, keyframes — `PlaybackController.cs:30-47, 354`) · ⛔ searched graph + grep for an index / cache / summary file: none (coverage not checkable) | ⛔ searched `docs/`: none |
+| a cluster replay can seek; the transport facade cannot yet | ✅ `ClusterOpType.ReplaySeek` / `NodeReplaySeek` (`OrchestrationMessages.cs:34, 74`), `ClusterMaster.Replay.cs` · `ITimeTransportFacade` has no seek (`ITimeTransportFacade.cs:11-47`) | ✅ `DESIGN_Time_Architecture.md` §11 |
+| a background index pass is safe | ✅ the search and export services build their own `ReplayBrowserContext`; export already runs `LongRunning` | ✅ replay-browser-2 §1 "Isolation invariants" |
 | sound at other rates | ✅ `SoundTrack.RenderWav` maps each cue to the film timeline (§8.3) | ⛔ no design for live playback at ≠ 1× — TE-11 is new |
 
 ## 8. INVENTORY
@@ -337,7 +506,19 @@ scripts/cbm.sh search_graph name_pattern=".*(Director|Take|Reel|Timeline|Replay)
    ReplayTimelinePanel (Fdp.Presentation) — the Replay Browser's transport; the director panel REUSES its scrub/transport, not a second one
 scripts/cbm.sh search_graph name_pattern=".*(Undo|Redo|CommandHistory|EditHistory).*" label=Class
    → four undo stacks: Blueprints CommandHistory, Fdp.Toolkits GizmoUndoStack, GizmoMap GizmoUndoStack, NodeEditor UndoStack (TE-14)
-docs: DESIGN_Film_Director.md (§3e, D-18) · designs/replay-browser-2/DESIGN.md · DESIGN_Agent_Shared_View.md (R-1029) · DESIGN_Scenario_Regression.md ·
+scripts/cbm.sh search_graph name_pattern=".*(Condition|Predicate|Trigger|Zone|Area|PhaseLine|Region).*" label=Interface → 7: IAreaOutline,
+   IDangerAreaProvider, IPredicateCompiler, ISearchPredicateRegistry, IZoneAuthoringController, IZoneRowRenderer, IZoneTileLoader
+scripts/cbm.sh search_graph name_pattern=".*(PredicateDto|ConditionDto|TriggerDto|Trigger|MissionCondition|…Crossing|Enter).*" label=Class
+   → the SearchPredicateDto family (Compound, PropertyMatch, Numeric, String, Enum, TransientEvent, Lifecycle, SpatialBounding, Structural,
+     BehaviorParam, TraceBufferScan, BlueprintVariable, ExternalHitTag) · MissionTrigger (string-typed: TimerElapsed, HealthCritical,
+     BehaviorFinished, UnderAttack — no area or line) · no line-crossing or polygon condition
+scripts/cbm.sh search_graph name_pattern=".*(Condition|Predicate|Trigger).*(Editor|Panel|Window|Drawer|Inspector|Widget).*" label=Class
+   → PredicateValueFieldDrawer, PredicateValueFieldEditor; hosts found by grep: ReplaySearchPanel, DataBreakpointManagerPanel (+ PredicateBuilderState)
+grep "SearchPredicateDto" → 31 production files: breakpoints (8), debug API (5), BTree/HSM/Blueprint breakpoint menus, compiler, Replay Browser
+cluster seek: ClusterOpType.ReplaySeek, NodeReplaySeek, ClusterMaster.Replay, ReplaySeekProcessManager · transports: ITimeTransportFacade,
+   EditorTimeTransportFacade, ClusterTimeTransportAdapter, MainToolbarTimeControlSection, ShellTimeControlToolbar
+docs: Predicate-Infrastructure-Capabilities.md · designs/breakpoints-1/DESIGN.md · DESIGN_Time_Architecture.md §11 ·
+   DESIGN_Film_Director.md (§3e, D-18) · designs/replay-browser-2/DESIGN.md · DESIGN_Agent_Shared_View.md (R-1029) · DESIGN_Scenario_Regression.md ·
    DESIGN_Map_3D_Mode.md §6b · searched docs/ for "director editor", "camera keyframe", "timeline editor", "film graphics" → none found
 check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
 ```
