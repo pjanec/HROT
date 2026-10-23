@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — DISPATCHED at the commit that adds this file (2026-10-23); scope frozen there. A PLANNING handoff: fold it into the ui lane's plan.
+state: LIVE — DISPATCHED at `cf793cbb1` (2026-10-23); scope frozen there. A PLANNING handoff: fold it into the ui lane's plan.
 updated: 2026-10-23
 current-answer: the whole file.
 stale-below: nothing.
@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — ui: the shared Timeline and the director's timeline editor
 
-**For:** the ui lane (`ui`). **From:** the coordinator lane. ⭐ **Dispatched at the commit that adds this file**; your scope is FROZEN
+**For:** the ui lane (`ui`). **From:** the coordinator lane. ⭐ **Dispatched at `cf793cbb1`**; your scope is FROZEN
 there, and documents that change after it are FYI only. If a later document invalidates an item, STOP that item and report it (R-106).
 
 ⭐ **This is a PLANNING handoff, not a batch to start now.** 🔒 The user: *"they are designong behavior debuggoing with lots of ui tasks
