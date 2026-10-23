@@ -522,5 +522,8 @@ second debugger.
 | `SopSlotTests.CE1249_*` (3) | paused-then-started ✅ red · refusal reasons ✅ red (a value swap) · ended / cleared ✅ red |
 | `TheChangedConditionIsPerEntityTests` | a neighbour's write does not hit, the unit's own does |
 | `BrainTickSystemHsmArmTests.CE1261_*` | one `StateChanged` per move, none on a steady tick |
-| `TheBrainViewTests` (3) · `UnitDebugControllerTests` (2) · `TheBrainAndViewRoutesAnswerTests` (3) | the reader, the bundle offer and dump · on / move / off and the menu item · the routes |
+| `TheBrainViewTests` (3) · `UnitDebugControllerTests` (2) · `TheBrainAndViewRoutesAnswerTests` (3) | the reader (journal order ✅ red), the bundle offer and dump (registration dropped ✅ red) · on / move / off (move not undoing ✅ red) and the menu item (item removed ✅ red; ⚠ dropping the menu cache's 128 flag stayed green — the cache is rebuilt when the order vocabulary changes, so the flag is an unreached guard) · the routes (`?since` ✅ red, frustum behind-test ✅ red) |
+| exact `Changed` · regions | old always-true answer ✅ red · inverted region compare ✅ red |
+
+⭐ Suites after the build (2026-10-23): FDP toolkits 4068/0 · Breakpoints 165/0 · AI editor views 2135/0 · Editor 547/0 · SimHost 1851 + the 12 terrain / navmesh tests green after `dotnet restore` (the stale-restore trap: `BepuPhysics.dll` was missing from that test `bin`) · Presentation 824/2 — the two pre-existing reds `FilmDirectorTests.CE4038` and `EntityTypeCatalogTests.CE2138`, red on backend's head too.
 
