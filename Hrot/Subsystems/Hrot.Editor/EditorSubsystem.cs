@@ -1931,6 +1931,14 @@ namespace Hrot.Editor
             _kernel.RegisterGlobalSystem(_bpSnapshotProvider);
             _kernel.RegisterGlobalSystem(_bpSystem);
 
+            // ⭐ CE-1257 / CE-1258 (BV-26, BV-28) — "Debug this unit" lives where the debuggers live: the editor composes the ONE controller
+            //   (the Brain tab, the map's AI-trace menu and POST /entities/{id}/debug are buttons on it) and gives it the journal break.
+            Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = new Hrot.Common.Diagnostics.Gizmos.UnitDebugController
+            {
+                ArmJournalBreak = (w, e) => _bpManager?.AddBreakpoint(
+                    Fdp.Toolkit.ReplayBrowser.Search.BrainJournalBreak.Condition(), e, 1, "journal (Brain tab)").ToString(),
+            };
+
             // ⭐⭐⭐ THE STAGED-WRITE DRAIN WIRE. 📄 DESIGN_Staged_Live_Write.md §8.
             //   The PreFrame drain (time lane's W1/W2) is fed the breakpoint manager AS IStagedWrites
             //   (its W4 role) and the kernel's publishing signal (closes AS-10's replay-prep residual).
@@ -4442,7 +4450,10 @@ namespace Hrot.Editor
             {
                 // ⚠ PROVIDERS: _world is assigned during Initialize, after this hook is built.
                 World          = () => _world,
-                SelectedEntity = () => _btreeSelectionStore.SelectedEntity,
+                // ⭐ CE-1257 (BV-22) — the debugged unit while one is set, else the selection
+                SelectedEntity = () => Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is { } debug
+                    ? debug.Follow(_world, _btreeSelectionStore.SelectedEntity)
+                    : _btreeSelectionStore.SelectedEntity,
             };
 
             btreeCanvasWindow.AfterDraw = Hrot.Editor.AiComposition.AiDebugSessionPump.Then(

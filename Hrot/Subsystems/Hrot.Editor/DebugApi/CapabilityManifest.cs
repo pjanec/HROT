@@ -105,6 +105,8 @@ public static class CapabilityManifest
         if (path.StartsWith("/blueprints", StringComparison.Ordinal))  return DebugCapabilities.EditorAuthoring;
         if (path.StartsWith("/behaviors", StringComparison.Ordinal))   return DebugCapabilities.WorldRead;
         if (path.StartsWith("/annotations", StringComparison.Ordinal)) return DebugCapabilities.WorldRead;
+        if (path.StartsWith("/view", StringComparison.Ordinal))        return DebugCapabilities.WorldRead;   // ⭐ CE-1262
+        if (path.StartsWith("/selection", StringComparison.Ordinal))   return DebugCapabilities.WorldRead;   // ⭐ CE-1263
         if (path.StartsWith("/trace", StringComparison.Ordinal))       return DebugCapabilities.WorldRead;
         if (path.StartsWith("/attributes", StringComparison.Ordinal))  return DebugCapabilities.WorldRead;
         if (path.StartsWith("/world", StringComparison.Ordinal))       return DebugCapabilities.WorldRead;

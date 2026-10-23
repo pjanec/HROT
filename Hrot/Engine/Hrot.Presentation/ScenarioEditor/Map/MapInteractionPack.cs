@@ -520,11 +520,13 @@ namespace Hrot.ScenarioEditor.Map
             canvas.AddLayer(new MapCanvasLink(canvas, worldProvider));   // ⭐ CE-1134 — Center View finds this canvas by the world
             canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider));   // ⭐ CE-1146 — the weather's sky: the free camera at what it looks at, first person at the eye
             canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee
-            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider));   // ⭐ CE-1145 / CE-1132 — FPS, RTS legend
+            var stats = new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider, canvas.Camera);   // ⭐ CE-1262 — + the 2-D camera
+            canvas.AddLayer(stats);   // ⭐ CE-1145 / CE-1132 — FPS, RTS legend
             // ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d) — this map host as a first-person station: it follows the replicated
             //   PossessedBy, so a unit held by this node puts the map into its eyes (camera driver, cursor lock, HUD) and losing it
             //   leaves. Here, so no map host can lack it.
             var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies);   // ⭐ CE-1073 — the drawn heads
+            stats.Possession = possession;   // ⭐ CE-1262 (AV-1) — the view snapshot names the possessed unit and its crosshair target
             canvas.AddLayer(possession);
             viewMode.ToggleShoulder = () => possession.OverShoulder = !possession.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
             // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-3) — the scene's sound, only while the station holds a unit

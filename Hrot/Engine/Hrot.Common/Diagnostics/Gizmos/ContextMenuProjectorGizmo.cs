@@ -58,7 +58,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             manned &= orders;
             int flags = (degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0) | (form ? 8 : 0)   // ⭐ CE-1059 — 8: an order form here
                       | (manned ? 16 : 0)                                                          // ⭐ CE-1205 — 16: a weapon (manned, not possessed)
-                      | ((int)embark << 5);                                                        // ⭐ CE-1230 — 32 / 64: Embark… / Disembark
+                      | ((int)embark << 5)                                                         // ⭐ CE-1230 — 32 / 64: Embark… / Disembark
+                      | (brain && UnitDebugController.Current != null ? 128 : 0);                  // ⭐ CE-1257 — 128: Debug this unit offered
             return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit, form, manned, embark));
         }
 
@@ -125,7 +126,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 new ContextMenuItemDto { IsSeparator = true },
                 GizmoPins.Submenu(),   // ⭐ CE-3120 — pin gizmo families on this unit
             });
-            if (brain) items.Add(AiTraceActions.Submenu());   // ⭐ CE-3123 — the AI trace toggles, on every map host
+            if (brain) items.Add(AiTraceActions.Submenu(UnitDebugController.Current != null));   // ⭐ CE-3123 — the AI trace toggles, on every map host; ⭐ CE-1257 + Debug this unit
             return JsonSerializer.Serialize(items.ToArray(), SerializerOptions);
         }
 

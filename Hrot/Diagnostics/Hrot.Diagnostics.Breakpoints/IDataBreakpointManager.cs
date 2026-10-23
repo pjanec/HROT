@@ -19,6 +19,12 @@ namespace Hrot.Diagnostics.Breakpoints;
 /// </summary>
 public interface IDataBreakpointManager
 {
+    /// <summary>⭐ <c>CE-1258</c> (BV-28) — the world a <c>Changed</c> condition compares against (the start-of-tick copy); null = none.</summary>
+    EntityRepository? ChangeBaseline => null;
+
+    /// <summary>⭐ <c>CE-1258</c> (BV-29) — the world as it was at the END of the tick that hit (a hit rewinds the live world to its start).</summary>
+    ISimulationView? PostTickView => null;
+
     // ---- Registry -------------------------------------------------------
 
     /// <summary>

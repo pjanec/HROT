@@ -177,6 +177,11 @@ namespace Fdp.Toolkit.Utility
             ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
             byte winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, TraceOf(repo, self), tick);
             LogDecision(repo, self, decisionId, in output, isOption: true);
+            // ⭐ CE-1249 (BV-10) — always on, only on a SWITCH (a steady winner writes nothing; the caller holds the memory)
+            if (lastWinner != 0 && winner != 0 && winner != lastWinner)
+                Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, self,
+                    Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.DecisionSwitched, a: decisionId, b: winner, cause: lastWinner,
+                    point: new System.Numerics.Vector3(output.Count > 0 ? output.GetSpanRO()[0].Score : 0f, 0f, 0f));
             return winner;
         }
 

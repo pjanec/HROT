@@ -1122,6 +1122,33 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/replay/unload", _ => RunMain(s => s.UnloadReplay())));
 
+            // ⭐ CE-1265 / CE-1266 (AV-6…AV-9) — the brain / journal / selection readers over the loaded recording, its whole-file journal
+            //   history, and the recording search.
+            _routes.Add(new("GET", "/replay/entities/{networkId}/brain", ctx =>
+                long.TryParse(ctx.RouteValue("networkId"), out var id)
+                    ? RunMain(s => s.IsReplayActive ? s.GetReplayEntityBrain(id) : new JsonObject { ["error"] = "No replay loaded" })
+                    : Task.FromResult(Fail(400, "Invalid networkId."))));
+            _routes.Add(new("GET", "/replay/entities/{networkId}/journal", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id)) return Task.FromResult(Fail(400, "Invalid networkId."));
+                uint since = uint.TryParse(ctx.Query("since"), out var sn) ? sn : 0u;
+                return RunMain(s => s.IsReplayActive ? s.GetReplayEntityJournal(id, since) : new JsonObject { ["error"] = "No replay loaded" });
+            }));
+            _routes.Add(new("GET", "/replay/entities/{networkId}/journal/history", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id)) return Task.FromResult(Fail(400, "Invalid networkId."));
+                int? from = int.TryParse(ctx.Query("from"), out var f) ? f : null;
+                int? to = int.TryParse(ctx.Query("to"), out var t) ? t : null;
+                return RunMain(s => s.IsReplayActive ? s.GetReplayJournalHistory(id, from, to) : new JsonObject { ["error"] = "No replay loaded" });
+            }));
+            _routes.Add(new("GET", "/replay/selection", _ =>
+                RunMain(s => s.IsReplayActive ? s.GetReplaySelection() : new JsonObject { ["error"] = "No replay loaded" })));
+            _routes.Add(new("POST", "/replay/search", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().SearchReplay(ctx.Body)).ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.Condition) : Ok(node);
+            }));
+
             // Group K — AI Behavior Traces (ADA-BATCH-12)
             _routes.Add(new("POST", "/trace/observe", async ctx =>
             {
@@ -1144,6 +1171,59 @@ namespace Hrot.Editor.DebugApi
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityTrace(id)).ConfigureAwait(false);
                 return Ok(node);
+            }));
+
+            // ⭐ CE-1248 (BV-8) — the Brain tab's snapshot; ⭐ CE-1249 — the brain journal after a Seq.
+            _routes.Add(new("GET", "/entities/{networkId}/brain", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityBrain(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/entities/{networkId}/journal", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                uint since = uint.TryParse(ctx.Query("since"), out var s) ? s : 0u;
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityJournal(id, since)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-1262 / CE-1263 (AV-1…AV-4) — what the operator is looking at, and the selection.
+            _routes.Add(new("GET", "/view", async ctx =>
+            {
+                int limit = int.TryParse(ctx.Query("limit"), out var l) && l > 0 ? Math.Min(l, 500) : 50;
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetView(limit)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/selection", async _ =>
+            {
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetSelection()).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-1257 (BV-26) — "Debug this unit"; ⭐ CE-1258 (BV-28) — stop when it changes its mind.
+            _routes.Add(new("POST", "/entities/{networkId}/debug", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                bool on = ctx.Body?["on"]?.GetValue<bool>() ?? true;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().DebugUnit(id, on)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/entities/{networkId}/journal/break", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                string[]? kinds = ctx.Body?["kinds"] is JsonArray arr
+                    ? System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(arr, k => k?.GetValue<string>() ?? ""))
+                    : null;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().ArmJournalBreak(id, kinds)).ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.Breakpoint) : Ok(node);
             }));
 
             // ⭐ CE-3069 G2 — the utility record of a unit armed by POST /trace/observe.

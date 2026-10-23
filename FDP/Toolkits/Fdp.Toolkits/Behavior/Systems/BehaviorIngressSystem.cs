@@ -9,6 +9,8 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 
+using Fdp.Toolkit.Behavior.Diagnostics;
+
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
@@ -110,9 +112,11 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 // ⭐ CE-3034 — THE ONE GATE (R-188): a lower origin cannot replace a higher one.
                 // ⭐ CE-2078 — and a reaction (R-199) pauses the task it replaces.
+                int replaced = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;   // ⭐ CE-1249 — for the journal
                 if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause, behaviorId)) continue;
                 var paused = pause ? PauseRecord(repo, evt.Entity, behaviorId, def) : null;
                 if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency, paused)) continue;
+                JournalStarted(repo, evt.Entity, behaviorId, replaced, evt.Origin, evt.Urgency, pause);
                 AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
             }
@@ -129,7 +133,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out _)) continue;   // ⭐ CE-3034 — a clear is gated like an assign
                 var endingOrigin = repo.GetComponentRO<BehaviorState>(evt.Entity).Origin;
                 bool endsAReaction = endingOrigin == BehaviorOrigin.Reaction;
+                int cleared = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;
                 Clear(repo, evt.Entity, _registry);
+                if (cleared != BehaviorIds.None)   // ⭐ CE-1249 — an order (or the reaction itself) ended the task
+                    BrainJournalOf.Write(repo, evt.Entity, BrainJournalKind.TaskCleared, a: cleared, origin: (byte)evt.Origin);
                 // ⭐ CE-2078 — a reaction ending ITSELF resumes the task it paused; an order's clear drops it.
                 // ⭐ CE-3172 (C-4) — so does a RELEASED possession (its station's clear, at origin Possession).
                 if ((evt.Origin == BehaviorOrigin.Self && endsAReaction)
@@ -156,6 +163,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
                 if (_startedByNameThisFrame.TryGetValue(evt.Entity.Index, out int byName) && byName == evt.BehaviorHash)
                     continue;
+                int replacedByHash = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;   // ⭐ CE-1249
                 if (!Admit(repo, evt.Entity, evt.Origin, ReactionUrgency.NotAReaction, out bool pauseByHash, evt.BehaviorHash)) continue;   // ⭐ CE-3034
                 if (_registry.TryGetDefinition(evt.BehaviorHash, out var def)
                     && _registry.TryGetName(evt.BehaviorHash, out var name))
@@ -164,7 +172,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // ⭐ CE-456: the phase's own parameters, not "{}" — the hash event has no JSON, but the plan it came from does.
                     if (Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash), evt.Origin,
                               ReactionUrgency.NotAReaction, pausedByHash))
+                    {
+                        JournalStarted(repo, evt.Entity, evt.BehaviorHash, replacedByHash, evt.Origin, ReactionUrgency.NotAReaction, pauseByHash);
                         AfterAdmitted(repo, evt.Entity, evt.Origin, pausedByHash);
+                    }
                     continue;
                 }
 
@@ -187,6 +198,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 unhosted.ActiveBehaviorHash = evt.BehaviorHash;
                 unhosted.RunSince = Now(repo);   // ⭐ CE-2080
                 unhosted.InstanceId = NextRunToken(repo, evt.Entity, unhosted.InstanceId, pausing: false);   // ⭐ CE-2081
+                JournalStarted(repo, evt.Entity, evt.BehaviorHash, previousBehaviorId, evt.Origin, ReactionUrgency.NotAReaction, false);
                 AfterAdmitted(repo, evt.Entity, evt.Origin, null);
             }
 
@@ -217,16 +229,47 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!isTheTask) return true;
                 pause = false;
                 RefusedCount++;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    urgency: (byte)urgency, cause: (byte)BrainRefusal.SameAsTask);   // ⭐ CE-1249 (BV-13)
                 Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
                     "[BehaviorIngress] refused reaction {0} for entity #{1}: it is the task it would pause.", behaviorId, entity.Index);
                 return false;
             }
             RefusedCount++;
+            BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                urgency: (byte)urgency, cause: (byte)RefusalOf(repo, entity, origin, urgency, running));   // ⭐ CE-1249 (BV-13)
             if (origin == BehaviorOrigin.Sop) WakeSop(repo, entity);   // ⭐ CE-3035 / R-195 — a refused SOP assignment wakes it
             Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
                 "[BehaviorIngress] refused {0} assignment for entity #{1}: it runs behaviour {2} at {3}.",
                 origin, entity.Index, running.ActiveBehaviorHash, running.Origin);
             return false;
+        }
+
+        /// <summary>⭐ <c>CE-1249</c> (BV-13) — why <see cref="AdmitsWithReactions"/> said no, for the journal (the same tests, in order).</summary>
+        private static BrainRefusal RefusalOf(EntityRepository repo, Entity entity, BehaviorOrigin origin, ReactionUrgency urgency,
+            in BehaviorState running)
+        {
+            bool slotEmpty = running.ActiveBehaviorHash == BehaviorIds.None;
+            if (origin == BehaviorOrigin.Reaction)
+            {
+                if (!slotEmpty && running.Origin == BehaviorOrigin.Possession) return BrainRefusal.Possessed;
+                if (running.Origin == BehaviorOrigin.Reaction) return BrainRefusal.LowerUrgency;
+                return BrainRefusal.StayOnTask;
+            }
+            if (!slotEmpty && running.Origin == BehaviorOrigin.Reaction && origin == BehaviorOrigin.Sop) return BrainRefusal.ReactionRunning;
+            return BrainRefusal.LowerRank;
+        }
+
+        /// <summary>⭐ <c>CE-1249</c> (BV-10) — an admitted start, in the journal: the task it paused (a reaction), then the start
+        /// with what it replaced (0 when it paused it or the slot was empty).</summary>
+        private static void JournalStarted(EntityRepository repo, Entity entity, int started, int before, BehaviorOrigin origin,
+            ReactionUrgency urgency, bool paused)
+        {
+            if (paused && before != BehaviorIds.None)
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskPaused, a: before, b: started);
+            int replaced = paused || before == started ? 0 : before;
+            BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskStarted, a: started, b: replaced, origin: (byte)origin,
+                urgency: (byte)urgency);
         }
 
         /// <summary>
@@ -476,6 +519,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     {
                         BehaviorName = paused.BehaviorName, JsonParams = paused.JsonParams, InstanceId = paused.InstanceId,
                     });
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskResumed, a: paused.Hash, origin: (byte)paused.Origin);   // ⭐ CE-1249
                 return;
             }
             if (!repo.Bus.IsRegisteredManaged<AssignBehaviorEvent>()) return;
@@ -551,11 +595,18 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (IsTheSop(repo, entity, behaviorId))
             {
                 RefusedCount++;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    cause: (byte)BrainRefusal.IsTheSop);   // ⭐ CE-1249
                 Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
                     "[BehaviorIngress] refused task {0} for entity #{1}: it is the unit's SOP.", behaviorName, entity.Index);
                 return false;
             }
-            if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow)) return false;
+            if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow))
+            {
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    cause: (byte)BrainRefusal.ParseFailed);   // ⭐ CE-1249
+                return false;
+            }
 
             // ParseParams succeeded (or was not required). Commit behavior transition.
 
@@ -1030,6 +1081,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 _sopRecordRegisteredOn = repo;
             }
             repo.SetManagedComponent(entity, new SopStartRecord { BehaviorName = behaviorName, JsonParams = json, InstanceId = run });
+            BrainJournalOf.Write(repo, entity, BrainJournalKind.SopStarted, a: behaviorId, origin: (byte)origin);   // ⭐ CE-1249
             return true;
         }
 
@@ -1056,6 +1108,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
 
             repo.GetComponentRW<SopState>(entity) = default;
+            BrainJournalOf.Write(repo, entity, BrainJournalKind.SopEnded, a: sop.SopHash);   // ⭐ CE-1249
             if (repo.HasManagedComponent<SopStartRecord>(entity))
                 repo.SetManagedComponent<SopStartRecord>(entity, null!);
         }

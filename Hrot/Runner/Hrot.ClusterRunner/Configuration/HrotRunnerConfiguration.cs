@@ -107,6 +107,12 @@ namespace Hrot.ClusterRunner.Configuration
                          + "else 20 when the staging root is the temp directory, else keep all.")]
         public int? KeepExercises { get; set; }
 
+        /// <summary>⭐ <c>CE-1249</c> (BV-16, R-1027) — <c>off</c> attaches no brain journal to any unit (default <c>on</c>; read at attach,
+        /// never toggled at runtime).</summary>
+        [Option("brain-journal", Required = false, Default = "on",
+                HelpText = "on (default) | off — the per-unit brain journal (last 24 decisions with causes, recorded)")]
+        public string BrainJournal { get; set; } = "on";
+
         /// <summary>When true, --mode migrate reports what would be done without writing any files.</summary>
         [Option("dry-run", Required = false, Default = false, HelpText = "Report what would be done without writing files")]
         public bool DryRun { get; set; }

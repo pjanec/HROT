@@ -1758,7 +1758,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_breakpoint_status",
             Group:   "G — Breakpoints",
             Summary: "Current pause state and last breakpoint hit.",
-            Returns: "{ isPaused, pausedTick, lastHit: { breakpointId, networkId } | null }",
+            Returns: "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }",
             Hint:    "No params. Example: get_breakpoint_status({})",
             Notes: new[]
             {
@@ -1930,6 +1930,81 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "check if replay is active and current frame"),
 
+        [("GET", "/replay/entities/{networkId}/brain")] = new RouteDoc(
+            Tool:    "get_replay_entity_brain",
+            Group:   "I — Recording / replay",
+            Summary: "get_entity_brain over the loaded recording at the current replay frame (CE-1265): what the unit was doing, who ordered it, what it knew, its recent journal.",
+            Returns: "Same as get_entity_brain, plus frame.",
+            Hint:    "Req: networkId (number). Load with load_replay and seek first. Example: get_replay_entity_brain({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "number", true, "Network entity ID (long)") },
+            Notes: new[] { "Reads the replay SANDBOX, never the live world; seek_replay to the frame before a change to see its cause." },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "what unit 1000 was doing at this replay frame"),
+
+        [("GET", "/replay/entities/{networkId}/journal")] = new RouteDoc(
+            Tool:    "get_replay_entity_journal",
+            Group:   "I — Recording / replay",
+            Summary: "get_entity_journal over the loaded recording at the current replay frame (CE-1265) — the last 24 entries as they were then.",
+            Returns: "Same as get_entity_journal, plus frame.",
+            Hint:    "Req: networkId (number); optional since (number, query). Example: get_replay_entity_journal({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("since", "number", false, "Only entries with seq greater than this (query)"),
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "the unit's recent changes at this replay frame"),
+
+        [("GET", "/replay/entities/{networkId}/journal/history")] = new RouteDoc(
+            Tool:    "get_replay_journal_history",
+            Group:   "I — Recording / replay",
+            Summary: "EVERY brain-journal entry of one unit across the loaded recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a finished exercise.",
+            Returns: "{ networkId, from, to, found, gap, count, entries:[{seq, at, kind, text, frame}] }",
+            Hint:    "Req: networkId (number); optional from, to (frames, query). Example: get_replay_journal_history({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("from", "number", false, "First frame (query, default 0)"),
+                new("to", "number", false, "Last frame (query, default the last)"),
+            },
+            Notes: new[]
+            {
+                "It walks the recording frame by frame, so a long file takes a moment; the replay's current frame is restored afterwards.",
+                "Then seek_replay to an entry's frame - 1 and read get_replay_entity_brain to see what led to it.",
+                "gap:true means entries were lost between two recorded frames (should not happen: every change dirties the unit's record).",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "list every decision unit 1000 made in the exercise, and why"),
+
+        [("GET", "/replay/selection")] = new RouteDoc(
+            Tool:    "get_replay_selection",
+            Group:   "I — Recording / replay",
+            Summary: "The operator's selection at the current replay frame (CE-1265) — the unit they were pointing at then (the selection is recorded).",
+            Returns: "{ frame, primary, selection:[networkId] }",
+            Hint:    "No params. Example: get_replay_selection({})",
+            Notes: new[] { "To find WHEN the operator selected something, search_replay a Changed condition on SelectionState.IsSelected." },
+            ExampleArgsJson: "{}",
+            ExampleGist: "which unit the operator had selected at this frame"),
+
+        [("POST", "/replay/search")] = new RouteDoc(
+            Tool:    "search_replay",
+            Group:   "I — Recording / replay",
+            Summary: "Find the frames of the loaded recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
+            Returns: "{ count, truncated, hits:[{frame, networkId, context}] }",
+            Hint:    "Req: condition (object, a SearchPredicateDto). Optional networkId (number), limit (number, default 200). Example: search_replay({condition:{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}, networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("condition", "object", true, "The condition (SearchPredicateDto JSON, as add_breakpoint takes)"),
+                new("networkId", "number", false, "Only this unit"),
+                new("limit", "number", false, "How many hits to return (default 200)"),
+            },
+            Notes: new[]
+            {
+                "Over a recording, Changed has no start-of-tick copy to compare with, so it matches every frame the unit's record was written — combine it with a value test, or use get_replay_journal_history for decisions.",
+            },
+            ExampleArgsJson: "{\"condition\":{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}},\"networkId\":1000,\"limit\":10}",
+            ExampleGist: "find when something happened in the recording"),
+
         [("GET", "/replay/entities")] = new RouteDoc(
             Tool:    "list_replay_entities",
             Group:   "I — Recording / replay",
@@ -2025,6 +2100,117 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read AI behavior trace for entity 1000 after arming"),
+
+        [("GET", "/entities/{networkId}/brain")] = new RouteDoc(
+            Tool:    "get_entity_brain",
+            Group:   "K — AI behavior traces",
+            Summary: "What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (observed units), contacts, and the brain journal's recent changes.",
+            Returns: "{ networkId, hasBrain, onBrainNode, doing, origin, urgency, sinceSeconds, paused, sop, roe, rightNow:[{channel, actionId, reason, hold, progress, needed}], regions:[{region, state, stateIndex}], squad, choices:[{decisionId, winner, previousWinner, margin, switches}], contacts, heardOnly, journal:{on, seq, changes:[{seq, at, kind, text}]} }",
+            Hint:    "Req: networkId (number). Read on the brain's perspective (Scenario on a cluster). Example: get_entity_brain({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+            },
+            Notes: new[]
+            {
+                "onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.",
+                "choices fill only while the unit is observed (observe_trace or debug_unit); the journal is always on.",
+                "journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "see what unit 1000 is doing, who ordered it, and what changed lately"),
+
+        [("GET", "/entities/{networkId}/journal")] = new RouteDoc(
+            Tool:    "get_entity_journal",
+            Group:   "K — AI behavior traces",
+            Summary: "A unit's brain journal after a sequence number (CE-1249): every task start / pause / resume / end / clear / refusal (with its reason), SOP change, utility switch, move start and HSM region change, with its cause — the last 24, always on.",
+            Returns: "{ networkId, on, seq, gap, entries:[{seq, at, kind, text}] } — oldest first; gap:true means more than 24 were written since `since` and the oldest are gone.",
+            Hint:    "Req: networkId (number); optional since (number, query, default 0). Example: get_entity_journal({networkId:1000, since:12})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("since", "number", false, "Only entries with seq greater than this (query); pass the last seq you saw"),
+            },
+            Notes: new[]
+            {
+                "seq counts every entry ever written to the unit and never resets — use it to poll without repeats.",
+                "A refusal repeated every tick is ONE entry whose time is refreshed.",
+                "on:false — not a brain unit on this node, or the host was started with the journal switched off.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"since\":0}",
+            ExampleGist: "list what changed in unit 1000's mind and why"),
+
+        [("GET", "/view")] = new RouteDoc(
+            Tool:    "get_view",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, the debugged unit, and the units in view nearest first with their screen point.",
+            Returns: "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged } — camera:null (with a note) where no map canvas draws the world.",
+            Hint:    "Optional limit (number, query, default 50). Example: get_view({limit:20})",
+            Params: new RouteParam[]
+            {
+                new("limit", "number", false, "How many in-view units to list, nearest first (query; default 50, max 500)"),
+            },
+            Notes: new[]
+            {
+                "The operator points by SELECTING (click; in first person the select key on the unit under the crosshair) — read primary / selection.",
+                "aimTarget is what the first-person crosshair rests on right now; it moves with the aim.",
+                "inView in 2D is the map's own culling; in 3D / FPS a frustum test (not occlusion) — check a line with explain_line_of_sight using possessed as observer.",
+                "For what the possessed unit itself perceives, read get_entity_sensors / get_entity_memory on possessed.",
+            },
+            ExampleArgsJson: "{\"limit\":20}",
+            ExampleGist: "see what the operator sees and which unit they mean"),
+
+        [("GET", "/selection")] = new RouteDoc(
+            Tool:    "get_selection",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "The units the operator has selected (CE-1263): the primary and all.",
+            Returns: "{ primary, selection:[networkId] }",
+            Hint:    "No params. Example: get_selection({})",
+            Notes: new[]
+            {
+                "To point the operator at a unit, use focus_entity (centres the camera) or add_annotation — not a selection write.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "which unit is the operator asking about"),
+
+        [("POST", "/entities/{networkId}/debug")] = new RouteDoc(
+            Tool:    "debug_unit",
+            Group:   "K — AI behavior traces",
+            Summary: "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility record), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
+            Returns: "{ networkId, debugging, debugged }",
+            Hint:    "Req: networkId (number); optional on (bool, default true). Editor only. Example: debug_unit({networkId:1000, on:true})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("on", "boolean", false, "true = start debugging this unit (moves it from any other), false = stop", DefaultJson: "true"),
+            },
+            Notes: new[]
+            {
+                "The operator sees it too: the gizmos pin on the map and the graph's highlight follows this unit.",
+                "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"on\":true}",
+            ExampleGist: "watch unit 1000 closely, live"),
+
+        [("POST", "/entities/{networkId}/journal/break")] = new RouteDoc(
+            Tool:    "break_on_journal",
+            Group:   "G — Breakpoints",
+            Summary: "Stop the simulation when THIS unit changes its mind (CE-1258): a data breakpoint on its brain journal's sequence number, filtered to the unit (a neighbour's change does not stop it); optionally only for some entry kinds.",
+            Returns: "{ breakpointId, networkId } — then poll get_breakpoint_status: its lastHit.journalWrittenByTheTick lists the entries the hit tick wrote.",
+            Hint:    "Req: networkId (number); optional kinds (string[]: TaskStarted, TaskPaused, TaskResumed, TaskEnded, TaskCleared, TaskRefused, SopStarted, SopEnded, DecisionSwitched, MoveStarted, PlayStarted, PlayPhase, PlayEnded, OrderIssued, StateChanged). Example: break_on_journal({networkId:1000, kinds:[\"TaskStarted\",\"TaskPaused\"]})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("kinds", "array", false, "Only stop for these journal entry kinds (default: any entry)", ItemsJson: "{\"type\":\"string\"}"),
+            },
+            Notes: new[]
+            {
+                "A stop shows the world at the START of the tick that changed it (the cause still in place); continue_from_breakpoint({step:true}) runs that tick.",
+                "It keeps firing on every later change until removed with remove_breakpoint.",
+                "Editor only, like every breakpoint.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "pause the next time unit 1000's brain changes"),
 
         [("GET", "/entities/{networkId}/utility")] = new RouteDoc(
             Tool:    "get_entity_utility",

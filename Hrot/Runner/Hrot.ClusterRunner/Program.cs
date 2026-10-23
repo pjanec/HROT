@@ -96,6 +96,10 @@ class Program
             return 1;
         }
 
+        // ⭐ CE-1249 (BV-16) — the brain journal switch, before any unit is attached
+        Fdp.Toolkit.Behavior.Diagnostics.BrainJournalSettings.Enabled =
+            !string.Equals(config.BrainJournal, "off", StringComparison.OrdinalIgnoreCase);
+
         // ── Dump-api mode: print the debug-API manifest and exit ────────────────────────────────
         //
         // ⭐⭐⭐ HN-030: this is what `tools/ai-debug-mcp` generates its tool catalog from, so the catalog

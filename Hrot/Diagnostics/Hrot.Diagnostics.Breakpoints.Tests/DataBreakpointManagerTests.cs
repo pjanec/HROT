@@ -979,3 +979,58 @@ public sealed class DataBreakpointSystemEventTests
         Assert.True(manager.IsPaused);
     }
 }
+
+// =========================================================================
+// ⭐ CE-1258 (BV-28, R-1029) — a Changed condition is exact per entity
+// =========================================================================
+
+/// <summary>
+/// ⭐⭐ <c>CE-1258</c> — <c>Changed</c> compares the entity with the start-of-tick copy. 📐 Before, it was <c>true</c> for every entity of a chunk
+/// that changed, so a breakpoint filtered to unit A fired when its NEIGHBOUR B (same chunk) wrote — which made "stop when this unit changes
+/// its mind" impossible. 📄 docs/DESIGN_Entity_Brain_View.md §10 BV-28.
+/// </summary>
+[Collection("ComponentRegistry")]
+public sealed class TheChangedConditionIsPerEntityTests
+{
+    /// <summary>🔴 Red-proof: return <c>true</c> at the top of <c>BuildChangedMatcher</c>'s delegate (the old answer) ⇒ red at the
+    /// neighbour step.</summary>
+    [Fact]
+    public void ANeighboursWrite_DoesNotHit_TheUnitsOwnWriteDoes()
+    {
+        ComponentTypeRegistry.Clear();
+        var live     = new EntityRepository();
+        var snapshot = new EntityRepository();
+        live.RegisterComponent<TestHealth>();
+        snapshot.RegisterComponent<TestHealth>();
+        var a = live.CreateEntity(); live.AddComponent(a, new TestHealth { Current = 10 });
+        var b = live.CreateEntity(); live.AddComponent(b, new TestHealth { Current = 10 });
+
+        var provider = new DebugSnapshotProvider(snapshot);
+        var manager  = new DataBreakpointManager(live, snapshot, provider, new MockDebugTimeController(),
+            new PredicateCompiler(new ComponentEditServiceBuilder().Build()),
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
+        manager.AddBreakpoint(new PropertyMatchDto
+        {
+            ComponentType = typeof(TestHealth), PropertyPath = nameof(TestHealth.Current), Operator = SearchOperator.Changed,
+            Predicate = new NumericPredicateDto(),
+        }, a);
+        var system = new DataBreakpointSystem(manager, null);
+
+        live.Tick();                                   // a frame: the version moves (the kernel does this every frame) …
+        provider.Execute(live, 0f);                    // … start-of-tick copy …
+        system.Execute(live, 0f);                      // … nothing changed
+        Assert.False(manager.IsPaused);
+
+        live.Tick();
+        provider.Execute(live, 0f);
+        live.GetComponentRW<TestHealth>(b).Current = 5;   // the NEIGHBOUR writes (same chunk)
+        system.Execute(live, 0f);
+        Assert.False(manager.IsPaused);
+
+        live.Tick();
+        provider.Execute(live, 0f);
+        live.GetComponentRW<TestHealth>(a).Current = 7;   // the unit itself writes
+        system.Execute(live, 0f);
+        Assert.True(manager.IsPaused);
+    }
+}

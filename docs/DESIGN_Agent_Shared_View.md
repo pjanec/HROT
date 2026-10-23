@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-23 (new — R-1029; value review the same day: marks, POST /selection, one-shot EQS and /replay/view withdrawn, the FPS crosshair target added, the catalog regenerated with every route change — R-1030)
-build-state: READY-TO-BUILD — approved 2026-10-23 on the proposal ("ok write it!"); nothing built yet
-current-answer: §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 THE ROUTE TABLE (live and replay) · §7 decisions AV-1…AV-13 · §8 slices · §9 acceptance
+build-state: BUILT 2026-10-23 — CE-1262, CE-1263, CE-1264, CE-1265, CE-1266, CE-1268 (as-built §10); the brain / journal / debug / journal-break routes with CE-1248, CE-1249, CE-1257, CE-1258
+current-answer: §10 AS-BUILT (read first) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 THE ROUTE TABLE (live and replay) · §7 decisions AV-1…AV-13 · §8 slices · §9 acceptance
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -252,3 +252,17 @@ replay ones under `/replay`, the debug ones editor-only like `/breakpoints`). Id
 | V5 | a component condition and an event condition each return the right frames over a recorded fixture |
 | V7 | the catalog rail is red on a route missing from `tool-catalog.mjs` (red-proved by deleting one entry) and green after regeneration; the `/director/*` tools appear |
 | live | `pc-defend-house`: select a defender (and once in first person with the key), the agent finds it in `/selection` / `/view`, reads its brain, arms the journal break, steps through one change |
+
+## 10. AS-BUILT *(2026-10-23)*
+
+| route / item | where | ⚠ deviation |
+|---|---|---|
+| `GET /view` (CE-1262) | `Hrot.Presentation/Map3D/ViewTelemetry.cs` (`ViewSnapshot`, `ViewTelemetry` keyed by world, `ViewReader`), published by `MapStatsOverlay.Update` (the pack hands it the 2-D camera and the possession station); `DebugApiService.View.cs` | ⚠ a **new per-world store** (`ViewTelemetry`), not more fields on the process-wide `RenderTelemetry` — keying by world is what keeps two canvases apart. ⚠ **no `?los=true`**: `explain_line_of_sight` with the possessed unit as observer already answers it (AV-13). ⚠ also reports `debugged` |
+| `GET /selection` (CE-1263) | `DebugApiService.View.cs` (`SelectionOf(world, map)`, shared with the replay twin) | — |
+| first-person select key (CE-1264) | `PossessionStation.SelectKey` = **I**, publishes `SelectEntityCommand` for `AimTarget` | — |
+| replay twins (CE-1265) | `DebugApiService.Brain.cs`: `/replay/entities/{id}/brain`, `/journal`, `/journal/history`, `/replay/selection` — the live readers on `SandboxRepo` | ⚠ **the history walks the recording with `StepForward`** and keeps each `Seq` once, then restores the seek — not `RecordingSearchService`: over a recording `Changed` has no baseline and matches every frame, so the search bought nothing |
+| `POST /replay/search` (CE-1266) | `DebugApiService.Brain.cs` `SearchReplay` → `RecordingSearchService` over the loaded file | — |
+| catalog (CE-1268, R-1030) | `EveryRouteIsDocumentedTests.EveryToolIsInTheGeneratedCatalog`; `tools/ai-debug-mcp/tool-catalog.mjs` + `SKILL.md` regenerated with each route change | — |
+
+⭐ Rails: `TheBrainAndViewRoutesAnswerTests` (brain, journal `?since` + gap, debug, view in front / behind + selection) and the catalog rail (red-proved by renaming a catalog entry). ⚠ The replay twins and `/replay/search` have no rail on a recorded fixture yet — a live check over an editor recording is owed.
+

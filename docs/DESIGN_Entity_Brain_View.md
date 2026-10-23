@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
-build-state: READY-TO-BUILD — §10 live debugging (CE-1257, CE-1258, CE-1261) APPROVED 2026-10-23 (R-1029); Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+build-state: BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; still READY: CE-1250 (behaviors: causes, play writers), CE-1251…CE-1256 (Phase 3), CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
+current-answer: §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -399,7 +399,7 @@ reaches it. One controller serves both (BV-26).
 ```mermaid
 classDiagram
   class UnitDebugController {
-    <<NEW, ui, editor composition>>
+    <<NEW, ui — as built in Hrot.Common, static Current set by the editor (§11)>>
     Debugged : Entity or none
     SetDebugged(unit, on)
     BreakOnChange(unit, kinds) BreakpointId
@@ -505,3 +505,22 @@ second debugger.
 | **P4c** ⏸ deferred | ui | the Trace Timeline's Brain lane | `CE-1259` | a frame of the timeline on a debugged defender: one mark per journal entry, hover names it |
 | ~~**P4d**~~ ⛔ withdrawn | — | (BV-31) | `CE-1260` | — |
 | **P4e** | ui *(cross-lane: FDP Toolkits Behavior; behaviors may take it)* | per-region Doing lines; `StateChanged` writes in `HsmRunner` | `CE-1261` | `PlatoonDefend`: the tab shows both regions; a control-region change writes one `StateChanged` with the right region, from and to; a tick with no change writes nothing; no allocation (the BV-15 rail) |
+
+## 11. AS-BUILT *(2026-10-23 — CE-1248, CE-1249, CE-1257, CE-1258, CE-1261)*
+
+| item | where | ⚠ deviation from the design above |
+|---|---|---|
+| **Brain tab** (CE-1248) | `Hrot.Editor.AiShared/Shell/EntityBrainView.cs`: `BrainSnapshot.Read` (pure; Doing, Ordered by, paused task, SOP, ROE, Right now, regions, squad, choices, contacts, journal), `EntityBrainView`, `EntityBrainViewDescriptor`; registered in `EntityDetailsBundle` (every host), names and definitions through `BehaviorStateRenderer.BehaviorRegistryAccessor` | ⚠ **rank 34, not 44**: the Summary card (35) is every host's default card and 44 would have replaced it for every brain unit — the tab is offered, Summary and the AI tab (45) stay defaults. ⚠ The squad section is one line (play, phase) and points at `GET /entities/{id}/squad`; the parallel parent's name is not shown (one line per region). ⚠ Show on map / member links (BV-4, BV-5) are not built — "Debug this unit" pins the gizmos |
+| **brain journal** (CE-1249) | `FDP/Toolkits/Fdp.Toolkits/Behavior/Diagnostics/BrainJournal.cs` (component id **460**, ui block); attached in `BehaviorTkbTranslator` beside `ActionStatus`; registered in `CognitiveComponentRegistry`; brain-only in `HrotRoleComponentSets`; writers in `BehaviorIngressSystem` (start / pause / resume / clear / refusals with reason / SOP), `BrainTickSystem.Finish` (ended, result, fault), `LocomotionDispatcherSystem` (move start with the executor's destination), `UtilityScorer.ChooseOption` (option switch); `--brain-journal off` on the runner | ⚠ an entry carries its own `Seq`; ⚠ **a refusal identical to the newest entry refreshes its time instead of appending** (an SOP or a sense retrying every tick would wash the ring out); ⚠ `BrainRefusal`'s zero is `Unspecified` — the DDS IDL generator puts a file's enums in one scope, two `None` collide |
+| **"Debug this unit"** (CE-1257) | `Hrot.Common/Diagnostics/Gizmos/UnitDebugController.cs` (static `Current`, set in `EditorSubsystem`); the Brain tab checkbox; the map's **AI trace ▸ Debug this unit (on / off)** (action 475, offered only where a controller is composed); the editor pump follows `Follow(...)` | ⚠ lives in `Hrot.Common`, not the editor composition — the menu, the tab and the route all reach it there; the label is static (menus are cached per flag set) |
+| **break when it changes its mind** (CE-1258) | `PredicateCompiler.BuildChangedMatcher` + `PredicateChangeBaseline` (the breakpoint system sets the manager's pre-tick copy as the baseline); `BrainJournalBreak.Condition(kinds)`; `IDataBreakpointManager.ChangeBaseline` / `PostTickView`; the tab button; `POST /entities/{id}/journal/break` | — as designed (BV-28 revised). The hit report adds `journalWrittenByTheTick` from the post-tick copy |
+| **regions** (CE-1261) | `HsmRunner` (root machine only) → `StateChanged`, Origin = region, **A = from \| to << 16, B = the behaviour** (so the display names the states from that behaviour's `HsmMetadata`); `BrainRegions.Of` for the tab's per-region lines | ⚠ the guard that fired is NOT named (BV-33's display-time lookup is not built) |
+
+| rails *(red-proved by compiling mutations)* | |
+|---|---|
+| `BrainJournalTests` (5) | ring order and wrap ✅ red · refusal coalescing ✅ red · zero allocation ✅ red · switch off · 32-byte entry |
+| `SopSlotTests.CE1249_*` (3) | paused-then-started ✅ red · refusal reasons ✅ red (a value swap) · ended / cleared ✅ red |
+| `TheChangedConditionIsPerEntityTests` | a neighbour's write does not hit, the unit's own does |
+| `BrainTickSystemHsmArmTests.CE1261_*` | one `StateChanged` per move, none on a steady tick |
+| `TheBrainViewTests` (3) · `UnitDebugControllerTests` (2) · `TheBrainAndViewRoutesAnswerTests` (3) | the reader, the bundle offer and dump · on / move / off and the menu item · the routes |
+

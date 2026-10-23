@@ -814,7 +814,7 @@ export const TOOLS_CATALOG = [
       "path": "/breakpoints/hits"
     },
     "params": [],
-    "returns": "{ isPaused, pausedTick, lastHit: { breakpointId, networkId } | null }",
+    "returns": "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }",
     "notes": [
       "Poll this after play to detect when a breakpoint fires."
     ],
@@ -823,6 +823,47 @@ export const TOOLS_CATALOG = [
       "gist": "poll for breakpoint hit after calling play"
     },
     "hint": "No params. Example: get_breakpoint_status({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "break_on_journal",
+    "group": "G — Breakpoints",
+    "summary": "Stop the simulation when THIS unit changes its mind (CE-1258): a data breakpoint on its brain journal's sequence number, filtered to the unit (a neighbour's change does not stop it); optionally only for some entry kinds.",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/journal/break"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "kinds",
+        "type": "array",
+        "required": false,
+        "description": "Only stop for these journal entry kinds (default: any entry)",
+        "items": {
+          "type": "string"
+        }
+      }
+    ],
+    "returns": "{ breakpointId, networkId } — then poll get_breakpoint_status: its lastHit.journalWrittenByTheTick lists the entries the hit tick wrote.",
+    "notes": [
+      "A stop shows the world at the START of the tick that changed it (the cause still in place); continue_from_breakpoint({step:true}) runs that tick.",
+      "It keeps firing on every later change until removed with remove_breakpoint.",
+      "Editor only, like every breakpoint."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "pause the next time unit 1000's brain changes"
+    },
+    "hint": "Req: networkId (number); optional kinds (string[]: TaskStarted, TaskPaused, TaskResumed, TaskEnded, TaskCleared, TaskRefused, SopStarted, SopEnded, DecisionSwitched, MoveStarted, PlayStarted, PlayPhase, PlayEnded, OrderIssued, StateChanged). Example: break_on_journal({networkId:1000, kinds:[\"TaskStarted\",\"TaskPaused\"]})",
     "manualVerify": false
   },
 
@@ -1503,6 +1544,113 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_replay_entity_brain",
+    "group": "I — Recording / replay",
+    "summary": "get_entity_brain over the loaded recording at the current replay frame (CE-1265): what the unit was doing, who ordered it, what it knew, its recent journal.",
+    "http": {
+      "method": "GET",
+      "path": "/replay/entities/{networkId}/brain"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "Same as get_entity_brain, plus frame.",
+    "notes": [
+      "Reads the replay SANDBOX, never the live world; seek_replay to the frame before a change to see its cause."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "what unit 1000 was doing at this replay frame"
+    },
+    "hint": "Req: networkId (number). Load with load_replay and seek first. Example: get_replay_entity_brain({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_replay_entity_journal",
+    "group": "I — Recording / replay",
+    "summary": "get_entity_journal over the loaded recording at the current replay frame (CE-1265) — the last 24 entries as they were then.",
+    "http": {
+      "method": "GET",
+      "path": "/replay/entities/{networkId}/journal"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "since",
+        "type": "number",
+        "required": false,
+        "description": "Only entries with seq greater than this (query)"
+      }
+    ],
+    "returns": "Same as get_entity_journal, plus frame.",
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "the unit's recent changes at this replay frame"
+    },
+    "hint": "Req: networkId (number); optional since (number, query). Example: get_replay_entity_journal({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_replay_journal_history",
+    "group": "I — Recording / replay",
+    "summary": "EVERY brain-journal entry of one unit across the loaded recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a finished exercise.",
+    "http": {
+      "method": "GET",
+      "path": "/replay/entities/{networkId}/journal/history"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "from",
+        "type": "number",
+        "required": false,
+        "description": "First frame (query, default 0)"
+      },
+      {
+        "name": "to",
+        "type": "number",
+        "required": false,
+        "description": "Last frame (query, default the last)"
+      }
+    ],
+    "returns": "{ networkId, from, to, found, gap, count, entries:[{seq, at, kind, text, frame}] }",
+    "notes": [
+      "It walks the recording frame by frame, so a long file takes a moment; the replay's current frame is restored afterwards.",
+      "Then seek_replay to an entry's frame - 1 and read get_replay_entity_brain to see what led to it.",
+      "gap:true means entries were lost between two recorded frames (should not happen: every change dirties the unit's record)."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "list every decision unit 1000 made in the exercise, and why"
+    },
+    "hint": "Req: networkId (number); optional from, to (frames, query). Example: get_replay_journal_history({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
     "name": "load_replay",
     "group": "I — Recording / replay",
     "summary": "Load a .fdp recording into an ISOLATED ReplayBrowserContext.",
@@ -1534,6 +1682,58 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "search_replay",
+    "group": "I — Recording / replay",
+    "summary": "Find the frames of the loaded recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
+    "http": {
+      "method": "POST",
+      "path": "/replay/search"
+    },
+    "params": [
+      {
+        "name": "condition",
+        "type": "object",
+        "required": true,
+        "description": "The condition (SearchPredicateDto JSON, as add_breakpoint takes)"
+      },
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": false,
+        "description": "Only this unit"
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false,
+        "description": "How many hits to return (default 200)"
+      }
+    ],
+    "returns": "{ count, truncated, hits:[{frame, networkId, context}] }",
+    "notes": [
+      "Over a recording, Changed has no start-of-tick copy to compare with, so it matches every frame the unit's record was written — combine it with a value test, or use get_replay_journal_history for decisions."
+    ],
+    "example": {
+      "args": {
+        "condition": {
+          "$type": "PropertyMatch",
+          "ComponentType": "Fdp.Toolkit.Behavior.Components.BehaviorState",
+          "PropertyPath": "ActiveBehaviorHash",
+          "Operator": "Changed",
+          "Predicate": {
+            "$type": "Numeric"
+          }
+        },
+        "networkId": 1000,
+        "limit": 10
+      },
+      "gist": "find when something happened in the recording"
+    },
+    "hint": "Req: condition (object, a SearchPredicateDto). Optional networkId (number), limit (number, default 200). Example: search_replay({condition:{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}, networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
     "name": "seek_replay",
     "group": "I — Recording / replay",
     "summary": "Seek to a specific frame in the ISOLATED sandbox. Does NOT touch the live world.",
@@ -1560,6 +1760,27 @@ export const TOOLS_CATALOG = [
       "gist": "seek replay to frame 0 (start)"
     },
     "hint": "Req: frame (number, 0-based). Example: seek_replay({frame:0})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_replay_selection",
+    "group": "I — Recording / replay",
+    "summary": "The operator's selection at the current replay frame (CE-1265) — the unit they were pointing at then (the selection is recorded).",
+    "http": {
+      "method": "GET",
+      "path": "/replay/selection"
+    },
+    "params": [],
+    "returns": "{ frame, primary, selection:[networkId] }",
+    "notes": [
+      "To find WHEN the operator selected something, search_replay a Changed condition on SelectionState.IsSelected."
+    ],
+    "example": {
+      "args": {},
+      "gist": "which unit the operator had selected at this frame"
+    },
+    "hint": "No params. Example: get_replay_selection({})",
     "manualVerify": false
   },
 
@@ -1710,6 +1931,116 @@ export const TOOLS_CATALOG = [
       "gist": "find out why a rifleman's rounds never hurt the target behind the wall"
     },
     "hint": "Optional: last (default 20), shooter, target (network ids). Example: get_combat_shots({last:10, shooter:1001})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_entity_brain",
+    "group": "K — AI behavior traces",
+    "summary": "What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (observed units), contacts, and the brain journal's recent changes.",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/brain"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ networkId, hasBrain, onBrainNode, doing, origin, urgency, sinceSeconds, paused, sop, roe, rightNow:[{channel, actionId, reason, hold, progress, needed}], regions:[{region, state, stateIndex}], squad, choices:[{decisionId, winner, previousWinner, margin, switches}], contacts, heardOnly, journal:{on, seq, changes:[{seq, at, kind, text}]} }",
+    "notes": [
+      "onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.",
+      "choices fill only while the unit is observed (observe_trace or debug_unit); the journal is always on.",
+      "journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "see what unit 1000 is doing, who ordered it, and what changed lately"
+    },
+    "hint": "Req: networkId (number). Read on the brain's perspective (Scenario on a cluster). Example: get_entity_brain({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "debug_unit",
+    "group": "K — AI behavior traces",
+    "summary": "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility record), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
+    "http": {
+      "method": "POST",
+      "path": "/entities/{networkId}/debug"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "on",
+        "type": "boolean",
+        "required": false,
+        "description": "true = start debugging this unit (moves it from any other), false = stop",
+        "default": true
+      }
+    ],
+    "returns": "{ networkId, debugging, debugged }",
+    "notes": [
+      "The operator sees it too: the gizmos pin on the map and the graph's highlight follows this unit.",
+      "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "on": true
+      },
+      "gist": "watch unit 1000 closely, live"
+    },
+    "hint": "Req: networkId (number); optional on (bool, default true). Editor only. Example: debug_unit({networkId:1000, on:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_entity_journal",
+    "group": "K — AI behavior traces",
+    "summary": "A unit's brain journal after a sequence number (CE-1249): every task start / pause / resume / end / clear / refusal (with its reason), SOP change, utility switch, move start and HSM region change, with its cause — the last 24, always on.",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/journal"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "since",
+        "type": "number",
+        "required": false,
+        "description": "Only entries with seq greater than this (query); pass the last seq you saw"
+      }
+    ],
+    "returns": "{ networkId, on, seq, gap, entries:[{seq, at, kind, text}] } — oldest first; gap:true means more than 24 were written since `since` and the oldest are gone.",
+    "notes": [
+      "seq counts every entry ever written to the unit and never resets — use it to poll without repeats.",
+      "A refusal repeated every tick is ONE entry whose time is refreshed.",
+      "on:false — not a brain unit on this node, or the host was started with the journal switched off."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "since": 0
+      },
+      "gist": "list what changed in unit 1000's mind and why"
+    },
+    "hint": "Req: networkId (number); optional since (number, query, default 0). Example: get_entity_journal({networkId:1000, since:12})",
     "manualVerify": false
   },
 
@@ -2907,6 +3238,60 @@ export const TOOLS_CATALOG = [
     },
     "hint": "Req: networkId (number). Example: focus_entity({networkId:1000})",
     "manualVerify": true
+  },
+
+  {
+    "name": "get_selection",
+    "group": "O — Manual-assist (focus / annotations)",
+    "summary": "The units the operator has selected (CE-1263): the primary and all.",
+    "http": {
+      "method": "GET",
+      "path": "/selection"
+    },
+    "params": [],
+    "returns": "{ primary, selection:[networkId] }",
+    "notes": [
+      "To point the operator at a unit, use focus_entity (centres the camera) or add_annotation — not a selection write."
+    ],
+    "example": {
+      "args": {},
+      "gist": "which unit is the operator asking about"
+    },
+    "hint": "No params. Example: get_selection({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_view",
+    "group": "O — Manual-assist (focus / annotations)",
+    "summary": "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, the debugged unit, and the units in view nearest first with their screen point.",
+    "http": {
+      "method": "GET",
+      "path": "/view"
+    },
+    "params": [
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false,
+        "description": "How many in-view units to list, nearest first (query; default 50, max 500)"
+      }
+    ],
+    "returns": "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged } — camera:null (with a note) where no map canvas draws the world.",
+    "notes": [
+      "The operator points by SELECTING (click; in first person the select key on the unit under the crosshair) — read primary / selection.",
+      "aimTarget is what the first-person crosshair rests on right now; it moves with the aim.",
+      "inView in 2D is the map's own culling; in 3D / FPS a frustum test (not occlusion) — check a line with explain_line_of_sight using possessed as observer.",
+      "For what the possessed unit itself perceives, read get_entity_sensors / get_entity_memory on possessed."
+    ],
+    "example": {
+      "args": {
+        "limit": 20
+      },
+      "gist": "see what the operator sees and which unit they mean"
+    },
+    "hint": "Optional limit (number, query, default 50). Example: get_view({limit:20})",
+    "manualVerify": false
   },
 
   // ── Group O — Variables (the watch, over HTTP) ──────────────────────────────

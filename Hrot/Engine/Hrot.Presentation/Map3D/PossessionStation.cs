@@ -60,6 +60,12 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The weapon mount the operator has selected (the wheel).</summary>
         public int SelectedMount => _driver?.Mount ?? 0;
 
+        /// <summary>⭐ <c>CE-1262</c> (AV-1) — what the crosshair rests on (network id, 0 = none) while in first person.</summary>
+        public long AimTarget => _driver?.AimTarget ?? 0L;
+
+        /// <summary>⭐ <c>CE-1262</c> — the zoomed field of view (binoculars / weapon zoom) while zooming, else null.</summary>
+        public float? ZoomFovDegrees => _driver is { Zooming: true } d ? d.ZoomFovDegrees : null;
+
         /// <summary>Frames sent this session (diagnostics, rails).</summary>
         public long FramesSent { get; private set; }
 
@@ -1252,6 +1258,10 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ <c>CE-1210</c> (§8n MS-3, R-1018) — the next seat of the vehicle: driver / pilot, then each manned gun.</summary>
         public const KeyboardKey SeatKey = KeyboardKey.G;
 
+        /// <summary>⭐ <c>CE-1264</c> (AV-5, R-1029) — I: SELECT the unit under the crosshair ("identify"), the one way to point at a unit in
+        /// first person (LMB fires here). The selection is the pointer an AI agent reads (<c>GET /selection</c>) and it is recorded.</summary>
+        public const KeyboardKey SelectKey = KeyboardKey.I;
+
         /// <summary>⭐ <c>CE-1218</c> — the input this driver reads (its cursor lock), for the station to watch M while the 2-D map is up.</summary>
         internal IInputProvider? Input => _locked;
 
@@ -1486,6 +1496,10 @@ namespace Hrot.UI.Common.Map3D
             (var aimAt, long aimTarget) = Aim(camera);
             AimAt = aimAt;
             AimTarget = aimTarget;
+            // ⭐ CE-1264 (AV-5) — I selects what the crosshair rests on (the selection's one writer; nothing when it rests on no unit)
+            if (input.IsKeyPressed((MapKeyboardKey)SelectKey) && aimTarget != 0 && _world() is { } selectWorld
+                && selectWorld.Bus.IsRegistered<Hrot.Common.Events.SelectEntityCommand>())
+                selectWorld.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = aimTarget });
             bool glassing = BinocularsUp;   // ⭐ CE-1219 (§8k B-1) — binoculars up: LMB designates, the trigger stays up
             if (glassing && input.IsMouseButtonPressed(MapMouseButton.Left)) Designate(aimAt, aimTarget);
             else if (input.IsMouseButtonPressed(MapMouseButton.Left))

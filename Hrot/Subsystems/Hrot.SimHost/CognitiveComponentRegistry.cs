@@ -45,6 +45,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();   // ⭐ CE-3136 — the channels' status (T1)
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();   // ⭐ CE-1249 — the brain journal (BV-9)
             world.RegisterComponent<InteractionChannel>();
             // ⭐ MOVED 2026-09-12 to CombatComponentRegistry (CE-259bf slice 2): ActorCapabilityState
             //   is stamped by BehaviorTkbTranslator alongside EntityInfo — which ALREADY lives in the

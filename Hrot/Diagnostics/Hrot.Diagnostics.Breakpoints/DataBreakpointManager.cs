@@ -270,6 +270,12 @@ public sealed class DataBreakpointManager
     /// </summary>
     internal EntityRepository PostTickSnapshot => _postTickSnapshot;
 
+    /// <inheritdoc/>
+    public EntityRepository? ChangeBaseline => _preTickSnapshot;
+
+    /// <inheritdoc/>
+    public ISimulationView? PostTickView => _isPaused ? _postTickSnapshot : null;
+
     // ---- Registry -------------------------------------------------------
 
     /// <inheritdoc/>

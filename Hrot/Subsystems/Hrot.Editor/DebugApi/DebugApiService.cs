@@ -2416,6 +2416,11 @@ namespace Hrot.Editor.DebugApi
                 };
             }
 
+            // ⭐ CE-1258 (BV-29) — what the hit tick wrote to the unit's brain journal (the world shown is the tick's START)
+            if (lastHit is JsonObject hit && _bpManager.IsPaused && _entityMap.TryGetEntity(_lastHitNetworkId, out var hitEntity)
+                && JournalWrittenByTheHitTick(hitEntity) is { } written)
+                hit["journalWrittenByTheTick"] = written;
+
             return new JsonObject
             {
                 ["isPaused"]   = _bpManager.IsPaused,
@@ -2765,6 +2770,7 @@ namespace Hrot.Editor.DebugApi
                 throw new InvalidOperationException($"Failed to load recording from '{fdpPath}'.");
 
             _replayContext = ctx;
+            _replayFdpPath = fdpPath;   // ⭐ CE-1266 — the search reads the file itself
             _replayExtraction = BuildReplayExtractionService(ctx.SandboxRepo);
 
             return new JsonObject

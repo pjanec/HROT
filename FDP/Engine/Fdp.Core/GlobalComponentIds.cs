@@ -1118,5 +1118,8 @@ namespace Fdp.Core
         public const int ReplicationRoute = 453;
         /// <summary><c>TrafficFrame</c> — this frame's SUMO cars + traffic-light states, a managed world singleton the map layers read (Hrot.Traffic).</summary>
         public const int TrafficFrame = 454;
+        // ── ⭐ ui's block 460–475 (R-2056) ──
+        /// <summary><c>BrainJournal</c> — a brain unit's last 24 changes with their causes (CE-1249, R-1027); NoScenario, brain-only.</summary>
+        public const int BrainJournal = 460;
     }
 }

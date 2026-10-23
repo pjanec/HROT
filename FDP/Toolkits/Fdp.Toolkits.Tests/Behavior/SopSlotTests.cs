@@ -343,6 +343,102 @@ namespace Fdp.Toolkit.Behavior.Tests
             using (BrainSlotScope.Enter(f.Unit, HsmSopId, f.SopState.SopInstanceId))
                 Assert.True(RootHsmAccess.TryGetInstance(f.World, f.Unit, out _, out _), "the task's sweep took the SOP's HSM instance");
         }
+        // ── ⭐ CE-1249 — the gate writes the brain journal (docs/DESIGN_Entity_Brain_View.md §6 BV-10, BV-13) ─────────────
+
+        private static Fdp.Toolkit.Behavior.Diagnostics.BrainJournal WithJournal(Fixture f)
+        {
+            if (!f.World.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>())
+                f.World.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Attach(f.World, f.Unit);
+            return f.World.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(f.Unit);
+        }
+
+        private static Fdp.Toolkit.Behavior.Diagnostics.BrainJournal Journal(Fixture f)
+            => f.World.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(f.Unit);
+
+        /// <summary>⭐ A reaction pausing the task writes Paused (the task) then Started (the reaction, its origin and urgency).
+        /// 🔴 Red-proof: drop the TaskPaused write in <c>JournalStarted</c> ⇒ red.</summary>
+        [Fact]
+        public void CE1249_AReactionPausingTheTask_IsJournaled_PausedThenStarted()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Cover", ReactionUrgency.Hit);
+
+            var j = Journal(f);
+            Assert.Equal(3, j.Count);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted, j.At(0).Kind);
+            Assert.Equal(TaskId, j.At(0).A);
+            Assert.Equal((byte)BehaviorOrigin.Superior, j.At(0).Origin);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskPaused, j.At(1).Kind);
+            Assert.Equal(TaskId, j.At(1).A);
+            Assert.Equal(LongReactionId, j.At(1).B);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted, j.At(2).Kind);
+            Assert.Equal(LongReactionId, j.At(2).A);
+            Assert.Equal(0, j.At(2).B);                                         // it paused the task, not replaced it
+            Assert.Equal((byte)BehaviorOrigin.Reaction, j.At(2).Origin);
+            Assert.Equal((byte)ReactionUrgency.Hit, j.At(2).Urgency);
+        }
+
+        /// <summary>⭐ BV-13 — a refusal says why: a reaction under a more urgent one, and one the ROE keeps out.
+        /// 🔴 Red-proof: return LowerRank from <c>RefusalOf</c> for every case ⇒ red.</summary>
+        [Fact]
+        public void CE1249_ARefusedAssignment_IsJournaled_WithItsReason()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            f.Task("SopT_Task", BehaviorOrigin.Operator);
+            f.React("SopT_Cover", ReactionUrgency.Contact);
+            f.React("SopT_Duck", ReactionUrgency.Alert);                        // lower: refused
+            var j = Journal(f);
+            var last = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskRefused, last.Kind);
+            Assert.Equal(QuickReactionId, last.A);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.LowerUrgency, last.Cause);
+
+            using var g = new Fixture();
+            WithJournal(g);
+            g.World.AddComponent(g.Unit, new Roe { Reactions = RoeReactions.StayOnTask, SetBy = BehaviorOrigin.Superior });
+            g.Task("SopT_Task", BehaviorOrigin.Superior);
+            g.React("SopT_Duck", ReactionUrgency.Hit);
+            var k = Journal(g);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.StayOnTask, k.At(k.Count - 1).Cause);
+        }
+
+        /// <summary>⭐ The reaction ending by itself writes Ended (with its result), and the task coming back writes Resumed or a fresh
+        /// Started; an order's clear writes Cleared with who cleared it. 🔴 Red-proof: drop the TaskEnded write in
+        /// <c>BrainTickSystem.Finish</c> ⇒ red.</summary>
+        [Fact]
+        public void CE1249_AnEndingAndAClear_AreJournaled()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            f.React("SopT_Duck", ReactionUrgency.Hit);
+            f.FrameThenIngress();                                               // the reaction ends on its first tick, the task is back
+
+            var j = Journal(f);
+            int ended = -1;
+            for (int i = 0; i < j.Count; i++)
+                if (j.At(i).Kind == Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskEnded) ended = i;
+            Assert.True(ended >= 0, "no TaskEnded entry");
+            Assert.Equal(QuickReactionId, j.At(ended).A);
+            Assert.True(ended < j.Count - 1, "nothing after the end");
+            var back = j.At(j.Count - 1);
+            Assert.Equal(TaskId, back.A);
+            Assert.Contains(back.Kind, new[] { Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskResumed,
+                                               Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted });
+
+            f.World.Bus.Publish(new ClearBehaviorEvent { Entity = f.Unit, Origin = BehaviorOrigin.Superior });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            var c = Journal(f).At(Journal(f).Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskCleared, c.Kind);
+            Assert.Equal(TaskId, c.A);
+            Assert.Equal((byte)BehaviorOrigin.Superior, c.Origin);
+        }
+
         // ── ⭐ CE-2078 — reactions in the gate (R-199, docs/DESIGN_Decision_Layer.md §4.1) ─────────────────────────────
 
         [Fact]

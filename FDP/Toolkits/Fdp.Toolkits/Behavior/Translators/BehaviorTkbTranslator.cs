@@ -166,6 +166,8 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()
                 && !repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(entity))
                 repo.AddComponent(entity, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            // ⭐ CE-1249 (BV-9, BV-16) — and the brain journal beside it: always on unless switched off at start
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Attach(repo, entity);
 
             // ── Mission and passenger buffers ─────────────────────────────────────
             if (repo.IsComponentTypeRegistered<MissionPlanQueue>() && !repo.HasComponent<MissionPlanQueue>(entity))
