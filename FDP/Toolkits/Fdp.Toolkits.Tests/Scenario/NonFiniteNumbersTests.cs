@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// </summary>
     public sealed class NonFiniteNumbersTests : IDisposable
     {
+        [ComponentId(497)]
         private struct Sense
         {
             public double WindowStart;
