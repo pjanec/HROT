@@ -90,6 +90,12 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         Wander,
         /// <summary>The operator drives the unit (possession).</summary>
         Operator,
+        /// <summary>⭐ <c>CE-1250</c> (behaviors) — closing on a target to strike it: a charge, an attack run, a rioter going for a stone.</summary>
+        Attack,
+        /// <summary>⭐ <c>CE-1250</c> (behaviors) — to a vehicle to board it.</summary>
+        Embark,
+        /// <summary>⭐ <c>CE-1250</c> (behaviors) — to a man down, or carrying him.</summary>
+        Casualty,
     }
 
     /// <summary>One change, numbers only (32 bytes) — names are resolved when it is shown.</summary>
@@ -141,6 +147,11 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         public MoveSource PendingMoveSource;
         /// <summary>The locomotion channel's action instance <see cref="PendingMoveSource"/> belongs to.</summary>
         public uint PendingMoveInstance;
+        /// <summary>⭐ <c>CE-1250</c> (behaviors) — the sense (a <c>SensorChange</c>) an SOP row matched this frame, noted by
+        /// <c>SopConditions.SensedFresh</c> / <c>SensedWithin</c>; the reaction that row publishes carries it as its cause.</summary>
+        public byte PendingReactionCause;
+        /// <summary>The frame <see cref="PendingReactionCause"/> was noted in (a note from an earlier frame is stale).</summary>
+        public uint PendingReactionFrame;
         public BrainJournalEntries Entries;
 
         /// <summary>The entries oldest first — <paramref name="i"/> = 0 is the oldest kept.</summary>
@@ -213,6 +224,30 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ref readonly var j = ref world.GetComponentRO<BrainJournal>(unit);
             return j.PendingMoveInstance == instance ? j.PendingMoveSource : MoveSource.SourceUnknown;
         }
+
+        /// <summary>⭐ <c>CE-1250</c> (behaviors) — an SOP row matched <paramref name="cause"/> (a <c>SensorChange</c>) this frame: the reaction
+        /// it publishes next answers it. A no-op without a journal.</summary>
+        public static void NoteReactionCause(EntityRepository world, Entity unit, byte cause)
+        {
+            if (!world.IsComponentTypeRegistered<BrainJournal>() || !world.HasComponent<BrainJournal>(unit)) return;
+            ref var j = ref world.GetComponentRW<BrainJournal>(unit);
+            j.PendingReactionCause = cause;
+            j.PendingReactionFrame = Frame(world);
+        }
+
+        /// <summary>The sense noted this frame by <see cref="NoteReactionCause"/>, consumed (0 when none) — so a later row's reaction does
+        /// not inherit it.</summary>
+        public static byte TakeReactionCause(EntityRepository world, Entity unit)
+        {
+            if (!world.IsComponentTypeRegistered<BrainJournal>() || !world.HasComponent<BrainJournal>(unit)) return 0;
+            ref var j = ref world.GetComponentRW<BrainJournal>(unit);
+            byte cause = j.PendingReactionFrame == Frame(world) ? j.PendingReactionCause : (byte)0;
+            j.PendingReactionCause = 0;
+            return cause;
+        }
+
+        private static uint Frame(EntityRepository world)
+            => world.HasSingleton<GlobalTime>() ? unchecked((uint)world.GetSingleton<GlobalTime>().FrameNumber) : 0u;
 
         /// <summary>Attaches an empty journal when the switch is on and the world registers it (the brain's attach point).</summary>
         public static void Attach(EntityRepository world, Entity unit)

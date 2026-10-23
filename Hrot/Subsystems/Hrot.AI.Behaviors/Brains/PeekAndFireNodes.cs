@@ -19,6 +19,7 @@ using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Utility;
 using Hrot.MuscleCharacter.Animation.Stance;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -414,7 +415,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.ExposuresHere = 0;
             ws.Bounding = 0;
             // ⭐ AQ96 D (CE-2320) — a move to a hide is a threat move by definition: crouched, at least the rush speed
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched, source: MoveSource.CoverSearch) ? 1 : 0);
             ws.Phase = PeekPhase.MoveToHide;
         }
 
@@ -556,7 +557,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.PeekStance = peekStance ?? StanceId.Standing;
             ws.Stepping = 1;
             ws.Counted = 0;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, peek, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);   // AQ88: the side-step keeps this node's own stance
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, peek, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep, source: MoveSource.CoverSearch) ? 1 : 0);   // AQ88: the side-step keeps this node's own stance
             ws.Phase = PeekPhase.Expose;
         }
 
@@ -786,7 +787,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.ExposuresHere = 0;
             ws.Bounding = 0;
             // ⭐ AQ96 D (CE-2320) — a move to a hide is a threat move by definition: crouched, at least the rush speed
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched, source: MoveSource.CoverSearch) ? 1 : 0);
             ws.Phase = PeekPhase.MoveToHide;
         }
 
@@ -862,7 +863,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.PeekIsStep == 1 && Vector3.Distance(ws.PeekPoint, ws.HidePoint) > ArrivalRadius)
             {
                 StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);   // AQ88: the step back keeps the hide stance just set
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep, source: MoveSource.CoverSearch) ? 1 : 0);   // AQ88: the step back keeps the hide stance just set
                 ws.Phase = PeekPhase.Recover;
                 return;
             }
@@ -999,7 +1000,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.PeekPoint = spot;
             if (stance is { } s) ws.PeekStance = s;
             ws.Stepping = 1;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep, source: MoveSource.CoverSearch) ? 1 : 0);
             return true;
         }
 
@@ -1032,7 +1033,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.PeekPoint = spot;
                 if (stance is { } s) ws.PeekStance = s;
                 ws.Stepping = 1;
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep, source: MoveSource.CoverSearch) ? 1 : 0);
                 ws.Phase = PeekPhase.Expose;
                 return true;
             }

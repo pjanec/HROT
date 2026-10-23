@@ -12,6 +12,7 @@ using Fdp.Toolkit.Utility;
 using Fbt.Kernel;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Stance;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -257,7 +258,7 @@ namespace Hrot.AI.Behaviors.Brains
                         && (!onThreatMove || (hasThreatPos && Vector3.Distance(threatPos, ws.ThreatAtMove) >= p.MinRepositionMetres)))))
             {
                 // ⭐ AQ96 D (CE-2320) — every move here is made against a threat (to cover, back, round its flank): crouched, at least a rush
-                LocomotionMoveTo.Issue(world, self, best, System.MathF.Max(p.Speed, UnderFire.RushSpeed), p.ArrivalRadius, MoveGait.Crouched);
+                LocomotionMoveTo.Issue(world, self, best, System.MathF.Max(p.Speed, UnderFire.RushSpeed), p.ArrivalRadius, MoveGait.Crouched, source: MoveSource.CoverSearch);
                 ws.Goal = best;
                 ws.Moving = 1;
                 ws.ThreatAtMove = threatPos;

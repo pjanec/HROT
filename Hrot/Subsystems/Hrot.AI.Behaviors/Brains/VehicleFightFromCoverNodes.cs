@@ -322,7 +322,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             ws.HidePoint = hide;
             ws.ExposuresHere = 0;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, hide, p.Speed, ArrivalRadius, onSurface: p.UseGivenHide == 1) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, hide, p.Speed, ArrivalRadius, onSurface: p.UseGivenHide == 1, source: MoveSource.CoverSearch) ? 1 : 0);
             ws.Phase = VehiclePhase.MoveToHide;
         }
 
@@ -366,7 +366,7 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐ CE-2230 — the lane: out to its start at the approach speed; Exposing creeps on from there until it SEES its target
                 ws.FiringPoint = new Vector3(p.LaneStart.X, p.LaneStart.Y, 0f);
                 ws.Creeping = 0;
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.FiringPoint, p.ApproachSpeed, ArrivalRadius, onSurface: true) ? 1 : 0);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.FiringPoint, p.ApproachSpeed, ArrivalRadius, onSurface: true, source: MoveSource.CoverSearch) ? 1 : 0);
                 ws.SeenSince = 0;
                 ws.Phase = VehiclePhase.Exposing;
                 return;
@@ -387,7 +387,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             ws.Waiting = 0;
             ws.FiringPoint = firing;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius) ? 1 : 0);   // T3 — front first
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius, source: MoveSource.CoverSearch) ? 1 : 0);   // T3 — front first
             ws.SeenSince = 0;   // CE-2216 — this exposure's clock starts on the way out
             ws.Phase = VehiclePhase.Exposing;
         }
@@ -468,7 +468,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Creeping = 1;   // the creep: a point on the lane well past the cap, so the cap — or a sight — ends it, never an arrival
                 var ahead = p.LaneStart + dir * (Math.Max(past, 0f) + p.MaxOvershootMetres + LaneCreepFromMetres + 10f);
                 ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, new Vector3(ahead.X, ahead.Y, 0f), p.CreepSpeed, ArrivalRadius,
-                                                          onSurface: true) ? 1 : 0);
+                                                          onSurface: true, source: MoveSource.CoverSearch) ? 1 : 0);
                 return ws.Moving == 1 ? NodeStatus.Running : NodeStatus.Failure;
             }
             return status == NodeStatus.Running ? NodeStatus.Running : NodeStatus.Failure;
@@ -525,13 +525,13 @@ namespace Hrot.AI.Behaviors.Brains
                     return;
                 }
                 PostureNodes.StopFiring(world, self, ref ws.Fire);
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.Speed, ArrivalRadius) ? 1 : 0);   // nowhere new: back to the old one
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.Speed, ArrivalRadius, source: MoveSource.CoverSearch) ? 1 : 0);   // nowhere new: back to the old one
                 ws.Phase = VehiclePhase.Withdrawing;
                 return;
             }
             PostureNodes.StopFiring(world, self, ref ws.Fire);
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.Speed, ArrivalRadius, reverseAllowed: true,
-                                                      onSurface: p.UseGivenHide == 1) ? 1 : 0);
+                                                      onSurface: p.UseGivenHide == 1, source: MoveSource.CoverSearch) ? 1 : 0);
             ws.Phase = VehiclePhase.Withdrawing;
         }
 

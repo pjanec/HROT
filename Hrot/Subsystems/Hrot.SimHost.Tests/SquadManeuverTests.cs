@@ -308,6 +308,73 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-1250</c> (Brain View BV-10, BV-14; ui's handoff) — every play ALSO writes the commander's brain journal: the play started,
+        /// each phase change with its cause, and each order to a member (his network id, the behaviour) — the drill trace stays as it was.
+        /// 🔴 Red-proof: drop the <c>PlayPhase</c> write in <c>SquadDrillTrace.PhaseChanged</c> ⇒ red; drop <c>CommandOrders.Journal</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1250_APlay_WritesTheCommandersJournal_ItsPhasesWithTheirCause_AndEachOrder()
+        {
+            var s = new Squad(members: 4);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>())
+                s.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Attach(s.Repo, s.Commander);
+            for (int i = 0; i < s.Members.Length; i++)
+                s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1000 + i });
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":5}");
+            s.Tick(); s.Tick();
+            foreach (var m in s.Members.Take(2)) s.Teleport(m, s.LastObjectives()[m]);   // Alpha arrives: the next phase
+            s.Tick(); s.Tick();
+
+            var j = s.Repo.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(s.Commander);
+            var entries = Enumerable.Range(0, j.Count).Select(j.At).ToList();
+            var started = Assert.Single(entries, e => e.Kind == Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayStarted);
+            Assert.Equal(BoundingOverwatchManeuver.ManeuverKind, started.A);
+            var phase = Assert.Single(entries, e => e.Kind == Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayPhase);
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, phase.B);
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached, phase.Cause);   // the trace's own cause
+            var orders = entries.Where(e => e.Kind == Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.OrderIssued).ToList();
+            Assert.Contains(orders, e => e.A == 1000);                                  // the first issue ordered member 0 by network id
+            Assert.Contains(orders, e => e.A == 1003);                                  // and Bravo's man, once Bravo bounds
+            Assert.All(orders, e => Assert.NotEqual(0, e.B));                          // each names its behaviour
+            Assert.Equal(2, SquadDrillTrace.Of(s.Repo, s.Commander).History.Length); // BV-14: the trace is unchanged
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1250</c> (BV-12) — a squad member's advance is a <c>SquadPost</c> move in his journal, an operator's the same advance an
+        /// <c>Order</c>: the move's source is noted for the command instance the dispatcher will start.
+        /// 🔴 Red-proof: drop <c>source:</c> from <c>PostureNodes.AdvanceAndAttack</c>'s <c>Issue</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1250_AnAdvance_IsASquadPostMove_UnderItsCommander_AndAnOrder_FromAnOperator()
+        {
+            var s = new Squad(members: 1);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>())
+                s.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();
+            var m = s.Members[0];
+            s.Repo.AddComponent(m, new BehaviorState { Origin = BehaviorOrigin.Superior });
+            s.Repo.AddComponent(m, new LocomotionChannel());
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Attach(s.Repo, m);
+
+            var p = new AdvanceParams { Objective = new Vector3(0f, 50f, 0f), Speed = 2f, ArrivalRadius = 1f };
+            var ws = new AdvanceState();
+            PostureNodes.AdvanceAndAttack(ref p, ref ws, m, s.Repo);
+            uint instance = s.Repo.GetComponent<LocomotionChannel>(m).ActionInstanceId;
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.MoveSource.SquadPost,
+                Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.MoveSourceOf(s.Repo, m, instance));
+
+            s.Repo.SetComponent(m, new BehaviorState { Origin = BehaviorOrigin.Operator });
+            ws = new AdvanceState();
+            PostureNodes.AdvanceAndAttack(ref p, ref ws, m, s.Repo);
+            uint next = s.Repo.GetComponent<LocomotionChannel>(m).ActionInstanceId;
+            Assert.NotEqual(instance, next);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.MoveSource.Order,
+                Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.MoveSourceOf(s.Repo, m, next));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.MoveSource.SourceUnknown,
+                Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.MoveSourceOf(s.Repo, m, instance));   // one note, for one instance
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2152</c> C-c (R-2012 K6, R-a) — a man who is DOWN gets no order, and a bound does not wait for him: the runner's live
         /// test is "in the fight". 🔴 Red before: <c>SquadPlayContext.Live</c> tested <c>CombatLife.IsAlive</c>, so a down mover got
         /// orders he could not carry out and held the bound open until it timed out.

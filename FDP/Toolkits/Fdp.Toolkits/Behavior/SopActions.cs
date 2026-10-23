@@ -54,9 +54,11 @@ namespace Fdp.Toolkit.Behavior
             if (task.ActiveBehaviorHash != BehaviorIds.None && task.Origin == BehaviorOrigin.Reaction
                 && RunningIs(world, self, task, behavior, json: null))
                 return NodeStatus.Success;
+            // ⭐ CE-1250 (BV-12) — the sense this row matched (SopConditions noted it this frame), taken so a later row does not inherit it
+            var cause = (Fdp.Toolkit.Perception.Events.SensorChange)Diagnostics.BrainJournalOf.TakeReactionCause(world, self);
             if (!BehaviorIngressSystem.AdmitsWithReactions(world, self, BehaviorOrigin.Reaction, urgency, task, out _))
                 return NodeStatus.Failure;
-            return Publish(world, self, behavior, json, BehaviorOrigin.Reaction, urgency);
+            return Publish(world, self, behavior, json, BehaviorOrigin.Reaction, urgency, cause);
         }
 
         /// <summary><see cref="DoWhenIdle(EntityRepository, Entity, string, string)"/> with the behaviour's authored params DTO.</summary>
@@ -86,12 +88,12 @@ namespace Fdp.Toolkit.Behavior
         }
 
         private static NodeStatus Publish(EntityRepository world, Entity self, string behavior, string json,
-            BehaviorOrigin origin, ReactionUrgency urgency)
+            BehaviorOrigin origin, ReactionUrgency urgency, Fdp.Toolkit.Perception.Events.SensorChange cause = default)
         {
             if (!world.Bus.IsRegisteredManaged<AssignBehaviorEvent>()) return NodeStatus.Failure;
             world.Bus.PublishManaged(new AssignBehaviorEvent
             {
-                Entity = self, BehaviorName = behavior, JsonParams = json, Origin = origin, Urgency = urgency,
+                Entity = self, BehaviorName = behavior, JsonParams = json, Origin = origin, Urgency = urgency, Cause = cause,
             });
             return NodeStatus.Success;
         }

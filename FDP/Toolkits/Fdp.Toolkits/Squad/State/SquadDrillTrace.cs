@@ -130,6 +130,9 @@ namespace Fdp.Toolkit.Squad
             Put(repo, commander, t.With(active: true, kind: kind, phase: phase, phaseSince: now, orders: Array.Empty<Order>(),
                                         history: t.Append(new Step(now, phase, EventStart)), hasGates: false, covering: false, set: false,
                                         hasCare: false, care: default));
+            // ⭐ CE-1250 (Brain View BV-14) — every play also writes the commander's brain journal; this trace stays (the squad route reads it)
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, commander, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayStarted,
+                a: kind, b: phase, cause: EventStart);
         }
 
         /// <summary>The phase changed to <paramref name="phase"/> on <paramref name="evt"/>.</summary>
@@ -137,6 +140,8 @@ namespace Fdp.Toolkit.Squad
         {
             var t = Of(repo, commander);
             Put(repo, commander, t.With(active: true, kind: kind, phase: phase, phaseSince: now, history: t.Append(new Step(now, phase, evt))));
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, commander, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayPhase,
+                a: kind, b: phase, cause: evt);   // ⭐ CE-1250 — the cause: the phase event, or Retake / Timeout
         }
 
         /// <summary>The drill ended.</summary>
@@ -145,6 +150,8 @@ namespace Fdp.Toolkit.Squad
             var t = Of(repo, commander);
             if (!t.Active) return;
             Put(repo, commander, t.With(active: false, history: t.Append(new Step(now, t.Phase, EventEnd))));
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, commander, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayEnded,
+                a: t.Kind, b: t.Phase, cause: EventEnd);   // ⭐ CE-1250
         }
 
         /// <summary>The orders of one issue, one per roster slot (a slot with no order: <see cref="Order.Kind"/> 255).</summary>

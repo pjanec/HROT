@@ -10,6 +10,7 @@ using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Hrot.Map.Definitions.Behavior;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -98,7 +99,7 @@ namespace Hrot.AI.Behaviors.Brains
             var goal = target.IsNull ? p.At : world.GetComponentRO<SimTransform>(target).Position;
             if (ws.Moving == 0 || Flat(goal, ws.Goal) > 0.75f || LocomotionMoveTo.Status(world, self) != NodeStatus.Running)
             {
-                LocomotionMoveTo.Issue(world, self, goal, ChargeSpeed, target.IsNull ? 1f : 0.8f, MoveGait.Upright);
+                LocomotionMoveTo.Issue(world, self, goal, ChargeSpeed, target.IsNull ? 1f : 0.8f, MoveGait.Upright, source: MoveSource.Attack);
                 ws.Goal = goal;
                 ws.Moving = 1;
             }

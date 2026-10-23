@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Behavior
         /// <see cref="SopSenseParams.Seconds"/> — "was hit within 5 s".</summary>
         [SharedAiCondition]
         public static bool SensedWithin(ref SopSenseParams p, Entity self, EntityRepository world)
-            => RecentSensesOf.Within(world, self, p.Kind, p.Seconds);
+            => Noted(RecentSensesOf.Within(world, self, p.Kind, p.Seconds), p.Kind, self, world);
 
         /// <summary>⭐ <see cref="SensedWithin"/> AND sensed since the unit's TASK SLOT began its current run
         /// (<see cref="BehaviorState.RunSince"/>) — so an event that already caused a reaction does not fire it again once the
@@ -64,7 +64,15 @@ namespace Fdp.Toolkit.Behavior
         public static bool SensedFresh(ref SopSenseParams p, Entity self, EntityRepository world)
         {
             double since = world.HasComponent<BehaviorState>(self) ? world.GetComponentRO<BehaviorState>(self).RunSince : double.NegativeInfinity;
-            return RecentSensesOf.WithinSince(world, self, p.Kind, p.Seconds, since);
+            return Noted(RecentSensesOf.WithinSince(world, self, p.Kind, p.Seconds, since), p.Kind, self, world);
+        }
+
+        /// <summary>⭐ <c>CE-1250</c> (Brain View BV-12) — a matched sense is noted in the unit's brain journal, so the reaction its row
+        /// publishes says what it answers (<i>"started TakeCover (Reaction, Contact) after NearMiss"</i>).</summary>
+        private static bool Noted(bool matched, SensorChange kind, Entity self, EntityRepository world)
+        {
+            if (matched) Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.NoteReactionCause(world, self, (byte)kind);
+            return matched;
         }
 
         /// <summary>

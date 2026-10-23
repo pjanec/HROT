@@ -383,6 +383,51 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(0, j.At(0).Cause);                                      // an order has none
         }
 
+        /// <summary>⭐ <c>CE-1250</c> (BV-12; ui's handoff ①) — the PRODUCER half: an SOP row's sense condition notes what it matched, and the
+        /// reaction that row publishes carries it as its cause — <i>"started SopT_Cover (Reaction, Hit) after NearMiss"</i>. A reaction no sense
+        /// matched this frame (a stale note, a row without one) carries none.
+        /// 🔴 Red-proof: drop the <c>Noted</c> call in <c>SopConditions.SensedFresh</c> ⇒ red; drop the frame check in
+        /// <c>TakeReactionCause</c> ⇒ the stale half red.</summary>
+        [Fact]
+        public void CE1250_AnSopRowsMatchedSense_IsTheCauseOfTheReactionItPublishes()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            if (!f.World.IsComponentTypeRegistered<RecentSenses>()) f.World.RegisterComponent<RecentSenses>();
+            f.World.SetSingleton(new GlobalTime { TotalTime = 10.0, FrameNumber = 7 });
+            f.Task("SopT_Task", BehaviorOrigin.Superior);
+            var senses = new RecentSenses();
+            senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, 10.0);
+            f.World.AddComponent(f.Unit, senses);
+
+            var row = new SopSenseParams { Kind = Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, Seconds = 5f };
+            Assert.True(SopConditions.SensedFresh(ref row, f.Unit, f.World));
+            Assert.Equal(NodeStatus.Success, SopActions.React(f.World, f.Unit, "SopT_Cover", ReactionUrgency.Hit, "{}"));
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            var j = Journal(f);
+            var started = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted, started.Kind);
+            Assert.Equal(LongReactionId, started.A);
+            Assert.Equal((byte)Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, started.Cause);
+
+            // a note from an EARLIER frame is stale: the next reaction says nothing rather than the wrong thing
+            using var g = new Fixture();
+            WithJournal(g);
+            if (!g.World.IsComponentTypeRegistered<RecentSenses>()) g.World.RegisterComponent<RecentSenses>();
+            g.World.SetSingleton(new GlobalTime { TotalTime = 10.0, FrameNumber = 7 });
+            g.Task("SopT_Task", BehaviorOrigin.Superior);
+            g.World.AddComponent(g.Unit, senses);
+            Assert.True(SopConditions.SensedFresh(ref row, g.Unit, g.World));
+            g.World.SetSingleton(new GlobalTime { TotalTime = 10.016, FrameNumber = 8 });
+            Assert.Equal(NodeStatus.Success, SopActions.React(g.World, g.Unit, "SopT_Cover", ReactionUrgency.Hit, "{}"));
+            g.World.Bus.SwapBuffers();
+            g.Ingress.Execute(g.World, 0.016f);
+            var k = Journal(g);
+            Assert.Equal(LongReactionId, k.At(k.Count - 1).A);
+            Assert.Equal(0, k.At(k.Count - 1).Cause);
+        }
+
         /// <summary>⭐ BV-13 — a refusal says why: a reaction under a more urgent one, and one the ROE keeps out.
         /// 🔴 Red-proof: return LowerRank from <c>RefusalOf</c> for every case ⇒ red.</summary>
         [Fact]

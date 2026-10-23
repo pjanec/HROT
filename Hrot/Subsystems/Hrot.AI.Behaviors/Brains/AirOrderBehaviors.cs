@@ -51,7 +51,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.Issued == 0)
             {
-                if (!LocomotionMoveTo.Issue(world, self, PointOf(in p, world), p.Speed, p.ArrivalRadius > 0f ? p.ArrivalRadius : DefaultArrivalRadius))
+                if (!LocomotionMoveTo.Issue(world, self, PointOf(in p, world), p.Speed, p.ArrivalRadius > 0f ? p.ArrivalRadius : DefaultArrivalRadius, source: LocomotionMoveTo.OrderSource(world, self)))
                     return NodeStatus.Failure;
                 p.Issued = 1;
                 return NodeStatus.Running;

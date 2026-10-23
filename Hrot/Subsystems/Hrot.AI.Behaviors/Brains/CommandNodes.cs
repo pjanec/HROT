@@ -32,6 +32,17 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Entity = member, IntentId = OrderAttribute.IntentFor(orderName), JsonParams = json, Origin = BehaviorOrigin.Superior,
             });
+            Journal(world, commander, member, OrderAttribute.IntentFor(orderName));
+        }
+
+        /// <summary>⭐ <c>CE-1250</c> (Brain View BV-10) — the commander's brain journal records the order: A = the member's network id (0
+        /// when it has none), B = the behaviour (or order) hash. Every command node gives its orders through here, so every commander writes it.</summary>
+        private static void Journal(EntityRepository world, Entity commander, Entity member, string behaviour)
+        {
+            long id = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, member) : 0;
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(world, commander, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.OrderIssued,
+                a: (int)id, b: BehaviorHash.FromName(behaviour));
         }
 
         /// <summary>⭐ <c>CE-2294</c> CC-D — the order the commander's TICKING run gave <paramref name="member"/> still stands: nothing
@@ -72,6 +83,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Entity = member, IntentId = behaviour, JsonParams = json, Origin = BehaviorOrigin.Superior,
             });
+            Journal(world, commander, member, behaviour);
         }
 
         /// <summary>⭐ <c>CE-2347</c> — the commander's ticking run's LAST order to <paramref name="member"/> was exactly this one

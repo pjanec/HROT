@@ -13,6 +13,7 @@ using Fdp.Toolkit.Spatial.Eqs;
 using Fbt.Kernel;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Stance;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -295,7 +296,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (status == NodeStatus.Running) return NodeStatus.Running;
                 ws.Moving = 0;   // failed or taken over: issue it again
             }
-            if (!LocomotionMoveTo.Issue(world, self, objective, p.Speed, p.ArrivalRadius)) return NodeStatus.Failure;
+            if (!LocomotionMoveTo.Issue(world, self, objective, p.Speed, p.ArrivalRadius, source: hunting ? MoveSource.Attack : LocomotionMoveTo.OrderSource(world, self))) return NodeStatus.Failure;
             ws.Moving = 1;
             ws.IssuedTo = objective;
             return NodeStatus.Running;
@@ -340,7 +341,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (Vector3.Distance(at, p.Anchor) > FrameWatchMetres)
             {
                 Straighten(ref ws, self, world);
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, p.Anchor, FrameWatchSpeed, PeekAndFireNodes.ArrivalRadius) ? 1 : 0);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, p.Anchor, FrameWatchSpeed, PeekAndFireNodes.ArrivalRadius, source: MoveSource.SquadPost) ? 1 : 0);
                 if (ws.Moving == 0) ws.Failed = 1;
                 return NodeStatus.Running;
             }

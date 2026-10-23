@@ -8,6 +8,7 @@ using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Sensors;
 using Fdp.Toolkit.Squad.DangerArea;
 using Fbt.Kernel;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -214,7 +215,7 @@ namespace Hrot.AI.Behaviors.Brains
                         || LocomotionMoveTo.Status(world, self) == NodeStatus.Failure;
             if (reissue)
             {
-                if (!LocomotionMoveTo.Issue(world, self, area.NearSideHandle, p.Speed, p.ArrivalRadius, MoveGait.Crouched)) return NodeStatus.Failure;
+                if (!LocomotionMoveTo.Issue(world, self, area.NearSideHandle, p.Speed, p.ArrivalRadius, MoveGait.Crouched, source: MoveSource.Route)) return NodeStatus.Failure;
                 ws.Moving = 1;
                 ws.FeatureId = area.FeatureId;
             }
@@ -237,7 +238,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (buffer.Count == 0) return NodeStatus.Success;
                 var area = buffer.GetSpanRO()[0];
                 if (ws.HasCrossed == 1 && area.FeatureId == ws.CrossedFeatureId) return NodeStatus.Failure;
-                if (!LocomotionMoveTo.Issue(world, self, area.NearSideHandle, p.Speed, p.ArrivalRadius, MoveGait.Crouched)) return NodeStatus.Failure;
+                if (!LocomotionMoveTo.Issue(world, self, area.NearSideHandle, p.Speed, p.ArrivalRadius, MoveGait.Crouched, source: MoveSource.Route)) return NodeStatus.Failure;
                 ws.FarSide = area.FarSideHandle;
                 ws.FeatureId = area.FeatureId;
                 ws.Phase = 1;
@@ -248,7 +249,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (status == NodeStatus.Failure) { Restart(ref ws); return NodeStatus.Failure; }
             if (ws.Phase == 1)
             {
-                if (!LocomotionMoveTo.Issue(world, self, ws.FarSide, p.Speed, p.ArrivalRadius, MoveGait.Crouched)) return NodeStatus.Failure;
+                if (!LocomotionMoveTo.Issue(world, self, ws.FarSide, p.Speed, p.ArrivalRadius, MoveGait.Crouched, source: MoveSource.Route)) return NodeStatus.Failure;
                 ws.Phase = 2;
                 return NodeStatus.Running;
             }

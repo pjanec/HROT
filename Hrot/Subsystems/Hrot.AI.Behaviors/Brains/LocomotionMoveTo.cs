@@ -2,6 +2,7 @@ using System.Numerics;
 using Fbt;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Navigation;
 using Fbt.Kernel;
 using Fdp.Toolkit.Combat;
@@ -86,8 +87,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// way — out of a firing position and back into the hide, Exposure Cycle §4–§5); a person turns and walks as before.</remarks>
         /// <remarks>⭐ <c>CE-2230</c> — <paramref name="onSurface"/>: the destination is a place on the map (x, y), its height the surface's
         /// there (<c>FlagDestinationOnSurface</c>, R-252) — a commander's 2-D slot, not a 3-D point.</remarks>
+        /// <remarks>⭐ <c>CE-1250</c> (Brain View BV-12) — <paramref name="source"/>: WHY the unit moves, noted in its brain journal for this
+        /// command instance (the dispatcher's <c>MoveStarted</c> entry reads it). ⚠ Not on <c>MoveToParams</c> — that struct is full.</remarks>
         public static unsafe bool Issue(EntityRepository world, Entity self, Vector3 destination, float speed, float arrivalRadius,
-                                        MoveGait gait = MoveGait.Tactical, bool reverseAllowed = false, bool onSurface = false)
+                                        MoveGait gait = MoveGait.Tactical, bool reverseAllowed = false, bool onSurface = false,
+                                        MoveSource source = MoveSource.SourceUnknown)
         {
             if (!world.HasComponent<LocomotionChannel>(self)) return false;
             if (TacticalGait.StanceFor(world, self, gait) is StanceId stance)
@@ -102,6 +106,7 @@ namespace Hrot.AI.Behaviors.Brains
             unchecked { channel.ActionInstanceId++; }
             channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
             channel.Status = NodeStatus.Running;
+            BrainJournalOf.NoteMoveSource(world, self, channel.ActionInstanceId, source);   // ⭐ CE-1250
             var moveToParams = new MoveToParams
             {
                 Destination    = destination,
@@ -117,6 +122,24 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ AQ96 B / C — the reflex keeps this move honest from here on (the gait, the pace, the drop): UnderFireMoveSystem
             UnderFire.Stamp(world, self, channel.ActionInstanceId, gait, asked, threatened);
             return true;
+        }
+
+        /// <summary>⭐ <c>CE-1250</c> (BV-12) — the source of a move a behaviour makes because it was TOLD to (an advance, an air order): an
+        /// operator's task is an <see cref="MoveSource.Order"/>, a superior's is the unit's <see cref="MoveSource.SquadPost"/> when a
+        /// commander above gave it, else an <see cref="MoveSource.Order"/> (a mission plan); its own SOP's or a reaction's is unknown here.</summary>
+        public static MoveSource OrderSource(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<BehaviorState>(self)) return MoveSource.SourceUnknown;
+            return world.GetComponentRO<BehaviorState>(self).Origin switch
+            {
+                BehaviorOrigin.Operator or BehaviorOrigin.Unmarked => MoveSource.Order,
+                BehaviorOrigin.Possession => MoveSource.Operator,
+                BehaviorOrigin.Superior => world.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()
+                                           && world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(self)
+                                           && !world.GetComponentRO<Fdp.Core.CommandHierarchy.UnitSubordinate>(self).Commander.IsNull
+                                               ? MoveSource.SquadPost : MoveSource.Order,
+                _ => MoveSource.SourceUnknown,
+            };
         }
 
         /// <summary>⭐ <c>CE-3079</c> H4 — stops the unit's MoveTo, if one is active (a new action instance so the executor lets go).
