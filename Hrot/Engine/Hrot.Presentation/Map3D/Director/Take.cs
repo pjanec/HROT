@@ -187,6 +187,9 @@ public sealed record ReelItem
     public AtExpr? To { get; init; }
 }
 
+/// <summary>A clip waiting to join a reel, and why it is not on it yet.</summary>
+public sealed record ReelWaiting(string Clip, string? Why);
+
 /// <summary>⭐ <c>CE-4038</c> (§4a, D-15) — a playlist of takes, and on film ONE movie: <c>films/&lt;name&gt;.reel.json</c>.</summary>
 public sealed record Reel
 {
@@ -196,6 +199,9 @@ public sealed record Reel
     public IReadOnlyList<ReelItem> Items { get; init; } = Array.Empty<ReelItem>();
     public bool Loop { get; init; }
     public double GapSeconds { get; init; } = 1.5d;
+    /// <summary>Clips parked off the reel until they are ready, each with the reason (<c>"waiting": [{clip, why}]</c>,
+    /// PLAN_Feature_Films §5) — a note for whoever edits the reel; never played.</summary>
+    public IReadOnlyList<ReelWaiting> Waiting { get; init; } = Array.Empty<ReelWaiting>();
 
     /// <summary>A reel of one take (<c>POST /director/play {scenario, take}</c>).</summary>
     public static Reel Of(string scenario, string take) => new()

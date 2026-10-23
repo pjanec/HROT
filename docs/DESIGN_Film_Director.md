@@ -482,6 +482,7 @@ reel is.** `films/<reel>.reel.json`:
 | **to film** | `POST /director/play {reel, capture}` writes **ONE movie**: the frames are numbered across all items, a fade or a title card between items, a chapter mark per item (ffmpeg metadata), one sound track |
 | **mixing** | any scenario, any take, the same scenario twice with different takes, part of a take (`from` / `to`, anchors or shot numbers) |
 | **many movies** | a reel per film: `features.reel.json` (everything, in CAPABILITIES order), one per chapter, one per audience — they share the takes |
+| **parked clips** | *(as built `2026-10-23`, ui)* `"waiting": [{"clip": "F-03", "why": "not ready …"}]` lists clips kept OFF the reel until they are ready (PLAN_Feature_Films §5) — read into `Reel.Waiting`, written back, never played; any other key in an entry is refused like every reel key |
 
 **Several versions of one scenario** (🔒 *"multiple version of different scenarios"*): a variant is its own scenario folder
 (`ua-eject` · `ua-shootdown-eject`), so it carries its own `takes/`. One scenario can hold several takes (`main`, `short`, `wide`). A reel
