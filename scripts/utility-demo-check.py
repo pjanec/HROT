@@ -5043,14 +5043,17 @@ def run_rf_wall_hugger(c, timeout):
     movers = []
     if at_wall is not None:
         for n in reds:
-            before = next((r[1] for r in rows[n] if r[0] >= at_wall and r[1]), None)
-            later = [r for r in rows[n] if r[0] >= at_wall + 2 and r[1] and before]
+            # ⭐ CE-2359 — the Hugger stands at the wall from the start: measure from once the posts are manned (SquadDefend moves, then
+            #   posts — 📐 the first measure from t=0 counted every man's walk to his post as a hunt)
+            settled = at_wall + 20.0
+            before = next((r[1] for r in rows[n] if r[0] >= settled and r[1]), None)
+            later = [r for r in rows[n] if r[0] >= settled + 2 and r[1] and before]
             # ⭐ CE-2359 — beyond his post's room (SquadDefendPlay.PostRadius 4 m): peeking between the windows of his own room is not a hunt
             far = max((flat(r[1], before) for r in later), default=0.0)
             if far > 4.5:
                 seen_after = any(later[i][5].get(blue, (0, 0))[0] > later[i - 1][5].get(blue, (0, 0))[0] for i in range(1, len(later)))
                 movers.append((n, seen_after))
-            print(f"      {n}: furthest from where he stood when the Hugger reached the wall {far:.1f} m")
+            print(f"      {n}: furthest from his manned post (t ≥ {settled:.0f} s) {far:.1f} m")
     print(f"    defenders who moved beyond their room (and then saw the Hugger): {movers}")
     c.ok(any(s for _, s in movers), "(2) a defender moves to an opening that sees the Hugger")
     c.ok(len(movers) <= 1, f"(2) only ONE defender hunts ({len(movers)})")

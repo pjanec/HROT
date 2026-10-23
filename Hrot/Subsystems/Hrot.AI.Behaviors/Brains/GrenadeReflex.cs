@@ -49,24 +49,51 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>A replica's fuze is not known here: he assumes this much is left (s) — the run must be short to be worth it.</summary>
         public const float UnknownFuzeSeconds = 1.5f;
 
-        /// <summary>The live fragmentation grenades lying on this node (the rounds it flies: their fuze is known).</summary>
-        public static void Lying(EntityRepository world, List<LiveGrenade> into)
+        /// <summary>
+        /// The live fragmentation grenades lying on this node. ⭐ I-1, measured live (<c>rf-grenade-reaction</c>): a man's round is flown by
+        /// his BODY's node (SimHost) — the brain's node (CGF) holds only its <see cref="Fdp.Toolkit.Replication.Components.LightweightRound"/>
+        /// replica, with no fuze. So both: a round this node flies (its fuze known) and a lying replica, whose fuze is ESTIMATED from its
+        /// warhead's (<see cref="WarheadRound.BitsOf(WarheadDto?, out float)"/>) less the time since it first appeared here, and whose
+        /// thrower is where it first appeared (his hand). <paramref name="seen"/> keeps those first sightings (the system's).
+        /// </summary>
+        public static void Lying(EntityRepository world, List<LiveGrenade> into, Dictionary<ulong, (double At, Vector3 From)>? seen = null, double now = 0)
         {
             into.Clear();
-            if (!world.IsComponentTypeRegistered<BallisticProjectile>()) return;
             var db = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
-            foreach (var e in world.Query().With<BallisticProjectile>().With<SimTransform>().Build())
+            if (world.IsComponentTypeRegistered<BallisticProjectile>())
+                foreach (var e in world.Query().With<BallisticProjectile>().With<SimTransform>().Build())
+                {
+                    ref readonly var flight = ref world.GetComponentRO<BallisticProjectile>(e);
+                    const byte live = WarheadRound.TimeFuze | WarheadRound.Landed;
+                    if ((flight.Warhead & (live | WarheadRound.Spent | WarheadRound.Lingers)) != live) continue;
+                    if (!Fragments(db, flight.Ammo, out float lethal, out _)) continue;
+                    var from = !flight.Shooter.IsNull && world.IsAlive(flight.Shooter) && world.HasComponent<SimTransform>(flight.Shooter)
+                        ? world.GetComponentRO<SimTransform>(flight.Shooter).Position : flight.Muzzle;
+                    into.Add(new LiveGrenade(e, world.GetComponentRO<SimTransform>(e).Position, flight.Ammo, lethal, flight.FuzeRemaining, from));
+                }
+            if (seen == null || !world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()) return;
+            foreach (var e in world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>().With<SimTransform>().Build())
             {
-                ref readonly var flight = ref world.GetComponentRO<BallisticProjectile>(e);
-                const byte live = WarheadRound.TimeFuze | WarheadRound.Landed;
-                if ((flight.Warhead & (live | WarheadRound.Spent | WarheadRound.Lingers)) != live) continue;
-                var (warhead, _, _) = ParameterResolver.Warhead(db, flight.Ammo);
-                if (warhead == null || warhead.FragmentRadiusM <= 0f) continue;
-                var from = !flight.Shooter.IsNull && world.IsAlive(flight.Shooter) && world.HasComponent<SimTransform>(flight.Shooter)
-                    ? world.GetComponentRO<SimTransform>(flight.Shooter).Position : flight.Muzzle;
-                into.Add(new LiveGrenade(e, world.GetComponentRO<SimTransform>(e).Position, flight.Ammo,
-                    warhead.FragmentRadiusM * GrenadeCheck.LethalShareOfReach, flight.FuzeRemaining, from));
+                var at = world.GetComponentRO<SimTransform>(e).Position;
+                if (!seen.TryGetValue(e.PackedValue, out var first)) seen[e.PackedValue] = first = (now, at);   // it appeared: thrown from here
+                if (RoundPickUp.OwnsRound(world, e) || !RoundPickUp.IsLying(world, e)) continue;
+                long ammo = RoundPickUp.AmmoOf(world, e);
+                if (!Fragments(db, ammo, out float lethal, out float fuze) || fuze <= 0f) continue;
+                into.Add(new LiveGrenade(e, at, ammo, lethal, MathF.Max(0.01f, fuze - (float)(now - first.At)), first.From));
             }
+        }
+
+        /// <summary>A fragmenting round with a time fuze: its lethal radius (the warhead's blast-lethal or a third of its fragment reach,
+        /// whichever is more — GrenadeCheck CB-70) and its fuze (s).</summary>
+        private static bool Fragments(ITkbDatabase? db, long ammo, out float lethal, out float fuze)
+        {
+            lethal = fuze = 0f;
+            var (warhead, _, _) = ParameterResolver.Warhead(db, ammo);
+            if (warhead == null || warhead.FragmentRadiusM <= 0f) return false;
+            byte bits = WarheadRound.BitsOf(warhead, out fuze);
+            if ((bits & WarheadRound.TimeFuze) == 0) fuze = 0f;
+            lethal = MathF.Max(warhead.BlastLethalRadiusM, warhead.FragmentRadiusM * GrenadeCheck.LethalShareOfReach);
+            return lethal > 0f;
         }
 
         /// <summary>Is a man <paramref name="distance"/> m from <paramref name="g"/> in danger from it (and has he heard it)?</summary>
@@ -283,12 +310,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The live grenade lying within <see cref="SameRoundMetres"/> of <paramref name="at"/> on this node, or null.</summary>
         internal static Entity RoundAt(EntityRepository world, Vector3 at)
         {
-            if (!world.IsComponentTypeRegistered<BallisticProjectile>()) return Entity.Null;
-            foreach (var e in world.Query().With<BallisticProjectile>().With<SimTransform>().Build())
-            {
-                if (!RoundPickUp.IsLying(world, e)) continue;
-                if (Flat(world.GetComponentRO<SimTransform>(e).Position - at) <= SameRoundMetres) return e;
-            }
+            if (world.IsComponentTypeRegistered<BallisticProjectile>())
+                foreach (var e in world.Query().With<BallisticProjectile>().With<SimTransform>().Build())
+                    if (RoundPickUp.IsLying(world, e) && Flat(world.GetComponentRO<SimTransform>(e).Position - at) <= SameRoundMetres) return e;
+            if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>())   // ⭐ I-1 — the brain's node holds a replica
+                foreach (var e in world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>().With<SimTransform>().Build())
+                    if (RoundPickUp.IsLying(world, e) && Flat(world.GetComponentRO<SimTransform>(e).Position - at) <= SameRoundMetres) return e;
             return Entity.Null;
         }
 
@@ -309,6 +336,7 @@ namespace Hrot.AI.Behaviors.Brains
         private readonly bool _gateOnAuthority;
         private readonly List<LiveGrenade> _rounds = new();
         private readonly HashSet<(ulong Man, ulong Round)> _reacted = new();
+        private readonly Dictionary<ulong, (double At, Vector3 From)> _seen = new();
         private readonly List<(Entity Man, float Distance)> _near = new();
         private EntityQuery? _people;
 
@@ -317,7 +345,9 @@ namespace Hrot.AI.Behaviors.Brains
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
-            GrenadeDanger.Lying(repo, _rounds);
+            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+            GrenadeDanger.Lying(repo, _rounds, _seen, now);
+            if (_seen.Count > 64) foreach (var k in new List<ulong>(_seen.Keys)) if (!repo.IsAlive(new Entity(k))) _seen.Remove(k);
             if (_rounds.Count == 0) { _reacted.Clear(); return; }
             _people ??= repo.Query().With<BehaviorState>().With<SimTransform>().Build();
             foreach (var g in _rounds)

@@ -75,7 +75,7 @@ namespace Hrot.SimHost.Tests
                 _soldier.AddDescriptor(new VehicleParametersDto { VehicleClass = global::CarKinem.Core.VehicleClass.Pedestrian });
                 db.Register(_soldier);
                 var m67 = new Fdp.Interfaces.TkbTemplate("M67", GrenadeAmmo);
-                m67.AddDescriptor(new WarheadDto { Kind = WarheadKind.Fragmentation, Indirect = true, FragmentRadiusM = 15f });
+                m67.AddDescriptor(new WarheadDto { Kind = WarheadKind.Fragmentation, Indirect = true, FragmentRadiusM = 15f, Fuze = FuzeKind.Time, FuzeDelayS = 4.5f });
                 m67.AddDescriptor(new HandItemDto());
                 db.Register(m67);
                 PersonHands.EnsureOnPersons(db);
@@ -219,6 +219,33 @@ namespace Hrot.SimHost.Tests
 
             w.Run(EvadeGrenadeBehavior.AfterBurstSeconds + 4.5);                                                         // it is gone; after its burst
             Assert.All(new[] { near, mid, far }, m => Assert.Equal("Idle", w.TaskOf(m)));                                // each back to his task
+        }
+
+        /// <summary>⭐ I-1 (measured live, <c>rf-grenade-reaction</c>) — on the BRAIN's node a thrown grenade is only a lying REPLICA
+        /// (<c>LightweightRound</c>, flown by the thrower's body node, no fuze here): the men react all the same — its fuze estimated from its
+        /// warhead less the time since it appeared, its thrower where it appeared. ✅ Red-proof: the replica pass dropped from
+        /// <c>GrenadeDanger.Lying</c> ⇒ nobody reacts ⇒ red (as live).</summary>
+        [Fact]
+        public void CE2360_AGrenadeSeenOnlyAsAReplica_IsReactedTo_ItsFuzeEstimated()
+        {
+            var w = new World();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>())
+                w.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.LightweightRound>();
+            var runner = w.Man(new Vector3(-3f, 0, 0), ProficiencyOf.Militia);   // he may not throw it back: he runs
+            var far = w.Man(new Vector3(0, -8f, 0));
+            w.Run(0.1);
+
+            var replica = w.Repo.CreateEntity();   // appears at the thrower's hand, flies, lies by the men
+            w.Repo.AddComponent(replica, new SimTransform { Position = new Vector3(0, 20, 0), Rotation = Quaternion.Identity });
+            w.Repo.AddComponent(replica, new Fdp.Toolkit.Replication.Components.LightweightRound());
+            w.Repo.AddComponent(replica, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = GrenadeAmmo });
+            w.Run(0.2);
+            w.Repo.GetComponentRW<SimTransform>(replica).Position = Vector3.Zero;
+            w.Run(0.2);
+
+            Assert.Equal(BehaviorNames.EvadeGrenade, w.TaskOf(runner));
+            Assert.Equal(BehaviorNames.EvadeGrenade, w.TaskOf(far));
+            Assert.True(w.MoveTarget(runner).X < -6.9f, "he runs straight away from it");
         }
 
         /// <summary>⭐ J + R-2062 — a MILITIAMAN never throws it back (he runs); and a man UNDER COMMAND reacts all the same — the reflex is no SOP
