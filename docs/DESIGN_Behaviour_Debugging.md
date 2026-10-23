@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: docs/blueprints/BTree_Editor_NodeEditor_Host_Design.md §12.7 and docs/blueprints/HSM_Editor_NodeEditor_Host_Design.md §13.5 design the Runtime pane as kernel internals (stack, registers, timers, RNG); DBG-4 below demotes those to a collapsed "Kernel" section — the host designs are not yet updated
 related-designs:
+  - docs/DESIGN_Unit_Camera.md — Follow on the debugged unit (UC-2): watch it from far away down to its own eyes
   - docs/DESIGN_Director_Timeline_Editor.md — the shared Timeline (R-4073, TE-21): the exercise lanes over a recording's cached index, a pinned unit's trace lanes, seek through the transport; handed to ui as batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
   - docs/DESIGN_Entity_Brain_View.md — OWNS the Brain tab, the brain journal, "Debug this unit" (UnitDebugController), the running graph of a C# behaviour (§9) and the journal break (§10); this design is the workflow AROUND them
   - docs/DESIGN_Agent_Shared_View.md — OWNS the AI debug HTTP routes; every view here gets its route there (R-1029)

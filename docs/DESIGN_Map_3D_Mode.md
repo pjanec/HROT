@@ -14,6 +14,7 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Unit_Camera.md — the Follow camera rides MapCamera3D (its LookAt pinned to a unit) and adds a spring arm (CE-1293)
   - docs/DESIGN_Geo_Origin.md §4 — OWNS the node's one IGeographicTransform and where its origin comes from (the terrain); §6ac's cursor readout converts through it, from the world singleton
   - docs/UX/Architect_Question_28_Map_Layers.md E′ — OWNS the ruling that ActiveLayerMask switches whole layer objects and the Config window's Grid tick drives it; §6ac's Grid row follows CE-1227's layer-panel precedent beyond it (reasoned there)
   - docs/DESIGN_Director_Timeline_Editor.md — OWNS the director timeline editor on every film host; RULES §6b's "ReplayBrowser sets no TKB" finding (R-4069, TE-12) and adds the film-only graphics layer (R-4070)
