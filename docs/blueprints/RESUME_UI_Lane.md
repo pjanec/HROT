@@ -278,10 +278,10 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 
 ### ⭐ `2026-10-23` — backend merged (ff to `e894d95a1`, behaviors included); the ENTITY BRAIN VIEW designed and approved
 
-- [`DESIGN_Entity_Brain_View.md`](../DESIGN_Entity_Brain_View.md) (`R-1012`): Phase 1 the Brain tab (`CE-1226`, ui), Phase 2 the brain journal (`CE-1227` ui, `CE-1228` behaviors), the HSM history-list bug (`CE-1229`). READY-TO-BUILD; ⛔ ask before starting.
+- [`DESIGN_Entity_Brain_View.md`](../DESIGN_Entity_Brain_View.md) (`R-1026`): Phase 1 the Brain tab (`CE-1248`, ui), Phase 2 the brain journal (`CE-1249` ui, `CE-1250` behaviors), the HSM history-list bug (`CE-1251`). READY-TO-BUILD; ⛔ ask before starting.
 - Two pre-existing reds after the merge, on backend's head too: `EntityTypeCatalogTests.CE2138_…` (behaviors' type 2009 AssaultRifleman missing from the golden — ui's picker test) and `FilmDirectorTests.CE4038_…` (reel key "waiting").
-- Phase 3 (§9, R-1014): C#-only behaviours as read-only graphs in memory — `CE-1230`…`CE-1234`.
-- ids: ui tracker next free **`CE-1235`**, rulings **`R-1015`**.
+- Phase 3 (§9, R-1028): C#-only behaviours as read-only graphs in memory — `CE-1252`…`CE-1256`.
+- ids: ui tracker next free **`CE-1257`**, rulings **`R-1029`** (⚠ the Brain View ids were renumbered `2026-10-23`: CE-1226…1234 → CE-1248…1256, R-1012…1014 → R-1026…1028 — the first numbers were already taken by the parallel ui session's 10-20…10-22 work).
 
 ### Next, in order (leans — ask the user before starting any; they gate starts explicitly)
 

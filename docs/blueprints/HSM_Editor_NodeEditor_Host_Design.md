@@ -1475,7 +1475,7 @@ UI: click the gutter to the left of a state's title bar to toggle. Transitions g
 
 ### 13.4 Live overlay renderer
 
-> ⛔ **As measured `2026-10-23`** ([Brain View §9](../DESIGN_Entity_Brain_View.md), BV-20, `CE-1231`): `HsmDebugSession.SetMetadata` has no production caller, so the session's metadata stays null, `DecodeLeaves` returns nothing and the active-state glow below never draws — for asset HSMs as well. Fix: feed it from the registry's `HsmDefinition` / `HsmMetadata`.
+> ⛔ **As measured `2026-10-23`** ([Brain View §9](../DESIGN_Entity_Brain_View.md), BV-20, `CE-1253`): `HsmDebugSession.SetMetadata` has no production caller, so the session's metadata stays null, `DecodeLeaves` returns nothing and the active-state glow below never draws — for asset HSMs as well. Fix: feed it from the registry's `HsmDefinition` / `HsmMetadata`.
 
 `hsm.runtime_overlay`, `AfterNodes` pass:
 

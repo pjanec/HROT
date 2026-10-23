@@ -462,4 +462,4 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 | the running behaviour as a GRAPH | asset behaviours: open the asset, the live overlay lights the selected unit · C#-only BTrees (74): already in the BTree editor, auto-laid out (CE-3160) · ⛔ C#-only HSMs (12): not in the HSM editor; the HSM live highlight never draws | Brain tab → Open running behaviour, read-only, pinned (Brain View §9) |
 | ⛔ a unit's history of task / decision / move changes WITH their causes | none — refusals are log lines, a reaction does not name its sense, a move point does not name its source | the brain journal (Phase 2) |
 
-*Owner:* [DESIGN_Entity_Brain_View](DESIGN_Entity_Brain_View.md) (R-1012).
+*Owner:* [DESIGN_Entity_Brain_View](DESIGN_Entity_Brain_View.md) (R-1026).
