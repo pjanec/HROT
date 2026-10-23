@@ -5095,6 +5095,13 @@ def run_rf_grenade_reaction(c, timeout):
         print(f"    {n}: {'out of reach' if far else e.get('stance')} · exposure {e and e.get('fragmentExposure')} · moved "
               f"{max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0):.1f} m")
         safe += 1 if (far or prone) else 0
+        # ⭐ CE-2360 — his task timeline: did the reflex start, and when did it hand the task back?
+        last, line = None, []
+        for t, p, stance, _a, task, _m, _l in rows[n]:
+            if (task, stance) != last:
+                last = (task, stance)
+                line.append(f"t={t:.1f} {task or '-'}/{stance}")
+        print(f"      {' · '.join(line[:10])}")
     c.ok(safe == len(blues), f"(1) every Blue man is out of reach or prone at the burst ({safe}/{len(blues)})")
     c.ok(d.get("shooter") != ids["Thrower"] or flat(b, (280, 365)) < flat(b, (280, 380)),
          "(2) one man throws it back (the burst is the Blue man's, or nearer the Thrower)")
