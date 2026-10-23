@@ -13,6 +13,7 @@ known-rot: (2026-10-13, P7) the class diagram's `[BehaviorContract Infantry]` on
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) A/E: UnderFire in the posture choice; RecentlyLostContact gates the approach options (G6/A1)
   - docs/DESIGN_Entity_Brain_View.md — the brain journal is written at this design's entry gate (start / pause / resume / clear / refusals, with origin and urgency)
   - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — ASKED 2026-10-20: BasicInfantrySop as every lone soldier's TKB default (+ shot-at and heard-gunfire rows), InertSop as the explicit none, a CivilianSop
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — PC-6: RoeOf reads the nearest set Roe up the chain so a platoon's HoldFire reaches its men

@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) G: every squad type gets BasicSquadSop; a lasting contact escalates to SuppressAndManeuver; F scores the flank routes
   - docs/DESIGN_Entity_Brain_View.md — the Brain tab reads SquadDrillTrace; the play writers also write the per-unit brain journal (BV-14)
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: how one soldier moves under fire (rush speed, gait mid-move, the drop) — §7.6's rush and its missing prone
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — four new squad plays (SupportByFire, IsolateBuilding, FollowAndSupport, SquadDefend) beside the built drills, and the per-role jobs in each

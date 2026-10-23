@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none — docs/DESIGN_Decision_Layer.md §4.7 (CE-2094 D6) is amended by B (R-2070): the cover reaction ends after a quiet lapse in cover, not when the threat is forgotten
 related-designs:
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) A/E change the posture and approach inputs FightFromCover runs on
   - docs/DESIGN_Decision_Layer.md — OWNS the SOP slot, reactions and resume (§4.1, §4.7); the rule this question revisits
   - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — OWNS BasicInfantrySop's rows (hit, near miss, first threat → TakeCover)
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS TakeCover (hide-only, §6) and FallBack
