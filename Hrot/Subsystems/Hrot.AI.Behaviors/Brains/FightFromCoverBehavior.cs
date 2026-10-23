@@ -39,7 +39,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>1 once <c>PeekAndFire</c> found no cover (it answered Failure): the rest of the run is <see cref="Open"/>.</summary>
         public byte InTheOpen;
         public EqsTacticsState Open;
-        /// <summary>⭐ <c>CE-2357</c> — 1 while he flanks (the PeekAndFire half released); how many flanks this run has tried.</summary>
+        /// <summary>⭐ <c>CE-2357</c> — 1 while he flanks the remembered point, 2 while he closes in on it (the PeekAndFire half released);
+        /// how many of those this run has tried.</summary>
         public byte Flanking, FlanksTried;
         public EqsTacticsState Flank;
     }
@@ -111,11 +112,14 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐⭐ AQ102 E (CE-2357, R-2072) — the enemy out of sight for FlankAfterSeconds: a trained man FLANKS where he was LAST SEEN
                 //   (a point side-on to it that sees it — never his live position), then fights from cover again there — instead of peeking
                 //   at the same car for ever
-                if (ws.Flanking == 1)
+                if (ws.Flanking != 0)
                 {
-                    var flank = EqsTacticsNodes.FlankRemembered(ref p.Flank, ref ws.Flank, self, world);
+                    // ⭐ CE-2357 — the escalations alternate: a flank on the remembered point, then closing in to a throw of it, then a flank
+                    var flank = ws.Flanking == 2
+                        ? EqsTacticsNodes.CloseInRemembered(ref p.Flank, ref ws.Flank, self, world)
+                        : EqsTacticsNodes.FlankRemembered(ref p.Flank, ref ws.Flank, self, world);
                     if (flank == NodeStatus.Running) return NodeStatus.Running;
-                    EqsTacticsNodes.Deactivate_Flank(ref p.Flank, ref ws.Flank, self, world);
+                    Release(ref p, ref ws, self, world);
                     ws.Flanking = 0;
                     ws.Peek = default;   // a fresh fight from where the flank left him
                 }
@@ -152,7 +156,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.FightFromCoverBehavior.Run")]
         public static void Deactivate_Run(ref FightFromCoverParams p, ref FightFromCoverState ws, Entity self, EntityRepository world)
         {
-            if (ws.Flanking == 1) EqsTacticsNodes.Deactivate_Flank(ref p.Flank, ref ws.Flank, self, world);
+            if (ws.Flanking != 0) Release(ref p, ref ws, self, world);
             else if (ws.InTheOpen == 0) PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
             else EqsTacticsNodes.Deactivate_TakeCover(ref p.Open, ref ws.Open, self, world);
         }
@@ -176,8 +180,15 @@ namespace Hrot.AI.Behaviors.Brains
         {
             PeekAndFireNodes.Deactivate_PeekAndFire(ref p.Peek, ref ws.Peek, self, world);
             ws.Flank = default;
-            ws.Flanking = 1;
+            ws.Flanking = ws.FlanksTried % 2 == 0 ? (byte)1 : (byte)2;   // flank, close in, flank …
             ws.FlanksTried++;
+        }
+
+        /// <summary>The running escalation's sensor and move go (each node releases its own site).</summary>
+        private static void Release(ref FightFromCoverParams p, ref FightFromCoverState ws, Entity self, EntityRepository world)
+        {
+            if (ws.Flanking == 2) EqsTacticsNodes.Deactivate_CloseToThrow(ref p.Flank, ref ws.Flank, self, world);
+            else EqsTacticsNodes.Deactivate_Flank(ref p.Flank, ref ws.Flank, self, world);
         }
 
         /// <summary>He is at his hide point or fighting from it (not choosing one, not on his way to one).</summary>

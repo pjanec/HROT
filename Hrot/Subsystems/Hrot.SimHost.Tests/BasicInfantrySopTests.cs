@@ -366,6 +366,11 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, run.Flanking);                                                             // the fight flanks, it does not end quiet
             Assert.Equal(1, run.FlanksTried);
             FightFromCoverBehavior.Deactivate_Run(ref p, ref run, w.Unit, w.Repo);
+            var second = hidden;
+            second.FlanksTried = 1;                                                                    // the run's second escalation …
+            Assert.Equal(Fbt.NodeStatus.Running, FightFromCoverBehavior.Run(ref p, ref second, w.Unit, w.Repo));
+            Assert.Equal(2, second.Flanking);                                                          // … closes in on the remembered point
+            FightFromCoverBehavior.Deactivate_Run(ref p, ref second, w.Unit, w.Repo);
 
             w.Repo.AddComponent(w.Unit, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
             Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));        // militia only duck and fire blind (J)

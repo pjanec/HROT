@@ -173,6 +173,16 @@ namespace Hrot.AI.Behaviors.Brains
                    Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint);
 
         /// <summary>
+        /// ⭐ <c>CE-2357</c> (AQ102 E) — CLOSES IN on where the hidden top threat was LAST SEEN: to within a throw of the remembered point
+        /// (<see cref="FindThrowingPosition"/>, as <see cref="CloseToThrow"/>), firing — and throwing, the weapon brain's choice — on the
+        /// way; unlike <see cref="CloseToThrow"/> it ends on arrival, so the fight from cover goes on from there. 📐 Live (<c>rf-car-duel</c>):
+        /// side-on flanks alone kept the two men 43 m apart for 90 s.
+        /// </summary>
+        public static NodeStatus CloseInRemembered(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindThrowingPosition.BlueprintId, CloseToThrowSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint | Mode.FireAlways);
+
+        /// <summary>
         /// ⭐ <c>CE-2108</c> — moves to a FIRING POSITION on the top identified threat (<see cref="FindOpenFiringPosition"/>: a
         /// nearby point that sees it, higher and less exposed scoring more), as <see cref="Flank"/> does. 📄 §9.
         /// </summary>
