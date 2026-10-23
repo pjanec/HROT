@@ -724,7 +724,7 @@ namespace Hrot.Editor.Tests.Adapters
             _world.AddComponent(subordinate, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
 
             var adapter = CreateAdapter();
-            var nodes   = adapter.GetVisibleNodes("", new HashSet<int>());
+            var nodes   = adapter.GetVisibleNodes("", new HashSet<int> { commander.Index });   // CE-1272: expanded explicitly
 
             var cmdNode = nodes.Single(n => n.EntityId == commander.Index);
             var subNode = nodes.Single(n => n.EntityId == subordinate.Index);
