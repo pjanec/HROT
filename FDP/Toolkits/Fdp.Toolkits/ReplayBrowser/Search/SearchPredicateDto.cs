@@ -16,8 +16,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             if (string.IsNullOrEmpty(name))
                 return null;
 
-            return ComponentTypeRegistry.GetAllRegistered().FirstOrDefault(t => t.Name == name)
-                ?? EventType.GetAllRegistered().FirstOrDefault(t => t.Name == name);
+            // ⭐ The short name or the full one (measured `2026-10-23`: the route doc's own example used the full name and matched nothing).
+            return ComponentTypeRegistry.GetAllRegistered().FirstOrDefault(t => t.Name == name || t.FullName == name)
+                ?? EventType.GetAllRegistered().FirstOrDefault(t => t.Name == name || t.FullName == name);
         }
 
         public override void Write(Utf8JsonWriter writer, Type value, JsonSerializerOptions options)

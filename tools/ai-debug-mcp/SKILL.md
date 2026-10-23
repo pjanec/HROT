@@ -353,7 +353,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: While replay is active, /replay/entities returns entities from the sandbox (not the live world).; Use list_replay_entities (not list_entities) while replaying..
   Example: `load_replay({"fdpPath":"/path/to/recording.fdp"})` — load a .fdp recording for inspection.
 - **`search_replay`** — Find the frames of the loaded recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound). Req `condition` (object), `networkId?` (number), `limit?` (number). Returns { count, truncated, hits:[{frame, networkId, context}] }
-  Notes: Over a recording, Changed has no start-of-tick copy to compare with, so it matches every frame the unit's record was written — combine it with a value test, or use get_replay_journal_history for decisions..
+  Notes: Changed compares each frame with the frame before it (a unit's first frame counts as changed) — e.g. every frame a unit's ActiveBehaviorHash switched.; ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result..
   Example: `search_replay({"condition":{"$type":"PropertyMatch","ComponentType":"Fdp.Toolkit.Behavior.Components.BehaviorState","PropertyPath":"ActiveBehaviorHash","Operator":"Changed","Predicate":{"$type":"Numeric"}},"networkId":1000,"limit":10})` — find when something happened in the recording.
 - **`seek_replay`** — Seek to a specific frame in the ISOLATED sandbox. Does NOT touch the live world. Req `frame` (number). Returns { frame, totalFrames }
   Notes: Isolation guarantee: does NOT touch the live world..

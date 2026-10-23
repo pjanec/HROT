@@ -54,8 +54,10 @@ public static class ViewTelemetry
 public sealed record InViewUnit(Entity Entity, long NetworkId, string? Name, float Distance, Vector2 Screen);
 
 /// <summary>
-/// ⭐ <c>CE-1262</c> (AV-2) — which units a view shows: in 2-D the per-entity <see cref="CullingState"/> the map already computes (else the
-/// 2-D rectangle); in 3-D / first person a frustum test from the published camera (Z up), nearest first, with the screen point.
+/// ⭐ <c>CE-1262</c> (AV-2) — which units a view shows: in 2-D the published view rectangle (the per-entity <see cref="CullingState"/> only
+/// where no rectangle was published); in 3-D / first person a frustum test from the published camera (Z up), nearest first, with the
+/// screen point. ⚠ Measured live `2026-10-23`: <see cref="CullingState"/> is a draw-skip hint that reads VISIBLE wherever its host's
+/// viewport is unset (CE-131) — on the editor it listed units 300 px below the screen, so it may not decide what the operator sees.
 /// Pure; run on the main thread, per request only.
 /// </summary>
 public static class ViewReader
@@ -74,9 +76,9 @@ public static class ViewReader
             Vector2 screen;
             if (view.Mode == "2D")
             {
-                if (culling && world.HasComponent<CullingState>(e)) { if (!world.GetComponentRO<CullingState>(e).IsVisible) continue; }
-                else if (view.Rect2DMin is { } min && view.Rect2DMax is { } max)
+                if (view.Rect2DMin is { } min && view.Rect2DMax is { } max)
                 { if (p.X < min.X || p.X > max.X || p.Y < min.Y || p.Y > max.Y) continue; }
+                else if (culling && world.HasComponent<CullingState>(e)) { if (!world.GetComponentRO<CullingState>(e).IsVisible) continue; }
                 else continue;
                 distance = Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(view.Eye.X, view.Eye.Y));
                 screen = view.Rect2DMin is { } lo && view.Rect2DMax is { } hi && hi.X > lo.X && hi.Y > lo.Y

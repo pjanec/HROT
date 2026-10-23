@@ -2000,7 +2000,8 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
-                "Over a recording, Changed has no start-of-tick copy to compare with, so it matches every frame the unit's record was written — combine it with a value test, or use get_replay_journal_history for decisions.",
+                "Changed compares each frame with the frame before it (a unit's first frame counts as changed) — e.g. every frame a unit's ActiveBehaviorHash switched.",
+                "ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result.",
             },
             ExampleArgsJson: "{\"condition\":{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}},\"networkId\":1000,\"limit\":10}",
             ExampleGist: "find when something happened in the recording"),

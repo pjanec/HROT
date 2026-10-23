@@ -27,6 +27,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// returns the breakpoint id, or null where there is no manager.</summary>
         public Func<EntityRepository, Entity, string?>? ArmJournalBreak { get; set; }
 
+        /// <summary>⭐ <c>CE-1254</c> (BV-21) — opens a behaviour's graph by name in its editor (the host wires its catalog and documents);
+        /// false when this host has no graph of that name. A C#-built one opens read-only (CE-1252).</summary>
+        public Func<string, bool>? OpenGraph { get; set; }
+
         public bool IsDebugged(Entity unit) => Debugged is { } d && d == unit;
 
         /// <summary>The unit the AI graph's overlay should follow: the debugged one while it lives, else <paramref name="selection"/>.</summary>

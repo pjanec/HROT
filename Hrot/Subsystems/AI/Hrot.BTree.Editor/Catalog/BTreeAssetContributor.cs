@@ -68,7 +68,7 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
                 var layout = LayoutDiscovery.TryGetLayout<BTreeLayoutAttribute, BTreeEditorLayout>(
                     assembly, assetId);
 
-                RegisterBlobCore(blob, defAttr.TreeName, assetId, layout, type.Namespace ?? string.Empty);
+                RegisterBlobCore(blob, defAttr.TreeName, assetId, layout, type.Namespace ?? string.Empty, codeBuilt: returnsBuilder);
             }
         }
         ContributorChanged?.Invoke();
@@ -88,7 +88,8 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
         ContributorChanged?.Invoke();
     }
 
-    private void RegisterBlobCore(BehaviorTreeBlob blob, string treeName, Guid assetId, BTreeEditorLayout? layout, string ns)
+    private void RegisterBlobCore(BehaviorTreeBlob blob, string treeName, Guid assetId, BTreeEditorLayout? layout, string ns,
+        bool codeBuilt = false)
     {
         var asset = BehaviorTreeAssetProjector.Project(
             blob,
@@ -101,6 +102,7 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
             string.Empty,
             string.Empty,
             ns);
+        asset.IsCodeBuilt = codeBuilt;   // ⭐ CE-1252 — a C#-built tree (CE-3160) opens read-only
 
         _assets.Add(asset);
 

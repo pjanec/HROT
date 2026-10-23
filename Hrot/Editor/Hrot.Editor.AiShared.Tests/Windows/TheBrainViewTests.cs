@@ -121,4 +121,31 @@ public sealed class TheBrainViewTests : IDisposable
         var dump = PanelSnapshot.TryGet($"details_ce1248/{EntityBrainViewDescriptor.ViewId}")!.Dump();
         Assert.Equal(3u, dump["brain"]!["journal"]!["seq"]!.GetValue<uint>());
     }
+
+    /// <summary>⭐ A region entered from no state (0xFFFF — the machine's start) reads "entered", not <c>State_65535 → …</c> (measured live
+    /// `2026-10-23`). 🔴 Red-proof: drop the 0xFFFF branch in <c>BrainJournalText.Describe</c> ⇒ red.</summary>
+    [Fact]
+    public void ARegionEnteredFromNoState_ReadsEntered()
+    {
+        var e = new BrainJournalEntry { Kind = BrainJournalKind.StateChanged, A = 0xFFFF | (3 << 16), B = 7 };
+        Assert.Equal("M region 0: entered state 3", BrainJournalText.Describe(e, _ => "M"));
+        var moved = new BrainJournalEntry { Kind = BrainJournalKind.StateChanged, A = 2 | (3 << 16), B = 7 };
+        Assert.Equal("M region 0: state 2 → state 3", BrainJournalText.Describe(moved, _ => "M"));
+    }
+
+    /// <summary>⭐ <c>CE-1254</c> (BV-21) — the locator names the unit's RUNNING behaviour and its tier (what "Open running behaviour"
+    /// opens); no behaviour, no answer. 🔴 Red-proof: read the SOP instead of <c>ActiveBehaviorHash</c> ⇒ red.</summary>
+    [Fact]
+    public void TheLocator_NamesTheRunningBehaviour_AndItsTier()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<BehaviorState>();
+        var unit = w.CreateEntity();
+        w.AddComponent(unit, new BehaviorState { ActiveBehaviorHash = 5 });
+        var def = new Fdp.Toolkit.Behavior.BehaviorDefinition { Name = "PlatoonDefend", BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm };
+
+        var running = RunningBehaviourLocator.Resolve(w, unit, id => id == 5 ? "PlatoonDefend" : null, id => id == 5 ? def : null);
+        Assert.Equal(new RunningRef(5, "PlatoonDefend", "HSM"), running);
+        Assert.Null(RunningBehaviourLocator.Resolve(w, w.CreateEntity(), _ => "x", null));
+    }
 }

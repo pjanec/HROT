@@ -81,6 +81,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     /// <inheritdoc/>
     public void ApplyFacet(IAssetSubSelection subSelection, object facet)
     {
+        if (Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset)) return;   // ⭐ CE-1252 — a code-built graph is read-only
         if (subSelection is BTreePillSelection ps)
         {
             ApplyPillFacet(ps, facet);

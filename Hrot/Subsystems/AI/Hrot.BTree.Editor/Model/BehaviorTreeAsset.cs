@@ -271,6 +271,8 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     public string SourceFilePath { get; }
     public bool IsDirty => _isDirty;
     public bool IsEditorOwned { get; }
+    /// <summary>⭐ <c>CE-1252</c> — set by the catalog when it compiled this from a C# builder (read-only).</summary>
+    public bool IsCodeBuilt { get; set; }
     public event Action? Changed;
 
     // ---- Kernel data ----

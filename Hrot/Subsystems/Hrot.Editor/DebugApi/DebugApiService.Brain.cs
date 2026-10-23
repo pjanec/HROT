@@ -237,6 +237,8 @@ namespace Hrot.Editor.DebugApi
                     conditionNode.ToJsonString(), SearchPredicateJsonOptions) ?? throw new ArgumentException("condition deserialized to null.");
             }
             catch (Exception ex) { return (null, $"Invalid condition: {ex.Message}"); }
+            // ⛔ An unknown component name deserializes to null and used to match nothing, silently — a zero that reads like an answer.
+            if (UnknownComponentIn(condition)) return (null, "Invalid condition: a ComponentType names no registered component (use its name, e.g. \"BehaviorState\", or its full name).");
 
             var filter = body["networkId"] is JsonNode n
                 ? new Fdp.Toolkit.ReplayBrowser.Search.TargetEntityFilter { UseNetworkId = true, NetworkId = n.GetValue<long>() }
@@ -261,6 +263,13 @@ namespace Hrot.Editor.DebugApi
             }
             return (new JsonObject { ["count"] = hits.Count, ["truncated"] = hits.Count > limit, ["hits"] = list }, null);
         }
+
+        private static bool UnknownComponentIn(Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto p) => p switch
+        {
+            Fdp.Toolkit.ReplayBrowser.Search.PropertyMatchDto m => m.ComponentType is null,
+            Fdp.Toolkit.ReplayBrowser.Search.CompoundPredicateDto c => c.Conditions.Exists(UnknownComponentIn),
+            _ => false,
+        };
 
         // ⭐ BP-508 — the ONE resolver (ThereIsOneNetworkIdResolverTests): no inline network-id scan here.
         private static Entity FindByNetworkId(EntityRepository repo, long networkId)

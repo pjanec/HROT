@@ -59,6 +59,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             return RunFrameStepScan(fdpPath, root, entityFilter, ct);
         }
 
+        /// <summary>Does the condition (or any part of a compound) use <see cref="SearchOperator.Changed"/>?</summary>
+        internal static bool UsesChanged(SearchPredicateDto p) => p switch
+        {
+            PropertyMatchDto m => m.Operator == SearchOperator.Changed,
+            CompoundPredicateDto c => c.Conditions.Exists(UsesChanged),
+            _ => false,
+        };
+
         /// <inheritdoc/>
         public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(
             string fdpPath,
@@ -112,6 +120,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var frameCandidates = new List<Entity>(32);
             var previousMatches = new HashSet<int>();
 
+            // ⭐ CE-1266 — "Changed" over a recording compares each frame with the ONE BEFORE: a second playback of the same file steps one
+            //   frame behind and is the baseline (the breakpoint's pre-tick copy, live). ⛔ Without it Changed matched every frame the
+            //   record was written — measured live `2026-10-23`: 8581 hits for a unit that changed its task nine times.
+            using var lag = deltaQuery != null && UsesChanged(root) ? new PlaybackController(fdpPath) : null;
+            EntityRepository? lagRepo = null;
+            if (lag != null)
+            {
+                lagRepo = new EntityRepository();
+                RegisterAllComponents(lagRepo, lag);
+                lag.EventBus = new FdpEventBus();
+            }
+
             while (playback.StepForward(repo))
             {
                 if (ct.IsCancellationRequested) break;
@@ -122,16 +142,20 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (deltaQuery != null)
                 {
                     frameCandidates.Clear();
-                    foreach (var entity in deltaQuery)
+                    using (PredicateChangeBaseline.Use(lagRepo))
                     {
-                        if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
-                        if (compiledFn(repo, entity))
+                        foreach (var entity in deltaQuery)
                         {
-                            frameCandidates.Add(entity);
-                            results.Add(new SearchResultDto(frame, ticks, entity,
-                                BuildComponentContext(root, repo, entity)));
+                            if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
+                            if (compiledFn(repo, entity))
+                            {
+                                frameCandidates.Add(entity);
+                                results.Add(new SearchResultDto(frame, ticks, entity,
+                                    BuildComponentContext(root, repo, entity)));
+                            }
                         }
                     }
+                    if (lag != null) lag.StepForward(lagRepo!);   // the baseline catches up: it now holds this frame
 
                     previousMatches.Clear();
                     for (int i = 0; i < frameCandidates.Count; i++)

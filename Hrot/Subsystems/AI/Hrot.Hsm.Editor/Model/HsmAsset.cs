@@ -23,6 +23,8 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, Hrot.Edi
     public string SourceFilePath { get; }
     public bool IsDirty { get; internal set; }
     public bool IsEditorOwned { get; }
+    /// <summary>⭐ <c>CE-1252</c> — set by the catalog when it compiled this from a C# builder (read-only).</summary>
+    public bool IsCodeBuilt { get; set; }
     public string TargetNamespace { get; }
 
     /// <summary>

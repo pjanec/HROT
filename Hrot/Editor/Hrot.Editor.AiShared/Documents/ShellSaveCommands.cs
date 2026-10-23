@@ -149,9 +149,7 @@ public static class ShellSaveCommands
                 DefaultKey:  new KeyBinding(EditorKey.S, KeyModifiers.Ctrl),
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
                     ? true
-                    : (resolveActiveDocument != null
-                        ? resolveActiveDocument() != null
-                        : docManager.Active != null),
+                    : (resolveActiveDocument != null ? resolveActiveDocument() : docManager.Active) is { IsReadOnly: false },
                 DynamicDisplayName: describeActiveTarget != null
                     ? () => describeActiveTarget()
                     : null),
@@ -170,6 +168,7 @@ public static class ShellSaveCommands
                     ? resolveActiveDocument()
                     : docManager.Active;
                 if (doc == null) return;
+                if (doc.IsReadOnly) { report?.Invoke($"[INFO] {AiDocument.ReadOnlyReason(doc.Asset)}."); return; }   // ⭐ CE-1252
 
                 if (string.IsNullOrEmpty(doc.Asset.SourceFilePath))
                 {
@@ -217,9 +216,7 @@ public static class ShellSaveCommands
                 DefaultKey:  null,
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
                     ? true
-                    : (resolveActiveDocument != null
-                        ? resolveActiveDocument() != null
-                        : docManager.Active != null)),
+                    : (resolveActiveDocument != null ? resolveActiveDocument() : docManager.Active) is { IsReadOnly: false }),
             _ =>
             {
                 // Branch on scenario context first.
@@ -233,6 +230,7 @@ public static class ShellSaveCommands
                 var doc = resolveActiveDocument != null
                     ? resolveActiveDocument()
                     : docManager.Active;
+                if (doc is { IsReadOnly: true }) { report?.Invoke($"[INFO] {AiDocument.ReadOnlyReason(doc.Asset)}."); return; }   // ⭐ CE-1252
                 if (doc != null)
                     requestSaveAs(doc);
             });

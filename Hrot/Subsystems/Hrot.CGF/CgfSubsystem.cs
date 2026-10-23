@@ -3117,6 +3117,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // ⭐ CE-345 — symbolication is wired now; this used to be `null` on the strength of
                 //   a slice-1 statement that CE-059 had already overtaken.
                 BTreeDebugSession = _btreeDebugSession,
+                HsmDebugSession   = _hsmDebugSession,   // ⭐ CE-1253
                 Info = m => FdpLog<CgfSubsystem>.Info("[CGF] {0}", m),
                 Warn = m => FdpLog<CgfSubsystem>.Warn("[CGF] {0}", m),
             });

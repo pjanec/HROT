@@ -1426,6 +1426,7 @@ namespace Hrot.Editor
                     ProjectPath       = AiBehaviorsProjectPath,
                     // ⭐ The editor HAS a BTree debug session, so symbolication is wired (AIE-030).
                     BTreeDebugSession = _btreeDebugSession,
+                    HsmDebugSession   = _hsmDebugSession,   // ⭐ CE-1253
                     Info = m => Console.WriteLine($"[EditorSubsystem] {m}"),
                     Warn = m => Console.WriteLine($"[EditorSubsystem] WARNING: {m}"),
                 });
@@ -1937,6 +1938,15 @@ namespace Hrot.Editor
             {
                 ArmJournalBreak = (w, e) => _bpManager?.AddBreakpoint(
                     Fdp.Toolkit.ReplayBrowser.Search.BrainJournalBreak.Condition(), e, 1, "journal (Brain tab)").ToString(),
+                // ⭐ CE-1254 (BV-21) — the catalog entry of that name (BTree, HSM or Blueprint), opened in its perspective.
+                OpenGraph = name =>
+                {
+                    if (_aiCatalogBuilder?.Catalog is not { } catalog || _aiDocumentManager == null) return false;
+                    var asset = catalog.All.FirstOrDefault(a => a.Name == name && a.Kind is AssetKind.BTree or AssetKind.Hsm or AssetKind.Blueprint);
+                    if (asset == null) return false;
+                    _aiDocumentManager.Open(asset);
+                    return true;
+                },
             };
 
             // ⭐⭐⭐ THE STAGED-WRITE DRAIN WIRE. 📄 DESIGN_Staged_Live_Write.md §8.
@@ -1951,6 +1961,10 @@ namespace Hrot.Editor
             var bpBlueprintSession = Hrot.Editor.AiComposition.AiDebugSessionComposer.ComposeBlueprint(
                 _blueprintRegistry, _world!, bpTimeAdapter, _bpManager, _behaviorRegistry);
             _blueprintDebugSession = bpBlueprintSession;
+            // ⭐ CE-1256 (BV-25) — the Blueprint highlight follows the debugged unit (the same pin as the BTree / HSM overlays), not
+            //   whichever unit ran last; SetEntityFilter had no production caller.
+            if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is { } debugPin)
+                debugPin.Changed += e => bpBlueprintSession.SetEntityFilter(e);
 
             // ── CF-8: Debounced save on breakpoint/session changes ────────────────────────
             bpBlueprintSession.OnBreakpointListChanged += _ => ScheduleDebugSessionSave();

@@ -208,8 +208,10 @@ public static class BrainJournalText
             BrainJournalKind.PlayPhase => $"play {e.A}: phase {e.B}",
             BrainJournalKind.PlayEnded => $"play {e.A} ended",
             BrainJournalKind.OrderIssued => $"ordered #{e.A}: {name(e.B)}",
-            BrainJournalKind.StateChanged => $"{name(e.B)} region {e.Origin}: {BrainRegions.StateName(definition, e.B, (ushort)(e.A & 0xFFFF))}"
-                + $" → {BrainRegions.StateName(definition, e.B, (ushort)((uint)e.A >> 16))}",
+            BrainJournalKind.StateChanged => (e.A & 0xFFFF) == 0xFFFF   // from no state: the region was entered
+                ? $"{name(e.B)} region {e.Origin}: entered {BrainRegions.StateName(definition, e.B, (ushort)((uint)e.A >> 16))}"
+                : $"{name(e.B)} region {e.Origin}: {BrainRegions.StateName(definition, e.B, (ushort)(e.A & 0xFFFF))}"
+                  + $" → {BrainRegions.StateName(definition, e.B, (ushort)((uint)e.A >> 16))}",
             _ => e.Kind.ToString(),
         };
     }
@@ -245,6 +247,28 @@ public sealed record EntityBrainViewPanelViewModel(string PanelId, string PanelK
         ["panelId"] = PanelId, ["panelKind"] = PanelKind, ["hasTarget"] = HasTarget, ["entityIndex"] = EntityIndex,
         ["brain"] = Brain?.DeepClone(),
     };
+}
+
+/// <summary>⭐ <c>CE-1254</c> (BV-21) — the behaviour a unit is running, as the editor knows it: its registered name (the catalog opens a
+/// graph by it) and its tier. Pure. 📄 docs/DESIGN_Entity_Brain_View.md §9.</summary>
+public sealed record RunningRef(int BehaviorId, string Name, string Tier);
+
+public static class RunningBehaviourLocator
+{
+    public static RunningRef? Resolve(EntityRepository world, Entity unit, Func<int, string?> name, Func<int, BehaviorDefinition?>? definition)
+    {
+        if (!world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(unit)) return null;
+        int id = world.GetComponentRO<BehaviorState>(unit).ActiveBehaviorHash;
+        if (id == 0 || name(id) is not { Length: > 0 } n) return null;
+        string tier = definition?.Invoke(id)?.BrainTier switch
+        {
+            Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm => "HSM",
+            Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree => "BTree",
+            Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint => "Blueprint",
+            _ => "",
+        };
+        return new RunningRef(id, n, tier);
+    }
 }
 
 /// <summary>⭐ <c>CE-1248</c> — the Brain tab (read-only; editing stays in the AI tab, BV-1).</summary>
@@ -337,6 +361,17 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (ImGui.Checkbox("Debug this unit", ref on)) c.Set(w, unit, on);
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Arms its traces, pins its map gizmos and keeps the AI graph's live overlay on it (not on the selection).");
+        // ⭐ CE-1254 (BV-21, BV-22) — open THE RUNNING behaviour's graph, with the overlay pinned to this unit ("Debug this unit").
+        if (c.OpenGraph is { } open && RunningBehaviourLocator.Resolve(w, unit, _behaviorName, _definition) is { } running)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Open running behaviour"))
+            {
+                c.Set(w, unit, true);
+                _breakNote = open(running.Name) ? $"opened {running.Name}" : $"{running.Name} has no graph in this editor";
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Opens {running.Name} ({running.Tier}) with this unit's live state lit — and keeps it on this unit.");
+        }
         if (c.ArmJournalBreak is { } arm)
         {
             ImGui.SameLine();

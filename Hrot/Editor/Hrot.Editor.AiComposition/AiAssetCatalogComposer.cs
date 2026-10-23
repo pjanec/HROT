@@ -19,6 +19,10 @@ public sealed record AiAssetCatalogOptions
     /// so a host can SAY so.</summary>
     public Hrot.BTree.Editor.Debug.BTreeDebugSession? BTreeDebugSession { get; init; }
 
+    /// <summary>⭐ <c>CE-1253</c> (BV-20) — the HSM twin: the C#-built machines' metadata reaches the session, so the live highlight and
+    /// the history name a running machine's states with the ids of the graph the editor shows.</summary>
+    public Hrot.Hsm.Editor.Debug.HsmDebugSession? HsmDebugSession { get; init; }
+
     /// <summary>⭐ Host log routing. The message BODY is the shared one so the two hosts cannot word
     /// the same fault differently; only the prefix/sink is theirs.</summary>
     public required Action<string> Info { get; init; }
@@ -87,7 +91,7 @@ public static class AiAssetCatalogComposer
         // ⚠ The debug session reaches ONLY the two BTree contributors — that is what wires
         //   NodeDebugMetadata for symbolication, and it is the single per-host value here.
         var btreeContrib     = new Hrot.BTree.Editor.Catalog.BTreeAssetContributor(options.BTreeDebugSession);
-        var hsmContrib       = new Hrot.Hsm.Editor.Catalog.HsmAssetContributor();
+        var hsmContrib       = new Hrot.Hsm.Editor.Catalog.HsmAssetContributor(options.HsmDebugSession);
         var bpContrib        = new Hrot.Blueprints.Editor.Catalog.BlueprintAssetContributor(bpRootDir);
         var btreeJsonContrib = new Hrot.BTree.Editor.Catalog.BTreeJsonAssetContributor(options.BTreeDebugSession);
         var hsmJsonContrib   = new Hrot.Hsm.Editor.Catalog.HsmJsonAssetContributor();

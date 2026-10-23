@@ -66,7 +66,8 @@ public static class AiDebugSessionComposer
             // ⭐ CE-476: the registry whose interpreters run the trees — the BTree session names an entity's nodes
             //   from the blob it actually executes. Required, not defaulted: both hosts hold it (silent-default rule).
             new Hrot.BTree.Editor.Debug.BTreeDebugSession(coordinator, behaviors),
-            new Hrot.Hsm.Editor.Debug.HsmDebugSession(coordinator));
+            // ⭐ CE-1253: the HSM session names the running machine from the same registry.
+            new Hrot.Hsm.Editor.Debug.HsmDebugSession(coordinator, behaviors));
     }
 
     /// <summary>

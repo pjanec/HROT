@@ -80,6 +80,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     /// <inheritdoc/>
     public void ApplyFacet(IAssetSubSelection subSelection, object facet)
     {
+        if (Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset)) return;   // ⭐ CE-1252 — a code-built graph is read-only
         switch (subSelection, facet)
         {
             case (HsmStateSelection st, StateFacet sf):

@@ -87,6 +87,33 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             finally { TryDelete(fdpPath); }
         }
 
+        // ── CE-1266: Changed over a recording = differs from the frame before ──
+
+        /// <summary>⭐ <c>CE-1266</c> — over a recording, <see cref="SearchOperator.Changed"/> compares each frame with the one before (a second
+        /// playback one frame behind), so it finds the frames where the value moved — not every frame it was written (measured live: 8581
+        /// hits for nine changes). 🔴 Red-proof: pass <c>null</c> instead of the lagging repository to <c>PredicateChangeBaseline.Use</c> ⇒
+        /// red (every frame matches).</summary>
+        [Fact]
+        public void CE1266_Changed_FindsTheFramesWhereTheValueMoved()
+        {
+            float[] values = { 5f, 5f, 7f, 7f, 7f, 9f, 9f };
+            string fdpPath = BuildSingleEntityRecording(values);
+            try
+            {
+                var predicate = new PropertyMatchDto
+                {
+                    ComponentType = typeof(HarnessPosition),
+                    PropertyPath  = "X",
+                    Operator      = SearchOperator.Changed,
+                    Predicate     = new NumericPredicateDto(),
+                };
+                var results = _service.ExecuteSearch(fdpPath, predicate);
+                // the first frame (the value appears) and the two moves 5→7, 7→9
+                Assert.Equal(3, results.Count);
+            }
+            finally { TryDelete(fdpPath); }
+        }
+
         // ── SR-T10: Spatial Entry -- entity enters zone ───────────────────────
 
         [Fact]

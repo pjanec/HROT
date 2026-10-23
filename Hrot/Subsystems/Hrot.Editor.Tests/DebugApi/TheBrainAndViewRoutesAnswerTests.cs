@@ -32,6 +32,7 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
         _world.RegisterComponent<SimTransform>();
         _world.RegisterComponent<NetworkIdentity>();
         _world.RegisterComponent<SelectionState>();
+        _world.RegisterComponent<CullingState>();
         _svc = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "Scenario", world: () => _world, entityMap: () => _map) },
             currentPerspective: () => "Scenario",
@@ -119,5 +120,22 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
         Assert.Single(inView);
         Assert.Equal(2000L, inView[0]!["networkId"]!.GetValue<long>());
         Assert.Equal(2000L, _svc.GetSelection()["primary"]!.GetValue<long>());
+    }
+
+    /// <summary>⭐ In 2-D the published rectangle decides, not <see cref="CullingState"/> — which reads visible wherever its host's viewport
+    /// is unset (measured live on the editor: units 300 px off the bottom were listed). 🔴 Red-proof: test <c>CullingState</c> first in
+    /// <c>ViewReader.InView</c> ⇒ red.</summary>
+    [Fact]
+    public void In2D_TheRectangleDecides_NotAStaleCullingFlag()
+    {
+        var inside = Unit(3000, new Vector3(10, 10, 0), brain: false);
+        var below = Unit(3001, new Vector3(10, -80, 0), brain: false);
+        _world.AddComponent(inside, new CullingState { IsVisible = true });
+        _world.AddComponent(below, new CullingState { IsVisible = true });   // an unset viewport culls nothing (CE-131)
+        ViewTelemetry.Publish(_world, new ViewSnapshot("2D", new Vector3(0, 0, 300), -Vector3.UnitZ, 90f, -89.9f, 300f, 45f, new Vector2(1600, 900),
+            new Vector2(-50, -25), new Vector2(50, 25), Entity.Null, AimTarget: 0, ZoomFovDeg: null, PublishedAtSeconds: 0));
+        var inView = _svc.GetView(50)["inView"]!.AsArray();
+        Assert.Single(inView);
+        Assert.Equal(3000L, inView[0]!["networkId"]!.GetValue<long>());
     }
 }
