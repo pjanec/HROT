@@ -588,7 +588,7 @@ namespace Hrot.Editor.Tests.Adapters
             _world.AddComponent(child, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = parent });
 
             var adapter = CreateAdapter();
-            var nodes   = adapter.GetVisibleNodes("", new HashSet<int>());
+            var nodes   = adapter.GetVisibleNodes("", new HashSet<int> { parent.Index });   // CE-1272: expanded explicitly
 
             Assert.Equal(2, nodes.Count);
             var parentNode = nodes[0]; // root first (depth 0)
@@ -596,6 +596,44 @@ namespace Hrot.Editor.Tests.Adapters
 
             Assert.Equal(0, parentNode.Depth);
             Assert.Equal(1, childNode.Depth);
+        }
+
+        /// <summary>CE-1272 — a collapsed commander hides its subordinates, also when no row is expanded at all (the old "nothing
+        /// expanded ⇒ everything expanded" shortcut showed them).</summary>
+        [Fact]
+        public void CE1272_ACollapsedCommander_HidesItsSubordinates()
+        {
+            _world.CreateEntity();
+            var parent = _world.CreateEntity();
+            var child  = _world.CreateEntity();
+            _world.AddComponent(parent, new EntityInfo { Name = new Fdp.Core.FixedString64("Platoon") });
+            _world.AddComponent(child,  new EntityInfo { Name = new Fdp.Core.FixedString64("Squad") });
+            _world.AddComponent(child, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = parent });
+
+            var adapter = CreateAdapter();
+            var collapsed = adapter.GetVisibleNodes("", new HashSet<int>());
+            Assert.Single(collapsed);
+            Assert.Equal("Platoon", collapsed[0].Name);
+            Assert.True(collapsed[0].HasChildren);
+
+            Assert.Equal(2, adapter.GetVisibleNodes("", new HashSet<int> { parent.Index }).Count);
+        }
+
+        /// <summary>CE-1271 — a row carries the entity's NETWORK id beside its index key: the shared map entity menu looks the
+        /// network id up, and the index looked up as one missed (an empty menu).</summary>
+        [Fact]
+        public void CE1271_ARow_CarriesTheNetworkId_TheMenuLooksUp()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+                _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            _world.CreateEntity();
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new EntityInfo { Name = new Fdp.Core.FixedString64("Rifleman") });
+            _world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4711));
+
+            var row = Assert.Single(CreateAdapter().GetVisibleNodes("", new HashSet<int>()));
+            Assert.Equal(unit.Index, row.EntityId);     // the adapter's own key, unchanged
+            Assert.Equal(4711, row.NetworkId);
         }
 
         [Fact]

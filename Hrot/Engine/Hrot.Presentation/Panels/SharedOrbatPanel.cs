@@ -146,7 +146,7 @@ public sealed class SharedOrbatPanel
             //   (ExCon) has no row menu (OM-5).
             if (RowMenu is { } rowMenu && ImGui.BeginPopupContextItem($"##ctx_{node.EntityId}"))
             {
-                rowMenu.PopulateMenuFor(node.EntityId, new Fdp.Presentation.Utils.ContextMenuBuilder());
+                rowMenu.PopulateMenuFor(node.NetworkId, new Fdp.Presentation.Utils.ContextMenuBuilder());   // ⭐ CE-1271: the network id, not the row key
                 ImGui.EndPopup();
             }
 

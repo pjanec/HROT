@@ -115,11 +115,15 @@ namespace Hrot.UI.Common.Adapters
                         Depth:          depth,
                         HasChildren:    hasChildren,
                         IsPendingDelete: false,
-                        CanAcceptSubordinates: _world.HasComponent<UnitRoster>(entity)));
+                        CanAcceptSubordinates: _world.HasComponent<UnitRoster>(entity),
+                        NetworkId:      NetworkIdOf(entity)));
                 }
 
                 // Expand children only if this node is expanded (or no expand filter is active)
-                bool expanded = expandedNodes.Count == 0 || expandedNodes.Contains(idx) || !passesFilter;
+                // ⭐ CE-1272 — only the nodes the panel expanded (or a filtered-out node, so a matching descendant shows). The old
+                //   "nothing expanded ⇒ expand everything" shortcut showed a collapsed platoon's squads again the moment its row was
+                //   the last expanded one; the tree now starts collapsed, as ExCon's does.
+                bool expanded = expandedNodes.Contains(idx) || !passesFilter;
                 if (expanded && hasChildren)
                 {
                     foreach (var child in children[idx])
@@ -170,6 +174,12 @@ namespace Hrot.UI.Common.Adapters
         {
             _spawn.StartPlacementMode(tkbType, null);
         }
+
+        private long NetworkIdOf(Entity entity)
+            => _world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+               && _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)
+                ? _world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value
+                : 0;
 
         /// <inheritdoc/>
         public void ToggleExpanded(int entityId)
