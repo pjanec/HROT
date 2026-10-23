@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-23
-build-state: READY-TO-BUILD — §6 UC-1…UC-10 APPROVED 2026-10-23 (R-1032); C0 (CE-1294) first
-current-answer: §1 what each use needs · §2 INVENTORY + claim table · §3 diagrams · §4 the camera continuum · §5 control in the shoulder view · §6 decisions with leans · §7 slices
+build-state: BUILT — C1–C4 2026-10-23 (§8 as-built); C0 (CE-1294, the slow walk) next
+current-answer: §8 AS-BUILT · §1 what each use needs · §2 INVENTORY + claim table · §3 diagrams · §4 the camera continuum · §5 control in the shoulder view · §6 decisions with leans · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §8p (OS-1…OS-6, built overnight, not yet confirmed) — OS-2's fixed offset and OS-4's fixed chase camera become points on §4's continuum; nothing there is reverted
@@ -203,4 +203,10 @@ implemented"* — ⇒ C0 (CE-1294, measured but not reproduced) is deferred unti
 | **C1** watching (UC-2) | `FollowCameraDriver` (an `ICameraDriver` on `MapCamera3D`): the plain wheel walks the continuum (×1.2 per notch, in below 0.8 m ⇒ his eyes, out from the eyes ⇒ 1.5 m), far it looks at his centre, at 0 his eye along `LookOf.EyeForward`; RMB orbits (at the eyes it offsets the look and springs back); W/A/S/D, Esc, a middle-button drag or his end hand the camera back. The unit menu's **"Follow with the camera"** (`GlobalActionIds.FollowUnit` 476 → `FollowUnitEvent` 8066) and the Brain tab's **Follow** both reach `MapViewModeLayer.FollowUnit` | ⚠ **no View-menu entry** — the unit menu and the Brain tab cover it; a View item would need a target picker. ⚠ **not built:** UC-2's vision cone at the eyes — the follow camera only looks along the gaze |
 | **C4** HTTP (UC-10) | `POST /view/follow {entity, distance?}` → `ViewControl.Of(world)` (the map's view-mode layer, keyed by world like `ViewTelemetry`) → the same `FollowUnit`; `GET /view` adds `following` / `followDistance`; MCP `follow_unit`, catalog + SKILL regenerated (R-1030) | ⚠ a second per-world store (`ViewControl`) because `ViewTelemetry` is a read-only snapshot. 409 headless or while possessing |
 
-⭐ Rails: `PossessionStationTests.CE1293_*` (continuum, spring arm, playing controls, Follow continuum + let-go, menu → layer → camera + the possession refusal) — ✅ red-proved: 6 mutations on the rig/station, 5 on Follow; `TheBrainAndViewRoutesAnswerTests.FollowUnit_IsRefusedHeadless_FollowsOnAMap_AndLetsGo`.
+| **C2** the default (UC-3) | `PossessionStation.OverShoulder` defaults **on** (a station setting, so O's choice stays for the next possession in this run) | ⚠ "remembered" is per run, not across restarts. ⚠ **built before CE-1294** (the slow walk), on the user's call — C0 is measured next |
+| **C2** the muzzle-blocked mark (UC-9) | `PossessionStation.BlockedShot(w, unit, mount, aimAt)` — from `ShotOrigin.From` (the barrel, or his eye) to the crosshair's point through `TerrainPenetration.Carry`, the one penetration rule; a red X where it stops, when that is more than `BlockedMargin` 0.5 m short | — |
+| **C2/C3** the arm's start | the first frame stands at full length; after a wall it eases out at `ArmOutRate` × `ScaleOf(kind)` (a vehicle 16 m/s) | ⚠ found by the C3 rail: easing from zero, a vehicle's 9 m chase camera took 2 s to slide out of the driver's eye |
+| **C3** the driver (UC-7) | `FpsCameraDriver.Recentres` — a ground vehicle, hull not locked, the chase camera on: a look left alone `RecentreAfter` 1.5 s eases back at `RecentreRate` 90°/s | ⚠⚠ **not for an armed turret**: §8p OS-4 — the look IS the turret's order, so re-centring would swing the gun back to the front. ⇒ only when the selected weapon lays no turret (a truck, a car) |
+| **C3** a man in a seat (UC-8) | `FpsCameraDriver.RigScheme` — aboard, the camera is the **vehicle's** chase camera (its distance, ×4; a flyer ×8) hung from his seat eye; Alt + wheel sets the vehicle's distance | ⚠ the pivot is his **seat eye** — a gunner sits at his gun, so the camera stands behind the gun; no separate gun-mount point was needed |
+
+⭐ Rails: `PossessionStationTests.CE1293_*` (continuum, spring arm, playing controls, Follow continuum + let-go, menu → layer → camera + the possession refusal, the default + the car's chase camera + re-centre / not an armed turret's, a man in a seat on the vehicle's chase camera, the round stopping short at a test-town wall) — ✅ red-proved: 6 mutations on the rig/station, 5 on Follow; `TheBrainAndViewRoutesAnswerTests.FollowUnit_IsRefusedHeadless_FollowsOnAMap_AndLetsGo`.

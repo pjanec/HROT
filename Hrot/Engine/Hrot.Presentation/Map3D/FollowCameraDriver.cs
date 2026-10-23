@@ -89,7 +89,7 @@ public sealed class FollowCameraDriver : ICameraDriver
         var pivot = UnitCameraRig.Pivot(centre, eye, forward, Distance, scheme, side: 1);
         var wanted = UnitCameraRig.Camera(pivot, forward, Distance, orbitPitch: true);
         var free = UnitCameraRig.SpringArm(pivot, wanted, FirstHit);
-        _arm = UnitCameraRig.EaseArm(_arm == 0f ? Vector3.Distance(pivot, free) : _arm, Vector3.Distance(pivot, free), dt);
+        _arm = UnitCameraRig.EaseArm(_arm == 0f ? Vector3.Distance(pivot, free) : _arm, Vector3.Distance(pivot, free), dt, UnitCameraRig.ScaleOf(scheme));
         var at = pivot + Vector3.Normalize(wanted - pivot) * _arm;
         if (camera.GroundHeight is { } ground) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + FpsCameraDriver.CameraAboveGround);
         camera.Distance = camera.MinDistance;

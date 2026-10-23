@@ -102,9 +102,10 @@ public static class UnitCameraRig
     /// <summary>How fast the arm lengthens again after it was pulled in (m/s) — in at once, out slowly (UC-4).</summary>
     public const float ArmOutRate = 4f;
 
-    /// <summary>The arm length this frame: shorter at once (a wall came between), longer by at most <see cref="ArmOutRate"/> × dt.</summary>
-    public static float EaseArm(float current, float wanted, float dt)
-        => wanted <= current ? wanted : MathF.Min(wanted, current + ArmOutRate * dt);
+    /// <summary>The arm length this frame: shorter at once (a wall came between), longer by at most <see cref="ArmOutRate"/> × dt — × the
+    /// kind's <paramref name="scale"/> (<see cref="ScaleOf"/>), so a vehicle's chase camera comes back as soon as a person's shoulder.</summary>
+    public static float EaseArm(float current, float wanted, float dt, float scale = 1f)
+        => wanted <= current ? wanted : MathF.Min(wanted, current + ArmOutRate * scale * dt);
 
     private static Vector3 Level(Vector3 v)
     {

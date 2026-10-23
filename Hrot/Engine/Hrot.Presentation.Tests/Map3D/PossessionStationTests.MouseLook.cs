@@ -25,7 +25,7 @@ public sealed partial class PossessionStationTests
         {
             w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
-            var station = new PossessionStation(sw, () => w);
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view (free look is its subject)
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
             var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);

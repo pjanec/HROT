@@ -44,8 +44,9 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1201</c> (docs/DESIGN_Entity_Control.md §8p OS-1) — the view is over his shoulder (a vehicle: a chase camera)
         /// instead of from his eyes. A station setting: View › First Person: Over the Shoulder, or O while in first person; it stays for
-        /// the next possession.</summary>
-        public bool OverShoulder { get; set; }
+        /// the next possession. ⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-3) — ON by default: move over the shoulder, aim from the
+        /// eyes (RMB).</summary>
+        public bool OverShoulder { get; set; } = true;
 
         /// <summary>⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-11, R-1033) — the shoulder view's camera distance per kind (a person,
         /// a vehicle, a flyer), set with Alt + wheel; a station setting, so it stays for the next possession.</summary>
@@ -377,6 +378,14 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
+            // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-9) — the round would stop short of the crosshair (a wall the camera sees past): an X
+            //   where it would really hit
+            if (BlockedShot(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } stop && OnScreen(camera, stop, out var hit)
+                && Vector2.Distance(hit, new Vector2(cx, cy)) > 4f)
+            {
+                Raylib.DrawLine((int)hit.X - 5, (int)hit.Y - 5, (int)hit.X + 5, (int)hit.Y + 5, Color.Red);
+                Raylib.DrawLine((int)hit.X - 5, (int)hit.Y + 5, (int)hit.X + 5, (int)hit.Y - 5, Color.Red);
+            }
             if (!_driver.BinocularsUp) DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2) — not through binoculars
             else DrawBinoculars(camera, cx, cy);                             // ⭐ CE-1219 (§8k B-1)
             DrawHitFeedback(w, camera, cx, cy);   // ⭐ CE-1215 (§8j H-1, H-2)
@@ -738,6 +747,30 @@ namespace Hrot.UI.Common.Map3D
             var local = new Vector3(ce * MathF.Cos(pose.Azimuth), ce * MathF.Sin(pose.Azimuth), MathF.Sin(pose.Elevation));
             return pivot + Vector3.Transform(local, hull.Rotation) * MathF.Max(5f, Vector3.Distance(pivot, aimAt));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-9) — where the selected weapon's round would STOP on its way to the crosshair's
+        /// point, when that is short of it: from where the round leaves (<c>ShotOrigin</c> — the barrel, or his eye), stopped by the one
+        /// penetration rule (<c>TerrainPenetration.Carry</c>). Null when it reaches (within <see cref="BlockedMargin"/>) or no terrain.
+        /// </summary>
+        public static Vector3? BlockedShot(EntityRepository w, Entity unit, int mount, Vector3 aimAt)
+        {
+            var (holder, local) = Hud.Resolve(w, unit, mount);
+            if (Fdp.Toolkit.World.WorldQuery.Of(w) is not { } terrain || !w.IsAlive(holder) || !w.HasComponent<SimTransform>(holder)) return null;
+            var eye = Fdp.Toolkit.Combat.ShotOrigin.Eye(w, holder, out _);
+            var origin = Fdp.Toolkit.Combat.ShotOrigin.From(w, holder, local, eye, aimAt, out _);
+            float length = Vector3.Distance(origin, aimAt);
+            if (length < BlockedMargin * 2f) return null;
+            var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local);
+            long ammo = dto != null ? unchecked((long)dto.AmmoGuid) : 0L;
+            var (penetration, _) = Fdp.Toolkit.Combat.CombatTkb.RoundOf(w, dto, ammo);
+            float damage = 1f;
+            if (!Fdp.Toolkit.Combat.TerrainPenetration.Carry(terrain, origin, aimAt, ref damage, ref penetration, out float stopT)) return null;
+            return stopT * length < length - BlockedMargin ? Vector3.Lerp(origin, aimAt, stopT) : null;
+        }
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-9) — a stop this close to the crosshair's point is the point itself (m).</summary>
+        public const float BlockedMargin = 0.5f;
 
         private static bool OnScreen(MapCamera3D camera, Vector3 world, out Vector2 screen)
         {
@@ -1177,6 +1210,13 @@ namespace Hrot.UI.Common.Map3D
             StepKick(w, dt);   // ⭐ CE-1216 (§8k S-3)
             // ⭐ CE-1095 (§8f P-3) — a flyer's view banks with the body (the horizon tilts into the turn); its pitch stays the look's
             _roll = IsFlyer ? Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(tf.Rotation).Roll : 0f;
+            // ⭐ CE-1293 (UC-7) — a driver's look left alone eases back behind the vehicle (not an armed turret's: Recentres)
+            _lookIdle += dt;
+            if (_lookIdle > RecentreAfter && Recentres)
+            {
+                _yaw = TurnToward(_yaw, hullYaw, RecentreRate * dt);
+                _pitch = TurnToward(_pitch, 0f, RecentreRate * dt);
+            }
             Place(camera);
         }
 
@@ -1200,6 +1240,44 @@ namespace Hrot.UI.Common.Map3D
                 Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(w, Unit)));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-7, UC-8) — the kind of camera the continuum is for: his own, or — a man in a
+        /// seat (a gunner at his gun, a passenger) — the vehicle's he sits in, so the camera is the vehicle's chase camera hung from his
+        /// seat (the gunner's seat is at the gun: the camera stands behind the gun, looking along it).
+        /// </summary>
+        public ControlScheme RigScheme
+        {
+            get
+            {
+                if (!Aboard || _world() is not { } w) return Scheme;
+                var vehicle = SeatSwitch.VehicleOf(w, Unit);
+                return vehicle.IsNull ? ControlScheme.Vehicle : Fdp.Toolkit.Motion.Locomotions.Of(w, vehicle) switch
+                {
+                    Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft or Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing => ControlScheme.Rotorcraft,
+                    _ => ControlScheme.Vehicle,
+                };
+            }
+        }
+
+        private bool _armPlaced;
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-7) — a driver's look left alone this long (s) eases back to the hull's heading.</summary>
+        public const float RecentreAfter = 1.5f;
+
+        /// <summary>⭐ <c>CE-1293</c> (UC-7) — how fast it eases back (rad/s, 90°/s).</summary>
+        public static readonly float RecentreRate = 90f * MathF.PI / 180f;
+
+        private float _lookIdle;
+
+        /// <summary>
+        /// ⭐ <c>CE-1293</c> (UC-7) — the driver's look re-centres: a ground vehicle in the chase camera whose selected weapon lays no
+        /// turret. ⚠ Not an armed turret: there the look IS the turret's order (§8p OS-4), and easing it back would swing the gun.
+        /// </summary>
+        public bool Recentres => IsVehicle && !HullLocked && ShoulderViewOn && !LaysATurret;
+
+        private bool LaysATurret => _world() is { } w && PossessionStation.Hud.Resolve(w, Unit, Mount) is var (holder, local)
+                                    && Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local) is { TurretIndex: >= 0 };
+
         /// <summary>The camera at the eye, looking along the operator's look — ⭐ CE-1201 (§8p) or over his shoulder.</summary>
         private void Place(MapCamera3D camera)
         {
@@ -1210,12 +1288,16 @@ namespace Hrot.UI.Common.Map3D
             camera.Distance = camera.MinDistance;
             // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md §4, UC-1/UC-4/UC-11) — one continuum: the shoulder view stands ShoulderDistance back
             //   (Alt + wheel), RMB aims from the eyes (UC-11), and the spring arm pulls the camera in front of a wall
-            var scheme = Scheme;
+            var scheme = RigScheme;   // ⭐ UC-7 / UC-8 — a man in a seat: the vehicle's chase camera from his seat
             float distance = ShoulderViewOn ? _station.ShoulderDistance(scheme) : 0f;
-            var pivot = UnitCameraRig.Pivot(_centre, _eye, camera.Forward, distance, scheme, _station.ShoulderSide);
+            var centre = scheme == Scheme ? _centre : _eye;
+            var pivot = UnitCameraRig.Pivot(centre, _eye, camera.Forward, distance, scheme, _station.ShoulderSide);
             var wanted = UnitCameraRig.Camera(pivot, camera.Forward, distance, orbitPitch: false);
             var free = UnitCameraRig.SpringArm(pivot, wanted, FirstHit);
-            _arm = distance > 0f ? UnitCameraRig.EaseArm(_arm, Vector3.Distance(pivot, free), _dt) : 0f;
+            // ⭐ CE-1293 — the first frame stands at full length (not sliding out of his eyes); after a wall it eases out at the kind's pace
+            float reach = Vector3.Distance(pivot, free);
+            _arm = distance <= 0f ? 0f : _armPlaced ? UnitCameraRig.EaseArm(_arm, reach, _dt, UnitCameraRig.ScaleOf(scheme)) : reach;
+            _armPlaced = true;
             var at = distance > 0f && Vector3.DistanceSquared(wanted, pivot) > 1e-6f
                 ? pivot + Vector3.Normalize(wanted - pivot) * _arm : _eye;
             if (distance > 0f && camera.GroundHeight is { } ground) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + CameraAboveGround);
@@ -1467,6 +1549,7 @@ namespace Hrot.UI.Common.Map3D
             // ⭐ CE-1211 (§8j Z-1) — hold RMB to zoom; the look turns slower in proportion to the narrower view
             Zooming = input.IsMouseButtonDown(MapMouseButton.Right);
             float look = FpsZoom.SensitivityFor(ZoomFovDegrees);
+            if (delta != Vector2.Zero) _lookIdle = 0f;   // ⭐ CE-1293 (UC-7) — the mouse moved: no re-centre yet
             if (vehicle && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V)) HullLocked = !HullLocked;
             // ⭐ CE-1204 (§8l LK-4) — V frees a person's look from his body, or locks it back (his body turns to the look)
             if (Scheme == ControlScheme.Person && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V))
@@ -1532,10 +1615,11 @@ namespace Hrot.UI.Common.Map3D
             {
                 // ⭐ CE-1293 (UC-11, R-1033) — Alt + wheel: the camera distance (the plain wheel stays the weapons); out of the eyes
                 //   switches the shoulder view on, all the way in switches it off
-                float now = _station.OverShoulder ? _station.ShoulderDistance(scheme) : 0f;
-                float farther = Math.Clamp(now - wheel * DistanceStep * UnitCameraRig.ScaleOf(scheme), 0f, UnitCameraRig.MaxPlayDistance(scheme));
+                var rig = RigScheme;   // ⭐ UC-8 — in a seat: the vehicle's distance
+                float now = _station.OverShoulder ? _station.ShoulderDistance(rig) : 0f;
+                float farther = Math.Clamp(now - wheel * DistanceStep * UnitCameraRig.ScaleOf(rig), 0f, UnitCameraRig.MaxPlayDistance(rig));
                 if (farther < DistanceStep * 0.5f) _station.OverShoulder = false;
-                else { _station.SetShoulderDistance(scheme, farther); _station.OverShoulder = true; }
+                else { _station.SetShoulderDistance(rig, farther); _station.OverShoulder = true; }
             }
             else
             {

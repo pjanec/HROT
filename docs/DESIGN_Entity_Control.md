@@ -2086,6 +2086,11 @@ the frame, the brain and the round are untouched, because the crosshair ray alre
 | **OS-5** | his own body | drawn whole (the head too); the pickers still skip it | hidden — the point of the view is to see him |
 | **OS-6** | the seated crewman's view (a gun's seat) | the same: behind his eye, his gun in view | — |
 
+> ⭐ **`2026-10-23` — OS-2's fixed offset and OS-4's fixed chase camera are now points on [Unit Camera](DESIGN_Unit_Camera.md) §4's
+> distance continuum (CE-1293, `UnitCameraRig`), and the shoulder view is ON by default (UC-3).** Alt + wheel moves the camera, Q / E swap
+> the shoulder, a man in a seat rides the vehicle's chase camera, a car's look re-centres (not an armed turret's). ⇒ Unit Camera §8 is the
+> current as-built; the table below is the CE-1201 state it grew from.
+
 ### 8p.5 AS-BUILT
 
 | design said | built |
