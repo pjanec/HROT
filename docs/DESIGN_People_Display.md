@@ -311,7 +311,7 @@ classDiagram
   class Gestures { <<exists, FDP>> Of(view, unit) · IsIdle(kind) }
   class EntityBodyLayer3D { <<exists, changed>> Gestured — an idle kind now drawn · FigureMotion — IdleMotion added · GestureClock (U14) }
   class BlockFigure { <<exists, changed>> GestureArms (the six acts) · IdleArms(parts, kind, crouched, soldier, t) NEW }
-  class IdleMotion { <<NEW static method on EntityBodyLayer3D>> knees for ShiftWeight · head sweep for LookAbout }
+  class IdleMotion { <<NEW static method on EntityBodyLayer3D>> knees for ShiftWeight · head sweep for LookAbout only with no LookState }
   class RestlessSystem { <<behaviors>> writes IdleSmoking 7 · IdleShiftWeight 8 · IdleStretch 9 · IdleLookAbout 10 }
   RestlessSystem ..> Gestures : Set
   EntityBodyLayer3D ..> Gestures : Of
@@ -349,12 +349,12 @@ graph TD
 | **U19a** | smoking | the right hand to the lips and down on a 9 s cycle (up 1 s, at the lips 2.5 s, down 1 s, low 4.5 s), a cigarette (8 cm, pale) in the fingers; ⭐ a soldier keeps his rifle where his posture holds it, the left hand on it — only the right arm leaves | sling the rifle as the acts do — the handoff's fence: a mood, not an act |
 | **U19b** | shifting weight | legs — the free knee bends (≈20°) and the upper body sways ≈4 cm over the standing leg, side to side on a 6 s cycle; fades out while he walks (`Moving`) | arms only — the user's own words are "stepping from one leg to the other" |
 | **U19c** | stretch | a civilian: both arms up over his head, held 2 s in an 11 s cycle; a soldier: the right arm only (the left stays on the rifle) | both arms for a soldier — the rifle would float |
-| **U19d** | looking about | the head sweeps ±30° on a 12 s cycle — ⚠ **only while his eyes have no look of their own** (`LookOf.HeadYaw == 0`): the drawn head shows where he really looks (Entity Control LK-5) and a real look always wins | the sweep regardless — the drawing would lie about where he looks · nothing — the user asked for it. ⭐ Better later: behaviors drive a real glance (LD-3) for LookAbout, then the drawn head is true by construction — noted to them |
+| **U19d** | looking about | ⭐ **his REAL eyes look about** — behaviors' idle glance (`RestlessSystem.Glance`, AQ103 I: a slow scan ±60° about his facing, 3 s a fixation) moves `LookOf.HeadYaw`, and the drawn head follows it (Entity Control LK-5) — true by construction. The drawn ±30° / 12 s sweep stays **only for a man whose eyes are not modelled** (no `LookState`) | the sweep regardless — the drawing would lie about where he looks · ⛔ *"the sweep while `HeadYaw` is 0"* (as first built, SUPERSEDED `2026-10-24`) — the glance passes straight ahead, and the fake sweep cut in there |
 | **U19e** | where | standing and crouched, a free carriage, not destroyed, not cowering — the acts' own guard; nothing in 2-D (a mood has no label) | — |
 | **U19f** | the external IG | the wire comment and Civilians §7.7: **7–10 are idle ANIMATIONS to blend, not poses to snap to** | — |
 
 **As built** — `BlockFigure.IdleArms` (U19a, U19c) and `EntityBodyLayer3D.IdleMotion` (U19b, U19d), both stateless on `GestureClock`; `Gestured`
-draws an idle kind through `IdleArms` instead of returning the figure unchanged. Rails: `Map3DTests.CE1308_*` (red-proved: 5 mutations, each red).
+draws an idle kind through `IdleArms` instead of returning the figure unchanged. Rails: `Map3DTests.CE1308_*` (red-proved: 5 mutations, each red). ⭐ After behaviors' glance (`NOTE_Behaviors_To_Ui_Idle_Glance`): the drawn sweep keys on *no `LookState`*, not on `HeadYaw == 0`.
 📌 **Live, `il-idle-life`, headless editor, `2026-10-24`:** over 45 s the ten men showed smoking, the weight shift and looking about, each
 starting and ending at his own time (never in step); a stretch came later. Followed in 3-D (`POST /view/follow`): the posted Watchman's
 hand went to his face and down again on the smoking cycle, the rifle staying in his other hand. ⚠ A threat stopping them was not staged —

@@ -2499,6 +2499,10 @@ public sealed class Map3DTests
             world.AddComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = 0.3f });
             for (double t = 0; t < EntityBodyLayer3D.LookAboutCycle; t += 0.5)
                 Assert.Equal(0f, EntityBodyLayer3D.IdleMotion(world, man, MotionPose.Still, t).HeadTurn);   // a real look: no drawn sweep
+            // behaviors' idle glance passes STRAIGHT AHEAD (HeadYaw 0): his eyes still own the head — no drawn sweep cutting in
+            world.SetComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = 0f });
+            for (double t = 0; t < EntityBodyLayer3D.LookAboutCycle; t += 0.5)
+                Assert.Equal(0f, EntityBodyLayer3D.IdleMotion(world, man, MotionPose.Still, t).HeadTurn);
 
             Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.IdleSmoking);   // through the layer: drawn, not the wind-up
             var drawn = EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, civ, 0.0);

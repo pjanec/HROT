@@ -686,8 +686,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>
     /// ⭐ <c>CE-1308</c> (docs/DESIGN_People_Display.md §7d U19b, U19d) — the motion half of an IDLE mood, on his gesture clock: SHIFTING
     /// WEIGHT bends the free knee (the leg the upper body sways away from — <see cref="BlockFigure.ShiftOf"/>), fading while he walks;
-    /// LOOKING ABOUT sweeps the head ±30° on a slow cycle — ⚠ only while his eyes have no look of their own (<c>LookOf.HeadYaw</c> 0): the
-    /// drawn head shows where he really looks (Entity Control LK-5), and a real look always wins.
+    /// LOOKING ABOUT sweeps the head ±30° on a slow cycle — ⚠ only for a man whose eyes are not modelled at all (no <c>LookState</c>): since
+    /// behaviors' idle glance (<c>RestlessSystem.Glance</c>, AQ103 I) his real eyes look about, and the drawn head shows where he really
+    /// looks (Entity Control LK-5). ⛔ Not "while <c>HeadYaw</c> is 0" (U19d as first built): the glance passes straight ahead, and a drawn
+    /// sweep would cut in there and disagree with his eyes.
     /// </summary>
     public static MotionPose IdleMotion(EntityRepository world, Entity e, MotionPose motion, double simTime)
     {
@@ -703,10 +705,14 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 KneeFlexL = MathF.Max(motion.KneeFlexL, ShiftKnee * still * MathF.Max(0f, -sway)),
             };
         }
-        if (kind == Fdp.Toolkit.Combat.GestureKind.IdleLookAbout && Fdp.Toolkit.Perception.Look.LookOf.HeadYaw(world, e) == 0f)
+        if (kind == Fdp.Toolkit.Combat.GestureKind.IdleLookAbout && !HasEyes(world, e))
             return motion with { HeadTurn = motion.HeadTurn + LookAboutSweep * MathF.Sin(2f * MathF.PI * t / LookAboutCycle) };
         return motion;
     }
+
+    /// <summary>⭐ U19d — his eyes are modelled: a look was written for him once (<c>LookState</c> is added on the first look and kept, replicated).</summary>
+    private static bool HasEyes(EntityRepository world, Entity e)
+        => world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Look.LookState>() && world.HasComponent<Fdp.Toolkit.Perception.Look.LookState>(e);
 
     /// <summary>⭐ CE-1175 (U14) — a man's gesture clock in seconds: sim time plus up to 10 s from his seed (the same on every node).
     /// Wrapped to an hour so the float keeps its precision.</summary>
