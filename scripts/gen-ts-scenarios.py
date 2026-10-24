@@ -23,9 +23,11 @@ def posted(x, y, watch):
 #   ⭐ The fire: one automatic rifle per team, 120 m south, firing at a point 10 m BEHIND its team at 4 m height — every round passes
 #   over the team's heads (no hits; a near miss is judged flat, within 3 m of the round's line: CombatConstants.NearMissRadius), one
 #   round every COOLDOWN s for ROUNDS rounds. The same fire on both teams; only their temperament differs.
+#   ⚠ the teams at x 410 / 480 — 📐 measured (terrain query, sight): at x 270 / 340 a rise ~57-63 m south hides the gunner at y 180 from
+#   the team (the rounds, 3-4 m up, still clear it) ⇒ nobody saw him, his TargetMemory stayed empty, and the regulars fired 0 rounds back.
 COOLDOWN, ROUNDS = 1.3, 40
 s = Scn("ts-fire-discipline", "a1040001")
-for team, x0, temper in (("Regular", 270, None), ("Militia", 340, {"obedience": 0.3, "nerve": 0.3})):
+for team, x0, temper in (("Regular", 410, None), ("Militia", 480, {"obedience": 0.3, "nerve": 0.3})):
     for i in range(4):
         x, y = x0 + 1.5 * i, 300   # 📐 1.5 m apart: every man within 3 m of the rounds' line (2 m put the end men on its edge)
         g = s.man(f"{team} {i + 1}", "Friend", (x, y, 0), 180, tkb=2002, nid=(10801 if team == "Regular" else 10811) + i,
@@ -39,7 +41,7 @@ for team, x0, temper in (("Regular", 270, None), ("Militia", 340, {"obedience": 
 s.write("ts-fire-discipline", "basic-desert",
         "What: Temperament & Stress §6 (CE-2272, R-2034) - on open basic-desert two fire teams of four hold their spots facing south "
         "(CombatPosture, stay, a post; ROE StayOnTask): 'Regular 1-4' (Friend riflemen, the default temperament - obedience 0.8, nerve 0.5) "
-        f"at x 270-274.5 and 'Militia 1-4' (Friend riflemen, obedience 0.3, nerve 0.3) at x 340-344.5, y 300. Each is under the SAME fire: "
+        f"at x 410-414.5 and 'Militia 1-4' (Friend riflemen, obedience 0.3, nerve 0.3) at x 480-484.5, y 300. Each is under the SAME fire: "
         f"'Gunner Regular' / 'Gunner Militia' (Hostile automatic riflemen, InertSop) 120 m south (inside a rifleman's 150 m sight) fire {ROUNDS} rounds, one every {COOLDOWN} s, "
         "at a point 10 m behind the team, 4 m up - every round passes over the team's heads (near misses, no hits). All immortal. "
         "Judge (100 s): (1) no regular breaks and the regulars fire back; (2) at least half the militia break (the Break reaction - "
