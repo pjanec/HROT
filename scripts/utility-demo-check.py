@@ -5176,6 +5176,10 @@ def run_rf_pinned_in_open(c, timeout):
                 key = f"{k.get('kind')}:{k.get('label')}"
                 crossed[key] = crossed.get(key, 0) + 1
         mid = rel[len(rel) // 2] if rel else None
+        for x in [x for x in by[n] if x.get("outcome") != "Hit"][:3]:   # where a miss left and what stopped it
+            k = (x.get("crossings") or [{}])[0]
+            print(f"      miss: muzzle {x.get('muzzle')} aim {x.get('aim')} end {x.get('end')} · crossed {k.get('kind')}:{k.get('label')} at {k.get('at')} "
+                  f"({k.get('material')}, passed {k.get('passed')})")
         print(f"    {n} → {other}: {len(by[n])} rounds, {hits} hits · aim height over his feet: median {mid} (min {rel[0] if rel else None}, "
               f"max {rel[-1] if rel else None}) · first thing a miss crossed: {dict(sorted(crossed.items(), key=lambda kv: -kv[1])[:4])}")
         if n == "Gunman" and prone_at is not None:
