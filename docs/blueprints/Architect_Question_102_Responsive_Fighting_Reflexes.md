@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2b accepts the dead ground under the upper windows — H here answers it for ONE man (the hunter); the rest of D-2 stands
 related-designs:
+  - docs/blueprints/Architect_Question_103_Idle_Life.md — OWNS idle life: the one restlessness reflex for a STATIONARY man (no move), the one stay-still rule, and the lying man's calm crawl
   - docs/DESIGN_Peek_And_Fire.md — OWNS PeekAndFire (§8 spot heat, §10 the library node, §11 look-then-shoot, D12 "under fire = stay down", D14 "aim where remembered"); A, B, C, D reuse it
   - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — OWNS the soldier's own SOP reflexes and why they stand aside under command (R-2062); this question puts the fighting reflexes BELOW that gate
   - docs/blueprints/Architect_Question_98_Cover_Reaction_Fights_Back.md — OWNS FightFromCover (R-2070, C″ CE-1269); unchanged

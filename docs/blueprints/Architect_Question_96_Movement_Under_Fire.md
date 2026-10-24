@@ -7,6 +7,7 @@ stale-below: §3 C's first form ("prone 2–4 s, then up") is SUPERSEDED by the 
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/blueprints/Architect_Question_103_Idle_Life.md — OWNS idle life: the one restlessness reflex for a STATIONARY man (no move), the one stay-still rule, and the lying man's calm crawl
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) I: the grenade reflex follows the UnderFireMoveSystem pattern (a reflex below the task)
   - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — the man who is IDLE (or on a task with no reaction): default SOPs for lone soldiers and civilians
   - docs/blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — OWNS the sprint (6 m/s), the stance speed caps (crouched 0.5, prone 0.2) and the Tactical gait (R-265); this question re-times WHEN that gait is chosen and adds what happens under fire mid-move
