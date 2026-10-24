@@ -68,8 +68,11 @@ classDiagram
     +Gait : MoveGait
     +AskedSpeed : float
     +Threatened : byte
-    +Phase : Moving Down Shifting Crawling
+    +Phase : Moving Down Shifting Crawling Scooting
     +DownSince : double
+    +PinnedSince : double (CE-2363)
+    +SubSeconds : float (CE-2363)
+    +Scoots : byte (CE-2363)
     +UpSince : double
     +CoveredUntil : double
     +MoveTo : the play's destination, kept while he crawls
@@ -123,8 +126,14 @@ sequenceDiagram
   else still under fire, a cover point within 10 m
     S->>N: crawl to it, prone, 1.2 m/s (IntentId++)
     Note over S: there: down again, the same outcomes
-  else still under fire, nothing near
-    Note over S: stays down (later: stress, TS-4 / TS-6)
+  else still under fire, nothing near (CE-2363)
+    Note over S: down 6-12 s (seeded), then
+    alt pinned 30 s and no friend within 30 m, a cover point within 30 m
+      S->>N: crawl to it, prone (IntentId++)
+    else
+      S->>N: scoot 2-4 m square to the shooter, prone, sides alternate (IntentId++)
+    end
+    Note over S: there: down again, the same outcomes
   end
   P->>P: still Running - the channel was never touched
 ```
@@ -291,6 +300,7 @@ carry `header.description` (what they show and how to judge them; the round-trip
 | ✅ `uf-alone-under-fire` PASS | first round at 2.8 s; never upright under fire; one drop, stopped; pinned by two immortal riflemen (a near miss or hit about every second) he stayed down — measured for 50 s on a probe run; when the check emptied their rifles (15.1 s) he rose 4.5 s later (the 3 s lapse + the side step) and rushed on |
 | ✅ `uf-squad-under-fire` PASS | 19 drops across the six, every rise after a side step, **17 of 19 rises with rounds still coming** (his half covered — C3), never upright under fire, every mover at ≥ 3 m/s, and the bounds went on (Cover → Rush → Cover → Rush) |
 | ⚠ found by the live runs, not by the rails | ① the hostiles of the fire-and-movement cast carry NO order, so they never fire (150 rounds kept, measured) — both demos give them `CombatPosture` (`Stay`); ② two immortal riflemen never pause, so a lone man is pinned for good (right by C) — the lone demo's check stops their fire to judge the rise; ③ a covered mover goes down and starts his side step inside one 0.25 s sample — the check counts a drop as Moving → any down phase |
+| ⭐⭐ extended 2026-10-24 (CE-2363, [AQ102](Architect_Question_102_Responsive_Fighting_Reflexes.md) §9 R2-3, R-2073) | C's *"still under fire, nothing near: stays down"* is **SUPERSEDED** — a man who stayed down for good under steady fire read as static (🔒 user: *"he stayed on one single place and never tried to move, that was feeling very static"*). Now, still under fire with no cover within 10 m: after a seeded 6–12 s down (`UnderFire.ScootAfter`, per man and per drop) he **scoots** — a 2–4 m prone crawl square to the line to his nearest remembered threat, alternating sides (`UnderFire.Scoot`, phase `Scooting`), down again there, his play firing as before. Pinned 30 s (`UnderFireMove.PinnedSince`, set on the drop, kept across scoots) with no living friend within 30 m (`UnderFire.FriendNear`), the next move is a crawl to cover out to **30 m** instead (`CoverNear` with a radius; the crawl's time limit is its distance at 1.2 m/s × 1.5). Every sub-move carries its own time limit (`UnderFireMove.SubSeconds`). Rails: `CE2363_PinnedInTheOpen_HeScootsSideways_OnAlternatingSides`, `CE2363_PinnedAloneThirtySeconds_CrawlsToCoverOutTo30m_WithAFriendNearHeScoots`. ⚠ Still not covered: TakeCover's own `DownInTheOpen` (CE-2322, below) — a man who was never on a move has no `UnderFireMove` to scoot with |
 | ⭐ extended 2026-10-20 (CE-2322, found by AQ97's live demo) | C's *"still under fire, nothing near: stays down"* covered only a man dropped off a MOVE. A man in a `TakeCover` with no cover point to go to was never on a move, so he stood upright under fire. ⇒ `TakeCover` drops him itself (`Mode.DownInTheOpen`, [DESIGN_Eqs_Consuming_Behaviours.md](../DESIGN_Eqs_Consuming_Behaviours.md) §6 A8); its first cover point gets him up into this question's crouched rush, where C takes over |
 
 

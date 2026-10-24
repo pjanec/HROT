@@ -1296,6 +1296,109 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(UnderFirePhase.Shifting, Reflex(c).Phase);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2363</c> (AQ102 R2-3) — pinned in the open under steady fire with no cover near, he does not lie on one spot: after a
+        /// seeded 6–12 s down he scoots 2–4 m square to the line to his shooter (north ⇒ along x), down again there, and the next scoot goes
+        /// the other way. 🔒 User: <i>"each of them would fire a few shots and then take a pause and move to a different spot. In the open
+        /// area, that means the guy would be crawling"</i>. ✅ Red-proof: the scoot branch removed ⇒ he stays Down ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2363_PinnedInTheOpen_HeScootsSideways_OnAlternatingSides()
+        {
+            var w = new World();
+            w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 0f; mem.PositionsY[0] = 100f;   // the shooter, north
+            Mover(w, new Vector3(0f, 50f, 0f));
+            ShotAt(w, 20.0);
+            StepAt(w, 20.1);
+            Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+
+            double ScootDue(out float side)
+            {
+                double down = Reflex(w).DownSince, after = UnderFire.ScootAfter(w.Unit, down);
+                Assert.InRange(after, UnderFire.ScootAfterMinSeconds, UnderFire.ScootAfterMaxSeconds);
+                for (double t = down + 0.5; t < down + after - 0.05; t += 0.5)   // a round every half second: still down, no scoot yet
+                {
+                    ShotAt(w, t);
+                    StepAt(w, t + 0.01);
+                    Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+                }
+                ShotAt(w, down + after);
+                StepAt(w, down + after + 0.01);
+                Assert.Equal(UnderFirePhase.Scooting, Reflex(w).Phase);
+                Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+                var at = w.Repo.GetComponentRO<SimTransform>(w.Unit).Position;
+                var off = Reflex(w).SubTarget - at;
+                var toShooter = Vector3.Normalize(new Vector3(0f, 100f, 0f) - at);
+                Assert.Equal(0f, Vector3.Dot(off, toShooter), 3);                    // square to the line to the shooter
+                Assert.InRange(off.Length(), UnderFire.ScootMinMetres, UnderFire.ScootMaxMetres);
+                Assert.Equal(Reflex(w).SubTarget, Intent(w).FinalDestination);
+                side = MathF.Sign(off.X);
+                // there: down again, his play's move still in hand
+                w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = Reflex(w).SubTarget;
+                ShotAt(w, down + after + 0.5);
+                StepAt(w, down + after + 0.6);
+                Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+                return down + after;
+            }
+
+            ScootDue(out float first);
+            ScootDue(out float second);
+            Assert.Equal(-first, second);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2363</c> (AQ102 R2-3) — pinned 30 s with no friend within 30 m, his next move is a crawl to cover out to 30 m (20 m here,
+        /// beyond the 10 m crawl); a friend 15 m off and he scoots instead. ✅ Red-proof: the widened search removed ⇒ he only scoots ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2363_PinnedAloneThirtySeconds_CrawlsToCoverOutTo30m_WithAFriendNearHeScoots()
+        {
+            World Pinned(bool friend, out double crawlAt)
+            {
+                var w = new World();
+                w.Repo.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+                {
+                    new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 20f, PositionY = 0f, DirectionX = 0f, DirectionY = 1f, Quality = 1f, StanceHeight = 1 },
+                }));
+                w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Friend });
+                if (friend)
+                {
+                    var f = w.Repo.CreateEntity();
+                    w.Repo.AddComponent(f, new EntityInfo { ForceId = ForceId.Friend });
+                    w.Repo.AddComponent(f, new SimTransform { Position = new Vector3(-15f, 0f, 0f), Rotation = Quaternion.Identity });
+                    w.Repo.AddComponent(f, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                }
+                w.Contact(armed: true);
+                ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+                mem.PositionsX[0] = 0f; mem.PositionsY[0] = 100f;
+                Mover(w, new Vector3(0f, 50f, 0f));
+                ShotAt(w, 20.0);
+                StepAt(w, 20.1);
+                crawlAt = -1;
+                for (double t = 20.5; t < 75.0; t += 0.5)
+                {
+                    ShotAt(w, t);
+                    StepAt(w, t + 0.01);
+                    var phase = Reflex(w).Phase;
+                    if (phase == UnderFirePhase.Crawling) { crawlAt = t + 0.01; break; }
+                    if (phase == UnderFirePhase.Scooting) w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = Reflex(w).SubTarget;
+                }
+                return w;
+            }
+
+            var alone = Pinned(friend: false, out double crawlAt);
+            Assert.True(crawlAt >= 20.1 + UnderFire.AlonePinnedSeconds, $"crawled at {crawlAt}");
+            Assert.Equal(new Vector3(20f, 0f, 0f), Reflex(alone).SubTarget);
+            Assert.True(Reflex(alone).SubSeconds >= 18f / UnderFire.CrawlSpeed, $"{Reflex(alone).SubSeconds} s for the far crawl");
+            Assert.True(Reflex(alone).Scoots > 0);   // he scooted while he waited
+
+            var near = Pinned(friend: true, out double never);
+            Assert.Equal(-1, never);
+            Assert.True(Reflex(near).Scoots >= 3, $"{Reflex(near).Scoots} scoots");
+        }
+
         /// <summary>AQ96 C — no drop while arriving at his point (within 3 m — he is getting into his cover), and a civilian's upright run
         /// is never kept by the reflex.</summary>
         [Fact]

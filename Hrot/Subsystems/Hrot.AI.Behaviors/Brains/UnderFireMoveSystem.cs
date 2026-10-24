@@ -50,6 +50,21 @@ namespace Hrot.AI.Behaviors.Brains
         public const double CoveredSeconds = SquadGates.CoveringSeconds;
         /// <summary>The stance blend into and out of the drop (s).</summary>
         public const float DropBlendSeconds = 0.3f;
+        /// <summary>⭐ <c>CE-2363</c> (AQ102 R2-3) — pinned in the open, he lies this long (s, seeded per man and per scoot) before he scoots.</summary>
+        public const double ScootAfterMinSeconds = 6.0, ScootAfterMaxSeconds = 12.0;
+        /// <summary>⭐ <c>CE-2363</c> — how far a scoot goes (m, seeded), sideways to the shooter.</summary>
+        public const float ScootMinMetres = 2f, ScootMaxMetres = 4f;
+        /// <summary>⭐ <c>CE-2363</c> — a scoot gives up after this long (s): 4 m at the prone crawl's 1.2 m/s, with room to start.</summary>
+        public const float ScootSeconds = 6f;
+        /// <summary>⭐ <c>CE-2363</c> — pinned this long (s) with no friend within <see cref="AloneMetres"/>, he looks for cover out to
+        /// <see cref="FarCoverMetres"/>.</summary>
+        public const double AlonePinnedSeconds = 30.0;
+        /// <summary>⭐ <c>CE-2363</c> — no friend this near (m) is a man alone.</summary>
+        public const float AloneMetres = 30f;
+        /// <summary>⭐ <c>CE-2363</c> — the widened cover search (m) for a man pinned alone.</summary>
+        public const float FarCoverMetres = 30f;
+        /// <summary>The prone crawl (m/s) — <c>StanceSpeed</c> 0.2 × the 6 m/s run; times the crawl to a far cover.</summary>
+        public const float CrawlSpeed = 1.2f;
 
         /// <summary>True when <paramref name="gait"/> is a soldier's move the reflex keeps (Tactical or Crouched).</summary>
         public static bool Keeps(MoveGait gait) => gait == MoveGait.Tactical || gait == MoveGait.Crouched;
@@ -166,26 +181,40 @@ namespace Hrot.AI.Behaviors.Brains
                             return;
                         }
                         u.SubTarget = SideStep(at, move.Destination, self);
-                        Sub(world, self, ref u, in move, u.SubTarget, UnderFirePhase.Shifting, now);
+                        Sub(world, self, ref u, in move, u.SubTarget, UnderFirePhase.Shifting, now, (float)ShiftSeconds);
                         return;
                     }
-                    if (u.Crawled == 0 && CoverNear(world, self, at, out var cover, out var facing))
+                    if (u.Crawled == 0 && CoverNear(world, self, at, CrawlCoverMetres, out var cover, out var facing))
                     {
-                        u.Crawled = 1;
-                        u.SubTarget = cover;
-                        u.CoverFacing = facing;
-                        Sub(world, self, ref u, in move, cover, UnderFirePhase.Crawling, now);
+                        CrawlTo(world, self, ref u, in move, at, cover, facing, now);
+                        return;
+                    }
+                    // ⭐⭐ CE-2363 (AQ102 R2-3) — still under fire, no cover near: he does not lie on one spot. After a seeded 6–12 s down
+                    //   he scoots 2–4 m sideways to the shooter (alternating sides) and goes on firing from there; pinned 30 s with no friend
+                    //   within 30 m, that move is a crawl to cover out to 30 m instead, when there is one. ⛔ Was: he stayed down for good.
+                    if (u.Crawled == 0 && now - u.DownSince >= ScootAfter(self, u.DownSince))
+                    {
+                        if (now - u.PinnedSince >= AlonePinnedSeconds && !FriendNear(world, self, at, AloneMetres)
+                            && CoverNear(world, self, at, FarCoverMetres, out cover, out facing))
+                        {
+                            CrawlTo(world, self, ref u, in move, at, cover, facing, now);
+                            return;
+                        }
+                        u.SubTarget = Scoot(world, self, at, move.Destination, u.Scoots, u.DownSince);
+                        u.Scoots++;
+                        Sub(world, self, ref u, in move, u.SubTarget, UnderFirePhase.Scooting, now, ScootSeconds);
                     }
                     return;   // still under fire, nothing near: he stays down (his play keeps firing where it fires on the move)
                 }
                 case UnderFirePhase.Shifting:
                 case UnderFirePhase.Crawling:
+                case UnderFirePhase.Scooting:
                 {
                     if (lastFire > u.ReactedFireAt) u.ReactedFireAt = lastFire;
                     bool there = Flat(u.SubTarget - at).Length() < 0.6f || SubEnded(world, self, u.HoldIntentId)
-                                 || now - u.SubSince > (u.Phase == UnderFirePhase.Shifting ? ShiftSeconds : CrawlSeconds);
+                                 || now - u.SubSince > u.SubSeconds;
                     if (!there) return;
-                    if (u.Phase == UnderFirePhase.Crawling)
+                    if (u.Phase != UnderFirePhase.Shifting)
                     {
                         u.HoldIntentId = MoveToExecutor.Halt(world, self);
                         u.Phase = UnderFirePhase.Down;
@@ -204,10 +233,23 @@ namespace Hrot.AI.Behaviors.Brains
             u.HoldIntentId = MoveToExecutor.Halt(world, self);
             u.Phase = UnderFirePhase.Down;
             u.DownSince = now;
+            u.PinnedSince = now;
             u.Crawled = 0;
+            u.Scoots = 0;
         }
 
-        private static void Sub(EntityRepository world, Entity self, ref UnderFireMove u, in MoveToParams move, Vector3 to, UnderFirePhase phase, double now)
+        private static void CrawlTo(EntityRepository world, Entity self, ref UnderFireMove u, in MoveToParams move, Vector3 at, Vector3 cover, Vector2 facing, double now)
+        {
+            u.Crawled = 1;
+            u.SubTarget = cover;
+            u.CoverFacing = facing;
+            // a far cover (CE-2363) takes longer than the near one's 12 s: its distance at the crawl, with room to start
+            Sub(world, self, ref u, in move, cover, UnderFirePhase.Crawling, now,
+                MathF.Max((float)CrawlSeconds, Flat(cover - at).Length() / CrawlSpeed * 1.5f + 2f));
+        }
+
+        private static void Sub(EntityRepository world, Entity self, ref UnderFireMove u, in MoveToParams move, Vector3 to, UnderFirePhase phase, double now,
+                                float seconds)
         {
             var sub = move;
             sub.Destination = to;
@@ -216,6 +258,42 @@ namespace Hrot.AI.Behaviors.Brains
             u.HoldIntentId = MoveToExecutor.WriteIntent(world, self, in sub);
             u.Phase = phase;
             u.SubSince = now;
+            u.SubSeconds = seconds;
+        }
+
+        /// <summary>⭐ <c>CE-2363</c> — how long (s) a man pinned in the open lies before his next scoot: 6–12 s, the same for the same man
+        /// on the same drop (seeded by his index and the time he lay down).</summary>
+        public static double ScootAfter(Entity self, double downSince)
+        {
+            var rng = Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, 0x2363, (float)downSince);
+            return ScootAfterMinSeconds + rng.NextSingle() * (ScootAfterMaxSeconds - ScootAfterMinSeconds);
+        }
+
+        /// <summary>⭐ <c>CE-2363</c> — where a scoot goes: 2–4 m (seeded) square to the line to his nearest remembered threat (to his line
+        /// of advance when he knows none), on alternating sides — the first side his own (<see cref="SideStep"/>'s), then the other.</summary>
+        public static Vector3 Scoot(EntityRepository world, Entity self, Vector3 at, Vector3 destination, byte scoots, double downSince)
+        {
+            var toward = NearestThreat(world, self, at, out var threat) ? Flat(threat - at) : Flat(destination - at);
+            toward = toward.LengthSquared() > 1e-4f ? Vector3.Normalize(toward) : Vector3.UnitX;
+            float side = (((self.Index + scoots) & 1) == 0) ? 1f : -1f;
+            var rng = Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, 0x2364, (float)downSince);
+            float metres = ScootMinMetres + rng.NextSingle() * (ScootMaxMetres - ScootMinMetres);
+            return at + new Vector3(-toward.Y, toward.X, 0f) * (side * metres);
+        }
+
+        /// <summary>⭐ <c>CE-2363</c> — a living man of his force within <paramref name="radius"/> (not himself).</summary>
+        public static bool FriendNear(EntityRepository world, Entity self, Vector3 at, float radius)
+        {
+            if (!world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(self)) return false;
+            var force = world.GetComponentRO<EntityInfo>(self).ForceId;
+            float r2 = radius * radius;
+            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().With<Fdp.Toolkit.Combat.Components.Health>().Build())
+            {
+                if (e.Equals(self) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
+                if (Fdp.Toolkit.Combat.Injury.StateOf(world, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) continue;
+                if (Flat(world.GetComponentRO<SimTransform>(e).Position - at).LengthSquared() < r2) return true;
+            }
+            return false;
         }
 
         private static void Rise(EntityRepository world, Entity self, ref UnderFireMove u, ref MoveToParams move, double now, bool threatened)
@@ -250,19 +328,19 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The nearest cover point within <see cref="CrawlCoverMetres"/> that faces his nearest remembered threat (any, when he
         /// knows none), not where he lies.</summary>
-        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, out Vector3 cover) => CoverNear(world, self, at, out cover, out _);
+        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, out Vector3 cover) => CoverNear(world, self, at, CrawlCoverMetres, out cover, out _);
 
         /// <summary><see cref="CoverNear(EntityRepository, Entity, Vector3, out Vector3)"/>, with the way the point's cover faces
         /// (<see cref="CoverPoint.DirectionX"/>: toward the obstacle).</summary>
-        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, out Vector3 cover, out Vector2 facing)
+        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, float radius, out Vector3 cover, out Vector2 facing)
         {
             cover = default;
             facing = default;
             if (!world.HasSingletonManaged<ICoverProvider>()) return false;
             var provider = world.GetSingletonManaged<ICoverProvider>();
             if (provider == null) return false;
-            Span<CoverPoint> points = stackalloc CoverPoint[16];
-            int n = provider.GetCoverPointsInRadius(new Vector2(at.X, at.Y), CrawlCoverMetres, points);
+            Span<CoverPoint> points = stackalloc CoverPoint[radius > CrawlCoverMetres ? 64 : 16];
+            int n = provider.GetCoverPointsInRadius(new Vector2(at.X, at.Y), radius, points);
             bool threatKnown = NearestThreat(world, self, at, out var threat);
             float best = float.MaxValue;
             for (int i = 0; i < n; i++)
