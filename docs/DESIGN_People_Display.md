@@ -438,6 +438,8 @@ graph TD
 *Caption:* the dead edge — a display node never has `Stress` (TS-8), so on an IG the layer draws nothing for soldiers; civilians there would
 show once behaviors writes `Demeanour` (`CE-2250`).
 
+✅ **U20a–f approved** — 🔒 User, `2026-10-24`, on the built bar: *"Approved"* (`R-1035`).
+
 | # | decision | ⭐ lean | rejected |
 |---|---|---|---|
 | **U20a** | the indicator | a thin BAR (the health bar's height) in the card, **right under the health bar** — filled to his stress, with a **white tick at his breaking point** (his nerve): the bar reaching the tick is him breaking | a percentage number — a number does not show how close he is to breaking · next to the mood dot (row 45) — a bar reads best beside the other bar |
