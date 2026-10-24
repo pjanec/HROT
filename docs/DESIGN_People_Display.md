@@ -464,12 +464,12 @@ Rails: `Map3DTests.CE1309_*`, `GZH011_Tests.CE1309_*`.
 📌 **Live, `uf-squad-under-fire`, headless editor:** within a second of contact Hostile 2 rose to 0.24 and Riflemen 1 and 4 to 0.21; followed
 in 3-D with **Units → Mind state** on, Hostile 2's card showed the red bar past the white tick and **BROKEN** under it (his state line: `Break`).
 
-### 7f. U21 — RECORDED: a short HEALTH BAR floating over the head, its own switch *(`CE-1313`, ui, `2026-10-24` — build-state: DESIGN, leans for the user)*
+### 7f. U21 — RECORDED: a short HEALTH BAR floating over a person's or vehicle's head, its own switch *(`CE-1313`, ui, `2026-10-24` — build-state: DESIGN, leans for the user)*
 
 🔒 User, `2026-10-24`: *"I would like for a soldier to turn on a health bar on top of his head, not as part of the card, but just floating on
 top of his head, something similar which is now shown for the psychic state. But shorter … when low health it's red, when it is in the middle
 then it's yellow, and when it's close to full it's green. It should have its own separate checkbox for turning on and off, independently on
-the label card. It needs to be just short. Otherwise, it would overlap too much with the guys standing next to him."*
+the label card. It needs to be just short. Otherwise, it would overlap too much with the guys standing next to him."* · *"The health bar should be available also for vehicles, not just people. And when the cart is on, then the floating individual health bar is not shown, because it is already part of the cart."* *("cart" = the card)*
 
 | what exists | where |
 |---|---|
@@ -481,7 +481,7 @@ the label card. It needs to be just short. Otherwise, it would overlap too much 
 |---|---|---|
 | **U21a** | drawn by the 3-D body layer itself at his `LabelTop` + a few pixels: **28 × 4 px** (a third of the card's width), the card's colours and thresholds (one `HealthColour` shared with `HealthBarGizmo`, not a second copy) | a second card — a card is one per entity; a world-space bar — it shrinks to nothing at distance and grows huge close up |
 | **U21b** | its own layer row **Units → Health over head**, off by default, independent of Labels | riding on Labels — the user's point is to have it WITHOUT the card |
-| **U21c** | people only (soldiers and civilians), alive, not inside a vehicle; ⭐ when the card is also shown, the bar sits just under the card's bottom edge so they never overlap | vehicles too — the card already serves them; ask if wanted |
+| **U21c** | ✅ **people AND vehicles** (alive, a person not inside a vehicle); ✅ **hidden whenever the card is shown** — the card already carries the health bar (user, `2026-10-24`) | ⛔ people only, and ⛔ *"under the card when both show"* — SUPERSEDED by the user the same day |
 | **U21d** | 3-D only | 2-D — the symbol view already has the card; ask if wanted |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*

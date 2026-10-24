@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Entity_Brain_View.md — §12a (R-1036) RETIRES the AI tab: §7.6's editing moves into the Brain tab's expanders, full only on the node running the brain
   - docs/DESIGN_Behaviour_Debugging.md — DBG-9 reads (opens) the unit's SOP as its running BTree; editing stays §7.6
   - docs/DESIGN_Entity_Brain_View.md — the read-only Brain tab (what / why / recent changes) beside §7.6's AI edit tab, and the brain journal
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-3 OWNS the requirement (acquisition time by exposure, R-2035); §5.7 here is its engine (CE-3260); DA-1/DA-2 own the proficiency it reads
@@ -984,6 +985,8 @@ behaviour progress (needs a stable on-disk format for internal state) · a per-e
 authoring place).
 
 ### 7.6 The editor's AI section — `CE-3043` *(build-state: BUILT `2026-10-05` for task / SOP / ROE — as-built below the table; instance-blueprint params rows → `CE-2086`)*
+
+> ⛔ **`2026-10-24` — the AI TAB is RETIRED, its content MOVES** (`R-1036`, [Brain View §12a](DESIGN_Entity_Brain_View.md) BV-38): task / SOP / ROE editing and the instance-blueprint params rows become expanders of the Brain tab (`CE-1314`). The editing MODEL and THE one params form below stay as they are — only the tab that hosts them changes.
 
 **INVENTORY** *(grep + an Explore sweep, `2026-10-05`; the code graph was not indexed this session)*: Details views are
 `IDetailsViewInstance` + `DetailsViewDescriptor` registered per perspective (`ScenarioMissionView` rank 40 is the template);
