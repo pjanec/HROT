@@ -5295,7 +5295,146 @@ def run_il_idle_life(c, timeout):
     c.ok(len(showed) * 2 >= len(gesturers), f"(3) idle gestures on at least half the relaxed men ({len(showed)}/{len(gesturers)}: {showed})")
     c.ok(not any(g in _IDLE_GESTURES for g in seen["Down"]), "(4) the incapacitated man shows none")
 
-SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ua-threat-ranking": run_threat_ranking,
+def _ts_sample(names, ids, seconds, every=0.5):
+    """⭐ Temperament & Stress — each man's (t, task, stress level, broken, ammo) over `seconds` of sim time; the stress is brain-local
+    (TS-8), read on the CGF node."""
+    out = {n: [] for n in names}
+    end = (sim_time() or 0) + seconds
+    while (sim_time() or 0) < end:
+        t = sim_time() or 0
+        for n in names:
+            task, _ = _task_of(ids[n])
+            cg = comps_on("CGF", ids[n]) or {}
+            st = cg.get("Stress") or {}
+            w = cg.get("WeaponState") or {}   # ⚠ the BRAIN spends the rounds (PlatoonScenarioTests reads them there); 📐 SimHost's stayed full
+            out[n].append((t, task, st.get("Level") or 0.0, bool(st.get("Broken")), w.get("Ammo")))
+        time.sleep(every)
+    return out
+
+
+def _ts_story(rows):
+    """(peak stress, first break time, first recovery after it, the tasks he ran, rounds he fired)."""
+    peak = max((r[2] for r in rows), default=0.0)
+    broke = next((r[0] for r in rows if r[3]), None)
+    back = next((r[0] for r in rows if broke is not None and r[0] > broke and not r[3]), None)
+    ammo = [r[4] for r in rows if isinstance(r[4], (int, float))]
+    fired = (ammo[0] - ammo[-1]) if len(ammo) >= 2 else 0
+    return peak, broke, back, sorted({r[1] for r in rows if r[1]}, key=str), fired
+
+
+def run_ts_fire_discipline(c, timeout):
+    """⭐ Temperament & Stress §6 — regulars and militia under the SAME fire: no regular breaks, at least half the militia do, and every
+    man who broke recovers once it stops. 📄 docs/DESIGN_Temperament_And_Stress.md §6."""
+    ids = ids_by_name()
+    regs = [f"Regular {i}" for i in range(1, 5)]
+    mils = [f"Militia {i}" for i in range(1, 5)]
+    if not c.ok(all(ids.get(n) for n in regs + mils + ["Gunner Regular", "Gunner Militia"]), "both teams and both gunners are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _ts_sample(regs + mils, ids, 100)
+    story = {n: _ts_story(rows[n]) for n in regs + mils}
+    for n in regs + mils:
+        peak, broke, back, tasks, fired = story[n]
+        print(f"    {n:<10} peak stress {peak:4.2f} · broke {'-' if broke is None else f'{broke:5.1f} s'} · "
+              f"recovered {'-' if back is None else f'{back:5.1f} s'} · fired {fired} · tasks {tasks}")
+    c.ok(all(story[n][1] is None for n in regs), f"(1) no regular breaks (peaks {[round(story[n][0], 2) for n in regs]})")
+    c.ok(sum(story[n][4] for n in regs) > 0, f"(1) the regulars fire back ({sum(story[n][4] for n in regs)} rounds)")
+    broke = [n for n in mils if story[n][1] is not None]
+    c.ok(len(broke) * 2 >= len(mils), f"(2) at least half the militia break ({len(broke)}/4: {broke})")
+    c.ok(all(story[n][2] is not None for n in regs + mils if story[n][1] is not None),
+         "(3) every man who broke recovered once the fire stopped")
+    last = {n: rows[n][-1][1] for n in regs + mils}
+    c.ok(all(last[n] == "CombatPosture" for n in regs + mils), f"(3) everyone is back on his task at the end ({last})")
+
+
+def run_ts_aggression(c, timeout):
+    """⭐ Temperament & Stress §6 — two identical riflemen in mirrored fights, one bold and one cautious: the bold one advances more, the
+    cautious one takes cover and suppresses more, the bold one closes further. 📄 docs/DESIGN_Temperament_And_Stress.md §6."""
+    ids = ids_by_name()
+    men = ["Bold", "Cautious"]
+    if not c.ok(all(ids.get(n) for n in men + ["Bold Enemy", "Cautious Enemy"]), "both attackers and both enemies are loaded"):
+        return
+    for n in men:
+        call("POST", "/trace/observe", {"networkId": ids[n], "on": True})
+    call("POST", "/sim/play", {})
+    share = {n: {} for n in men}
+    damp = {n: set() for n in men}
+    start = {n: position(ids[n]) for n in men}
+    end = (sim_time() or 0) + 90
+    while (sim_time() or 0) < end:
+        for n in men:
+            u = utility(ids[n])
+            d = decision(u, POSTURE)
+            w = d and d.get("winner")
+            if w: share[n][w] = share[n].get(w, 0) + 1
+            for o in (u.get("lastPass") or {}).get("options") or []:   # the newest traced pass (its rows: input, raw, curved, weight)
+                for k in o.get("considerations") or []:
+                    name = k.get("input") or k.get("name")
+                    if name in ("CautionDamp", "AggressionDamp", "StressDamp") and (k.get("raw") or k.get("value") or 1) < 0.999:
+                        damp[n].add(name)
+        time.sleep(0.5)
+    def frac(n, opts):
+        tot = sum(share[n].values()) or 1
+        return sum(share[n].get(o, 0) for o in opts) / tot
+    gone = {}
+    for n in men:
+        p, e = position(ids[n]), position(ids[f"{n} Enemy"])
+        gone[n] = flat(p, e) if p and e else None
+        tot = sum(share[n].values()) or 1
+        print(f"    {n:<9} postures {{{', '.join(f'{k} {v / tot:.0%}' for k, v in sorted(share[n].items(), key=lambda kv: -kv[1]))}}} · "
+              f"ends {gone[n] if gone[n] is None else round(gone[n], 1)} m from his enemy · damping seen {sorted(damp[n]) or '-'}")
+    c.ok(frac("Bold", ["AdvanceAndAttack"]) > frac("Cautious", ["AdvanceAndAttack"]),
+         f"(1) the bold man advances more ({frac('Bold', ['AdvanceAndAttack']):.0%} vs {frac('Cautious', ['AdvanceAndAttack']):.0%})")
+    c.ok(frac("Cautious", ["TakeCover", "Suppress"]) > frac("Bold", ["TakeCover", "Suppress"]),
+         f"(2) the cautious man takes cover / suppresses more ({frac('Cautious', ['TakeCover', 'Suppress']):.0%} vs {frac('Bold', ['TakeCover', 'Suppress']):.0%})")
+    c.ok(gone["Bold"] is not None and gone["Cautious"] is not None and gone["Bold"] < gone["Cautious"],
+         f"(3) the bold man ends nearer his enemy ({gone['Bold']} vs {gone['Cautious']} m)")
+
+
+def run_ts_house_defenders(c, timeout):
+    """⭐ Temperament & Stress §6 — three insurgents of three characters under one clearing: the coward breaks, the waverer surrenders
+    once broken and covered, the fanatic fights on. 📄 docs/DESIGN_Temperament_And_Stress.md §6."""
+    ids = ids_by_name()
+    men = ["Fanatic", "Coward", "Waverer"]
+    if not c.ok(all(ids.get(n) for n in men + ["Blue Squad"]), "the three insurgents and the squad are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _ts_sample(men, ids, 240, every=1.0)
+    story = {n: _ts_story(rows[n]) for n in men}
+    for n in men:
+        peak, broke, back, tasks, fired = story[n]
+        print(f"    {n:<8} peak stress {peak:4.2f} · broke {'-' if broke is None else f'{broke:5.1f} s'} · "
+              f"recovered {'-' if back is None else f'{back:5.1f} s'} · fired {fired} · tasks {tasks}")
+    c.ok(story["Coward"][1] is not None or "Break" in story["Coward"][3], f"(1) the Coward breaks (tasks {story['Coward'][3]})")
+    c.ok("Surrender" in story["Waverer"][3], f"(2) the Waverer surrenders (tasks {story['Waverer'][3]})")
+    c.ok(story["Fanatic"][1] is None and "Surrender" not in story["Fanatic"][3] and story["Fanatic"][4] > 0,
+         f"(3) the Fanatic never breaks and fires on the squad (fired {story['Fanatic'][4]}, tasks {story['Fanatic'][3]})")
+
+
+def run_ts_three_defenders(c, timeout):
+    """⭐ Temperament & Stress §6 — the house demo's three characters on open ground under a pressure that always comes: the coward
+    runs, the waverer — covered — surrenders, the fanatic fights on. 📄 docs/DESIGN_Temperament_And_Stress.md §6."""
+    ids = ids_by_name()
+    men = ["Fanatic", "Coward", "Waverer"]
+    if not c.ok(all(ids.get(n) for n in men + [f"Gunner {n}" for n in men] + ["Rifleman Coward", "Rifleman Waverer"]),
+                "the three insurgents, three gunners and two riflemen are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _ts_sample(men, ids, 120, every=1.0)
+    story = {n: _ts_story(rows[n]) for n in men}
+    for n in men:
+        peak, broke, back, tasks, fired = story[n]
+        print(f"    {n:<8} peak stress {peak:4.2f} · broke {'-' if broke is None else f'{broke:5.1f} s'} · "
+              f"recovered {'-' if back is None else f'{back:5.1f} s'} · fired {fired} · tasks {tasks}")
+    c.ok(story["Coward"][1] is not None and "Break" in story["Coward"][3] and "Surrender" not in story["Coward"][3],
+         f"(1) the Coward breaks and runs, he does not surrender (tasks {story['Coward'][3]})")
+    c.ok(story["Waverer"][1] is not None and "Surrender" in story["Waverer"][3],
+         f"(2) the Waverer breaks and, covered, surrenders (tasks {story['Waverer'][3]})")
+    c.ok(story["Fanatic"][1] is None and "Surrender" not in story["Fanatic"][3] and story["Fanatic"][4] > 0,
+         f"(3) the Fanatic never breaks and fires back (peak {story['Fanatic'][0]:.2f}, fired {story['Fanatic'][4]}, tasks {story['Fanatic'][3]})")
+
+
+SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fire-discipline": run_ts_fire_discipline, "ts-aggression": run_ts_aggression, "ts-house-defenders": run_ts_house_defenders, "ts-three-defenders": run_ts_three_defenders, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
              # ⭐ CE-2235 CIV-1 — the civilian HSM: routine, alarm, casualty (Civilians §5c, §5d)

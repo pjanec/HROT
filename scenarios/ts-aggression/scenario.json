@@ -1,0 +1,296 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: Temperament & Stress \u00a76 (CE-2271, R-2034/R-2075) - two mirrored duels on open basic-desert, 300 m apart: 'Bold' (Friend rifleman, bravery 0.9) at (200,300) and 'Cautious' (Friend rifleman, bravery 0.1), both obedience 0.3 so character shows, each ordered to attack (CombatPosture, advance to 5 m short of his enemy) 'Bold Enemy' / 'Cautious Enemy' (Hostile riflemen holding a spot behind a car 100 m north, InertSop); a car 8 m in front of each attacker is his nearest cover. All immortal. Judge (90 s): (1) the bold man's posture is AdvanceAndAttack for more of the time than the cautious man's; (2) the cautious man takes cover or suppresses for more of the time than the bold man; (3) the bold man ends nearer his enemy; (4) printed: each man's posture time shares and the damping modifiers in his utility trace. Check: python3 scripts/utility-demo-check.py --launch ts-aggression. \ud83d\udcc4 docs/DESIGN_Temperament_And_Stress.md \u00a76"
+  },
+  "entities": {
+    "a1040002-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          308,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10851
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Bold Cover"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040002-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          200,
+          397,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10861
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Bold Enemy Cover"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040002-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          200,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10831
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bold",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [200, 395, 0], \"ArrivalRadius\": 3}}"
+      },
+      "Temperament": {
+        "riskAcceptance": 0.9,
+        "obedience": 0.3
+      }
+    },
+    "a1040002-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          200,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10841
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bold Enemy",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [200, 400, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [200, 400, 0], \"Radius\": 2.0}, \"watchTowards\": [200, 300, 0]}"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040002-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          500,
+          308,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10852
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cautious Cover"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040002-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          500,
+          397,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10862
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cautious Enemy Cover"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040002-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          500,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10832
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Cautious",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [500, 395, 0], \"ArrivalRadius\": 3}}"
+      },
+      "Temperament": {
+        "riskAcceptance": 0.1,
+        "obedience": 0.3
+      }
+    },
+    "a1040002-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          500,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10842
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Cautious Enemy",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [500, 400, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [500, 400, 0], \"Radius\": 2.0}, \"watchTowards\": [500, 300, 0]}"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

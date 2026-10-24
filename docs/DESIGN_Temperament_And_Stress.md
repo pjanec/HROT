@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-24
-build-state: BUILT 2026-10-24 — TS-A (CE-2269), TS-B (CE-2270), TS-C (CE-2271, as MODIFIERS — R-2075) and TS-D (CE-2272) (§7); the §6 demos to come APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
+build-state: BUILT 2026-10-24 — TS-A (CE-2269), TS-B (CE-2270), TS-C (CE-2271, as MODIFIERS — R-2075) and TS-D (CE-2272) (§7); the §6 demos in build — ⛔ §7.4 asks about TS-2 (measured: discipline does not steady) APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
 current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos · ⭐ §7 AS BUILT (where it differs from §4, §7 wins)
 stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with Aggression and Discipline; do not quote it.
 known-rot: ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE for an ordinary consideration — the compensation counts them; ⭐ resolved by MODIFIER considerations (§7.3, R-2075). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
@@ -208,6 +208,26 @@ Rails: `StressSystemTests` — `CE2272_AtHisNerve_HeBreaks_EvenUnderStayOnTask_G
 | rejected | fold the damping into an existing input (a temperament-aware `EnemyStrengthRatio`) | couples two meanings in one input and hides the damping from the utility trace |
 
 What would change the lean: the Utility AI design ruling that compensation must count every factor.
+
+### 7.4 ⛔ A QUESTION — discipline neutralises character but never STEADIES *(measured live, `ts-fire-discipline`, 2026-10-24)*
+
+📐 Two fire teams of four under the SAME fire (one automatic rifle each, 120 m off, a round every 1.3 s passing 4 m over their heads —
+near misses only): the regulars (the default temperament: obedience 0.8, nerve 0.5) broke at **25 s**, the militia (obedience 0.3,
+nerve 0.3) at **22 s** — all eight. §6 asks for *"no regular breaks; at least half the militia do"*.
+
+⭐ The cause is TS-2 as approved: `Effective = default + (1 − Obedience) × (value − default)` pulls every trait toward the POPULATION
+default, so a disciplined man's nerve is the average man's (0.5) whatever his own — and the militia's 0.3 becomes 0.36. Break levels
+0.50 vs 0.36, a stimulus's reach 0.75 vs 0.82 ⇒ under any fire that breaks the militia the regulars follow seconds later.
+
+| | option | verdict |
+|---|---|---|
+| ⭐ **lean** | **discipline pulls toward a TRAINED norm per trait** — `Effective = norm + (1 − Obedience) × (value − norm)` with norms **Nerve 0.75 · Resolve 0.6 · RiskAcceptance 0.5** (the last as today, so TS-5's damping stays neutral) | regulars break at ~0.70 (reach 0.65), the militia at ~0.44 (reach 0.78) — about twice the fire; the coward stays a coward without discipline; a disciplined man is steadier than an average one, which is what drill is for |
+| rejected | give the soldier TYPES a high nerve (`TemperamentDto`) | TS-2 pulls it straight back: nerve 0.8 at obedience 0.8 is 0.56 |
+| rejected | tune the stimuli down | it slows everyone equally; the gap between regulars and militia stays a few seconds |
+
+What would change the lean: a ruling that obedience is only about ORDERS and steadiness is a separate trained trait (then a fifth trait,
+`Training`, would carry it). Blast radius: TS-2's formula and its rails; the stress rails' reach (0.75 ⇒ 0.65 for the default man); nobody
+breaks sooner than today.
 
 ## ⛔ HISTORY
 

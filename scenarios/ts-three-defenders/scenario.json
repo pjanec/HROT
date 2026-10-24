@@ -1,0 +1,443 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: Temperament & Stress \u00a76 (CE-2272, R-2034) - three insurgents (the Insurgent type, obedience authored 0.3) hold their spots on open basic-desert, 100 m apart, facing south (CombatPosture, stay; ROE StayOnTask - only a break moves him), a car 12 m behind each: the 'Fanatic' (resolve 1, nerve 0.9 - effective nerve 0.78) at x 200, the 'Coward' (nerve 0.1 - effective 0.22) at x 300, the 'Waverer' (resolve 0 - effective 0.15, under the 0.3 that surrenders) at x 400. Over each, 'Gunner <name>' (Friend automatic rifleman, InertSop) 120 m south fires 40 rounds, one every 1.3 s, 10 m behind him and 4 m up (near misses); the Coward and the Waverer each also have 'Rifleman <name>' (Friend, InertSop) 55 m off, who engages him - the rifle on him. All immortal. Judge (120 s): (1) the Coward breaks and runs (Break - to ground at cover farther from the fire), he does not surrender (effective resolve 0.5); (2) the Waverer breaks with a rifle on him and surrenders (hands up, weapons down); (3) the Fanatic never breaks or surrenders and fires back; (4) printed per insurgent: his peak stress, when he broke, what he did, the rounds he fired. Check: python3 scripts/utility-demo-check.py --launch ts-three-defenders. \ud83d\udcc4 docs/DESIGN_Temperament_And_Stress.md \u00a76"
+  },
+  "entities": {
+    "a1040004-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          312,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10871
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Fanatic Cover"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040004-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          200,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10841
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Fanatic",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [200, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [200, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [200, 180, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Temperament": {
+        "resolve": 1.0,
+        "nerve": 0.9,
+        "obedience": 0.3
+      }
+    },
+    "a1040004-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          200,
+          180,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10851
+      },
+      "TkbIdentity": {
+        "TkbType": 2009
+      },
+      "EntityInfo": {
+        "Name": "Gunner Fanatic",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Origin": "Superior",
+        "Params": "{\"x\": 200, \"y\": 310, \"z\": 4, \"mount\": 0, \"rounds\": 40, \"cooldownSeconds\": 1.3}"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040004-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          300,
+          312,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10872
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Coward Cover"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040004-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10842
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Coward",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [300, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [300, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [300, 180, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Temperament": {
+        "nerve": 0.1,
+        "obedience": 0.3
+      }
+    },
+    "a1040004-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          300,
+          180,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10852
+      },
+      "TkbIdentity": {
+        "TkbType": 2009
+      },
+      "EntityInfo": {
+        "Name": "Gunner Coward",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Origin": "Superior",
+        "Params": "{\"x\": 300, \"y\": 310, \"z\": 4, \"mount\": 0, \"rounds\": 40, \"cooldownSeconds\": 1.3}"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040004-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          320,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10862
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman Coward",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040004-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          400,
+          312,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10873
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Waverer Cover"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040004-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          400,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10843
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Waverer",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [400, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [400, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [400, 180, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Temperament": {
+        "resolve": 0.0,
+        "obedience": 0.3
+      }
+    },
+    "a1040004-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          400,
+          180,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10853
+      },
+      "TkbIdentity": {
+        "TkbType": 2009
+      },
+      "EntityInfo": {
+        "Name": "Gunner Waverer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Origin": "Superior",
+        "Params": "{\"x\": 400, \"y\": 310, \"z\": 4, \"mount\": 0, \"rounds\": 40, \"cooldownSeconds\": 1.3}"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040004-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          420,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10863
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman Waverer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}
