@@ -67,4 +67,52 @@ public sealed class TemperamentScenarioTests : IDisposable
         Assert.True(bold < 15f, $"the bold man closes on his enemy (ends {bold:F1} m away, started {bold0:F1})");
         Assert.True(cautious > 50f, $"the cautious man holds back (ends {cautious:F1} m away, started {cautious0:F1})");
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-2272</c> (TS-D, the break, R-2034 TS-6) — <c>ts-three-defenders</c>: three insurgents under the same over-the-head fire. ⭐ The
+    /// Coward (effective nerve 0.22) breaks and runs — his resolve (0.5) keeps him from surrendering; the Waverer (effective resolve
+    /// 0.15) breaks with a rifle on him and surrenders; the Fanatic (effective nerve 0.78) never breaks.
+    /// </summary>
+    [Fact(Timeout = 300_000)]
+    public async Task CE2272_TsThreeDefenders_TheCowardRuns_TheWavererSurrenders_TheFanaticHolds()
+    {
+        using var harness = await ScenarioTwin.Live("ts-three-defenders", _staged, NextDomainId());
+        var cgf = harness.Cgf!.World!;
+        var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
+        string[] men = { "Fanatic", "Coward", "Waverer" };
+        Assert.True(harness.PumpUntil(() => men.Concat(new[] { "Rifleman Waverer", "Gunner Fanatic" }).All(n => !ScenarioTwin.ByName(cgf, n).IsNull),
+            timeoutFrames: 2000), "the three insurgents, their gunners and riflemen must spawn");
+
+        var ran = men.ToDictionary(n => n, _ => new HashSet<string>());
+        var broke = men.ToDictionary(n => n, _ => false);
+        var peak = men.ToDictionary(n => n, _ => 0f);
+        double T() => cgf.GetSingleton<GlobalTime>().TotalTime;
+        double start = T();
+        for (int f = 0; f < 12_000 && T() - start < 70.0; f += 30)
+        {
+            harness.PumpFrames(30);
+            foreach (var n in men)
+            {
+                var e = ScenarioTwin.ByName(cgf, n);
+                if (e.IsNull) continue;
+                if (cgf.HasComponent<BehaviorState>(e) && registry.TryGetName(cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash, out var task))
+                    ran[n].Add(task);
+                if (cgf.HasComponent<Stress>(e))
+                {
+                    var s = cgf.GetComponent<Stress>(e);
+                    broke[n] |= s.Broken != 0;
+                    peak[n] = MathF.Max(peak[n], s.Level);
+                }
+            }
+        }
+        foreach (var n in men)
+            _out.WriteLine($"  {n,-8} peak {peak[n]:F2} broke {broke[n]} ran [{string.Join(", ", ran[n])}]");
+
+        Assert.True(broke["Coward"] && ran["Coward"].Contains("Break") && !ran["Coward"].Contains("Surrender"),
+            $"the Coward breaks and runs, he does not surrender (ran [{string.Join(", ", ran["Coward"])}])");
+        Assert.True(broke["Waverer"] && ran["Waverer"].Contains("Surrender"),
+            $"the Waverer breaks and, covered, surrenders (ran [{string.Join(", ", ran["Waverer"])}])");
+        Assert.True(!broke["Fanatic"] && !ran["Fanatic"].Contains("Surrender") && peak["Fanatic"] > 0f,
+            $"the Fanatic is under fire (peak {peak["Fanatic"]:F2}) and never breaks (ran [{string.Join(", ", ran["Fanatic"])}])");
+    }
 }

@@ -158,6 +158,7 @@ no new wire in v1.
 | `ts-fire-discipline` | two fire teams of 4 under the same suppressive fire from a machine gun 150 m off: regulars (Obedience 0.8) and militia (Obedience 0.3, Nerve 0.3) | the regulars keep suppressing (posture trace); at least half the militia go to ground or flee (`StressBreak`); no regular breaks |
 | `ts-aggression` | two identical riflemen vs one enemy, one RiskAcceptance 0.9, one 0.1 (Obedience 0.3, so character shows) | the bold one advances and assaults; the cautious one takes cover and suppresses — the same scores otherwise (utility trace) |
 | `ts-house-defenders` | the CQB house (Building Clearing §8) with three insurgents: a fanatic (Resolve 1, Nerve 0.9), a coward (Nerve 0.1), a waverer (Resolve 0.2) | on the stun grenade the coward flees out of the back door; the waverer surrenders when challenged and covered; the fanatic fights from his corner |
+| ⭐ `ts-three-defenders` *(added 2026-10-24, §7.5)* | the same three characters on open ground, each under an automatic rifle's over-the-head fire; the coward and the waverer each covered by a rifleman | the coward breaks and runs (no surrender); the waverer breaks and surrenders; the fanatic never breaks and fires back |
 
 ## 7. AS BUILT *(2026-10-24 — TS-A `CE-2269`, TS-B `CE-2270`; where this differs from §4, this wins)*
 

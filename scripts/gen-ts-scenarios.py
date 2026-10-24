@@ -110,10 +110,12 @@ s.write("ts-house-defenders", base["header"]["terrainName"],
 #   (ts-fire-discipline's near misses), and the Coward and the Waverer each have a rifleman 55 m off who engages them (the rifle on him
 #   that TS-6's surrender needs: Covering.By). The Fanatic has only the gunner, so he fights. Obedience authored 0.3 for all three —
 #   no type spread, so each break and surrender threshold is the arithmetic in the description.
+#   ⚠ the columns at x 270 / 340 / 400 — 📐 measured: at x 200 the Fanatic recorded NO near miss in 40 rounds (his gunner stands 1.2 m
+#   higher; the ground between takes the rounds) while the same fire at x 400 broke the Waverer; ts-fire-discipline's 270 / 340 work.
 s = Scn("ts-three-defenders", "a1040004")
 for k, (who, x0, temper, covered) in enumerate((
-        ("Fanatic", 200, {"resolve": 1.0, "nerve": 0.9, "obedience": 0.3}, False),
-        ("Coward", 300, {"nerve": 0.1, "obedience": 0.3}, True),
+        ("Fanatic", 270, {"resolve": 1.0, "nerve": 0.9, "obedience": 0.3}, False),
+        ("Coward", 340, {"nerve": 0.1, "obedience": 0.3}, True),
         ("Waverer", 400, {"resolve": 0.0, "obedience": 0.3}, True))):
     s.car(f"{who} Cover", (x0, 312, 0), heading=90, nid=10871 + k)
     g = s.man(who, "Hostile", (x0, 300, 0), 180, tkb=2003, nid=10841 + k, behavior=posted(x0, 300, (x0, 180)))
@@ -130,8 +132,8 @@ for k, (who, x0, temper, covered) in enumerate((
         s.ents[r]["Roe"] = dict(STAY)
 s.write("ts-three-defenders", "basic-desert",
         "What: Temperament & Stress §6 (CE-2272, R-2034) - three insurgents (the Insurgent type, obedience authored 0.3) hold their spots "
-        "on open basic-desert, 100 m apart, facing south (CombatPosture, stay; ROE StayOnTask - only a break moves him), a car 12 m behind "
-        "each: the 'Fanatic' (resolve 1, nerve 0.9 - effective nerve 0.78) at x 200, the 'Coward' (nerve 0.1 - effective 0.22) at x 300, "
+        "on open basic-desert, 60-70 m apart, facing south (CombatPosture, stay; ROE StayOnTask - only a break moves him), a car 12 m behind "
+        "each: the 'Fanatic' (resolve 1, nerve 0.9 - effective nerve 0.78) at x 270, the 'Coward' (nerve 0.1 - effective 0.22) at x 340, "
         "the 'Waverer' (resolve 0 - effective 0.15, under the 0.3 that surrenders) at x 400. Over each, 'Gunner <name>' (Friend automatic "
         f"rifleman, InertSop) 120 m south fires {ROUNDS} rounds, one every {COOLDOWN} s, 10 m behind him and 4 m up (near misses); the "
         "Coward and the Waverer each also have 'Rifleman <name>' (Friend rifleman, posted 55 m off watching him), who engages him - the rifle on him. All "
