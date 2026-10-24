@@ -7,14 +7,14 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "cqb-village",
-    "description": "What: AQ102 S4 (CE-2355) - on cqb-village, 'Red Squad' (Hostile, 'Red 1-3', default squad SOP) defends the OBJ house (house-3f, footprint x 125-135 / y 161-169) with SquadDefend. 'Shooter' (Friend grenadier, immortal) stands in the open at (130,130) and fires at the windows (CombatPosture, stay); 'Hugger' (Friend grenadier, immortal, crouched, InertSop) is against the south wall at (130,159.2) - every defender saw him get there (he is in their memory). Judge (90 s): (1) a defender shot at ducks within 2 s; (2) ONE defender moves to an opening that sees the Hugger; (3) a grenade is dropped at the Hugger; (4) no defender's look follows the Hugger while he is out of that defender's sight. Check: python3 scripts/utility-demo-check.py --launch rf-wall-hugger. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
+    "description": "What: AQ102 S4 (CE-2355) - on cqb-village, 'Red Squad' (Hostile, 'Red 1-3', default squad SOP) defends the OBJ house (house-3f, footprint x 115-125 / y 153-161, front north) with SquadDefend. 'Shooter' (Friend grenadier, immortal) stands in the open at (120,122) and fires at the windows (CombatPosture, stay); 'Hugger' (Friend grenadier, immortal, crouched, InertSop) is against the south wall at (119,152.3), between the back door and the window - every defender saw him get there (he is in their memory). Judge (90 s): (1) a defender shot at ducks within 2 s; (2) ONE defender moves to an opening that sees the Hugger; (3) a grenade is dropped at the Hugger; (4) no defender's look follows the Hugger while he is out of that defender's sight. Check: python3 scripts/utility-demo-check.py --launch rf-wall-hugger. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
   },
   "entities": {
     "a1020004-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          130,
-          165,
+          120,
+          157,
           0
         ],
         "Rotation": [
@@ -41,15 +41,15 @@
       },
       "Behavior": {
         "Name": "SquadDefend",
-        "Params": "{\"Position\": [130, 165, 0], \"SearchRadius\": 14, \"Speed\": 2}",
+        "Params": "{\"Position\": [120, 157, 0], \"SearchRadius\": 10, \"Speed\": 2}",
         "Origin": "Superior"
       },
       "TargetMemory": {
         "Entries": [
           {
             "Entity": "a1020004-0000-4000-8000-000000000006",
-            "PosX": 130,
-            "PosY": 159.2,
+            "PosX": 119,
+            "PosY": 152.3,
             "PosZ": 0,
             "Score": 500,
             "Tick": 0,
@@ -61,8 +61,8 @@
     "a1020004-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          127,
-          163,
+          117,
+          155,
           0
         ],
         "Rotation": [
@@ -90,8 +90,8 @@
         "Entries": [
           {
             "Entity": "a1020004-0000-4000-8000-000000000006",
-            "PosX": 130,
-            "PosY": 159.2,
+            "PosX": 119,
+            "PosY": 152.3,
             "PosZ": 0,
             "Score": 500,
             "Tick": 0,
@@ -107,8 +107,8 @@
     "a1020004-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          130,
-          163,
+          120,
+          155,
           0
         ],
         "Rotation": [
@@ -136,8 +136,8 @@
         "Entries": [
           {
             "Entity": "a1020004-0000-4000-8000-000000000006",
-            "PosX": 130,
-            "PosY": 159.2,
+            "PosX": 119,
+            "PosY": 152.3,
             "PosZ": 0,
             "Score": 500,
             "Tick": 0,
@@ -153,8 +153,8 @@
     "a1020004-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          133,
-          163,
+          123,
+          155,
           0
         ],
         "Rotation": [
@@ -182,8 +182,8 @@
         "Entries": [
           {
             "Entity": "a1020004-0000-4000-8000-000000000006",
-            "PosX": 130,
-            "PosY": 159.2,
+            "PosX": 119,
+            "PosY": 152.3,
             "PosZ": 0,
             "Score": 500,
             "Tick": 0,
@@ -199,8 +199,8 @@
     "a1020004-0000-4000-8000-000000000005": {
       "SimTransform": {
         "Position": [
-          130,
-          130,
+          120,
+          122,
           0
         ],
         "Rotation": [
@@ -229,7 +229,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"stay\": true, \"post\": {\"point\": [130, 130, 0], \"radius\": 2}}",
+        "Params": "{\"stay\": true, \"post\": {\"point\": [120, 122, 0], \"radius\": 2}}",
         "Origin": "Superior"
       },
       "Sop": {
@@ -241,8 +241,8 @@
     "a1020004-0000-4000-8000-000000000006": {
       "SimTransform": {
         "Position": [
-          130,
-          159.2,
+          119,
+          152.3,
           0
         ],
         "Rotation": [

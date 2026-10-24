@@ -5028,7 +5028,7 @@ def run_rf_wall_hugger(c, timeout):
     blue = ids["Hugger"]
     call("POST", "/sim/play", {})
     rows = _rf_sample(reds + ["Shooter", "Hugger"], ids, 90)
-    wall = (130, 159.2)
+    wall = (119, 152.3)   # OBJ's south face, between the back door and the window (x 115..125 × y 153..161)
     at_wall = rows["Hugger"][0][0]
     print(f"    Hugger at {rows['Hugger'][-1][1]} · Shooter tasks {sorted({r[4] for r in rows['Shooter'] if r[4]}, key=str)}")
     # (1) a defender ducks within 2 s of Blue's shots
@@ -5160,7 +5160,7 @@ def run_rf_pinned_in_open(c, timeout):
           f"furthest from his start {max((flat(r[1], rows['Pinned'][0][1]) for r in rows['Pinned'] if r[1]), default=0):.1f} m")
     c.ok(stretch <= 15.0 and moves >= 2, f"(2) pinned, he moves 2 m+ at least every 15 s ({moves} moves, longest {stretch:.1f} s)")
     # (3) alone and pinned ~30 s ⇒ the car 20 m off
-    car = (150, 114)
+    car = (140.5, 106)
     near = [r[0] for r in rows["Pinned"] if r[1] and flat(r[1], car) <= 3.0]
     c.ok(bool(near), f"(3) alone and pinned, he crawls to the car 20 m off (first within 3 m at {near[0] if near else None})")
     # (4) the aim — each shooter's aim height over the other's feet, his hits, and what his misses crossed

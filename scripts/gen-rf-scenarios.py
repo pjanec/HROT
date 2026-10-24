@@ -112,27 +112,28 @@ s.write("rf-house-obstacle", "bt-range",
 
 # ── S4 rf-wall-hugger: three window defenders, one attacker who fires then hugs the wall ─────────────────────
 s = Scn("rf-wall-hugger", "a1020004")
-rq = s.squad("Red Squad", "Hostile", (130, 165, 0), 10450, sop={"Name": "BasicSquadSop", "Params": "{}", "Origin": "Superior"})
-for i, (x, y) in enumerate(((127, 163), (130, 163), (133, 163))):
+# ⭐ OBJ is x 115..125 × y 153..161, front north (Platoon Attack/Defend §12.1 as built) — 📐 the first cut placed this cast ~10 m east of it
+rq = s.squad("Red Squad", "Hostile", (120, 157, 0), 10450, sop={"Name": "BasicSquadSop", "Params": "{}", "Origin": "Superior"})
+for i, (x, y) in enumerate(((117, 155), (120, 155), (123, 155))):
     s.man(f"Red {i + 1}", "Hostile", (x, y, 0), 180, tkb=2002, commander=rq,
           designation="SquadLeader" if i == 0 else "Wingman", nid=10451 + i)
-s.ents[rq]["Behavior"] = {"Name": "SquadDefend", "Params": json.dumps({"Position": [130, 165, 0], "SearchRadius": 14, "Speed": 2}),
+s.ents[rq]["Behavior"] = {"Name": "SquadDefend", "Params": json.dumps({"Position": [120, 157, 0], "SearchRadius": 10, "Speed": 2}),
                           "Origin": "Superior"}
-s.man("Shooter", "Friend", (130, 130, 0), 0, tkb=2004, nid=10401,
-      behavior={"Name": "CombatPosture", "Params": json.dumps({"stay": True, "post": {"point": [130, 130, 0], "radius": 2}}),
+s.man("Shooter", "Friend", (120, 122, 0), 0, tkb=2004, nid=10401,
+      behavior={"Name": "CombatPosture", "Params": json.dumps({"stay": True, "post": {"point": [120, 122, 0], "radius": 2}}),
                 "Origin": "Superior"},
       sop={"Name": "InertSop", "Params": "{}", "Origin": "Superior"})
-hug = s.man("Hugger", "Friend", (130, 159.2, 0), 0, tkb=2004, nid=10402,
+hug = s.man("Hugger", "Friend", (119, 152.3, 0), 0, tkb=2004, nid=10402,
             behavior={"Name": "HoldStance", "Params": json.dumps({"stance": "Crouched"}), "Origin": "Superior"},
             sop={"Name": "InertSop", "Params": "{}", "Origin": "Superior"})
 for k, e in list(s.ents.items()):   # every defender saw the Hugger arrive under the wall
     if e.get("EntityInfo", {}).get("Name", "").startswith("Red "):
-        e["TargetMemory"] = {"Entries": [{"Entity": hug, "PosX": 130, "PosY": 159.2, "PosZ": 0, "Score": 500, "Tick": 0, "Modality": 1}]}
+        e["TargetMemory"] = {"Entries": [{"Entity": hug, "PosX": 119, "PosY": 152.3, "PosZ": 0, "Score": 500, "Tick": 0, "Modality": 1}]}
 s.write("rf-wall-hugger", "cqb-village",
         "What: AQ102 S4 (CE-2355) - on cqb-village, 'Red Squad' (Hostile, 'Red 1-3', default squad SOP) defends the OBJ house (house-3f, "
-        "footprint x 125-135 / y 161-169) with SquadDefend. 'Shooter' (Friend grenadier, immortal) stands in the open at (130,130) and fires "
+        "footprint x 115-125 / y 153-161, front north) with SquadDefend. 'Shooter' (Friend grenadier, immortal) stands in the open at (120,122) and fires "
         "at the windows (CombatPosture, stay); 'Hugger' (Friend grenadier, immortal, crouched, InertSop) is against the south wall at "
-        "(130,159.2) - every defender saw him get there (he is in their memory). Judge (90 s): (1) a defender shot at ducks within 2 s; (2) "
+        "(119,152.3), between the back door and the window - every defender saw him get there (he is in their memory). Judge (90 s): (1) a defender shot at ducks within 2 s; (2) "
         "ONE defender moves to an opening that sees the Hugger; (3) a grenade is dropped at the Hugger; (4) no defender's look follows the "
         "Hugger while he is out of that defender's sight. " + CHECK.format(sid="rf-wall-hugger"))
 
@@ -151,29 +152,30 @@ s.write("rf-grenade-reaction", "basic-desert",
 
 # ── S6 rf-pinned-in-open: a lone man pinned in the open, his squad down, a gunman at a ground-floor window ──────────
 s = Scn("rf-pinned-in-open", "a1020006")
-gq = s.squad("Red Window", "Hostile", (130, 165, 0), 10650)
+gq = s.squad("Red Window", "Hostile", (120, 157, 0), 10650)
 s.ents[gq]["Behavior"] = {"Name": "SquadDefend", "Origin": "Superior", "Params": json.dumps({
-    "Position": [130, 165, 0], "SearchRadius": 8, "Speed": 2,
-    # the south ground-floor window: OBJ is house-3f placed at (125,161) rotated 180°, so its local back wall (window at 5.5 m) faces
-    #   south at x 129.9-131.1 — 📐 the first post, 1.2 m back from it, saw out late and hit its own panel
-    "Posts": [{"point": [130.5, 161.5, 0], "watchTowards": [130.5, 112, 0], "window": True}]})}
-s.man("Gunman", "Hostile", (130.5, 161.6, 0), 180, tkb=2002, commander=gq, designation="SquadLeader", nid=10651)
-bq = s.squad("Blue Squad", "Friend", (130, 66, 0), 10600)
+    "Position": [120, 157, 0], "SearchRadius": 8, "Speed": 2,
+    # the south ground-floor window: OBJ is house-3f at (125,161) rotated 180° ⇒ x 115..125 × y 153..161; its local back wall (window at
+    #   5.5 m from the (10,8) end) is the south face at y 153, the window x ≈ 119.9-121.1 — 📐 the first two cuts put the post ~10 m east,
+    #   OUTSIDE the house, and its rounds stopped in OBJ's east wall
+    "Posts": [{"point": [120.5, 153.6, 0], "watchTowards": [120.5, 104, 0], "window": True}]})}
+s.man("Gunman", "Hostile", (120.5, 154.5, 0), 180, tkb=2002, commander=gq, designation="SquadLeader", nid=10651)
+bq = s.squad("Blue Squad", "Friend", (120.5, 100, 0), 10600)
 s.ents[bq]["Behavior"] = {"Name": "BoundingOverwatch", "Origin": "Superior",
-                          "Params": json.dumps({"Objective": [130, 150, 0], "BoundMetres": 30})}
-s.man("Pinned", "Friend", (130, 112, 0), 0, tkb=2002, commander=bq, designation="Wingman", nid=10601)
+                          "Params": json.dumps({"Objective": [120.5, 150, 0], "BoundMetres": 30})}
+s.man("Pinned", "Friend", (120.5, 104, 0), 0, tkb=2002, commander=bq, designation="Wingman", nid=10601)
 # his squad mates, already dead — 📐 the first cut had them incapacitated 92 m out: the Gunman never saw Pinned (the village houses in
 #   the way), so there was no fire, a lull, and the squad's casualty row sent Pinned to carry one 83 m: valid, but not the case
-for i, (x, y) in enumerate(((126, 110), (134, 110), (130, 106))):
+for i, (x, y) in enumerate(((116.5, 102), (124.5, 102), (120.5, 98))):
     g = s.man(f"Down {i + 1}", "Friend", (x, y, 0), 0, tkb=2002, health=100000, commander=bq,
               designation="SquadLeader" if i == 0 else "Wingman", nid=10602 + i)
     s.ents[g]["Health"] = {"Current": 0, "Max": 100000}
-s.car("Far Car", (150, 114, 0), heading=0, nid=10610)   # cover 20 m off: out of his 10 m crawl, inside a 30 m search
+s.car("Far Car", (140.5, 106, 0), heading=0, nid=10610)   # cover 20 m off: out of his 10 m crawl, inside a 30 m search
 s.write("rf-pinned-in-open", "cqb-village",
-        "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds a ground-floor window of the OBJ house "
-        "(house-3f at (125,161)) facing south; 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' "
-        "are dead beside him - out in the open south at (130,112), ~50 m from the window, the squad ordered to bound to the house; 'Far Car' at "
-        "(150,114) is the only cover, 20 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not "
+        "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds the south ground-floor window of the OBJ house "
+        "(house-3f, x 115-125 / y 153-161) at (120.5,153.6); 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' "
+        "are dead beside him - out in the open south at (120.5,104), ~50 m from the window, the squad ordered to bound to the house; 'Far Car' at "
+        "(140.5,106) is the only cover, 20 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not "
         "stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the car; "
         "(4) the aim: the Gunman's shots at a prone man are aimed at a prone chest (not over him) and Pinned's shots at the window reach "
         "the opening (not the wall under it) - printed per shooter (aim height, ends, crossings, hits). " + CHECK.format(sid="rf-pinned-in-open"))
