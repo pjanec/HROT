@@ -5159,10 +5159,9 @@ def run_rf_pinned_in_open(c, timeout):
     print(f"    Pinned: {moves} moves of 2 m+ while prone · longest stretch prone on one spot {stretch:.1f} s · "
           f"furthest from his start {max((flat(r[1], rows['Pinned'][0][1]) for r in rows['Pinned'] if r[1]), default=0):.1f} m")
     c.ok(stretch <= 15.0 and moves >= 2, f"(2) pinned, he moves 2 m+ at least every 15 s ({moves} moves, longest {stretch:.1f} s)")
-    # (3) alone and pinned ~30 s ⇒ the car 20 m off
-    car = (140.5, 106)
-    near = [r[0] for r in rows["Pinned"] if r[1] and flat(r[1], car) <= 3.0]
-    c.ok(bool(near), f"(3) alone and pinned, he crawls to the car 20 m off (first within 3 m at {near[0] if near else None})")
+    # (3) alone and pinned ~30 s ⇒ the wreck's south face ~18 m off (cqb-village's wreck x 108-113 × y 99-101; its cover points stand 1 m out)
+    near = [r[0] for r in rows["Pinned"] if r[1] and 106.5 <= r[1][0] <= 114.5 and 96.0 <= r[1][1] <= 99.5]
+    c.ok(bool(near), f"(3) alone and pinned, he crawls to the wreck's south face ~18 m off (first there at {near[0] if near else None})")
     # (4) the aim — each shooter's aim height over the other's feet, his hits, and what his misses crossed
     for n, other in (("Gunman", "Pinned"), ("Pinned", "Gunman")):
         feet = next((r[1] for r in rows[other] if r[1]), None)

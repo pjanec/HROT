@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "cqb-village",
-    "description": "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds the south ground-floor window of the OBJ house (house-3f, x 115-125 / y 153-161) at (120.5,153.6); 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' are dead beside him - out in the open south at (120.5,104), ~50 m from the window, the squad ordered to bound to the house; 'Far Car' at (140.5,106) is the only cover, 20 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the car; (4) the aim: the Gunman's shots at a prone man are aimed at a prone chest (not over him) and Pinned's shots at the window reach the opening (not the wall under it) - printed per shooter (aim height, ends, crossings, hits). Check: python3 scripts/utility-demo-check.py --launch rf-pinned-in-open. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
+    "description": "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds the south ground-floor window of the OBJ house (house-3f, x 115-125 / y 153-161) at (120.5,153.6); 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' are dead beside him - out in the open south at (125,112), ~42 m from the window, the squad ordered to bound to the house and his reactions STAY ON TASK (the platoon's order holds him on the bound); the wreck's south face (x 108-113, y 98) is the only cover that faces the window, ~18 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the wreck; (4) the aim: the Gunman's shots at a prone man are aimed at a prone chest (not over him) and Pinned's shots at the window reach the opening (not the wall under it) - printed per shooter (aim height, ends, crossings, hits). Check: python3 scripts/utility-demo-check.py --launch rf-pinned-in-open. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
   },
   "entities": {
     "a1020006-0000-4000-8000-000000000001": {
@@ -79,8 +79,8 @@
     "a1020006-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          120.5,
-          100,
+          125,
+          108,
           0
         ],
         "Rotation": [
@@ -109,8 +109,8 @@
     "a1020006-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          120.5,
-          104,
+          125,
+          112,
           0
         ],
         "Rotation": [
@@ -140,13 +140,19 @@
       "UnitSubordinate": {
         "CommanderGuid": "a1020006-0000-4000-8000-000000000003",
         "Designation": "Wingman"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
       }
     },
     "a1020006-0000-4000-8000-000000000005": {
       "SimTransform": {
         "Position": [
-          116.5,
-          102,
+          121,
+          110,
           0
         ],
         "Rotation": [
@@ -181,8 +187,8 @@
     "a1020006-0000-4000-8000-000000000006": {
       "SimTransform": {
         "Position": [
-          124.5,
-          102,
+          129,
+          110,
           0
         ],
         "Rotation": [
@@ -217,8 +223,8 @@
     "a1020006-0000-4000-8000-000000000007": {
       "SimTransform": {
         "Position": [
-          120.5,
-          98,
+          125,
+          108,
           0
         ],
         "Rotation": [
@@ -248,35 +254,6 @@
       "UnitSubordinate": {
         "CommanderGuid": "a1020006-0000-4000-8000-000000000003",
         "Designation": "Wingman"
-      }
-    },
-    "a1020006-0000-4000-8000-000000000008": {
-      "SimTransform": {
-        "Position": [
-          140.5,
-          106,
-          0
-        ],
-        "Rotation": [
-          0,
-          0,
-          0.7071068,
-          0.7071068
-        ]
-      },
-      "NetworkIdentity": {
-        "Value": 10610
-      },
-      "TkbIdentity": {
-        "TkbType": 8806
-      },
-      "EntityInfo": {
-        "Name": "Far Car"
-      },
-      "ObstacleShape": {
-        "Length": 4.5,
-        "Width": 1.8,
-        "Height": 1.5
       }
     }
   }

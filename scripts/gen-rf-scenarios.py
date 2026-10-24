@@ -160,22 +160,29 @@ s.ents[gq]["Behavior"] = {"Name": "SquadDefend", "Origin": "Superior", "Params":
     #   OUTSIDE the house, and its rounds stopped in OBJ's east wall
     "Posts": [{"point": [120.5, 153.6, 0], "watchTowards": [120.5, 104, 0], "window": True}]})}
 s.man("Gunman", "Hostile", (120.5, 154.5, 0), 180, tkb=2002, commander=gq, designation="SquadLeader", nid=10651)
-bq = s.squad("Blue Squad", "Friend", (120.5, 100, 0), 10600)
+bq = s.squad("Blue Squad", "Friend", (125, 108, 0), 10600)
 s.ents[bq]["Behavior"] = {"Name": "BoundingOverwatch", "Origin": "Superior",
                           "Params": json.dumps({"Objective": [120.5, 150, 0], "BoundMetres": 30})}
-s.man("Pinned", "Friend", (120.5, 104, 0), 0, tkb=2002, commander=bq, designation="Wingman", nid=10601)
+# ⭐ 📐 2026-10-24 — the second cut stood him at (120.5,104), 10 m from the WRECK (cqb-village x 108-113 × y 99-101, 1.5 m): his
+#   fight-from-cover found it (its search reaches 60 m) and he sat behind it out of sight — never pinned. Here the wreck's south face (the
+#   only cover point that faces the window) is ~18 m off: beyond the 10 m crawl, inside the 30 m search. ⭐ Reactions STAY ON TASK — the
+#   platoon's order holds him on his squad's bound (the user's case: a man under command whose mates are down), so it is the bound's move
+#   the under-fire reflex drops him off, not a reaction that runs him to cover
+p = s.man("Pinned", "Friend", (125, 112, 0), 0, tkb=2002, commander=bq, designation="Wingman", nid=10601)
+s.ents[p]["Roe"] = {"Fire": "FireAtWill", "Reactions": "StayOnTask", "SetBy": "Operator", "ForceLevel": "Lethal"}
 # his squad mates, already dead — 📐 the first cut had them incapacitated 92 m out: the Gunman never saw Pinned (the village houses in
-#   the way), so there was no fire, a lull, and the squad's casualty row sent Pinned to carry one 83 m: valid, but not the case
-for i, (x, y) in enumerate(((116.5, 102), (124.5, 102), (120.5, 98))):
+#   the way), so there was no fire, a lull, and the squad's casualty row sent Pinned to carry one 83 m: valid, but not the case.
+#   ⚠ authored dead (Health 0) — CE-2367: they fired ~200 rounds from where they lay until the death sweep
+for i, (x, y) in enumerate(((121, 110), (129, 110), (125, 108))):
     g = s.man(f"Down {i + 1}", "Friend", (x, y, 0), 0, tkb=2002, health=100000, commander=bq,
               designation="SquadLeader" if i == 0 else "Wingman", nid=10602 + i)
     s.ents[g]["Health"] = {"Current": 0, "Max": 100000}
-s.car("Far Car", (140.5, 106, 0), heading=0, nid=10610)   # cover 20 m off: out of his 10 m crawl, inside a 30 m search
 s.write("rf-pinned-in-open", "cqb-village",
         "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds the south ground-floor window of the OBJ house "
         "(house-3f, x 115-125 / y 153-161) at (120.5,153.6); 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' "
-        "are dead beside him - out in the open south at (120.5,104), ~50 m from the window, the squad ordered to bound to the house; 'Far Car' at "
-        "(140.5,106) is the only cover, 20 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not "
-        "stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the car; "
+        "are dead beside him - out in the open south at (125,112), ~42 m from the window, the squad ordered to bound to the house and his reactions "
+        "STAY ON TASK (the platoon's order holds him on the bound); the wreck's south face (x 108-113, y 98) is the only cover that faces the "
+        "window, ~18 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not "
+        "stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the wreck; "
         "(4) the aim: the Gunman's shots at a prone man are aimed at a prone chest (not over him) and Pinned's shots at the window reach "
         "the opening (not the wall under it) - printed per shooter (aim height, ends, crossings, hits). " + CHECK.format(sid="rf-pinned-in-open"))
