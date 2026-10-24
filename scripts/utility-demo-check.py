@@ -5122,6 +5122,67 @@ def run_rf_grenade_reaction(c, timeout):
         for e in rows_j[-14:]:
             print(f"      {json.dumps(e)[:220]}")
 
+def run_rf_pinned_in_open(c, timeout):
+    """⭐ AQ102 S6 (CE-2362) — the lone man pinned in the open by a gunman at a ground-floor window: does he move, and do both aim
+    where the other man is? 📄 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md §5."""
+    ids = ids_by_name()
+    if not c.ok(all(ids.get(n) for n in ("Pinned", "Gunman")), "Pinned and the Gunman are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _rf_sample(["Pinned", "Gunman"], ids, 120, every=0.5)
+    shots = (data(call("GET", "/combat/shots?last=1024")) or {}).get("shots") or []
+    pin, gun = ids["Pinned"], ids["Gunman"]
+    by = {n: [x for x in shots if x.get("shooter") == ids[n]] for n in ("Pinned", "Gunman")}
+    # (1) down and firing back
+    first_gun = min((x.get("firedAt") or 0 for x in by["Gunman"]), default=None)
+    prone_at = next((r[0] for r in rows["Pinned"] if r[2] == "Prone"), None)
+    print(f"    the Gunman fired {len(by['Gunman'])} rounds (first at {first_gun}), Pinned {len(by['Pinned'])} · Pinned first prone at {prone_at}")
+    c.ok(prone_at is not None and len(by["Pinned"]) > 0, "(1) Pinned drops prone under fire and returns fire")
+    # (2) pinned, he does not stay on one spot: the longest stretch prone without a 2 m move
+    stretch, start, moves, last_side = 0.0, None, 0, 0
+    for t, p, stance, *_ in rows["Pinned"]:
+        if stance != "Prone" or not p:
+            start = None
+            continue
+        if start is None:
+            start = (t, p)
+            continue
+        if flat(p, start[1]) >= 2.0:
+            moves += 1
+            start = (t, p)
+            continue
+        stretch = max(stretch, t - start[0])
+    print(f"    Pinned: {moves} moves of 2 m+ while prone · longest stretch prone on one spot {stretch:.1f} s · "
+          f"furthest from his start {max((flat(r[1], rows['Pinned'][0][1]) for r in rows['Pinned'] if r[1]), default=0):.1f} m")
+    c.ok(stretch <= 15.0 and moves >= 2, f"(2) pinned, he moves 2 m+ at least every 15 s ({moves} moves, longest {stretch:.1f} s)")
+    # (3) alone and pinned ~30 s ⇒ the car 20 m off
+    car = (150, 72)
+    near = [r[0] for r in rows["Pinned"] if r[1] and flat(r[1], car) <= 3.0]
+    c.ok(bool(near), f"(3) alone and pinned, he crawls to the car 20 m off (first within 3 m at {near[0] if near else None})")
+    # (4) the aim — each shooter's aim height over the other's feet, his hits, and what his misses crossed
+    for n, other in (("Gunman", "Pinned"), ("Pinned", "Gunman")):
+        feet = next((r[1] for r in rows[other] if r[1]), None)
+        rel = sorted(round(x["aim"][2] - feet[2], 2) for x in by[n] if x.get("aim") and feet)
+        hits = sum(1 for x in by[n] if x.get("outcome") == "Hit" and x.get("hit") == ids[other])
+        crossed = {}
+        for x in by[n]:
+            if x.get("outcome") == "Hit":
+                continue
+            for k in (x.get("crossings") or [])[:1]:
+                key = f"{k.get('kind')}:{k.get('label')}"
+                crossed[key] = crossed.get(key, 0) + 1
+        mid = rel[len(rel) // 2] if rel else None
+        print(f"    {n} → {other}: {len(by[n])} rounds, {hits} hits · aim height over his feet: median {mid} (min {rel[0] if rel else None}, "
+              f"max {rel[-1] if rel else None}) · first thing a miss crossed: {dict(sorted(crossed.items(), key=lambda kv: -kv[1])[:4])}")
+        if n == "Gunman" and prone_at is not None:
+            prone_rel = [round(x["aim"][2] - feet[2], 2) for x in by[n] if x.get("aim") and (x.get("firedAt") or 0) >= prone_at + 1]
+            pm = sorted(prone_rel)[len(prone_rel) // 2] if prone_rel else None
+            c.ok(pm is not None and pm <= 0.6, f"(4) the Gunman aims at a PRONE man's chest, not over him (median {pm} m over his feet)")
+        if n == "Pinned":
+            c.ok(mid is not None and 1.0 <= mid <= 1.9, f"(4) Pinned aims through the window at the man, not at the wall under it (median {mid} m)")
+    print(f"    Pinned tasks {sorted({r[4] for r in rows['Pinned'] if r[4]}, key=str)} · Gunman tasks {sorted({r[4] for r in rows['Gunman'] if r[4]}, key=str)}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -5194,7 +5255,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "df-civilian-ordered": run_df_civilian_ordered,
              # ⭐ AQ102 §5 (CE-2355) — responsive fighting reflexes, written first as a baseline
              "rf-car-duel": run_rf_car_duel, "rf-car-squads": run_rf_car_squads, "rf-house-obstacle": run_rf_house_obstacle,
-             "rf-wall-hugger": run_rf_wall_hugger, "rf-grenade-reaction": run_rf_grenade_reaction,
+             "rf-wall-hugger": run_rf_wall_hugger, "rf-grenade-reaction": run_rf_grenade_reaction, "rf-pinned-in-open": run_rf_pinned_in_open,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)

@@ -310,3 +310,22 @@ repeats, Blue 1 burst.
 `SquadManeuverTests.CE2358_BasicSquadSop_UnderALivePlatoon_ASquadContact_LeavesTheTaskToThePlatoon` + `NedTkbBuilderCombatTests.CE2262_…`
 (the TKB default; mutants 2/2) · `SquadManeuverTests.CE2359_SquadDefend_AKnownEnemyNobodySees_IsHuntedByOneMan_FromAnyOpening_ThenHeGoesBack`
 (mutants 4/4).
+
+## 9. Round 2 — after the live results *(✅ approved 2026-10-24, R-2073)*
+
+🔒 **User, `2026-10-24`:** *"maybe that not fighting and keep hiding is a perfectly valid outcome of such a duel if both sides are equal.
+I think to make it finish, one of the sides would need to be handicapped somehow, like having lower skills or morale or bravery. But even if
+equal, they should still be trying to peek out of their cover few times at irregular interval in the direction where they have seen the
+enemy."* · on the attackers' grenades: *"there need to be some condition not to do that if the mission is to clear the houses from
+terrorists but saving all the civilians"* · then: *"Leans approved"* — and for the lone pinned man *"I suggest to create a new one
+specifically for that case"*.
+
+| # | ✅ lean | tracker |
+|---|---|---|
+| **R2-1** | S1 between EQUALS may end in a stalemate: its judge becomes "each peeks toward the remembered spot at least every ~10 s, from alternating corners, at irregular intervals"; a handicapped variant **S1b** (one side militia, low nerve) must RESOLVE. E stays the regular's lost-contact move | [CE-2364](Blueprint_Issues_Tracker.md) |
+| **R2-2** | stress is [DESIGN_Temperament_And_Stress](../DESIGN_Temperament_And_Stress.md) (R-2034, approved, unbuilt: CE-2269…CE-2272) as written, **plus a FIDGET**: stress between ~0.4 × nerve and nerve ⇒ at irregular moments a 1–2 m shift inside his cover (sometimes exposing him); at nerve, TS-6's break — to ground, no peeks — until calmed | [CE-2365](Blueprint_Issues_Tracker.md) |
+| **R2-3** | the man PINNED in the open: after a seeded 6–12 s down with the fire going on, a 2–4 m crawl sideways (perpendicular to the shooter, alternating), firing from each spot; pinned 30 s with no friend within 30 m ⇒ the cover search widens 10 → 30 m. Scenario **S6** `rf-pinned-in-open` (the user's case: squad down, a gunman at a ground-floor window, both also judged on WHERE they aim) | [CE-2362](Blueprint_Issues_Tracker.md), [CE-2363](Blueprint_Issues_Tracker.md) |
+| **R2-4** | an attacker's grenade: never a frag with a KNOWN civilian in its lethal radius (the hidden-target throw too); through a door / window a frag only when **HighIntensity** is ordered and no civilian is known inside (`GrenadeCheck.Choose`), else a stun if carried, else none; no intensity ordered = **Precision** ⇒ a "save the civilians" mission throws stuns only | [CE-2360](Blueprint_Issues_Tracker.md) I-4 |
+| **R2-5** | `WindowDuel` retires into the standard behaviours later: its scenario authors a window post under the ordinary `CombatPosture` (B already flies a posted window man through PeekAndFire with WindowDuel's shape) | [CE-2366](Blueprint_Issues_Tracker.md) |
+
+⭐ **Order:** R2-3 (S6 first, as a measured baseline) → R2-4 → R2-2 → R2-1 (S1 judge + S1b) → R2-5.

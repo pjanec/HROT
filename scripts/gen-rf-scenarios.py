@@ -148,3 +148,28 @@ s.write("rf-grenade-reaction", "basic-desert",
         "'Blue 1-4' (Friend riflemen, no orders, immortal) standing 2 m apart and facing him. Judge: (1) every Blue man who sees or hears it "
         "either leaves its lethal radius before the burst or is prone when it bursts; (2) one man with enough fuse left picks it up and "
         "throws it back. " + CHECK.format(sid="rf-grenade-reaction"))
+
+# ── S6 rf-pinned-in-open: a lone man pinned in the open, his squad down, a gunman at a ground-floor window ──────────
+s = Scn("rf-pinned-in-open", "a1020006")
+gq = s.squad("Red Window", "Hostile", (130, 165, 0), 10650)
+s.ents[gq]["Behavior"] = {"Name": "SquadDefend", "Origin": "Superior", "Params": json.dumps({
+    "Position": [130, 165, 0], "SearchRadius": 8, "Speed": 2,
+    "Posts": [{"point": [130, 162.2, 0], "watchTowards": [130, 70, 0], "window": True}]})}
+s.man("Gunman", "Hostile", (130, 163, 0), 180, tkb=2002, commander=gq, designation="SquadLeader", nid=10651)
+bq = s.squad("Blue Squad", "Friend", (130, 66, 0), 10600)
+s.ents[bq]["Behavior"] = {"Name": "BoundingOverwatch", "Origin": "Superior",
+                          "Params": json.dumps({"Objective": [130, 150, 0], "BoundMetres": 30})}
+s.man("Pinned", "Friend", (130, 70, 0), 0, tkb=2002, commander=bq, designation="Wingman", nid=10601)
+for i, (x, y) in enumerate(((126, 68), (134, 68), (130, 64))):   # his squad mates, already down (incapacitated)
+    g = s.man(f"Down {i + 1}", "Friend", (x, y, 0), 0, tkb=2002, health=100000, commander=bq,
+              designation="SquadLeader" if i == 0 else "Wingman", nid=10602 + i)
+    s.ents[g]["Health"] = {"Current": 10000, "Max": 100000}
+s.car("Far Car", (150, 72, 0), heading=0, nid=10610)   # cover 20 m off: out of his 10 m crawl, inside a 30 m search
+s.write("rf-pinned-in-open", "cqb-village",
+        "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds a ground-floor window of the OBJ house "
+        "(house-3f at (125,161)) facing south; 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' "
+        "are incapacitated beside him - out in the open ~92 m south at (130,70), the squad ordered to bound to the house; 'Far Car' at "
+        "(150,72) is the only cover, 20 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not "
+        "stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the car; "
+        "(4) the aim: the Gunman's shots at a prone man are aimed at a prone chest (not over him) and Pinned's shots at the window reach "
+        "the opening (not the wall under it) - printed per shooter (aim height, ends, crossings, hits). " + CHECK.format(sid="rf-pinned-in-open"))
