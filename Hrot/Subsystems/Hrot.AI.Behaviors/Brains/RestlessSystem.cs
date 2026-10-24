@@ -249,9 +249,20 @@ namespace Hrot.AI.Behaviors.Brains
             r.GestureUntil = now + Seeded(self, 0x236C, now, GestureMinSeconds, GestureMaxSeconds);
         }
 
+        /// <summary>⭐ AQ103 I — the tasks of a man who is truly IDLE or on a boring wait (🔒 user: <i>"really idle or waiting in some boring
+        /// job"</i>): none, the idle choice or an ordered idle, a hold, a sentry. ⛔ Not a protester resting between his gestures, nor any
+        /// other play that is merely still for a moment.</summary>
+        private static readonly int[] IdleTasks =
+        {
+            0, BehaviorHash.FromName(BehaviorNames.Idle), BehaviorHash.FromName(BehaviorNames.PersonHold),
+            BehaviorHash.FromName(BehaviorNames.HoldStance), BehaviorHash.FromName("Sentry"),
+        };
+
         /// <summary>Idle and calm enough for an idle gesture (<see cref="IdleGesture"/>).</summary>
         public static bool Calm(EntityRepository world, Entity self, double now)
         {
+            if (!world.HasComponent<BehaviorState>(self)
+                || Array.IndexOf(IdleTasks, world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash) < 0) return false;
             var hold = RestlessHolds.Holds(world, self);
             if (hold != RestlessHold.None && hold != RestlessHold.OrderedToStay) return false;
             if (Stance(world, self) == StanceId.Prone) return false;

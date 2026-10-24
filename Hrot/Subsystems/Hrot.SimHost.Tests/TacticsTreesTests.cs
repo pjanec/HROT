@@ -1562,6 +1562,12 @@ namespace Hrot.SimHost.Tests
             IdleAt(w, t + 1.7);
             Assert.Equal(Fdp.Toolkit.Combat.GestureKind.None, Fdp.Toolkit.Combat.Gestures.Of(w.Repo, w.Unit));
 
+            // ⭐ a man merely STILL inside another play (a protester resting between his fists) is not idle: no idle gesture
+            var busy = new World();
+            Idler(busy, behaviour: BehaviorNames.CombatPosture);
+            for (double s = 0; s < 90.0; s += 0.5) IdleAt(busy, s);
+            Assert.Equal(Fdp.Toolkit.Combat.GestureKind.None, Fdp.Toolkit.Combat.Gestures.Of(busy.Repo, busy.Unit));
+
             var act = new World();
             Idler(act);
             Fdp.Toolkit.Combat.Gestures.Set(act.Repo, act.Unit, Fdp.Toolkit.Combat.GestureKind.HandsUp);
