@@ -195,7 +195,11 @@ for i, (x, y) in enumerate(((290, 300), (294, 300), (298, 300), (302, 300))):
 # ⭐ a WATCHMAN: the squad's Hold / Watch man (CombatPosture told to stay, watching east). ⛔ The first cut ordered the library "Sentry",
 #   whose tree is "a dangerous contact within range, then wait 15 s" - with no threat it ENDS at once and he is back on his idle choice
 s.man("Watchman", "Friend", (310, 300, 0), 90, tkb=2002, nid=10711,
-      behavior={"Name": "CombatPosture", "Params": json.dumps({"stay": True, "watchTowards": [400, 300, 0]}), "Origin": "Superior"})
+      behavior={"Name": "CombatPosture", "Origin": "Superior", "Params": json.dumps({
+          # the shape pc-urban-ambush's posted men use: advance onto his own spot, stay, a post; ⛔ the second cut had no objective and
+          #   no post — with nothing to fight, the posture's advance (CE-2105) walked him 256 m off
+          "Advance": {"Objective": [310, 300, 0], "ArrivalRadius": 1}, "Stay": True, "Post": {"Point": [310, 300, 0], "Radius": 2.0},
+          "watchTowards": [400, 300, 0]})})
 s.man("Held", "Friend", (314, 300, 0), 0, tkb=2002, nid=10712, behavior={"Name": "Idle", "Params": "{}", "Origin": "Superior"})
 g = s.man("Down", "Friend", (318, 300, 0), 0, tkb=2002, health=100, nid=10713)
 s.ents[g]["Health"] = {"Current": 20, "Max": 100}   # incapacitated (under 30 %)

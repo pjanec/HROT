@@ -171,8 +171,8 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"stay\": true, \"watchTowards\": [400, 300, 0]}",
-        "Origin": "Superior"
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [310, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [310, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [400, 300, 0]}"
       }
     },
     "a1030001-0000-4000-8000-000000000006": {

@@ -189,3 +189,8 @@ As §3, with these differences (each measured during the build):
 Rails (`TacticsTreesTests`, red-proved by mutants): `CE2368_AnIdleSoldier_StepsALittle_NowAndThen_AndNeverStraysPast3m` ·
 `CE2368_TheStayStillRule_EachHoldKeepsHimStill_TheDefaultDoesNot` (7 rows) · `CE2368_LyingHeCrawls_UnderFireHeScootsSquareToTheShooter` ·
 `CE2368_ARelaxedIdleMan_ShowsAnIdleGesture_AThreatClearsIt_AnActIsNeverTouched` · `CE2368_MovedByAnythingElse_HeSettlesAnew`.
+
+| live, 2026-10-24 | measured |
+|---|---|
+| ✅ `il-idle-life` PASS | Idler 1–4: 5–8 shifts each in 90 s, furthest 1.6–3.0 m from where they settled; the Watchman (posted, told to stay), Held and Down: 0 m; idle gestures on 7 of 7 relaxed men (smoking, shifting weight, a stretch) — the Watchman and the waiting civilian included; Down none |
+| ⚠ found by the live runs, not the rails | ① a CIVILIAN beside armed soldiers was never "calm" — to a neutral they read as hostiles seen; ⇒ a civilian is calm by his own fear (`CivilianMind.FearOf` < 0.2). ② the library `Sentry` tree ("a dangerous contact within range, then wait 15 s") ENDS at once with no threat — a man ordered it is back on his idle choice; a watchman is a posted `CombatPosture` (advance onto his spot, `Stay`, a `Post`) — and any order to stay counts as waiting for the gesture. ③ the in-process scenario suite: `bc-house-clear` now takes 4 m (was 2.5 m — CE-2363's scoot), `CE2240` 3 m 18 s — slow, not hung; `CE3094` is red at its base too (`CE-2156`) |
