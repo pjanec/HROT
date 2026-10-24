@@ -20,6 +20,16 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-2239</c> part 3 (B2, §5k EL-3) — a security-force WARNING: the audible cue of the escalation ladder ("drop
         /// it!"), shown for a couple of seconds by the warner.</summary>
         Warning = 6,
+        /// <summary>⭐ <c>CE-2368</c> (AQ103 I, R-2074) — IDLE: a relaxed man smoking. ⭐ The idle kinds (from <see cref="IdleSmoking"/> on) are
+        /// not an act of his behaviour but his MOOD shown — written by <c>RestlessSystem</c> while he is idle and calm, for the IG to play an
+        /// idle animation; any act or threat replaces them at once.</summary>
+        IdleSmoking = 7,
+        /// <summary>⭐ <c>CE-2368</c> — IDLE: stepping from one leg to the other.</summary>
+        IdleShiftWeight = 8,
+        /// <summary>⭐ <c>CE-2368</c> — IDLE: a stretch (arms, back, neck).</summary>
+        IdleStretch = 9,
+        /// <summary>⭐ <c>CE-2368</c> — IDLE: looking about, unhurried (hands on the weapon or in the pockets).</summary>
+        IdleLookAbout = 10,
     }
 
     /// <summary>
@@ -51,6 +61,9 @@ namespace Fdp.Toolkit.Combat
             repo.GetComponentRW<Gesture>(unit).Kind = kind;
             return true;
         }
+
+        /// <summary>⭐ <c>CE-2368</c> — <paramref name="kind"/> is an IDLE mood (smoking, shifting weight…), not an act of his behaviour.</summary>
+        public static bool IsIdle(GestureKind kind) => kind >= GestureKind.IdleSmoking && kind <= GestureKind.IdleLookAbout;
 
         /// <summary>The unit's gesture on this node (the owner's or the replicated one); None when it has none.</summary>
         public static GestureKind Of(ISimulationView view, Entity unit)

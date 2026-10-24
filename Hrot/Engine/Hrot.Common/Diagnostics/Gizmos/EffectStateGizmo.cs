@@ -62,6 +62,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             GestureKind.None => null,
             GestureKind.HandsUp => "HANDS UP",
             GestureKind.Warning => "WARNING",   // the police warning (behaviors' escalation ladder) — not a protest
+            _ when Gestures.IsIdle(kind) => null,   // ⭐ CE-2368 (behaviors) — an idle mood (AQ103 I) is no act to label
             _ => "PROTEST",
         };
     }

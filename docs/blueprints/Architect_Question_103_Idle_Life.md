@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-24
-build-state: READY-TO-BUILD — APPROVED 2026-10-24 (R-2074), with H and I added by the user
-current-answer: §6 the answers (approved, R-2074) · §4 the sub-questions A–I · §3 the design
+build-state: BUILDING — steps 1, 2 and 3b BUILT 2026-10-24 (§7); 3 (in cover), 3c (the nervous head, with TS-B) and 4 (the demo) to come
+current-answer: §7 as built · §6 the answers (approved, R-2074) · §4 the sub-questions A–I · §3 the design
 stale-below: nothing
 related-designs:
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — OWNS R2-2 (the stress fidget, CE-2365) and R2-3 (the pinned scoot, CE-2363); this question folds the fidget into one restlessness reflex
@@ -170,3 +170,22 @@ done."*
 
 ⇒ ✅ **APPROVED — A–G as leaned (R-2074)**, the stress fidget for people only (F already left vehicles out), and two rows ADDED by the user:
 **H** (a nervous man's quick, jerky head) and **I** (a relaxed man's idle animation through a flag the IG plays — civilians too).
+
+## 7. As built *(2026-10-24, behaviors — steps 1, 2 and 3b)*
+
+As §3, with these differences (each measured during the build):
+
+| deviation | why |
+|---|---|
+| ① `Restless` lives in FDP Toolkits (`Behavior/Components`, id **420**, behaviors' block, measured free on backend / ui / coordinator) | beside `UnderFireMove`, registered with it (`CognitiveComponentRegistry`) |
+| ② a person = an entity with a `StanceIntent` AND a `BehaviorState` (a brain, not a bare body) | vehicles carry no stance ⇒ F holds by construction |
+| ③ `RestlessHolds` reads a posture's `stay` / `post` from the running task's start record (`BehaviorStartRecord.JsonParams`) | no component carries them; the JSON is read only when a shift is due (every 8–20 s), never per frame |
+| ④ `FightFromCover` is held (`FightingFromCover`) until step 3 | its peeks and hides already move him; the in-cover shift is step 3 |
+| ⑤ the weapon-up hold yields for a man lying UNDER FIRE | R2-3: the pinned man scoots firing (`Holds(calm: false)`) |
+| ⑥ a `Sentry` is an ORDER TO STAY (no shift; B②), not a hidden man — so, bored, he may show an idle gesture | 🔒 the user named *"waiting in some boring job like patrolling"*; ⛔ first cut held him as hidden-on-purpose, which barred the gesture too |
+| ⑦ idle gestures (I): four `GestureKind`s 7–10 on the existing gesture channel; written only when his gesture is None or idle; calm = not prone, no round near him for 30 s, no enemy SEEN for 10 s (`CoverFightConditions.SeenWithin`), held by nothing but an order to stay; judged at most once a second | the one channel the IG already reads (`dtGesture`); a behaviour's act always wins |
+| ⑧ cross-lane (ui's files, said): `EntityBodyLayer3D.Gestured` draws an idle kind as the plain figure; `EffectStateGizmo.GestureWord` gives it no label | ⛔ cast through, an idle kind fell to the figure's default and drew the THROW's wind-up, and the gizmo read "PROTEST". The drawing itself is ui's: [handoff](batches/HANDOFF_Behaviors_To_Ui_Idle_Gestures.md) |
+
+Rails (`TacticsTreesTests`, red-proved by mutants): `CE2368_AnIdleSoldier_StepsALittle_NowAndThen_AndNeverStraysPast3m` ·
+`CE2368_TheStayStillRule_EachHoldKeepsHimStill_TheDefaultDoesNot` (7 rows) · `CE2368_LyingHeCrawls_UnderFireHeScootsSquareToTheShooter` ·
+`CE2368_ARelaxedIdleMan_ShowsAnIdleGesture_AThreatClearsIt_AnActIsNeverTouched` · `CE2368_MovedByAnythingElse_HeSettlesAnew`.

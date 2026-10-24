@@ -187,3 +187,26 @@ s.write("rf-pinned-in-open", "cqb-village",
         "stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the wreck; "
         "(4) the aim: the Gunman's shots at a prone man are aimed at a prone chest (not over him) and Pinned's shots at the window reach "
         "the opening (not the wall under it) - printed per shooter (aim height, ends, crossings, hits). " + CHECK.format(sid="rf-pinned-in-open"))
+
+# ── AQ103 il-idle-life: nobody able stands perfectly still (CE-2368, R-2074) ────────────────────────────────────────
+s = Scn("il-idle-life", "a1030001")
+for i, (x, y) in enumerate(((290, 300), (294, 300), (298, 300), (302, 300))):
+    s.man(f"Idler {i + 1}", "Friend", (x, y, 0), 0, tkb=2002, nid=10701 + i)   # no orders: the SOP's own idle choice
+s.man("Sentry", "Friend", (310, 300, 0), 0, tkb=2002, nid=10711,
+      behavior={"Name": "Sentry", "Params": "{}", "Origin": "Superior"})
+s.man("Held", "Friend", (314, 300, 0), 0, tkb=2002, nid=10712, behavior={"Name": "Idle", "Params": "{}", "Origin": "Superior"})
+g = s.man("Down", "Friend", (318, 300, 0), 0, tkb=2002, health=100, nid=10713)
+s.ents[g]["Health"] = {"Current": 20, "Max": 100}   # incapacitated (under 30 %)
+c = s.man("Waiting civilian", "Neutral", (290, 310, 0), 180, tkb=1101, health=100, nid=10721,
+          behavior={"Name": "Idle", "Params": "{}", "Origin": "Superior"})
+s.ents[c].pop("TargetMemory", None)
+c = s.man("Townsman", "Neutral", (300, 312, 0), 180, tkb=1101, health=100, nid=10722)   # his own routine (the civilian HSM)
+s.ents[c].pop("TargetMemory", None)
+s.write("il-idle-life", "basic-desert",
+        "What: AQ103 (CE-2368, R-2074) - idle life on open basic-desert, nobody hostile: 'Idler 1-4' (Friend riflemen, NO orders - the SOP's own "
+        "idle choice), a 'Sentry' (ordered Sentry), 'Held' (ordered to hold: Idle from a superior), 'Down' (incapacitated, 20 %), a 'Waiting "
+        "civilian' (ordered to stand) and a 'Townsman' (his own routine). Judge (90 s): (1) each Idler shifts at least twice and never strays "
+        "past 3 m from where he settled; (2) the Sentry, Held and Down never shift (< 0.3 m); (3) idle gestures (smoking, shifting weight, a "
+        "stretch, looking about - the flag the IG animates) show on at least half of the Idlers, the Sentry, Held and the waiting civilian; "
+        "(4) Down shows none. Check: python3 scripts/utility-demo-check.py --launch il-idle-life. "
+        "📄 docs/blueprints/Architect_Question_103_Idle_Life.md")

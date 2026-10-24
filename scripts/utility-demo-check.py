@@ -5099,9 +5099,13 @@ def run_rf_grenade_reaction(c, timeout):
     safe = 0
     for n in blues:
         e = effect_on(d, ids[n])
-        far = e is None
+        # ⭐ CE-2360 — "out of reach" is what the reflex is FOR: not taken down. 📐 2026-10-24: the burst's effect list reaches the M67's
+        #   54 m HAZARD radius (where a man expects < 1), so a man 18 m off read as "in reach"; he is safe under 70 damage
+        #   (GrenadeRules.DownDamage — a standard man goes down below 30 of 100)
+        far = e is None or (e.get("totalDamage") or 0) < 70
         prone = e is not None and e.get("stance") == "Prone"
-        print(f"    {n}: {'out of reach' if far else e.get('stance')} · exposure {e and e.get('fragmentExposure')} · moved "
+        print(f"    {n}: {'out of reach' if far else e.get('stance')} · {e and round(e.get('distance') or 0, 1)} m · damage "
+              f"{e and round(e.get('totalDamage') or 0, 1)} · exposure {e and e.get('fragmentExposure')} · moved "
               f"{max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0):.1f} m")
         safe += 1 if (far or prone) else 0
         # ⭐ CE-2360 — his task timeline: did the reflex start, and when did it hand the task back?
@@ -5111,7 +5115,7 @@ def run_rf_grenade_reaction(c, timeout):
                 last = (task, stance)
                 line.append(f"t={t:.1f} {task or '-'}/{stance}")
         print(f"      {' · '.join(line[:10])}")
-    c.ok(safe == len(blues), f"(1) every Blue man is out of reach or prone at the burst ({safe}/{len(blues)})")
+    c.ok(safe == len(blues), f"(1) every Blue man is out of reach (under 70 damage) or prone at the burst ({safe}/{len(blues)})")
     c.ok(d.get("shooter") != ids["Thrower"] or flat(b, (280, 365)) < flat(b, (280, 380)),
          "(2) one man throws it back (the burst is the Blue man's, or nearer the Thrower)")
     # ⭐ CE-2360 — what each brain says it did (task starts / ends, their cause)
@@ -5235,7 +5239,63 @@ def run_rf_pinned_in_open(c, timeout):
     print(f"    Pinned tasks {sorted({r[4] for r in rows['Pinned'] if r[4]}, key=str)} · Gunman tasks {sorted({r[4] for r in rows['Gunman'] if r[4]}, key=str)}")
 
 
-SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
+
+# ── AQ103 (CE-2368, R-2074) — idle life: nobody able stands perfectly still ─────────────────────────────────────────────
+
+_IDLE_GESTURES = {"IdleSmoking": 7, "IdleShiftWeight": 8, "IdleStretch": 9, "IdleLookAbout": 10}
+
+
+def _gesture_of(nid):
+    g = ((comps_on("CGF", nid) or {}).get("Gesture") or {}).get("Kind")
+    if isinstance(g, int):
+        return next((k for k, v in _IDLE_GESTURES.items() if v == g), str(g))
+    return g
+
+
+def run_il_idle_life(c, timeout):
+    """⭐ AQ103 — idle men shift a little (≤ 3 m from where they settled); the held, the sentry and the incapacitated do not; relaxed men show
+    the idle gestures the IG animates. 📄 docs/blueprints/Architect_Question_103_Idle_Life.md."""
+    ids = ids_by_name()
+    idlers = [f"Idler {i}" for i in range(1, 5)]
+    still = ["Sentry", "Held", "Down"]
+    gesturers = idlers + ["Sentry", "Held", "Waiting civilian"]
+    names = idlers + still + ["Waiting civilian", "Townsman"]
+    if not c.ok(all(ids.get(n) for n in names), "the idlers, the held men and the civilians are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    path = {n: [] for n in names}
+    seen = {n: set() for n in names}
+    end = (sim_time() or 0) + 90
+    while (sim_time() or 0) < end:
+        for n in names:
+            p = position(ids[n])
+            if p: path[n].append(p)
+            g = _gesture_of(ids[n])
+            if g and g != "None": seen[n].add(g)
+        time.sleep(1.0)
+    def shifts(pts):
+        k, last = 0, pts[0] if pts else None
+        for p in pts[1:]:
+            if flat(p, last) >= 0.3:
+                k += 1
+            last = p
+        return k
+    for n in names:
+        pts = path[n]
+        far = max((flat(p, pts[0]) for p in pts), default=0.0)
+        print(f"    {n:<17} shifts {shifts(pts):>2} · furthest {far:4.1f} m · gestures {sorted(seen[n]) or '-'}")
+    for n in idlers:
+        pts = path[n]
+        far = max((flat(p, pts[0]) for p in pts), default=0.0)
+        c.ok(shifts(pts) >= 2 and far <= 3.2, f"(1) {n} shifts a little ({shifts(pts)} times) and stays within 3 m ({far:.1f} m)")
+    for n in still:
+        far = max((flat(p, path[n][0]) for p in path[n]), default=0.0)
+        c.ok(far < 0.3, f"(2) {n} does not shift ({far:.2f} m)")
+    showed = [n for n in gesturers if any(g in _IDLE_GESTURES for g in seen[n])]
+    c.ok(len(showed) * 2 >= len(gesturers), f"(3) idle gestures on at least half the relaxed men ({len(showed)}/{len(gesturers)}: {showed})")
+    c.ok(not any(g in _IDLE_GESTURES for g in seen["Down"]), "(4) the incapacitated man shows none")
+
+SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
              # ⭐ CE-2235 CIV-1 — the civilian HSM: routine, alarm, casualty (Civilians §5c, §5d)
