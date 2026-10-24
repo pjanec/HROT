@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-24 (§7d — U19 the idle gestures, CE-1308, behaviors' CE-2368 handoff) · 2026-10-21 (§7c — U8 the ExCon "Concealed" layer, CE-1169; the overnight items: U7 held items, U9 aim line, U11 police look, U12 toy, U13 band — CE-1169/1170/1172/1173/1174) · 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
 build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
-current-answer: §7e U20 the mind-state bar (newest) · §7d U19 the idle gestures · §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
+current-answer: §7e U20 the mind-state bar (newest, BUILT) · §7d U19 the idle gestures · §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -361,7 +361,7 @@ starting and ending at his own time (never in step); a stretch came later. Follo
 hand went to his face and down again on the smoking cycle, the rifle staying in his other hand. ⚠ A threat stopping them was not staged —
 the drawing reads `Gesture` every frame, so it stops the frame `RestlessSystem` clears it (behaviors' live run covers that half).
 
-### 7e. U20 — the MIND-STATE bar: a soldier's stress (with his breaking point), a civilian's fear *(`CE-1309`, ui, `2026-10-24`)* — build-state: READY-TO-BUILD
+### 7e. U20 — the MIND-STATE bar: a soldier's stress (with his breaking point), a civilian's fear *(`CE-1309`, ui, `2026-10-24`)* — build-state: BUILT
 
 🔒 User, `2026-10-24`: *"The soldier now have their psychical state as fright or nerve and stress etc stored as component, i would like to show
 it on 3d map optionally, maybe as some bar chart floating above soldier's head or something, or just little colored percentage number if
@@ -453,6 +453,14 @@ show once behaviors writes `Demeanour` (`CE-2250`).
 | `Stress` appears only after a stimulus | ✅ `StressSystem.cs:247-252` (`Ensure` from `Add`) | ✅ TS-4 |
 | breaking point = effective nerve | ✅ `StressSystem.cs:175` | ✅ Temperament & Stress TS-6 |
 | a card row is one call and stacks by order | ✅ `EntityCards.cs:39` | ✅ Map 3-D §3.6 M14 |
+
+**As built** — `MindStateBar.Of` + `MindStateGizmo` (`Hrot.Common/Diagnostics/Gizmos/MindStateGizmo.cs`; card rows 11 and 12), `Stresses` in
+`Stress.cs` (FDP; `StressModel` forwards), `EntityCardRow.Tick`, `DebugTraceLayers.MindState = 28`, `Units.MindState`. Matches the diagrams.
+⚠ **Found on the way:** behaviors' `StressSystem` was registered with no `[TickMode]` — R-3036's scheduler threw on the first frame of every
+host running `CgfLogicPack` (the editor died on load). Fixed (`WhenTimeAdvances`, as its siblings) and guarded: `BrainSystemsDeclareTickModeTests`.
+Rails: `Map3DTests.CE1309_*`, `GZH011_Tests.CE1309_*`.
+📌 **Live, `uf-squad-under-fire`, headless editor:** within a second of contact Hostile 2 rose to 0.24 and Riflemen 1 and 4 to 0.21; followed
+in 3-D with **Units → Mind state** on, Hostile 2's card showed the red bar past the white tick and **BROKEN** under it (his state line: `Break`).
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 

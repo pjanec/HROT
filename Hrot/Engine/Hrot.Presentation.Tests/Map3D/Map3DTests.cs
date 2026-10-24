@@ -1962,6 +1962,9 @@ public sealed class Map3DTests
     /// nervous (from 0.4 of the way to breaking), red and BROKEN once broken; a civilian's fear (his own state, else the replicated quarter);
     /// nothing for a calm man, a man down, or with the "Mind state" layer off.
     /// 🔒 User, 2026-10-24: "maybe as some bar chart floating above soldier's head".
+    /// 🔴 Red-proofs (each red): the tick at the fill, not his breaking point · nervous only at the breaking point · no replicated-fear
+    /// fallback. ⚠ The layer-off case stays green with the gizmo's own layer check removed: the buffer refuses a hidden layer at emit
+    /// (CE-1071), so that check only saves work — the layer switch is guarded there, not here.
     /// </summary>
     [Fact]
     public void CE1309_TheMindStateBar_StressWithHisBreakingPoint_ACiviliansFear_OnItsOwnLayer()

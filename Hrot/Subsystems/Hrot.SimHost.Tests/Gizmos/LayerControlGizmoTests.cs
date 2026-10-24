@@ -222,6 +222,7 @@ namespace Hrot.SimHost.Tests.Gizmos
         /// <summary>
         /// ⭐ <c>CE-1309</c> (docs/DESIGN_People_Display.md §7e U20e) — the mind-state bar is a row of the layer panel ("Mind state", Units
         /// group): its own bit, OFF by default, inside the toggled range (the selection ring stays above it); ticking it sets only its bit.
+        /// 🔴 Red-proof: drop the <c>mask.SetBit</c> line ⇒ red.
         /// </summary>
         [Fact]
         public void CE1309_MindStateIsALayerPanelRow_OffByDefault_WithItsOwnBit()
