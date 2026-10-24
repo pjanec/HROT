@@ -329,3 +329,14 @@ specifically for that case"*.
 | **R2-5** | `WindowDuel` retires into the standard behaviours later: its scenario authors a window post under the ordinary `CombatPosture` (B already flies a posted window man through PeekAndFire with WindowDuel's shape) | [CE-2366](Blueprint_Issues_Tracker.md) |
 
 ⭐ **Order:** R2-3 (S6 first, as a measured baseline) → R2-4 → R2-2 → R2-1 (S1 judge + S1b) → R2-5.
+
+### 9.1 R2-3 as built, and what S6 measured *(2026-10-24)*
+
+| | measured / built | where |
+|---|---|---|
+| ✅ the scoot | pinned off a move, under steady fire, no cover within 10 m: a seeded 6–12 s down, then a 2–4 m crawl square to the shooter, sides alternating; pinned 30 s with no living friend within 30 m ⇒ a crawl to cover out to 30 m | [AQ96](Architect_Question_96_Movement_Under_Fire.md) §6 · CE-2363 |
+| ✅ found by S6, fixed | the three AUTHORED-DEAD squad mates fired ~200 rounds at the window from where they lay: capabilities were stripped only on a killing HIT | CE-2367 (`HealthApplicationSystem.StopTheDown`) |
+| ✅ the aim is honest | a crouched man behind the 0.9 m sill shows ~0.92–1.10 m; the aim is that band's middle and the ~0.15 m spread at 50 m puts about half the rounds into the sill. At the man UP in the opening Pinned aimed over the sill (median 0.95 m). His rounds into the wall under the window were BLIND rounds at the Gunman lying prone behind it (CE-2326's remembered body) — the brick stops them | S6 run 5 |
+| ⚠ S6's own errors, fixed | the post stood on the window's left jamb (the opening is x 120.5–121.65, sill 0.9 m, lintel ~2.15 m — measured by sight scans), so the "peek" saw wall and the "hide" stood in the opening; Pinned started 10 m from the wreck, so fight-from-cover (60 m search) ran him behind it out of sight | `scripts/gen-rf-scenarios.py` |
+| ⛔ still red: nobody keeps him under fire | the posted window man fires ~12 rounds in 120 s — prone under the sill at his hide most of the time, once 6 m back into the house — so every drop LAPSES in 3 s and he rises; the scoot never has a steady fire to answer. ⇒ the user's *"kept firing all the time"* is the window man's peek CADENCE: R2-1 / R2-2's ground, not R2-3's | S6 run 5 timeline |
+| ⚠ not covered by the scoot | a man lying in the open by his OWN choice — `HoldProne`, TakeCover's `DownInTheOpen` (CE-2322) — holds no move to scoot with; he still lies still | CE-2363 note |
