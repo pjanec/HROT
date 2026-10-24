@@ -1562,6 +1562,16 @@ namespace Hrot.SimHost.Tests
             IdleAt(w, t + 1.7);
             Assert.Equal(Fdp.Toolkit.Combat.GestureKind.None, Fdp.Toolkit.Combat.Gestures.Of(w.Repo, w.Unit));
 
+            // ⭐ a CIVILIAN is calm by his own fear, not by the armed men he sees (📐 live: soldiers beside him read as hostiles seen)
+            var civ = new World();
+            Idler(civ, origin: BehaviorOrigin.Superior);
+            if (!civ.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.CivilianState>()) civ.Repo.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
+            civ.Repo.AddComponent(civ.Unit, new Fdp.Toolkit.Civilians.CivilianState());
+            civ.Contact(armed: true);
+            bool shown = false;
+            for (double s = 0; s < 60.0 && !shown; s += 0.5) { IdleAt(civ, s); shown = Fdp.Toolkit.Combat.Gestures.IsIdle(Fdp.Toolkit.Combat.Gestures.Of(civ.Repo, civ.Unit)); }
+            Assert.True(shown, "a calm civilian waiting beside armed men shows no idle gesture");
+
             // ⭐ a man merely STILL inside another play (a protester resting between his fists) is not idle: no idle gesture
             var busy = new World();
             Idler(busy, behaviour: BehaviorNames.CombatPosture);

@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: AQ103 (CE-2368, R-2074) - idle life on open basic-desert, nobody hostile: 'Idler 1-4' (Friend riflemen, NO orders - the SOP's own idle choice), a 'Sentry' (ordered Sentry), 'Held' (ordered to hold: Idle from a superior), 'Down' (incapacitated, 20 %), a 'Waiting civilian' (ordered to stand) and a 'Townsman' (his own routine). Judge (90 s): (1) each Idler shifts at least twice and never strays past 3 m from where he settled; (2) the Sentry, Held and Down never shift (< 0.3 m); (3) idle gestures (smoking, shifting weight, a stretch, looking about - the flag the IG animates) show on at least half of the Idlers, the Sentry, Held and the waiting civilian; (4) Down shows none. Check: python3 scripts/utility-demo-check.py --launch il-idle-life. \ud83d\udcc4 docs/blueprints/Architect_Question_103_Idle_Life.md"
+    "description": "What: AQ103 (CE-2368, R-2074) - idle life on open basic-desert, nobody hostile: 'Idler 1-4' (Friend riflemen, NO orders - the SOP's own idle choice), a 'Watchman' (ordered to stay and watch east), 'Held' (ordered to hold: Idle from a superior), 'Down' (incapacitated, 20 %), a 'Waiting civilian' (ordered to stand) and a 'Townsman' (his own routine). Judge (90 s): (1) each Idler shifts at least twice and never strays past 3 m from where he settled; (2) the Watchman, Held and Down never shift (< 0.3 m); (3) idle gestures (smoking, shifting weight, a stretch, looking about - the flag the IG animates) show on at least half of the Idlers, the Watchman, Held and the waiting civilian; (4) Down shows none. Check: python3 scripts/utility-demo-check.py --launch il-idle-life. \ud83d\udcc4 docs/blueprints/Architect_Question_103_Idle_Life.md"
   },
   "entities": {
     "a1030001-0000-4000-8000-000000000001": {
@@ -148,8 +148,8 @@
         "Rotation": [
           0,
           0,
-          0.7071068,
-          0.7071068
+          0.0,
+          1.0
         ]
       },
       "Health": {
@@ -163,15 +163,15 @@
         "TkbType": 2002
       },
       "EntityInfo": {
-        "Name": "Sentry",
+        "Name": "Watchman",
         "ForceId": "Friend"
       },
       "TargetMemory": {
         "Entries": []
       },
       "Behavior": {
-        "Name": "Sentry",
-        "Params": "{}",
+        "Name": "CombatPosture",
+        "Params": "{\"stay\": true, \"watchTowards\": [400, 300, 0]}",
         "Origin": "Superior"
       }
     },

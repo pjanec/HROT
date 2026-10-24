@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Civilians;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
@@ -258,15 +259,26 @@ namespace Hrot.AI.Behaviors.Brains
             BehaviorHash.FromName(BehaviorNames.HoldStance), BehaviorHash.FromName("Sentry"),
         };
 
-        /// <summary>Idle and calm enough for an idle gesture (<see cref="IdleGesture"/>).</summary>
+        /// <summary>⭐ AQ103 I — a CIVILIAN is calm below this fear (his own model, <c>CivilianState.Fear</c> 0–1).</summary>
+        public const float CivilianCalmFear = 0.2f;
+
+        /// <summary>
+        /// Idle and calm enough for an idle gesture (<see cref="IdleGesture"/>): WAITING — an order to stay (whatever the play: a watchman
+        /// told to stay is waiting too), or an idle-type task held by nothing — standing or crouched, no round near him for 30 s, and at
+        /// ease: a soldier has seen no enemy for 10 s; a CIVILIAN is below <see cref="CivilianCalmFear"/> (📐 live: to a neutral the armed
+        /// soldiers beside him read as "hostiles seen", so he was never calm).
+        /// </summary>
         public static bool Calm(EntityRepository world, Entity self, double now)
         {
-            if (!world.HasComponent<BehaviorState>(self)
-                || Array.IndexOf(IdleTasks, world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash) < 0) return false;
+            if (!world.HasComponent<BehaviorState>(self)) return false;
             var hold = RestlessHolds.Holds(world, self);
-            if (hold != RestlessHold.None && hold != RestlessHold.OrderedToStay) return false;
+            bool waiting = hold == RestlessHold.OrderedToStay
+                           || (hold == RestlessHold.None && Array.IndexOf(IdleTasks, world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash) >= 0);
+            if (!waiting) return false;
             if (Stance(world, self) == StanceId.Prone) return false;
             if (now - UnderFire.LastFire(world, self) <= CalmAfterFireSeconds) return false;
+            if (world.IsComponentTypeRegistered<CivilianState>() && world.HasComponent<CivilianState>(self))
+                return CivilianMind.FearOf(world, self) < CivilianCalmFear;
             return !CoverFightConditions.SeenWithin(self, world, CalmAfterSeenTicks);
         }
 

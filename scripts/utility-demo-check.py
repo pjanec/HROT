@@ -5257,8 +5257,8 @@ def run_il_idle_life(c, timeout):
     the idle gestures the IG animates. 📄 docs/blueprints/Architect_Question_103_Idle_Life.md."""
     ids = ids_by_name()
     idlers = [f"Idler {i}" for i in range(1, 5)]
-    still = ["Sentry", "Held", "Down"]
-    gesturers = idlers + ["Sentry", "Held", "Waiting civilian"]
+    still = ["Watchman", "Held", "Down"]
+    gesturers = idlers + ["Watchman", "Held", "Waiting civilian"]
     names = idlers + still + ["Waiting civilian", "Townsman"]
     if not c.ok(all(ids.get(n) for n in names), "the idlers, the held men and the civilians are loaded"):
         return

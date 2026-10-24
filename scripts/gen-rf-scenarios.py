@@ -192,8 +192,10 @@ s.write("rf-pinned-in-open", "cqb-village",
 s = Scn("il-idle-life", "a1030001")
 for i, (x, y) in enumerate(((290, 300), (294, 300), (298, 300), (302, 300))):
     s.man(f"Idler {i + 1}", "Friend", (x, y, 0), 0, tkb=2002, nid=10701 + i)   # no orders: the SOP's own idle choice
-s.man("Sentry", "Friend", (310, 300, 0), 0, tkb=2002, nid=10711,
-      behavior={"Name": "Sentry", "Params": "{}", "Origin": "Superior"})
+# ⭐ a WATCHMAN: the squad's Hold / Watch man (CombatPosture told to stay, watching east). ⛔ The first cut ordered the library "Sentry",
+#   whose tree is "a dangerous contact within range, then wait 15 s" - with no threat it ENDS at once and he is back on his idle choice
+s.man("Watchman", "Friend", (310, 300, 0), 90, tkb=2002, nid=10711,
+      behavior={"Name": "CombatPosture", "Params": json.dumps({"stay": True, "watchTowards": [400, 300, 0]}), "Origin": "Superior"})
 s.man("Held", "Friend", (314, 300, 0), 0, tkb=2002, nid=10712, behavior={"Name": "Idle", "Params": "{}", "Origin": "Superior"})
 g = s.man("Down", "Friend", (318, 300, 0), 0, tkb=2002, health=100, nid=10713)
 s.ents[g]["Health"] = {"Current": 20, "Max": 100}   # incapacitated (under 30 %)
@@ -204,9 +206,9 @@ c = s.man("Townsman", "Neutral", (300, 312, 0), 180, tkb=1101, health=100, nid=1
 s.ents[c].pop("TargetMemory", None)
 s.write("il-idle-life", "basic-desert",
         "What: AQ103 (CE-2368, R-2074) - idle life on open basic-desert, nobody hostile: 'Idler 1-4' (Friend riflemen, NO orders - the SOP's own "
-        "idle choice), a 'Sentry' (ordered Sentry), 'Held' (ordered to hold: Idle from a superior), 'Down' (incapacitated, 20 %), a 'Waiting "
+        "idle choice), a 'Watchman' (ordered to stay and watch east), 'Held' (ordered to hold: Idle from a superior), 'Down' (incapacitated, 20 %), a 'Waiting "
         "civilian' (ordered to stand) and a 'Townsman' (his own routine). Judge (90 s): (1) each Idler shifts at least twice and never strays "
-        "past 3 m from where he settled; (2) the Sentry, Held and Down never shift (< 0.3 m); (3) idle gestures (smoking, shifting weight, a "
-        "stretch, looking about - the flag the IG animates) show on at least half of the Idlers, the Sentry, Held and the waiting civilian; "
+        "past 3 m from where he settled; (2) the Watchman, Held and Down never shift (< 0.3 m); (3) idle gestures (smoking, shifting weight, a "
+        "stretch, looking about - the flag the IG animates) show on at least half of the Idlers, the Watchman, Held and the waiting civilian; "
         "(4) Down shows none. Check: python3 scripts/utility-demo-check.py --launch il-idle-life. "
         "📄 docs/blueprints/Architect_Question_103_Idle_Life.md")
