@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-24
-build-state: DESIGN (leans awaiting the user)
-current-answer: §4 the sub-questions with leans · §3 the design
+build-state: READY-TO-BUILD — APPROVED 2026-10-24 (R-2074), with H and I added by the user
+current-answer: §6 the answers (approved, R-2074) · §4 the sub-questions A–I · §3 the design
 stale-below: nothing
 related-designs:
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — OWNS R2-2 (the stress fidget, CE-2365) and R2-3 (the pinned scoot, CE-2363); this question folds the fidget into one restlessness reflex
@@ -137,6 +137,8 @@ intent the brain already replicates — no new wire. The dashed edge is the stre
 | **D** | lying — when may he lie at all | ⭐ unchanged: the drop, `HoldProne`, `DownInTheOpen`, the break; only his stillness changes. "Very badly wounded" = incapacitated (CE-2155) ⇒ held (B①); wounded but able ⇒ he moves, slower (`Injury.SpeedFactor`) | — |
 | **E** | who has it | **every person** — soldiers, police, insurgents, **civilians** (a civilian with nothing to do shuffles too; their own wander/mill already moves them, so the reflex never fires there) | combatants only — the user said *"any entity"* |
 | **F** | vehicles, and CE-170 | **vehicles are out**: a parked vehicle stands still, as CE-170 asked of its tanks. ⭐ CE-170 is reconciled as *"vehicles with no orders stay static"*; for PEOPLE it is superseded by this question | creep a parked vehicle — no real driver does |
+| **H** | ⭐ *(added by the user)* a NERVOUS man's head | **the eyes' scan (LD-3) quickens and jerks with stress**: dwell per scan point from 2 s down to ~0.4 s and a snap turn between points, scaled by `Stress` (TS-B) between 0.4 × nerve and nerve — the same band as the fidget. People only. ⚠ needs TS-B (`CE-2270`) for its stress: built with R2-2 (`CE-2365`) | a head jerk from near misses alone — the stress model is what "nervous" means here, and it is approved |
+| **I** | ⭐ *(added by the user)* a RELAXED man's idle animation, for the IG | **new `GestureKind`s, the gesture channel the IG already reads** (`Gesture` → `dtGesture` / `EntityGesture`): `Smoking`, `ShiftWeight`, `Stretch`, `LookAbout`. `RestlessSystem` picks one (seeded, per man) when he is idle AND calm (no threat known, no stress) and his gesture is `None`; cleared the moment anything else needs him (a task, a threat, a gesture his behaviour sets — those always win). Soldiers idle or on a boring job (a calm patrol halt, a sentry with nothing seen), and civilians alike. ⚠ the IG side — mapping each kind to an animation — is the ui lane's: a handoff | a separate "idle mood" component — a second channel to the IG beside the one it reads · animation chosen by the IG on its own — the IG cannot know he is calm |
 | **G** | the cost on the wire | ⭐ none new: one `NavigationIntent` write per small move (the brain already replicates it) — about one per man per 8–20 s | — |
 
 **Blast radius:** every scenario with people standing about — they now shift. ⭐ Accepted by the user (`2026-10-24`: *"changes in the
@@ -151,4 +153,20 @@ hiding would not fidget at all). Today none exists (the corpus sweep found no su
 | 1 | `Restless` component (behaviors' id block) + `RestlessHolds` + `RestlessSystem`, standing / crouched | an idle soldier steps within 3 m every 8–20 s and never past 3 m · each hold ① – ⑥ keeps him still · a task's move replaces the intent |
 | 2 | lying: the calm crawl; `HoldProne` and `DownInTheOpen` under fire take R2-3's scoot (moves `UnderFire.Scoot` to the shared rule) | a man in `HoldProne` under steady fire scoots; calm he crawls; incapacitated he does not |
 | 3 | in cover: the step stays behind it; R2-2's stressed fidget once TS-B lands (`CE-2365`) | the step never leaves cover |
+| 3b | ⭐ I — the idle gestures (`Smoking`, `ShiftWeight`, `Stretch`, `LookAbout`) written by `RestlessSystem` when idle and calm; ⭐ a handoff to ui for their animations | a calm idle man gets one, held 20–60 s; a threat or a task clears it at once; a behaviour's own gesture is never overwritten |
+| 3c | ⭐ H — the nervous head, with TS-B and R2-2 (`CE-2365`) | the scan's dwell shrinks with stress |
 | 4 | a demo: `il-idle-life` (a squad with no orders, a civilian, a sentry, a held man, an incapacitated man) + its HTTP check | who moved, how far from his anchor, who held |
+
+## 6. Answers
+
+🔒 **User, `2026-10-24`, verbatim:** *"This fidget under stress should not apply to vehicles. This is just something for the human. When a
+man is nervous, he will probably look around with his head, Using some jerky fast head movements, maybe. Approved. Also, soldiers who are
+actually really idle or waiting in some boring job like patrolling or just feeling relaxed, they might need some animations expressing that
+state. Some of them could be smoking a cigarette, some of them just moving their bodies, stepping from one leg to the other. This might need
+some flag that the IG can run an animation in such a case that will give a feel of realism. And that of course applies to civilians as
+well, not just soldiers."* — and earlier the same day: *"Changing saved snapshot is not an issue, we can regenerate. Also, changes In the
+behavior of existing scenarios are accepted"* · *"The order of execution, this task is your choice. Eventually we need to have all of them
+done."*
+
+⇒ ✅ **APPROVED — A–G as leaned (R-2074)**, the stress fidget for people only (F already left vehicles out), and two rows ADDED by the user:
+**H** (a nervous man's quick, jerky head) and **I** (a relaxed man's idle animation through a flag the IG plays — civilians too).

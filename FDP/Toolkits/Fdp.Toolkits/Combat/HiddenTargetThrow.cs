@@ -32,11 +32,12 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static bool TryThrow(EntityRepository world, Entity unit, Entity target)
         {
-            if (!ThrowableMount(world, unit, out var mountEntity, out int mountIndex, out var mount, out var warhead)) return false;
+            if (!LastKnown(world, unit, target, out var point)) return false;
+            // ⭐⭐ CE-2360 I-4 (AQ102 R2-4, R-2073) — WHICH grenade, by the rule (ChooseThrow), never simply the first mount
+            if (!ChooseThrow(world, unit, target, point, out var mountEntity, out int mountIndex, out var mount, out var warhead)) return false;
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (!Magazine.Ready(in weapon) || weapon.CooldownSecondsRemaining > 0f) return false;   // ⭐ Q94 A-3 — net of the rounds asked
             if (ShotLedger.Held(in weapon, out _)) return false;   // ⭐ Q94 A — the muscle refused the last one: not again at once
-            if (!LastKnown(world, unit, target, out var point)) return false;
             if (!world.HasComponent<SimTransform>(unit)) return false;
             var from = world.GetComponentRO<SimTransform>(unit).Position;
             float flat = new Vector2(point.X - from.X, point.Y - from.Y).Length();
@@ -44,7 +45,8 @@ namespace Fdp.Toolkit.Combat
             float range = mount.Range > 0f ? MathF.Min(mount.Range, reach) : reach;
             if (flat > range) return false;
             if (!AimAndFireExecutor.RoePermitsFire(world, unit)) return false;
-            if (FriendlyInBurst(world, unit, point, warhead.BlastLethalRadiusM)) return false;
+            // ⭐ CE-2360 — the friend check over the ONE lethal radius (GrenadeRules): a blast radius alone left an M67's fragments out
+            if (FriendlyInBurst(world, unit, point, GrenadeRules.LethalRadius(warhead))) return false;
             if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, unit, point)) return false;   // ⭐ CE-2282 DA-L
 
             world.Bus.Publish(new WeaponFireIntent
@@ -61,7 +63,57 @@ namespace Fdp.Toolkit.Combat
             return true;
         }
 
-        /// <summary>The unit's first mount that throws an indirect warhead by hand and still has rounds.</summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-2360</c> I-4 (AQ102 R2-4, R-2073) — the grenade to throw at <paramref name="point"/>, among the unit's throwable mounts with
+        /// rounds: a FRAGMENTATION grenade only OUTDOORS and with no civilian he knows of in its lethal radius; INTO a building (through its
+        /// door or window) a STUN only — the throw has no intensity order, and with none ordered it is Precision (R-2073 "no intensity
+        /// ordered = Precision"; the room drill's HighIntensity rides its own <c>GrenadeCheck.Choose</c>); any other thrown round as before,
+        /// outdoors; every one inside the unit's force level (<see cref="ForceLevels.Permits"/>, as every other round). The best kind wins —
+        /// fragmentation, then stun, then the rest. False when none may go: he throws nothing. 🔒 User: <i>"there need to be some condition
+        /// not to do that if the mission is to clear the houses from terrorists but saving all the civilians"</i>.
+        /// </summary>
+        public static bool ChooseThrow(EntityRepository world, Entity unit, Entity target, Vector3 point, out Entity mountEntity, out int mountIndex,
+                                       out WeaponMountDto mount, out WarheadDto warhead)
+        {
+            mountEntity = Entity.Null; mountIndex = -1; mount = null!; warhead = null!;
+            if (!world.IsComponentTypeRegistered<WeaponMountInfo>()) return false;
+            bool indoors = GrenadeRules.Indoors(world, point, out int building);
+            int best = -1;
+            Span<Entity> mounts = stackalloc Entity[8];
+            int n = WeaponMountQuery.EnumerateMounts(world, unit, mounts);
+            for (int i = 0; i < n; i++)
+            {
+                if (!Throwable(world, unit, mounts[i], out int index, out var dto, out var wh)) continue;
+                var kind = GrenadeRules.KindOf(wh);
+                int rank = kind switch
+                {
+                    GrenadeKind.Fragmentation => indoors || GrenadeRules.KnownNeutralNear(world, unit, point, GrenadeRules.LethalRadius(wh), building) ? -1 : 2,
+                    GrenadeKind.Stun => 1,
+                    _ => indoors ? -1 : 0,
+                };
+                if (rank <= best || !ForceLevels.Permits(world, unit, target, unchecked((long)dto.AmmoGuid), dto)) continue;
+                best = rank;
+                mountEntity = mounts[i]; mountIndex = index; mount = dto; warhead = wh;
+            }
+            return best >= 0;
+        }
+
+        /// <summary>A mount of <paramref name="unit"/> that throws an indirect warhead by hand and still has rounds.</summary>
+        private static bool Throwable(EntityRepository world, Entity unit, Entity mountEntity, out int index, out WeaponMountDto dto, out WarheadDto warhead)
+        {
+            index = -1; dto = null!; warhead = null!;
+            if (!world.HasComponent<WeaponMountInfo>(mountEntity) || !world.HasComponent<WeaponState>(mountEntity)) return false;
+            index = world.GetComponentRO<WeaponMountInfo>(mountEntity).MountIndex;
+            var mount = CombatTkb.MountOf(world, unit, index);
+            if (mount == null || mount.MuzzleVelocity <= 0f || mount.MuzzleVelocity >= CombatConstants.HighArcMinMuzzleVelocity) return false;
+            if (CombatTkb.WarheadOf(world, mount) is not { Indirect: true } wh) return false;
+            if (world.GetComponentRO<WeaponState>(mountEntity).Ammo == 0) return false;
+            dto = mount; warhead = wh;
+            return true;
+        }
+
+        /// <summary>The unit's first mount that throws an indirect warhead by hand and still has rounds (does he carry any throwable at all —
+        /// the posture's approach gate; WHICH one is thrown is <see cref="ChooseThrow"/>'s).</summary>
         public static bool ThrowableMount(EntityRepository world, Entity unit, out Entity mountEntity, out int mountIndex,
                                           out WeaponMountDto mount, out WarheadDto warhead)
         {
@@ -71,12 +123,7 @@ namespace Fdp.Toolkit.Combat
             int n = WeaponMountQuery.EnumerateMounts(world, unit, mounts);
             for (int i = 0; i < n; i++)
             {
-                if (!world.HasComponent<WeaponMountInfo>(mounts[i]) || !world.HasComponent<WeaponState>(mounts[i])) continue;
-                int index = world.GetComponentRO<WeaponMountInfo>(mounts[i]).MountIndex;
-                var dto = CombatTkb.MountOf(world, unit, index);
-                if (dto == null || dto.MuzzleVelocity <= 0f || dto.MuzzleVelocity >= CombatConstants.HighArcMinMuzzleVelocity) continue;
-                if (CombatTkb.WarheadOf(world, dto) is not { Indirect: true } wh) continue;
-                if (world.GetComponentRO<WeaponState>(mounts[i]).Ammo == 0) continue;
+                if (!Throwable(world, unit, mounts[i], out int index, out var dto, out var wh)) continue;
                 mountEntity = mounts[i]; mountIndex = index; mount = dto; warhead = wh;
                 return true;
             }

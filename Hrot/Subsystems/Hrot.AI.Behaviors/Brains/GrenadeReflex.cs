@@ -107,7 +107,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (warhead == null || warhead.FragmentRadiusM <= 0f) return false;
             byte bits = WarheadRound.BitsOf(warhead, out fuze);
             if ((bits & WarheadRound.TimeFuze) == 0) fuze = 0f;
-            lethal = MathF.Max(warhead.BlastLethalRadiusM, warhead.FragmentRadiusM * GrenadeCheck.LethalShareOfReach);
+            lethal = GrenadeRules.LethalRadius(warhead);
             return lethal > 0f;
         }
 

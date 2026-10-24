@@ -73,8 +73,8 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>CB-30 — no throw when a friend would be stunned longer than this (s).</summary>
         public const float FriendStunSeconds = 0.5f;
-        /// <summary>CB-70 — a fragmentation grenade's lethal radius, as a share of its fragment reach (an M67: 15 m reach, 5 m lethal).</summary>
-        public const float LethalShareOfReach = 1f / 3f;
+        /// <summary>CB-70 — a fragmentation grenade's lethal radius, as a share of its fragment reach (⭐ CE-2360: the one rule, <see cref="GrenadeRules"/>).</summary>
+        public const float LethalShareOfReach = GrenadeRules.LethalShareOfReach;
         /// <summary>CB-70 — fragments still getting through a wall above this share count as reaching the man (the same transmission the
         /// area effect applies, <see cref="AreaEffect.FragmentTransmission"/>).</summary>
         public const float FragmentsThrough = 0.05f;
@@ -92,10 +92,12 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The kind <paramref name="warhead"/> is: a stun warhead, a fragmenting one, or neither.</summary>
         public static RoomGrenadeKind KindOf(WarheadDto? warhead)
-            => warhead == null ? RoomGrenadeKind.None
-             : warhead.Kind == WarheadKind.Stun ? RoomGrenadeKind.Stun
-             : warhead.FragmentRadiusM > 0f ? RoomGrenadeKind.Fragmentation
-             : RoomGrenadeKind.None;
+            => GrenadeRules.KindOf(warhead) switch   // ⭐ CE-2360 — the one rule the weapon brain's throw reads too
+            {
+                GrenadeKind.Stun => RoomGrenadeKind.Stun,
+                GrenadeKind.Fragmentation => RoomGrenadeKind.Fragmentation,
+                _ => RoomGrenadeKind.None,
+            };
 
         /// <summary>
         /// The grenade mount of <paramref name="man"/> holding a round of <paramref name="kind"/> (his TKB weapon suite, a <c>Grenade</c>
@@ -146,7 +148,7 @@ namespace Hrot.AI.Behaviors.Brains
             float barrier = query == null ? 1f : AreaEffect.ClosedBarrierTransmission(scratch);
             if (warhead.Kind == WarheadKind.Stun)
                 return warhead.EffectSeconds * AreaEffect.BlastFalloff(r, warhead.BlastLethalRadiusM, warhead.BlastInjuryRadiusM) * barrier > FriendStunSeconds;
-            float lethal = MathF.Max(warhead.BlastLethalRadiusM, warhead.FragmentRadiusM * LethalShareOfReach);
+            float lethal = GrenadeRules.LethalRadius(warhead);
             float through = query == null ? 1f : AreaEffect.FragmentTransmission(scratch, warhead.FragmentPenetrationMm);
             return r <= lethal && through > FragmentsThrough;
         }
