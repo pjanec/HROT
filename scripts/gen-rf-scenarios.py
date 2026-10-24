@@ -155,11 +155,12 @@ s = Scn("rf-pinned-in-open", "a1020006")
 gq = s.squad("Red Window", "Hostile", (120, 157, 0), 10650)
 s.ents[gq]["Behavior"] = {"Name": "SquadDefend", "Origin": "Superior", "Params": json.dumps({
     "Position": [120, 157, 0], "SearchRadius": 8, "Speed": 2,
-    # the south ground-floor window: OBJ is house-3f at (125,161) rotated 180° ⇒ x 115..125 × y 153..161; its local back wall (window at
-    #   5.5 m from the (10,8) end) is the south face at y 153, the window x ≈ 119.9-121.1 — 📐 the first two cuts put the post ~10 m east,
-    #   OUTSIDE the house, and its rounds stopped in OBJ's east wall
-    "Posts": [{"point": [120.5, 153.6, 0], "watchTowards": [120.5, 104, 0], "window": True}]})}
-s.man("Gunman", "Hostile", (120.5, 154.5, 0), 180, tkb=2002, commander=gq, designation="SquadLeader", nid=10651)
+    # the south ground-floor window: OBJ is house-3f at (125,161) rotated 180° ⇒ x 115..125 × y 153..161, the window in the south face
+    #   (y 153). 📐 MEASURED 2026-10-24 (/terrain/query sight scans): the opening is x 120.5-121.65, sill 0.9 m, lintel ~2.15 m — ⛔ the
+    #   third cut's estimate (x 119.9-121.1) put the post ON the left jamb: from it every line hit the wall 0.37 m out, so the "peek" saw
+    #   nothing and the "hide" stood in the opening. The first two cuts put the post ~10 m east, outside the house
+    "Posts": [{"point": [121.1, 153.6, 0], "watchTowards": [121.1, 104, 0], "window": True}]})}
+s.man("Gunman", "Hostile", (121.1, 154.5, 0), 180, tkb=2002, commander=gq, designation="SquadLeader", nid=10651)
 bq = s.squad("Blue Squad", "Friend", (125, 108, 0), 10600)
 s.ents[bq]["Behavior"] = {"Name": "BoundingOverwatch", "Origin": "Superior",
                           "Params": json.dumps({"Objective": [120.5, 150, 0], "BoundMetres": 30})}
@@ -179,7 +180,7 @@ for i, (x, y) in enumerate(((121, 110), (129, 110), (125, 108))):
     s.ents[g]["Health"] = {"Current": 0, "Max": 100000}
 s.write("rf-pinned-in-open", "cqb-village",
         "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds the south ground-floor window of the OBJ house "
-        "(house-3f, x 115-125 / y 153-161) at (120.5,153.6); 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' "
+        "(house-3f, x 115-125 / y 153-161; the opening x 120.5-121.65, sill 0.9 m) at (121.1,153.6); 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' "
         "are dead beside him - out in the open south at (125,112), ~42 m from the window, the squad ordered to bound to the house and his reactions "
         "STAY ON TASK (the platoon's order holds him on the bound); the wreck's south face (x 108-113, y 98) is the only cover that faces the "
         "window, ~18 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not "
