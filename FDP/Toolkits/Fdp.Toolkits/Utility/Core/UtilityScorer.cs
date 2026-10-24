@@ -601,6 +601,8 @@ namespace Fdp.Toolkit.Utility
 
             float* curveOutputs = stackalloc float[consCount];
             float* weights      = stackalloc float[consCount];
+            int factors = 0;            // ⭐ CE-2271 (R-2075) — the ordinary considerations; a MODIFIER multiplies after the aggregate
+            float modifier = 1f;
 
             float runningAgg = (opt.Mode == ScoringMode.WeightedProduct) ? 1f : 0f;
 
@@ -625,8 +627,16 @@ namespace Fdp.Toolkit.Utility
                 float norm     = raw;  // Phase 1: normalisation is identity
                 float curveOut = cons.Curve.Evaluate(norm);
 
-                curveOutputs[c] = curveOut;
-                weights[c]      = cons.Weight;
+                if ((cons.Flags & ConsiderationFlags.Modifier) != 0)
+                {
+                    modifier *= System.MathF.Pow(curveOut, cons.Weight);
+                    if (trace != null)
+                        trace->WriteConsiderationRecord(tick, optionIndex, cons.InputId, raw, norm, curveOut, cons.Weight, runningAgg * modifier);
+                    continue;
+                }
+                curveOutputs[factors] = curveOut;
+                weights[factors]      = cons.Weight;
+                factors++;
 
                 // Update running aggregate for trace (approximation only — Aggregator sees all at once).
                 if (opt.Mode == ScoringMode.WeightedProduct)
@@ -641,10 +651,11 @@ namespace Fdp.Toolkit.Utility
                 }
             }
 
-            return Aggregator.Aggregate(
-                new System.ReadOnlySpan<float>(curveOutputs, consCount),
-                new System.ReadOnlySpan<float>(weights, consCount),
+            float score = Aggregator.Aggregate(
+                new System.ReadOnlySpan<float>(curveOutputs, factors),
+                new System.ReadOnlySpan<float>(weights, factors),
                 opt.Mode);
+            return modifier == 1f ? score : score * modifier;
         }
 
         /// <summary>

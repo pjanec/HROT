@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-24
-build-state: BUILDING — TS-A (CE-2269), TS-B (CE-2270) and TS-D (CE-2272) BUILT 2026-10-24 (§7); TS-C blocked on §7.3's scorer finding (a question with a lean). APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
+build-state: BUILT 2026-10-24 — TS-A (CE-2269), TS-B (CE-2270), TS-C (CE-2271, as MODIFIERS — R-2075) and TS-D (CE-2272) (§7); the §6 demos to come APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
 current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos · ⭐ §7 AS BUILT (where it differs from §4, §7 wins)
 stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with Aggression and Discipline; do not quote it.
-known-rot: ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE — the product mode's compensation depends on the consideration COUNT (§7.3). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
+known-rot: ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE for an ordinary consideration — the compensation counts them; ⭐ resolved by MODIFIER considerations (§7.3, R-2075). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
 known-conflict: none.
 related-designs:
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: the short per-move drop under fire that TS-4 would lengthen and TS-6's break replace
@@ -192,7 +192,11 @@ Rails: `CombatTemperamentTests` (CE2269 ×4 + AQ89's unchanged), `CombatProficie
 
 Rails: `StressSystemTests` — `CE2272_AtHisNerve_HeBreaks_EvenUnderStayOnTask_GoesToGround_AndRecovers` · `…TheBreakAndTheRecovery_AreEdges_OnTheMan` · `…HeBreaksAtHisEffectiveNerve_NeverUnderTheFloor` (3 rows) · `…LowResolve_AndCovered_HeSurrenders_ElseHeBreaks` · `…AWayOut_IsACoverPointFartherFromTheThreat`.
 
-### 7.3 ⛔ TS-C is BLOCKED — a neutral consideration is NOT neutral
+### 7.3 TS-C — a neutral consideration is NOT neutral, so the damping is a MODIFIER *(`CE-2271`, R-2075, built 2026-10-24)*
+
+🔒 User, `2026-10-24`, on the modifier lean: *"Approved"* (R-2075). ⭐ **As built:** `ConsiderationFlags.Modifier` / `.Modify(…)` ([Utility AI §4.3a](designs/utility-ai/Utility_AI_Design_v1_1.md)); `CautionDamp` on AdvanceAndAttack, `AggressionDamp` on TakeCover / HoldProne / Flee, `StressDamp` on AdvanceAndAttack / Suppress, each `Modify(…, 1.0, Linear)`. Rails: `StarterPackIntegrationTests.CE2271_NoTemperamentNoStress_EveryPostureScore_IsBitIdenticalToBefore` (eight situations, bit for bit) · `…ACautiousMan_ABoldMan_AStressedMan_DampOnlyTheirOptions` · `UtilityScorerTests.CE2271_…`. The finding, as it was measured:
+
+#### the finding
 
 📐 `Aggregator.AggregateProduct` (`FDP/Toolkits/Fdp.Toolkits/Utility/Core/Aggregator.cs`) applies Dave Mark's compensation: `final = raw + (1 − raw) × (1 − 1/n) × raw`, with **n = the number of considerations**. ⇒ adding a consideration that reads exactly 1.0 leaves `raw` alone but raises `n`, and so raises the option's score (raw 0.5: n = 3 ⇒ 0.667, n = 4 ⇒ 0.688). The five product options have 3–5 considerations each and TS-5 adds different counts to each ⇒ **every posture choice shifts, with or without a temperament.** The neutral rail §5 promises cannot pass as designed. ⇒ **a question for the user** (the scorer is the Utility AI design's):
 

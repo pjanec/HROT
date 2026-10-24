@@ -211,7 +211,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         name = idName.Identifier.Text;
 
                     if (name == "Option" || name == "CandidateOption") options++;
-                    else if (name == "Consider") considers++;
+                    else if (name == "Consider" || name == "Modify") considers++;   // ⭐ CE-2271 — a modifier is a consideration row
                 }
             }
             return (true, options, considers);

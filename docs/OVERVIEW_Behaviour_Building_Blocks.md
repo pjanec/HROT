@@ -25,7 +25,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — owns embarkation (§7, §7.1 plan) — §10 here is its measured state
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — owns the urban tank tactics proposal (hide / expose / reverse, danger to me); §10b here is its measured ground
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — the room-clearing drill, a new ISquadPlay (design stage)
-  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; the per-man character layer under the posture decision (TS-A, TS-B, TS-D built 2026-10-24; TS-C blocked — §7 there)
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; the per-man character layer under the posture decision (TS-A…TS-D built 2026-10-24 — TS-C as modifiers, R-2075; §7 there)
 -->
 
 # Behaviour building blocks — an overview
@@ -124,6 +124,7 @@ graph TD
     I3["EQS: top score · result count"]
     I4["weapon: range fit · effectiveness vs armour · rounds left"]
     I5["squad: knows contact · strength ratio · assigned role"]
+    I6["MODIFIERS (damp only): CautionDamp · AggressionDamp · StressDamp"]
   end
   IN --> DEC
   DEC --> BT["BTree: ChooseOption + IsOption(n)<br/>in Parallel + ObserverSelector"]
@@ -135,6 +136,9 @@ graph TD
 
 *Owner:* [DESIGN_Decision_Layer](DESIGN_Decision_Layer.md) §3 · R-201 (threat = danger × freshness), R-202.
 🟥 The utility editor is a placeholder — new decisions are written in C#.
+⭐ **`.Consider` vs `.Modify`** *(R-2075)*: a consideration is a factor of the option's aggregate and the product's compensation COUNTS it — even
+one that reads 1.0 moves the score. An input that may only ever damp an option is a `.Modify` (multiplied after the aggregate, not
+counted ⇒ 1.0 is bit-identical). 📄 [Utility AI §4.3a](designs/utility-ai/Utility_AI_Design_v1_1.md).
 
 ## 4. Sensors → memory
 
