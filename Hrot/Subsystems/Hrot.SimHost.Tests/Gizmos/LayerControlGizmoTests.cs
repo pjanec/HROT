@@ -219,6 +219,31 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Contains(LayerControlSets.RowNames, r => r.Name == "Map.Grid" && r.Display == "Grid (2-D)" && r.Doc.Length > 0);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1309</c> (docs/DESIGN_People_Display.md §7e U20e) — the mind-state bar is a row of the layer panel ("Mind state", Units
+        /// group): its own bit, OFF by default, inside the toggled range (the selection ring stays above it); ticking it sets only its bit.
+        /// </summary>
+        [Fact]
+        public void CE1309_MindStateIsALayerPanelRow_OffByDefault_WithItsOwnBit()
+        {
+            Assert.False(new LayerControlDto().ToMask().IsSet(DebugTraceLayers.MindState), "off by default");
+            Assert.True(DebugTraceLayers.MindState < LayerControlDto.FirstUntoggledLayer, "it lies below the always-on range");
+            Assert.True(DebugTraceLayers.Selection >= LayerControlDto.FirstUntoggledLayer, "the selection ring stays above every toggle");
+            var all = new LayerControlDto().ToMask();
+            var on = new LayerControlDto { Units = { MindState = true } }.ToMask();
+            Assert.True(on.IsSet(DebugTraceLayers.MindState), "ticking the row sets the bit");
+            for (int other = 0; other < 256; other++)
+                if (other != DebugTraceLayers.MindState) Assert.Equal(all.IsSet(other), on.IsSet(other));   // and nothing else
+            var bits = typeof(DebugTraceLayers).GetFields().Where(f => f.IsLiteral && f.FieldType == typeof(byte) && f.Name != nameof(DebugTraceLayers.Selection))
+                .Select(f => (byte)f.GetRawConstantValue()!).ToList();
+            Assert.Equal(bits.Count, bits.Distinct().Count());
+
+            using var session = MakeEditService().Open(new LayerControlDto(), typeof(LayerControlDto));
+            var units = session.Document.Root.Children.Single(n => n.Metadata.DisplayName == "Units");
+            Assert.Contains(units.Children, n => n.Metadata.DisplayName == "Mind state");
+            Assert.Contains(LayerControlSets.RowNames, r => r.Name == "Units.MindState" && r.Display == "Mind state" && r.Doc.Length > 0);
+        }
+
         private static string JsonOf(LayerControlDto dto)
         {
             using var s = MakeEditService().Open(dto, typeof(LayerControlDto));

@@ -1957,6 +1957,94 @@ public sealed class Map3DTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-1309 (docs/DESIGN_People_Display.md §7e U20) — the MIND-STATE bar: a soldier's stress fills a row right under his health bar,
+    /// with a white tick at his BREAKING POINT (his effective nerve — the brain's own <c>Stresses.BreakLevel</c>), slate blue calm, amber
+    /// nervous (from 0.4 of the way to breaking), red and BROKEN once broken; a civilian's fear (his own state, else the replicated quarter);
+    /// nothing for a calm man, a man down, or with the "Mind state" layer off.
+    /// 🔒 User, 2026-10-24: "maybe as some bar chart floating above soldier's head".
+    /// </summary>
+    [Fact]
+    public void CE1309_TheMindStateBar_StressWithHisBreakingPoint_ACiviliansFear_OnItsOwnLayer()
+    {
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.Stress>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();
+            world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
+            world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            Entity Person(long net, Vector3 at)
+            {
+                var m = Man(world, at);
+                world.AddComponent(m, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });
+                world.AddComponent(m, new Fdp.Toolkit.Replication.Components.NetworkIdentity(net));
+                return m;
+            }
+            var B = Hrot.Common.Diagnostics.Gizmos.MindBand.None;
+            var soldier = Person(2001, Vector3.Zero);
+            // nerve 0.5, obedience 0 — he acts out his nerve: breaking point 0.5, nervous from 0.2
+            world.AddComponent(soldier, new Fdp.Toolkit.Behavior.Components.CombatTemperament
+            {
+                Nerve = 0.5f, Obedience = 0f,
+                Set = Fdp.Toolkit.Behavior.Components.CombatTemperament.NerveSet | Fdp.Toolkit.Behavior.Components.CombatTemperament.ObedienceSet,
+            });
+            Assert.Equal(B, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, soldier).Band);                      // never stressed: nothing
+
+            world.AddComponent(soldier, new Fdp.Toolkit.Behavior.Components.Stress { Level = 0.1f });
+            var (fill, tick, band) = Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, soldier);
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MindBand.Calm, band);
+            Assert.Equal(0.1f, fill, 3);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.Stresses.BreakLevel(world, soldier), tick, 3);              // the tick is his breaking point
+            Assert.Equal(0.5f, tick, 3);
+
+            world.SetComponent(soldier, new Fdp.Toolkit.Behavior.Components.Stress { Level = 0.3f });
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MindBand.Nervous, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, soldier).Band);
+            world.SetComponent(soldier, new Fdp.Toolkit.Behavior.Components.Stress { Level = 0.55f, Broken = 1 });
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MindBand.Broken, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, soldier).Band);
+            world.SetComponent(soldier, new Fdp.Toolkit.Behavior.Components.Stress { Level = 0.005f });
+            Assert.Equal(B, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, soldier).Band);                      // calmed down: nothing
+
+            // a civilian: his own fear on the brain node, else the replicated quarter
+            var civilian = Person(2002, new Vector3(5f, 0f, 0f));
+            world.AddComponent(civilian, new Fdp.Toolkit.Civilians.CivilianState { Fear = 0.7f });
+            var fear = Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, civilian);
+            Assert.Equal((0.7f, -1f, Hrot.Common.Diagnostics.Gizmos.MindBand.Fear), (MathF.Round(fear.Fill, 3), fear.Tick, fear.Band));
+            var onAnIg = Person(2003, new Vector3(10f, 0f, 0f));
+            Fdp.Toolkit.Civilians.Demeanours.Set(world, onAnIg, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.5f, anger: 0f);
+            Assert.Equal(0.5f, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, onAnIg).Fill, 3);
+
+            // the gizmo: a card row right under the health bar, on its own layer; BROKEN under it
+            Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive[] Emit(Entity who, bool layerOn)
+            {
+                var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+                var mask = new Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256();
+                if (layerOn) mask.SetBit(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.MindState);
+                buffer.SetActiveLayers(mask);
+                new Hrot.Common.Diagnostics.Gizmos.MindStateGizmo().Draw(world, who, buffer);
+                return buffer.GetFrame().ToArray();
+            }
+            world.SetComponent(soldier, new Fdp.Toolkit.Behavior.Components.Stress { Level = 0.55f, Broken = 1 });
+            Assert.Empty(Emit(soldier, layerOn: false));                                                                  // the layer is off: nothing
+            var prims = Emit(soldier, layerOn: true);
+            Assert.All(prims, p => Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.CoordinateSpace.EntityCard, p.Space));
+            Assert.All(prims, p => Assert.Equal(2001, p.AnchorIndex));
+            Assert.All(prims, p => Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.MindState, p.DebugLayer));
+            var bar = prims.Where(p => p.ZIndex == Hrot.Common.Diagnostics.Gizmos.MindStateGizmo.Row).ToArray();
+            Assert.Equal(3, bar.Length);                                                                                  // back, fill, tick
+            Assert.True(Hrot.Common.Diagnostics.Gizmos.MindStateGizmo.Row > Hrot.Common.Diagnostics.Gizmos.HealthBarGizmo.Row
+                     && Hrot.Common.Diagnostics.Gizmos.MindStateGizmo.Row < 20, "right under the health bar, above the name");
+            Assert.Equal(0.5f, bar[2].BoxCenterX, 3);                                                                     // the tick at his breaking point
+            Assert.Equal("BROKEN", prims.Single(p => p.ZIndex == Hrot.Common.Diagnostics.Gizmos.MindStateGizmo.BrokenRow).TextContent.ToString());
+            Assert.Equal(2, Emit(civilian, layerOn: true).Length);                                                         // a civilian: back and fill, no tick
+
+            world.SetComponent(soldier, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            Assert.Empty(Emit(soldier, layerOn: true));                                                                   // a man down: nothing
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1176 / CE-1177 (People Display §5 U15, U16) — ONE mark per person, by the priority rule: what he says (G1's Utterance, fading
     /// over its last half second; the police warning gesture counts) beats how he feels (pain, then anger, fear, alarm — G2's Demeanour,
     /// from the second quarter); calm and silent shows nothing. His FACE shows the feeling whatever he says. ✅ Red-proof: speech checked

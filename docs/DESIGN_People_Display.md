@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-24 (§7d — U19 the idle gestures, CE-1308, behaviors' CE-2368 handoff) · 2026-10-21 (§7c — U8 the ExCon "Concealed" layer, CE-1169; the overnight items: U7 held items, U9 aim line, U11 police look, U12 toy, U13 band — CE-1169/1170/1172/1173/1174) · 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
 build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
-current-answer: §7d U19 the idle gestures (newest) · §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
+current-answer: §7e U20 the mind-state bar (newest) · §7d U19 the idle gestures · §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -12,6 +12,7 @@ related-designs:
   - docs/DESIGN_Visual_Effects.md — OWNS EffectLayer and ProjectileLayer (what lies on the ground, bursts, puffs).
   - docs/DESIGN_Entity_Control.md — OWNS the FPS station and its HUD (§8e, §8h).
   - docs/UX/UX_Feature_Entity_Symbology.md — OWNS the 2-D symbol, side colour and the entity card.
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS stress, nerve and the break (TS-4, TS-6, TS-8); §7e only draws them
   - docs/blueprints/Architect_Question_103_Idle_Life.md — OWNS idle life (R-2074): who is idle and calm, and the four idle gesture kinds §7d draws
 -->
 
@@ -359,6 +360,99 @@ draws an idle kind through `IdleArms` instead of returning the figure unchanged.
 starting and ending at his own time (never in step); a stretch came later. Followed in 3-D (`POST /view/follow`): the posted Watchman's
 hand went to his face and down again on the smoking cycle, the rifle staying in his other hand. ⚠ A threat stopping them was not staged —
 the drawing reads `Gesture` every frame, so it stops the frame `RestlessSystem` clears it (behaviors' live run covers that half).
+
+### 7e. U20 — the MIND-STATE bar: a soldier's stress (with his breaking point), a civilian's fear *(`CE-1309`, ui, `2026-10-24`)* — build-state: READY-TO-BUILD
+
+🔒 User, `2026-10-24`: *"The soldier now have their psychical state as fright or nerve and stress etc stored as component, i would like to show
+it on 3d map optionally, maybe as some bar chart floating above soldier's head or something, or just little colored percentage number if
+nothing better and simpler indicator exists. There are already some warning icons i guess so somewhere next to them?"*
+
+**INVENTORY** *(`scripts/cbm.sh search_graph` name_pattern `.*(Nervous|Stress|Fear|Morale|Suppress|Panic|Shaken|Pinned).*` label Class —
+36 hits, the mind-state ones: `CivilianFear`, `CivilianFearSystem`, `PanicState`; grep `Stress|Demeanour|CivilianState|\.Card\(`; ⚠ coverage
+not checkable through the CLI)*:
+
+| what | where | on which node |
+|---|---|---|
+| `Stress {Level 0–1, Broken, …}` — a combatant's live stress | `FDP/…/Behavior/Components/Stress.cs`; kept by `StressSystem` (behaviors) | ⛔ **brain node only** (TS-8) — the editor runs the brains in-process (`EditorSubsystem.cs:1714` builds `CgfLogicPack`), so its map has it; an IG does not |
+| his **breaking point** = effective nerve (`TemperamentOf.Effective(Nerve)`, never under 0.05) · **nervous** from 0.4 × it | `StressModel.BreakLevel` / `Nervousness` (`StressSystem.cs:155-176`, behaviors) | pure reads of `Stress` + `CombatTemperament` (FDP) |
+| `CivilianState.Fear / Anger` 0–1 | `FDP/…/Civilians/CivilianState.cs:44-76` | ⛔ brain node only |
+| `Demeanour {Mode, Fear, Anger}` in quarters — replicated | `Civilians/Demeanour.cs` (G2, `CE-3265`) | every node — ⚠ **no writer yet** (behaviors `CE-2250`) |
+| the CARD above the head — rows: 0 frame · 10 health bar · 20 name · 45 the mark (speech / mood dot) · 46 hidden item | `EntityCards.cs`, `HealthBarGizmo.cs:59`, `OverheadMarkGizmo.cs:131`, `ConcealedItemGizmo.cs:39` | every node |
+| layer toggles — the last toggled bit 27 (`Grid`), `FirstUntoggledLayer` 28 | `DebugTraceLayers.cs:66`, `LayerControlGizmo.cs:69, 118` | — |
+
+```mermaid
+classDiagram
+  direction LR
+  class Stress { <<FDP component, existing>> Level Broken }
+  class Stresses { <<NEW FDP static — moved from StressModel>> +LevelOf · +IsBroken · +BreakLevel · +Nervousness · BreakFloor · NervousFrom }
+  class StressModel { <<behaviors, existing>> BreakLevel / Nervousness / IsBroken / LevelOf forward to Stresses }
+  class TemperamentOf { <<FDP, existing>> +Effective(Nerve) }
+  class CivilianState { <<FDP, brain node>> Fear Anger }
+  class Demeanour { <<FDP, replicated, no writer yet>> Fear in quarters }
+  class MindStateGizmo { <<NEW, Hrot.Common, IStatelessGizmo>> card row 11 · layer MindState }
+  class MindStateBar { <<NEW, pure>> +Of(view, man) (Fill, Tick, Colour, Broken) }
+  class EntityCardRow { <<FDP contracts, grows>> Bar · Text · +Tick }
+  class HealthBarGizmo { <<existing>> card row 10 }
+  class LayerControlDto { <<existing, grows>> Units.MindState off by default · FirstUntoggledLayer 28 to 29 }
+  Stresses --> Stress
+  Stresses --> TemperamentOf
+  StressModel ..> Stresses : forwards
+  MindStateBar --> Stresses
+  MindStateBar --> CivilianState
+  MindStateBar ..> Demeanour : no CivilianState here
+  MindStateGizmo --> MindStateBar
+  MindStateGizmo --> EntityCardRow
+  LayerControlDto ..> MindStateGizmo : toggles its layer
+```
+*Caption:* what the picture shows that prose hid — the breaking point is behaviors' arithmetic, so the drawing would have been a SECOND copy
+of it; moving it beside `Stress` (FDP) gives one implementation that both the brain and the card read. The bar is one more card row, right
+under the health bar — no new surface.
+
+```mermaid
+sequenceDiagram
+  participant SS as StressSystem (behaviors, brain node)
+  participant W as world
+  participant G as MindStateGizmo (map host)
+  participant B as MindStateBar
+  participant C as entity card
+  SS->>W: Stress.Level, Broken (on a stimulus, then each frame)
+  G->>G: layer MindState on? a person, alive, with a network id?
+  G->>B: Of(view, man)
+  B->>W: Stress? then Stresses.BreakLevel (nerve) — else CivilianState.Fear — else Demeanour.Fear / 4
+  B-->>G: fill, tick, colour, broken
+  G->>C: Row(11).Bar(fill, colour) + Tick(break)   · Row(12).Text("BROKEN") when broken
+```
+*Caption:* the card reads the brain's own numbers every frame — nothing new is sent; where the brain is not (an IG), there is nothing to read
+and no row is drawn.
+
+```mermaid
+graph TD
+  REG[GizmoReflectionRegistrar — every map host] --> G[MindStateGizmo]
+  LP[Layer panel: Units / Mind state, off] --> M[LayerMask bit 28]
+  M --> G
+  ED[Editor — brains in-process] -->|has Stress| G
+  CGF[CGF node's own map] -->|has Stress| G
+  IG[IG / remote display]:::dead -.->|no Stress: brain-local TS-8| G
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33
+```
+*Caption:* the dead edge — a display node never has `Stress` (TS-8), so on an IG the layer draws nothing for soldiers; civilians there would
+show once behaviors writes `Demeanour` (`CE-2250`).
+
+| # | decision | ⭐ lean | rejected |
+|---|---|---|---|
+| **U20a** | the indicator | a thin BAR (the health bar's height) in the card, **right under the health bar** — filled to his stress, with a **white tick at his breaking point** (his nerve): the bar reaching the tick is him breaking | a percentage number — a number does not show how close he is to breaking · next to the mood dot (row 45) — a bar reads best beside the other bar |
+| **U20b** | the colour | calm (under 0.4 × his breaking point) slate blue · nervous amber · broken red, with **BROKEN** written under it | one colour — the band is the useful part |
+| **U20c** | civilians | the same row shows his FEAR (amber, no tick): `CivilianState.Fear` on the brain node, else the replicated `Demeanour` quarter | a separate civilian row — one row per man, as U15/U16 |
+| **U20d** | when | only a man with something to show: stress over 2 % or broken; fear over 5 %; never a man down or a vehicle | always — every calm man would carry an empty bar |
+| **U20e** | the switch | its own layer **"Mind state"** under Units, **off by default** (bit 28; `FirstUntoggledLayer` 28 → 29, the `CE-1288` precedent) | the Labels layer — it would be on for everyone |
+| **U20f** | where it can show | wherever the brain runs (the editor, a CGF node's own map); ⛔ not on an IG — `Stress` is brain-local by TS-8 | ask for a replicated quantised stress now — no reader on another node yet (TS-8's own reasoning); asked later if wanted |
+
+| claim the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the editor's world holds the brains | ✅ `EditorSubsystem.cs:1714` builds `CgfLogicPack`; live: `BehaviorState`, `Restless` on the editor's soldiers | ✅ TS-8 *"visible over HTTP … on the brain node"* |
+| `Stress` appears only after a stimulus | ✅ `StressSystem.cs:247-252` (`Ensure` from `Add`) | ✅ TS-4 |
+| breaking point = effective nerve | ✅ `StressSystem.cs:175` | ✅ Temperament & Stress TS-6 |
+| a card row is one call and stacks by order | ✅ `EntityCards.cs:39` | ✅ Map 3-D §3.6 M14 |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 

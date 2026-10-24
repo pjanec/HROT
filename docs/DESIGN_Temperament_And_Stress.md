@@ -15,6 +15,7 @@ related-designs:
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the SOP and the near-miss / hit sensor edges that feed stress; §7.4's doctrine swap ("aggressive / defensive") stays the coarse, whole-unit lever
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad leader (succession) whose presence calms; ROE StayOnTask and the break (TS-6)
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the machinery map (§3 utility decisions)
+  - docs/DESIGN_People_Display.md — §7e U20 DRAWS stress (with the breaking point as a tick) and a civilian's fear on the 3-D card (ui, `CE-1309`); the breaking-point arithmetic moved to `Stresses` (FDP, beside `Stress`) so the card and `StressModel` share one copy
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS a man's ABILITY (CombatProficiency, the tiers, the commander's repertoire); kept apart from this design's will
 -->
 
