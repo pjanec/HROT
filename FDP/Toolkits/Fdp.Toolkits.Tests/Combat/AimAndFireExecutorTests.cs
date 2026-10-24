@@ -2287,6 +2287,119 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
 
+        // ── CE-2360 I-4 (AQ102 R2-4, R-2073) — WHICH grenade the hidden-target throw picks ───────────────────────────────────────
+
+        private const long Stun = 6037;
+
+        /// <summary>The grenadier, his mount 2 a STUN (a stun warhead, thrown at 15 m/s, 25 m), two rounds; returns the stun mount's entity.</summary>
+        private Entity WithStun(Entity unit)
+        {
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var stun = new Fdp.Interfaces.TkbTemplate("Stun grenade", Stun) { DisType = new Fdp.Core.DISEntityType { Kind = 2 } };
+            stun.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto
+            {
+                Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Stun, Indirect = true, BlastLethalRadiusM = 0.5f, BlastInjuryRadiusM = 8f, EffectSeconds = 8f,
+            });
+            db.Register(stun);
+            db.TryGetByType(77, out var type);
+            type!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()!.Mounts.Add(
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { MuzzleVelocity = 15f, Range = 25f, AmmoGuid = unchecked((ulong)Stun) });
+            var mount = _world.CreateEntity();
+            _world.AddComponent(mount, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit, InstanceId = 2 });
+            _world.AddComponent(mount, new WeaponMountInfo { MountIndex = 2 });
+            _world.AddComponent(mount, new WeaponState { Ammo = 2, MuzzleVelocity = 15f });
+            return mount;
+        }
+
+        /// <summary>A building whose footprint holds <paramref name="inside"/> (a 6 m square round it).</summary>
+        private void HouseAround(Vector3 inside)
+            => _world.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+            {
+                Buildings = new[]
+                {
+                    new Fdp.Toolkit.Terrain.TerrainBuilding
+                    {
+                        Label = "House",
+                        Footprint = new[]
+                        {
+                            new Vector2(inside.X - 3f, inside.Y - 3f), new Vector2(inside.X + 3f, inside.Y - 3f),
+                            new Vector2(inside.X + 3f, inside.Y + 3f), new Vector2(inside.X - 3f, inside.Y + 3f),
+                        },
+                    },
+                },
+            });
+
+        /// <summary>A civilian at <paramref name="at"/>; <paramref name="known"/> puts him in the unit's memory (seen, identified).</summary>
+        private unsafe void Civilian(Entity unit, Vector3 at, bool known)
+        {
+            var civ = SpawnTarget(at);
+            _world.AddComponent(civ, new EntityInfo { ForceId = Fdp.Core.ForceId.Neutral });
+            if (!known) return;
+            ref var mem = ref _world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(unit);
+            int i = mem.Count++;
+            mem.EntityIds[i] = (long)civ.PackedValue;
+            mem.PositionsX[i] = at.X; mem.PositionsY[i] = at.Y; mem.PositionsZ[i] = at.Z;
+            mem.Freshness[i] = 500f;
+        }
+
+        private int ThrownMount(Entity unit, ref WeaponChannel channel)
+        {
+            _executor.OnEnter(unit, ref channel, _world);
+            Tick(unit, ref channel, 0.1f);
+            _world.Bus.SwapBuffers();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
+            return intents.Length == 0 ? -1 : intents[0].WeaponIndex;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2360</c> — the M67's LETHAL radius by the fragment law (where a standing man expects 70 damage): CB-70's "5 m lethal", not
+        /// the 18 m a third of its hazard radius (54 m since CE-3203) read. 📐 Measured before: 18.1 m — the thrower 18 m off sat inside it.
+        /// </summary>
+        [Fact]
+        public void CE2360_TheM67sLethalRadius_IsTheLaws_AFewMetres_NotAThirdOfItsHazardReach()
+        {
+            Grenadier(new Vector3(0f, 18f, 0f));
+            var (wh, _, _) = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(_world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(), M67);
+            float lethal = GrenadeRules.LethalRadius(wh!);
+            Assert.InRange(lethal, 3f, 9f);
+            Assert.True(wh!.FragmentRadiusM > 3f * lethal, $"hazard {wh.FragmentRadiusM} m vs lethal {lethal} m");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2360</c> I-4 (R-2073) — a hidden enemy 18 m off in the OPEN: the FRAG goes (mount 1, preferred over the stun on mount 2);
+        /// with a civilian he KNOWS of 2 m from the spot (inside the M67's lethal radius) the frag is out and the stun goes; a civilian he
+        /// never saw changes nothing ("a KNOWN civilian"). ✅ Red-proof: the known-neutral test dropped ⇒ the frag goes beside him ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData("no civilian", 1)]
+        [InlineData("known civilian beside him", 2)]
+        [InlineData("unseen civilian beside him", 1)]
+        public void CE2360_I4_InTheOpen_AFrag_UnlessACivilianHeKnowsIsInItsReach(string why, int expected)
+        {
+            var at = new Vector3(0f, 18f, 0f);
+            var (unit, _, channel, _) = Grenadier(at);
+            WithStun(unit);
+            if (why != "no civilian") Civilian(unit, at + new Vector3(2f, 0f, 0f), known: why.StartsWith("known"));
+            Assert.Equal(expected, ThrownMount(unit, ref channel));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2360</c> I-4 (R-2073) — a hidden enemy INSIDE a building (the throw goes through its door or window): no intensity is
+        /// ordered, so Precision — the STUN goes, never the frag; a man with only frags throws nothing. ✅ Red-proof: the indoors test
+        /// dropped ⇒ the frag goes into the house ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(true, 2)]
+        [InlineData(false, -1)]
+        public void CE2360_I4_IntoABuilding_AStunOnly_WithNoStunNothing(bool carriesStun, int expected)
+        {
+            var at = new Vector3(0f, 18f, 0f);
+            var (unit, _, channel, _) = Grenadier(at);
+            if (carriesStun) WithStun(unit);
+            HouseAround(at);
+            Assert.Equal(expected, ThrownMount(unit, ref channel));
+        }
+
         // ── AQ89 A (R-269) — Suppress at a hidden target: blind rounds at the last-known spot, not an idle hold ────────────────
 
         private static unsafe void AskBlind(ref WeaponChannel channel)

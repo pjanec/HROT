@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
+using Fbt.Kernel;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
@@ -141,6 +142,13 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float FrameBY[Capacity];
         public fixed float OpeningX[Capacity];
         public fixed float OpeningY[Capacity];
+        /// <summary>⭐ <c>CE-2359</c> (AQ102 H) — the HUNTER's roster slot (<see cref="None"/> = no hunt), the contact he hunts (its id), when the
+        /// hunt began; and the last contact hunted (once per contact).</summary>
+        public byte Hunter;
+        public long Hunted, LastHunted;
+        public double HuntSince;
+        /// <summary>⭐ <c>CE-2359</c> — where the hunted contact was last known when the hunt began (the hunter's arc faces it).</summary>
+        public float HuntX, HuntY, HuntZ;
 
         public Vector3 Point(int k) => new(X[k], Y[k], Z[k]);
 
@@ -273,6 +281,16 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
+        private static readonly int DefendHash = BehaviorHash.FromName(BehaviorNames.SquadDefend);
+
+        /// <summary>⭐ <c>CE-2359</c> (AQ102 H; DA-55 at the squad level, as the platoon's <c>PlatoonDefendBehavior.NotDefending</c>) — the
+        /// squad's task is NOT a defence. <c>BasicSquadSop</c>'s contact rows ask it first: a defending squad's own play answers a contact
+        /// (its posts, displacement, flank turns, the hunter), and <c>ReactToContact</c> would pause it and assault out. 📐 Live
+        /// (<c>rf-wall-hugger</c>): a grenade, then a contact, and two posted defenders were sent 50–60 m out of the house.</summary>
+        [SharedAiCondition]
+        public static bool NotDefending(Entity self, EntityRepository world)
+            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != DefendHash;
+
         internal static SquadDefendParams Defaults(Vector3 position, float radius, float speed) => new()
         {
             Position     = position,
@@ -331,6 +349,11 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FlankedMetres = SquadSenseChanges.FlankedMetres;
         /// <summary>⭐ <c>CE-2283</c> — a flank change this old is still answered (the contact may take a merge to stand where the rule sees it, s).</summary>
         public const float FlankedFreshSeconds = 2f;
+        /// <summary>⭐ <c>CE-2359</c> (AQ102 H) — a known hostile this near the defended position (flat, m), seen by none of the squad for
+        /// <see cref="HuntUnseenSeconds"/>, is hunted by ONE man for <see cref="HuntSeconds"/>.</summary>
+        public const float HuntMetres = 30f;
+        public const float HuntUnseenSeconds = 2f;
+        public const float HuntSeconds = 20f;
 
         private static readonly SquadHsmShell s_shell = new(SquadDefendManeuver.BuildTransitionTable(), SquadDefendManeuver.PhaseAborted);
 
@@ -344,6 +367,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             for (int i = 0; i < ctx.Roster.Count; i++) partition[i] = new MemberPartitionInput(1f, 0f);
             unsafe { for (int i = 0; i < DefencePosts.Capacity; i++) { p.Posts.PostOf[i] = DefencePosts.None; p.Posts.MovedAt[i] = double.NegativeInfinity; } }
+            p.Posts.Hunter = DefencePosts.None;   // ⭐ CE-2359
             return SquadManeuverRunner.AnyLive(in ctx) ? PlayStart.Go : PlayStart.Fail;
         }
 
@@ -355,6 +379,7 @@ namespace Hrot.AI.Behaviors.Brains
             Manned(ref p, in ctx);
             Displace(ref p, ref ws, in ctx);
             Flanked(ref p, ref ws, in ctx);
+            Hunt(ref p, ref ws, in ctx);
         }
 
         public NodeStatus Outcome(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
@@ -389,6 +414,14 @@ namespace Hrot.AI.Behaviors.Brains
                     Sector = hasEa && p.Posts.Ready != 0 ? MemberArc.Around(LookAt.BearingTo(at, ea), ArcHalfWidth) : default,
                 };
             var spot = p.Posts.Point(post);
+            if (member == p.Posts.Hunter)   // ⭐⭐ CE-2359 (AQ102 H) — the hunter fights from ANY opening of the building, facing the hunted
+                return new MemberOrder
+                {
+                    Kind = MemberOrderKind.Watch, Point = spot, Speed = p.Speed, RoleId = SquadDefendManeuver.RolePosted, Cover = 1,
+                    Sector = MemberArc.Around(LookAt.BearingTo(spot, new Vector3(p.Posts.HuntX, p.Posts.HuntY, p.Posts.HuntZ)), ArcHalfWidth),
+                    // his post widened to the squad's own window search: his window ask (which must SEE the threat) picks the opening
+                    Post = new MemberPost { Set = 1, Window = 1, Radius = p.SearchRadius },
+                };
             int alternate = AlternateOf(ref p, in ctx, member);
             return new MemberOrder
             {
@@ -749,6 +782,86 @@ namespace Hrot.AI.Behaviors.Brains
                     break;
                 }
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2359</c> (AQ102 H, R-2072) — a hostile the squad KNOWS of near the defended position (within <see cref="HuntMetres"/>)
+        /// that none of its men has seen for <see cref="HuntUnseenSeconds"/> (under the wall, round the corner): ONE man — the posted man
+        /// nearest him — fights from ANY opening of the building for <see cref="HuntSeconds"/> (his post widened to the squad's window search,
+        /// so his own window ask, which must SEE the threat, picks the opening), then he goes back to his post. Everyone else keeps his
+        /// sector; nobody leaves the building. Once per contact; it ends early when the contact is gone or out of the fight.
+        /// </summary>
+        private static unsafe void Hunt(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (p.Posts.Hunter != DefencePosts.None)
+            {
+                if (ctx.Now - p.Posts.HuntSince < HuntSeconds && ctx.Live(p.Posts.Hunter, out _) && Pooled(in ctx, p.Posts.Hunted, out _)) return;
+                p.Posts.Hunter = DefencePosts.None;   // back to his post
+                ws.Reissue = 1;
+                return;
+            }
+            if (!Hunted(ref p, in ctx, out long id, out var at)) return;
+            int hunter = -1;
+            float best = float.MaxValue;
+            for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
+            {
+                if (!ctx.Live(i, out var m) || p.Posts.PostOf[i] == DefencePosts.None) continue;
+                float d = Flat(ctx.At(m) - at);
+                if (d < best) { best = d; hunter = i; }
+            }
+            if (hunter < 0) return;
+            p.Posts.Hunter = (byte)hunter;
+            p.Posts.Hunted = p.Posts.LastHunted = id;
+            p.Posts.HuntSince = ctx.Now;
+            p.Posts.HuntX = at.X; p.Posts.HuntY = at.Y; p.Posts.HuntZ = at.Z;
+            ws.Reissue = 1;
+            Report(in ctx, at, ProgressKind.Displacing);
+        }
+
+        /// <summary>⭐ <c>CE-2359</c> — the contact to hunt: identified, hostile, in the fight, within <see cref="HuntMetres"/> of the position,
+        /// unseen by the squad for <see cref="HuntUnseenSeconds"/>, and not the one last hunted.</summary>
+        private static bool Hunted(ref SquadDefendParams p, in SquadPlayContext ctx, out long id, out Vector3 at)
+        {
+            id = 0; at = default;
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(ctx.World);   // the clock LastSeenTick is stamped in (CE-3292)
+            uint unseen = (uint)(HuntUnseenSeconds * 60f);
+            for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
+            {
+                if ((pool[c].Flags & SquadContact.AnonymousFlag) != 0 || pool[c].EntityId == p.Posts.LastHunted) continue;
+                if (pool[c].LastSeenTick <= now && now - pool[c].LastSeenTick <= unseen) continue;   // somebody sees him: his sector's man fights him
+                var where = new Vector3(pool[c].PositionX, pool[c].PositionY, pool[c].PositionZ);
+                if (Flat(where - p.Position) > HuntMetres || !Fighting(ctx.World, pool[c].EntityId)) continue;
+                id = pool[c].EntityId; at = where;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2359</c> — <paramref name="id"/> is still in the squad's picture and still in the fight.</summary>
+        private static bool Pooled(in SquadPlayContext ctx, long id, out Vector3 at)
+        {
+            at = default;
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
+                if (pool[c].EntityId == id)
+                {
+                    at = new Vector3(pool[c].PositionX, pool[c].PositionY, pool[c].PositionZ);
+                    return Fighting(ctx.World, id);
+                }
+            return false;
+        }
+
+        private static bool Fighting(EntityRepository world, long id)
+        {
+            var e = new Entity((ulong)id);
+            return world.IsAlive(e) && !Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(world, e) && !Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e);
         }
 
         private static unsafe int AlternateOf(ref SquadDefendParams p, in SquadPlayContext ctx, int man)

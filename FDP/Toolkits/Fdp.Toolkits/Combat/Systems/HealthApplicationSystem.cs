@@ -47,8 +47,30 @@ namespace Fdp.Toolkit.Combat.Systems
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public class HealthApplicationSystem : IEcsModuleSystem
     {
+        private EntityQuery? _bodies;
+
         public HealthApplicationSystem()
         {
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2367</c> (AQ102 S6) — a man DEAD or INCAPACITATED by his Health (<see cref="Injury.StateOf(ISimulationView, Entity)"/>) who
+        /// still holds <c>CanMove</c> or <c>CanShoot</c> loses them here, on the node that owns his Health, at the head of the frame — the
+        /// same rule a killing hit applies (<see cref="CombatLife.ApplyHitCapabilities"/>). 📐 Measured live (<c>rf-pinned-in-open</c>): three
+        /// squad mates authored with Health 0 fired ~200 rounds at the window from where they lay — the rule ran only on a HIT, so a body
+        /// that was never hit (a scenario's dead, a debug-API edit) kept fighting.
+        /// </summary>
+        private void StopTheDown(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<Health>() || !repo.IsComponentTypeRegistered<ActorCapabilityState>()) return;
+            _bodies ??= repo.Query().With<Health>().With<ActorCapabilityState>().Build();
+            foreach (var e in _bodies)
+            {
+                if ((repo.GetComponentRO<ActorCapabilityState>(e).Capabilities & (ActorCapabilities.CanMove | ActorCapabilities.CanShoot)) == 0) continue;
+                ref readonly var health = ref repo.GetComponentRO<Health>(e);
+                if (Injury.StateOf(repo, e, in health) < InjuryState.Incapacitated || !HealthOwnership.AppliesHere(repo, e)) continue;
+                CombatLife.ApplyHitCapabilities(repo, e, in health);
+            }
         }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -57,6 +79,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 throw new InvalidOperationException(
                     $"{nameof(HealthApplicationSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            // ⭐ CE-2367 — death always stops, however he got there (an authored body, an edited Health): see StopTheDown
+            StopTheDown(repo);
 
             var events = repo.ReadEvents<DamageAssessedEvent>();
             if (events.Length == 0) return;

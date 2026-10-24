@@ -25,11 +25,16 @@ namespace Fdp.Toolkit.Civilians
 
         /// <summary>Throws ONE round from <paramref name="man"/>'s hands at <paramref name="at"/>: a new FireAtPoint action instance on his
         /// weapon channel (so the executor re-enters). False when he has no hands mount, no weapon channel or nothing to throw.</summary>
-        public static unsafe bool Throw(EntityRepository world, Entity man, Vector3 at)
+        public static bool Throw(EntityRepository world, Entity man, Vector3 at) => InHand(world, man) && ThrowHeld(world, man, at);
+
+        /// <summary>⭐ <c>CE-2360</c> (AQ102 I-3) — the ONE throw from the hands, whatever they hold: a stone (<see cref="Throw"/>) or a live
+        /// grenade a soldier picked up to throw back (AW-9's armed path) — <see cref="FireAtPointExecutor"/> keeps a live round's fuze. False when
+        /// he has no hands mount, no weapon channel or nothing in his hands.</summary>
+        public static unsafe bool ThrowHeld(EntityRepository world, Entity man, Vector3 at)
         {
             int mount = PersonHands.MountIndex(world, man);
             if (mount < 0 || mount > byte.MaxValue || !world.IsComponentTypeRegistered<WeaponChannel>() || !world.HasComponent<WeaponChannel>(man)
-                || !InHand(world, man)) return false;
+                || !PersonHands.Holding(world, man, _ => false)) return false;
             ref var channel = ref world.GetComponentRW<WeaponChannel>(man);
             if (world.IsComponentTypeRegistered<BehaviorState>() && world.HasComponent<BehaviorState>(man))
                 channel.BehaviorInstanceId = world.GetComponentRO<BehaviorState>(man).InstanceId;

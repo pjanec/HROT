@@ -15,6 +15,9 @@ namespace Fdp.Toolkit.Behavior.Components
         Shifting = 2,
         /// <summary>Crawling to a cover point near him; down again there.</summary>
         Crawling = 3,
+        /// <summary>⭐ <c>CE-2363</c> (AQ102 R2-3) — pinned in the open with no cover near: a 2–4 m crawl sideways to the shooter; down again
+        /// there.</summary>
+        Scooting = 4,
     }
 
     /// <summary>
@@ -54,5 +57,11 @@ namespace Fdp.Toolkit.Behavior.Components
         public double CoveredUntil;
         /// <summary>⭐ <c>CE-2343</c> (R-2066 C) — the way the cover he crawled to faces (toward its obstacle; zero = none).</summary>
         public Vector2 CoverFacing;
+        /// <summary>⭐ <c>CE-2363</c> — sim time the fire first put him down on this drop (a scoot does not reset it; rising does).</summary>
+        public double PinnedSince;
+        /// <summary>⭐ <c>CE-2363</c> — how long (s) the side step, crawl or scoot in hand may take before he gives it up.</summary>
+        public float SubSeconds;
+        /// <summary>⭐ <c>CE-2363</c> — the scoots he has made on this drop (the side alternates, the seed moves on).</summary>
+        public byte Scoots;
     }
 }

@@ -663,7 +663,11 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// his seed's offset, so a crowd does not pump its fists in step.</remarks>
     public static KitPart[] Gestured(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts, double simTime = 0)
     {
-        var gesture = (BlockFigure.ArmGesture)(byte)Fdp.Toolkit.Combat.Gestures.Of(world, e);   // U6-b: the same six, byte for byte
+        var kind = Fdp.Toolkit.Combat.Gestures.Of(world, e);
+        // ⭐ CE-2368 (behaviors, cross-lane) — an IDLE mood (AQ103 I: smoking, shifting weight…) is not one of the arm poses below; ⛔ cast
+        //   through, it fell to the switch's default and drew the throw's wind-up. Drawn as he is until ui maps the idle kinds.
+        if (Fdp.Toolkit.Combat.Gestures.IsIdle(kind)) return parts;
+        var gesture = (BlockFigure.ArmGesture)(byte)kind;   // U6-b: the same six, byte for byte
         if (gesture == BlockFigure.ArmGesture.None || carriage.Kind != CarriageKind.Free) return parts;
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
         var stance = LogicalStance.Of(world, e);

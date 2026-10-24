@@ -500,5 +500,27 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(Effects.IsCowering(_world, man));
             Assert.Equal(105d, _world.GetComponentRO<EffectState>(man).StunnedUntil);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2367</c> (AQ102 S6) — a body DEAD by its Health that no hit killed (a scenario's dead, a debug-API edit) loses
+        /// <c>CanMove</c>/<c>CanShoot</c> on the next frame with no damage event; a living man keeps them, and a node that does not own the
+        /// Health leaves them alone. 📐 Live: three authored-dead squad mates fired ~200 rounds. ✅ Red-proof: the sweep removed ⇒ the dead
+        /// man keeps both ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2367_ADeadBodyNoHitKilled_LosesMoveAndShoot_WithoutADamageEvent()
+        {
+            var dead = SpawnTarget(currentHealth: 0f, addCapabilities: true);
+            var alive = SpawnTarget(currentHealth: 40f, addCapabilities: true);
+            var notMine = SpawnTarget(currentHealth: 0f, authoritative: false, addCapabilities: true);
+            _world.Bus.SwapBuffers();
+
+            _sys.Execute(_world, 0.016f);
+
+            const ActorCapabilities both = ActorCapabilities.CanMove | ActorCapabilities.CanShoot;
+            Assert.Equal((ActorCapabilities)0, _world.GetComponentRO<ActorCapabilityState>(dead).Capabilities & both);
+            Assert.Equal(both, _world.GetComponentRO<ActorCapabilityState>(alive).Capabilities & both);
+            Assert.Equal(both, _world.GetComponentRO<ActorCapabilityState>(notMine).Capabilities & both);
+        }
     }
 }

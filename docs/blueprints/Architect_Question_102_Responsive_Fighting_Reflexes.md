@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2b accepts the dead ground under the upper windows — H here answers it for ONE man (the hunter); the rest of D-2 stands
 related-designs:
+  - docs/blueprints/Architect_Question_103_Idle_Life.md — OWNS idle life: the one restlessness reflex for a STATIONARY man (no move), the one stay-still rule, and the lying man's calm crawl
   - docs/DESIGN_Peek_And_Fire.md — OWNS PeekAndFire (§8 spot heat, §10 the library node, §11 look-then-shoot, D12 "under fire = stay down", D14 "aim where remembered"); A, B, C, D reuse it
   - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — OWNS the soldier's own SOP reflexes and why they stand aside under command (R-2062); this question puts the fighting reflexes BELOW that gate
   - docs/blueprints/Architect_Question_98_Cover_Reaction_Fights_Back.md — OWNS FightFromCover (R-2070, C″ CE-1269); unchanged
@@ -262,6 +263,81 @@ E changes the approach gate (more flanking everywhere); the rest are additive.
 
 ## 7. Baseline *(filled by step 1)*
 
-| scenario | measured | |
+*(2026-10-23, `--mode all`, at `a0d776ebd` + the load fix `36d95ffda`; the numbers each check prints)*
+
+| scenario | measured | ⇒ the gap, by sub-question |
 |---|---|---|
-| S1 … S5 | — | — |
+| **S1** `rf-car-duel` | both fight (FightFromCover); Blue idles hidden **12.3 s**, Red 8.4 s · Blue 6 bursts from 2 spots, **4 repeated**; Red 8 from 3, **5 repeated** · both move ~18 m · closest 43 m ⇒ no grenade | **D** (the same peek spot over and over — `PickPeek` takes the sensor's first answer, `PeekAndFireNodes.cs:923-944`) · **E** (never closes to throw) |
+| **S2** `rf-car-squads` | **0 rounds fired, no task on any man, nobody moves** in 120 s | **G** — the squads carry no SOP (type 302 has no default) and the men stand aside under command (R-2062) ⇒ nothing at all happens |
+| **S3** `rf-house-obstacle` | without prior knowledge: both Idle 120 s (the house hides them). With each other in memory (as now): FightFromCover, **both go THROUGH House A**, close to 5 m, **6 grenades** — but only 1 burst between them | **F** (through was taken with no safety test) · **D/E** (they barely fire) |
+| **S4** `rf-wall-hugger` | defenders duck within 2 s of Blue's fire (3 times — `SquadDefend`'s posture already crouches/prones under fire) · Blue never reached the wall in 90 s (stalled at y 116 under fire; recast to start 15 m out) · nobody hunted, no grenade, no look through the wall | **H**, **I-4** · ⚠ **C** passes — re-check once Blue is under the wall |
+| **S5** `rf-grenade-reaction` | the M67 lands 1.9 m from the group; **all four stand, exposure 1.0, nobody moves** | **I** entirely |
+
+**After A–D (`348183766`, live):** S1 — idle-hidden 9.9 / 9.8 s (was 12.3 / 8.4), repeated spots 2 / 1 (was 4 / 5) · S4 — a defender ducks
+within 2 s of the Shooter (was 0); all three defenders move to see the Hugger (H wants one); no grenade; one look sample tracked an unseen
+man (⚠ C's heard-stamp caveat, or the judge's sample timing) · S3 — both fight, both go through House A, 4 grenades; Red 2 spots / 0
+repeats, Blue 1 burst.
+
+**After E–I (`810d2db60`, live, 2026-10-23):**
+
+| scenario | measured | open |
+|---|---|---|
+| **S5** `rf-grenade-reaction` | ✅ **PASS** — Blue 3 picked the M67 up and threw it back (it burst at the Thrower's end, 16 m from the group); all four prone at the burst; each back to his fight ~2.5 s later | — |
+| **S2** `rf-car-squads` | ✅ **PASS** — 629–670 rounds; a base of fire holds while three men a side bound (was 0 rounds) | ⚠ the movers are never out of the enemy's sight (judge (2) not enforced) — J |
+| **S3** `rf-house-obstacle` | both fight the whole run (35 bursts, 8 grenades), neither idles > 9 s, both go THROUGH House A to 0.5 m | ⚠ "never the same spot twice running" fails — at a window PC-15 keeps several exposures, so the judge is partly wrong there · F (through-or-around by route cost) not built |
+| **S1** `rf-car-duel` | they stay in the fight (no Idle after 3 s); longest hidden-and-still 18.8 / 26.6 s (was 12.3 / 8.4 at baseline, 27–33 after the first E) | ⛔ the escalations do not reach another car: the journal shows only PeekAndFire's hide / peek moves between two points behind the same car, closest approach 43 m — E's trigger in this geometry is not yet understood |
+| **S4** `rf-wall-hugger` | ducks within 2 s ✅ · eyes never follow an unseen man ✅ · the defenders STAY in the house (0 / 3.5 / 0 m — was 50–60 m: their squad SOP's ReactToContact paused SquadDefend; fixed by the squad-level `NotDefending` guard, DA-55) | ⚠ no hunt visible to the judge (> 4.5 m from the post) · ⛔ no grenade dropped at the Hugger (I-4 not built) |
+| `uc-urban-battle` | ⚠ not measurable: an intermittent whole-cluster heartbeat ejection ~36 s after load ([CE-2361](Blueprint_Issues_Tracker.md)), also at the A–D commit — when it does not stall, the ambush plays and only ⑤ fails, as at the base | CE-2361 |
+
+## 8. As built *(the sub-questions as they landed; each row names its deviation, if any)*
+
+| # | as built | deviation from §4 |
+|---|---|---|
+| **A** (CE-2356) | `StandardInputs.UnderFire` (id `0x2C71`): 1 within 1.5 s of a hit / near miss, falling to 0 at 4 s (`RecentSenses`). ⭐ **Reworked** (`782756536`): TakeCover and HoldProne read `HurtOrUnderFire` (`0x5EF1`) = max(1 − health, UnderFire) on `Linear`, weight 0.8 — out of fire EXACTLY the old `1 − health`, shot at 1 for anyone; Suppress × `1 − 0.7·u` | ⛔ SUPERSEDED: the first build (a health floor `1 − 0.5·h` × a boost `0.6 + 0.4·u`) let an UNHURT man with nobody shooting score HoldProne over Hold and AdvanceAndAttack — 📐 measured by the full Toolkits Utility run (SC-SP-03 / -04 red), which the first gate had filtered out |
+| **B** (CE-2356) | `PostureNodes.AtOpeningPost` (a post with a window / set-back / roof template or a frame); `CombatPosture`'s Suppress branch runs `PeekAndFire` first for such a man | — |
+| **C** (CE-2356) | `LookAt.Want`: the top threat is followed only when `InSightNow` (a Visual slot stamped ≤ 30 ticks); otherwise `LookAtPoint` at `Remembered` (memory position + the eyes of the stance he was seen in) | ⚠ a SOUND of a seen man also stamps the slot, so a seen man heard nearby still counts as in sight |
+| **E** (CE-2357) | Inside `FightFromCoverBehavior.Run`: in cover, a hostile he SAW remembered but unseen for `FlankAfterSeconds` (10 s), Regular or better, no post, ≤ 3 escalations per run (`ShouldFlank` / `MayFlank`, public) ⇒ PeekAndFire released and the escalations ALTERNATE — `EqsTacticsNodes.FlankRemembered` (`FindFlankingPosition` at the REMEMBERED point, 20 m), then `CloseInRemembered` (`FindThrowingPosition` at it, firing and throwing on the way, ends on arrival), then a flank; then a fresh fight from cover there. PeekAndFire's own end (no LIVE threat, ~14 s unseen) while the enemy is still remembered starts an escalation instead of ending the fight | ⛔ SUPERSEDED, both measured live: a flank on the LIVE position, 40 m (`rf-house-obstacle`: the two chased each other round House A and swapped sides without a shot) · ending the fight on PeekAndFire's own end (`rf-car-duel`: both idled 28–33 s) | ⚠ ONE step, not three: the < 5 s "peek elsewhere" is D's seeded pick; the 5–10 s "another firing position" step is not built; `AttackApproachDecision`'s gate is unchanged (the fight from cover is where a lost enemy is handled, so the escalation lives there) |
+| **G** (CE-2358) | `Unit_InfantrySquad` carries `defaultSop: "BasicSquadSop"` (TKB); the SOP gains `SopConditions.UnderCommand` after the carrier rows (090…080): a squad under a live platoon lets the platoon's play fight for it; mount / dismount / ride stay its own | 📐 the contact answer's Assault ALREADY is `SuppressAndManeuver` — only the missing SOP was the gap (S2: 0 rounds in 120 s) |
+| **H** (CE-2359) | ⭐ + `SquadDefendBehavior.NotDefending` guards `BasicSquadSop`'s four contact rows (DA-55 at the squad level: a defence answers its contacts — 📐 live, ReactToContact had paused SquadDefend and sent two defenders 50–60 m out). `SquadDefendPlay.Hunt` (after Displace / Flanked): a pooled identified hostile ≤ 30 m from the position, unseen by the squad for 2 s ⇒ the posted man nearest him keeps his post but its radius widens to the squad's `SearchRadius`, window way, arc on him — his own window hide ask (must SEE the threat) picks the opening; back to his post after 20 s or when the contact is gone; once per contact | the grenade drop ("he may drop a grenade") is not part of H — it is I-4's |
+| **I** (CE-2360) | `GrenadeDangerSystem` (CGF pack, before the brain tick): each live fragmenting time-fuzed round lying on this node — flown here (fuze known) or a `LightweightRound` replica that kept still 0.25 s (fuze = the warhead's less the time since it appeared; thrower = where it appeared) — and each person within 2× its lethal radius (≤ 15 m). Per round the nearest Regular+ man with room in his hands and fuze for react + reach + pick + throw + spare throws it back; every other runs to lethal + 2 m if he gets there in time, else a step away and flat. Each answer is a REACTION at `ReactionUrgency.Grenade` (5) through `SopActions.React` — `EvadeGrenade` runs it; the throw is `Stones.ThrowHeld` (the one hands throw). Live `rf-grenade-reaction` PASS | 📐 **I-1 answered:** the brain's node never flies a man's round (his body's node does) and the replica has neither fuze nor velocity — read as lying in flight until the still test · ✅ **I-4 built `2026-10-24` (R2-4)** — the weapon brain's hidden-target throw (`HiddenTargetThrow.ChooseThrow`) picks its grenade by one rule (`GrenadeRules`, FDP Combat — `GrenadeCheck.KindOf` and the lethal radius route to it): a FRAG only outdoors and with no civilian HE KNOWS in its lethal radius; into a building a STUN only (no intensity reaches the weapon brain ⇒ Precision; the room drill keeps its own `GrenadeCheck.Choose` with HighIntensity); the best kind wins (frag › stun › other); every one inside the force level. ⚠ Deviation: the design said `GrenadeCheck` gates it — `GrenadeCheck` lives in behaviors and the throw in FDP, so the SHARED half moved down to `GrenadeRules` and both read it. ⭐ Found on the way: the lethal radius was a third of the M67's HAZARD radius since CE-3203 (54.4 m ⇒ 18.1 m — the thrower inside his own burst); it is now the fragment law's (where a standing man expects 70 damage, a few metres — CB-70's "5 m lethal"), which the room drill's friend check and the grenade reflex read too · ⚠ ROE `StayOnTask` still refuses the reaction (R-199's gate, unchanged) |
+| **D** (CE-2356) | `PickPeek` (internal, for the draw rail): a seeded draw (`SeedOf(unit, picks)`) among ≤ 3 answers within 85 % of the best, never the last used (`LastPeek`). `Skilled`: behind open-ground cover (the default template, no post) a Regular+ man has ONE exposure per spot; windows keep PC-15 (R-2047) | the per-spot override is how "never the same twice" reaches a STANCE peek (which has no step-out point); three exposures at a single answered spot still burn it (B2–B4) and he waits to cool |
+
+**Rails (CE-2356):** `StarterPackIntegrationTests.CE2356_AnUnhurtMan_ShotAt_TakesCover_AndSuppressesWhenItWearsOff` ·
+`TacticsTreesTests.CE2356_AThreatOutOfSight_IsLookedForWhereRemembered_NotFollowed` · `TacticsTreesTests.CE2356_AtOpeningPost_IsAWindowOrFramePost_NotACoverPost` ·
+`PeekAndFireNodesTests.CE2356_AStepPeek_NeverStepsOutAtTheSameSpotTwiceRunning` · `…CE2356_ThePeekDraw_NeverRepeatsTheLastSpot_OverManyPicks` ·
+`…CE2356_OpenCover_OneExposurePerSpot_AWindowKeepsItsCount`. Mutants: 6 of 7 killed (the boost-only one survives, above).
+
+**Rails (CE-2357…CE-2359):** `BasicInfantrySopTests.CE2357_TheEnemyOutOfSightTooLong_ATrainedManInCoverFlanks` (mutants 6/6) ·
+`SquadManeuverTests.CE2358_BasicSquadSop_UnderALivePlatoon_ASquadContact_LeavesTheTaskToThePlatoon` + `NedTkbBuilderCombatTests.CE2262_…`
+(the TKB default; mutants 2/2) · `SquadManeuverTests.CE2359_SquadDefend_AKnownEnemyNobodySees_IsHuntedByOneMan_FromAnyOpening_ThenHeGoesBack`
+(mutants 4/4).
+
+## 9. Round 2 — after the live results *(✅ approved 2026-10-24, R-2073)*
+
+🔒 **User, `2026-10-24`:** *"maybe that not fighting and keep hiding is a perfectly valid outcome of such a duel if both sides are equal.
+I think to make it finish, one of the sides would need to be handicapped somehow, like having lower skills or morale or bravery. But even if
+equal, they should still be trying to peek out of their cover few times at irregular interval in the direction where they have seen the
+enemy."* · on the attackers' grenades: *"there need to be some condition not to do that if the mission is to clear the houses from
+terrorists but saving all the civilians"* · then: *"Leans approved"* — and for the lone pinned man *"I suggest to create a new one
+specifically for that case"*.
+
+| # | ✅ lean | tracker |
+|---|---|---|
+| **R2-1** | S1 between EQUALS may end in a stalemate: its judge becomes "each peeks toward the remembered spot at least every ~10 s, from alternating corners, at irregular intervals"; a handicapped variant **S1b** (one side militia, low nerve) must RESOLVE. E stays the regular's lost-contact move | [CE-2364](Blueprint_Issues_Tracker.md) |
+| **R2-2** | stress is [DESIGN_Temperament_And_Stress](../DESIGN_Temperament_And_Stress.md) (R-2034, approved, unbuilt: CE-2269…CE-2272) as written, **plus a FIDGET**: stress between ~0.4 × nerve and nerve ⇒ at irregular moments a 1–2 m shift inside his cover (sometimes exposing him); at nerve, TS-6's break — to ground, no peeks — until calmed | [CE-2365](Blueprint_Issues_Tracker.md) |
+| **R2-3** | the man PINNED in the open: after a seeded 6–12 s down with the fire going on, a 2–4 m crawl sideways (perpendicular to the shooter, alternating), firing from each spot; pinned 30 s with no friend within 30 m ⇒ the cover search widens 10 → 30 m. Scenario **S6** `rf-pinned-in-open` (the user's case: squad down, a gunman at a ground-floor window, both also judged on WHERE they aim) | [CE-2362](Blueprint_Issues_Tracker.md), [CE-2363](Blueprint_Issues_Tracker.md) |
+| **R2-4** | an attacker's grenade: never a frag with a KNOWN civilian in its lethal radius (the hidden-target throw too); through a door / window a frag only when **HighIntensity** is ordered and no civilian is known inside (`GrenadeCheck.Choose`), else a stun if carried, else none; no intensity ordered = **Precision** ⇒ a "save the civilians" mission throws stuns only | [CE-2360](Blueprint_Issues_Tracker.md) I-4 |
+| **R2-5** | `WindowDuel` retires into the standard behaviours later: its scenario authors a window post under the ordinary `CombatPosture` (B already flies a posted window man through PeekAndFire with WindowDuel's shape) | [CE-2366](Blueprint_Issues_Tracker.md) |
+
+⭐ **Order:** R2-3 (S6 first, as a measured baseline) → R2-4 → R2-2 → R2-1 (S1 judge + S1b) → R2-5.
+
+### 9.1 R2-3 as built, and what S6 measured *(2026-10-24)*
+
+| | measured / built | where |
+|---|---|---|
+| ✅ the scoot | pinned off a move, under steady fire, no cover within 10 m: a seeded 6–12 s down, then a 2–4 m crawl square to the shooter, sides alternating; pinned 30 s with no living friend within 30 m ⇒ a crawl to cover out to 30 m | [AQ96](Architect_Question_96_Movement_Under_Fire.md) §6 · CE-2363 |
+| ✅ found by S6, fixed | the three AUTHORED-DEAD squad mates fired ~200 rounds at the window from where they lay: capabilities were stripped only on a killing HIT | CE-2367 (`HealthApplicationSystem.StopTheDown`) |
+| ✅ the aim is honest | a crouched man behind the 0.9 m sill shows ~0.92–1.10 m; the aim is that band's middle and the ~0.15 m spread at 50 m puts about half the rounds into the sill. At the man UP in the opening Pinned aimed over the sill (median 0.95 m). His rounds into the wall under the window were BLIND rounds at the Gunman lying prone behind it (CE-2326's remembered body) — the brick stops them | S6 run 5 |
+| ⚠ S6's own errors, fixed | the post stood on the window's left jamb (the opening is x 120.5–121.65, sill 0.9 m, lintel ~2.15 m — measured by sight scans), so the "peek" saw wall and the "hide" stood in the opening; Pinned started 10 m from the wreck, so fight-from-cover (60 m search) ran him behind it out of sight | `scripts/gen-rf-scenarios.py` |
+| ⛔ still red: nobody keeps him under fire | the posted window man fires ~12 rounds in 120 s — prone under the sill at his hide most of the time, once 6 m back into the house — so every drop LAPSES in 3 s and he rises; the scoot never has a steady fire to answer. ⇒ the user's *"kept firing all the time"* is the window man's peek CADENCE: R2-1 / R2-2's ground, not R2-3's | S6 run 5 timeline |
+| ⚠ not covered by the scoot | a man lying in the open by his OWN choice — `HoldProne`, TakeCover's `DownInTheOpen` (CE-2322) — holds no move to scoot with; he still lies still | CE-2363 note |

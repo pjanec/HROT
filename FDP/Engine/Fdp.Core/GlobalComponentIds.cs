@@ -1054,6 +1054,11 @@ namespace Fdp.Core
         /// <c>UnitEntity</c>; NoScenario, never sent. Behaviors' block 418–433 (R-2056). 📄 docs/DESIGN_Entity_Interactions.md §7.2c.</summary>
         public const int MapGraphic = 419;
 
+        /// <summary>⭐ <c>CE-2368</c> (behaviors, AQ103, R-2074) — <c>Restless</c>: a stationary person's idle life (where he settled, when he
+        /// next shifts, the move it wrote); brain-local, NoScenario. Behaviors' block 418–433 (R-2056), measured free on backend, ui and
+        /// coordinator 2026-10-24. 📄 docs/blueprints/Architect_Question_103_Idle_Life.md.</summary>
+        public const int Restless = 420;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>

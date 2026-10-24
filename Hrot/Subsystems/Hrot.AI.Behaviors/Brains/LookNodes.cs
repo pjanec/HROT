@@ -84,7 +84,11 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (p.Mode == LookMode.ThreatThenSector && EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) && world.IsAlive(threat))
             {
-                LookRequest.AtEntity(world, self, threat, behaviorInstance: run);
+                // ⭐ AQ102 C (CE-2356; Peek & Fire D14) — one in sight now is followed; one out of sight is looked for where he is REMEMBERED,
+                //   at the eyes of the stance he was seen in (📌 user, 2026-10-23: a defender's head tracked a player under the wall)
+                if (InSightNow(world, self, threat)) LookRequest.AtEntity(world, self, threat, behaviorInstance: run);
+                else if (Remembered(world, self, threat, out var where)) LookRequest.AtPoint(world, self, where, behaviorInstance: run);
+                else LookRequest.AtEntity(world, self, threat, behaviorInstance: run);
                 ws.Threat = threat;
                 return ws.Source = LookChoice.Threat;
             }
@@ -148,6 +152,49 @@ namespace Hrot.AI.Behaviors.Brains
         {
             float r = bearing * (MathF.PI / 180f);
             return new Vector3(origin.X + MathF.Sin(r) * metres, origin.Y + MathF.Cos(r) * metres, origin.Z);
+        }
+
+        /// <summary>⭐ <c>CE-2356</c> — how recently a threat must have been stamped for the eyes to follow him (perception ticks, ≈ 0.5 s).</summary>
+        public const uint InSightTicks = 30;
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 C) — <paramref name="threat"/> is in his eyes now: a memory slot he has SEEN (the Visual bit), stamped
+        /// within <see cref="InSightTicks"/>. ⚠ A sound of him also stamps the slot, so a seen man who is heard nearby counts as in sight.</summary>
+        public static unsafe bool InSightNow(EntityRepository world, Entity self, Entity threat)
+        {
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(world);
+            long id = (long)threat.PackedValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != id || TargetMemory.IsAnonymous(in mem, i)) continue;
+                if ((mem.Modalities[i] & (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual) == 0) return false;
+                return mem.LastSeenTick[i] > now || now - mem.LastSeenTick[i] <= InSightTicks;
+            }
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 C) — where <paramref name="threat"/> is remembered, raised to the eyes of the stance he was last
+        /// seen in (standing 1.6 m · crouched 1.0 · prone 0.3 — the body points of Building Interiors §3f).</summary>
+        public static unsafe bool Remembered(EntityRepository world, Entity self, Entity threat, out Vector3 at)
+        {
+            at = default;
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            long id = (long)threat.PackedValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != id || TargetMemory.IsAnonymous(in mem, i)) continue;
+                float eyes = mem.SeenStance[i] switch
+                {
+                    (byte)Fdp.Toolkit.Tkb.Domain.StanceId.Crouched + 1 => 1.0f,
+                    (byte)Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1 => 0.3f,
+                    _ => 1.6f,
+                };
+                at = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i] + eyes);
+                return true;
+            }
+            return false;
         }
 
         /// <summary>Hit or near-missed within <see cref="UnderFireSeconds"/> (<c>RecentSensesOf</c>, the self-defence clock).</summary>

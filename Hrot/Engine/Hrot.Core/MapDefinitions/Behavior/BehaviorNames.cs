@@ -226,6 +226,10 @@ namespace Hrot.Map.Definitions.Behavior
         public const string StationWeapon = "StationWeapon";
         /// <summary>⭐ <c>CE-2238</c> part 5 (AW-12, §5l BM-1) — he sets off the charge he carries.</summary>
         public const string DetonateCharge = "DetonateCharge";
+
+        /// <summary>⭐ <c>CE-2360</c> (AQ102 I) — the grenade reflex <c>GrenadeDangerSystem</c> starts as a reaction: run clear, drop flat, or
+        /// throw it back.</summary>
+        public const string EvadeGrenade = "EvadeGrenade";
         /// <summary>⭐ <c>CE-2241</c> ② (CV-14, §5m PV-4) — a police order: go at the point and strike the protesters within reach of it.</summary>
         public const string BatonCharge = "BatonCharge";
         /// <summary>⭐ <c>CE-2306</c> (DA-93, Defend &amp; Attack §8e) — the trigger man sets off a placed charge by phone when a hostile vehicle he

@@ -574,6 +574,66 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 D, R-2072) — a step peek never steps out at the same spot twice running: a SEEDED pick among the answers
+        /// within 85 % of the best, never the last one used; an answer below the share is never drawn. 🔴 Before: the sensor's first answer
+        /// every time — measured live (rf-car-duel): 4–5 of 6–8 bursts from the spot of the burst before. 🔴 Red-proof: drop the "never the
+        /// last one" skip ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2356_AStepPeek_NeverStepsOutAtTheSameSpotTwiceRunning()
+        {
+            var d = new Duel(Street());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            d.Step();
+            d.Answer(PeekAndFireNodes.PeekSite, 7, (10f, 12f, null), (11.5f, 12f, null), (8.5f, 12f, null));   // scores 1 · 0.9 · 0.8
+            var peeks = new List<Vector3>();
+            for (int k = 0; k < 3; k++)   // three: the third burns this one hide point (B2–B4), and with nowhere else to go he waits
+            {
+                var ph = d.RunUntil(PeekPhase.Aimed);
+                Assert.True(ph == PeekPhase.Aimed, $"exposure {k}: {ph}, peeks so far {string.Join(" ", peeks)}, moves {string.Join(" ", d.Moves)}");
+                peeks.Add(d.Ws.PeekPoint);
+                Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            }
+            for (int k = 1; k < peeks.Count; k++) Assert.NotEqual(peeks[k - 1], peeks[k]);
+            Assert.DoesNotContain(new Vector3(8.5f, 12f, 0f), peeks);   // 0.8 < 85 % of the best: out of the draw
+        }
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 D) — the draw itself, twelve picks over the same answers: never the last spot, never the one
+        /// below the share. 🔴 Red-proof: drop the "never the last one" skip ⇒ a repeat (a 1-in-2048 chance of strict alternation).</summary>
+        [Fact]
+        public void CE2356_ThePeekDraw_NeverRepeatsTheLastSpot_OverManyPicks()
+        {
+            var d = new Duel(Street());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            d.Step();
+            d.Answer(PeekAndFireNodes.PeekSite, 7, (10f, 12f, null), (11.5f, 12f, null), (8.5f, 12f, null));
+            var p = PeekAndFireNodes.Effective(d.P);
+            var mem = d.Memory;
+            Vector3? last = null;
+            for (int k = 0; k < 12; k++)
+            {
+                Assert.True(PeekAndFireNodes.PickPeek(ref d.Ws, in p, ref mem, d.Repo, d.Time, out var at, out _, d.Self));
+                if (last is { } l) Assert.NotEqual(l, at);
+                Assert.NotEqual(new Vector3(8.5f, 12f, 0f), at);
+                last = at;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 D) — behind OPEN-GROUND cover a trained man comes up somewhere else every exposure; at a window
+        /// the PC-15 count stands (R-2047). 🔴 Red-proof: drop the open-cover override ⇒ the first assert is red.</summary>
+        [Fact]
+        public void CE2356_OpenCover_OneExposurePerSpot_AWindowKeepsItsCount()
+        {
+            var d = new Duel(Street());
+            Assert.Equal(1, PeekAndFireNodes.Skilled(PeekAndFireNodes.Effective(Street()), d.Repo, d.Self).ExposuresPerPosition);
+            Assert.Equal(3, PeekAndFireNodes.Skilled(PeekAndFireNodes.Effective(Window()), d.Repo, d.Self).ExposuresPerPosition);
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <c>P6_R3</c> — THE DESIGN RAIL: a window is BURNED by heat after three quick exposures (B2–B4: 1 + 0.94 + 0.88 ≥ 2.5) and
         /// the unit moves to the next window — ⭐ the counter is set high, so it is the HEAT that moves it. ⭐ B1: after the node exits
         /// (state reset) a new run still skips the burned window — the memory outlived the exit. 🔴 Red-proof: with the node state

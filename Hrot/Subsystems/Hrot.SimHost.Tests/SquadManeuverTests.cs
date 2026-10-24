@@ -1133,6 +1133,35 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        /// <summary>⭐ <c>CE-2358</c> (AQ102 G, R-2072) — a squad under a LIVE platoon lets its own contact rows stand aside (the platoon's
+        /// play fights for it, AQ97 A at the squad level): the same <c>SquadContact</c> that pauses a lone squad's bound leaves this one's
+        /// bound running. ✅ Red-proof: drop the <c>UnderCommand</c> row from <c>BasicSquadSop</c> ⇒ ReactToContact ⇒ red.</summary>
+        [Fact]
+        public void CE2358_BasicSquadSop_UnderALivePlatoon_ASquadContact_LeavesTheTaskToThePlatoon()
+        {
+            var s = new Squad(members: 4);
+            var platoon = s.Repo.CreateEntity();
+            s.Repo.AddComponent(platoon, new UnitEntity());
+            s.Repo.AddComponent(s.Commander, new UnitSubordinate { Commander = platoon });
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
+
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 6; i++) s.Tick();
+
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);               // the platoon reacts, not the squad's own row
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+
+            s.Repo.DestroyEntity(platoon);                                            // the platoon gone ⇒ the squad is its own master again
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+        }
+
         // ── ⭐ CE-2125 — the leader falls: a lull, then the squad goes on ─────────────────────────────────────────────────
 
         private static void Silence(Squad s, double seconds)
@@ -2123,6 +2152,67 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members) s.Teleport(m, given[m].Objective + new Vector3(3f, 0f, 0f));
             s.Tick(); s.Tick();
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.Set), "every man at his post ⇒ PROGRESS Set");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2359</c> (AQ102 H, R-2072) — a known enemy under the wall, seen by nobody for 2 s, is hunted by ONE man: the posted man
+        /// nearest him gets his post widened to the squad's window search (any opening of the building, the window way) with his arc on the
+        /// enemy; the others keep theirs. After 20 s he is sent back to his own post, and the same contact is not hunted twice. ✅ Red-proofs:
+        /// the unseen test dropped ⇒ a hunt at once ⇒ red; every man hunting ⇒ not single ⇒ red; the end dropped ⇒ no return ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2359_SquadDefend_AKnownEnemyNobodySees_IsHuntedByOneMan_FromAnyOpening_ThenHeGoesBack()
+        {
+            var s = Defending(out _);
+            const float search = 25f;   // Defending's SearchRadius
+            var under = new Vector3(2f, 26.5f, 0f);   // under the wall by the first window, seen by none of them
+            s.Pool(Enemy(s, under), under, reporters: 0b0001);
+            ref var pooled = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+            System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pooled.Contacts.Contacts), 16)[0].LastSeenTick =
+                Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo);   // seen just now
+            s.Orders.Clear();
+            for (int i = 0; i < 60; i++) s.Tick();
+            Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.CombatPosture && PostureOf(s, o.Entity).Post.Radius == search);   // seen within 2 s
+
+            for (int i = 0; i < 90; i++) s.Tick();
+            var hunters = s.Members.Where(m => s.Orders.Any(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture)
+                                               && PostureOf(s, m).Post.Radius == search).ToList();
+            var hunter = Assert.Single(hunters);
+            Assert.Equal(s.Members.OrderBy(m => Vector2.Distance(new Vector2(s.At(m).X, s.At(m).Y), new Vector2(under.X, under.Y))).First(), hunter);
+            var dto = PostureOf(s, hunter);
+            Assert.True(dto.Post.Window, "he fights an opening the window way");
+            ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(hunter);
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Advance.Objective, arc.LeftBearing, arc.RightBearing, 0f, 0f, under),
+                "his arc faces the hunted man");
+            foreach (var m in s.Members.Where(m => !m.Equals(hunter))) Assert.Equal(SquadDefendPlay.PostRadius, PostureOf(s, m).Post.Radius);
+
+            for (int i = 0; i < (int)(SquadDefendPlay.HuntSeconds / 0.016f) + 10; i++) s.Tick();
+            Assert.Equal(SquadDefendPlay.PostRadius, PostureOf(s, hunter).Post.Radius);   // back to his own post
+            s.Orders.Clear();
+            for (int i = 0; i < 120; i++) s.Tick();
+            Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.CombatPosture && PostureOf(s, o.Entity).Post.Radius == search);   // once per contact
+        }
+
+        /// <summary>⭐ <c>CE-2359</c> (DA-55 at the squad level) — a DEFENDING squad's own SOP does not answer a contact with
+        /// <c>ReactToContact</c>: its defence does (the posts, displacement, the hunter). ✅ Red-proof: drop the <c>NotDefending</c> guard from
+        /// the contact row ⇒ ReactToContact pauses SquadDefend ⇒ red (📐 live, <c>rf-wall-hugger</c>: two defenders sent 50–60 m out).</summary>
+        [Fact]
+        public void CE2359_BasicSquadSop_ADefendingSquad_KeepsItsDefence_OnAContact()
+        {
+            var s = Defending(out _);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadDefend, s.TaskName);
+
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            for (int i = 0; i < 6; i++) s.Tick();
+
+            Assert.Equal(BehaviorNames.SquadDefend, s.TaskName);                     // the defence answers it, not ReactToContact
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
         /// <summary>

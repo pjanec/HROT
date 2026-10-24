@@ -4946,6 +4946,20 @@ def _rf_duel(c, names, cars_of, seconds):
         far = max((flat(r[1], start) for r in rows[n] if r[1] and start), default=0.0)
         print(f"    {n}: longest idle-hidden {gap:.1f} s · {len(seq)} bursts from {len(spots)} spots, {repeats} repeated · "
               f"furthest from start {far:.1f} m · tasks {sorted({r[4] for r in rows[n] if r[4]}, key=str)}")
+        # ⭐ AQ102 — the task timeline: each change with what he remembers of the other (ticks since seen, modalities) and where he is
+        other = [m for m in names if m != n]
+        last = None
+        for t, p, stance, ammo, task, mem, _ in rows[n]:
+            if task == last:
+                continue
+            last = task
+            seen = {k: v for k, v in mem.items() if other and str(k) == str(nets.get(other[0]))}
+            print(f"      t={t:6.1f} {task or '-':<16} stance={stance} at={tuple(round(v, 1) for v in p) if p else None} memory-of-{other[0] if other else '?'}={seen or 'NONE'}")
+        # ⭐ CE-2357 — the moves his brain made, with their source (a flank / a close-in shows as CoverSearch / Attack)
+        j = data(call("GET", f"/entities/{ids[n]}/journal")) or {}
+        moves = [e for e in (j.get("entries") or []) if e.get("kind") in ("MoveStarted", "TaskStarted", "TaskEnded")]
+        for e in moves[-12:]:
+            print(f"      @{e.get('at')} {e.get('kind')}: {str(e.get('text'))[:120]}")
         c.ok(gap <= 12.0, f"(1) {n} never idles hidden more than 12 s ({gap:.1f} s)")
         c.ok(len(spots) >= 2 and repeats == 0, f"(2) {n} fires from ≥ 2 spots, never the same twice running ({len(spots)} spots, {repeats} repeats)")
     moved = [n for n in names if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 6.0]
@@ -4997,7 +5011,9 @@ def run_rf_car_squads(c, timeout):
                     seen += 1
         hidden = 1.0 - (seen / total) if total else 0.0
         near = min((flat(rows[m][-1][1], rows[f][-1][1]) for m in moved for f in foes if rows[m][-1][1] and rows[f][-1][1]), default=99.0)
-        print(f"    {side}: movers {moved} · held {held} · movers hidden {hidden:.0%} of samples · closest mover-enemy at the end {near:.1f} m")
+        spent = sum((rows[n][0][3] or 0) - (rows[n][-1][3] or 0) for n in men if rows[n][0][3] is not None and rows[n][-1][3] is not None)
+        print(f"    {side}: movers {moved} · held {held} · movers hidden {hidden:.0%} of samples · closest mover-enemy at the end {near:.1f} m"
+              f" · rounds fired {spent} · tasks {sorted({r[4] for n in men for r in rows[n] if r[4]}, key=str)}")
     blue_moved = [n for n in blue if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 8.0]
     red_moved = [n for n in red if max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0) > 8.0]
     c.ok(any(0 < len(m) < 5 for m in (blue_moved, red_moved)), "(1) a side holds a base of fire while others move")
@@ -5007,17 +5023,17 @@ def run_rf_car_squads(c, timeout):
 def run_rf_wall_hugger(c, timeout):
     ids = ids_by_name()
     reds = ["Red 1", "Red 2", "Red 3"]
-    if not c.ok(all(ids.get(n) for n in reds + ["Blue"]), "the three defenders and Blue are loaded"):
+    if not c.ok(all(ids.get(n) for n in reds + ["Shooter", "Hugger"]), "the three defenders, the Shooter and the Hugger are loaded"):
         return
-    blue = ids["Blue"]
+    blue = ids["Hugger"]
     call("POST", "/sim/play", {})
-    rows = _rf_sample(reds + ["Blue"], ids, 90)
-    wall = (124, 156.3)
-    at_wall = next((r[0] for r in rows["Blue"] if r[1] and flat(r[1], wall) <= 1.5), None)
-    print(f"    Blue at the wall at t={at_wall}")
+    rows = _rf_sample(reds + ["Shooter", "Hugger"], ids, 90)
+    wall = (119, 152.3)   # OBJ's south face, between the back door and the window (x 115..125 × y 153..161)
+    at_wall = rows["Hugger"][0][0]
+    print(f"    Hugger at {rows['Hugger'][-1][1]} · Shooter tasks {sorted({r[4] for r in rows['Shooter'] if r[4]}, key=str)}")
     # (1) a defender ducks within 2 s of Blue's shots
-    blue_fire = [rows["Blue"][i][0] for i in range(1, len(rows["Blue"]))
-                 if rows["Blue"][i][3] is not None and rows["Blue"][i - 1][3] is not None and rows["Blue"][i][3] < rows["Blue"][i - 1][3]]
+    sh = rows["Shooter"]
+    blue_fire = [sh[i][0] for i in range(1, len(sh)) if sh[i][3] is not None and sh[i - 1][3] is not None and sh[i][3] < sh[i - 1][3]]
     ducks = 0
     for n in reds:
         for i in range(1, len(rows[n])):
@@ -5025,35 +5041,46 @@ def run_rf_wall_hugger(c, timeout):
             lower = rows[n][i][2] in ("Crouched", "Prone") and rows[n][i - 1][2] in (None, "Standing")
             if lower and any(0 <= t - bt <= 2.0 for bt in blue_fire):
                 ducks += 1
-    print(f"    Blue fired in {len(blue_fire)} samples · defender ducks within 2 s of it: {ducks} · stances "
+    print(f"    the Shooter fired in {len(blue_fire)} samples · defender ducks within 2 s of it: {ducks} · stances "
           f"{ {n: sorted({str(r[2]) for r in rows[n]}) for n in reds} }")
     c.ok(ducks > 0, f"(1) a defender shot at ducks within 2 s ({ducks})")
     # (2) one defender moves to a new opening that sees Blue once he is under the wall
     movers = []
     if at_wall is not None:
         for n in reds:
-            before = next((r[1] for r in rows[n] if r[0] >= at_wall and r[1]), None)
-            later = [r for r in rows[n] if r[0] >= at_wall + 2 and r[1] and before]
-            if any(flat(r[1], before) > 2.0 for r in later):
+            # ⭐ CE-2359 — the Hugger stands at the wall from the start: measure from once the posts are manned (SquadDefend moves, then
+            #   posts — 📐 the first measure from t=0 counted every man's walk to his post as a hunt)
+            settled = at_wall + 20.0
+            before = next((r[1] for r in rows[n] if r[0] >= settled and r[1]), None)
+            later = [r for r in rows[n] if r[0] >= settled + 2 and r[1] and before]
+            # ⭐ CE-2359 — beyond his post's room (SquadDefendPlay.PostRadius 4 m): peeking between the windows of his own room is not a hunt
+            far = max((flat(r[1], before) for r in later), default=0.0)
+            if far > 4.5:
                 seen_after = any(later[i][5].get(blue, (0, 0))[0] > later[i - 1][5].get(blue, (0, 0))[0] for i in range(1, len(later)))
                 movers.append((n, seen_after))
-    print(f"    defenders who moved after Blue reached the wall (and saw him again): {movers}")
-    c.ok(any(s for _, s in movers), "(2) a defender moves to an opening that sees Blue under the wall")
+            print(f"      {n}: furthest from his manned post (t ≥ {settled:.0f} s) {far:.1f} m")
+            if far > 4.5:   # ⭐ what moved him: his brain's task changes and moves
+                j = data(call("GET", f"/entities/{ids[n]}/journal")) or {}
+                for e in [e for e in (j.get("entries") or []) if e.get("kind") in ("MoveStarted", "TaskStarted", "TaskEnded", "TaskRefused")][-10:]:
+                    print(f"        @{e.get('at')} {e.get('kind')}: {str(e.get('text'))[:120]}")
+    print(f"    defenders who moved beyond their room (and then saw the Hugger): {movers}")
+    c.ok(any(s for _, s in movers), "(2) a defender moves to an opening that sees the Hugger")
     c.ok(len(movers) <= 1, f"(2) only ONE defender hunts ({len(movers)})")
     nades = [d for d in _rf_bursts_by({ids[n] for n in reds}) if flat(d.get("burst") or [0, 0, 0], wall) <= 8.0]
-    c.ok(bool(nades), f"(3) a grenade is dropped at Blue ({len(nades)})")
-    # (4) the look: a defender's LookAtChannel naming Blue while Blue was not seen in that sample
+    c.ok(bool(nades), f"(3) a grenade is dropped at the Hugger ({len(nades)})")
+    # (4) the look: LookAtEntity (action 11) in a sample where the defender saw NEITHER Friend ⇒ his eyes follow a man he cannot see
+    shooter = ids["Shooter"]
     tracked = 0
     for n in reds:
         for i in range(1, len(rows[n])):
             look = rows[n][i][6] or {}
-            if not look or "Entity" not in str(look.get("ActiveAction", "")) and look.get("ActiveAction") not in (2,):
+            if look.get("ActiveAction") != 11:
                 continue
-            seen_now = rows[n][i][5].get(blue, (0, 0))[0] > rows[n][i - 1][5].get(blue, (0, 0))[0]
-            if not seen_now and blue in rows[n][i][5]:
+            seen = any(rows[n][i][5].get(x, (0, 0))[0] > rows[n][i - 1][5].get(x, (0, 0))[0] for x in (blue, shooter))
+            if not seen:
                 tracked += 1
-    print(f"    samples where a defender's look followed Blue unseen: {tracked} (LookAtChannel sample: {rows[reds[0]][-1][6]})")
-    c.ok(tracked == 0, f"(4) no look follows Blue while he is out of sight ({tracked})")
+    print(f"    samples where a defender's look followed someone he did not see: {tracked}")
+    c.ok(tracked == 0, f"(4) no look follows a man while he is out of sight ({tracked})")
 
 
 def run_rf_grenade_reaction(c, timeout):
@@ -5072,16 +5099,203 @@ def run_rf_grenade_reaction(c, timeout):
     safe = 0
     for n in blues:
         e = effect_on(d, ids[n])
-        far = e is None
+        # ⭐ CE-2360 — "out of reach" is what the reflex is FOR: not taken down. 📐 2026-10-24: the burst's effect list reaches the M67's
+        #   54 m HAZARD radius (where a man expects < 1), so a man 18 m off read as "in reach"; he is safe under 70 damage
+        #   (GrenadeRules.DownDamage — a standard man goes down below 30 of 100)
+        far = e is None or (e.get("totalDamage") or 0) < 70
         prone = e is not None and e.get("stance") == "Prone"
-        print(f"    {n}: {'out of reach' if far else e.get('stance')} · exposure {e and e.get('fragmentExposure')} · moved "
+        print(f"    {n}: {'out of reach' if far else e.get('stance')} · {e and round(e.get('distance') or 0, 1)} m · damage "
+              f"{e and round(e.get('totalDamage') or 0, 1)} · exposure {e and e.get('fragmentExposure')} · moved "
               f"{max((flat(r[1], rows[n][0][1]) for r in rows[n] if r[1] and rows[n][0][1]), default=0):.1f} m")
         safe += 1 if (far or prone) else 0
-    c.ok(safe == len(blues), f"(1) every Blue man is out of reach or prone at the burst ({safe}/{len(blues)})")
+        # ⭐ CE-2360 — his task timeline: did the reflex start, and when did it hand the task back?
+        last, line = None, []
+        for t, p, stance, _a, task, _m, _l in rows[n]:
+            if (task, stance) != last:
+                last = (task, stance)
+                line.append(f"t={t:.1f} {task or '-'}/{stance}")
+        print(f"      {' · '.join(line[:10])}")
+    c.ok(safe == len(blues), f"(1) every Blue man is out of reach (under 70 damage) or prone at the burst ({safe}/{len(blues)})")
     c.ok(d.get("shooter") != ids["Thrower"] or flat(b, (280, 365)) < flat(b, (280, 380)),
          "(2) one man throws it back (the burst is the Blue man's, or nearer the Thrower)")
+    # ⭐ CE-2360 — what each brain says it did (task starts / ends, their cause)
+    for n in ("Blue 1", "Blue 3"):
+        j = data(call("GET", f"/entities/{ids[n]}/journal")) or {}
+        rows_j = j.get("entries") or j.get("journal") or (j if isinstance(j, list) else [])
+        print(f"    {n} journal ({len(rows_j)}):")
+        for e in rows_j[-14:]:
+            print(f"      {json.dumps(e)[:220]}")
 
-SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
+def run_rf_pinned_in_open(c, timeout):
+    """⭐ AQ102 S6 (CE-2362) — the lone man pinned in the open by a gunman at a ground-floor window: does he move, and do both aim
+    where the other man is? 📄 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md §5."""
+    ids = ids_by_name()
+    if not c.ok(all(ids.get(n) for n in ("Pinned", "Gunman")), "Pinned and the Gunman are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    rows = _rf_sample(["Pinned", "Gunman"], ids, 120, every=0.5)
+    # ⚠ the fire chain runs where combat is composed (SimHost): read the shot log there, then give the checks their perspective back
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        shots = (data(call("GET", "/combat/shots?last=1024")) or {}).get("shots") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    by = {n: [x for x in shots if x.get("shooter") == ids[n]] for n in ("Pinned", "Gunman")}
+
+    def stance_at(n, t):
+        """`n`'s stance at the sample nearest sim time t (the shot's firedAt)."""
+        best = min(rows[n], key=lambda r: abs(r[0] - t), default=None)
+        return best[2] if best else None
+
+    # the stretch the judges below read: where he was, his stance and task, every 3 s
+    nxt = 0.0
+    for t, p, stance, _, task, *_ in rows["Pinned"]:
+        if t < nxt:
+            continue
+        nxt = t + 3.0
+        g = min(rows["Gunman"], key=lambda r: abs(r[0] - t))
+        print(f"      t={t:6.1f} Pinned {task or '-':<15} {stance or '-':<9} at {tuple(round(v, 1) for v in p) if p else None} · "
+              f"Gunman {g[2] or '-':<9} at {tuple(round(v, 1) for v in g[1]) if g[1] else None}")
+    # (1) down and firing back
+    first_gun = min((x.get("firedAt") or 0 for x in by["Gunman"]), default=None)
+    prone_at = next((r[0] for r in rows["Pinned"] if r[2] == "Prone"), None)
+    print(f"    the Gunman fired {len(by['Gunman'])} rounds (first at {first_gun}), Pinned {len(by['Pinned'])} · Pinned first prone at {prone_at}")
+    c.ok(prone_at is not None and len(by["Pinned"]) > 0, "(1) Pinned drops prone under fire and returns fire")
+    # (2) pinned, he does not stay on one spot: the longest stretch prone without a 2 m move
+    stretch, start, moves, last_side = 0.0, None, 0, 0
+    for t, p, stance, *_ in rows["Pinned"]:
+        if stance != "Prone" or not p:
+            start = None
+            continue
+        if start is None:
+            start = (t, p)
+            continue
+        if flat(p, start[1]) >= 2.0:
+            moves += 1
+            start = (t, p)
+            continue
+        stretch = max(stretch, t - start[0])
+    print(f"    Pinned: {moves} moves of 2 m+ while prone · longest stretch prone on one spot {stretch:.1f} s · "
+          f"furthest from his start {max((flat(r[1], rows['Pinned'][0][1]) for r in rows['Pinned'] if r[1]), default=0):.1f} m")
+    c.ok(stretch <= 15.0 and moves >= 2, f"(2) pinned, he moves 2 m+ at least every 15 s ({moves} moves, longest {stretch:.1f} s)")
+    # (3) alone and pinned ~30 s ⇒ the wreck's south face ~18 m off (cqb-village's wreck x 108-113 × y 99-101; its cover points stand 1 m out)
+    # ⭐ only after he was down — 📐 run 4: his bound walked him past the wreck at 14.6 s, before a round came, and that read as a pass
+    near = [r[0] for r in rows["Pinned"] if r[1] and prone_at is not None and r[0] > prone_at
+            and 106.5 <= r[1][0] <= 114.5 and 96.0 <= r[1][1] <= 99.5]
+    c.ok(bool(near), f"(3) alone and pinned, he crawls to the wreck's south face ~18 m off (first there at {near[0] if near else None})")
+    # (4) the aim — each shooter's aim height over the other's feet, his hits, and what his misses crossed
+    for n, other in (("Gunman", "Pinned"), ("Pinned", "Gunman")):
+        feet = next((r[1] for r in rows[other] if r[1]), None)
+        rel = sorted(round(x["aim"][2] - feet[2], 2) for x in by[n] if x.get("aim") and feet)
+        hits = sum(1 for x in by[n] if x.get("outcome") == "Hit" and x.get("hit") == ids[other])
+        crossed = {}
+        for x in by[n]:
+            if x.get("outcome") == "Hit":
+                continue
+            for k in (x.get("crossings") or [])[:1]:
+                key = f"{k.get('kind')}:{k.get('label')}"
+                crossed[key] = crossed.get(key, 0) + 1
+        mid = rel[len(rel) // 2] if rel else None
+        for x in [x for x in by[n] if x.get("outcome") != "Hit"][:3]:   # where a miss left and what stopped it
+            k = (x.get("crossings") or [{}])[0]
+            print(f"      miss: muzzle {x.get('muzzle')} aim {x.get('aim')} end {x.get('end')} · crossed {k.get('kind')}:{k.get('label')} at {k.get('at')} "
+                  f"({k.get('material')}, passed {k.get('passed')})")
+        print(f"    {n} → {other}: {len(by[n])} rounds, {hits} hits · aim height over his feet: median {mid} (min {rel[0] if rel else None}, "
+              f"max {rel[-1] if rel else None}) · first thing a miss crossed: {dict(sorted(crossed.items(), key=lambda kv: -kv[1])[:4])}")
+        if n == "Gunman" and prone_at is not None:
+            # ⭐ his stance AT THE SHOT — 📐 run 4: he rose again after his first drop, and rounds at him standing read as "over a prone man"
+            prone = [x for x in by[n] if x.get("aim") and stance_at(other, x.get("firedAt") or 0) == "Prone"]
+            prone_rel = sorted(round(x["aim"][2] - feet[2], 2) for x in prone)
+            pm = prone_rel[len(prone_rel) // 2] if prone_rel else None
+            # ⭐ the user, 2026-10-24: "could result simply from the fact that the guy was very far and each shot has some imprecision" —
+            #   AIM (where he points) apart from SCATTER (where the round goes): a miss's height as it passes the man, over vs under
+            over = under = 0
+            spread = []
+            for x in prone:
+                if x.get("outcome") == "Hit" or not x.get("end") or not x.get("muzzle"):
+                    continue
+                m, e, a = x["muzzle"], x["end"], x["aim"]
+                d_target, d_end = flat(m, a), flat(m, e)
+                if d_end < 0.5 * d_target:
+                    continue   # stopped short (the sill, a wall): not a vertical miss
+                z = m[2] + (e[2] - m[2]) * (d_target / max(d_end, 1e-3))
+                over += 1 if z > a[2] else 0
+                under += 1 if z <= a[2] else 0
+                spread.append((x.get("sigmaRad") or 0) * d_target)
+            sp = sorted(spread)[len(spread) // 2] if spread else None
+            print(f"    Gunman at the PRONE man: aim median {pm} m over his feet · misses passing him over {over} / under {under} · "
+                  f"1-sigma spread at his range {sp and round(sp, 2)} m")
+            c.ok(pm is not None and pm <= 0.6, f"(4) the Gunman aims at a PRONE man's chest, not over him (median {pm} m over his feet)")
+            c.ok(over + under == 0 or over <= 0.75 * (over + under), f"(4) his misses scatter both ways, not constantly over ({over} over / {under} under)")
+        if n == "Pinned":
+            up = sorted(round(x["aim"][2] - feet[2], 2) for x in by[n]
+                        if x.get("aim") and feet and stance_at("Gunman", x.get("firedAt") or 0) in ("Standing", "Crouched"))
+            down = [x for x in by[n] if stance_at("Gunman", x.get("firedAt") or 0) == "Prone"]
+            um = up[len(up) // 2] if up else None
+            print(f"    Pinned's rounds while the Gunman was UP at the window: {len(up)} (aim median {um} m) · while he lay PRONE under the sill: "
+                  f"{len(down)} (blind rounds at the remembered body — the brick stops them)")
+            # the sill is 0.9 m: a round aimed at the man up in the opening clears it
+            c.ok(um is None or um >= 0.9, f"(4) at the man UP in the window Pinned aims over the 0.9 m sill, not into the wall under it (median {um} m)")
+    print(f"    Pinned tasks {sorted({r[4] for r in rows['Pinned'] if r[4]}, key=str)} · Gunman tasks {sorted({r[4] for r in rows['Gunman'] if r[4]}, key=str)}")
+
+
+
+# ── AQ103 (CE-2368, R-2074) — idle life: nobody able stands perfectly still ─────────────────────────────────────────────
+
+_IDLE_GESTURES = {"IdleSmoking": 7, "IdleShiftWeight": 8, "IdleStretch": 9, "IdleLookAbout": 10}
+
+
+def _gesture_of(nid):
+    g = ((comps_on("CGF", nid) or {}).get("Gesture") or {}).get("Kind")
+    if isinstance(g, int):
+        return next((k for k, v in _IDLE_GESTURES.items() if v == g), str(g))
+    return g
+
+
+def run_il_idle_life(c, timeout):
+    """⭐ AQ103 — idle men shift a little (≤ 3 m from where they settled); the held, the sentry and the incapacitated do not; relaxed men show
+    the idle gestures the IG animates. 📄 docs/blueprints/Architect_Question_103_Idle_Life.md."""
+    ids = ids_by_name()
+    idlers = [f"Idler {i}" for i in range(1, 5)]
+    still = ["Watchman", "Held", "Down"]
+    gesturers = idlers + ["Watchman", "Held", "Waiting civilian"]
+    names = idlers + still + ["Waiting civilian", "Townsman"]
+    if not c.ok(all(ids.get(n) for n in names), "the idlers, the held men and the civilians are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    path = {n: [] for n in names}
+    seen = {n: set() for n in names}
+    end = (sim_time() or 0) + 90
+    while (sim_time() or 0) < end:
+        for n in names:
+            p = position(ids[n])
+            if p: path[n].append(p)
+            g = _gesture_of(ids[n])
+            if g and g != "None": seen[n].add(g)
+        time.sleep(1.0)
+    def shifts(pts):
+        k, last = 0, pts[0] if pts else None
+        for p in pts[1:]:
+            if flat(p, last) >= 0.3:
+                k += 1
+            last = p
+        return k
+    for n in names:
+        pts = path[n]
+        far = max((flat(p, pts[0]) for p in pts), default=0.0)
+        print(f"    {n:<17} shifts {shifts(pts):>2} · furthest {far:4.1f} m · gestures {sorted(seen[n]) or '-'}")
+    for n in idlers:
+        pts = path[n]
+        far = max((flat(p, pts[0]) for p in pts), default=0.0)
+        c.ok(shifts(pts) >= 2 and far <= 3.2, f"(1) {n} shifts a little ({shifts(pts)} times) and stays within 3 m ({far:.1f} m)")
+    for n in still:
+        far = max((flat(p, path[n][0]) for p in path[n]), default=0.0)
+        c.ok(far < 0.3, f"(2) {n} does not shift ({far:.2f} m)")
+    showed = [n for n in gesturers if any(g in _IDLE_GESTURES for g in seen[n])]
+    c.ok(len(showed) * 2 >= len(gesturers), f"(3) idle gestures on at least half the relaxed men ({len(showed)}/{len(gesturers)}: {showed})")
+    c.ok(not any(g in _IDLE_GESTURES for g in seen["Down"]), "(4) the incapacitated man shows none")
+
+SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
              # ⭐ CE-2235 CIV-1 — the civilian HSM: routine, alarm, casualty (Civilians §5c, §5d)
@@ -5153,7 +5367,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "df-civilian-ordered": run_df_civilian_ordered,
              # ⭐ AQ102 §5 (CE-2355) — responsive fighting reflexes, written first as a baseline
              "rf-car-duel": run_rf_car_duel, "rf-car-squads": run_rf_car_squads, "rf-house-obstacle": run_rf_house_obstacle,
-             "rf-wall-hugger": run_rf_wall_hugger, "rf-grenade-reaction": run_rf_grenade_reaction,
+             "rf-wall-hugger": run_rf_wall_hugger, "rf-grenade-reaction": run_rf_grenade_reaction, "rf-pinned-in-open": run_rf_pinned_in_open,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)
