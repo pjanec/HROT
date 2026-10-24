@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-24
-build-state: BUILT 2026-10-24 — TS-A (CE-2269), TS-B (CE-2270), TS-C (CE-2271, as MODIFIERS — R-2075) and TS-D (CE-2272) (§7); the §6 demos in build — ⛔ §7.4 asks about TS-2 (measured: discipline does not steady) APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
+build-state: BUILT 2026-10-24 — TS-A (CE-2269), TS-B (CE-2270), TS-C (CE-2271, as MODIFIERS — R-2075) and TS-D (CE-2272) (§7); the §6 demos §7.5 (ts-aggression and ts-three-defenders pass; ts-fire-discipline waits on §7.4, ts-house-defenders on BC-5) — ⛔ §7.4 asks about TS-2 (measured: discipline does not steady) APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
 current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos · ⭐ §7 AS BUILT (where it differs from §4, §7 wins)
 stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with Aggression and Discipline; do not quote it.
 known-rot: ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE for an ordinary consideration — the compensation counts them; ⭐ resolved by MODIFIER considerations (§7.3, R-2075). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
@@ -229,6 +229,17 @@ default, so a disciplined man's nerve is the average man's (0.5) whatever his ow
 What would change the lean: a ruling that obedience is only about ORDERS and steadiness is a separate trained trait (then a fifth trait,
 `Training`, would carry it). Blast radius: TS-2's formula and its rails; the stress rails' reach (0.75 ⇒ 0.65 for the default man); nobody
 breaks sooner than today.
+
+### 7.5 The demos *(`CE-2272`, 2026-10-24; scenarios from `scripts/gen-ts-scenarios.py`, checks `scripts/utility-demo-check.py --launch <id>`, twins `TemperamentScenarioTests`)*
+
+| demo | live | twin | as built — where it differs from §6 |
+|---|---|---|---|
+| `ts-aggression` | ✅ PASS — Bold AdvanceAndAttack 96 %, ends 4.7 m from his enemy; Cautious Suppress 94 %, ends 88.6 m off | ✅ `CE2271_TsAggression_…` (4.6 m / 90.4 m) | two MIRRORED duels 300 m apart, not one shared enemy — ⛔ a shared enemy draws one man's fire onto the other |
+| ⭐ `ts-three-defenders` | ✅ PASS — the Coward breaks at 2.4 s and runs (Break, no surrender); the Waverer breaks at 4.5 s and surrenders; the Fanatic peaks at 0.32 (breaks at 0.78) and fires back | `CE2272_TsThreeDefenders_…` | ⭐ NEW: `ts-house-defenders`' three characters on open ground. Obedience AUTHORED 0.3 (no type spread) so each threshold is the arithmetic. 📐 the covering rifleman must be POSTED watching his man — an InertSop rifleman never raises his rifle, and `Covering.By` then finds nobody. 📐 the columns sit at x 270 / 340 / 400: at x 200 the Fanatic got NO near miss in 40 rounds (his gunner 1.2 m higher; the ground takes the rounds) |
+| `ts-fire-discipline` | ⛔ FAIL — every man of both teams breaks, regulars at 25 s, militia at 22 s | — | waits on §7.4 (TS-2 does not steady). Rounds every 1.3 s from 120 m (inside the 150 m sight), the team 1.5 m apart (all inside the 3 m near-miss band) |
+| `ts-house-defenders` | ⛔ FAIL — the Coward breaks; the Fanatic peaks at 0.06, the Waverer at 0.00 in 240 s | — | the pressure is the clearing, and the clearing stalls at the door ([Building Clearing](designs/group-maneuvers/DESIGN_Building_Clearing.md) BC-5 *"half there"*: Blue fired 1 round in 480 s). §6's stun grenade needs a burst to count as a near miss ([AQ101](blueprints/Architect_Question_101_Shelling_Fear_And_Shelled_Areas.md) C, unbuilt). ⇒ `ts-three-defenders` carries the claim until both land |
+
+⚠ **The checker's ammo is read on the CGF node** — the brain spends the rounds; 📐 SimHost's stayed full, so an earlier "fired 0" was the checker, not the men.
 
 ## ⛔ HISTORY
 
