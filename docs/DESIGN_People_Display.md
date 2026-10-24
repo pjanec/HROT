@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-24 (§7d — U19 the idle gestures, CE-1308, behaviors' CE-2368 handoff) · 2026-10-21 (§7c — U8 the ExCon "Concealed" layer, CE-1169; the overnight items: U7 held items, U9 aim line, U11 police look, U12 toy, U13 band — CE-1169/1170/1172/1173/1174) · 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
 build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
-current-answer: §7e U20 the mind-state bar (newest, BUILT) · §7d U19 the idle gestures · §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
+current-answer: §7f U21 the floating health bar (RECORDED, leans) · §7e U20 the mind-state bar (BUILT) · §7d U19 the idle gestures · §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -463,6 +463,26 @@ host running `CgfLogicPack` (the editor died on load). Fixed (`WhenTimeAdvances`
 Rails: `Map3DTests.CE1309_*`, `GZH011_Tests.CE1309_*`.
 📌 **Live, `uf-squad-under-fire`, headless editor:** within a second of contact Hostile 2 rose to 0.24 and Riflemen 1 and 4 to 0.21; followed
 in 3-D with **Units → Mind state** on, Hostile 2's card showed the red bar past the white tick and **BROKEN** under it (his state line: `Break`).
+
+### 7f. U21 — RECORDED: a short HEALTH BAR floating over the head, its own switch *(`CE-1313`, ui, `2026-10-24` — build-state: DESIGN, leans for the user)*
+
+🔒 User, `2026-10-24`: *"I would like for a soldier to turn on a health bar on top of his head, not as part of the card, but just floating on
+top of his head, something similar which is now shown for the psychic state. But shorter … when low health it's red, when it is in the middle
+then it's yellow, and when it's close to full it's green. It should have its own separate checkbox for turning on and off, independently on
+the label card. It needs to be just short. Otherwise, it would overlap too much with the guys standing next to him."*
+
+| what exists | where |
+|---|---|
+| the card's health bar (row 10 of the card — on only with the whole card, the Labels layer) — its colours: green ≥ 66 %, yellow ≥ 33 %, red | `HealthBarGizmo.cs:52-56` |
+| a primitive can sit in the WORLD, on the SCREEN or in the CARD — ⛔ nothing "screen-sized, anchored over a head" outside the card | `CoordinateSpace.cs` (World, Screen, EntityLocal, EntityCard) |
+| the 3-D body layer knows the top of what is drawn for each man (`LabelTop`) and the camera | `EntityBodyLayer3D.cs` |
+
+| # | ⭐ lean | rejected |
+|---|---|---|
+| **U21a** | drawn by the 3-D body layer itself at his `LabelTop` + a few pixels: **28 × 4 px** (a third of the card's width), the card's colours and thresholds (one `HealthColour` shared with `HealthBarGizmo`, not a second copy) | a second card — a card is one per entity; a world-space bar — it shrinks to nothing at distance and grows huge close up |
+| **U21b** | its own layer row **Units → Health over head**, off by default, independent of Labels | riding on Labels — the user's point is to have it WITHOUT the card |
+| **U21c** | people only (soldiers and civilians), alive, not inside a vehicle; ⭐ when the card is also shown, the bar sits just under the card's bottom edge so they never overlap | vehicles too — the card already serves them; ask if wanted |
+| **U21d** | 3-D only | 2-D — the symbol view already has the card; ask if wanted |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 

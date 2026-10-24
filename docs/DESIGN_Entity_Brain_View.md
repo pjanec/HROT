@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12 RECORDED next ideas (BV-34…BV-37, 2026-10-24) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -543,4 +543,30 @@ second debugger.
 | exact `Changed` · regions | old always-true answer ✅ red · inverted region compare ✅ red |
 
 ⭐ Suites after the build (2026-10-23): FDP toolkits 4068/0 · Breakpoints 165/0 · AI editor views 2135/0 · Editor 547/0 · SimHost 1851 + the 12 terrain / navmesh tests green after `dotnet restore` (the stale-restore trap: `BepuPhysics.dll` was missing from that test `bin`) · Presentation 824/2 — the two pre-existing reds `FilmDirectorTests.CE4038` and `EntityTypeCatalogTests.CE2138`, red on backend's head too.
+
+## 12. RECORDED — the user's next ideas for the tab *(`2026-10-24`, ui — build-state: DESIGN, not yet designed in UML; leans for the user)*
+
+🔒 User, `2026-10-24`: *"If there is anything on the character that can be runtime controlled using some settings for its behavior, I want to
+be able to set it, like using sliders, for example, the aggressivity and stuff like that. It should be on the brain tab. And the stuff on the
+brain tab, it should be hidden inside expanders."* · *"for the commander brain, I want to see his commander picture. For the squad, I would
+like to see the merged target list or threat list … As well the reports incoming from their subordinate units. Next to those lists, probably
+in the header of such a list, there should be a checkbox that turns on or off the gizmo which is showing where those targets are."*
+
+**What exists today (measured, `scripts/cbm.sh search_graph` + grep; coverage not provable through the CLI):**
+
+| need | exists | where |
+|---|---|---|
+| the tab's sections | flat — `Header()` + `Separator`, no expanders | `Hrot.Editor.AiShared/Shell/EntityBrainView.cs:395` |
+| character settings | `CombatTemperament` {RiskAcceptance (bravery — the "aggressivity"), Obedience, Nerve, Resolve}, authored over type values by `Set` bits, read through `TemperamentOf`; `CombatProficiency` (what he CAN do: Untrained … Elite), read through `ProficiencyOf`; ROE / SOP / task (edited in the AI tab) | `Behavior/Components/CombatTemperament.cs`, `CombatProficiency.cs`; [Temperament & Stress](DESIGN_Temperament_And_Stress.md); [Sensors & Doctrine §7.6](DESIGN_Sensors_And_Doctrine.md) |
+| a live write to the owner | `POST /entities/{id}/attribute` — *"locally where this node owns it, by request to the owner where it does not"* | `DebugApiRouteDocs.cs:2608` |
+| the commander's picture | `CommandPicture` {Elements, Subordinates (last report, sitrep, seq), Requests} on a receiving commander; drawn by `CommandPictureGizmo` (family `SquadAssignment`) | `Squad/Command/CommandComponents.cs:107`; `CommandPictureGizmo.cs:53` |
+| the squad's merged contacts | `SquadContactPool` (16 merged contacts, threat score, who reported) on the squad; drawn by `SquadGizmo` with the member lines | `Squad/State/SquadCognitiveState.cs:104-170`; `SquadGizmo.cs:16` |
+| the reports | the Reports window + `GET/POST /entities/{id}/reports` | [Command Display](DESIGN_Command_Display.md) |
+
+| # | idea | ⭐ lean | open point |
+|---|---|---|---|
+| **BV-34** | every section of the tab in an EXPANDER | `ImGui.CollapsingHeader` per section; open state remembered per section (not per unit); "Right now" and "Doing" open by default, the rest closed | — |
+| **BV-35** | a **Character** expander with SLIDERS | bravery (shown as "Aggressiveness"), obedience, nerve, resolve (0–1) and proficiency (a 5-step slider Untrained … Elite); each shows *type value / authored* and a reset to the type's; the write goes to the OWNER through the attribute-patch path, so it works on any node; ⛔ disabled in the replay browser (a recording is not edited) | ⚠ **supersedes BV-1's "read-only"** for this one expander — editing task / SOP / ROE stays in the AI tab; an authored value is SAVED with the scenario (it is what `Set` means) — lean: yes, as editing in the AI tab already is |
+| **BV-36** | the COMMANDER's lists | on a commander: three expanders — **Picture** (`CommandPicture`'s elements and requests), **Squad contacts** (`SquadContactPool`: who, threat, how old, how many members saw it), **Reports** (the subordinates' last report and sitrep, newest first — the Reports window's rows for this commander) | the brain tab runs on every host; the picture is replicated, the pool is brain-local — show "not on this node" where absent |
+| **BV-37** | a CHECKBOX in each list's header that draws its gizmo | ticked = that gizmo draws for THIS commander, whatever is selected (it pins the unit for that family — the pinning `DESIGN_Editor_Entity_Selection_Source.md` §3.2 already owns), and turns the **Squad & command** layer on if it is off | the squad contacts are drawn inside `SquadGizmo` with the member lines — lean: split the contacts into their own family so the checkbox shows only them |
 
