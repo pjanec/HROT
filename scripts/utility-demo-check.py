@@ -5156,7 +5156,7 @@ def run_rf_pinned_in_open(c, timeout):
           f"furthest from his start {max((flat(r[1], rows['Pinned'][0][1]) for r in rows['Pinned'] if r[1]), default=0):.1f} m")
     c.ok(stretch <= 15.0 and moves >= 2, f"(2) pinned, he moves 2 m+ at least every 15 s ({moves} moves, longest {stretch:.1f} s)")
     # (3) alone and pinned ~30 s ⇒ the car 20 m off
-    car = (150, 72)
+    car = (150, 114)
     near = [r[0] for r in rows["Pinned"] if r[1] and flat(r[1], car) <= 3.0]
     c.ok(bool(near), f"(3) alone and pinned, he crawls to the car 20 m off (first within 3 m at {near[0] if near else None})")
     # (4) the aim — each shooter's aim height over the other's feet, his hits, and what his misses crossed
@@ -5175,9 +5175,29 @@ def run_rf_pinned_in_open(c, timeout):
         print(f"    {n} → {other}: {len(by[n])} rounds, {hits} hits · aim height over his feet: median {mid} (min {rel[0] if rel else None}, "
               f"max {rel[-1] if rel else None}) · first thing a miss crossed: {dict(sorted(crossed.items(), key=lambda kv: -kv[1])[:4])}")
         if n == "Gunman" and prone_at is not None:
-            prone_rel = [round(x["aim"][2] - feet[2], 2) for x in by[n] if x.get("aim") and (x.get("firedAt") or 0) >= prone_at + 1]
-            pm = sorted(prone_rel)[len(prone_rel) // 2] if prone_rel else None
+            prone = [x for x in by[n] if x.get("aim") and (x.get("firedAt") or 0) >= prone_at + 1]
+            prone_rel = sorted(round(x["aim"][2] - feet[2], 2) for x in prone)
+            pm = prone_rel[len(prone_rel) // 2] if prone_rel else None
+            # ⭐ the user, 2026-10-24: "could result simply from the fact that the guy was very far and each shot has some imprecision" —
+            #   AIM (where he points) apart from SCATTER (where the round goes): a miss's height as it passes the man, over vs under
+            over = under = 0
+            spread = []
+            for x in prone:
+                if x.get("outcome") == "Hit" or not x.get("end") or not x.get("muzzle"):
+                    continue
+                m, e, a = x["muzzle"], x["end"], x["aim"]
+                d_target, d_end = flat(m, a), flat(m, e)
+                if d_end < 0.5 * d_target:
+                    continue   # stopped short (the sill, a wall): not a vertical miss
+                z = m[2] + (e[2] - m[2]) * (d_target / max(d_end, 1e-3))
+                over += 1 if z > a[2] else 0
+                under += 1 if z <= a[2] else 0
+                spread.append((x.get("sigmaRad") or 0) * d_target)
+            sp = sorted(spread)[len(spread) // 2] if spread else None
+            print(f"    Gunman at the PRONE man: aim median {pm} m over his feet · misses passing him over {over} / under {under} · "
+                  f"1-sigma spread at his range {sp and round(sp, 2)} m")
             c.ok(pm is not None and pm <= 0.6, f"(4) the Gunman aims at a PRONE man's chest, not over him (median {pm} m over his feet)")
+            c.ok(over + under == 0 or over <= 0.75 * (over + under), f"(4) his misses scatter both ways, not constantly over ({over} over / {under} under)")
         if n == "Pinned":
             c.ok(mid is not None and 1.0 <= mid <= 1.9, f"(4) Pinned aims through the window at the man, not at the wall under it (median {mid} m)")
     print(f"    Pinned tasks {sorted({r[4] for r in rows['Pinned'] if r[4]}, key=str)} · Gunman tasks {sorted({r[4] for r in rows['Gunman'] if r[4]}, key=str)}")

@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "cqb-village",
-    "description": "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds a ground-floor window of the OBJ house (house-3f at (125,161)) facing south; 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' are incapacitated beside him - out in the open ~92 m south at (130,70), the squad ordered to bound to the house; 'Far Car' at (150,72) is the only cover, 20 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the car; (4) the aim: the Gunman's shots at a prone man are aimed at a prone chest (not over him) and Pinned's shots at the window reach the opening (not the wall under it) - printed per shooter (aim height, ends, crossings, hits). Check: python3 scripts/utility-demo-check.py --launch rf-pinned-in-open. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
+    "description": "What: AQ102 S6 (CE-2362) - on cqb-village, 'Gunman' (Hostile rifleman, immortal) holds a ground-floor window of the OBJ house (house-3f at (125,161)) facing south; 'Pinned' (Friend rifleman, immortal) is the last fighting man of 'Blue Squad' - 'Down 1-3' are dead beside him - out in the open south at (130,112), ~50 m from the window, the squad ordered to bound to the house; 'Far Car' at (150,114) is the only cover, 20 m off. Judge (120 s): (1) Pinned drops prone under fire and returns fire; (2) pinned, he does not stay on one spot: a 2 m+ move at least every 15 s, alternating sides; (3) after ~30 s pinned and alone he crawls to the car; (4) the aim: the Gunman's shots at a prone man are aimed at a prone chest (not over him) and Pinned's shots at the window reach the opening (not the wall under it) - printed per shooter (aim height, ends, crossings, hits). Check: python3 scripts/utility-demo-check.py --launch rf-pinned-in-open. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
   },
   "entities": {
     "a1020006-0000-4000-8000-000000000001": {
@@ -110,7 +110,7 @@
       "SimTransform": {
         "Position": [
           130,
-          70,
+          112,
           0
         ],
         "Rotation": [
@@ -146,7 +146,7 @@
       "SimTransform": {
         "Position": [
           126,
-          68,
+          110,
           0
         ],
         "Rotation": [
@@ -157,7 +157,7 @@
         ]
       },
       "Health": {
-        "Current": 10000,
+        "Current": 0,
         "Max": 100000
       },
       "NetworkIdentity": {
@@ -182,7 +182,7 @@
       "SimTransform": {
         "Position": [
           134,
-          68,
+          110,
           0
         ],
         "Rotation": [
@@ -193,7 +193,7 @@
         ]
       },
       "Health": {
-        "Current": 10000,
+        "Current": 0,
         "Max": 100000
       },
       "NetworkIdentity": {
@@ -218,7 +218,7 @@
       "SimTransform": {
         "Position": [
           130,
-          64,
+          106,
           0
         ],
         "Rotation": [
@@ -229,7 +229,7 @@
         ]
       },
       "Health": {
-        "Current": 10000,
+        "Current": 0,
         "Max": 100000
       },
       "NetworkIdentity": {
@@ -254,7 +254,7 @@
       "SimTransform": {
         "Position": [
           150,
-          72,
+          114,
           0
         ],
         "Rotation": [
