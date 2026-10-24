@@ -2431,6 +2431,8 @@ public sealed class Map3DTests
     /// both hands over a civilian's head (a soldier's right only, the rifle untouched), the plain figure at rest. SHIFTING WEIGHT — the
     /// upper body sways over the standing leg (the legs stay), the free knee bends. LOOKING ABOUT — the head sweeps, but a real look wins.
     /// 🔒 User, 2026-10-24: "Some of them could be smoking a cigarette, some of them just moving their bodies, stepping from one leg to the other."
+    /// 🔴 Red-proofs (each red): smoking not drawn · the sway zeroed · a soldier's left arm stretched too · the drawn sweep over a real
+    /// look · the layer routing idle kinds to the acts.
     /// </summary>
     [Fact]
     public void CE1308_TheIdleMoods_Smoke_Stretch_ShiftTheWeight_AndLookAbout_OnEachMansClock()
