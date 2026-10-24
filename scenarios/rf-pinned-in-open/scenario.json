@@ -37,14 +37,14 @@
       "Behavior": {
         "Name": "SquadDefend",
         "Origin": "Superior",
-        "Params": "{\"Position\": [130, 165, 0], \"SearchRadius\": 8, \"Speed\": 2, \"Posts\": [{\"point\": [130, 162.2, 0], \"watchTowards\": [130, 70, 0], \"window\": true}]}"
+        "Params": "{\"Position\": [130, 165, 0], \"SearchRadius\": 8, \"Speed\": 2, \"Posts\": [{\"point\": [130.5, 161.5, 0], \"watchTowards\": [130.5, 112, 0], \"window\": true}]}"
       }
     },
     "a1020006-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          130,
-          163,
+          130.5,
+          161.6,
           0
         ],
         "Rotation": [

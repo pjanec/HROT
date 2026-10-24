@@ -154,8 +154,10 @@ s = Scn("rf-pinned-in-open", "a1020006")
 gq = s.squad("Red Window", "Hostile", (130, 165, 0), 10650)
 s.ents[gq]["Behavior"] = {"Name": "SquadDefend", "Origin": "Superior", "Params": json.dumps({
     "Position": [130, 165, 0], "SearchRadius": 8, "Speed": 2,
-    "Posts": [{"point": [130, 162.2, 0], "watchTowards": [130, 70, 0], "window": True}]})}
-s.man("Gunman", "Hostile", (130, 163, 0), 180, tkb=2002, commander=gq, designation="SquadLeader", nid=10651)
+    # the south ground-floor window: OBJ is house-3f placed at (125,161) rotated 180°, so its local back wall (window at 5.5 m) faces
+    #   south at x 129.9-131.1 — 📐 the first post, 1.2 m back from it, saw out late and hit its own panel
+    "Posts": [{"point": [130.5, 161.5, 0], "watchTowards": [130.5, 112, 0], "window": True}]})}
+s.man("Gunman", "Hostile", (130.5, 161.6, 0), 180, tkb=2002, commander=gq, designation="SquadLeader", nid=10651)
 bq = s.squad("Blue Squad", "Friend", (130, 66, 0), 10600)
 s.ents[bq]["Behavior"] = {"Name": "BoundingOverwatch", "Origin": "Superior",
                           "Params": json.dumps({"Objective": [130, 150, 0], "BoundMetres": 30})}
