@@ -1188,6 +1188,95 @@ public static partial class BlockFigure
         return gesture == ArmGesture.HoldSign ? [.. shaped, .. Placard(drop + bob)] : shaped;
     }
 
+    // ── ⭐ CE-1308 (docs/DESIGN_People_Display.md §7d U19; behaviors' CE-2368, AQ103 I) — the IDLE gestures: a mood, never an act ──────
+
+    /// <summary>⭐ U19a — the smoker's cycle (s): the hand rises, rests at his lips, comes down, and stays low the rest of it.</summary>
+    public const float SmokeCycle = 9f, SmokeRise = 1f, SmokeAtLips = 2.5f;
+
+    /// <summary>⭐ U19b — the weight shift's cycle (s) and how far the upper body sways over the standing leg (m).</summary>
+    public const float ShiftCycle = 6f, ShiftSway = 0.04f;
+
+    /// <summary>⭐ U19c — the stretch's cycle (s): up, held, down, then a long rest.</summary>
+    public const float StretchCycle = 11f, StretchRise = 0.8f, StretchHold = 2f;
+
+    /// <summary>The smoker's lips in a standing figure (metres): the front of the head, a little below its middle.</summary>
+    public static readonly Vector3 Lips = new(0.13f, -0.02f, 1.55f);
+
+    /// <summary>⭐ U19a — how far up the smoker's hand is at <paramref name="t"/> (0 low … 1 at his lips), eased.</summary>
+    public static float SmokeLift(float t) => Envelope(t, SmokeCycle, SmokeRise, SmokeAtLips);
+
+    /// <summary>⭐ U19c — how far up the stretch is at <paramref name="t"/> (0 … 1), eased.</summary>
+    public static float StretchLift(float t) => Envelope(t, StretchCycle, StretchRise, StretchHold);
+
+    /// <summary>⭐ U19b — the upper body's sway at <paramref name="t"/> (m, + = toward his left: the weight on the left leg).</summary>
+    public static float ShiftOf(float t) => ShiftSway * MathF.Sin(2f * MathF.PI * t / ShiftCycle);
+
+    /// <summary>Rise over <paramref name="rise"/> s, hold <paramref name="hold"/> s, fall over <paramref name="rise"/> s, then 0 to the end
+    /// of the <paramref name="cycle"/>; smoothstepped.</summary>
+    private static float Envelope(float t, float cycle, float rise, float hold)
+    {
+        float u = ((t % cycle) + cycle) % cycle;
+        float x = u < rise ? u / rise : u < rise + hold ? 1f : u < rise + hold + rise ? 1f - (u - rise - hold) / rise : 0f;
+        return x * x * (3f - 2f * x);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1308</c> (People Display §7d U19) — a standing or crouched figure showing an IDLE mood on his own clock <paramref name="t"/>
+    /// (stateless, like <see cref="GestureArms"/>): SMOKING — the right hand to his lips and down, a cigarette in the fingers; a STRETCH —
+    /// both arms up over his head (a soldier: the right only, the left stays on his rifle); SHIFTING WEIGHT — the upper body swaying over
+    /// the standing leg (the knee is the motion pose's, <c>EntityBodyLayer3D.IdleMotion</c>); LOOKING ABOUT — the head only (also the
+    /// motion pose's). ⛔ A mood, not an act: a soldier's rifle stays where his posture holds it (never slung).
+    /// </summary>
+    public static KitPart[] IdleArms(KitPart[] parts, Fdp.Toolkit.Combat.GestureKind kind, bool crouched, bool soldier, float t)
+    {
+        if (parts.Length < TorsoIndex + 2 + 4) return parts;
+        var drop = crouched ? CrouchDrop : Vector3.Zero;
+        var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        switch (kind)
+        {
+            case Fdp.Toolkit.Combat.GestureKind.IdleSmoking:
+            {
+                float up = SmokeLift(t);
+                var elbow = Vector3.Lerp(r + new Vector3(0.02f, -0.04f, -0.28f), r + new Vector3(0.12f, -0.10f, -0.22f), up);
+                var hand = Vector3.Lerp(r + new Vector3(0.22f, -0.02f, -0.36f), Lips + drop + new Vector3(0.02f, 0f, 0f), up);
+                var shaped = (KitPart[])parts.Clone();
+                var arm = Arm(r, elbow, hand, PartRole.Hull);
+                shaped[TorsoIndex + 4] = arm[0];
+                shaped[TorsoIndex + 5] = arm[1];
+                var dir = Vector3.Normalize(hand - elbow);
+                return [.. shaped, Limb(hand + dir * 0.02f, hand + dir * 0.02f + new Vector3(dir.X, dir.Y, 0f) * 0.08f, 0.012f, 0.012f, ColourRole.Canvas)];
+            }
+            case Fdp.Toolkit.Combat.GestureKind.IdleStretch:
+            {
+                float up = StretchLift(t);
+                if (up <= 0f) return parts;
+                var shaped = (KitPart[])parts.Clone();
+                var armR = Arm(r, Vector3.Lerp(r + new Vector3(0f, -0.02f, -0.30f), r + new Vector3(-0.02f, 0.02f, 0.30f), up),
+                                  Vector3.Lerp(r + new Vector3(0.02f, -0.02f, -0.60f), r + new Vector3(-0.04f, 0.16f, 0.60f), up), PartRole.Hull);
+                shaped[TorsoIndex + 4] = armR[0];
+                shaped[TorsoIndex + 5] = armR[1];
+                if (!soldier)
+                {
+                    var armL = Arm(l, Vector3.Lerp(l + new Vector3(0f, 0.02f, -0.30f), l + new Vector3(-0.02f, -0.02f, 0.30f), up),
+                                      Vector3.Lerp(l + new Vector3(0.02f, 0.02f, -0.60f), l + new Vector3(-0.04f, -0.16f, 0.60f), up), PartRole.Hull);
+                    shaped[TorsoIndex + 2] = armL[0];
+                    shaped[TorsoIndex + 3] = armL[1];
+                }
+                return shaped;
+            }
+            case Fdp.Toolkit.Combat.GestureKind.IdleShiftWeight:
+            {
+                var shift = new Vector3(0f, ShiftOf(t), 0f) / S;
+                var shaped = (KitPart[])parts.Clone();
+                for (int i = TorsoIndex; i < shaped.Length; i++)   // everything above the legs: torso, head, arms, rifle, what he holds
+                    shaped[i] = shaped[i] with { Centre = shaped[i].Centre + shift, SwingPivot = shaped[i].SwingPivot is { } p ? p + shift : null };
+                return shaped;
+            }
+            default:
+                return parts;   // LookAbout: the head turns in the motion pose
+        }
+    }
+
     /// <summary>⭐ <c>CE-1195</c> — how long a throw is drawn after its shot, s.</summary>
     public const float ThrowSeconds = 0.6f;
 

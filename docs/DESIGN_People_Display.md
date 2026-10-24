@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§7c — U8 the ExCon "Concealed" layer, CE-1169; the overnight items: U7 held items, U9 aim line, U11 police look, U12 toy, U13 band — CE-1169/1170/1172/1173/1174) · 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
+updated: 2026-10-24 (§7d — U19 the idle gestures, CE-1308, behaviors' CE-2368 handoff) · 2026-10-21 (§7c — U8 the ExCon "Concealed" layer, CE-1169; the overnight items: U7 held items, U9 aim line, U11 police look, U12 toy, U13 band — CE-1169/1170/1172/1173/1174) · 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
 build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
-current-answer: §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
+current-answer: §7d U19 the idle gestures (newest) · §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -12,6 +12,7 @@ related-designs:
   - docs/DESIGN_Visual_Effects.md — OWNS EffectLayer and ProjectileLayer (what lies on the ground, bursts, puffs).
   - docs/DESIGN_Entity_Control.md — OWNS the FPS station and its HUD (§8e, §8h).
   - docs/UX/UX_Feature_Entity_Symbology.md — OWNS the 2-D symbol, side colour and the entity card.
+  - docs/blueprints/Architect_Question_103_Idle_Life.md — OWNS idle life (R-2074): who is idle and calm, and the four idle gesture kinds §7d draws
 -->
 
 # People display — what a person holds, does, says and feels, drawn *(ui, `2026-10-18`)*
@@ -291,6 +292,69 @@ sequenceDiagram
 | `CE-1177` U16 — mood | `Marks.MoodOf`: pain (`Injury` Wounded) > anger > fear (`Demeanour` from its 2nd quarter) > alarm (mode Alarmed / Panic). Far: the same card row as a 12 px dot `o` (pink / red / amber / white) when no speech shows — U15 wins. Close: the FACE — a new shader uniform `faceMood` (brow lift, mouth open, eye squint; `BodySurface.Expression`): afraid raised brows and an open mouth, angry knitted brows and a tight mouth, in pain squeezed eyes. ⚠ "hidden beyond 300 m" not built (a card row has no distance cut; the layer toggle stands). G2 LANDED (`CE-3265`), no writer yet (`CE-2250`) — live today: pain | same rail · frame `people-overnight-3-faces-calm-afraid-angry-pain.png` |
 | `CE-1179` U18 — the rest | a weapon LAID DOWN (his active own mount, `WeaponLaying.IsLaidDown`, replicated in `WeaponAmmo.LaidDown`) lies across his path a step in front of his feet (`BlockFigure.LaidAtFeet`, after the gestures — a hands-up gesture would sling it); a PLACED charge (no `IsEmbarkedTag`) blinks red a quarter second each second on sim time (`ChargeLightOn`), the same on every node | `Map3DTests.CE1179_*` · frame `people-overnight-4-laid-down-and-a-placed-charge.png` |
 | `CE-1170` U9 — the aim line | `AimLineGizmo` (Hrot.Common, `[GizmoProjector(WeaponPosture)]`, auto-discovered on every map host): `Aimed` at a living PERSON (`PhysicsColliderReaders.IsPerson`) ⇒ a thin red-orange line from `Muzzle.TryOf(ActiveMount)` — or, with no muzzle data (a rifleman), his shoulder (1.4 m) half a metre toward the target — to the target's chest (1.2 m); on `UnitDetails`. ⭐ A non-zero Z is drawn at its height in 3-D, never draped (`GizmoRenderer3D`); 2-D draws it flat. None when ready, at a vehicle, at a dead man | `Map3DTests.CE1170_*` (red-proof: the person check removed ⇒ the vehicle case draws) |
+
+### 7d. U19 — the IDLE gestures: a relaxed man smokes, shifts his weight, stretches, looks about *(`CE-1308`, ui, `2026-10-24`; behaviors' `CE-2368`, AQ103 I, R-2074 — [handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Idle_Gestures.md))* — build-state: BUILT
+
+🔒 User, `2026-10-24`: *"soldiers who are actually really idle or waiting in some boring job … Some of them could be smoking a cigarette,
+some of them just moving their bodies, stepping from one leg to the other … that of course applies to civilians as well."* · and *"follow
+their handoff regarding the idle gestures."*
+
+**INVENTORY** *(`scripts/cbm.sh search_graph` name_pattern `.*(Gesture|Idle(Smok|Shift|Stretch|Look)|Sway|Fidget|Cigarette|Smok).*`, Method:
+84 total — the relevant: `BlockFigure.GestureArms` (the six acts, animated on `t`), `EntityBodyLayer3D.Gestured` (the guard returning an idle kind
+unchanged — behaviors' cross-lane stop-gap), `EntityBodyLayer3D.GestureClock` (U14's per-man clock), `EffectStateGizmo.GestureWord` (no label
+for an idle kind), the `EntityGesture` translators; plus `MotionPose` (`KneeFlexL/R`, `HeadTurn`) and `EntityBodyLayer3D.FigureMotion`; ⚠
+`check_index_coverage` not reachable through the CLI.)* ⇒ ⭐ **no new class, no new state**: the idle kinds are two more stateless functions on
+the same clock.
+
+```mermaid
+classDiagram
+  class Gestures { <<exists, FDP>> Of(view, unit) · IsIdle(kind) }
+  class EntityBodyLayer3D { <<exists, changed>> Gestured — an idle kind now drawn · FigureMotion — IdleMotion added · GestureClock (U14) }
+  class BlockFigure { <<exists, changed>> GestureArms (the six acts) · IdleArms(parts, kind, crouched, soldier, t) NEW }
+  class IdleMotion { <<NEW static method on EntityBodyLayer3D>> knees for ShiftWeight · head sweep for LookAbout }
+  class RestlessSystem { <<behaviors>> writes IdleSmoking 7 · IdleShiftWeight 8 · IdleStretch 9 · IdleLookAbout 10 }
+  RestlessSystem ..> Gestures : Set
+  EntityBodyLayer3D ..> Gestures : Of
+  EntityBodyLayer3D ..> BlockFigure : IdleArms
+  EntityBodyLayer3D ..> IdleMotion
+```
+*What the picture shows that prose hid:* the idle kinds ride the SAME reader (`Gestures.Of`) and the SAME clock as the acts — nothing new
+reaches the wire or keeps state; the drawing splits only by WHAT moves (arms → parts, legs and head → the motion pose).
+
+```mermaid
+sequenceDiagram
+  participant B as RestlessSystem (brain)
+  participant W as dtGesture / EntityGesture
+  participant L as EntityBodyLayer3D (every node)
+  B->>W: Kind 7..10 while idle and calm
+  loop every drawn frame
+    L->>L: t = GestureClock(e, simTime)
+    L->>L: FigureMotion + IdleMotion (knees, head)
+    L->>L: Gestured: IdleArms(parts, kind, t)
+  end
+  B->>W: Kind 0 (a threat, a task)
+  L->>L: the plain figure at once — no state to unwind
+```
+
+```mermaid
+graph TD
+  BODY["EntityBodyLayer3D — composed by MapInteractionPack.AttachMapLayers on every map host (editor, CGF, SimHost, IG)"] -->|"each frame, per free standing / crouched man"| FM["FigureMotion → IdleMotion"]
+  BODY --> GE["Gestured → BlockFigure.IdleArms"]
+  EXT["an external IG"] -.->|"its own animation for bytes 7..10 (blend, never snap)"| WIRE["EntityGesture.Kind"]
+```
+*The dashed edge is outside this repo:* the external IG gets only the byte — it must play its own idle animation.
+
+| id | decision | ⭐ lean (taken, for the user to confirm) | rejected — one line each |
+|---|---|---|---|
+| **U19a** | smoking | the right hand to the lips and down on a 9 s cycle (up 1 s, at the lips 2.5 s, down 1 s, low 4.5 s), a cigarette (8 cm, pale) in the fingers; ⭐ a soldier keeps his rifle where his posture holds it, the left hand on it — only the right arm leaves | sling the rifle as the acts do — the handoff's fence: a mood, not an act |
+| **U19b** | shifting weight | legs — the free knee bends (≈20°) and the upper body sways ≈4 cm over the standing leg, side to side on a 6 s cycle; fades out while he walks (`Moving`) | arms only — the user's own words are "stepping from one leg to the other" |
+| **U19c** | stretch | a civilian: both arms up over his head, held 2 s in an 11 s cycle; a soldier: the right arm only (the left stays on the rifle) | both arms for a soldier — the rifle would float |
+| **U19d** | looking about | the head sweeps ±30° on a 12 s cycle — ⚠ **only while his eyes have no look of their own** (`LookOf.HeadYaw == 0`): the drawn head shows where he really looks (Entity Control LK-5) and a real look always wins | the sweep regardless — the drawing would lie about where he looks · nothing — the user asked for it. ⭐ Better later: behaviors drive a real glance (LD-3) for LookAbout, then the drawn head is true by construction — noted to them |
+| **U19e** | where | standing and crouched, a free carriage, not destroyed, not cowering — the acts' own guard; nothing in 2-D (a mood has no label) | — |
+| **U19f** | the external IG | the wire comment and Civilians §7.7: **7–10 are idle ANIMATIONS to blend, not poses to snap to** | — |
+
+**As built** — `BlockFigure.IdleArms` (U19a, U19c) and `EntityBodyLayer3D.IdleMotion` (U19b, U19d), both stateless on `GestureClock`; `Gestured`
+draws an idle kind through `IdleArms` instead of returning the figure unchanged. Rails: `Map3DTests.CE1308_*`.
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 

@@ -1774,12 +1774,15 @@ public sealed class Map3DTests
     }
 
     /// <summary>⭐ CE-1166 (§8.7 U6-b) — the drawing's names ARE backend's (B-6 <c>GestureKind</c>), name for name and byte for byte, so
-    /// the cast in <c>Gestured</c> cannot drift: a gesture added on one side fails here.</summary>
+    /// the cast in <c>Gestured</c> cannot drift: a gesture added on one side fails here. ⭐ CE-1308 — the IDLE kinds (behaviors' CE-2368,
+    /// <c>Gestures.IsIdle</c>) are moods, not arm poses: they never reach the cast (<c>BlockFigure.IdleArms</c> draws them), so the ACTS are
+    /// what must match; a new kind that is neither an act here nor idle still fails.</summary>
     [Fact]
     public void CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte()
     {
-        Assert.Equal(Enum.GetNames<Fdp.Toolkit.Combat.GestureKind>(), Enum.GetNames<BlockFigure.ArmGesture>());
-        foreach (var kind in Enum.GetValues<Fdp.Toolkit.Combat.GestureKind>())
+        var acts = Enum.GetValues<Fdp.Toolkit.Combat.GestureKind>().Where(k => !Fdp.Toolkit.Combat.Gestures.IsIdle(k)).Select(k => k.ToString());
+        Assert.Equal(acts, Enum.GetNames<BlockFigure.ArmGesture>());
+        foreach (var kind in Enum.GetValues<Fdp.Toolkit.Combat.GestureKind>().Where(k => !Fdp.Toolkit.Combat.Gestures.IsIdle(k)))
             Assert.Equal(kind.ToString(), ((BlockFigure.ArmGesture)(byte)kind).ToString());
     }
 
@@ -2419,6 +2422,85 @@ public sealed class Map3DTests
             Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, a, Fdp.Toolkit.Combat.GestureKind.FistRaised));
             Assert.NotEqual(EntityBodyLayer3D.Gestured(world, a, false, FigureCarriage.Free, plain, 12.0),
                             EntityBodyLayer3D.Gestured(world, a, false, FigureCarriage.Free, plain, 12.18));
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1308 (docs/DESIGN_People_Display.md §7d U19; behaviors' CE-2368 handoff) — the IDLE moods, drawn on each man's clock:
+    /// SMOKING — the right hand at his lips, then low, a cigarette in it; a soldier's rifle stays where his posture holds it. A STRETCH —
+    /// both hands over a civilian's head (a soldier's right only, the rifle untouched), the plain figure at rest. SHIFTING WEIGHT — the
+    /// upper body sways over the standing leg (the legs stay), the free knee bends. LOOKING ABOUT — the head sweeps, but a real look wins.
+    /// 🔒 User, 2026-10-24: "Some of them could be smoking a cigarette, some of them just moving their bodies, stepping from one leg to the other."
+    /// </summary>
+    [Fact]
+    public void CE1308_TheIdleMoods_Smoke_Stretch_ShiftTheWeight_AndLookAbout_OnEachMansClock()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        Vector3 At(KitPart part) => Vector3.Transform(Vector3.Zero, part.BodyTransform(size));
+        const int RightForearm = BlockFigure.TorsoIndex + 5, LeftForearm = BlockFigure.TorsoIndex + 3;
+        var civ = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        var sol = BlockFigure.Parts(StanceId.Standing, soldier: true);
+        float headTop = Top([civ[BlockFigure.HeadIndex]], size);
+        var lips = At(civ[BlockFigure.HeadIndex]);
+
+        // smoking: up at his lips, then down; a cigarette appended; the soldier's rifle untouched
+        float atLips = BlockFigure.SmokeRise + 1f, low = 6f;
+        var smoking = BlockFigure.IdleArms(civ, Fdp.Toolkit.Combat.GestureKind.IdleSmoking, false, false, atLips);
+        var resting = BlockFigure.IdleArms(civ, Fdp.Toolkit.Combat.GestureKind.IdleSmoking, false, false, low);
+        Assert.Equal(civ.Length + 1, smoking.Length);
+        Assert.Equal(ColourRole.Canvas, smoking[^1].Colour);
+        Assert.True(Vector3.Distance(At(smoking[^1]), lips) < 0.25f, $"the cigarette at his mouth ({At(smoking[^1])} vs {lips})");
+        Assert.True(Vector3.Distance(At(resting[^1]), lips) > 0.4f, "and down again");
+        var soldierSmoking = BlockFigure.IdleArms(sol, Fdp.Toolkit.Combat.GestureKind.IdleSmoking, false, true, atLips);
+        Assert.Equal(sol[BlockFigure.WeaponIndex], soldierSmoking[BlockFigure.WeaponIndex]);        // a mood: the rifle stays
+        Assert.Equal(sol[LeftForearm], soldierSmoking[LeftForearm]);                                  // his left hand on it
+
+        // a stretch: both hands over a civilian's head; a soldier's right only; at rest the plain figure
+        float held = BlockFigure.StretchRise + 1f;
+        var stretched = BlockFigure.IdleArms(civ, Fdp.Toolkit.Combat.GestureKind.IdleStretch, false, false, held);
+        Assert.True(Top([stretched[RightForearm]], size) > headTop && Top([stretched[LeftForearm]], size) > headTop, "both hands over his head");
+        var soldierStretched = BlockFigure.IdleArms(sol, Fdp.Toolkit.Combat.GestureKind.IdleStretch, false, true, held);
+        Assert.True(Top([soldierStretched[RightForearm]], size) > headTop);
+        Assert.Equal(sol[LeftForearm], soldierStretched[LeftForearm]);
+        Assert.Equal(sol[BlockFigure.WeaponIndex], soldierStretched[BlockFigure.WeaponIndex]);
+        Assert.Same(civ, BlockFigure.IdleArms(civ, Fdp.Toolkit.Combat.GestureKind.IdleStretch, false, false, 7f));
+
+        // shifting weight: the upper body sways over the left leg, the legs stay
+        float leftward = BlockFigure.ShiftCycle / 4f;
+        var shifted = BlockFigure.IdleArms(civ, Fdp.Toolkit.Combat.GestureKind.IdleShiftWeight, false, false, leftward);
+        Assert.Equal(BlockFigure.ShiftSway, At(shifted[BlockFigure.TorsoIndex]).Y - At(civ[BlockFigure.TorsoIndex]).Y, 3);
+        Assert.Equal(BlockFigure.ShiftSway, At(shifted[BlockFigure.HeadIndex]).Y - At(civ[BlockFigure.HeadIndex]).Y, 3);
+        for (int i = 0; i < BlockFigure.TorsoIndex; i++) Assert.Equal(civ[i], shifted[i]);
+
+        // the motion half, on the man's own clock: the free knee bends (never both); looking about turns the head — a real look wins
+        var (world, _) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();
+            var man = Man(world, Vector3.Zero);
+            Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.IdleShiftWeight);
+            bool left = false, right = false;
+            for (double t = 0; t < BlockFigure.ShiftCycle; t += 0.25)
+            {
+                var m = EntityBodyLayer3D.IdleMotion(world, man, MotionPose.Still, t);
+                Assert.False(m.KneeFlexL > 0f && m.KneeFlexR > 0f, "both knees at once");
+                left |= m.KneeFlexL > 0.2f; right |= m.KneeFlexR > 0.2f;
+            }
+            Assert.True(left && right, "from one leg to the other");
+
+            Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.IdleLookAbout);
+            float most = 0f;
+            for (double t = 0; t < EntityBodyLayer3D.LookAboutCycle; t += 0.5)
+                most = MathF.Max(most, MathF.Abs(EntityBodyLayer3D.IdleMotion(world, man, MotionPose.Still, t).HeadTurn));
+            Assert.True(most > 0.4f, "he looks about");
+            world.AddComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = 0.3f });
+            for (double t = 0; t < EntityBodyLayer3D.LookAboutCycle; t += 0.5)
+                Assert.Equal(0f, EntityBodyLayer3D.IdleMotion(world, man, MotionPose.Still, t).HeadTurn);   // a real look: no drawn sweep
+
+            Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.IdleSmoking);   // through the layer: drawn, not the wind-up
+            var drawn = EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, civ, 0.0);
+            Assert.Equal(civ.Length + 1, drawn.Length);
         }
     }
 
