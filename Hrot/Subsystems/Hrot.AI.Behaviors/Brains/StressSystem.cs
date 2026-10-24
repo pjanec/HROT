@@ -244,6 +244,9 @@ namespace Hrot.AI.Behaviors.Brains
     /// continuous terms, for every combatant this node runs. After perception and the squad merge, before the brain tick, so the damping
     /// inputs (TS-5) and the break (TS-6) read this frame's level. 📄 docs/DESIGN_Temperament_And_Stress.md §3.
     /// </summary>
+    // ⭐ CE-1309 (ui, cross-lane) — R-3036: every system declares its tick policy; without it the scheduler throws on the first frame of
+    //   every host running CgfLogicPack (measured: the editor crashed at once). Stress integrates sim time, as its siblings do.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class StressSystem : IEcsModuleSystem
     {
         private readonly bool _gateOnAuthority;
