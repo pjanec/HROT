@@ -50,6 +50,20 @@ public static class ViewTelemetry
         => ByWorld.TryGetValue(world, out var box) ? System.Threading.Volatile.Read(ref box.Value) : null;
 }
 
+/// <summary>
+/// ⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-10) — the map that draws a world, keyed by that world like <see cref="ViewTelemetry"/>,
+/// so the debug API can act on its camera (<c>POST /view/follow</c>). Registered by <see cref="MapViewModeLayer"/>; main thread only.
+/// </summary>
+public static class ViewControl
+{
+    private static readonly ConditionalWeakTable<EntityRepository, MapViewModeLayer> ByWorld = new();
+
+    public static void Register(EntityRepository world, MapViewModeLayer layer) => ByWorld.AddOrUpdate(world, layer);
+
+    /// <summary>The view-mode layer of the map drawing <paramref name="world"/>, or null when none does (a headless host).</summary>
+    public static MapViewModeLayer? Of(EntityRepository world) => ByWorld.TryGetValue(world, out var layer) ? layer : null;
+}
+
 /// <summary>One unit in view.</summary>
 public sealed record InViewUnit(Entity Entity, long NetworkId, string? Name, float Distance, Vector2 Screen);
 

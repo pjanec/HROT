@@ -34,9 +34,10 @@ public sealed partial class PossessionStationTests
         public bool LeftPressed { get; set; }    // ⭐ CE-1078
         public bool RightPressed { get; set; }
         public bool RightDown { get; set; }       // ⭐ CE-1211 — the zoom is held
+        public bool MiddleDown { get; set; }      // ⭐ CE-1293 — a map drag
         public bool? Locked { get; private set; }
         public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right && RightPressed;
-        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right && RightDown;
+        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right ? RightDown : b == MapMouseButton.Middle && MiddleDown;
         public bool IsMouseButtonReleased(MapMouseButton b) => false;
         public bool IsKeyPressed(MapKeyboardKey k) => Pressed.Contains((int)k);
         public bool IsKeyDown(MapKeyboardKey k) => Keys.Contains((int)k);
@@ -104,7 +105,7 @@ public sealed partial class PossessionStationTests
         {
             var (canvas, sw, two) = Map();
             var cameraLayer = new MapCameraLayer(sw, () => w);
-            var station = new PossessionStation(sw, () => w);
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view (the shoulder view is the default)
             var before = sw.CurrentPose;
             Assert.False(sw.Is3D);
 
@@ -222,7 +223,7 @@ public sealed partial class PossessionStationTests
             w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var bodies = new EntityBodyLayer3D(() => w, () => null);
-            var station = new PossessionStation(sw, () => w, bodies);
+            var station = new PossessionStation(sw, () => w, bodies) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view
             Assert.Same(bodies, station.Bodies);
             station.Update(0.016f);
             Assert.Equal(unit, bodies.FirstPerson);                           // its head is not drawn: the camera is in it
@@ -1092,7 +1093,7 @@ public sealed partial class PossessionStationTests
             w.AddComponent(unit, new SimVelocity { Linear = new Vector3(106f, 106f, 0f) });
             w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
-            var station = new PossessionStation(sw, () => w);
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view (the shoulder view is the default)
             station.Update(0.016f);
             var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
             Assert.Equal(ControlScheme.FixedWing, driver.Scheme);

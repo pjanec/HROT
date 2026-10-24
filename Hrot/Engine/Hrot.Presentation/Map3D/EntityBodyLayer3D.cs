@@ -199,6 +199,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 // ⭐ WL-6c — the posture first (how AIMED he is), then the gait and the upper body from it
                 (parts, float aimed, float crouchRun) = FigurePose(world, e, look.Soldier, simTime, motion);
                 motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed, crouchRun);
+                motion = IdleMotion(world, e, motion, simTime);   // ⭐ CE-1308 (U19b, U19d) — the knees of a weight shift, a look about
                 (parts, motion) = Burdened(world, e, carriage, look.Soldier, parts, motion);
                 // ⭐ CE-1236 (People Display U7a, R-1022) — his weapon drawn as what it is, in every posture: the pistol, a machine gun, a
                 //   scoped rifle, a launcher's tube (⭐ CE-1090 N-4: on the shoulder when aimed), a mortar on the ground in front of him
@@ -664,15 +665,47 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public static KitPart[] Gestured(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts, double simTime = 0)
     {
         var kind = Fdp.Toolkit.Combat.Gestures.Of(world, e);
-        // ⭐ CE-2368 (behaviors, cross-lane) — an IDLE mood (AQ103 I: smoking, shifting weight…) is not one of the arm poses below; ⛔ cast
-        //   through, it fell to the switch's default and drew the throw's wind-up. Drawn as he is until ui maps the idle kinds.
-        if (Fdp.Toolkit.Combat.Gestures.IsIdle(kind)) return parts;
-        var gesture = (BlockFigure.ArmGesture)(byte)kind;   // U6-b: the same six, byte for byte
-        if (gesture == BlockFigure.ArmGesture.None || carriage.Kind != CarriageKind.Free) return parts;
+        if (kind == Fdp.Toolkit.Combat.GestureKind.None || carriage.Kind != CarriageKind.Free) return parts;
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
         var stance = LogicalStance.Of(world, e);
         if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
-        return BlockFigure.GestureArms(parts, gesture, crouched: stance == StanceId.Crouched, soldier, GestureClock(world, e, simTime));
+        float t = GestureClock(world, e, simTime);
+        // ⭐ CE-1308 (People Display §7d U19; behaviors' CE-2368) — an IDLE mood (smoking, shifting weight, a stretch, looking about) is
+        //   drawn by its own stateless function on the same clock; ⛔ cast to an arm pose it fell to the wind-up (behaviors' guard, replaced)
+        if (Fdp.Toolkit.Combat.Gestures.IsIdle(kind)) return BlockFigure.IdleArms(parts, kind, crouched: stance == StanceId.Crouched, soldier, t);
+        var gesture = (BlockFigure.ArmGesture)(byte)kind;   // U6-b: the same six, byte for byte
+        return BlockFigure.GestureArms(parts, gesture, crouched: stance == StanceId.Crouched, soldier, t);
+    }
+
+    /// <summary>⭐ <c>CE-1308</c> (U19b) — how far the free knee bends while he shifts his weight (rad).</summary>
+    public const float ShiftKnee = 0.35f;
+
+    /// <summary>⭐ <c>CE-1308</c> (U19d) — how far and how slowly the head sweeps while he looks about (rad, s).</summary>
+    public const float LookAboutSweep = 0.52f, LookAboutCycle = 12f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1308</c> (docs/DESIGN_People_Display.md §7d U19b, U19d) — the motion half of an IDLE mood, on his gesture clock: SHIFTING
+    /// WEIGHT bends the free knee (the leg the upper body sways away from — <see cref="BlockFigure.ShiftOf"/>), fading while he walks;
+    /// LOOKING ABOUT sweeps the head ±30° on a slow cycle — ⚠ only while his eyes have no look of their own (<c>LookOf.HeadYaw</c> 0): the
+    /// drawn head shows where he really looks (Entity Control LK-5), and a real look always wins.
+    /// </summary>
+    public static MotionPose IdleMotion(EntityRepository world, Entity e, MotionPose motion, double simTime)
+    {
+        var kind = Fdp.Toolkit.Combat.Gestures.Of(world, e);
+        if (!Fdp.Toolkit.Combat.Gestures.IsIdle(kind) || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) return motion;
+        float t = GestureClock(world, e, simTime);
+        if (kind == Fdp.Toolkit.Combat.GestureKind.IdleShiftWeight)
+        {
+            float sway = BlockFigure.ShiftOf(t) / BlockFigure.ShiftSway, still = 1f - Math.Clamp(motion.Moving, 0f, 1f);
+            return motion with
+            {
+                KneeFlexR = MathF.Max(motion.KneeFlexR, ShiftKnee * still * MathF.Max(0f, sway)),    // the weight on his left: the right knee rests
+                KneeFlexL = MathF.Max(motion.KneeFlexL, ShiftKnee * still * MathF.Max(0f, -sway)),
+            };
+        }
+        if (kind == Fdp.Toolkit.Combat.GestureKind.IdleLookAbout && Fdp.Toolkit.Perception.Look.LookOf.HeadYaw(world, e) == 0f)
+            return motion with { HeadTurn = motion.HeadTurn + LookAboutSweep * MathF.Sin(2f * MathF.PI * t / LookAboutCycle) };
+        return motion;
     }
 
     /// <summary>⭐ CE-1175 (U14) — a man's gesture clock in seconds: sim time plus up to 10 s from his seed (the same on every node).

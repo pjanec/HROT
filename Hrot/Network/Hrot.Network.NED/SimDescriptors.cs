@@ -389,6 +389,9 @@ namespace Hrot.NED.Descriptors
 
     // ⭐ CE-3224 (civilians B-6, CV-13) — a person's gesture, the brain owner → every node. Reliable + TransientLocal + KeepLast 1,
     //   like EntityEffectState: a late joiner must see who has his hands up.
+    //   ⭐ CE-2368 / CE-1308 (AQ103 I, People Display §7d) — Kind 1..6 are ACTS (poses: hands up, a fist, a sign, a wave, a throw, a
+    //   warning); 7..10 are IDLE MOODS (smoking, shifting weight, a stretch, looking about) — for an IG, idle ANIMATIONS to blend in and
+    //   out on the man's own clock, never poses to snap to; 0 ends either at once.
     [DdsTopic("EntityGesture")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

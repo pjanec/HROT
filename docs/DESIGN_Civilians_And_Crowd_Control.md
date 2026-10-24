@@ -3041,6 +3041,10 @@ classDiagram
 (the behaviour that chooses it owns it); recorded like `EffectState` (`NoScenario` only — it reaches the replay, never a scenario
 file). Absent ⇒ None, so a unit that never gestures costs nothing. `None` after a gesture is a change and is published.
 
+> ⭐ **`2026-10-24` — the IG contract for the byte (behaviors' `CE-2368`, ui's `CE-1308`):** `Kind` 1–6 are ACTS (poses); **7–10 are IDLE
+> MOODS** — `IdleSmoking` 7 · `IdleShiftWeight` 8 · `IdleStretch` 9 · `IdleLookAbout` 10 (AQ103 I, R-2074) — **animations for an IG to blend
+> in and out on the man's own clock, never poses to snap to**; 0 ends either at once. How this repo draws them: [People Display](DESIGN_People_Display.md) §7d.
+
 ### 7.9 B-8 — the HANDS mount, and stones and stun grenades on the arc *(AW-7, AW-24 — R-2025, R-2029; `CE-3230`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.9a)*
 
 INVENTORY *(grep + reads at `backend@58d6e7a5c`; codebase-memory CLI as in §7.8)*:

@@ -5,6 +5,7 @@ build-state: BUILDING — steps 1, 2, 3b BUILT 2026-10-24 and 3 / 3c (in cover, 
 current-answer: §7 as built · §6 the answers (approved, R-2074) · §4 the sub-questions A–I · §3 the design
 stale-below: nothing
 related-designs:
+  - docs/DESIGN_People_Display.md — OWNS how the four idle gesture kinds (row I) are DRAWN (§7d U19, CE-1308)
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — OWNS R2-2 (the stress fidget, CE-2365) and R2-3 (the pinned scoot, CE-2363); this question folds the fidget into one restlessness reflex
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — OWNS the reflex over a play's MOVE (UnderFireMoveSystem); this one is its sibling for a man NOT on a move
   - docs/DESIGN_Temperament_And_Stress.md — OWNS Stress (TS-4, unbuilt) that scales how restless he is; the break (TS-6) holds him still

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -22,6 +23,7 @@ public sealed class EntityPartPicker : IPicker3D
     private readonly BodyBox[] _scratch = new BodyBox[VehicleBody.MaxBoxes];
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
+    private readonly HashSet<Entity> _own = new();
 
     public EntityPartPicker(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb, EntityBodyLayer3D bodies)
     {
@@ -47,9 +49,10 @@ public sealed class EntityPartPicker : IPicker3D
         bool hasNet = world.IsComponentTypeRegistered<NetworkIdentity>();
         var end = origin + direction * maxDistance;
         float best = maxDistance;
+        OwnRide(world, _bodies.FirstPerson, _own);
         foreach (var e in _query!)
         {
-            if (e == _bodies.FirstPerson) continue;   // ⭐ CE-1080 — never the operator's own body
+            if (_own.Contains(e)) continue;   // ⭐ CE-1080 — never the operator's own body; ⭐ CE-1307 — nor the vehicle he rides, nor what rides it
             if (!_bodies.TryGetBox(world, e, tkb, out var centre, out var rotation, out var half)) continue;   // not drawn ⇒ not aimed at
             float t;
             if (BodyPartRay.TryHit(world, e, origin, end, _scratch, out var part, out bool hasParts)) t = part.T * maxDistance;
@@ -65,6 +68,28 @@ public sealed class EntityPartPicker : IPicker3D
             hit = new PickResult(origin + direction * t, PickKind.Entity, t, net);
         }
         return hit.Kind == PickKind.Entity;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1307</c> — what the crosshair must look past: the operator's own body, the vehicle he sits in (a gunner, a passenger) and
+    /// everything riding it (the crew, its weapon stations) — or, driving it, everything riding HIS vehicle. From the chase camera the ray
+    /// crosses them first, and the gun was told to aim at its own hull.
+    /// </summary>
+    public static void OwnRide(EntityRepository world, Entity me, HashSet<Entity> own)
+    {
+        own.Clear();
+        if (me.IsNull) return;
+        own.Add(me);
+        bool embarked = world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                        && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(me);
+        var vehicle = embarked ? world.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(me).VehicleEntity : me;
+        if (vehicle.IsNull || !world.IsAlive(vehicle)) return;
+        own.Add(vehicle);
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()
+            || !world.HasComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(vehicle)) return;
+        ref readonly var riders = ref world.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(vehicle);
+        for (int i = 0; i < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity; i++)
+            if (!riders.Passengers[i].IsNull) own.Add(riders.Passengers[i]);
     }
 
     private static bool IsDrawnAsPerson(ITkbDatabase? tkb, EntityRepository world, Entity e)

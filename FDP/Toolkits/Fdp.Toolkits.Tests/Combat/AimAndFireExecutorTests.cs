@@ -2598,6 +2598,41 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1307</c> (docs/DESIGN_Weapon_Layers.md W-8b) — the OPERATOR aims below the turret's depression (a chase camera looks
+        /// down past the hull) or outside its traverse: the turret still turns as far as it can and stops at its limit; the muscle never
+        /// fails, so the operator's turret never freezes. 🔒 User, 2026-10-23: "the big gun mounted to the turret, it doesn't move at all.
+        /// Doesn't matter where I'm aiming."
+        /// </summary>
+        [Fact]
+        public void CE1307_TheOperatorAimsBeyondTheTurretsLimits_TheTurretTurnsAsFarAsItCan_AndNeverFails()
+        {
+            var (shooter, turret, channel, _) = TurretedTank(rounds: 0, cooldown: 0.2f, ammo: 10);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            AskOperator(ref channel, new Vector3(0f, 6f, 0f), trigger: 0);   // to his left, on the ground: 18° down from a 2 m pivot (limit −8°)
+            _executor.OnEnter(shooter, ref channel, _world);
+            for (int f = 0; f < 300; f++) { Tick(shooter, ref channel, 1f / 60f); muscle.Execute(_world, 1f / 60f); }
+            var pose = _world.GetComponent<TurretPose>(turret);
+            Assert.Equal(90f, pose.Azimuth * 180f / MathF.PI, 1);                        // turned to the left
+            Assert.Equal(-8f, pose.Elevation * 180f / MathF.PI, 1);                      // down to its limit
+            Assert.NotEqual(WeaponTaskState.Failed, _world.GetComponent<WeaponTaskStatus>(turret).State);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>⭐ <c>CE-1307</c> (W-8b) — a turret that traverses ±45°, aimed by the operator 90° off: it stops at 45°, never failing.</summary>
+        [Fact]
+        public void CE1307_TheOperatorAimsOutsideTheTraverse_TheTurretStopsAtItsEnd()
+        {
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            var (s2, t2, c2, _) = Turreted(new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f, TraverseMinDeg = -45f, TraverseMaxDeg = 45f },
+                                           Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, new Vector3(0f, 100f, 2f), rounds: 0);
+            AskOperator(ref c2, new Vector3(0f, 100f, 2f), trigger: 0);
+            _executor.OnEnter(s2, ref c2, _world);
+            for (int f = 0; f < 300; f++) { Tick(s2, ref c2, 1f / 60f); muscle.Execute(_world, 1f / 60f); }
+            Assert.Equal(45f, _world.GetComponent<TurretPose>(t2).Azimuth * 180f / MathF.PI, 1);
+            Assert.NotEqual(WeaponTaskState.Failed, _world.GetComponent<WeaponTaskStatus>(t2).State);
+        }
+
         // ── ⭐ CE-1078 / CE-1079 (docs/DESIGN_Entity_Control.md §8e) — a press locks ONE shot; the operator's round switch ───────────
 
         private static unsafe void AskOperatorShot(ref WeaponChannel channel, Entity target, Vector3 point, int cap, float cooldown = 0.2f)

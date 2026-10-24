@@ -79,6 +79,20 @@ namespace Fdp.Toolkit.Combat
             return Math.Clamp(Wrap(azimuth), lo, hi) - azNow;   // inside the arc: never through the dead zone
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1307</c> (docs/DESIGN_Weapon_Layers.md W-8b) — the nearest pose the turret CAN take to (<paramref name="azimuth"/>,
+        /// <paramref name="elevation"/>): the elevation held inside its limits, the azimuth inside its traverse (the nearer end of the arc).
+        /// For the OPERATOR's aim only — a brain's out-of-arc aim still fails (W-8).
+        /// </summary>
+        public static (float Azimuth, float Elevation) ClampToArc(TurretDto t, float azimuth, float elevation)
+        {
+            float el = ElevationGoal(elevation, t);
+            if (IsFullCircle(t)) return (Wrap(azimuth), el);
+            float lo = t.TraverseMinDeg * Deg, hi = t.TraverseMaxDeg * Deg, az = Wrap(azimuth);
+            if (az >= lo && az <= hi) return (az, el);
+            return (MathF.Abs(Wrap(az - lo)) <= MathF.Abs(Wrap(az - hi)) ? lo : hi, el);
+        }
+
         /// <summary>True when <paramref name="pose"/> is within <see cref="OnTargetTolerance"/> of the aim on both angles.</summary>
         public static bool OnTarget(TurretPose pose, float azimuth, float elevation)
             => MathF.Abs(Wrap(azimuth - pose.Azimuth)) <= OnTargetTolerance && MathF.Abs(elevation - pose.Elevation) <= OnTargetTolerance;

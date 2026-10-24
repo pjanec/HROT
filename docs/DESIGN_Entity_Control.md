@@ -1985,6 +1985,10 @@ which already crosses nodes (`EntityOrders.Possess`).
 
 ### 8n.5 AS-BUILT (`2026-10-21`, ui) — build-state: BUILT
 
+> ⭐ **`2026-10-23` (CE-1307) — a man who takes a seat that works a weapon starts ON that weapon** (the first controlled index `32+k`, once per
+> seat; 1 still picks his own). 📌 Measured live on the MilitaryAPC's gunner: his frames said `Mount 0`, his rifle, so the roof M2 never got an order
+> and "the turret doesn't follow". `FpsCameraDriver` `_seatedGun`; rail `CE1158_AMannedWeapon_JoinsTheKeys_AfterHisOwn_AsMount32`.
+
 | design said | built | why / note |
 |---|---|---|
 | MS-1 possess the man | ✅ `SeatSwitch.Seats` (the vehicle, then the man at each station's operating seat, in seat order) / `Next`; G → `PossessionStation.SwitchTo` (the one Tab path) | `FpsCameraDriver.Aboard`: W/A/S/D send 0 |
@@ -2085,6 +2089,11 @@ the frame, the brain and the round are untouched, because the crosshair ray alre
 | **OS-4** | a vehicle | a chase camera: 9 m behind its crew eye (§8o) along the level look and 2.5 m up (a flyer 18 m and 4.5 m); the turret follows the look as now; steering unchanged | an orbit camera with a free mouse — the look IS the turret's order · lengths from the type — a constant reads the same for every vehicle and needs no lookup |
 | **OS-5** | his own body | drawn whole (the head too); the pickers still skip it | hidden — the point of the view is to see him |
 | **OS-6** | the seated crewman's view (a gun's seat) | the same: behind his eye, his gun in view | — |
+
+> ⭐ **`2026-10-23` — OS-2's fixed offset and OS-4's fixed chase camera are now points on [Unit Camera](DESIGN_Unit_Camera.md) §4's
+> distance continuum (CE-1293, `UnitCameraRig`), and the shoulder view is ON by default (UC-3).** The wheel moves the camera and 1–4 pick the weapon (R-1034), Q / E swap
+> the shoulder, a man in a seat rides the vehicle's chase camera, a car's look re-centres (not an armed turret's). ⇒ Unit Camera §8 is the
+> current as-built; the table below is the CE-1201 state it grew from.
 
 ### 8p.5 AS-BUILT
 

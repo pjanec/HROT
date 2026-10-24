@@ -60,6 +60,24 @@ namespace Fdp.Toolkit.Combat
             return AnglesOf(hull, direction.LengthSquared() > 1e-8f ? direction : Vector3.Transform(Vector3.UnitX, hull.Rotation));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1307</c> (docs/DESIGN_Weapon_Layers.md W-8b) — the OPERATOR's point moved to where turret <paramref name="turret"/> can
+        /// actually point: a direct-fire aim outside its limits becomes the point at the same range along the nearest reachable line
+        /// (<see cref="TurretSlew.ClampToArc"/>), so the turret traverses and stops at its limit instead of refusing. An aim inside the
+        /// arc, and an indirect (arcing) mount — whose angles are a lob, not a line — come back unchanged.
+        /// </summary>
+        public static Vector3 Reachable(EntityRepository world, Entity hullEntity, TurretDto turret, WeaponMountDto? mount, Vector3 aimPoint)
+        {
+            if (!world.HasComponent<SimTransform>(hullEntity) || (mount != null && IsIndirect(world, mount))) return aimPoint;
+            var (azimuth, elevation) = Solve(world, hullEntity, turret, mount, aimPoint);
+            if (TurretSlew.InArc(turret, azimuth, elevation)) return aimPoint;
+            var (az, el) = TurretSlew.ClampToArc(turret, azimuth, elevation);
+            var hull = world.GetComponent<SimTransform>(hullEntity);
+            var pivot = PivotOf(hull, turret);
+            var local = new Vector3(MathF.Cos(el) * MathF.Cos(az), MathF.Cos(el) * MathF.Sin(az), MathF.Sin(el));
+            return pivot + Vector3.Transform(local, hull.Rotation) * Vector3.Distance(pivot, aimPoint);
+        }
+
         /// <summary>True when the mount's round is an indirect (arcing) warhead — <see cref="CombatTkb.WarheadOf"/>, the one lookup
         /// <see cref="FireProcessingSystem"/> reads too.</summary>
         public static bool IsIndirect(EntityRepository world, WeaponMountDto mount) => CombatTkb.WarheadOf(world, mount) is { Indirect: true };

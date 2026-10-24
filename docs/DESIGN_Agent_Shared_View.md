@@ -17,6 +17,7 @@ related-designs:
   - docs/designs/replay-browser-2/DESIGN.md — OWNS the replay browser, its sandbox world and the recording search (RecordingSearchService) the replay routes reuse
   - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — OWNS the viewport selection (SelectEntityCommand → SelectionRequestSystem) that /selection reads and writes
   - docs/DESIGN_Entity_Control.md — OWNS possession and the FPS station whose eye and zoom /view reports
+  - docs/DESIGN_Unit_Camera.md — OWNS the follow camera (CE-1293, the distance continuum) that POST /view/follow drives and /view's following reports (UC-10)
   - docs/DESIGN_Sensors_And_Doctrine.md — OWNS the sensors and target memory that the existing /entities/{id}/sensors and /memory routes read
 -->
 
@@ -264,6 +265,7 @@ replay ones under `/replay`, the debug ones editor-only like `/breakpoints`). Id
 | first-person select key (CE-1264) | `PossessionStation.SelectKey` = **I**, publishes `SelectEntityCommand` for `AimTarget` | — |
 | replay twins (CE-1265) | `DebugApiService.Brain.cs`: `/replay/entities/{id}/brain`, `/journal`, `/journal/history`, `/replay/selection` — the live readers on `SandboxRepo` | ⚠ **the history walks the recording with `StepForward`** and keeps each `Seq` once, then restores the seek — not `RecordingSearchService`: over a recording `Changed` has no baseline and matches every frame, so the search bought nothing |
 | `POST /replay/search` (CE-1266) | `DebugApiService.Brain.cs` `SearchReplay` → `RecordingSearchService` over the loaded file | ⚠ **fixed after the live check `2026-10-23`:** `Changed` now compares each frame with the frame before (a second playback one frame behind is the `PredicateChangeBaseline`) — it matched every frame (8581 hits for nine task changes); a component's **full name** resolves too (the route doc's own example used it and matched nothing); an unknown name is an error, never an empty result |
+| `POST /view/follow {entity, distance?}` (CE-1293, Unit Camera UC-10) | `DebugApiService.View.cs` `FollowUnit` → `ViewControl.Of(world)` (`ViewTelemetry.cs`, keyed by world like `ViewTelemetry`) → `MapViewModeLayer.FollowUnit` — the same method the unit menu's "Follow with the camera" reaches; `GET /view` adds `following` / `followDistance` | ⚠ the one route here that ACTS on the camera rather than reading it — a **second per-world store** (`ViewControl`, the map's view-mode layer) because the snapshot is read-only; 409 on a headless host or while the station possesses a unit |
 | catalog (CE-1268, R-1030) | `EveryRouteIsDocumentedTests.EveryToolIsInTheGeneratedCatalog`; `tools/ai-debug-mcp/tool-catalog.mjs` + `SKILL.md` regenerated with each route change | — |
 
 ⭐ Rails: `TheBrainAndViewRoutesAnswerTests` (brain, journal `?since` + gap, debug, view in front / behind + selection, 2-D by the rectangle ✅ red with culling first) and the catalog rail (red-proved by renaming a catalog entry); `RecordingSearchServiceTests.CE1266_Changed_FindsTheFramesWhereTheValueMoved` ✅ red with no lagging baseline.

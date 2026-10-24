@@ -1199,6 +1199,15 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐ CE-1293 (UC-10) — the map camera follows a unit (entity: null hands it back).
+            _routes.Add(new("POST", "/view/follow", async ctx =>
+            {
+                long? id = ctx.Body?["entity"] is JsonValue v && v.TryGetValue<long>(out var n) ? n : null;
+                float? distance = ctx.Body?["distance"] is JsonValue dv && dv.TryGetValue<float>(out var dn) ? dn : null;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().FollowUnit(id, distance)).ConfigureAwait(false);
+                return error != null ? Fail(409, error) : Ok(node);
+            }));
+
             _routes.Add(new("GET", "/selection", async _ =>
             {
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetSelection()).ConfigureAwait(false);

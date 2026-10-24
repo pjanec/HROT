@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-23
-build-state: READY-TO-BUILD — §6 UC-1…UC-10 APPROVED 2026-10-23 (R-1032); C0 (CE-1294) first
-current-answer: §1 what each use needs · §2 INVENTORY + claim table · §3 diagrams · §4 the camera continuum · §5 control in the shoulder view · §6 decisions with leans · §7 slices
+build-state: BUILT — C1–C4 2026-10-23 (§8 as-built); C0 (CE-1294) closed — not a defect
+current-answer: §8 AS-BUILT · §1 what each use needs · §2 INVENTORY + claim table · §3 diagrams · §4 the camera continuum · §5 control in the shoulder view · §6 decisions with leans · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §8p (OS-1…OS-6, built overnight, not yet confirmed) — OS-2's fixed offset and OS-4's fixed chase camera become points on §4's continuum; nothing there is reverted
@@ -12,6 +12,7 @@ related-designs:
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — OWNS where a unit's eyes sit and point (LookOf.EyeForward, the neck, the vision cone) — the "through his eyes" diagnostic view reads it
   - docs/DESIGN_Behaviour_Debugging.md — the observer camera is part of watching a debugged unit (DBG-1: everything follows the debugged unit)
   - docs/DESIGN_Director_Timeline_Editor.md — the director's camera keys (fly / cut) may use the follow camera as a shot type
+  - docs/DESIGN_Agent_Shared_View.md — OWNS the /view route family (R-1029) that POST /view/follow (UC-10) joins, and the per-world view store it mirrors
 -->
 
 # Unit camera — one camera that follows a unit, from far away to its eyes *(CE-1293)*
@@ -164,6 +165,8 @@ two ends of one zoom; one wheel crosses them without a mode key. The blend (the 
 
 🔒 **User, `2026-10-23`:** *"Accepting your suggestion, mouse wheel should switch weapons as this is the usual way in first-person shooters."*
 
+🔒 **User, `2026-10-23`, after playing the build (R-1034, supersedes UC-11's wheel):** *"The new camera is amazing. Just the mouse wheel needs to be tied to camera distance even for fps, and left weapon switching to numeric keys only. That way it feels the most intuitive for both observer and possessed mode."*
+
 🔒 **User, `2026-10-23`:** *"UC leans approved, start with CE-1294."*
 
 | id | decision | ⭐ lean | rejected — one line each |
@@ -178,7 +181,7 @@ two ends of one zoom; one wheel crosses them without a mode key. The blend (the 
 | **UC-8** | a gunner | ⭐ the camera behind the gun mount (the pivot is the mount), the mouse is the turret (as today), RMB = the gun's sight in first person; replaces today's crew-eye gunner view as the default | the crew eye — the hull blocks it (the reason for §8o's drawing) |
 | **UC-9** | the muzzle is blocked | ⭐ a small second mark where the round from the muzzle would hit, shown only when it differs from the crosshair point | ignore — the shot hits a wall the player cannot see coming |
 | **UC-10** | the HTTP side | ⭐ `POST /view/follow {entity, distance}` (Agent Shared View family, R-1029) | — |
-| **UC-11** *(R-1033, user 2026-10-23)* | the inputs while PLAYING vs WATCHING | ⭐ **playing (possessed):** the plain **wheel and 1–4 switch weapons** (unchanged); **O** switches eyes ⇄ shoulder; **RMB held** = the scope zoom of §8j Z-1 — in the eyes view as today, in the shoulder view the camera goes to the eyes AND zooms (aim down the sights), release returns to the shoulder; **Alt + wheel** = the fine camera distance (eyes … a short chase), rarely needed. **watching (Follow):** the plain wheel is the §4 distance continuum (no weapons there) | the plain wheel as the camera distance while playing — every weapon switch would move the camera, and the wheel switching weapons is the shooter convention |
+| **UC-11** *(R-1033, user 2026-10-23; ⛔ the wheel half SUPERSEDED by R-1034 the same day: the wheel is the camera distance when playing too, weapons are 1–4 only)* | the inputs while PLAYING vs WATCHING | ⭐ **playing (possessed):** ~~the plain **wheel and 1–4 switch weapons** (unchanged)~~ ⇒ R-1034: **1–4** switch weapons, the **wheel** is the distance; **O** switches eyes ⇄ shoulder; **RMB held** = the scope zoom of §8j Z-1 — in the eyes view as today, in the shoulder view the camera goes to the eyes AND zooms (aim down the sights), release returns to the shoulder; **Alt + wheel** = the fine camera distance (eyes … a short chase), rarely needed. **watching (Follow):** the plain wheel is the §4 distance continuum (no weapons there) | the plain wheel as the camera distance while playing — every weapon switch would move the camera, and the wheel switching weapons is the shooter convention |
 
 ## 7. Slices *(order = the lean)*
 
@@ -189,3 +192,23 @@ two ends of one zoom; one wheel crosses them without a mode key. The blend (the 
 | **C2** | UC-3, UC-5, UC-6, UC-9 | the shoulder view as the person's default |
 | **C3** | UC-7, UC-8 (CE-1293's vehicle part) | driver and gunner |
 | **C4** | UC-10 | HTTP + the catalog |
+
+🔒 **User, `2026-10-23`:** *"let's go directly to implementing the new design of camera, and let's fix the issues once this is
+implemented"* — ⇒ C0 (CE-1294, measured but not reproduced) is deferred until after C1–C4; the slices are built in the order C1 → C4 → C2/C3.
+
+## 8. AS-BUILT *(2026-10-23, ui)*
+
+| slice | built as | ⚠ deviation from §3 / §6 |
+|---|---|---|
+| **C1** the rig (UC-1, UC-4) | `Hrot.Presentation/Map3D/UnitCameraRig.cs` — pure statics: `Pivot`, `Camera(orbitPitch)`, `SpringArm(firstHit)`, `EaseArm`, `NearBlend`, the per-kind `DefaultDistance` / `MaxPlayDistance` / `ScaleOf` | ⚠ §3's `PivotOf` and `SpringArm` classes are **methods on the one static rig**, not classes — nothing holds state but the drivers. ⚠ the spring arm's ray is `WorldQuery.Trace(Sight)`, stopping at a closed barrier or a crossing that lets through less than half the light (`ArmOpaque`) — glass does not stop it |
+| **C1** playing (UC-5, UC-6, UC-11) | `FpsCameraDriver.Place` asks the rig at `PossessionStation.ShoulderDistance(scheme)` (per kind, the wheel by `DistanceStep` 0.5 m, to zero = the eyes — ⚠ Alt + wheel until R-1034; weapons on 1–4 only, the hold-F list keeps its wheel); Q / E set `ShoulderSide` (sticky); the body lags the aim (`ShoulderLag` 45° standing, `BodyTurnRate` 540°/s moving); W/A/S/D turned into the body's frame | ⚠ `ShoulderCamera` (§8p) kept as a pure entry that delegates to the rig at the default distance — its CE-1201 rail stays as a pin of the old offsets |
+| **C1** watching (UC-2) | `FollowCameraDriver` (an `ICameraDriver` on `MapCamera3D`): the plain wheel walks the continuum (×1.2 per notch, in below 0.8 m ⇒ his eyes, out from the eyes ⇒ 1.5 m), far it looks at his centre, at 0 his eye along `LookOf.EyeForward`; RMB orbits (at the eyes it offsets the look and springs back); W/A/S/D, Esc, a middle-button drag or his end hand the camera back. The unit menu's **"Follow with the camera"** (`GlobalActionIds.FollowUnit` 476 → `FollowUnitEvent` 8066) and the Brain tab's **Follow** both reach `MapViewModeLayer.FollowUnit` | ⚠ **no View-menu entry** — the unit menu and the Brain tab cover it; a View item would need a target picker. ⚠ **not built:** UC-2's vision cone at the eyes — the follow camera only looks along the gaze |
+| **C4** HTTP (UC-10) | `POST /view/follow {entity, distance?}` → `ViewControl.Of(world)` (the map's view-mode layer, keyed by world like `ViewTelemetry`) → the same `FollowUnit`; `GET /view` adds `following` / `followDistance`; MCP `follow_unit`, catalog + SKILL regenerated (R-1030) | ⚠ a second per-world store (`ViewControl`) because `ViewTelemetry` is a read-only snapshot. 409 headless or while possessing |
+
+| **C2** the default (UC-3) | `PossessionStation.OverShoulder` defaults **on** (a station setting, so O's choice stays for the next possession in this run) | ⚠ "remembered" is per run, not across restarts. ⚠ built before CE-1294 (the slow walk), on the user's call — ✅ CE-1294 closed: not a defect, the walk is a walk (user, `2026-10-23`) |
+| **C2** the muzzle-blocked mark (UC-9) | `PossessionStation.BlockedShot(w, unit, mount, aimAt)` — from `ShotOrigin.From` (the barrel, or his eye) to the crosshair's point through `TerrainPenetration.Carry`, the one penetration rule; a red X where it stops, when that is more than `BlockedMargin` 0.5 m short | — |
+| **C2/C3** the arm's start | the first frame stands at full length; after a wall it eases out at `ArmOutRate` × `ScaleOf(kind)` (a vehicle 16 m/s) | ⚠ found by the C3 rail: easing from zero, a vehicle's 9 m chase camera took 2 s to slide out of the driver's eye |
+| **C3** the driver (UC-7) | `FpsCameraDriver.Recentres` — a ground vehicle, hull not locked, the chase camera on: a look left alone `RecentreAfter` 1.5 s eases back at `RecentreRate` 90°/s | ⚠⚠ **not for an armed turret**: §8p OS-4 — the look IS the turret's order, so re-centring would swing the gun back to the front. ⇒ only when the selected weapon lays no turret (a truck, a car) |
+| **C3** a man in a seat (UC-8) | `FpsCameraDriver.RigScheme` — aboard, the camera is the **vehicle's** chase camera (its distance, ×4; a flyer ×8) hung from his seat eye; the wheel sets the vehicle's distance | ⚠ the pivot is his **seat eye** — a gunner sits at his gun, so the camera stands behind the gun; no separate gun-mount point was needed |
+
+⭐ Rails: `PossessionStationTests.CE1293_*` (continuum, spring arm, playing controls, Follow continuum + let-go, menu → layer → camera + the possession refusal, the default + the car's chase camera + re-centre / not an armed turret's, a man in a seat on the vehicle's chase camera, the round stopping short at a test-town wall — ✅ 7 mutations red; one first stayed green and showed the on-the-wall check passing for another reason, now aimed 0.3 m past the face) — ✅ red-proved: 6 mutations on the rig/station, 5 on Follow; `TheBrainAndViewRoutesAnswerTests.FollowUnit_IsRefusedHeadless_FollowsOnAMap_AndLetsGo`.

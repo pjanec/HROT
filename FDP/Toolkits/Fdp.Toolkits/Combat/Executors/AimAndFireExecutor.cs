@@ -490,6 +490,19 @@ namespace Fdp.Toolkit.Combat.Executors
         /// (magazine, total, the action's count — W-4). The grant is what was fired under this epoch plus what the magazine holds
         /// now (capped by the rounds asked), so it stays constant while rounds are in flight and drops to Track for a reload.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-1307</c> (docs/DESIGN_Weapon_Layers.md W-8b) — the operator's point, moved inside the turret's reach: aimed below its
+        /// depression (a chase camera looks down past the hull) or outside its traverse, the turret goes to its limit and stays there,
+        /// instead of the muscle failing <c>OutOfArc</c> and the turret freezing. A brain's aim is never clamped (W-8).
+        /// </summary>
+        private static Vector3 OperatorPoint(EntityRepository world, Entity part, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, Vector3 point)
+        {
+            if (mountDto is not { TurretIndex: >= 0 } || part.IsNull || !world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(part)) return point;
+            var hull = world.GetComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(part).ParentEntity;
+            return world.IsAlive(hull) && CombatTkb.TurretOf(world, hull, mountDto.TurretIndex) is { } turret
+                ? BallisticAim.Reachable(world, hull, turret, mountDto, point) : point;
+        }
+
         private static void TurretPath(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
                                        int mountIndex, Entity part, ref WeaponState weapon,
                                        int roundsInFlight = 0, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto = null, float dt = 0f,
@@ -574,7 +587,7 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 Mode = grant > accounted ? WeaponTaskMode.Engage : WeaponTaskMode.Track,
                 Target = p.Target,
-                Point = atPoint ? p.Point : default,
+                Point = atPoint ? OperatorPoint(world, part, mountDto, p.Point) : default,
                 MountIndex = (byte)mountIndex,
                 RoundsGranted = (ushort)System.Math.Min(grant, ushort.MaxValue),
                 CooldownSeconds = CooldownFor(p.CooldownSeconds, mountDto),   // ⭐ CE-2199 — the muscle times the rounds by it

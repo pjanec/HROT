@@ -119,6 +119,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             items.AddRange(new[]
             {
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View", Shortcut = "C" },
+                new ContextMenuItemDto { Id = GlobalActionIds.FollowUnit,     Label = "Follow with the camera" },   // ⭐ CE-1293 (UC-2)
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",      Shortcut = "Space" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Properties,     Label = "Properties…" },   // ⭐ CE-1135 — the inspector, on it
                 new ContextMenuItemDto { IsSeparator = true },
