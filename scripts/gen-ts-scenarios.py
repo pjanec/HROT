@@ -134,11 +134,11 @@ for k, (who, x0, temper, covered) in enumerate((
 s.write("ts-three-defenders", "basic-desert",
         "What: Temperament & Stress §6 (CE-2272, R-2034) - three insurgents (the Insurgent type, obedience authored 0.3) hold their spots "
         "on open basic-desert, facing south (CombatPosture, stay; ROE StayOnTask - only a break moves him), a car 12 m behind "
-        "each: the 'Coward' (nerve 0.1 - effective 0.22) at x 270, the 'Waverer' (resolve 0 - effective 0.15, under the 0.3 that "
-        "surrenders) at x 340, the 'Fanatic' (resolve 1, nerve 0.9 - effective nerve 0.78) at x 520, out of the other riflemen's sight. Over each, 'Gunner <name>' (Friend automatic "
+        "each: the 'Coward' (nerve 0.1 - effective 0.30) at x 270, the 'Waverer' (resolve 0 - effective 0.18, under the 0.3 that "
+        "surrenders) at x 340, the 'Fanatic' (resolve 1, nerve 0.9 - effective nerve 0.86) at x 520, out of the other riflemen's sight. Over each, 'Gunner <name>' (Friend automatic "
         f"rifleman, InertSop) 120 m south fires {ROUNDS} rounds, one every {COOLDOWN} s, 10 m behind him and 4 m up (near misses); the "
         "Coward and the Waverer each also have 'Rifleman <name>' (Friend rifleman, posted 55 m off watching him), who engages him - the rifle on him. All "
         "immortal. Judge (120 s): (1) the Coward breaks and runs (Break - to ground at cover farther from the fire), he does not surrender "
-        "(effective resolve 0.5); (2) the Waverer breaks with a rifle on him and surrenders (hands up, weapons down); (3) the Fanatic never "
+        "(effective resolve 0.53); (2) the Waverer breaks with a rifle on him and surrenders (hands up, weapons down); (3) the Fanatic never "
         "breaks or surrenders and fires back; (4) printed per insurgent: his peak stress, when he broke, what he did, the rounds he fired. "
         + CHECK.format(sid="ts-three-defenders"))

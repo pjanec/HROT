@@ -59,24 +59,25 @@ namespace Hrot.SimHost.Tests
             _w.GetComponentRW<Stress>(e).Level = level;
         }
 
-        /// <summary>TS-4 — a near miss 0.08, a hit 0.25, each × (1 − 0.5 × effective nerve): an ordinary man (nerve 0.5) takes 0.75 of it.</summary>
+        /// <summary>TS-4 — a near miss 0.08, a hit 0.25, each × (1 − 0.5 × effective nerve): an ordinary man (nerve 0.5, obedience 0.8 ⇒
+        /// effective 0.70, R-2076) takes 0.65 of it.</summary>
         [Fact]
         public void CE2270_ANearMissAndAHit_RaiseHim_ByTheirAmount_TimesHisNerve()
         {
             var e = Man();
             StressModel.Add(_w, e, StressModel.NearMiss, 1.0);
-            Assert.Equal(0.06f, Level(e), 4);
+            Assert.Equal(0.052f, Level(e), 4);
             StressModel.Add(_w, e, StressModel.Hit, 1.0);
-            Assert.Equal(0.06f + 0.1875f, Level(e), 4);
+            Assert.Equal(0.052f + 0.1625f, Level(e), 4);
             Assert.Equal(1.0, _w.GetComponentRO<Stress>(e).LastStimulusAt);
         }
 
         /// <summary>TS-4 × TS-2 — his nerve, as obedience tempers it, sets how much reaches him: iron nerve with no discipline to temper it
-        /// halves a stimulus, none takes it whole; the same coward under strict discipline takes nearly the norm.</summary>
+        /// halves a stimulus, none takes it whole; the same coward under strict discipline takes nearly the trained man's share (R-2076).</summary>
         [Theory]
         [InlineData(1.0f, 0.0f, 0.5f)]
         [InlineData(0.0f, 0.0f, 1.0f)]
-        [InlineData(0.0f, 0.9f, 0.775f)]   // effective nerve 0.45
+        [InlineData(0.0f, 0.9f, 0.6625f)]  // effective nerve 0.675 (0 + 0.9 × 0.75)
         public void CE2270_HisNerve_SetsHowMuchReachesHim(float nerve, float obedience, float reach)
         {
             var e = Man(nerve: nerve, obedience: obedience);
@@ -109,8 +110,8 @@ namespace Hrot.SimHost.Tests
             _w.SetSingleton(new GlobalTime { TotalTime = 2.0, DeltaTime = 0.016f, TimeScale = 1f });
             new StressSystem().Execute(_w, 0.016f);
 
-            Assert.Equal(0.06f + 0.15f, Level(a), 3);   // his own near miss + the friend 5 m from him
-            Assert.Equal(0.15f, Level(near), 3);         // 5 m from the fallen
+            Assert.Equal(0.052f + 0.13f, Level(a), 3);  // his own near miss + the friend 5 m from him (each × 0.65)
+            Assert.Equal(0.13f, Level(near), 3);         // 5 m from the fallen
             Assert.Equal(0f, Level(far), 3);             // 25 m: too far to feel it
             Assert.Equal(0f, Level(down), 3);            // not himself
         }
@@ -149,13 +150,13 @@ namespace Hrot.SimHost.Tests
             var e = Man(0f);
             SetLevel(e, 0.5f, 0.0);
             StressModel.Step(_w, e, 1.0);
-            Assert.Equal(0.5f + 0.01f * 0.75f - 0.03f, Level(e), 4);    // alone
+            Assert.Equal(0.5f + 0.01f * 0.65f - 0.03f, Level(e), 4);    // alone
 
             for (int i = 0; i < 3; i++) Contact(e, armed: true);
             Assert.True(StressModel.EnemyShare(_w, e) > StressModel.OutnumberedShare, $"share {StressModel.EnemyShare(_w, e)}");
             float before = Level(e);
             StressModel.Step(_w, e, 2.0);
-            Assert.Equal(before + 0.03f * 0.75f - 0.03f, Level(e), 4);  // alone and outnumbered
+            Assert.Equal(before + 0.03f * 0.65f - 0.03f, Level(e), 4);  // alone and outnumbered
 
             before = Level(e);
             StressModel.Step(_w, e, 2.0);
@@ -255,7 +256,7 @@ namespace Hrot.SimHost.Tests
         {
             var b = new Brains(_w);
             var m = Ordered(b);
-            _w.GetComponentRW<Stress>(m).Level = 0.55f;   // nerve 0.5
+            _w.GetComponentRW<Stress>(m).Level = 0.75f;   // nerve 0.5, obedience 0.8 ⇒ he breaks at 0.70 (R-2076)
             b.Tick();
             Assert.True(StressModel.IsBroken(_w, m));
             b.Tick();
@@ -272,7 +273,7 @@ namespace Hrot.SimHost.Tests
             b.Tick();
             Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, _w.GetComponentRO<WeaponChannel>(m).ActiveAction);
 
-            _w.GetComponentRW<Stress>(m).Level = 0.2f;     // under 0.6 × 0.5
+            _w.GetComponentRW<Stress>(m).Level = 0.2f;     // under 0.6 × 0.70
             b.Run(StressModel.RecoverSeconds - 1.0);
             Assert.True(StressModel.IsBroken(_w, m));      // not yet: 10 s calm
             b.Run(1.5);
@@ -315,10 +316,10 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>TS-2 × TS-6 — obedience tempers the nerve he breaks at: a coward (nerve 0.1) with no discipline breaks at 0.1, the same coward
-        /// under strict discipline (0.9) at 0.46 — and never under <see cref="StressModel.BreakFloor"/>.</summary>
+        /// under strict discipline (0.9) at 0.685 — near the trained 0.75 (R-2076) — and never under <see cref="StressModel.BreakFloor"/>.</summary>
         [Theory]
         [InlineData(0.1f, 0.0f, 0.1f)]
-        [InlineData(0.1f, 0.9f, 0.46f)]
+        [InlineData(0.1f, 0.9f, 0.685f)]
         [InlineData(0.0f, 0.0f, 0.05f)]
         public void CE2272_HeBreaksAtHisEffectiveNerve_NeverUnderTheFloor(float nerve, float obedience, float breakAt)
         {

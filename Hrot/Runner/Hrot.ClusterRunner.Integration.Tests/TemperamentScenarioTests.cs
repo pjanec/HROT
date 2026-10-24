@@ -70,8 +70,8 @@ public sealed class TemperamentScenarioTests : IDisposable
 
     /// <summary>
     /// ⭐ <c>CE-2272</c> (TS-D, the break, R-2034 TS-6) — <c>ts-three-defenders</c>: three insurgents under the same over-the-head fire. ⭐ The
-    /// Coward (effective nerve 0.22) breaks and runs — his resolve (0.5) keeps him from surrendering; the Waverer (effective resolve
-    /// 0.15) breaks with a rifle on him and surrenders; the Fanatic (effective nerve 0.78) never breaks.
+    /// Coward (effective nerve 0.30) breaks and runs — his resolve (0.53) keeps him from surrendering; the Waverer (effective resolve
+    /// 0.18) breaks with a rifle on him and surrenders; the Fanatic (effective nerve 0.86) never breaks.
     /// </summary>
     [Fact(Timeout = 300_000)]
     public async Task CE2272_TsThreeDefenders_TheCowardRuns_TheWavererSurrenders_TheFanaticHolds()
