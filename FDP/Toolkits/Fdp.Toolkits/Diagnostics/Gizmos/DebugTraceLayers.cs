@@ -64,6 +64,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>⭐ <c>CE-1288</c> (docs/DESIGN_Map_3D_Mode.md §6ac) — the 2-D map's helper grid, drawn by <c>GridMapLayer</c>.
         /// The last toggled bit (<c>LayerControlDto.FirstUntoggledLayer</c> moved from 27 to 28 for it). On by default.</summary>
         public const byte Grid = 27;
+        /// <summary>⭐ <c>CE-1309</c> (docs/DESIGN_People_Display.md §7e U20) — the MIND-STATE bar on the card: a soldier's stress with his
+        /// breaking point, a civilian's fear (<c>MindStateGizmo</c>). The last toggled bit (<c>LayerControlDto.FirstUntoggledLayer</c> 28 → 29).
+        /// Off by default.</summary>
+        public const byte MindState = 28;
         /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): above every bit a layer toggle owns
         /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. ⭐ <c>CE-1225</c> (§8 S-4): moved from 14 to the TOP bit, so the
         /// toggles stay one range from 0 and a new toggle never lands on it. 🔒 User, 2026-10-16: <i>"I need the entity selection and right

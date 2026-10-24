@@ -53,11 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>His level now; 0 with no <see cref="Stress"/>.</summary>
-        public static float LevelOf(ISimulationView view, Entity e)
-        {
-            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Stress>()) return 0f;
-            return view.HasComponent<Stress>(e) ? view.GetComponentRO<Stress>(e).Level : 0f;
-        }
+        public static float LevelOf(ISimulationView view, Entity e) => Stresses.LevelOf(view, e);   // ⭐ CE-1309 — one copy, beside Stress
 
         /// <summary>The share of a stimulus that reaches him.</summary>
         public static float Reach(EntityRepository world, Entity e)
@@ -136,7 +132,7 @@ namespace Hrot.AI.Behaviors.Brains
         // ── ⭐ CE-2272 (TS-6) — the break ──────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>The lowest level a break needs, whatever his nerve: a man with none still breaks only once something has happened.</summary>
-        public const float BreakFloor = 0.05f;
+        public const float BreakFloor = Stresses.BreakFloor;
         /// <summary>He recovers when his level stays under this share of his nerve …</summary>
         public const float RecoverFraction = 0.6f;
         /// <summary>… for this long (s).</summary>
@@ -147,17 +143,11 @@ namespace Hrot.AI.Behaviors.Brains
         public const float RetreatMetres = 30f, RetreatGainMetres = 3f;
 
         /// <summary>⭐ <c>CE-2365</c> / AQ103 H — he is NERVOUS from this share of his break level up (the band the fidget and the head share).</summary>
-        public const float NervousFrom = 0.4f;
+        public const float NervousFrom = Stresses.NervousFrom;
 
         /// <summary>⭐ <c>CE-2365</c> / AQ103 H — how nervous he is: 0 below <see cref="NervousFrom"/> × his break level, rising to 1 at it.
         /// 0 with no <see cref="Stress"/> (a civilian, a vehicle, a calm man).</summary>
-        public static float Nervousness(EntityRepository world, Entity e)
-        {
-            float level = LevelOf(world, e);
-            if (level <= 0f) return 0f;
-            float b = BreakLevel(world, e);
-            return Math.Clamp((level - NervousFrom * b) / ((1f - NervousFrom) * b), 0f, 1f);
-        }
+        public static float Nervousness(EntityRepository world, Entity e) => Stresses.Nervousness(world, e);
 
         /// <summary>In cover: a cover point within <see cref="CoverMetres"/> of <paramref name="at"/> that faces his nearest remembered threat
         /// (any, when he knows none).</summary>
@@ -165,15 +155,10 @@ namespace Hrot.AI.Behaviors.Brains
             => UnderFire.CoverNear(world, e, at, CoverMetres, 0f, out _, out _);
 
         /// <summary>Is he broken now?</summary>
-        public static bool IsBroken(ISimulationView view, Entity e)
-        {
-            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Stress>()) return false;
-            return view.HasComponent<Stress>(e) && view.GetComponentRO<Stress>(e).Broken != 0;
-        }
+        public static bool IsBroken(ISimulationView view, Entity e) => Stresses.IsBroken(view, e);
 
         /// <summary>The level at which he breaks: his effective nerve (TS-2), never under <see cref="BreakFloor"/>.</summary>
-        public static float BreakLevel(EntityRepository world, Entity e)
-            => MathF.Max(TemperamentOf.Effective(world, e, TemperamentTrait.Nerve), BreakFloor);
+        public static float BreakLevel(EntityRepository world, Entity e) => Stresses.BreakLevel(world, e);
 
         /// <summary>
         /// ⭐ TS-6 — the edge: at <see cref="BreakLevel"/> he breaks (<see cref="SensorChange.StressBreak"/>); broken, under
@@ -259,6 +244,9 @@ namespace Hrot.AI.Behaviors.Brains
     /// continuous terms, for every combatant this node runs. After perception and the squad merge, before the brain tick, so the damping
     /// inputs (TS-5) and the break (TS-6) read this frame's level. 📄 docs/DESIGN_Temperament_And_Stress.md §3.
     /// </summary>
+    // ⭐ CE-1309 (ui, cross-lane) — R-3036: every system declares its tick policy; without it the scheduler throws on the first frame of
+    //   every host running CgfLogicPack (measured: the editor crashed at once). Stress integrates sim time, as its siblings do.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class StressSystem : IEcsModuleSystem
     {
         private readonly bool _gateOnAuthority;

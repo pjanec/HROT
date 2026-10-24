@@ -66,7 +66,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 28;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27
+        public const int FirstUntoggledLayer = 29;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -116,6 +116,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Units.UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
             if (Units.Rounds) mask.SetBit(DebugTraceLayers.Rounds);
             if (Units.Concealed) mask.SetBit(DebugTraceLayers.Concealed);
+            if (Units.MindState) mask.SetBit(DebugTraceLayers.MindState);
             if (Command.SquadCommand) mask.SetBit(DebugTraceLayers.SquadCommand);
             if (Command.Sectors) mask.SetBit(DebugTraceLayers.Sectors);
             if (Command.Paths) mask.SetBit(DebugTraceLayers.Paths);
@@ -160,6 +161,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool Rounds { get; set; } = true;
         [EditDisplayName("Concealed (ExCon)"), EditDoc("Exercise control: outline what each person carries HIDDEN (a worn charge, a concealed pistol) and name it on his card. Off by default (CE-1169).")]
         public bool Concealed { get; set; }
+        [EditDisplayName("Mind state"), EditDoc("A bar under each stressed soldier's health bar: his stress, a white tick at his breaking point (his nerve), red and BROKEN when he breaks; a frightened civilian's fear. Where the brains run (the editor). Off by default (CE-1309).")]
+        public bool MindState { get; set; }
     }
 
     /// <summary>⭐ CE-1203 — the Command group.</summary>
