@@ -333,6 +333,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary><see cref="CoverNear(EntityRepository, Entity, Vector3, out Vector3)"/>, with the way the point's cover faces
         /// (<see cref="CoverPoint.DirectionX"/>: toward the obstacle).</summary>
         public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, float radius, out Vector3 cover, out Vector2 facing)
+            => CoverNear(world, self, at, radius, 1f, out cover, out facing);
+
+        /// <summary>⭐ <c>CE-2270</c> — the same, counting points from <paramref name="minMetres"/> out (0: the cover he is already at, the
+        /// stress's "in cover"; 1: somewhere to go).</summary>
+        public static bool CoverNear(EntityRepository world, Entity self, Vector3 at, float radius, float minMetres, out Vector3 cover, out Vector2 facing)
         {
             cover = default;
             facing = default;
@@ -348,7 +353,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var p = new Vector3(points[i].PositionX, points[i].PositionY, points[i].PositionZ);
                 var off = Flat(p - at);
                 float d = off.Length();
-                if (d < 1f || d >= best) continue;
+                if (d < minMetres || d >= best) continue;
                 if (threatKnown)
                 {
                     var toThreat = Flat(threat - p);
@@ -370,7 +375,7 @@ namespace Hrot.AI.Behaviors.Brains
             return off.Length() <= StayNearMetres && off.X * facing.X + off.Y * facing.Y > PastCoverMetres;
         }
 
-        private static unsafe bool NearestThreat(EntityRepository world, Entity self, Vector3 at, out Vector3 threat)
+        internal static unsafe bool NearestThreat(EntityRepository world, Entity self, Vector3 at, out Vector3 threat)
         {
             threat = default;
             if (!world.HasComponent<TargetMemory>(self)) return false;

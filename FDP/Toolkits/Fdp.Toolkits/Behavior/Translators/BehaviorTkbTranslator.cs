@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Behavior.Translators
         public IEnumerable<Type> GetConsumedDescriptors()
         {
             yield return typeof(BehaviorProfileDto);
+            yield return typeof(TemperamentDto);   // ⭐ CE-2269 TS-3
         }
 
         /// <summary>
@@ -49,6 +50,9 @@ namespace Fdp.Toolkit.Behavior.Translators
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
+            // ── Temperament (CE-2269 TS-3): the type's, with each man's own spread, in its OWN fields under an authored value ──
+            if (template.GetDescriptor<TemperamentDto>() is { } temper) TemperamentOf.StampType(repo, entity, temper);
+
             var dto = template.GetDescriptor<BehaviorProfileDto>();
             if (dto == null) return;
 

@@ -44,6 +44,8 @@ namespace Fdp.Toolkit.Behavior.Components
         public double SniperFire, ContactInEngagementArea, ContactOutsideSector, PositionUntenable;
         /// <summary>⭐ <c>CE-2283</c> M-2 — kind 24. Last.</summary>
         public double FiredOnFromStructure;
+        /// <summary>⭐ <c>CE-2272</c> (TS-6) — he broke · he recovered.</summary>
+        public double StressBreak, StressRecovered;
 
         /// <summary>Record a change of <paramref name="kind"/> at <paramref name="now"/>.</summary>
         public void Record(SensorChange kind, double now)
@@ -74,6 +76,8 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.ContactOutsideSector:    ContactOutsideSector    = now; break;
                 case SensorChange.PositionUntenable:       PositionUntenable       = now; break;
                 case SensorChange.FiredOnFromStructure:    FiredOnFromStructure    = now; break;
+                case SensorChange.StressBreak:             StressBreak             = now; break;   // CE-2272
+                case SensorChange.StressRecovered:         StressRecovered         = now; break;
                 default: return;
             }
             SeenMask |= 1u << (int)kind;
@@ -114,6 +118,8 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.ContactOutsideSector    => ContactOutsideSector,
                 SensorChange.PositionUntenable       => PositionUntenable,
                 SensorChange.FiredOnFromStructure    => FiredOnFromStructure,
+                SensorChange.StressBreak             => StressBreak,   // ⭐ CE-2272
+                SensorChange.StressRecovered         => StressRecovered,
                 _                        => double.NegativeInfinity,
             };
             return true;

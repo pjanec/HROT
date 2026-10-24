@@ -113,6 +113,30 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(ProficiencyOf.Elite, ProficiencyOf.Value(_world, b1));
         }
 
+        /// <summary>⭐ <c>CE-2269</c> TS-3 — the TKB translator stamps a type's temperament at spawn; a type without a
+        /// <c>TemperamentDto</c> stamps nothing (today's soldiers read today's defaults).</summary>
+        [Fact]
+        public void CE2269_TheTypeTemperament_IsStampedAtSpawn_AndATypeWithoutOneStampsNothing()
+        {
+            var world = TestWorldFactory.Create();
+            world.RegisterComponent<CombatTemperament>();
+            var insurgent = new TkbTemplate("Insurgent", 1);
+            insurgent.AddDescriptor(new BehaviorProfileDto { BrainTier = BehaviorConstants.BrainTierBTree });
+            insurgent.AddDescriptor(TemperamentDto.Insurgent());
+            var a = world.CreateEntity();
+            new BehaviorTkbTranslator().Inject(world, a, insurgent);
+            Assert.InRange(TemperamentOf.Obedience(world, a), 0.15f - 1e-4f, 0.45f + 1e-4f);
+            Assert.Equal(0, world.GetComponentRO<CombatTemperament>(a).Set);
+
+            var soldierType = new TkbTemplate("Soldier", 2);
+            soldierType.AddDescriptor(new BehaviorProfileDto { BrainTier = BehaviorConstants.BrainTierBTree });
+            var s = world.CreateEntity();
+            new BehaviorTkbTranslator().Inject(world, s, soldierType);
+            Assert.False(world.HasComponent<CombatTemperament>(s));
+            Assert.Equal(TemperamentOf.DefaultObedience, TemperamentOf.Obedience(world, s));
+            world.Dispose();
+        }
+
         /// <summary>The TKB type's default is projected at spawn into its own field, under an authored value.</summary>
         [Fact]
         public void CE2273_TheTypeDefault_IsProjectedAtSpawn_UnderAnAuthoredValue()

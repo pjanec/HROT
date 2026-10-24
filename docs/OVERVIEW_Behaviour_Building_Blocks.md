@@ -25,7 +25,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — owns embarkation (§7, §7.1 plan) — §10 here is its measured state
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — owns the urban tank tactics proposal (hide / expose / reverse, danger to me); §10b here is its measured ground
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — the room-clearing drill, a new ISquadPlay (design stage)
-  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; the per-man character layer under the posture decision (design stage)
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; the per-man character layer under the posture decision (TS-A, TS-B, TS-D built 2026-10-24; TS-C blocked — §7 there)
 -->
 
 # Behaviour building blocks — an overview
@@ -80,7 +80,7 @@ graph LR
   end
   subgraph URG["Reaction urgency (only higher replaces)"]
     direction LR
-    U1["Alert"] --> U2["Contact"] --> U3["UnderFire"] --> U4["Hit"]
+    U1["Alert"] --> U2["Contact"] --> U3["UnderFire"] --> U4["Hit"] --> U5["Grenade"] --> U6["Break<br/>(StayOnTask cannot refuse)"]
   end
   T["Task running"] -- "reaction arrives" --> P["Task PAUSED"]
   P -- "reaction ends" --> RES["Task RESUMES<br/>(not restarts)"]
@@ -351,6 +351,21 @@ is kept by `UnderFireMoveSystem`. ⛔ So do not build a per-play "go prone when 
 | look vs shoot | a step-out spot may only SEE (he looks from it); before aimed fire or a burst he steps on to the nearest spot the firing-position search marked "a round clears from here", or goes back down | `CheapLineOfSightTest.MarkFireClear` · `PeekAndFireNodes.StepToShoot` |
 
 📄 [`DESIGN_Peek_And_Fire.md`](DESIGN_Peek_And_Fire.md) §11 · demo `bt-window-duel`.
+
+## 7b. Stress, the break, idle life — what every person does by himself *(R-2034, R-2074, built 2026-10-24)*
+
+⭐ Like 7a, a behaviour does NOTHING to get these; ⛔ do not build a per-play "panic" or "fidget" — it would fight them.
+
+| | what happens | where |
+|---|---|---|
+| **temperament** | `CombatTemperament`: RiskAcceptance · Obedience · Nerve · Resolve, authored › the TKB type's (`TemperamentDto`, ± a seeded spread) › the default; `TemperamentOf.Effective` tempers a trait by obedience | `Behavior/Components/CombatTemperament.cs` |
+| **stress** (combatants) | `Stress` 0–1 from near misses, hits, a friend down near him, outnumbered, alone; × his nerve; calms with time, cover, his leader | `StressModel` / `StressSystem` (CGF) |
+| **the break** | at his effective nerve: surrenders (low resolve, a rifle on him) or `Break` (no fire, run to cover away from the threat, prone) — a reaction even ROE StayOnTask allows; `Sensor.StressBreak` / `StressRecovered` on the bus | `StressModel.Judge` · `BreakBehavior` |
+| **idle life** (every person) | still 6 s and held by nothing ⇒ a small step now and then (≤ 3 m from where he settled), a crawl lying, R2-3's scoot lying under fire; nervous ⇒ sooner and further, even weapon up; in cover the step stays behind it. Relaxed ⇒ an idle gesture (smoke, shift weight, stretch, look about — the last moves his real eyes) | `Restlessness` / `RestlessHolds` · [AQ103](blueprints/Architect_Question_103_Idle_Life.md) §7 |
+| **a nervous head** | a scanning man's fixations shrink 2 s ⇒ 0.4 s, in no fixed order, the head snapping | `LookAt.Want` |
+| to keep a man still | an order to stay (an ordered `Idle` / `PersonHold` / `HoldStance` / `Sentry`, a posture with `stay` or a `post`), an ambush or a trigger man, possession | `RestlessHolds.Holds` |
+
+📄 [Temperament & Stress](DESIGN_Temperament_And_Stress.md) §7 · [AQ103](blueprints/Architect_Question_103_Idle_Life.md) · demo `il-idle-life`.
 
 ## 8a. Hurt, down, dead — what a behaviour can rely on *(CE-2155, measured and built 2026-10-13)*
 

@@ -12,6 +12,8 @@ using Fdp.Toolkit.Navigation.Executors;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Map.Definitions.Behavior;
 using Hrot.MuscleCharacter.Animation.Components;
+using Hrot.MuscleCharacter.Animation.Contracts;
+using Hrot.MuscleCharacter.Animation.Look;
 using Hrot.MuscleCharacter.Animation.Stance;
 
 namespace Hrot.AI.Behaviors.Brains
@@ -158,6 +160,12 @@ namespace Hrot.AI.Behaviors.Brains
         public const double HeldRecheckSeconds = 2.0;
         /// <summary>A near miss or hit this recent (s) has him under fire.</summary>
         public const double UnderFireSeconds = 3.0;
+        /// <summary>⭐ <c>CE-2365</c> — at full nervousness his waits shrink by this share (8–20 s ⇒ 2–5 s) …</summary>
+        public const float NervousQuicken = 0.75f;
+        /// <summary>… and a standing step is at least this long (m): 1–2 m.</summary>
+        public const float NervousStepMinMetres = 1f;
+        /// <summary>⭐ AQ103 C — in cover, the next cover point must be at least this far (m): the one he stands at is no step.</summary>
+        public const float InCoverMinMetres = 0.3f;
 
         /// <summary>One frame of idle life for <paramref name="self"/> (the system's body; public for the rails).</summary>
         public static void Step(EntityRepository world, Entity self, double now)
@@ -171,6 +179,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             ref var r = ref world.GetComponentRW<Restless>(self);
             IdleGesture(world, self, ref r, now);
+            Glance(world, self, at, now);
             if (r.Moving != 0)
             {
                 // a shift under way: done when it arrives or ends, given up after its time, or replaced by anything else's move
@@ -189,14 +198,28 @@ namespace Hrot.AI.Behaviors.Brains
 
             bool prone = Stance(world, self) == StanceId.Prone;
             bool underFire = prone && now - UnderFire.LastFire(world, self) <= UnderFireSeconds;
-            if (RestlessHolds.Holds(world, self, calm: !underFire) != RestlessHold.None)
+            float nervous = StressModel.Nervousness(world, self);   // ⭐ CE-2365 — a nervous man fidgets, his weapon up or not
+            if (RestlessHolds.Holds(world, self, calm: !underFire && nervous <= 0f) != RestlessHold.None)
             {
                 r.NextAt = now + HeldRecheckSeconds;
                 r.LastPos = at;
                 return;
             }
-            var to = underFire ? UnderFire.Scoot(world, self, at, at, r.Moves, r.StillSince) : Shift(self, at, r.Anchor, prone, r.Moves, now);
+            var to = underFire ? UnderFire.Scoot(world, self, at, at, r.Moves, r.StillSince) : Shift(self, at, r.Anchor, prone, r.Moves, now, nervous);
             if (Flat(to - r.Anchor).Length() > TetherMetres) to = r.Anchor + Clamp(Flat(to - r.Anchor), TetherMetres);
+            // ⭐ AQ103 C (step 3) — in cover, the step stays behind it: along to the nearest OTHER cover point within a step (facing the
+            //   same threat) and inside his tether, else no step — he shuffles along his cover, never out into the open
+            if (!underFire && StressModel.InCover(world, self, at))
+            {
+                if (!UnderFire.CoverNear(world, self, at, StepMaxMetres, InCoverMinMetres, out var behind, out _)
+                    || Flat(behind - r.Anchor).Length() > TetherMetres)
+                {
+                    r.NextAt = now + Interval(world, self, r.Moves, now);
+                    r.LastPos = at;
+                    return;
+                }
+                to = behind;
+            }
             var move = new MoveToParams
             {
                 Destination = to, ArrivalRadius = 0.3f, Speed = underFire ? UnderFire.RushSpeed : ShiftSpeed,
@@ -206,6 +229,35 @@ namespace Hrot.AI.Behaviors.Brains
             r.Moving = 1;
             r.StillSince = now;   // the shift's own clock (ShiftSeconds)
             r.Moves++;
+        }
+
+        /// <summary>⭐ AQ103 I (ui's ask, <c>NOTE_Ui_To_Behaviors_Idle_Gestures_Drawn</c>) — <see cref="GestureKind.IdleLookAbout"/>'s glance: the
+        /// look channel's owner mark, ± this much about his facing (°), each fixation held this long (s), the head's blend (s), how far (m).</summary>
+        public const uint GlanceInstance = 0xFFFF2368;
+        public const float GlanceHalfDegrees = 60f, GlanceStepSeconds = 3f, GlanceBlendSeconds = 1f, GlanceMetres = 30f;
+
+        /// <summary>
+        /// ⭐ AQ103 I — while he shows <see cref="GestureKind.IdleLookAbout"/>, his EYES look about too: a slow scan (<see cref="LookAt.ScanBearing"/>)
+        /// ± <see cref="GlanceHalfDegrees"/> about his facing — so the drawn head is where he really looks, and his perception sweeps with it.
+        /// Only on a free look channel (nothing written, or a release) or one this glance wrote; when the gesture ends, the glance releases
+        /// its own look and never another's.
+        /// </summary>
+        public static unsafe void Glance(EntityRepository world, Entity self, Vector3 at, double now)
+        {
+            if (!Hrot.MuscleCharacter.Animation.Look.LookRequest.CanCarry(world, self)) return;
+            ref readonly var ch = ref world.GetComponentRO<LookAtChannel>(self);
+            bool mine = ch.BehaviorInstanceId == GlanceInstance && ch.ActiveAction == LookAtActionIds.LookAtPoint;
+            if (Gestures.Of(world, self) != GestureKind.IdleLookAbout)
+            {
+                if (mine) Hrot.MuscleCharacter.Animation.Look.LookRequest.Release(world, self, GlanceInstance);
+                return;
+            }
+            bool free = mine || ch.ActiveAction == 0 || ch.ActiveAction == LookAtActionIds.ReleaseLook;
+            if (!free) return;
+            float facing = LookAt.FacingBearing(world.GetComponentRO<SimTransform>(self).Rotation);
+            float bearing = LookAt.ScanBearing(facing, GlanceHalfDegrees, GlanceStepSeconds, now + (self.Index % 7));
+            Hrot.MuscleCharacter.Animation.Look.LookRequest.AtPoint(world, self, LookAt.PointAt(at, bearing, GlanceMetres),
+                behaviorInstance: GlanceInstance, blendSeconds: GlanceBlendSeconds);
         }
 
         /// <summary>⭐ AQ103 I — how long an idle gesture shows (s, seeded), and the pause before the next.</summary>
@@ -295,10 +347,10 @@ namespace Hrot.AI.Behaviors.Brains
             => min + Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, salt, (float)now).NextSingle() * (max - min);
 
         /// <summary>Where a calm shift goes: a seeded bearing and length; past half the tether he turns back toward where he settled.</summary>
-        public static Vector3 Shift(Entity self, Vector3 at, Vector3 anchor, bool prone, byte moves, double now)
+        public static Vector3 Shift(Entity self, Vector3 at, Vector3 anchor, bool prone, byte moves, double now, float nervous = 0f)
         {
             var rng = Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, 0x2368, (float)now);
-            float min = prone ? CrawlMinMetres : StepMinMetres, max = prone ? CrawlMaxMetres : StepMaxMetres;
+            float min = prone ? CrawlMinMetres : StepMinMetres + nervous * (NervousStepMinMetres - StepMinMetres), max = prone ? CrawlMaxMetres : StepMaxMetres;
             float metres = min + rng.NextSingle() * (max - min);
             float bearing = rng.NextSingle() * MathF.PI * 2f;
             var dir = new Vector3(MathF.Cos(bearing), MathF.Sin(bearing), 0f);
@@ -314,7 +366,7 @@ namespace Hrot.AI.Behaviors.Brains
             bool prone = Stance(world, self) == StanceId.Prone;
             if (prone && now - UnderFire.LastFire(world, self) <= UnderFireSeconds) return UnderFire.ScootAfter(self, now);
             double min = prone ? LieMinSeconds : StandMinSeconds, max = prone ? LieMaxSeconds : StandMaxSeconds;
-            return min + rng.NextSingle() * (max - min);
+            return (min + rng.NextSingle() * (max - min)) * (1.0 - NervousQuicken * StressModel.Nervousness(world, self));   // ⭐ CE-2365
         }
 
         private static void Resettle(ref Restless r, Vector3 at, double now)

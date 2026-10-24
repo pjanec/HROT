@@ -253,6 +253,9 @@ namespace Hrot.CGF
             // ⭐ CE-2360 (AQ102 I) — a live grenade lying near a man: his reflex (run, drop, throw it back) as a reaction, before the brain
             //   tick — every man, under command or not (it is no SOP row).
             simList.Add(new Hrot.AI.Behaviors.Brains.GrenadeDangerSystem(gateOnAuthority));
+            // ⭐ CE-2270 (TS-B, docs/DESIGN_Temperament_And_Stress.md §3) — a combatant's stress from last frame's edges (near miss, hit, a
+            //   friend down) and the continuous terms — after perception and the squad merge, before the brain tick reads it.
+            simList.Add(new Hrot.AI.Behaviors.Brains.StressSystem(gateOnAuthority));
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             // ⭐ CE-2319 / CE-2320 (AQ96 §2c) — a soldier's move under fire: AFTER the dispatchers, so a move issued this frame already has its

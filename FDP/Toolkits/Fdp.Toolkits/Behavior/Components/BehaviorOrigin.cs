@@ -49,6 +49,9 @@ namespace Fdp.Toolkit.Behavior.Components
         Hit = 4,
         /// <summary>⭐ <c>CE-2360</c> (AQ102 I) — a live grenade lying near him: the most urgent (APPENDED).</summary>
         Grenade = 5,
+        /// <summary>⭐ <c>CE-2272</c> (TS-6, R-2034) — he BROKE under stress (APPENDED). ⭐ The one reaction ROE
+        /// <see cref="RoeReactions.StayOnTask"/> does not refuse: men break whatever the order; obedience is what makes it rare.</summary>
+        Break = 6,
     }
 
     /// <summary>⭐ <c>CE-3034</c> — the rank rule, in one place.</summary>

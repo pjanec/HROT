@@ -109,10 +109,13 @@ namespace Hrot.AI.Behaviors.Brains
                     LookRequest.Release(world, self, run);
                 return ws.Source = LookChoice.Released;
             }
-            float step = p.StepSeconds > 0f ? p.StepSeconds : DefaultStepSeconds;
-            ws.Bearing = half > 0f ? ScanBearing(bearing, half, step, now) : bearing;
+            // ⭐ CE-2365 (AQ103 H) — a NERVOUS man's eyes: quicker fixations in no fixed order, and the head snaps between them
+            float nervous = StressModel.Nervousness(world, self);
+            float step = ScanStepSeconds(p.StepSeconds > 0f ? p.StepSeconds : DefaultStepSeconds, nervous);
+            ws.Bearing = half <= 0f ? bearing : nervous > 0f ? NervousScanBearing(self, bearing, half, step, now) : ScanBearing(bearing, half, step, now);
             var origin = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
-            LookRequest.AtPoint(world, self, PointAt(origin, ws.Bearing, p.Metres > 0f ? p.Metres : DefaultMetres), behaviorInstance: run);
+            LookRequest.AtPoint(world, self, PointAt(origin, ws.Bearing, p.Metres > 0f ? p.Metres : DefaultMetres), behaviorInstance: run,
+                                blendSeconds: BlendSeconds(nervous));
             return ws.Source = source;
         }
 
@@ -136,6 +139,31 @@ namespace Hrot.AI.Behaviors.Brains
             halfWidth = MathF.Min(span * 0.5f, MaxScanHalfWidth);
             return true;
         }
+
+        /// <summary>⭐ <c>CE-2365</c> (AQ103 H) — a fixation's hold at full nervousness (s) · the head's blend calm and at full nervousness (s).</summary>
+        public const float NervousStepSeconds = 0.4f, CalmBlendSeconds = 0.2f, NervousBlendSeconds = 0.06f;
+
+        /// <summary>⭐ AQ103 H — the hold per fixation: the authored one calm, shrinking to <see cref="NervousStepSeconds"/> at full
+        /// nervousness (2 s ⇒ 0.4 s), never longer than authored.</summary>
+        public static float ScanStepSeconds(float authored, float nervous)
+            => nervous <= 0f ? authored : MathF.Min(authored, authored + nervous * (NervousStepSeconds - authored));
+
+        /// <summary>⭐ AQ103 H — the head's blend to a new look: a snap when nervous.</summary>
+        public static float BlendSeconds(float nervous)
+            => nervous <= 0f ? CalmBlendSeconds : CalmBlendSeconds + nervous * (NervousBlendSeconds - CalmBlendSeconds);
+
+        /// <summary>⭐ AQ103 H — a nervous scan: the same five fixations, each held <paramref name="step"/>, in a seeded order that seldom
+        /// holds the same point twice running — a jerk from point to point, not the calm sweep.</summary>
+        public static float NervousScanBearing(Entity self, float centre, float half, float step, double now)
+        {
+            long k = (long)(Math.Max(0.0, now) / step);
+            int index = Fixation(self, k);
+            if (k > 0 && index == Fixation(self, k - 1)) index = (index + 1 + (int)(k % (ScanPoints - 1))) % ScanPoints;
+            return Norm(centre - half + 2f * half * index / (ScanPoints - 1));
+        }
+
+        private static int Fixation(Entity self, long k)
+            => (int)(Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, 0x2365 + (int)(k & 0xFFFF), 0f).NextSingle() * ScanPoints) % ScanPoints;
 
         /// <summary>The scan's bearing at <paramref name="now"/>: <see cref="ScanPoints"/> fixations across ±half, each held
         /// <paramref name="step"/> seconds, ping-pong.</summary>

@@ -1414,6 +1414,42 @@ namespace Hrot.SimHost.Tests
             task.Origin = origin;
         }
 
+        /// <summary>
+        /// ⭐ AQ103 I (ui's ask, <c>NOTE_Ui_To_Behaviors_Idle_Gestures_Drawn</c>) — <c>IdleLookAbout</c> drives his REAL eyes: a slow scan ±60° about
+        /// his facing on a free look channel, marked as the glance's; when the gesture ends the glance releases ITS look — and a look anyone
+        /// else wrote is never touched. ✅ Red-proofs: the glance call removed ⇒ the channel stays empty; the ownership test removed ⇒ the
+        /// other writer's look is replaced.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2368_IdleLookAbout_MovesHisRealEyes_AndReleasesOnlyItsOwnLook()
+        {
+            var w = new World();
+            Idler(w);
+            CanLook(w);
+            Fdp.Toolkit.Combat.Gestures.Set(w.Repo, w.Unit, Fdp.Toolkit.Combat.GestureKind.IdleLookAbout);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 10.0);
+            ref readonly var ch = ref w.Repo.GetComponentRO<LookAtChannel>(w.Unit);
+            Assert.Equal(LookAtActionIds.LookAtPoint, ch.ActiveAction);
+            Assert.Equal(Restlessness.GlanceInstance, ch.BehaviorInstanceId);
+            var first = LookPoint(w);
+            float off = AngleOff(LookAt.BearingTo(Vector3.Zero, first), LookAt.FacingBearing(Quaternion.Identity));
+            Assert.InRange(off, 0f, Restlessness.GlanceHalfDegrees + 0.5f);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 10.0 + Restlessness.GlanceStepSeconds);
+            Assert.NotEqual(first, LookPoint(w));                                                             // it scans
+
+            Fdp.Toolkit.Combat.Gestures.Set(w.Repo, w.Unit, Fdp.Toolkit.Combat.GestureKind.None);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 20.0);
+            Assert.Equal(LookAtActionIds.ReleaseLook, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).ActiveAction);   // its own look released
+
+            Assert.True(LookRequest.AtPoint(w.Repo, w.Unit, new Vector3(0, 50, 0), behaviorInstance: 4242));        // a play's look
+            Fdp.Toolkit.Combat.Gestures.Set(w.Repo, w.Unit, Fdp.Toolkit.Combat.GestureKind.IdleLookAbout);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 30.0);
+            Assert.Equal(4242u, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).BehaviorInstanceId);                 // never taken over
+            Fdp.Toolkit.Combat.Gestures.Set(w.Repo, w.Unit, Fdp.Toolkit.Combat.GestureKind.None);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 40.0);
+            Assert.Equal(LookAtActionIds.LookAtPoint, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).ActiveAction);  // nor released
+        }
+
         private static Restless Settle(World w) => w.Repo.GetComponentRO<Restless>(w.Unit);
 
         /// <summary>His shift arrives (the muscle reports on the reflex's intent) and he stands where it went.</summary>

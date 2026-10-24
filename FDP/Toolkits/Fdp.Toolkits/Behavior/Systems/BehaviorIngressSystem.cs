@@ -304,7 +304,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (slotEmpty || running.Origin == BehaviorOrigin.Sop) return true;              // ② nothing to pause
                 if (running.Origin == BehaviorOrigin.Reaction)                                   // ③ only a MORE urgent one
                     return EffectiveUrgency(urgency) > running.Urgency;
-                if (RoeOf.Reactions(repo, entity) == RoeReactions.StayOnTask) return false;      // ② the order forbids it
+                if (RoeOf.Reactions(repo, entity) == RoeReactions.StayOnTask
+                    && urgency != ReactionUrgency.Break) return false;                           // ② the order forbids it — ⭐ CE-2272: never a break (TS-6)
                 pause = true;                                                                    // ② the task waits
                 return true;
             }

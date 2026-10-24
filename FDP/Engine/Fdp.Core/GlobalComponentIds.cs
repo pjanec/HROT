@@ -1058,6 +1058,9 @@ namespace Fdp.Core
         /// next shifts, the move it wrote); brain-local, NoScenario. Behaviors' block 418–433 (R-2056), measured free on backend, ui and
         /// coordinator 2026-10-24. 📄 docs/blueprints/Architect_Question_103_Idle_Life.md.</summary>
         public const int Restless = 420;
+        /// <summary><c>Stress</c> — <c>CE-2270</c> TS-B (R-2034, behaviors): a combatant's live stress 0–1 and his break, kept by
+        /// <c>StressSystem</c> on the brain node; brain-local (NoScenario, never sent).</summary>
+        public const int Stress = 421;
 
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449

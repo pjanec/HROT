@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-18
-build-state: READY-TO-BUILD — APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
-current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos
+updated: 2026-10-24
+build-state: BUILDING — TS-A (CE-2269), TS-B (CE-2270) and TS-D (CE-2272) BUILT 2026-10-24 (§7); TS-C blocked on §7.3's scorer finding (a question with a lean). APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
+current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos · ⭐ §7 AS BUILT (where it differs from §4, §7 wins)
 stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with Aggression and Discipline; do not quote it.
-known-rot: none.
+known-rot: ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE — the product mode's compensation depends on the consideration COUNT (§7.3). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
 known-conflict: none.
 related-designs:
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: the short per-move drop under fire that TS-4 would lengthen and TS-6's break replace
@@ -50,11 +50,12 @@ regular soldier behaves nearly by the book, an insurgent by temperament.
 ```mermaid
 classDiagram
   direction LR
-  class CombatTemperament { <<EXISTING AQ89, + 2 fields>> RiskAcceptance · Obedience · Nerve NEW · Resolve NEW · Set (bits 1 2 + 4 8) }
+  class CombatTemperament { <<EXISTING AQ89, + 2 fields + a type layer>> RiskAcceptance · Obedience · Nerve NEW · Resolve NEW · Set (bits 1 2 + 4 8, authored) · TypeRiskAcceptance · TypeObedience · TypeNerve · TypeResolve · TypeSet NEW }
   class TemperamentOf { <<EXISTING, + readers>> RiskAcceptance · Obedience · Willingness (unchanged) · Nerve NEW · Resolve NEW · Effective NEW }
   class CombatTemperamentTranslator { <<EXISTING, + nerve, resolve keys>> }
   class TemperamentDto { <<NEW TKB descriptor, optional on the type>> defaults for unset fields · Spread }
-  class Stress { <<NEW component, brain node>> Level 0-1 · LastStimulusAt · Broken }
+  class Stress { <<NEW component 421, brain node>> Level 0-1 · LastStimulusAt · LastStepAt · Broken · CalmSince }
+  class StressModel { <<NEW>> Feels · Add · Step · FriendFell · Reach }
   class StressSystem { <<NEW>> stimuli up, calm down, the break edge }
   class TemperamentInputs { <<NEW UtilityInputs>> AggressionDamp · CautionDamp · StressDamp }
   class CombatPostureDecision { <<existing, + damping considerations>> }
@@ -66,6 +67,7 @@ classDiagram
   TemperamentDto ..> CombatTemperament : stamped at creation, only fields the type authors, seeded spread
   TemperamentOf ..> CombatTemperament
   StressSystem --> Stress
+  StressSystem ..> StressModel
   StressSystem ..> TemperamentOf : effective Nerve
   StressSystem ..> SensorChangedEvent : NearMiss / Hit / SquadMemberDown in · StressBreak out
   TemperamentInputs ..> TemperamentOf : Effective
@@ -155,6 +157,52 @@ no new wire in v1.
 | `ts-fire-discipline` | two fire teams of 4 under the same suppressive fire from a machine gun 150 m off: regulars (Obedience 0.8) and militia (Obedience 0.3, Nerve 0.3) | the regulars keep suppressing (posture trace); at least half the militia go to ground or flee (`StressBreak`); no regular breaks |
 | `ts-aggression` | two identical riflemen vs one enemy, one RiskAcceptance 0.9, one 0.1 (Obedience 0.3, so character shows) | the bold one advances and assaults; the cautious one takes cover and suppresses — the same scores otherwise (utility trace) |
 | `ts-house-defenders` | the CQB house (Building Clearing §8) with three insurgents: a fanatic (Resolve 1, Nerve 0.9), a coward (Nerve 0.1), a waverer (Resolve 0.2) | on the stun grenade the coward flees out of the back door; the waverer surrenders when challenged and covered; the fanatic fights from his corner |
+
+## 7. AS BUILT *(2026-10-24 — TS-A `CE-2269`, TS-B `CE-2270`; where this differs from §4, this wins)*
+
+### 7.1 TS-A and TS-B
+
+| | as built | why it differs from §4 |
+|---|---|---|
+| **the type layer** | `CombatTemperament` gains four `Type*` fields and a `TypeSet` byte (same bits as `Set`); `TemperamentOf`'s readers take **authored › type › default**. `TemperamentOf.StampType` writes only the type fields | ⭐ §4 put the type's values in the authored fields. ⛔ Then a scenario inject (which REPLACES the authored layer, AQ89) wiped them, and a save wrote them into the file. Two layers in two fields is `CombatProficiency`'s rule (`CombatProficiency.cs` `TypeDefault`) |
+| **`TemperamentDto`** | `Fdp.Toolkit.Tkb.Domain.TemperamentDto`, descriptor `"AI.Temperament"`: `float?` per trait + `Spread` (0.15); presets `RegularSoldier` / `Police` (0.8) · `Militia` (0.5) · `Insurgent` (0.3). Stamped by `BehaviorTkbTranslator` on every node at creation | ⭐ only `Insurgent` (2003) carries one (`UrbanCombatTkbCatalog`) — the soldier and police defaults ARE today's 0.8, so they need none (TS-3: no spread on soldiers) |
+| **the spread** | `SimRng.FromSim(entity.Index, salt + trait, 0)` — the same man the same value every run | ⚠ the entity INDEX, as every other per-man draw here (`FirePacing`, `Restless`): two nodes with different indices draw differently — harmless while temperament is read only on the brain node |
+| **the scenario** | `"Temperament": { …, "nerve", "resolve" }`; an inject replaces only the authored layer, the type fields survive; the type's values are never extracted | — |
+| **`Stress`** | component `421`, NoScenario, brain-local; `StressSystem` in `CgfLogicPack` after `GrenadeDangerSystem`, before the cognitive runtime; `StressModel` holds every rule | — |
+| **the edges** | read with `ReadEvents` — LAST frame's edges (a frame later than §3 says) | the bus is double-buffered; a frame is immaterial to a level that calms at 0.03 / s |
+| **friend down** | `SquadMemberDown` on the commander ⇒ every roster member in the fight within 15 m of the fallen man | ⚠ that edge fires for an INCAPACITATED man only (`SquadSensing.MemberDown`); a man killed outright raises no stress. Left so: one producer per fact (R-195) — widen the edge if it matters live |
+| **outnumbered** | `EnemyShare > 0.6` — the same sum the `EnemyStrengthRatio` input reads | ⛔ the input is the enemy's SHARE (0–1), so §4's "> 1.5" can never be met; 0.6 is that ratio (1.5 ÷ 2.5) |
+| **in cover** | a cover point within 1.5 m facing his nearest remembered threat — `UnderFire.CoverNear` with a minimum of 0 m (it was fixed at 1 m: somewhere to GO) | — |
+| **his leader** | `SquadLeadership.Leader` of his commander, in the fight, within 20 m, not himself | — |
+| **who** | `StressModel.Feels`: a brain, health, a stance (a person — a vehicle has none), not a `CivilianState`, `Armament.IsCombatant`, in the fight | TS-7 |
+
+Rails: `CombatTemperamentTests` (CE2269 ×4 + AQ89's unchanged), `CombatProficiencyTests.CE2269_…StampedAtSpawn…`, `CombatTemperamentTranslatorTests.CE2269_…`, `StressSystemTests` (8). Mutants: TS-A 7/7 and TS-B in the report of the commit.
+
+### 7.2 TS-D — the break *(`CE-2272`)*
+
+| | as built | why it differs from §4 |
+|---|---|---|
+| **the numbers** | `SensorChange.StressBreak` = **25**, `StressRecovered` = **26**, published on the man, once per edge | ⛔ 21–24 belong to `CE-2283` (`ContactInEngagementArea`, `ContactOutsideSector`, `PositionUntenable`, `FiredOnFromStructure`) |
+| **who starts it** | ⭐ `StressSystem` itself (`StressModel.Judge` → `StartBreak`), as a REACTION at the new **`ReactionUrgency.Break` = 6** — not an SOP row | ⭐ the grenade reflex's precedent (`GrenadeDangerSystem`, AQ102 I): every combatant breaks, with an SOP or without (the police types have none). The edges still reach the bus, so an SOP, an HSM or a blueprint may react to them too |
+| **StayOnTask** | `BehaviorIngressSystem.AdmitsWithReactions` refuses every reaction under StayOnTask **but a break** | TS-6 as approved |
+| **the order of reflexes** | a running grenade reflex is never replaced by a break; the break starts once it ends | the grenade is seconds; the break is minutes |
+| **when** | breaks at `max(effective Nerve, 0.05)`; recovers under 0.6 × that for 10 s | ⚠ a man with no nerve at all would break at 0 — the floor means something must have happened first |
+| **what he does** | surrenders (the existing `Surrender`, for good) when effective Resolve < 0.3 and a forces rifle covers him (`Covering.By`); else the new **`Break`** behaviour: no aimed fire (an AimAndFire on his weapon channel is ended every tick), runs upright at 4.5 m/s to a retreat point when he has one, then prone; with none, prone where he is; Success when he recovers ⇒ his task resumes | ⚠ `Covering.By` counts FRIEND-force rifles only (CV-13a), so in v1 only a man the blue side covers surrenders this way. A retreat point = a cover point within 30 m facing his nearest remembered threat and ≥ 3 m farther from it than he is (the EQS `FindSafeRetreatPoint` needs a sensor child the posture tree owns — a cover query is synchronous and reuses `UnderFire.CoverNear`) |
+| ⚠ **to measure in the demo** | a near miss is one edge PER ROUND: an ordinary soldier (0.06 a round, breaks at 0.5) breaks after ~9 near misses inside a few seconds — machine-gun fire may break regulars, which `ts-fire-discipline` says must not happen | the numbers are §4's; ⛔ not re-tuned before a live measurement |
+
+Rails: `StressSystemTests` — `CE2272_AtHisNerve_HeBreaks_EvenUnderStayOnTask_GoesToGround_AndRecovers` · `…TheBreakAndTheRecovery_AreEdges_OnTheMan` · `…HeBreaksAtHisEffectiveNerve_NeverUnderTheFloor` (3 rows) · `…LowResolve_AndCovered_HeSurrenders_ElseHeBreaks` · `…AWayOut_IsACoverPointFartherFromTheThreat`.
+
+### 7.3 ⛔ TS-C is BLOCKED — a neutral consideration is NOT neutral
+
+📐 `Aggregator.AggregateProduct` (`FDP/Toolkits/Fdp.Toolkits/Utility/Core/Aggregator.cs`) applies Dave Mark's compensation: `final = raw + (1 − raw) × (1 − 1/n) × raw`, with **n = the number of considerations**. ⇒ adding a consideration that reads exactly 1.0 leaves `raw` alone but raises `n`, and so raises the option's score (raw 0.5: n = 3 ⇒ 0.667, n = 4 ⇒ 0.688). The five product options have 3–5 considerations each and TS-5 adds different counts to each ⇒ **every posture choice shifts, with or without a temperament.** The neutral rail §5 promises cannot pass as designed. ⇒ **a question for the user** (the scorer is the Utility AI design's):
+
+| | option | verdict |
+|---|---|---|
+| ⭐ **lean** | **a MODIFIER consideration**: a consideration flagged as a plain multiplier, applied AFTER the compensated product and NOT counted in `n` (`.Modify(In.StressDamp())` beside `.Consider(…)`) — a modifier reading 1.0 leaves every score bit-identical, which is exactly TS-5's promise | blast radius: the scorer's aggregate, the builder and the decision generator (the flag); no existing decision changes. ⭐ It is also the natural home of every future "only ever damp" input |
+| rejected | add the three as ordinary considerations and accept the shift | every posture choice moves, with or without a temperament — TS-5 promised the opposite |
+| rejected | fold the damping into an existing input (a temperament-aware `EnemyStrengthRatio`) | couples two meanings in one input and hides the damping from the utility trace |
+
+What would change the lean: the Utility AI design ruling that compensation must count every factor.
 
 ## ⛔ HISTORY
 
