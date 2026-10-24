@@ -124,15 +124,17 @@ for k, (who, x0, temper, covered) in enumerate((
               {"x": x0, "y": 310, "z": 4, "mount": 0, "rounds": ROUNDS, "cooldownSeconds": COOLDOWN})},
           sop={"Name": "InertSop", "Params": "{}", "Origin": "Superior"})
     if covered:
-        s.man(f"Rifleman {who}", "Friend", (x0 + 20, 250, 0), 0, tkb=2002, nid=10861 + k,
-              sop={"Name": "InertSop", "Params": "{}", "Origin": "Superior"})
+        # ⚠ posted, watching him — 📐 measured: an InertSop rifleman never raises his rifle (AtEase, 150 rounds), so nobody covers
+        r = s.man(f"Rifleman {who}", "Friend", (x0 + 20, 250, 0), 0, tkb=2002, nid=10861 + k,
+                  behavior=posted(x0 + 20, 250, (x0, 300)))
+        s.ents[r]["Roe"] = dict(STAY)
 s.write("ts-three-defenders", "basic-desert",
         "What: Temperament & Stress §6 (CE-2272, R-2034) - three insurgents (the Insurgent type, obedience authored 0.3) hold their spots "
         "on open basic-desert, 100 m apart, facing south (CombatPosture, stay; ROE StayOnTask - only a break moves him), a car 12 m behind "
         "each: the 'Fanatic' (resolve 1, nerve 0.9 - effective nerve 0.78) at x 200, the 'Coward' (nerve 0.1 - effective 0.22) at x 300, "
         "the 'Waverer' (resolve 0 - effective 0.15, under the 0.3 that surrenders) at x 400. Over each, 'Gunner <name>' (Friend automatic "
         f"rifleman, InertSop) 120 m south fires {ROUNDS} rounds, one every {COOLDOWN} s, 10 m behind him and 4 m up (near misses); the "
-        "Coward and the Waverer each also have 'Rifleman <name>' (Friend, InertSop) 55 m off, who engages him - the rifle on him. All "
+        "Coward and the Waverer each also have 'Rifleman <name>' (Friend rifleman, posted 55 m off watching him), who engages him - the rifle on him. All "
         "immortal. Judge (120 s): (1) the Coward breaks and runs (Break - to ground at cover farther from the fire), he does not surrender "
         "(effective resolve 0.5); (2) the Waverer breaks with a rifle on him and surrenders (hands up, weapons down); (3) the Fanatic never "
         "breaks or surrenders and fires back; (4) printed per insurgent: his peak stress, when he broke, what he did, the rounds he fired. "
