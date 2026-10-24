@@ -5133,6 +5133,12 @@ def run_rf_pinned_in_open(c, timeout):
     shots = (data(call("GET", "/combat/shots?last=1024")) or {}).get("shots") or []
     pin, gun = ids["Pinned"], ids["Gunman"]
     by = {n: [x for x in shots if x.get("shooter") == ids[n]] for n in ("Pinned", "Gunman")}
+    raw = data(call("GET", "/combat/shots?last=4")) or {}
+    print(f"    shot log: {len(shots)} shots · shooters seen {sorted({x.get('shooter') for x in shots}, key=str)[:6]} · ids Pinned {pin} Gunman {gun} · "
+          f"note {raw.get('note')} · count {raw.get('count')}")
+    for n in ("Pinned", "Gunman"):
+        w = data(call("GET", f"/entities/{ids[n]}/weapons")) or {}
+        print(f"    {n} weapons: {json.dumps(w)[:200]}")
     # (1) down and firing back
     first_gun = min((x.get("firedAt") or 0 for x in by["Gunman"]), default=None)
     prone_at = next((r[0] for r in rows["Pinned"] if r[2] == "Prone"), None)
