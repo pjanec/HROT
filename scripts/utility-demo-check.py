@@ -5137,6 +5137,21 @@ def run_rf_pinned_in_open(c, timeout):
     finally:
         call("POST", "/perspective", {"name": "Scenario"})
     by = {n: [x for x in shots if x.get("shooter") == ids[n]] for n in ("Pinned", "Gunman")}
+
+    def stance_at(n, t):
+        """`n`'s stance at the sample nearest sim time t (the shot's firedAt)."""
+        best = min(rows[n], key=lambda r: abs(r[0] - t), default=None)
+        return best[2] if best else None
+
+    # the stretch the judges below read: where he was, his stance and task, every 3 s
+    nxt = 0.0
+    for t, p, stance, _, task, *_ in rows["Pinned"]:
+        if t < nxt:
+            continue
+        nxt = t + 3.0
+        g = min(rows["Gunman"], key=lambda r: abs(r[0] - t))
+        print(f"      t={t:6.1f} Pinned {task or '-':<15} {stance or '-':<9} at {tuple(round(v, 1) for v in p) if p else None} · "
+              f"Gunman {g[2] or '-':<9} at {tuple(round(v, 1) for v in g[1]) if g[1] else None}")
     # (1) down and firing back
     first_gun = min((x.get("firedAt") or 0 for x in by["Gunman"]), default=None)
     prone_at = next((r[0] for r in rows["Pinned"] if r[2] == "Prone"), None)
@@ -5160,7 +5175,9 @@ def run_rf_pinned_in_open(c, timeout):
           f"furthest from his start {max((flat(r[1], rows['Pinned'][0][1]) for r in rows['Pinned'] if r[1]), default=0):.1f} m")
     c.ok(stretch <= 15.0 and moves >= 2, f"(2) pinned, he moves 2 m+ at least every 15 s ({moves} moves, longest {stretch:.1f} s)")
     # (3) alone and pinned ~30 s ⇒ the wreck's south face ~18 m off (cqb-village's wreck x 108-113 × y 99-101; its cover points stand 1 m out)
-    near = [r[0] for r in rows["Pinned"] if r[1] and 106.5 <= r[1][0] <= 114.5 and 96.0 <= r[1][1] <= 99.5]
+    # ⭐ only after he was down — 📐 run 4: his bound walked him past the wreck at 14.6 s, before a round came, and that read as a pass
+    near = [r[0] for r in rows["Pinned"] if r[1] and prone_at is not None and r[0] > prone_at
+            and 106.5 <= r[1][0] <= 114.5 and 96.0 <= r[1][1] <= 99.5]
     c.ok(bool(near), f"(3) alone and pinned, he crawls to the wreck's south face ~18 m off (first there at {near[0] if near else None})")
     # (4) the aim — each shooter's aim height over the other's feet, his hits, and what his misses crossed
     for n, other in (("Gunman", "Pinned"), ("Pinned", "Gunman")):
@@ -5182,7 +5199,8 @@ def run_rf_pinned_in_open(c, timeout):
         print(f"    {n} → {other}: {len(by[n])} rounds, {hits} hits · aim height over his feet: median {mid} (min {rel[0] if rel else None}, "
               f"max {rel[-1] if rel else None}) · first thing a miss crossed: {dict(sorted(crossed.items(), key=lambda kv: -kv[1])[:4])}")
         if n == "Gunman" and prone_at is not None:
-            prone = [x for x in by[n] if x.get("aim") and (x.get("firedAt") or 0) >= prone_at + 1]
+            # ⭐ his stance AT THE SHOT — 📐 run 4: he rose again after his first drop, and rounds at him standing read as "over a prone man"
+            prone = [x for x in by[n] if x.get("aim") and stance_at(other, x.get("firedAt") or 0) == "Prone"]
             prone_rel = sorted(round(x["aim"][2] - feet[2], 2) for x in prone)
             pm = prone_rel[len(prone_rel) // 2] if prone_rel else None
             # ⭐ the user, 2026-10-24: "could result simply from the fact that the guy was very far and each shot has some imprecision" —
@@ -5206,7 +5224,14 @@ def run_rf_pinned_in_open(c, timeout):
             c.ok(pm is not None and pm <= 0.6, f"(4) the Gunman aims at a PRONE man's chest, not over him (median {pm} m over his feet)")
             c.ok(over + under == 0 or over <= 0.75 * (over + under), f"(4) his misses scatter both ways, not constantly over ({over} over / {under} under)")
         if n == "Pinned":
-            c.ok(mid is not None and 1.0 <= mid <= 1.9, f"(4) Pinned aims through the window at the man, not at the wall under it (median {mid} m)")
+            up = sorted(round(x["aim"][2] - feet[2], 2) for x in by[n]
+                        if x.get("aim") and feet and stance_at("Gunman", x.get("firedAt") or 0) in ("Standing", "Crouched"))
+            down = [x for x in by[n] if stance_at("Gunman", x.get("firedAt") or 0) == "Prone"]
+            um = up[len(up) // 2] if up else None
+            print(f"    Pinned's rounds while the Gunman was UP at the window: {len(up)} (aim median {um} m) · while he lay PRONE under the sill: "
+                  f"{len(down)} (blind rounds at the remembered body — the brick stops them)")
+            # the sill is 0.9 m: a round aimed at the man up in the opening clears it
+            c.ok(um is None or um >= 0.9, f"(4) at the man UP in the window Pinned aims over the 0.9 m sill, not into the wall under it (median {um} m)")
     print(f"    Pinned tasks {sorted({r[4] for r in rows['Pinned'] if r[4]}, key=str)} · Gunman tasks {sorted({r[4] for r in rows['Gunman'] if r[4]}, key=str)}")
 
 
