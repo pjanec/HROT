@@ -354,7 +354,11 @@ graph TD
 | **U19f** | the external IG | the wire comment and Civilians §7.7: **7–10 are idle ANIMATIONS to blend, not poses to snap to** | — |
 
 **As built** — `BlockFigure.IdleArms` (U19a, U19c) and `EntityBodyLayer3D.IdleMotion` (U19b, U19d), both stateless on `GestureClock`; `Gestured`
-draws an idle kind through `IdleArms` instead of returning the figure unchanged. Rails: `Map3DTests.CE1308_*`.
+draws an idle kind through `IdleArms` instead of returning the figure unchanged. Rails: `Map3DTests.CE1308_*` (red-proved: 5 mutations, each red).
+📌 **Live, `il-idle-life`, headless editor, `2026-10-24`:** over 45 s the ten men showed smoking, the weight shift and looking about, each
+starting and ending at his own time (never in step); a stretch came later. Followed in 3-D (`POST /view/follow`): the posted Watchman's
+hand went to his face and down again on the smoking cycle, the rifle staying in his other hand. ⚠ A threat stopping them was not staged —
+the drawing reads `Gesture` every frame, so it stops the frame `RestlessSystem` clears it (behaviors' live run covers that half).
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 
