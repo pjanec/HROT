@@ -150,18 +150,9 @@ namespace Fdp.Toolkit.Perception.Sensors
         public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
             var unit = EqsContext.Self(view, observer, sensor);
-            if (unit.IsNull || !view.IsAlive(unit) || !view.HasComponent<SimTransform>(unit)) return 0;
-            if (!AcousticPerception.Ears(view, observer, out float range, out float perMeter)) return 0;
-            // ⭐ CE-3216 S2-4 (R-3017) — wind and rain mask the listener (none without a clock)
-            float masking = PerceptionWeather.TrySample(view, unit, out var weather) ? PerceptionWeather.HearingFactor(in weather) : 1f;
-            range *= masking;
+            if (!TryEars(view, observer, unit, out var ears)) return 0;
+            float range = ears.Range;
             var broadphase = _broadphase.For(view, _grid);
-
-            var ear = view.GetComponentRO<SimTransform>(unit).Position;
-            var ears = new Ears(ear, range, masking, perMeter, unit.PackedValue, PerceptionClock.Now(view),   // ⭐ CE-3292 — the seed: the step
-                                AcousticPerception.IdentificationOf(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Tier(view, unit)),
-                                Fdp.Toolkit.World.WorldQuery.Of(view),   // ⭐ AQ104 E ② — the walls and slabs between (this view's doors)
-                                Terrain(view, out var doors), doors);    // ⭐ AQ106 — the buildings' openings and corners
             int n = 0;
             // MOVEMENT is continuous: the emitters near the unit, through the grid (§5.1)
             double now = view is EntityRepository clock && clock.HasSingleton<GlobalTime>() ? clock.GetSingleton<GlobalTime>().TotalTime : 0d;
@@ -219,9 +210,27 @@ namespace Fdp.Toolkit.Perception.Sensors
             else cmd.AddComponent(sensorEntity, new AcousticCursor { LastPlace = last });
         }
 
+        /// <summary>⭐ AQ106 L — <paramref name="unit"/>'s ears through the acoustic sensor <paramref name="sensorEntity"/>, as a solve hears
+        /// with them (the debug route builds them the same way).</summary>
+        internal static bool TryEars(ISimulationView view, Entity sensorEntity, Entity unit, out Ears ears)
+        {
+            ears = default;
+            if (unit.IsNull || !view.IsAlive(unit) || !view.HasComponent<SimTransform>(unit)) return false;
+            if (!AcousticPerception.Ears(view, sensorEntity, out float range, out float perMeter)) return false;
+            // ⭐ CE-3216 S2-4 (R-3017) — wind and rain mask the listener (none without a clock)
+            float masking = PerceptionWeather.TrySample(view, unit, out var weather) ? PerceptionWeather.HearingFactor(in weather) : 1f;
+            range *= masking;
+            var ear = view.GetComponentRO<SimTransform>(unit).Position;
+            ears = new Ears(ear, range, masking, perMeter, unit.PackedValue, PerceptionClock.Now(view),   // ⭐ CE-3292 — the seed: the step
+                            AcousticPerception.IdentificationOf(Fdp.Toolkit.Behavior.Components.ProficiencyOf.Tier(view, unit)),
+                            Fdp.Toolkit.World.WorldQuery.Of(view),   // ⭐ AQ104 E ② — the walls and slabs between (this view's doors)
+                            Terrain(view, out var doors), doors);    // ⭐ AQ106 — the buildings' openings and corners
+            return true;
+        }
+
         /// <summary>One listener's ears for this tick: where, how far they reach (masked), the weather's masking, the uncertainty.</summary>
         /// ⭐ CE-3283 — <c>Identifies</c>: 0 the class, 1 + the family, 2 + the type (<see cref="AcousticPerception.IdentificationOf"/>).
-        private readonly record struct Ears(Vector3 At, float Range, float Masking, float PerMeter, ulong Listener, uint Tick, byte Identifies,
+        internal readonly record struct Ears(Vector3 At, float Range, float Masking, float PerMeter, ulong Listener, uint Tick, byte Identifies,
                                             Fdp.Toolkit.World.IWorldQuery? World, Fdp.Toolkit.Terrain.TerrainWorld? Terrain,
                                             Fdp.Toolkit.Terrain.DoorStates? Doors);
 
@@ -235,6 +244,23 @@ namespace Fdp.Toolkit.Perception.Sensors
             return world;
         }
 
+        /// <summary>⭐ AQ106 L — the ONE verdict on one sound at these ears: the sensor's <c>Sound</c> and the debug route's explain both call
+        /// it, so they cannot disagree. A LOUD class carries past the ear range (× the weather's masking), a quiet one within both.</summary>
+        internal static HearingVerdict Judge(in Ears ears, Vector3 where, float carries, byte sourceClass, List<Vector3>? waypoints = null)
+        {
+            bool loud = AcousticPerception.IsLoud(sourceClass);
+            float carry = loud ? carries * ears.Masking : carries, range = loud ? float.MaxValue : ears.Range;
+            float d = Vector3.Distance(ears.At, where);
+            if (carry <= 0f) return new HearingVerdict(HearingReason.Silent, d, 0f, default);
+            if (d > carry) return new HearingVerdict(HearingReason.BeyondItsCarry, d, carry, default);
+            if (d > range) return new HearingVerdict(HearingReason.BeyondHisEar, d, carry, default);
+            // ⭐ AQ104 E ② / ⭐ AQ106 (R-3050) — the walls and slabs between, or the way round through the openings and corners, whichever
+            //   is louder (traced only for a sound heard in the open); it is heard FROM the last opening or corner on that way (F)
+            var route = SoundPaths.Route(ears.World, ears.Terrain, ears.Doors, ears.At, where, sourceClass, waypoints);
+            float effective = carry * route.Factor;
+            return new HearingVerdict(d > effective ? HearingReason.WallsOrCorners : HearingReason.Heard, d, effective, route);
+        }
+
         // ⭐ CE-3276 (R-3023) — a QUIET sound is heard within its carry AND the ear range; a LOUD one within its carry × the weather's
         //   masking alone, whatever the ear range.
         //   ⭐ CE-3282 — <paramref name="seed"/> varies the error: the tick for a continuous sound, the ring serial for a short one (two shots
@@ -242,12 +268,10 @@ namespace Fdp.Toolkit.Perception.Sensors
         private static void Sound(Span<EqsResult> candidates, ref int n, in Ears ears, Vector3 where, float carries, SoundKind kind,
                                   byte sourceClass, ulong source, uint seed, byte family = 0, ushort token = 0)
         {
-            int before = n;
-            if (AcousticPerception.IsLoud(sourceClass))
-                Hear(candidates, ref n, ears.At, where, carries * ears.Masking, float.MaxValue, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed, in ears);
-            else
-                Hear(candidates, ref n, ears.At, where, carries, ears.Range, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed, in ears);
-            if (n == before) return;
+            if (n == candidates.Length) return;
+            var verdict = Judge(in ears, where, carries, sourceClass);
+            if (verdict.Reason != HearingReason.Heard) return;
+            Answer(candidates, ref n, verdict.Distance, verdict.Route.HeardFrom, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed);
             // ⭐ CE-3283 (Q95 A) — what THIS ear can tell, decided here, once: downstream carries only that (anonymity by construction, §6 D)
             ref var answer = ref candidates[n - 1];
             if (ears.Identifies >= 1 && family != 0)
@@ -258,19 +282,10 @@ namespace Fdp.Toolkit.Perception.Sensors
             if (ears.Identifies >= 2) answer.SignatureToken = token;
         }
 
-        // One sound: heard when it carries this far AND the ear reaches this far; answered as an anonymous estimate.
-        private static void Hear(Span<EqsResult> candidates, ref int n, Vector3 ear, Vector3 where, float carries, float range,
-                                 float perMeter, SoundKind kind, byte sourceClass, ulong source, ulong listener, uint tick,
-                                 in Ears ears)
+        // One heard sound, answered as an anonymous estimate placed where it seems to come from (⭐ AQ106 F: the last opening or corner).
+        private static void Answer(Span<EqsResult> candidates, ref int n, float d, Vector3 from, float perMeter, SoundKind kind,
+                                   byte sourceClass, ulong source, ulong listener, uint tick)
         {
-            if (n == candidates.Length || carries <= 0f) return;
-            float d = Vector3.Distance(ear, where);
-            if (d > carries || d > range) return;
-            // ⭐ AQ104 E ② / ⭐ AQ106 (R-3050) — the walls and slabs between, or the way round through the openings and corners, whichever
-            //   is louder (traced only for a sound heard in the open); it is heard FROM the last opening or corner on that way (F)
-            var route = SoundPaths.Route(ears.World, ears.Terrain, ears.Doors, ear, where, sourceClass);
-            if (d > carries * route.Factor) return;
-            var from = route.HeardFrom;
             float radius = AcousticPerception.RadiusAt(d, perMeter);
             var err = AcousticPerception.Error(source, listener, tick, radius);
             candidates[n++] = new EqsResult

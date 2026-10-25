@@ -2498,6 +2498,45 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "explain_hearing",
+    "group": "K — AI behavior traces",
+    "summary": "What one unit could hear in the last seconds and why not, as this node's hearing sensor decides it — each sound's verdict (heard / beyond its carry / beyond his ear / walls or corners / his own side), the straight line's loss, the way round through doorways, windows, stairs and street corners, and where it seems to come from (AQ106 L).",
+    "http": {
+      "method": "GET",
+      "path": "/perception/hearing"
+    },
+    "params": [
+      {
+        "name": "listener",
+        "type": "number",
+        "required": true,
+        "description": "the hearing unit's network id"
+      },
+      {
+        "name": "seconds",
+        "type": "number",
+        "required": false,
+        "description": "how far back the short sounds (shots, bursts, doors) are listed; default 10"
+      }
+    ],
+    "returns": "{ listener, seconds, count, heard, sounds:[{source, kind, class, at, ageSeconds, carry, distance, effectiveCarry, verdict, via, heardFrom, straightDb, crossings, pathMetres, pathDb, openings, corners, route:[[x,y,z]]}], note }",
+    "notes": [
+      "A dry run of the SAME sensor (its ears and its one verdict, AcousticSensorGenerator.Judge) — it cannot disagree with what was heard; it moves no cursor.",
+      "Answers where hearing runs (the Perception node: SimHost, the editor); 404 when the listener is not on this node or has no acoustic sensor here.",
+      "The moving and shouting bodies are those near him NOW; the short sounds are the ring's of the last `seconds`."
+    ],
+    "example": {
+      "args": {
+        "listener": 1001,
+        "seconds": 5
+      },
+      "gist": "find out why the defender did not hear the attacker on the stairs"
+    },
+    "hint": "Req: listener (network id); seconds (default 10). Example: explain_hearing({listener:1001, seconds:5})",
+    "manualVerify": false
+  },
+
+  {
     "name": "explain_line_of_sight",
     "group": "K — AI behavior traces",
     "summary": "Why one unit does or does not see another, as this node's perception decides it — eye and aim heights, stances, every terrain crossing with its transmittance, and any entity in the way (tuning T-4).",

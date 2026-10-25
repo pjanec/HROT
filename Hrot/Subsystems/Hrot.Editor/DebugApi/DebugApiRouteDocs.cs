@@ -2819,6 +2819,26 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"from\":\"102,90,1.6\",\"to\":\"102,104,1.6\"}",
             ExampleGist: "check whether a window lets a soldier outside see into a room"),
 
+        [("GET", "/perception/hearing")] = new RouteDoc(
+            Tool:    "explain_hearing",
+            Group:   "K — AI behavior traces",
+            Summary: "What one unit could hear in the last seconds and why not, as this node's hearing sensor decides it — each sound's verdict (heard / beyond its carry / beyond his ear / walls or corners / his own side), the straight line's loss, the way round through doorways, windows, stairs and street corners, and where it seems to come from (AQ106 L).",
+            Returns: "{ listener, seconds, count, heard, sounds:[{source, kind, class, at, ageSeconds, carry, distance, effectiveCarry, verdict, via, heardFrom, straightDb, crossings, pathMetres, pathDb, openings, corners, route:[[x,y,z]]}], note }",
+            Hint:    "Req: listener (network id); seconds (default 10). Example: explain_hearing({listener:1001, seconds:5})",
+            Params: new RouteParam[]
+            {
+                new("listener", "number", true, "the hearing unit's network id"),
+                new("seconds", "number", false, "how far back the short sounds (shots, bursts, doors) are listed; default 10"),
+            },
+            Notes: new[]
+            {
+                "A dry run of the SAME sensor (its ears and its one verdict, AcousticSensorGenerator.Judge) — it cannot disagree with what was heard; it moves no cursor.",
+                "Answers where hearing runs (the Perception node: SimHost, the editor); 404 when the listener is not on this node or has no acoustic sensor here.",
+                "The moving and shouting bodies are those near him NOW; the short sounds are the ring's of the last `seconds`.",
+            },
+            ExampleArgsJson: "{\"listener\":1001,\"seconds\":5}",
+            ExampleGist: "find out why the defender did not hear the attacker on the stairs"),
+
         [("GET", "/perception/los")] = new RouteDoc(
             Tool:    "explain_line_of_sight",
             Group:   "K — AI behavior traces",

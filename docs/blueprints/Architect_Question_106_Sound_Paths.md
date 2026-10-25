@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — A–L ✅ APPROVED 2026-10-25 (R-3050)
 updated: 2026-10-25
-build-state: BUILDING — order §5
+build-state: BUILT (A–L ②; L ③ handed to ui) — §7 the as-built
 current-answer: §4 the sub-questions with their leans and verdicts · §3 the diagrams · §2 the claims · §6 the answers
 stale-below: nothing
 known-rot: none yet
@@ -128,3 +128,12 @@ red box: the brain never calls it (Node Roles §3.0a).
 | the sensor | `AcousticSensorGenerator` judges through `Route` and answers at `HeardFrom` (± the usual error) | — |
 | rails | `SoundPathsTests` (hall door open / closed · a window · the stair · the band · open air · a street corner and through the block) + `AcousticHearingTests.AQ106_ASoundRoundTheCorner_IsHeard_FromTheDoorway`. Red-proofs: no openings path ⇒ 4 red · no way round ⇒ 1 red · the answer at the source ⇒ 1 red | — |
 | ⏳ | `ia-house-hunt` re-measured (J) — with L, live | — |
+
+### 7.2 L — debugging where sounds go *(backend, 2026-10-25)*
+
+| | as built |
+|---|---|
+| ① one verdict | `AcousticSensorGenerator.Judge(ears, where, carry, class, waypoints?)` — the sensor's `Sound` and the explain BOTH call it; `TryEars` builds the ears both use |
+| ② explain + HTTP | `HearingExplain.TryExplain(view, unit, seconds, list, out why)` → `HeardSoundExplanation` (source, kind / voice, class, at, carry, age, verdict, waypoints): the ring's short sounds of the window + the bodies moving or shouting near him now; own side listed as `HisOwnSide`. `GET /perception/hearing?listener=&seconds=` (MCP `explain_hearing`; catalog + SKILL regenerated in the same commit, R-1030 — purely additive, 42 lines) |
+| ③ the layer | ⏳ ui — [HANDOFF_Backend_To_Ui_Hearing_Routes](batches/HANDOFF_Backend_To_Ui_Hearing_Routes.md) |
+| rail | `AcousticHearingTests.AQ106L_ExplainHearing_GivesEachSoundsVerdict_AsTheSensorHeardIt` — heard via the hall door (waypoints through it), a shot beyond its carry, a friend's steps his own side, and the heard count equals what the sensor answered |
