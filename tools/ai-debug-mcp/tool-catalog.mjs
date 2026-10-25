@@ -1940,7 +1940,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "get_entity_brain",
     "group": "K — AI behavior traces",
-    "summary": "What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (observed units), contacts, and the brain journal's recent changes.",
+    "summary": "What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (every brain unit), contacts, and the brain journal's recent changes.",
     "http": {
       "method": "GET",
       "path": "/entities/{networkId}/brain"
@@ -1972,7 +1972,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "debug_unit",
     "group": "K — AI behavior traces",
-    "summary": "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility record), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
+    "summary": "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
     "http": {
       "method": "POST",
       "path": "/entities/{networkId}/debug"
@@ -2429,7 +2429,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "get_entity_utility",
     "group": "K — AI behavior traces",
-    "summary": "What an observed unit's utility decisions chose, and why (CE-3069).",
+    "summary": "What a unit's utility decisions chose, and why (CE-3069) — the decisions on EVERY brain unit, always (CE-1319); the per-consideration breakdown only while observed.",
     "http": {
       "method": "GET",
       "path": "/entities/{networkId}/utility"
@@ -2444,9 +2444,9 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "{ observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.",
     "notes": [
-      "observe_trace arms the BTree/HSM trace AND the utility record — one switch.",
-      "One entry per decision the unit ran while observed (up to 4); a ranking's winner is a candidate entity {networkId, name}.",
-      "switchCount counts winner changes since arming — poll it to see a posture switch.",
+      "⭐ CE-1319 (BV-61): the decision log is on every brain unit, always — so it replays too; observe_trace arms only the BTree/HSM trace and the utility per-consideration trace (lastPass).",
+      "One entry per decision the unit ran (up to 4); a ranking's winner is a candidate entity {networkId, name}. observed:false = no brain log on this node (not a brain unit here).",
+      "switchCount counts winner changes since the unit's brain started — poll it to see a posture switch.",
       "lastPass is the most recent option decision's per-consideration breakdown; rankings trace only their winner."
     ],
     "example": {
@@ -2455,7 +2455,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "read which posture a unit chose and the scores behind it"
     },
-    "hint": "Req: networkId (number). Arm with observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster), let the sim tick, then read. Example: get_entity_utility({networkId:1000})",
+    "hint": "Req: networkId (number). The decisions need no arming; for lastPass (the considerations) arm observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster) and let the sim tick. Example: get_entity_utility({networkId:1000})",
     "manualVerify": false
   },
 
@@ -3363,6 +3363,46 @@ export const TOOLS_CATALOG = [
         "type": "string",
         "required": false,
         "description": "Blueprint NAME or asset Guid; omit when the entity carries exactly one"
+      },
+      {
+        "name": "owner",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-1320 — task · sop · paused · blueprint: write ANY behaviour slot instead of a blueprint variable by name",
+        "enum": [
+          "task",
+          "sop",
+          "paused",
+          "blueprint"
+        ]
+      },
+      {
+        "name": "behaviour",
+        "type": "string",
+        "required": false,
+        "description": "With owner: the behaviour / blueprint name (needed when two slots match)"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "required": false,
+        "description": "With owner: params · variables (default variables)",
+        "enum": [
+          "params",
+          "variables"
+        ]
+      },
+      {
+        "name": "part",
+        "type": "string",
+        "required": false,
+        "description": "With owner: a node's working-state or hosted-child slot, by its label (as get_entity_slots lists it)"
+      },
+      {
+        "name": "paramsJson",
+        "type": "string",
+        "required": false,
+        "description": "With owner, instead of path/value: a whole parameter set applied through the behaviour's own parser (the start record takes it too)"
       }
     ],
     "returns": "{ networkId, asset, assetId, path, type, value, writable, pending, pendingValue? }",
@@ -3383,7 +3423,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "stage_entity_variable",
     "group": "O — Variables (the watch, over HTTP)",
-    "summary": "STAGE a write to one blueprint variable, through the same seam the editor's Details panel uses. The value lands on the next advancing tick — not on this response.",
+    "summary": "STAGE a write to a running behaviour's value, through the same seam the editor's Details panel uses — a blueprint variable by name, or (with owner) ANY behaviour slot's params or working state: the task's, the SOP's, a paused task's, an attached blueprint's, a node's or a hosted child's. The value lands on the next advancing tick, IN PLACE — the behaviour is never restarted.",
     "http": {
       "method": "POST",
       "path": "/entities/{networkId}/variable"
@@ -3414,11 +3454,13 @@ export const TOOLS_CATALOG = [
         "description": "Blueprint NAME or asset Guid; omit when the entity carries exactly one"
       }
     ],
-    "returns": "{ networkId, asset, assetId, path, staged: true, pending: true, note }",
+    "returns": "{ networkId, asset, assetId, path, staged: true, pending: true, note } — with owner: { networkId, owner, behaviour, part, role, path, component, offset, size, staged, pending, willDrain, startRecordUpdated, restarted:false, note }",
     "notes": [
       "Running is not a reason to refuse — it is a reason to stage. There is no \"pause first\" step.",
       "Until the world advances, get_entity_variable still reports the OLD value with pending: true. Step or play to make it land.",
-      "A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour."
+      "A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour.",
+      "⭐ With owner, path is dotted (St fields, In fields — e.g. Shots.Count) and [n] indexes an inline array (Shots.Items[1]). A task-params write also rewrites the start record's JSON, so a save and the \"same order again?\" checks stay true.",
+      "⭐ The what-if loop: checkpoint → stage_entity_variable(owner…) → step → read → restore_checkpoint (skill §J)."
     ],
     "example": {
       "args": {
@@ -3428,7 +3470,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "queue Health = 42; it applies on the next advancing tick"
     },
-    "hint": "Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:\"Health\", value:42})",
+    "hint": "Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:\"Health\", value:42}). Any slot: stage_entity_variable({networkId:1000, owner:\"task\", role:\"params\", path:\"CoverRadius\", value:40}) — discover owners, behaviours and parts with get_entity_slots.",
     "manualVerify": false
   },
 
@@ -3969,6 +4011,30 @@ export const TOOLS_CATALOG = [
   },
 
   // ── Group V — AI assets & graph tabs ────────────────────────────────────────
+
+  {
+    "name": "reload_ai_behaviours",
+    "group": "V — AI assets & graph tabs",
+    "summary": "⭐ CE-1321 — rebuild the C# behaviours (Hrot.AI.Behaviors) and HOT-SWAP them into the running editor: build, copy into the watched directory, wait for the swap; open graph documents are re-decompiled. The same path as the toolbar's Reload AI.",
+    "http": {
+      "method": "POST",
+      "path": "/ai/reload"
+    },
+    "params": [],
+    "returns": "{ build: ok|failed|not-found|not-wired|busy, exitCode, errors[], reloaded, note, added[], removed[], behaviours, documentsReconciled, registrarFailures[], seconds }",
+    "notes": [
+      "Running units KEEP their state: the registry merges in place and a running behaviour's slot memory is untouched; HSM instances are re-bound by slot. A changed params/state LAYOUT is yours to restart (assign it again).",
+      "A failed build is a 200 with build:failed and the compiler's error lines — the running assembly is unchanged.",
+      "Only Hrot.AI.Behaviors hot-reloads. C# anywhere else (engine, toolkits) needs a rebuild and a restart of the editor.",
+      "Cheaper first: a value (stage_entity_variable with owner) or a JSON asset (reload_ai_asset) needs no build at all — the skill's §J ladder."
+    ],
+    "example": {
+      "args": {},
+      "gist": "rebuild and hot-swap the C# behaviours after editing their source"
+    },
+    "hint": "No parameters. Edit the C# behaviour source first, then reload_ai_behaviours({}). Takes a build (tens of seconds). Example: reload_ai_behaviours({})",
+    "manualVerify": false
+  },
 
   {
     "name": "list_assets",

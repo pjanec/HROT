@@ -347,6 +347,15 @@ public sealed class McpClient : IDisposable
         return PostAsync($"/entities/{networkId}/variable", body, ct);
     }
 
+    /// <summary>⭐ CE-1320 — every behaviour slot a unit carries, named and decoded.</summary>
+    public Task<ApiResult> GetEntitySlotsAsync(long networkId, CancellationToken ct = default)
+        => GetAsync($"/entities/{networkId}/slots", ct);
+
+    /// <summary>⭐ CE-1320 — STAGES a write to any behaviour slot's field (<c>owner</c>, <c>part</c>, <c>role</c>, <c>path</c>,
+    /// <c>value</c>) — in place, no restart.</summary>
+    public Task<ApiResult> StageSlotFieldAsync(long networkId, JsonObject body, CancellationToken ct = default)
+        => PostAsync($"/entities/{networkId}/variable", body, ct);
+
     /// <summary>Resume the debugger after a hit — also what drains anything staged while it was stopped.</summary>
     public Task<ApiResult> ContinueFromBreakpointAsync(CancellationToken ct = default)
         => PostAsync("/breakpoints/continue", null, ct);
@@ -460,6 +469,10 @@ public sealed class McpClient : IDisposable
     /// ⭐ Slice 3 — recompile and commit into the running registry. ⚠ Compiles from the IN-MEMORY
     /// asset, ⛔ not from disk, so it reflects unsaved edits.
     /// </summary>
+    /// <summary>⭐ CE-1321 — rebuild the C# behaviours and hot-swap them (a build: tens of seconds).</summary>
+    public Task<ApiResult> ReloadAiBehavioursAsync(CancellationToken ct = default)
+        => PostAsync("/ai/reload", new System.Text.Json.Nodes.JsonObject(), ct);
+
     public Task<ApiResult> ReloadAssetAsync(string assetId, CancellationToken ct = default)
         => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/reload", null, ct);
 

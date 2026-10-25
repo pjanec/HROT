@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         }
 
         /// <summary>Does the condition (or any part of a compound) use <see cref="SearchOperator.Changed"/>?</summary>
-        internal static bool UsesChanged(SearchPredicateDto p) => p switch
+        public static bool UsesChanged(SearchPredicateDto p) => p switch
         {
             PropertyMatchDto m => m.Operator == SearchOperator.Changed,
             CompoundPredicateDto c => c.Conditions.Exists(UsesChanged),

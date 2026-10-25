@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-23
-build-state: DESIGN — the leans in §6 await the user's approval (CE-1270)
-current-answer: §1 the workflow · §2 INVENTORY · §3 claim table (the measured root causes) · §4 diagrams · §5 the views, one per question · §6 decisions with leans · §7 slices → tracker rows
+updated: 2026-10-25 (DBG-1 and DBG-5 reshaped by the user: the deeper views are Brain-tab EXPANDERS, the variables are the inspector's read-only dump — Brain View §12b, R-1037)
+build-state: BUILT S1 2026-10-25 (DBG-6, DBG-7, DBG-8 — as-built §8); the rest of §6 DESIGN
+current-answer: §8 AS-BUILT S1 ("stop me" works: DBG-8, DBG-7, DBG-6) · ⚠ DBG-1 / DBG-5 reshaped 2026-10-25 (Brain View §12b) · §1 the workflow · §2 INVENTORY · §3 claim table (the measured root causes) · §4 diagrams · §5 the views, one per question · §6 decisions with leans · §7 slices → tracker rows
 stale-below: nothing
 known-rot: none
 known-conflict: docs/blueprints/BTree_Editor_NodeEditor_Host_Design.md §12.7 and docs/blueprints/HSM_Editor_NodeEditor_Host_Design.md §13.5 design the Runtime pane as kernel internals (stack, registers, timers, RNG); DBG-4 below demotes those to a collapsed "Kernel" section — the host designs are not yet updated
@@ -42,9 +42,10 @@ bits ands pieaces bit it is unusable overall"* — after a first visual pass tha
 | ⑦ | **stop me when …** | journal break never fires (CE-1284), node breakpoints never break (CE-1291), the breakpoint list is unusable (CE-1285) | one breakpoint list (Q44), every kind fires |
 | ⑧ | **what is its SOP doing?** | the SOP's name only (CE-1278) | *Open SOP* — the SOP is a BTree: the same running graph, its firing row lit |
 
-⭐ **The organising rule (DBG-1): the Brain tab is the hub.** Every line there answers ①②⑥ in place and LINKS to the deeper view for
-③④⑤⑦⑧; every deeper view follows the same debugged unit (`UnitDebugController`, Brain View §10). ⛔ No new perspective: the
-complaint is that there are already too many places.
+⭐ **The organising rule (DBG-1, reshaped `2026-10-25`): the Brain tab is the hub, and its "deeper views" are its own EXPANDERS.**
+Everything about ONE unit — ①②③⑥, its settings, every running behaviour's params and variables, its blueprints — is a section of the tab
+([Brain View §12b](DESIGN_Entity_Brain_View.md), R-1037). Only what cannot be a section opens elsewhere, and all of it EXISTS: the running
+graph's canvas with its per-node Runtime (④⑤), and the cross-unit Breakpoints list and Watch window (⑦). ⛔ No new panel, view or perspective.
 
 ## 2. INVENTORY *(2026-10-23 — `scripts/cbm.sh search_graph` (Class) + grep + reads; `check_index_coverage` is not reachable through the CLI, so coverage is not proven)*
 
@@ -204,7 +205,7 @@ missing feature, each is a wire that was never connected or connects one phase t
 | **Brain tab** (hub) | Details on the map selection | Doing · Why · Recent changes · Squad · SOP · links | the map / ORBAT selection |
 | **running graph** | its BTree / HSM perspective | the graph, laid out, live overlay | *Open running behaviour*, *Open SOP*, a Recent-changes row |
 | **Runtime (node)** | Details beside the graph | the selected node's last result, time, run count, the values it read; *Kernel* collapsed | selecting a node |
-| **Variables** | Details beside the graph | the running behaviour's parameters + working state, live; edit while paused | the graph's Details; the Brain tab link |
+| ~~**Variables**~~ ⛔ *`2026-10-25`: not a view* | ⭐ the Brain tab's *Running behaviours* expanders (§12b BV-42…BV-44) | every running behaviour's parameters + variables — task, SOP, hosted children, blueprints — as the inspector's read-only dump | the Brain tab itself |
 | **Watch** | every perspective (shared content) | pinned variables | *Add to Watch* on any variable row |
 | **Breakpoints** | one list, every perspective | every kind: node, data, journal; hits | the toolbar's Debug menu; a node's gutter adds to it |
 
@@ -212,11 +213,11 @@ missing feature, each is a wire that was never connected or connects one phase t
 
 | id | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
-| **DBG-1** | where debugging starts | ⭐ the **Brain tab is the hub**; every line links deeper; every deeper view follows the debugged unit | a new Debug perspective — one more place, the opposite of the complaint |
+| **DBG-1** | where debugging starts | ⭐ ✅ *(user, `2026-10-25`)* the **Brain tab is the hub and its deeper views are its EXPANDERS** (Brain View §12b); only the existing graph canvas, the Breakpoints list and the Watch open elsewhere | a new Debug perspective — one more place · new panels per question — the user's ruling |
 | **DBG-2** | observing units | ⭐ keep *Debug this unit* (one unit, pins everything) **plus a global "Observe all brain units" toggle** (Debug menu + Brain tab) that arms the trace rings and utility logs on every brain unit while on — `AutoEnableAiTracing` made a live toggle, registered in the editor. ⭐ For a unit with no utility reasoner the tab says *"decided by its graph"* with the link. ⚠ Gizmo pinning on *Debug this unit*: measure what draws for a commander; drop the step if nothing does | per-unit only — the user's complaint · arm everything always — trace rings on every unit cost memory and tick time in every run |
 | **DBG-3** | C#-built graphs | ⭐ laid out when opened (BTree: the host's tidy tree; HSM: a layered layout that spreads by state count and transition crossings), **moves allowed as view state** (kept per session, never saved into the behaviour), the canvas hides Add / wiring / Delete when read-only and says why on an attempt; the Blackboard window honours read-only | refuse moves — boxes are not behaviour · save positions into an asset — there is no asset |
 | **DBG-4** | the Runtime tab | ⭐ **per selected node**: last result and when (trace ring), how often it ran in the ring, for a condition its last value, for an HSM state *active since / entered N times / last transition in and out with its guard*; nothing selected ⇒ the running path by NAME. The kernel internals move into a collapsed **Kernel** section | keep internals as the default — that is the complaint · remove them — the HSM / BTree developer still needs them |
-| **DBG-5** | parameters and working state | ⭐ a **Variables** view in the graph's Details, reading through ONE shared reader extracted from `RootParamsProjection` / `StatefulWorkingStateProjection` (the inspector then uses the same reader); each row *Add to Watch*; edits only while paused, through the staged write (Q32) | a live blackboard panel — retired (R-114) · a second decoder — two decoders drift (ruling 9) |
+| **DBG-5** | parameters and working state | ⭐ ✅ *(user, `2026-10-25`)* **the inspector's dump, read-only, one expander per running behaviour** (task, SOP, hosted children, blueprints) through ONE `BehaviourStateReader` the inspector also uses (Brain View §12b BV-42…BV-45); edits through *Add to Watch* / the Watch window | a Variables view beside the graph — a new view · the asset-variable table — cannot show a C# behaviour · sliders on variables — the user: *"let the variables as they are, no sliders there"* |
 | **DBG-6** | breakpoints | ⭐ **build Q44** (approved R-97): `DataBreakpointManagerPanel` becomes THE list, `AiBreakpointsWindow` hosts it; one row type with `Kind` (Node / Data / Journal) and a readable `Location`; plus the approved CE-1285 shape (resizable columns, row menu Delete / Enable / Edit / Go to, click selects the unit, double-click edits) | two lists — Q44-A ruled it |
 | **DBG-7** | node breakpoints that break | ⭐ a `NodeBreakpointEvaluator` after the tick: for the debugged unit (and every unit while *Observe all* is on) it reads the BTree / HSM trace ring; a node or state marked `IsBreakpoint` that ran this tick ⇒ a hit through the manager (same pause and rewind, BV-29) | breaking inside the kernel — a brain tick cannot be split (BV-31) and it is an ExtDeps change |
 | **DBG-8** | the journal break | ⭐ take the `Changed` baseline **before Input** — split it out of `DebugSnapshotProvider` into a `PreFrame` copy of the compared fields only (the rewind snapshot stays at `BeforeSync`); a rail that runs the real phase order | move the whole snapshot to PreFrame — the rewind would then replay Input and lose its events · compare against the previous tick's post-tick copy — no such copy exists except on a hit |
@@ -234,3 +235,35 @@ missing feature, each is a wire that was never connected or connects one phase t
 | **S4 — the hub** | CE-1280, CE-1281, CE-1282 (DBG-10), CE-1283 (DBG-2), CE-1278 (DBG-9) | |
 | **separately (bugs)** | CE-1271 (the ORBAT id), CE-1272 (to reproduce) | ✅ both fixed `2026-10-23` |
 | **the joint with the Timeline** *(coordinator handoff, R-4075)* | CE-1302 (R1) | ⭐ the Trace Timeline and the director's Timeline are ONE panel: the debugged unit is the focused unit (its swimlane = its trace lanes), the Brain lane (BV-30, CE-1259) is the index's Behaviour lane, a journal entry is a timeline event a click seeks to. ⭐ DBG-6's breakpoint list edits conditions in the SAME existing condition editor the timeline's anchors use (R-4072) — one editor for breakpoints, search and anchors |
+
+## 8. AS-BUILT — S1 "stop me" works *(CE-1284, CE-1291, CE-1285, `2026-10-25`)*
+
+```mermaid
+graph TD
+  PF["ChangeBaselineSystem (PreFrame, NEW)"] -->|"copies only the compared types"| CB[("change baseline")]
+  ING["BehaviorIngressSystem (Input)"] --> BJ[("BrainJournal")]
+  DSP["DebugSnapshotProvider (BeforeSync)"] --> RS[("rewind snapshot")]
+  DBS["DataBreakpointSystem (PostSimulation)"] -->|"changed: compares with"| CB
+  NBE["NodeBreakpointEvaluator (PostSimulation, NEW)"] -->|"reads the armed units' trace rings"| TR[("BTree trace rings")]
+  DOC["open BTree documents: nodes marked IsBreakpoint"] --> NBE
+  NBE -->|"one breakpoint per marked node, OnExternalHit"| M["DataBreakpointManager"]
+  DBS --> M
+  M --> P["DataBreakpointManagerPanel: THE one list"]
+  P --> GW["editor's Breakpoints window"]
+  P --> AW["AiBreakpointsWindow (each AI perspective)"]
+```
+
+*What the picture shows that prose hid:* the three dashed edges of §4's module diagram are now connected. The change baseline is taken
+BEFORE Input, the node flag is read, and the AI perspectives draw the same list as the editor. Nothing new pauses the world: every
+hit goes through the one manager.
+
+| piece | where | matches §6 / deviates |
+|---|---|---|
+| **DBG-8:** `ChangeBaselineSystem` copies, in PreFrame, only the component types the mounted "changed" conditions compare (`DataBreakpointManager.ChangedComponentMask`); the manager compares against it (`ChangeBaseline`); the rewind snapshot stays at BeforeSync; one `MirrorWorld` recipe builds both copies | `Hrot.Diagnostics.Breakpoints/ChangeBaselineSystem.cs`, `DataBreakpointManager.cs`, `EditorSubsystem.cs` | ✅ DBG-8 — rail `TheChangedConditionIsPerEntityTests.CE1284_AWriteInInput_*` runs the real phase order |
+| **DBG-7:** `NodeBreakpointEvaluator` (PostSimulation): one manager breakpoint per BTree node marked in an open document (tag `btree:<hash>:<visualId>`, removed when unmarked), and a hit when an armed unit's trace ring shows the node ran | `Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs` | ✅ DBG-7 for BTree — ⚠ **HSM states not yet** (the HSM trace ring needs the same reader); a unit must be traced (its Brain tab open, the debug switch, observe-all) |
+| **DBG-6:** `DataBreakpointManagerPanel` is THE list: Kind column (Node / Journal / Data, `BreakpointKind.Of`) and filter, resizable columns, a readable name (`BreakpointConditionSummarizer`, ⛔ no raw ±1.79E+308), the unit by network id, a row menu (Enable/Disable · Show condition · Select the unit · Delete), click selects the unit, double-click shows the condition; ⛔ the "- Remove" button gone; `AiBreakpointsWindow` hosts the same panel (⛔ the count banner and its "open the other window") | `Hrot.Presentation/Panels/Breakpoints/DataBreakpointManagerPanel.cs`, `Hrot.Diagnostics.Breakpoints/BreakpointKind.cs`, `BreakpointConditionSummarizer.cs`, `AiBreakpointsWindow.cs` | ✅ Q44-A, Q44-C, CE-1285 — ⚠ *Edit* shows the condition (read-only): editing it belongs to the ONE condition editor (R-4072, the timeline's), not yet hosted here · ⚠ Q44-B (`IsWatch` retired) not built |
+
+📷 `AiBreakpointsWindowDumpsItsCountsTests.CE1285_TheOneList_Draws`:
+
+![the one breakpoint list](assets/brain-view/d-breakpoints-one-list.png)
+

@@ -210,6 +210,21 @@ namespace Hrot.UI.Common.Audio
                 if (!loaded && s.Synth != SoundSynth.None)
                     _output.Define(type, SoundSynthesizer.Make(s.Synth), SoundSynthesizer.SampleRate);
             }
+            // ⭐ CE-2372 (AQ105 F) — the voice lines: a recording named in the line's TKB sound, else its words shouted in the speaker's voice
+            foreach (var (type, line) in VoiceTkbCatalog.All)
+            {
+                if (_output.Has(type) && (_output is not RecordingAudioOutput r || r.Track.HasClip(type))) continue;
+                var s = VoiceTkbCatalog.SoundOf(tkb, type);
+                if (s == null) continue;
+                bool loaded = false;
+                foreach (var file in s.Files)
+                {
+                    var path = System.IO.Path.Combine(AppContext.BaseDirectory, AssetFolder, file);
+                    if (_output.DefineFile(type, path)) { loaded = true; break; }
+                }
+                var voice = VoiceTkbCatalog.Voices[line.Voice];
+                if (!loaded) _output.Define(type, SoundSynthesizer.Voice(line.Text, voice.PitchHz, voice.Formant), SoundSynthesizer.SampleRate);
+            }
         }
 
         private void Keys()

@@ -1,15 +1,18 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
-build-state: BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
+build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
+current-answer: §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
-known-rot: none
+known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
 related-designs:
+  - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — S5a/S5b OWN the hosted child's site slot [brain][start][block] that §12b BV-44's reader walks
+  - docs/blueprints/Blueprint_Fixed_Collections_Design.md — OWNS the fixed-list shape and the F2 clamp §12b BV-45 applies to the dump
+  - docs/designs/utility-ai/Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md — the global / per-decision tuning console; §12b BV-41 owns PER-ENTITY component settings instead (its §4.3 PerEntity scope was never built)
   - docs/DESIGN_Director_Timeline_Editor.md — BV-30's Brain lane becomes the shared timeline's Behaviour lane (TE-21), read from the recorded journal by the index
   - docs/DESIGN_Behaviour_Debugging.md — OWNS the debugging WORKFLOW around this tab (CE-1270): the tab as the hub, the per-node Runtime view, the Variables view, one breakpoint list; it also records two measured faults in §10's build (the journal break's baseline is taken after Input — CE-1284; node breakpoints never break — CE-1291)
-  - docs/DESIGN_Sensors_And_Doctrine.md — §7.6 OWNS the AI section of Details (details.ai, EntityAiDetailsView): EDITING task / SOP / ROE; the Brain tab reads, links to it for edits
+  - docs/DESIGN_Sensors_And_Doctrine.md — §7.6 OWNS the task / SOP / ROE editing model and THE one params form; ⛔ its AI tab (details.ai) is RETIRED by §12a BV-38 (R-1036) — the editing moves into Brain tab expanders
   - docs/DESIGN_Ai_Action_Status_Gizmo.md — OWNS ActionStatus (R-241), the per-channel "right now"; the journal copies its always-on, executor-written, recorded shape
   - docs/DESIGN_Decision_Layer.md — §4 OWNS the entry gate (origin rank, reaction urgency, pause / resume) the journal's task entries are written at
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7.8.1 OWNS SquadDrillTrace (16 phase changes with their cause), the squad precedent; the journal adds the play entries beside it, it stays for GET /entities/{id}/squad
@@ -543,4 +546,848 @@ second debugger.
 | exact `Changed` · regions | old always-true answer ✅ red · inverted region compare ✅ red |
 
 ⭐ Suites after the build (2026-10-23): FDP toolkits 4068/0 · Breakpoints 165/0 · AI editor views 2135/0 · Editor 547/0 · SimHost 1851 + the 12 terrain / navmesh tests green after `dotnet restore` (the stale-restore trap: `BepuPhysics.dll` was missing from that test `bin`) · Presentation 824/2 — the two pre-existing reds `FilmDirectorTests.CE4038` and `EntityTypeCatalogTests.CE2138`, red on backend's head too.
+
+## 12. RECORDED — the user's next ideas for the tab *(`2026-10-24`, ui — build-state: DESIGN, not yet designed in UML; leans for the user)*
+
+🔒 User, `2026-10-24`: *"If there is anything on the character that can be runtime controlled using some settings for its behavior, I want to
+be able to set it, like using sliders, for example, the aggressivity and stuff like that. It should be on the brain tab. And the stuff on the
+brain tab, it should be hidden inside expanders."* · *"It was not just about character sliders, the sliders for any brain-equipped entity, of course."* · *"for the commander brain, I want to see his commander picture. For the squad, I would
+like to see the merged target list or threat list … As well the reports incoming from their subordinate units. Next to those lists, probably
+in the header of such a list, there should be a checkbox that turns on or off the gizmo which is showing where those targets are."*
+
+**What exists today (measured, `scripts/cbm.sh search_graph` + grep; coverage not provable through the CLI):**
+
+| need | exists | where |
+|---|---|---|
+| the tab's sections | flat — `Header()` + `Separator`, no expanders | `Hrot.Editor.AiShared/Shell/EntityBrainView.cs:395` |
+| character settings | `CombatTemperament` {RiskAcceptance (bravery — the "aggressivity"), Obedience, Nerve, Resolve}, authored over type values by `Set` bits, read through `TemperamentOf`; `CombatProficiency` (what he CAN do: Untrained … Elite), read through `ProficiencyOf`; ROE / SOP / task (edited in the AI tab) | `Behavior/Components/CombatTemperament.cs`, `CombatProficiency.cs`; [Temperament & Stress](DESIGN_Temperament_And_Stress.md); [Sensors & Doctrine §7.6](DESIGN_Sensors_And_Doctrine.md) |
+| behaviour params | every behaviour declares a params type; THE one form edits it (StructEdit), used by the AI tab and the mission panel; `[EditRange]` exists in StructEdit (`EditAttributes.cs:4`) | `Hrot.Presentation/Behavior/BehaviorParamsForm.cs:11` |
+| a live write to the owner | `POST /entities/{id}/attribute` — *"locally where this node owns it, by request to the owner where it does not"* | `DebugApiRouteDocs.cs:2608` |
+| the commander's picture | `CommandPicture` {Elements, Subordinates (last report, sitrep, seq), Requests} on a receiving commander; drawn by `CommandPictureGizmo` (family `SquadAssignment`) | `Squad/Command/CommandComponents.cs:107`; `CommandPictureGizmo.cs:53` |
+| the squad's merged contacts | `SquadContactPool` (16 merged contacts, threat score, who reported) on the squad; drawn by `SquadGizmo` with the member lines | `Squad/State/SquadCognitiveState.cs:104-170`; `SquadGizmo.cs:16` |
+| the reports | the Reports window + `GET/POST /entities/{id}/reports` | [Command Display](DESIGN_Command_Display.md) |
+
+| # | idea | ⭐ lean | open point |
+|---|---|---|---|
+| **BV-34** ⛔ *open state revised by §12f BV-64* | every section of the tab in an EXPANDER | `ImGui.CollapsingHeader` per section; ~~"Right now" and "Doing" open by default~~ ⇒ ImGui's own remembered state, keyed per SECTION (not per unit), nothing forced | — |
+| **BV-35** ⛔ *reshaped by §12b BV-41…BV-43* | a **Settings** expander with SLIDERS on **every brain-equipped entity** (soldier, civilian, vehicle, aircraft, commander) — ⭐ built GENERICALLY, never a hand list per type: ① his TRAIT components, whichever he has (`CombatTemperament` — bravery shown as "Aggressiveness", obedience, nerve, resolve; `CombatProficiency`; a civilian's temperament), ② the **running behaviour's params** through THE one params form (`BehaviorParamsForm`, CE-3043 — the AI tab's own), ③ his blueprint variables (the staged write `POST /entities/{id}/variable` already does); every number with an `[EditRange]` draws as a slider (StructEdit); each shows the type's value and a reset; writes are LOCAL to the node that runs his brain — ⛔ nothing travels over the network (§12a BV-39); ⛔ disabled in the replay browser | ⚠ **supersedes BV-1's "read-only"** for this expander; ✅ a trait edit is a runtime component change and is SAVED with the scenario like any other (user, 2026-10-24); a changed running-behaviour param re-assigns that task with the new params, as the AI tab's edit does — lean: yes; fields with no `[EditRange]` get one added where the design gives a range (0–1 traits) |
+| **BV-36** | the COMMANDER's lists | on a commander: three expanders — **Picture** (`CommandPicture`'s elements and requests), **Squad contacts** (`SquadContactPool`: who, threat, how old, how many members saw it), **Reports** (the subordinates' last report and sitrep, newest first — the Reports window's rows for this commander) | the brain tab runs on every host; the picture is replicated, the pool is brain-local — show "not on this node" where absent |
+| **BV-37** | a CHECKBOX in each list's header that draws its gizmo | ticked = that gizmo draws for THIS commander, whatever is selected (it pins the unit for that family — the pinning `DESIGN_Editor_Entity_Selection_Source.md` §3.2 already owns), and turns the **Squad & command** layer on if it is off; ✅ **a LINE from the commander to every target the list holds a position for** (user, 2026-10-24) — so it is clear whose targets they are | the squad contacts are drawn inside `SquadGizmo` with the member lines — lean: split the contacts into their own family so the checkbox shows only them |
+
+### 12a. ✅ DECIDED `2026-10-24` — the Brain tab REPLACES the AI tab; it is full only where the brain runs *(`R-1036`)*
+
+🔒 User, `2026-10-24`, verbatim: *"The AI tab itself is quite unclear. The brain replaces it, so whatever is related to the AI should go to the
+brain under separate expanders, no matter what, if it is read-only or editable. If it relates to brain, it needs to be on the brain tab, and
+we can get rid of the AI tab. The Brain tab can be shown fully all only for the host where the brain is running. The settings do not need to
+be replicated, do not need to travel over network. Because the sliders are changing the runtime state of the entity, likely as a component,
+and that component is savable to the scenario, then it's natural that when we save the scenario, the new settings will be saved to the
+scenario."* · *"regarding the target lists, if they keep the position of the target, there should be also lines leading from the commander
+entity to the targets. So it is clear for who those target gizmos are displayed."*
+
+| # | decided | supersedes |
+|---|---|---|
+| **BV-38** | ⭐ **everything about a unit's AI lives on the Brain tab**, each part in its own EXPANDER, read-only or editable alike: the AI tab's task / SOP / ROE editing and its instance-blueprint params rows ([Sensors & Doctrine §7.6, §7.6a](DESIGN_Sensors_And_Doctrine.md)) move in as expanders, THE one params form unchanged; ⛔ **the AI tab (`details.ai`, `EntityAiDetailsView`) is retired** once they have moved | ⛔ BV-1 *"a new read-only Brain tab … the AI tab stays the editor"* |
+| **BV-39** | ⭐ **the tab is FULL only on the node that runs the unit's brain** (the editor in-process, a CGF node); elsewhere it shows one line saying where the brain runs. Edits are LOCAL there — ⛔ no replication, no owner request | BV-35's first wording (*"writes go to the OWNER … works on any node"*) |
+| **BV-40** | ✅ a setting changed live is a runtime COMPONENT change; saving the scenario saves it like any other component | — |
+| **BV-37+** | ✅ each target-list gizmo draws a LINE from the commander to every target it has a position for | — |
+
+
+### 12b. ✅ DECIDED `2026-10-25` — the tab's LAYOUT: grouped settings, every running behaviour alike, blueprints managed here *(`R-1037`, build-state: DESIGN — UML below, ready to slice)*
+
+🔒 User, `2026-10-25`, verbatim: *"the user who wants to see and tune the behavior doesn't care what component the settings lives in.
+He just wants some tunable UI. So we can technically do it per component, but we need some way of aggregation to the user interface."* ·
+*"the brain view is mostly the diagnostic view. So we might reuse the dump which is used by entity inspector … The goal is to be able to see
+the variables of the behavior, no matter whether it is C# hard-coded or JSON asset defined."* · *"we need to show the currently running
+behaviors and their variables and their parameters for every behavior which is running in parallel. And there are, of course, blueprints
+that can be running on the entity. I think they should be listed on their own expander … treated as such from the user point of view."* ·
+*"The brain view shoudl also allow/edit/remote new blueprint instances to be added to an antity - i guess there is a separate panel for
+that now - should become ex expander on the brain view i guess"* · on the variables: *"let the variables as they are, no sliders there"* (edits go through the Watch window).
+
+⛔ **Supersedes:** BV-35's three-part Settings expander (its ② params → the task / SOP / blueprint expander's params form, ③ blueprint
+variables → that expander's read-only dump) · `DESIGN_Behaviour_Debugging.md` DBG-1 (deeper VIEWS → deeper EXPANDERS) and DBG-5 (a new
+Variables view → the dump below) · the Entity Blueprints Details view (`details.entityblueprints`, CE-302) as a separate home.
+
+**INVENTORY / measurements** *(`2026-10-25`, grep + reads; the codebase-memory CLI was indexing a fresh VM; ⚠ coverage not provable)*:
+
+| the layout rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a trait slider must set the authored bit, not just the value | ✅ `CombatTemperament.Set` — *"A clear bit ⇒ the type's value"* (`Fdp.Toolkits/Behavior/Components/CombatTemperament.cs:24-26`); reset = clear the bit | ✅ Temperament & Stress, CE-2269 TS-3 |
+| the existing tuning console does not fit | ⛔ `Hrot.Diagnostics.Tuning`: global / per-decision values, NO production caller (grep), and it sits ABOVE `Fdp.Toolkits` so a component cannot carry `[Tunable]` | its §4.3 `PerEntity` scope was never built |
+| the inspector's dump renders a behaviour's params + working state as C# values with the custom renderers | ✅ `BlueprintBlackboardRendererBase.cs:116-119` → `RootParamsProjection` / `StatefulWorkingStateProjection` → `ImGuiPropertyTree.Render` → `ImGuiRendererRegistry` (`ImGuiPropertyTree.cs:206`; `EntityRenderer` = `[index, vN]`) | ✅ Occurrence Storage §17 |
+| it shows only the TASK slot | ⛔ `StatefulWorkingStateProjection.cs:58` reads `BehaviorState.ActiveBehaviorHash` only; the SOP slot (`SopState.SopHash`) runs beside it and storage keys by behaviour hash (`BrainSlotScope`) ⇒ the SOP is readable by its hash | ✅ Decision Layer §4, Sensors & Doctrine §6 |
+| hosted children (an HSM in a BTree node, a subtree, a blueprint child) have their own state | ✅ a site slot `[brain][start][block]` laid out from the CHILD's definition, keyed by the nested occurrence key | ✅ `DESIGN_Unified_Behaviour_Run.md` S5a/S5b |
+| attached blueprints' variables are NOT in the dump | ⛔ the inspector lists name / version / size only (`BlueprintBlackboardRendererBase.cs:84-104`); the editor's decoder is `BlueprintDebugSession.ReadInstanceState` (`Hrot.Blueprints.Editor`, unreachable from the Brain tab's assembly) | the types exist: `BlueprintDefinition.StateClrType` / `ParamsClrType` (`Fdp.Toolkits/Blueprints/BlueprintDefinition.cs:86-91`); the payload offset owner is `BlueprintBlackboardPartitions.TryGetSlotOffset`, which the debugger's own owner delegates to (`BlueprintDebugSession.cs:1848`) |
+| a fixed list in the dump shows its whole buffer | ⚠ `ImGuiPropertyTree.cs:171` expands an `[InlineArray(N)]` to N elements, ignoring `Count` | ✅ `Blueprint_Fixed_Collections_Design.md` — F2 clamp `min(max(Count,0),N)`; `Fdp.Core.FixedListShape` is the one shape test |
+| blueprint add / remove already has a staged model | ✅ `EntityBlueprintsEditModel` (StageAdd / StageRemove / BuildCommitPlan, paused vs running) + `EntityBlueprintsPanel` ("+ Add Blueprint…", Apply, Revert All) | ✅ `DESIGN_Editor_Entity_Selection_Source.md` §5 (CE-302) |
+| blueprint params already have an editor | ✅ `EntityAiEditModel.InstanceRows` / `ApplyInstanceParams` + THE one params form | ✅ Sensors & Doctrine §7.6a (CE-2086) |
+| the Brain tab is shown in PLANNING | ✅ predicate = one entity with `BehaviorState` (`EntityBrainView.cs:421`); `BehaviorTkbTranslator.cs:99` attaches it at spawn for every type with a behaviour profile, planning included | — |
+| ⚠ but Entity Blueprints applies to ANY one entity | ⛔ `EntityBlueprintsDetailsView.Applies = ExactlyOneEntity` (`:120`) ⇒ an entity with NO brain can carry blueprints today and would lose its only place | ⛔ searched `docs/`, no ruling on brainless blueprint hosts |
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityBrainView {
+    <<EXISTS>>
+    grows expanders per §12b layout
+  }
+  class BrainSettingsSection {
+    <<NEW>>
+    groups → sliders
+  }
+  class IBrainSettingProvider {
+    <<NEW>>
+    interface
+    +Group string
+    +AppliesTo(view, e) bool
+    +Settings(view, e) BrainSetting list
+    +Write(e, key, value)
+    +Reset(e, key)
+  }
+  class BrainSetting {
+    <<NEW>>
+    record Key · Label · Value · TypeValue · Min · Max · IsAuthored
+  }
+  class CombatTemperamentSettings {
+    <<NEW>>
+    Group Temperament, Write sets the Set bit
+  }
+  class CombatProficiencySettings {
+    <<NEW>>
+    Group Combat skill
+  }
+  class BrainSettingRegistry {
+    <<NEW>>
+    providers; For(view, e) groups merged by Group
+  }
+  class OccurrenceSlotCatalog {
+    <<EXISTS>>
+    grows blueprint variables and a boxed value
+    +Read(world, e, registry) slot views
+  }
+  class RunningBehaviour {
+    <<NEW>>
+    record Kind(Task·Sop·Hosted·Blueprint) · Name · Depth · Params object? · Variables object?
+  }
+  class RootParamsProjection {
+    <<EXISTS>>
+    routes through the reader
+  }
+  class StatefulWorkingStateProjection {
+    <<EXISTS>>
+    routes through the reader
+  }
+  class ImGuiPropertyTree {
+    <<EXISTS>>
+    grows: FixedListShape clamp
+  }
+  class ImGuiRendererRegistry {
+    <<EXISTS>>
+  }
+  class BrainSlotScope {
+    <<EXISTS>>
+  }
+  class HostedChildren {
+    <<EXISTS>>
+  }
+  class BlueprintBlackboardPartitions {
+    <<EXISTS>>
+    TryGetSlotOffset
+  }
+  class BlueprintDefinition {
+    <<EXISTS>>
+    StateClrType · ParamsClrType
+  }
+  class EntityBlueprintsEditModel {
+    <<EXISTS>>
+    unchanged
+  }
+  class EntityBlueprintsPanel {
+    <<EXISTS>>
+    drawn inside the tab
+  }
+  class EntityAiEditModel {
+    <<EXISTS>>
+    InstanceRows · ApplyInstanceParams
+  }
+  class BehaviorParamsForm {
+    <<EXISTS>>
+    THE one params form
+  }
+  class EntityBlueprintsDetailsView {
+    <<RETIRED>>
+  }
+  EntityBrainView --> BrainSettingsSection
+  BrainSettingsSection --> BrainSettingRegistry
+  BrainSettingRegistry o-- "*" IBrainSettingProvider
+  IBrainSettingProvider <|.. CombatTemperamentSettings
+  IBrainSettingProvider <|.. CombatProficiencySettings
+  IBrainSettingProvider ..> BrainSetting
+  EntityBrainView --> OccurrenceSlotCatalog
+  OccurrenceSlotCatalog ..> RunningBehaviour
+  OccurrenceSlotCatalog --> BrainSlotScope : SOP by hash
+  OccurrenceSlotCatalog --> HostedChildren : nested, recursive
+  OccurrenceSlotCatalog --> BlueprintBlackboardPartitions
+  OccurrenceSlotCatalog --> BlueprintDefinition
+  RootParamsProjection --> OccurrenceSlotCatalog
+  StatefulWorkingStateProjection --> OccurrenceSlotCatalog
+  EntityBrainView --> ImGuiPropertyTree : read-only dump
+  ImGuiPropertyTree --> ImGuiRendererRegistry
+  EntityBrainView --> EntityBlueprintsPanel
+  EntityBlueprintsPanel --> EntityBlueprintsEditModel
+  EntityBrainView --> BehaviorParamsForm : task · SOP · blueprint params
+  BehaviorParamsForm ..> EntityAiEditModel
+```
+*What the picture shows that prose hid:* ONE new reader feeds BOTH the inspector and the tab (the two projections route through it), so
+the SOP, hosted children and blueprints appear in both at once; the slider half is a registry of providers whose GROUP, not component,
+is what the user sees; and blueprint management adds no class — the existing panel and model are drawn somewhere else.
+
+```mermaid
+sequenceDiagram
+  participant T as EntityBrainView (Draw)
+  participant S as BrainSettingRegistry
+  participant P as provider (e.g. CombatTemperamentSettings)
+  participant R as OccurrenceSlotCatalog
+  participant D as ImGuiPropertyTree
+  T->>S: For(view, unit)
+  S->>P: AppliesTo / Settings
+  P-->>S: settings, tagged with Group
+  S-->>T: groups (merged by Group)
+  T->>P: slider moved ⇒ Write(unit, key, v)  [local, sets the Set bit]
+  T->>R: Running(session, unit)
+  R->>R: task (BehaviorState) · SOP (SopState via BrainSlotScope) · hosted children (recursive) · each attached blueprint
+  R-->>T: RunningBehaviour list
+  loop each running behaviour = one expander
+    T->>D: Render(Params)  [read-only]
+    T->>D: Render(Variables)  [read-only, FixedListShape clamp]
+  end
+  T->>T: Blueprints foot: EntityBlueprintsPanel (+ Add · Remove · Apply · Revert)
+```
+*What the picture shows that prose hid:* the slider is the ONLY write the tab does itself; params go through the existing form and
+blueprint changes through the existing staged model, so the tab owns no new write path.
+
+```mermaid
+graph TD
+  REG["Details view registry"] -->|"registers details.brain"| BV["EntityBrainView"]
+  REG -.->|"details.entityblueprints — RETIRED"| EBV["EntityBlueprintsDetailsView"]
+  REG -.->|"details.ai — RETIRED (R-1036)"| AI["EntityAiDetailsView"]
+  INS["ECS inspector: BlueprintBlackboardRendererBase"] --> RDR["OccurrenceSlotCatalog"]
+  BV --> RDR
+  BV --> SET["BrainSettingRegistry"]
+  BOOT["editor / CGF bootstrap (where the brain runs, BV-39)"] -->|"registers providers"| SET
+  classDef dead stroke-dasharray: 5 5,stroke:#c33
+  class EBV,AI dead
+```
+*What the picture shows that prose hid:* the tab and the inspector share one reader each frame; the two retired views are dashed — they
+draw nothing once their content lives here.
+
+| # | decided | ⭐ lean / rule |
+|---|---|---|
+| **BV-41** | **Settings = GROUPS, never components** | every component that steers a behaviour gets an `IBrainSettingProvider`; each declares a user-facing **Group** (*Temperament*, *Combat skill*, later e.g. *Weapon weights*); two providers may share a group and merge into it; the expander draws one sub-header per group, a slider per setting with the type's value and a reset. ⛔ Rejected: reflection over `[EditRange]` fields (misses the authored bit — the slider moves, the unit does not change) · the tuning registry (global / per-decision, unwired, wrong layer) |
+| **BV-42** | **every running behaviour alike** | a *Running behaviours* section: one expander per behaviour — the task, the SOP, each attached blueprint — nested runs (HSM regions, subtrees, a hosted child of any tier) as sub-headers of their owner; each shows **Parameters** and **Variables** |
+| **BV-43** | **the variables are the inspector's DUMP, read-only** | `ImGuiPropertyTree` with the registered renderers; no sliders, no inline edits — *Add to Watch* / the Watch window edit them. ⛔ Rejected: the asset-variable table (`VariableTableControl`) — it cannot show a C# behaviour (CE-1286) |
+| **BV-44** ⚠ *corrected `2026-10-25` — the reader EXISTS* | **ONE reader, shared with the inspector** | ⛔ no new `BehaviourStateReader`: 📐 **`OccurrenceSlotCatalog.Read(world, unit, registry)`** (`Fdp.Toolkits/Behavior/OccurrenceSlotCatalog.cs`, CE-2288, R-2050) already lists and DECODES every occurrence slot a unit carries — the task's, the SOP's, a paused task's, hosted children's, working state — and serves `GET /entities/{id}/slots`. ⭐ The Brain tab and the inspector's two projections route through IT; it grows what it lacks: attached blueprints' variables (`TryGetSlotOffset` + `StateClrType` / `ParamsClrType`) and the boxed CLR value for `ImGuiPropertyTree`. ⛔ Rejected: a second decoder (two drift — and one was about to be built beside an existing one) |
+| **BV-45** | **a fixed list shows its Count** | `ImGuiPropertyTree`'s `[InlineArray]` arm asks `FixedListShape`; a list draws `Count` items (clamped, F2), a plain inline array keeps drawing N |
+| **BV-46** | **blueprints are managed on the tab** | the task / SOP / blueprint expanders carry the params form (BV-38); at the section's foot **+ Add blueprint…**, a **Remove** per blueprint expander, **Apply / Revert all** — `EntityBlueprintsPanel` + `EntityBlueprintsEditModel` unchanged, drawn here; ⛔ `details.entityblueprints` is RETIRED once it moves; disabled in the replay browser |
+| **BV-47** | ✅ *accepted by the user `2026-10-25`* — **an entity with no brain** | the tab applies to EVERY single entity; with no `BehaviorState` it shows only the Running-behaviours section (its blueprints, + Add). ⛔ Rejected: keep the Entity Blueprints view for brainless entities (two places again) · leave them without a home (the measured regression) |
+
+### 12c. ✅ APPROVED `2026-10-25` — viewing IS debugging; the map gizmos one family at a time *(`R-1038`; build-state: DESIGN)*
+
+🔒 User, `2026-10-25`: *"approved. just brain debug gizmos, not planned route or phase lines."* ⇒ ⛔ the **Path** family (`AuthoredRouteGizmo`, `MissionPresentationGizmo`, `PlannedPathGizmo` — the route and mission graphics) is NOT on the Brain tab; *Show on map* lists Perception · Contacts · EQS · Utility · Squad · Actions (+ BV-50's two).
+
+🔒 User, `2026-10-25`, verbatim: *"that checkbox debug entity should not turn on every gizmo at once. It should just turn on some extended
+tracing or something, but not all gizmos; turning all gizmos at once would be overwhelming and would not help. That needs to be more
+granular."* · *"when I am watching an entity and its brain view is being shown, this is the place, this is the condition that should turn
+this full debug on"* · *"the brain view tab should also allow turning on off the tactical map symbol gizmos that are related to the brain"*
+· the commander's picture, the squad's merged target list, and *"a way how to show the targets in 3D as lines using gizmos, lines leading
+from the commaner entity"* (already BV-36, BV-37, BV-37+).
+
+| the leans rest on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| *Debug this unit* does three things at once | ✅ `UnitDebugController.Apply`: `AiTraceActions.Set(EnableTraceBuffer)` + **`GizmoPins.SetAll`** (`Hrot.Common/Diagnostics/Gizmos/UnitDebugController.cs:63-66`); the graph overlay follows `Debugged` (`Follow`, `:37`) | BV-26 (§10) — the "pins everything" half is what the user rejects |
+| tracing alone fills what the tab shows | ✅ the trace flag makes `TraceBufferLifecycleSystem` attach `UtilityDebugFlags` (`:105`) ⇒ the utility log the *Why* section reads (`UtilityScorer.cs:253-257`), plus the BTree / HSM rings | ✅ Utility AI §9 (*"filled only while observed"*) |
+| pins already exist per family | ✅ `GizmoPins.Set(view, unit, family, on)` (`GizmoPins.cs:49`); 7 families: Path · Perception · Contacts · EQS · Utility · Squad · Actions (`GizmoFamilies.All`); every family's scope defaults to selected-or-pinned (CE-1065) | ✅ `DESIGN_Terrain_Combat_Tuning.md` §5b/§5d |
+| the commander's three gizmos are NOT separable today | ⛔ the command picture, its engagement areas AND the squad's contacts all draw under ONE family, `SquadAssignment` (`CommandPictureGizmo.cs:28,53,132`; `SquadGizmo.cs:23`) ⇒ one checkbox would show all of them | BV-37's open point already leaned "split the contacts into their own family" |
+| the flag word has room | ✅ `AiOverlayFlags : ushort`, bits 0…6 used (`AiOverlayFlags.cs:12-22`) | — |
+
+```mermaid
+sequenceDiagram
+  participant T as EntityBrainView (each draw, docked or pinned)
+  participant O as BrainObservation (was UnitDebugController)
+  participant W as world (the brain's node)
+  T->>O: Viewed(unit)  [every frame the tab draws this unit]
+  O->>W: first view ⇒ AiTraceActions.Set(EnableTraceBuffer, on)
+  Note over O: refcount per unit — a docked tab and two pinned copies arm three units
+  T->>W: a "Show on map" checkbox ⇒ GizmoPins.Set(unit, family, on)  [one family]
+  T->>O: "Open running behaviour" ⇒ OverlayPin = unit
+  O->>O: a unit not drawn for ~1 s (selection moved, pin closed) ⇒ release
+  O->>W: last release ⇒ trace off, its pins stay as the user left them
+```
+*What the picture shows that prose hid:* the tab's DRAW is the arming signal, so nothing has to be remembered; tracing and gizmos are two
+separate switches with two separate owners — the observation owns tracing, the user owns each family.
+
+```mermaid
+classDiagram
+  class BrainObservation {
+    <<RENAMED from UnitDebugController>>
+    +Viewed(world, unit)
+    +Tick(world) releases units not drawn lately
+    +OverlayPin Entity?
+    +ArmJournalBreak
+    +OpenGraph
+  }
+  class GizmoPins {
+    <<EXISTS>>
+    +Set(view, unit, family, on)
+  }
+  class AiTraceActions {
+    <<EXISTS>>
+    +Set(view, unit, EnableTraceBuffer, on)
+  }
+  class AiOverlayFlags {
+    <<EXISTS, grows>>
+    +CommandPicture NEW
+    +SquadContacts NEW
+  }
+  BrainObservation --> AiTraceActions : tracing only
+  EntityBrainView --> BrainObservation : Viewed each draw
+  EntityBrainView --> GizmoPins : one family per checkbox
+  GizmoPins ..> AiOverlayFlags
+```
+*What the picture shows that prose hid:* the controller loses `GizmoPins.SetAll` entirely — no path left turns every family on.
+
+| # | idea | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **BV-48** | **viewing a unit's Brain tab IS debugging it** | every unit a Brain tab is drawing (docked on the selection, or a pinned copy) has its traces armed — BTree / HSM rings and the utility log — refcounted, released ~1 s after no tab draws it; ⛔ the *Debug this unit* checkbox is REMOVED, and the *"kept only while … (Debug this unit)"* hint goes with it (the tab says *"recording since this tab opened"* until the first entry) | keep the checkbox — the user's ruling · arm on SELECTION — a selected unit with no tab open would pay for rings nobody reads |
+| **BV-49** | **never every gizmo at once** | a **Show on map** expander: one checkbox per family the unit has data for — Path · Perception · Contacts · EQS · Utility · Squad · Actions — each `GizmoPins.Set` for that one family; nothing is pinned by opening the tab; ⛔ `GizmoPins.SetAll` loses its caller in the controller | pin all on view — the overwhelm the user named · keep a "pin all" button — the same overwhelm one click away |
+| **BV-50** | **the commander's lists, separable** | two NEW families, `CommandPicture` (the picture + its engagement areas) and `SquadContacts` (the merged contact pool), split out of `SquadAssignment`; each list's header checkbox (BV-37) is that family's pin; each target with a position draws a LINE from the commander (BV-37+); `Squad` keeps the member / assignment lines | one family for all three — one checkbox would draw everything (measured) |
+| ~~**BV-51**~~ ⛔ *superseded by §12d BV-55 (the document carries its own pin)* | **which unit the graph overlay follows** | *Open running behaviour* pins the overlay to the unit it was pressed on (BV-22's pin, without the checkbox); otherwise the overlay follows the selection | follow every viewed unit — one canvas cannot show two units |
+| ✅ **closed** | *"tactical map symbol gizmos related to the brain"* | the brain DEBUG families only — ⛔ not the route / phase lines (the user, above) | — |
+
+### 12d. RECORDED `2026-10-25` — target lines, the report / order flow, and which unit a graph follows *(build-state: DESIGN — leans for the user)*
+
+🔒 User, `2026-10-25`, verbatim: *"lines to targets should be have chanckbox to turn on/off as other gizmos (not sure if targets are already
+included in the exiting gizmos for EQS/sensors - we should not duplicate, but unify)"* · *"How could we show the report/order flow, i guess
+commander entity should have an expander for incoming reports and likely also for orders sent to subordinates."* · *"live graph (decompiled
+from csharp or from asset) should follow the entity shown in the brain view panel … For brain view pinned to concrete entity, if we open the
+graph for one of the behaviors, the graph should be also pinned to the entity. The graph needs to indicate the pinning somehow - for what
+entity network id it is shown - maybe in its tab header?"*
+
+| the leans rest on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a unit's lines to ITS targets already exist | ✅ `LineOfSightGizmo` (family **Contacts** = `TargetMemory`): a gradient line from the unit to each remembered contact, dashed when only heard, a sphere at the target (`Hrot.Common/Diagnostics/Gizmos/LineOfSightGizmo.cs:7-44`) | ✅ Terrain Combat Tuning §5b/§5d |
+| the squad's merged contacts have NO lines | ⛔ `SquadGizmo` draws the pool as spheres only (`SquadGizmo.cs:62-64`); its lines are leader → members (`:57`) | BV-37+ asks for commander → target lines |
+| EQS and Perception do not draw targets | ✅ EQS = scored candidate points (`EqsSensorGizmo`); Perception = cones (`VisibilityConeGizmo`) | — |
+| incoming reports are recorded | ✅ `CommandPicture.Subordinates` (each subordinate's last report + sitrep + seq, `CommandComponents.cs:107`); `SquadReportLog` — the last 256 reports a brain node's inbox saw (`Squad/Command/ReportInjection.cs:30`); the Reports window | ✅ `DESIGN_Command_Display.md` |
+| orders sent are recorded | ✅ `SubordinateOrders` — each member's latest order from this commander's run, brain-local (`Behavior/Components/SubordinateOrders.cs:19`); the journal's `OrderIssued` entries (A = member, B = behaviour — `BrainJournal.cs:39-40`) | ✅ `DESIGN_Orders_Params_Entity_Classes.md` §7 |
+| the graph overlay follows ONE global unit today | ⛔ one pump per graph perspective; `SelectedEntity = UnitDebugController.Follow(..) ?? selection` (`EditorSubsystem.cs:4501`); the document knows no entity | BV-22 |
+| one document per ASSET | ⛔ `AiDocumentManager.Open` re-focuses any open document with the same `AssetId` (`AiDocumentManager.cs:122-127`) ⇒ two pinned Brain views opening the same behaviour would share one document | — |
+
+| # | idea | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **BV-52** ✅ *approved `2026-10-25`* | **target lines, ONE drawing** | the squad pool's contacts and the command picture's element positions draw with the SAME contact line `LineOfSightGizmo` draws (one helper, the commander as the line's origin) under BV-50's `SquadContacts` / `CommandPicture` families — so *Contacts* (his own memory), *Squad contacts* and *Command picture* are three checkboxes over one look | a second line style per list — the duplication the user ruled out · fold the pool into *Contacts* — the commander's own memory and his squad's merged pool are different questions |
+| ~~**BV-53**~~ ⛔ *reshaped by BV-57 (history)* | **Reports (incoming)** — a commander's expander | one row per subordinate from `CommandPicture.Subordinates` … | — |
+| ~~**BV-54**~~ ⛔ *reshaped by BV-58 (history)* | **Orders (outgoing)** — a commander's expander | one row per member from `SubordinateOrders` … | — |
+| **BV-55** ✅ *approved `2026-10-25` (R-1039)* | **a graph follows the Brain tab it was opened from** | *Open running behaviour* from a DOCKED tab ⇒ the graph follows the selection (what that tab shows); from a PINNED tab ⇒ the graph document is PINNED to that entity. `AiDocument` gains `PinnedEntity`; the pump reads the ACTIVE document's pin, else the selection; `Open` dedupes on (asset, pin), so two pinned tabs on one behaviour get two documents; the tab header reads **`PlatoonDefend · #1:2975`** when pinned and the plain name otherwise. ⛔ `UnitDebugController.Follow` / BV-51's overlay pin retire — the document carries it | a global debug pin — what exists, one unit for every graph · follow the selection always — breaks the pinned case the user named |
+
+🔒 User, `2026-10-25`, verbatim: *"what are "squad contacts", why "squad", doesnt this work on any level of unit hierarchy? is squad
+exceptional?"* · *"shouldn't orders and reports have some history? one row does not seem enough to understand why something is happening."*
+· *"BV55 approved."*
+
+| the answer rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| "squad" is a NAME, not a level | ✅ every entity with a `UnitRoster` is a commander and gets `SquadCognitiveState` (`Squad/State/SquadStateProvisioning.cs`, *"an entity that owns a UnitRoster is a commander, and a commander has squad state"*) — a platoon or company HQ too | ✅ the `O1` invariant in that file |
+| the pool merges what his DIRECT subordinates themselves perceive | ✅ `SquadPerceptionMergeSystem`: each roster member's `TargetMemory` (`:47-51`) ⇒ under a body-less squad leader (no `TargetMemory`) a platoon HQ's pool stays EMPTY — above the first level the picture comes from REPORTS (`CommandPicture`) | ✅ `DESIGN_Command_Display.md` (the picture is report-fed) |
+| one row is all the orders store keeps | ✅ `SubordinateOrders` = each member's LATEST order (`Behavior/Components/SubordinateOrders.cs:19`); `CommandPicture.Subordinates` = each one's LAST report | — |
+| the existing histories are short or shared | ⚠ the brain journal holds **24** entries per unit, of EVERY kind (`BrainJournal.cs:135`) ⇒ a commander's orders compete with his own task changes; `SquadReportLog` holds **256** per brain node, for EVERY commander there (`ReportInjection.cs:30`) ⇒ a big fight evicts one commander's reports quickly | — |
+| each journal entry carries its CAUSE | ✅ BV-15 / BV-27 (`OrderIssued` A = member, B = behaviour; the cause resolved at display) | ✅ §6 BV-15 |
+
+| # | idea | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **BV-56** ✅ *approved* | **name it by what it is, at every level** | the expander and its gizmo family say **"My units' contacts"** (merged from his direct subordinates' own eyes), shown on ANY commander; where the pool is empty because the subordinates have no eyes, the expander says so and points at **Command picture** (the report-fed view) — the two together answer *"what does this HQ know"* at every echelon; the code type `SquadCognitiveState` keeps its name (a rename is a separate Roslyn job, not this design) | "Squad contacts" — reads as squad-only, which is false |
+| **BV-57** ✅ *approved; its ring is a COMPONENT (BV-60)* | **Reports — a HISTORY, not a row** | the expander: on top one summary line per subordinate (last report, sitrep, age); below a fixed-height scrolling list of every report **to and from** this commander, newest first (time · from → to · kind · content), each row's menu *Select the sender* / *Open his Brain tab* / *Seek here on the Timeline*. Store: a **per-commander ring** (e.g. 32), brain-local, written where `SquadReportLog` is written, on commanders only — so no other unit pays; `SquadReportLog` stays the node-wide record for HTTP | read only `SquadReportLog` — 256 shared per node, one commander's history evicted in a fight · raise the journal — every soldier would pay for a commander's traffic |
+| **BV-58** ✅ *approved; its ring is a COMPONENT (BV-60)* | **Orders — both directions, with their WHY** | the expander: **Received** (from his superior — the task starts of origin *Superior*, already journal entries) and **Sent** (to each subordinate): a scrolling list, newest first (time · to whom · behaviour · its params summary · **why** = the journal cause of the change that issued it); a per-commander order ring beside the report ring (BV-57), written by the same writer that writes `OrderIssued`; `SubordinateOrders` stays the "current orders" header line per member | the latest-only `SubordinateOrders` — the user's objection · the 24-entry journal alone — orders compete with every other change |
+| **BV-59** ✅ *approved — the replay browser's timeline scan does it* | **long history = the recording** | the rings answer *"the last few minutes"*; *"why, over the whole exercise"* is the Timeline over a recording (CE-1302, R-4075), whose Behaviour lane reads the same entries — each row's *Seek here* jumps there | an unbounded live list — memory grows with the run |
+
+### 12e. ✅ DECIDED `2026-10-25` — every Brain-tab input is reconstructable in replay *(`R-1040`; build-state: DESIGN)*
+
+🔒 User, `2026-10-25`, verbatim: *"i need the brain view inputs to be reconstructable in replay. Maybe the the "a small history ring per
+commander (about 32 entries each)" should be a component so it gets saved to the recording and can be viewed in the replay browser"* ·
+*"BV52 approved. 56, 57 and 58 approved. BV-59 long recording scan - the time line scan in replay browser can do the job, approved"*
+
+**The audit — what each section reads, and whether the recording has it** *(`DataPolicy`: `NoScenario` = recorded + snapshotted, not in
+the scenario file; the recorder skips only `NoReplay`, §2)*:
+
+| section | reads | in the recording? |
+|---|---|---|
+| Doing / regions / SOP | `BehaviorState`, `SopState` (`NoScenario`) | ✅ |
+| Recent changes, order causes | `BrainJournal` (`NoScenario`, always attached to a brain unit — `BrainJournal.Attach`) | ✅ |
+| Running behaviours: params + variables | the occurrence store `BlueprintBlackboard*` (`NoScenario`) | ✅ |
+| Settings | `CombatTemperament` / `CombatProficiency` (`Default`) | ✅ (and saved, BV-40) |
+| Command picture | `CommandPicture` (`NoScenario`) | ✅ |
+| My units' contacts | `SquadCognitiveState` (`NoScenario`) | ✅ |
+| current orders line | `SubordinateOrders` (`NoPreview \| NoScenario`) | ✅ |
+| ⛔ report HISTORY | `SquadReportLog` — a per-world SIDE STORE (`ConditionalWeakTable`, `ReportInjection.cs:33`), not a component | ⛔ **never recorded** |
+| ⛔ Why (utility) | `UtilityDecisionLog` (`NoScenario`) — but ATTACHED ONLY while the unit is observed (`TraceBufferLifecycleSystem.cs:105`) | ⚠ only for units someone viewed while recording |
+| ⛔ trace rings (graph overlay history) | `BTree/HsmTraceWorkingMemory1024` (`NoScenario`, 63 × 16 B, written every tick) — attached only while observed | ⚠ same |
+
+| # | decided | ⭐ rule / lean |
+|---|---|---|
+| **BV-60** | ✅ **the report and order histories are COMPONENTS** (the user) | `CommandReportHistory` and `CommandOrderHistory`, on commanders only (a `UnitRoster` owner), `[DataPolicy(NoScenario)]` ⇒ recorded and snapshotted, never in the scenario file; each a fixed list — `int Count` + an `[InlineArray(32)]` ring buffer, the `FixedListShape` shape — so the dump (BV-45), the JSON converter and the watch formatter read it with no new code. An order entry COPIES its cause (the journal entry's cause code, not a reference into the 24-entry journal) so the *why* survives the journal's eviction. ⛔ `SquadReportLog` stays the node-wide HTTP record, never the tab's source |
+| **BV-61** | ✅ *approved `2026-10-25`* — **what was not observed live** | the **Why** log is small (4 decisions × 8 ranked options) and changes only when a decision runs ⇒ ⭐ attach `UtilityDecisionLog` to EVERY unit with a utility reasoner, always — the *Why* section then replays for every unit. ⛔ The trace rings stay observe-only (1 KB per unit and tier, written every tick); in replay a unit that was not observed shows *"not traced during the recording"*, and DBG-2's **Observe all brain units** switch, on while recording, traces everyone. Rejected: trace every unit always — every recording pays 1 KB × units × ticks of churn |
+| **BV-62** | ✅ **the rule, for every future section** | a Brain-tab section reads ONLY recorded components (no side stores, no live-only services); a new section that needs new data adds a component — the check is this table, extended in the same commit |
+
+### 12f. The WIREFRAME `2026-10-25` — what the tab shows *(build-state: DESIGN; the picture §12b…§12e build to)*
+
+🔒 User, `2026-10-25`, verbatim: *"why editable, isnt that the same dump as other DTOs?"* · *"Which sections start open" - those opened
+before, imgui remember opened/closed state, no forcing*
+
+`▼` an open expander · `▶` a closed one · `[x]` a checkbox · `[…]` a button · `⋮` a row menu.
+
+**A soldier**
+```
+┌─ Details ─ Brain ──────────────────────────────── Rifleman A2 · #1:2975 ─┐
+│ recording since this tab opened                                          │
+│                                                                          │
+│ ▼ Doing                                                                  │
+│   Task   FightFromCover        ordered by Sqd Ldr 1-1   since 00:42      │
+│   SOP    InfantrySop           firing: ReactToContact                    │
+│   ROE    Return fire                                                     │
+│   region control: Engage (12 s)   region move: HoldCover (12 s)          │
+│                                                                          │
+│ ▼ Why                                                                    │
+│   CombatPosture   TakeCover 0.81 › Advance 0.44 › Flee 0.10              │
+│   TargetPick      #1:3110 0.72 › #1:3114 0.31                            │
+│                                                                          │
+│ ▶ Recent changes (14)                                                    │
+│ ┌──────────────────────────────────────────────────────────────────┐     │
+│ │ 00:42 TaskStarted FightFromCover  (Superior, via SquadAssault)   │ ⋮   │
+│ │ 00:40 StateChanged control: Move → Engage  (EnemySeen)           │ ⋮   │
+│ │ 00:31 TaskStarted MoveTo          (Superior)                     │ ⋮   │
+│ └──────────────────────────── fixed height, scrolls ───────────────┘     │
+│                                                                          │
+│ ▼ Settings                                                               │
+│   Temperament                                                            │
+│     Aggressiveness  [━━━━━━●━━━━] 0.62   type 0.50   ↺                   │
+│     Obedience       [━━━━━━━━●━━] 0.80   type 0.80                       │
+│     Nerve           [━━━━●━━━━━━] 0.45   type 0.50   ↺                   │
+│     Resolve         [━━━━━●━━━━━] 0.50   type 0.50                       │
+│   Combat skill                                                           │
+│     Proficiency     [Trained ▾]          type Trained                    │
+│                                                                          │
+│ ▼ Running behaviours                                                     │
+│   ▼ Task · FightFromCover   BTree (C#)                 [Open graph]      │
+│       [Assign task…]  [Edit params…]  [Restart…]  ROE [Return fire ▾]    │
+│       Parameters                                                         │
+│         Target        [1:3110, v2]                                       │
+│         CoverRadius   25.0                                               │
+│       Variables                                                          │
+│         CoverPoint    (412.0, 3.1, -88.5)                                │
+│         Shots         [7 of 16] …                                        │
+│         Phase         Engage                                             │
+│       ▶ hosted · MoveToCover   HSM                     [Open graph]      │
+│   ▶ SOP · InfantrySop        BTree        [Assign SOP…] [Open graph]     │
+│   ▶ Blueprint · RadioChatter v2           [Edit params…] [Remove]        │
+│   [+ Add blueprint…]                         [Apply]  [Revert all]       │
+│                                                                          │
+│ ▶ Show on map                                                            │
+│     [x] Perception  [ ] Contacts  [ ] EQS  [ ] Utility  [ ] Actions      │
+│                                                                          │
+│ ▶ Debug                                                                  │
+│     [ ] Break when it changes its mind                                   │
+│     Breakpoints on this unit (2)                       [Breakpoints…]    │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**A commander** *(only what differs)*
+```
+┌─ Details ─ Brain ───────────────────────────────────── Platoon HQ · #1:3001 ─┐
+│ ▼ Doing                                                                      │
+│   Task  PlatoonAttack     ordered by Coy HQ   since 00:30                    │
+│   region phase: Assault (40 s)    region control: Reinforce (6 s)            │
+│                                                                              │
+│ ▼ Command picture                                          [x] on map        │
+│   Enemy  squad ×3   dug-in   (455, -90)       reported by 1st Sqd   40 s     │
+│   Enemy  MG                  (470, -102)      reported by 2nd Sqd   12 s     │
+│   Request  fire support      from 2nd Sqd                           12 s     │
+│                                                                              │
+│ ▼ My units' contacts                                       [ ] on map        │
+│   empty: my units have no eyes of their own, see Command picture             │
+│                                                                              │
+│ ▼ Reports                                                  [ ] on map        │
+│   1st Sqd   SITREP  engaging, 1 wounded          8 s                         │
+│   2nd Sqd   CONTACT MG at (470,-102)            12 s                         │
+│   3rd Sqd   PROGRESS phase line 2               31 s                         │
+│ ┌────────────────────────────────────────────────────────────────────┐       │
+│ │ 00:58 2nd Sqd → HQ   CONTACT  MG ×1 (470,-102)                     │ ⋮     │
+│ │ 00:50 1st Sqd → HQ   SITREP   engaging, 1 wounded                  │ ⋮     │
+│ │ 00:44 HQ → Coy HQ    PROGRESS phase line 1 crossed                 │ ⋮     │
+│ │ 00:41 1st Sqd → HQ   SPOT     enemy squad ×3 (455,-90)             │ ⋮     │
+│ └──────────────────────────────────── last 32, scrolls ──────────────┘       │
+│                                                                              │
+│ ▼ Orders                                                   [x] on map        │
+│   Received                                                                   │
+│     00:30 Coy HQ → HQ    PlatoonAttack  obj OBJ-RED                          │
+│   Sent                                                                       │
+│     00:47 HQ → 2nd Sqd   SuppressAndManeuver   why: EnemyFixed → Assault     │
+│     00:31 HQ → 1st Sqd   SquadAssault          why: phase Move → Assault     │
+│     00:31 HQ → 3rd Sqd   TravellingOverwatch   why: phase Move → Assault     │
+│                                                                              │
+│ ▶ Running behaviours …   ▶ Settings …   ▶ Show on map …   ▶ Debug …          │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+| reading the picture | where it is decided |
+|---|---|
+| row menus `⋮`: Recent changes → *Open that behaviour* · *Break on this kind*; reports / orders → *Select the sender* · *Open his Brain tab* · *Seek here on the Timeline* | DBG-10, BV-57, BV-58 |
+| *Open graph* follows this tab; from a pinned tab its header reads the same `#1:3001` | BV-55 |
+| the commander's *on map* checkboxes draw commander → target lines (picture, reports); Orders draws leader → member lines | BV-50, BV-52 |
+| `[7 of 16]` — a fixed list shows its Count | BV-45 |
+| an entity with no brain (a crate with a blueprint) shows only *Running behaviours* | BV-47 |
+| in the replay browser the same layout; sliders, *Assign*, *Edit params*, *+ Add*, *Remove*, *Apply* disabled; an unwatched unit's graph says *"not traced during the recording"* | BV-35, BV-46, BV-61 |
+
+| # | decided | rule |
+|---|---|---|
+| **BV-63** ✅ *approved `2026-10-25`, revised by §12g* | **parameters are the SAME dump as the variables, editing is an explicit act** | *Parameters* draw read-only through the one dump, like *Variables*; **[Edit params…]** opens THE one params form and its **Apply writes the params IN PLACE — no restart** (BV-65); a separate **[Restart with these params]** re-assigns. ⛔ SUPERSEDED: "its OK re-assigns the behaviour" — params are a struct read in place, the restart was a convention | an always-editable inline form — a stray click edits the running unit; params would look unlike every other DTO |
+| **BV-64** | ✅ *the user* — **no forced open state** | each expander is an `ImGui.CollapsingHeader` with an id per SECTION (not per unit) and no `DefaultOpen` flag ⇒ ImGui remembers what the user opened or closed, across units and sessions (its ini); ⛔ BV-34's "open by default" is dropped |
+
+### 12g. ✅ DECIDED `2026-10-25` — ONE live-write path for params and working state; the AI agent's what-if *(`R-1041`; build-state: DESIGN)*
+
+🔒 User, `2026-10-25`, verbatim: *"why would it restart the behavior, parameters are just DTO in memory and can be scanned by the
+behavior action code duriong running; shouldnt we have explicit restart only if we want it to force the parameters to be re-applied?"* ·
+*"these days the behavior is developed by an AI agent (you). do the what-if edits have a real value for the ai agent … If usefull for ai,
+let's build the edit way for the user as well as it would share lots of implementation. Similarly the blackboard variable edits"* ·
+*"approved, fold it in. the skill should definitely explain the possibilities and use cases"*
+
+| the decision rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| params are a struct read IN PLACE each access | ✅ generated code: `ref RootParamsAccess.RootRef(world, self)` + the field offset (`Fdp.Toolkits.Analyzers/Shared/BlackboardParamsExpression.cs:49`) ⇒ a write is seen next access | ✅ Occurrence Storage §29.6 |
+| "fixed for its run" was a SAVE convention | ✅ the scenario saves the start record's JSON (`BehaviorStartRecord`) | ✅ Sensors & Doctrine §7.5 — ⛔ its "changing them = re-assigning" is now revised there |
+| the start record is READ by logic | ✅ `SopActions.cs:84-85`, `BrainIntentReader.cs:58` | ⚠ an in-place write must update it too |
+| one reader of every slot exists | ✅ `OccurrenceSlotCatalog` (BV-44) behind `GET /entities/{id}/slots` | ✅ CE-2288 |
+| the live write today covers blueprint variables only | ⛔ `POST /entities/{id}/variable` = *"STAGE a write to one blueprint variable"* | — |
+| what-if around it already exists | ✅ `POST /checkpoint` / `/checkpoint/restore` (one RAM snapshot), `/sim/pause`, `/sim/step`; JSON graph hot reload `POST /assets/{id}/reload` (soft keeps state, hard resets) | ✅ ⚠ *corrected 2026-10-25*: **C# behaviours in `Hrot.AI.Behaviors` DO hot-reload** — *Reload BTrees* (`EditorApplication.RebuildAndReloadAI`) builds that project; `AiHotReloadCoordinator` watches `Hrot.AI.Behaviors.dll` in the editor's base directory, loads a fresh collectible ALC, re-runs the registrars; `OnReloadCompleted` refreshes the catalog from the new assembly and `AiDocumentManager.ReconcileFromCatalog` updates the open documents (the C#-built graphs re-decompiled) (`EditorSubsystem.cs:1383-1395, 1471-1482, 4897-4905`). ⛔ Not an HTTP route; code outside that one assembly still needs a restart |
+
+```mermaid
+sequenceDiagram
+  participant A as caller (HTTP route · Watch · Brain tab Edit params)
+  participant W as OccurrenceSlotWriter (NEW, beside OccurrenceSlotCatalog)
+  participant S as staged write (EXISTS, Q32)
+  participant St as occurrence store slot
+  participant R as BehaviorStartRecord
+  A->>W: Write(unit, owner = Task·Sop·Hosted·Blueprint, role = Params·Variables, path, value)
+  W->>W: resolve the slot + field via the catalog's naming and layout
+  W->>S: stage (paused ⇒ applied now, running ⇒ at the frame boundary)
+  S->>St: write the field in place
+  S->>R: role = Params ⇒ update the record's params JSON
+  Note over St,R: recorded like every component write ⇒ replay matches, the scenario save stays true
+```
+*What the picture shows that prose hid:* three callers, ONE writer, and the existing staged path does the timing — the Watch, the tab and
+the agent cannot drift apart; the restart is not on this path at all.
+
+```mermaid
+classDiagram
+  class OccurrenceSlotCatalog {
+    <<EXISTS>>
+    +Read(world, e, registry) slot views
+  }
+  class OccurrenceSlotWriter {
+    <<NEW>>
+    +Write(world, e, owner, role, path, value) result
+  }
+  class StagedWriteView {
+    <<EXISTS>>
+  }
+  class BehaviorStartRecord {
+    <<EXISTS>>
+  }
+  class DebugApiVariableRoute {
+    <<EXISTS, grows owner and role>>
+  }
+  OccurrenceSlotWriter --> OccurrenceSlotCatalog : names and layouts
+  OccurrenceSlotWriter --> StagedWriteView : timing
+  OccurrenceSlotWriter --> BehaviorStartRecord : params JSON
+  DebugApiVariableRoute --> OccurrenceSlotWriter
+```
+*What the picture shows that prose hid:* the writer reuses the reader's slot naming, so a path the agent READ from `/slots` is exactly the
+path it WRITES — no second addressing scheme.
+
+| # | decided | rule |
+|---|---|---|
+| **BV-65** | ✅ **ONE live write for any slot field** | `OccurrenceSlotWriter`: any owner (task, SOP, hosted child, blueprint), role (params, variables), field path; through the staged write; a params write updates the start record and NEVER restarts; recorded. Callers: the HTTP route, the Watch's edits, the tab's *[Edit params…]*. ⛔ Rejected: blueprint-only writes (the C# BTree / HSM behaviours are the ones debugged most) · params changes only by re-assign (destroys the comparison point) |
+| **BV-66** | ✅ **the HTTP route grows, not a new one** | `POST /entities/{id}/variable` gains `owner` + `role` (defaults = today's blueprint-variable behaviour) |
+| **BV-67** | ✅ **the agent is taught to pick the cheapest experiment** | `tools/ai-debug-mcp/skill-parts/30-workflows.md` §J — the ladder: read → what-if a value (checkpoint · write · step · restore) → what-if the structure (graph edit + `reload_ai_asset`) → C# in `Hrot.AI.Behaviors` (build + the hot-reload swap, no restart) → C# elsewhere (build, restart); its built / planned split stated per tool |
+| **BV-68** ✅ *approved `2026-10-25`* — **the C# hot reload over HTTP** | `POST /ai/reload` runs `RebuildAndReloadAI` and answers when the swap applied: `{ build: ok\|failed + errors, reloaded, behavioursChanged, documentsReconciled }` — the agent today has to build from the shell and infer the swap from the log. ⚠ First MEASURE (a rail): running instances' state across the swap, and that the built DLL reaches the watched directory |
+
+### 12h. THE BUILD PLAN `2026-10-25` — stages, order, rows *(every §12b…§12g decision is approved)*
+
+```mermaid
+graph TD
+  B1["B1 one reader — CE-1315"] --> B2["B2 one writer — CE-1320"]
+  B1 --> B5["B5 layout + observation — CE-1310, CE-1317, CE-1311"]
+  B2 --> B6["B6 the tab absorbs AI tab + Entity Blueprints — CE-1316, CE-1314"]
+  B5 --> B6
+  B4["B4 replay inputs — CE-1319"] --> B7["B7 commander + graph pin — CE-1312, CE-1318"]
+  B5 --> B7
+  B3["B3 C# hot reload over HTTP — CE-1321"]
+  D["D debugging S1: stop me works — CE-1284, CE-1291, CE-1285"]
+```
+*What the picture shows that prose hid:* B3, B4 and D depend on nothing in this programme and can run in parallel; B6 is the only stage
+that needs both the reader and the writer, because it moves editing onto the tab.
+
+| stage | rows | delivers | the feature's own suite (T-1) + new rails |
+|---|---|---|---|
+| **B1** one reader | CE-1315 | `OccurrenceSlotCatalog` grows attached blueprints' variables + a boxed CLR value; the inspector's two projections route through it; `ImGuiPropertyTree` clamps a fixed list to `Count`; the tab's **Running behaviours** section, read-only (task, SOP, hosted children, blueprints) | `TheBrainViewTests` · the slot catalog's users `BehaviourTaskDemoTests`, `SquadManeuverTests` (SimHost) · new: every slot kind listed, a blueprint's variables decoded, `[7 of 16]` |
+| **B2** one writer | CE-1320 | `OccurrenceSlotWriter` (owner · role · path) through the staged write; a params write updates `BehaviorStartRecord`, no restart; `POST /entities/{id}/variable` gains `owner` + `role`; the Watch's edits and the tab's *[Edit params…]* / *[Restart…]*; skill §J's rung-1 line flips to built | `EntityAiSectionTests` · the variable route's tests · new: a params write seen next tick with no restart, the start record updated, a red-proof without the record update |
+| **B3** C# hot reload over HTTP | CE-1321 | rails that MEASURE first (running instances across the swap; the built DLL reaches the watched directory), then `POST /ai/reload` → `{build, reloaded, behavioursChanged, documentsReconciled}`; skill §J rung 3 names the route | `AiHotReloadCoordinatorTests` (Hrot.Editor.Tests) · `HotReloadClassifierTests` |
+| **B4** replay inputs | CE-1319 | `CommandReportHistory` / `CommandOrderHistory` components on commanders (fixed lists of 32, `NoScenario`, an order entry copying its cause); `UtilityDecisionLog` on every utility-driven unit; the *"not traced during the recording"* line | the replay brain routes' tests (`get_replay_entity_brain`) · new: a recording reproduces both histories and *Why* at a scrubbed frame |
+| **B5** layout + observation | CE-1310, CE-1317, CE-1311 | every section a `CollapsingHeader` (one id per section, nothing forced); `BrainObservation` replaces `UnitDebugController` — the tab's draw arms tracing, the checkbox goes; **Show on map** one family per checkbox, families `CommandPicture` / `SquadContacts` split from `SquadAssignment`; **Settings** groups from `IBrainSettingProvider`s (temperament, proficiency) | `TheBrainViewTests` · `UnitDebugControllerTests` (rewritten for `BrainObservation`) · new: no path pins all families, a pinned tab keeps its unit armed |
+| **B6** the tab absorbs two views | CE-1316, CE-1314 | blueprints added / removed / re-parameterised on the tab (`EntityBlueprintsPanel` drawn here), the tab on every single entity (BV-47); the AI tab's task / SOP / ROE editing moves in; ⛔ `details.entityblueprints` and `details.ai` retire | `EntityBlueprintsEditModelTests` · `EntityAiSectionTests` · `EntityAiInstanceRowsTests` · new: a brainless entity's tab shows only its blueprints |
+| **B7** commander + graph pin | CE-1312, CE-1318 | *Command picture*, *My units' contacts*, *Reports*, *Orders* expanders (history from B4), one contact-line drawing (`LineOfSightGizmo`'s), the commander → target lines; `AiDocument.PinnedEntity`, `Open` keyed on (asset, pin), the header `Name · #net:id`; ⛔ the global debug pin retires | `TheBrainViewTests` · the document manager's tests · new: two pinned tabs on one behaviour open two documents, each overlay on its own unit |
+| **D** debugging S1 | CE-1284, CE-1291, CE-1285 | [Behaviour Debugging](DESIGN_Behaviour_Debugging.md) DBG-8 (journal break baseline before Input), DBG-7 (node breakpoints break), DBG-6 (one breakpoint list) | that design's §7 |
+
+⭐ Each stage ends with its design folded to the as-built (§11 grows) and its rows closed; ⛔ never two stages in one commit.
+
+### 12i. AS-BUILT — B1 *(CE-1315, `2026-10-25`)*
+
+| piece | where | matches §12b / deviates |
+|---|---|---|
+| the ONE reader grows: `OccurrenceSlotView.Boxed` (the slot as its own CLR struct, exact managed image via StructEdit's `RuntimeTypeOpsFactory.BoxFromNative` — ⛔ not `Marshal.PtrToStructure`, which reads the marshalled layout and refuses an `[InlineArray]`); `SlotOwnerKind.InstanceBlueprint`; `Read(…, BlueprintRegistry? blueprints)` names an attached blueprint's slot and boxes its generated `State` | `Fdp.Toolkits/Behavior/OccurrenceSlotCatalog.cs` | ✅ BV-44 |
+| `BrainRunningBehaviours.From(slots)` — pure: task → SOP → paused task → blueprints; a block `{ In; St }` splits into parameters / variables, a C# params DTO is parameters only, a blueprint's `State` gives `Params` and hides `Cursor` / `Params`; working-state and hosted-child slots are parts; tree-state / HSM-instance slots are not shown (kernel internals) | `Hrot.Editor.AiShared/Shell/BrainRunningBehaviours.cs` | ✅ BV-42 |
+| the tab's **Running behaviours** section: a tree node per behaviour and per part, the dump read-only; the bundle passes BOTH registries (a held value is passed) | `EntityBrainView.cs`, `EntityDetailsBundle.cs` | ✅ BV-43; ⚠ tree nodes, not yet `CollapsingHeader`s — B5 converts the whole tab |
+| the dump: `ImGuiPropertyTree.FixedListItems` (a fixed list folds to its Count items, clamped, the value cell `[3 of 4]`) and `Render(…, include, …)` (root-member filter) | `Fdp.Presentation/ImGui/Utils/ImGuiPropertyTree.cs` | ✅ BV-45 |
+| the inspector routes through the reader: over a live repository (`RepositoryAdapter`) its working-state section lists every owner's working state, hosted children and the SOP's / paused task's / blueprints' blocks | `StatefulWorkingStateProjection.RenderThroughCatalog` | ⚠ **deviation:** a replay VIEW (`SimulationViewAdapter`) keeps the old task-only path — the reader needs an `EntityRepository`. The Brain tab reads the replay world directly, so the tab is unaffected; the inspector-over-replay gap stays until the reader takes an `ISimulationView` |
+| found while looking at the frame: the editor font has no em dash — the tab's *"does not run the unit's brain — …"* line drew a `?` | `EntityBrainView.cs` | fixed (a colon) |
+
+📷 The frame rail `TheBrainViewTests.CE1315_TheRunningBehavioursSection_Draws` photographs the section (`HROT_RAIL_SHOTS`).
+
+![B1 — Running behaviours](assets/brain-view/b1-running-behaviours.png)
+
+### 12j. AS-BUILT — B2 *(CE-1320, `2026-10-25`)*
+
+| piece | where | matches §12g / deviates |
+|---|---|---|
+| the ADDRESS beside the reader: `OccurrenceSlotCatalog.ResolveField(world, unit, registry, blueprints, owner, behaviour?, part?, role, path)` → `SlotFieldAddress(ComponentType, ComponentOffset, FieldType, Size, …)`. It reuses the reader's own naming (`ReadNamed`), splits a block `{ In; St }` exactly as the display does, refuses a blueprint's `Cursor` / `Params` as variables, walks `A.B[n]` by the managed layout (`TypeLayout.OffsetOf`, `[n]` into an `[InlineArray]`), and finds the tier component the slot lives in (the ladder, ascending — the debug session's order). Empty path = the whole half | `Fdp.Toolkits/Behavior/OccurrenceSlotCatalog.cs` | ✅ BV-65 — ⚠ the class diagram's `OccurrenceSlotWriter` is split in TWO by layer: the address lives in `Fdp.Toolkits` (beside the reader), the staging in `Hrot.Editor.AiShared` (it needs the breakpoint manager's stager) |
+| THE ONE LIVE WRITE: `OccurrenceSlotWriter.WriteField` (a field, JSON of the field's own type → its exact managed image) and `WriteParamsJson` (a whole parameter set through the behaviour's OWN `ParseParams`, as an assignment runs it); both stage through a `FieldStager` (`IDataBreakpointManager.StageFieldMutation` in production) and NEVER restart; a task-params write patches `BehaviorStartRecord.JsonParams` by name (case-insensitive) or replaces it with the applied JSON | `Hrot.Editor.AiShared/Variables/OccurrenceSlotWriter.cs` | ✅ BV-65 — ⚠ an indexed path (`X.Items[1]`) does not patch the record's text (no name to patch by) |
+| the route: `POST /entities/{id}/variable` with `owner` (task · sop · paused · blueprint) + `behaviour` / `part` / `role` / `path` / `value`, or `paramsJson`; the reply says `restarted:false`, `startRecordUpdated`, `willDrain`. `GET /entities/{id}/slots` now passes the blueprint registry the service holds (a held value was not passed) | `DebugApiHost.cs`, `DebugApiService.Slots.cs`, `DebugApiRouteDocs.cs` | ✅ BV-66 |
+| the skill: §J rung 1's params / working-state line flipped to built (source `skill-parts/30-workflows.md`, regenerated) | `tools/ai-debug-mcp/` | ✅ BV-67 |
+| ⚠ **moved to B6:** the tab's *[Edit params…]* / *[Restart with these params]* buttons and the Watch's edits through the writer | — | the params form and its editing model (`EntityAiEditModel`, editor-only) arrive on the tab in B6 with the AI tab's content; the buttons belong to that move, not to a second editing path built ahead of it |
+
+### 12k. AS-BUILT — B4 *(CE-1319, `2026-10-25`)*
+
+```mermaid
+classDiagram
+  class CommandReportHistory {
+    <<component 462, NoScenario, brain-only>>
+    int Count
+    CommandReportEntries Items "InlineArray 32, newest first"
+  }
+  class CommandOrderHistory {
+    <<component 463, NoScenario, brain-only>>
+    int Count
+    CommandOrderEntries Items "InlineArray 32, newest first"
+  }
+  class CommandOrderEntry {
+    float At
+    CommandTraffic Traffic
+    BrainJournalKind CauseKind
+    byte Cause
+    int CauseA
+    ushort Repeats
+    long CounterpartNetId
+    int Behaviour
+  }
+  class CommandHistoryOf {
+    <<static, the one writer>>
+    Report(world, from, to, report, now, fate)
+    Order(world, giver, member, hash, now)
+  }
+  class StaffInboxSystem { <<exists>> }
+  class CommandOrders { <<exists, Hrot.AI.Behaviors>> }
+  class SquadStateProvisioning { <<exists>> EnsureForCommander() }
+  class BrainJournal { <<exists, 24 entries>> }
+  class SquadReportLog { <<exists, node-wide, HTTP only>> }
+  StaffInboxSystem ..> CommandHistoryOf : every report
+  StaffInboxSystem ..> SquadReportLog : unchanged
+  CommandOrders ..> CommandHistoryOf : every order, before its journal entry
+  CommandHistoryOf ..> BrainJournal : copies the cause
+  CommandHistoryOf --> CommandReportHistory
+  CommandHistoryOf --> CommandOrderHistory
+  CommandOrderHistory *-- CommandOrderEntry
+  SquadStateProvisioning ..> CommandReportHistory : adds on a commander
+  SquadStateProvisioning ..> CommandOrderHistory : adds on a commander
+```
+
+*What the picture shows that prose hid:* ONE writer serves both directions — a report is written once by the inbox into the addressee's
+history (incoming) AND the sender's (outgoing); an order once by `CommandOrders.Journal` into the giver's (outgoing) AND the member's when
+he is himself a commander (incoming, BV-58's *Received*). The provisioning rides the existing commander fact, so no new attach path exists.
+
+| piece | where | matches §12e / deviates |
+|---|---|---|
+| `CommandReportHistory` (462) / `CommandOrderHistory` (463): fixed lists (`int Count` + `[InlineArray(32)]`, exactly the `FixedListShape` shape), newest first, `NoScenario` ⇒ recorded and snapshotted; registered by `CognitiveComponentRegistry`, `brainOnly` in `HrotRoleComponentSets` | `Fdp.Toolkits/Squad/Command/CommandHistory.cs`, `GlobalComponentIds.cs` | ✅ BV-60 — the dump, the JSON converter and the watch formatter read them with no new code |
+| provisioning: `SquadStateProvisioning.EnsureForCommander` adds both where the type is registered (a node without a brain gets none) | `Fdp.Toolkits/Squad/State/SquadStateProvisioning.cs` | ✅ "commanders only" |
+| reports: `StaffInboxSystem.Execute` → `CommandHistoryOf.Report` with the inbox's verdict as `ReportFate` (folded · stale · not-owned-here); `SquadReportLog` unchanged | `StaffSystems.cs` | ✅ BV-57 |
+| orders: `CommandOrders.Journal` → `CommandHistoryOf.Order` BEFORE the journal's `OrderIssued`, so the copied cause is the change that issued the order (the play start, the phase change, the task start). The runner's re-send of the same order with the same cause counts `Repeats` instead of a new row | `Hrot.AI.Behaviors/Brains/CommandNodes.cs` | ✅ BV-58 — ⚠ the *params summary* column is not stored (an unmanaged entry holds no text; the current order's JSON stays on `SubordinateOrders`) |
+| the *Why* log on EVERY brain unit: `TraceBufferLifecycleSystem` attaches `UtilityDecisionLog` to every `BehaviorState` unit; arming adds/removes only the per-consideration trace + flags; `UtilityScorer.LogDecision` writes whenever the log is present | `TraceBufferLifecycleSystem.cs`, `UtilityScorer.cs` | ✅ BV-61 — ⚠ *"every unit with a utility reasoner"* is not knowable statically (utility is reached through `UtilityNodes` at run time) ⇒ every brain unit; one that never decides keeps an empty 4-slot log. ⛔ SUPERSEDES CE-3069's "attached only while observed" (its two rails replaced) |
+| the tab: *Why this choice* no longer says scores need observing; a unit whose graph trace rings are absent reads *"Graph trace: off (Debug this unit traces it)"*, in replay *"not traced during the recording …"*; `BrainSnapshot.Traced` (and `traced` in `GET /entities/{id}/brain`) | `EntityBrainView.cs` | ✅ BV-61 |
+| `GET /entities/{id}/utility` + route docs: decisions need no arming; `observe_trace` arms only the traces | `DebugApiService.Utility.cs`, `DebugApiRouteDocs.cs` | ✅ BV-61 |
+| ⚠ **the expanders that SHOW the histories are B7** (CE-1312, the commander's Reports / Orders) — B4 makes the inputs exist and record | — | as planned (§12h) |
+
+### 12l. AS-BUILT — B3 *(CE-1321, `2026-10-25`)*
+
+```mermaid
+sequenceDiagram
+  participant A as agent / toolbar
+  participant H as DebugApiHost (HTTP thread)
+  participant E as EditorApplication
+  participant R as AiBehaviorsRebuild
+  participant D as dotnet
+  participant C as AiHotReloadCoordinator (main loop)
+  A->>H: POST /ai/reload
+  H->>E: RebuildAndReloadAIAsync (started on the main thread)
+  E->>R: RunAsync
+  R->>D: build Hrot.AI.Behaviors -c (the editor's configuration)
+  D-->>R: exit code + error lines
+  R->>D: msbuild -getProperty:TargetPath
+  R->>R: copy dll + pdb into the editor's base directory
+  Note over C: the watcher sees the dll, loads a fresh ALC, the main loop's drain swaps it
+  C-->>R: Completed (after the catalog refresh and the document reconcile)
+  R-->>H: build · reloaded · added · removed · documentsReconciled
+```
+
+*What the picture shows that prose hid:* the HTTP handler must NOT block the main thread. The swap is applied by the main loop's
+`DrainPendingCallbacks`, so the route starts the rebuild there and awaits it off-thread. The copy step is the one link that was missing.
+
+| piece | where | matches §12g BV-68 / deviates |
+|---|---|---|
+| 🔴 **measured first:** the watcher watches the editor's base directory (`EditorSubsystem.cs`, `AiHotReloadCoordinator(aiAssemblyDir …)`); the toolbar's `dotnet build Hrot.AI.Behaviors.csproj` wrote only that project's own `bin`, and no `.csproj` / `.props` / `.targets` copies it ⇒ **the button rebuilt and never reloaded** | — | the measurement BV-68 asked for — it failed |
+| `AiBehaviorsRebuild`: build in the editor's own configuration, read `TargetPath`, COPY dll + pdb into the watched directory, await the coordinator's completion (60 s), report the behaviours added and removed and the documents reconciled; `busy` on a second concurrent call | `Hrot.Editor/AiBehaviorsRebuild.cs` | ✅ BV-68; ⚠ `behavioursChanged` became `added` / `removed` names (a merge re-registers EVERY behaviour, so "changed" would always be all) |
+| ONE path: the toolbar's `RebuildAndReloadAI` awaits the same `RebuildAndReloadAIAsync` (fire-and-forget, result to the hot-reload log); `IEditorLogic` gets a default `not-wired` answer for hosts without hot reload | `EditorApplication.cs`, `IEditorLogic.cs` | ✅ |
+| `AiHotReloadSignal` subscribes on its FIRST listener, so it fires after the catalog refresh and the reconcile the composition root subscribed earlier | `AiBehaviorsRebuild.cs` | — |
+| `POST /ai/reload` (tool `reload_ai_behaviours`), route doc, skill §J rung 3 | `DebugApiHost.cs`, `DebugApiService.AiReload.cs`, `DebugApiRouteDocs.cs`, `skill-parts/30-workflows.md` | ✅ |
+| running units keep their task across the swap: measured end to end (`AiBehaviourHotReloadTests`, hill-attack: 150 behaviours, 9.8 s, unit 1000 still `PlatoonHillAttack`) | `Hrot.SystemTests` | ✅ the measurement BV-68 asked for |
+| ⚠ **not measured:** on Windows, whether the default load context holds the base directory's `Hrot.AI.Behaviors.dll` open so the copy fails | — | the copy reports `could not be replaced` rather than hanging; a Windows run settles it |
+
+### 12m. AS-BUILT — B5 *(CE-1310, CE-1317, CE-1311, `2026-10-25`)*
+
+```mermaid
+classDiagram
+  class EntityBrainView {
+    <<EXISTS, sections are collapsing headers>>
+    Section(label, id) bool
+    DrawSettings()
+    DrawShowOnMap()
+  }
+  class BrainObservation {
+    <<NEW, Hrot.Common>>
+    +Current
+    +Viewed(world, unit)
+    +Tick(world)
+  }
+  class UnitDebugController {
+    <<EXISTS, pins nothing now>>
+    overlay pin, journal break, open graph
+  }
+  class BrainSettingRegistry {
+    <<NEW>>
+    +Default
+    +For(view, unit) groups
+  }
+  class IBrainSettingProvider {
+    <<NEW>>
+    +Group
+    +Settings(view, unit)
+    +Write(world, unit, key, value)
+    +Reset(world, unit, key)
+  }
+  class CombatTemperamentSettings { <<NEW>> Temperament }
+  class CombatProficiencySettings { <<NEW>> Combat skill }
+  class GizmoPins { <<EXISTS>> Set(view, unit, family, on) }
+  class SquadContactsGizmo { <<NEW, family SquadContacts>> }
+  class SquadGizmo { <<EXISTS, contacts removed>> }
+  class CommandPictureGizmo { <<EXISTS, family CommandPicture>> }
+  class AiTraceActions { <<EXISTS>> }
+  EntityBrainView --> BrainObservation : Viewed each draw
+  BrainObservation --> AiTraceActions : arm or disarm
+  BrainObservation ..> UnitDebugController : a debugged unit stays armed
+  EntityBrainView --> BrainSettingRegistry
+  BrainSettingRegistry o-- "*" IBrainSettingProvider
+  IBrainSettingProvider <|.. CombatTemperamentSettings
+  IBrainSettingProvider <|.. CombatProficiencySettings
+  EntityBrainView --> GizmoPins : one family per checkbox
+```
+
+*What the picture shows that prose hid:* nothing in the tab pins every family any more. The observation only arms traces, the
+controller kept its overlay-pin job but lost `SetAll`, and each map checkbox is one `GizmoPins.Set`.
+
+| piece | where | matches §12b / §12c / deviates |
+|---|---|---|
+| every section a `CollapsingHeader` with a stable `###brain.<id>` id (a label may carry a count: *Recent changes (14)*, *Running behaviours (2)*); nothing forced open; the rail opens each once to photograph | `EntityBrainView.cs` (`Section`) | ✅ BV-34, BV-64 |
+| `BrainObservation`: the tab's draw calls `Viewed`; the first view arms the unit's traces; the editor's frame loop `Tick`s and disarms a unit no tab drew for 1 s; ⭐ it disarms only what IT armed (a trace the menu or the debug switch armed stays) | `Hrot.Common/Diagnostics/Gizmos/BrainObservation.cs`, `EditorSubsystem.cs` | ✅ BV-48 — ⚠ **deviation:** NOT a rename of `UnitDebugController`. The controller still carries the graph-overlay pin, the journal break, *Open graph* and `POST /entities/{id}/debug`; those retire with the overlay pin in B7 (BV-55). It lost `GizmoPins.SetAll` |
+| the *Debug this unit* checkbox is gone; the *Debug* section keeps *Follow*, *Open running behaviour*, *Break when it changes its mind* | `EntityBrainView.cs` | ✅ BV-48 |
+| *Show on map*: one checkbox per family, `GizmoFamilies.All` minus Path; no "pin all" | `EntityBrainView.MapFamilies` | ✅ BV-49 + the user's no-Path ruling |
+| two families split out of `SquadAssignment`: `CommandPicture` (bit 7: the picture, its absence note, the sector arcs) and `SquadContacts` (bit 8: the merged pool, a sphere and a LINE from the commander to each — `SquadContactsGizmo`, split from `SquadGizmo`); menu labels *Command picture* / *My units' contacts*; pin actions 269 / 270; both ride the Squad layer's "selected only" switch | `AiOverlayFlags.cs`, `GizmoFamilies.cs`, `GizmoPins.cs`, `GlobalActionIds.cs`, `SquadGizmo.cs`, `CommandPictureGizmo.cs`, `LayerControlGizmo.cs` | ✅ BV-50, BV-56 |
+| *Settings*: `IBrainSettingProvider` per component, merged by user-facing GROUP; `CombatTemperamentSettings` (*Temperament*: bravery, obedience, nerve, resolve) and `CombatProficiencySettings` (*Combat skill*: one value, the tier named in the slider); a write sets the authored bit, *reset* clears it, the type's value beside each; disabled in replay | `Hrot.Editor.AiShared/Shell/BrainSettings.cs` | ✅ BV-41 — ⚠ proficiency is a slider with the tier's name, not the wireframe's tier drop-down (one control for all settings; a drop-down can come with a non-float setting) |
+
+📷 `TheBrainViewTests.CE1310_TheTab_IsCollapsingSections_PhotographedClosedAndOpen` — a fresh tab (nothing forced) and every section opened:
+
+![B5 — closed](assets/brain-view/b5-expanders-closed.png) ![B5 — open](assets/brain-view/b5-expanders-open.png)
+
+### 12n. AS-BUILT — B6 *(CE-1316, CE-1314, `2026-10-25`)*
+
+```mermaid
+graph TD
+  ROOT["EditorSubsystem (composition root)"] -->|"BrainSections.Add"| SEC["EntityDetailsBundle.BrainSections (a DetailsViewRegistry)"]
+  ROOT -->|"registers details.brain with its own sections"| BPP["Blueprint perspective catalogue"]
+  SEC --> AI["EntityAiDetailsView: Assign task, SOP, ROE"]
+  SEC --> EBV["EntityBlueprintsDetailsView: Blueprints"]
+  BPP --> EBV
+  BV["EntityBrainView (details.brain)"] -->|"draws each applying section in a collapsing header"| SEC
+  SCN["Scenario perspective catalogue"] --> BV
+  SCN -.->|"details.ai: no longer registered"| AI
+  BPP -.->|"details.entityblueprints: no longer registered"| EBV
+```
+
+*What the picture shows that prose hid:* the two views live in assemblies ABOVE the tab's, so the tab cannot construct them. The
+composition root, the only place that sees both ends, hands them in as sections. The dashed edges are the two registrations removed.
+
+| piece | where | matches §12a / §12b / deviates |
+|---|---|---|
+| `EntityBrainView` takes `embeds` (a `DetailsViewRegistry` of the host's views), creates each once per tab, and draws every one that applies in its own collapsing header after *Running behaviours*; disabled in replay | `EntityBrainView.cs` (`Embeds`, `EmbedInstance`, `DrawEmbeds`) | ✅ BV-46 "drawn here, unchanged" |
+| BV-47: with sections the tab applies to EVERY single entity a section applies to; a unit with no brain shows *No brain on this unit* and its sections (its blueprints). A host that hands no sections (IG, CGF) keeps the old predicate | `EntityBrainViewDescriptor.For(…, embeds)` | ✅ BV-47 |
+| the Scenario perspective: `EntityDetailsBundle.BrainSections` carries the AI editing (*Assign: task, SOP, ROE*) and the Entity Blueprints panel (*Blueprints*); ⛔ `details.ai` is no longer registered | `EntityDetailsBundle.cs`, `EditorSubsystem.cs` | ✅ R-1036, BV-38 |
+| the Blueprint perspective gains the Brain tab, carrying the *Blueprints* section; ⛔ `details.entityblueprints` is no longer registered | `EditorSubsystem.cs` | ✅ BV-46 |
+| ⚠ **deviation:** the AI view is drawn WHOLE as one section rather than split across the task / SOP / blueprint expanders of *Running behaviours* (the wireframe's per-expander *[Assign…]* / *[Edit params…]* buttons). Moving its rows into those expanders means splitting `EntityAiDetailsView`'s draw per row. Same for B2's *Edit params…* / *Restart* buttons (§12j), which ride that split | — | the next refinement on the tab |
+
+### 12o. AS-BUILT — B7 *(CE-1312, CE-1318, `2026-10-25`)*
+
+```mermaid
+sequenceDiagram
+  participant T as Brain tab (pinned window)
+  participant C as UnitDebugController
+  participant M as AiDocumentManager
+  participant P as overlay pump
+  T->>T: IsPinnedScope(window id)
+  T->>C: OpenGraphPinned(name, unit, "#1003")
+  C->>M: Open(asset, unit, label)
+  Note over M: dedupe on (asset, pin): one document per pin
+  P->>M: Active.PinnedEntity
+  M-->>P: the pinned unit, else none
+  P->>P: overlay on the pin, else on the selection
+```
+
+*What the picture shows that prose hid:* the pin lives on the DOCUMENT, so the overlay pump needs no global state. Two pinned tabs open two
+documents, and each overlay stays on its own unit, which one global debug pin could not do.
+
+| piece | where | matches §12d / deviates |
+|---|---|---|
+| `BrainCommandView` (pure): the picture (elements, open requests), one line per subordinate, his units' contacts, the report history and the orders received / sent with the copied WHY, all from recorded components | `Hrot.Editor.AiShared/Shell/BrainCommandView.cs` | ✅ BV-56, BV-57, BV-58 |
+| the tab's commander sections: *Command picture*, *My units' contacts* (says why when empty), *Reports* (the subordinates' summary + a fixed-height scrolling history), *Orders* (Received / Sent); each list's own *on map* checkbox pins its one family | `EntityBrainView.cs` (`DrawCommand`, `History`, `MapPin`) | ✅ BV-37, BV-50, BV-56…BV-58 — ⚠ rows carry network ids (`#1001`), not unit names; the row menus (*Select the sender*, *Seek here*) are not built |
+| `AiDocument.PinnedEntity` / `PinLabel`; `AiDocumentManager.Open(asset, pin, label)` dedupes on (asset, pin); the tab header `Name · #1003` with its own ImGui identity | `AiDocument.cs`, `AiDocumentManager.cs`, `AiGraphCanvasWindow.GetTabLabel` | ✅ BV-55 |
+| the overlay pump reads the ACTIVE document's pin, else the selection; ⛔ `UnitDebugController.Follow` no longer drives it | `EditorSubsystem.cs` (`aiPumpServices`) | ✅ BV-55 — ⚠ the controller still exists for the map menu / `POST /entities/{id}/debug` (arming traces) and the Blueprint session's entity filter; `Follow` stays only for its rail |
+| the tab's *Open running behaviour*: from a PINNED tab → `OpenGraphPinned` (its own document); from the docked tab → the plain open (follows the selection); ⛔ it no longer sets the global debug pin | `EntityBrainView.cs` (`IsPinnedScope`, `PinLabelOf`), `UnitDebugController.OpenGraphPinned` | ✅ BV-55 |
+| ONE contact-line drawing: `ContactLine.Draw` (red, fading, a heard one dashed with its circle), used by `LineOfSightGizmo` and the commander's `SquadContactsGizmo` | `Hrot.Common/Diagnostics/Gizmos/ContactLine.cs` | ✅ BV-52 |
+
+📷 `TheBrainViewTests.CE1312_ACommandersTab_Draws`:
+
+![B7 — a commander](assets/brain-view/b7-commander.png)
 

@@ -145,7 +145,7 @@ public static class EntityBlueprintsDetailsViewDescriptor
 
         return new DetailsViewDescriptor(
             Id:        ViewId,
-            Title:     "Entity Blueprints",
+            Title:     "Blueprints",   // ⭐ CE-1316 — a section of the Brain tab now
             Rank:      Rank,
             AppliesTo: Applies,
             Create:    () => new EntityBlueprintsDetailsView(

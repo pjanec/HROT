@@ -1553,6 +1553,22 @@ namespace Hrot.Editor.DebugApi
                 var asset = ctx.Body?["asset"]?.GetValue<string>();
                 var path  = ctx.Body?["path"]?.GetValue<string>();
                 var value = ctx.Body?["value"];
+                // ⭐ CE-1320 — with `owner`, ANY behaviour slot's params or variables (task · sop · paused · blueprint), no restart
+                var owner = ctx.Body?["owner"]?.GetValue<string>();
+                if (owner is not null)
+                {
+                    var behaviour  = ctx.Body?["behaviour"]?.GetValue<string>() ?? ctx.Body?["behavior"]?.GetValue<string>();
+                    var part       = ctx.Body?["part"]?.GetValue<string>();
+                    var role       = ctx.Body?["role"]?.GetValue<string>();
+                    var paramsJson = ctx.Body?["paramsJson"] is { } pj ? (pj is System.Text.Json.Nodes.JsonValue jv && jv.TryGetValue<string>(out var str) ? str : pj.ToJsonString()) : null;
+                    return RunMainResult(s =>
+                    {
+                        var (result, error, hintCategory) = s.StageSlotField(id, owner, behaviour, part, role, path, value, paramsJson);
+                        return error != null
+                            ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                            : Ok(result);
+                    });
+                }
                 return RunMainResult(s =>
                 {
                     var (result, error, hintCategory) = s.StageEntityVariable(id, asset, path, value);
@@ -1772,6 +1788,14 @@ namespace Hrot.Editor.DebugApi
                 return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 404,
                             error, hintCategory);
             })));
+
+            // ⭐⭐ CE-1321 (BV-68) — the C# behaviour rebuild + hot swap. The rebuild is STARTED on the main thread and awaited here, off
+            //   it: the swap itself is applied by the main loop's DrainPendingCallbacks, which a blocked main thread would never reach.
+            _routes.Add(new("POST", "/ai/reload", async ctx =>
+            {
+                var run = await _jobQueue.RunOnMainThread(() => Service().RebuildAndReloadAi()).ConfigureAwait(false);
+                return Ok(DebugApiService.AiReloadJson(await run.ConfigureAwait(false)));
+            }));
 
             _routes.Add(new("POST", "/assets/{assetId}/reload", ctx => RunMainResult(s =>
             {

@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-23
-current-answer: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
+updated: 2026-10-25
+current-answer: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
   open work: behaviour debugging CE-1270, the coordinator's Timeline handoff CE-1301…1306, the camera CE-1293, the regressions).
   ⛔ OLDER: ⭐⭐⭐ 2026-10-22 EVENING — START AT "SESSION 2026-10-22 — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH" directly below
   this STATUS block (state at ui@88a60d1c8, what is owed, the next items). The overnight-results section under it still lists the leans
@@ -165,6 +166,32 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION `2026-10-25` — THE BRAIN TAB PROGRAMME *(designed and approved today; the build plan is the design's §12h)*
+
+### ⭐ Progress (updated as each stage lands; each stage's as-built is in Brain View §12i onwards)
+
+| stage | rows | state |
+|---|---|---|
+| B1 one reader | CE-1315 | ✅ (§12i) |
+| B2 one writer | CE-1320 | ✅ `151bea9b7` (§12j) |
+| B4 replay inputs | CE-1319 | ✅ `d20465cd3`, `b200a7ef9` (§12k) |
+| B3 C# hot reload over HTTP | CE-1321 | ✅ `6660686b1` (§12l). 🔴 the toolbar's build never reached the watched directory; fixed |
+| B5 layout + observation | CE-1310, CE-1317, CE-1311 | ✅ `a2b4f6008` (§12m) |
+| B6 the tab absorbs the AI tab + Entity Blueprints | CE-1316, CE-1314 | ✅ `be80d3348` (§12n); CE-1322 filed (split the AI editing into the per-behaviour expanders) |
+| B7 commander + graph pin | CE-1312, CE-1318 | ✅ `39a722487` (§12o) |
+| D debugging S1 | CE-1284, CE-1291, CE-1285 | ✅ `ece387414`, `6929a5d66` (Behaviour Debugging §8); ⚠ HSM-state breakpoints and Q44-B follow |
+| handoff ui → coordinator: the Timeline's Behaviour lane over the recorded histories (BV-59) | — | sent `b53791c52` |
+| handoff behaviors → ui (callout voices, lean depth) | CE-2372, CE-2371 | queued after the programme |
+
+
+⭐ Designed end to end with the user: [Brain View §12b…§12h](../DESIGN_Entity_Brain_View.md) (R-1037…R-1041) — grouped settings, every
+running behaviour alike with the inspector's read-only dump, blueprints managed on the tab, viewing = debugging, one gizmo family per
+checkbox, commander's picture / contacts / reports / orders with history, a graph pinned to its Brain tab, every input recorded for replay,
+one live-write path (params without restart) for the agent and the user, `POST /ai/reload`. **Build order = §12h:** B1 CE-1315 → B2 CE-1320
+→ B5 CE-1310/1317/1311 → B6 CE-1316/1314 → B7 CE-1312/1318; B3 CE-1321, B4 CE-1319 and D (CE-1284, CE-1291, CE-1285) in parallel.
+⭐ Also today: the ai-debug skill's §J cheapest-experiment ladder; CLAUDE.md makes the codebase graph imperative. Ids: ui next free
+**CE-1322**, rulings **R-1042**. ⚠ The 10-23 plan below still holds the rest of the lane (regressions, Timeline R0/R1, camera, quick bugs).
 
 ## ⭐⭐⭐ SESSION `2026-10-23` — THE PLAN *(the order is the lean; the user gates starts)*
 

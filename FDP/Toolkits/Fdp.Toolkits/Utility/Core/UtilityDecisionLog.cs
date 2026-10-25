@@ -57,8 +57,9 @@ namespace Fdp.Toolkit.Utility
     /// (<c>GET /entities/{id}/utility</c>). 📄 <c>docs/DESIGN_Utility_AI_Demo_Scenarios.md</c> §5.1.
     /// <para>⭐ Why not <see cref="UtilityResultBuffer"/>: a unit has ONE buffer and every decision it runs overwrites it
     /// (CombatPosture and the threat ranking both run every tick), so the buffer shows whichever ran last. This keeps one
-    /// slot PER decision. Attached only while the unit is observed (<c>POST /trace/observe</c>, through
-    /// <c>TraceBufferLifecycleSystem</c>); the scorer writes it only then.</para>
+    /// slot PER decision. ⭐ <c>CE-1319</c> (BV-61) — on EVERY brain unit, always
+    /// (<c>TraceBufferLifecycleSystem</c> attaches it), so the Brain tab's Why replays for any unit; ⛔ SUPERSEDED: "attached only while the
+    /// unit is observed" (CE-3069) — the per-consideration trace keeps that rule.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.UtilityDecisionLog)]
     [DataPolicy(DataPolicy.NoScenario)]

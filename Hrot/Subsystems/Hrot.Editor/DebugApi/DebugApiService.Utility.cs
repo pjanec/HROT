@@ -29,8 +29,8 @@ namespace Hrot.Editor.DebugApi
                 {
                     ["networkId"] = networkId,
                     ["observed"]  = false,
-                    ["note"]      = "Not observed. POST /trace/observe {networkId, on:true} on the Brain perspective (Scenario), " +
-                                    "let the simulation tick, then read again.",
+                    ["note"]      = "No decision log here: not a brain unit on this node (CE-1319 — every brain unit carries one). " +
+                                    "On a cluster read the Brain perspective (Scenario).",
                 };
 
             ref readonly var log = ref _world.GetComponentRO<UtilityDecisionLog>(entity);

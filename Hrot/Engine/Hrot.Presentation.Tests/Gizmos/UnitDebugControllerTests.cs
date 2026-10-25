@@ -11,8 +11,9 @@ using Xunit;
 namespace Hrot.Presentation.Tests.Gizmos;
 
 /// <summary>
-/// ⭐⭐ <c>CE-1257</c> (BV-26) — "Debug this unit": one switch, one debugged unit; on = traces armed + every gizmo family pinned + the
-/// graph overlay follows it; off = all undone; moving it to another unit undoes the first. 📄 docs/DESIGN_Entity_Brain_View.md §10.
+/// ⭐⭐ <c>CE-1257</c> (BV-26) — "Debug this unit": one switch, one debugged unit; on = traces armed + the graph overlay follows it; off =
+/// all undone; moving it to another unit undoes the first. ⭐ <c>CE-1317</c> (BV-48, BV-49): ⛔ it no longer pins every gizmo family, and
+/// VIEWING a unit's Brain tab arms its traces (<see cref="BrainObservation"/>). 📄 docs/DESIGN_Entity_Brain_View.md §10, §12c.
 /// </summary>
 public sealed class UnitDebugControllerTests : IDisposable
 {
@@ -42,9 +43,10 @@ public sealed class UnitDebugControllerTests : IDisposable
 
     private DebugState Debug(Entity e) => _repo.HasComponent<DebugState>(e) ? _repo.GetComponentRO<DebugState>(e) : default;
 
-    /// <summary>🔴 Red-proof: drop the <c>Apply(world, previous, false)</c> line in <c>Set</c> ⇒ red (the first unit stays armed).</summary>
+    /// <summary>🔴 Red-proof: drop the <c>Apply(world, previous, false)</c> line in <c>Set</c> ⇒ red (the first unit stays armed).
+    /// ⭐ <c>CE-1317</c> (BV-49) — and NO gizmo family is pinned by it (🔒 user: "turning all gizmos at once would be overwhelming").</summary>
     [Fact]
-    public void OnArmsAndPins_MovingUndoesTheFirst_OffUndoesAll_AndTheOverlayFollows()
+    public void CE1317_OnArmsTracingOnly_MovingUndoesTheFirst_OffUndoesAll_AndTheOverlayFollows()
     {
         var a = Unit();
         var b = Unit();
@@ -53,7 +55,7 @@ public sealed class UnitDebugControllerTests : IDisposable
         c.Set(_repo, a, true);
         Apply();
         Assert.True((Debug(a).Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0);
-        foreach (var f in GizmoFamilies.All) Assert.True((Debug(a).Ai & f) != 0, $"{f} pinned");
+        Assert.Equal(0, (int)Debug(a).Ai);                            // ⛔ BV-49: no family pinned
         Assert.Equal(a, c.Follow(_repo, b));                          // the overlay follows the debugged unit, not the selection
 
         c.Set(_repo, b, true);
@@ -95,5 +97,33 @@ public sealed class UnitDebugControllerTests : IDisposable
             Assert.Equal(unit, c.Debugged);
         }
         finally { UnitDebugController.Current = previous; }
+    }
+
+    /// <summary>⭐⭐ <c>CE-1317</c> (Brain View §12c BV-48) — VIEWING IS DEBUGGING: a tab drawing a unit arms its traces; a unit no tab drew for
+    /// the linger is disarmed; a trace someone else armed (the menu, the debug switch) is left alone. ✅ Red-proof: the <c>_armedHere</c>
+    /// guard removed ⇒ the menu-armed unit is disarmed.</summary>
+    [Fact]
+    public void CE1317_ATabViewingAUnit_ArmsItsTraces_AndReleasesThemOnlyWhenItArmedThem()
+    {
+        long now = 0;
+        var o = new BrainObservation(() => now) { Linger = TimeSpan.FromSeconds(1) };
+        var viewed = Unit();
+        var menuArmed = Unit();
+        AiTraceActions.Set(_repo, menuArmed, BehaviorDebugFlags.EnableTraceBuffer, true);
+        Apply();
+
+        o.Viewed(_repo, viewed);
+        o.Viewed(_repo, menuArmed);
+        Apply();
+        Assert.True((Debug(viewed).Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0);
+        Assert.Equal(0, (int)Debug(viewed).Ai);                       // tracing only — no family pinned
+
+        now = 500; o.Viewed(_repo, viewed); o.Tick(_repo); Apply();   // still drawn: stays armed
+        Assert.True((Debug(viewed).Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0);
+
+        now = 2_000; o.Tick(_repo); Apply();                          // no tab drew either for > 1 s
+        Assert.Equal(0, (int)(Debug(viewed).Behavior & BehaviorDebugFlags.EnableTraceBuffer));
+        Assert.True((Debug(menuArmed).Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0, "the menu armed it — not ours to disarm");
+        Assert.Empty(o.Observed);
     }
 }

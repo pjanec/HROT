@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.UI.Common.Audio
@@ -361,6 +362,124 @@ namespace Hrot.UI.Common.Audio
         {
             int d = (int)(delaySeconds * SampleRate);
             for (int i = b.Length - 1; i >= d; i--) b[i] += gain * b[i - d];
+        }
+
+        // ── voices ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ CE-2372 (AQ105 F; DESIGN_FPS_Audio §9) — a SHOUTED PHRASE as a placeholder: the words' rhythm (a syllable per vowel group, a
+        /// burst per stop, a hiss per fricative, a pause per word and more at punctuation), voiced by a glottal pulse train at
+        /// <paramref name="pitchHz"/> raised for a shout and falling at the end, through three formant resonators per vowel scaled by
+        /// <paramref name="formant"/> (a voice per side). Not speech — a shout with the line's shape, so the operator tells "Moving!" from
+        /// "Man down!" by its length and stress until a recording replaces it. Deterministic (seeded by the words and the voice).
+        /// </summary>
+        public static short[] Voice(string text, float pitchHz, float formant)
+        {
+            uint seed = 2166136261u;
+            foreach (char c in text) seed = (seed ^ c) * 16777619u;
+            var r = new Rng(seed ^ (uint)(pitchHz * 100f));
+            var units = VoiceUnits(text);
+            float total = 0.05f;
+            foreach (var u in units) total += u.Seconds;
+            var b = Buf(total + 0.25f);
+            float phase = 0f, n1 = 0f;
+            var res = new Resonator[3];
+            int at = (int)(0.03f * SampleRate), vowelsDone = 0, vowels = 0;
+            foreach (var u in units) if (u.Kind == 'V') vowels++;
+            foreach (var u in units)
+            {
+                int len = (int)(u.Seconds * SampleRate);
+                if (u.Kind == 'V' || u.Kind == 'N')
+                {
+                    var (f1, f2, f3) = u.Kind == 'N' ? (300f, 1200f, 2500f) : u.Formants;
+                    res[0].Tune(f1 * formant * 1.1f, 90f); res[1].Tune(f2 * formant, 120f); res[2].Tune(f3 * formant, 170f);
+                    float rise = vowels <= 1 ? 1f : 1f - 0.18f * vowelsDone / (vowels - 1);   // the phrase falls
+                    for (int i = 0; i < len && at + i < b.Length; i++)
+                    {
+                        float k = i / (float)Math.Max(1, len);
+                        float last = u.Kind == 'V' && vowelsDone == vowels - 1 ? 1f - 0.25f * k : 1f;   // the last vowel drops
+                        float f0 = pitchHz * 1.55f * rise * last * (1f + 0.02f * Sin(5.5f, T(at + i)));
+                        phase += f0 / SampleRate;
+                        if (phase >= 1f) phase -= 1f;
+                        float pulse = (1f - 2f * phase) + 0.15f * r.Next();   // a sawtooth glottis, a little breath
+                        float env = MathF.Min(1f, k * 12f) * MathF.Min(1f, (1f - k) * 8f) * (u.Kind == 'N' ? 0.35f : u.Stress);
+                        b[at + i] += env * (res[0].Step(pulse) + 0.6f * res[1].Step(pulse) + 0.3f * res[2].Step(pulse));
+                    }
+                    if (u.Kind == 'V') vowelsDone++;
+                }
+                else if (u.Kind == 'F' || u.Kind == 'P')
+                {
+                    float hp = u.Kind == 'F' ? 0.85f : 0.6f;
+                    for (int i = 0; i < len && at + i < b.Length; i++)
+                    {
+                        float k = i / (float)Math.Max(1, len);
+                        float w = r.Next();
+                        n1 = n1 + hp * (w - n1);
+                        float env = u.Kind == 'P' ? Env(T(i), 0.012f) : MathF.Sin(MathF.PI * k);
+                        b[at + i] += env * (w - n1) * (u.Kind == 'P' ? 0.9f : 0.35f);
+                    }
+                }
+                at += len;   // 'S' — silence
+            }
+            AddEcho(b, 0.06f, 0.18f);   // a street's slap-back
+            return Finish(b);
+        }
+
+        private readonly record struct VoiceUnit(char Kind, float Seconds, (float, float, float) Formants = default, float Stress = 1f);
+
+        /// <summary>The words as sound units: V a vowel, N a voiced consonant, F a fricative, P a stop's burst, S silence.</summary>
+        private static List<VoiceUnit> VoiceUnits(string text)
+        {
+            var u = new List<VoiceUnit>();
+            string s = text.ToLowerInvariant();
+            bool firstVowelOfWord = true;
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (c is 'a' or 'e' or 'i' or 'o' or 'u' or 'y')
+                {
+                    int j = i;
+                    while (j + 1 < s.Length && s[j + 1] is 'a' or 'e' or 'i' or 'o' or 'u') j++;
+                    if (c == 'e' && j == i && (i + 1 >= s.Length || !char.IsLetter(s[i + 1])) && !firstVowelOfWord) continue;   // a silent final e
+                    u.Add(new VoiceUnit('V', firstVowelOfWord ? 0.17f : 0.12f, VowelFormants(c), firstVowelOfWord ? 1f : 0.75f));
+                    firstVowelOfWord = false;
+                    i = j;
+                }
+                else if (c is 's' or 'f' or 'h' or 'c' or 'x' or 'z' or 'j') u.Add(new VoiceUnit('F', c == 'h' ? 0.04f : 0.07f));
+                else if (c is 'p' or 't' or 'k' or 'b' or 'd' or 'g' or 'q') { u.Add(new VoiceUnit('S', 0.025f)); u.Add(new VoiceUnit('P', 0.03f)); }
+                else if (char.IsLetter(c)) u.Add(new VoiceUnit('N', 0.05f));
+                else if (c == ' ') { u.Add(new VoiceUnit('S', 0.04f)); firstVowelOfWord = true; }
+                else if (c is '!' or '.' or ',' or '?') { u.Add(new VoiceUnit('S', 0.16f)); firstVowelOfWord = true; }
+            }
+            return u;
+        }
+
+        private static (float, float, float) VowelFormants(char v) => v switch
+        {
+            'a' => (730f, 1090f, 2440f),
+            'e' => (530f, 1840f, 2480f),
+            'i' or 'y' => (390f, 1990f, 2550f),
+            'o' => (570f, 840f, 2410f),
+            _ => (440f, 1020f, 2240f),
+        };
+
+        /// <summary>A two-pole resonator (one formant).</summary>
+        private struct Resonator
+        {
+            private float _a1, _a2, _g, _y1, _y2;
+            public void Tune(float hz, float bandwidth)
+            {
+                float rr = MathF.Exp(-MathF.PI * bandwidth / SampleRate);
+                _a1 = 2f * rr * MathF.Cos(2f * MathF.PI * hz / SampleRate);
+                _a2 = -rr * rr;
+                _g = 1f - rr;
+            }
+            public float Step(float x)
+            {
+                float y = _g * x + _a1 * _y1 + _a2 * _y2;
+                _y2 = _y1; _y1 = y;
+                return y;
+            }
         }
 
         /// <summary>A one-shot: a short fade at the end, normalised.</summary>

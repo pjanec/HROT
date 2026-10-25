@@ -1033,4 +1033,44 @@ public sealed class TheChangedConditionIsPerEntityTests
         system.Execute(live, 0f);
         Assert.True(manager.IsPaused);
     }
+
+    /// <summary>⭐⭐ <c>CE-1284</c> (Behaviour Debugging DBG-8) — in the REAL phase order a write made in <b>Input</b> (where the ingress starts a
+    /// task and writes the brain journal) is a change: the baseline is taken in PreFrame, before it. 🔴 Measured before: the baseline was the
+    /// BeforeSync copy, AFTER Input ⇒ the change was already in it ⇒ "Break when it changes its mind" never broke.
+    /// ✅ Red-proof: drop the <see cref="ChangeBaselineSystem"/> (the manager falls back to the BeforeSync copy) ⇒ red.</summary>
+    [Fact]
+    public void CE1284_AWriteInInput_IsAChange_BecauseTheBaselineIsTakenInPreFrame()
+    {
+        ComponentTypeRegistry.Clear();
+        EntityRepository World() { var w = new EntityRepository(); w.RegisterComponent<TestHealth>(); return w; }
+        var live = World();
+        var snapshot = World();
+        var a = live.CreateEntity(); live.AddComponent(a, new TestHealth { Current = 10 });
+
+        var provider = new DebugSnapshotProvider(snapshot);
+        var manager  = new DataBreakpointManager(live, snapshot, provider, new MockDebugTimeController(),
+            new PredicateCompiler(new ComponentEditServiceBuilder().Build()),
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
+        manager.AddBreakpoint(new PropertyMatchDto
+        {
+            ComponentType = typeof(TestHealth), PropertyPath = nameof(TestHealth.Current), Operator = SearchOperator.Changed,
+            Predicate = new NumericPredicateDto(),
+        }, a);
+        var baseline = new ChangeBaselineSystem(manager, World());
+        var system = new DataBreakpointSystem(manager, null);
+
+        void Frame(System.Action? input)
+        {
+            live.Tick();
+            baseline.Execute(live, 0f);                   // PreFrame
+            input?.Invoke();                              // Input — the ingress writes here
+            provider.Execute(live, 0f);                   // BeforeSync — the rewind snapshot
+            system.Execute(live, 0f);                     // PostSimulation
+        }
+
+        Frame(null);
+        Assert.False(manager.IsPaused);
+        Frame(() => live.GetComponentRW<TestHealth>(a).Current = 7);
+        Assert.True(manager.IsPaused, "a change written in Input must hit");
+    }
 }

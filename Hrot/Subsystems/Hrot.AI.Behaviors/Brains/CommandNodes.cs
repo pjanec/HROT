@@ -41,6 +41,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             long id = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, member) : 0;
+            // ⭐ CE-1319 (BV-58) — the order histories first, so the cause they copy is the change that issued it, not this order
+            CommandHistoryOf.Order(world, commander, member, BehaviorHash.FromName(behaviour), CommandPictureOps.Now(world));
             Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(world, commander, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.OrderIssued,
                 a: (int)id, b: BehaviorHash.FromName(behaviour));
         }

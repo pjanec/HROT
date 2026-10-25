@@ -24,6 +24,25 @@ changes, and before asserting anything about what exists in this codebase.**
 
 This rule applies to every request involving this codebase.
 
+### ⛔⛔⛔ IMPERATIVE — graph AND grep, every time; a slow index is NEVER a reason to skip *(user, `2026-10-25`)*
+
+> 🔒 **User, verbatim:** *"pls update cloude.md to make you really use the codebase memory in addition to grep and an imperative, not
+> just a free choice, and not giving up easily if indexing takes a while"*
+
+📌 **The miss that produced this, `2026-10-25` (ui, Brain View design):** the first `scripts/cbm.sh` call ran in the FOREGROUND on a fresh
+VM, hit the 120 s tool timeout while the repo was still indexing, and **every later question in the session went to grep alone.**
+Cost, measured the same day: a design proposed a NEW `BehaviourStateReader` beside the existing **`OccurrenceSlotCatalog`** (CE-2288), and
+a reply told the user *"there is no C# hot reload for behaviours"* while **`AiHotReloadCoordinator` + `FbtAssemblyHotReloader`** swap
+`Hrot.AI.Behaviors.dll` live. ⇒ both were one `search_graph` away; the user caught them.
+
+| ⭐ the rule — no exceptions | |
+|---|---|
+| ⭐⭐⭐ **FIRST command of every session: `scripts/cbm.sh list_projects` with `run_in_background: true`** | ⛔ never in the foreground — on a fresh VM it indexes first (minutes) and the foreground timeout kills it. ⭐ Keep working with grep while it runs; the notification says when the graph is up |
+| ⭐⭐⭐ **a timeout or an empty project list is NOT "unavailable"** | ⭐ re-run it in the background and keep going; ⛔ never conclude "the graph does not work here" from one cold call |
+| ⭐⭐⭐ **BEFORE any claim about what EXISTS / does not exist, any lean, any design: run `search_graph` (+ `search_code`) for the topic AND grep** | ⛔ grep alone is a defect, not a choice. ⭐ Query by every concept the claim rests on (e.g. *reader*, *writer*, *reload*, *history*), `label: Class` and `Interface` |
+| ⭐⭐ **if the index is still building when a claim is due: say so in the reply** (*"graph not ready — grep only, unconfirmed"*) **and re-run the graph queries when it is up, BEFORE the claim reaches a design or a commit** | ⛔ a grep-only claim must never be written into a design, a ruling or a tracker row |
+| ⭐⭐ **the checkable artefact: name the graph queries you ran** in every design's `INVENTORY` and in any chat answer that asserts existence or absence | ⭐ an answer with no graph query in it is the tell that this rule was skipped |
+
 ### 🔴 Why this keeps failing — read before deciding it does not apply
 
 The rule used to say only *"before reading files or making changes"*, so during **design and prior-art
