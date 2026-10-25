@@ -370,5 +370,11 @@ breakpoint on an unarmed unit is silent. ⇒ a step breakpoint scoped to a unit 
 
 Rails: `Hrot.Editor.Tests` `NodeBreakpointEvaluatorTests` — `CE1323_EachKind_StopsOnItsStep_AndSaysWhatItSaw`, `CE1323_OneArrival_StopsOnce_NotAgainAfterAContinue`,
 `CE1323_ForOneUnit_OrWithACondition`, `CE1323_AWrongName_SaysWhatTheMachineHas` · `Hrot.Editor.AiShared.Tests` `TheBrainViewTests.CE1323_*` ·
-E2E `Hrot.SystemTests` `BehaviourBreakpointTests`.
+E2E `Hrot.SystemTests` `BehaviourBreakpointTests` on `hsm-channel-e2e` ✅ — the API refuses a state the machine lacks (the 400 lists Driving,
+Firing), sets "Firing entered" on the Open=false Bradley, the guard is flipped live (CE-1320), the run pauses with `lastHit.what = "entered
+Firing"`, and a continue does not stop again.
+
+📷 `TheBrainViewTests.CE1323_TheDebugSection_StopWhen_Draws`:
+
+![Brain tab: Stop when…](assets/brain-view/brain-stop-when.png)
 
