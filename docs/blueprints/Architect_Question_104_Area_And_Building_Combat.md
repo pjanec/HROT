@@ -259,3 +259,10 @@ Rails (step 3): `SquadManeuverTests.CE2373_ALoneDefender_IsPostedForCoverage_And
 `CE2373_Coverage_GreedyUnion_AndTheRoundGoesWhereItWatchedLeast` · `CE2374_ClearArea_ClearsEveryBuilding_NearestFirst_ThenSucceeds`.
 Red-proofs: the picker fed the ask's order ⇒ red · the round ignoring a known enemy ⇒ red · the sequencer stopping after one building ⇒
 red · ⏭ the no-round mutation to re-run (its first form did not compile). Six existing defend rails gained one tick (the fan's round trip).
+
+📐 **Live after step 3, on the NEW orders** (one run each, `f6f30cf78`), and the fourth red-proof (no round ⇒ red; 4 / 4 now):
+
+| demo | result | what it measured |
+|---|---|---|
+| `ia-area-clear` (`ClearArea`) | ⛔ 0/2 | the sequencer picked House A first (nearest) — ✅ — but the team sat ~100 s before moving (the baseline's idle start, unchanged), entered A at 129 s and was still on its ground floor at 410 s with Red 1 alive upstairs; House B never reached because A never finished. ⇒ the limit is the building drill's pace, not the sequencer |
+| `ia-area-defend` (one-man `SquadDefend`, L1) | ⛔ 0/4 — **worse than step 2** (2 rounds v 16) | the guard stood at the centre ~110 s under steady fire, never firing at Blue East 7 m away; moved at 145 s, into House A at 186 s. ⏭ **next: a live brain probe** — whether his posts were ever given (the window/coverage stages under fire) or the TS-6 break holds him, as at baseline |
