@@ -173,13 +173,17 @@ public sealed class Map3DTests
     [Fact]
     public void CE1142_TheFlySpeed_FollowsTheEyeHeight_StartsSlow_Accelerates_AndTheModifiersAreDistinct()
     {
-        Assert.Equal(4f, MapCamera3D.FlySpeed(10f, 1f, false, false), 3);            // 10 m up: 4 m/s once ramped
-        Assert.Equal(1f, MapCamera3D.FlySpeed(10f, 0f, false, false), 3);            // the press: a quarter
-        Assert.Equal(20f, MapCamera3D.FlySpeed(10f, 5f, false, false), 3);           // held 5 s: 5×
+        // ⭐ CE-1340 — high up (40 m, past the ground boost) as before; the acceleration reaches its 5× in 3 s (was 5)
+        Assert.Equal(16f, MapCamera3D.FlySpeed(40f, 1f, false, false), 3);           // 40 m up: 16 m/s once ramped
+        Assert.Equal(4f, MapCamera3D.FlySpeed(40f, 0f, false, false), 3);            // the press: a quarter
+        Assert.Equal(80f, MapCamera3D.FlySpeed(40f, 3f, false, false), 3);           // held 3 s: 5×
+        Assert.Equal(80f, MapCamera3D.FlySpeed(40f, 5f, false, false), 3);           // and no more after
         Assert.Equal(MapCamera3D.FlyMinSpeed, MapCamera3D.FlySpeed(0.5f, 1f, false, false), 3);   // on the ground: the floor
-        Assert.Equal(16f, MapCamera3D.FlySpeed(10f, 1f, true, false), 3);
-        Assert.Equal(80f, MapCamera3D.FlySpeed(10f, 1f, false, true), 3);
-        Assert.Equal(400f, MapCamera3D.FlySpeed(10f, 1f, true, true), 3);
+        Assert.Equal(1.2f, MapCamera3D.FlyMinSpeed, 3);                              // twice the old 0.6
+        Assert.Equal(2f * 2f * 0.4f * 5f, MapCamera3D.FlySpeed(2f, 3f, false, false), 3);   // a standing eye (2 m): twice the old full speed
+        Assert.Equal(64f, MapCamera3D.FlySpeed(40f, 1f, true, false), 3);
+        Assert.Equal(320f, MapCamera3D.FlySpeed(40f, 1f, false, true), 3);
+        Assert.Equal(1600f, MapCamera3D.FlySpeed(40f, 1f, true, true), 3);
     }
 
     /// <summary>⭐ CE-1142 — a metre above a soldier with the pivot far ahead, a short tap moves centimetres, not the 30 m/s the old

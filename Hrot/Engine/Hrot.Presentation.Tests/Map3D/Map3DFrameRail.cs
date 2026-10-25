@@ -1002,7 +1002,7 @@ public sealed class Map3DFrameRail
                 {
                     var c = Raylib.GetImageColor(image, x, y);
                     if (c.G > c.R + 15 && c.G > c.B + 15) ground++;
-                    if (c.R > c.G + 30 && c.R > c.B + 30) deck++;
+                    if (IsSlate(c)) deck++;   // ⭐ CE-1341 — the deck is a roof surface: slate grey now, not red
                 }
             Assert.True(ground > 5000, $"ground pixels {ground}");
             Assert.True(deck > 300, $"overpass pixels {deck}");
@@ -4242,7 +4242,10 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>The picture is the lit scene, not a blank: sky at the top, and below it pixels of all three terrain kinds —
-    /// ground (green), roof (red-brown) and wall (grey) — each lit to more than one shade.</summary>
+    /// ground (green), roof (slate grey) and wall (warm grey) — each lit to more than one shade.</summary>
+    /// <summary>⭐ CE-1341 — a roof's slate grey: grey, a touch bluer than red (the walls are a touch warmer).</summary>
+    private static bool IsSlate(Raylib_cs.Color c) => Math.Abs(c.R - c.G) < 14 && c.B > c.R + 2 && c.B - c.R < 30 && c.R > 40;
+
     private static void AssertLooksLikeAWorld(string png)
     {
         var image = Raylib.LoadImage(png);
@@ -4259,7 +4262,7 @@ public sealed class Map3DFrameRail
                     var c = Raylib.GetImageColor(image, x, y);
                     shades.Add((c.R >> 3) << 10 | (c.G >> 3) << 5 | (c.B >> 3));
                     if (c.G > c.R + 10 && c.G > c.B + 10) ground++;
-                    else if (c.R > c.G + 25 && c.R > c.B + 25) roof++;
+                    else if (IsSlate(c)) roof++;   // ⭐ CE-1341 — slate grey (bluer than the warm-grey walls), was red-brown
                     else if (Math.Abs(c.R - c.G) < 14 && Math.Abs(c.G - c.B) < 14 && c.R > 70 && c.R < 235) wall++;
                     if (c.R < 64 && c.G < 64 && c.B < 64) dark++;
                 }

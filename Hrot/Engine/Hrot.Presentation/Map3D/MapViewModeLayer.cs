@@ -113,6 +113,37 @@ public sealed class MapViewModeLayer : IMapLayer
         _awaitingReturn = false;
     }
 
+    /// <summary>⭐ <c>CE-1342</c> — the unit the map is about (the primary selection), or null: Ctrl+M centres the switch on it.</summary>
+    public Func<Entity?>? SelectedUnit { get; set; }
+
+    /// <summary>Whether Ctrl is held (injectable for rails; default: the keyboard).</summary>
+    public Func<bool> CtrlHeld { get; set; } = KeyboardCtrlHeld;
+
+    /// <summary>
+    /// ⭐ <c>CE-1342</c> — <b>Ctrl+M</b> switches 2-D ↔ 3-D, centred on the selected unit. 🔒 User, 2026-10-25: "i need the Ctrl+M to switch 2d
+    /// and 3d view (map should center on selected entity)". ⚠ Plain M stays the unit menu's Move and the first-person map peek.
+    /// </summary>
+    public bool HandleKeyInput(MapKeyboardKey key)
+    {
+        if ((int)key != (int)Raylib_cs.KeyboardKey.M || !CtrlHeld()) return false;
+        if (_switch.Camera3D.Driver is FpsCameraDriver) return false;   // possessing: the station's view
+        _switch.Toggle(SelectedPosition());
+        return true;
+    }
+
+    private System.Numerics.Vector3? SelectedPosition()
+    {
+        if (SelectedUnit?.Invoke() is not { } e || World?.Invoke() is not { } w || e.IsNull || !w.IsAlive(e) || !w.HasComponent<SimTransform>(e)) return null;
+        return w.GetComponentRO<SimTransform>(e).Position;
+    }
+
+    private static bool KeyboardCtrlHeld()
+    {
+        try { return Raylib_cs.Raylib.IsKeyDown(Raylib_cs.KeyboardKey.LeftControl) || Raylib_cs.Raylib.IsKeyDown(Raylib_cs.KeyboardKey.RightControl); }
+        catch (DllNotFoundException) { return false; }
+        catch (EntryPointNotFoundException) { return false; }
+    }
+
     public void Draw(RenderContext ctx) { }
 
     /// <summary>Nothing to draw in either mode — marked so the canvas does not count it as a layer missing from 3-D.</summary>

@@ -34,9 +34,10 @@ namespace Fdp.Toolkit.Vis2D.Gizmos;
 public sealed class EntityPickerGizmo : IEntityStatefulGizmo
 {
     // ⭐ CE-1065 — half the size it was (user, 2026-10-14: "… entity picker gizmo 2 times smaller"); world metres, the line width in pixels.
-    private const float CrosshairHalfSize  = 6f;
+    // ⭐ CE-1337 — halved again, 6 m across (user, 2026-10-25: the aiming cross is "too big now").
+    private const float CrosshairHalfSize  = 3f;
     private const float CrosshairThickness = 1.5f;
-    private const float CrosshairGapRadius = 2f;
+    private const float CrosshairGapRadius = 1f;
 
     private readonly Func<Vector2, Entity>              _hitTest;
     private readonly Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter _filter;

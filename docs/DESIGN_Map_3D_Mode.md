@@ -3248,6 +3248,11 @@ material: they get the faint concrete pattern. 📐 `Map3DTests.S4_TheTerrainTag
 
 ![brick, roof tiles and grass](assets/map3d/materials-brick-roof.png)
 
+⭐ **`2026-10-25` (ui, `CE-1341`)** — the roof colour is SLATE GREY (112,114,118), not terracotta: a building's floors arrive as the same
+upward `Roof` triangles as its roof, and a red floor read as the brick walls (🔒 user: *"change the roof texture to something non-red what can
+work as the floor as well"*). ⚠ A floor material of its own needs the terrain producer to tag floors. ⚠ The screenshot above predates it.
+⭐ **`CE-1340`** — the free fly reaches its 5× in 3 s (was 5) and is ×2 near the ground, fading to ×1 by 30 m eye height (`MapCamera3D.FlySpeed`).
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

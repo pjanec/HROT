@@ -18,7 +18,9 @@ namespace Fdp.Toolkit.Vis3D
     {
         public static readonly Color GroundColor = new(112, 142, 86, 255);
         public static readonly Color WallColor = new(206, 200, 188, 255);
-        public static readonly Color RoofColor = new(150, 84, 66, 255);
+        /// <summary>⭐ <c>CE-1341</c> — slate grey, not terracotta: a building's floors arrive as the same upward triangles as its roof, and a red
+        /// floor read as the brick walls. 🔒 User, 2026-10-25: "change the roof texture to something non-red what can work as the floor as well".</summary>
+        public static readonly Color RoofColor = new(112, 114, 118, 255);
 
         private readonly Func<ITerrainRenderGeometry?> _source;
         private object? _identity;

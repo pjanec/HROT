@@ -105,31 +105,36 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
     // Formats the label string for a transition.
     // Format: "EventName[GuardShort]/ActionShort" with parts omitted when null.
     // Returns "<unnamed>" when all parts are absent.
+    // ⭐ CE-1335 — a POLLED transition (no event: its guard is checked every tick, Fhsm ReservedEventIds.Polled) reads just "Guard",
+    //   not "Event_65533[Guard@0]"; a method key's "@offset" suffix (the shared-node binding, SharedNodeBinder) is not shown; the
+    //   priority badge only when it is set (0 is the C# builder's default, 128 the asset's). 🔒 User, 2026-10-25: "the Event_65533 prefix
+    //   is not helping … can the format be changed to be understandable for human?" · "the "when" is also redundant, plain "Planned" would be best"
     public static string FormatLabel(TransitionNode t)
     {
-        string eventPart = t.EventName ?? "";
+        bool polled = t.EventId == Fhsm.Kernel.Data.ReservedEventIds.Polled;
+        string? guard = ShortName(t.Guard?.MethodFqn);   // CE-417
+        string? action = ShortName(t.Action?.MethodFqn);
 
-        string guardPart = "";
-        if (t.Guard?.MethodFqn is { } guardFqn)   // CE-417
-        {
-            int dot = guardFqn.LastIndexOf('.');
-            string guardShort = dot >= 0 ? guardFqn[(dot + 1)..] : guardFqn;
-            guardPart = "[" + guardShort + "]";
-        }
-
-        string actionPart = "";
-        if (t.Action?.MethodFqn is { } actionFqn)   // CE-417
-        {
-            int dot = actionFqn.LastIndexOf('.');
-            string actionShort = dot >= 0 ? actionFqn[(dot + 1)..] : actionFqn;
-            actionPart = "/" + actionShort;
-        }
+        string head = polled
+            ? (guard ?? "every tick")
+            : (t.EventName ?? "") + (guard != null ? "[" + guard + "]" : "");
+        string actionPart = action != null ? "/" + action : "";
 
         string syncBadge = t.SyncGroupId != 0 ? " [SG:" + t.SyncGroupId + "]" : "";
-        string priorityBadge = t.Priority != 128 ? " (P:" + t.Priority + ")" : "";
+        string priorityBadge = t.Priority is not (128 or 0) ? " (P:" + t.Priority + ")" : "";
 
-        string result = eventPart + guardPart + actionPart + syncBadge + priorityBadge;
+        string result = head + actionPart + syncBadge + priorityBadge;
         return result.Length == 0 ? "<unnamed>" : result;
+    }
+
+    /// <summary>A method key as a person reads it: "Ns.Type.Planned@0@16" → "Planned".</summary>
+    private static string? ShortName(string? fqn)
+    {
+        if (string.IsNullOrEmpty(fqn)) return null;
+        int at = fqn.IndexOf('@');
+        if (at >= 0) fqn = fqn[..at];
+        int dot = fqn.LastIndexOf('.');
+        return dot >= 0 ? fqn[(dot + 1)..] : fqn;
     }
 
     /// <summary>

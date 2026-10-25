@@ -2020,6 +2020,38 @@ they were never lost — and **every one resolved `hitEntity=#-1`**, terrain and
 resolve entities is NOT MEASURED**; the scene holds 13 FDP entities / 11 visuals, so the ray had targets.
 ⇒ 🔒 **Do not read `CE-297` as having fixed 3-D picking — it fixed the 2-D window's clicks.**
 
+### 4.16 ⭐ THE ORBAT AS A SECOND PICK SOURCE — `CE-1346` *(design, `2026-10-25`; build-state: DESIGN — awaiting the user's nod)*
+
+🔒 **User, 2026-10-25:** *"It would be extra cool if when such an entity picking mode is used it would work also by clicking the entity
+in the Orbat tree … (might need design how as gizmos might not see that)"*
+
+```mermaid
+sequenceDiagram
+    participant U as user
+    participant O as SharedOrbatPanel
+    participant H as PickerToolHost
+    participant G as EntityPickerGizmo
+    participant C as caller (the pick's await)
+    U->>O: clicks a row while a pick is armed
+    O->>H: TryOfferEntity(entity)
+    H->>G: TryPick(entity)
+    G->>G: the same filter as a map click
+    G->>C: onPicked(entity), then onRemove (the tool underneath resumes)
+    H-->>O: true, so the row is NOT selected
+    Note over O: no pick armed, or the filter refuses: false, the row selects as today
+```
+
+*What the picture shows that prose hid: the ORBAT never touches the gizmo arbiter or the input path — it hands the entity to the ONE
+picker host (§4.12), and the gizmo finishes exactly as a map click finishes it, so the await, the resume and Esc stay one path.*
+
+| | |
+|---|---|
+| ⭐ **lean** | `EntityPickerGizmo.TryPick(Entity)` (filter → `onPicked` → `onRemove`, the click's own exit) · `PickerToolHost.TryOfferEntity(Entity)` (forwards to the armed entity picker, false when none) · `SharedOrbatPanel`'s row click offers first and selects only on false — reached through a resolver, as §4.12 reaches the controller (composition order) |
+| rejected | a fake mouse event at the unit's map position — the unit may be off-screen, under another, or in the other (2-D/3-D) view |
+| rejected | the ORBAT publishing selection and the picker watching selection — a pick would then also change the selection, and every selection change while armed would become a pick |
+| ⚠ **scope** | in-process panels only (Editor, CGF); an ORBAT in another process (ExCon) needs the pick on the wire — not this item |
+
+
 ## Migration
 
 | Step | Change | Gate |

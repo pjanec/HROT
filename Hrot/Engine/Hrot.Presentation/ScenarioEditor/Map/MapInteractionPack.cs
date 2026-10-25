@@ -550,6 +550,15 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1293 (UC-2, UC-10) — watching a unit: the 3-D camera follows it (menu and POST /view/follow; not while possessing)
             viewMode.World = worldProvider;
             viewMode.Bodies = bodies;
+            // ⭐ CE-1342 — Ctrl+M centres the switch on the primary selection (a view over the world's selection, rebuilt per world)
+            Hrot.ScenarioEditor.Selection.EcsSelectionState? viewSelection = null;
+            EntityRepository? viewSelectionWorld = null;
+            viewMode.SelectedUnit = () =>
+            {
+                if (worldProvider() is not { } sw) return null;
+                if (!ReferenceEquals(viewSelectionWorld, sw)) { viewSelection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(sw); viewSelectionWorld = sw; }
+                return viewSelection!.PrimarySelected;
+            };
             // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-3) — the scene's sound, only while the station holds a unit
             var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);
             canvas.AddLayer(audio);

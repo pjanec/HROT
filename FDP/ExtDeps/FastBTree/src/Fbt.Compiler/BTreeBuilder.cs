@@ -376,6 +376,7 @@ namespace Fbt.Compiler
                 methodName => _registry.TryGetDeactivator(methodName, out _));
 
             // Populate DebugMetadata in depth-first order (mirrors FlattenToBlob ordering)
+            AssignIds(root, treeName);
             var metaList = new List<NodeDebugMetadata>();
             FlattenMetadata(root, metaList);
             blob.DebugMetadata = metaList.ToArray();
@@ -405,6 +406,7 @@ namespace Fbt.Compiler
             var blob = TreeCompiler.FlattenToBlob(root.Node, treeName, owningDelegate);
 
             // Populate DebugMetadata in depth-first order (mirrors FlattenToBlob ordering)
+            AssignIds(root, treeName);
             var metaList = new List<NodeDebugMetadata>();
             FlattenMetadata(root, metaList);
             blob.DebugMetadata = metaList.ToArray();
@@ -428,6 +430,7 @@ namespace Fbt.Compiler
                     "The builder has multiple root nodes. A behavior tree must have exactly one root.");
 
             var graph = new BehaviorTreeGraph { TreeName = treeName };
+            AssignIds(_entries[0], treeName);   // ⭐ CE-1345
             graph.RootNode = ConvertToGraphNode(_entries[0], null);
             return graph;
         }
@@ -527,8 +530,37 @@ namespace Fbt.Compiler
                 Label = label,
                 SourceFile = Path.GetFileName(sourceFile),
                 LineNumber = lineNumber,
-                VisualId = (visualId == default ? Guid.NewGuid() : visualId).ToString()
+                VisualId = visualId == default ? string.Empty : visualId.ToString()   // ⭐ CE-1345 — none given: AssignIds mints it
             };
+        }
+
+        /// <summary>⭐ <c>CE-1345</c> — every node with no id given gets one from its DEPTH-FIRST position (unique by construction; a helper that
+        /// builds nodes on one source line in a loop or a sub-builder gives each its own).</summary>
+        private static void AssignIds(BuilderEntry root, string treeName)
+        {
+            var all = new List<NodeDebugMetadata>();
+            FlattenMetadata(root, all);
+            for (int i = 0; i < all.Count; i++)
+                if (string.IsNullOrEmpty(all[i].VisualId))
+                    all[i].VisualId = MintVisualId(treeName + "|" + all[i].Label, all[i].SourceFile, all[i].LineNumber, i).ToString();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1345</c> — a node id with none given is DETERMINISTIC: the same tree built twice (the runtime's registry and the editor's
+        /// read-only graph each build it) gives every node the same id, so what the editor selects is what runs. 🔴 It was
+        /// <c>Guid.NewGuid()</c>: the editor's ids never matched the running blob's, and everything keyed by a node id (its decision view, a
+        /// breakpoint) found nothing on a C#-built tree. 🔒 User, 2026-10-25: "choseoption node in such decompiled btree does not seem to show
+        /// the utility ai view on the details view".
+        /// </summary>
+        internal static Guid MintVisualId(string label, string sourceFile, int lineNumber, int ordinal)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes($"{Path.GetFileName(sourceFile)}|{lineNumber}|{label}|{ordinal}");
+            var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+            var g = new byte[16];
+            Array.Copy(hash, g, 16);
+            g[7] = (byte)((g[7] & 0x0F) | 0x50);   // a name-based id (version 5 layout)
+            g[8] = (byte)((g[8] & 0x3F) | 0x80);
+            return new Guid(g);
         }
 
         private static string GetDelegateKey(NodeLogicDelegate<TBlackboard, TContext> del)

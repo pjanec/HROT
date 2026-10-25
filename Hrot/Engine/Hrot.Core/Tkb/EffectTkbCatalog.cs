@@ -103,7 +103,7 @@ namespace Hrot.Core.Tkb
                 [ExplosionMedium]   = ("Explosion medium",    V(EffectKind.Explosion, 0.9f, 5f, "#FF8A30", 0.4f)),
                 [ExplosionLarge]    = ("Explosion large",     V(EffectKind.Explosion, 1.6f, 12f, "#FF6A20", 0.7f)),
                 [ExplosionHuge]     = ("Explosion huge",      V(EffectKind.Explosion, 2.2f, 20f, "#F07028", 1.0f)),   // ⭐ CE-1231 — an IED, a vest, a car bomb
-                [DecalSmall]        = ("Decal small",         V(EffectKind.Decal, 60f, 0.35f, "#1E1A16C0", 10f)),       // a bullet mark
+                [DecalSmall]        = ("Decal small",         V(EffectKind.Decal, 60f, 0.06f, "#1E1A16C0", 10f)),       // a bullet mark — ~5 cm across (CE-1336)
                 [DecalMedium]       = ("Decal medium",        V(EffectKind.Decal, 180f, 1.8f, "#18140FD0", 30f)),
                 [DecalLarge]        = ("Decal large",         V(EffectKind.Decal, 300f, 4.5f, "#120F0CE0", 60f)),       // a crater
                 [Tracer]            = ("Tracer",              V(EffectKind.Tracer, 0.25f, 0.12f, "#FFB040", 0.1f)),

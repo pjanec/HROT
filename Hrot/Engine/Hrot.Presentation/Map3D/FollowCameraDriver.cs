@@ -97,6 +97,7 @@ public sealed class FollowCameraDriver : ICameraDriver
         var free = UnitCameraRig.SpringArm(pivot, wanted, FirstHit);
         _arm = UnitCameraRig.EaseArm(_arm == 0f ? Vector3.Distance(pivot, free) : _arm, Vector3.Distance(pivot, free), dt, UnitCameraRig.ScaleOf(scheme));
         var at = pivot + Vector3.Normalize(wanted - pivot) * _arm;
+        at = UnitCameraRig.AboveHeadWhenSqueezed(at, eye, _arm, Vector3.Distance(pivot, wanted));   // ⭐ CE-1338 — a wall: over his head, not his belly
         if (camera.GroundHeight is { } ground) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + FpsCameraDriver.CameraAboveGround);
         camera.Distance = camera.MinDistance;
         camera.LookAt = at + forward * camera.Distance;
