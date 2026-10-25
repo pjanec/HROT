@@ -98,7 +98,8 @@ namespace Fdp.Toolkit.Navigation
             // ⚠ Measured live (ua-danger-crossing): a unit standing at the handle it is sent to. A real navmesh answers
             // coincident points with no path, and Append would merge them into one point — either way the move FAILED and
             // the behaviour re-issued it every tick. The pre-CE-3128 navmesh solve returned this two-point path.
-            if (!forceRoad && Vector2.Distance(Xy(q.Start), Xy(q.End)) < ShortMoveMeters)
+            // ⭐ AQ104 I (R-2079) — only on ONE level: a man under the point, a floor below, needs the stairs (the navmesh plans them)
+            if (!forceRoad && Vector2.Distance(Xy(q.Start), Xy(q.End)) < ShortMoveMeters && Fdp.Toolkit.World.Levels.Same(World, q.Start, q.End))
             {
                 _points.Add(q.Start);
                 _points.Add(q.End);

@@ -171,5 +171,63 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal((byte)7, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Rotor);
         }
 
-}
+        // A closed 10 x 8 m room at (20,20); its one door ("front", 1.2 m) in the south wall, centre (25, 20).
+        private const string OneDoorRoom = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"R","doors":{"front":"closed"},"building":{
+                 "footprint":[[0,0],[10,0],[10,8],[0,8]],
+                 "storeys":[{"height":3,"walls":[
+                      {"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},
+                      {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
+               "geometry":{"type":"Point","coordinates":[20,20]}}]}
+            """;
+
+        /// <summary>
+        /// ⭐ AQ104 E ③ (R-2079; Sensing §8.8) — a door makes a sound where it is, on every node, from its REPLICATED state: the first
+        /// sight records it (no bang), opening it makes a 15 m Movement sound at the doorway of the side of the man standing at it, a
+        /// lock 5 m, a breach 40 m; nothing while it stays put. ✅ Red-proof: the <c>HearDoors</c> call removed from
+        /// <c>SoundEmissionSystem.Execute</c> ⇒ no ring entry ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ104E_ADoorOpened_ShutAndBroken_IsHeard_AtTheDoorway_OfTheSideOfTheManAtIt()
+        {
+            var (w, _) = World();
+            w.RegisterComponent<EntityInfo>();
+            w.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+            w.RegisterComponent<DoorHeard>();
+            w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(OneDoorRoom, "range"));
+            var door = w.CreateEntity();
+            w.AddComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Closed });
+            w.SetManagedComponent(door, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "range/R/front" });
+            var man = w.CreateEntity();
+            w.AddComponent(man, new SimTransform { Position = new Vector3(25f, 18.8f, 0f), Rotation = Quaternion.Identity });
+            w.AddComponent(man, new EntityInfo { ForceId = ForceId.Hostile });
+            var s = new SoundEmissionSystem();
+            var ring = SoundEmissionRing.Of(w);
+            At(w, 1.0); Step(w, s);
+            Assert.Equal(0L, ring.Head);   // first sight: recorded, silent
+
+            void Set(Fdp.Toolkit.Terrain.TerrainDoorState st) => w.GetComponentRW<Fdp.Toolkit.Terrain.DoorState>(door).State = st;
+            Set(Fdp.Toolkit.Terrain.TerrainDoorState.Open);
+            At(w, 1.1); Step(w, s);
+            At(w, 1.2); Step(w, s);   // stays open: no second sound
+            Assert.Equal(1L, ring.Head);
+            Span<SoundEmission> read = stackalloc SoundEmission[4];
+            Assert.Equal(1, ring.ReadAfter(0, read, out _));
+            Assert.Equal((byte)SoundKind.Movement, read[0].Kind);
+            Assert.Equal(DoorSounds.SwingRange, read[0].Carry);
+            Assert.Equal((byte)ForceId.Hostile, read[0].Force);
+            Assert.Equal(man.PackedValue, read[0].Source);
+            Assert.True(Vector2.Distance(new Vector2(read[0].At.X, read[0].At.Y), new Vector2(25f, 20f)) < 0.1f, $"at {read[0].At}");
+
+            Set(Fdp.Toolkit.Terrain.TerrainDoorState.Closed); At(w, 1.3); Step(w, s);
+            Set(Fdp.Toolkit.Terrain.TerrainDoorState.Locked); At(w, 1.4); Step(w, s);
+            Set(Fdp.Toolkit.Terrain.TerrainDoorState.Destroyed); At(w, 1.5); Step(w, s);
+            Assert.Equal(4, ring.ReadAfter(0, read, out _));
+            Assert.Equal(new[] { DoorSounds.SwingRange, DoorSounds.SwingRange, DoorSounds.LockRange, DoorSounds.BreachRange },
+                new[] { read[0].Carry, read[1].Carry, read[2].Carry, read[3].Carry });
+        }
+    }
 }

@@ -76,17 +76,22 @@ namespace Fdp.Toolkit.Behavior.Components
         public static float Resolve(ISimulationView view, Entity unit)
             => Read(view, unit, CombatTemperament.ResolveSet, DefaultResolve);
 
+        /// <summary>⭐ <c>CE-2269</c> TS-2 (R-2076) — the TRAINED standard discipline holds a man to: steadier and firmer than the average man
+        /// (<see cref="DefaultNerve"/> / <see cref="DefaultResolve"/>), bravery as the average (so TS-5's damping stays neutral at 1.0).</summary>
+        public const float TrainedNerve = 0.75f, TrainedResolve = 0.6f, TrainedRiskAcceptance = DefaultRiskAcceptance;
+
         /// <summary>
-        /// ⭐⭐ <c>CE-2269</c> TS-2 — a trait as obedience TEMPERS it: <c>default + (1 − Obedience) × (value − default)</c> — a disciplined man
-        /// acts near the norm whatever his character, an undisciplined one acts it out. Read by the stress, the break and the damping
-        /// inputs. ⛔ NOT by AQ89's <see cref="Willingness"/> / <see cref="Willing"/>, which stay raw: they already apply obedience their
-        /// own way, and blending under them would drop an authored 0.8 to 0.56, under the 0.6 threshold.
+        /// ⭐⭐ <c>CE-2269</c> TS-2 (R-2076) — a trait as obedience TEMPERS it: <c>trained + (1 − Obedience) × (value − trained)</c> — a
+        /// disciplined man acts near the TRAINED standard whatever his character (drill steadies him), an undisciplined one acts it out.
+        /// Read by the stress, the break and the damping inputs. ⛔ NOT by AQ89's <see cref="Willingness"/> / <see cref="Willing"/>, which
+        /// stay raw: they already apply obedience their own way, and blending under them would drop an authored 0.8 to 0.56, under the 0.6
+        /// threshold.
         /// </summary>
         public static float Effective(ISimulationView view, Entity unit, TemperamentTrait trait)
         {
-            float d = trait switch { TemperamentTrait.Nerve => DefaultNerve, TemperamentTrait.Resolve => DefaultResolve, _ => DefaultRiskAcceptance };
+            float d = trait switch { TemperamentTrait.Nerve => TrainedNerve, TemperamentTrait.Resolve => TrainedResolve, _ => TrainedRiskAcceptance };
             float v = trait switch { TemperamentTrait.Nerve => Nerve(view, unit), TemperamentTrait.Resolve => Resolve(view, unit), _ => RiskAcceptance(view, unit) };
-            return d + (1f - Obedience(view, unit)) * (v - d);
+            return v + Obedience(view, unit) * (d - v);   // ≡ trained + (1 − O)(v − trained); this form gives an undisciplined man EXACTLY himself
         }
 
         /// <summary>⭐ <c>CE-2269</c> TS-3 — the default spread a type's value gets per man (±).</summary>

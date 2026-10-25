@@ -722,6 +722,25 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> B (R-2077; Peek and Fire §12.4) — NOT SEEN when exposed, and the only evidence is OLD (last seen 20 s ago): the
+        /// exposure is a LOOK — no round of any kind, back down, and it still counts toward the spot's uses. (Fresh evidence keeps the
+        /// burst: <c>P6_R5</c>, <c>P7_R1</c>.) 🔴 Red-proof: the freshness check dropped from <c>Expose</c> ⇒ a blind burst.
+        /// </summary>
+        [Fact]
+        public void CE2366_NotSeen_WithOnlyOldEvidence_ThePeekIsALook_NoRound()
+        {
+            var d = new Duel(Window(), seen: false);
+            d.Time = 20;   // the memory slot was stamped at the first frame; 20 s later it is old evidence
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (0f, 0f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Expose, d.RunUntil(PeekPhase.Expose));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Empty(d.Fires);
+            Assert.Equal(0, d.BlindRounds);
+            Assert.Equal(1, d.Ws.ExposuresHere);   // the look used the spot
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a, the behaviors half) — a blind burst at a body last SEEN crouched names that body:
         /// the round goes to his FEET with <c>BodyStance</c> = Crouched + 1 and the muscle aims it (his chest, or the band over the cover);
         /// unseen (heard only, no stance known), the spot + <c>BlindAimHeight</c> as before. 🔴 Red-proof: drop the stance read ⇒ the
@@ -858,6 +877,28 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
                 Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
             }
+            Assert.All(d.Moves, m => Assert.Equal(new Vector3(10f, 10f, 0f), m));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> (R-2078) — a window used up (burned) with NOWHERE ELSE to go is still peeked from, at a third of the rhythm: the
+        /// 2 s hide wait becomes 6 s, and he comes up again long before the spot cools (~70 s). 📐 Live <c>bt-window-duel</c>: he waited 64 s
+        /// behind the sill without a peek. 🔴 Red-proof: the old "a burned spot waits to cool" return restored ⇒ no exposure within 20 s.
+        /// </summary>
+        [Fact]
+        public void CE2366_AHotWindowWithNowhereElse_IsStillPeeked_AtAThirdOfTheRhythm()
+        {
+            var d = new Duel(Window());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched));
+            for (int exposure = 0; exposure < 3; exposure++)
+            {
+                Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+                Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            }
+            double down = d.Time;   // three exposures: heat 3 ≥ BurnHeat 2.5 — burned, and the only window
+            Assert.Equal(PeekPhase.Expose, d.RunUntil(PeekPhase.Expose, maxSeconds: 20));
+            Assert.InRange(d.Time - down, 5.5, 7.0);   // 3 × the 2 s wait
             Assert.All(d.Moves, m => Assert.Equal(new Vector3(10f, 10f, 0f), m));
         }
 

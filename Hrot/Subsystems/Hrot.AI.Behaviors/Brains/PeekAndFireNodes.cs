@@ -507,7 +507,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Framed == 1) { FrameHidden(ref ws, in p, ref mem, self, world, now); return; }   // ⭐ CE-2275 D-2l
             StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
 
-            // B4/D8 — a used-up position: move on if there is somewhere else (a burned one with nowhere to go waits to cool)
+            // B4/D8 — a used-up position: move on if there is somewhere else. ⭐ CE-2366 (R-2078) — a burned one with nowhere to go is still
+            //   PEEKED from, only slower (EnterHidden's HotWaitFactor). ⛔ SUPERSEDED: it waited unpeeked until it cooled (📐 64 s live)
             bool burned = PositionHeat.IsBurnedAt(ref mem, ws.HidePoint, now, Rules(in p));
             if (ws.Bounding == 0 && (burned || ws.ExposuresHere >= p.ExposuresPerPosition))
             {
@@ -523,12 +524,11 @@ namespace Hrot.AI.Behaviors.Brains
                         ws.NextKind = nextKind;
                         ws.PhaseUntil = now;   // no further wait: the bound is the reason to come up
                     }
-                    else if (burned) return;   // nowhere to go: a burned spot waits to cool
                 }
                 else
                 {
                     Choose(ref ws, in p, ref mem, self, world, now, relocating: true);   // nothing elsewhere ⇒ changes nothing
-                    if (ws.Phase == PeekPhase.MoveToHide || burned) return;
+                    if (ws.Phase == PeekPhase.MoveToHide) return;
                 }
             }
 
@@ -622,8 +622,44 @@ namespace Hrot.AI.Behaviors.Brains
 
             // 4.2 — not seen in time: a blind burst at the FRESHEST evidence (D13), raised to the body's middle (no aim time);
             //   ⭐ CE-3158 G8 — or, with blind fire switched off, straight back down
-            if ((p.Disable & PeekDisable.BlindFire) != 0 || !StartBurst(ref ws, in p, self, world, in threat))
+            //   ⭐⭐ CE-2366 B (approved 2026-10-25) — only while that evidence is FRESH (seen or heard within BlindFreshSeconds): an older
+            //   one makes the peek a LOOK — nothing there, back behind cover to wait and look again. 🔒 User: "peek, if nothing there, wait
+            //   a while … and when there is some enemy seen, then he should fire at him". ⛔ SUPERSEDED: every unseen exposure fired blind
+            if ((p.Disable & PeekDisable.BlindFire) != 0 || !FreshEvidence(world, self, in threat, p.HeardMatchRadius)
+                || !StartBurst(ref ws, in p, self, world, in threat))
                 Recover(ref ws, in p, ref mem, self, world, now, false);
+        }
+
+        /// <summary>⭐ <c>CE-2366</c> (R-2078) — the hide wait from a burned spot he cannot leave is this many times the usual one.</summary>
+        public const float HotWaitFactor = 3f;
+
+        /// <summary>⭐ <c>CE-2366</c> B — a blind burst answers evidence at most this old (s): the enemy seen, or his shot heard.</summary>
+        public const float BlindFreshSeconds = 5f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2366</c> B — the freshest evidence of <paramref name="threat"/> (<see cref="FreshestEvidence(EntityRepository, Entity, in ThreatAim, out Vector3, out long, float)"/>:
+        /// its own memory slot or a heard shot near it) is at most <see cref="BlindFreshSeconds"/> old. False with no memory slot to date it.
+        /// </summary>
+        internal static unsafe bool FreshEvidence(EntityRepository world, Entity self, in ThreatAim threat, float matchRadius)
+        {
+            if (!FreshestEvidence(world, self, in threat, out _, out long slotId, matchRadius) || !world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            uint now = PerceptionClock.Now(world);   // ⭐ the clock LastSeenTick is stamped in (CE-3292), never SimulationTick
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != slotId) continue;
+                uint seen = mem.LastSeenTick[i];
+                return seen >= now || (now - seen) * SecondsPerFrame(world) <= BlindFreshSeconds;
+            }
+            return false;
+        }
+
+        /// <summary>The sim seconds one perception tick (a frame) stands for: the run's average so far; 1/60 before the first frame.</summary>
+        private static double SecondsPerFrame(EntityRepository world)
+        {
+            if (!world.HasSingleton<GlobalTime>()) return 1.0 / 60.0;
+            var t = world.GetSingleton<GlobalTime>();
+            return t.FrameNumber > 0 && t.TotalTime > 0 ? t.TotalTime / t.FrameNumber : 1.0 / 60.0;
         }
 
         /// <summary>
@@ -816,7 +852,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var other = WindowFrame.Other(p.FrameA, p.FrameB, ws.HidePoint);
                 if (!PositionHeat.IsBurnedAt(ref mem, other, now, rules)) { GoToFrame(ref ws, in p, self, world, other); return; }
-                if (burned) { Leans.Set(world, self, LeanSide.LeanNone); return; }   // both sides used up: he waits for one to cool
+                // both sides used up: he goes on leaning out from this one, slower (CE-2366, EnterHidden's HotWaitFactor)
             }
             bool reloading = ReloadingOrEmpty(world, self);
             if (!AimAndFireExecutor.RoePermitsFire(world, self))
@@ -884,7 +920,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Framed == 1) Leans.Set(world, self, LeanSide.LeanNone);   // ⭐ CE-2275 D-2l — straighten, behind the wall
             StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
             var rng = SimRng.FromSim(self.Index, CoverSite ^ (ws.Exposures * 7919), (float)now);
-            ws.PhaseUntil = now + p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin);
+            double wait = p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin);
+            // ⭐ CE-2366 (R-2078) — a HOT spot (burned: used up or shot at) he could not leave: he still peeks from it, at a third of the rhythm
+            ref var mem = ref UnitMemory.Ref<FiringPositionMemory>(world, self);
+            if (PositionHeat.IsBurnedAt(ref mem, ws.HidePoint, now, Rules(in p))) wait *= HotWaitFactor;
+            ws.PhaseUntil = now + wait;
             ws.Phase = PeekPhase.Hidden;
         }
 

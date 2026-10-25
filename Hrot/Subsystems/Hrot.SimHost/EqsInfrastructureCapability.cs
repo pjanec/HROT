@@ -96,6 +96,8 @@ public static class EqsSolverStartup
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.AcousticCursor>())
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticCursor>();   // ⭐ CE-3282
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.DoorHeard>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.DoorHeard>();   // ⭐ AQ104 E ③ — door sounds (Sensing §8.8)
         if (!context.World.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SoundContactEvent>())
             context.World.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
         // ⭐ CE-3301 — the ring the hearing sensors read exists from the start, not from SoundEmissionSystem's first step: a solve

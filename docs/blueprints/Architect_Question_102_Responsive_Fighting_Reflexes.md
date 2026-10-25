@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-23 on the chat summary (user: "Okay, write the scenario first, then implement it") — A…J as leaned below
-updated: 2026-10-23
+updated: 2026-10-25 (§9.2 R2-5 / CE-2366: B superseded by Peek and Fire §12, R-2077) · 2026-10-23
 build-state: READY-TO-BUILD — order §6: the scenarios FIRST (baseline, measured red), then A…I
 current-answer: §0 the idea · §3 the diagrams · §4 the sub-questions with their approved leans · §5 the scenarios · §6 the order
 stale-below: nothing
-known-rot: none yet
+known-rot: B (§4, §8) — the posted window man's PeekAndFire from the Suppress branch only is SUPERSEDED by the posted branch (Peek and Fire §12, R-2077, §9.2)
 known-conflict: docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2b accepts the dead ground under the upper windows — H here answers it for ONE man (the hunter); the rest of D-2 stands
 related-designs:
   - docs/blueprints/Architect_Question_103_Idle_Life.md — OWNS idle life: the one restlessness reflex for a STATIONARY man (no move), the one stay-still rule, and the lying man's calm crawl
@@ -341,3 +341,11 @@ specifically for that case"*.
 | ⚠ S6's own errors, fixed | the post stood on the window's left jamb (the opening is x 120.5–121.65, sill 0.9 m, lintel ~2.15 m — measured by sight scans), so the "peek" saw wall and the "hide" stood in the opening; Pinned started 10 m from the wreck, so fight-from-cover (60 m search) ran him behind it out of sight | `scripts/gen-rf-scenarios.py` |
 | ⛔ still red: nobody keeps him under fire | the posted window man fires ~12 rounds in 120 s — prone under the sill at his hide most of the time, once 6 m back into the house — so every drop LAPSES in 3 s and he rises; the scoot never has a steady fire to answer. ⇒ the user's *"kept firing all the time"* is the window man's peek CADENCE: R2-1 / R2-2's ground, not R2-3's | S6 run 5 timeline |
 | ⚠ not covered by the scoot | a man lying in the open by his OWN choice — `HoldProne`, TakeCover's `DownInTheOpen` (CE-2322) — holds no move to scoot with; he still lies still | CE-2363 note |
+
+### 9.2 R2-5 (`CE-2366`) — the window duel on the standard behaviours, and what it found *(2026-10-25)*
+
+| | |
+|---|---|
+| ✅ the scenario | `bt-window-duel`: the window man is the one man of a `SquadDefend` squad on House A (the house-defence post: the frame of the upstairs south window, the other window as his alternate); the street man a lone soldier with his type's default reflexes. ⛔ `WindowDuel` itself is still in the tree (`ua-rpg-window` names it; the retirement is the next step) |
+| ✅ A + B (R-2077) | B's "from the Suppress branch" is SUPERSEDED: a posted man with a threat runs one PeekAndFire cycle whatever the decision says, and a peek that sees nothing is a look unless the evidence is fresh — [Peek and Fire §12](../DESIGN_Peek_And_Fire.md) |
+| ✅ C — no change | the squad's re-sends were H's hunt (a contact behind a van 20 m off, unseen 2 s) and displacement (D-2c) — real changes of post, each restarting his task. ⚠ The hunt on a man merely ducking behind cover in front of a post is H as designed; whether it should fire there is open |

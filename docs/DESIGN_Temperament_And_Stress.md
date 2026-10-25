@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-24
-build-state: BUILDING — TS-A (CE-2269), TS-B (CE-2270) and TS-D (CE-2272) BUILT 2026-10-24 (§7); TS-C blocked on §7.3's scorer finding (a question with a lean). APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
+build-state: BUILT 2026-10-24 — TS-A (CE-2269; TS-2 re-based on a TRAINED standard, R-2076, §7.4), TS-B (CE-2270), TS-C (CE-2271, as MODIFIERS — R-2075) and TS-D (CE-2272) (§7); the §6 demos §7.5 (ts-aggression and ts-three-defenders pass; ts-house-defenders waits on BC-5) APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
 current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos · ⭐ §7 AS BUILT (where it differs from §4, §7 wins)
 stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with Aggression and Discipline; do not quote it.
-known-rot: ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE — the product mode's compensation depends on the consideration COUNT (§7.3). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
+known-rot: ⛔ §4 TS-2's formula pulls toward the population DEFAULT — superseded by a TRAINED standard (§7.4, R-2076). ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE for an ordinary consideration — the compensation counts them; ⭐ resolved by MODIFIER considerations (§7.3, R-2075). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
 known-conflict: none.
 related-designs:
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: the short per-move drop under fire that TS-4 would lengthen and TS-6's break replace
@@ -158,6 +158,7 @@ no new wire in v1.
 | `ts-fire-discipline` | two fire teams of 4 under the same suppressive fire from a machine gun 150 m off: regulars (Obedience 0.8) and militia (Obedience 0.3, Nerve 0.3) | the regulars keep suppressing (posture trace); at least half the militia go to ground or flee (`StressBreak`); no regular breaks |
 | `ts-aggression` | two identical riflemen vs one enemy, one RiskAcceptance 0.9, one 0.1 (Obedience 0.3, so character shows) | the bold one advances and assaults; the cautious one takes cover and suppresses — the same scores otherwise (utility trace) |
 | `ts-house-defenders` | the CQB house (Building Clearing §8) with three insurgents: a fanatic (Resolve 1, Nerve 0.9), a coward (Nerve 0.1), a waverer (Resolve 0.2) | on the stun grenade the coward flees out of the back door; the waverer surrenders when challenged and covered; the fanatic fights from his corner |
+| ⭐ `ts-three-defenders` *(added 2026-10-24, §7.5)* | the same three characters on open ground, each under an automatic rifle's over-the-head fire; the coward and the waverer each covered by a rifleman | the coward breaks and runs (no surrender); the waverer breaks and surrenders; the fanatic never breaks and fires back |
 
 ## 7. AS BUILT *(2026-10-24 — TS-A `CE-2269`, TS-B `CE-2270`; where this differs from §4, this wins)*
 
@@ -193,7 +194,11 @@ Rails: `CombatTemperamentTests` (CE2269 ×4 + AQ89's unchanged), `CombatProficie
 
 Rails: `StressSystemTests` — `CE2272_AtHisNerve_HeBreaks_EvenUnderStayOnTask_GoesToGround_AndRecovers` · `…TheBreakAndTheRecovery_AreEdges_OnTheMan` · `…HeBreaksAtHisEffectiveNerve_NeverUnderTheFloor` (3 rows) · `…LowResolve_AndCovered_HeSurrenders_ElseHeBreaks` · `…AWayOut_IsACoverPointFartherFromTheThreat`.
 
-### 7.3 ⛔ TS-C is BLOCKED — a neutral consideration is NOT neutral
+### 7.3 TS-C — a neutral consideration is NOT neutral, so the damping is a MODIFIER *(`CE-2271`, R-2075, built 2026-10-24)*
+
+🔒 User, `2026-10-24`, on the modifier lean: *"Approved"* (R-2075). ⭐ **As built:** `ConsiderationFlags.Modifier` / `.Modify(…)` ([Utility AI §4.3a](designs/utility-ai/Utility_AI_Design_v1_1.md)); `CautionDamp` on AdvanceAndAttack, `AggressionDamp` on TakeCover / HoldProne / Flee, `StressDamp` on AdvanceAndAttack / Suppress, each `Modify(…, 1.0, Linear)`. Rails: `StarterPackIntegrationTests.CE2271_NoTemperamentNoStress_EveryPostureScore_IsBitIdenticalToBefore` (eight situations, bit for bit) · `…ACautiousMan_ABoldMan_AStressedMan_DampOnlyTheirOptions` · `UtilityScorerTests.CE2271_…`. The finding, as it was measured:
+
+#### the finding
 
 📐 `Aggregator.AggregateProduct` (`FDP/Toolkits/Fdp.Toolkits/Utility/Core/Aggregator.cs`) applies Dave Mark's compensation: `final = raw + (1 − raw) × (1 − 1/n) × raw`, with **n = the number of considerations**. ⇒ adding a consideration that reads exactly 1.0 leaves `raw` alone but raises `n`, and so raises the option's score (raw 0.5: n = 3 ⇒ 0.667, n = 4 ⇒ 0.688). The five product options have 3–5 considerations each and TS-5 adds different counts to each ⇒ **every posture choice shifts, with or without a temperament.** The neutral rail §5 promises cannot pass as designed. ⇒ **a question for the user** (the scorer is the Utility AI design's):
 
@@ -204,6 +209,39 @@ Rails: `StressSystemTests` — `CE2272_AtHisNerve_HeBreaks_EvenUnderStayOnTask_G
 | rejected | fold the damping into an existing input (a temperament-aware `EnemyStrengthRatio`) | couples two meanings in one input and hides the damping from the utility trace |
 
 What would change the lean: the Utility AI design ruling that compensation must count every factor.
+
+### 7.4 TS-2 — discipline pulls toward a TRAINED standard *(✅ approved and built 2026-10-24, R-2076; measured live, `ts-fire-discipline`)*
+
+🔒 User, `2026-10-24`, on the trained-standard lean: *"Lean approved"* (R-2076). ⭐ **As built:** `TemperamentOf.Effective` = `trained + (1 − Obedience) × (value − trained)` with `TemperamentOf.TrainedNerve` 0.75 · `TrainedResolve` 0.6 · `TrainedRiskAcceptance` = `DefaultRiskAcceptance` 0.5 (so TS-5's damping stays neutral). The RAW defaults (`DefaultNerve` / `DefaultResolve` 0.5) are unchanged — the average man; what changed is what discipline holds him to. ⇒ the default man (obedience 0.8) breaks at **0.70**, not 0.50; every reader (`StressModel`, `Stresses.BreakLevel` — the ui card's tick — the damping inputs) goes through `Effective`, so one change moves them all. The question as it was asked:
+
+📐 Two fire teams of four under the SAME fire (one automatic rifle each, 120 m off, a round every 1.3 s passing 4 m over their heads —
+near misses only): the regulars (the default temperament: obedience 0.8, nerve 0.5) broke at **25 s**, the militia (obedience 0.3,
+nerve 0.3) at **22 s** — all eight. §6 asks for *"no regular breaks; at least half the militia do"*.
+
+⭐ The cause is TS-2 as approved: `Effective = default + (1 − Obedience) × (value − default)` pulls every trait toward the POPULATION
+default, so a disciplined man's nerve is the average man's (0.5) whatever his own — and the militia's 0.3 becomes 0.36. Break levels
+0.50 vs 0.36, a stimulus's reach 0.75 vs 0.82 ⇒ under any fire that breaks the militia the regulars follow seconds later.
+
+| | option | verdict |
+|---|---|---|
+| ⭐ **lean** | **discipline pulls toward a TRAINED norm per trait** — `Effective = norm + (1 − Obedience) × (value − norm)` with norms **Nerve 0.75 · Resolve 0.6 · RiskAcceptance 0.5** (the last as today, so TS-5's damping stays neutral) | regulars break at ~0.70 (reach 0.65), the militia at ~0.44 (reach 0.78) — about twice the fire; the coward stays a coward without discipline; a disciplined man is steadier than an average one, which is what drill is for |
+| rejected | give the soldier TYPES a high nerve (`TemperamentDto`) | TS-2 pulls it straight back: nerve 0.8 at obedience 0.8 is 0.56 |
+| rejected | tune the stimuli down | it slows everyone equally; the gap between regulars and militia stays a few seconds |
+
+What would change the lean: a ruling that obedience is only about ORDERS and steadiness is a separate trained trait (then a fifth trait,
+`Training`, would carry it). Blast radius: TS-2's formula and its rails; the stress rails' reach (0.75 ⇒ 0.65 for the default man); nobody
+breaks sooner than today.
+
+### 7.5 The demos *(`CE-2272`, 2026-10-24; scenarios from `scripts/gen-ts-scenarios.py`, checks `scripts/utility-demo-check.py --launch <id>`, twins `TemperamentScenarioTests`)*
+
+| demo | live | twin | as built — where it differs from §6 |
+|---|---|---|---|
+| `ts-aggression` | ✅ PASS — Bold AdvanceAndAttack 96 %, ends 4.7 m from his enemy; Cautious Suppress 94 %, ends 88.6 m off | ✅ `CE2271_TsAggression_…` (4.6 m / 90.4 m) | two MIRRORED duels 300 m apart, not one shared enemy — ⛔ a shared enemy draws one man's fire onto the other |
+| ⭐ `ts-three-defenders` | ✅ PASS — the Coward breaks at 2.4 s and runs (Break, no surrender); the Waverer breaks at 4.5 s and surrenders; the Fanatic peaks at 0.32 (broke then at 0.78; 0.86 since R-2076) and fires back | ✅ `CE2272_TsThreeDefenders_…` (Fanatic 0.32, never broke) | ⭐ NEW: `ts-house-defenders`' three characters on open ground. Obedience AUTHORED 0.3 (no type spread) so each threshold is the arithmetic. 📐 the covering rifleman must be POSTED watching his man — an InertSop rifleman never raises his rifle, and `Covering.By` then finds nobody. 📐 the columns sit at x 270 / 340 (the Coward, the Waverer) and 520 (the Fanatic): at x 200 the Fanatic got NO near miss in 40 rounds (his gunner 1.2 m higher; the ground takes the rounds); 100 m from the Coward's rifleman, that rifleman turned on the Fanatic once the Coward was down and he broke (0.85) — he now stands beyond the 150 m sight |
+| `ts-fire-discipline` | ⭐ after R-2076: **no regular breaks** (peaks 0.51–0.57 under their 0.70), **all four militia break** (13.8–35.5 s) and every one recovers and is back on his post — ⛔ but the regulars fire **0 rounds back** (every run; cause being measured). ⛔ Before R-2076: every man of both teams broke, regulars at 22–25 s, militia at 22 s (two runs alone); ⚠ a run sharing the CPU with a twin broke nobody (militia peak 0.13) — the near-miss count per man moves with the host's load, cause not measured | — | rounds every 1.3 s from 120 m (inside the 150 m sight), the team 1.5 m apart (all inside the 3 m near-miss band) |
+| `ts-house-defenders` | ⛔ FAIL — the Coward breaks; the Fanatic peaks at 0.06, the Waverer at 0.00 in 240 s | — | the pressure is the clearing, and the clearing stalls at the door ([Building Clearing](designs/group-maneuvers/DESIGN_Building_Clearing.md) BC-5 *"half there"*: Blue fired 1 round in 480 s). §6's stun grenade needs a burst to count as a near miss ([AQ101](blueprints/Architect_Question_101_Shelling_Fear_And_Shelled_Areas.md) C, unbuilt). ⇒ `ts-three-defenders` carries the claim until both land |
+
+⚠ **The checker's ammo is read on the CGF node** — the brain spends the rounds; 📐 SimHost's stayed full, so an earlier "fired 0" was the checker, not the men.
 
 ## ⛔ HISTORY
 

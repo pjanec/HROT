@@ -1782,69 +1782,92 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.True(harness.PumpUntil(() => Ammo() < ammo, timeoutFrames: 12000), $"…and fires from there; ammo {Ammo()} (was {ammo})");
     }
 
-    /// <summary>House A's window firing positions, both storeys (the cover database, `bt-range`; measured by the P-8 probe).</summary>
-    private static readonly Vector3[] HouseAWindows =
-    {
-        new(102.1f, 100.9f, 0f), new(109.1f, 103.6f, 0f), new(102.1f, 100.9f, 3f), new(107.1f, 100.9f, 3f), new(105.4f, 107.1f, 3f),
-    };
-
     /// <summary>
-    /// ⭐⭐ <c>CE-3136</c> P-8 (D10) — <c>bt-window-duel</c> in-process (the live check's twin): A at an upstairs window of House A,
-    /// B in the street with two parked vans for cover, each remembering the other. Both fire (aimed or a blind burst — the ammunition
-    /// falls), A fires from at least two windows (either storey) (the exposure count moves it on), and B bounds to Van 2's cover.
-    /// 📄 docs/DESIGN_Peek_And_Fire.md §2, D10, D14–D15 (CE-3144: the duel stood still before them).
+    /// ⭐⭐ <c>CE-2366</c> (AQ102 §9 R2-5, R-2073; was <c>CE-3136</c> P-8) — <c>bt-window-duel</c> in-process (the live check's twin), on the
+    /// STANDARD behaviours: A is the one man of a <c>SquadDefend</c> squad on House A (the house-defence play posts him at a window), B a
+    /// lone soldier with no task and his type's default reflexes. Both fire, A fires from at least two window spots, B changes cover.
+    /// The trace prints A's cycle (phase, stance, lean, hide point, his task and posture) on every change — the window man's record.
+    /// 📄 docs/DESIGN_Peek_And_Fire.md §2, §8 · Defend &amp; Attack §8c D-2a / D-2l.
     /// </summary>
     [Fact(Timeout = 900_000)]
-    public async Task CE3136_P8_WindowDuel_BothFire_ARotatesWindows_BBoundsToTheSecondVan()
+    public async Task CE2366_WindowDuel_StandardBehaviours_BothFire_ARotatesWindows_BChangesCover()
     {
         using var harness = await StartShippedScenario("bt-window-duel");
         var cgf = harness.Cgf!.World!;
         Assert.True(harness.PumpUntil(() => !ByName(cgf, "Window Rifleman").IsNull && !ByName(cgf, "Street Rifleman").IsNull, timeoutFrames: 2000),
             "both riflemen must spawn on CGF");
         Entity a = ByName(cgf, "Window Rifleman"), b = ByName(cgf, "Street Rifleman");
+        Observe(cgf, a);
         int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponent<WeaponState>(e).Ammo : -1;
         Vector3 Pos(Entity e) => cgf.HasComponent<SimTransform>(e) ? cgf.GetComponent<SimTransform>(e).Position : default;
-        int a0 = Ammo(a), b0 = Ammo(b);
-        var windows = new System.Collections.Generic.HashSet<(int, int, int)>();
-        var van2 = new Vector2(113f, 76f);
-        bool bounded = false;
         float Hp(Entity e) => cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : -1f;
-        unsafe string Peek(Entity e)
+        double Now() => cgf.HasSingleton<GlobalTime>() ? cgf.GetSingleton<GlobalTime>().TotalTime : 0d;
+        string Task(Entity e)
         {
-            if (!cgf.IsAlive(e)) return "dead";
-            var m = Fdp.Toolkit.Behavior.UnitMemory.Get<Fdp.Toolkit.Combat.FiringPositionMemory>(cgf, e);
+            if (!cgf.HasComponent<BehaviorState>(e)) return "-";
+            int h = cgf.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash;
+            foreach (var n in new[] { "CombatPosture", "FightFromCover", "Idle", "AdvanceTo", "TakeCover", "FallBack", "SquadDefend" })
+                if (BehaviorHash.FromName(n) == h) return n;
+            return h.ToString();
+        }
+        string Posture() => TryDecision(cgf, a, "Combat posture", out var s) && s.Winner != 0 ? ((Posture)s.Winner).ToString() : "-";
+        string Stance(Entity e) => cgf.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(e)
+            ? cgf.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(e).TargetStance.ToString() : "-";
+        string Lean(Entity e) => Leans.Of(cgf, e).ToString();
+        unsafe string Slots(Entity e)
+        {
+            var m = UnitMemory.Get<FiringPositionMemory>(cgf, e);
             var slots = "";
             for (int i = 0; i < m.Count; i++) slots += $"({m.X[i]:F1},{m.Y[i]:F1},{m.Z[i]:F0})u{m.Uses[i]}h{m.Heat[i]:F1}{(m.Burned[i] != 0 ? "B" : "")} ";
+            return slots;
+        }
+        string Cover(Entity e)
+        {
             var answers = "";
             var sensor = EqsChildSensor.Find(cgf, e, Hrot.AI.Behaviors.Brains.PeekAndFireNodes.CoverSite);
             if (!sensor.IsNull && cgf.HasComponent<EqsCognitiveBuffer>(sensor))
-                foreach (var r in cgf.GetComponentRO<EqsCognitiveBuffer>(sensor).GetSpanRO())
-                    answers += $"({r.PositionX:F1},{r.PositionY:F1},{r.PositionZ:F0}){r.Score:F2} ";
-            var face = cgf.HasComponent<SimTransform>(e) ? Vector3.Transform(Vector3.UnitX, cgf.GetComponent<SimTransform>(e).Rotation) : default;
-            return $"phase={(Fdp.Toolkit.Combat.PeekPhase)m.Phase} hide={m.HidePoint} facing=({face.X:F2},{face.Y:F2}) slots[{slots}] cover[{answers}]";
+            {
+                ref readonly var buf = ref cgf.GetComponentRO<EqsCognitiveBuffer>(sensor);
+                var span = buf.GetSpanRO()[..buf.Count];
+                foreach (var r in span) answers += $"({r.PositionX:F1},{r.PositionY:F1},{r.PositionZ:F0}){r.Score:F2} ";
+            }
+            return answers;
         }
-        string State() => $"A {Pos(a)} hp {Hp(a)} ammo {a0}→{Ammo(a)} windows [{string.Join(" ", windows)}] {Peek(a)} · B {Pos(b)} hp {Hp(b)} ammo {b0}→{Ammo(b)} bounded={bounded}";
+        string Phase(Entity e)
+        {
+            var m = UnitMemory.Get<FiringPositionMemory>(cgf, e);
+            return $"{(PeekPhase)m.Phase} hide=({m.HidePoint.X:F1},{m.HidePoint.Y:F1},{m.HidePoint.Z:F1})";
+        }
 
-        float lastZ = Pos(a).Z;
-        for (int f = 0; f < 36000; f++)
+        int a0 = Ammo(a), b0 = Ammo(b);
+        var spots = new System.Collections.Generic.HashSet<(int, int, int)>();   // where A fired from (rounded to 1 m)
+        Vector3 b0Pos = Pos(b);
+        bool bMoved = false;
+        string last = "";
+        int aShots = 0, lastAmmo = a0;
+        for (int f = 0; f < 18000; f++)
         {
             harness.PumpFrames(1);
             var pa = Pos(a);
-            if (f % 30 == 0 && f > 2000 && f < 3000) _out.WriteLine($"f{f}: A {pa} {Peek(a)}");
-            if (MathF.Abs(pa.Z - lastZ) > 0.5f) { _out.WriteLine($"f{f}: A z {lastZ:F2} -> {pa.Z:F2} at {pa}; {Peek(a)}"); lastZ = pa.Z; }
-            foreach (var w in HouseAWindows)   // at a window (either storey), not on the way between two
-                if (MathF.Abs(pa.Z - w.Z) < 1f && Vector2.Distance(new Vector2(pa.X, pa.Y), new Vector2(w.X, w.Y)) <= 0.75f)
-                    windows.Add(((int)MathF.Round(w.X), (int)MathF.Round(w.Y), (int)w.Z));
-            var pb = Pos(b);
-            bounded |= Vector2.Distance(new Vector2(pb.X, pb.Y), van2) <= 4f;
-            if (f % 600 == 0) _out.WriteLine($"f{f}: {State()}");
-            if (Ammo(a) < a0 && Ammo(b) < b0 && windows.Count >= 2 && bounded) break;
+            int ammo = Ammo(a);
+            bool shot = ammo < lastAmmo;
+            if (shot) { aShots += lastAmmo - ammo; spots.Add(((int)MathF.Round(pa.X), (int)MathF.Round(pa.Y), (int)MathF.Round(pa.Z))); }
+            lastAmmo = ammo;
+            var row = $"task={Task(a)} posture={Posture()} {Phase(a)} stance={Stance(a)} lean={Lean(a)}";
+            if (row != last || shot)
+            {
+                _out.WriteLine($"t{Now():F2} A ({pa.X:F1},{pa.Y:F1},{pa.Z:F1}) {row} ammo={ammo} · B ({Pos(b).X:F1},{Pos(b).Y:F1}) {Task(b)} ammo={Ammo(b)}");
+                last = row;
+            }
+            if (f % 600 == 0) _out.WriteLine($"  t{Now():F2} slots[{Slots(a)}] cover[{Cover(a)}] hp A {Hp(a)} B {Hp(b)}");
+            bMoved |= Vector2.Distance(new Vector2(Pos(b).X, Pos(b).Y), new Vector2(b0Pos.X, b0Pos.Y)) >= 4f;
         }
-        _out.WriteLine($"end: {State()}");
-        Assert.True(Ammo(a) < a0, $"A fires; {State()}");
-        Assert.True(Ammo(b) < b0, $"B fires; {State()}");
-        Assert.True(windows.Count >= 2, $"A fires from at least two windows; {State()}");
-        Assert.True(bounded, $"B bounds to Van 2's cover; {State()}");
+        string state = $"A ammo {a0}->{Ammo(a)} ({aShots} rounds) from [{string.Join(" ", spots)}] hp {Hp(a)} · B ammo {b0}->{Ammo(b)} moved={bMoved} hp {Hp(b)}";
+        _out.WriteLine($"end: {state}");
+        Assert.True(Ammo(a) < a0, $"A fires; {state}");
+        Assert.True(Ammo(b) < b0, $"B fires; {state}");
+        Assert.True(spots.Count >= 2, $"A fires from at least two window spots; {state}");
+        Assert.True(bMoved, $"B changes cover; {state}");
     }
 
     /// <summary>

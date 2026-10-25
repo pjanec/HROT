@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Terrain.Tests
                 for (int i = 0; i < traced.Count; i++) Assert.Equal(sight.Crossed[i].Transmittance, traced[i].Loss);
             }
             Assert.True(crossed > 100 && barriers > 0, $"the segments must cross terrain and enclosures ({crossed} crossed, {barriers} barriers)");
-            Assert.Throws<NotSupportedException>(() => q.Trace(Vector3.Zero, Vector3.One, TracePurpose.Sound, traced));
+            // ⭐ WQ-E Q3 (AQ104 E ②) — Sound is built: the fire trace's pieces less the ground, each its material's dB (see AcousticWallTests)
         }
 
         [Fact]

@@ -183,6 +183,12 @@ namespace Fdp.Toolkit.Utility
         /// Appends a consideration (input reader + weight + response curve) to this option.
         /// </summary>
         IUtilityOptionBuilder Consider(InputRef input, float weight, ResponseCurve curve);
+
+        /// <summary>
+        /// ⭐ <c>CE-2271</c> (R-2075) — appends a MODIFIER: <c>curve(input) ^ weight</c> multiplies the option's score after its aggregate,
+        /// outside the product's compensation (<see cref="ConsiderationFlags.Modifier"/>) — 1.0 leaves the score exactly as it was.
+        /// </summary>
+        IUtilityOptionBuilder Modify(InputRef input, float weight, ResponseCurve curve);
     }
 
     /// <summary>Fluent builder for a <see cref="UtilityDecisionDef"/>.</summary>
@@ -247,6 +253,19 @@ namespace Fdp.Toolkit.Utility
                 weight:   weight,
                 curve:    curve,
                 @params:  input.Params));
+            return this;
+        }
+
+        /// <inheritdoc/>
+        public IUtilityOptionBuilder Modify(InputRef input, float weight, ResponseCurve curve)
+        {
+            _current!.Add(new UtilityConsideration(
+                inputId:  input.InputId,
+                context:  input.Context,
+                weight:   weight,
+                curve:    curve,
+                @params:  input.Params,
+                flags:    ConsiderationFlags.Modifier));
             return this;
         }
 

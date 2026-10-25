@@ -238,6 +238,135 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((byte)Posture.HoldProne, posture);
         }
 
+        // ── ⭐ CE-2271 (TS-5, R-2075) — temperament and stress as MODIFIERS of the posture decision ──────────────────────────────
+
+        /// <summary>The shipped posture decision, built afresh — with its modifiers, or as it was before them (every modifier row dropped).</summary>
+        private static UtilityDecisionDef PostureDef(bool modifiers)
+        {
+            var b = new UtilityDecisionBuilder();
+            CombatPostureDecision.Build(b);
+            var def = b.Build(new UtilityDecisionAttribute(CombatPostureDecision.DecisionAssetId, "Combat posture", DecisionKind.PostureSelect));
+            if (!modifiers)
+                foreach (var o in def.Options)
+                    o.Considerations = o.Considerations.Where(c => (c.Flags & ConsiderationFlags.Modifier) == 0).ToArray();
+            return def;
+        }
+
+        /// <summary>Every option's score for <paramref name="agent"/>, by option id (no hysteresis: the static scorer, no previous winner).</summary>
+        private unsafe System.Collections.Generic.Dictionary<byte, float> Scores(in UtilityDecisionDef def, Entity agent)
+        {
+            var output = default(UtilityResultBuffer);
+            UtilityScorer.Evaluate(_world.Repo, agent, in def, default, ref output, null);
+            var scores = new System.Collections.Generic.Dictionary<byte, float>();
+            foreach (var r in output.GetSpanRO()) scores[r.WinningPostureId] = r.Score;
+            return scores;
+        }
+
+        /// <summary>The suite's own situations (SC-SP-01 … CE-3090), one fresh agent each.</summary>
+        private Entity Situation(int k)
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<RecentSenses>()) _world.Repo.RegisterComponent<RecentSenses>();
+            _world.Repo.SetSingleton(new GlobalTime { TotalTime = 10.0 });
+            var enemy = _world.Repo.CreateEntity();
+            Entity a;
+            switch (k)
+            {
+                case 0: a = _world.SpawnAgent(1f, 1f); _world.SeedContact(a, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true); break;
+                case 1: a = _world.SpawnAgent(1f, 1f); _world.SeedContact(a, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true); _world.SetEnemyStrengthRatio(a, 0.8f); break;
+                case 2: a = _world.SpawnAgent(0.8f, 1f); break;
+                case 3: a = _world.SpawnAgent(0.8f, 0f); _world.SeedContact(a, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true); break;
+                case 4:
+                    a = _world.SpawnAgent(1f, 1f); _world.SeedContact(a, enemy, 100f, threatBoost: 0.5f, contactHealth01: 0.8f, hasLos: true);
+                    _world.SetEnemyStrengthRatio(a, 0.8f);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId, topScore: 0.85f, count: 3, instanceId: 0);
+                    var senses = new RecentSenses();
+                    senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, 9.5);
+                    _world.Repo.AddComponent(a, senses);
+                    break;
+                case 5:
+                    a = _world.SpawnAgent(0.35f, 0.8f); _world.SeedContact(a, enemy, 90f, 0.8f, 1f, hasLos: true); _world.SetEnemyStrengthRatio(a, 1.3f);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.85f, count: 3, instanceId: 0);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.20f, count: 1, instanceId: 1);
+                    break;
+                case 6:
+                    a = _world.SpawnAgent(0.12f, 0.3f); _world.SeedContact(a, enemy, 70f, 0.9f, 1f, hasLos: true); _world.SetEnemyStrengthRatio(a, 2.5f);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.30f, count: 1, instanceId: 0);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.75f, count: 2, instanceId: 1);
+                    break;
+                default:
+                    a = _world.SpawnAgent(0.55f, 0.3f); _world.SeedContact(a, enemy, 70f, 0.9f, 1f, hasLos: true); _world.SetEnemyStrengthRatio(a, 2.5f);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId,   topScore: 0.05f, count: 0, instanceId: 0);
+                    _world.SpawnEqsSensor(a, global::Fdp.Toolkit.Spatial.Eqs.FindSafeRetreatPoint.BlueprintId, topScore: 0.90f, count: 2, instanceId: 1);
+                    break;
+            }
+            return a;
+        }
+
+        private const int Situations = 8;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2271</c> TS-5 — THE NEUTRAL RAIL: for a man with no temperament and no stress, every option of the posture decision
+        /// scores BIT-IDENTICALLY to the decision as it was before its modifiers, in each of this suite's situations. 🔒 R-2075 (user,
+        /// <i>"Approved"</i>): the damping is a MODIFIER, outside the product's compensation. ✅ Red-proof: a modifier written as a
+        /// <c>Consider</c> ⇒ the compensation counts it ⇒ every score of that option moves ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2271_NoTemperamentNoStress_EveryPostureScore_IsBitIdenticalToBefore()
+        {
+            var now = PostureDef(modifiers: true);
+            var before = PostureDef(modifiers: false);
+            Assert.True(now.Options.Sum(o => o.Considerations.Count(c => (c.Flags & ConsiderationFlags.Modifier) != 0)) >= 6, "the modifiers are there");
+            for (int k = 0; k < Situations; k++)
+            {
+                var agent = Situation(k);
+                var a = Scores(in now, agent);
+                var b = Scores(in before, agent);
+                Assert.Equal(b.Count, a.Count);
+                foreach (var (option, score) in b)
+                    Assert.True(BitConverter.SingleToInt32Bits(score) == BitConverter.SingleToInt32Bits(a[option]),
+                        $"situation {k}, option {(Posture)option}: {a[option]:R} was {score:R}");
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2271</c> TS-5 — what each modifier does, and ONLY that: a cautious man (bravery 0.1, no discipline to temper it) advances at
+        /// 0.6 of the score (under strict discipline, 0.96); a bold one (0.9) takes cover, lies down and flees at 0.6; a man at stress 0.5 advances and suppresses at 0.5 —
+        /// every other option exactly as for the ordinary man.
+        /// </summary>
+        [Fact]
+        public void CE2271_ACautiousMan_ABoldMan_AStressedMan_DampOnlyTheirOptions()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<CombatTemperament>()) _world.Repo.RegisterComponent<CombatTemperament>();
+            if (!_world.Repo.IsComponentTypeRegistered<Stress>()) _world.Repo.RegisterComponent<Stress>();
+            var def = PostureDef(modifiers: true);
+            var damped = new (string Who, Action<Entity> Make, Posture[] Options, float Factor)[]
+            {
+                ("cautious", e => _world.Repo.AddComponent(e, new CombatTemperament { RiskAcceptance = 0.1f, Obedience = 0f, Set = CombatTemperament.RiskAcceptanceSet | CombatTemperament.ObedienceSet }),
+                    new[] { Posture.AdvanceAndAttack }, 0.6f),
+                // TS-2 — the same coward under strict discipline: effective bravery 0.46 (a = −0.08) ⇒ he advances at 0.96
+                ("disciplined coward", e => _world.Repo.AddComponent(e, new CombatTemperament { RiskAcceptance = 0.1f, Obedience = 0.9f, Set = CombatTemperament.RiskAcceptanceSet | CombatTemperament.ObedienceSet }),
+                    new[] { Posture.AdvanceAndAttack }, 0.96f),
+                ("bold", e => _world.Repo.AddComponent(e, new CombatTemperament { RiskAcceptance = 0.9f, Obedience = 0f, Set = CombatTemperament.RiskAcceptanceSet | CombatTemperament.ObedienceSet }),
+                    new[] { Posture.TakeCover, Posture.HoldProne, Posture.Flee }, 0.6f),
+                ("stressed", e => _world.Repo.AddComponent(e, new Stress { Level = 0.5f }),
+                    new[] { Posture.AdvanceAndAttack, Posture.Suppress }, 0.5f),
+            };
+            for (int k = 0; k < Situations; k++)
+                foreach (var (who, make, options, factor) in damped)
+                {
+                    var plain = Scores(in def, Situation(k));
+                    var man = Situation(k);
+                    make(man);
+                    var his = Scores(in def, man);
+                    foreach (var (option, score) in plain)
+                    {
+                        float expected = Array.IndexOf(options, (Posture)option) >= 0 ? score * factor : score;
+                        Assert.True(MathF.Abs(his[option] - expected) <= 1e-5f,
+                            $"{who}, situation {k}, {(Posture)option}: {his[option]} expected {expected}");
+                    }
+                }
+        }
+
         // ── ThreatRankingDecision ────────────────────────────────────────────────
 
         // SC-SP-05: Visual contact → HasLineOfSight=1 → Step(1)=1 → option scores > 0.

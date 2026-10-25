@@ -4,6 +4,7 @@ updated: 2026-10-20 (C revised: the drop has outcomes, not a fixed time)
 build-state: BUILT (§6 as built; §2a–§2c drawn before the build — §6 names where it deviated)
 current-answer: §5 the answer · §6 as built · §3 the leans it approved
 stale-below: §3 C's first form ("prone 2–4 s, then up") is SUPERSEDED by the revised C below — kept only in §⛔ HISTORY
+known-rot: (2026-10-25, CE-2366, R-2078) C's drop as BUILT dropped him anywhere; it now needs him OUTSIDE a building (GrenadeRules.Indoors) — R-2061's "in the open" — docs/DESIGN_Peek_And_Fire.md §12.6
 known-rot: none
 known-conflict: none
 related-designs:

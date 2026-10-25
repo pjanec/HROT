@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Core;
@@ -27,6 +28,12 @@ namespace Fdp.Toolkit.Combat
     public struct Lean
     {
         public LeanSide Side;
+
+        /// <summary>⭐ AQ104 G (R-2079) — how DEEP he leans: <c>Depth / 255 × </c><see cref="Leans.MaxShift"/> (m) of eye shift; 0 = the
+        /// default <see cref="Leans.Shift"/> (0.4 m, every lean before the depth existed). Set from his proficiency by behaviors
+        /// (<see cref="Leans.SetDepth"/>): a trained man leans weapon first, shallow; a militiaman shows half his body. Replicated with
+        /// the side (<c>dtLean</c>).</summary>
+        public byte Depth;
     }
 
     /// <summary>
@@ -38,8 +45,36 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     public static class Leans
     {
-        /// <summary>How far his eye moves sideways (m) — the frame's ≈ 0.4 m.</summary>
+        /// <summary>How far his eye moves sideways (m) — the frame's ≈ 0.4 m: a lean whose <see cref="Lean.Depth"/> is unset.</summary>
         public const float Shift = 0.4f;
+
+        /// <summary>⭐ AQ104 G — the deepest lean (m): <see cref="Lean.Depth"/> 255. Bounds the reach of a leaning man (the broadphase).</summary>
+        public const float MaxShift = 0.6f;
+
+        /// <summary>⭐ AQ104 G — the eye shift (m) <paramref name="lean"/> means.</summary>
+        public static float ShiftOf(in Lean lean) => lean.Depth == 0 ? Shift : lean.Depth / 255f * MaxShift;
+
+        /// <summary>⭐ AQ104 G — <paramref name="unit"/>'s eye shift when he leans (m); <see cref="Shift"/> with no lean on record.</summary>
+        public static float ShiftOf(ISimulationView view, Entity unit)
+        {
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Lean>()) return Shift;
+            return view.IsAlive(unit) && view.HasComponent<Lean>(unit) ? ShiftOf(view.GetComponentRO<Lean>(unit)) : Shift;
+        }
+
+        /// <summary>⭐ AQ104 G — the <see cref="Lean.Depth"/> byte for an eye shift of <paramref name="metres"/> (clamped to 0.01 …
+        /// <see cref="MaxShift"/>; never 0, which means "default").</summary>
+        public static byte DepthOf(float metres) => (byte)Math.Clamp((int)MathF.Round(metres / MaxShift * 255f), 1, 255);
+
+        /// <summary>⭐ AQ104 G — sets how deep <paramref name="unit"/> leans (m), keeping his side; call it on the node that owns his brain.
+        /// False when the type is not registered or the unit is gone.</summary>
+        public static bool SetDepth(EntityRepository repo, Entity unit, float metres)
+        {
+            if (!repo.IsAlive(unit) || !repo.IsComponentTypeRegistered<Lean>()) return false;
+            byte depth = DepthOf(metres);
+            if (!repo.HasComponent<Lean>(unit)) { repo.AddComponent(unit, new Lean { Side = LeanSide.LeanNone, Depth = depth }); return true; }
+            repo.GetComponentRW<Lean>(unit).Depth = depth;
+            return true;
+        }
 
         /// <summary>LN-6 — how far into the exposed half a shooter aims (m): about the middle of a half of a man's width.</summary>
         public const float ExposedHalf = 0.1f;
@@ -51,7 +86,7 @@ namespace Fdp.Toolkit.Combat
             if (!repo.IsAlive(unit) || !repo.IsComponentTypeRegistered<Lean>()) return false;
             if (!repo.HasComponent<Lean>(unit))
             {
-                if (side == LeanSide.LeanNone) return true;
+                if (side == LeanSide.LeanNone) return true;   // (a depth, when set, keeps the component; SetDepth)
                 repo.AddComponent(unit, new Lean { Side = side });
                 return true;
             }
@@ -82,7 +117,7 @@ namespace Fdp.Toolkit.Combat
             int sign = SignOf(view, unit, stance);
             if (sign == 0 || eyeHeight <= 0f || !view.HasComponent<SimTransform>(unit)) return Vector3.Zero;
             var left = Vector3.Transform(Vector3.UnitY, view.GetComponentRO<SimTransform>(unit).Rotation);
-            return left * (sign * Shift * height / eyeHeight);
+            return left * (sign * ShiftOf(view, unit) * height / eyeHeight);
         }
 
         /// <summary>LN-6 — where a shooter aims on a leaning man at <paramref name="height"/>: the sheared centreline plus
@@ -92,7 +127,7 @@ namespace Fdp.Toolkit.Combat
             int sign = SignOf(view, unit, stance);
             if (sign == 0 || eyeHeight <= 0f || !view.HasComponent<SimTransform>(unit)) return Vector3.Zero;
             var left = Vector3.Transform(Vector3.UnitY, view.GetComponentRO<SimTransform>(unit).Rotation);
-            return left * (sign * (Shift * height / eyeHeight + ExposedHalf));
+            return left * (sign * (ShiftOf(view, unit) * height / eyeHeight + ExposedHalf));
         }
 
         /// <summary>
@@ -101,13 +136,14 @@ namespace Fdp.Toolkit.Combat
         /// y · sign ≥ 0). <paramref name="t0"/>/<paramref name="t1"/> are where the clipped segment lies on the original (a hit's t maps back as
         /// <c>t0 + t·(t1 − t0)</c>). False when the segment never enters that half.
         /// </summary>
-        public static bool Upright(in SimTransform tf, int sign, float eyeHeight, ref Vector3 a, ref Vector3 b, out float t0, out float t1)
+        public static bool Upright(in SimTransform tf, int sign, float eyeHeight, ref Vector3 a, ref Vector3 b, out float t0, out float t1,
+                                   float shift = Shift)
         {
             t0 = 0f; t1 = 1f;
             var toBody = Quaternion.Inverse(tf.Rotation);
             var la = Vector3.Transform(a - tf.Position, toBody);
             var lb = Vector3.Transform(b - tf.Position, toBody);
-            float k = sign * Shift / eyeHeight;
+            float k = sign * shift / eyeHeight;   // ⭐ AQ104 G — his own depth
             la.Y -= k * la.Z;
             lb.Y -= k * lb.Z;
             float ya = sign * la.Y, yb = sign * lb.Y;

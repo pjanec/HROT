@@ -1860,6 +1860,47 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>⭐ AQ104 I (R-2079; behaviors' handoff item 1) — a person ARRIVES only on the destination's level. 📐 Peek and Fire
+        /// §12.7: the attacker stood on the ground floor under the window man (z 3) and was "arrived" for 160 s — arrival was 2-D. ⭐ The
+        /// same point on his own floor still arrives (the control); on a path and driven direct.</summary>
+        [Theory]
+        [InlineData(KinematicsMode.CustomTrajectory, 3f, false)]
+        [InlineData(KinematicsMode.CustomTrajectory, 0f, true)]
+        [InlineData(KinematicsMode.Direct, 3f, false)]
+        [InlineData(KinematicsMode.Direct, 0f, true)]
+        public void AQ104I_APersonUnderTheirDestination_OnAnotherFloor_HasNotArrived(KinematicsMode mode, float destZ, bool arrives)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            const string walls = "\"walls\":[{\"from\":[0,0],\"to\":[10,0]},{\"from\":[10,0],\"to\":[10,10]},{\"from\":[10,10],\"to\":[0,10]},{\"from\":[0,10],\"to\":[0,0]}]";
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(   // a two-storey house, a slab at z 3
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"H\",\"building\":{\"footprint\":[[0,0],[10,0],[10,10],[0,10]]," +
+                "\"storeys\":[{\"height\":3," + walls + "},{\"height\":3," + walls + "}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[-5,0.5]}}]}"));
+            var at = new Vector3(5f, 5f, 0f);
+            var dest = new Vector3(5f, 5.2f, destZ);
+            pool.RegisterTrajectoryWithKey(new[] { at, dest }, 8);   // the planner's short move: the two points as asked
+            ref var tf0 = ref repo.GetComponentRW<SimTransform>(e);
+            tf0.Position = at;
+            ref var nav0 = ref repo.GetComponentRW<NavState>(e);
+            nav0.Mode = mode;
+            nav0.TrajectoryId = 8;
+            nav0.FinalDestination = dest;
+            nav0.ArrivalRadius = 0.5f;
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 3 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(end.Z < 0.5f, $"{mode}: still on the ground floor (z {end.Z:F2}) — else this proves nothing");
+            Assert.Equal(arrives ? 1 : 0, repo.GetComponent<NavState>(e).HasArrived);
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — kinematics does not drive an EMBARKED entity (the carry owns its transform): the same
         /// moving body that advances when free stays exactly where the carry left it once it carries <c>IsEmbarkedTag</c>.</summary>
         [Fact]

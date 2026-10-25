@@ -81,25 +81,36 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(TemperamentOf.DefaultRiskAcceptance, TemperamentOf.RiskAcceptance(_world, e));
         }
 
-        /// <summary>TS-2 — <c>Effective = default + (1 − Obedience) × (value − default)</c>; AQ89's <c>Willingness</c> stays raw.</summary>
+        /// <summary>TS-2 (R-2076) — <c>Effective = trained + (1 − Obedience) × (value − trained)</c>, trained nerve 0.75 · resolve 0.6 · bravery
+        /// 0.5; AQ89's <c>Willingness</c> stays raw.</summary>
         [Theory]
-        [InlineData(1.0f, 0.5f, 0.75f)]   // obedience 0.5 halves the step from the default
-        [InlineData(0.1f, 0.9f, 0.46f)]   // a disciplined coward acts close to the norm
-        [InlineData(0.1f, 0.0f, 0.1f)]    // an undisciplined one acts himself out
-        public void CE2269_Effective_IsTemperedByObedience(float nerve, float obedience, float expected)
+        [InlineData(1.0f, 0.5f, 0.875f, 0.8f)]    // obedience 0.5 halves the step from the trained standard
+        [InlineData(0.1f, 0.9f, 0.685f, 0.55f)]   // a disciplined coward acts close to the trained standard
+        [InlineData(0.1f, 0.0f, 0.1f, 0.1f)]      // an undisciplined one acts himself out
+        public void CE2269_Effective_IsTemperedByObedience_TowardTheTrainedStandard(float trait, float obedience, float nerve, float resolve)
         {
             var e = _world.CreateEntity();
             _world.AddComponent(e, new CombatTemperament
             {
-                Nerve = nerve, Obedience = obedience, RiskAcceptance = 0.9f, Resolve = nerve,
+                Nerve = trait, Obedience = obedience, RiskAcceptance = 0.9f, Resolve = trait,
                 Set = CombatTemperament.NerveSet | CombatTemperament.ObedienceSet | CombatTemperament.RiskAcceptanceSet | CombatTemperament.ResolveSet,
             });
-            Assert.Equal(expected, TemperamentOf.Effective(_world, e, TemperamentTrait.Nerve), 4);
-            Assert.Equal(expected, TemperamentOf.Effective(_world, e, TemperamentTrait.Resolve), 4);
+            Assert.Equal(nerve, TemperamentOf.Effective(_world, e, TemperamentTrait.Nerve), 4);
+            Assert.Equal(resolve, TemperamentOf.Effective(_world, e, TemperamentTrait.Resolve), 4);
             Assert.Equal(0.5f + (1f - obedience) * 0.4f, TemperamentOf.Effective(_world, e, TemperamentTrait.RiskAcceptance), 4);
             Assert.Equal(0.9f, TemperamentOf.Willingness(_world, e, orderedAssault: false), 4);   // ⛔ never blended
+        }
+
+        /// <summary>⭐ TS-2 (R-2076) — the ordinary man (no temperament: raw nerve / resolve 0.5, obedience 0.8) is held near the TRAINED
+        /// standard — steadier than his raw self — and his bravery stays the average, so TS-5's damping is neutral for him.</summary>
+        [Fact]
+        public void CE2269_TheOrdinaryMan_IsSteadierThanTheAverage_ButNoBolder()
+        {
             var plain = _world.CreateEntity();
-            Assert.Equal(TemperamentOf.DefaultNerve, TemperamentOf.Effective(_world, plain, TemperamentTrait.Nerve), 4);
+            Assert.Equal(TemperamentOf.DefaultNerve, TemperamentOf.Nerve(_world, plain), 4);              // raw: the average man
+            Assert.Equal(0.70f, TemperamentOf.Effective(_world, plain, TemperamentTrait.Nerve), 4);       // 0.75 + 0.2 × (0.5 − 0.75)
+            Assert.Equal(0.58f, TemperamentOf.Effective(_world, plain, TemperamentTrait.Resolve), 4);     // 0.6 + 0.2 × (0.5 − 0.6)
+            Assert.Equal(TemperamentOf.DefaultRiskAcceptance, TemperamentOf.Effective(_world, plain, TemperamentTrait.RiskAcceptance), 4);
         }
 
         /// <summary>TS-3 — a type stamps only the fields it authors, ± its spread per man: the same man draws the same value every time,

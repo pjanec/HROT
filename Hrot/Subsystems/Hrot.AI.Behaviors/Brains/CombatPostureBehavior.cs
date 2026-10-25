@@ -185,6 +185,14 @@ namespace Hrot.AI.Behaviors.Brains
                         .Sequence(occupy => occupy
                             .StatefulCondition(bb => bb.Peek, bb => bb.OccupyState, PostureNodes.OffPost)
                             .StatefulAction(bb => bb.Advance, bb => bb.AdvanceState, PostureNodes.AdvanceAndAttack))
+                        // ⭐⭐ CE-2366 A (approved 2026-10-25) — a man POSTED at a window / frame / roof with something to fight runs ONE peek
+                        //   cycle whatever the decision says: peek, fire if he sees him, back behind the wall, another side or window when the
+                        //   spot is used up or hot. The decision switching between its options no longer tears the cycle down.
+                        //   ⛔ SUPERSEDED: AQ102 B (CE-2356) flew him through PeekAndFire from the Suppress branch only, and the TakeCover
+                        //   branch ran it with the same state — a switch between them, or to Advance, reset it (📐 live bt-window-duel).
+                        .Sequence(posted => posted
+                            .Condition(bb => bb.Peek, PostureNodes.PostedWithThreat)
+                            .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))
                         .Sequence(advance => advance
                             .StatefulCondition(bb => bb.IsAdvance, bb => bb.Choice, UtilityNodes.IsOption)
                             .ObserverSelector(approach => approach
@@ -207,11 +215,7 @@ namespace Hrot.AI.Behaviors.Brains
                         .Sequence(suppress => suppress
                             .StatefulCondition(bb => bb.IsSuppress, bb => bb.Choice, UtilityNodes.IsOption)
                             .ObserverSelector(how => how
-                                // ⭐ AQ102 B (CE-2356, R-2072) — a man POSTED at a window / frame / roof fights through PeekAndFire (duck,
-                                //   peek, fire, change window) instead of standing in the opening to suppress
-                                .Sequence(window => window
-                                    .Condition(bb => bb.Peek, PostureNodes.AtOpeningPost)
-                                    .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))
+                                // (a man posted at an opening never gets here with something to fight — the posted branch above, CE-2366 A)
                                 .Sequence(close => close
                                     .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
                                     .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))

@@ -429,6 +429,8 @@ namespace Hrot.NED.Descriptors
         [DdsKey] public long EntityId;
         /// <summary><c>Fdp.Toolkit.Combat.LeanSide</c>.</summary>
         public byte Side;
+        /// <summary>⭐ AQ104 G — <c>Lean.Depth</c> (0 = the default 0.4 m).</summary>
+        public byte Depth;
     }
 
     // ⭐ CE-3259 (BR-6/BR-7) — a soldier's combat proficiency (behaviors' CombatProficiency, CE-2273), his brain's owner → every node, all

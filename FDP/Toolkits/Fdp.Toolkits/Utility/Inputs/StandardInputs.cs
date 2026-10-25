@@ -60,6 +60,12 @@ namespace Fdp.Toolkit.Utility
         public const ushort UnderFire                = 0x2C71;
         /// <summary>⭐ AQ102 A (CE-2356, as reworked) — max(1 − health, <see cref="UnderFire"/>) (<see cref="StandardInputs.HurtOrUnderFire"/>).</summary>
         public const ushort HurtOrUnderFire          = 0x5EF1;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5, R-2075) — a cautious man's damping of an advance (<see cref="StandardInputs.CautionDamp"/>).</summary>
+        public const ushort CautionDamp              = 0xE658;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5) — a bold man's damping of taking cover, lying down and fleeing (<see cref="StandardInputs.AggressionDamp"/>).</summary>
+        public const ushort AggressionDamp           = 0x9CDB;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5) — a stressed man's damping of advancing and suppressing (<see cref="StandardInputs.StressDamp"/>).</summary>
+        public const ushort StressDamp               = 0x2023;
     }
 
     /// <summary>
@@ -514,6 +520,31 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("HurtOrUnderFire")]
         public static float HurtOrUnderFire(in UtilityInputCtx ctx) => Math.Max(1f - HealthFraction(in ctx), UnderFire(in ctx));
 
+        // ── ⭐ CE-2271 (TS-5, R-2075) — temperament and stress, as MODIFIERS: each only ever DAMPS an option and reads EXACTLY 1.0 for a man
+        //    with no temperament and no stress, so every existing score is bit-identical (a Modify, never a Consider — §7.3). ──
+
+        /// <summary>His bravery as a signed lean: <c>a = 2 × effective RiskAcceptance − 1</c> (−1 … +1, 0 for the ordinary man).</summary>
+        private static float Lean(in UtilityInputCtx ctx)
+            => 2f * Fdp.Toolkit.Behavior.Components.TemperamentOf.Effective(ctx.Repo, ctx.Self,
+                   Fdp.Toolkit.Behavior.Components.TemperamentTrait.RiskAcceptance) - 1f;
+
+        /// <summary>⭐ TS-5 — a CAUTIOUS man advances less: <c>1 − 0.5 × max(0, −a)</c>. 1.0 for the ordinary and the bold.</summary>
+        [UtilityInput("CautionDamp")]
+        public static float CautionDamp(in UtilityInputCtx ctx) => 1f - 0.5f * Math.Max(0f, -Lean(in ctx));
+
+        /// <summary>⭐ TS-5 — a BOLD man takes cover, lies down and flees less: <c>1 − 0.5 × max(0, a)</c>. 1.0 for the ordinary and the cautious.</summary>
+        [UtilityInput("AggressionDamp")]
+        public static float AggressionDamp(in UtilityInputCtx ctx) => 1f - 0.5f * Math.Max(0f, Lean(in ctx));
+
+        /// <summary>⭐ TS-5 — a STRESSED man advances and suppresses less: <c>1 − Stress</c>. 1.0 with no stress.</summary>
+        [UtilityInput("StressDamp")]
+        public static float StressDamp(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>()
+                || !ctx.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self)) return 1f;
+            return 1f - Math.Clamp(ctx.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self).Level, 0f, 1f);
+        }
+
         public static void RegisterAll()
         {
             UtilityInputReaderStore.Register(StandardInputIds.AmmoFraction,             &AmmoFraction);
@@ -540,6 +571,9 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.CarriesThrowable,         &CarriesThrowable);
             UtilityInputReaderStore.Register(StandardInputIds.UnderFire,                &UnderFire);
             UtilityInputReaderStore.Register(StandardInputIds.HurtOrUnderFire,          &HurtOrUnderFire);   // ⭐ CE-2356
+            UtilityInputReaderStore.Register(StandardInputIds.CautionDamp,              &CautionDamp);       // ⭐ CE-2271
+            UtilityInputReaderStore.Register(StandardInputIds.AggressionDamp,           &AggressionDamp);
+            UtilityInputReaderStore.Register(StandardInputIds.StressDamp,               &StressDamp);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

@@ -1061,6 +1061,10 @@ namespace Fdp.Core
         /// <summary><c>Stress</c> — <c>CE-2270</c> TS-B (R-2034, behaviors): a combatant's live stress 0–1 and his break, kept by
         /// <c>StressSystem</c> on the brain node; brain-local (NoScenario, never sent).</summary>
         public const int Stress = 421;
+        /// <summary>⭐ <c>CE-2371</c> (behaviors, AQ104 D, R-2079) — <c>Alerted</c>: the enemies a man must not forget until they are down
+        /// (short leases his task renews); brain-local, NoScenario. Behaviors' block 418–433 (R-2056), measured free on backend, ui and
+        /// coordinator 2026-10-25. 📄 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md §4 D.</summary>
+        public const int Alerted = 422;
 
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
@@ -1115,6 +1119,9 @@ namespace Fdp.Core
         /// <summary><c>TrafficShadowFollow</c> — a handed-over body's follow of its SUMO shadow (was <c>TrafficShadowFollowSystem._follow</c>).
         /// Backend's block, not traffic's 450–459: the traffic owner allocates there, and a backend id can never collide with it.</summary>
         public const int TrafficShadowFollow = 447;
+        /// <summary>⭐ AQ104 E ③ (backend) — <c>DoorHeard</c>: the door state this node's sound system last heard, so a change makes a
+        /// sound once (R-3039: a system's memory is a component). Local, recorded. 448 free on every lane by a census, 2026-10-25.</summary>
+        public const int DoorHeard = 448;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

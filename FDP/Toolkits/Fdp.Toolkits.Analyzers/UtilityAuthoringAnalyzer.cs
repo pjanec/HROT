@@ -447,9 +447,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static bool IsConsiderInvocation(InvocationExpressionSyntax inv)
         {
             var name = inv.Expression as IdentifierNameSyntax;
-            if (name != null) return name.Identifier.Text == "Consider";
+            // ⭐ CE-2271 (R-2075) — a Modify(…) is a consideration too: the same input-name and weight checks
+            if (name != null) return name.Identifier.Text == "Consider" || name.Identifier.Text == "Modify";
             var memberAccess = inv.Expression as MemberAccessExpressionSyntax;
-            if (memberAccess != null) return memberAccess.Name.Identifier.Text == "Consider";
+            if (memberAccess != null) return memberAccess.Name.Identifier.Text == "Consider" || memberAccess.Name.Identifier.Text == "Modify";
             return false;
         }
 

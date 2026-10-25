@@ -145,8 +145,12 @@ namespace Hrot.AI.Behaviors.Brains
                 case UnderFirePhase.Moving:
                 {
                     // ── C: the drop — a fresh near miss or hit, out in the open, not straight after he rose, not carrying a man ──
+                    //   ⭐ CE-2366 — IN THE OPEN only (R-2061: "a near miss in the open DROPS him"): inside a building his move stays the
+                    //   crouched rush (📐 live bt-window-duel: a defender moving between two windows dropped and crawled the long way round
+                    //   the stairwell, ~15 s for 4 m)
                     if (lastFire > u.ReactedFireAt && now - lastFire <= FreshFireSeconds && now - u.UpSince >= UpBeforeDropSeconds
-                        && Flat(move.Destination - at).Length() > ArrivingMetres && CarryLoad.Factor(world, self) >= 1f)
+                        && Flat(move.Destination - at).Length() > ArrivingMetres && CarryLoad.Factor(world, self) >= 1f
+                        && !Fdp.Toolkit.Combat.GrenadeRules.Indoors(world, at, out _))
                     {
                         u.ReactedFireAt = lastFire;
                         GoDown(world, self, ref u, now);

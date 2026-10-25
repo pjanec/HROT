@@ -25,5 +25,11 @@ namespace Fdp.Toolkit.World
             }
             return best - ground;
         }
+
+        /// <summary>⭐ AQ104 I (R-2079) — are <paramref name="a"/> and <paramref name="b"/> on the same level at their own (x, y)? A world
+        /// with no query (a flat world) has one level. Where only the ground stands, any two heights are the same level, so an order
+        /// authored at z = 0 on a hill still counts as level 0.</summary>
+        public static bool Same(IWorldQuery? world, Vector3 a, Vector3 b)
+            => world is null || LevelOf(world, a) == LevelOf(world, b);
     }
 }
