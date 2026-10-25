@@ -271,7 +271,27 @@ public sealed class DataBreakpointManager
     internal EntityRepository PostTickSnapshot => _postTickSnapshot;
 
     /// <inheritdoc/>
-    public EntityRepository? ChangeBaseline => _preTickSnapshot;
+    /// <remarks>⭐ <c>CE-1284</c> (DBG-8) — the PreFrame copy (<see cref="ChangeBaselineSystem"/>) when a host composes one, else the BeforeSync
+    /// rewind snapshot (which misses every change made in Input).</remarks>
+    public EntityRepository? ChangeBaseline => _changeBaseline ?? _preTickSnapshot;
+
+    private EntityRepository? _changeBaseline;
+
+    /// <summary>⭐ <c>CE-1284</c> — use <paramref name="baseline"/> (filled in PreFrame) for "changed" conditions.</summary>
+    public void UseChangeBaseline(EntityRepository baseline) => _changeBaseline = baseline;
+
+    /// <summary>⭐ <c>CE-1284</c> — the component types the mounted "changed" conditions compare (what the PreFrame copy must hold).</summary>
+    public BitMask512 ChangedComponentMask()
+    {
+        var mask = default(BitMask512);
+        foreach (var (bp, compiled) in MountedComponentPredicates)
+        {
+            if (!bp.Enabled || bp.Condition is not { } c || !Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchService.UsesChanged(c)) continue;
+            foreach (var t in compiled.MandatoryComponents)
+                if (ComponentTypeRegistry.GetId(t) is var id and >= 0) mask.SetBit(id);
+        }
+        return mask;
+    }
 
     /// <inheritdoc/>
     public ISimulationView? PostTickView => _isPaused ? _postTickSnapshot : null;

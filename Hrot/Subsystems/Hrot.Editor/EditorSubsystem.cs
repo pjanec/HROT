@@ -974,6 +974,18 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T1).</summary>
         internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
+        /// <summary>⭐ <c>CE-1291</c> — every BTree node marked as a breakpoint in an open document (empty before the documents exist).</summary>
+        private IEnumerable<Hrot.Editor.Debugging.MarkedNode> MarkedBTreeNodes()
+        {
+            if (_aiDocumentManager == null) yield break;
+            foreach (var doc in _aiDocumentManager.OpenDocuments)
+            {
+                if (doc.Asset is not Hrot.BTree.Editor.Model.BehaviorTreeAsset bt) continue;
+                foreach (var n in bt.Nodes)
+                    if (n.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedNode(bt.Name, n.VisualId, n.DisplayLabel);
+            }
+        }
+
         /// <summary>
         /// ⭐⭐⭐ <b>Is the simulation clock HALTED this frame?</b> — <c>DeltaTime == 0</c> on the
         /// <c>GlobalTime</c> singleton the kernel pushes into the live world every frame.
@@ -1914,16 +1926,22 @@ namespace Hrot.Editor
             // Allocate the pre-tick snapshot repo and mirror all component registrations.
             // Placed here (before gizmo systems) so _bpManager can be passed as
             // breakpointManager: to the gizmo system constructors (UBP-P10T4).
-            _bpPreTickSnapshot = new EntityRepository();
-            SimHostComponentRegistry.RegisterAll(_bpPreTickSnapshot);
-            CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
-            _bpPreTickSnapshot.RegisterComponent<MapDisplayComponent>();
-            _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.CullingState>();
-            _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
-            _bpPreTickSnapshot.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
-            _bpPreTickSnapshot.RegisterComponent<VisualEffectState>();
-            _bpPreTickSnapshot.RegisterComponent<TracerTarget>();
-            Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(_bpPreTickSnapshot);   // ⭐ CE-1042 E2 — mirror the effects
+            // ⭐ CE-1284 — ONE recipe for a world that mirrors the live one (the rewind snapshot and the PreFrame change baseline)
+            static EntityRepository MirrorWorld()
+            {
+                var mirror = new EntityRepository();
+                SimHostComponentRegistry.RegisterAll(mirror);
+                CgfComponentRegistry.RegisterAll(mirror);
+                mirror.RegisterComponent<MapDisplayComponent>();
+                mirror.RegisterComponent<Hrot.IG.Components.CullingState>();
+                mirror.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
+                mirror.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
+                mirror.RegisterComponent<VisualEffectState>();
+                mirror.RegisterComponent<TracerTarget>();
+                Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(mirror);   // ⭐ CE-1042 E2 — mirror the effects
+                return mirror;
+            }
+            _bpPreTickSnapshot = MirrorWorld();
 
             // ⭐ BATCH 84 / R-66: kept as a FIELD so RunStateSource's "is time frozen?" signal reads
             //   through this adapter -- the same one the breakpoint manager drives time with. ⛔ A
@@ -1946,6 +1964,14 @@ namespace Hrot.Editor
 
             _kernel.RegisterGlobalSystem(_bpSnapshotProvider);
             _kernel.RegisterGlobalSystem(_bpSystem);
+            // ⭐ CE-1284 (DBG-8) — "changed" compares against a copy taken BEFORE Input (where a task change lands), not the BeforeSync one
+            _kernel.RegisterGlobalSystem(new ChangeBaselineSystem(_bpManager, MirrorWorld()));
+            // ⭐⭐ CE-1291 (DBG-7) — a breakpoint marked on a BTree node in an open document BREAKS: after the tick the armed units' trace
+            //   rings are read and a marked node that ran is a hit through the manager (one breakpoint per marked node, in the one list)
+            _kernel.RegisterGlobalSystem(new Hrot.Editor.Debugging.NodeBreakpointEvaluator(
+                () => MarkedBTreeNodes(),
+                _bpManager,
+                () => _behaviorRegistry));
 
             // ⭐ CE-1257 / CE-1258 (BV-26, BV-28) — "Debug this unit" lives where the debuggers live: the editor composes the ONE controller
             //   (the Brain tab, the map's AI-trace menu and POST /entities/{id}/debug are buttons on it) and gives it the journal break.
