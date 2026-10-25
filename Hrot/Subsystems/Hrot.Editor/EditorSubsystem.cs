@@ -3549,7 +3549,9 @@ namespace Hrot.Editor
                 // ⭐ CE-1059 — and the searchable entity list, in the shell's picker registry
                 EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers),
             };
-            _scenarioWorkspace.DetailsViews.Add(
+            // ⭐⭐ CE-1314 (R-1036, BV-38) — the AI tab is RETIRED as a tab: its editing (task, SOP, ROE, instance params) is a section of
+            //   the Brain tab, drawn unchanged. ⛔ SUPERSEDED: _scenarioWorkspace.DetailsViews.Add (a separate "AI" tab).
+            _scenarioDetailsBundle!.BrainSections.Add(
                 Hrot.Editor.Scenario.EntityAiDetailsViewDescriptor.For(
                     world:       () => _world,
                     registry:    () => _behaviorRegistry,
@@ -3908,9 +3910,23 @@ namespace Hrot.Editor
             // ⚠ DELEGATES, not values: RegisterWindows runs BEFORE Initialize assigns _world, so an
             //   eager For(_world!, …) throws here. 📌 The retired window hid that inside its lazy
             //   factory lambda — which is exactly why the eager form looked equivalent.
-            _blueprintRegistrar!.DetailsViews.Add(
+            // ⭐⭐ CE-1316 (R-1037, BV-46, BV-47) — Entity Blueprints is RETIRED as a tab: the panel is a section of the Brain tab, on the
+            //   Scenario perspective AND the Blueprint one (which gains the Brain tab for it), drawn unchanged; the tab applies to every
+            //   single entity, so a unit with no brain keeps its blueprints. ⛔ SUPERSEDED: _blueprintRegistrar.DetailsViews.Add of the view.
+            _scenarioDetailsBundle?.BrainSections.Add(
                 Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsDetailsViewDescriptor.For(
                     () => _world, () => _blueprintRegistry));
+            var blueprintBrainSections = new Hrot.Editor.AiShared.Shell.DetailsViewRegistry();
+            blueprintBrainSections.Add(
+                Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsDetailsViewDescriptor.For(
+                    () => _world, () => _blueprintRegistry));
+            _blueprintRegistrar!.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityBrainViewDescriptor.For(
+                () => _world,
+                hash => _behaviorRegistry is { } reg && reg.TryGetName(hash, out var n) ? n : null,
+                hash => _behaviorRegistry is { } reg && reg.TryGetDefinition(hash, out var d) ? d : null,
+                registry:   () => _behaviorRegistry,
+                blueprints: () => _blueprintRegistry,
+                embeds:     () => blueprintBrainSections));
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────

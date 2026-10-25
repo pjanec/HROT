@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -1331,3 +1331,30 @@ controller kept its overlay-pin job but lost `SetAll`, and each map checkbox is 
 📷 `TheBrainViewTests.CE1310_TheTab_IsCollapsingSections_PhotographedClosedAndOpen` — a fresh tab (nothing forced) and every section opened:
 
 ![B5 — closed](assets/brain-view/b5-expanders-closed.png) ![B5 — open](assets/brain-view/b5-expanders-open.png)
+
+### 12n. AS-BUILT — B6 *(CE-1316, CE-1314, `2026-10-25`)*
+
+```mermaid
+graph TD
+  ROOT["EditorSubsystem (composition root)"] -->|"BrainSections.Add"| SEC["EntityDetailsBundle.BrainSections (a DetailsViewRegistry)"]
+  ROOT -->|"registers details.brain with its own sections"| BPP["Blueprint perspective catalogue"]
+  SEC --> AI["EntityAiDetailsView: Assign task, SOP, ROE"]
+  SEC --> EBV["EntityBlueprintsDetailsView: Blueprints"]
+  BPP --> EBV
+  BV["EntityBrainView (details.brain)"] -->|"draws each applying section in a collapsing header"| SEC
+  SCN["Scenario perspective catalogue"] --> BV
+  SCN -.->|"details.ai: no longer registered"| AI
+  BPP -.->|"details.entityblueprints: no longer registered"| EBV
+```
+
+*What the picture shows that prose hid:* the two views live in assemblies ABOVE the tab's, so the tab cannot construct them. The
+composition root, the only place that sees both ends, hands them in as sections. The dashed edges are the two registrations removed.
+
+| piece | where | matches §12a / §12b / deviates |
+|---|---|---|
+| `EntityBrainView` takes `embeds` (a `DetailsViewRegistry` of the host's views), creates each once per tab, and draws every one that applies in its own collapsing header after *Running behaviours*; disabled in replay | `EntityBrainView.cs` (`Embeds`, `EmbedInstance`, `DrawEmbeds`) | ✅ BV-46 "drawn here, unchanged" |
+| BV-47: with sections the tab applies to EVERY single entity a section applies to; a unit with no brain shows *No brain on this unit* and its sections (its blueprints). A host that hands no sections (IG, CGF) keeps the old predicate | `EntityBrainViewDescriptor.For(…, embeds)` | ✅ BV-47 |
+| the Scenario perspective: `EntityDetailsBundle.BrainSections` carries the AI editing (*Assign: task, SOP, ROE*) and the Entity Blueprints panel (*Blueprints*); ⛔ `details.ai` is no longer registered | `EntityDetailsBundle.cs`, `EditorSubsystem.cs` | ✅ R-1036, BV-38 |
+| the Blueprint perspective gains the Brain tab, carrying the *Blueprints* section; ⛔ `details.entityblueprints` is no longer registered | `EditorSubsystem.cs` | ✅ BV-46 |
+| ⚠ **deviation:** the AI view is drawn WHOLE as one section rather than split across the task / SOP / blueprint expanders of *Running behaviours* (the wireframe's per-expander *[Assign…]* / *[Edit params…]* buttons). Moving its rows into those expanders means splitting `EntityAiDetailsView`'s draw per row. Same for B2's *Edit params…* / *Restart* buttons (§12j), which ride that split | — | the next refinement on the tab |
+

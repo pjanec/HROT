@@ -375,6 +375,40 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.NotEmpty(BrainSettingRegistry.Default.For(w, e));
     }
 
+    /// <summary>⭐⭐ <c>CE-1316</c> (BV-47, accepted by the user) — the tab applies to EVERY single entity a section applies to: a unit with
+    /// no brain gets the tab for its blueprints, and the section's view is drawn there (one instance per tab). Without sections, only a
+    /// unit with a brain (the hosts that hand none keep today's behaviour). 🔴 Red-proof: the embeds arm dropped from the predicate ⇒ red.</summary>
+    [Fact]
+    public void CE1316_ABrainlessEntity_GetsTheTab_ForItsSections_AndASectionIsDrawnThere()
+    {
+        var (w, brain, _, _) = RunningWorld();
+        using var _w = w;
+        var rock = w.CreateEntity();                                              // no BehaviorState
+        int drawn = 0;
+        var sections = new DetailsViewRegistry();
+        sections.Add(new DetailsViewDescriptor("details.test.blueprints", "Blueprints", 1,
+            DetailsViewPredicates.ExactlyOneEntity, () => new CountingView(() => drawn++)));
+        DetailsContext One(Entity e) => DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
+
+        var bare = EntityBrainViewDescriptor.For(() => w, _ => null);
+        Assert.False(bare.AppliesTo(One(rock)));
+        Assert.True(bare.AppliesTo(One(brain)));
+        var withSections = EntityBrainViewDescriptor.For(() => w, _ => null, embeds: () => sections);
+        Assert.True(withSections.AppliesTo(One(rock)));
+
+        var view = (EntityBrainView)withSections.Create();
+        Assert.Same(view.EmbedInstance("details.test.blueprints"), view.EmbedInstance("details.test.blueprints"));
+        Assert.Equal(new[] { "details.test.blueprints" }, view.Embeds.Select(d => d.Id));
+    }
+
+    private sealed class CountingView : IDetailsViewInstance
+    {
+        private readonly Action _onDraw;
+        public CountingView(Action onDraw) => _onDraw = onDraw;
+        public void Draw(DetailsContext context, string idScope) => _onDraw();
+        public void Dispose() { }
+    }
+
     // ── CE-1320 (Brain View §12g BV-65): ONE live write for params and working state, no restart ──────────────────────────────
 
     /// <summary>A stager that applies at once (production stages through the breakpoint manager and the drain lands it next tick).</summary>

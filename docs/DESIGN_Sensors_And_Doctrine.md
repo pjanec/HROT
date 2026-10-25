@@ -1054,6 +1054,7 @@ refusal (`CE-2084`) reads too.*
 | as built | where / why |
 |---|---|
 | the section | `Hrot.Editor/Scenario/EntityAiDetailsView.cs` — `EntityAiDetailsView` (ImGui, thin) + `EntityAiEditModel` (no ImGui: `Read`, `TaskChoices`, `SopChoices`, `Apply*` / `Clear*`); registered on the Scenario catalogue (`details.ai`, rank 45, applies to one entity with a `BehaviorState`) |
+| ⚠ **AS-BUILT `2026-10-25` (CE-1314, [Brain View §12n](DESIGN_Entity_Brain_View.md))** | ⛔ SUPERSEDED: "registered on the Scenario catalogue (`details.ai`)". The view is now a SECTION of the Brain tab (`EntityDetailsBundle.BrainSections`, titled *Assign: task, SOP, ROE*), drawn unchanged; the separate AI tab is gone |
 | the apply-now pipeline | `BehaviorIngressSystem.AssignNow` / `ClearNow` / `AssignSopNow` / `ClearSopNow` (public; the event handlers' own admit + start), `RoeSystem.Apply` (static; `Execute` now calls it) |
 | the channel set | `BehaviorDefinition.WritesChannels` — 📐 measured on the shipped corpus: **17 of 26 BTrees are known-empty** (incl. `BasicInfantrySop`), 9 unknown; ⚠ **every blueprint behaviour in the corpus is UNKNOWN** — the derivation treats a pure call (a `Delay` is one) as opaque, so it never emits a set for them (no blueprint golden moved). ⇒ today the SOP row offers BTrees only; widening the derivation is a separate question |
 | `CE-2084` | the SOP slot refuses a behaviour KNOWN to drive a channel (`BehaviorIngressSystem.DrivesAChannel`), logged as a warning; unknown is allowed (the runtime guard stays the backstop) |

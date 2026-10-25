@@ -291,13 +291,45 @@ public sealed class EntityBrainView : IDetailsViewInstance
     /// <i>Running behaviours</i> section is absent.</param>
     /// <param name="blueprints">⭐ <c>CE-1315</c> — the blueprint registry, so attached blueprints are listed with their variables.</param>
     public EntityBrainView(Func<EntityRepository?> world, Func<int, string?> behaviorName, Func<int, BehaviorDefinition?>? definition = null,
-        Func<BehaviorRegistry?>? registry = null, Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null)
+        Func<BehaviorRegistry?>? registry = null, Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null,
+        Func<DetailsViewRegistry?>? embeds = null)
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _behaviorName = behaviorName ?? throw new ArgumentNullException(nameof(behaviorName));
         _definition = definition;
         _registry = registry;
         _blueprints = blueprints;
+        _embeds = embeds;
+    }
+
+    // ── ⭐⭐ CE-1316 / CE-1314 (Brain View §12a BV-38, §12b BV-46, R-1036, R-1037) — THE TAB ABSORBS TWO VIEWS ─────────────────────────
+    //   The AI tab's editing (task, SOP, ROE, instance params) and the Entity Blueprints panel (+ Add, Remove, Apply, Revert) are drawn
+    //   HERE as sections, unchanged: the host hands their descriptors in as EMBEDS (they live in assemblies above this one, so the
+    //   composition root is the only place that sees both ends — the same reference wall the blueprints view hit, BP-475).
+
+    private readonly Func<DetailsViewRegistry?>? _embeds;
+    private readonly Dictionary<string, IDetailsViewInstance> _embedInstances = new(StringComparer.Ordinal);
+
+    /// <summary>The views this tab draws as its own sections (the host's composition; empty where it hands none).</summary>
+    public IReadOnlyList<DetailsViewDescriptor> Embeds => _embeds?.Invoke()?.All ?? Array.Empty<DetailsViewDescriptor>();
+
+    /// <summary>The section instance of embed <paramref name="id"/> (created on first use, one per tab).</summary>
+    public IDetailsViewInstance EmbedInstance(string id)
+    {
+        if (_embedInstances.TryGetValue(id, out var v)) return v;
+        var d = Embeds.First(x => x.Id == id);
+        return _embedInstances[id] = d.Create();
+    }
+
+    private void DrawEmbeds(DetailsContext context, string idScope, bool replay)
+    {
+        foreach (var d in Embeds)
+        {
+            if (!d.AppliesTo(context) || !Section(d.Title, "embed." + d.Id)) continue;
+            if (replay) ImGui.BeginDisabled();   // BV-46: managing and assigning is disabled in the replay browser
+            EmbedInstance(d.Id).Draw(context, idScope + "/" + d.Id);
+            if (replay) ImGui.EndDisabled();
+        }
     }
 
     /// <summary>⭐ <c>CE-1315</c> — every behaviour running on <paramref name="unit"/> (task, SOP, paused task, attached blueprints),
@@ -322,12 +354,22 @@ public sealed class EntityBrainView : IDetailsViewInstance
 
     internal EntityBrainViewPanelViewModel SimulateDraw(DetailsContext context, string idScope) => BuildAndPublish(context, idScope).Vm;
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        foreach (var v in _embedInstances.Values) v.Dispose();
+        _embedInstances.Clear();
+    }
 
     public void Draw(DetailsContext context, string idScope)
     {
         var (_, b) = BuildAndPublish(context, idScope);
-        if (b is null) { ImGui.TextDisabled("No brain on this unit."); return; }
+        if (b is null)
+        {
+            // ⭐ CE-1316 (BV-47) — a unit with no brain still has its blueprints here (the tab applies to every single entity)
+            ImGui.TextDisabled("No brain on this unit.");
+            DrawEmbeds(context, idScope, context.Mode == VariableRunState.Replay);
+            return;
+        }
         var unit = context.Entities[0];
         var world = _world();
         bool replay = context.Mode == VariableRunState.Replay;
@@ -389,6 +431,8 @@ public sealed class EntityBrainView : IDetailsViewInstance
 
         if (world is not null && Running(world, unit) is { Count: > 0 } running && Section($"Running behaviours ({running.Count})", "running"))
             DrawRunning(running);
+
+        DrawEmbeds(context, idScope, replay);
 
         if (world is not null && !replay && Section("Show on map", "map")) DrawShowOnMap(world, unit);
 
@@ -574,10 +618,17 @@ public static class EntityBrainViewDescriptor
     public const string ViewId = "details.brain";
     public const int Rank = 34;
 
+    /// <param name="embeds">⭐ CE-1316 / CE-1314 — the views this tab draws as sections (the AI tab's editing, the Entity Blueprints
+    /// panel). ⭐ BV-47: with embeds the tab applies to EVERY single entity a section applies to — a unit with no brain keeps its
+    /// blueprints here; without, only to one with a brain (as before).</param>
     public static DetailsViewDescriptor For(Func<EntityRepository?> world, Func<int, string?> behaviorName,
         Func<int, BehaviorDefinition?>? definition = null, Func<BehaviorRegistry?>? registry = null,
-        Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null)
-        => new(ViewId, "Brain", Rank,
-               DetailsViewPredicates.OneEntityWithBrain(e => world() is { } w && BrainSnapshot.Has<BehaviorState>(w, e)),
-               () => new EntityBrainView(world, behaviorName, definition, registry, blueprints));
+        Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null, Func<DetailsViewRegistry?>? embeds = null)
+    {
+        var withBrain = DetailsViewPredicates.OneEntityWithBrain(e => world() is { } w && BrainSnapshot.Has<BehaviorState>(w, e));
+        return new(ViewId, "Brain", Rank,
+               context => withBrain(context)
+                          || (DetailsViewPredicates.ExactlyOneEntity(context) && embeds?.Invoke() is { } r && r.All.Any(d => d.AppliesTo(context))),
+               () => new EntityBrainView(world, behaviorName, definition, registry, blueprints, embeds));
+    }
 }

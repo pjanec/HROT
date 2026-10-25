@@ -448,6 +448,8 @@ the text until it can**, and say in the rail which layer is still text.
 
 ## 10. ☑ AS-BUILT — **`CE-302`, `2026-09-21`**
 
+> ⚠ **AS-BUILT `2026-10-25` (CE-1316, [Brain View §12n](../DESIGN_Entity_Brain_View.md)):** ⛔ the view is no longer registered as its own tab. It is a SECTION of the Brain tab (*Blueprints*) on the Scenario and the Blueprint perspectives, drawn unchanged; the Brain tab applies to every single entity, so a unit with no brain keeps it. What follows is the view as built in CE-302.
+
 ⭐ `EntityBlueprintsDetailsView` + `EntityBlueprintsDetailsViewDescriptor` *(`details.entityblueprints`,
 rank **15** — above Variables (10), below Node Properties (20), and `details.runtime.*` stays at 50)*,
 registered from `EditorSubsystem` because of §3's **reference wall** *(the view lives in

@@ -79,8 +79,14 @@ public sealed class EntityDetailsBundle : IUiBundle
             hash => Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor is { } reg && reg.TryGetDefinition(hash, out var d) ? d : null,
             // ⭐ CE-1315 — both registries, so the Running behaviours section names and decodes every slot (a held value is passed)
             registry:   () => Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor,
-            blueprints: () => Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.Registry));
+            blueprints: () => Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.Registry,
+            // ⭐ CE-1316 / CE-1314 — the views a host draws INSIDE the tab (the editor: the AI tab's editing, the Entity Blueprints panel)
+            embeds:     () => BrainSections));
     }
+
+    /// <summary>⭐ <c>CE-1316</c> / <c>CE-1314</c> — views the Brain tab draws as its own sections; a host adds them HERE instead of as
+    /// separate tabs (the editor's AI editing and Entity Blueprints panel). Empty on a host that adds none.</summary>
+    public DetailsViewRegistry BrainSections { get; } = new();
 
     /// <inheritdoc/>
     public string Name => "entity-details";
