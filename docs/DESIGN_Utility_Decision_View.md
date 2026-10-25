@@ -160,12 +160,12 @@ classDiagram
   class UtilityTraceWorkingMemory1024 { <<exists, per unit>> raw, normalized, curve, weight per consideration }
   class UtilityInputNames { <<MOVED from DebugApiService.Utility>> Of(inputId) }
   class UtilityDecisionSheet { <<NEW, Hrot.Editor.AiShared>> Build(def) settings; WithLive(log, trace) }
-  class UtilityBindings { <<NEW, Hrot.Editor.AiShared>> Of(registry, behaviour, node / state / transition) : BoundDecision[] }
+  class UtilityBindings { <<NEW, Hrot.Editor.AiShared>> Of(registry, behaviour, selection) BoundDecision list }
   class BoundDecision { <<NEW>> DecisionId; ParamField; Role Chooses|Reads(option)|Ranks }
   class UtilityDecisionDetailsView { <<NEW>> details.utility.decision · W1 W2 W3 W4 W6 }
   class UtilityDecisionWidget { <<NEW>> the option / consideration table, curve plot }
   class EntityBrainView { <<exists>> Why: W5 expanders }
-  class DebugApiService { <<exists>> GET /utility/decisions/{assetId} NEW }
+  class DebugApiService { <<exists>> GET utility decisions by asset id NEW }
   UtilityDecisionCatalog --> UtilityDecisionDef
   UtilityBindings ..> UtilityDecisionCatalog
   UtilityBindings --> BoundDecision
