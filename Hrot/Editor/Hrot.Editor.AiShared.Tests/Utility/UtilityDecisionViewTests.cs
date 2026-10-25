@@ -60,6 +60,7 @@ public sealed class UtilityDecisionViewTests : IDisposable
         w.AddComponent(unit, new UtilityDecisionLog());
         w.AddComponent(unit, new UtilityDebugFlags { TraceEnabled = 1 });
         w.AddComponent(unit, new UtilityTraceWorkingMemory1024());
+        UtilityDecisionCatalog.EnsureRegistered();   // the scorer reads the registry it is built over
         UtilityScorer? cache = null;
         byte winner = UtilityDecisionCatalog.ScorerOverShared(ref cache).ChooseOption(w, unit, Posture, 0);
 
@@ -133,6 +134,7 @@ public sealed class UtilityDecisionViewTests : IDisposable
         w.AddComponent(unit, new UtilityDecisionLog());
         w.AddComponent(unit, new UtilityDebugFlags { TraceEnabled = 1 });
         w.AddComponent(unit, new UtilityTraceWorkingMemory1024());
+        UtilityDecisionCatalog.EnsureRegistered();   // the scorer reads the registry it is built over
         UtilityScorer? cache = null;
         UtilityDecisionCatalog.ScorerOverShared(ref cache).ChooseOption(w, unit, Posture, 0);
         var settings = UtilityDecisionSheet.Build(Posture)!;
