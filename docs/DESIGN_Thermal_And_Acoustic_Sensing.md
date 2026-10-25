@@ -962,7 +962,8 @@ classDiagram
 
 *What the picture shows that prose hid:* every new input is a REPLICATED component (`DoorState`, `Utterance`) read on the node that hears —
 never the actor's door command nor the brain's `Callouts.Say`, which live on other nodes (🔒 user, `2026-10-25`: *"sounds sensors are calculated
-on simhost (perception) node only, not on brain"*; *"every node with 3d map has a sound system"*). The brain gains no reader: it hears only the
+on simhost (perception) node only, not on brain"*; *"every node with 3d map has a sound system"*, clarified: *"the sound output anywhere where 3d map is, sound calculation on percpetion
+node"* — Node Roles §3.0a). The brain gains no reader: it hears only the
 anonymous `SoundContact` as before, and never touches the terrain (*"brain should use map only for rendering, no direct access"*).
 
 ```mermaid
