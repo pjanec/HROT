@@ -34,9 +34,12 @@ public sealed class HsmEventsDetailsView : IDetailsViewInstance
 
     private HsmAsset?         _cachedAsset;
     private HsmEventsWindow?  _inner;
+    private readonly Func<Hrot.Diagnostics.Breakpoints.IDataBreakpointManager?>? _breakpoints;
 
-    public HsmEventsDetailsView(IRefactorService refactorService, FindResultsWindow findResults)
+    public HsmEventsDetailsView(IRefactorService refactorService, FindResultsWindow findResults,
+        Func<Hrot.Diagnostics.Breakpoints.IDataBreakpointManager?>? breakpoints = null)
     {
+        _breakpoints = breakpoints;
         _refactorService = refactorService ?? throw new ArgumentNullException(nameof(refactorService));
         _findResults      = findResults      ?? throw new ArgumentNullException(nameof(findResults));
     }
@@ -48,7 +51,7 @@ public sealed class HsmEventsDetailsView : IDetailsViewInstance
         if (_inner == null || !ReferenceEquals(_cachedAsset, asset))
         {
             _cachedAsset = asset;
-            _inner       = new HsmEventsWindow(asset, _refactorService, _findResults);
+            _inner       = new HsmEventsWindow(asset, _refactorService, _findResults) { Breakpoints = _breakpoints };
         }
         return _inner;
     }
@@ -107,7 +110,9 @@ public static class HsmEventsDetailsViewDescriptor
     /// <paramref name="findResults"/> window (mirrors <c>VariablesDetailsViewDescriptor.For</c>'s
     /// "wrap what the perspective already owns" shape).
     /// </summary>
-    public static DetailsViewDescriptor For(IRefactorService refactorService, FindResultsWindow findResults)
+    /// <param name="breakpoints">⭐ CE-1323 — the breakpoint manager, for an event row's "Break when handled".</param>
+    public static DetailsViewDescriptor For(IRefactorService refactorService, FindResultsWindow findResults,
+        Func<Hrot.Diagnostics.Breakpoints.IDataBreakpointManager?>? breakpoints = null)
     {
         ArgumentNullException.ThrowIfNull(refactorService);
         ArgumentNullException.ThrowIfNull(findResults);
@@ -122,7 +127,7 @@ public static class HsmEventsDetailsViewDescriptor
             // ⭐ A FRESH instance per window (R-120) — unlike VariablesDetailsView this view has no
             //   shared/borrowed section forcing it to return one shared object; its own state
             //   (_cachedAsset/_inner, the rename modal) is legitimately per-window.
-            Create:    () => new HsmEventsDetailsView(refactorService, findResults));
+            Create:    () => new HsmEventsDetailsView(refactorService, findResults, breakpoints));
     }
 
     /// <summary>⭐ Extracted so a rail can assert the predicate directly.</summary>

@@ -974,19 +974,37 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T1).</summary>
         internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
+        private Hrot.Editor.Debugging.NodeBreakpointEvaluator? _stepEvaluator;
+
+        /// <summary>⭐ CE-1323 — the behaviour-breakpoint reader (the API names a step that cannot resolve through it).</summary>
+        internal Hrot.Editor.Debugging.NodeBreakpointEvaluator? StepEvaluator => _stepEvaluator;
+
         private static long NetIdOf(EntityRepository w, Entity e)
             => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>() && w.IsAlive(e)
                 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(w, e) : 0;
 
-        /// <summary>⭐ <c>CE-1291</c> — every BTree node marked as a breakpoint in an open document (empty before the documents exist).</summary>
-        private IEnumerable<Hrot.Editor.Debugging.MarkedNode> MarkedBTreeNodes()
+        /// <summary>⭐ <c>CE-1291</c> / <c>CE-1323</c> — every element whose "Breakpoint" is ticked in an open document, as the step it means: a
+        /// BTree node runs · an HSM state is entered · an HSM transition fires (empty before the documents exist).</summary>
+        private IEnumerable<Hrot.Editor.Debugging.MarkedStep> MarkedSteps()
         {
             if (_aiDocumentManager == null) yield break;
             foreach (var doc in _aiDocumentManager.OpenDocuments)
             {
-                if (doc.Asset is not Hrot.BTree.Editor.Model.BehaviorTreeAsset bt) continue;
-                foreach (var n in bt.Nodes)
-                    if (n.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedNode(bt.Name, n.VisualId, n.DisplayLabel);
+                if (doc.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset bt)
+                {
+                    foreach (var n in bt.Nodes)
+                        if (n.IsBreakpoint)
+                            yield return Hrot.Editor.Debugging.MarkedStep.Of(new Hrot.Editor.Debugging.MarkedNode(bt.Name, n.VisualId, n.DisplayLabel));
+                }
+                else if (doc.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsm)
+                {
+                    foreach (var st in hsm.AllStates)
+                        if (st.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Enter(hsm, st), st.StableId);
+                    foreach (var tr in hsm.AllTransitions)
+                        if (tr.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Fires(hsm, tr), tr.VisualId);
+                    foreach (var gt in hsm.AllGlobalTransitions)
+                        if (gt.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Fires(hsm, gt), gt.VisualId);
+                }
             }
         }
 
@@ -1972,10 +1990,20 @@ namespace Hrot.Editor
             _kernel.RegisterGlobalSystem(new ChangeBaselineSystem(_bpManager, MirrorWorld()));
             // ⭐⭐ CE-1291 (DBG-7) — a breakpoint marked on a BTree node in an open document BREAKS: after the tick the armed units' trace
             //   rings are read and a marked node that ran is a hit through the manager (one breakpoint per marked node, in the one list)
-            _kernel.RegisterGlobalSystem(new Hrot.Editor.Debugging.NodeBreakpointEvaluator(
-                () => MarkedBTreeNodes(),
+            Hrot.Editor.AiShared.Shell.BrainStopWhen.Manager = () => _bpManager;   // ⭐ CE-1323 — the Brain tab's "Stop when…"
+            // ⭐ CE-1323 (§9) — and every behaviour step (the HSM's five kinds), from the canvas, the Brain tab or the API; a step scoped to a
+            //   unit arms its traces
+            _kernel.RegisterGlobalSystem(_stepEvaluator = new Hrot.Editor.Debugging.NodeBreakpointEvaluator(
+                () => MarkedSteps(),
                 _bpManager,
-                () => _behaviorRegistry));
+                () => _behaviorRegistry,
+                arm: (w, u, on) =>
+                {
+                    var flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer;
+                    if (on == Hrot.Common.Diagnostics.Gizmos.AiTraceActions.IsOn(w, u, flag)) return false;
+                    Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(w, u, flag, on);
+                    return true;
+                }));
 
             // ⭐ CE-1257 / CE-1258 (BV-26, BV-28) — "Debug this unit" lives where the debuggers live: the editor composes the ONE controller
             //   (the Brain tab, the map's AI-trace menu and POST /entities/{id}/debug are buttons on it) and gives it the journal break.
@@ -3470,7 +3498,8 @@ namespace Hrot.Editor
             _hsmRegistrar.DetailsViews.Add(
                 Hrot.Hsm.Editor.Windows.HsmEventsDetailsViewDescriptor.For(
                     refactorService: refactorService,
-                    findResults:     _hsmRegistrar.FindResults));
+                    findResults:     _hsmRegistrar.FindResults,
+                    breakpoints:     () => _bpManager));   // ⭐ CE-1323 — an event row's "Break when handled"
 
             // ⭐⭐⭐ Batch 88a — Blueprint's live-value provider, row 58's unbuilt half.
             //    🔴 This call used to say "no live-value provider yet" and pass none, so the Details

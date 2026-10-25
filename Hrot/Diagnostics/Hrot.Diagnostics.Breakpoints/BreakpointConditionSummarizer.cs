@@ -26,9 +26,34 @@ public static class BreakpointConditionSummarizer
         CompoundPredicateDto cp        => $"Compound[{cp.Operator}]({cp.Conditions.Count}): "
                                           + string.Join(cp.Operator == LogicalOperator.And ? " AND " : " OR ", cp.Conditions.Select(Summarize)),
         BlueprintVariablePredicateDto bv => $"Blueprint: {bv.TargetBlueprintAssetId.ToString()[..8]}...",
+        BehaviourStepPredicateDto st   => Step(st),
         ExternalHitTagPredicateDto et  => et.Tag.StartsWith("btree:", StringComparison.Ordinal) ? "the node runs" : $"Tag: {et.Tag}",
         _                              => dto.GetType().Name,
     };
+
+    /// <summary>⭐ CE-1323 — a behaviour step as a sentence: "Withdrawing entered (squad-hsm)".</summary>
+    public static string Step(BehaviourStepPredicateDto st)
+    {
+        string label = st.Label.Length > 0 ? st.Label : st.Kind switch
+        {
+            BehaviourStepKind.TransitionFires => $"{(string.IsNullOrEmpty(st.From) ? "any state" : st.From)} -> {st.To}"
+                                                 + (string.IsNullOrEmpty(st.Event) ? "" : $" on {st.Event}"),
+            BehaviourStepKind.EventHandled    => st.Event ?? "?",
+            BehaviourStepKind.NodeRuns        => st.Node == Guid.Empty ? "?" : st.Node.ToString("N")[..8],
+            _                                 => st.State ?? "?",
+        };
+        string what = st.Kind switch
+        {
+            BehaviourStepKind.NodeRuns        => $"node {label} runs",
+            BehaviourStepKind.StateEnter      => $"{label} entered",
+            BehaviourStepKind.StateExit       => $"{label} left",
+            BehaviourStepKind.InsideEnter     => $"anything inside {label}{(st.Region >= 0 ? $" (region {st.Region})" : "")} entered",
+            BehaviourStepKind.TransitionFires => $"{label} fires",
+            BehaviourStepKind.EventHandled    => $"event {label} handled",
+            _                                 => label,
+        };
+        return st.Behaviour.Length > 0 ? $"{what} ({st.Behaviour})" : what;
+    }
 
     /// <summary>"Component: Type.Path op value" — the field, never a raw infinite range.</summary>
     private static string Property(PropertyMatchDto pm)
