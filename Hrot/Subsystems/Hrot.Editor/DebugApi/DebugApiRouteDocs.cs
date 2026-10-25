@@ -2144,7 +2144,7 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.",
-                "choices fill only while the unit is observed (observe_trace or debug_unit); the journal is always on.",
+                "choices fill only while the unit is observed (observe_trace, set_debug_settings trace, or its Brain tab open); the journal is always on.",
                 "journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones.",
             },
             ExampleArgsJson: "{\"networkId\":1000}",
@@ -2173,8 +2173,8 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/view")] = new RouteDoc(
             Tool:    "get_view",
             Group:   "O — Manual-assist (focus / annotations)",
-            Summary: "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, the debugged unit, and the units in view nearest first with their screen point.",
-            Returns: "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
+            Summary: "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, and the units in view nearest first with their screen point.",
+            Returns: "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
             Hint:    "Optional limit (number, query, default 50). Example: get_view({limit:20})",
             Params: new RouteParam[]
             {
@@ -2222,24 +2222,37 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "which unit is the operator asking about"),
 
-        [("POST", "/entities/{networkId}/debug")] = new RouteDoc(
-            Tool:    "debug_unit",
+        [("GET", "/entities/{networkId}/debug-settings")] = new RouteDoc(
+            Tool:    "get_debug_settings",
             Group:   "K — AI behavior traces",
-            Summary: "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on) and keeps the AI graph's live overlay on it instead of the selection. ⛔ CE-1317: it no longer pins every map gizmo family — pin_gizmos one family at a time; a unit whose Brain tab is open is traced anyway. One unit at a time.",
-            Returns: "{ networkId, debugging, debugged }",
-            Hint:    "Req: networkId (number); optional on (bool, default true). Editor only. Example: debug_unit({networkId:1000, on:true})",
+            Summary: "A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario.",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
+            Hint:    "Req: networkId (number). Editor only. Example: get_debug_settings({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "number", true, "Network entity ID (long)") },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "what is switched on for unit 1000"),
+
+        [("POST", "/entities/{networkId}/debug-settings")] = new RouteDoc(
+            Tool:    "set_debug_settings",
+            Group:   "K — AI behavior traces",
+            Summary: "Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit.",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
+            Hint:    "Req: networkId (number); optional pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network entity ID (long)"),
-                new("on", "boolean", false, "true = start debugging this unit (moves it from any other), false = stop", DefaultJson: "true"),
+                new("pins", "array", false, "The gizmo families to pin (replaces the set); [] unpins all"),
+                new("trace", "boolean", false, "Record the unit's behaviour trace (remembered)"),
+                new("follow", "boolean", false, "The 3-D camera follows the unit (remembered); false lets go"),
+                new("reset", "boolean", false, "Forget everything remembered for this unit first"),
             },
             Notes: new[]
             {
-                "The operator sees it too: the gizmos pin on the map and the graph's highlight follows this unit.",
                 "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal.",
+                "A unit whose Brain tab is open is traced anyway (traceOn), without touching its trace switch.",
             },
-            ExampleArgsJson: "{\"networkId\":1000,\"on\":true}",
-            ExampleGist: "watch unit 1000 closely, live"),
+            ExampleArgsJson: "{\"networkId\":1000,\"pins\":[\"Perception\"],\"trace\":true}",
+            ExampleGist: "watch unit 1000 closely: its vision cone on the map and its trace"),
 
         [("POST", "/entities/{networkId}/journal/break")] = new RouteDoc(
             Tool:    "break_on_journal",

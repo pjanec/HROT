@@ -76,25 +76,27 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
         Assert.True(_svc.GetEntityJournal(1000, since: 3)["gap"]!.GetValue<bool>());   // more than the ring holds were written
     }
 
-    /// <summary>⭐ <c>POST /entities/{id}/debug</c> is the same switch the tab holds; with no controller composed it says so.</summary>
+    /// <summary>⭐ <c>CE-1329</c> (BV-72) — <c>GET/POST /entities/{id}/debug-settings</c> reads and writes the one store the Brain tab's ticks
+    /// use: pins replace the set, trace is the user's switch, reset forgets the unit, an unknown family is refused.
+    /// ⛔ SUPERSEDED: <c>POST /entities/{id}/debug</c> ("Debug this unit").</summary>
     [Fact]
-    public void Debug_IsTheControllersSwitch()
+    public void CE1329_DebugSettings_AreTheBrainTabsSwitches()
     {
         Unit(1001, Vector3.Zero);
-        var previous = UnitDebugController.Current;
-        try
-        {
-            UnitDebugController.Current = null;
-            Assert.NotNull(_svc.DebugUnit(1001, true).Error);
+        var (set, error) = _svc.SetDebugSettings(1001, System.Text.Json.Nodes.JsonNode.Parse("{\"pins\":[\"Perception\",\"Contacts\"],\"trace\":true}"));
+        Assert.Null(error);
+        Assert.Equal(new[] { "Perception", "Contacts" }, set!["pins"]!.AsArray().Select(p => p!.GetValue<string>()));
+        Assert.True(set["trace"]!.GetValue<bool>());
+        var store = Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world);
+        Assert.True(store.IsPinned(1001, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
-            var c = new UnitDebugController();
-            UnitDebugController.Current = c;
-            var (result, error) = _svc.DebugUnit(1001, true);
-            Assert.Null(error);
-            Assert.True(result!["debugging"]!.GetValue<bool>());
-            Assert.True(c.IsDebugged(_map.TryGetEntity(1001, out var e) ? e : Entity.Null));
-        }
-        finally { UnitDebugController.Current = previous; }
+        var (got, _) = _svc.GetDebugSettings(1001);
+        Assert.Equal(2, got!["pins"]!.AsArray().Count);
+        Assert.NotNull(_svc.SetDebugSettings(1001, System.Text.Json.Nodes.JsonNode.Parse("{\"pins\":[\"Nope\"]}")).Error);
+        var (reset, _) = _svc.SetDebugSettings(1001, System.Text.Json.Nodes.JsonNode.Parse("{\"reset\":true}"));
+        Assert.Empty(reset!["pins"]!.AsArray());
+        Assert.False(reset["trace"]!.GetValue<bool>());
+        Assert.NotNull(_svc.GetDebugSettings(9999).Error);
     }
 
     /// <summary>⭐ <c>GET /view</c>: no canvas ⇒ camera null but the selection still answers; a published 3-D view lists the unit in front

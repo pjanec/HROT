@@ -733,6 +733,19 @@ public sealed class EntityBrainView : IDetailsViewInstance
             return;
         }
         var unit = context.Entities[0];
+        // ⭐ CE-1329 (Brain View §12r BV-71) — forget what is remembered for this unit (its Show on map ticks, its trace, the camera following
+        //   it); the Settings menu resets the whole scenario
+        if (Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(w, unit) is var resetId and not 0
+            && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(w) is { } settings && (settings.Remembered.ContainsKey(resetId) || settings.Followed == resetId))
+        {
+            if (ImGui.Button("Reset this unit's debug settings"))
+            {
+                if (settings.Followed == resetId) Hrot.UI.Common.Map3D.ViewControl.Of(w)?.StopFollowing();
+                settings.ResetUnit(resetId);
+                _breakNote = "this unit's debug settings are forgotten";
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Unpins its map gizmos, turns off its remembered trace and stops the camera following it (remembered per scenario).");
+        }
         // ⛔ CE-1317 (BV-48) — the "Debug this unit" checkbox is gone: viewing the tab arms the traces, and the map families are
         //   pinned one by one in "Show on map"
         // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — watch him: the map's 3-D camera follows this unit (wheel: in to his eyes)

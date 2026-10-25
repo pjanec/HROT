@@ -95,20 +95,78 @@ float grassNoise(vec2 p)
     vec2 u = f * f * (3.0 - 2.0 * f);
     return mix(mix(grassHash(i), grassHash(i + vec2(1.0, 0.0)), u.x), mix(grassHash(i + vec2(0.0, 1.0)), grassHash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
-vec3 grass(vec3 albedo, vec3 world, vec3 n, float dist)
+vec3 grass(vec3 albedo, vec2 p, float near)
 {
-    float flat_ = smoothstep(0.6, 0.85, n.y);   // the open ground only: a wall, a slope's face keeps its colour
-    flat_ *= smoothstep(0.0, 0.06, albedo.g - max(albedo.r, albedo.b));   // and only the GREEN ground: a flat roof, water, a road stay plain
-    if (groundDetail <= 0.0 || flat_ <= 0.0) return albedo;
-    vec2 p = world.xz;
     float patches = grassNoise(p * 0.08);                                 // ~12 m: lighter / drier patches
     float tufts = grassNoise(p * 0.7) * 0.6 + grassNoise(p * 2.3) * 0.4;  // ~1 m tufts
     float blades = grassNoise(p * vec2(9.0, 23.0));                       // fine streaks
-    float near = clamp(1.0 - dist / 90.0, 0.0, 1.0);                      // the fine detail fades out: no shimmer far away
     float shade = 0.80 + 0.30 * tufts + near * 0.18 * (blades - 0.5);
     vec3 dry = albedo * vec3(1.18, 1.08, 0.72);
-    vec3 c = mix(albedo, dry, smoothstep(0.55, 0.8, patches) * 0.6) * shade;
-    return mix(albedo, c, flat_ * groundDetail);
+    return mix(albedo, dry, smoothstep(0.55, 0.8, patches) * 0.6) * shade;
+}
+// CE-1333 — the terrain's materials, drawn from the WORLD position (metres): the code rides in the vertex colour's alpha
+// (TerrainLayer3D.MaterialCode), read only while the terrain draws (groundDetail > 0). A wall's pattern runs along the wall (u) and up (v).
+vec3 brick(vec3 albedo, vec2 uv)
+{
+    float row = floor(uv.y / 0.085);
+    float x = uv.x / 0.25 + 0.5 * mod(row, 2.0);
+    vec2 f = vec2(fract(x), fract(uv.y / 0.085));
+    float mortar = max(step(f.x, 0.05), step(f.y, 0.13));
+    float tint = 0.82 + 0.32 * grassHash(vec2(floor(x), row));
+    return mix(albedo * tint, vec3(0.70, 0.68, 0.64), mortar);
+}
+vec3 concrete(vec3 albedo, vec2 uv)
+{
+    vec2 f = vec2(fract(uv.x / 3.0), fract(uv.y / 2.9));
+    float joint = max(step(f.x, 0.006), step(f.y, 0.008));
+    float stain = 0.90 + 0.14 * grassNoise(uv * 0.6) + 0.06 * grassNoise(uv * vec2(5.0, 0.4));   // patches, and rain streaks down
+    return albedo * stain * (1.0 - 0.28 * joint);
+}
+vec3 sandbags(vec3 albedo, vec2 uv)
+{
+    float row = floor(uv.y / 0.14);
+    float x = uv.x / 0.55 + 0.5 * mod(row, 2.0);
+    vec2 f = vec2(fract(x), fract(uv.y / 0.14));
+    float bulge = pow(sin(3.14159 * f.x), 0.35) * pow(sin(3.14159 * f.y), 0.55);
+    return albedo * (0.58 + 0.5 * bulge) * (0.92 + 0.16 * grassHash(vec2(floor(x), row)));
+}
+vec3 tiles(vec3 albedo, vec2 uv)
+{
+    float row = floor(uv.y / 0.30);
+    float x = uv.x / 0.22 + 0.5 * mod(row, 2.0);
+    vec2 f = vec2(fract(x), fract(uv.y / 0.30));
+    float gap = step(f.x, 0.05);
+    return albedo * (0.74 + 0.34 * f.y) * (1.0 - 0.3 * gap) * (0.93 + 0.12 * grassHash(vec2(floor(x), row)));
+}
+vec3 planks(vec3 albedo, vec2 uv)
+{
+    float row = floor(uv.y / 0.15);
+    float gap = step(fract(uv.y / 0.15), 0.06);
+    float grain = 0.88 + 0.18 * grassNoise(vec2(uv.x * 1.5, uv.y * 40.0)) + 0.1 * grassHash(vec2(row, 3.0));
+    return albedo * grain * (1.0 - 0.4 * gap);
+}
+vec3 materialDetail(vec3 albedo, float code, vec3 world, vec3 n, float dist)
+{
+    if (groundDetail <= 0.0 || code > 250.5 || code < 240.5) return albedo;
+    // the face's own frame: t runs level along it, b up its slope (a wall: straight up; a flat roof: north) — a pattern lies ON the face
+    vec3 t = length(n.xz) < 0.05 ? vec3(1.0, 0.0, 0.0) : normalize(vec3(-n.z, 0.0, n.x));
+    vec3 b = normalize(cross(n, t));
+    vec2 uv = vec2(dot(world, t), abs(dot(world, b)));
+    bool sloped = n.y > 0.3;   // a roof's top, flat or pitched
+    float near = clamp(1.0 - dist / 90.0, 0.0, 1.0);
+    float fine = clamp(1.0 - dist / 70.0, 0.0, 1.0);   // small courses (bricks, bags, planks) fade before they shimmer
+    vec3 c = albedo;
+    if (code > 249.5) c = n.y > 0.6 ? grass(albedo, world.xz, near) : albedo;                             // 250 open ground
+    else if (code > 248.5) c = n.y > 0.6 ? grass(albedo * 0.9, world.xz * 1.3, near) : albedo;            // 249 forest floor
+    else if (code > 247.5) c = mix(albedo, brick(albedo, uv), fine);                                      // 248 brick
+    else if (code > 246.5) c = concrete(albedo, uv);                                                      // 247 concrete
+    else if (code > 245.5) c = mix(albedo, sandbags(albedo, uv), fine);                                   // 246 sandbags
+    else if (code > 244.5) c = sloped ? mix(albedo, tiles(albedo, uv), near) : concrete(albedo * 0.95, uv);  // 245 roof (its sides: concrete)
+    else if (code > 243.5) c = mix(albedo, planks(albedo, uv), fine);                                     // 244 wood
+    else if (code > 242.5) c = albedo * (0.82 + 0.3 * grassNoise(uv * 1.7));                              // 243 earth
+    else if (code > 241.5) c = albedo * (0.72 + 0.45 * grassNoise(uv * 6.0) * grassNoise(uv * 2.0 + 7.0)); // 242 hedge
+    else c = sloped ? mix(albedo, tiles(albedo, uv), near) : mix(albedo, brick(albedo, uv), fine);        // 241 brick building's roof
+    return mix(albedo, c, groundDetail);
 }
 void main()
 {
@@ -117,11 +175,11 @@ void main()
     float diffuse = max(dot(n, -sunDir), 0.0);
     vec4 base = fragColor * colDiffuse;
     vec3 albedo = surface(base.rgb, localUnit, localMetres, normalize(localNormal));
-    albedo = grass(albedo, fragPos, n, length(viewPos - fragPos));
+    albedo = materialDetail(albedo, floor(base.a * 255.0 + 0.5), fragPos, n, length(viewPos - fragPos));
     vec3 lit = albedo * (ambient + sunLight * diffuse);
     float d = max(length(viewPos - fragPos) - fogStart, 0.0) * fogDensity;   // CE-1146: the free camera's fog starts at what it looks at
     float visible = clamp(exp(-d * d), 0.0, 1.0);
-    finalColor = vec4(mix(fogColor, lit, visible), base.a);
+    finalColor = vec4(mix(fogColor, lit, visible), groundDetail > 0.0 ? 1.0 : base.a);   // CE-1333: the terrain's alpha is its material code
 }";
 
         private static LitShader? _shared;
@@ -252,9 +310,10 @@ void main()
         /// a layer that sets it puts it back to 0 after its draw.</summary>
         public void SetDepthBias(float ndc) => Raylib.SetShaderValue(Shader, _depthBias, ndc, ShaderUniformDataType.Float);
 
-        /// <summary>⭐ <c>CE-1328</c> — paints grass on the up-facing faces drawn next (1 = full, 0 = off): world-anchored value noise, so the
-        /// ground visibly slides past a walking first-person eye. ⚠ It holds until set again — the terrain layer sets it for its draw
-        /// and puts it back to 0.</summary>
+        /// <summary>⭐ <c>CE-1328</c> / <c>CE-1333</c> — paints the terrain's materials on what is drawn next (1 = full, 0 = off): grass on the
+        /// open ground, brick, concrete panels, sandbags, roof tiles, planks, earth, hedge — world-anchored, so they slide past a moving eye.
+        /// While it is on, the vertex colour's ALPHA is read as the material code (<c>TerrainLayer3D.MaterialCode</c>) and the output is
+        /// opaque. ⚠ It holds until set again — the terrain layer sets it for its draw and puts it back to 0.</summary>
         public void SetGroundDetail(float amount) => Raylib.SetShaderValue(Shader, _groundDetail, amount, ShaderUniformDataType.Float);
 
         /// <summary>⭐ <c>CE-1196</c> — the same for the <see cref="Flat"/> program.</summary>

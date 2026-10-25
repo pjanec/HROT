@@ -256,7 +256,7 @@ Render():
         RenderGlobalMenu()          // Dynamic subsystem-injected items (never perspective-filtered)
         RenderFixedWindowsMenu()    // "Windows" pulldown — grouped by perspective + auto-pin
         RenderPerspectiveSwitcher() // Radio buttons for each registered perspective
-        RenderFixedHelpMenu()       // "Help → Debug" (global windows) + "About"
+        RenderFixedHelpMenu()       // "Help → Debug" (global windows) + "About"   ⛔ CE-1332 (2026-10-25): Debug moved to View → Debug; Help holds About only
     EndMainMenuBar()
     foreach window in _windows.Values:
         window.Render(CurrentPerspective, _iconAtlas)

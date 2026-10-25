@@ -32,10 +32,15 @@ namespace Hrot.Common.Diagnostics.Gizmos
             _                              => 0,
         };
 
-        /// <summary>Whether <paramref name="target"/> has <paramref name="family"/> pinned.</summary>
-        public static bool IsPinned(ISimulationView view, Entity target, AiOverlayFlags family) =>
-            (view is not EntityRepository repo || repo.IsComponentTypeRegistered<DebugState>())
-            && view.HasComponent<DebugState>(target) && (view.GetComponentRO<DebugState>(target).Ai & family) != 0;
+        /// <summary>Whether <paramref name="target"/> has <paramref name="family"/> pinned. ⭐ <c>CE-1329</c> — a unit with a network id is
+        /// answered from the ONE store (<see cref="UnitDebugSettings"/>, Brain View §12r); one without, from its <see cref="DebugState"/>.</summary>
+        public static bool IsPinned(ISimulationView view, Entity target, AiOverlayFlags family)
+        {
+            if (view is EntityRepository w && UnitDebugSettings.NetIdOf(w, target) is var id and not 0)
+                return UnitDebugSettings.Peek(w)?.IsPinned(id, family) == true;
+            return (view is not EntityRepository repo || repo.IsComponentTypeRegistered<DebugState>())
+                   && view.HasComponent<DebugState>(target) && (view.GetComponentRO<DebugState>(target).Ai & family) != 0;
+        }
 
         /// <summary>Flips <paramref name="family"/>'s pin on <paramref name="target"/>.</summary>
         public static void Toggle(ISimulationView view, Entity target, AiOverlayFlags family) =>
@@ -47,11 +52,14 @@ namespace Hrot.Common.Diagnostics.Gizmos
             foreach (var f in GizmoFamilies.All) Set(view, target, f, pinned);
         }
 
-        /// <summary>Pins or unpins one family; ⚠ a no-op on a host that does not register <see cref="DebugState"/> (nothing to pin).</summary>
+        /// <summary>Pins or unpins one family; ⚠ a no-op on a host that does not register <see cref="DebugState"/> (nothing to pin).
+        /// ⭐ <c>CE-1329</c> — a unit with a network id is pinned in the ONE store (remembered per scenario); one without, on its
+        /// <see cref="DebugState"/> directly (a test world, a local-only entity).</summary>
         public static void Set(ISimulationView view, Entity target, AiOverlayFlags family, bool pinned)
         {
             if (target == Entity.Null || view is not EntityRepository repo || !repo.IsAlive(target)) return;
             if (!repo.IsComponentTypeRegistered<DebugState>()) return;
+            if (UnitDebugSettings.NetIdOf(repo, target) is var id and not 0) { UnitDebugSettings.Of(repo).SetPin(id, family, pinned); return; }
             repo.Bus.PublishManaged(new PatchDebugStateCommand
             {
                 Target    = target,
@@ -75,12 +83,13 @@ namespace Hrot.Common.Diagnostics.Gizmos
             register(GlobalActionIds.UnpinGizmosAll, (view, target) => SetAll(view, target, false));
         }
 
-        /// <summary>The <b>Pin gizmos</b> submenu of a unit's map context menu.</summary>
-        public static ContextMenuItemDto Submenu() => new()
+        /// <summary>The <b>Pin gizmos</b> submenu of a unit's map context menu. ⭐ <c>CE-1329</c> (BV-68) — each family checked while it is pinned
+        /// on the unit (<paramref name="pinned"/>: the same store the Brain tab's "Show on map" reads).</summary>
+        public static ContextMenuItemDto Submenu(AiOverlayFlags pinned = AiOverlayFlags.None) => new()
         {
             Label = "Pin gizmos",
             Children = GizmoFamilies.All
-                .Select(f => new ContextMenuItemDto { Id = ActionIdOf(f), Label = GizmoFamilies.Label(f) })
+                .Select(f => new ContextMenuItemDto { Id = ActionIdOf(f), Label = GizmoFamilies.Label(f), IsChecked = (pinned & f) != 0 })
                 .Concat(new[]
                 {
                     new ContextMenuItemDto { IsSeparator = true },

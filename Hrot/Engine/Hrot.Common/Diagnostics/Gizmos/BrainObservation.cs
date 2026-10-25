@@ -37,7 +37,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public void Viewed(EntityRepository world, Entity unit)
         {
             if (unit == Entity.Null || !world.IsAlive(unit)) return;
-            if (!_seen.ContainsKey(unit) && !AiTraceActions.IsOn(world, unit, BehaviorDebugFlags.EnableTraceBuffer))
+            // ⭐ CE-1329 — a temporary "viewed" request in the one store (a unit with a network id): it never touches what the user switched on
+            if (!_seen.ContainsKey(unit) && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(world, unit) is var id and not 0)
+                AiTraceActions.Set(world, unit, BehaviorDebugFlags.EnableTraceBuffer, true, AiTraceActions.Requester.Viewed);
+            else if (!_seen.ContainsKey(unit) && !AiTraceActions.IsOn(world, unit, BehaviorDebugFlags.EnableTraceBuffer))
             {
                 AiTraceActions.Set(world, unit, BehaviorDebugFlags.EnableTraceBuffer, true);
                 _armedHere.Add(unit);
@@ -56,8 +59,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
             foreach (var unit in _expired)
             {
                 _seen.Remove(unit);
+                if (world.IsAlive(unit) && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(world, unit) is not 0)
+                {
+                    AiTraceActions.Set(world, unit, BehaviorDebugFlags.EnableTraceBuffer, false, AiTraceActions.Requester.Viewed);   // ⭐ CE-1329
+                    continue;
+                }
                 if (!_armedHere.Remove(unit)) continue;                                  // armed by someone else: theirs to disarm
-                if (UnitDebugController.Current?.IsDebugged(unit) == true) continue;   // the debug switch still holds it
                 if (world.IsAlive(unit)) AiTraceActions.Set(world, unit, BehaviorDebugFlags.EnableTraceBuffer, false);
             }
         }

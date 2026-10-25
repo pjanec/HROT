@@ -46,7 +46,7 @@ set_breakpoint {"condition":{"$type":"BehaviourStep","Behaviour":"<name>","Kind"
 | `NodeRuns` | `Node` (the BTree node's VisualId) | that tree node runs |
 
 - A name that is not in the behaviour is a **400 that lists what is** — no silent never-firing breakpoint.
-- `filterNetworkId` = only him (and it arms his traces). Without it the step watches every **armed** unit (a Brain tab open, Debug this unit, observe-all).
+- `filterNetworkId` = only him (and it arms his traces). Without it the step watches every **armed** unit (a Brain tab open, `set_debug_settings` trace, observe-all).
 - With a condition: `{"$type":"Compound","Operator":"And","Conditions":[<BehaviourStep>, <PropertyMatch …>]}`.
 - `get_breakpoint_status` → `lastHit.what` says what fired: `"entered Withdrawing"`, `"Engaging -> Withdrawing fired on OrderReceived"`, `"event Contact handled (consumed)"`.
 - One arrival stops ONCE: `continue_from_breakpoint` does not stop again on the same step.
@@ -77,6 +77,14 @@ set_breakpoint {"condition":{"$type":"BehaviourStep","Behaviour":"<name>","Kind"
 2. `play` / `step` a few frames so the buffer fills.
 3. `get_entity_trace {networkId}` → active node/state + recent history.
 4. `observe_trace {networkId, on:false}` to disarm.
+
+**A unit's debug settings — what the operator sees too (CE-1329).** `get_debug_settings {networkId}` /
+`set_debug_settings {networkId, pins?, trace?, follow?, reset?}` read and write the ONE per-unit store the Brain tab's
+*Show on map* ticks and the map's right-click *Pin gizmos* use: `pins` (REPLACES the set — Perception, Contacts, EQS,
+Utility, Squad, Actions, Command picture, My units' contacts, Path) draw on the map for that unit, selected or not
+(selecting a unit draws none of them); `trace` records its BTree / HSM / utility trace; `follow` puts the 3-D camera on
+it. Remembered per scenario (back on its next load). `observe_trace` stays a temporary arming that never touches the
+remembered `trace`. ⛔ `debug_unit` is gone.
 
 ### H. Mutate / fault-inject
 - Discoverable, safe path: `get_attributes_schema` → see patchable paths → `patch_attribute {networkId,

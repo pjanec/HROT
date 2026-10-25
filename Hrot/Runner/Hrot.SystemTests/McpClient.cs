@@ -304,6 +304,14 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> ObserveTraceAsync(long networkId, bool on, CancellationToken ct = default)
         => PostAsync("/trace/observe", new JsonObject { ["networkId"] = networkId, ["on"] = on }, ct);
 
+    /// <summary>⭐ CE-1329 — a unit's debug settings (pins, trace, follow) in the one store the Brain tab uses.</summary>
+    public Task<ApiResult> GetDebugSettingsAsync(long networkId, CancellationToken ct = default)
+        => GetAsync($"/entities/{networkId}/debug-settings", ct);
+
+    /// <summary>⭐ CE-1329 — sets what is given: pins (replaces the set), trace, follow, reset.</summary>
+    public Task<ApiResult> SetDebugSettingsAsync(long networkId, JsonNode body, CancellationToken ct = default)
+        => PostAsync($"/entities/{networkId}/debug-settings", body, ct);
+
     public Task<ApiResult> GetEntityTraceAsync(long networkId, CancellationToken ct = default)
         => GetAsync($"/entities/{networkId}/trace", ct);
 

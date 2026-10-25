@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Vis3D
             if (!_hasMesh) return;
             Rlgl.DisableBackfaceCulling();
             var lit = LitShader.Shared;
-            lit.SetGroundDetail(1f);   // ⭐ CE-1328 — grass on the open ground (a wall, a roof stays plain: the shader keys on the normal)
+            lit.SetGroundDetail(1f);   // ⭐ CE-1328 / CE-1333 — the materials' patterns (grass, brick, concrete, sandbags, roof tiles …)
             Raylib.DrawMesh(_mesh, lit.Tinted(Color.White), Matrix4x4.Identity);
             lit.SetGroundDetail(0f);
             Rlgl.EnableBackfaceCulling();
@@ -100,8 +100,10 @@ namespace Fdp.Toolkit.Vis3D
                 var n = Vector3.Cross(b - a, c - a);
                 float len = n.Length();
                 n = len > 1e-12f ? n / len : Vector3.UnitY;
-                var colour = ColourOf(t < kinds.Length ? kinds[t] : TerrainSurfaceKind.Ground,
-                                      materials != null && t < materials.Length ? materials[t] : null);
+                var kind = t < kinds.Length ? kinds[t] : TerrainSurfaceKind.Ground;
+                string? material = materials != null && t < materials.Length ? materials[t] : null;
+                var colour = ColourOf(kind, material);
+                colour.A = MaterialCode(kind, material);   // ⭐ CE-1333 — the shader's pattern, carried in the alpha (the terrain draws opaque)
                 positions[3 * t] = a; positions[3 * t + 1] = b; positions[3 * t + 2] = c;
                 normals[3 * t] = normals[3 * t + 1] = normals[3 * t + 2] = n;
                 colors[3 * t] = colors[3 * t + 1] = colors[3 * t + 2] = colour;
@@ -144,6 +146,29 @@ namespace Fdp.Toolkit.Vis3D
                 return material is null or "concrete" or "brick" ? RoofColor : Shade(own ?? RoofColor, 0.85f);
             return own ?? WallColor;
         }
+
+        /// <summary>⭐ <c>CE-1333</c> — which pattern the lit shader paints on a terrain triangle (<see cref="LitShader.SetGroundDetail"/>), carried
+        /// in its vertex colour's alpha: 250 open ground (grass) · 249 forest floor · 248 brick · 247 concrete · 246 sandbags · 245 roof tiles ·
+        /// 244 wood · 243 earth · 242 hedge · 241 a brick building's roof (tiles on top, brick on its sides) · 255 none (water, glass, metal,
+        /// a car body).</summary>
+        public static byte MaterialCode(TerrainSurfaceKind kind, string? material) => kind switch
+        {
+            TerrainSurfaceKind.Water => 255,
+            TerrainSurfaceKind.Ground => material == "forest" ? (byte)249 : (byte)250,
+            TerrainSurfaceKind.Roof => material == "brick" ? (byte)241 : material is null or "concrete" ? (byte)245 : CodeOf(material),
+            _ => CodeOf(material),
+        };
+
+        private static byte CodeOf(string? material) => material switch
+        {
+            null or "concrete" => 247,
+            "brick" => 248,
+            "sandbags" => 246,
+            "fence-wood" or "door-wood" => 244,
+            "earth-berm" => 243,
+            "hedge" => 242,
+            _ => 255,
+        };
 
         private static Color Shade(Color c, float k) => new((byte)(c.R * k), (byte)(c.G * k), (byte)(c.B * k), c.A);
 

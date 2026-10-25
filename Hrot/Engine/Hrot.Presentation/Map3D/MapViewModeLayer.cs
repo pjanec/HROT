@@ -50,6 +50,33 @@ public sealed class MapViewModeLayer : IMapLayer
             ToggleShoulder?.Invoke();
         foreach (ref readonly var follow in _bus.Read<FollowUnitEvent>())
             FollowUnit(follow.Target);
+        if (World?.Invoke() is { } world) Refollow(world);
+    }
+
+    private int _seenVersion = -1;
+    private bool _awaitingReturn;
+
+    /// <summary>
+    /// ⭐ <c>CE-1329</c> (Brain View §12r BV-65) — the followed unit is REMEMBERED in the one per-unit store (by network id, per scenario):
+    /// when it comes back — after a preview's rewind, a respawn, or a scenario load whose remembered settings name it — the camera follows it
+    /// again. ⚠ Only then: a camera the film or the station took is never pulled back while the unit is still there.
+    /// </summary>
+    private void Refollow(EntityRepository world)
+    {
+        if (Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(world) is not { } store) return;
+        if (store.Version != _seenVersion)
+        {
+            _seenVersion = store.Version;
+            if (store.Followed is { } want && (Following is not { } f || Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(world, f.Unit) != want))
+                _awaitingReturn = true;   // loaded / set elsewhere while not followed: follow when it is there
+        }
+        if (!_awaitingReturn || store.Followed is not { } id || _switch.Camera3D.Driver != null) return;
+        foreach (var e in world.Query().With<Fdp.Toolkit.Replication.Components.NetworkIdentity>().Build())
+        {
+            if (world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value != id) continue;
+            if (FollowUnit(e) == null) _awaitingReturn = false;
+            return;
+        }
     }
 
     /// <summary>
@@ -64,15 +91,26 @@ public sealed class MapViewModeLayer : IMapLayer
         if (_switch.Camera3D.Driver is FpsCameraDriver)
             return "The station possesses a unit: its view is his eyes. Release it first.";
         _switch.Set(true);
+        long id = Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(w, target);
+        var store = id != 0 ? Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(w) : null;
         _switch.Camera3D.Driver = new FollowCameraDriver(world, target, Bodies,
-            Math.Clamp(distance ?? FollowCameraDriver.StartDistance, 0f, FollowCameraDriver.MaxDistance));
+            Math.Clamp(distance ?? FollowCameraDriver.StartDistance, 0f, FollowCameraDriver.MaxDistance))
+        {
+            // ⭐ CE-1329 — remembered: the operator letting go forgets it; the unit vanishing (a rewind, a respawn) waits for its return
+            Released = () => store?.SetFollowed(null),
+            Lost = () => _awaitingReturn = true,
+        };
+        if (store != null) { store.SetFollowed(id); _seenVersion = store.Version; }
+        _awaitingReturn = false;
         return null;
     }
 
     /// <summary>⭐ CE-1293 — the camera back to the operator, when it follows a unit.</summary>
     public void StopFollowing()
     {
+        if (Following is { } f && World?.Invoke() is { } w) Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(w)?.SetFollowed(null);   // ⭐ CE-1329
         if (Following != null) _switch.Camera3D.Driver = null;
+        _awaitingReturn = false;
     }
 
     public void Draw(RenderContext ctx) { }

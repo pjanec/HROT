@@ -3071,7 +3071,11 @@ public sealed class Map3DTests
         Assert.Equal(TerrainLayer3D.WaterColor, colours[3 * water]);
         Assert.True(normals[3 * water].Y > 0.9f, "the water faces up");
         int forest = Array.IndexOf(materials, "forest");
-        Assert.Equal(TerrainLayer3D.ForestColor, colours[3 * forest]);
+        Assert.Equal(TerrainLayer3D.ForestColor with { A = 249 }, colours[3 * forest]);   // ⭐ CE-1333 — the alpha is the material code
+        int wall = Enumerable.Range(0, kinds.Length).First(i => kinds[i] == TerrainSurfaceKind.Wall && materials[i] == "concrete");
+        Assert.Equal(247, colours[3 * wall].A);                                                   // a concrete wall: panels
+        int roof = Enumerable.Range(0, kinds.Length).First(i => kinds[i] == TerrainSurfaceKind.Roof);
+        Assert.Contains(colours[3 * roof].A, new byte[] { 241, 245 });                            // a roof: tiles (241: a brick one)
         Assert.Equal(new Raylib_cs.Color(172, 96, 72, 255), TerrainLayer3D.ColourOf(TerrainSurfaceKind.Wall, "brick"));
         Assert.Equal(TerrainLayer3D.RoofColor, TerrainLayer3D.ColourOf(TerrainSurfaceKind.Roof, "concrete"));
     }
@@ -4480,7 +4484,7 @@ public sealed class Map3DTests
         {
             if (kinds[t] == TerrainSurfaceKind.Wall) continue;
             Assert.True(normals[3 * t].Y > 0.5f, $"ground/roof triangle {t} faces {normals[3 * t]} (Raylib +Y is up)");
-            Assert.Equal(TerrainLayer3D.ColourOf(kinds[t]), colours[3 * t]);
+            Assert.Equal(TerrainLayer3D.ColourOf(kinds[t]) with { A = TerrainLayer3D.MaterialCode(kinds[t], null) }, colours[3 * t]);   // CE-1333
         }
     }
 

@@ -1225,15 +1225,23 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
-            // ⭐ CE-1257 (BV-26) — "Debug this unit"; ⭐ CE-1258 (BV-28) — stop when it changes its mind.
-            _routes.Add(new("POST", "/entities/{networkId}/debug", async ctx =>
+            // ⭐ CE-1329 (Brain View §12r BV-72) — a unit's debug settings (pins, trace, follow) in the one store; ⛔ SUPERSEDED: POST /debug.
+            _routes.Add(new("GET", "/entities/{networkId}/debug-settings", async ctx =>
             {
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
-                bool on = ctx.Body?["on"]?.GetValue<bool>() ?? true;
-                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().DebugUnit(id, on)).ConfigureAwait(false);
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().GetDebugSettings(id)).ConfigureAwait(false);
+                return error != null ? Fail(404, error) : Ok(node);
+            }));
+            _routes.Add(new("POST", "/entities/{networkId}/debug-settings", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var body = ctx.Body;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().SetDebugSettings(id, body)).ConfigureAwait(false);
                 return error != null ? Fail(400, error) : Ok(node);
             }));
+            // ⭐ CE-1258 (BV-28) — stop when it changes its mind.
 
             _routes.Add(new("POST", "/entities/{networkId}/journal/break", async ctx =>
             {
