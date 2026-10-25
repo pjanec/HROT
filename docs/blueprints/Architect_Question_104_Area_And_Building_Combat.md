@@ -30,7 +30,8 @@ enemy is incapacitated, also stress level might go high if enemy is walking arou
 i would like we could have also behaviors for "defend given area" and "attack /clear given area" - wider than just a house, maybe the house
 is already not an axepction and the behaviors are gereal, that would be great"* · *"for the defend area there might need to be somu guarding
 behavior so that the guy does not stay on place but actively makes sure there is no enemy in sight (should the center of the area be
-obstructed by obstacles or something) - defendenrs always need to have a good overview of the surroundings"*.
+obstructed by obstacles or something) - defendenrs always need to have a good overview of the surroundings"* · *"in case there is a squad or higher level unit this guarding can
+be covered by different member so in such a case the goys need to guard clevely not just randomly changing their observation posts"*.
 
 📐 **The measured case** ([Peek and Fire §12.7](../DESIGN_Peek_And_Fire.md)): a lone attacker ordered to attack a lone defender in House A
 flanks round, enters by the back, and stops on the ground floor under the defender's last-seen spot; the defender upstairs has no window
@@ -83,7 +84,9 @@ classDiagram
   class HearContact { <<exists, changed>> storey-aware match }
   class BuildingLayout { <<exists>> levels, rooms, portals }
   class Disposition { <<NEW reader>> hold or search: Willingness × tier × order }
-  class GuardRound { <<NEW>> overview posts by coverage, visited in turn }
+  class GuardRound { <<NEW>> lone man: overview posts, least-recently-watched next }
+  class CoveragePosts { <<NEW>> squad: greedy union of views, gap-only reassignment }
+  SquadDefendPlay --> CoveragePosts : posts and sectors
   SquadDefendPlay --> GuardRound : posts cannot see it all
   DefendAreaMapper --> OneManCommand : lone man
   OneManCommand --> SquadDefendPlay
@@ -152,7 +155,7 @@ graph TD
 | **H** | the defender, enemy inside his building | `SquadDefendPlay`: when an enemy is known INSIDE (survey `BuildingAt`), the posted men's posts switch from windows to **interior portal posts** (`PortalPosts`): the stair head when he is below, the doorway of the room he is in; **hold** ambushes there, **search** counter-clears (E-3b "ClearBuilding in reverse") | only the platoon reserve at the lowest stair (DA-74) — a lone defender has no reserve |
 | **I** | the attacker reaching another storey | the hunt and every room-drill move **arrive only on the target's storey**: `PostureNodes` compares `LevelAt` of self and objective and keeps the move going (re-issue) when they differ; ⚠ the person mover's 2-D arrival (`CarKinematicsSystem.cs:752`) is backend's — a note to them for a storey-aware arrival | trusting the mover — it reports "arrived" one floor below (§12.7) |
 | **J** | grenades indoors | individual throws reuse the drill's rules: **`GrenadeCheck.SafeFor` for the thrower himself** (walls counted) instead of `FriendlyInBurst`'s distance; throw **from a jamb or corner** and step back behind it before the burst; frag / stun per R2-4. ⛔ no bank / bounce throws in v1 (`ThrowArc` has direct arcs only) | bounce physics now — a new trajectory model for a rare case |
-| **L** | a defender's overview of the area | **posts are chosen for COVERAGE, not the centre**: the post ask scores how much of the area and its approaches a point SEES (an EQS coverage score over a ring of probe points — the `FindOverwatchPosition` DA-13 designed, generalised), and when one man's posts cannot see it all he runs a **guard round**: 2–3 overview posts visited on a seeded rhythm (20–60 s each) while nothing is known, the look scan (LD-3) sweeping the sectors the other posts miss; a contact ⇒ the peek cycle at the post facing it; a squad spreads its men so the posts' views union to the whole area | standing at the centre — the lone DefendArea today (`CE-2369`), blind when the centre is obstructed · patrolling the whole area — leaves no man watching from cover |
+| **L** | a defender's overview of the area | **posts are chosen for COVERAGE, not the centre**: the post ask scores how much of the area and its approaches a point SEES (an EQS coverage score over a ring of probe points — the `FindOverwatchPosition` DA-13 designed, generalised). ⭐ **A squad guards by ASSIGNMENT, not rotation:** the commander picks posts greedily so their views UNION to the area (each next post the one that sees most of what is still unseen) and gives each man his sector — they stay put; a post is re-picked only when a GAP opens (a man fights, falls, displaces, or is pulled to an interior post) and then only the neighbour whose post best covers the hole shifts, never two at once; a platoon splits the area into squad sub-areas (PlatoonDefend already does). ⭐ **A lone man** (or a squad with fewer men than the coverage needs) runs a **guard round**: 2–3 overview posts, visited in an ORDER that keeps the least-recently-watched sector next (not random), 20–60 s each while nothing is known, the look scan (LD-3) sweeping what the post cannot see. A contact ⇒ the peek cycle at the post facing it | standing at the centre — the lone DefendArea today (`CE-2369`), blind when the centre is obstructed · random post changes — leave sectors unwatched in turn · patrolling the whole area — leaves no man watching from cover |
 | **K** | demos, written first as a measured baseline | `ia-house-hunt` (lone vs lone, 2-storey House A, both orders), `ia-area-clear` (a fire team clears an area with 2 buildings), `ia-area-defend` (a lone man defends an area with a house + a wall) — each with a live check and an in-process twin; `bt-window-duel` keeps the window fight | — |
 
 ## 5. Order *(if approved — each step: rails red-proved, the demos re-measured)*
