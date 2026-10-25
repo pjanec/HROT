@@ -104,6 +104,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Update(ref ClearRoomParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            AreaAlert.KeepInArea(in ctx, p.Room, ClearBuildingParams.AlertMetres);   // ⭐ CE-2371 (AQ104 D)
             if (p.Planned == 0 && p.Failed == 0) { Survey(ref p, ref ws, in ctx); return; }
             if (p.Planned != 0) RoomDrill.Update(ref p.Drill, ref ws, in ctx);
         }

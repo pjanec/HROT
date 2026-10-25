@@ -1061,6 +1061,10 @@ namespace Fdp.Core
         /// <summary><c>Stress</c> — <c>CE-2270</c> TS-B (R-2034, behaviors): a combatant's live stress 0–1 and his break, kept by
         /// <c>StressSystem</c> on the brain node; brain-local (NoScenario, never sent).</summary>
         public const int Stress = 421;
+        /// <summary>⭐ <c>CE-2371</c> (behaviors, AQ104 D, R-2079) — <c>Alerted</c>: the enemies a man must not forget until they are down
+        /// (short leases his task renews); brain-local, NoScenario. Behaviors' block 418–433 (R-2056), measured free on backend, ui and
+        /// coordinator 2026-10-25. 📄 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md §4 D.</summary>
+        public const int Alerted = 422;
 
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449

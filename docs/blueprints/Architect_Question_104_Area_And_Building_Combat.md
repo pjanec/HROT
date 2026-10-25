@@ -187,7 +187,18 @@ Each scenario authors TODAY's closest orders (the build steps swap them for the 
 | `ia-area-clear` (a fire team, ordered ClearBuilding of House A — ⏭ ClearArea) | ⛔ FAIL 0/2 | House B never visited (the order names one building — expected); the team sat ~100 s before moving; one two-storey house took ~230 s, upstairs at ~330 s; Red 1 bleeding out (7 hp) but not down at 420 s |
 | `ia-area-defend` (a lone guard, CombatPosture at the centre — ⏭ DefendArea + L) | ⛔ FAIL 0/4 | **the guard fired 0 rounds in 240 s** (the attackers 235). Live brain probe: under fire his cover reaction spends ~25 s at a time MOVING (the cover search keeps relocating between the cars), never peeking; out of it, "hold: not seen" — the attackers walked to his OLD spot; and twice the TS-6 break (stress 1.0 at 116 s and 194 s: prone, no fire, 40–50 s) under steady fire on an immortal man |
 
-### 7.2 I — arrival on the target's level, the mover's half *(backend, 2026-10-25; behaviors' handoff item 1)*
+### 7.2 Step 2 — I and D *(2026-10-25)*
+
+| | as built | deviation |
+|---|---|---|
+| **D** | `Alerted` (component 422, brain-local) + `Alerts.Pin / IsPinned` (FDP Perception): up to 4 leases of 2 s; `ThreatEvaluationSystem` holds a pinned slot at `ForgetThreatScore` instead of forgetting it; `HiddenTargetThrow.LastKnown` reads a pinned slot as live (the hunt follows it). Pinners (`AreaAlert`, behaviors): the attack order's target (`PostureNodes.UntilTargetDown`), and every identified enemy in the squad's picture within the area of `SquadDefend` (max(search radius, 15 m)), `ClearBuilding` and `ClearRoom` (15 m) for every live member — each renewal only while the enemy is in the fight and the man's memory has evidence from the last 10 min | the lease (renewed each tick) instead of a stored "until down": a task that ends lets go by itself, no release path |
+| **I** | `PostureNodes.AdvanceAndAttack`: hunting, a move "arrived" while the target is on another storey (> 2 m of height) is re-issued — the first at once, then every 3 s; on his floor "arrived" holds as before | ⚠ only a belt: the person mover arrives in 2-D (`CarKinematicsSystem.cs:752`), so a re-issued move can "arrive" again at once — the root fix is backend's ([handoff](batches/HANDOFF_Behaviors_To_Backend_Area_Combat_And_Callouts.md) item 1) |
+
+Rails: `ThreatEvaluationSystemTests.CE2371_AnAlertedContact_IsNotForgotten_WhileTheLeaseRuns` ·
+`TacticsTreesTests.CE2371_TheAttackTarget_StaysKnownUntilDown_ButNotOnOldEvidence` · `…CE2371_HuntingATargetUpstairs_AnArrivalBelowHim_IsReissued`.
+Red-proofs (one build, three mutations: no lease check, no evidence age, no storey check) ⇒ 3 / 3 red.
+
+### 7.3 I — arrival on the target's level, the mover's half (the root fix under §7.2's belt) *(backend, 2026-10-25; behaviors' handoff item 1)*
 
 | | as built |
 |---|---|
@@ -197,7 +208,7 @@ Each scenario authors TODAY's closest orders (the build steps swap them for the 
 | ⛔ not here | the brain's own check (`PostureNodes`, behaviors' belt) — ⚠ the brain reads no terrain (user, 2026-10-25: *"brain should use map only for rendering, no direct access"*): its level comes from a survey answer, never `BuildingLayout` itself |
 | rails | `CarKinematicsSystemTests.AQ104I_APersonUnderTheirDestination_OnAnotherFloor_HasNotArrived` (path + direct, other floor + the same-floor control) · `TerrainHeightTests.AQ104I_AShortMove_ToTheLevelAbove_IsNotTheTwoPoints` — 3 red with the production change stashed, 5/5 green with it |
 
-### 7.3 E ② ③ and G — the backend halves *(backend, 2026-10-25; behaviors' handoff items 2–5)*
+### 7.4 E ② ③ and G — the backend halves *(backend, 2026-10-25; behaviors' handoff items 2–5)*
 
 | | as built | owning design |
 |---|---|---|

@@ -352,6 +352,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2359</c> (AQ102 H) — a known hostile this near the defended position (flat, m), seen by none of the squad for
         /// <see cref="HuntUnseenSeconds"/>, is hunted by ONE man for <see cref="HuntSeconds"/>.</summary>
         public const float HuntMetres = 30f;
+        /// <summary>⭐ <c>CE-2371</c> (AQ104 D) — the defended area a known enemy is kept alerted within: at least this (m), else the posts' search radius.</summary>
+        public const float AlertMinMetres = 15f;
         public const float HuntUnseenSeconds = 2f;
         public const float HuntSeconds = 20f;
 
@@ -373,6 +375,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Update(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            AreaAlert.KeepInArea(in ctx, p.Position, MathF.Max(p.SearchRadius, AlertMinMetres));   // ⭐ CE-2371 (AQ104 D) — an enemy in the area stays known until down
             LiftOwnHold(ref p, ref ws, in ctx);
             if (ctx.Squad.PhaseId != SquadDefendManeuver.PhasePosting) return;
             if (p.Posts.Ready == 0) { Plan(ref p, ref ws, in ctx); return; }

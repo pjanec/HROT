@@ -1156,6 +1156,75 @@ namespace Hrot.SimHost.Tests
             UnderFire.Step(w.Repo, w.Unit, t);
         }
 
+        /// <summary>Moves the clock on by <paramref name="seconds"/> without ticking any system (the node under test reads the clock itself).</summary>
+        private static void Later(World w, double seconds)
+        {
+            var t = w.Repo.GetSingleton<GlobalTime>();
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = t.TotalTime + seconds, DeltaTime = t.DeltaTime, TimeScale = 1f, FrameNumber = t.FrameNumber + (long)(seconds / 0.016) });
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2371</c> (AQ104 D, R-2079) — an attack order's target stays KNOWN until he is down: the alert renews while he is in the
+        /// fight and the man has evidence of him from the last 10 min; old evidence, or the target gone, lets him forget normally.
+        /// 🔴 Red-proof: the evidence age check dropped ⇒ the 1000-s-old contact is still pinned.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2371_TheAttackTarget_StaysKnownUntilDown_ButNotOnOldEvidence()
+        {
+            var w = new World();
+            var enemy = w.Contact(armed: true);
+            long id = (long)enemy.PackedValue;
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = 30.0, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = 1800 });
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.LastSeenTick[0] = 1700;   // seen ~1.7 s ago
+            Assert.True(AreaAlert.Keep(w.Repo, w.Unit, enemy, 30.0));
+            Assert.True(Fdp.Toolkit.Perception.Components.Alerts.IsPinned(w.Repo, w.Unit, id, 31.0));
+            Assert.False(Fdp.Toolkit.Perception.Components.Alerts.IsPinned(w.Repo, w.Unit, id, 30.0 + Fdp.Toolkit.Perception.Components.Alerts.LeaseSeconds + 0.1));
+
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = 1000.0, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = 60000 });
+            w.Repo.GetComponentRW<TargetMemory>(w.Unit).LastSeenTick[0] = 0;   // last evidence 1000 s ago
+            Assert.False(AreaAlert.Keep(w.Repo, w.Unit, enemy, 1000.0));
+
+            w.Repo.GetComponentRW<TargetMemory>(w.Unit).LastSeenTick[0] = 59990;
+            w.Repo.DestroyEntity(enemy);
+            Assert.False(AreaAlert.Keep(w.Repo, w.Unit, enemy, 1000.0));   // gone: nothing to stay alert on
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2371</c> (AQ104 I, R-2079) — HUNTING an attack order's target that is one floor up, a move that reports "arrived" while he
+        /// stands a floor below is re-issued (every 3 s at most) instead of held for ever; on the target's own floor "arrived" holds as before.
+        /// 📐 Peek and Fire §12.7. 🔴 Red-proof: the storey check removed ⇒ no second move.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2371_HuntingATargetUpstairs_AnArrivalBelowHim_IsReissued()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.Identity });
+            var enemy = w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 1f; mem.PositionsY[0] = 0f; mem.PositionsZ[0] = 3f;   // one floor up
+            mem.LastSeenTick[0] = (uint)w.Repo.GetSingleton<GlobalTime>().FrameNumber;
+            Fdp.Toolkit.Behavior.Components.DesignatedTarget.Set(w.Repo, w.Unit, enemy);
+            var p = new AdvanceParams { Speed = 2f, ArrivalRadius = 5f };
+            var ws = new AdvanceState();
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            uint first = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Assert.Equal(3f, ws.IssuedTo.Z);
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // the 2-D mover says "arrived" below him
+            Later(w, 0.2);
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            Assert.NotEqual(first, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);   // re-issued
+
+            // on his floor: "arrived" holds, no new move
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(0, 0, 3f);
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;
+            uint held = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Later(w, 10.0);
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            Assert.Equal(held, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-2366</c> (R-2078; R-2061 "a near miss IN THE OPEN drops him") — INSIDE a building a near miss does not drop him: his move
         /// stays the crouched rush. In the open the same near miss drops him (the AQ96 C rail below). 📐 Live <c>bt-window-duel</c>: a defender

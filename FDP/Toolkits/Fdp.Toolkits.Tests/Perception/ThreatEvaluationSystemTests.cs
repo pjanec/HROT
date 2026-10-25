@@ -145,6 +145,39 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(0, world.GetComponent<TargetMemory>(observer).Count);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-2371 (AQ104 D, R-2079) — an ALERTED contact (a lease his task renews) is not forgotten while the lease runs: it is held at
+        /// the forget line, still remembered; once the lease lapses the next fade forgets it as before. 🔴 Red-proof: the lease check
+        /// dropped from the forget step ⇒ it is forgotten at once.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2371_AnAlertedContact_IsNotForgotten_WhileTheLeaseRuns()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            if (!world.IsComponentTypeRegistered<Alerted>()) world.RegisterComponent<Alerted>();
+            var view = (ISimulationView)world;
+            var sys  = new ThreatEvaluationSystem();
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            long id = Target(world);
+            var initMem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref initMem, entityId: id, posX: 0f, posY: 0f, scoreBoost: 1.0f, tick: 0u);
+            world.AddComponent(observer, initMem);
+            world.SetSingleton(new GlobalTime { TotalTime = 100.0, DeltaTime = 0.1f, TimeScale = 1f, FrameNumber = 1000 });
+            Assert.True(Alerts.Pin(world, observer, id, 100.0));
+
+            sys.Execute(view, 1f / PerceptionConstants.ThreatScoreDecayPerSecond);   // drives the score to 0
+            FlushEcbAndSwap(view, world);
+            var mem = world.GetComponent<TargetMemory>(observer);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal(PerceptionConstants.ForgetThreatScore, mem.Freshness[0]);
+
+            world.SetSingleton(new GlobalTime { TotalTime = 100.0 + Alerts.LeaseSeconds + 0.1, DeltaTime = 0.1f, TimeScale = 1f, FrameNumber = 1030 });
+            sys.Execute(view, 1f / PerceptionConstants.ThreatScoreDecayPerSecond);
+            FlushEcbAndSwap(view, world);
+            Assert.Equal(0, world.GetComponent<TargetMemory>(observer).Count);   // the lease lapsed: forgotten as before
+        }
+
         /// <summary>⭐ CE-3046 — a target that no longer exists is forgotten at once, whatever its score.</summary>
         [Fact]
         public unsafe void ThreatEvaluation_DeadTarget_IsForgotten_CE3046()

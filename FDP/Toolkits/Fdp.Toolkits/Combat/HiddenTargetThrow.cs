@@ -146,7 +146,9 @@ namespace Fdp.Toolkit.Combat
             for (int i = 0; i < mem.Count; i++)
             {
                 if (mem.EntityIds[i] != id || TargetMemory.IsAnonymous(in mem, i)) continue;
-                if (!ThreatFreshness.IsLive(world, unit, in mem, i)) return false;
+                // ⭐ CE-2371 (AQ104 D) — an ALERTED contact counts as live for the hunt: the man follows him to where he was last placed
+                if (!ThreatFreshness.IsLive(world, unit, in mem, i)
+                    && !Fdp.Toolkit.Perception.Components.Alerts.IsPinned(world, unit, id, world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d)) return false;
                 point = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
                 seenStance = mem.SeenStance[i];
                 return true;
