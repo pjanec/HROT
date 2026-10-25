@@ -57,6 +57,20 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>The muscle's last refusal (why the round did not fly), read while <see cref="RefusalHoldSeconds"/> runs.</summary>
         public Fdp.Toolkit.Combat.FireRefusal Refusal;
+
+        // ⭐ CE-1358 (docs/DESIGN_Weapon_Layers.md §5k) — the BARREL HEAT (Combat.BarrelHeat owns the rule). Heat 1 = too hot.
+
+        /// <summary>1 while the barrel is too hot and has not yet cooled to <c>BarrelHeat.ResumeFraction</c>: no round may be asked.</summary>
+        public byte Overheated;
+
+        /// <summary>The barrel's heat, 0 (cold) … 1 (too hot).</summary>
+        public float Heat;
+
+        /// <summary>Heat one round adds (cached from the mount's TKB at spawn); 0 = no barrel (a grenade, a dispenser, hands).</summary>
+        public float HeatPerRound;
+
+        /// <summary>Heat lost per second (1 ÷ the mount's cool time).</summary>
+        public float HeatCoolPerSecond;
     }
 
     /// <summary>

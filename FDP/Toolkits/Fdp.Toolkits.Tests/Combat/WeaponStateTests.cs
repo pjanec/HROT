@@ -13,10 +13,11 @@ namespace Fdp.Toolkit.Combat.Tests
         // is 4 bytes, so the size is exactly 4 × the field count. ⭐ CE-3136 P-5 added the magazine (4 fields): 8 × 4 = 32 (was 16).
         // WeaponState is never on the wire (DESIGN_Ownership_Groups_And_Grants.md §1: "linked, never sent").
         // ⭐ Q94 A-3 (R-3018) added the shot ledger: four 4-byte fields and the refusal byte ⇒ 12 × 4 + 1, padded to 52 (the one tail pad).
+        // ⭐ CE-1358 (§5k) added the barrel heat: the latch byte shares the refusal's tail pad, three floats follow ⇒ 64, one cache line.
         [Fact]
-        public unsafe void WeaponState_SizeIs52Bytes_OnlyTheTailPad()
+        public unsafe void WeaponState_SizeIs64Bytes_OneCacheLine()
         {
-            Assert.Equal(52, sizeof(WeaponState));
+            Assert.Equal(64, sizeof(WeaponState));
         }
 
         // SC-P0-01-2: A spawned WeaponState has MaxAmmo == initialAmmunition

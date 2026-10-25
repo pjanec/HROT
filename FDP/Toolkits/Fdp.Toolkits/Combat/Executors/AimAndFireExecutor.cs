@@ -237,7 +237,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 Magazine.StartIfEmpty(ref weapon);
                 channel.Status = NodeStatus.Running;
                 // ⭐ Q94 A-3 — every round left is ASKED and on its way (the muscle's answer has not come back yet): not a reload
-                if (ShotLedger.Pending(weapon) > 0 && !Magazine.Reloading(weapon)) Say(world, entity, ActionReason.Cooldown, p.Target, 0f);
+                if (BarrelHeat.IsOverheated(weapon)) Say(world, entity, ActionReason.Overheated, p.Target, weapon.Heat, BarrelHeat.ResumeFraction);   // ⭐ CE-1358
+                else if (ShotLedger.Pending(weapon) > 0 && !Magazine.Reloading(weapon)) Say(world, entity, ActionReason.Cooldown, p.Target, 0f);
                 else Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
@@ -394,7 +395,9 @@ namespace Fdp.Toolkit.Combat.Executors
                 SayAt(world, entity, ActionReason.Aiming, point);
                 return;
             }
-            var reason = FireAtPointExecutor.ShootAtPoint(world, platform, mountIndex, ref weapon, point, p.CooldownSeconds, dt, obeyRoe: false, obeyArc: false,
+            // ⭐ CE-1358 (§5k) — the operator asks 0 = the mount's own cyclic rate (CooldownFor); the barrel heat blocks the bursts
+            float gap = FirePacing.Gap(CooldownFor(p.CooldownSeconds, mountDto), platform, RoundsFired(ref channel), channel.ActionInstanceId);
+            var reason = FireAtPointExecutor.ShootAtPoint(world, platform, mountIndex, ref weapon, point, gap, dt, obeyRoe: false, obeyArc: false,
                                                           ammo: loadedAmmo);
             if (reason == ActionReason.Firing)
             {
@@ -451,7 +454,8 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!Magazine.Ready(weapon))
             {
                 Magazine.StartIfEmpty(ref weapon);
-                Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+                if (BarrelHeat.IsOverheated(weapon)) Say(world, entity, ActionReason.Overheated, p.Target, weapon.Heat, BarrelHeat.ResumeFraction);   // ⭐ CE-1358
+                else Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
             // ⭐ CE-3195 (W-14a) — blind rounds too wait for the body to face where they go
@@ -580,6 +584,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 if (p.Rounds > 0) inHand = System.Math.Min(inHand, p.Rounds - RoundsFired(ref channel));
                 // ⭐ W-12c — a guided weapon is granted its next round only once the last one's flight is over.
                 if (roundsInFlight > 0) inHand = hold > 0f ? 0 : System.Math.Min(inHand, roundsInFlight);
+                inHand = System.Math.Min(inHand, BarrelHeat.RoundsLeft(weapon));   // ⭐ CE-1358 (§5k) — the burst stops at the round that makes it too hot
                 grant += System.Math.Max(0, inHand);
             }
 
@@ -599,7 +604,8 @@ namespace Fdp.Toolkit.Combat.Executors
             channel.Status = NodeStatus.Running;
             if (op)
             {
-                SayAt(world, entity, !loaded ? ActionReason.Reloading : p.Trigger == 0 ? ActionReason.Aiming
+                SayAt(world, entity, BarrelHeat.IsOverheated(weapon) ? ActionReason.Overheated   // ⭐ CE-1358
+                    : !loaded ? ActionReason.Reloading : p.Trigger == 0 ? ActionReason.Aiming
                     : mine && status.State == WeaponTaskState.Slewing ? ActionReason.Slewing : ActionReason.Firing, p.Point);
                 return;
             }
@@ -607,6 +613,7 @@ namespace Fdp.Toolkit.Combat.Executors
             else if (!roe) Say(world, entity, ActionReason.HoldRoe, p.Target);
             else if (otherHold) Say(world, entity, held!.Value, p.Target);
             else if (held == ActionReason.Reloading) Say(world, entity, ActionReason.Reloading, p.Target, 0f, weapon.ReloadSeconds);
+            else if (BarrelHeat.IsOverheated(weapon)) Say(world, entity, ActionReason.Overheated, p.Target, weapon.Heat, BarrelHeat.ResumeFraction);   // ⭐ CE-1358
             else if (!loaded) Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
             else if (locking) Say(world, entity, ActionReason.Aiming, p.Target, hold, lockSeconds);
             else if (mine && status.State == WeaponTaskState.Slewing) Say(world, entity, ActionReason.Slewing, p.Target);

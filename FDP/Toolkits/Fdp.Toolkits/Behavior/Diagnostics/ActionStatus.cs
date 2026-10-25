@@ -94,6 +94,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// <summary>⭐ <c>CE-2282</c> (DA-L) — the round would end inside a NoFire area of the shooter's chain (friends' rooms, the assault
         /// element): no round leaves, always — self-defence does not lift it.</summary>
         HoldNoFireArea,
+        /// <summary>⭐ <c>CE-1358</c> (DESIGN_Weapon_Layers §5k) — the barrel is too hot: no round until it cools to half (Progress = heat,
+        /// Needed = the share it fires again at). Appended.</summary>
+        Overheated,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -197,6 +200,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.AwaitingFireTime   => "laid: waiting for the time",  // ⭐ IF-1
             ActionReason.OutOfRange         => "hold: out of range",
             ActionReason.Masked             => "hold: masked",               // ⭐ IF-1, CE-2218 — the terrain stops the round
+            ActionReason.Overheated         => "hold: barrel too hot",       // ⭐ CE-1358 (§5k) — cooling to half
             _                               => "",
         };
 
@@ -207,7 +211,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed or ActionReason.OutOfRange
             or ActionReason.Masked or ActionReason.HoldNeutral or ActionReason.HoldNeutralOnLine
             or ActionReason.HoldSurrender or ActionReason.HoldForceLevel or ActionReason.HoldConduct or ActionReason.HoldWarn
-            or ActionReason.HoldStunned or ActionReason.HoldRestrained or ActionReason.HoldNoFireArea;   // ⭐ CE-3255 (BR-2) · CE-3256 (BR-4)   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
+            or ActionReason.HoldStunned or ActionReason.HoldRestrained or ActionReason.HoldNoFireArea
+            or ActionReason.Overheated;   // ⭐ CE-3255 (BR-2) · CE-3256 (BR-4)   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)

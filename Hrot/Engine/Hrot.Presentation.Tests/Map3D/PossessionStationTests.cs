@@ -312,6 +312,26 @@ public sealed partial class PossessionStationTests
         }
     }
 
+    /// <summary>⭐ CE-1358 (DESIGN_Weapon_Layers §5k) — the weapon line shows the barrel: its heat once it is worth a word, and OVERHEATED
+    /// while the gun is held cooling. 🔴 Red-proof: drop the HUD's heat clause ⇒ red.</summary>
+    [Fact]
+    public void CE1358_TheHud_ShowsTheBarrelHeat_AndOverheated()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            var ammo = new WeaponAmmo { Count = 3 };
+            ammo.Set(0, new WeaponState { Ammo = 30, MaxAmmo = 30, Heat = 0.1f });                  // cold enough: nothing said
+            ammo.Set(1, new WeaponState { Ammo = 20, MaxAmmo = 30, Heat = 0.72f });                 // warm
+            ammo.Set(2, new WeaponState { Ammo = 10, MaxAmmo = 30, Heat = 0.9f, Overheated = 1 });   // held, cooling
+            w.AddComponent(unit, ammo);
+            var lines = PossessionStation.Hud.Lines(w, unit, mount: 0, vehicle: false, hullLocked: false);
+            Assert.Equal("> 1 WEAPON  30/30", lines[1]);
+            Assert.Equal("  2 WEAPON  20/30  HEAT 72%", lines[2]);
+            Assert.Equal("  3 WEAPON  10/30  OVERHEATED 90%", lines[3]);
+        }
+    }
+
     /// <summary>A picker that answers a unit 30 m ahead (network id 77) — the crosshair resting on it.</summary>
     private sealed class UnitAhead : IPicker3D
     {

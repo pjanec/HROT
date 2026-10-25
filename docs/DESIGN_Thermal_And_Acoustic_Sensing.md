@@ -255,9 +255,14 @@ sequenceDiagram
   H->>TS: heat += FiringHeatPerShot per shot this tick
   H->>TS: heat -= heat x CooldownPerSecond x dt, clamp 0..1
   E->>G: candidate passed range, FOV and sight
-  G->>TS: Signature = Base + Heat x (1 - Base)
+  G->>TS: Signature = Base + max(Heat, BarrelHeat) x (1 - Base)
   G-->>E: keep if Signature >= sensor MinSignature
 ```
+
+⭐ **`CE-1358` (`2026-10-25`) — the BARREL is a second heat source.** `ThermalHeatSystem` also writes `ThermalState.BarrelHeat`: the
+hottest barrel of the unit (`WeaponState.Heat`, its own mounts and the station weapons it carries), single-shot guns included. The
+rule that heats and cools a barrel is `BarrelHeat` — 📄 [`DESIGN_Weapon_Layers.md` §5k](DESIGN_Weapon_Layers.md).
+`FiringHeatPerShot` stays the BODY's share.
 
 ## 6. Decisions — why
 

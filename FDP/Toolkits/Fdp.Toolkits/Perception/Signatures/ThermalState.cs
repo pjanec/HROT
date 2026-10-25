@@ -26,7 +26,12 @@ namespace Fdp.Toolkit.Perception.Signatures
         public float LastX, LastY, LastZ;
         [MarshalAs(UnmanagedType.I1)] public bool HasLast;
 
-        /// <summary>What a thermal sensor sees: <c>Base + Heat × (1 − Base)</c>, 0..1.</summary>
-        public readonly float Signature => BaseSignature + Heat * (1f - BaseSignature);
+        /// <summary>⭐ <c>CE-1358</c> (DESIGN_Weapon_Layers §5k) — the hottest BARREL of this unit, 0..1 (<c>WeaponState.Heat</c> of its own
+        /// mounts and the station weapons it carries), written by <see cref="ThermalHeatSystem"/>. Appended.</summary>
+        public float BarrelHeat;
+
+        /// <summary>What a thermal sensor sees: <c>Base + max(Heat, BarrelHeat) × (1 − Base)</c>, 0..1 — the body and the gun are two
+        /// sources, the sensor sees the hotter.</summary>
+        public readonly float Signature => BaseSignature + System.MathF.Max(Heat, BarrelHeat) * (1f - BaseSignature);
     }
 }

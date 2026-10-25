@@ -157,6 +157,16 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-3254</c> — the scope's field of view (degrees); 0 = <c>HeldItems.ScopeFallbackFovDegrees</c>. Appended.</summary>
         [EditUnit("deg")]
         public float ScopeFovDegrees { get; init; }
+
+        /// <summary>⭐ <c>CE-1358</c> (docs/DESIGN_Weapon_Layers.md §5k) — how much one round heats the barrel, as a share of TOO HOT (1);
+        /// <b>0 = by <see cref="Category"/></b> (<c>BarrelHeat.For</c>: an automatic weapon about 4 s of its cyclic rate, a single-shot gun 0.15,
+        /// a grenade, bomb, dispenser or hands none). Too hot holds the weapon until it cools to half. Appended.</summary>
+        public float HeatPerRound { get; init; }
+
+        /// <summary>⭐ <c>CE-1358</c> — seconds a TOO-HOT barrel takes to cool to cold (linear); <b>0 = by <see cref="Category"/></b>
+        /// (12 s automatic, 60 s single-shot). Appended.</summary>
+        [EditUnit("s")]
+        public float BarrelCoolSeconds { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3229</c> (AW-15) — the shape an observer may see in a man's hands.</summary>

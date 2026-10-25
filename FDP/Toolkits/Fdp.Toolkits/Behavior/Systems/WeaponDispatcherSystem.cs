@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     {
         private EntityQuery? _mounts;
         private EntityQuery? _loadouts;
+        private EntityQuery? _barrels;   // ⭐ CE-1358
 
         public override void Execute(ISimulationView view, float deltaTime)
         {
@@ -60,6 +61,18 @@ namespace Fdp.Toolkit.Behavior.Systems
                     DrainCooldown(ref ws, deltaTime);
                     Fdp.Toolkit.Combat.ShotLedger.Tick(ref ws, deltaTime);   // ⭐ Q94 A-3 — the ask timeout and the refusal hold
                     Fdp.Toolkit.Combat.Magazine.Tick(ref ws, deltaTime);   // ⭐ CE-3136 P-5 — a reload runs whether or not the mount fires
+                }
+            }
+
+            // ⭐ CE-1358 (docs/DESIGN_Weapon_Layers.md §5k) — EVERY barrel cools, once a frame: a unit's own, a mount child, and a weapon
+            //   system (a door gun) that has neither a channel nor a mount record.
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponState>())
+            {
+                _barrels ??= repo.Query().With<Fdp.Toolkit.Combat.Components.WeaponState>().Build();
+                foreach (var e in _barrels)
+                {
+                    if (repo.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponState>(e).Heat <= 0f) continue;
+                    Fdp.Toolkit.Combat.BarrelHeat.Tick(ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(e), deltaTime);
                 }
             }
 

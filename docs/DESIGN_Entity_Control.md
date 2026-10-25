@@ -784,6 +784,7 @@ on which the latch or the ammo switch could silently not tick.
 | **D-1 click semantics** | a PRESS locks one shot on what is under the crosshair (a unit is followed as it moves; else the ground point) and fires once the weapon bears; then the turret follows the look again. A new press replaces it; RMB cancels it. Held trigger: automatic weapons (small arms, MG, autocannon, untagged) keep firing at the crosshair; single-shot weapons (tank gun, ATGM, mortar, grenade) fire once per press |
 | **D-2 keys** | wheel or `1`–`4` = weapon (mount 0 = the main one, the default) · `F` = the next round of the selected weapon · RMB = cancel the locked shot |
 | **D-3 switch cost** | one reload — the AI's rule (D-I); the HUD says `LOADING` |
+| ⭐ **barrel heat** *(`CE-1358`, [Weapon Layers §5k](DESIGN_Weapon_Layers.md))* | the weapon line adds `HEAT n%` from 25 %, `OVERHEATED n%` while the gun is held cooling to half |
 | **D-4 crosshair** | picks units too (never the own body); the aim point is where the ray meets the unit's box |
 
 **Rejected — one line each:**
@@ -2274,7 +2275,7 @@ its padding) and `Point` (fills the 32 bytes). No second weapon executor.
 | a turreted mount goes through the existing turret path with `WeaponTask.Point` (Target null) | the muscle already aims and fires at `Point` when there is no target entity (`WeaponTaskDispatcherSystem.cs:55`, `:98`); a moved point re-aims WITHOUT a new epoch, so rounds in flight keep counting |
 | kept for the operator: ammunition, magazine, cooldown, no DIRECT round through a friend; skipped: seen-now, aim time, ROE | C-2 lists exactly the three skipped; the friendly line is a rule, not a decision |
 | `OperatorControl` starts the weapon action once and steers its params in place each frame; stamped with the run's id | ⭐ `ChannelArbitrationSystem` cancels a channel action whose run ended — so a release (or death, or fault) stops the weapon by construction, no extra teardown |
-| ⚠ cooldown is a constant, `OperatorControlBehavior.OperatorCooldownSeconds` = 0.25 s | the TKB carries no cyclic rate (`WeaponMountDto` has aim time, magazine and reload only) |
+| ⭐ `CE-1358` (supersedes the 0.25 s constant): the operator asks the mount's own cyclic rate (`OperatorCooldownFor` → 0 ⇒ `CooldownFor` = 60 / `RateOfFire`); `OperatorCooldownSeconds` = 0.25 s is kept only for a mount stating no rate | ⛔ before: always 0.25 s — an M134 fired 9 rounds in 2 s. The bursts are now stopped by the barrel heat ([Weapon Layers §5k](DESIGN_Weapon_Layers.md)) |
 | 🔴→⭐ found by the rail: a unit with no `ActorCapabilityState{CanShoot}` is never dispatched | the dispatcher's existing gate; production soldiers carry it — the rail's fixture did not |
 
 📐 **Rails:** `AimAndFireExecutorTests` CE3172 ×3 (per-shot fires at the point under HoldFire only while held, 3 rounds in 0.5 s at a

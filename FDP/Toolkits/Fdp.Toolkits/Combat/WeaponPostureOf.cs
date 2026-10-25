@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.HoldFriendlyOnLine or ActionReason.HoldRoe or ActionReason.Slewing or ActionReason.Guiding
                 or ActionReason.Turning   // ⭐ CE-3195 — held while the body turns, still aimed (the gait turns him toward it)
                 or ActionReason.HoldNeutralOnLine   // ⭐ AW-20 — still aimed, waiting for a civilian to clear the line
+                or ActionReason.Overheated   // ⭐ CE-1358 (§5k) — still aimed, waiting for the barrel to cool
                 or ActionReason.AwaitingRelease   // ⭐ Air Ops slice 4 — a bomb on the run-in, waiting for its cue
                 or ActionReason.AwaitingFireTime  // ⭐ IF-1 — laid, waiting for the time on target
                 => WeaponPostureKind.Aimed,

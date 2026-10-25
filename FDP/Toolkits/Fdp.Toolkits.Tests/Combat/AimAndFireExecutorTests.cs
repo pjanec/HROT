@@ -1075,6 +1075,88 @@ namespace Fdp.Toolkit.Combat.Tests
             Step(shooter, ref channel, 0.1f);
             Assert.Equal(NodeStatus.Failure, channel.Status);   // out of ammunition altogether
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1358</c> (DESIGN_Weapon_Layers §5k) — the PER-SHOT path fires at its rate until the barrel is too hot (0.25 a round:
+        /// the 5th round, with the cooling between), then holds — Running, nothing spent, saying <c>Overheated</c> — until it has cooled to
+        /// half (1 s at 0.5/s), and fires again. The dispatcher cools the barrel; here <see cref="BarrelHeat.Tick"/> stands in for it.
+        /// 🔴 Red-proof: drop <c>!BarrelHeat.IsOverheated</c> from <c>Magazine.Ready</c> ⇒ the 6th round flies at once.
+        /// </summary>
+        [Fact]
+        public void CE1358_ThePerShotPath_FiresUntilTheBarrelIsTooHot_ThenWaitsForItToCool()
+        {
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 200, 0f, target, cooldownSeconds: 0f);
+            ref var w = ref _world.GetComponentRW<WeaponState>(shooter);
+            w.HeatPerRound = 0.25f;
+            w.HeatCoolPerSecond = 0.5f;
+            EnterAimed(shooter, ref channel);
+
+            int StepCooling(float dt)
+            {
+                BarrelHeat.Tick(ref _world.GetComponentRW<WeaponState>(shooter), dt);
+                return Step(shooter, ref channel, dt);
+            }
+
+            int fired = 0;
+            for (int i = 0; i < 5; i++) fired += StepCooling(0.1f);
+            Assert.Equal(5, fired);
+            Assert.True(BarrelHeat.IsOverheated(_world.GetComponent<WeaponState>(shooter)));
+            Assert.Equal(195, _world.GetComponent<WeaponState>(shooter).Ammo);
+
+            int steps = 0;
+            while (fired == 5 && steps < 40) { fired += StepCooling(0.1f); steps++; }
+            Assert.Equal(6, fired);
+            Assert.InRange(steps, 10, 12);   // 1.0 → 0.5 at 0.5/s: ~1 s held (±1 step)
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1358</c> — the TURRET path: the brain's grant stops at the round that makes the barrel too hot, so the muscle fires
+        /// exactly that many and the task drops to Track (the gun keeps following); cooled to half, the grant opens again under the same
+        /// epoch. 🔴 Red-proof: drop the <c>RoundsLeft</c> cap ⇒ the grant is the whole belt (100), not the 10 the barrel takes.
+        /// </summary>
+        [Fact]
+        public void CE1358_TheTurretPath_StopsTheBurstAtTheHotRound_ThenResumes()
+        {
+            var (shooter, turret, channel, _) = TurretedTank(rounds: 0, cooldown: 0.05f, ammo: 100,
+                                                             category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun);
+            ref var w = ref _world.GetComponentRW<WeaponState>(shooter);
+            w.HeatPerRound = 0.1f;   // ten rounds to too hot, no cooling while it fires
+            w.HeatCoolPerSecond = 0f;
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+
+            const float dt = 1f / 60f;
+            int shots = 0, maxGrant = 0;
+            void Run(int frames)
+            {
+                for (int f = 0; f < frames; f++)
+                {
+                    Tick(shooter, ref channel, dt);
+                    maxGrant = Math.Max(maxGrant, _world.GetComponent<WeaponTask>(turret).RoundsGranted);
+                    muscle.Execute(_world, dt);
+                    _world.Bus.SwapBuffers();
+                    shots += _world.Bus.Read<WeaponFireIntent>().Length;
+                }
+            }
+            Run(60 * 8);
+            Assert.Equal(10, shots);
+            // ⭐ the GRANT never passes the hot round — on one node the brain also accounts before the muscle fires again, but a muscle on
+            //   another node reports late, and a grant of the whole belt would fire on past it
+            Assert.Equal(10, maxGrant);
+            Assert.True(BarrelHeat.IsOverheated(_world.GetComponent<WeaponState>(shooter)));
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(turret).Mode);
+            Assert.Equal(90, _world.GetComponent<WeaponState>(shooter).Ammo);
+
+            ref var hot = ref _world.GetComponentRW<WeaponState>(shooter);
+            hot.HeatCoolPerSecond = 1f;
+            BarrelHeat.Tick(ref hot, 0.6f);   // → 0.4: open
+            hot.HeatCoolPerSecond = 0f;
+            Run(60 * 2);
+            Assert.Equal(16, shots);   // 0.4 + 6 × 0.1 = too hot again
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(turret).Mode);
+        }
             /// <summary>
         /// ⭐ <c>CE-3136</c> (T1) — the executor SAYS why it is not firing, on the unit's <see cref="Fdp.Toolkit.Behavior.Diagnostics.ActionStatus"/>
         /// weapon row: hidden ⇒ "hold: not seen"; seen ⇒ "aiming 0.x of 0.8 s"; then "firing"; an empty magazine ⇒ "reloading".

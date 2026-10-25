@@ -972,6 +972,9 @@ namespace Hrot.UI.Common.Map3D
                     if (others.Count > 0) line.Append("  R: ").Append(string.Join(" / ", others));   // ⭐ CE-1212 — R is the next round (F before)
                 }
                 if (a.IsBusy(m)) line.Append("  LOADING");
+                // ⭐ CE-1358 (DESIGN_Weapon_Layers §5k) — the barrel: held while too hot, its heat once it is worth watching
+                if (a.IsHot(m)) line.Append("  OVERHEATED ").Append(a.HeatPercentOf(m)).Append('%');
+                else if (a.HeatPercentOf(m) >= HeatShownFromPercent) line.Append("  HEAT ").Append(a.HeatPercentOf(m)).Append('%');
                 return line.ToString();
             }
 
@@ -995,6 +998,9 @@ namespace Hrot.UI.Common.Map3D
             /// <summary>⭐ CE-1168 — a person's HANDS mount (backend's B-8, <c>PersonHands</c>: every person ends with one, empty until he picks
             ///   something up) is shown as his hands, not as the grenade category it throws on.</summary>
             public const string HandsKind = "HANDS";
+
+            /// <summary>⭐ CE-1358 — the weapon line shows the barrel's heat from this percent (below it the barrel is not worth a word).</summary>
+            public const int HeatShownFromPercent = 25;
 
             public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => c switch
             {
