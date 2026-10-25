@@ -2385,6 +2385,10 @@ mouse looks off it from there. A helicopter or plane turns on A/D (the heading s
 the helicopter turns at its rate, the plane banks into it; released, it holds its heading), never strafes, climbs on Q (or Space) and
 descends on Z (or C), and its mouse is a free look (⛔ SUPERSEDED: it flew where the camera looked, a plane climbing on the look's pitch);
 V locks its view forward too. 🔒 User, 2026-10-25. Rail `PossessionStationTests.CE1351_*` (red-proved); `CE1095_*` updated.
+⭐ **`CE-1354` — the released heading is HELD, never re-read from the airframe.** 🔴 A frame reaches the motion two ticks after it is sent
+(`OperatorInput`, then `ManualDrive`), and a helicopter closes a small heading gap in one tick: re-reading "the heading you have now"
+each frame made H(n+1) = H(n−1), a one-turn-step swing every frame after the first turn (measured live). Captured once on release, the
+loop has nothing to chase. Rail `PossessionStationTests.CE1354_*` (the closed loop, red-proved).
 
 | as-built detail | why |
 |---|---|

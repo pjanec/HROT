@@ -1230,4 +1230,49 @@ public sealed partial class PossessionStationTests
             }
         }
     }
+
+    /// <summary>⭐ <c>CE-1354</c> — after A/D is let go a helicopter HOLDS its heading. The loop as it runs: the station sends a heading each
+    /// frame and its MOTION applies it two ticks on (OperatorInput, then ManualDrive), turning a small gap in one tick (40°/s). Measured live before the fix: the sent yaw
+    /// alternated 0.9566 / 0.9774 frame by frame for ever — the camera and the gun ring shivering. ✅ Red-proof: the heading re-read from
+    /// the airframe every frame (the old FlyerHeading(hull, 0)) ⇒ the hull alternates by one turn step.</summary>
+    [Fact]
+    public void CE1354_AfterATurn_AHelicopterHoldsItsHeading_NoFrameToFrameSwing()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 40f), Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            const float dt = 1f / 30f, rate = 40f;
+            var inFlight = new Queue<float>();   // ⭐ a frame reaches the motion two ticks on (OperatorInput, then ManualDrive), as measured live
+            var hull = new List<float>();
+            var sent = new List<float>();
+            for (int i = 0; i < 80; i++)
+            {
+                // the sim's tick: last frame's heading, at the type's turn rate
+                var tf = w.GetComponentRO<SimTransform>(unit);
+                float yaw = Fdp.Toolkit.Motion.RotorcraftModel.YawOf(tf.Rotation);
+                if (inFlight.Count >= 2) yaw = Fdp.Toolkit.Motion.RotorcraftModel.TurnToward(yaw, inFlight.Dequeue(), rate, dt);
+                w.SetComponent(unit, tf with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+                // the map's frame
+                station.Update(dt);
+                sw.Camera3D.Update(dt);
+                var input = new Input();
+                if (i < 15) input.Keys.Add((int)Raylib_cs.KeyboardKey.A);   // turn left for half a second, then let go
+                sw.Camera3D.HandleInput(input);
+                sw.Camera3D.PrepareDraw();
+                w.Bus.SwapBuffers();
+                float sentYaw = w.Bus.Read<OperatorControlFrameEvent>().ToArray()[^1].Yaw;
+                inFlight.Enqueue(sentYaw);
+                if (i >= 40) { hull.Add(yaw); sent.Add(sentYaw); }
+            }
+            Assert.True(hull[0] > 0.2f, $"it turned ({hull[0]:F3} rad)");
+            Assert.True(hull.Max() - hull.Min() < 1e-4f, $"the hull swings {hull.Min():F5}..{hull.Max():F5} after the turn");
+            Assert.True(sent.Max() - sent.Min() < 1e-6f, $"the sent heading swings {sent.Min():F5}..{sent.Max():F5}");
+        }
+    }
 }

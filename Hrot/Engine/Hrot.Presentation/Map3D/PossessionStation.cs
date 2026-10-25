@@ -1057,6 +1057,7 @@ namespace Hrot.UI.Common.Map3D
         private IInputProvider? _locked;
         private float _yaw, _pitch, _roll;
         private float _hullLook, _hullYaw;   // ⭐ CE-1351 — the look off the hull while the view is hull-locked (V); the hull's heading
+        private float? _heldHeading;         // ⭐ CE-1354 — the heading a flyer holds since A/D was let go (taken once, never re-read)
         private float _bodyYaw, _dt;   // ⭐ CE-1204 (§8l LK-2, LK-4) — a person's heading while his look is free; the last frame's dt
         private bool _lookInitialised;
         private uint _seq;
@@ -1636,7 +1637,15 @@ namespace Hrot.UI.Common.Map3D
             float climbKeys = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Q) || input.IsKeyDown((MapKeyboardKey)KeyboardKey.Space) ? 1f : 0f)
                             - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Z) || input.IsKeyDown((MapKeyboardKey)KeyboardKey.C) ? 1f : 0f);
             float vertical = IsFlyer ? climbKeys : 0f;
-            float flyerHeading = FlyerHeading(_hullYaw, side);
+            // ⭐ CE-1354 — held A/D leads the nose; released, the heading at that moment is HELD, never re-read from the airframe. 🔴 Re-read
+            //   every frame, it was a feedback loop with a one-frame delay (the sim applies a frame on the next tick): a helicopter turns a
+            //   small gap in ONE tick, so after a turn left a gap it chased last frame's heading and back again, one turn step (~1.2°) each
+            //   frame, for ever — measured live, the sent yaw alternating 0.9566 / 0.9774 frame by frame. 🔒 User, 2026-10-25: "the shivering
+            //   starts when i start turning the helicopter" · "the yello circle aiming point is jumping from left to right (one frame left from
+            //   center, other frame right)".
+            float flyerHeading;
+            if (side != 0f) { flyerHeading = FlyerHeading(_hullYaw, side); _heldHeading = null; }
+            else flyerHeading = _heldHeading ??= _hullYaw;
             if (IsFlyer) side = 0f;
             bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
             Running = run;
