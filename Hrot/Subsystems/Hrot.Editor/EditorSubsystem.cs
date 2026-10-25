@@ -974,6 +974,10 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T1).</summary>
         internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
+        private static long NetIdOf(EntityRepository w, Entity e)
+            => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>() && w.IsAlive(e)
+                ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(w, e) : 0;
+
         /// <summary>⭐ <c>CE-1291</c> — every BTree node marked as a breakpoint in an open document (empty before the documents exist).</summary>
         private IEnumerable<Hrot.Editor.Debugging.MarkedNode> MarkedBTreeNodes()
         {
@@ -5109,7 +5113,10 @@ namespace Hrot.Editor
             {
                 var bpBannerState = new Hrot.Diagnostics.Breakpoints.TemporalStatusBannerState();
                 var bpPanel       = new Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel(
-                    _bpManager, bpBannerState);
+                    _bpManager, bpBannerState,
+                    // ⭐ CE-1285 — a unit by its network id, and a click on its row selects it (the ONE selection, SelectEntityCommand)
+                    entityLabel:  e => _world is { } w && NetIdOf(w, e) is var n && n != 0 ? $"#{n}" : $"Entity {e}",
+                    selectEntity: e => { if (_world is { } w && NetIdOf(w, e) is var n && n != 0) _editorLogic?.SelectEntity(n); });
                 var bpWin         = new Hrot.Presentation.Windows.DataBreakpointManagerWindow(
                     "editor_bp_manager", "Scenario", bpPanel, EditorWindowColor.TitleBar);
                 windowManager.RegisterWindow(bpWin);
