@@ -10,15 +10,18 @@ using Fdp.Toolkit.Diagnostics;
 namespace Fdp.Toolkit.Behavior;
 
 /// <summary>Who owns a slot: the running task, the SOP, or the task a reaction paused. ⚠ Member names unique across the file's enums (the DDS IDL generator emits them into one scope).</summary>
-public enum SlotOwnerKind : byte { OwnerUnknown = 0, Task = 1, Sop = 2, PausedTask = 3 }
+public enum SlotOwnerKind : byte { OwnerUnknown = 0, Task = 1, Sop = 2, PausedTask = 3, InstanceBlueprint = 4 }
 
 /// <summary>What a slot is to its owner.</summary>
 public enum SlotRole : byte { RoleUnknown = 0, Params = 1, State = 2, Hsm = 3, Working = 4, HostedChild = 5 }
 
-/// <summary>One occurrence slot of a unit, named when its owner is known, its value decoded when its layout is.</summary>
+/// <summary>One occurrence slot of a unit, named when its owner is known, its value decoded when its layout is.
+/// ⭐ <c>CE-1315</c> (Brain View §12b BV-44): <see cref="Boxed"/> is the slot's value as its OWN CLR struct — the exact managed image
+/// (<c>RuntimeTypeOpsFactory.BoxFromNative</c>, never <c>Marshal.PtrToStructure</c>, which reads the marshalled layout and cannot read an
+/// <c>[InlineArray]</c>) — for a display that draws C# values with their registered renderers; <see cref="Value"/> stays the JSON map.</summary>
 public sealed record OccurrenceSlotView(
     int Key, OccurrenceKind Kind, int PayloadSize, uint StructureHash,
-    SlotOwnerKind Owner, string? Behaviour, SlotRole Role, string? Label, string? LayoutType, object? Value);
+    SlotOwnerKind Owner, string? Behaviour, SlotRole Role, string? Label, string? LayoutType, object? Value, object? Boxed = null);
 
 /// <summary>
 /// ⭐⭐ <c>CE-2288</c> (CC-16, R-2050) — EVERY occurrence slot a unit carries, read-only: the running task's, the SOP's, a paused task's,
@@ -31,7 +34,10 @@ public static class OccurrenceSlotCatalog
 {
     private sealed record Candidate(SlotOwnerKind Owner, string Behaviour, SlotRole Role, Type? Layout, int Offset, string? Label);
 
-    public static unsafe List<OccurrenceSlotView> Read(EntityRepository world, Entity unit, BehaviorRegistry registry)
+    /// <param name="blueprints">⭐ <c>CE-1315</c> — when given, an attached Instance blueprint's slot (keyed by its blueprint id, kind
+    /// <see cref="OccurrenceKind.Blueprint"/>) is named and decoded through its generated <c>State</c> (<c>[Cursor][Params][vars]</c>).</param>
+    public static unsafe List<OccurrenceSlotView> Read(EntityRepository world, Entity unit, BehaviorRegistry registry,
+        Fdp.Toolkit.Blueprints.BlueprintRegistry? blueprints = null)
     {
         var result = new List<OccurrenceSlotView>();
         if (!world.IsAlive(unit)) return result;
@@ -47,7 +53,10 @@ public static class OccurrenceSlotCatalog
                 if (entry.BlueprintId == 0) continue;
                 var kind = BlueprintBlackboardPartitions.GetSlotKind(mem, i);
                 named.TryGetValue(entry.BlueprintId, out var c);
-                object? value = null;
+                if (c is null && kind == OccurrenceKind.Blueprint && blueprints is not null
+                    && blueprints.TryGetById(entry.BlueprintId, out var bp) && bp is { StateClrType: { } st })
+                    c = new Candidate(SlotOwnerKind.InstanceBlueprint, bp.Name, SlotRole.State, st, 0, "blueprint");
+                object? value = null, boxed = null;
                 if (c?.Layout != null && Marshal.SizeOf(c.Layout) <= entry.PayloadSize - c.Offset)
                 {
                     try
@@ -57,11 +66,22 @@ public static class OccurrenceSlotCatalog
                     }
                     catch (ArgumentException) { value = null; }   // a layout PtrToStructure cannot read: listed, not decoded
                 }
+                if (c?.Layout is { IsValueType: true } layout && Fdp.Core.TypeLayout.SizeOf(layout) <= entry.PayloadSize - c.Offset)
+                    boxed = BoxExact(mem + entry.PayloadOffset + c.Offset, layout);
                 result.Add(new OccurrenceSlotView(entry.BlueprintId, kind, entry.PayloadSize, entry.StructureHash,
-                    c?.Owner ?? SlotOwnerKind.OwnerUnknown, c?.Behaviour, c?.Role ?? SlotRole.RoleUnknown, c?.Label, c?.Layout?.Name, value));
+                    c?.Owner ?? SlotOwnerKind.OwnerUnknown, c?.Behaviour, c?.Role ?? SlotRole.RoleUnknown, c?.Label, c?.Layout?.Name, value, boxed));
             }
         }
         return result;
+    }
+
+    /// <summary>The value at <paramref name="at"/> as a boxed <paramref name="layout"/>, its exact managed image; <c>null</c> for a layout
+    /// that is not unmanaged (StructEdit's ops refuse it).</summary>
+    private static unsafe object? BoxExact(byte* at, Type layout)
+    {
+        try { return StructEdit.Core.Memory.RuntimeTypeOpsFactory.Get(layout).BoxFromNative(at); }
+        catch (ArgumentException) { return null; }
+        catch (InvalidOperationException) { return null; }
     }
 
     /// <summary>The keys the unit's behaviours attached, each with its owner, role and layout.</summary>

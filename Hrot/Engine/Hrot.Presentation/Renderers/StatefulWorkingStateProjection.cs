@@ -55,6 +55,16 @@ public static class StatefulWorkingStateProjection
         var registry = BehaviorRegistryAccessor;
         if (registry == null) return;
 
+        // ⭐ CE-1315 (Brain View §12b BV-44) — over a live repository the inspector reads through the ONE slot reader, so it shows what
+        //   the Brain tab shows: every owner's working state (the task's, the SOP's, a paused task's), hosted children, and the
+        //   SOP's / paused task's / attached blueprints' blocks (the task's own params stay with RootParamsProjection, which edits them).
+        //   ⚠ A replay view (SimulationViewAdapter) keeps the task-only path below: the reader needs a repository.
+        if (session is Fdp.Presentation.Adapters.RepositoryAdapter ra)
+        {
+            RenderThroughCatalog(ra.Repo, entity, registry);
+            return;
+        }
+
         if (!session.HasComponent(entity, typeof(BehaviorState))) return;
         var behaviorStateObj = session.GetComponent(entity, typeof(BehaviorState));
         if (behaviorStateObj is not BehaviorState bs) return;
@@ -86,6 +96,32 @@ public static class StatefulWorkingStateProjection
             if (ImGui.TreeNodeEx(label, ImGuiTreeNodeFlags.DefaultOpen))
             {
                 ImGuiPropertyTree.Render(boxed, contextType: s.WorkingStateType, out _);
+                ImGui.TreePop();
+            }
+        }
+    }
+
+    private static void RenderThroughCatalog(Fdp.Core.EntityRepository repo, Entity entity, BehaviorRegistry registry)
+    {
+        var slots = OccurrenceSlotCatalog.Read(repo, entity, registry, BlueprintBlackboardRenderers.Registry);
+        bool headerPrinted = false;
+        int n = 0;
+        foreach (var s in slots)
+        {
+            if (s.Boxed is null || s.Owner == SlotOwnerKind.OwnerUnknown) continue;
+            bool show = s.Role is SlotRole.Working or SlotRole.HostedChild
+                     || (s.Owner != SlotOwnerKind.Task && s.Role is SlotRole.Params or SlotRole.State);
+            if (!show) continue;
+            if (!headerPrinted)
+            {
+                ImGui.Separator();
+                ImGui.TextDisabled("Working state");
+                headerPrinted = true;
+            }
+            string label = $"[{s.Owner}] {s.Behaviour}" + (s.Label is { } l ? $" · {l}" : "") + $"##ws{n++}";
+            if (ImGui.TreeNodeEx(label, ImGuiTreeNodeFlags.DefaultOpen))
+            {
+                ImGuiPropertyTree.Render(s.Boxed, contextType: s.Boxed.GetType(), out _);
                 ImGui.TreePop();
             }
         }

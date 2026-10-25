@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Core;
@@ -277,13 +278,28 @@ public sealed class EntityBrainView : IDetailsViewInstance
     private readonly Func<EntityRepository?> _world;
     private readonly Func<int, string?> _behaviorName;
     private readonly Func<int, BehaviorDefinition?>? _definition;
+    private readonly Func<BehaviorRegistry?>? _registry;
+    private readonly Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? _blueprints;
 
-    public EntityBrainView(Func<EntityRepository?> world, Func<int, string?> behaviorName, Func<int, BehaviorDefinition?>? definition = null)
+    /// <param name="registry">⭐ <c>CE-1315</c> — the behaviour registry the slot reader names slots through; without it the
+    /// <i>Running behaviours</i> section is absent.</param>
+    /// <param name="blueprints">⭐ <c>CE-1315</c> — the blueprint registry, so attached blueprints are listed with their variables.</param>
+    public EntityBrainView(Func<EntityRepository?> world, Func<int, string?> behaviorName, Func<int, BehaviorDefinition?>? definition = null,
+        Func<BehaviorRegistry?>? registry = null, Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null)
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _behaviorName = behaviorName ?? throw new ArgumentNullException(nameof(behaviorName));
         _definition = definition;
+        _registry = registry;
+        _blueprints = blueprints;
     }
+
+    /// <summary>⭐ <c>CE-1315</c> — every behaviour running on <paramref name="unit"/> (task, SOP, paused task, attached blueprints),
+    /// through <see cref="OccurrenceSlotCatalog"/>; empty without a registry.</summary>
+    internal IReadOnlyList<RunningBehaviourView> Running(EntityRepository world, Entity unit)
+        => _registry?.Invoke() is { } reg
+            ? BrainRunningBehaviours.From(OccurrenceSlotCatalog.Read(world, unit, reg, _blueprints?.Invoke()))
+            : Array.Empty<RunningBehaviourView>();
 
     private (EntityBrainViewPanelViewModel Vm, BrainSnapshot? Brain) BuildAndPublish(DetailsContext context, string idScope)
     {
@@ -308,7 +324,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (b is null) { ImGui.TextDisabled("No brain on this unit."); return; }
         DrawDebugControls(context);
         if (!b.OnBrainNode)
-            ImGui.TextColored(Amber, "This node does not run the unit's brain — only its task, SOP and ROE are known here.");
+            ImGui.TextColored(Amber, "This node does not run the unit's brain: only its task, SOP and ROE are known here.");
 
         Header("Doing");
         Row("Task", b.Doing + (b.SinceSeconds is { } s ? $"  ({s:0} s)" : ""));
@@ -340,6 +356,12 @@ public sealed class EntityBrainView : IDetailsViewInstance
         Header("Knows");
         Row("Contacts", $"{b.Contacts} seen" + (b.HeardOnly > 0 ? $", {b.HeardOnly} heard only" : ""));
 
+        if (_world() is { } rw && Running(rw, context.Entities[0]) is { Count: > 0 } running)
+        {
+            Header("Running behaviours");
+            DrawRunning(running);
+        }
+
         Header("Recent changes");
         if (!b.JournalOn) ImGui.TextDisabled("Journal off on this host (or no brain here).");
         foreach (var c in b.Changes)
@@ -348,6 +370,59 @@ public sealed class EntityBrainView : IDetailsViewInstance
             ImGui.SameLine();
             ImGui.TextWrapped(c.Text);
         }
+    }
+
+    /// <summary>⭐ <c>CE-1315</c> (BV-42, BV-43) — one tree node per running behaviour; its parameters and variables are the inspector's
+    /// own read-only dump (<see cref="Fdp.Presentation.Utils.ImGuiPropertyTree"/>: the registered renderers, fixed lists at their Count).
+    /// ImGui remembers what is open (BV-64).</summary>
+    /// <summary>A frame rail opens the nodes once to photograph them; the product never forces an open state (BV-64).</summary>
+    internal static bool ExpandForRail;
+
+    private static void DrawRunning(IReadOnlyList<RunningBehaviourView> running)
+    {
+        for (int i = 0; i < running.Count; i++)
+        {
+            var r = running[i];
+            ImGui.PushID(i);
+            if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
+            if (ImGui.TreeNodeEx($"{r.OwnerLabel} · {r.Name}##rb", ImGuiTreeNodeFlags.SpanAvailWidth))
+            {
+                DrawValues(r.Parameters, r.Variables, r.HiddenVariableMembers);
+                for (int p = 0; p < r.Parts.Count; p++)
+                {
+                    var part = r.Parts[p];
+                    ImGui.PushID(p);
+                    if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
+                    if (ImGui.TreeNodeEx((part.IsHostedChild ? "hosted · " : "") + part.Label + "##part", ImGuiTreeNodeFlags.SpanAvailWidth))
+                    {
+                        DrawValues(part.Parameters, part.Variables, Array.Empty<string>());
+                        ImGui.TreePop();
+                    }
+                    ImGui.PopID();
+                }
+                ImGui.TreePop();
+            }
+            ImGui.PopID();
+        }
+    }
+
+    private static void DrawValues(object? parameters, object? variables, IReadOnlyCollection<string> hidden)
+    {
+        if (parameters is not null)
+        {
+            ImGui.TextDisabled("Parameters");
+            ImGui.PushID("params");
+            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(parameters, null, null, out _);
+            ImGui.PopID();
+        }
+        if (variables is not null)
+        {
+            ImGui.TextDisabled("Variables");
+            ImGui.PushID("vars");
+            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(variables, null, m => !hidden.Contains(m.Name), out _);
+            ImGui.PopID();
+        }
+        if (parameters is null && variables is null) ImGui.TextDisabled("(no parameters or variables)");
     }
 
     private string? _breakNote;
@@ -416,8 +491,9 @@ public static class EntityBrainViewDescriptor
     public const int Rank = 34;
 
     public static DetailsViewDescriptor For(Func<EntityRepository?> world, Func<int, string?> behaviorName,
-        Func<int, BehaviorDefinition?>? definition = null)
+        Func<int, BehaviorDefinition?>? definition = null, Func<BehaviorRegistry?>? registry = null,
+        Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null)
         => new(ViewId, "Brain", Rank,
                DetailsViewPredicates.OneEntityWithBrain(e => world() is { } w && BrainSnapshot.Has<BehaviorState>(w, e)),
-               () => new EntityBrainView(world, behaviorName, definition));
+               () => new EntityBrainView(world, behaviorName, definition, registry, blueprints));
 }

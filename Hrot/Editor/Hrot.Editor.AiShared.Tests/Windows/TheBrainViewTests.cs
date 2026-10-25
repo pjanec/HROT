@@ -1,4 +1,8 @@
 using System;
+using System.IO;
+using System.Linq;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Icons;
@@ -8,6 +12,8 @@ using Fdp.Toolkit.Behavior.Diagnostics;
 using Hrot.Editor.AiShared.Shell;
 using Hrot.Editor.AiShared.Variables;
 using Hrot.Editor.AiShared.Windows;
+using Hrot.Editor.UiFrameRail;
+using ImGuiNET;
 using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Windows;
@@ -16,7 +22,7 @@ namespace Hrot.Editor.AiShared.Tests.Windows;
 /// ⭐⭐ <c>CE-1248</c> — the Brain tab's reader and its place on every host. 📄 docs/DESIGN_Entity_Brain_View.md §1–§8.
 /// </summary>
 [Collection(PanelSnapshotTestCollection.Name)]
-public sealed class TheBrainViewTests : IDisposable
+public sealed unsafe class TheBrainViewTests : IDisposable
 {
     private const int Patrol = 11, Duck = 22;
 
@@ -147,5 +153,137 @@ public sealed class TheBrainViewTests : IDisposable
         var running = RunningBehaviourLocator.Resolve(w, unit, id => id == 5 ? "PlatoonDefend" : null, id => id == 5 ? def : null);
         Assert.Equal(new RunningRef(5, "PlatoonDefend", "HSM"), running);
         Assert.Null(RunningBehaviourLocator.Resolve(w, w.CreateEntity(), _ => "x", null));
+    }
+
+    // ── CE-1315 (Brain View §12b BV-42…BV-45): every running behaviour, through the ONE slot reader ──────────────────────────────
+
+    [InlineArray(4)] public struct Shots4 { private int _e0; }
+    public struct ShotList { public int Count; public Shots4 Items; }
+    public struct FightParams { public Entity Target; public float CoverRadius; }
+    public struct FightVars { public Vector3 CoverPoint; public ShotList Shots; public int Phase; }
+    public struct FightBlock { public FightParams In; public FightVars St; }
+    public struct ChatterParams { public float Interval; }
+    public struct ChatterState { public Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor; public ChatterParams Params; public int Messages; }
+
+    private const int Fight = 0x5A11, Chatter = 0x0C4A7;
+
+    /// <summary>A brain unit whose task block and one attached blueprint sit in a REAL occurrence store.</summary>
+    private static (EntityRepository W, Entity Unit, Fdp.Toolkit.Behavior.BehaviorRegistry Reg, Fdp.Toolkit.Blueprints.BlueprintRegistry Bps)
+        RunningWorld()
+    {
+        var w = World();
+        Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(w);
+        var reg = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+        reg.Register(Fight, "FightFromCover", new Fdp.Toolkit.Behavior.BehaviorDefinition
+        {
+            Name = "FightFromCover", BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree, BlackboardLayoutType = typeof(FightBlock),
+        });
+        var bps = new Fdp.Toolkit.Blueprints.BlueprintRegistry();
+        bps.RegisterInstance(Chatter, new Fdp.Toolkit.Blueprints.BlueprintDefinition
+        {
+            Name = "RadioChatter", Kind = Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Instance, StructureHash = 7,
+            StateSize = sizeof(ChatterState), StateClrType = typeof(ChatterState), ParamsOffset = 16, ParamsSize = sizeof(ChatterParams),
+        });
+
+        var e = w.CreateEntity();
+        w.AddComponent(e, new BehaviorState { ActiveBehaviorHash = Fight });
+        w.AddComponent(e, new BrainJournal());   // a brain node (BV-6)
+        var spec = Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.Select(sizeof(FightBlock) + sizeof(ChatterState) + 64, requiredSlots: 2);
+        spec.Add(w, e);
+        Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.Initialize(spec.Memory(w, e), spec.TotalSize, (byte)spec.MaxSlots);
+
+        byte* block = Fdp.Toolkit.Behavior.RootParamsAccess.ResolveOrAttachRoot(w, e, Fight, sizeof(FightBlock),
+            Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.BTree, out _);
+        var fight = new FightBlock { In = new FightParams { Target = new Entity(12, 3), CoverRadius = 25f } };
+        fight.St.CoverPoint = new Vector3(412f, 3.1f, -88.5f);
+        fight.St.Shots.Count = 3; fight.St.Shots.Items[0] = 11; fight.St.Shots.Items[1] = 12; fight.St.Shots.Items[2] = 13; fight.St.Shots.Items[3] = 99;
+        fight.St.Phase = 2;
+        *(FightBlock*)block = fight;
+
+        Assert.True(Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryAttachSlot(w, e, Chatter, sizeof(ChatterState), 7,
+            Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out byte* bpBlock, out int bpOffset));
+        *(ChatterState*)(bpBlock + bpOffset) = new ChatterState { Params = new ChatterParams { Interval = 4.5f }, Messages = 6 };
+        return (w, e, reg, bps);
+    }
+
+    /// <summary>⭐ CE-1315 — the slot reader boxes each slot as its OWN struct (the exact managed image, an [InlineArray] included) and
+    /// names an attached blueprint. 🔴 Red-proof: drop the blueprint arm in <c>OccurrenceSlotCatalog.Read</c> ⇒ no InstanceBlueprint row.</summary>
+    [Fact]
+    public void CE1315_TheSlotReader_BoxesEverySlot_AndNamesTheAttachedBlueprint()
+    {
+        var (w, e, reg, bps) = RunningWorld();
+        using var _ = w;
+        var slots = Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(w, e, reg, bps);
+
+        var task = Assert.Single(slots, s => s.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.Task && s.Role == Fdp.Toolkit.Behavior.SlotRole.Params);
+        var fight = Assert.IsType<FightBlock>(task.Boxed);
+        Assert.Equal(13, fight.St.Shots.Items[2]);
+        var bp = Assert.Single(slots, s => s.Owner == Fdp.Toolkit.Behavior.SlotOwnerKind.InstanceBlueprint);
+        Assert.Equal("RadioChatter", bp.Behaviour);
+        Assert.Equal(6, Assert.IsType<ChatterState>(bp.Boxed).Messages);
+    }
+
+    /// <summary>⭐ CE-1315 (BV-42) — task first, blueprint after; a block splits into parameters (<c>In</c>) and variables (<c>St</c>); a
+    /// blueprint's State gives its <c>Params</c> and hides <c>Cursor</c> / <c>Params</c> from the variables. 🔴 Red-proof: return the
+    /// block whole from <c>SplitBlock</c> ⇒ the variables are null.</summary>
+    [Fact]
+    public void CE1315_RunningBehaviours_SplitParamsFromVariables_ForTasksAndBlueprints()
+    {
+        var (w, e, reg, bps) = RunningWorld();
+        using var _ = w;
+        var running = BrainRunningBehaviours.From(Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(w, e, reg, bps));
+
+        Assert.Equal(new[] { "Task · FightFromCover", "Blueprint · RadioChatter" }, running.Select(r => $"{r.OwnerLabel} · {r.Name}").ToArray());
+        Assert.Equal(25f, Assert.IsType<FightParams>(running[0].Parameters).CoverRadius);
+        Assert.Equal(2, Assert.IsType<FightVars>(running[0].Variables).Phase);
+        Assert.Equal(4.5f, Assert.IsType<ChatterParams>(running[1].Parameters).Interval);
+        Assert.Equal(new[] { "Cursor", "Params" }, running[1].HiddenVariableMembers.ToArray());
+    }
+
+    /// <summary>⭐ CE-1315 (BV-45) — the dump shows a fixed list's Count items, clamped, not its buffer. 🔴 Red-proof: read the capacity
+    /// instead of Count in <c>FixedListItems.TryFrom</c> ⇒ 4 items.</summary>
+    [Fact]
+    public void CE1315_TheDump_ShowsAFixedListsCountItems()
+    {
+        var list = new ShotList { Count = 3 };
+        list.Items[0] = 11; list.Items[1] = 12; list.Items[2] = 13; list.Items[3] = 99;
+        Assert.True(Fdp.Presentation.Utils.ImGuiPropertyTree.FixedListItems.TryFrom(list, out var items));
+        Assert.Equal(3, items.Count);
+        Assert.Equal(4, items.Capacity);
+        Assert.Equal(new object[] { 11, 12, 13 }, items.Cast<object>().ToArray());
+        list.Count = 9;   // corrupt: clamped to the capacity (F2)
+        Assert.True(Fdp.Presentation.Utils.ImGuiPropertyTree.FixedListItems.TryFrom(list, out var clamped));
+        Assert.Equal(4, clamped.Count);
+    }
+
+    /// <summary>⭐ CE-1315 — the REAL draw of the Running behaviours section, photographed (HROT_RAIL_SHOTS).</summary>
+    [SkippableFact]
+    public void CE1315_TheRunningBehavioursSection_Draws()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-brain");
+        Directory.CreateDirectory(shots);
+        var (w, e, reg, bps) = RunningWorld();
+        using var _ = w;
+        BrainJournalOf.Write(w, e, BrainJournalKind.TaskStarted, a: Fight, origin: (byte)BehaviorOrigin.Superior);
+        var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null, null, () => reg, () => bps);
+        var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
+
+        EntityBrainView.ExpandForRail = true;
+        try
+        {
+            using var frame = UiFrameHarness.Begin(760, 900);
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(8, 8));
+                ImGui.SetNextWindowSize(new Vector2(740, 880));
+                ImGui.Begin("Brain##ce1315");
+                view.Draw(ctx, "details_ce1315");
+                ImGui.End();
+            });
+            frame.Screenshot(Path.Combine(shots, "brain-running-behaviours.png"));
+        }
+        finally { EntityBrainView.ExpandForRail = false; }
+        Assert.Equal(2, view.Running(w, e).Count);
     }
 }

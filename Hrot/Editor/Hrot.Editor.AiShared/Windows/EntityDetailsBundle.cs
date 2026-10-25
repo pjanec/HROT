@@ -76,7 +76,10 @@ public sealed class EntityDetailsBundle : IUiBundle
         // ⭐ CE-1248 (BV-1) — the Brain tab, every host; behaviour names through the registry the host already publishes for the renderers
         Workspace.DetailsViews.Add(EntityBrainViewDescriptor.For(host.World,
             hash => Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor is { } reg && reg.TryGetName(hash, out var n) ? n : null,
-            hash => Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor is { } reg && reg.TryGetDefinition(hash, out var d) ? d : null));
+            hash => Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor is { } reg && reg.TryGetDefinition(hash, out var d) ? d : null,
+            // ⭐ CE-1315 — both registries, so the Running behaviours section names and decodes every slot (a held value is passed)
+            registry:   () => Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor,
+            blueprints: () => Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.Registry));
     }
 
     /// <inheritdoc/>
