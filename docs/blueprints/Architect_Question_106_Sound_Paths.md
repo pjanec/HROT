@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — A–J ✅ APPROVED 2026-10-25 (R-3050); K, L leaned, awaiting the user
+state: LIVE — A–L ✅ APPROVED 2026-10-25 (R-3050)
 updated: 2026-10-25
-build-state: READY-TO-BUILD (A–J); K, L DESIGN
+build-state: BUILDING — order §5
 current-answer: §4 the sub-questions with their leans and verdicts · §3 the diagrams · §2 the claims · §6 the answers
 stale-below: nothing
 known-rot: none yet
@@ -98,12 +98,12 @@ red box: the brain never calls it (Node Roles §3.0a).
 | **D** | a closed door | its material dB, capped at one halving (6 dB) like the walls; breached / open = an opening | ✅ |
 | **E** | a window | an opening (the stand-in's windows are holes, no pane state) | ✅ |
 | **F** | heard from where | the LAST opening on the path (the doorway or window it came through), with the usual uncertainty | ✅ |
-| **G** | outdoors / between buildings | OUTSIDE is one node; outside ↔ outside straight (⚠ amended by K); outside ↔ a room via its outside openings; room → another building's room via OUTSIDE | ✅ (K pending) |
+| **G** | outdoors / between buildings | OUTSIDE is one node; outside ↔ outside straight (⚠ amended by K); outside ↔ a room via its outside openings; room → another building's room via OUTSIDE | ✅ (amended by K) |
 | **H** | runtime cost | the graph comes with the cached layout; per heard sound two cell lookups + a shortest path over ~10–50 nodes (µs); door states live; no raycast beyond v1's one line | ✅ |
 | **I** | reuse | one path solver behind the world-query seam; blast confinement (W-7v2) and the operator's audio (ui) may reuse it | ✅ |
 | **J** | proof | rails on `house-2f` (round a corner via the hall door · heard from the doorway · a closed door muffles · upstairs via the stair) + `ia-house-hunt` re-measured | ✅ |
-| **K** | ⭐ *(user, 2026-10-25: "'behind a corner' on the street should count as some attenuator too")* a street corner | when the straight outdoor line crosses a BUILDING, also take the way ROUND it: the shorter of left / right round its footprint's convex hull (a rubber band from source to ear), each hull corner it turns costing C's corner loss — the louder of round and through wins. At most TWO buildings detoured per sound; past that, the through-walls value. ⛔ No street-canyon gain in v1 (reflections that keep a sound loud along a street) — free field along the street | ⏳ |
-| **L** | ⭐ *(user, 2026-10-25: "how could we debug that sounds 'travel' properly?")* debugging | ① **one solver, an explain mode** — `SoundPaths.Explain` returns what `Route` decided, for the SAME inputs (sight's `Explain` model); ② **`GET /perception/hearing?listener=<id>&seconds=10`** (MCP `explain_hearing`): every sound in the ring of the last N s near the listener, each with source, kind / class, carry, distance, straight dB + crossings, route (portals, corners) + dB, effective carry, and the VERDICT — heard, or why not (beyond its carry · beyond his ear · his own side · weather · walls / corners); ③ the **hearing layer** draws, for the selected listener, each such sound's chosen route through the doorways and corners — green heard, red not, labelled in dB — and the heard point at the last opening (ui); ④ the corner / door numbers are placeholders tuned with ③ | ⏳ |
+| **K** | ⭐ *(user, 2026-10-25: "'behind a corner' on the street should count as some attenuator too")* a street corner | when the straight outdoor line crosses a BUILDING, also take the way ROUND it: the shorter of left / right round its footprint's convex hull (a rubber band from source to ear), each hull corner it turns costing C's corner loss — the louder of round and through wins. At most TWO buildings detoured per sound; past that, the through-walls value. ⛔ No street-canyon gain in v1 (reflections that keep a sound loud along a street) — free field along the street | ✅ |
+| **L** | ⭐ *(user, 2026-10-25: "how could we debug that sounds 'travel' properly?")* debugging | ① **one solver, an explain mode** — `SoundPaths.Explain` returns what `Route` decided, for the SAME inputs (sight's `Explain` model); ② **`GET /perception/hearing?listener=<id>&seconds=10`** (MCP `explain_hearing`): every sound in the ring of the last N s near the listener, each with source, kind / class, carry, distance, straight dB + crossings, route (portals, corners) + dB, effective carry, and the VERDICT — heard, or why not (beyond its carry · beyond his ear · his own side · weather · walls / corners); ③ the **hearing layer** draws, for the selected listener, each such sound's chosen route through the doorways and corners — green heard, red not, labelled in dB — and the heard point at the last opening (ui); ④ the corner / door numbers are placeholders tuned with ③ | ✅ |
 
 ## 5. Order
 
@@ -113,4 +113,18 @@ red box: the brain never calls it (Node Roles §3.0a).
 
 ## 6. Answers
 
-🔒 **User, `2026-10-25`:** *"approved."* ⇒ ✅ **A–J as leaned (R-3050).** K and L were asked in the same message; leans above, awaiting the user.
+🔒 **User, `2026-10-25`:** *"approved."* ⇒ ✅ **A–J as leaned (R-3050).** 🔒 **User, `2026-10-25`:** *"K and L approved, go ahead"* ⇒ ✅ **K and L as leaned.**
+
+## 7. As built
+
+### 7.1 A–K *(backend, 2026-10-25; `CE-3322`)*
+
+| | as built | deviation |
+|---|---|---|
+| the solver | `Fdp.Toolkit.Perception.Sensors.SoundPaths.Route` → `SoundRoute` (Factor, HeardFrom, Via, StraightDb, PathMetres, PathDb, Openings, Corners, Crossings); `AcousticPerception.WallFactor` is now its straight half — ONE implementation | — |
+| the straight line | v1 unchanged, plus ⭐ **a SOLID piece crossed for ≥ 1 m is two faces** (`TerrainWorldQuery.Trace(Sound)`, `SolidFacesMetres`) — in and out | ⚠ found building K: a solid block counted as ONE halving, so going round it never won. Two faces is still AQ104's "a halving per wall" |
+| A–J | Dijkstra over the portals of the one or two buildings involved (OUTSIDE joins exterior portals); the search weighs 1 dB as 1 m (`MetresPerDb`), the chosen path's factor is then exact: `min(1, d / length) × 10^(−dB/20)`; a corner is charged where the path LEAVES a portal (its turn needs the next point) | — |
+| K | outdoors (both ends outside any building): the buildings the straight line passes THROUGH (bounding box, then the convex hull), ≤ 2, each gone round the shorter way (a rubber band over its hull's corners); heard from the last corner | ⚠ hulls, not footprints: a concave courtyard is gone round, not into |
+| the sensor | `AcousticSensorGenerator` judges through `Route` and answers at `HeardFrom` (± the usual error) | — |
+| rails | `SoundPathsTests` (hall door open / closed · a window · the stair · the band · open air · a street corner and through the block) + `AcousticHearingTests.AQ106_ASoundRoundTheCorner_IsHeard_FromTheDoorway`. Red-proofs: no openings path ⇒ 4 red · no way round ⇒ 1 red · the answer at the source ⇒ 1 red | — |
+| ⏳ | `ia-house-hunt` re-measured (J) — with L, live | — |

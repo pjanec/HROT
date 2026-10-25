@@ -250,6 +250,7 @@ ragdolls) **in the stand-in**. Either way the switch stays inside `TerrainWorldQ
 | **Q3** | sound v1 — the loudness model + `Trace(Sound)` straight with per-wall dB; the hearing gizmo shows the loss | a shot behind a concrete wall is heard less far |
 | ↳ ✅ **Q3 v1 BUILT `2026-10-25`** (backend, AQ104 E ②, R-2079) | `TerrainWorldQuery.Trace(Sound)`: the fire trace's pieces less the ground, each its material `soundDb`; hearing applies AQ104's approved v1 — each crossing `min(dB, 6.02) × band`, so a wall or slab HALVES a high sound's carry (the full dB would deafen every stand-in house — all walls are concrete, M7). ⛔ Still open: the loudness model's full dB, the gizmo, v2 paths | 📄 [`DESIGN_Thermal_And_Acoustic_Sensing.md`](DESIGN_Thermal_And_Acoustic_Sensing.md) §8.8 |
 | **Q4** | sound v2 — rooms from walls, the room/portal path (shared with blast confinement, Building Interiors W-7v2) | sound comes round a corner and through an open door; a closed door muffles it |
+| ↳ ✅ **Q4 BUILT `2026-10-25`** (backend, AQ106 A–K, R-3050) | `SoundPaths.Route` over the cached `BuildingLayout` portals (Dijkstra), the louder of path and straight line, heard from the last opening; K: outdoors round ≤ 2 buildings' hulls; a solid block is two faces on the straight line | 📄 [`AQ106`](blueprints/Architect_Question_106_Sound_Paths.md) §7 |
 | **Q5** | `StrideWorldQuery`; entity boxes in the index (WQ-F) | a second implementation passes the same rails |
 
 ## 5a. Q0 — the spike, as built and measured `2026-10-10` *(cloud VM, Debug build — indicative only)*
