@@ -355,3 +355,9 @@ health): a real fight at last — ✅ the guard **engages both attackers before 
 out, Blue South is wounded; the guard, wounded, leaves the house at ~100 s and dies at ~198 s. ⛔ "fires first" fails — and cannot be won:
 both attackers open at the SAME 2.05 s from ~90 m, because their Attack order NAMES the guard (`CombatPosture {target}`), so they know where
 he is from the first frame. ⇒ the attackers now get an AREA order (`ClearArea` on a lone man — which also runs A-1 live).
+
+📐 **With area-clearing attackers** (`58076007c`): ✅ the guard **sees and fires first at Blue South** (13.9 s v 16.7 s, from ~90 m) — 2/4;
+⛔ Blue East is never engaged: the guard, hit at ~30 s and ~70 s, lies wounded outside the house and bleeds out at ~164 s. ⭐ **A-1 live
+(inferred):** both attackers started as LONE men with `ClearArea`, and both then cleared House A room by room and went upstairs — which only a
+squad's `ClearBuildingPlay` does, so their squads were created and given the play (the squad entities were not inspected). ⏭ the guard left
+the house at ~20 s (at (103, 98)) — a coverage post outside or a break; probe next time before tuning.

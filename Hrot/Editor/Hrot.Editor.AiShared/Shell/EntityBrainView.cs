@@ -663,6 +663,16 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 _breakNote = arm(w, unit) is { } id ? $"breakpoint {id} armed" : "no breakpoint manager on this host";
         }
         if (_breakNote is { } note) ImGui.TextDisabled(note);
+
+        // ⭐ CE-1323 (Behaviour Debugging §9) — stop when THIS unit's running behaviour takes a step: a state entered / left, anything
+        //   inside a state, a transition, an event, a tree node — set on this unit by default
+        if (RunningBehaviourLocator.Resolve(w, unit, _behaviorName, _definition) is { } now)
+        {
+            ImGui.Separator();
+            ImGui.PushID("stopwhen");
+            BrainStopWhen.Draw(unit, now.Name, _definition?.Invoke(now.BehaviorId), e => PinLabelOf(w, e));
+            ImGui.PopID();
+        }
     }
 
     /// <summary>⭐ <c>CE-1318</c> — this tab is a PIN (its window id is <see cref="Hrot.Editor.AiShared.Windows.DetailsWindow.PinIdFor"/>'s), not the

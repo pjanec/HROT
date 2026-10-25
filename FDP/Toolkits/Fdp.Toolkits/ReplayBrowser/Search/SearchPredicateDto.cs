@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(TraceBufferScanPredicateDto),    "TraceBufferScan")]
     [JsonDerivedType(typeof(BlueprintVariablePredicateDto),  "BlueprintVariable")]
     [JsonDerivedType(typeof(ExternalHitTagPredicateDto),     "ExternalHitTag")]
+    [JsonDerivedType(typeof(BehaviourStepPredicateDto),      "BehaviourStep")]
     public abstract class SearchPredicateDto { }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -400,5 +401,69 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// future Slice 1 surfaces may use other prefixes.
         /// </summary>
         public string Tag { get; set; } = string.Empty;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Behaviour step (CE-1323)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-1323</c> (Hrot DESIGN_Behaviour_Debugging §9, DBG-10) — what a behaviour breakpoint waits for.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum BehaviourStepKind
+    {
+        /// <summary>A BTree node runs (<see cref="BehaviourStepPredicateDto.Node"/>).</summary>
+        NodeRuns,
+        /// <summary>An HSM state is entered (<see cref="BehaviourStepPredicateDto.State"/>).</summary>
+        StateEnter,
+        /// <summary>An HSM state is left.</summary>
+        StateExit,
+        /// <summary>Any state INSIDE a composite state is entered — or inside one region (<see cref="BehaviourStepPredicateDto.Region"/>)
+        /// of a parallel state.</summary>
+        InsideEnter,
+        /// <summary>A transition fires: <see cref="BehaviourStepPredicateDto.From"/> → <see cref="BehaviourStepPredicateDto.To"/>, narrowed
+        /// by <see cref="BehaviourStepPredicateDto.Event"/>; no From = a global transition (from any state).</summary>
+        TransitionFires,
+        /// <summary>The machine takes an event off its queue (consumed or deferred), in whatever state.</summary>
+        EventHandled,
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1323</c> (DBG-9) — a BEHAVIOUR BREAKPOINT: a step of a running BTree / HSM, named by NAMES (a state, a transition's two ends,
+    /// an event) or by the element's id, so it works on a behaviour built in C# that has no document. ⛔ Not evaluated by the component
+    /// path: the editor's evaluator reads the units' trace records written since its last look and reports a hit
+    /// (<c>IDataBreakpointManager.OnBehaviourStepHit</c>) — which is why a continue does not stop on the same arrival again (the whole-ring
+    /// <see cref="TraceBufferScanPredicateDto"/> did). Inside an AND <see cref="CompoundPredicateDto"/> the other conditions are checked on
+    /// the unit at the hit; the breakpoint's unit filter scopes it to one unit.
+    /// </summary>
+    public sealed class BehaviourStepPredicateDto : SearchPredicateDto
+    {
+        /// <summary>The behaviour's registered name (the unit's running BTree / HSM).</summary>
+        public string Behaviour { get; set; } = string.Empty;
+
+        public BehaviourStepKind Kind { get; set; }
+
+        /// <summary>The state's name (StateEnter / StateExit / InsideEnter).</summary>
+        public string? State { get; set; }
+
+        /// <summary>InsideEnter on a parallel state: which region (0-based); -1 = anything under the state.</summary>
+        public int Region { get; set; } = -1;
+
+        /// <summary>TransitionFires: the source state's name; empty = a global transition.</summary>
+        public string? From { get; set; }
+
+        /// <summary>TransitionFires: the target state's name.</summary>
+        public string? To { get; set; }
+
+        /// <summary>EventHandled: the event's name; TransitionFires: narrows to the transition on this event.</summary>
+        public string? Event { get; set; }
+
+        /// <summary>NodeRuns: the BTree node's id (its VisualId).</summary>
+        public Guid Node { get; set; }
+
+        /// <summary>The element's id when known (a state's StableId, a transition's VisualId) — preferred over the names.</summary>
+        public Guid Element { get; set; }
+
+        /// <summary>For a person: what the element is called ("Withdrawing", "Engaging → Withdrawing").</summary>
+        public string Label { get; set; } = string.Empty;
     }
 }

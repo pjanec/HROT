@@ -71,9 +71,18 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
 
     /// <summary>Installs the node context menu for <paramref name="asset"/>, recording through <paramref name="view"/>.</summary>
     public void SetNodeContextMenu(Model.HsmAsset asset, NodeEditor.Core.View.GraphView view)
-        => _nodeContextMenu = new HsmNodeContextMenuProvider(asset) { Recorder = (f, i, l) => view.Execute(f, i, l) };
+    {
+        _nodeContextMenu = new HsmNodeContextMenuProvider(asset) { Recorder = (f, i, l) => view.Execute(f, i, l), Breakpoints = _manager };
+        // ⭐ CE-1323 (DBG-13/14) — the dot's menu finds the real state; a transition line gets "Break when it fires"
+        if (_bpContextMenuProvider != null) _bpContextMenuProvider.Asset = asset;
+        _linkContextMenu = _manager != null ? new HsmLinkContextMenuProvider(asset, _manager) : null;
+    }
 
     INodeContextMenuProvider? IEditorHostServices.NodeContextMenu => _nodeContextMenu;
+
+    private HsmLinkContextMenuProvider? _linkContextMenu;
+    ILinkContextMenuProvider? IEditorHostServices.LinkContextMenu => _linkContextMenu;
+    private IDataBreakpointManager? _manager;
 
     // ---- Breakpoint manager wiring (UBP-P10T8) ----
 
@@ -85,6 +94,7 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
 
     public void SetBreakpointManager(IDataBreakpointManager? manager)
     {
+        _manager = manager;
         _bpContextMenuProvider = manager != null
             ? new HsmBreakpointContextMenuProvider(manager)
             : null;

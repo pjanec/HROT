@@ -21,9 +21,17 @@ public static class BreakpointKind
     /// watches the brain journal, else data.</summary>
     public static BreakpointKindOf Of(Breakpoint bp)
     {
-        if (bp.SourceElementId.HasValue || bp.Condition is ExternalHitTagPredicateDto) return BreakpointKindOf.Node;
+        if (bp.SourceElementId.HasValue || bp.Condition is ExternalHitTagPredicateDto || HasStep(bp.Condition)) return BreakpointKindOf.Node;
         return Mentions(bp.Condition, "BrainJournal") ? BreakpointKindOf.Journal : BreakpointKindOf.Data;
     }
+
+    /// <summary>⭐ CE-1323 — a behaviour step, alone or in a compound.</summary>
+    private static bool HasStep(SearchPredicateDto? p) => p switch
+    {
+        BehaviourStepPredicateDto => true,
+        CompoundPredicateDto c    => c.Conditions.Any(HasStep),
+        _                         => false,
+    };
 
     private static bool Mentions(SearchPredicateDto? p, string typeName) => p switch
     {

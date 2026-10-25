@@ -923,8 +923,8 @@ R-2077 | docs/DESIGN_Peek_And_Fire.md | approved, go ahead with A, B and C
 R-2078 | docs/DESIGN_Peek_And_Fire.md | the 3 approved
 R-2079 | docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md | AQ104 approved.
 R-2080 | docs/blueprints/Architect_Question_105_Squad_Callouts.md | AQ105 approved
-R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-2081 | docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md | A-1 approved
+R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3000 | docs/DESIGN_Orders_Params_Entity_Classes.md | So approved, B3a now; A2 (CE-2132) converts straight to the B3a form after it lands
 R-1000 | docs/DESIGN_Terrain_Combat_Tuning.md | I would like to turn most of them off by default or make them less intrusive
 R-1001 | docs/designs/weapons/DESIGN_Weapon_Systems.md | Weapons in vehicles should come from tkb defined presets, no need to edit in the editor

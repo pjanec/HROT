@@ -636,4 +636,107 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Equal(33f, Assert.IsType<FightParams>(running[0].Parameters).CoverRadius);
         Assert.Equal("{\"CoverRadius\":33}", ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<BehaviorStartRecord>(e)!.JsonParams);
     }
+
+    // ── CE-1323 (Behaviour Debugging §9): "Stop when…" — breakpoints from the Brain tab ───────────────────────────────────────────
+
+    private const string Squad = "SquadLeader";
+
+    private static Fdp.Toolkit.Behavior.BehaviorDefinition SquadMachine()
+    {
+        var b = new Fhsm.Compiler.HsmBuilder(Squad);
+        b.Event("Contact", 1); b.Event("Lost", 2); b.Event("Order", 3);
+        var patrol = b.State("Patrol").Initial();
+        var engage = b.State("Engage").Child("Aim", c => c.Initial()).Child("Fire", _ => { });
+        b.State("Withdraw");
+        patrol.On("Contact").GoTo("Engage");
+        engage.On("Lost").GoTo("Withdraw");
+        b.GlobalTransition("Order", "Withdraw");
+        var graph = b.Build();
+        Fhsm.Compiler.HsmNormalizer.Normalize(graph);
+        return new Fdp.Toolkit.Behavior.BehaviorDefinition
+        {
+            Name = Squad, BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm,
+            HsmDefinition = Fhsm.Compiler.HsmEmitter.Emit(Fhsm.Compiler.HsmFlattener.Flatten(graph)),
+            HsmMetadata = Fhsm.Compiler.HsmEmitter.BuildMachineMetadata(graph),
+        };
+    }
+
+    /// <summary>⭐ CE-1323 — the tab offers the RUNNING machine's own steps, from the registry (no document): its states (the root never),
+    /// only composites for "anything inside", every transition (a global from any state), every event.</summary>
+    [Fact]
+    public void CE1323_StopWhen_OffersTheRunningMachinesOwnSteps()
+    {
+        var def = SquadMachine();
+        string[] Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind k) => BrainStopWhen.Choices(Squad, def, k).Select(c => c.Label).ToArray();
+        var entered = Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.StateEnter);
+        Assert.Contains("Withdraw", entered);
+        Assert.Contains("Aim", entered);
+        Assert.DoesNotContain(entered, l => l.StartsWith("__"));
+        Assert.Equal(new[] { "Engage" }, Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.InsideEnter));
+        var fires = Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.TransitionFires);
+        Assert.Contains("Patrol -> Engage on Contact", fires);
+        Assert.Contains("any state -> Withdraw on Order", fires);
+        Assert.Equal(new[] { "Contact", "Lost", "Order" }, Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.EventHandled));
+        Assert.Empty(Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.NodeRuns));
+        var step = BrainStopWhen.Choices(Squad, def, Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.StateEnter).First(c => c.Label == "Withdraw").Step;
+        Assert.Equal((Squad, "Withdraw"), (step.Behaviour, step.State));
+        Assert.NotEqual(Guid.Empty, step.Element);   // the canvas draws its dot on the state
+    }
+
+    private sealed class NoClock : Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController
+    {
+        public bool IsPausedByDebugger => false;
+        public void RequestPause() { }
+        public void RequestResume() { }
+        public void RequestStepOneTick() { }
+    }
+
+    /// <summary>⭐ CE-1323 — the Debug section's "Stop when…", drawn for real with one breakpoint set on this unit. 📷
+    /// <c>HROT_RAIL_SHOTS</c>/<c>brain-stop-when.png</c>.</summary>
+    [SkippableFact]
+    public void CE1323_TheDebugSection_StopWhen_Draws()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-brain");
+        Directory.CreateDirectory(shots);
+        var def = SquadMachine();
+        int hash = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Squad);
+        using var w = new EntityRepository();
+        using var snap = new EntityRepository();
+        w.RegisterComponent<BehaviorState>();
+        var e = w.CreateEntity();
+        w.AddComponent(e, new BehaviorState { ActiveBehaviorHash = hash });
+        var manager = new Hrot.Diagnostics.Breakpoints.DataBreakpointManager(w, snap, new Hrot.Diagnostics.Breakpoints.DebugSnapshotProvider(snap), new NoClock());
+        var withdraw = BrainStopWhen.Choices(Squad, def, Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.StateEnter).First(c => c.Label == "Withdraw").Step;
+        manager.AddBreakpoint(withdraw, e, 1, "Withdraw entered · #7");
+        var view = new EntityBrainView(() => w, h => h == hash ? Squad : null, h => h == hash ? def : null);
+        var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
+
+        var oldController = Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current;
+        var oldManager = BrainStopWhen.Manager;
+        Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = new Hrot.Common.Diagnostics.Gizmos.UnitDebugController();
+        BrainStopWhen.Manager = () => manager;
+        EntityBrainView.ExpandForRail = true;
+        try
+        {
+            using var frame = UiFrameHarness.Begin(760, 900);
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(8, 8));
+                ImGui.SetNextWindowSize(new Vector2(740, 880));
+                ImGui.Begin("Brain##ce1323");
+                view.Draw(ctx, "details_ce1323");
+                ImGui.End();
+            });
+            frame.Screenshot(Path.Combine(shots, "brain-stop-when.png"));
+        }
+        finally
+        {
+            EntityBrainView.ExpandForRail = false;
+            Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = oldController;
+            BrainStopWhen.Manager = oldManager;
+        }
+        Assert.Single(BrainStopWhen.On(manager, Squad, e));
+    }
 }
+

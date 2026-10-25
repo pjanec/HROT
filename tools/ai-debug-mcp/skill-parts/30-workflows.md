@@ -22,6 +22,26 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 3. Poll `get_breakpoint_status` → when `isPaused:true`, the condition fired; `lastHit` names the entity.
 4. Inspect, then `remove_breakpoint {id}` and continue.
 
+#### C1. Stop on a BEHAVIOUR STEP (CE-1323) — "when he enters Withdrawing", "when that transition fires"
+Read the running behaviour's name first (`get_entity_brain` → the running behaviour), then:
+```json
+set_breakpoint {"condition":{"$type":"BehaviourStep","Behaviour":"<name>","Kind":"StateEnter","State":"Withdrawing"},
+                "filterNetworkId":<his id>}
+```
+| `Kind` | fields | stops when |
+|---|---|---|
+| `StateEnter` / `StateExit` | `State` | he arrives in / leaves the state |
+| `InsideEnter` | `State`, `Region` (-1 = anything under it; n = region n of a parallel state) | any state inside it is entered |
+| `TransitionFires` | `From`, `To`, `Event` (optional) — no `From` = a global transition | that transition fires |
+| `EventHandled` | `Event` | his machine takes the event off its queue (consumed or deferred — even when nothing reacts: "the order came, why didn't he move?") |
+| `NodeRuns` | `Node` (the BTree node's VisualId) | that tree node runs |
+
+- A name that is not in the behaviour is a **400 that lists what is** — no silent never-firing breakpoint.
+- `filterNetworkId` = only him (and it arms his traces). Without it the step watches every **armed** unit (a Brain tab open, Debug this unit, observe-all).
+- With a condition: `{"$type":"Compound","Operator":"And","Conditions":[<BehaviourStep>, <PropertyMatch …>]}`.
+- `get_breakpoint_status` → `lastHit.what` says what fired: `"entered Withdrawing"`, `"Engaging -> Withdrawing fired on OrderReceived"`, `"event Contact handled (consumed)"`.
+- One arrival stops ONCE: `continue_from_breakpoint` does not stop again on the same step.
+
 ### D. Experiment and revert (try something, undo it)
 1. `checkpoint` (snapshots the world; enters preview, paused).
 2. Mutate / spawn / `step` to run your experiment.
