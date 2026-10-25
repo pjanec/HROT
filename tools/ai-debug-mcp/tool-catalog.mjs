@@ -3363,6 +3363,46 @@ export const TOOLS_CATALOG = [
         "type": "string",
         "required": false,
         "description": "Blueprint NAME or asset Guid; omit when the entity carries exactly one"
+      },
+      {
+        "name": "owner",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-1320 — task · sop · paused · blueprint: write ANY behaviour slot instead of a blueprint variable by name",
+        "enum": [
+          "task",
+          "sop",
+          "paused",
+          "blueprint"
+        ]
+      },
+      {
+        "name": "behaviour",
+        "type": "string",
+        "required": false,
+        "description": "With owner: the behaviour / blueprint name (needed when two slots match)"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "required": false,
+        "description": "With owner: params · variables (default variables)",
+        "enum": [
+          "params",
+          "variables"
+        ]
+      },
+      {
+        "name": "part",
+        "type": "string",
+        "required": false,
+        "description": "With owner: a node's working-state or hosted-child slot, by its label (as get_entity_slots lists it)"
+      },
+      {
+        "name": "paramsJson",
+        "type": "string",
+        "required": false,
+        "description": "With owner, instead of path/value: a whole parameter set applied through the behaviour's own parser (the start record takes it too)"
       }
     ],
     "returns": "{ networkId, asset, assetId, path, type, value, writable, pending, pendingValue? }",
@@ -3383,7 +3423,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "stage_entity_variable",
     "group": "O — Variables (the watch, over HTTP)",
-    "summary": "STAGE a write to one blueprint variable, through the same seam the editor's Details panel uses. The value lands on the next advancing tick — not on this response.",
+    "summary": "STAGE a write to a running behaviour's value, through the same seam the editor's Details panel uses — a blueprint variable by name, or (with owner) ANY behaviour slot's params or working state: the task's, the SOP's, a paused task's, an attached blueprint's, a node's or a hosted child's. The value lands on the next advancing tick, IN PLACE — the behaviour is never restarted.",
     "http": {
       "method": "POST",
       "path": "/entities/{networkId}/variable"
@@ -3414,11 +3454,13 @@ export const TOOLS_CATALOG = [
         "description": "Blueprint NAME or asset Guid; omit when the entity carries exactly one"
       }
     ],
-    "returns": "{ networkId, asset, assetId, path, staged: true, pending: true, note }",
+    "returns": "{ networkId, asset, assetId, path, staged: true, pending: true, note } — with owner: { networkId, owner, behaviour, part, role, path, component, offset, size, staged, pending, willDrain, startRecordUpdated, restarted:false, note }",
     "notes": [
       "Running is not a reason to refuse — it is a reason to stage. There is no \"pause first\" step.",
       "Until the world advances, get_entity_variable still reports the OLD value with pending: true. Step or play to make it land.",
-      "A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour."
+      "A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour.",
+      "⭐ With owner, path is dotted (St fields, In fields — e.g. Shots.Count) and [n] indexes an inline array (Shots.Items[1]). A task-params write also rewrites the start record's JSON, so a save and the \"same order again?\" checks stay true.",
+      "⭐ The what-if loop: checkpoint → stage_entity_variable(owner…) → step → read → restore_checkpoint (skill §J)."
     ],
     "example": {
       "args": {
@@ -3428,7 +3470,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "queue Health = 42; it applies on the next advancing tick"
     },
-    "hint": "Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:\"Health\", value:42})",
+    "hint": "Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:\"Health\", value:42}). Any slot: stage_entity_variable({networkId:1000, owner:\"task\", role:\"params\", path:\"CoverRadius\", value:40}) — discover owners, behaviours and parts with get_entity_slots.",
     "manualVerify": false
   },
 

@@ -1553,6 +1553,22 @@ namespace Hrot.Editor.DebugApi
                 var asset = ctx.Body?["asset"]?.GetValue<string>();
                 var path  = ctx.Body?["path"]?.GetValue<string>();
                 var value = ctx.Body?["value"];
+                // ⭐ CE-1320 — with `owner`, ANY behaviour slot's params or variables (task · sop · paused · blueprint), no restart
+                var owner = ctx.Body?["owner"]?.GetValue<string>();
+                if (owner is not null)
+                {
+                    var behaviour  = ctx.Body?["behaviour"]?.GetValue<string>() ?? ctx.Body?["behavior"]?.GetValue<string>();
+                    var part       = ctx.Body?["part"]?.GetValue<string>();
+                    var role       = ctx.Body?["role"]?.GetValue<string>();
+                    var paramsJson = ctx.Body?["paramsJson"] is { } pj ? (pj is System.Text.Json.Nodes.JsonValue jv && jv.TryGetValue<string>(out var str) ? str : pj.ToJsonString()) : null;
+                    return RunMainResult(s =>
+                    {
+                        var (result, error, hintCategory) = s.StageSlotField(id, owner, behaviour, part, role, path, value, paramsJson);
+                        return error != null
+                            ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                            : Ok(result);
+                    });
+                }
                 return RunMainResult(s =>
                 {
                     var (result, error, hintCategory) = s.StageEntityVariable(id, asset, path, value);

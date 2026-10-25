@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
@@ -36,10 +39,15 @@ public static class OccurrenceSlotCatalog
 
     /// <param name="blueprints">⭐ <c>CE-1315</c> — when given, an attached Instance blueprint's slot (keyed by its blueprint id, kind
     /// <see cref="OccurrenceKind.Blueprint"/>) is named and decoded through its generated <c>State</c> (<c>[Cursor][Params][vars]</c>).</param>
-    public static unsafe List<OccurrenceSlotView> Read(EntityRepository world, Entity unit, BehaviorRegistry registry,
+    public static List<OccurrenceSlotView> Read(EntityRepository world, Entity unit, BehaviorRegistry registry,
         Fdp.Toolkit.Blueprints.BlueprintRegistry? blueprints = null)
+        => ReadNamed(world, unit, registry, blueprints).Select(x => x.View).ToList();
+
+    /// <summary>Each slot with the layout and in-payload offset it was named with — what <see cref="ResolveField"/> walks.</summary>
+    private static unsafe List<(OccurrenceSlotView View, Type? Layout, int Offset)> ReadNamed(EntityRepository world, Entity unit,
+        BehaviorRegistry registry, Fdp.Toolkit.Blueprints.BlueprintRegistry? blueprints)
     {
-        var result = new List<OccurrenceSlotView>();
+        var result = new List<(OccurrenceSlotView, Type?, int)>();
         if (!world.IsAlive(unit)) return result;
         var named = Candidates(world, unit, registry);
         OccurrenceStoreAccess.GetBlocksReadOnly(world, unit, out var blocks);
@@ -68,11 +76,112 @@ public static class OccurrenceSlotCatalog
                 }
                 if (c?.Layout is { IsValueType: true } layout && Fdp.Core.TypeLayout.SizeOf(layout) <= entry.PayloadSize - c.Offset)
                     boxed = BoxExact(mem + entry.PayloadOffset + c.Offset, layout);
-                result.Add(new OccurrenceSlotView(entry.BlueprintId, kind, entry.PayloadSize, entry.StructureHash,
-                    c?.Owner ?? SlotOwnerKind.OwnerUnknown, c?.Behaviour, c?.Role ?? SlotRole.RoleUnknown, c?.Label, c?.Layout?.Name, value, boxed));
+                result.Add((new OccurrenceSlotView(entry.BlueprintId, kind, entry.PayloadSize, entry.StructureHash,
+                    c?.Owner ?? SlotOwnerKind.OwnerUnknown, c?.Behaviour, c?.Role ?? SlotRole.RoleUnknown, c?.Label, c?.Layout?.Name, value, boxed),
+                    c?.Layout, c?.Offset ?? 0));
             }
         }
         return result;
+    }
+
+    // ── ⭐ CE-1320 (Brain View §12g BV-65) — the ADDRESS of one field of one slot, for the ONE live write ─────────────────────────
+
+    /// <summary>Which half of a behaviour a write addresses: its authored inputs or its working values.</summary>
+    public enum SlotFieldRole : byte { FieldParams = 1, FieldVariables = 2 }   // ⚠ unique member names (the IDL rule above)
+
+    /// <summary>One field's live address: the tier component that holds it, the byte offset inside that component, the field's type.
+    /// ⭐ The same addressing the staged write and the pending read use (component + component-absolute offset).</summary>
+    public sealed record SlotFieldAddress(
+        Type ComponentType, int ComponentOffset, Type FieldType, int Size, SlotOwnerKind Owner, string Behaviour, string? Part, SlotFieldRole Role);
+
+    /// <summary>
+    /// ⭐ CE-1320 — resolves <paramref name="path"/> (dotted field names, <c>[n]</c> into an inline array) inside one slot of
+    /// <paramref name="unit"/>: the root block of <paramref name="owner"/>'s behaviour (or of <paramref name="part"/>, a working-state
+    /// or hosted-child slot named by its label), on its <paramref name="role"/> half. Reuses <see cref="Read"/>'s naming, so a slot the
+    /// reader lists is a slot the writer reaches. <c>null</c> with <paramref name="error"/> on anything that does not resolve.
+    /// </summary>
+    public static unsafe SlotFieldAddress? ResolveField(
+        EntityRepository world, Entity unit, BehaviorRegistry registry, Fdp.Toolkit.Blueprints.BlueprintRegistry? blueprints,
+        SlotOwnerKind owner, string? behaviour, string? part, SlotFieldRole role, string path, out string? error)
+    {
+        error = null;
+        path ??= "";   // ⭐ empty = the half itself (the params region a JSON apply writes whole)
+        var slots = ReadNamed(world, unit, registry, blueprints);
+        var match = slots.Where(s => s.View.Owner == owner
+                                     && (behaviour is null || string.Equals(s.View.Behaviour, behaviour, StringComparison.Ordinal))
+                                     && (part is null
+                                         ? s.View.Role is SlotRole.Params || (owner == SlotOwnerKind.InstanceBlueprint && s.View.Role == SlotRole.State)
+                                         : s.View.Role is SlotRole.Working or SlotRole.HostedChild && s.View.Label == part))
+                         .ToList();
+        if (match.Count == 0) { error = $"No {owner} slot{(part is null ? "" : $" '{part}'")}{(behaviour is null ? "" : $" of '{behaviour}'")} on this unit."; return null; }
+        if (match.Count > 1) { error = $"{match.Count} slots match — name the behaviour."; return null; }
+        var (view, layout, offset) = match[0];
+        if (layout is not { IsValueType: true }) { error = $"Slot '{view.Label}' has no known layout to write through."; return null; }
+
+        // ⭐ the root of each half — the SAME split the reader's display uses (BrainRunningBehaviours.SplitBlock)
+        Type root = layout; int rootOffset = offset;
+        bool isBlock = layout.GetField("In") is not null && layout.GetField("St") is not null;
+        if (isBlock)
+        {
+            string half = role == SlotFieldRole.FieldParams ? "In" : "St";
+            rootOffset += TypeLayout.OffsetOf(layout, half); root = layout.GetField(half)!.FieldType;
+        }
+        else if (owner == SlotOwnerKind.InstanceBlueprint && part is null)
+        {
+            if (role == SlotFieldRole.FieldVariables && path.Length == 0) { error = "Name the variable (a blueprint's State also holds its cursor)."; return null; }
+            if (role == SlotFieldRole.FieldParams)
+            {
+                if (layout.GetField("Params") is not { } pf) { error = "This blueprint declares no parameters."; return null; }
+                rootOffset += TypeLayout.OffsetOf(layout, "Params"); root = pf.FieldType;
+            }
+            else if (path.StartsWith("Cursor", StringComparison.Ordinal) || path.StartsWith("Params", StringComparison.Ordinal))
+            { error = "Cursor and Params are not variables (write Params through role 'params')."; return null; }
+        }
+        else if (view.Role == SlotRole.Params && role == SlotFieldRole.FieldVariables)
+        { error = $"'{view.Behaviour}' keeps no variables in its params block (its working state is in its node slots — name one with part)."; return null; }
+        else if (view.Role == SlotRole.Working && role == SlotFieldRole.FieldParams)
+        { error = "A node's working state has no parameters — use role 'variables'."; return null; }
+
+        if (!TryWalk(root, path, out int fieldOffset, out Type fieldType, out error)) return null;
+
+        // ⭐ the component that holds the slot — the tier ladder, ascending, the debug session's own order
+        foreach (var spec in BlueprintTierTable.Ascending)
+        {
+            if (!spec.Has(world, unit)) continue;
+            byte* mem = spec.MemoryReadOnly(world, unit);
+            if (mem == null || !BlueprintBlackboardPartitions.TryGetSlotOffset(mem, view.Key, out int payload)) continue;
+            return new SlotFieldAddress(spec.ComponentType, payload + rootOffset + fieldOffset, fieldType, TypeLayout.SizeOf(fieldType),
+                owner, view.Behaviour ?? "", part, role);
+        }
+        error = "The slot is listed but no tier component holds it (detached this frame?).";
+        return null;
+    }
+
+    /// <summary>Walks <c>A.B[2].C</c> from <paramref name="type"/>: field offsets by the managed layout, <c>[n]</c> into an
+    /// <c>[InlineArray]</c>.</summary>
+    internal static bool TryWalk(Type type, string path, out int offset, out Type fieldType, out string? error)
+    {
+        offset = 0; fieldType = type; error = null;
+        if (path.Length == 0) return true;
+        foreach (var raw in path.Split('.'))
+        {
+            string name = raw; int index = -1;
+            int b = raw.IndexOf('[');
+            if (b > 0 && raw.EndsWith(']') && int.TryParse(raw.AsSpan(b + 1, raw.Length - b - 2), out index)) name = raw[..b];
+            var f = fieldType.GetField(name, BindingFlags.Public | BindingFlags.Instance);
+            if (f is null) { error = $"{fieldType.Name} has no field '{name}'."; return false; }
+            offset += TypeLayout.OffsetOf(fieldType, name);
+            fieldType = f.FieldType;
+            if (index >= 0)
+            {
+                if (fieldType.GetCustomAttribute<InlineArrayAttribute>() is not { } ia) { error = $"'{name}' is not an inline array."; return false; }
+                if (index >= ia.Length) { error = $"'{name}[{index}]' is past its capacity {ia.Length}."; return false; }
+                var elem = fieldType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)[0].FieldType;
+                offset += index * TypeLayout.SizeOf(elem);
+                fieldType = elem;
+            }
+        }
+        return true;
     }
 
     /// <summary>The value at <paramref name="at"/> as a boxed <paramref name="layout"/>, its exact managed image; <c>null</c> for a layout

@@ -1532,6 +1532,11 @@ namespace Hrot.Editor.DebugApi
                 new("networkId", "number", true, "Network id of the entity"),
                 new("path", "string", true, "The variable's name, as list_entity_variables reports it"),
                 new("asset", "string", false, "Blueprint NAME or asset Guid; omit when the entity carries exactly one"),
+                new("owner", "string", false, "⭐ CE-1320 — task · sop · paused · blueprint: write ANY behaviour slot instead of a blueprint variable by name", EnumJson: "[\"task\",\"sop\",\"paused\",\"blueprint\"]"),
+                new("behaviour", "string", false, "With owner: the behaviour / blueprint name (needed when two slots match)"),
+                new("role", "string", false, "With owner: params · variables (default variables)", EnumJson: "[\"params\",\"variables\"]"),
+                new("part", "string", false, "With owner: a node's working-state or hosted-child slot, by its label (as get_entity_slots lists it)"),
+                new("paramsJson", "string", false, "With owner, instead of path/value: a whole parameter set applied through the behaviour's own parser (the start record takes it too)"),
             },
             Notes: new[]
             {
@@ -1543,9 +1548,9 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/variable")] = new RouteDoc(
             Tool:    "stage_entity_variable",
             Group:   "O — Variables (the watch, over HTTP)",
-            Summary: "STAGE a write to one blueprint variable, through the same seam the editor's Details panel uses. The value lands on the next advancing tick — not on this response.",
-            Returns: "{ networkId, asset, assetId, path, staged: true, pending: true, note }",
-            Hint:    "Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:\"Health\", value:42})",
+            Summary: "STAGE a write to a running behaviour's value, through the same seam the editor's Details panel uses — a blueprint variable by name, or (with owner) ANY behaviour slot's params or working state: the task's, the SOP's, a paused task's, an attached blueprint's, a node's or a hosted child's. The value lands on the next advancing tick, IN PLACE — the behaviour is never restarted.",
+            Returns: "{ networkId, asset, assetId, path, staged: true, pending: true, note } — with owner: { networkId, owner, behaviour, part, role, path, component, offset, size, staged, pending, willDrain, startRecordUpdated, restarted:false, note }",
+            Hint:    "Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:\"Health\", value:42}). Any slot: stage_entity_variable({networkId:1000, owner:\"task\", role:\"params\", path:\"CoverRadius\", value:40}) — discover owners, behaviours and parts with get_entity_slots.",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network id of the entity"),
@@ -1558,6 +1563,8 @@ namespace Hrot.Editor.DebugApi
                 "Running is not a reason to refuse — it is a reason to stage. There is no \"pause first\" step.",
                 "Until the world advances, get_entity_variable still reports the OLD value with pending: true. Step or play to make it land.",
                 "A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour.",
+                "⭐ With owner, path is dotted (St fields, In fields — e.g. Shots.Count) and [n] indexes an inline array (Shots.Items[1]). A task-params write also rewrites the start record's JSON, so a save and the \"same order again?\" checks stay true.",
+                "⭐ The what-if loop: checkpoint → stage_entity_variable(owner…) → step → read → restore_checkpoint (skill §J).",
             },
             ExampleArgsJson: "{\"networkId\":1000,\"path\":\"Health\",\"value\":42}",
             ExampleGist: "queue Health = 42; it applies on the next advancing tick"),
@@ -2107,7 +2114,7 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/entities/{networkId}/brain")] = new RouteDoc(
             Tool:    "get_entity_brain",
             Group:   "K — AI behavior traces",
-            Summary: "What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (observed units), contacts, and the brain journal's recent changes.",
+            Summary: "What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (every brain unit), contacts, and the brain journal's recent changes.",
             Returns: "{ networkId, hasBrain, onBrainNode, doing, origin, urgency, sinceSeconds, paused, sop, roe, rightNow:[{channel, actionId, reason, hold, progress, needed}], regions:[{region, state, stateIndex}], squad, choices:[{decisionId, winner, previousWinner, margin, switches}], contacts, heardOnly, journal:{on, seq, changes:[{seq, at, kind, text}]} }",
             Hint:    "Req: networkId (number). Read on the brain's perspective (Scenario on a cluster). Example: get_entity_brain({networkId:1000})",
             Params: new RouteParam[]
@@ -2198,7 +2205,7 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/debug")] = new RouteDoc(
             Tool:    "debug_unit",
             Group:   "K — AI behavior traces",
-            Summary: "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility record), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
+            Summary: "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
             Returns: "{ networkId, debugging, debugged }",
             Hint:    "Req: networkId (number); optional on (bool, default true). Editor only. Example: debug_unit({networkId:1000, on:true})",
             Params: new RouteParam[]
@@ -2237,18 +2244,18 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/entities/{networkId}/utility")] = new RouteDoc(
             Tool:    "get_entity_utility",
             Group:   "K — AI behavior traces",
-            Summary: "What an observed unit's utility decisions chose, and why (CE-3069).",
+            Summary: "What a unit's utility decisions chose, and why (CE-3069) — the decisions on EVERY brain unit, always (CE-1319); the per-consideration breakdown only while observed.",
             Returns: "{ observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.",
-            Hint:    "Req: networkId (number). Arm with observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster), let the sim tick, then read. Example: get_entity_utility({networkId:1000})",
+            Hint:    "Req: networkId (number). The decisions need no arming; for lastPass (the considerations) arm observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster) and let the sim tick. Example: get_entity_utility({networkId:1000})",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network entity ID (long)"),
             },
             Notes: new[]
             {
-                "observe_trace arms the BTree/HSM trace AND the utility record — one switch.",
-                "One entry per decision the unit ran while observed (up to 4); a ranking's winner is a candidate entity {networkId, name}.",
-                "switchCount counts winner changes since arming — poll it to see a posture switch.",
+                "⭐ CE-1319 (BV-61): the decision log is on every brain unit, always — so it replays too; observe_trace arms only the BTree/HSM trace and the utility per-consideration trace (lastPass).",
+                "One entry per decision the unit ran (up to 4); a ranking's winner is a candidate entity {networkId, name}. observed:false = no brain log on this node (not a brain unit here).",
+                "switchCount counts winner changes since the unit's brain started — poll it to see a posture switch.",
                 "lastPass is the most recent option decision's per-consideration breakdown; rankings trace only their winner.",
             },
             ExampleArgsJson: "{\"networkId\":1000}",

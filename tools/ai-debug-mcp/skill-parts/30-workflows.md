@@ -78,10 +78,12 @@ question a live edit answers in seconds.** Climb this ladder from the top; stop 
 - **a blueprint variable:** `stage_entity_variable {networkId, path, value}` — staged, lands on the next advancing tick (✅ built).
 - **a trait / setting / any component field:** `edit_component {networkId, componentType, patch}` or `patch_attribute` (✅ built). For
   `CombatTemperament` also set its `Set` bit, or the reader keeps the type's value.
-- ⏳ **a behaviour's PARAMS or a BTree / HSM / C# behaviour's WORKING STATE, any slot (task, SOP, hosted child, blueprint):** the same
-  `stage_entity_variable` route grows `owner` + `role` (CE-1320, not built yet). A params write updates the start record and does
-  NOT restart the behaviour. ⛔ Until it lands, `order_entity {kind:'behavior', params}` is the only params path — it RESTARTS the
-  behaviour, so its outcome is not comparable with the checkpoint's.
+- ✅ **a behaviour's PARAMS or a BTree / HSM / C# behaviour's WORKING STATE, any slot (task, SOP, paused task, hosted child, attached
+  blueprint)** *(CE-1320)*: `stage_entity_variable {networkId, owner:"task"|"sop"|"paused"|"blueprint", behaviour?, part?, role:"params"|"variables",
+  path, value}` — `path` is dotted, `[n]` indexes an inline array (`Shots.Items[1]`); discover owners, behaviours and parts (node labels)
+  with `get_entity_slots`. Or `paramsJson` instead of `path`/`value`: a whole parameter set through the behaviour's own parser. It lands
+  IN PLACE on the next advancing tick, keeps the start record true, and NEVER restarts the behaviour (`restarted:false` in the reply).
+  ⚠ `order_entity {kind:'behavior', params}` RESTARTS the behaviour — use it only when a restart is the experiment.
 
 **Use rung 1 for:** sweeping a threshold / radius / timing (two or three values from one checkpoint) · confirming a bug hypothesis before
 touching code (*"force `Phase = Assault` — does the squad move? then the bug is whatever should have set it"*) · reaching a node path

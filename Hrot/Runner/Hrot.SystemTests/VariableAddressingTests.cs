@@ -153,6 +153,65 @@ public sealed class VariableAddressingTests : SystemTestBase
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1320</c> (Brain View §12g BV-65) — the ONE live write over HTTP, end to end on a real brain: pick a running behaviour's
+    /// working-state slot with a numeric field from <c>GET /entities/{id}/slots</c>, stage a new value with <c>owner</c> + <c>part</c>
+    /// (no restart), advance, and read the slot back changed — with the task still the same run.
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task A_running_behaviours_working_state_is_written_in_place()
+    {
+        await LoadAndPreviewAsync(await AnyCuratedScenarioAsync(PreferredScenario), startPaused: true);
+        try
+        {
+            (await Mcp.StepAsync(5)).EnsureOk();   // let the brains start their tasks
+            var entities = (await Mcp.ListEntitiesAsync()).EnsureOk().Array();
+            foreach (var e in entities)
+            {
+                long id = e!["networkId"]?.GetValue<long>() ?? e["id"]?.GetValue<long>() ?? 0;
+                if (id == 0) continue;
+                var slots = (await Mcp.GetEntitySlotsAsync(id)).Field("slots") as JsonArray;
+                // ⭐ the what-if an agent makes most: a RUNNING task's parameter, e.g. a move's Speed (the curated worlds' tasks carry
+                //   Params + State; a node working-state slot is railed in TheBrainViewTests.CE1320_*)
+                var paramsSlot = slots?.FirstOrDefault(s => s?["owner"]?.GetValue<string>() == "Task" && s?["role"]?.GetValue<string>() == "Params"
+                                                            && s?["value"] is JsonObject o && o.Any(kv => kv.Value is JsonValue v && v.TryGetValue<double>(out _)));
+                if (paramsSlot is null) continue;
+
+                var value = (JsonObject)paramsSlot["value"]!;
+                var (field, before) = value.Where(kv => kv.Value is JsonValue v && v.TryGetValue<double>(out _))
+                                           .Select(kv => (kv.Key, kv.Value!.GetValue<double>())).First();
+                string behaviour = paramsSlot["behaviour"]!.GetValue<string>();
+                var staged = (await Mcp.StageSlotFieldAsync(id, new JsonObject
+                {
+                    ["owner"] = "task", ["behaviour"] = behaviour, ["role"] = "params", ["path"] = field, ["value"] = before + 17,
+                })).EnsureOk();
+                Assert.False(staged.Bool("restarted"));
+                Assert.True(staged.Bool("startRecordUpdated"), "a task-params write keeps the start record's JSON true");
+
+                (await Mcp.StepAsync(1)).EnsureOk();   // the drain lands it
+                var after = (await Mcp.GetEntitySlotsAsync(id)).Field("slots") as JsonArray;
+                var slot = after!.First(s => s?["owner"]?.GetValue<string>() == "Task" && s?["role"]?.GetValue<string>() == "Params");
+                Output.WriteLine($"entity {id} · {behaviour}.{field}: {before} → staged {before + 17} → {slot["value"]?[field]}");
+                Assert.Equal(behaviour, slot["behaviour"]!.GetValue<string>());   // the same task — not restarted, not replaced
+                Assert.Equal(before + 17, slot["value"]![field]!.GetValue<double>(), 3);
+                return;
+            }
+            Output.WriteLine("no running behaviour with a numeric working-state field on this scenario — the write is railed in "
+                             + "TheBrainViewTests.CE1320_*; shape not asserted here.");
+            foreach (var e in entities.Take(6))
+            {
+                long id = e!["networkId"]?.GetValue<long>() ?? 0;
+                var slots = (await Mcp.GetEntitySlotsAsync(id)).Field("slots") as JsonArray;
+                foreach (var s in slots ?? new JsonArray())
+                    Output.WriteLine($"  #{id} {s?["owner"]} {s?["role"]} {s?["label"]} = {s?["value"]?.ToJsonString()[..Math.Min(160, s["value"]?.ToJsonString().Length ?? 0)]}");
+            }
+        }
+        finally
+        {
+            await ResetToIdleAsync();
+        }
+    }
+
+    /// <summary>
     /// Attaches the first <c>Instance</c>-dispatch blueprint this editor compiled, or null when there
     /// is none. Returns its name so the caller can detach it again.
     /// </summary>

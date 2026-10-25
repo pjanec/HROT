@@ -286,4 +286,97 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         finally { EntityBrainView.ExpandForRail = false; }
         Assert.Equal(2, view.Running(w, e).Count);
     }
+
+    // ── CE-1320 (Brain View §12g BV-65): ONE live write for params and working state, no restart ──────────────────────────────
+
+    /// <summary>A stager that applies at once (production stages through the breakpoint manager and the drain lands it next tick).</summary>
+    private static Hrot.Editor.AiShared.Variables.FieldStager ApplyNow(EntityRepository w) => (e, t, off, bytes) =>
+    {
+        var spec = Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.Ascending.First(x => x.ComponentType == t);
+        bytes.CopyTo(new Span<byte>(spec.Memory(w, e) + off, bytes.Length));
+    };
+
+    private static System.Text.Json.Nodes.JsonNode J(string json) => System.Text.Json.Nodes.JsonNode.Parse(json)!;
+
+    /// <summary>⭐ CE-1320 — a field write of the task's params, its variables (into an inline array) and an attached blueprint's
+    /// params and variables lands IN PLACE: the reader sees each new value and the behaviour is not restarted. 🔴 Red-proof: drop the
+    /// "In"/"St" root offset in <c>ResolveField</c> ⇒ the write lands on the wrong half.</summary>
+    [Fact]
+    public void CE1320_TheOneWrite_LandsInPlace_ForTaskAndBlueprint_WithoutARestart()
+    {
+        var (w, e, reg, bps) = RunningWorld();
+        using var _ = w;
+        uint instance = w.GetComponentRO<BehaviorState>(e).InstanceId;
+        var stage = ApplyNow(w);
+        var P = Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteField(w, e, reg, bps, stage, Fdp.Toolkit.Behavior.SlotOwnerKind.Task,
+            null, null, Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldParams, "CoverRadius", J("40"));
+        Assert.Null(P.Error);
+        Assert.Null(Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteField(w, e, reg, bps, stage, Fdp.Toolkit.Behavior.SlotOwnerKind.Task,
+            null, null, Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldVariables, "Shots.Items[1]", J("77")).Error);
+        Assert.Null(Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteField(w, e, reg, bps, stage, Fdp.Toolkit.Behavior.SlotOwnerKind.InstanceBlueprint,
+            "RadioChatter", null, Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldParams, "Interval", J("2.5")).Error);
+        Assert.Null(Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteField(w, e, reg, bps, stage, Fdp.Toolkit.Behavior.SlotOwnerKind.InstanceBlueprint,
+            "RadioChatter", null, Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldVariables, "Messages", J("9")).Error);
+
+        var running = BrainRunningBehaviours.From(Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(w, e, reg, bps));
+        var fp = Assert.IsType<FightParams>(running[0].Parameters);
+        var fv = Assert.IsType<FightVars>(running[0].Variables);
+        Assert.Equal(40f, fp.CoverRadius);
+        Assert.Equal(new Entity(12, 3), fp.Target);          // the neighbour untouched
+        Assert.Equal(77, fv.Shots.Items[1]);
+        Assert.Equal(3, fv.Shots.Count);
+        Assert.Equal(2.5f, Assert.IsType<ChatterParams>(running[1].Parameters).Interval);
+        Assert.Equal(9, Assert.IsType<ChatterState>(running[1].Variables).Messages);
+        Assert.Equal(instance, w.GetComponentRO<BehaviorState>(e).InstanceId);   // ⛔ no restart
+    }
+
+    /// <summary>⭐ CE-1320 — what does not resolve is refused, with the reason: an unknown field, a blueprint's cursor as a variable, a
+    /// params half for a node's working state. 🔴 Red-proof: drop the Cursor / Params guard ⇒ the cursor write is accepted.</summary>
+    [Fact]
+    public void CE1320_TheWrite_RefusesWhatDoesNotResolve_AndSaysWhy()
+    {
+        var (w, e, reg, bps) = RunningWorld();
+        using var _ = w;
+        var stage = ApplyNow(w);
+        var bad = Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteField(w, e, reg, bps, stage, Fdp.Toolkit.Behavior.SlotOwnerKind.Task,
+            null, null, Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldParams, "Nope", J("1"));
+        Assert.Contains("no field 'Nope'", bad.Error);
+        var cursor = Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteField(w, e, reg, bps, stage, Fdp.Toolkit.Behavior.SlotOwnerKind.InstanceBlueprint,
+            null, null, Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldVariables, "Cursor", J("{}"));
+        Assert.Contains("not variables", cursor.Error);
+        var sop = Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteField(w, e, reg, bps, stage, Fdp.Toolkit.Behavior.SlotOwnerKind.Sop,
+            null, null, Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldParams, "X", J("1"));
+        Assert.Contains("No Sop slot", sop.Error);
+    }
+
+    /// <summary>⭐ CE-1320 — a task-params write keeps the start record true (the save and the "same order again?" checks read its TEXT):
+    /// a field patch by name, and a whole JSON apply through the behaviour's OWN parser. 🔴 Red-proof: skip <c>TryPatchStartRecord</c> ⇒
+    /// the record keeps 25.</summary>
+    [Fact]
+    public void CE1320_AParamsWrite_KeepsTheStartRecordTrue_AndAJsonApplyGoesThroughTheParser()
+    {
+        var (w, e, reg, bps) = RunningWorld();
+        using var _ = w;
+        w.RegisterComponent<BehaviorStartRecord>();
+        w.SetManagedComponent(e, new BehaviorStartRecord { BehaviorName = "FightFromCover", JsonParams = "{\"coverRadius\":25}", InstanceId = 0 });
+        var stage = ApplyNow(w);
+
+        var r = Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteField(w, e, reg, bps, stage, Fdp.Toolkit.Behavior.SlotOwnerKind.Task,
+            null, null, Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldParams, "CoverRadius", J("40"));
+        Assert.True(r.StartRecordUpdated);
+        Assert.Equal("{\"coverRadius\":40}", ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<BehaviorStartRecord>(e)!.JsonParams);
+
+        reg.TryGetDefinition(Fight, out var def);
+        def!.ParseParams = (json, mem, cap, world, self) =>
+        {
+            var parsed = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(json)!;
+            ((FightParams*)mem)->CoverRadius = (float)parsed["CoverRadius"]!;
+        };
+        var applied = Hrot.Editor.AiShared.Variables.OccurrenceSlotWriter.WriteParamsJson(w, e, reg, bps, stage,
+            Fdp.Toolkit.Behavior.SlotOwnerKind.Task, null, "{\"CoverRadius\":33}");
+        Assert.Null(applied.Error);
+        var running = BrainRunningBehaviours.From(Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.Read(w, e, reg, bps));
+        Assert.Equal(33f, Assert.IsType<FightParams>(running[0].Parameters).CoverRadius);
+        Assert.Equal("{\"CoverRadius\":33}", ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<BehaviorStartRecord>(e)!.JsonParams);
+    }
 }
