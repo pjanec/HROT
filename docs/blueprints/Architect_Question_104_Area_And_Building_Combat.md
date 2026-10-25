@@ -273,3 +273,7 @@ under fire before he posts; his **stress pins at 1.0 by 11 s** and stays (immort
 CombatPosture with the weapon "aiming" and locomotion "moving" while neither firing nor changing place. ⇒ ① the demo did not test L: the
 attackers now start ~90 m out (Blue South (106,5), Blue East (195,98)) so the guard posts first; ② the pinned stress and the aim-that-never-
 fires are step 5's (C + F) — recorded there, not treated as an L defect.
+
+📐 **Re-run with the attackers ~90 m out** (`7d12a9b39`): the guard posted INTO House A within 10 s (L's window post — ✅ he no longer
+stands at the centre), but ⛔ **fired ZERO rounds in 240 s** — not at 90 m, not at Blue East a few metres from him inside the house —
+while the attackers opened at 2.8 s from ~92 m. ⇒ not a posting defect; ⏭ probing his ROE / stress / weapon state.
