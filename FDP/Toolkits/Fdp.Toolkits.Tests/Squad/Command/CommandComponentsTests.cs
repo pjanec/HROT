@@ -211,5 +211,57 @@ namespace Fdp.Toolkits.Tests.Squad.Command
                           outbox.Queued.Items[ReportOutbox.MaxQueued - 1].Report.Seq, outbox.Queued.Items[ReportOutbox.MaxQueued - 1].Report.Subtype));
             world.Dispose();
         }
+
+        /// <summary>⭐⭐ <c>CE-1319</c> (Brain View §12e BV-60, BV-61, R-1040: <i>"i need the brain view inputs to be reconstructable in
+        /// replay"</i>) — a RECORDING carries a commander's report and order histories and a unit's utility Why: written through the real
+        /// writers (<c>CommandHistoryOf</c>, the log's slot), recorded keyframe + delta, and a fresh sandbox stepped to each frame reads
+        /// them back as they were THEN. ✅ Red-proof: the history types' <c>NoScenario</c> → <c>Transient</c> ⇒ the recorder skips them.</summary>
+        [Fact]
+        public void CE1319_ARecording_RebuildsTheHistoriesAndTheWhy_AtTheScrubbedFrame()
+        {
+            using var harness = new Fdp.Toolkit.ReplayBrowser.Support.FdpRecordingHarness();
+            var repo = harness.Repository;
+            repo.RegisterComponent<CommandReportHistory>();
+            repo.RegisterComponent<CommandOrderHistory>();
+            repo.RegisterComponent<Fdp.Toolkit.Utility.UtilityDecisionLog>();
+            var platoon = repo.CreateEntity();
+            var squad = repo.CreateEntity();
+            repo.AddComponent(platoon, default(CommandReportHistory));
+            repo.AddComponent(platoon, default(CommandOrderHistory));
+            repo.AddComponent(squad, default(Fdp.Toolkit.Utility.UtilityDecisionLog));
+
+            harness.Tick().RecordKeyframe(100_000L);                                                     // frame 0: empty
+            CommandHistoryOf.Report(repo, squad, platoon, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set }, 1f, ReportFate.Folded);
+            CommandHistoryOf.Order(repo, platoon, squad, 0x5A11, 1f);
+            repo.GetComponentRW<Fdp.Toolkit.Utility.UtilityDecisionLog>(squad).SlotsRW()[0].DecisionId = 0x2067;
+            harness.Tick().RecordDelta(200_000L);                                                        // frame 1: one of each
+            CommandHistoryOf.Order(repo, platoon, squad, 0x0C4A, 2f);
+            harness.Tick().RecordDelta(300_000L);                                                        // frame 2: a second order
+            harness.BuildToTempFile(out var path);
+
+            var sandbox = new EntityRepository();
+            sandbox.RegisterComponent<Fdp.Toolkit.ReplayBrowser.Support.HarnessPosition>();
+            sandbox.RegisterComponent<Fdp.Toolkit.ReplayBrowser.Support.HarnessVelocity>();
+            sandbox.RegisterComponent<Fdp.Toolkit.ReplayBrowser.Support.HarnessTransform>();
+            sandbox.RegisterComponent<Fdp.Toolkit.ReplayBrowser.Support.HarnessEntityInfo>();
+            sandbox.RegisterComponent<CommandReportHistory>();
+            sandbox.RegisterComponent<CommandOrderHistory>();
+            sandbox.RegisterComponent<Fdp.Toolkit.Utility.UtilityDecisionLog>();
+            using var playback = new Fdp.Core.FlightRecorder.PlaybackController(path);
+
+            Assert.True(playback.StepForward(sandbox));                                                  // frame 0
+            Assert.Equal(0, sandbox.GetComponentRO<CommandOrderHistory>(platoon).Count);
+            Assert.True(playback.StepForward(sandbox));                                                  // frame 1
+            var reports = sandbox.GetComponent<CommandReportHistory>(platoon);
+            Assert.Equal(1, reports.Count);
+            Assert.Equal((CommandTraffic.Incoming, ReportFate.Folded, ReportKind.Progress), (reports.Items[0].Traffic, reports.Items[0].Fate, reports.Items[0].Report.Kind));
+            Assert.Equal(1, sandbox.GetComponentRO<CommandOrderHistory>(platoon).Count);
+            Assert.Equal(0x2067, sandbox.GetComponentRO<Fdp.Toolkit.Utility.UtilityDecisionLog>(squad).SlotsRO()[0].DecisionId);
+            Assert.True(playback.StepForward(sandbox));                                                  // frame 2
+            var orders = sandbox.GetComponent<CommandOrderHistory>(platoon);
+            Assert.Equal(2, orders.Count);
+            Assert.Equal((0x0C4A, 0x5A11), (orders.Items[0].Behaviour, orders.Items[1].Behaviour));      // newest first
+            sandbox.Dispose();
+        }
 }
 }
