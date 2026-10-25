@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "bt-range",
-  "description": "What: On bt-range, 'Window Rifleman' (Friend, upstairs in House A at (107.1,100.9), z 3) and 'Street Rifleman' (Hostile, in the open at (108.5,80) behind parked 'Van 1') each run the WindowDuel tree (PeekAndFire); 'Van 2' at (113,76) is the next cover. Nothing is scripted or written over HTTP. Judge: (1) both sides fire (each side's ammunition falls); (2) the Window Rifleman fires from at least two different House A windows; (3) the Street Rifleman bounds to Van 2's cover (within 4 m of (113,76)). Fail: only one side fires, the Window Rifleman never leaves one window, or the Street Rifleman never reaches Van 2. Check: python3 scripts/utility-demo-check.py --launch bt-window-duel"
+  "description": "What: On bt-range, 'Window Rifleman' (Friend, upstairs in House A at (107.1,100.9), z 3) defends House A as the one man of 'Window Squad' (SquadDefend, the house-defence play: it posts him at a window, beside its frame for a Regular) and 'Street Rifleman' (Hostile, in the open at (108.5,80) behind parked 'Van 1') is a lone soldier with no task and his type's default reflexes (BasicInfantrySop); 'Van 2' at (113,76) is the next cover. Standard behaviours only (CE-2366, R-2073 R2-5: WindowDuel retired). Nothing is scripted or written over HTTP. Judge: (1) both sides fire (each side's ammunition falls); (2) the Window Rifleman fires from at least two different House A window spots; (3) the Street Rifleman changes cover. Check: python3 scripts/utility-demo-check.py --launch bt-window-duel"
  },
  "entities": {
   "2a970101-0000-4000-8000-000000000101": {
@@ -51,15 +51,9 @@
      }
     ]
    },
-   "Behavior": {
-    "Name": "WindowDuel",
-    "Params": "{\"shape\":0}",
-    "Origin": "Superior"
-   },
-   "Sop": {
-    "Name": "InertSop",
-    "Params": "{}",
-    "Origin": "Superior"
+   "UnitSubordinate": {
+    "CommanderGuid": "2a970105-0000-4000-8000-000000000105",
+    "Designation": "SquadLeader"
    }
   },
   "2a970102-0000-4000-8000-000000000102": {
@@ -102,16 +96,6 @@
       "Modality": 1
      }
     ]
-   },
-   "Behavior": {
-    "Name": "WindowDuel",
-    "Params": "{\"shape\":1}",
-    "Origin": "Superior"
-   },
-   "Sop": {
-    "Name": "InertSop",
-    "Params": "{}",
-    "Origin": "Superior"
    }
   },
   "2a970103-0000-4000-8000-000000000103": {
@@ -170,6 +154,41 @@
     "Length": 4.5,
     "Width": 1.9,
     "Height": 1.8
+   }
+  },
+  "2a970105-0000-4000-8000-000000000105": {
+   "SimTransform": {
+    "Position": [
+     105.6,
+     104.0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7425
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Window Squad",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "SquadDefend",
+    "Params": "{\"Position\": [105.6, 104.0, 0], \"SearchRadius\": 8, \"Speed\": 2}",
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "BasicSquadSop",
+    "Params": "{}",
+    "Origin": "Superior"
    }
   }
  }
