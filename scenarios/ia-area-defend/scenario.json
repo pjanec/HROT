@@ -1,0 +1,183 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: AQ104 K (CE-2371) - on bt-range, 'Guard' (Hostile rifleman, immortal) defends the area round House A (centre (105.6,97), ~25 m) - \u23ed AQ104 A + L: DefendArea with coverage posts and the guard round; today what the mapper gives a lone man, CombatPosture at the centre, staying - between two parked cars; 'Blue South' (from (106,55)) and 'Blue East' (from (150,98)) attack him (mortal). Judge (240 s): (1) the guard sees each attacker before he is within 30 m of the centre; (2) the guard fires first at each; (3) printed: where the guard stood over time and what he could see. Check: python3 scripts/utility-demo-check.py --launch ia-area-defend. \ud83d\udcc4 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K"
+  },
+  "entities": {
+    "a1040003-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          96,
+          96,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10480
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Car 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040003-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          115,
+          96,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10481
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Car 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040003-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          105.6,
+          97,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10471
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Guard",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"stay\": true, \"advance\": {\"Objective\": [105.6, 97, 0], \"Speed\": 2, \"ArrivalRadius\": 1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040003-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          106,
+          55,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10472
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue South",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"target\": 10471, \"assault\": true}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040003-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          150,
+          98,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -1.0,
+          0.0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10473
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue East",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"target\": 10471, \"assault\": true}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

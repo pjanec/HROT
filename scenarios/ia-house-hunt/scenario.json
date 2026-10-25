@@ -1,0 +1,151 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: AQ104 K (CE-2371) - on bt-range, 'Defender' (Hostile rifleman, the one man of 'Defender Squad' - SquadDefend on House A, the house-defence play; \u23ed AQ104 A: a lone man's DefendArea) starts upstairs at the south window (107.1,100.9, z 3); 'Attacker' (Friend rifleman) behind 'Car' at (106,79.5) has the Attack order on him (CombatPosture target + assault, C-5). Both mortal (100). Judge (240 s): (1) the attacker gets inside House A; (2) once he is inside, never 30 s with neither man firing while both are alive; (3) the attacker reaches the defender's storey within 60 s of entering; (4) the fight is decided (one man down) or still being fought at the end; printed: who fired from where, the storeys over time. Check: python3 scripts/utility-demo-check.py --launch ia-house-hunt. \ud83d\udcc4 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K"
+  },
+  "entities": {
+    "a1040001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          104,
+          82,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10410
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Car"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1040001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          105.6,
+          104.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10420
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Defender Squad",
+        "ForceId": "Hostile"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "SquadDefend",
+        "Params": "{\"Position\": [105.6, 104.0, 0], \"SearchRadius\": 8, \"Speed\": 2}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040001-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          107.1,
+          100.9,
+          3
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10421
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Defender",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a1040001-0000-4000-8000-000000000002",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a1040001-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          106,
+          79.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10401
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Attacker",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"target\": 10421, \"assault\": true}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

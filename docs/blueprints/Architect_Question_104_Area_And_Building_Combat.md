@@ -174,3 +174,15 @@ graph TD
 ## 6. Answers
 
 🔒 **User, `2026-10-25`:** *"AQ104 approved."* ⇒ ✅ **A–L as leaned (R-2079)**, with the user's additions folded into C (panic flees), E (his side is silent — already the rule) and G (the lean depth by skill). Build order §5.
+
+## 7. As built
+
+### 7.1 K — the three demos and their baseline *(2026-10-25; `scripts/gen-ia-scenarios.py`, checks `run_ia_*` in `scripts/utility-demo-check.py`, one live run each)*
+
+Each scenario authors TODAY's closest orders (the build steps swap them for the approved ones, marked ⏭ in the generator).
+
+| demo | baseline | what it measured |
+|---|---|---|
+| `ia-house-hunt` (lone attacker v the one man of a SquadDefend in House A) | ✅ PASS 3/3 this run | the attacker went round to the back door, up the stairs (z 3 at 45 s) and killed the defender at ~50 s (3 rounds v 4). ⚠ unscripted: §12.7's one-floor stalemate (Peek and Fire) did not recur here — repeat runs before calling I done |
+| `ia-area-clear` (a fire team, ordered ClearBuilding of House A — ⏭ ClearArea) | ⛔ FAIL 0/2 | House B never visited (the order names one building — expected); the team sat ~100 s before moving; one two-storey house took ~230 s, upstairs at ~330 s; Red 1 bleeding out (7 hp) but not down at 420 s |
+| `ia-area-defend` (a lone guard, CombatPosture at the centre — ⏭ DefendArea + L) | ⛔ FAIL 0/4 | **the guard fired 0 rounds in 240 s** (the attackers 235). Live brain probe: under fire his cover reaction spends ~25 s at a time MOVING (the cover search keeps relocating between the cars), never peeking; out of it, "hold: not seen" — the attackers walked to his OLD spot; and twice the TS-6 break (stress 1.0 at 116 s and 194 s: prone, no fire, 40–50 s) under steady fire on an immortal man |
