@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — leans written 2026-10-25, AWAITING THE USER
+state: LIVE — ✅ APPROVED 2026-10-25 (R-2079), A–L as leaned
 updated: 2026-10-25
-build-state: DESIGN
-current-answer: §4 the sub-questions with their leans · §3 the diagrams · §2 the claims they rest on · §5 the order
+build-state: READY-TO-BUILD — order §5, K (the demos) first
+current-answer: §6 the answers (approved) · §4 the sub-questions with their leans · §3 the diagrams · §2 the claims they rest on · §5 the order
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -173,4 +173,4 @@ graph TD
 
 ## 6. Answers
 
-*(awaiting the user)*
+🔒 **User, `2026-10-25`:** *"AQ104 approved."* ⇒ ✅ **A–L as leaned (R-2079)**, with the user's additions folded into C (panic flees), E (his side is silent — already the rule) and G (the lean depth by skill). Build order §5.
