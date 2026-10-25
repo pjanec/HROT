@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-25 (R-2079), A–L as leaned
 updated: 2026-10-25
-build-state: BUILDING — K, I, D built (§7.1, §7.2); L1 and B built (§7.3); A stopped for a user decision (§7.3a, lean A-1)
+build-state: BUILDING — K, I, D built (§7.1, §7.2); L1 and B built (§7.3); A-1 ✅ approved (R-2081, §7.3a) — building
 current-answer: §7.3a the open decision (A) · §6 the answers (approved) · §4 the sub-questions with their leans · §3 the diagrams · §2 the claims they rest on · §5 the order
 stale-below: nothing
 known-rot: none yet
@@ -252,6 +252,8 @@ sequenceDiagram
 ```
 *What the picture shows that prose hid:* the man is never idle while his commander is being created, and nothing is assigned until the
 entity is really there on this node.
+
+🔒 **User, `2026-10-25`: *"A-1 approved"*** ⇒ ✅ **A-1 (R-2081)**, built asynchronously as the sequence above.
 
 ⇒ ⭐ **Lean A-1**, with one ask of the ui lane later: hide a squad whose only member is its creator's lone man (a display filter, not a
 model change). **What would change the lean:** if a hidden commander is a must, A-1 still holds and the filter becomes required.
