@@ -394,6 +394,69 @@ public sealed class AudioTests
         Assert.Equal(0f, SoundSources.Built(terrain, def.Center + new Vector2(5000f, 0f)));
     }
 
+    /// <summary>⭐ CE-2372 (AQ105 F, R-2080) — what a man SAYS is heard: a new utterance plays its line ONCE, at his mouth, in his side's
+    /// voice; the frames it lasts replay nothing; a fresh one plays again; one already over, or talk, plays nothing; the first frame only
+    /// learns.</summary>
+    [Fact]
+    public void CE2372_ANewUtterance_PlaysItsLineOnce_AtTheSpeaker_InHisSidesVoice()
+    {
+        var (world, tkb) = World();
+        world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();
+        if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, North.Position);
+        var cop = Unit(world, TkbEntityTypes.Infantry_Rifleman, North.Position + new Vector3(-10f, 0f, 0f));   // 10 m west: on his left
+        world.AddComponent(cop, new EntityInfo { ForceId = ForceId.Friend });
+        var (layer, output) = Listening(world, tkb, me);
+        int Said(long clip) => output.Played.Count(v => v.Clip == clip);
+        long freeze = VoiceTkbCatalog.ClipFor(VoiceTkbCatalog.VoiceOf(ForceId.Friend), Fdp.Toolkit.Civilians.UtteranceKind.CmdFreeze);
+        Assert.NotEqual(0, freeze);
+        Assert.True(output.Has(freeze), "every voice line is defined when the layer opens");
+
+        Fdp.Toolkit.Civilians.Utterances.Say(world, cop, Fdp.Toolkit.Civilians.UtteranceKind.CmdFreeze, Entity.Null, 10.0, 2f);
+        for (int i = 0; i < 5; i++) layer.Update(0.016f);   // 10 m: 29 ms of sound travel
+        var heard = Assert.Single(output.Played, v => v.Clip == freeze);
+        Assert.True(heard.Pan < -0.5f, "the policeman is west of a man looking north: on his left");
+        Assert.Equal(1, layer.Sources.VoicesHeard);
+
+        Fdp.Toolkit.Civilians.Utterances.Say(world, cop, Fdp.Toolkit.Civilians.UtteranceKind.CmdFreeze, Entity.Null, 10.5, 2f);   // said again
+        for (int i = 0; i < 5; i++) layer.Update(0.016f);
+        Assert.Equal(2, Said(freeze));
+
+        Fdp.Toolkit.Civilians.Utterances.Say(world, cop, Fdp.Toolkit.Civilians.UtteranceKind.Talk, Entity.Null, 10.0, 2f);   // talk: not across the street
+        Fdp.Toolkit.Civilians.Utterances.Say(world, me, Fdp.Toolkit.Civilians.UtteranceKind.CallClear, Entity.Null, 1.0, 2f);   // over at 3 s, it is 10 s
+        for (int i = 0; i < 5; i++) layer.Update(0.016f);
+        Assert.Equal(2, layer.Sources.VoicesHeard);
+
+        long red = VoiceTkbCatalog.ClipFor(VoiceTkbCatalog.VoiceOf(ForceId.Hostile), Fdp.Toolkit.Civilians.UtteranceKind.CmdFreeze);
+        Assert.NotEqual(freeze, red);   // a voice per side
+    }
+
+    /// <summary>⭐ CE-2372 — every line is a distinct generated shout, longer for more words; the lines are keyed by the kind's NAME
+    /// (behaviors' squad calls light up when they are appended); a contact call names the side by the speaker's facing.</summary>
+    [Fact]
+    public void CE2372_EveryLineIsAShout_KeyedByTheKindsName_AContactNamesItsSide()
+    {
+        foreach (var (kind, _) in VoiceTkbCatalog.Said)
+        {
+            if (!Enum.TryParse<Fdp.Toolkit.Civilians.UtteranceKind>(kind, out var k)) continue;
+            Assert.NotEqual(0, VoiceTkbCatalog.ClipFor(0, k));
+        }
+        Assert.Equal(0, VoiceTkbCatalog.ClipFor(1, Fdp.Toolkit.Civilians.UtteranceKind.Talk));
+        var blue = VoiceTkbCatalog.Voices[1];
+        var hold = SoundSynthesizer.Voice("Freeze!", blue.PitchHz, blue.Formant);
+        var challenge = SoundSynthesizer.Voice("Police! Show me your hands!", blue.PitchHz, blue.Formant);
+        Assert.True(challenge.Length > hold.Length * 2, "more words, a longer shout");
+        Assert.Equal(hold, SoundSynthesizer.Voice("Freeze!", blue.PitchHz, blue.Formant));
+        Assert.NotEqual(hold, SoundSynthesizer.Voice("Freeze!", VoiceTkbCatalog.Voices[2].PitchHz, VoiceTkbCatalog.Voices[2].Formant));
+        Assert.True(hold.Max(s => Math.Abs((int)s)) > short.MaxValue / 2, "normalised, not silent");
+
+        var tf = new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity };   // facing +x, his left +y
+        Assert.Equal(VoiceTkbCatalog.ContactSide.Front, SoundSources.SideOf(tf, new Vector3(50f, 5f, 0f)));
+        Assert.Equal(VoiceTkbCatalog.ContactSide.Left, SoundSources.SideOf(tf, new Vector3(5f, 50f, 0f)));
+        Assert.Equal(VoiceTkbCatalog.ContactSide.Right, SoundSources.SideOf(tf, new Vector3(5f, -50f, 0f)));
+        Assert.Equal(VoiceTkbCatalog.ContactSide.Rear, SoundSources.SideOf(tf, new Vector3(-50f, 5f, 0f)));
+    }
+
     /// <summary>⭐ CE-1120 AU-9 — the operator's volumes: F6 / F7 / F8 and the F10 panel change them, the mixer and the output take them,
     /// they are saved in HIS file and the next session starts from them; a broken file gives the defaults.</summary>
     [Fact]
@@ -449,6 +512,12 @@ public sealed class AudioTests
             string file = System.IO.Path.Combine(dir!, $"{type}-{name.Replace("Sound: ", "").Replace(' ', '-')}.wav");
             System.IO.File.WriteAllBytes(file, SoundSynthesizer.Wav(SoundSynthesizer.Make(sound.Synth)));
             Assert.True(new System.IO.FileInfo(file).Length > 44);
+        }
+        foreach (var (type, (name, text, voice)) in VoiceTkbCatalog.All)   // ⭐ CE-2372 — the voice lines
+        {
+            var v = VoiceTkbCatalog.Voices[voice];
+            string safe = string.Concat(name.Replace("Voice: ", "").Split(System.IO.Path.GetInvalidFileNameChars())).Replace(' ', '-');
+            System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir!, $"{type}-{safe}.wav"), SoundSynthesizer.Wav(SoundSynthesizer.Voice(text, v.PitchHz, v.Formant)));
         }
     }
 
