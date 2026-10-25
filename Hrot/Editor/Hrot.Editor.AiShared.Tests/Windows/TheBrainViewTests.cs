@@ -409,6 +409,68 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         public void Dispose() { }
     }
 
+    // ── CE-1312 / CE-1318 (Brain View §12d, B7): the commander's sections, a pinned tab ──────────────────────────────────────
+
+    /// <summary>⭐⭐ <c>CE-1312</c> (BV-56…BV-58) — a commander's tab reads his picture, his units' contacts and the report / order
+    /// HISTORIES (CE-1319's recorded components), newest first, an order WITH its copied why; a soldier has none of it.
+    /// 🔴 Red-proof: drop the Incoming arm in <c>BrainCommandView.Read</c> ⇒ the received order is missing.</summary>
+    [Fact]
+    public void CE1312_ACommandersTab_ReadsHisPicture_Contacts_AndBothHistories()
+    {
+        var (w, soldier, _, _) = RunningWorld();
+        using var _w = w;
+        w.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandPicture>();
+        w.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>();
+        w.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();
+        w.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        var hq = w.CreateEntity();
+        w.AddComponent(hq, new BehaviorState());
+        var pic = default(Fdp.Toolkit.Squad.Command.CommandPicture);
+        pic.Elements.Count = 1;
+        pic.Elements.Items[0] = new Fdp.Toolkit.Squad.Command.ReportedElement { At = new Vector3(455, -90, 0), Count = 3, FromNetId = 1001 };
+        w.AddComponent(hq, pic);
+        var st = default(Fdp.Toolkit.Squad.SquadCognitiveState);
+        st.Contacts.Count = 1;
+        st.Contacts.Contacts[0] = new Fdp.Toolkit.Squad.SquadContact { PositionX = 470, PositionY = -102 };
+        w.AddComponent(hq, st);
+        w.AddComponent(hq, default(Fdp.Core.CommandHierarchy.UnitRoster));
+        w.AddComponent(hq, default(Fdp.Toolkit.Squad.Command.CommandReportHistory));
+        w.AddComponent(hq, default(Fdp.Toolkit.Squad.Command.CommandOrderHistory));
+        var sqd = w.CreateEntity();
+        Fdp.Toolkit.Squad.Command.CommandHistoryOf.Report(w, sqd, hq,
+            new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.Set },
+            10f, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
+        ref var oh = ref w.GetComponentRW<Fdp.Toolkit.Squad.Command.CommandOrderHistory>(hq);
+        Fdp.Toolkit.Squad.Command.CommandHistoryOf.Push(ref oh, new Fdp.Toolkit.Squad.Command.CommandOrderEntry
+        {
+            At = 5f, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Incoming, CounterpartNetId = 900, Behaviour = Fight,
+        });
+        Fdp.Toolkit.Squad.Command.CommandHistoryOf.Push(ref oh, new Fdp.Toolkit.Squad.Command.CommandOrderEntry
+        {
+            At = 12f, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Outgoing, CounterpartNetId = 1001, Behaviour = Fight,
+            CauseKind = BrainJournalKind.PlayPhase, Cause = (byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached,
+        });
+
+        var cmd = BrainCommandView.Read(w, hq, h => h == Fight ? "FightFromCover" : null, 20f)!;
+        Assert.Contains("x3", Assert.Single(cmd.Picture));
+        Assert.Contains("470", Assert.Single(cmd.Contacts));
+        Assert.Contains("PROGRESS  Set", Assert.Single(cmd.Reports).Text);
+        Assert.Contains("from #900  FightFromCover", Assert.Single(cmd.OrdersReceived).Text);
+        Assert.Contains("because the play's phase changed (DefiladeReached)", Assert.Single(cmd.OrdersSent).Text);
+        Assert.Null(BrainCommandView.Read(w, soldier, _ => null, 0f));                  // a soldier: no commander sections
+    }
+
+    /// <summary>⭐ <c>CE-1318</c> (BV-55) — the tab knows whether it is the docked one (follows the selection) or a PIN (opens a pinned
+    /// graph): a pin's window id is <c>DetailsWindow.PinIdFor</c>'s.</summary>
+    [Fact]
+    public void CE1318_ThePinnedTab_IsToldApartFromTheDockedOne()
+    {
+        var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { new Entity(3, 1) } };
+        Assert.True(EntityBrainView.IsPinnedScope(DetailsWindow.PinIdFor(ctx, EntityBrainViewDescriptor.ViewId)));
+        Assert.False(EntityBrainView.IsPinnedScope("scenario_details"));
+    }
+
     // ── CE-1320 (Brain View §12g BV-65): ONE live write for params and working state, no restart ──────────────────────────────
 
     /// <summary>A stager that applies at once (production stages through the breakpoint manager and the drain lands it next tick).</summary>

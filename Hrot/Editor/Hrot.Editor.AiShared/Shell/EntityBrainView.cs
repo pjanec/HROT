@@ -415,6 +415,10 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (Section("Knows", "knows"))
             Row("Contacts", $"{b.Contacts} seen" + (b.HeardOnly > 0 ? $", {b.HeardOnly} heard only" : ""));
 
+        // ⭐⭐ CE-1312 (BV-56…BV-58) — a COMMANDER's picture, his units' contacts, and his report / order histories (recorded: they replay)
+        if (world is not null && BrainCommandView.Read(world, unit, _behaviorName, (float)NowOf(world)) is { } cmd)
+            DrawCommand(world, unit, cmd, replay);
+
         if (Section($"Recent changes ({b.Changes.Count})", "changes"))
         {
             if (!b.JournalOn) ImGui.TextDisabled("Journal off on this host (or no brain here).");
@@ -436,7 +440,61 @@ public sealed class EntityBrainView : IDetailsViewInstance
 
         if (world is not null && !replay && Section("Show on map", "map")) DrawShowOnMap(world, unit);
 
-        if (Section("Debug", "debug")) DrawDebugControls(context);
+        if (Section("Debug", "debug")) DrawDebugControls(context, idScope);
+    }
+
+    private static double NowOf(EntityRepository w) => w.HasSingleton<GlobalTime>() ? w.GetSingleton<GlobalTime>().TotalTime : 0d;
+
+    private static void DrawCommand(EntityRepository world, Entity unit, BrainCommandView cmd, bool replay)
+    {
+        if (cmd.HasPicture && Section("Command picture", "picture"))
+        {
+            MapPin(world, unit, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.CommandPicture, replay);
+            if (cmd.Picture.Count == 0) ImGui.TextDisabled("Nothing reported yet.");
+            foreach (var row in cmd.Picture) ImGui.TextUnformatted(row);
+        }
+        if (Section($"My units' contacts ({cmd.Contacts.Count})", "contacts"))
+        {
+            MapPin(world, unit, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadContacts, replay);
+            if (!cmd.HasContacts || cmd.Contacts.Count == 0)
+                ImGui.TextDisabled("Empty: his units have no contacts of their own eyes (above the first level they have none); see Command picture.");
+            foreach (var row in cmd.Contacts) ImGui.TextUnformatted(row);
+        }
+        if (Section($"Reports ({cmd.Reports.Count})", "reports"))
+        {
+            foreach (var row in cmd.Subordinates) ImGui.TextUnformatted(row);
+            History("reports", cmd.Reports, "No report to or from him yet.");
+        }
+        if (Section($"Orders ({cmd.OrdersReceived.Count + cmd.OrdersSent.Count})", "orders"))
+        {
+            ImGui.TextDisabled("Received");
+            History("received", cmd.OrdersReceived, "None from his superior.");
+            ImGui.TextDisabled("Sent");
+            History("sent", cmd.OrdersSent, "He has ordered nobody yet.");
+        }
+    }
+
+    /// <summary>A history list: newest first, a fixed height that scrolls (the last 32 — a longer one is the Timeline, BV-59).</summary>
+    private static void History(string id, IReadOnlyList<BrainHistoryRow> rows, string empty)
+    {
+        if (rows.Count == 0) { ImGui.TextDisabled("  " + empty); return; }
+        float h = Math.Min(rows.Count, 8) * ImGui.GetTextLineHeightWithSpacing() + 6f;
+        if (ImGui.BeginChild("##hist." + id, new Vector2(0, h), ImGuiChildFlags.Border))
+            foreach (var r in rows)
+            {
+                ImGui.TextDisabled($"{r.At,7:0.0}s");
+                ImGui.SameLine();
+                ImGui.TextUnformatted(r.Text);
+            }
+        ImGui.EndChild();
+    }
+
+    /// <summary>⭐ CE-1312 — a list's own "on map" checkbox: that one family pinned on this commander (BV-37, BV-50).</summary>
+    private static void MapPin(EntityRepository world, Entity unit, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags family, bool replay)
+    {
+        if (replay) return;
+        bool on = Hrot.Common.Diagnostics.Gizmos.GizmoPins.IsPinned(world, unit, family);
+        if (ImGui.Checkbox("on map##pin." + family, ref on)) Hrot.Common.Diagnostics.Gizmos.GizmoPins.Set(world, unit, family, on);
     }
 
     /// <summary>⭐ <c>CE-1310</c> — a section's collapsing header: <paramref name="id"/> is the stable ImGui id, so a label carrying a count
@@ -564,7 +622,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
 
     /// <summary>⭐ <c>CE-1257</c> / <c>CE-1258</c> — the debugging buttons (follow, open the running graph, break when it changes its mind),
     /// where the host composes the controller (the editor). ⭐ <c>CE-1317</c> — in the tab's <b>Debug</b> section.</summary>
-    private void DrawDebugControls(DetailsContext context)
+    private void DrawDebugControls(DetailsContext context, string idScope)
     {
         if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is not { } c || _world() is not { } w)
         {
@@ -581,15 +639,23 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 _breakNote = view.FollowUnit(unit) ?? "the map camera follows it (W/A/S/D or Esc lets go)";
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("The map's 3-D camera follows this unit: the wheel goes in to his eyes, RMB orbits.");
         }
-        // ⭐ CE-1254 (BV-21, BV-22) — open THE RUNNING behaviour's graph, with the overlay pinned to this unit ("Debug this unit").
+        // ⭐⭐ CE-1318 (BV-55, R-1039) — open THE RUNNING behaviour's graph: from a PINNED tab the graph is pinned to this unit (its own
+        //   document, the tab header names him); from the docked tab it follows the selection, as this tab does.
+        //   ⛔ SUPERSEDED (CE-1254 BV-22): it set the ONE global debug pin, so every graph followed the last unit opened.
         if (c.OpenGraph is { } open && RunningBehaviourLocator.Resolve(w, unit, _behaviorName, _definition) is { } running)
         {
+            bool pinned = IsPinnedScope(idScope);
             if (ImGui.Button("Open running behaviour"))
             {
-                c.Set(w, unit, true);
-                _breakNote = open(running.Name) ? $"opened {running.Name}" : $"{running.Name} has no graph in this editor";
+                bool ok = pinned && c.OpenGraphPinned is { } openPinned
+                    ? openPinned(running.Name, unit, PinLabelOf(w, unit))
+                    : open(running.Name);
+                _breakNote = ok ? $"opened {running.Name}{(pinned ? $" pinned to {PinLabelOf(w, unit)}" : "")}" : $"{running.Name} has no graph in this editor";
             }
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Opens {running.Name} ({running.Tier}) with this unit's live state lit — and keeps it on this unit.");
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(pinned
+                    ? $"Opens {running.Name} ({running.Tier}) PINNED to this unit: its own tab, its overlay stays on him."
+                    : $"Opens {running.Name} ({running.Tier}); its live overlay follows the selection, as this tab does.");
         }
         if (c.ArmJournalBreak is { } arm)
         {
@@ -597,6 +663,18 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 _breakNote = arm(w, unit) is { } id ? $"breakpoint {id} armed" : "no breakpoint manager on this host";
         }
         if (_breakNote is { } note) ImGui.TextDisabled(note);
+    }
+
+    /// <summary>⭐ <c>CE-1318</c> — this tab is a PIN (its window id is <see cref="Hrot.Editor.AiShared.Windows.DetailsWindow.PinIdFor"/>'s), not the
+    /// docked tab that follows the selection.</summary>
+    internal static bool IsPinnedScope(string idScope) => idScope.StartsWith("details_pin_", StringComparison.Ordinal);
+
+    /// <summary>How a pinned graph's tab names the unit: its network id, else its local handle.</summary>
+    internal static string PinLabelOf(EntityRepository world, Entity unit)
+    {
+        long net = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+            ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, unit) : 0;
+        return net != 0 ? $"#{net}" : $"#{unit.Index}";
     }
 
     private static readonly Vector4 Amber = new(1f, 0.75f, 0.2f, 1f);

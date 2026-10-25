@@ -165,7 +165,7 @@ namespace Fdp.Toolkit.Squad.Command
             }
         }
 
-        internal static void Push(ref CommandReportHistory h, in CommandReportEntry e)
+        public static void Push(ref CommandReportHistory h, in CommandReportEntry e)
         {
             Span<CommandReportEntry> items = h.Items;
             int keep = Math.Min(h.Count, CommandReportHistory.Capacity - 1);
@@ -174,7 +174,7 @@ namespace Fdp.Toolkit.Squad.Command
             h.Count = keep + 1;
         }
 
-        internal static void Push(ref CommandOrderHistory h, in CommandOrderEntry e)
+        public static void Push(ref CommandOrderHistory h, in CommandOrderEntry e)
         {
             Span<CommandOrderEntry> items = h.Items;
             if (h.Count > 0 && items[0].Traffic == e.Traffic && items[0].CounterpartNetId == e.CounterpartNetId

@@ -1964,6 +1964,15 @@ namespace Hrot.Editor
                     _aiDocumentManager.Open(asset);
                     return true;
                 },
+                // ⭐ CE-1318 (BV-55) — the same, PINNED to a unit (from a pinned Brain tab): its own document, its tab names the unit
+                OpenGraphPinned = (name, unit, label) =>
+                {
+                    if (_aiCatalogBuilder?.Catalog is not { } catalog || _aiDocumentManager == null) return false;
+                    var asset = catalog.All.FirstOrDefault(a => a.Name == name && a.Kind is AssetKind.BTree or AssetKind.Hsm or AssetKind.Blueprint);
+                    if (asset == null) return false;
+                    _aiDocumentManager.Open(asset, unit, label);
+                    return true;
+                },
             };
 
             // ⭐⭐⭐ THE STAGED-WRITE DRAIN WIRE. 📄 DESIGN_Staged_Live_Write.md §8.
@@ -4529,9 +4538,11 @@ namespace Hrot.Editor
             {
                 // ⚠ PROVIDERS: _world is assigned during Initialize, after this hook is built.
                 World          = () => _world,
-                // ⭐ CE-1257 (BV-22) — the debugged unit while one is set, else the selection
-                SelectedEntity = () => Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is { } debug
-                    ? debug.Follow(_world, _btreeSelectionStore.SelectedEntity)
+                // ⭐⭐ CE-1318 (BV-55, R-1039) — the ACTIVE document's pin while it has one (a graph opened from a pinned Brain tab), else
+                //   the selection. ⛔ SUPERSEDED: one global debug pin for every graph (UnitDebugController.Follow, CE-1257 BV-22) — one
+                //   canvas could not show two units, and a pinned tab's graph lost its unit when another tab moved the pin.
+                SelectedEntity = () => _aiDocumentManager?.Active?.PinnedEntity is { } pin && _world != null && _world.IsAlive(pin)
+                    ? pin
                     : _btreeSelectionStore.SelectedEntity,
             };
 

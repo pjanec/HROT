@@ -76,7 +76,6 @@ public sealed class SquadGizmo : IStatelessGizmo
 public sealed class SquadContactsGizmo : IStatelessGizmo
 {
     public static readonly Rgba32 ContactColor = new(220, 60, 220, 220);
-    public static readonly Rgba32 LineColor    = new(220, 60, 220, 120);
 
     /// <summary>The size of <see cref="SquadContactPoolSlots"/> (its <c>[InlineArray(16)]</c>; the pool names no constant).</summary>
     private const int ContactCapacity = 16;
@@ -92,7 +91,8 @@ public sealed class SquadContactsGizmo : IStatelessGizmo
         {
             var p = new Vector3(contacts[c].PositionX, contacts[c].PositionY, contacts[c].PositionZ);
             draw.DrawSphere(p, 1.5f, ContactColor, thickness: 1.5f, layer: DebugTraceLayers.SquadCommand);
-            draw.DrawLine(at, p, LineColor, 1f, layer: DebugTraceLayers.SquadCommand);
+            // ⭐ CE-1318 (BV-52) — the ONE contact-line drawing, the soldier's own (LineOfSightGizmo)
+            Hrot.Common.Diagnostics.Gizmos.ContactLine.Draw(draw, at, p, 1f, heard: false, radius: 0f, DebugTraceLayers.SquadCommand);
         }
     }
 }

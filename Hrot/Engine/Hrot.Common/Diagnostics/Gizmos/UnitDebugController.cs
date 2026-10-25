@@ -31,6 +31,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// false when this host has no graph of that name. A C#-built one opens read-only (CE-1252).</summary>
         public Func<string, bool>? OpenGraph { get; set; }
 
+        /// <summary>⭐ <c>CE-1318</c> (BV-55) — opens a behaviour's graph PINNED to a unit (name, unit, the tab's label for it): its own
+        /// document whose live overlay stays on that unit. The Brain tab uses it when the tab itself is pinned.</summary>
+        public Func<string, Entity, string, bool>? OpenGraphPinned { get; set; }
+
         public bool IsDebugged(Entity unit) => Debugged is { } d && d == unit;
 
         /// <summary>The unit the AI graph's overlay should follow: the debugged one while it lives, else <paramref name="selection"/>.</summary>

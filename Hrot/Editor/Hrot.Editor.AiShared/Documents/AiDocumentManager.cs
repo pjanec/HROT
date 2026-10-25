@@ -115,12 +115,16 @@ public sealed class AiDocumentManager
     /// </summary>
     /// <param name="asset">The asset to open.</param>
     /// <returns>The opened (or existing) document.</returns>
-    public AiDocument Open(IEditableAsset asset)
+    public AiDocument Open(IEditableAsset asset) => Open(asset, null, null);
+
+    /// <summary>⭐ <c>CE-1318</c> (BV-55) — opens <paramref name="asset"/> PINNED to <paramref name="pin"/> (null = follows the selection).
+    /// ⭐ Dedupes on (asset, pin): two pinned tabs on one behaviour get two documents, each overlay on its own unit.</summary>
+    public AiDocument Open(IEditableAsset asset, Fdp.Core.Entity? pin, string? pinLabel)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
 
         // Re-focus an already-open document.
-        var existing = _documents.FirstOrDefault(d => d.Asset.AssetId == asset.AssetId);
+        var existing = _documents.FirstOrDefault(d => d.Asset.AssetId == asset.AssetId && Nullable.Equals(d.PinnedEntity, pin));
         if (existing is not null)
         {
             Activate(existing);
@@ -129,7 +133,7 @@ public sealed class AiDocumentManager
 
         // Create a new document, fire DocumentOpened (so factories can populate ViewState),
         // then activate it so the canvas window renders it immediately.
-        var doc = new AiDocument(asset, asset.Kind);
+        var doc = new AiDocument(asset, asset.Kind, pin, pinLabel);
         _documents.Add(doc);
         DocumentOpened?.Invoke(doc);
         Activate(doc);
