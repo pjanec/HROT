@@ -186,3 +186,13 @@ Each scenario authors TODAY's closest orders (the build steps swap them for the 
 | `ia-house-hunt` (lone attacker v the one man of a SquadDefend in House A) | ✅ PASS 3/3 this run | the attacker went round to the back door, up the stairs (z 3 at 45 s) and killed the defender at ~50 s (3 rounds v 4). ⚠ unscripted: §12.7's one-floor stalemate (Peek and Fire) did not recur here — repeat runs before calling I done |
 | `ia-area-clear` (a fire team, ordered ClearBuilding of House A — ⏭ ClearArea) | ⛔ FAIL 0/2 | House B never visited (the order names one building — expected); the team sat ~100 s before moving; one two-storey house took ~230 s, upstairs at ~330 s; Red 1 bleeding out (7 hp) but not down at 420 s |
 | `ia-area-defend` (a lone guard, CombatPosture at the centre — ⏭ DefendArea + L) | ⛔ FAIL 0/4 | **the guard fired 0 rounds in 240 s** (the attackers 235). Live brain probe: under fire his cover reaction spends ~25 s at a time MOVING (the cover search keeps relocating between the cars), never peeking; out of it, "hold: not seen" — the attackers walked to his OLD spot; and twice the TS-6 break (stress 1.0 at 116 s and 194 s: prone, no fire, 40–50 s) under steady fire on an immortal man |
+
+### 7.2 I — arrival on the target's level, the mover's half *(backend, 2026-10-25; behaviors' handoff item 1)*
+
+| | as built |
+|---|---|
+| the rule | a PERSON arrives only when he stands on the destination's LEVEL — `Levels.Same` (`World/Levels.cs`): the level of each point by the surfaces stacked at its own (x, y), through the world query (no building code, R-248). Where only the ground stands, any two heights are level 0 — an order authored at z 0 on a hill still arrives. A vehicle keeps the 2-D rule |
+| the mover | `CarKinematicsSystem`: the Direct branch and the path's end both refuse `HasArrived` on another level — he stands where he is, the move stays open; its owner re-sends it |
+| the planner | `RoutePlanner`'s half-metre short move (two points as asked) only on ONE level — the man under the point gets a navmesh plan (the stairs) instead of a two-point "path" that would arrive at once |
+| ⛔ not here | the brain's own check (`PostureNodes`, behaviors' belt) — ⚠ the brain reads no terrain (user, 2026-10-25: *"brain should use map only for rendering, no direct access"*): its level comes from a survey answer, never `BuildingLayout` itself |
+| rails | `CarKinematicsSystemTests.AQ104I_APersonUnderTheirDestination_OnAnotherFloor_HasNotArrived` (path + direct, other floor + the same-floor control) · `TerrainHeightTests.AQ104I_AShortMove_ToTheLevelAbove_IsNotTheTwoPoints` — 3 red with the production change stashed, 5/5 green with it |
