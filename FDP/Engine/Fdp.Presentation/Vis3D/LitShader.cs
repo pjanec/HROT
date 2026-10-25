@@ -82,10 +82,34 @@ uniform float fogDensity;
 uniform float fogStart;
 uniform float ambient;
 uniform float sunLight;
+uniform float groundDetail;
 out vec4 finalColor;
 ";
 
         private const string FragmentMain = @"
+// CE-1328 — the ground's grass: value noise on the WORLD position (metres), so the ground slides past a walking eye
+float grassHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float grassNoise(vec2 p)
+{
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(grassHash(i), grassHash(i + vec2(1.0, 0.0)), u.x), mix(grassHash(i + vec2(0.0, 1.0)), grassHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+vec3 grass(vec3 albedo, vec3 world, vec3 n, float dist)
+{
+    float flat_ = smoothstep(0.6, 0.85, n.y);   // the open ground only: a wall, a slope's face keeps its colour
+    flat_ *= smoothstep(0.0, 0.06, albedo.g - max(albedo.r, albedo.b));   // and only the GREEN ground: a flat roof, water, a road stay plain
+    if (groundDetail <= 0.0 || flat_ <= 0.0) return albedo;
+    vec2 p = world.xz;
+    float patches = grassNoise(p * 0.08);                                 // ~12 m: lighter / drier patches
+    float tufts = grassNoise(p * 0.7) * 0.6 + grassNoise(p * 2.3) * 0.4;  // ~1 m tufts
+    float blades = grassNoise(p * vec2(9.0, 23.0));                       // fine streaks
+    float near = clamp(1.0 - dist / 90.0, 0.0, 1.0);                      // the fine detail fades out: no shimmer far away
+    float shade = 0.80 + 0.30 * tufts + near * 0.18 * (blades - 0.5);
+    vec3 dry = albedo * vec3(1.18, 1.08, 0.72);
+    vec3 c = mix(albedo, dry, smoothstep(0.55, 0.8, patches) * 0.6) * shade;
+    return mix(albedo, c, flat_ * groundDetail);
+}
 void main()
 {
     vec3 n = normalize(fragNormal);
@@ -93,6 +117,7 @@ void main()
     float diffuse = max(dot(n, -sunDir), 0.0);
     vec4 base = fragColor * colDiffuse;
     vec3 albedo = surface(base.rgb, localUnit, localMetres, normalize(localNormal));
+    albedo = grass(albedo, fragPos, n, length(viewPos - fragPos));
     vec3 lit = albedo * (ambient + sunLight * diffuse);
     float d = max(length(viewPos - fragPos) - fogStart, 0.0) * fogDensity;   // CE-1146: the free camera's fog starts at what it looks at
     float visible = clamp(exp(-d * d), 0.0, 1.0);
@@ -156,7 +181,7 @@ void main()
         /// <summary>False when the GL driver refused the program — Raylib then falls back to its default shader (unlit).</summary>
         public bool IsValid { get; }
 
-        private readonly int _viewPos, _sunDir, _fogColor, _fogDensity, _fogStart, _ambient, _sunLight, _depthBias, _flatDepthBias;
+        private readonly int _viewPos, _sunDir, _fogColor, _fogDensity, _fogStart, _ambient, _sunLight, _depthBias, _flatDepthBias, _groundDetail;
 
         /// <summary>⭐ <c>CE-1196</c> — the flat program (<see cref="FlatVertex"/>); <see cref="FlatIsValid"/> false when the driver refused it.</summary>
         public Shader Flat { get; }
@@ -181,8 +206,10 @@ void main()
             _ambient = Raylib.GetShaderLocation(shader, "ambient");
             _sunLight = Raylib.GetShaderLocation(shader, "sunLight");
             _depthBias = Raylib.GetShaderLocation(shader, "depthBias");
+            _groundDetail = Raylib.GetShaderLocation(shader, "groundDetail");
             Shader = shader;
             Raylib.SetShaderValue(shader, _depthBias, 0f, ShaderUniformDataType.Float);
+            Raylib.SetShaderValue(shader, _groundDetail, 0f, ShaderUniformDataType.Float);
 
             var flat = Raylib.LoadShaderFromMemory(FlatVertex, FlatFragment);
             FlatIsValid = Raylib.IsShaderValid(flat);
@@ -224,6 +251,11 @@ void main()
         /// (<see cref="MapCamera3D.GroundBiasNdc"/> for a layer lying on the ground; 0 for everything else). ⚠ It holds until set again —
         /// a layer that sets it puts it back to 0 after its draw.</summary>
         public void SetDepthBias(float ndc) => Raylib.SetShaderValue(Shader, _depthBias, ndc, ShaderUniformDataType.Float);
+
+        /// <summary>⭐ <c>CE-1328</c> — paints grass on the up-facing faces drawn next (1 = full, 0 = off): world-anchored value noise, so the
+        /// ground visibly slides past a walking first-person eye. ⚠ It holds until set again — the terrain layer sets it for its draw
+        /// and puts it back to 0.</summary>
+        public void SetGroundDetail(float amount) => Raylib.SetShaderValue(Shader, _groundDetail, amount, ShaderUniformDataType.Float);
 
         /// <summary>⭐ <c>CE-1196</c> — the same for the <see cref="Flat"/> program.</summary>
         public void SetFlatDepthBias(float ndc) => Raylib.SetShaderValue(Flat, _flatDepthBias, ndc, ShaderUniformDataType.Float);

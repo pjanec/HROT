@@ -373,6 +373,25 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal("Zed", Assert.Single(root.Folders[2].Choices).Name);
         }
 
+        /// <summary>⭐ <c>CE-1327</c> — the picker's search: every word must appear in the name, the technology or the folder, case-insensitive;
+        /// a name STARTING with the first word comes first. ✅ Red-proof: the folder not searched ⇒ red ("infantry" finds nothing).</summary>
+        [Fact]
+        public void CE1327_PickerSearch_EveryWord_NameFolderOrTechnology()
+        {
+            var choices = new[]
+            {
+                new BehaviorChoice("Ambush", "BTree") { Group = "Demos/UrbanCombat" },
+                new BehaviorChoice("MoveToLocation", "BTree") { Group = "Library/Basic" },
+                new BehaviorChoice("CombatPosture", "BTree") { Group = "Library/Infantry" },
+                new BehaviorChoice("PostureHold", "Hsm") { Group = "Library/Infantry" },
+            };
+            var search = Hrot.Presentation.Behavior.BehaviorPickerTree.Matches;
+            Assert.Equal(new[] { "PostureHold", "CombatPosture" }, search(choices, "posture").Select(c => c.Name));   // the prefix first
+            Assert.Equal(new[] { "CombatPosture", "PostureHold" }, search(choices, "INFANTRY").Select(c => c.Name));  // the folder
+            Assert.Equal(new[] { "PostureHold" }, search(choices, "hsm post").Select(c => c.Name));                  // every word
+            Assert.Empty(search(choices, "zzz"));
+        }
+
         [Fact]
         public void GetAvailableBehaviors_DeadEntity_ReturnsEmpty()
         {

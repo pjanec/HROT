@@ -68,16 +68,57 @@ namespace Hrot.Presentation.Behavior
             => topFolder == LibraryFolder ? 0 : topFolder == BehaviorChoice.OtherGroup ? 2 : 1;
 
         /// <summary>⭐ A combo labelled <paramref name="label"/> showing <paramref name="preview"/>; its popup is the folder tree.
-        /// Returns <c>true</c> and the name in <paramref name="picked"/> when the user picks a behaviour.</summary>
+        /// Returns <c>true</c> and the name in <paramref name="picked"/> when the user picks a behaviour.
+        /// ⭐ <c>CE-1327</c> — the popup opens with a SEARCH box focused: typing narrows the tree to a flat list of matches (every word must
+        /// appear in the name, the technology or the folder), Enter picks the first. Empty search = the tree, as before.</summary>
         public static bool Combo(string label, string preview, IReadOnlyList<BehaviorChoice> choices, string? current, out string picked)
         {
             picked = "";
-            if (!ImGui.BeginCombo(label, preview)) return false;
-            var root = Build(choices);
-            string? currentPath = current == null ? null : choices.FirstOrDefault(c => c.Name == current)?.Group;
-            bool done = DrawFolder(root, current, currentPath, ref picked);
+            uint key = ImGui.GetID(label);
+            if (!ImGui.BeginCombo(label, preview, ImGuiComboFlags.HeightLarge)) return false;
+            if (ImGui.IsWindowAppearing()) { Searches[key] = ""; ImGui.SetKeyboardFocusHere(); }
+            string search = Searches.TryGetValue(key, out var s) ? s : "";
+            ImGui.SetNextItemWidth(-1f);
+            bool enter = ImGui.InputTextWithHint("##search", "search...", ref search, 128, ImGuiInputTextFlags.EnterReturnsTrue);
+            Searches[key] = search;
+            bool done;
+            if (search.Trim().Length > 0)
+            {
+                var hits = Matches(choices, search);
+                done = false;
+                if (hits.Count == 0) ImGui.TextDisabled("no behaviour matches");
+                foreach (var c in hits)
+                {
+                    if (ImGui.Selectable($"{c.Label}##{c.Name}", c.Name == current)) { picked = c.Name; done = true; }
+                    ImGui.SameLine();
+                    ImGui.TextDisabled(c.Group);
+                }
+                if (enter && hits.Count > 0 && !done) { picked = hits[0].Name; done = true; }
+                if (done) ImGui.CloseCurrentPopup();
+            }
+            else
+            {
+                var root = Build(choices);
+                string? currentPath = current == null ? null : choices.FirstOrDefault(c => c.Name == current)?.Group;
+                done = DrawFolder(root, current, currentPath, ref picked);
+            }
             ImGui.EndCombo();
             return done;
+        }
+
+        private static readonly Dictionary<uint, string> Searches = new();
+
+        /// <summary>⭐ <c>CE-1327</c> — the choices a search keeps, in picker order (name first): every whitespace-separated word must appear,
+        /// case-insensitive, in the name, the label (its technology) or the folder. Pure.</summary>
+        public static IReadOnlyList<BehaviorChoice> Matches(IEnumerable<BehaviorChoice> choices, string search)
+        {
+            var words = search.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            return choices
+                .Where(c => words.All(w => c.Label.Contains(w, StringComparison.OrdinalIgnoreCase)
+                                           || c.Group.Contains(w, StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(c => c.Name.StartsWith(words.FirstOrDefault() ?? "", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static bool DrawFolder(Folder folder, string? current, string? currentPath, ref string picked)

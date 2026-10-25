@@ -266,6 +266,10 @@ Assert.Equal("2", panel["tier"]!.ToString());
 Assert.Equal("attached", panel["rows"]![0]!["state"]!.GetValue<string>());
 ```
 
+> ⚠ **`2026-10-25` (ui, CE-1327)** — the live Entity Blueprints panel no longer DRAWS `simState` or `tier` (the user found them meaningless
+> on the Brain tab: every blueprint has its own slot), so its dump no longer carries them; a row carries `memory` (its own slot's size)
+> and the model carries `showProjection`. The example above stays as the worked illustration of the pattern, not the panel's shape today.
+
 **Cross-host conformance** *(the payoff — a structured diff, not a pixel diff)*:
 
 ```csharp

@@ -287,6 +287,47 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Equal(2, view.Running(w, e).Count);
     }
 
+    // ── CE-1327 — the Knows table: each contact, how it was sensed, where, how old ────────────────────────────────────────────────
+
+    /// <summary>Two contacts in <paramref name="e"/>'s memory: a rifleman SEEN 40 m north, and gunfire HEARD (unidentified) 120 m east.</summary>
+    private static unsafe Entity Contacts(EntityRepository w, Entity e)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()) w.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+        if (!w.IsComponentTypeRegistered<SimTransform>()) w.RegisterComponent<SimTransform>();
+        if (!w.IsComponentTypeRegistered<EntityInfo>()) w.RegisterComponent<EntityInfo>();
+        var enemy = w.CreateEntity();
+        w.AddComponent(enemy, new EntityInfo { Name = new FixedString64("Rifleman") });
+        if (!w.HasComponent<SimTransform>(e)) w.AddComponent(e, new SimTransform());
+        var m = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 2 };
+        m.EntityIds[0] = (long)enemy.PackedValue; m.PositionsY[0] = 40f; m.Freshness[0] = 0.9f;
+        m.Modalities[0] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+        m.EntityIds[1] = -1; m.PositionsX[1] = 120f; m.Freshness[1] = 0.4f; m.Anonymous[1] = 1; m.Radius[1] = 15f;
+        m.SourceClass[1] = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms;
+        m.Modalities[1] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Acoustic;
+        w.AddComponent(e, m);
+        return enemy;
+    }
+
+    /// <summary>⭐ <c>CE-1327</c> — the Knows section's rows come from the unit's memory: the seen rifleman named, the heard gunfire as a
+    /// "something" with its radius, freshest first, with distances; the API's brain JSON carries them. ✅ Red-proof: the rows not read
+    /// (ContactsOf skipped) ⇒ red.</summary>
+    [Fact]
+    public void CE1327_TheKnowsRows_AreEachContact_HowAndWhere()
+    {
+        var (w, e, _, _) = RunningWorld();
+        using var _w = w;
+        var enemy = Contacts(w, e);
+        var b = BrainSnapshot.Read(w, e)!;
+        Assert.Equal(2, b.ContactRows.Count);
+        var seen = b.ContactRows[0];
+        Assert.Equal((false, "seen", enemy), (seen.Heard, seen.How, seen.Unit!.Value));
+        Assert.Equal(40f, seen.Distance, 1);
+        var heard = b.ContactRows[1];
+        Assert.Equal((true, "heard: smallarms", 15f), (heard.Heard, heard.How, heard.Radius));
+        Assert.Null(heard.Unit);
+        Assert.Equal(2, b.ToJson()["contactList"]!.AsArray().Count);
+    }
+
     // ── CE-1310 / CE-1311 / CE-1317 (Brain View §12b, §12c, B5): expanders, grouped settings, one map family per checkbox ───────────
 
     private static void Steering(EntityRepository w, Entity e)
@@ -350,6 +391,7 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         var (w, e, reg, bps) = RunningWorld();
         using var _ = w;
         Steering(w, e);
+        Contacts(w, e);
         BrainJournalOf.Write(w, e, BrainJournalKind.TaskStarted, a: Fight, origin: (byte)BehaviorOrigin.Superior);
         var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null, null, () => reg, () => bps);
         var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { e } };

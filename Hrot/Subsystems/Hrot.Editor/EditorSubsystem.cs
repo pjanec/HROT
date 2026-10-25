@@ -2067,6 +2067,15 @@ namespace Hrot.Editor
                 if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current?.OpenGraphPinned is not { } open || _world == null) return;
                 if (open(name, unit, Hrot.Editor.AiShared.Shell.EntityBrainView.PinLabelOf(_world, unit))) bpBlueprintSession.SetEntityFilter(unit);
             };
+            // ⭐ CE-1327 — the Brain tab's contact rows bring the map's camera (2-D or 3-D) to where the unit believes a contact is; a
+            //   camera following a unit lets go first (the station's first-person eye is left alone — FocusOn ignores a driven camera)
+            Hrot.Editor.AiShared.Shell.EntityBrainView.JumpCamera = (world, at) =>
+            {
+                if (_canvas?.Camera is not { } camera) return false;
+                Hrot.UI.Common.Map3D.ViewControl.Of(world)?.StopFollowing();
+                camera.FocusOn(new System.Numerics.Vector2(at.X, at.Y));
+                return true;
+            };
 
             // ── CF-8: Debounced save on breakpoint/session changes ────────────────────────
             bpBlueprintSession.OnBreakpointListChanged += _ => ScheduleDebugSessionSave();

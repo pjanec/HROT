@@ -47,7 +47,10 @@ namespace Fdp.Toolkit.Vis3D
             if (!ReferenceEquals(geometry.Identity, _identity)) Rebuild(geometry);
             if (!_hasMesh) return;
             Rlgl.DisableBackfaceCulling();
-            Raylib.DrawMesh(_mesh, LitShader.Shared.Tinted(Color.White), Matrix4x4.Identity);
+            var lit = LitShader.Shared;
+            lit.SetGroundDetail(1f);   // ⭐ CE-1328 — grass on the open ground (a wall, a roof stays plain: the shader keys on the normal)
+            Raylib.DrawMesh(_mesh, lit.Tinted(Color.White), Matrix4x4.Identity);
+            lit.SetGroundDetail(0f);
             Rlgl.EnableBackfaceCulling();
         }
 

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12p AS-BUILT names + Open graph on the blueprint list, SOP, running behaviours (CE-1326) · §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12q AS-BUILT tables, contacts, pickers search, layouts (CE-1327, CE-1273, CE-1274; Show on map measured — CE-1329) · §12p AS-BUILT names + Open graph on the blueprint list, SOP, running behaviours (CE-1326) · §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -1426,3 +1426,71 @@ was already in the store; `BlueprintTierSummary.SlotSummary` now carries it.
 
 📐 Rail: `ThePilotPanelDumpsWhatItDrawsTests.CE1326_ATasksOwnSlot_IsCountedNotListedAsABlueprint` (a blueprint and a BTree slot on one unit
 ⇒ one row, `behaviourSlots` 1).
+
+### 12q. AS-BUILT — the tab's lists as tables, the contacts, the pickers' search, the open layout faults *(CE-1327, CE-1273, CE-1274, `2026-10-25`)*
+
+🔒 User, `2026-10-25` (one message, abridged): pickers need *"an incremental search box"* · *"remove the HP line"* · *"Doing … a table with sizable
+columns and alternating gray row background. Same the Right now"* · Knows: *"a table with the contacts and how (seen, heard) … a button to
+jump the camera to each"* · *"the sliders are all overlapping with the label"* · the blueprint section's *"sim: paused / current tier /
+OK: 3/488 … do not make sense"* · *"we do not need any special open Running behavior button"* · *"Show on map … Clicking the checkbox does
+nothing"* · Recent changes *"the nice table"* · *"The why section … text written in one line on top of each other"* · *"The running behavior
+graph window is still showing weird layouts"*.
+
+```mermaid
+classDiagram
+  class EntityBrainView {
+    BeginGrid(id, columns) the ONE list shape
+    DrawContacts(world, rows)
+    JumpCamera  host hook
+  }
+  class BrainSnapshot {
+    ContactRows  BrainContact list
+    HowOf(modalities, heard, class)
+  }
+  class BrainContact {
+    Heard, How, Position, Distance
+    Freshness, AgeSeconds, Radius, Unit
+  }
+  class BehaviorPickerTree {
+    <<EXISTS, the one picker>>
+    Combo(...) search box on open
+    Matches(choices, search)
+  }
+  class EntityBlueprintsPanel {
+    FilterAddOptions(options, search)
+  }
+  EntityBrainView --> BrainSnapshot : reads
+  BrainSnapshot --> BrainContact : one per memory slot
+  EntityBrainView ..> BehaviorPickerTree : the AI section's task / SOP rows
+  EntityBrainView ..> EntityBlueprintsPanel : the Blueprints section
+```
+*What the picture shows that prose hid:* the contact rows come from the snapshot (the same reader as the panel dump and `GET /entities/{id}/brain`,
+which now carries `contactList`), and the search lives in the ONE picker — the mission panel's task rows get it too.
+
+| ask | as built | where |
+|---|---|---|
+| tables | Doing, Right now, Knows, Recent changes, Settings: `BeginGrid` — resizable columns, line grid, alternating rows | `EntityBrainView.cs` |
+| contacts | one row each: who (name + id, or *"something (±15 m)"* in amber for a heard one), how (*seen · thermal · radar · heard: small arms*), distance, age, freshness, **Camera** (centres the 2-D or 3-D map on the believed position; lets go of a follow camera) | `BrainSnapshot.ContactRows`, `DrawContacts`, `EditorSubsystem` (`JumpCamera`) |
+| sliders overlap | the settings are a 4-column table (label · slider at the column's full width · type · reset) — no fixed offset left | `DrawSettings` |
+| Why overlap | the decision drawing put each option's bar at a FIXED 300 px; a long name, a bigger font or the tab's deeper indent ran the label under it. The bar column now starts after the widest label (options and a ranking's candidates) | `UtilityDecisionWidget.cs` |
+| "Open running behaviour" | removed from Debug; every running behaviour carries **Open graph** on its own line (open or closed), the SOP on its Doing row | `DrawRunning`, `DrawDebugControls` |
+| blueprint lines | *Sim / Current tier / OK* no longer drawn; each row has **Memory** (its own slot's size); the capacity line only when an add is over the ceiling (a bigger store is appended on its own — R-236) | `EntityBlueprintsPanel.cs`, `EntityBlueprintsViewModel` |
+| search | the behaviour picker opens with a focused search box (every word in the name, technology or folder; a name starting with the first word first; Enter picks the first); the **+ Add Blueprint** popup the same | `BehaviorPickerTree.Combo/Matches`, `EntityBlueprintsPanel.FilterAddOptions` |
+| HP line | the card's `HP 50/100` row (30) is gone — the health bar (row 10) shows it | `EntityEditorLabelGizmo.cs` |
+| ROE pickers | ⚠ not searched: two fixed combos of 3–4 entries | — |
+| graph layouts | **CE-1273** a C#-built tree has no Root node ⇒ the tidy-tree gave up (every node at 0,0); and its sibling spacing ignored subtree widths (PersonAttack: 48 nodes in 42 places) — now subtree-width placement. **CE-1274** the HSM grid ⇒ a left-to-right flow along the transitions, columns ≤ 6, wider gaps | [BTree host §3.4](blueprints/BTree_Editor_NodeEditor_Host_Design.md), [HSM host §3.4](blueprints/HSM_Editor_NodeEditor_Host_Design.md) |
+
+**⚠ Show on map — measured, NOT changed (CE-1329, a decision for the user).** A brain family draws for a unit when its scope is *All*, or
+the unit is **selected**, or the family is **pinned** on it (`GizmoFamilyVisibilityPolicy.IsEntityVisible`, every brain family's default
+scope is *selected or pinned* — `GizmoFamilies.DefaultScope`). The Brain tab shows the SELECTED unit, so every family already draws for
+it and the checkbox (a pin) can add nothing — on the docked tab it is a no-op by construction. It matters only for a unit that is not
+selected (a pinned tab). A family also draws nothing when the unit has no data for it (no contacts in the last 60 ticks, no EQS query).
+
+📐 Rails: `TheBrainViewTests.CE1327_TheKnowsRows_AreEachContact_HowAndWhere` · `AdapterTests.CE1327_PickerSearch_EveryWord_NameFolderOrTechnology`
+· `ThePilotPanelDumpsWhatItDrawsTests.CE1327_TheAddSearch_KeepsEveryWordMatch` (+ the CE-1326 rail asserts the row's memory) ·
+`HostOnlyWiringTests.CE1327_TheLabel_DrawsNoHitPointsLine_TheBarAtTheTopShowsThem` · `CodeBuiltTreeLayoutTests.CE1273_*` ·
+`CodeBuiltMachinesTests.CE1274_*`.
+
+📷 `TheBrainViewTests.CE1310_*` (open):
+
+![the tab's tables and contacts](assets/brain-view/b8-tables.png)

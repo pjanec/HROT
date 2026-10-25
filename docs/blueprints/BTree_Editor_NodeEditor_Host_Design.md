@@ -279,6 +279,8 @@ Auto-layout runs only on opening an asset with missing layout entries. Once posi
 
 A "Reset layout" toolbar action re-runs tidy-tree across the whole tree, ignoring stored positions. Used when an asset has drifted into mess via hand-edits or merge conflicts.
 
+> ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1273](Blueprint_Issues_Tracker.md))** — `BTreeAutoLayout` is **subtree-width placement**: each subtree gets a span as wide as its leaves need (`160 + 40` per leaf), its children side by side inside it, the parent centred over them. Overlap-free by construction. Two measured faults fixed: ① a **C#-built** tree (`BTreeBuilder.Compile`) has **no `Root` node**, and the layout gave up ⇒ every node at (0, 0) — the top is now the node no other node lists as a child; ② the "simplified Walker" spaced a node one node-width after its left sibling, ignoring the sibling's **subtree** width ⇒ `PersonAttack`: 48 nodes in 42 places. Rail: `CodeBuiltTreeLayoutTests.CE1273_EveryCodeBuiltTree_HasOnePlacePerNode` (every code-built tree in `Hrot.AI.Behaviors`). ⛔ SUPERSEDED above: "Reingold-Tilford".
+
 ---
 
 ## 4. The fluent C# emitter

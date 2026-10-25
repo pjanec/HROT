@@ -40,7 +40,7 @@ public static class UtilityDecisionWidget
             }
             else if (sheet.Evaluations == 0) ImGui.TextColored(Dim, $"{who} has not run this decision yet.");
             else if (!sheet.IsRanking)
-                ImGui.TextUnformatted($"{who}: winner * {sheet.WinnerName ?? "-"}   margin {sheet.Margin:0.00}"
+                ImGui.TextWrapped($"{who}: winner * {sheet.WinnerName ?? "-"}   margin {sheet.Margin:0.00}"
                                       + (sheet.RunnerUpName != null ? $" over {sheet.RunnerUpName}" : "")
                                       + $"   switched {sheet.Switches}x   evaluated {sheet.Evaluations}x");
         }
@@ -49,14 +49,17 @@ public static class UtilityDecisionWidget
         else
         {
             float top = sheet.Options.Max(o => o.Score ?? 0f);
+            // ⭐ CE-1327 — the bar column starts after the WIDEST option label (it was a fixed 300 px, so a long name, a big font or the
+            //   Brain tab's deeper indent drew the label under the bar: the user saw "text written on top of each other")
+            float column = ImGui.GetCursorPosX() + ImGui.GetTreeNodeToLabelSpacing() + 12f
+                           + sheet.Options.Max(o => ImGui.CalcTextSize(OptionLabel(o)).X);
             for (int i = 0; i < sheet.Options.Count; i++)
             {
                 var o = sheet.Options[i];
                 bool open = openOption >= 0 ? o.OptionId == openOption : (o.Winner || (i == 0 && !sheet.Options.Any(x => x.Winner)));
                 ImGui.SetNextItemOpen(open, ImGuiCond.Appearing);
-                string score = o.Score is { } s ? $"  {s:0.00}" : "";
-                bool expanded = ImGui.TreeNodeEx($"{(o.Winner ? "* " : "")}{o.Name}{score}###opt{o.OptionId}", ImGuiTreeNodeFlags.SpanAvailWidth);
-                ImGui.SameLine(300f);
+                bool expanded = ImGui.TreeNodeEx($"{OptionLabel(o)}###opt{o.OptionId}", ImGuiTreeNodeFlags.None);
+                ImGui.SameLine(column);
                 if (o.Score is { } sc && top > 0f) DrawBar(sc / top, 120f);
                 else ImGui.TextColored(Dim, $"{Mode(o.Mode)}   {o.Considerations.Count} considerations");
                 if (o.ZeroedBy != null) { ImGui.SameLine(); ImGui.TextColored(Dim, $"(zeroed by {o.ZeroedBy})"); }
@@ -71,6 +74,8 @@ public static class UtilityDecisionWidget
         }
         ImGui.PopID();
     }
+
+    private static string OptionLabel(SheetOption o) => $"{(o.Winner ? "* " : "")}{o.Name}{(o.Score is { } s ? $"  {s:0.00}" : "")}";
 
     private static string Mode(ScoringMode m) => m == ScoringMode.WeightedProduct ? "product (compensated)" : "sum";
 
@@ -121,11 +126,13 @@ public static class UtilityDecisionWidget
         if (sheet.Ranked.Count == 0) return;
         ImGui.Separator();
         float top = sheet.Ranked.Max(r => r.Score);
+        string Row(int i) => $"{i + 1,2}  {label?.Invoke(sheet.Ranked[i].Entity) ?? $"#{sheet.Ranked[i].Entity.Index}"}  {sheet.Ranked[i].Score:0.00}";
+        float column = ImGui.GetCursorPosX() + 12f + Enumerable.Range(0, sheet.Ranked.Count).Max(i => ImGui.CalcTextSize(Row(i)).X);   // ⭐ CE-1327
         for (int i = 0; i < sheet.Ranked.Count; i++)
         {
             var r = sheet.Ranked[i];
-            ImGui.TextUnformatted($"{i + 1,2}  {label?.Invoke(r.Entity) ?? $"#{r.Entity.Index}"}  {r.Score:0.00}");
-            ImGui.SameLine(300f);
+            ImGui.TextUnformatted(Row(i));
+            ImGui.SameLine(column);
             if (top > 0f) DrawBar(r.Score / top, 120f);
         }
     }

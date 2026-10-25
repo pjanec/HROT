@@ -3190,6 +3190,33 @@ graph TD
 
 ⏭ **Not done:** the standalone IG's `Mouse World` raylib overlay is not routed through the status-bar section (it has no status bar of its own outside the cluster window, and `ruling 9`'s "one readout" is satisfied only inside `ClusterRunner`; IG's world singleton also carries no `IGeographicTransform`, so its status-bar section shows the flat point alone — `DESIGN_Geo_Origin.md` §1) · the Config window's `Grid` tick is a duplicate of the layer row (Q28 E′ deletes the duplicate `ConfigPanel` — not this slice) · a grid in the 3-D view · the title names the Editor's/CGF's loaded scenario only — a SimHost-only or IG-only run has no session to ask.
 
+### 6ad. CE-1328 — grass on the open ground, so walking reads as moving — AS-BUILT `2026-10-25` (ui)
+
+🔒 User, `2026-10-25`: *"The green ground on the terrain needs some simple texture (grass?) so we see that we are moving (the solid green
+colour looks the same and not giving much feeling of movement when we are looking down while walking in FPS mode)."*
+
+```mermaid
+graph LR
+  T[TerrainLayer3D.Draw3D] -->|SetGroundDetail 1| S[LitShader fragment]
+  S --> G{"normal up AND green base?"}
+  G -->|yes| N["value noise on WORLD x,y: ~12 m patches, ~1 m tufts, fine streaks fading out by 90 m"]
+  G -->|no| P[colour as before]
+  T -->|SetGroundDetail 0 after the draw| S
+```
+*What the picture shows that prose hid:* the grass is anchored to the WORLD, not the screen or the mesh, so it slides past a moving eye; and
+it is one uniform the terrain sets for its own draw only — the bodies, roads and effects drawn through the same program stay plain.
+
+| piece | where |
+|---|---|
+| `grass()` in the fragment program (`grassNoise`, value noise; 12 m patches toward a drier tint, 1 m tufts, streaks that fade by 90 m so nothing shimmers far away); `uniform groundDetail`; `SetGroundDetail(float)` | `FDP/Engine/Fdp.Presentation/Vis3D/LitShader.cs` |
+| the terrain sets it for its draw and puts it back to 0 | `TerrainLayer3D.Draw3D` |
+| only faces pointing up whose base colour is GREEN (ground, forest, a hedge's top) — a flat roof, water, roads stay plain | the shader's `flat_` gate |
+
+📷 `Map3DFrameRail` shots `posture-1-side.png` (first-person height) and `map3d-2-tilted.png`. ⚠ Looked at in the frame rail only, not in the
+live editor; the strength (`0.80 + 0.30·tufts`) may want tuning on a real screen.
+
+![grass at first-person height](assets/map3d/grass-first-person.png)
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

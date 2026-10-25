@@ -18,16 +18,13 @@ namespace Hrot.ScenarioEditor.Gizmos
     [GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]
     public sealed class EntityEditorLabelGizmo : IStatelessGizmo
     {
-        /// <summary>The card rows (§3.6): the bar is 10, the name 20.</summary>
-        public const byte HitPointsRow = 30, BehaviourRow = 40;
+        /// <summary>The card rows (§3.6): the bar is 10, the name 20; ⛔ row 30 (the hit points as numbers) is retired — CE-1327.</summary>
+        public const byte BehaviourRow = 40;
         private static readonly Rgba32 BehaviorColor = new Rgba32(255, 255,   0, 255);
-        private static readonly Rgba32 HpGreen     = new Rgba32(  0, 255,   0, 255);
-        private static readonly Rgba32 HpYellow    = new Rgba32(255, 255,   0, 255);
-        private static readonly Rgba32 HpRed       = new Rgba32(255,   0,   0, 255);
 
         private readonly BehaviorRegistry? _behaviorRegistry;
 
-        /// <summary>No behaviour names on this host: the card shows the hit points only.</summary>
+        /// <summary>No behaviour names on this host: this gizmo adds nothing to the card.</summary>
         public EntityEditorLabelGizmo() { }
 
         public EntityEditorLabelGizmo(BehaviorRegistry behaviorRegistry)
@@ -46,16 +43,8 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (net == 0) return;   // a card is keyed by the network id
             var card = draw.Card(net, DebugTraceLayers.Labels);
 
-            // Row 30: HP current/max (coloured by ratio) — the numbers under the health bar.
-            if (Has<Health>(view, entity))
-            {
-                ref readonly var hp = ref view.GetComponentRO<Health>(entity);
-                float ratio = hp.Max > 0f ? hp.Current / hp.Max : 0f;
-                Rgba32 hpColor = ratio >= 0.66f ? HpGreen
-                               : ratio >= 0.33f ? HpYellow
-                               : HpRed;
-                card.Row(HitPointsRow).Text($"HP {hp.Current:F0}/{hp.Max:F0}", hpColor, 12f);
-            }
+            // ⛔ CE-1327 — the hit points row (30) is gone: the health bar at the top of the card (row 10) shows them (user, 2026-10-25:
+            //   "we can remove the HP line as we are showing the health bar at the top of the card").
 
             // Row 40: the active behaviour (yellow).
             if (_behaviorRegistry != null && Has<BehaviorState>(view, entity))

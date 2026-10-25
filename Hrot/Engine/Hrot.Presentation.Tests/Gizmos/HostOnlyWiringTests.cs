@@ -143,7 +143,7 @@ public sealed class HostOnlyWiringTests : IDisposable
     }
 
     [Fact]
-    public void CE3123_TheLabel_WithoutABehaviourRegistry_DrawsTheHitPoints_NotTheBehaviour()
+    public void CE1327_TheLabel_DrawsNoHitPointsLine_TheBarAtTheTopShowsThem()
     {
         _w.RegisterComponent<BehaviorState>();
         _w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
@@ -154,12 +154,9 @@ public sealed class HostOnlyWiringTests : IDisposable
 
         new EntityEditorLabelGizmo().Draw(_w, unit, draw);
 
-        // ⭐ CE-1033 S5b — the lines are card rows now; the id moved to the card's name row (EntityNameGizmo).
-        var texts = draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).ToArray();
-        var hp = Assert.Single(texts);
-        Assert.Equal(CoordinateSpace.EntityCard, hp.Space);
-        Assert.Equal(EntityEditorLabelGizmo.HitPointsRow, hp.ZIndex);
-        Assert.Equal("HP 50/100", hp.TextContent.ToString());
+        // ⭐ CE-1327 — the card's health bar (row 10) shows the hit points; the "HP 50/100" row is retired. Without a registry the
+        //   behaviour row is left out too, so this gizmo adds nothing.
+        Assert.DoesNotContain(draw.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.Text);
     }
 
     private sealed class NoPublicCtor { private NoPublicCtor() { } }
