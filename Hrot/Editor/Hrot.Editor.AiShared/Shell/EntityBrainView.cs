@@ -479,7 +479,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
     {
         if (rows.Count == 0) { ImGui.TextDisabled("  " + empty); return; }
         float h = Math.Min(rows.Count, 8) * ImGui.GetTextLineHeightWithSpacing() + 6f;
-        if (ImGui.BeginChild("##hist." + id, new Vector2(0, h), ImGuiChildFlags.Border))
+        if (ImGui.BeginChild("##hist." + id, new Vector2(0, h), ImGuiChildFlags.Borders))
             foreach (var r in rows)
             {
                 ImGui.TextDisabled($"{r.At,7:0.0}s");
