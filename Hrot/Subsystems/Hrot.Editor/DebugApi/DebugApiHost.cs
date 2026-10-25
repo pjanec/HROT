@@ -1789,6 +1789,14 @@ namespace Hrot.Editor.DebugApi
                             error, hintCategory);
             })));
 
+            // ⭐⭐ CE-1321 (BV-68) — the C# behaviour rebuild + hot swap. The rebuild is STARTED on the main thread and awaited here, off
+            //   it: the swap itself is applied by the main loop's DrainPendingCallbacks, which a blocked main thread would never reach.
+            _routes.Add(new("POST", "/ai/reload", async ctx =>
+            {
+                var run = await _jobQueue.RunOnMainThread(() => Service().RebuildAndReloadAi()).ConfigureAwait(false);
+                return Ok(DebugApiService.AiReloadJson(await run.ConfigureAwait(false)));
+            }));
+
             _routes.Add(new("POST", "/assets/{assetId}/reload", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) = s.ReloadAsset(ctx.RouteValue("assetId"));

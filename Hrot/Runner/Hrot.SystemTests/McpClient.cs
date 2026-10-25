@@ -469,6 +469,10 @@ public sealed class McpClient : IDisposable
     /// ⭐ Slice 3 — recompile and commit into the running registry. ⚠ Compiles from the IN-MEMORY
     /// asset, ⛔ not from disk, so it reflects unsaved edits.
     /// </summary>
+    /// <summary>⭐ CE-1321 — rebuild the C# behaviours and hot-swap them (a build: tens of seconds).</summary>
+    public Task<ApiResult> ReloadAiBehavioursAsync(CancellationToken ct = default)
+        => PostAsync("/ai/reload", new System.Text.Json.Nodes.JsonObject(), ct);
+
     public Task<ApiResult> ReloadAssetAsync(string assetId, CancellationToken ct = default)
         => PostAsync($"/assets/{Uri.EscapeDataString(assetId)}/reload", null, ct);
 

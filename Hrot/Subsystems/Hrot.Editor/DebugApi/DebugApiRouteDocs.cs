@@ -174,6 +174,23 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\"}",
             ExampleGist: "hot-apply an edited graph to the running brain"),
 
+        [("POST", "/ai/reload")] = new RouteDoc(
+            Tool:    "reload_ai_behaviours",
+            Group:   "V — AI assets & graph tabs",
+            Summary: "⭐ CE-1321 — rebuild the C# behaviours (Hrot.AI.Behaviors) and HOT-SWAP them into the running editor: build, copy into the watched directory, wait for the swap; open graph documents are re-decompiled. The same path as the toolbar's Reload AI.",
+            Returns: "{ build: ok|failed|not-found|not-wired|busy, exitCode, errors[], reloaded, note, added[], removed[], behaviours, documentsReconciled, registrarFailures[], seconds }",
+            Hint:    "No parameters. Edit the C# behaviour source first, then reload_ai_behaviours({}). Takes a build (tens of seconds). Example: reload_ai_behaviours({})",
+            Params: Array.Empty<RouteParam>(),
+            Notes: new[]
+            {
+                "Running units KEEP their state: the registry merges in place and a running behaviour's slot memory is untouched; HSM instances are re-bound by slot. A changed params/state LAYOUT is yours to restart (assign it again).",
+                "A failed build is a 200 with build:failed and the compiler's error lines — the running assembly is unchanged.",
+                "Only Hrot.AI.Behaviors hot-reloads. C# anywhere else (engine, toolkits) needs a rebuild and a restart of the editor.",
+                "Cheaper first: a value (stage_entity_variable with owner) or a JSON asset (reload_ai_asset) needs no build at all — the skill's §J ladder.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "rebuild and hot-swap the C# behaviours after editing their source"),
+
         // ── Group W — AI-asset AUTHORING (AQ56 / DESIGN_Mcp_Authoring.md) ────────────────────
         //
         // ⭐⭐⭐ The read-then-edit-by-guid loop. ⛔ The ids in these payloads are the IN-MEMORY ones the

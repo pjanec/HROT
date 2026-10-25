@@ -2262,6 +2262,18 @@ namespace Hrot.Editor
             _editorLogic = app;
             _editorApp   = app;
 
+            // ⭐⭐ CE-1321 (BV-68) — THE C# behaviour rebuild (toolbar button and POST /ai/reload): build, copy into the watched
+            //   directory, await the swap. The signal subscribes to the coordinator only when a rebuild runs, so it fires AFTER the
+            //   catalog refresh and the document reconcile (subscribed later, in RegisterWindows).
+            app.SetAiRebuild(new AiBehaviorsRebuild(
+                app.AiProjectFilePath,
+                AppDomain.CurrentDomain.BaseDirectory, "Hrot.AI.Behaviors.dll",
+                new DotnetBuildRunner(line => _hotReloadSource?.PushLine(line)),
+                _aiCoordinator != null ? new AiHotReloadSignal(_aiCoordinator) : null,
+                () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyCollection<string>)Array.Empty<string>(),
+                () => _aiDocumentManager?.OpenDocuments.Count ?? 0,
+                log: line => _hotReloadSource?.PushLine(line)));
+
             // ⭐⭐ Q86 (R-215) — the editor runs the ONE orchestrator core, the same one the cluster's
             //    OrchestratorSubsystem hosts; it replaced a hand-built copy that had drifted (no scenario-load
             //    handler — the clock never reset on load —, no episodes, no live branch, diagnostics dumped into the
@@ -4903,6 +4915,7 @@ namespace Hrot.Editor
                     _aiDocumentManager.ReconcileFromCatalog(_aiCatalogBuilder.Catalog.All);
                 };
             }
+
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── BATCH-29 (MTB-P8-T3): "Open Asset" command (shell.openAsset) — leftmost toolbar

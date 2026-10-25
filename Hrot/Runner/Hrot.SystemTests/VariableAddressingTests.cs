@@ -153,9 +153,9 @@ public sealed class VariableAddressingTests : SystemTestBase
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-1320</c> (Brain View §12g BV-65) — the ONE live write over HTTP, end to end on a real brain: pick a running behaviour's
-    /// working-state slot with a numeric field from <c>GET /entities/{id}/slots</c>, stage a new value with <c>owner</c> + <c>part</c>
-    /// (no restart), advance, and read the slot back changed — with the task still the same run.
+    /// ⭐⭐ <c>CE-1320</c> (Brain View §12g BV-65) — the ONE live write over HTTP, end to end on a real brain: pick a running task's
+    /// params slot with a numeric field from <c>GET /entities/{id}/slots</c> (the curated worlds' tasks carry Params + State), stage a
+    /// new value with <c>owner</c> + <c>role:params</c> (no restart), advance, and read it back — the same task, the start record true.
     /// </summary>
     [SystemSmokeFact]
     public async Task A_running_behaviours_working_state_is_written_in_place()

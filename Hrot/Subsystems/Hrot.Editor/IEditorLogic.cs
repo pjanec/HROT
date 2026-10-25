@@ -99,6 +99,13 @@ public interface IEditorLogic
     void RebuildAndReloadAI();
 
     /// <summary>
+    /// ⭐ <c>CE-1321</c> (BV-68) — the same rebuild, awaited: build, copy into the watched directory, wait for the swap, say what
+    /// changed (<c>POST /ai/reload</c>). A host without hot reload answers <c>not-wired</c>.
+    /// </summary>
+    System.Threading.Tasks.Task<AiReloadResult> RebuildAndReloadAIAsync()
+        => System.Threading.Tasks.Task.FromResult(AiReloadResult.NotWired("This host wires no C# behaviour hot reload."));
+
+    /// <summary>
     /// True when the currently loaded scenario was opened in degraded mode
     /// (snapshot fallback; the file was too new for the current migration chain).
     /// </summary>

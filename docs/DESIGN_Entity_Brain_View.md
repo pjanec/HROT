@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -1231,3 +1231,38 @@ he is himself a commander (incoming, BV-58's *Received*). The provisioning rides
 | the tab: *Why this choice* no longer says scores need observing; a unit whose graph trace rings are absent reads *"Graph trace: off (Debug this unit traces it)"*, in replay *"not traced during the recording …"*; `BrainSnapshot.Traced` (and `traced` in `GET /entities/{id}/brain`) | `EntityBrainView.cs` | ✅ BV-61 |
 | `GET /entities/{id}/utility` + route docs: decisions need no arming; `observe_trace` arms only the traces | `DebugApiService.Utility.cs`, `DebugApiRouteDocs.cs` | ✅ BV-61 |
 | ⚠ **the expanders that SHOW the histories are B7** (CE-1312, the commander's Reports / Orders) — B4 makes the inputs exist and record | — | as planned (§12h) |
+
+### 12l. AS-BUILT — B3 *(CE-1321, `2026-10-25`)*
+
+```mermaid
+sequenceDiagram
+  participant A as agent / toolbar
+  participant H as DebugApiHost (HTTP thread)
+  participant E as EditorApplication
+  participant R as AiBehaviorsRebuild
+  participant D as dotnet
+  participant C as AiHotReloadCoordinator (main loop)
+  A->>H: POST /ai/reload
+  H->>E: RebuildAndReloadAIAsync (started on the main thread)
+  E->>R: RunAsync
+  R->>D: build Hrot.AI.Behaviors -c (the editor's configuration)
+  D-->>R: exit code + error lines
+  R->>D: msbuild -getProperty:TargetPath
+  R->>R: copy dll + pdb into the editor's base directory
+  Note over C: the watcher sees the dll, loads a fresh ALC, the main loop's drain swaps it
+  C-->>R: Completed (after the catalog refresh and the document reconcile)
+  R-->>H: build · reloaded · added · removed · documentsReconciled
+```
+
+*What the picture shows that prose hid:* the HTTP handler must NOT block the main thread. The swap is applied by the main loop's
+`DrainPendingCallbacks`, so the route starts the rebuild there and awaits it off-thread. The copy step is the one link that was missing.
+
+| piece | where | matches §12g BV-68 / deviates |
+|---|---|---|
+| 🔴 **measured first:** the watcher watches the editor's base directory (`EditorSubsystem.cs`, `AiHotReloadCoordinator(aiAssemblyDir …)`); the toolbar's `dotnet build Hrot.AI.Behaviors.csproj` wrote only that project's own `bin`, and no `.csproj` / `.props` / `.targets` copies it ⇒ **the button rebuilt and never reloaded** | — | the measurement BV-68 asked for — it failed |
+| `AiBehaviorsRebuild`: build in the editor's own configuration, read `TargetPath`, COPY dll + pdb into the watched directory, await the coordinator's completion (60 s), report the behaviours added and removed and the documents reconciled; `busy` on a second concurrent call | `Hrot.Editor/AiBehaviorsRebuild.cs` | ✅ BV-68; ⚠ `behavioursChanged` became `added` / `removed` names (a merge re-registers EVERY behaviour, so "changed" would always be all) |
+| ONE path: the toolbar's `RebuildAndReloadAI` awaits the same `RebuildAndReloadAIAsync` (fire-and-forget, result to the hot-reload log); `IEditorLogic` gets a default `not-wired` answer for hosts without hot reload | `EditorApplication.cs`, `IEditorLogic.cs` | ✅ |
+| `AiHotReloadSignal` subscribes on its FIRST listener, so it fires after the catalog refresh and the reconcile the composition root subscribed earlier | `AiBehaviorsRebuild.cs` | — |
+| `POST /ai/reload` (tool `reload_ai_behaviours`), route doc, skill §J rung 3 | `DebugApiHost.cs`, `DebugApiService.AiReload.cs`, `DebugApiRouteDocs.cs`, `skill-parts/30-workflows.md` | ✅ |
+| running units keep their task across the swap: measured end to end (`AiBehaviourHotReloadTests`, hill-attack: 150 behaviours, 9.8 s, unit 1000 still `PlatoonHillAttack`) | `Hrot.SystemTests` | ✅ the measurement BV-68 asked for |
+| ⚠ **not measured:** on Windows, whether the default load context holds the base directory's `Hrot.AI.Behaviors.dll` open so the copy fails | — | the copy reports `could not be replaced` rather than hanging; a Windows run settles it |
