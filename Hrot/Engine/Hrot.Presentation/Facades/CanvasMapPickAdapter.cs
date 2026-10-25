@@ -118,6 +118,10 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             ct);
     }
 
+    /// <summary>⭐ <c>CE-1346</c> — offers an entity picked elsewhere (an ORBAT row) to this map's entity pick in progress
+    /// (<see cref="Hrot.ScenarioEditor.Tools.PickerToolHost.TryOfferEntity"/>); false when none takes it.</summary>
+    public bool TryOfferEntity(Fdp.Core.Entity entity) => _pickers.TryOfferEntity(entity);
+
     /// <inheritdoc/>
     /// <remarks>⭐ CE-3171 — the same hit test the entity picker uses (<c>MapCanvas.PickTopmostEntity</c>); in the 3-D view the
     /// gizmo's world point already lands on a picked entity's position, so it resolves there too.</remarks>

@@ -617,6 +617,24 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(1, childNode.Depth);
         }
 
+        /// <summary>⭐ <c>CE-1346</c> (Tool Model §4.16) — a clicked row is first OFFERED to the map's entity pick; taken, the row is not
+        /// selected (no select request is published). ✅ Red-proof: the offer dropped from SelectEntity ⇒ the offer never sees the row.</summary>
+        [Fact]
+        public void CE1346_AClickedRow_IsOfferedToTheEntityPick_AndTakenItIsNotSelected()
+        {
+            _world.CreateEntity();
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new EntityInfo { Name = new Fdp.Core.FixedString64("Alpha") });
+            var adapter = CreateAdapter();
+            var offered = new List<Entity>();
+            adapter.PickOffer = e => { offered.Add(e); return true; };
+            adapter.GetVisibleNodes("", new HashSet<int>());
+
+            adapter.SelectEntity(unit.Index);   // ⚠ a select would publish ActivateEditorToolEvent — taken, it returns first
+
+            Assert.Equal(new[] { unit }, offered);
+        }
+
         /// <summary>CE-1272 — a collapsed commander hides its subordinates, also when no row is expanded at all (the old "nothing
         /// expanded ⇒ everything expanded" shortcut showed them).</summary>
         [Fact]

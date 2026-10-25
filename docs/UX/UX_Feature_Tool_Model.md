@@ -2020,7 +2020,7 @@ they were never lost — and **every one resolved `hitEntity=#-1`**, terrain and
 resolve entities is NOT MEASURED**; the scene holds 13 FDP entities / 11 visuals, so the ray had targets.
 ⇒ 🔒 **Do not read `CE-297` as having fixed 3-D picking — it fixed the 2-D window's clicks.**
 
-### 4.16 ⭐ THE ORBAT AS A SECOND PICK SOURCE — `CE-1346` *(design, `2026-10-25`; build-state: DESIGN — awaiting the user's nod)*
+### 4.16 ⭐ THE ORBAT AS A SECOND PICK SOURCE — `CE-1346` *(design `2026-10-25`, approved by the user the same day; build-state: BUILT — as-built at the end)*
 
 🔒 **User, 2026-10-25:** *"It would be extra cool if when such an entity picking mode is used it would work also by clicking the entity
 in the Orbat tree … (might need design how as gizmos might not see that)"*
@@ -2028,12 +2028,12 @@ in the Orbat tree … (might need design how as gizmos might not see that)"*
 ```mermaid
 sequenceDiagram
     participant U as user
-    participant O as SharedOrbatPanel
+    participant O as ScenarioOrbatAdapter
     participant H as PickerToolHost
     participant G as EntityPickerGizmo
     participant C as caller (the pick's await)
-    U->>O: clicks a row while a pick is armed
-    O->>H: TryOfferEntity(entity)
+    U->>O: clicks a row while a pick is armed (SelectEntity)
+    O->>H: PickOffer(entity), via CanvasMapPickAdapter.TryOfferEntity
     H->>G: TryPick(entity)
     G->>G: the same filter as a map click
     G->>C: onPicked(entity), then onRemove (the tool underneath resumes)
@@ -2050,6 +2050,13 @@ picker host (§4.12), and the gizmo finishes exactly as a map click finishes it,
 | rejected | a fake mouse event at the unit's map position — the unit may be off-screen, under another, or in the other (2-D/3-D) view |
 | rejected | the ORBAT publishing selection and the picker watching selection — a pick would then also change the selection, and every selection change while armed would become a pick |
 | ⚠ **scope** | in-process panels only (Editor, CGF); an ORBAT in another process (ExCon) needs the pick on the wire — not this item |
+
+⭐ **AS-BUILT `2026-10-25` (ui)** — as designed, with one placement change: the offer is made in **`ScenarioOrbatAdapter.SelectEntity`**
+(the panel's controller), not in `SharedOrbatPanel` itself — the panel holds only the row's index, the adapter already resolves it to the
+entity, and ExCon's own controller is untouched by construction. `ScenarioOrbatAdapter.PickOffer` is set by the Editor and CGF to their
+`CanvasMapPickAdapter.TryOfferEntity` → `PickerToolHost.TryOfferEntity`, which answers only while its entity picker is the ACTIVE modal
+(a pick suspended under another tool refuses) → `EntityPickerGizmo.TryPick` (its filter, then `onRemove`, then `onPicked`). Rails
+`PickerToolHostTests.AnOfferedEntity_*`, `NoPickOrASuspendedPick_*`, `EditorOrbatAdapterTests.CE1346_*`.
 
 
 ## Migration

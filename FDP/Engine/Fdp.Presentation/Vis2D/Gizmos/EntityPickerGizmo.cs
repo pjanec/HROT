@@ -181,6 +181,18 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
         }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1346</c> (docs/UX/UX_Feature_Tool_Model.md §4.16) — a pick from ANOTHER source (an ORBAT row): the same filter a map click
+    /// meets and the same exit (<c>onRemove</c>, then <c>onPicked</c>). False (nothing happens) when the filter refuses it.
+    /// </summary>
+    public bool TryPick(Entity entity)
+    {
+        if (entity.IsNull || !_filter.IsMatch(entity)) return false;
+        _onRemove();
+        _onPicked(entity);
+        return true;
+    }
+
     // ---- Unused IGizmoInteractionHandler methods -----------------------------
 
     /// <inheritdoc/>

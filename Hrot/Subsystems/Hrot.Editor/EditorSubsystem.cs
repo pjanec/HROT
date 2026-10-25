@@ -2664,7 +2664,10 @@ namespace Hrot.Editor
                 //    keeps it correct on a host that does not own the entity (the AX-005b lesson).
                 _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal(
                     (netId, components) => _editorLogic?.CommitPropertyEdit(netId, components));
-                _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter);
+                _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter)
+                {
+                    PickOffer = e => _mapPickAdapter?.TryOfferEntity(e) == true,   // ⭐ CE-1346 — an ORBAT row answers a map entity pick
+                };
                 _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
 
                 // Register context menu handlers with the FDP entity inspector.
