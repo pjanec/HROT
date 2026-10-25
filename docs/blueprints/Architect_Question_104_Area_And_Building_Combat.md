@@ -266,3 +266,10 @@ red · ⏭ the no-round mutation to re-run (its first form did not compile). Six
 |---|---|---|
 | `ia-area-clear` (`ClearArea`) | ⛔ 0/2 | the sequencer picked House A first (nearest) — ✅ — but the team sat ~100 s before moving (the baseline's idle start, unchanged), entered A at 129 s and was still on its ground floor at 410 s with Red 1 alive upstairs; House B never reached because A never finished. ⇒ the limit is the building drill's pace, not the sequencer |
 | `ia-area-defend` (one-man `SquadDefend`, L1) | ⛔ 0/4 — **worse than step 2** (2 rounds v 16) | the guard stood at the centre ~110 s under steady fire, never firing at Blue East 7 m away; moved at 145 s, into House A at 186 s. ⏭ **next: a live brain probe** — whether his posts were ever given (the window/coverage stages under fire) or the TS-6 break holds him, as at baseline |
+
+📐 **The live probe of `ia-area-defend`** (guard + his commander, every ~0.8 s): the posts DO go out (the commander's play in Posting,
+the guard on `CombatPosture` Superior) — but **both attackers are in sight at t = 0** (Blue South fires at 2 s from 42 m), so the guard is
+under fire before he posts; his **stress pins at 1.0 by 11 s** and stays (immortal: the fire never ends), and he cycles Break ⇄
+CombatPosture with the weapon "aiming" and locomotion "moving" while neither firing nor changing place. ⇒ ① the demo did not test L: the
+attackers now start ~90 m out (Blue South (106,5), Blue East (195,98)) so the guard posts first; ② the pinned stress and the aim-that-never-
+fires are step 5's (C + F) — recorded there, not treated as an L defect.

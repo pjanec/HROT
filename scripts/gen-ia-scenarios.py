@@ -70,11 +70,11 @@ s.car("Car 1", (96, 96, 0), heading=0, nid=10480)
 s.car("Car 2", (115, 96, 0), heading=0, nid=10481)
 gq = defend_squad(s, "Guard Post", "Hostile", (105.6, 97, 0), 10470, radius=25)   # ⏭ A: the mapper makes this for a lone man
 guard = s.man("Guard", "Hostile", (105.6, 97, 0), 180, tkb=2002, health=100000, commander=gq, designation="SquadLeader", nid=10471)
-s.man("Blue South", "Friend", (106, 55, 0), 0, tkb=2002, health=100, behavior=attack(10471), nid=10472)
-s.man("Blue East", "Friend", (150, 98, 0), 270, tkb=2002, health=100, behavior=attack(10471), nid=10473)
+s.man("Blue South", "Friend", (106, 5, 0), 0, tkb=2002, health=100, behavior=attack(10471), nid=10472)
+s.man("Blue East", "Friend", (195, 98, 0), 270, tkb=2002, health=100, behavior=attack(10471), nid=10473)
 s.write("ia-area-defend", "bt-range",
         "What: AQ104 K (CE-2371) - on bt-range, 'Guard' (Hostile rifleman, immortal) defends the area round House A (centre (105.6,97), "
         "~25 m) - AQ104 L (CE-2373): the one man of 'Guard Post' (SquadDefend over the area): posts chosen for COVERAGE, a guard round "
-        "between them while nothing is known (⏭ AQ104 A: the order straight on the man) - two parked cars by the centre;'Blue South' (from (106,55)) and 'Blue East' (from (150,98)) attack him (mortal). "
+        "between them while nothing is known (⏭ AQ104 A: the order straight on the man) - two parked cars by the centre;'Blue South' (from (106,5)) and 'Blue East' (from (195,98)), ~90 m out so the guard posts before they arrive, attack him (mortal). "
         "Judge (240 s): (1) the guard sees each attacker before he is within 30 m of the centre; (2) the guard fires first at each; "
         "(3) printed: where the guard stood over time and what he could see. " + CHECK.format(sid="ia-area-defend"))
