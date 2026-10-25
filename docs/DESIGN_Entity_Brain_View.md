@@ -4,7 +4,7 @@ updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 liv
 build-state: BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
 current-answer: §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
-known-rot: none
+known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
 related-designs:
   - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — S5a/S5b OWN the hosted child's site slot [brain][start][block] that §12b BV-44's reader walks
@@ -659,10 +659,10 @@ classDiagram
     <<NEW>>
     providers; For(view, e) groups merged by Group
   }
-  class BehaviourStateReader {
-    <<NEW>>
-    Hrot.Presentation
-    +Running(session, e) RunningBehaviour list
+  class OccurrenceSlotCatalog {
+    <<EXISTS>>
+    grows blueprint variables and a boxed value
+    +Read(world, e, registry) slot views
   }
   class RunningBehaviour {
     <<NEW>>
@@ -722,14 +722,14 @@ classDiagram
   IBrainSettingProvider <|.. CombatTemperamentSettings
   IBrainSettingProvider <|.. CombatProficiencySettings
   IBrainSettingProvider ..> BrainSetting
-  EntityBrainView --> BehaviourStateReader
-  BehaviourStateReader ..> RunningBehaviour
-  BehaviourStateReader --> BrainSlotScope : SOP by hash
-  BehaviourStateReader --> HostedChildren : nested, recursive
-  BehaviourStateReader --> BlueprintBlackboardPartitions
-  BehaviourStateReader --> BlueprintDefinition
-  RootParamsProjection --> BehaviourStateReader
-  StatefulWorkingStateProjection --> BehaviourStateReader
+  EntityBrainView --> OccurrenceSlotCatalog
+  OccurrenceSlotCatalog ..> RunningBehaviour
+  OccurrenceSlotCatalog --> BrainSlotScope : SOP by hash
+  OccurrenceSlotCatalog --> HostedChildren : nested, recursive
+  OccurrenceSlotCatalog --> BlueprintBlackboardPartitions
+  OccurrenceSlotCatalog --> BlueprintDefinition
+  RootParamsProjection --> OccurrenceSlotCatalog
+  StatefulWorkingStateProjection --> OccurrenceSlotCatalog
   EntityBrainView --> ImGuiPropertyTree : read-only dump
   ImGuiPropertyTree --> ImGuiRendererRegistry
   EntityBrainView --> EntityBlueprintsPanel
@@ -746,7 +746,7 @@ sequenceDiagram
   participant T as EntityBrainView (Draw)
   participant S as BrainSettingRegistry
   participant P as provider (e.g. CombatTemperamentSettings)
-  participant R as BehaviourStateReader
+  participant R as OccurrenceSlotCatalog
   participant D as ImGuiPropertyTree
   T->>S: For(view, unit)
   S->>P: AppliesTo / Settings
@@ -770,7 +770,7 @@ graph TD
   REG["Details view registry"] -->|"registers details.brain"| BV["EntityBrainView"]
   REG -.->|"details.entityblueprints — RETIRED"| EBV["EntityBlueprintsDetailsView"]
   REG -.->|"details.ai — RETIRED (R-1036)"| AI["EntityAiDetailsView"]
-  INS["ECS inspector: BlueprintBlackboardRendererBase"] --> RDR["BehaviourStateReader"]
+  INS["ECS inspector: BlueprintBlackboardRendererBase"] --> RDR["OccurrenceSlotCatalog"]
   BV --> RDR
   BV --> SET["BrainSettingRegistry"]
   BOOT["editor / CGF bootstrap (where the brain runs, BV-39)"] -->|"registers providers"| SET
@@ -785,7 +785,7 @@ draw nothing once their content lives here.
 | **BV-41** | **Settings = GROUPS, never components** | every component that steers a behaviour gets an `IBrainSettingProvider`; each declares a user-facing **Group** (*Temperament*, *Combat skill*, later e.g. *Weapon weights*); two providers may share a group and merge into it; the expander draws one sub-header per group, a slider per setting with the type's value and a reset. ⛔ Rejected: reflection over `[EditRange]` fields (misses the authored bit — the slider moves, the unit does not change) · the tuning registry (global / per-decision, unwired, wrong layer) |
 | **BV-42** | **every running behaviour alike** | a *Running behaviours* section: one expander per behaviour — the task, the SOP, each attached blueprint — nested runs (HSM regions, subtrees, a hosted child of any tier) as sub-headers of their owner; each shows **Parameters** and **Variables** |
 | **BV-43** | **the variables are the inspector's DUMP, read-only** | `ImGuiPropertyTree` with the registered renderers; no sliders, no inline edits — *Add to Watch* / the Watch window edit them. ⛔ Rejected: the asset-variable table (`VariableTableControl`) — it cannot show a C# behaviour (CE-1286) |
-| **BV-44** | **ONE reader, shared with the inspector** | `BehaviourStateReader` (Hrot.Presentation) enumerates task + SOP (by hash, the `BrainSlotScope` rule) + hosted children (recursive, the S5 site slot) + attached blueprints (`TryGetSlotOffset` + `StateClrType` / `ParamsClrType`); `RootParamsProjection` / `StatefulWorkingStateProjection` route through it, so the inspector gains the SOP, the children and the blueprint variables too. ⛔ Rejected: a second decoder for the tab (two decoders drift) · calling `BlueprintDebugSession` (wrong assembly; its owner already delegates to `TryGetSlotOffset`) |
+| **BV-44** ⚠ *corrected `2026-10-25` — the reader EXISTS* | **ONE reader, shared with the inspector** | ⛔ no new `BehaviourStateReader`: 📐 **`OccurrenceSlotCatalog.Read(world, unit, registry)`** (`Fdp.Toolkits/Behavior/OccurrenceSlotCatalog.cs`, CE-2288, R-2050) already lists and DECODES every occurrence slot a unit carries — the task's, the SOP's, a paused task's, hosted children's, working state — and serves `GET /entities/{id}/slots`. ⭐ The Brain tab and the inspector's two projections route through IT; it grows what it lacks: attached blueprints' variables (`TryGetSlotOffset` + `StateClrType` / `ParamsClrType`) and the boxed CLR value for `ImGuiPropertyTree`. ⛔ Rejected: a second decoder (two drift — and one was about to be built beside an existing one) |
 | **BV-45** | **a fixed list shows its Count** | `ImGuiPropertyTree`'s `[InlineArray]` arm asks `FixedListShape`; a list draws `Count` items (clamped, F2), a plain inline array keeps drawing N |
 | **BV-46** | **blueprints are managed on the tab** | the task / SOP / blueprint expanders carry the params form (BV-38); at the section's foot **+ Add blueprint…**, a **Remove** per blueprint expander, **Apply / Revert all** — `EntityBlueprintsPanel` + `EntityBlueprintsEditModel` unchanged, drawn here; ⛔ `details.entityblueprints` is RETIRED once it moves; disabled in the replay browser |
 | **BV-47** | ✅ *accepted by the user `2026-10-25`* — **an entity with no brain** | the tab applies to EVERY single entity; with no `BehaviorState` it shows only the Running-behaviours section (its blueprints, + Add). ⛔ Rejected: keep the Entity Blueprints view for brainless entities (two places again) · leave them without a home (the measured regression) |
