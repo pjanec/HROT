@@ -71,14 +71,14 @@ public sealed class TheSettingsMenuIsOneMenuTests
     public void TheHostMenuDtos_NoLongerCarryASettingsBlock()
         => Assert.DoesNotContain(Wm().HostMenuLabelsForRail(), label => label == "Settings");
 
-    /// <summary>⭐ <c>CE-1332</c> — Help holds About only; the global (debug) windows moved to View → Debug (🔒 user, 2026-10-25).
-    /// ✅ Red-proof: the Debug child put back into the Help DTO ⇒ red.</summary>
+    /// <summary>⭐ <c>CE-1332</c> — Help holds About only; the global (debug) windows are listed once, under Windows → Global (🔒 user,
+    /// 2026-10-25). ✅ Red-proof: the Debug child put back into the Help DTO ⇒ red.</summary>
     [Fact]
-    public void CE1332_HelpHoldsAboutOnly_TheDebugWindowsAreUnderView()
+    public void CE1332_HelpHoldsAboutOnly()
     {
         var wm = Wm();
         var help = wm.GlobalMenu.CollectContributions("").SelectMany(c => c.Items).Single(m => m.Label == "Help");
         Assert.Equal(new[] { "About" }, help.Children!.Select(c => c.Label));
-        Assert.Contains(wm.GlobalMenu.Contributors, c => c.Id == "wm/view-debug");
+        Assert.DoesNotContain(wm.GlobalMenu.Contributors, c => c.Id == "wm/view-debug");
     }
 }

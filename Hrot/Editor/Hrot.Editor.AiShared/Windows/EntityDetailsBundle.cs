@@ -104,7 +104,7 @@ public sealed class EntityDetailsBundle : IUiBundle
         ctx.Windows.RegisterWindow(Window);
         if (_host.Host() is not { } host) return;   // no actions on this host (Stride mode 2): the panel only
         RegisterProperties(host, ctx.Windows, Window);
-        RegisterViewMenu(host, ctx.Windows);
+        // ⛔ CE-1334 — no View ▸ Details menu: float and pin are the panel's own tab-bar icons (the menu offered nothing more)
     }
 
     /// <summary>
@@ -125,33 +125,6 @@ public sealed class EntityDetailsBundle : IUiBundle
             details.RequestView(ScenarioComponentsViewDescriptor.ViewId);
         });
     }
-
-    /// <summary>
-    /// ⭐ HA-7 (was <c>DetailsWindow.RegisterViewMenu</c>, <c>BP-403</c>) — ONE pair of items for all perspectives, acting on the current
-    /// perspective's panel at click time; greyed with a reason when nothing is showing (🔒 user, 2026-08-17: a tooltip beats a dead click).
-    /// A click REQUESTS the action; the two actions' handlers act through the shell's public <c>OpenFloat</c> / <c>Pin</c>.
-    /// </summary>
-    public static void RegisterViewMenu(HostActions host, WindowManager windows)
-    {
-        ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(windows);
-        host.Actions.RegisterLocal(GlobalActionIds.FloatDetailsView, (_, _) => ActiveDetails(windows)?.OpenFloat(windows));
-        host.Actions.RegisterLocal(GlobalActionIds.PinDetailsView,   (_, _) => ActiveDetails(windows)?.Pin(windows));
-        windows.GlobalMenu.RegisterItem(FloatItemPath, () => host.Request(GlobalActionIds.FloatDetailsView, Entity.Null));
-        windows.GlobalMenu.RegisterItem(PinItemPath,   () => host.Request(GlobalActionIds.PinDetailsView,   Entity.Null));
-
-        foreach (var (name, verb) in new[] { ("Float current view", "float"), ("Pin current view", "pin") })
-        {
-            var node = windows.GlobalMenu.Root.Children["View"].Children["Details"].Children[name];
-            node.GetEnabled   = () => ActiveDetails(windows)?.CurrentDescriptor() is not null;
-            node.DynamicLabel = () => ActiveDetails(windows)?.CurrentDescriptor() is { } d
-                ? $"{name} ({d.Title})"
-                : $"{name} (nothing to {verb} — no view is showing)";
-        }
-    }
-
-    public const string FloatItemPath = "View/Details/Float current view";
-    public const string PinItemPath   = "View/Details/Pin current view";
 
     /// <summary>
     /// The <see cref="DetailsWindow"/> of the perspective the user is in, or null. ⚠ Scans the registered windows: the question is about

@@ -41,14 +41,6 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
     private static DetailsViewDescriptor View(string id, Func<DetailsContext, bool> applies)
         => new(id, id, 0, applies, () => new Nothing());
 
-    /// <summary>⭐ CE-1150 — the host's actions with the View ▸ Details items and their actions, as <c>EntityDetailsBundle</c> registers them.</summary>
-    private static Hrot.Common.Interactions.HostActions Menus(WindowManager wm)
-    {
-        var host = new Hrot.Common.Interactions.HostActions();
-        EntityDetailsBundle.RegisterViewMenu(host, wm);
-        return host;
-    }
-
     /// <summary>One dispatch tick: the requests made since the last one run.</summary>
     private static void Pump(Hrot.Common.Interactions.HostActions host)
     {
@@ -175,108 +167,16 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
         Assert.Null(shell.Pin(wm));
     }
 
-    // ══ ③ BP-403 — the View menu ═════════════════════════════════════════════
+    // ══ ③ CE-1334 — no View ▸ Details menu ═════════════════════════════════
 
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>BP-403</c> CLOSED: the View-menu entry points EXIST.</b>
-    /// 📄 §6 <c>L4.4</c>'s <i>"+ the View menu, so a float is reachable with Details closed"</i> — 🔴 the
-    /// half the tracker recorded as never wired.
-    /// </summary>
+    /// <summary>⭐ <c>CE-1334</c> (🔒 user, 2026-10-25: <i>"View → Details is useless if this is nothing better than the icon, so pls remove"</i>) —
+    /// float and pin live on the Details panel's own tab bar only; the bundle registers no View ▸ Details items.
+    /// ⛔ SUPERSEDED: BP-403's View-menu entry points (<c>EntityDetailsBundle.RegisterViewMenu</c>).</summary>
     [Fact]
-    public void TheViewMenu_CarriesAFloatAndAPinEntry()
+    public void CE1334_ThereIsNoViewDetailsMenu()
     {
         var wm = Wm();
-        wm.RegisterWindow(StandaloneShell(viewCount: 1).shell);
-        Menus(wm);
-
-        var details = wm.GlobalMenu.Root.Children["View"].Children["Details"];
-
-        Assert.Contains("Float current view", details.Children.Keys);
-        Assert.Contains("Pin current view",   details.Children.Keys);
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>THREE shells, TWO menu entries — not six.</b>
-    /// ⛔ The failure this forbids: one pair of items PER <c>DetailsWindow</c>, which would put three
-    /// near-identical entries in the bar. ⭐ The items resolve the active shell from
-    /// <c>CurrentPerspective</c> at click time, so one pair serves every perspective — including one
-    /// added later. ⭐ CE-1150 — and a shell registers NO item itself: before the bundle's call there is no View ▸ Details at all.
-    /// ✅ Red-proof: a shell registering its own items again ⇒ the first assertion fails.
-    /// </summary>
-    [Fact]
-    public void ManyShells_LeaveExactlyTwoMenuEntries()
-    {
-        var wm = Wm();
-        foreach (var p in new[] { "Scenario", "BTree", "HSM" })
-        {
-            var views = new DetailsViewRegistry();
-            views.Add(View("v0", _ => true));
-            var store = new EditorSelectionStore();
-            wm.RegisterWindow(new DetailsWindow(
-                id: $"{p}_details", owningPerspective: p,
-                formatter: new VariableValueFormatter(RawValueDecoder.Instance),
-                views: views,
-                context: new LiveContextSource(() => DetailsContextBuilder.Build(
-                    store, p, VariableRunState.Planning))));
-        }
-
-        Assert.False(wm.GlobalMenu.Root.Children.TryGetValue("View", out var view) && view.Children.ContainsKey("Details"),
-                     "a Details window registers no menu item of its own");
-        Menus(wm);
-        Assert.Equal(2, wm.GlobalMenu.Root.Children["View"].Children["Details"].Children.Count);
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>The menu acts on the CURRENT perspective's shell, not on whichever registered last.</b>
-    /// ⛔⛔ This is the rail that makes the single-pair design safe: with one pair of items and three
-    /// shells, resolving the target wrongly would silently float the WRONG perspective's view — 📌
-    /// <c>R-78</c>'s chameleon failure, and invisible on screen whenever the two coincide.
-    /// </summary>
-    [Fact]
-    public void TheMenuFloats_ThePerspectiveTheDesignerIsIn()
-    {
-        var wm = Wm();
-        foreach (var p in new[] { "Scenario", "BTree" })
-        {
-            var views = new DetailsViewRegistry();
-            views.Add(View($"only.{p}", _ => true));
-            var store = new EditorSelectionStore();
-            wm.RegisterWindow(new DetailsWindow(
-                id: $"{p}_details", owningPerspective: p,
-                formatter: new VariableValueFormatter(RawValueDecoder.Instance),
-                views: views,
-                context: new LiveContextSource(() => DetailsContextBuilder.Build(
-                    store, p, VariableRunState.Planning))));
-        }
-
-        var host = Menus(wm);
-        wm.SwitchPerspective("BTree");
-        Invoke(wm, "View/Details/Float current view");
-        Pump(host);
-
-        Assert.Contains   (wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("BTree",  "only.BTree"));
-        Assert.DoesNotContain(wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("Scenario", "only.Scenario"));
-    }
-
-    /// <summary>
-    /// ⭐⭐ <b>Greyed WITH A REASON when nothing is showing — ⛔ not hidden.</b>
-    /// 📌 The user's <c>2026-08-17</c> ruling: <i>"showing explanatory tooltip would be better than
-    /// allowing user to click the button and then saying that it is not possible — same information
-    /// value, no false expectations."</i> ⚠ And the enabled label NAMES the view, so the designer knows
-    /// what they are about to float.
-    /// </summary>
-    [Fact]
-    public void WithNothingShowing_TheMenuItemIsDisabledAndSaysWhy()
-    {
-        var wm = Wm();
-        wm.RegisterWindow(StandaloneShell(viewCount: 0).shell);
-        Menus(wm);
-        wm.SwitchPerspective("Scenario");
-
-        var node = wm.GlobalMenu.Root.Children["View"].Children["Details"].Children["Float current view"];
-
-        Assert.False(node.GetEnabled!());
-        Assert.Contains("no view is showing", node.ResolveLabel());
+        Assert.False(wm.GlobalMenu.Root.Children.TryGetValue("View", out var view) && view.Children.ContainsKey("Details"));
     }
 
     // ══ ══════════════════════════════════════════════════════════════════════

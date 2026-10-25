@@ -1149,5 +1149,8 @@ namespace Fdp.Core
         public const int CommandReportHistory = 462;
         /// <summary><c>CommandOrderHistory</c> — a commander's last 32 orders given and received, each with its cause (CE-1319, BV-58); NoScenario, brain-only.</summary>
         public const int CommandOrderHistory = 463;
+        /// <summary><c>UnitDebugSettings</c> — the ONE store of per-unit debug switches (gizmo pins, trace, the followed unit), a managed world
+        /// singleton (CE-1329, Brain View §12r); Transient.</summary>
+        public const int UnitDebugSettings = 464;
     }
 }

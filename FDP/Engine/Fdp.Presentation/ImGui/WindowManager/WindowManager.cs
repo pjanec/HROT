@@ -116,7 +116,6 @@ public class WindowManager
         GlobalMenu.RegisterContributor("wm/perspective", () => OnlyIfAny(PerspectiveMenuDto()), OnPerspectiveMenuAction);
         GlobalMenu.RegisterContributor("wm/windows",     () => OnlyIfAny(WindowsMenuDto()),     HandleHostMenuAction);
         GlobalMenu.RegisterContributor("wm/help",        () => new[] { HelpMenuDto() },        HandleHostMenuAction);
-        GlobalMenu.RegisterContributor("wm/view-debug",  () => OnlyIfAny(ViewDebugMenuDto()),   HandleHostMenuAction);   // ⭐ CE-1332
     }
 
     /// <summary>The icon atlas supplied at construction time.</summary>
@@ -926,8 +925,9 @@ public class WindowManager
         };
     }
 
-    /// <summary>⭐ CE-1243 — the Help menu: About. ⭐ CE-1332 (🔒 user, 2026-10-25: <i>"the Menu Help containing the Debug section — this
-    /// Debug should move to the View menu, leaving just the About in the Help menu"</i>) — ⛔ SUPERSEDED: Help → Debug (the global windows).</summary>
+    /// <summary>⭐ CE-1243 — the Help menu: About. ⭐ CE-1332 (🔒 user, 2026-10-25: <i>"leaving just the About in the Help menu … if the
+    /// Window → Global is same as the debug windows then lets remove the debug field from the View also"</i>) — the global (debug) windows are
+    /// listed once, under Windows → Global. ⛔ SUPERSEDED: Help → Debug, and the View → Debug it briefly moved to.</summary>
     private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto HelpMenuDto()
         => new()
         {
@@ -939,23 +939,6 @@ public class WindowManager
                 new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info" }
             }
         };
-
-    /// <summary>⭐ <c>CE-1332</c> — View → Debug: the global (debug) windows, each checked while open (was Help → Debug). Merged into the one
-    /// View menu by its label; absent when there are none.</summary>
-    private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto ViewDebugMenuDto()
-    {
-        var debug = _windows.Values.Where(w => w.Scope == WindowScope.Global && w.ShowInMenu)
-            .Select(w => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-            {
-                Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen
-            }).ToArray();
-        return new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-        {
-            Label = "View",
-            Children = debug.Length == 0 ? Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>()
-                : new[] { new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Label = "Debug", Children = debug } },
-        };
-    }
 
     /// <summary>⭐ A menu with nothing under it is not offered (⛔ a dead header, UXI-05).</summary>
     private static IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> OnlyIfAny(

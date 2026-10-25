@@ -18,6 +18,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// <para>Tracing has three requesters, and is on while ANY asks: what someone switched on (<see cref="SetTrace"/>, remembered), a Brain tab
     /// showing the unit (<see cref="SetViewed"/>, temporary) and an arming by the API or a breakpoint (<see cref="SetArmed"/>, temporary).</para>
     /// </summary>
+    [ComponentId(GlobalComponentIds.UnitDebugSettings)]
     [DataPolicy(DataPolicy.Transient)]
     public sealed class UnitDebugSettings
     {
