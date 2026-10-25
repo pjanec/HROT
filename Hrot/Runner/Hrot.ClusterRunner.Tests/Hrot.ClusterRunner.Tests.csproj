@@ -24,6 +24,7 @@
     <Compile Include="..\..\..\FDP\TestShared\WorldBoundaryProbe.cs" Link="Shared\WorldBoundaryProbe.cs" />   <!-- CE-3294: a system holding entities forgets them at the world boundary -->
     <Compile Include="..\..\..\FDP\TestShared\SystemStateProbe.cs" Link="Shared\SystemStateProbe.cs" />   <!-- R-3039 S4: every field a system, module or translator carries between frames is classified -->
     <Compile Include="..\..\..\FDP\TestShared\DataPolicyProbe.cs" Link="Shared\DataPolicyProbe.cs" />   <!-- CE-3299 D7: every registrable type declares its DataPolicy -->
+    <Compile Include="..\..\..\FDP\TestShared\ManagedComponentImmutabilityProbe.cs" Link="Shared\ManagedComponentImmutabilityProbe.cs" />   <!-- CE-4046: every recorded managed component is an immutable record -->
     <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
