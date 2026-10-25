@@ -37,13 +37,24 @@ public static class EntityCreationRequestFlags
     public const long Transient = 1L << 0;
 
     /// <summary>
+    /// ⭐ <c>CE-3324</c> — the request comes from a SCENARIO LOAD (<c>EntityCreationRequest.IsScenarioLoad</c>): the servicing node
+    /// spawns only the child blueprints the request overrides — the file holds the rest as entities of their own. ⛔ Without
+    /// it a forwarded scenario load would spawn the template's children a second time.
+    /// </summary>
+    public const long ScenarioLoad = 1L << 1;
+
+    /// <summary>
     /// Decodes the transient claim from a wire sample's flags. ⭐ Both ends go through this, so the
     /// encode/decode pair can be railed rather than asserted twice in prose.
     /// </summary>
     public static bool IsTransient(long flags) => (flags & Transient) != 0;
 
-    /// <summary>Encodes a request's transient claim into the wire flags word.</summary>
-    public static long Encode(bool isTransient) => isTransient ? Transient : None;
+    /// <summary>⭐ <c>CE-3324</c> — decodes the scenario-load claim.</summary>
+    public static bool IsScenarioLoad(long flags) => (flags & ScenarioLoad) != 0;
+
+    /// <summary>Encodes a request's transient and scenario-load claims into the wire flags word.</summary>
+    public static long Encode(bool isTransient, bool isScenarioLoad = false)
+        => (isTransient ? Transient : None) | (isScenarioLoad ? ScenarioLoad : None);
 }
 
 /// <summary>
@@ -107,7 +118,7 @@ public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgres
 
         // ⭐ The address travels: the builder is owner-agnostic, so the routing fields are applied here.
         sample.Owner = new NodeId { AppDomainId = 0, AppInstanceId = request.OwnerAppInstanceId };
-        sample.Flags = EntityCreationRequestFlags.Encode(request.IsTransient);
+        sample.Flags = EntityCreationRequestFlags.Encode(request.IsTransient, request.IsScenarioLoad);   // ⭐ CE-3324
         // ⭐ CE-1017 S2 — the birth-height request: explicit fields, 0 = Absolute = every sender before them.
         sample.SpawnHeightMode = (byte)(request.SpawnHeight?.Mode ?? Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.Absolute);
         sample.SpawnLevel      = request.SpawnHeight?.Level ?? 0;

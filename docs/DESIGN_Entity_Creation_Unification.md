@@ -1845,6 +1845,15 @@ on the checkpoint argument.**
 | ⭐ the editor applies `InitialAttributesJson` | `EditorSubsystem` passes `JsonAttributeCompiler` to its pack, as every networked host's factory does; `CreateEntityRequestSystem.AppliesAttributes` + rail `TheEditorAppliesRequestAttributesTests` | ⛔ the editor passed none: every request's attributes (a debug-API spawn's included) were silently dropped there |
 | ⚠ what still does NOT cross | every `InitialComponents` entry but the anchor `SimTransform` and the overlay / route / cloud descriptors (`CreateEntityRequestDescriptorBuilder.Build`) | a brain-local component travels as attributes instead (`CivilianState` ⇒ `Fear`, `FrightFrom.*`, [Q59 §15](blueprints/Architect_Question_59_Attribute_Vocabulary_Single_Source.md)) |
 
+### 3.9a AS-BUILT `2026-10-25` — **a scenario load SAYS so (`CE-3324`)**
+
+| what | as built | why |
+|---|---|---|
+| ⭐ `EntityCreationRequest.IsScenarioLoad` | set by `StagingEntityExtractor` (the only producer of scenario-load requests — the one that also sets `ChildComponentOverrides`); `CreateEntityRequestSystem` step 5 reads it instead of `PreAllocatedNetworkId != 0` | ⛔ since `CE-4024` an author's fixed id crosses the wire (traffic conversions, terrain objects, a test hook), so a runtime request with a fixed id for a type with child blueprints was born WITHOUT them |
+| ⭐ the wire | bit 1 of `CreateEntityRequest.Flags` (`EntityCreationRequestFlags.ScenarioLoad`), beside `Transient` — encoded by `NedEntityCreationRequestEgress`, decoded by the NED ingress | an untargeted scenario load is forwarded to the default processor; without the bit it would spawn the children a second time there |
+| ⚠ one corner changes | an extracted root WITHOUT a network id (pre-allocated id 0) now skips its children too | ⭐ correct: the extractor makes every non-part entity a root whatever its id, so its subordinates are in the file. 📐 Measured: the three shipped scenarios using the one auto-spawning composite (`Unit_TankPlatoon_Auto` — `ua-hill-attack`, `hill-attack`, `hill-attack-close`) all carry a network id ⇒ unchanged |
+| rails | `CreateEntityRequestSystemTests.CE3324_ARuntimeRequestWithAFixedId_StillGetsItsChildren` (+ SC6 now says `IsScenarioLoad`) · `NedEntityCreationRequestEgressRails.CE3324_TheScenarioLoadClaim_SurvivesTheWireRoundTrip` · `StagingEntityExtractorTests` (the extractor sets it) | |
+
 ## ⛔ HISTORY — the withdrawn proposal *(kept so its reasoning is not re-derived)*
 
 ##### ⛔ SUPERSEDED — THE FIX IS ONE ATTRIBUTE — **and replay is NOT affected**

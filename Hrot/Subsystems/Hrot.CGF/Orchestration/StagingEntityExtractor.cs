@@ -378,6 +378,7 @@ namespace Hrot.CGF.Orchestration
                         InitialComponents      = comps,
                         PreAllocatedNetworkId  = rd.preAllocId,
                         ChildComponentOverrides = childOverrides,
+                        IsScenarioLoad         = true,   // ⭐ CE-3324 — said, not inferred from the id: the subordinates are in the file
                     });
                 }
 
