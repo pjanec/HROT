@@ -150,13 +150,13 @@ public sealed class ManagerWindowTests
             ComponentType = typeof(StubComponent), PropertyPath = "X", Operator = SearchOperator.Changed, Predicate = new NumericPredicateDto(),
         };
         string text = BreakpointConditionSummarizer.Summarize(changed);
-        Assert.Equal("Component: StubComponent.X changed", text);
+        Assert.Equal($"Component: {typeof(StubComponent).Name}.X changed", text);
         Assert.DoesNotContain("E+308", text);
         Assert.Contains("<= 20", BreakpointConditionSummarizer.Summarize(new PropertyMatchDto
             { ComponentType = typeof(StubComponent), PropertyPath = "X", Predicate = new NumericPredicateDto { MaxValue = 20 } }));
         string both = BreakpointConditionSummarizer.Summarize(new CompoundPredicateDto
             { Operator = LogicalOperator.And, Conditions = new System.Collections.Generic.List<SearchPredicateDto> { changed, changed } });
-        Assert.Contains("StubComponent.X changed AND StubComponent.X changed", both);
+        Assert.Contains($"{typeof(StubComponent).Name}.X changed AND Component: {typeof(StubComponent).Name}.X changed", both);
     }
 
     /// <summary>⭐ <c>CE-1285</c> (Q44-A/C) — one list, every kind told apart (Node / Journal / Data); a row carries its kind, its name
@@ -173,7 +173,7 @@ public sealed class ManagerWindowTests
         var rows = panel.BuildViewModel("p", "k").Breakpoints;
         Assert.Equal(new[] { "Node", "Data" }, rows.Select(r => r.Kind));
         Assert.Equal("Node Reload in FightFromCover", rows[0].Name);
-        Assert.Equal("Component: StubComponent.X changed", rows[1].Name);
+        Assert.Equal($"Component: {typeof(StubComponent).Name}.X changed", rows[1].Name);
         Assert.Equal("#1007", rows[1].Scope);
     }
 }

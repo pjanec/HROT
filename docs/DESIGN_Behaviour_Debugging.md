@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-25 (DBG-1 and DBG-5 reshaped by the user: the deeper views are Brain-tab EXPANDERS, the variables are the inspector's read-only dump — Brain View §12b, R-1037)
-build-state: DESIGN — the leans in §6 await the user's approval (CE-1270)
-current-answer: ⚠ DBG-1 / DBG-5 reshaped 2026-10-25 (Brain View §12b) · §1 the workflow · §2 INVENTORY · §3 claim table (the measured root causes) · §4 diagrams · §5 the views, one per question · §6 decisions with leans · §7 slices → tracker rows
+build-state: BUILT S1 2026-10-25 (DBG-6, DBG-7, DBG-8 — as-built §8); the rest of §6 DESIGN
+current-answer: §8 AS-BUILT S1 ("stop me" works: DBG-8, DBG-7, DBG-6) · ⚠ DBG-1 / DBG-5 reshaped 2026-10-25 (Brain View §12b) · §1 the workflow · §2 INVENTORY · §3 claim table (the measured root causes) · §4 diagrams · §5 the views, one per question · §6 decisions with leans · §7 slices → tracker rows
 stale-below: nothing
 known-rot: none
 known-conflict: docs/blueprints/BTree_Editor_NodeEditor_Host_Design.md §12.7 and docs/blueprints/HSM_Editor_NodeEditor_Host_Design.md §13.5 design the Runtime pane as kernel internals (stack, registers, timers, RNG); DBG-4 below demotes those to a collapsed "Kernel" section — the host designs are not yet updated
@@ -235,3 +235,35 @@ missing feature, each is a wire that was never connected or connects one phase t
 | **S4 — the hub** | CE-1280, CE-1281, CE-1282 (DBG-10), CE-1283 (DBG-2), CE-1278 (DBG-9) | |
 | **separately (bugs)** | CE-1271 (the ORBAT id), CE-1272 (to reproduce) | ✅ both fixed `2026-10-23` |
 | **the joint with the Timeline** *(coordinator handoff, R-4075)* | CE-1302 (R1) | ⭐ the Trace Timeline and the director's Timeline are ONE panel: the debugged unit is the focused unit (its swimlane = its trace lanes), the Brain lane (BV-30, CE-1259) is the index's Behaviour lane, a journal entry is a timeline event a click seeks to. ⭐ DBG-6's breakpoint list edits conditions in the SAME existing condition editor the timeline's anchors use (R-4072) — one editor for breakpoints, search and anchors |
+
+## 8. AS-BUILT — S1 "stop me" works *(CE-1284, CE-1291, CE-1285, `2026-10-25`)*
+
+```mermaid
+graph TD
+  PF["ChangeBaselineSystem (PreFrame, NEW)"] -->|"copies only the compared types"| CB[("change baseline")]
+  ING["BehaviorIngressSystem (Input)"] --> BJ[("BrainJournal")]
+  DSP["DebugSnapshotProvider (BeforeSync)"] --> RS[("rewind snapshot")]
+  DBS["DataBreakpointSystem (PostSimulation)"] -->|"changed: compares with"| CB
+  NBE["NodeBreakpointEvaluator (PostSimulation, NEW)"] -->|"reads the armed units' trace rings"| TR[("BTree trace rings")]
+  DOC["open BTree documents: nodes marked IsBreakpoint"] --> NBE
+  NBE -->|"one breakpoint per marked node, OnExternalHit"| M["DataBreakpointManager"]
+  DBS --> M
+  M --> P["DataBreakpointManagerPanel: THE one list"]
+  P --> GW["editor's Breakpoints window"]
+  P --> AW["AiBreakpointsWindow (each AI perspective)"]
+```
+
+*What the picture shows that prose hid:* the three dashed edges of §4's module diagram are now connected. The change baseline is taken
+BEFORE Input, the node flag is read, and the AI perspectives draw the same list as the editor. Nothing new pauses the world: every
+hit goes through the one manager.
+
+| piece | where | matches §6 / deviates |
+|---|---|---|
+| **DBG-8:** `ChangeBaselineSystem` copies, in PreFrame, only the component types the mounted "changed" conditions compare (`DataBreakpointManager.ChangedComponentMask`); the manager compares against it (`ChangeBaseline`); the rewind snapshot stays at BeforeSync; one `MirrorWorld` recipe builds both copies | `Hrot.Diagnostics.Breakpoints/ChangeBaselineSystem.cs`, `DataBreakpointManager.cs`, `EditorSubsystem.cs` | ✅ DBG-8 — rail `TheChangedConditionIsPerEntityTests.CE1284_AWriteInInput_*` runs the real phase order |
+| **DBG-7:** `NodeBreakpointEvaluator` (PostSimulation): one manager breakpoint per BTree node marked in an open document (tag `btree:<hash>:<visualId>`, removed when unmarked), and a hit when an armed unit's trace ring shows the node ran | `Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs` | ✅ DBG-7 for BTree — ⚠ **HSM states not yet** (the HSM trace ring needs the same reader); a unit must be traced (its Brain tab open, the debug switch, observe-all) |
+| **DBG-6:** `DataBreakpointManagerPanel` is THE list: Kind column (Node / Journal / Data, `BreakpointKind.Of`) and filter, resizable columns, a readable name (`BreakpointConditionSummarizer`, ⛔ no raw ±1.79E+308), the unit by network id, a row menu (Enable/Disable · Show condition · Select the unit · Delete), click selects the unit, double-click shows the condition; ⛔ the "- Remove" button gone; `AiBreakpointsWindow` hosts the same panel (⛔ the count banner and its "open the other window") | `Hrot.Presentation/Panels/Breakpoints/DataBreakpointManagerPanel.cs`, `Hrot.Diagnostics.Breakpoints/BreakpointKind.cs`, `BreakpointConditionSummarizer.cs`, `AiBreakpointsWindow.cs` | ✅ Q44-A, Q44-C, CE-1285 — ⚠ *Edit* shows the condition (read-only): editing it belongs to the ONE condition editor (R-4072, the timeline's), not yet hosted here · ⚠ Q44-B (`IsWatch` retired) not built |
+
+📷 `AiBreakpointsWindowDumpsItsCountsTests.CE1285_TheOneList_Draws`:
+
+![the one breakpoint list](assets/brain-view/d-breakpoints-one-list.png)
+
