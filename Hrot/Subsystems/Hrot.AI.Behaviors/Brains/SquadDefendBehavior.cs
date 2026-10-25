@@ -951,6 +951,8 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
             {
                 if (!ctx.Live(i, out var m) || p.Posts.PostOf[i] == DefencePosts.None) continue;
+                // ⭐ CE-2376 (AQ104 C, DS-2) — a man who HOLDS stays on his post and lets him come (no temperament ⇒ as before)
+                if (!Disposition.MaySearch(ctx.World, m, orderedAssault: false, Disposition.QuietSeconds(ctx.World, m, new Entity((ulong)id)))) continue;
                 float d = Flat(ctx.At(m) - at);
                 if (d < best) { best = d; hunter = i; }
             }

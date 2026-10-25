@@ -2276,6 +2276,37 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(s.Orders, o => o.IntentId == BehaviorNames.CombatPosture && PostureOf(s, o.Entity).Post.Radius == search);   // once per contact
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2376</c> (AQ104 C, Temperament §7.6 DS-2) — the hunter is picked only among men who do not HOLD: with every man cautious
+        /// (risk acceptance 0.2 ⇒ not Willing) nobody goes out for the hidden enemy — they wait at their posts; with one bold man among them he
+        /// is the hunter even when another is nearer. 🔴 Red-proof: the disposition filter dropped ⇒ the nearest cautious man hunts.
+        /// </summary>
+        [Fact]
+        public void CE2376_SquadDefend_OnlyAManWhoDoesNotHold_IsSentHunting()
+        {
+            foreach (bool oneBold in new[] { false, true })
+            {
+                var s = Defending(out _);
+                const float search = 25f;
+                var under = new Vector3(2f, 26.5f, 0f);
+                if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatTemperament>()) s.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();
+                var nearest = s.Members.OrderBy(m => Vector2.Distance(new Vector2(s.At(m).X, s.At(m).Y), new Vector2(under.X, under.Y))).ToArray();
+                for (int i = 0; i < nearest.Length; i++)
+                {
+                    float risk = oneBold && i == nearest.Length - 1 ? 0.9f : 0.2f;   // the bold one is the FARTHEST
+                    s.Repo.AddComponent(nearest[i], new Fdp.Toolkit.Behavior.Components.CombatTemperament
+                        { RiskAcceptance = risk, Set = Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet });
+                }
+                s.Pool(Enemy(s, under), under, reporters: 0b0001);
+                s.Orders.Clear();
+                for (int i = 0; i < 150; i++) s.Tick();
+                var hunters = s.Members.Where(m => s.Orders.Any(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture)
+                                                   && PostureOf(s, m).Post.Radius == search).ToList();
+                if (oneBold) Assert.Equal(nearest[^1], Assert.Single(hunters));
+                else Assert.Empty(hunters);
+            }
+        }
+
         /// <summary>⭐ <c>CE-2359</c> (DA-55 at the squad level) — a DEFENDING squad's own SOP does not answer a contact with
         /// <c>ReactToContact</c>: its defence does (the posts, displacement, the hunter). ✅ Red-proof: drop the <c>NotDefending</c> guard from
         /// the contact row ⇒ ReactToContact pauses SquadDefend ⇒ red (📐 live, <c>rf-wall-hugger</c>: two defenders sent 50–60 m out).</summary>

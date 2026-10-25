@@ -1226,6 +1226,39 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2376</c> (AQ104 C, Temperament §7.6 DS-1/DS-2) — the attack order's hunt asks his DISPOSITION about a target he cannot see:
+        /// with no temperament (Unset) he goes after him as before; an obedient man ordered to assault (Willing) goes; a man the order cannot
+        /// move (obedience 0.3 ⇒ Hold) keeps his place — no move is issued. 🔴 Red-proof: the disposition check dropped ⇒ the holding man moves.
+        /// </summary>
+        [Theory]
+        [InlineData(null, true)]
+        [InlineData(0.9f, true)]
+        [InlineData(0.3f, false)]
+        public unsafe void CE2376_TheHunt_AHoldingMan_DoesNotChaseATargetHeCannotSee(float? obedience, bool chases)
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            if (obedience is { } o)
+            {
+                if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatTemperament>()) w.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();
+                w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Behavior.Components.CombatTemperament { Obedience = o, Set = Fdp.Toolkit.Behavior.Components.CombatTemperament.ObedienceSet });
+            }
+            var enemy = w.Contact(armed: true);
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>()) w.Repo.RegisterComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>();
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Perception.Components.ActiveSensorTracks());   // tracks nothing: he does not see him now
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 20f; mem.PositionsY[0] = 0f; mem.PositionsZ[0] = 0f;
+            mem.LastSeenTick[0] = (uint)w.Repo.GetSingleton<GlobalTime>().FrameNumber;
+            Fdp.Toolkit.Behavior.Components.DesignatedTarget.Set(w.Repo, w.Unit, enemy);
+            var p = new AdvanceParams { Speed = 2f, ArrivalRadius = 2f };
+            var ws = new AdvanceState();
+            uint before = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            Assert.Equal(chases, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId != before);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2373</c> — a POSTED man (Stay) whose post is one floor up, standing under it: the mover neither arrives (backend's
         /// storey-aware arrival, CE-3319) nor moves — after <see cref="PostureNodes.StoreyRetrySeconds"/> without half a metre of progress the move
         /// is re-sent (the planner then takes the stairs); a man who IS moving is left alone. 📐 Live <c>ia-area-defend</c>: the guard's coverage

@@ -292,6 +292,14 @@ namespace Hrot.AI.Behaviors.Brains
             //   last placed it, and arriving does not end the posture — the target going down does (UntilTargetDown).
             bool hunting = DesignatedTarget.Of(world, self, out var hunted) && Injury.IsInTheFight(world, hunted);
             var objective = hunting && HiddenTargetThrow.LastKnown(world, self, hunted, out var seenAt) ? seenAt : p.Objective;
+            // ⭐ CE-2376 (AQ104 C, DS-2) — a man who HOLDS (his character, or his nerves) does not go after a target he cannot see: he keeps his
+            //   place and fights what shows (a Veteran+ goes looking after Disposition.LongQuietSeconds). No temperament ⇒ as before.
+            if (hunting && !Fdp.Toolkit.Perception.SightNow.Sees(world, self, hunted)
+                && !Disposition.MaySearch(world, self, orderedAssault: true, Disposition.QuietSeconds(world, self, hunted)))
+            {
+                if (ws.Moving == 1) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                return NodeStatus.Running;
+            }
             if (ws.Moving == 1 && hunting && Vector3.Distance(objective, ws.IssuedTo) > p.ArrivalRadius) ws.Moving = 0;   // it moved
             if (ws.Moving == 1)
             {

@@ -33,6 +33,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Alone: no living friend this close.</summary>
         public const float AloneMetres = 20f;
         public const float CalmPerSecond = 0.03f;
+        /// <summary>⭐ <c>CE-2376</c> (AQ104 F, DF-1) — an enemy heard this close (m), this recently (s), not in sight: his stress rises this much
+        /// a second × (1 − effective Nerve) — "walking around behind a wall".</summary>
+        public const float HeardCloseMetres = 10f, HeardClosePerSecond = 0.03f;
+        public const double HeardFreshSeconds = 3.0;
+        /// <summary>⭐ <c>CE-2376</c> (DF-2, measured re-tune) — a near miss on a man IN COVER counts this share.</summary>
+        public const float NearMissInCover = 0.5f;
         /// <summary>In cover: a cover point this close that faces his nearest remembered threat.</summary>
         public const float CoverMetres = 1.5f;
         /// <summary>His leader this close calms him twice as fast.</summary>
@@ -83,7 +89,11 @@ namespace Hrot.AI.Behaviors.Brains
             float calm = CalmPerSecond;
             if (InCover(world, e, at)) calm *= 2f;
             if (LeaderNear(world, e, at)) calm *= 2f;
-            s.Level = Math.Clamp(s.Level + (float)dt * (up * Reach(world, e) - calm), 0f, 1f);
+            // ⭐ CE-2376 (AQ104 F, DF-1) — an enemy heard close and unseen: no calming while he is there, and the approved rise on top
+            //   (0.03 / s × (1 − nerve) alone never beats the 0.03 / s calming — measured on the rail, so the calm stops)
+            float heard = 0f;
+            if (HeardCloseUnseen(world, e, at)) { heard = HeardClosePerSecond * (1f - TemperamentOf.Effective(world, e, TemperamentTrait.Nerve)); calm = 0f; }
+            s.Level = Math.Clamp(s.Level + (float)dt * (up * Reach(world, e) + heard - calm), 0f, 1f);
         }
 
         /// <summary>⭐ The friend-down stimulus: <paramref name="down"/> fell — every man of his squad in the fight within
@@ -206,13 +216,35 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
             var dto = new Hrot.Map.Definitions.Behavior.BreakParamsJsonDto();
-            if (Retreat(world, e, out var to)) { dto.HasRetreat = true; dto.Retreat = to; }
+            if ((Flees(world, e) && Flee(world, e, out var to)) || Retreat(world, e, out to)) { dto.HasRetreat = true; dto.Retreat = to; }   // ⭐ CE-2376 (DS-3)
             SopActions.React(world, e, Hrot.Map.Definitions.Behavior.BehaviorNames.Break, ReactionUrgency.Break, in dto);
         }
 
         /// <summary>TS-6 — he gives up: effective resolve under <see cref="SurrenderResolve"/> and a forces rifle on him (<see cref="Covering.By"/>).</summary>
         public static bool Surrenders(EntityRepository world, Entity e)
             => TemperamentOf.Effective(world, e, TemperamentTrait.Resolve) < SurrenderResolve && !Covering.By(world, e).IsNull;
+
+        /// <summary>⭐ <c>CE-2376</c> (AQ104 C, DS-3) — panic: a man this low on effective Resolve who breaks (and does not give up) FLEES — out
+        /// of the house or the area, away from the enemy — not to the nearest cover.</summary>
+        public const float FleeResolve = 0.4f;
+        public const float FleeMetres = 60f, FleeGainMetres = 15f;
+
+        public static bool Flees(EntityRepository world, Entity e)
+            => TemperamentOf.Effective(world, e, TemperamentTrait.Resolve) < FleeResolve;
+
+        /// <summary>⭐ DS-3 — where he flees: a cover point within <see cref="FleeMetres"/> at least <see cref="FleeGainMetres"/> farther from his
+        /// nearest remembered threat than he is.</summary>
+        public static bool Flee(EntityRepository world, Entity e, out Vector3 to)
+        {
+            to = default;
+            if (!world.HasComponent<SimTransform>(e)) return false;
+            var at = world.GetComponentRO<SimTransform>(e).Position;
+            if (!UnderFire.NearestThreat(world, e, at, out var threat)) return false;
+            if (!UnderFire.CoverNear(world, e, at, FleeMetres, FleeGainMetres, out var cover, out _)) return false;
+            if (Flat(cover - threat).Length() < Flat(at - threat).Length() + FleeGainMetres) return false;
+            to = cover;
+            return true;
+        }
 
         /// <summary>Somewhere to run: a cover point within <see cref="RetreatMetres"/> that faces his nearest remembered threat and lies at
         /// least <see cref="RetreatGainMetres"/> farther from it than he does. None when he knows no threat.</summary>
@@ -226,6 +258,35 @@ namespace Hrot.AI.Behaviors.Brains
             if (Flat(cover - threat).Length() < Flat(at - threat).Length() + RetreatGainMetres) return false;
             to = cover;
             return true;
+        }
+
+        /// <summary>⭐ <c>CE-2376</c> (DF-2) — the near miss's stimulus for him: half in cover (the live measurement: a regular behind a wall
+        /// under two rifles broke in ~10 s and never recovered).</summary>
+        public static float NearMissIn(EntityRepository world, Entity e)
+            => world.HasComponent<SimTransform>(e) && InCover(world, e, world.GetComponentRO<SimTransform>(e).Position) ? NearMiss * NearMissInCover : NearMiss;
+
+        /// <summary>⭐ <c>CE-2376</c> (AQ104 F, DF-1) — someone heard within <see cref="HeardCloseMetres"/> in the last
+        /// <see cref="HeardFreshSeconds"/>, whom he does not see now (an unknown sound, or a known enemy out of sight), not a neutral.</summary>
+        public static unsafe bool HeardCloseUnseen(EntityRepository world, Entity e, Vector3 at)
+        {
+            if (!world.HasComponent<TargetMemory>(e)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(e);
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(world);
+            double spf = world.HasSingleton<GlobalTime>() && world.GetSingleton<GlobalTime>().FrameNumber > 0
+                ? world.GetSingleton<GlobalTime>().TotalTime / world.GetSingleton<GlobalTime>().FrameNumber : 1.0 / 60.0;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if ((mem.Modalities[i] & (byte)SensorModality.Acoustic) == 0) continue;
+                uint seen = mem.LastSeenTick[i];
+                if (seen > now || (now - seen) * spf > HeardFreshSeconds) continue;
+                var where = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                if (Vector3.Distance(where, at) > HeardCloseMetres) continue;
+                if (TargetMemory.IsAnonymous(in mem, i)) return true;
+                var enemy = new Entity((ulong)mem.EntityIds[i]);
+                if (!world.IsAlive(enemy) || ThreatDanger.IsNeutral(world, enemy) || ThreatDanger.IsOutOfTheFight(world, enemy)) continue;
+                if (!SightNow.Sees(world, e, enemy)) return true;
+            }
+            return false;
         }
 
         private static bool Ensure(EntityRepository world, Entity e, double now)
@@ -263,7 +324,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 switch (evt.What)
                 {
-                    case SensorChange.NearMiss when Owned(repo, evt.Unit): StressModel.Add(repo, evt.Unit, StressModel.NearMiss, now); break;
+                    case SensorChange.NearMiss when Owned(repo, evt.Unit): StressModel.Add(repo, evt.Unit, StressModel.NearMissIn(repo, evt.Unit), now); break;   // ⭐ CE-2376 DF-2
                     case SensorChange.Hit when Owned(repo, evt.Unit): StressModel.Add(repo, evt.Unit, StressModel.Hit, now); break;   // a man down bleeds Hit edges: Feels refuses him
                     case SensorChange.SquadMemberDown: StressModel.FriendFell(repo, evt.Unit, evt.Target, now, _gateOnAuthority); break;
                 }
