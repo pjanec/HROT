@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25 (DBG-1 and DBG-5 reshaped by the user: the deeper views are Brain-tab EXPANDERS, the variables are the inspector's read-only dump — Brain View §12b, R-1037)
-build-state: BUILT S1 2026-10-25 (DBG-6, DBG-7, DBG-8 — as-built §8); the rest of §6 DESIGN
-current-answer: §8 AS-BUILT S1 ("stop me" works: DBG-8, DBG-7, DBG-6) · ⚠ DBG-1 / DBG-5 reshaped 2026-10-25 (Brain View §12b) · §1 the workflow · §2 INVENTORY · §3 claim table (the measured root causes) · §4 diagrams · §5 the views, one per question · §6 decisions with leans · §7 slices → tracker rows
+updated: 2026-10-25 (§9 behaviour breakpoints: five kinds, three entry points, CE-1323) · 2026-10-25 (DBG-1 and DBG-5 reshaped by the user: the deeper views are Brain-tab EXPANDERS, the variables are the inspector's read-only dump — Brain View §12b, R-1037)
+build-state: BUILT S1 2026-10-25 (DBG-6, DBG-7, DBG-8 — as-built §8) · §9 BUILDING (CE-1323); the rest of §6 DESIGN
+current-answer: §9 behaviour breakpoints (DBG-9…DBG-13, CE-1323) · §8 AS-BUILT S1 ("stop me" works: DBG-8, DBG-7, DBG-6) · ⚠ DBG-1 / DBG-5 reshaped 2026-10-25 (Brain View §12b) · §1 the workflow · §2 INVENTORY · §3 claim table (the measured root causes) · §4 diagrams · §5 the views, one per question · §6 decisions with leans · §7 slices → tracker rows
 stale-below: nothing
 known-rot: none
 known-conflict: docs/blueprints/BTree_Editor_NodeEditor_Host_Design.md §12.7 and docs/blueprints/HSM_Editor_NodeEditor_Host_Design.md §13.5 design the Runtime pane as kernel internals (stack, registers, timers, RNG); DBG-4 below demotes those to a collapsed "Kernel" section — the host designs are not yet updated
@@ -266,4 +266,93 @@ hit goes through the one manager.
 📷 `AiBreakpointsWindowDumpsItsCountsTests.CE1285_TheOneList_Draws`:
 
 ![the one breakpoint list](assets/brain-view/d-breakpoints-one-list.png)
+
+## 9. Behaviour breakpoints — five kinds, one condition, three ways in *(CE-1323, ui, `2026-10-25` — build-state: BUILDING)*
+
+🔒 **User, `2026-10-25`:** *"ok go ahead with all five. make sure there are ways how to set the breakpoints from the editor as well as
+from the ai debug api (and that ai debug api can find out that the breakpoint fired)"* · *"(not from the editor only - form the UI on the
+brain node)"* · *"and can we have the breakpoints conditional? liek firing just for certain entity?"*
+
+### 9.1 INVENTORY *(`scripts/cbm.sh search_graph` `.*Breakpoint.*` Class → 60, Interface → 2; grep `TraceBufferScanPredicateDto`, `IsBreakpoint`; `check_index_coverage` not reachable through the CLI)*
+
+| what exists | where | state, measured |
+|---|---|---|
+| the one manager + list | `DataBreakpointManager`, `DataBreakpointManagerPanel` (§8) | ✅ — `Breakpoint.FilterEntity` exists (per-unit), honoured by the component path (`DataBreakpointSystem.cs:93`), ⛔ **not** by `OnExternalHit` (`DataBreakpointManager.cs:967`) |
+| HSM state menu "Break on Enter / Exit / Conditional" | `HsmBreakpointMenuPopulator.cs:31` | ⛔ builds a `TraceBufferScanPredicateDto` — a scan of the WHOLE ring for ANY record with that state index: ① it stays true while the record is in the 63-record ring ⇒ breaks again every tick after a continue; ② it checks no behaviour ⇒ index 3 of every HSM on every unit; ③ reached from the gutter dot, whose provider passes a stub state with `FlatIndex = 0` (`HsmBreakpointContextMenuProvider.cs:28`) |
+| BTree node menu (run / success / failure) | `BTreeBreakpointMenuPopulator.cs` | ⛔ the same scan, the same three defects |
+| `IsBreakpoint` on HSM states and transitions (Properties "Breakpoint") | `HsmAsset.cs:1257, 1432, 1454`, `HsmFacets.cs:118, 202` | ⛔ stored and drawn, read by nothing at run time (§3) |
+| the gutter draws manager breakpoints by `SourceElementId` — states AND transition lines | `HsmBreakpointGutterRenderer.cs` | ✅ — a new kind with `sourceElementId` shows its red dot for free |
+| the transition line's right-click | `CanvasRenderer.cs:743` (NodeEdit) | ⛔ fixed items only (Break Link, Select, Reroute): no host hook |
+| HSM run-time names | `MachineMetadata` (state / event names, state stable ids, transition visual ids) + `HsmDefinitionBlob` (parents, regions, transitions) via `BehaviorRegistry.TryGetDefinition` | ✅ — enough to resolve every kind WITHOUT an open document (a C#-built commander has none) |
+| the HSM trace ring, default tier | `HsmTraceWorkingMemory1024`, `TraceLevel.Tier1` = Transitions · Events · StateChanges (`HsmRunner.cs:323`) | ✅ every record the five kinds need is written by default |
+| `HsmDebugSession` session breakpoints | `HsmDebugSession`, `HsmBreakpointHit` | ⚠ a SECOND, session-local breakpoint list with no run-time raise — left as is; ⛔ not extended (one list, R-97) |
+
+### 9.2 Diagrams
+
+```mermaid
+classDiagram
+  class SearchPredicateDto { <<existing>> }
+  class BehaviourStepPredicateDto { <<NEW, Fdp.Toolkits ReplayBrowser.Search>> Behaviour; Kind; State; Region; From; To; Event; Node; Element }
+  class BehaviourStepKind { <<NEW enum>> NodeRuns StateEnter StateExit InsideEnter TransitionFires EventHandled }
+  class DataBreakpointManager { <<existing>> MountedBehaviourSteps NEW; OnBehaviourStepHit(bp, unit, what) NEW; LastHitDetail NEW }
+  class BehaviourStepResolver { <<NEW, Hrot.Editor/Debugging>> Resolve(step, registry, hash) → matcher or why not }
+  class NodeBreakpointEvaluator { <<existing, widened>> reads BTree AND HSM rings; matches mounted steps }
+  class HsmBreakpointMenuPopulator { <<existing, ROUTED>> state, region, transition, event menus }
+  class BTreeBreakpointMenuPopulator { <<existing, ROUTED>> }
+  class BrainStopWhen { <<NEW, Brain View Debug section>> }
+  class DebugApiService { <<existing>> POST /breakpoints validates a step; GET /breakpoints/hits says what fired }
+  SearchPredicateDto <|-- BehaviourStepPredicateDto
+  BehaviourStepPredicateDto --> BehaviourStepKind
+  HsmBreakpointMenuPopulator ..> DataBreakpointManager : AddBreakpoint(step)
+  BTreeBreakpointMenuPopulator ..> DataBreakpointManager : AddBreakpoint(step)
+  BrainStopWhen ..> DataBreakpointManager : AddBreakpoint(step, this unit)
+  DebugApiService ..> DataBreakpointManager : AddBreakpoint(step, filterNetworkId)
+  NodeBreakpointEvaluator --> DataBreakpointManager : MountedBehaviourSteps, OnBehaviourStepHit
+  NodeBreakpointEvaluator --> BehaviourStepResolver
+```
+*What it shows that prose hid: there is ONE new condition and ONE reader; the three ways in (canvas, Brain View, API) only differ in how
+they fill the same DTO, so a breakpoint set from the API shows its red dot on the canvas and its row in the one list.*
+
+```mermaid
+sequenceDiagram
+  participant K as kernel tick (Simulation)
+  participant R as unit's trace rings
+  participant E as NodeBreakpointEvaluator (PostSimulation)
+  participant M as DataBreakpointManager
+  participant A as API / editor
+  K->>R: StateEnter / StateExit / Transition / EventHandled / NodeEvaluated records
+  E->>M: MountedBehaviourSteps (cached per manager version)
+  E->>R: records written since this unit's last cursor
+  E->>E: resolve the step for the unit's running behaviour (once per hash), match
+  E->>M: OnBehaviourStepHit(bp, unit, "entered Withdrawing")
+  M->>M: enabled? FilterEntity? the rest of a compound true? ⇒ OnHit: pause, rewind to the tick's start
+  A->>M: GET /breakpoints/hits → lastHit {breakpointId, networkId, name, what}
+```
+*What it shows that prose hid: only records written SINCE the unit's cursor count — so a continue replays the tick, the cursor is
+already at its end, and the same arrival does not stop twice (the defect of the whole-ring scan).*
+
+```mermaid
+graph TD
+  ES["EditorSubsystem"] -->|"RegisterGlobalSystem, PostSimulation"| NBE["NodeBreakpointEvaluator"]
+  CAN["HSM / BTree canvas menus · Events list menu · Properties 'Breakpoint'"] --> M["DataBreakpointManager"]
+  BV["Brain View ▸ Debug ▸ Stop when…"] --> M
+  API["POST /breakpoints {condition: BehaviourStep, filterNetworkId}"] --> M
+  NBE --> M
+  M --> LIST["the one list (§8)"]
+  M --> DOT["canvas red dots (SourceElementId)"]
+  RING["BTree / HSM trace rings — only ARMED units"] --> NBE
+```
+*What it shows that prose hid: nothing reads a ring for a unit that is not armed (Brain tab viewed, Debug this unit, observe-all) — a
+breakpoint on an unarmed unit is silent. ⇒ a step breakpoint scoped to a unit arms that unit's traces (DBG-12).*
+
+### 9.3 Decisions *(taken under the user's "go ahead with all five"; each line can be overturned)*
+
+| # | decision | ⭐ as decided | rejected — one line each |
+|---|---|---|---|
+| **DBG-9** | one condition for all five (+ the BTree node) | `BehaviourStepPredicateDto {Behaviour, Kind, …}` named by **names** (state, from / to, event) or the element's id; resolved per running behaviour by `BehaviourStepResolver` against the registry — so it works on a C#-built behaviour with no document | a predicate per kind — five copies of the matcher · the whole-ring `TraceBufferScan` — refires, no behaviour, index-only (§9.1) |
+| **DBG-10** | the kinds | **state: on enter / on exit · anything inside entered** (a composite, or one region of a parallel state) **· transition fires** (by from / to, an event narrows it; a global transition has no from) **· event handled** (dequeued, consumed or deferred — even when no transition used it) **· BTree node runs** | "guard checked" — Tier-3 tracing only (§ answer to the user); later |
+| **DBG-11** | conditional | **per unit** = the breakpoint's existing `FilterEntity` (all three ways in set it); **any other condition** = a `Compound(And)` of the step and component predicates (the existing "conditional" shape) — the manager evaluates the rest on the unit at the hit | a new filter field — `FilterEntity` exists |
+| **DBG-12** | which units are read | the armed units only (§8); a step breakpoint scoped to ONE unit **arms that unit** while it exists | arm every unit while any step breakpoint exists — the trace cost on 1000 units |
+| **DBG-13** | the menus that exist | **ROUTED** to the new condition (HSM state menu, BTree node menu); the Properties "Breakpoint" flag keeps meaning "on enter" / "fires" and is synced as a step (the BTree flag already was, §8); the gutter dot's menu gets the real state | delete the scan menus — they are the entry points users know |
+| **DBG-14** | the transition line's menu | a host hook in NodeEdit, `ILinkContextMenuProvider` (the twin of `INodeContextMenuProvider`), items after the built-in ones | a dot on the label only — the user asked for the line |
 
