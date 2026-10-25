@@ -1255,6 +1255,22 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐ CE-1325 (docs/DESIGN_Utility_Decision_View.md) — what a utility decision IS, and which node binds it
+            _routes.Add(new("GET", "/utility/decisions", _ => RunMain(s => s.ListUtilityDecisions())));
+            _routes.Add(new("GET", "/utility/decisions/{key}", async ctx =>
+            {
+                string key = Uri.UnescapeDataString(ctx.RouteValue("key") ?? "");
+                long? unit = long.TryParse(ctx.Query("networkId"), out var n) ? n : null;
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetUtilityDecision(key, unit)).ConfigureAwait(false);
+                return node is null ? Fail(404, $"No utility decision '{key}'. List them with GET /utility/decisions.") : Ok(node);
+            }));
+            _routes.Add(new("GET", "/behaviours/{name}/decisions", async ctx =>
+            {
+                string name = Uri.UnescapeDataString(ctx.RouteValue("name") ?? "");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetBehaviourDecisions(name)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
             // ⭐ CE-3072 B5 — every sensor child of a unit, its kind / result family and its last answer in its own shape.
             _routes.Add(new("GET", "/entities/{networkId}/sensors", async ctx =>
             {

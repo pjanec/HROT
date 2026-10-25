@@ -327,6 +327,13 @@ public sealed class McpClient : IDisposable
     // `asset` is the blueprint's NAME or its asset Guid, and may be omitted when the entity carries
     // exactly one blueprint.
 
+    // ── CE-1325 — what a utility decision is, and which node binds it ──
+    public Task<ApiResult> ListUtilityDecisionsAsync(CancellationToken ct = default) => GetAsync("/utility/decisions", ct);
+    public Task<ApiResult> GetUtilityDecisionAsync(string key, long? networkId = null, CancellationToken ct = default)
+        => GetAsync($"/utility/decisions/{Uri.EscapeDataString(key)}" + (networkId is { } n ? $"?networkId={n}" : ""), ct);
+    public Task<ApiResult> GetBehaviourDecisionsAsync(string behaviour, CancellationToken ct = default)
+        => GetAsync($"/behaviours/{Uri.EscapeDataString(behaviour)}/decisions", ct);
+
     public Task<ApiResult> GetEntityVariablesAsync(long networkId, string? asset = null, CancellationToken ct = default)
         => GetAsync($"/entities/{networkId}/variables"
                     + (string.IsNullOrWhiteSpace(asset) ? "" : $"?asset={Uri.EscapeDataString(asset)}"), ct);

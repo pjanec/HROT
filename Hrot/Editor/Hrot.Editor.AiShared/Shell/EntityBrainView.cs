@@ -406,8 +406,24 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (Section("Why", "why"))
         {
             if (b.Choices.Count == 0) ImGui.TextDisabled("No utility decision has run on this unit.");
+            // ⭐ CE-1325 (docs/DESIGN_Utility_Decision_View.md W5) — each decision by NAME, its winner in words; opened, the decision's settings
+            //   and this unit's values (the same drawing as the graph's Decision tab). ⛔ SUPERSEDED: "Decision <id>: winner <number>".
             foreach (var c in b.Choices)
-                Row($"Decision {c.DecisionId}", $"winner {c.Winner} (was {c.PreviousWinner}), margin {c.Margin:0.00}, {c.Switches} switches");
+            {
+                var sheet = Hrot.Editor.AiShared.Utility.UtilityDecisionSheet.Build(c.DecisionId);
+                var live = sheet != null && world is not null ? sheet.WithLive(world, unit) : null;
+                string winner = live == null ? $"{c.Winner}" : live.IsRanking
+                    ? (live.Ranked.Count > 0 ? $"{PinLabelOf(world!, live.Ranked[0].Entity)}  {live.Ranked[0].Score:0.00}" : "-")
+                    : live.WinnerName ?? "-";
+                string label = $"{sheet?.Name ?? $"Decision {c.DecisionId}"}  ->  {winner}   margin {c.Margin:0.00}   {c.Switches} switches";
+                if (live == null) { Row($"Decision {c.DecisionId}", label); continue; }
+                if (ImGui.TreeNodeEx($"{label}###why{c.DecisionId}", ImGuiTreeNodeFlags.SpanAvailWidth))
+                {
+                    Hrot.Editor.AiShared.Utility.UtilityDecisionWidget.Draw(live, idScope + "/why", header: false,
+                        unitLabel: e => PinLabelOf(world!, e));
+                    ImGui.TreePop();
+                }
+            }
             // ⭐ CE-1319 (BV-61) — the graph's step-by-step trace is kept only for an observed unit; say which, honestly, in replay too
             if (!b.Traced) ImGui.TextDisabled(TraceLine(context.Mode));
         }
@@ -680,7 +696,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
     internal static bool IsPinnedScope(string idScope) => idScope.StartsWith("details_pin_", StringComparison.Ordinal);
 
     /// <summary>How a pinned graph's tab names the unit: its network id, else its local handle.</summary>
-    internal static string PinLabelOf(EntityRepository world, Entity unit)
+    public static string PinLabelOf(EntityRepository world, Entity unit)
     {
         long net = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
             ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, unit) : 0;

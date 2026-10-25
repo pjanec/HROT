@@ -16,7 +16,6 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     public sealed partial class DebugApiService
     {
-        private static Dictionary<ushort, string>? _utilityInputNames;
 
         /// <summary><c>GET /entities/{networkId}/utility</c>.</summary>
         public JsonNode GetEntityUtility(long networkId)
@@ -160,20 +159,8 @@ namespace Hrot.Editor.DebugApi
             return node;
         }
 
-        /// <summary>The input reader's name from the generated id tables (<c>StandardInputIds</c>, <c>SquadInputIds</c>).</summary>
-        private static string InputName(ushort inputId)
-        {
-            if (_utilityInputNames is null)
-            {
-                var names = new Dictionary<ushort, string>();
-                foreach (var t in new[] { typeof(StandardInputIds), typeof(SquadInputIds) })
-                    foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.Static))
-                        if (f.IsLiteral && f.FieldType == typeof(ushort))
-                            names.TryAdd((ushort)f.GetRawConstantValue()!, f.Name);
-                _utilityInputNames = names;
-            }
-            return _utilityInputNames.TryGetValue(inputId, out var n) ? n : $"0x{inputId:X4}";
-        }
+        /// <summary>The input reader's name — ⭐ CE-1325: the one table, <see cref="UtilityInputNames"/>.</summary>
+        private static string InputName(ushort inputId) => UtilityInputNames.Of(inputId);
 
         private static double Round(float v) => Math.Round(v, 4);
     }

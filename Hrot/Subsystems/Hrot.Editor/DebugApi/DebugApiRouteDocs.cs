@@ -2261,6 +2261,52 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "pause the next time unit 1000's brain changes"),
 
+        [("GET", "/utility/decisions")] = new RouteDoc(
+            Tool:    "list_utility_decisions",
+            Group:   "K — AI behavior traces",
+            Summary: "Every registered utility decision (CE-1325): name, asset id, kind, option count — the C# [UtilityDecision] classes.",
+            Returns: "[{ decisionId, name, assetId, kind, options }]",
+            Hint:    "No params. Example: list_utility_decisions({})",
+            ExampleArgsJson: "{}",
+            ExampleGist: "list the utility decisions"),
+
+        [("GET", "/utility/decisions/{key}")] = new RouteDoc(
+            Tool:    "get_utility_decision",
+            Group:   "K — AI behavior traces",
+            Summary: "What a utility decision IS (CE-1325): per option its aggregation and considerations (input, context, weight, curve kind + slope / exponent / shift, modifier); with networkId that unit's values (winner, margin, per-consideration raw -> curved -> weighted).",
+            Returns: "{ decisionId, name, assetId, kind, ranking, hysteresis, options:[{optionId, name, aggregation, considerations:[{input, context, weight, curve, slope, exponent, xShift, modifier, raw?, curved?, weighted?}], score?, winner?, zeroedBy?}], live?:{unit, traced, evaluations, switches, winner, runnerUp, margin, ranked} }",
+            Hint:    "Req: key (asset id, name or id). Optional networkId (query). Example: get_utility_decision({key:\"Combat posture\", networkId:1007})",
+            Params: new RouteParam[]
+            {
+                new("key", "string", true, "The decision's asset id, its name, or its numeric id"),
+                new("networkId", "number", false, "A unit: adds its values (query parameter)"),
+            },
+            Notes: new[]
+            {
+                "The settings come from the RUNNING definition — the same for a C#-built behaviour as for an authored one.",
+                "Live per-consideration values need the unit traced (observe_trace); without, live.traced is still true when the decision log exists and the rows have no raw values.",
+                "An option scored 0 names the consideration that zeroed it (zeroedBy).",
+            },
+            ExampleArgsJson: "{\"key\":\"Combat posture\"}",
+            ExampleGist: "read a utility decision's settings"),
+
+        [("GET", "/behaviours/{name}/decisions")] = new RouteDoc(
+            Tool:    "get_behaviour_decisions",
+            Group:   "K — AI behavior traces",
+            Summary: "Which node / state / transition of a behaviour binds which utility decision, and how (CE-1325): ChooseOption chooses, RankCandidates ranks, an IsOption guard reads one option, a custom action holds one in its params.",
+            Returns: "{ behaviour, bindings:[{kind: node|state|transition, element, label, role: Chooses|Ranks|Reads|Holds, via (the params field), decision, assetId, decisionId, option?}] }",
+            Hint:    "Req: name (the registered behaviour). Example: get_behaviour_decisions({name:\"CombatPosture\"})",
+            Params: new RouteParam[]
+            {
+                new("name", "string", true, "The registered behaviour name"),
+            },
+            Notes: new[]
+            {
+                "Read from the running blob: a node's method key carries its params offset, and the behaviour's default params hold the decision reference there.",
+            },
+            ExampleArgsJson: "{\"name\":\"CombatPosture\"}",
+            ExampleGist: "which nodes of a behaviour run which utility decision"),
+
         [("GET", "/entities/{networkId}/utility")] = new RouteDoc(
             Tool:    "get_entity_utility",
             Group:   "K — AI behavior traces",
