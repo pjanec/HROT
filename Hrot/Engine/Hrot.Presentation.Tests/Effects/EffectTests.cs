@@ -1296,4 +1296,26 @@ public sealed class EffectTests
         while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
         return dir?.FullName ?? throw new InvalidOperationException("repo root not found");
     }
+
+    /// <summary>⭐ <c>CE-1357</c> — a weapon system fired at a POINT (a door M134: no target unit, no aim posture of its own) draws its burst
+    /// stream along its rounds' launch, and a stream with no aim known runs along the gun — never to the map's origin. 🔒 User, 2026-10-25:
+    /// "the majority of the stream of tracers is rendered to the corner of the terrain". ✅ Red-proof: StreamToward's launch fallback
+    /// dropped ⇒ (0,0,0); Dashes' zero guard dropped ⇒ dashes toward the origin.</summary>
+    [Fact]
+    public void CE1357_AStationGunsStream_FollowsItsRounds_NeverTheOrigin()
+    {
+        var origin = new Vector3(116f, 282f, 26f);
+        var velocity = new Vector3(-600f, 650f, -150f);
+        var toward = Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, Vector3.Zero, origin, velocity, 1000f);
+        Assert.True(Vector3.Distance(origin, toward) > 900f, $"out along the launch ({toward})");
+        Assert.True(Vector3.Dot(Vector3.Normalize(toward - origin), Vector3.Normalize(velocity)) > 0.999f);
+        var target = new Vector3(1f, 2f, 3f);
+        Assert.Equal(target, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(target, new Vector3(9f, 9f, 9f), origin, velocity, 1000f));   // a unit wins
+        Assert.Equal(Vector3.Zero, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, Vector3.Zero, origin, Vector3.Zero, 0f));   // nothing known
+
+        var dashes = new System.Collections.Generic.List<(Vector3 From, Vector3 To)>();
+        Hrot.UI.Common.Effects.FireStreams.Dashes(origin, Vector3.Zero, new Vector3(0f, 1f, 0f), 0.2, dashes);
+        Assert.NotEmpty(dashes);
+        Assert.All(dashes, d => Assert.True(d.To.Y > origin.Y && MathF.Abs(d.To.X - origin.X) < 1e-3f, $"along the gun, not to the origin ({d.To})"));
+    }
 }

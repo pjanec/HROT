@@ -2253,6 +2253,12 @@ of him with its pivot at his chest (`BdcTkbCatalog.DoorSeats`; a cross-lane edit
 | ![](assets/map-3d/stream-1-side.png) | ![](assets/map-3d/stream-2-behind.png) | ![](assets/map-3d/stream-3-door-gun.png) |
 |---|---|---|
 
+⭐ **`2026-10-25` (ui, `CE-1357`) — a stream with no target unit follows its rounds.** 🔴 A weapon SYSTEM fired at a point (a UH-60 door
+M134: no target, no aim posture of its own) recorded its stream toward `AimPointOf(shooter)` = (0,0,0), so the bright stream ran from
+the door to the map's corner while only the real tracers flew to the aim. `EffectSpawnSystem.StreamToward`: target → posture → along the
+round's launch (`WeaponFireNotification.Origin`/`Velocity`, × the weapon's range); `FireStreams.Dashes` draws a zero aim along the gun.
+Measured live first (`ua-fast-rope-roof`, `GET /combat/shots`: all rounds aimed right). Rail `EffectTests.CE1357_*` (both halves red-proved).
+
 ### 6v. CE-1112 / CE-1113 — air defence drawn: the MANPADS, the ZU-23-2, their gunners and technical; no scorch under an air burst — DESIGN `2026-10-15` (ui)
 
 🔒 **User, `2026-10-15`:** *"pls implement the visualization of new weapons ammos vehicles and effects"* — backend's air defence (CE-2187,

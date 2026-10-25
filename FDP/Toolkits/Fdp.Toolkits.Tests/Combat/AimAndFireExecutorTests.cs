@@ -2894,7 +2894,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>The TKB of the WS-3 rails: an M2 (its own pintle turret and mount 0), a bare pickup (driver, gunner, a bed station the
         /// gunner operates, NeedsGunner), and a sentry gun (automatic, or manual when <paramref name="sentryAutomatic"/> is false).</summary>
-        private void WeaponSystemTypes(bool sentryAutomatic = true)
+        private void WeaponSystemTypes(bool sentryAutomatic = true, bool stationArc = false)
         {
             RegisterWeaponSystems();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -2915,12 +2915,13 @@ namespace Fdp.Toolkit.Combat.Tests
                 db.Register(t);
             }
             var pickup = new Fdp.Interfaces.TkbTemplate("Pickup", WsPickupType);
-            pickup.AddDescriptor(PickupSeats());
+            pickup.AddDescriptor(PickupSeats(stationArc));
             db.Register(pickup);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
         }
 
-        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto PickupSeats() => new()
+        /// <param name="stationArc">⭐ CE-1356 — the bed station declares an arc: ±45° of the pickup's nose (a door-gun-like limit).</param>
+        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto PickupSeats(bool stationArc = false) => new()
         {
             Exposure = PassengerExposure.Open,
             Seats =
@@ -2931,6 +2932,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 {
                     Role = SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle, OperatedBy = 1, NeedsGunner = true,
                     X = -1.5f, Z = 1.4f,
+                    TraverseMinDeg = stationArc ? -45f : null, TraverseMaxDeg = stationArc ? 45f : null,
                 },
             },
         };
@@ -2970,14 +2972,15 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>The technical: a bare pickup at the origin facing east, an M2 in its bed station, a gunner (when <paramref name="gunner"/>)
         /// in its Gunner seat, a target 100 m to its left; the pickup's channel aims at it.</summary>
-        private (Entity Pickup, Entity M2, Entity Gunner, WeaponChannel Channel, Entity Target) Technical(int rounds, bool gunner = true)
+        private (Entity Pickup, Entity M2, Entity Gunner, WeaponChannel Channel, Entity Target) Technical(int rounds, bool gunner = true,
+                                                                                                         bool stationArc = false)
         {
-            WeaponSystemTypes();
+            WeaponSystemTypes(stationArc: stationArc);
             var pickup = _world.CreateEntity();
             _world.AddComponent(pickup, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             _world.AddComponent(pickup, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = WsPickupType });
             var pt = new Fdp.Interfaces.TkbTemplate("Pickup", WsPickupType);
-            pt.AddDescriptor(PickupSeats());
+            pt.AddDescriptor(PickupSeats(stationArc));
             new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_world, pickup, pt);
             var m2 = WeaponSystemOf(WsM2Type, new Vector3(-1.5f, 0f, 1.4f));
             Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, m2, pickup));
@@ -3013,6 +3016,51 @@ namespace Fdp.Toolkit.Combat.Tests
                 }
             }
             return shots;
+        }
+
+        /// <summary>⭐ <c>CE-1356</c> — a weapon in a station that declares an arc gets its own turret NARROWED by it (in its own frame): the one
+        /// lookup every reader of the turret's limits uses (the slew, the in-arc test, the operator's aim clamp, the gun ring), so a gun ordered
+        /// at a point outside the arc stops at its edge instead of turning round inside the vehicle. Without an arc the turret is its own.
+        /// 🔒 User, 2026-10-25: "the minigun mounted on side is not restricted where it can fire, it can turn inside the helicopter".
+        /// ✅ Red-proof: TurretOf without the station narrowing ⇒ full circle, and the turret slews to 90° ⇒ red.</summary>
+        [Fact]
+        public void CE1356_AStationsArc_LimitsItsWeaponsTurret()
+        {
+            var (_, m2, _, _, _) = Technical(rounds: 0, stationArc: true);
+            var turret = CombatTkb.TurretOf(_world, m2, 0)!;
+            Assert.Equal(-45f, turret.TraverseMinDeg, 3);
+            Assert.Equal(45f, turret.TraverseMaxDeg, 3);
+            Assert.Equal(-10f, turret.ElevationMinDeg, 3);   // the station states no elevation: the gun's own
+            Assert.Equal(60f, turret.ElevationMaxDeg, 3);
+
+            // the muscle, ordered at a point square to the left (azimuth 90°, outside the arc): the turret never passes 45°
+            var part = TurretParts.Find(_world, m2, 0);
+            var reach = TurretSlew.ClampToArc(turret, MathF.PI / 2f, 0f);
+            Assert.Equal(MathF.PI / 4f, reach.Azimuth, 3);
+            var pose = default(TurretPose);
+            for (int i = 0; i < 120; i++) pose = TurretSlew.Step(pose, reach.Azimuth, 0f, turret, 1f / 60f);
+            Assert.InRange(pose.Azimuth, 0f, MathF.PI / 4f + 1e-3f);
+            Assert.False(TurretSlew.InArc(turret, MathF.PI / 2f, 0f));   // an AI order out there fails OutOfArc, as before
+
+            Assert.False(part.IsNull);
+        }
+
+        /// <summary>⭐ <c>CE-1356</c> — the conversion, pure: a UH-60's doors (left 20°…160° facing 90°, right −160°…−20° facing −90°) are each
+        /// −70°…70° off the gun's own forward; elevation is the overlap; an arc that would cross straight behind the gun leaves its traverse.</summary>
+        [Fact]
+        public void CE1356_TheStationArc_InTheGunsOwnFrame()
+        {
+            const float D = MathF.PI / 180f;
+            var own = new Fdp.Toolkit.Tkb.Domain.TurretDto { TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -60f, ElevationMaxDeg = 30f };
+            StationSeat Door(float min, float max, float facing) => new()
+                { HasArc = 1, TraverseMin = min * D, TraverseMax = max * D, ElevationMin = -90f * D, ElevationMax = 90f * D, Facing = facing * D };
+            var left = CombatTkb.WithinStation(own, Door(20f, 160f, 90f));
+            Assert.Equal((-70f, 70f), (MathF.Round(left.TraverseMinDeg, 3), MathF.Round(left.TraverseMaxDeg, 3)));
+            var right = CombatTkb.WithinStation(own, Door(-160f, -20f, -90f));
+            Assert.Equal((-70f, 70f), (MathF.Round(right.TraverseMinDeg, 3), MathF.Round(right.TraverseMaxDeg, 3)));
+            Assert.Equal((-60f, 30f), (left.ElevationMinDeg, left.ElevationMaxDeg));
+            var behind = CombatTkb.WithinStation(own, Door(90f, 270f, 0f));   // would cross straight behind the gun
+            Assert.Equal((-180f, 180f), (behind.TraverseMinDeg, behind.TraverseMaxDeg));
         }
 
         /// <summary>
