@@ -1250,6 +1250,40 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>⭐ <c>CE-1353</c> — a flying helicopter's rotor turns EVENLY frame to frame although the sim advances in uneven fixed steps
+    /// (0, 2, 1, … steps a frame): the angle follows the frame clock × the sim's smoothed pace, so four blades no longer seem to flick back
+    /// and forth; a paused sim still stops it. ✅ Red-proof: the frame clock not passed (the old per-frame sim dt) ⇒ steps of 0 and 52°.</summary>
+    [Fact]
+    public void CE1353_TheRotorSpinsEvenly_OverUnevenSimSteps_AndStopsWhenPaused()
+    {
+        var t = new MotionTracker();
+        var heli = new Entity(9, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.AttackHelicopter);
+        const double frame = 1.0 / 60.0, simStep = 1.0 / 60.0;
+        int[] steps = { 0, 2, 1, 1, 0, 2, 1, 2, 0, 1 };
+        double sim = 0, wall = 0;
+        float prev = t.Advance(heli, new Vector3(0, 0, 40), Quaternion.Identity, VisualFamily.AttackHelicopter, size, sim, true, wall).Rotor;
+        var turns = new List<float>();
+        for (int i = 1; i <= 240; i++)
+        {
+            wall += frame; sim += steps[i % steps.Length] * simStep;
+            float now = t.Advance(heli, new Vector3(0, 0, 40), Quaternion.Identity, VisualFamily.AttackHelicopter, size, sim, true, wall).Rotor;
+            float turn = MathF.IEEERemainder(now - prev, 2f * MathF.PI);
+            if (i > 120) turns.Add(turn);   // after the pace has settled
+            prev = now;
+        }
+        float full = MotionTracker.RotorRevsPerSecond * 2f * MathF.PI * (float)frame;   // the turn a frame at the sim's average pace (≈ 1 × real time)
+        Assert.All(turns, x => Assert.InRange(x, full * 0.75f, full * 1.25f));     // even: every frame within 25 % of the mean, never 0, never double
+
+        for (int i = 0; i < 60; i++)   // paused: the sim clock stands
+        {
+            wall += frame;
+            float now = t.Advance(heli, new Vector3(0, 0, 40), Quaternion.Identity, VisualFamily.AttackHelicopter, size, sim, true, wall).Rotor;
+            if (i == 59) Assert.InRange(MathF.Abs(MathF.IEEERemainder(now - prev, 2f * MathF.PI)), 0f, full * 0.05f);   // stopped within a second
+            prev = now;
+        }
+    }
+
     /// <summary>
     /// ⭐⭐ CE-1092 (§6n N-8) — the A-10 is an ATTACK PLANE, not an F-16: its own kit (straight wing, twin fins), and a bomb on a pylon for
     /// every round its bomb rack still holds — the replicated ammo mirror counts them down.

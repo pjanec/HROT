@@ -1703,7 +1703,7 @@ replay (`IsReplayActive`), so in a replay the launcher stays slung and no backbl
 | **N-6 trails** (CE-1091) | the smoke trail follows the round's REMEMBERED path (sim time, every host), so a top-attack climb and dive shows; a shell or mortar bomb draws a faint thin streak of its last 2 s |
 | **N-7 drone** (CE-1086) | family `Drone` = a `Uav` that flies as a `Rotorcraft`: an X frame, four motor pods, four rotors spinning; sized 2·radius × 2·radius × height from `Gen.Flight` |
 | **N-8 attack plane** (CE-1092) | family `AttackJet` (class `AttackAircraft`): straight wings, two engines on the rear fuselage, twin fins, the nose gun, pylons; a bomb per round left on its `Bomb` mount (`WeaponAmmo`) |
-| **N-9 rotors** (CE-1093) | a rotor runs while airborne OR moved within the last 20 s, and spins up / down over 3 s; the tail rotor spins about its axle |
+| **N-9 rotors** (CE-1093) | a rotor runs while airborne OR moved within the last 20 s, and spins up / down over 3 s; the tail rotor spins about its axle. ⭐ `CE-1353` (`2026-10-25`): its ANGLE advances by the frame time × the sim's pace eased over 0.25 s (`MotionTracker.PaceSeconds`), not by each frame's sim dt — the sim's fixed steps (0/1/2 a frame) made four blades jump 0°/26°/52° and seem to flick back and forth; a pause still stops it |
 | **N-10 bomb release** (CE-1094) | no muzzle flash for a `Bomb` mount |
 
 **Rejected — one line each:**
