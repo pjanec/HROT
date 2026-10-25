@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-22
+updated: 2026-10-25
 build-state: BUILDING
-current-answer: §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08-30): TkbTranslatorSet is
+current-answer: ⭐ 2026-10-25 — §3.4e (CE-3323, AQ107) is BUILT: EntityConstructionCompleted / EntityDestructionCompleted on every node,
+  naming the creation request. §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08-30): TkbTranslatorSet is
   the one base list and all five spawning sites use it. Step 4 (2026-08-31): the UrbanCombat templates
   live in Hrot.Core.Tkb.UrbanCombatTkbCatalog, seeded from HrotEnvironment.CreateTkb() — §3.3's AS-BUILT
   block is authoritative, and it corrects three false premises.
@@ -97,6 +98,8 @@ mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible �
   broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
   reader of an event type gets the full list. Read it before touching any order-consuming system.
 related-designs:
+  - FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md — owns the lifecycle module's handshake events (9001–9004) and, since §3.4e,
+    lists the two notifications (9005/9006) it publishes; §3.4e here owns WHY and what they carry
   - DESIGN_Add_Entity_Picker.md — the map "Add Entity" picker; creates through this pipeline
   - DESIGN_Ownership_Groups_And_Grants.md — owns WHICH components a created entity grants to which role (push-only groups) and S2b, which made `NetworkAdapters` the pack's one network input
   - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
@@ -1210,6 +1213,131 @@ so a new forwarded component needs its own case (the `InitType` does not travel 
 
 ⭐ **Strict registration measured:** `FdpAutoSerializer.EnsureCompiled<EntityCreationRequest>()` succeeds (the `List<object>` and the
 dictionary of tuples included) — `EntityCreationRequestSourceTests.BusSource_TheRequestCompilesUnderStrictRegistration`.
+
+### 3.4e ⭐⭐⭐ `CE-3323` (AQ107) — **THE GENERIC LIFECYCLE NOTIFICATIONS: `EntityConstructionCompleted` / `EntityDestructionCompleted`, on every node, naming the request** *(`2026-10-25`; build-state: BUILT)*
+
+> 🔒 **User, `2026-10-25`:** *"i think we need an EntityCreated event on any node as entity creation is an important thing happening
+> and many systems might want to monitor it. So i guess it should be nothing ad hoc, but generic system mechanism; and same goes for
+> EntityDestroyed. ISnt there any kinf of such notification already? the notification can carry the guid of the request if there was
+> any."* · on the names: *"EntityCreated/EntityDestroyed sounds like this is the generic one for ANY entity which is not true"* →
+> 🔒 *"EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive."*
+
+⭐ **Asked by** behaviors' `CE-2375` (the requester must learn which entity its request made — `OneManCommand` recognises its squad by
+name + force + type today) — [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Creation_Result.md).
+
+#### INVENTORY — what already announced a creation or a destruction *(grep + `search_code`; see the note on the graph below)*
+
+| existing | sent by | when | why it was not the answer |
+|---|---|---|---|
+| `Fdp.Core.EntityLifecycleEvent` (1001) `Created/Destroyed/Restored` | `EntityRepository` | slot allocated / freed | ⛔ only into a stream registered by `RegisterLifecycleStream` — **tests only**; no network id, no request; fires before the entity is built |
+| `ConstructionOrder` / `DestructionOrder` (9001/9003) | the lifecycle module | construction / teardown **starts** | ⛔ the start, not the end |
+| `ConstructionAck` / `DestructionAck` (9002/9004) | each participant | its part is done | ⛔ internal handshake |
+| `CreateUpdateDeleteEntityAck` (DDS, the **double ack**, [Authoring Surface §4c](DESIGN_Entity_Authoring_Surface.md)) | `CreateEntityRequestSystem` (phase 1) · `EntityRequestFinalizationSystem` (phase 2, polls the map for Active) | accepted · Active | ⛔ an answer to the **wire** requester only (`IEntityAckSink` → DDS); an in-process requester on another node never sees it, and no other system can watch it |
+| the promotions at `EntityLifecycleModule.cs` (all-acks, instant drain) and its five `DestroyEntity` sites | — | — | ⛔ **silent** — the two moments every watcher wants had no event |
+
+#### The design
+
+```mermaid
+classDiagram
+    class EntityLifecycleModule {
+        +BeginConstruction(...)
+        +BeginDestruction(...)
+        ~PublishOutcomes(view, cmd)
+        -List~Outcome~ _outcomes
+    }
+    class LifecycleSystem {
+        +Execute(view)
+    }
+    class EntityConstructionCompleted {
+        <<event 9005>>
+        Entity · NetworkId · TkbType
+        Guid RequestId
+        bool IsLocallyOwned · Succeeded · Resumed
+        FixedString64 Failure · uint FrameNumber
+    }
+    class EntityDestructionCompleted {
+        <<event 9006>>
+        Entity · NetworkId · TkbType
+        Guid RequestId · bool IsLocallyOwned · Forced
+        FixedString64 Reason · uint FrameNumber
+    }
+    class CreationRequestId {
+        <<component 449, NoScenario>>
+        Guid Value
+    }
+    class EntityMaster {
+        <<DDS, existing>>
+        +Guid RequestId  (APPENDED, R-169)
+    }
+    class NetworkSpawningSystem { <<existing>> }
+    class EntityMasterIngressTranslator { <<existing>> }
+    class EntityMasterEgressTranslator { <<existing>> }
+    LifecycleSystem --> EntityLifecycleModule : PublishOutcomes after acks, drains, timeouts
+    EntityLifecycleModule ..> EntityConstructionCompleted : publishes
+    EntityLifecycleModule ..> EntityDestructionCompleted : publishes
+    EntityLifecycleModule ..> CreationRequestId : reads
+    NetworkSpawningSystem ..> CreationRequestId : stamps from SpawnEntityCommand.RequestId
+    EntityMasterEgressTranslator ..> EntityMaster : writes RequestId
+    EntityMasterIngressTranslator ..> CreationRequestId : stamps from EntityMaster.RequestId
+```
+*What the picture shows that prose hid:* the request id needs **no new path** — it already rode `SpawnEntityCommand.RequestId` to the
+servicing node; one component and one appended wire field carry it the rest of the way, and the lifecycle module only reads it.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Brain as Brain (CGF) — asks
+    participant Sim as SimHost — services
+    Brain->>Brain: EntityCreationRequest{RequestId, Owner = SimHost}
+    Brain->>Sim: forwarded over DDS (CE-3228)
+    Sim->>Sim: CreateEntityRequestSystem → SpawnEntityCommand{RequestId}
+    Sim->>Sim: NetworkSpawningSystem: entity + CreationRequestId
+    Sim->>Brain: EntityMaster{.., RequestId}
+    Brain->>Brain: ingress: ghost + CreationRequestId → promotion → ELM construction
+    Sim->>Sim: last ack → Active → EntityConstructionCompleted{RequestId, owned}
+    Brain->>Brain: last ack → Active → EntityConstructionCompleted{RequestId, not owned}
+```
+*What it shows:* each node announces **its own** completion, from **its own** lifecycle module — there is no cross-node "created"
+message, so a node never hears about an entity it does not yet hold.
+
+```mermaid
+graph TD
+    Pack["EntityCreationPack (every host)"] -->|builds, host schedules| ELM["EntityLifecycleModule"]
+    ELM -->|RegisterSystems| LS["LifecycleSystem — BeforeSync, every frame"]
+    LS -->|end of tick| PO["PublishOutcomes → 9005 / 9006"]
+    Reg["HrotSharedComponentRegistry (every Hrot world)"] -->|registers| PO
+    Replay["replay active"] -.->|gates off: no events| LS
+    Bare["a world that never registered 9005/9006 (tests, examples)"] -.->|skipped, CE-3047 idiom| PO
+    classDef dead stroke-dasharray: 5 5,color:#999
+    class Replay,Bare dead
+```
+*What it shows:* the system runs on **every** host the pack is on, and the two dashed edges are where nothing is published — replay
+(the log owns the world, `mgmt-1` §8.10) and a world that never registered the events.
+
+#### The rules, and why *(prose carries only the why)*
+
+| | |
+|---|---|
+| ⭐ **scope = lifecycle-managed entities** | spawned and promoted network entities. ⛔ A plain `CreateEntity` (EQS sensor children, local probes) raises nothing — the names say *Construction* so nobody reads them as "any entity" (user). A notification for ANY entity would be the repository's raw stream put on the bus — a separate change, and it could carry no network id or request |
+| ⭐ **a failed construction is `EntityConstructionCompleted{Succeeded = false}`**, never a destruction | it was never constructed; the requester needs the failure as the answer to its request |
+| ⭐ **published by `LifecycleSystem` at the end of its tick**, from outcomes the module records where it decides them | the module's ack / drain / timeout methods have no view; at the end of the tick the command buffer has not yet destroyed anything, so a dying entity still reads its identity — the destruction event **carries** it because the handle is dead when read |
+| ⭐ **`Resumed`** | a restore re-opens in-flight constructions (`ResumeFromRestoredWorld`); their completion is not a new entity, and a requester must be able to tell |
+| ⭐ **a world replacement drops undelivered outcomes** | they name handles of the world that was replaced (the same reason the pending dictionaries are cleared, `CE-259ar`) |
+| ⭐ **the request id on replicas rides `EntityMaster`** (appended) | 🔒 R-169 *"changing a message is ok if necessary"*; it is the one message every replica already receives at birth. ⚠ BDC replication does not carry it — a BDC replica's event says `Guid.Empty` |
+| ⭐ **the double ack stays** | it is the wire requester's answer (ExCon, IG's map commands) and has its own phases; ⚠ `EntityRequestFinalizationSystem` could become a subscriber of 9005 instead of polling the map — a follow-up, not this change |
+
+#### AS-BUILT `2026-10-25`
+
+| piece | where |
+|---|---|
+| events 9005 / 9006 | `FDP/Toolkits/Fdp.Toolkits/Lifecycle/Events/LifecycleEvents.cs` |
+| `CreationRequestId` (component 449) | `Fdp.Toolkits/Lifecycle/Components/CreationRequestId.cs` |
+| outcomes + `PublishOutcomes` | `EntityLifecycleModule.cs`; called by `LifecycleSystem.Execute` |
+| stamped on the servicing node | `NetworkSpawningSystem.ProcessSpawn` step 7c |
+| on the wire | `EntityMaster.RequestId` (`GenericDescriptors.cs`), `EntityMasterEgressTranslator`, `EntityMasterIngressTranslator` |
+| registered | `HrotSharedComponentRegistry` (component + both events) |
+| rails | `EntityLifecycleModuleTests.AQ107_*` (9) · `SpawnSystemTests.AQ107_*` · `EntityMasterTranslatorTests.AQ107_*` · cross-node **IT-SA-7** `SplitAuthoritySpawnTests.AQ107_ARequestFromTheBrain_ServicedOnSimHost_ComesBackToTheBrain_NamingItsRequest` |
+
 
 ### 3.4c ⭐⭐⭐ `CE-144` — **ONE CONSUMER OF `DestroyEntityCommand`.** `build-state: READY-TO-BUILD`
 

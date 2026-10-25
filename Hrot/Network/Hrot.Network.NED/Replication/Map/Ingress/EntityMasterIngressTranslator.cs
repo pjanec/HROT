@@ -231,6 +231,12 @@ namespace Hrot.Map.Common.Replication.Ingress
             // Permanent identity component — drives GhostPromotionSystem.
             cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbType });
 
+            // ⭐ AQ107 (CE-3323, §3.4e) — the creation request that made it rides the master; the lifecycle module names it in
+            //   EntityConstructionCompleted, so the node that ASKED (this one, perhaps) can tell its entity from the rest.
+            if (master.RequestId != Guid.Empty && view is EntityRepository requestRepo
+                && requestRepo.IsComponentTypeRegistered<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>())
+                cmd.AddComponent(entity, new Fdp.Toolkit.Lifecycle.Components.CreationRequestId { Value = master.RequestId });
+
             // Only set NetworkAuthority for entities that do not have it yet (new ghosts).
             // Entities that the local node created itself already have NetworkAuthority with the
             // correct PrimaryOwnerId. DDS loopback or re-announcements of locally-owned entities

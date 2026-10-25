@@ -304,6 +304,26 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         }
 
         [Fact]
+        public void AQ107_Spawn_StampsTheRequestThatMadeIt_AndNothingWhenNoneDid()
+        {
+            var repo        = CreateWorld();
+            repo.RegisterComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>();
+            var tkb         = CreateTkb();
+            var elm         = CreateElm(tkb);
+            var networkMap  = new NetworkEntityMap();
+            var system      = CreateSystem(repo, networkMap, new StubIdAllocator(), tkb, elm);
+            var request     = System.Guid.NewGuid();
+
+            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 71L, TkbType = DefaultTkbType, OwnerNodeId = 1, RequestId = request });
+            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 72L, TkbType = DefaultTkbType, OwnerNodeId = 1 });
+
+            Assert.True(networkMap.TryGetEntity(71L, out var asked));
+            Assert.Equal(request, repo.GetComponentRO<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(asked).Value);
+            Assert.True(networkMap.TryGetEntity(72L, out var unasked));
+            Assert.False(repo.HasComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(unasked));
+        }
+
+        [Fact]
         public void Spawn_WithInitTypeNone_PendingNetworkAckIsNotAdded()
         {
             var repo        = CreateWorld();

@@ -1130,6 +1130,9 @@ namespace Fdp.Core
         /// <summary>⭐ AQ104 E ③ (backend) — <c>DoorHeard</c>: the door state this node's sound system last heard, so a change makes a
         /// sound once (R-3039: a system's memory is a component). Local, recorded. 448 free on every lane by a census, 2026-10-25.</summary>
         public const int DoorHeard = 448;
+        /// <summary>⭐ AQ107 (backend, CE-3323) — <c>CreationRequestId</c>: the creation request that made this entity, on every node that
+        /// holds it (Creation Unification §3.4e). 449 free on every lane by a census, 2026-10-25.</summary>
+        public const int CreationRequestId = 449;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

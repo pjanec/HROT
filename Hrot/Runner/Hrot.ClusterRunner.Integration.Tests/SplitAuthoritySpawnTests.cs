@@ -514,6 +514,72 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // ── IT-SA-7 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ AQ107 (CE-3323; behaviors' CE-2375 — the requester must learn which entity its request made) — a creation request
+    /// published on the Brain (CGF) and SERVICED ON ANOTHER NODE (SimHost, the owner it names) comes back to the Brain as
+    /// <c>EntityConstructionCompleted</c> naming the request: the request id rides <c>SpawnEntityCommand</c> → <c>CreationRequestId</c>
+    /// → <c>EntityMaster</c> → the replica, and the lifecycle module on EACH node announces the same entity with it.
+    /// 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4e. Under the production guard (strict event registration).
+    /// 🔴 Red-proofs: drop the <c>RequestId</c> line in <c>EntityMasterEgressTranslator</c> ⇒ the Brain's event carries Guid.Empty;
+    /// drop the <c>RegisterEvent&lt;EntityConstructionCompleted&gt;</c> in <c>HrotSharedComponentRegistry</c> ⇒ no event on either node.
+    /// <para>Domain 38 — explicit, like IT-SA-4's 33.</para>
+    /// </summary>
+    [Fact]
+    public void AQ107_ARequestFromTheBrain_ServicedOnSimHost_ComesBackToTheBrain_NamingItsRequest()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 38);
+            using var cgf     = new CgfHarness(38);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var request = Guid.NewGuid();
+            int owner   = simHost.SimHost.EntityCreation!.NodeId;
+            Assert.NotEqual(cgf.CgfSvc.EntityCreation!.NodeId, owner);
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
+            {
+                RequestId          = request,
+                OwnerAppInstanceId = owner,
+                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new SimTransform { Position = new System.Numerics.Vector3(40, 60, 0), Rotation = System.Numerics.Quaternion.Identity },
+                },
+            });
+
+            Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted? onBrain = null, onOwner = null;
+            static Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted? Seen(EntityRepository? w, Guid id)
+            {
+                if (w == null || !w.Bus.IsRegistered<Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted>()) return null;
+                foreach (var e in ((Fdp.ModuleHost.Abstractions.ISimulationView)w).ReadEvents<Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted>())
+                    if (e.RequestId == id) return e;
+                return null;
+            }
+            bool both = PumpBothUntil(simHost, cgf, () =>
+            {
+                onBrain ??= Seen(cgf.World, request);
+                onOwner ??= Seen(simHost.SimHost.World, request);
+                return onBrain != null && onOwner != null;
+            }, AuthorityTimeoutMs);
+
+            Assert.True(onOwner != null, "the servicing node (SimHost) never announced the entity its request made");
+            Assert.True(onBrain != null, "the requesting node (the Brain) never learned which entity its request made");
+            Assert.True(onOwner!.Value.Succeeded && onBrain!.Value.Succeeded);
+            Assert.True(onOwner.Value.IsLocallyOwned, "SimHost owns it");
+            Assert.False(onBrain.Value.IsLocallyOwned, "the Brain holds a replica");
+            Assert.NotEqual(0L, onBrain.Value.NetworkId);
+            Assert.Equal(onOwner.Value.NetworkId, onBrain.Value.NetworkId);
+            Assert.Equal(TkbEntityTypes.Tank_M1Abrams, onBrain.Value.TkbType);
+            Assert.True(cgf.World!.IsAlive(onBrain.Value.Entity), "the Brain's event names its own live entity");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
     private static bool PumpBothUntil(
         HrotRunnerHarness simHost,
         CgfHarness        cgf,
