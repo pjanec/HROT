@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-25 (R-2079), A–L as leaned
 updated: 2026-10-25
-build-state: READY-TO-BUILD — order §5, K (the demos) first
-current-answer: §6 the answers (approved) · §4 the sub-questions with their leans · §3 the diagrams · §2 the claims they rest on · §5 the order
+build-state: BUILDING — K, I, D built (§7.1, §7.2); L1 and B built (§7.3); A-1 ✅ approved (R-2081, §7.3a) — building
+current-answer: §7.3a the open decision (A) · §6 the answers (approved) · §4 the sub-questions with their leans · §3 the diagrams · §2 the claims they rest on · §5 the order
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -192,12 +192,95 @@ Each scenario authors TODAY's closest orders (the build steps swap them for the 
 | | as built | deviation |
 |---|---|---|
 | **D** | `Alerted` (component 422, brain-local) + `Alerts.Pin / IsPinned` (FDP Perception): up to 4 leases of 2 s; `ThreatEvaluationSystem` holds a pinned slot at `ForgetThreatScore` instead of forgetting it; `HiddenTargetThrow.LastKnown` reads a pinned slot as live (the hunt follows it). Pinners (`AreaAlert`, behaviors): the attack order's target (`PostureNodes.UntilTargetDown`), and every identified enemy in the squad's picture within the area of `SquadDefend` (max(search radius, 15 m)), `ClearBuilding` and `ClearRoom` (15 m) for every live member — each renewal only while the enemy is in the fight and the man's memory has evidence from the last 10 min | the lease (renewed each tick) instead of a stored "until down": a task that ends lets go by itself, no release path |
-| **I** | `PostureNodes.AdvanceAndAttack`: hunting, a move "arrived" while the target is on another storey (> 2 m of height) is re-issued — the first at once, then every 3 s; on his floor "arrived" holds as before | ⚠ only a belt: the person mover arrives in 2-D (`CarKinematicsSystem.cs:752`), so a re-issued move can "arrive" again at once — the root fix is backend's ([handoff](batches/HANDOFF_Behaviors_To_Backend_Area_Combat_And_Callouts.md) item 1) |
+| **I** | `PostureNodes.AdvanceAndAttack`: hunting, a move "arrived" while the target is on another storey (> 2 m of height) is re-issued — the first at once, then every 3 s; on his floor "arrived" holds as before | ⚠ only a belt: the person mover arrived in 2-D — ✅ backend's root fix landed (`CE-3319`: no arrival on another level); ⭐ `CE-2373` widened the belt to a posted man and to "not arrived, not moving" (§7.3) |
 
 Rails: `ThreatEvaluationSystemTests.CE2371_AnAlertedContact_IsNotForgotten_WhileTheLeaseRuns` ·
 `TacticsTreesTests.CE2371_TheAttackTarget_StaysKnownUntilDown_ButNotOnOldEvidence` · `…CE2371_HuntingATargetUpstairs_AnArrivalBelowHim_IsReissued`.
 Red-proofs (one build, three mutations: no lease check, no evidence age, no storey check) ⇒ 3 / 3 red.
 
+<<<<<<< HEAD
+📐 **Live after step 2** (one run each, the step-1 orders unchanged): `ia-house-hunt` ✅ 2/2 decided — run 1 the defender shot at his
+window at 31 s (the check now accepts a fight won before entry), run 2 inside at 26 s, on his storey at 29 s, defender down ·
+`ia-area-clear` ⛔ House B still never entered (the order names one building — B's job) but **both defenders down** (baseline: neither) ·
+`ia-area-defend` ⛔ the guard now **fires 16 rounds** (baseline 0) but still second, and never at Blue East — the stand-at-the-centre
+L replaces.
+
+### 7.3 Step 3 — L1 and B built; A stopped on a measured hazard *(2026-10-25)*
+
+| | as built | where |
+|---|---|---|
+| **L** (L1, `CE-2373`) | the all-round `SquadDefend` ranks its candidate posts by COVERAGE — one visibility fan, 32 area probes, the views' greedy union — and a lone man rounds 30 s per post over the first ≤ 3 while no enemy is known in the area | [Defend §8c D-2m](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DL-1…DL-5) — ⏭ L2: the open-ground overview ask, a squad's gap-only reassignment |
+| **B** (`CE-2374`) | `ClearArea` — a sequencer over `ClearBuildingPlay`: one area survey, the nearest building next, a blocked one skipped, a known enemy at a cleared building ⇒ once more; the area stays alerted | [Building Clearing §7.4](../designs/group-maneuvers/DESIGN_Building_Clearing.md) (CA-1…CA-5) — ⏭ the open ground by bounds |
+| **A** | ⛔ **NOT BUILT — stopped on a measured hazard** (R-106: the item stops, not the batch); the demos keep an authored one-man squad, which runs the same plays today | §7.3a below — a decision for the user |
+
+#### 7.3a A — where the implicit commander can live *(measured; a lean for the user)*
+
+| the choice rests on | code — how it IS | design |
+|---|---|---|
+| a gameplay system may create an entity at runtime | ✅ `EntityCreationRequest` on the bus (`EjectionSystem.cs:79`, `TrafficPanic.cs:174`); `InitialComponents` applied by reflection, managed ones too (`NetworkSpawningSystem.cs:208`) | ✅ Entity Creation §3.4d (CE-3228) |
+| a created commander could start its play by itself | ✅ an `InitialBrainIntent` becomes the `AssignBehaviorEvent` (`InitialBrainMaterializationSystem`) — ⚠ only on the node that holds the managed component (the spawning node) | ✅ Sensors §7.5 |
+| ⛔ **the man's link to his commander is SAVED** | ✅ `UnitSubordinate` is `DataPolicy.Default` — recorded, saved, snapshotted (`UnitSubordinate.cs:18`); a `IsTransient` commander carries `ScenarioIgnoreTag` and is NOT saved | ⛔ searched docs/ and .dev/ (`implicit commander`, `one-man`, `transient squad`): no design for a saved man under an unsaved commander |
+| the roster is derived, event-driven | ✅ `UnitRoster` is `NoScenario`; `UnitHierarchySystem` changes it only on `CmdAssign/RemoveSubordinate` (`UnitHierarchySystem.cs:146`) — it never sweeps a roster it did not build | ✅ `UnitRoster.cs` header |
+
+⇒ **A transient (unsaved) commander leaves the saved man pointing at nothing** — the next load drops the link or fails on it. That is a
+save-format question, not a behaviour one, so it is the user's.
+
+| option | what | ⭐ lean |
+|---|---|---|
+| **A-1** | the mapper asks for a **real squad entity** (not transient, `Unit_InfantrySquad`), named "⟨man⟩ (command)", then assigns the man under it and gives it the play: saved and loaded like any authored squad; **visible** in the hierarchy | ⭐ **this** — it is exactly what the demos author by hand today, so nothing new can break on save/load; the only cost is a visible squad node, which AQ104 A wanted hidden |
+| A-2 | a brain-local commander (created on CGF only, never replicated or saved) and the man's link written there | ⛔ the man's `UnitSubordinate` is replicated and saved — a local-only commander would be a dangling handle on every other node and in every save |
+| A-3 | no commander: the lone man's brain runs the squad play itself | ⛔ rejected in §4 A (an order to himself replaces his own task) |
+
+🔒 **User, `2026-10-25`:** *"creating an entity is a cross cluster operation initiated via sending creation request event and is acked by
+other nodes … the code needs to wait for confirmation from the local node anyway … this is nothing local and immediate so it needs to be
+treated that way."* ⇒ **A-1's sequence is ASYNCHRONOUS:**
+
+```mermaid
+sequenceDiagram
+  participant O as Area order (DefendArea / ClearArea) on a lone man
+  participant B as the man's brain (CGF)
+  participant R as CreateEntityRequestSystem
+  participant S as NetworkSpawningSystem
+  O->>B: lone man - no commander
+  B->>B: fight now on the fallback (CombatPosture at the area, as today)
+  B->>R: EntityCreationRequest {squad type, owner = this brain node, marker = the man}
+  R->>S: id allocated, spawn ordered (next frame at the earliest)
+  S-->>B: the squad entity exists on this node (Active per its InitType)
+  B->>B: CmdAssignSubordinate(man to squad) + the play to the squad
+  B-->>O: the play's member order replaces the fallback
+  B->>B: no squad within a timeout - stay on the fallback, ask again later
+```
+*What the picture shows that prose hid:* the man is never idle while his commander is being created, and nothing is assigned until the
+entity is really there on this node.
+
+🔒 **User, `2026-10-25`: *"A-1 approved"*** ⇒ ✅ **A-1 (R-2081)**, built asynchronously as the sequence above.
+
+⇒ ⭐ **Lean A-1**, with one ask of the ui lane later: hide a squad whose only member is its creator's lone man (a display filter, not a
+model change). **What would change the lean:** if a hidden commander is a must, A-1 still holds and the filter becomes required.
+
+Rails (step 3): `SquadManeuverTests.CE2373_ALoneDefender_IsPostedForCoverage_AndGuardsOnARound_UntilAnEnemyIsKnown` ·
+`CE2373_Coverage_GreedyUnion_AndTheRoundGoesWhereItWatchedLeast` · `CE2374_ClearArea_ClearsEveryBuilding_NearestFirst_ThenSucceeds`.
+Red-proofs: the picker fed the ask's order ⇒ red · the round ignoring a known enemy ⇒ red · the sequencer stopping after one building ⇒
+red · ⏭ the no-round mutation to re-run (its first form did not compile). Six existing defend rails gained one tick (the fan's round trip).
+
+📐 **Live after step 3, on the NEW orders** (one run each, `f6f30cf78`), and the fourth red-proof (no round ⇒ red; 4 / 4 now):
+
+| demo | result | what it measured |
+|---|---|---|
+| `ia-area-clear` (`ClearArea`) | ⛔ 0/2 | the sequencer picked House A first (nearest) — ✅ — but the team sat ~100 s before moving (the baseline's idle start, unchanged), entered A at 129 s and was still on its ground floor at 410 s with Red 1 alive upstairs; House B never reached because A never finished. ⇒ the limit is the building drill's pace, not the sequencer |
+| `ia-area-defend` (one-man `SquadDefend`, L1) | ⛔ 0/4 — **worse than step 2** (2 rounds v 16) | the guard stood at the centre ~110 s under steady fire, never firing at Blue East 7 m away; moved at 145 s, into House A at 186 s. ⏭ **next: a live brain probe** — whether his posts were ever given (the window/coverage stages under fire) or the TS-6 break holds him, as at baseline |
+
+📐 **The live probe of `ia-area-defend`** (guard + his commander, every ~0.8 s): the posts DO go out (the commander's play in Posting,
+the guard on `CombatPosture` Superior) — but **both attackers are in sight at t = 0** (Blue South fires at 2 s from 42 m), so the guard is
+under fire before he posts; his **stress pins at 1.0 by 11 s** and stays (immortal: the fire never ends), and he cycles Break ⇄
+CombatPosture with the weapon "aiming" and locomotion "moving" while neither firing nor changing place. ⇒ ① the demo did not test L: the
+attackers now start ~90 m out (Blue South (106,5), Blue East (195,98)) so the guard posts first; ② the pinned stress and the aim-that-never-
+fires are step 5's (C + F) — recorded there, not treated as an L defect.
+
+📐 **Re-run with the attackers ~90 m out** (`7d12a9b39`): the guard posted INTO House A within 10 s (L's window post — ✅ he no longer
+stands at the centre), but ⛔ **fired ZERO rounds in 240 s** — not at 90 m, not at Blue East a few metres from him inside the house —
+while the attackers opened at 2.8 s from ~92 m. ⇒ not a posting defect; ⏭ probing his ROE / stress / weapon state.
+=======
 ### 7.3 I — arrival on the target's level, the mover's half (the root fix under §7.2's belt) *(backend, 2026-10-25; behaviors' handoff item 1)*
 
 | | as built |
@@ -216,3 +299,65 @@ Red-proofs (one build, three mutations: no lease check, no evidence age, no stor
 | E ③ door sounds | every sound node hears a replicated `DoorState` change once, at the doorway: lock 5 m, swing 15 m, breach 40 m, of the side of the man at it | Sensing §8.8 |
 | AQ105 D the voice | a replica's live shouted `Utterance` (all but `Talk`) is heard 40 m — as a man's sound (kind/class bits are full) | Sensing §8.8 |
 | G the lean's depth | `Lean.Depth` (replicated); `Leans.SetDepth(metres)` for behaviors; eye, seen points, hit boxes and aim read `Leans.ShiftOf` | [Hit location §13 LN-9](../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md) |
+>>>>>>> origin/backend
+
+📐 **Why the guard never fired — measured** (brain + slots snapshot at 8 / 16 / 30 s): L's coverage pass gave him an **UPSTAIRS frame
+post** (`Anchor` z 3 — House A's south window, the widest view), and he stayed on the GROUND floor all along: `OffPost` (3-D) kept the
+occupy branch running, its move "arrived" in 2-D under the post and then held (the order says Stay) — so he stood one floor below his
+window, unable to see out ("hold: not seen"). ⇒ the I belt was too narrow: it re-sent only a HUNT.
+⭐ **Fixed (`CE-2373`):** the storey re-send now covers a posted man (`Stay`) too, and — with backend's storey-aware arrival merged
+(`CE-3319`, [NOTE](batches/NOTE_Backend_To_Behaviors_Area_Combat_And_Callouts_Done.md) item 1: *"the case left is 'not arrived, not
+moving' under the target — a move node must RE-SEND there"*) — a move that has not made half a metre in 3 s on the wrong storey is re-sent,
+so the planner takes the stairs. Rail: `TacticsTreesTests.CE2373_APostedManUnderHisUpstairsPost_NotMoving_IsSentAgain`.
+
+📐 **Live after the storey fix** (`930a6f6d2` + backend's `CE-3319`): the guard now **reaches his upstairs window and fires — 11 rounds,
+both attackers wounded** (Blue South to 52, Blue East to 62) — but only from ~175 s: he spends the first three minutes on the ground floor
+while the stress break (stress 1.0 from ~10 s under steady fire) keeps pausing his posture. ⇒ the remaining gap is step 5 (C + F).
+
+#### 7.3b A-1 as built *(`CE-2375`, R-2081)*
+
+```mermaid
+classDiagram
+  class OneManCommand { <<NEW, static>> IsLone(man) · Request(man, play, params) · SquadNameOf(name) }
+  class OneManCommandSystem { <<NEW, CGF brain node>> Execute: pending man + his squad here ⇒ CmdAssignSubordinate · AssignSopEvent · AssignBehaviorEvent }
+  class PendingUnitCommand { <<NEW managed component 423>> SquadName · Play · ParamsJson · AskedAt }
+  class DefendAreaMapper { <<CHANGED>> lone soldier ⇒ Request(SquadDefend) + the CombatPosture fallback }
+  class ClearAreaBehavior { <<CHANGED>> on a lone man ⇒ Request(ClearArea), waits }
+  class EntityCreationRequest { <<existing>> TkbType squad · not transient · InitType None }
+  OneManCommand --> EntityCreationRequest
+  OneManCommand --> PendingUnitCommand
+  OneManCommandSystem --> PendingUnitCommand
+  DefendAreaMapper --> OneManCommand
+  ClearAreaBehavior --> OneManCommand
+```
+*What the picture shows that prose hid:* the request and the assignment are two different moments, joined only by the pending mark on the
+man — nothing assumes the squad exists when the order arrives.
+
+| as built | deviation / why |
+|---|---|
+| the squad is recognised by its NAME ("⟨man⟩ (command)"), its force and the squad type, with no members yet | ⚠ **a stand-in**: the creation result (ack) goes back over the wire to external requesters only and the spawn may happen on another node, so the brain cannot learn the new entity's id — ⏭ [handoff to backend](batches/HANDOFF_Behaviors_To_Backend_Creation_Result.md) for a result the requester can read; the name key then retires |
+| the man fights on the order's fallback (DefendArea: CombatPosture at the area) while he waits; ClearArea on a lone man waits as its own task | the user's "nothing local and immediate" |
+| no squad within 20 s ⇒ the wait ends, he stays on the fallback; ⛔ never a second request | two squads for one man is worse than none |
+| `OneManCommandSystem` runs on the brain node after `RestlessSystem` (`CgfLogicPack`), gated on the man's brain authority | — |
+
+Rail: `SquadManeuverTests.CE2375_ALoneMansAreaOrder_AsksForASquad_AndOnlyAssignsHimOnceItExists`. ⏭ live: a demo that orders a lone man
+`DefendArea` straight (its params are lat/lon — the demos still author the one-man squad by hand).
+
+📐 **Live after step 5** (`01de0b843` + the callouts): the guard fired **0** rounds again. The probe (brain + journal at 20 / 60 / 120 s)
+says why: he STARTS IN THE OPEN at the area's centre, both attackers see him at once from ~90 m (fire from 2 s), and walking to his post
+(this run a ground-floor frame, (103, 101)) under two rifles his stress reaches his break level within seconds; from then on he cycles
+break ⇄ resume (49 s, 59 s, 110 s …) and never arrives. DF-2 (half a near miss in cover) cannot help a man who is never in cover. ⇒ ⭐ the
+stress model doing what TS-6 says (a regular caught in the open by two rifles breaks); the DEMO judged "sees them first" of a man not yet
+posted. ⇒ the guard now starts INSIDE House A (104.5, 103.5), as a defender would be.
+
+📐 **Re-run with the guard repaired** (`66cc88c78` — ⚠ the run before it was INVALID: a comment had swallowed his squad, type and
+health): a real fight at last — ✅ the guard **engages both attackers before 30 m** (11.9 s, 22.1 s), fires 10 rounds, Blue East bleeds
+out, Blue South is wounded; the guard, wounded, leaves the house at ~100 s and dies at ~198 s. ⛔ "fires first" fails — and cannot be won:
+both attackers open at the SAME 2.05 s from ~90 m, because their Attack order NAMES the guard (`CombatPosture {target}`), so they know where
+he is from the first frame. ⇒ the attackers now get an AREA order (`ClearArea` on a lone man — which also runs A-1 live).
+
+📐 **With area-clearing attackers** (`58076007c`): ✅ the guard **sees and fires first at Blue South** (13.9 s v 16.7 s, from ~90 m) — 2/4;
+⛔ Blue East is never engaged: the guard, hit at ~30 s and ~70 s, lies wounded outside the house and bleeds out at ~164 s. ⭐ **A-1 live
+(inferred):** both attackers started as LONE men with `ClearArea`, and both then cleared House A room by room and went upstairs — which only a
+squad's `ClearBuildingPlay` does, so their squads were created and given the play (the squad entities were not inspected). ⏭ the guard left
+the house at ~20 s (at (103, 98)) — a coverage post outside or a break; probe next time before tuning.

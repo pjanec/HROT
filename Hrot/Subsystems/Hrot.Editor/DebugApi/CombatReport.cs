@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
@@ -143,6 +144,44 @@ namespace Hrot.Editor.DebugApi
                 ["observerStance"] = x.ObserverStance.ToString(), ["targetStance"] = x.TargetStance.ToString(),
                 ["threshold"] = Fdp.Toolkit.Terrain.TerrainWorld.SightThreshold, ["points"] = points,
                 ["note"] = "The target is SEEN when ANY body point's line is clear (buildings Stage 4). Stances are the LOGICAL stance (the brain's StanceIntent); on a cluster SimHost it arrives with the stance wire (CE-2121 slice 2) — until then Standing.",
+            };
+        }
+
+        /// <summary>
+        /// ⭐ AQ106 L (R-3050) — <c>GET /perception/hearing?listener=&amp;seconds=</c>: every sound near a listener in the last seconds as THIS
+        /// node's hearing sensor judges it — heard, or why not, the straight line's loss, the way round (through which doorways and corners) and
+        /// where it seems to come from. A dry run of the sensor's own ears and verdict (<c>HearingExplain</c>), so it cannot disagree with it.
+        /// </summary>
+        public static JsonNode Hearing(EntityRepository world, NetworkEntityMap? map, long listener, double seconds)
+        {
+            if (map == null || !map.TryGetEntity(listener, out var u) || !world.IsAlive(u))
+                return new JsonObject { ["error"] = $"listener {listener} is not a live entity on this node" };
+            var list = new List<Fdp.Toolkit.Perception.Sensors.HeardSoundExplanation>();
+            if (!Fdp.Toolkit.Perception.Sensors.HearingExplain.TryExplain(world, u, seconds, list, out var why))
+                return new JsonObject { ["error"] = why };
+            var sounds = new JsonArray();
+            int heard = 0;
+            foreach (var x in list)
+            {
+                var v = x.Verdict;
+                if (v.Reason == Fdp.Toolkit.Perception.Sensors.HearingReason.Heard) heard++;
+                var route = new JsonArray();
+                foreach (var p in x.Waypoints) route.Add(V(p));
+                long? src = map.TryGetNetworkId(new Entity((int)(x.Source & 0xFFFFFFFF), (ushort)(x.Source >> 32)), out var id) ? id : null;
+                sounds.Add(new JsonObject
+                {
+                    ["source"] = src, ["kind"] = x.Voice ? "Voice" : x.Kind.ToString(),
+                    ["class"] = ((Fdp.Toolkit.Tkb.Domain.SoundSourceClass)x.Class).ToString(), ["at"] = V(x.At), ["ageSeconds"] = x.Age,
+                    ["carry"] = x.Carry, ["distance"] = v.Distance, ["effectiveCarry"] = v.EffectiveCarry,
+                    ["verdict"] = v.Reason.ToString(), ["via"] = v.Route.Via.ToString(), ["heardFrom"] = V(v.Route.HeardFrom),
+                    ["straightDb"] = v.Route.StraightDb, ["crossings"] = v.Route.Crossings, ["pathMetres"] = v.Route.PathMetres,
+                    ["pathDb"] = v.Route.PathDb, ["openings"] = v.Route.Openings, ["corners"] = v.Route.Corners, ["route"] = route,
+                });
+            }
+            return new JsonObject
+            {
+                ["listener"] = listener, ["seconds"] = seconds, ["count"] = list.Count, ["heard"] = heard, ["sounds"] = sounds,
+                ["note"] = "A dry run of the hearing sensor (AQ106 L): verdict Heard | BeyondItsCarry | BeyondHisEar | WallsOrCorners | HisOwnSide | Silent. via Straight = through the walls (a halving each); Openings = through doors / windows / stairs; AroundBuildings = round the street corners. heardFrom is where it seems to come from (the last opening or corner).",
             };
         }
 

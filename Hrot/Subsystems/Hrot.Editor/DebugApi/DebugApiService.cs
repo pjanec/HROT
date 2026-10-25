@@ -2290,6 +2290,10 @@ namespace Hrot.Editor.DebugApi
         public JsonNode ExplainLos(long observer, long target)
             => CombatReport.Los(_world, _editorEntityMap ?? _dispatcher?.EntityMap, observer, target);
 
+        /// <summary>GET /perception/hearing — ⭐ AQ106 L: what a unit could hear in the last seconds and why not, as this node's hearing decides it.</summary>
+        public JsonNode ExplainHearing(long listener, double seconds)
+            => CombatReport.Hearing(_world, _editorEntityMap ?? _dispatcher?.EntityMap, listener, seconds);
+
         /// <summary>GET /doors — ⭐ buildings Stage 1: the doors the terrain defines.</summary>
         public JsonNode GetDoors() => TerrainReport.Doors(_world);
 

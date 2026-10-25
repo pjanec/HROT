@@ -243,6 +243,59 @@ breaks sooner than today.
 
 ⚠ **The checker's ammo is read on the CGF node** — the brain spends the rounds; 📐 SimHost's stayed full, so an earlier "fired 0" was the checker, not the men.
 
+### 7.6 AQ104 C + F — hold or search, panic flees, the enemy heard behind the wall *(`CE-2376`, behaviors, 2026-10-25 — [AQ104](blueprints/Architect_Question_104_Area_And_Building_Combat.md) C, F ✅ R-2079; build-state: BUILDING)*
+
+🔒 User, `2026-10-25`: *"cautious vs brave … by settings and skills"* · *"if frightened too much/panicking he should also try to flee"* ·
+*"stress level might go high if enemy is walking around like behind a wall"*.
+
+| the lean rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| an Attack order's hunt follows the target wherever memory puts him, whatever the man's character | ✅ `PostureNodes.AdvanceAndAttack` (`hunting` ⇒ `LastKnown`) | ✅ AQ104 C: hold or search by Willingness × tier |
+| a defending squad's hunter goes out for every hidden enemy near the house | ✅ `SquadDefendPlay.Hunt` (CE-2359) | ✅ AQ102 H — AQ104 C adds "hold ambushes, search counter-clears" |
+| a man with NO `CombatTemperament` must behave exactly as today | ✅ TS-5's neutral rule (§7.3, R-2075) | ✅ R-2034 TS-3: a type without a dto stamps nothing |
+| the break runs to a cover point ≤ 30 m that gains ≥ 3 m on the threat, then goes prone | ✅ `StressModel.Retreat`, `BreakBehavior` | ✅ TS-6's Flee arm — AQ104 C: low Resolve flees OUT, away from the enemy |
+| ⭐ **live**: a regular under two rifles reaches stress 1.0 in ~10 s and never recovers, even in a house | 📐 `ia-area-defend` probe (AQ104 §7.3): one near miss = 0.06, ~2 a second | ⚠ §7.2's own warning: *"machine-gun fire may break regulars … not re-tuned before a live measurement"* — this is that measurement |
+
+```mermaid
+classDiagram
+  class Disposition { <<NEW, pure>> Of(man, assault) : Hold / Search / Unset · SearchesAfterQuiet(man, quietSeconds) }
+  class StressModel { <<CHANGED>> + HeardCloseUnseen(man) · Step: + the heard-close term · NearMissIn(man): half in cover · Flee(man, out to) }
+  class TemperamentOf { <<existing AQ89>> Willing(man, ordered assault) · Effective(trait) }
+  class PostureNodes { <<CHANGED>> AdvanceAndAttack: a HOLDING hunter does not chase an unseen target }
+  class SquadDefendPlay { <<CHANGED>> Hunt: only a SEARCHING man is sent }
+  class StressSystem { <<CHANGED>> the near miss through NearMissIn }
+  class BreakBehavior { <<existing>> runs to the point it is given }
+  Disposition --> TemperamentOf
+  Disposition --> StressModel : nervous ⇒ hold
+  PostureNodes --> Disposition
+  SquadDefendPlay --> Disposition
+  StressSystem --> StressModel
+  StressModel --> BreakBehavior : a far point when he flees
+```
+*What the picture shows that prose hid:* disposition is ONE reader both hunts ask — no behaviour gains its own bravery rule; and a man with
+no temperament reads `Unset`, so both hunts run as today.
+
+```mermaid
+sequenceDiagram
+  participant H as a hunt (attack order / the defenders' hunter)
+  participant D as Disposition
+  participant S as StressModel
+  H->>D: Of(man, assault)
+  D->>D: no CombatTemperament ⇒ Unset (as today)
+  D->>S: nervous (above the band) ⇒ Hold
+  D->>D: Willing (AQ89, ≥ 0.6) ⇒ Search, else Hold
+  D-->>H: Hold ⇒ no chase of an unseen target (a Veteran+ searches after 60 s of quiet)
+  Note over S: the break - low Resolve, not covered ⇒ FLEE: a cover point up to 60 m off gaining ≥ 15 m, else the near retreat
+```
+
+| id | decision | rejected — one line each |
+|---|---|---|
+| **DS-1** | **disposition = Willing (AQ89) ⇒ Search, else Hold**; nervous (stress above `NervousFrom`) ⇒ Hold; **no `CombatTemperament` ⇒ Unset = today's behaviour** (TS-5's neutral rule); a Veteran+ holding man searches after **60 s** with no fresh sighting | Hold for every default soldier: would switch off AQ102 H's hunter for every authored scenario |
+| **DS-2** | the two readers: an **attack-order hunt** (assault = the order's) does not move toward a target it cannot see while Hold — he keeps his place and fights what shows; the **defenders' hunter** (CE-2359) is picked only among men not Hold | a new posture option: the decision is not where character lives (TS-5 damps, it does not choose) |
+| **DS-3** | **panic flees** (AQ104 C): at the break, effective Resolve < **0.4** and not surrendering ⇒ the retreat is a cover point within **60 m** gaining **≥ 15 m** on the threat (out of the house / area), else the near one | a new flee behaviour: `Break` already runs to the point it is given |
+| **DF-1** | **heard close, unseen** (AQ104 F): a memory slot heard (Acoustic) in the last **3 s** within **10 m**, anonymous or not in sight now, not neutral ⇒ **+0.03 / s × (1 − effective Nerve), and NO calming while he is heard** ⚠ *(the calming clause is a build deviation: the approved rise alone never beats the 0.03 / s calm — measured on the rail — so it would only slow the calming)* | a separate fear model: Stress is the one model (R-2034) |
+| **DF-2** | ⭐ **measured re-tune — a near miss IN COVER counts half** (TS-4's 0.08 → 0.04 there): with cover's doubled calming a regular behind a wall under two rifles holds (≈ 0.06 / s in, 0.06 / s out) instead of breaking in ~10 s; in the open he still breaks | leaving TS-4 as is: every defender in a house breaks under any sustained fire (the live probe) · capping stress per second: hides how many rounds came |
+
 ## ⛔ HISTORY
 
 - **2026-10-18, first draft (SUPERSEDED the same day):** proposed a NEW `Temperament` component with `Nerve · Aggression (−1…+1) ·

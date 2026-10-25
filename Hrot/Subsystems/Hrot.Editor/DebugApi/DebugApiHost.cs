@@ -844,6 +844,17 @@ namespace Hrot.Editor.DebugApi
                 return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
             }));
 
+            // ⭐ AQ106 L (R-3050) — hearing with its evidence: every sound near a listener, heard or why not, and the way it took.
+            _routes.Add(new("GET", "/perception/hearing", ctx =>
+            {
+                if (!long.TryParse(ctx.Query("listener"), out var who))
+                    return Task.FromResult(Fail(400, "Query 'listener' (a network id) is required."));
+                double seconds = double.TryParse(ctx.Query("seconds"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var sec) && sec > 0 ? sec : 10d;
+                var node = Service().ExplainHearing(who, seconds);
+                return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
+            }));
+
             // ⭐ Tuning T-4 — the shot records the fire chain writes (docs/DESIGN_Terrain_Combat_Tuning.md §4).
             _routes.Add(new("GET", "/combat/shots", ctx =>
             {

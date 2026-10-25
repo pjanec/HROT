@@ -22,6 +22,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ WQ-E Q3 — a piece whose material the library does not know stops this much sound (dB): concrete's.</summary>
         public const float DefaultSoundDb = 40f;
 
+        /// <summary>⭐ AQ106 K — a solid piece crossed for at least this long (m) counts as two faces for sound, in and out.</summary>
+        public const float SolidFacesMetres = 1f;
+
         /// <summary>⭐ <c>CE-3219</c> part 3 — the gas / smoke clouds of the same view (null = none): sight through one is multiplied by its
         /// transmittance (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b). Fire and movement ignore them.</summary>
         public Fdp.Toolkit.Combat.CloudTable? Clouds { get; }
@@ -124,6 +127,11 @@ namespace Fdp.Toolkit.Terrain
                         float db = World.Materials.TryGet(c.Material, out var m) ? m.SoundAttenuationDb : DefaultSoundDb;
                         into.Add(new TraceCrossing(c.T, c.PathMetres, db, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
                             c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal });
+                        // ⭐ AQ106 K — a SOLID piece the line runs through for a metre or more (a solid block, a thick berm) is two faces: the
+                        //   sound goes in through one and out through the other (a thin wall panel is one)
+                        if (c.Kind == "prism" && c.PathMetres >= SolidFacesMetres)
+                            into.Add(new TraceCrossing(c.T, 0f, db, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
+                                c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.ExitNormal, ExitNormal = c.ExitNormal });
                     }
                     break;
                 }

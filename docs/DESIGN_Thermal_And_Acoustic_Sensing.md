@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - docs/blueprints/Architect_Question_106_Sound_Paths.md — sound round corners / through openings (v2 of §8.8), R-3050
   - docs/DESIGN_Node_Roles_And_Policies.md §3.0a — who hears (Perception only), who makes sound (every 3-D-map node, from replicated state)
   - DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS checkpoint restore and R1 (§1k), which found that a restored world stopped hearing; §8.3a here is the fix
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — step-only systems, step windows and the reload probe (§7e) that measured the ring's thread race (§8.3)
@@ -962,7 +963,8 @@ classDiagram
 
 *What the picture shows that prose hid:* every new input is a REPLICATED component (`DoorState`, `Utterance`) read on the node that hears —
 never the actor's door command nor the brain's `Callouts.Say`, which live on other nodes (🔒 user, `2026-10-25`: *"sounds sensors are calculated
-on simhost (perception) node only, not on brain"*; *"every node with 3d map has a sound system"*). The brain gains no reader: it hears only the
+on simhost (perception) node only, not on brain"*; *"every node with 3d map has a sound system"*, clarified: *"the sound output anywhere where 3d map is, sound calculation on percpetion
+node"* — Node Roles §3.0a). The brain gains no reader: it hears only the
 anonymous `SoundContact` as before, and never touches the terrain (*"brain should use map only for rendering, no direct access"*).
 
 ```mermaid
