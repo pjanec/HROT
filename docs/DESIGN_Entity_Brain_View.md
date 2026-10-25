@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12p AS-BUILT names + Open graph on the blueprint list, SOP, running behaviours (CE-1326) · §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -1391,3 +1391,38 @@ documents, and each overlay stays on its own unit, which one global debug pin co
 
 ![B7 — a commander](assets/brain-view/b7-commander.png)
 
+
+### 12p. AS-BUILT — names and *Open graph* on the blueprint list, the SOP and every running behaviour *(CE-1326, `2026-10-25`)*
+
+🔒 User: *"the blueprint list shown on the brain tab is containing just some hexa id, I expect to see the name of a blueprint and
+possibility to open its live graph. in the "Doing" section (and Running behaviors) i would also like to be able to jump to the graph of
+the SOP"*.
+
+```mermaid
+graph TD
+  S[OccurrenceStore slots of one unit] -->|kind Blueprint| L[Blueprints list: name + Open graph + Remove]
+  S -->|kind BTree / Hsm / BlueprintBehavior / UnitMemory| N["note: + N slot(s) of the running behaviours"]
+  S -->|kind ≠ Blueprint| X[API exactly-one-blueprint variable lookup: skipped]
+  D[Doing: SOP row] --> O[OpenGraphButton]
+  R[Running behaviours: each node] --> O
+  L --> P[EntityBlueprintsPanel.OpenGraph]
+  O -->|pinned tab| OP[UnitDebugController.OpenGraphPinned]
+  O -->|docked tab| OG[UnitDebugController.OpenGraph]
+  P --> OP
+```
+
+*What the picture shows that prose hid:* the hex rows were not blueprints. One store holds every occurrence slot of the unit, and the
+list showed them all. The task's and the SOP's own memory slots (kind BTree / HSM, ids like `0x7C4ED832` that no asset carries) came out
+as nameless rows with a working **Remove**, which would tear the running task's memory. The slot's kind (`BlueprintBlackboardPartitions.GetSlotKind`)
+was already in the store; `BlueprintTierSummary.SlotSummary` now carries it.
+
+| piece | where | matches §12b / deviates |
+|---|---|---|
+| `SlotSummary.Kind` (the slot's `OccurrenceKind`), filled by `AppendSlots` | `FDP/Toolkits/Fdp.Toolkits/Blueprints/BlueprintTierSummary.cs` | ✅ BV-44 (the one reader) |
+| the list shows only kind-Blueprint slots, by name, each with **Open graph**; the others are a count (*"+ N slot(s) of the running behaviours"*) | `EntityBlueprintsPanel.cs`, `EntityBlueprintsViewModel.BehaviourSlots` | ✅ BV-46 (blueprints managed here) |
+| **Open graph** on a blueprint row: the pinned graph of that blueprint on this unit, and the Blueprint session filtered to it | `EditorSubsystem.cs` (`EntityBlueprintsPanel.OpenGraph`) | ✅ BV-55 |
+| **Open graph** on the *Doing* SOP row and inside every *Running behaviours* node (pinned tab → its own document; docked tab → follows the selection) | `EntityBrainView.cs` (`OpenGraphButton`, `SopName`) | ✅ BV-55, as §12o's *Open running behaviour* |
+| the API's *"the unit's one blueprint"* variable lookup skips behaviour slots (it said "several blueprints" for a unit with one blueprint and a task) | `DebugApiService.Variables.cs` (`AttachedBlueprints`) | ✅ the same fault, fixed at its second reader |
+
+📐 Rail: `ThePilotPanelDumpsWhatItDrawsTests.CE1326_ATasksOwnSlot_IsCountedNotListedAsABlueprint` (a blueprint and a BTree slot on one unit
+⇒ one row, `behaviourSlots` 1).
