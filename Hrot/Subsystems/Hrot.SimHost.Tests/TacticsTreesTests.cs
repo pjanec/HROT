@@ -1875,6 +1875,59 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.AtOpeningPost(ref none, w.Unit, w.Repo));
         }
 
+        /// <summary>⭐ <c>CE-2366</c> A (R-2077) — the posted branch's guard: an opening post WITH something to fight; a cover post, or nothing
+        /// to fight, is not it.</summary>
+        [Fact]
+        public void CE2366_PostedWithThreat_IsAnOpeningPostWithSomethingToFight()
+        {
+            var w = new World();
+            var window = new PeekAndFireParams();
+            CombatPostureBehavior.Post(new Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto { Point = new Vector3(1, 2, 3), Radius = 4f, Window = true }, ref window);
+            var cover = new PeekAndFireParams();
+            CombatPostureBehavior.Post(new Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto { Point = new Vector3(1, 2, 0), Radius = 4f }, ref cover);
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.PostedWithThreat(ref window, w.Unit, w.Repo));   // nothing to fight
+            w.Contact(armed: true);
+            Assert.Equal(Fbt.NodeStatus.Success, PostureNodes.PostedWithThreat(ref window, w.Unit, w.Repo));
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.PostedWithThreat(ref cover, w.Unit, w.Repo));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> A (R-2077; Peek and Fire §12.2) — a man POSTED at a window with a threat runs PeekAndFire WHATEVER the posture
+        /// decision chose, and the decision changing its winner does not reset the cycle. 📐 Live <c>bt-window-duel</c>: each switch between
+        /// TakeCover / Suppress / Advance reset it, and on Advance a posted man only stood at his post. The decision's winner is forced through
+        /// each fighting option every half second; the node's working state (its peek counter, set by the test) survives every switch.
+        /// 🔴 Red-proof: the posted branch removed ⇒ on Advance PeekAndFire does not run (its cover sensor is dropped) and the marker resets.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2366_APostedWindowMan_RunsOnePeekCycle_WhateverTheDecisionChooses()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: true);
+            w.Order("CombatPosture", "{\"post\":{\"point\":[0,0,0],\"radius\":4,\"window\":true}}");
+            for (int i = 0; i < 10; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            var b0 = Block(w, hash);
+            Assert.True(b0->PeekState.CoverSensor.IsValid, "PeekAndFire runs: its cover sensor is up");
+            b0->PeekState.PeeksPicked = 77;   // a marker only the node's own state carries
+            foreach (var option in new[] { Fdp.Toolkit.Utility.Posture.AdvanceAndAttack, Fdp.Toolkit.Utility.Posture.Suppress, Fdp.Toolkit.Utility.Posture.TakeCover, Fdp.Toolkit.Utility.Posture.HoldProne, Fdp.Toolkit.Utility.Posture.AdvanceAndAttack })
+                for (int i = 0; i < 30; i++)
+                {
+                    Block(w, hash)->Choice.Winner = (byte)option;   // the decision's winner, as ChooseOption leaves it
+                    w.Tick();
+                    var b = Block(w, hash);
+                    Assert.True(b->PeekState.CoverSensor.IsValid, $"PeekAndFire still runs with {option} chosen");
+                    Assert.Equal(77, b->PeekState.PeeksPicked);
+                }
+        }
+
+        private static unsafe CombatPostureBehavior.CombatPostureBlackboard* Block(World w, int hash)
+        {
+            Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<CombatPostureBehavior.CombatPostureBlackboard>(w.Repo, w.Unit, hash, out var b));
+            return b;
+        }
+
         /// <summary>⭐ LD-3b — SHOT AT: with a threat in sight in front of him, a near miss turns his eyes to the sound of the shot behind
         /// him; without the near miss the seen threat keeps them. 📌 Found live in ld-sentry-surprise. ✅ Red-proof: the under-fire branch
         /// removed ⇒ he keeps looking at the threat.</summary>

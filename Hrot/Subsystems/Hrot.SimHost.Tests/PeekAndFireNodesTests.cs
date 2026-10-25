@@ -722,6 +722,25 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> B (R-2077; Peek and Fire §12.4) — NOT SEEN when exposed, and the only evidence is OLD (last seen 20 s ago): the
+        /// exposure is a LOOK — no round of any kind, back down, and it still counts toward the spot's uses. (Fresh evidence keeps the
+        /// burst: <c>P6_R5</c>, <c>P7_R1</c>.) 🔴 Red-proof: the freshness check dropped from <c>Expose</c> ⇒ a blind burst.
+        /// </summary>
+        [Fact]
+        public void CE2366_NotSeen_WithOnlyOldEvidence_ThePeekIsALook_NoRound()
+        {
+            var d = new Duel(Window(), seen: false);
+            d.Time = 20;   // the memory slot was stamped at the first frame; 20 s later it is old evidence
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (0f, 0f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Expose, d.RunUntil(PeekPhase.Expose));
+            Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            Assert.Empty(d.Fires);
+            Assert.Equal(0, d.BlindRounds);
+            Assert.Equal(1, d.Ws.ExposuresHere);   // the look used the spot
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2326</c> (R-3030; Peek and Fire §11.6a, the behaviors half) — a blind burst at a body last SEEN crouched names that body:
         /// the round goes to his FEET with <c>BodyStance</c> = Crouched + 1 and the muscle aims it (his chest, or the band over the cover);
         /// unseen (heard only, no stance known), the spot + <c>BlindAimHeight</c> as before. 🔴 Red-proof: drop the stance read ⇒ the

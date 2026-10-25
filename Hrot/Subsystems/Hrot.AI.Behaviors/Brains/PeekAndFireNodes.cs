@@ -622,8 +622,41 @@ namespace Hrot.AI.Behaviors.Brains
 
             // 4.2 — not seen in time: a blind burst at the FRESHEST evidence (D13), raised to the body's middle (no aim time);
             //   ⭐ CE-3158 G8 — or, with blind fire switched off, straight back down
-            if ((p.Disable & PeekDisable.BlindFire) != 0 || !StartBurst(ref ws, in p, self, world, in threat))
+            //   ⭐⭐ CE-2366 B (approved 2026-10-25) — only while that evidence is FRESH (seen or heard within BlindFreshSeconds): an older
+            //   one makes the peek a LOOK — nothing there, back behind cover to wait and look again. 🔒 User: "peek, if nothing there, wait
+            //   a while … and when there is some enemy seen, then he should fire at him". ⛔ SUPERSEDED: every unseen exposure fired blind
+            if ((p.Disable & PeekDisable.BlindFire) != 0 || !FreshEvidence(world, self, in threat, p.HeardMatchRadius)
+                || !StartBurst(ref ws, in p, self, world, in threat))
                 Recover(ref ws, in p, ref mem, self, world, now, false);
+        }
+
+        /// <summary>⭐ <c>CE-2366</c> B — a blind burst answers evidence at most this old (s): the enemy seen, or his shot heard.</summary>
+        public const float BlindFreshSeconds = 5f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2366</c> B — the freshest evidence of <paramref name="threat"/> (<see cref="FreshestEvidence(EntityRepository, Entity, in ThreatAim, out Vector3, out long, float)"/>:
+        /// its own memory slot or a heard shot near it) is at most <see cref="BlindFreshSeconds"/> old. False with no memory slot to date it.
+        /// </summary>
+        internal static unsafe bool FreshEvidence(EntityRepository world, Entity self, in ThreatAim threat, float matchRadius)
+        {
+            if (!FreshestEvidence(world, self, in threat, out _, out long slotId, matchRadius) || !world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            uint now = PerceptionClock.Now(world);   // ⭐ the clock LastSeenTick is stamped in (CE-3292), never SimulationTick
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != slotId) continue;
+                uint seen = mem.LastSeenTick[i];
+                return seen >= now || (now - seen) * SecondsPerFrame(world) <= BlindFreshSeconds;
+            }
+            return false;
+        }
+
+        /// <summary>The sim seconds one perception tick (a frame) stands for: the run's average so far; 1/60 before the first frame.</summary>
+        private static double SecondsPerFrame(EntityRepository world)
+        {
+            if (!world.HasSingleton<GlobalTime>()) return 1.0 / 60.0;
+            var t = world.GetSingleton<GlobalTime>();
+            return t.FrameNumber > 0 && t.TotalTime > 0 ? t.TotalTime / t.FrameNumber : 1.0 / 60.0;
         }
 
         /// <summary>

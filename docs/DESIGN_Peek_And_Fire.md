@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
+updated: 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
+current-answer: ⭐ §12 THE POSTED MAN'S ONE CYCLE + A LOOK IS NOT A BURST (R-2077) · ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
 stale-below: nothing
-known-rot: D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
+known-rot: §4.2 and D13 (§6) — a blind burst now answers only FRESH evidence (≤ 5 s), else the exposure is a look (§12.4 B, R-2077) · D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) A, B, D: the posted window man fights through PeekAndFire; under fire ducks whatever his health; the next spot a seeded pick
@@ -1081,3 +1081,75 @@ graph TD
 | `CE-2329` masked line | `FireProcessingSystem` — `AimPoint.For` before `MuzzleMasked` |
 | `CE-2330` stance peek / generic | `PeekAndFireNodes.ShootHigher` (Aimed and Blind, on the muscle's `Masked`), `PeekAndFireState.ShootTaller` (reset with the hide point), `StepToShoot`'s stance branch; `CheapLineOfSightTest.FireMarkOf` — the one reader; `EqsTacticsNodes.TryNewAnswer` skips look-only answers |
 | ⏭ not yet | the posture's Engage / Suppress (`PostureNodes.Fire` from where he stands) still holds on `Masked` (§10.10's ⏭) — measured next in `pc-defend-house` / `uc-urban-battle` before a rule is chosen |
+
+## 12. The posted man's ONE cycle, and a look is not a burst *(behaviors, `2026-10-25` · ✅ R-2077 · `CE-2366`)*
+
+🔒 **User, `2026-10-25`:** *"I would expect the guy behind the window to quickly lean out of the window and check if there is an enemy.
+And if not, then he should wait a while in his cover on the side of the window. Then he peeks again … he can use the place just for a
+few times before changing to the other cover … And when there is some enemy seen, then he should fire at him … peek, fire, back to
+cover. If the cover is too warm, then switch to the other one"* — then on the fixes: *"approved, go ahead with A, B and C"*.
+
+### 12.1 What was measured *(`bt-window-duel` on the standard behaviours, live over the debug HTTP API, 180 s)*
+
+| | |
+|---|---|
+| ✅ 1.4–9 s | the one cycle as designed: to the frame, ~3.8 s behind the wall, leans out, does not see him in the grace ⇒ a blind round, back behind the wall |
+| ⛔ 10–45 s | the posture decision switched ~10 times between TakeCover / Suppress / Advance / HoldProne; each switch ran PeekAndFire's deactivator ⇒ `ws = default` (§8.3: the state is scratch) — he started for a window, was reset, started for another |
+| ⛔ 41.7–180 s | the decision settled on **Advance**: for a posted man that is "walk to the post point and stand" — no peek, no round for 140 s |
+| | 2 rounds in 180 s. The squad's two re-sends were the designed hunt (AQ102 H, `CE-2359`) and displacement (D-2c) — each a real change of post, not an unchanged order (R-2066 D holds) |
+
+### 12.2 Where the posted branch sits in `CombatPosture` *(as built)*
+
+```mermaid
+graph TD
+  W[work: ObserverSelector] --> FB[FallBack - the retreat]
+  W --> OC[occupy - OffPost: walk to the post]
+  W --> PB["posted - PostedWithThreat: PeekAndFire (PeekState)"]
+  W --> AD[Advance - flank / firing position / throw / advance]
+  W --> TC[TakeCover - PeekAndFire]
+  W --> SU[Suppress - close to throw / suppress]
+  W --> HP[HoldProne]
+  W --> HW[Hold - HoldWatch: lean out at the frame]
+  style PB fill:#d9f2d9,stroke:#2e7d32
+```
+*What the picture shows that prose hid: the posted branch is ABOVE every option but the retreat and the walk to the post, and its guard
+reads no option — so a switch among the options below it cannot reach it. With nothing to fight its guard fails and Hold's frame watch runs.*
+
+### 12.3 The cycle a posted man runs *(the node unchanged but for B)*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Hidden: at the frame / window point
+  Hidden --> Expose: the wait (2-5 s) is over, not suppressed
+  Expose --> Aimed: he SEES him - fire
+  Expose --> Blind: not seen, evidence fresh (seen or heard within 5 s)
+  Expose --> Hidden: not seen, evidence older - a LOOK only
+  Aimed --> Hidden: rounds done / fired on / lost sight
+  Blind --> Hidden: burst done / fired on
+  Hidden --> MoveToHide: 3 exposures here, or the spot is hot
+  MoveToHide --> Hidden: the other frame side / window
+```
+*Every exposure — a look too — counts toward the three and heats the spot, so "peek, nothing, wait, peek, nothing, change side" falls out.*
+
+### 12.4 Decisions *(✅ R-2077)*
+
+| | as built | rejected |
+|---|---|---|
+| **A** | `PostureNodes.PostedWithThreat` (= `AtOpeningPost` ∧ `EqsTacticsNodes.TopAim`) guards a posted branch after `occupy`; the Suppress branch's own window sub-branch (AQ102 B, `CE-2356`) is gone — SUPERSEDED | keep the state across a deactivation — the state is scratch by design (§8.3) |
+| **B** | `PeekAndFireNodes.FreshEvidence`: the blind burst only while the freshest evidence (D13) is at most `BlindFreshSeconds` = 5 s old (`PerceptionClock` ticks × the run's seconds per frame) | no blind fire at all — a man who just heard the shot should answer it |
+| **C** | no change: the re-sends were designed changes (hunt, displacement) | the hunter keeps his frame — his frame point always wins, so he would never look from another opening (the hunt's point); no hunt inside a post's arc — "under the wall" is inside the arc and unseen, the hunt's own case (`CE2359_…` rail) |
+| — | `PostureNodes.OffPost` reads the effective match radius (1 m) for the alternate — it read the raw 0, so a man on his alternate counted as off his post | — |
+
+⚠ **known-rot it creates:** §4.2 (every unseen exposure fires blind) and D13 (§6) now apply only to FRESH evidence; AQ102 B's "from the
+Suppress branch" is superseded by §12.2.
+
+### 12.5 Live after A + B *(`bt-window-duel`, 135 s, debug HTTP API)* — what works, what is left
+
+| | measured |
+|---|---|
+| ✅ the cycle | at the window: hidden prone → up crouched → nothing ⇒ down (a look) every ~3 s; seen ⇒ 2 aimed rounds; unseen right after his shots were heard ⇒ a blind round. 6 rounds (was 2) |
+| ✅ A | the posture switched 3 times at 48–50 s with the cycle running — no reset |
+| ⛔ cooling | after 3 uses the window is hot, and his post (radius 4) holds no other usable spot (the frame point of that window failed as a move ⇒ the sill, DA-84; the other window is 4.2 m off) ⇒ he waits behind the sill **64 s without a peek** until it cools (B4: "a burned one with nowhere to go waits to cool") |
+| ⛔ the displacement walk | moved to his alternate while prone (under fire), crawling the long way round the stairwell: ~15 s for ~4 m of straight line |
+| ⚠ the hunt | H re-sent his order twice (start, end), each restarting the cycle (§12.4 C) |
+| ⚠ the street man | 3 rounds, then nothing: his reflex ends after 8 s of quiet and he has no task (`CE-2366` D) — after ~70 s the window man forgets him and stands at his frame watching |

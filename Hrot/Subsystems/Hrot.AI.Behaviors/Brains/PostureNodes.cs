@@ -442,7 +442,9 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.AnchorRadius <= 0f || !world.HasComponent<SimTransform>(self)) return false;
             var at = world.GetComponentRO<SimTransform>(self).Position;
-            bool onAlternate = p.AnchorHasAlternate != 0 && Vector3.Distance(at, p.AnchorAlternate) <= p.MatchRadius;
+            // ⭐ CE-2366 — the blackboard's raw MatchRadius is 0 ("the default") — the effective 1 m, as PeekAndFire's own OnPost reads it
+            float match = p.MatchRadius > 0f ? p.MatchRadius : PeekAndFireNodes.Defaults.MatchRadius;
+            bool onAlternate = p.AnchorHasAlternate != 0 && Vector3.Distance(at, p.AnchorAlternate) <= match;
             float d = Vector3.Distance(at, p.Anchor);
             if (ws.Occupied == 0)
             {
@@ -464,6 +466,18 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiCondition]
         public static NodeStatus AtOpeningPost(ref PeekAndFireParams p, Entity self, EntityRepository world)
             => p.AnchorRadius > 0f && (p.Frame != 0 || (p.HideTemplate != 0 && p.HideTemplate != Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId))
+                ? NodeStatus.Success : NodeStatus.Failure;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> A (approved 2026-10-25) — <see cref="AtOpeningPost"/> AND something to fight (the threat ranking's top aim, the one
+        /// <see cref="PeekAndFireNodes.PeekAndFire"/> fights). The guard of <c>CombatPosture</c>'s POSTED branch: a man posted at a window, frame
+        /// or roof runs ONE peek cycle whatever the decision says (TakeCover, Suppress, Advance, HoldProne, Hold) — only a retreat or a new
+        /// order ends it. 📐 Live <c>bt-window-duel</c>: every switch between those options tore the cycle down (its state is scratch), so he
+        /// hopped between windows and fired 2 rounds in 180 s. Nothing to fight ⇒ the decision's branches run (Hold leans out to watch).
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus PostedWithThreat(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => AtOpeningPost(ref p, self, world) == NodeStatus.Success && EqsTacticsNodes.TopAim(world, self, default, out _)
                 ? NodeStatus.Success : NodeStatus.Failure;
 
         /// <summary>⭐ D-2e — this close to his post he has occupied it (m): the advance's own arrival (1 m) plus a step.</summary>
