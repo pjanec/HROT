@@ -635,6 +635,26 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(new[] { unit }, offered);
         }
 
+        /// <summary>⭐ <c>CE-1350</c> — a destroyed unit's row says so (the panel draws it dark red); a living one does not; and a double-click's
+        /// Center View on a host with no map is a no-op, not a crash. ✅ Red-proof: IsDestroyed not filled ⇒ red.</summary>
+        [Fact]
+        public void CE1350_ADestroyedUnitsRow_IsMarked_AndCentringWithNoMapIsHarmless()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _world.CreateEntity();
+            var dead = _world.CreateEntity();
+            var alive = _world.CreateEntity();
+            _world.AddComponent(dead, new EntityInfo { Name = new Fdp.Core.FixedString64("Dead") });
+            _world.AddComponent(dead, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            _world.AddComponent(alive, new EntityInfo { Name = new Fdp.Core.FixedString64("Alive") });
+            _world.AddComponent(alive, new Fdp.Toolkit.Combat.Components.Health { Current = 80f, Max = 100f });
+            var adapter = CreateAdapter();
+            var nodes = adapter.GetVisibleNodes("", new HashSet<int>());
+            Assert.True(nodes.Single(n => n.Name == "Dead").IsDestroyed);
+            Assert.False(nodes.Single(n => n.Name == "Alive").IsDestroyed);
+            adapter.CenterOn(dead.Index);   // no canvas on this world: nothing to move, no throw
+        }
+
         /// <summary>CE-1272 — a collapsed commander hides its subordinates, also when no row is expanded at all (the old "nothing
         /// expanded ⇒ everything expanded" shortcut showed them).</summary>
         [Fact]

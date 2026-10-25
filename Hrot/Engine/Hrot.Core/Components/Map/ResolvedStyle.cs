@@ -128,8 +128,10 @@ public unsafe struct ResolvedStyle
             return;
         }
         // Write up to (capacity - 1) bytes to leave room for the null terminator.
+        // ⭐ CE-1349 — a longer text is TRUNCATED at a whole character, as the doc says. 🔴 It was Encoding.UTF8.GetBytes, which THROWS when
+        //   the text does not fit: placing an "AH-64 Apache (attack helicopter)" crashed the editor in StyleResolutionSystem (user, 2026-10-25).
         var dest = new Span<byte>(buf, capacity);
-        int written = Encoding.UTF8.GetBytes(text, dest[..^1]);
+        System.Text.Unicode.Utf8.FromUtf16(text, dest[..^1], out _, out int written, replaceInvalidSequences: true, isFinalBlock: true);
         dest[written] = 0;
     }
 

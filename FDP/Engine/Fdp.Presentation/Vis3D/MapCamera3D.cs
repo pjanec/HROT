@@ -575,8 +575,19 @@ namespace Fdp.Toolkit.Vis3D
                 ? MathF.Max(SceneAtmosphere.FogFor(a.VisibilityM), SceneAtmosphere.FogFor(FarClip * 0.9f))
                 : 1.1f / (Distance * 6f + 600f);
 
+        /// <summary>⭐ <c>CE-1352</c> — the driver re-places the camera on the world as it is now (<see cref="ICameraDriver.BeforeDraw"/>);
+        /// <see cref="BeginMode"/> calls it before it draws.</summary>
+        public void PrepareDraw()
+        {
+            if (_driver == null) return;
+            _driver.BeforeDraw(this);
+            Sanitise();
+            SyncEquivalents();
+        }
+
         public override void BeginMode()
         {
+            PrepareDraw();   // ⭐ CE-1352
             var vp = Viewport;
             var a = Atmosphere ?? SceneAtmosphere.Default;
             Raylib.DrawRectangleGradientV(0, 0, (int)vp.X, (int)vp.Y, a.SkyTop, a.SkyHorizon);

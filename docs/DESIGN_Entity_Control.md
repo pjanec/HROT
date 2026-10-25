@@ -2379,6 +2379,13 @@ new stance for that tick, then snapped back to the old one: the head, and the fi
 time, follows the muscle's progress when the muscle runs the same change and is ahead, never steps back, and turns round from where the
 figure is on a change of mind. The hips (`MotionPose.HipZ`) follow the same blend. Rail `Map3DTests.CE1348_*` (red-proved).
 
+⭐ **AS-BUILT `2026-10-25` (ui, `CE-1351`) — V locks the VIEW, never the steering; flyers fly on the keys.** A ground vehicle steers on A/D
+whether hull-locked or not (⛔ SUPERSEDED: hull-locked, the mouse X steered); V turns the view with the hull, looking forward, and the
+mouse looks off it from there. A helicopter or plane turns on A/D (the heading sent is the nose led `FlyerTurnLead` 0.8 rad to that side —
+the helicopter turns at its rate, the plane banks into it; released, it holds its heading), never strafes, climbs on Q (or Space) and
+descends on Z (or C), and its mouse is a free look (⛔ SUPERSEDED: it flew where the camera looked, a plane climbing on the look's pitch);
+V locks its view forward too. 🔒 User, 2026-10-25. Rail `PossessionStationTests.CE1351_*` (red-proved); `CE1095_*` updated.
+
 | as-built detail | why |
 |---|---|
 | `Stance` = `StanceId + 1`, 0 = no request — on the event, `OperatorInput` and the wire payload (`ControlFrameInteractionPayload.Stance`) | an HTTP or older frame that does not mention it keeps the stance the unit has |

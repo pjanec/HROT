@@ -17,6 +17,13 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>Reads the operator's input. Return true to consume it (the usual answer).</summary>
         bool HandleInput(MapCamera3D camera, IInputProvider input);
 
+        /// <summary>
+        /// ⭐ <c>CE-1352</c> — just before the frame is drawn: re-place the camera on what it follows as the world is NOW. The map's
+        /// <see cref="Update"/> runs before the simulation's step, the bodies are drawn after it, so a camera placed in Update lagged its unit
+        /// by however many steps that frame ran (0, 1, 2 …) — the stutter behind a possessed vehicle. Default: nothing.
+        /// </summary>
+        void BeforeDraw(MapCamera3D camera) { }
+
         /// <summary>The driver is being replaced or removed (release what it locked, e.g. the cursor).</summary>
         void Detached(MapCamera3D camera) { }
 

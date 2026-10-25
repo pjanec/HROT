@@ -103,6 +103,12 @@ public sealed class FollowCameraDriver : ICameraDriver
         camera.LookAt = at + forward * camera.Distance;
     }
 
+    /// <summary>⭐ <c>CE-1352</c> — just before drawing: placed again on the unit as the sim moved it this frame (no easing).</summary>
+    public void BeforeDraw(MapCamera3D camera)
+    {
+        if (Alive) Update(camera, 0f);
+    }
+
     public bool HandleInput(MapCamera3D camera, IInputProvider input)
     {
         if (input.IsKeyPressed((MapKeyboardKey)Raylib_cs.KeyboardKey.Escape)

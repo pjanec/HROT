@@ -218,3 +218,9 @@ implemented"* — ⇒ C0 (CE-1294, measured but not reproduced) is deferred unti
 `CE-1339` Esc / W / a map drag leave the free camera exactly where the follow was (`MapCamera3D.Driver`'s setter matches its look-at XY, so
 the relief re-pin no longer drops the eye) · `CE-1342` Ctrl+M switches 2-D ↔ 3-D centred on the selected unit (`MapViewModeLayer.HandleKeyInput`
 → `MapViewSwitch.Toggle(centreOn)`; going 2-D lets a follow go). Rails `PossessionStationTests.CE1338_*`, `CE1339_*`, `CE1342_*`.
+
+⭐ **AS-BUILT `2026-10-25` (ui, `CE-1352`) — the camera is put back on its unit JUST BEFORE DRAWING.** 🔴 The map's `Update` (which places
+the camera) runs before the simulation's step and the bodies are drawn after it, so a possessed vehicle's camera lagged it by however
+many fixed steps that frame ran — 0, 1 or 2: the stutter behind it. `ICameraDriver.BeforeDraw`, called by `MapCamera3D.PrepareDraw` at
+the start of `BeginMode`, re-places the camera on the unit as it is now (eye, hull heading when locked, a flyer's bank) with no easing —
+`FpsCameraDriver` and `FollowCameraDriver` both. Rail `PossessionStationTests.CE1352_*` (red-proved).

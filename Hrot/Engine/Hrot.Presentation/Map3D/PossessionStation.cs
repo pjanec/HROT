@@ -841,8 +841,8 @@ namespace Hrot.UI.Common.Map3D
                 if (seat != null) lines.Add(seat);                             // ⭐ CE-1210 (§8n MS-3)
                 lines.Add(scheme switch
                 {
-                    ControlScheme.FixedWing => "mouse: fly where you look  W/S throttle  Esc release",          // ⭐ CE-1095
-                    ControlScheme.Rotorcraft => "W/S/A/D fly  mouse turn  Space/C climb  Esc release",
+                    ControlScheme.FixedWing => $"W/S throttle  A/D turn  Q/Z climb/dive  mouse look  V {(hullLocked ? "free look" : "hull view")}  Esc release",   // ⭐ CE-1351
+                    ControlScheme.Rotorcraft => $"W/S fly  A/D turn  Q/Z up/down  mouse look  V {(hullLocked ? "free look" : "hull view")}  Esc release",
                     _ => vehicle
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
                         : lookFree
@@ -1033,8 +1033,9 @@ namespace Hrot.UI.Common.Map3D
     {
         /// <summary>Radians of look per pixel of mouse movement.</summary>
         public const float LookSensitivity = 0.0025f;
-        /// <summary>Steer per pixel of mouse X in the hull-locked view.</summary>
-        public const float MouseSteerPerPixel = 0.01f;
+        /// <summary>⭐ <c>CE-1351</c> — how far ahead of a flyer's nose A/D put the heading it turns to (rad): held, it turns at its own rate
+        /// (a helicopter) or banks into the turn (a plane); released, it holds its heading.</summary>
+        public const float FlyerTurnLead = 0.8f;
         /// <summary>A vehicle's eye above its origin (m) — v1: the hull, not yet the turret (§8d, deferred).</summary>
         public const float VehicleEyeHeight = 2.5f;
         /// <summary>⭐ CE-2168 — a flyer's camera sits on it (an FPV view).</summary>
@@ -1054,7 +1055,8 @@ namespace Hrot.UI.Common.Map3D
         private readonly Func<EntityRepository?> _world;
         private readonly long _netId;
         private IInputProvider? _locked;
-        private float _yaw, _pitch, _mouseSteer, _roll;
+        private float _yaw, _pitch, _roll;
+        private float _hullLook, _hullYaw;   // ⭐ CE-1351 — the look off the hull while the view is hull-locked (V); the hull's heading
         private float _bodyYaw, _dt;   // ⭐ CE-1204 (§8l LK-2, LK-4) — a person's heading while his look is free; the last frame's dt
         private bool _lookInitialised;
         private uint _seq;
@@ -1204,7 +1206,8 @@ namespace Hrot.UI.Common.Map3D
             }
             _dt = dt;
             bool vehicle = IsVehicle;
-            if (vehicle && HullLocked) _yaw = hullYaw;
+            _hullYaw = hullYaw;
+            if (HullLocked && (vehicle || IsFlyer)) _yaw = hullYaw + _hullLook;   // ⭐ CE-1351 — V: the view turns with the hull, the mouse looks off it
             _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);   // ⭐ CE-1210 (MS-5) — at his seat
             _eyeKnown = true;
             _centre = new Vector3(_eye.X, _eye.Y, (tf.Position.Z + _eye.Z) * 0.5f);   // ⭐ CE-1293 — the far end of the continuum
@@ -1280,6 +1283,28 @@ namespace Hrot.UI.Common.Map3D
                                     && Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local) is { TurretIndex: >= 0 };
 
         /// <summary>The camera at the eye, looking along the operator's look — ⭐ CE-1201 (§8p) or over his shoulder.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-1352</c> — just before the frame is drawn, the camera is put back on the unit as the sim has moved it THIS frame (its eye,
+        /// its hull's heading when the view is hull-locked, a flyer's bank), with no easing (dt 0: the arm, the recoil and the re-centre move
+        /// once a frame, in <see cref="Update"/>). 🔒 User, 2026-10-25: "camera is jumping/stuttering behing a possessed vehicle … making sure
+        /// camera is synced with the vehicle".
+        /// </summary>
+        public void BeforeDraw(MapCamera3D camera)
+        {
+            if (!_eyeKnown || _world() is not { } w || !w.IsAlive(Unit) || !w.HasComponent<SimTransform>(Unit)) return;
+            var tf = w.GetComponentRO<SimTransform>(Unit);
+            bool vehicle = IsVehicle;
+            _hullYaw = HullYaw(tf.Rotation);
+            if (HullLocked && (vehicle || IsFlyer)) _yaw = _hullYaw + _hullLook;
+            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);
+            _centre = new Vector3(_eye.X, _eye.Y, (tf.Position.Z + _eye.Z) * 0.5f);
+            _roll = IsFlyer ? Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(tf.Rotation).Roll : 0f;
+            float dt = _dt;
+            _dt = 0f;
+            Place(camera);
+            _dt = dt;
+        }
+
         private void Place(MapCamera3D camera)
         {
             if (!_eyeKnown) return;
@@ -1562,7 +1587,11 @@ namespace Hrot.UI.Common.Map3D
             Zooming = input.IsMouseButtonDown(MapMouseButton.Right);
             float look = FpsZoom.SensitivityFor(ZoomFovDegrees);
             if (delta != Vector2.Zero) _lookIdle = 0f;   // ⭐ CE-1293 (UC-7) — the mouse moved: no re-centre yet
-            if (vehicle && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V)) HullLocked = !HullLocked;
+            // ⭐ CE-1351 — V locks the view to the hull, looking forward (a vehicle or a flyer); the keys still steer and the mouse still looks.
+            //   🔒 User, 2026-10-25: "V key switches to mouse steering - i would expect normal A-D key steering and the mouse is still the
+            //   look-around camera and aim point" · "for aircraft - mouse steering feels unintuitive, classic WASD migth feel better, V locks view
+            //   to forward hull view". ⛔ SUPERSEDED: hull-locked, the mouse X steered (MouseSteerPerPixel).
+            if ((vehicle || IsFlyer) && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V)) { HullLocked = !HullLocked; _hullLook = 0f; }
             // ⭐ CE-1204 (§8l LK-4) — V frees a person's look from his body, or locks it back (his body turns to the look)
             if (Scheme == ControlScheme.Person && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V))
             {
@@ -1570,8 +1599,8 @@ namespace Hrot.UI.Common.Map3D
                 _station.PersonLookFree = !_station.PersonLookFree;
             }
             bool lookFree = LookFree;
-            if (vehicle && HullLocked) _mouseSteer = Math.Clamp(_mouseSteer - delta.X * MouseSteerPerPixel, -1f, 1f);
-            else _yaw -= delta.X * look;
+            _yaw -= delta.X * look;
+            if (HullLocked && (vehicle || IsFlyer)) _hullLook = Fdp.Toolkit.Perception.Look.LookOf.Wrap(_hullLook - delta.X * look);
             _pitch = Math.Clamp(_pitch - delta.Y * look, -1.4f, 1.4f);
             ClampToGun();   // ⭐ CE-1210 (§8n MS-5) — a gunner's look stays in his gun's arc
 
@@ -1601,13 +1630,14 @@ namespace Hrot.UI.Common.Map3D
             else _bodyYaw = _yaw;
             // ⭐ CE-2168 (MD-D) — a flyer's climb axis; ⭐ CE-1095 (§8f P-2) — a plane's is its look's pitch (mouse-aim), and it does not strafe
             var scheme = Scheme;
-            float vertical = scheme switch
-            {
-                ControlScheme.Rotorcraft => (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Space) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.C) ? 1f : 0f),
-                ControlScheme.FixedWing => Math.Clamp(_pitch / FullClimbLook, -1f, 1f),
-                _ => 0f,
-            };
-            if (scheme == ControlScheme.FixedWing) side = 0f;
+            // ⭐ CE-1351 — a flyer climbs on Q (or Space) and descends on Z (or C), a plane's nose too; A/D TURN it (the heading led ahead of
+            //   the nose), never strafe; the mouse is a free look. 🔒 User, 2026-10-25: "possessed helicopter needs some key to go up and
+            //   down vertically, maybe Q/Z". ⛔ SUPERSEDED: a flyer turned to where the camera looked and a plane climbed on the look's pitch.
+            float climbKeys = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Q) || input.IsKeyDown((MapKeyboardKey)KeyboardKey.Space) ? 1f : 0f)
+                            - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Z) || input.IsKeyDown((MapKeyboardKey)KeyboardKey.C) ? 1f : 0f);
+            float vertical = IsFlyer ? climbKeys : 0f;
+            float flyerHeading = FlyerHeading(_hullYaw, side);
+            if (IsFlyer) side = 0f;
             bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
             Running = run;
             float wheel = input.MouseWheelMove;
@@ -1694,8 +1724,8 @@ namespace Hrot.UI.Common.Map3D
                 Seq = ++_seq,
                 Forward = forward,
                 Lateral = vehicle ? 0f : side,
-                Steer = vehicle ? (HullLocked ? _mouseSteer : side) : 0f,
-                Yaw = BodyYaw,   // ⭐ CE-1204 — the body's heading (the look's while it is locked)
+                Steer = vehicle ? side : 0f,   // ⭐ CE-1351 — A/D steer, hull-locked or not
+                Yaw = IsFlyer ? flyerHeading : BodyYaw,   // ⭐ CE-1204 — the body's heading (the look's while it is locked); ⭐ CE-1351 a flyer's from A/D
                 Vertical = vertical,
                 Gait = run ? (byte)0 : (byte)1,
                 Trigger = !glassing && input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
@@ -1710,6 +1740,10 @@ namespace Hrot.UI.Common.Map3D
             _station.Send(_netId, frame);
             return true;
         }
+
+        /// <summary>⭐ <c>CE-1351</c> — the heading a flyer is told to turn to: its own, led <see cref="FlyerTurnLead"/> to the side A/D hold
+        /// (<paramref name="side"/> +1 = A, left / counter-clockwise).</summary>
+        public static float FlyerHeading(float hullYaw, float side) => hullYaw + Math.Clamp(side, -1f, 1f) * FlyerTurnLead;
 
         /// <summary>⭐ <c>CE-1204</c> (§8l LK-2) — the body's heading after a free look to <paramref name="look"/>: unchanged while the look
         /// is within <paramref name="neck"/> of it, else dragged so the look sits on the neck's limit.</summary>

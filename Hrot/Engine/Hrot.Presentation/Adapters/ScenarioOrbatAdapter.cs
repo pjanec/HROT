@@ -116,7 +116,8 @@ namespace Hrot.UI.Common.Adapters
                         HasChildren:    hasChildren,
                         IsPendingDelete: false,
                         CanAcceptSubordinates: _world.HasComponent<UnitRoster>(entity),
-                        NetworkId:      NetworkIdOf(entity)));
+                        NetworkId:      NetworkIdOf(entity),
+                        IsDestroyed:    IsDestroyed(entity)));   // ⭐ CE-1350
                 }
 
                 // Expand children only if this node is expanded (or no expand filter is active)
@@ -169,6 +170,17 @@ namespace Hrot.UI.Common.Adapters
                 && _world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                 && _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity))
                 _bus.Publish(new SelectEntityCommand { NetworkId = _world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value });
+        }
+
+        private bool IsDestroyed(Entity entity)
+            => _world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(_world, entity);
+
+        /// <summary>⭐ <c>CE-1350</c> — a double-clicked row: the map's Center View on its entity (the same move as the map menu's).</summary>
+        public void CenterOn(int entityId)
+        {
+            if (_indexCache.TryGetValue(entityId, out var entity) && _world.IsAlive(entity))
+                Hrot.ScenarioEditor.Systems.CenterOnEntitySystem.CenterOn(
+                    Hrot.ScenarioEditor.Map.MapUiStates.CanvasOf(_world)?.Camera!, _world, entity);
         }
 
         /// <summary>⭐ <c>CE-1346</c> — offers a clicked row's entity to the map's entity pick in progress (the host sets it to its map pick

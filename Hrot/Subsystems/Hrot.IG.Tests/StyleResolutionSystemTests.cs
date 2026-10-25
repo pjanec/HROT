@@ -431,4 +431,20 @@ public class StyleResolutionSystemTests
         Assert.Equal(ResolvedStyleConstants.HostileTintR, style.TintR);
         Assert.Equal(ForceId.Hostile,                     style.Affiliation);
     }
+
+    /// <summary>⭐ <c>CE-1349</c> — a label longer than the fixed buffer is TRUNCATED at a whole character, never thrown on. 🔒 User,
+    /// 2026-10-25: placing an "AH-64 Apache (attack helicopter)" crashed the editor here. ✅ Red-proof: <c>Encoding.UTF8.GetBytes</c> back ⇒ throws.</summary>
+    [Fact]
+    public void CE1349_ALongLabel_IsTruncated_NotThrownOn()
+    {
+        var style = new ResolvedStyle();
+        style.SetLabelText("AH-64 Apache (attack helicopter)");
+        string got = style.GetLabelText();
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(got) <= ResolvedStyleConstants.LabelTextMaxBytes - 1);
+        Assert.StartsWith("AH-64 Apache (attack", got);
+        style.SetLabelText(new string('é', 40));   // two bytes each: never half a character
+        Assert.Equal(new string('é', (ResolvedStyleConstants.LabelTextMaxBytes - 1) / 2), style.GetLabelText());
+        style.SetLabelText("short");
+        Assert.Equal("short", style.GetLabelText());
+    }
 }

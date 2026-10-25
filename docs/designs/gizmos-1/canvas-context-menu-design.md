@@ -437,6 +437,12 @@ logged no-op).
 📐 **Rails:** `MenuOrdersTests.CE1230_*`, `TheScenarioWindowsAreSharedTests.EveryMapHostGivesTheOrbatRowTheMapsMenu`.
 
 
+⭐ **`2026-10-25` (ui, `CE-1350`, `CE-1346`) — the ORBAT rows beyond the menu.** A destroyed unit (`CombatLife.IsDestroyed`) carries
+`OrbatNodeViewModel.IsDestroyed` and its name is drawn dark red (tooltip "Destroyed"); a double-click runs the map's Center View on it
+(`IOrbatController.CenterOn` → `CenterOnEntitySystem.CenterOn` on the world's canvas — the menu action's own function; a host with no map
+ignores it); a click while the map waits for an entity pick answers the pick (Tool Model §4.16). ⚠ ExCon's ORBAT builds its rows from
+the wire and does not mark the destroyed yet. Rail `EditorOrbatAdapterTests.CE1350_*`.
+
 ## 12. DESIGN — HOST ACTIONS are the host's, not the map's; "Properties…" opens the Details panel on every ECS host (`CE-1150`, `2026-10-22`, ui) — build-state: BUILT (steps ①–⑤ ✅ approved by the user `2026-10-22`; HA-4 and HA-8 ✅ approved the same day; as-built §12.1)
 
 🔒 User, `2026-10-16` (CE-1150): *"'Properties...' should be just an UI action that is handled in action handler, it should not need any
