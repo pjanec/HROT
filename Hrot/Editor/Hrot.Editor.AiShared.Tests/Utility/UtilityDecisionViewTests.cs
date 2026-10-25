@@ -119,6 +119,41 @@ public sealed class UtilityDecisionViewTests : IDisposable
         Assert.Empty(UtilityBindings.FromKey(def, $"{N}IsOption@{isCover}@999", keys));   // a guard with no chooser on its state
     }
 
+    /// <summary>A traced pass and its log entry, as the scorer writes them, with a hurt soldier under fire: Take cover wins over Suppress.</summary>
+    private static void Pass(EntityRepository w, Entity unit, UtilityDecisionSheet sheet)
+    {
+        var rng = new Random(3);
+        var scores = new System.Collections.Generic.Dictionary<int, float>
+        {
+            [(int)Fdp.Toolkit.Utility.Posture.TakeCover] = 0.61f, [(int)Fdp.Toolkit.Utility.Posture.Suppress] = 0.49f,
+            [(int)Fdp.Toolkit.Utility.Posture.AdvanceAndAttack] = 0.22f, [(int)Fdp.Toolkit.Utility.Posture.Hold] = 0.10f,
+        };
+        ref var trace = ref w.GetComponentRW<UtilityTraceWorkingMemory1024>(unit);
+        for (int i = 0; i < sheet.Options.Count; i++)
+            foreach (var c in sheet.Options[i].Considerations.Take(4))
+            {
+                float raw = (float)Math.Round(rng.NextDouble(), 2), curved = Math.Clamp(c.Curve.Evaluate(raw), 0f, 1f);
+                ushort input = UtilityInputIdOf(c.Input);
+                trace.WriteConsiderationRecord(1, (byte)i, input, raw, raw, curved, c.Weight, curved);
+            }
+        trace.WriteWinnerRecord(1, (byte)Fdp.Toolkit.Utility.Posture.TakeCover, 1, 0.61f, 0.12f);
+        var buf = new UtilityResultBuffer { RunnerUpMargin = 0.12f };
+        var span = buf.GetSpanRW();
+        int n = 0;
+        foreach (var (opt, sc) in scores.OrderByDescending(kv => kv.Value)) span[n++] = new UtilityResultEntry { WinningPostureId = (byte)opt, Score = sc };
+        buf.Count = n;
+        ref var log = ref w.GetComponentRW<UtilityDecisionLog>(unit);
+        log.Record(Posture, in buf, isOption: true);
+        log.Record(Posture, in buf, isOption: true);
+    }
+
+    private static ushort UtilityInputIdOf(string name)
+    {
+        foreach (var t in new[] { typeof(StandardInputIds), typeof(SquadInputIds) })
+            if (t.GetField(name)?.GetRawConstantValue() is ushort id) return id;
+        return 0;
+    }
+
     /// <summary>📷 The Decision drawing with a unit (W2) — <c>HROT_RAIL_SHOTS</c>/<c>decision-live.png</c>; and the settings alone (W1).</summary>
     [SkippableFact]
     public void CE1325_TheDecision_Draws()
@@ -134,10 +169,8 @@ public sealed class UtilityDecisionViewTests : IDisposable
         w.AddComponent(unit, new UtilityDecisionLog());
         w.AddComponent(unit, new UtilityDebugFlags { TraceEnabled = 1 });
         w.AddComponent(unit, new UtilityTraceWorkingMemory1024());
-        UtilityDecisionCatalog.EnsureRegistered();   // the scorer reads the registry it is built over
-        UtilityScorer? cache = null;
-        UtilityDecisionCatalog.ScorerOverShared(ref cache).ChooseOption(w, unit, Posture, 0);
         var settings = UtilityDecisionSheet.Build(Posture)!;
+        Pass(w, unit, settings);   // a scored pass with a soldier's numbers (the bare test unit reads every input as 0)
         var live = settings.WithLive(w, unit);
 
         using var frame = UiFrameHarness.Begin(760, 900);

@@ -62,7 +62,8 @@ public static class UtilityDecisionWidget
                 if (o.ZeroedBy != null) { ImGui.SameLine(); ImGui.TextColored(Dim, $"(zeroed by {o.ZeroedBy})"); }
                 if (expanded)
                 {
-                    if (o.Score.HasValue) ImGui.TextColored(Dim, Mode(o.Mode));
+                    if (o.Score.HasValue) ImGui.TextColored(Dim, Mode(o.Mode) + "   (x = a modifier: multiplies after the aggregate)");
+                    else ImGui.TextColored(Dim, "x = a modifier: multiplies after the aggregate");
                     DrawConsiderations(o, live: sheet.Unit != null && sheet.Traced);
                     ImGui.TreePop();
                 }
@@ -78,7 +79,7 @@ public static class UtilityDecisionWidget
         int cols = live ? 6 : 5;
         if (!ImGui.BeginTable("##cons", cols, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg)) return;
         ImGui.TableSetupColumn("input", ImGuiTableColumnFlags.WidthStretch);
-        if (live) { ImGui.TableSetupColumn("raw"); ImGui.TableSetupColumn("->curve"); ImGui.TableSetupColumn("x weight"); }
+        if (live) { ImGui.TableSetupColumn("raw"); ImGui.TableSetupColumn("->curve"); ImGui.TableSetupColumn("weight"); }
         else { ImGui.TableSetupColumn("ctx"); ImGui.TableSetupColumn("weight"); ImGui.TableSetupColumn("curve"); }
         ImGui.TableSetupColumn("shape");
         if (live) ImGui.TableSetupColumn("");
