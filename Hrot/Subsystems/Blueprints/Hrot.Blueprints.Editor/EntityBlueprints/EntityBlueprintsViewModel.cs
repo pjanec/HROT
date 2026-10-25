@@ -26,6 +26,9 @@ namespace Hrot.Blueprints.Editor.EntityBlueprints;
 /// </summary>
 public sealed record EntityBlueprintsViewModel : IPanelViewModel
 {
+    /// <summary>⭐ CE-1326 — the store's slots that belong to the running behaviours (not blueprints; counted, not listed).</summary>
+    public int BehaviourSlots { get; init; }
+
     /// <inheritdoc/>
     /// <remarks>⚠ A SINGLETON panel, so its address and its kind are the same string. ⛔ Do not copy that
     /// shortcut to a multi-instance panel *(the watch)* — there the address must be the window's own id.</remarks>

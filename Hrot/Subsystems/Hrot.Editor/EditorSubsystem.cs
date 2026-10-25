@@ -2061,6 +2061,12 @@ namespace Hrot.Editor
             //   whichever unit ran last; SetEntityFilter had no production caller.
             if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is { } debugPin)
                 debugPin.Changed += e => bpBlueprintSession.SetEntityFilter(e);
+            // ⭐ CE-1326 — the Brain tab's blueprint rows open their graph pinned to the unit, and the blueprint overlay shows HIS values
+            Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsPanel.OpenGraph = (name, unit) =>
+            {
+                if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current?.OpenGraphPinned is not { } open || _world == null) return;
+                if (open(name, unit, Hrot.Editor.AiShared.Shell.EntityBrainView.PinLabelOf(_world, unit))) bpBlueprintSession.SetEntityFilter(unit);
+            };
 
             // ── CF-8: Debounced save on breakpoint/session changes ────────────────────────
             bpBlueprintSession.OnBreakpointListChanged += _ => ScheduleDebugSessionSave();

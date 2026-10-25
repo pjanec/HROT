@@ -18,6 +18,9 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     private readonly EntityBlueprintsEditModel _model;
     private readonly EntityRepository _world;
     private readonly BlueprintRegistry _registry;
+
+    /// <summary>⭐ CE-1326 — opens a blueprint's graph live on a unit (the host's: the Brain tab's controller); null = no button.</summary>
+    public static Action<string, Entity>? OpenGraph { get; set; }
     private readonly Func<Entity?>? _entityResolver;
     private bool _isRunning;
     private Entity? _lastEntity;
@@ -115,7 +118,9 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         }
 
         var rows = new List<EntityBlueprintRow>();
-        foreach (var slot in _model.Reality)
+        // ⭐ CE-1326 — only the BLUEPRINTS: the unit's task / SOP / hosted children keep their own slots in the same store (they count
+        //   toward its capacity, above), but they are no blueprints. 🔴 They were listed as "0x7C4ED832 · Active · Remove".
+        foreach (var slot in _model.Reality.Where(s => s.Kind == Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint))
         {
             bool isRemoved = _model.StagedRemoves.Contains(slot.AssetId);
             rows.Add(new EntityBlueprintRow(
@@ -153,6 +158,7 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
             ProjectionStatus = proj.Status.ToString(),
             AddOptions       = addOptions,
             Rows             = rows,
+            BehaviourSlots   = _model.Reality.Count(s => s.Kind != Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint),
             CanApply         = hasChanges && proj.Status != UsageStatus.OverCeiling,
             CanRevert        = hasChanges,
         };
@@ -218,6 +224,13 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
                 ImGui.TableNextColumn();
                 ImGui.Text(row.Name);
+                // ⭐ CE-1326 — open its graph, live on this unit (pinned to him, as "Open running behaviour" from a pinned tab)
+                if (row.Status != "Add pending" && OpenGraph is { } open)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton($"Open graph##open{row.ActionScope}")) open(row.Name, _model.GetEntity());
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Opens {row.Name}'s graph with this unit's live values.");
+                }
 
                 ImGui.TableNextColumn();
                 if (EmphasisColor(row.Emphasis) is { } color)
@@ -235,6 +248,8 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
             ImGui.EndTable();
         }
+        if (vm.BehaviourSlots > 0)
+            ImGui.TextDisabled($"+ {vm.BehaviourSlots} slot(s) of the running behaviours (see Running behaviours)");
 
         ImGui.Separator();
 

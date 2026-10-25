@@ -385,7 +385,12 @@ public sealed class EntityBrainView : IDetailsViewInstance
             Row("Task", b.Doing + (b.SinceSeconds is { } s ? $"  ({s:0} s)" : ""));
             if (b.Origin is { } o) Row("Ordered by", o + (b.Urgency is { } u ? $"  · {u}" : ""));
             if (b.Paused is { } p) Row("Paused", p);
-            if (b.Sop is { } sop) Row("SOP", sop);
+            if (b.Sop is { } sop)
+            {
+                Row("SOP", sop);
+                // ⭐ CE-1326 — jump to the SOP's graph, live on this unit
+                if (world is not null && SopName(world, unit) is { } sopName) OpenGraphButton(world, unit, sopName, idScope, "sop");
+            }
             foreach (var g in b.Regions) Row($"Region {g.Region}", g.State);
             if (b.Roe is { } roe) Row("ROE", roe);
         }
@@ -450,7 +455,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
             DrawSettings(world, unit, groups, editable: !replay);
 
         if (world is not null && Running(world, unit) is { Count: > 0 } running && Section($"Running behaviours ({running.Count})", "running"))
-            DrawRunning(running);
+            DrawRunning(running, name => OpenGraphButton(world, unit, name, idScope, "rb_" + name));
 
         DrawEmbeds(context, idScope, replay);
 
@@ -587,7 +592,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
     /// <summary>⭐ <c>CE-1315</c> (BV-42, BV-43) — one tree node per running behaviour; its parameters and variables are the inspector's
     /// own read-only dump (<see cref="Fdp.Presentation.Utils.ImGuiPropertyTree"/>: the registered renderers, fixed lists at their Count).
     /// ImGui remembers what is open (BV-64).</summary>
-    private static void DrawRunning(IReadOnlyList<RunningBehaviourView> running)
+    private static void DrawRunning(IReadOnlyList<RunningBehaviourView> running, Action<string>? openGraph = null)
     {
         for (int i = 0; i < running.Count; i++)
         {
@@ -596,6 +601,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
             if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
             if (ImGui.TreeNodeEx($"{r.OwnerLabel} · {r.Name}##rb", ImGuiTreeNodeFlags.SpanAvailWidth))
             {
+                if (openGraph != null) { ImGui.TextDisabled(r.Name); openGraph(r.Name); }   // ⭐ CE-1326 — its graph, live on this unit
                 DrawValues(r.Parameters, r.Variables, r.HiddenVariableMembers);
                 for (int p = 0; p < r.Parts.Count; p++)
                 {
@@ -690,6 +696,26 @@ public sealed class EntityBrainView : IDetailsViewInstance
             ImGui.PopID();
         }
     }
+
+    /// <summary>⭐ <c>CE-1326</c> — "Open graph" beside a behaviour (the SOP, a running behaviour): its graph, live on this unit — PINNED to him
+    /// from a pinned tab, following the selection from the docked one (the "Open running behaviour" rule, CE-1318).</summary>
+    private void OpenGraphButton(EntityRepository w, Entity unit, string behaviour, string idScope, string id)
+    {
+        if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is not { OpenGraph: { } open } c) return;
+        ImGui.SameLine();
+        if (ImGui.SmallButton($"Open graph##{id}"))
+        {
+            bool pinned = IsPinnedScope(idScope);
+            bool ok = pinned && c.OpenGraphPinned is { } openPinned ? openPinned(behaviour, unit, PinLabelOf(w, unit)) : open(behaviour);
+            _breakNote = ok ? $"opened {behaviour}" : $"{behaviour} has no graph in this editor";
+        }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Opens {behaviour}'s graph with this unit's live values.");
+    }
+
+    /// <summary>The SOP the unit runs, by its registered name; null when none.</summary>
+    private string? SopName(EntityRepository w, Entity unit)
+        => w.IsComponentTypeRegistered<SopState>() && w.HasComponent<SopState>(unit) && w.GetComponentRO<SopState>(unit).SopHash is int h and not 0
+            ? _behaviorName(h) : null;
 
     /// <summary>⭐ <c>CE-1318</c> — this tab is a PIN (its window id is <see cref="Hrot.Editor.AiShared.Windows.DetailsWindow.PinIdFor"/>'s), not the
     /// docked tab that follows the selection.</summary>

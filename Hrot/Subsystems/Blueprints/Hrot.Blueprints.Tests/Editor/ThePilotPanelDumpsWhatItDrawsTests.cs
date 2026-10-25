@@ -3,6 +3,7 @@ using Fdp.Core;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Hrot.Blueprints.Editor.EntityBlueprints;
 using Hrot.Blueprints.Editor.Runtime;
 using Hrot.Common.Serializers;
@@ -72,6 +73,28 @@ public sealed class ThePilotPanelDumpsWhatItDrawsTests : IDisposable
     {
         model = new EntityBlueprintsEditModel(_repo, _registry, entity);
         return new EntityBlueprintsPanel(model, _repo, _registry);
+    }
+
+    /// <summary>⭐⭐ <c>CE-1326</c> — a unit's task keeps its own slot in the SAME store as its blueprints: the panel lists the BLUEPRINT by
+    /// name and only counts the task's slot. 🔴 User, 2026-10-25 (screenshot): the list showed "0x7C4ED832 · Active · Remove" — the task's
+    /// slot, nameless, with a Remove that would have torn the running task's memory. ✅ Red-proof: the kind filter dropped ⇒ red.</summary>
+    [Fact]
+    public unsafe void CE1326_ATasksOwnSlot_IsCountedNotListedAsABlueprint()
+    {
+        PanelSnapshot.CaptureEnabled = true;
+        var e = CreateEntity();
+        BlueprintInstanceService.AttachToEntity(_repo, _registry, BlueprintIdHash.Compute(_assetA), e);
+        Assert.True(OccurrenceStoreAccess.TryAttachSlot(_repo, e, 0x7C4ED832, 32, 1, OccurrenceKind.BTree, out _, out _));
+        var panel = PanelOn(e, out var model);
+
+        panel.DrawUI();
+
+        var dump = PanelSnapshot.DumpAll()[PanelIds.EntityBlueprints]!;
+        var rows = dump["rows"]!.AsArray();
+        Assert.Single(rows);
+        Assert.Equal("PatrolBlueprint", rows[0]!["name"]!.GetValue<string>());
+        Assert.Equal(1, dump["behaviourSlots"]!.GetValue<int>());
+        Assert.Equal(2, model.Reality.Count);   // the capacity still counts both
     }
 
     // ── U1b, on the PRODUCTION object ──────────────────────────────────────────────────────────
