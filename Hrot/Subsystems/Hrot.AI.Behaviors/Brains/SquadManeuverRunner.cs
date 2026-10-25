@@ -186,6 +186,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2158</c> F-a — what the "covering" gate reads: each member's rounds and when one last left
         /// (<see cref="SquadGates.Track"/>); zero for a play that does not use the gates.</summary>
         public FireGateMemory Gate;
+        /// <summary>⭐ <c>CE-2372</c> (AQ105 B) — the leader's last command call (an <c>UtteranceKind</c>; said again only when it changes).</summary>
+        public byte LastCall;
     }
 
     /// <summary>
@@ -505,11 +507,14 @@ namespace Hrot.AI.Behaviors.Brains
             play.BeginIssue(ref p, ref ws, in ctx);
             ref var squad = ref ctx.Squad;
             var traced = new SquadDrillTrace.Order[ctx.Roster.Count];   // ⭐ CE-2157 (O-a) — once per issue, not per frame
+            Span<byte> kinds = stackalloc byte[ctx.Roster.Count];   // ⭐ CE-2372 — what each man was told, for the calls
+            kinds.Fill(byte.MaxValue);
             for (int i = 0; i < ctx.Roster.Count; i++)
             {
                 if (!ctx.Live(i, out var m)) { traced[i] = new SquadDrillTrace.Order(ctx.Roster.SubordinateEntities[i], 255, default, false, ctx.Now); continue; }
                 var at = ctx.At(m);
                 var order = play.OrderFor(ref p, ref ws, in ctx, i, squad.Elements.MemberElements[i], at);
+                kinds[i] = (byte)order.Kind;
                 squad.Roles[i].RoleId = order.RoleId;
                 var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress or MemberOrderKind.Embark or MemberOrderKind.Stay ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
@@ -530,6 +535,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.IssuedThreatPoint = ws.ThreatPoint;
             ws.Reissue = 0;
             SquadDrillTrace.Issued(ctx.World, ctx.Commander, traced);
+            Callouts.OnIssue(in ctx, kinds, play.ManeuverKind, ref ws.LastCall);   // ⭐ CE-2372 (AQ105 B)
         }
 
         /// <summary>HOLD: the library CombatPosture at the member's own position — with the enemy in sight it suppresses (or lies prone)
