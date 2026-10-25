@@ -71,6 +71,7 @@ namespace Fdp.Toolkit.Perception.Systems
             }
             var ecb  = view.GetCommandBuffer();
             uint tick = PerceptionClock.Now(view);   // ⭐ CE-3292 — LastSeenTick is stamped in sim steps
+            double now = view is EntityRepository nowRepo && nowRepo.HasSingleton<GlobalTime>() ? nowRepo.GetSingleton<GlobalTime>().TotalTime : 0d;   // ⭐ CE-2371 — the Alerted leases
             System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
 
             // ⭐ CE-3063 — what each unit HEARD this frame (anonymous estimates; R-205). Lists are reused across frames.
@@ -183,6 +184,14 @@ namespace Fdp.Toolkit.Perception.Systems
                     bool dead  = !TargetMemory.IsAnonymous(in mem, i) && !view.IsAlive(target);
                     bool faded = mem.Freshness[i] < PerceptionConstants.ForgetThreatScore
                               && !(hasTracks && IsTracked(in view.GetComponentRO<ActiveSensorTracks>(entity), mem.EntityIds[i]));
+                    // ⭐ CE-2371 (AQ104 D, R-2079) — an ALERTED contact (a lease his task renews) is never forgotten while it lives: held at the
+                    //   forget line, so it stays remembered (TopAim fights it, the hunt follows it) until he is down or the task lets go
+                    if (faded && !dead && Alerts.IsPinned(view, entity, mem.EntityIds[i], now))
+                    {
+                        mem.Freshness[i] = PerceptionConstants.ForgetThreatScore;
+                        changed = true;
+                        continue;
+                    }
                     if (!dead && !faded) continue;
                     TargetMemory.Forget(ref mem, i);
                     changed = true;

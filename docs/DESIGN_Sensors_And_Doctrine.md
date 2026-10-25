@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§5.7 acquisition time by exposure, CE-3260)
+updated: 2026-10-25 (§5.4 the alerted exception to forgetting, CE-2371) · 2026-10-19 (§5.7 acquisition time by exposure, CE-3260)
 build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; §7.6b (CE-1023) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §5.7 acquisition time by exposure (CE-3260, BR-7) · §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
@@ -323,6 +323,7 @@ sensor losing a target another sensor sees changes nothing on the wire.
 | ⚠ until S5: the visual chain debounces on its own | a radar keeps a target the eyes lost? the eyes' own Lost still reaches the Brain. S5 removes the second producer |
 | ⏳ modality on the wire (`SensorTrackState`) | an IDL change — S5, where `TargetMemory` is fed with the sensor's modality |
 | ⭐ `CE-3046`: forget = target dead · OR faded below `ForgetScore` while no sensor tracks it | the score already IS a function of unseen time (10 %/s decay) — a second "unseen N s" clock would restate it. A new contact always enters, evicting the lowest score (ties: the oldest sighting) |
+| ⭐ `CE-2371` (AQ104 D, R-2079): **…unless he is ALERTED on it** — a lease his task renews (`Alerted` / `Alerts.Pin`, 2 s) holds the slot at the forget line | 🔒 *"they should stay alerted until the enemy is incapacitated"*. The task decides (an attack's target; an enemy in a defended or cleared area), with evidence from the last 10 min (`AreaAlert`); the hunt reads a pinned slot as live (`HiddenTargetThrow.LastKnown`) |
 
 ### 5.5 Vision moves onto the sensor form (S5, `CE-3038` / `CE-3050`)
 
