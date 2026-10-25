@@ -309,3 +309,36 @@ window, unable to see out ("hold: not seen"). ⇒ the I belt was too narrow: it 
 (`CE-3319`, [NOTE](batches/NOTE_Backend_To_Behaviors_Area_Combat_And_Callouts_Done.md) item 1: *"the case left is 'not arrived, not
 moving' under the target — a move node must RE-SEND there"*) — a move that has not made half a metre in 3 s on the wrong storey is re-sent,
 so the planner takes the stairs. Rail: `TacticsTreesTests.CE2373_APostedManUnderHisUpstairsPost_NotMoving_IsSentAgain`.
+
+📐 **Live after the storey fix** (`930a6f6d2` + backend's `CE-3319`): the guard now **reaches his upstairs window and fires — 11 rounds,
+both attackers wounded** (Blue South to 52, Blue East to 62) — but only from ~175 s: he spends the first three minutes on the ground floor
+while the stress break (stress 1.0 from ~10 s under steady fire) keeps pausing his posture. ⇒ the remaining gap is step 5 (C + F).
+
+#### 7.3b A-1 as built *(`CE-2375`, R-2081)*
+
+```mermaid
+classDiagram
+  class OneManCommand { <<NEW, static>> IsLone(man) · Request(man, play, params) · SquadNameOf(name) }
+  class OneManCommandSystem { <<NEW, CGF brain node>> Execute: pending man + his squad here ⇒ CmdAssignSubordinate · AssignSopEvent · AssignBehaviorEvent }
+  class PendingUnitCommand { <<NEW managed component 423>> SquadName · Play · ParamsJson · AskedAt }
+  class DefendAreaMapper { <<CHANGED>> lone soldier ⇒ Request(SquadDefend) + the CombatPosture fallback }
+  class ClearAreaBehavior { <<CHANGED>> on a lone man ⇒ Request(ClearArea), waits }
+  class EntityCreationRequest { <<existing>> TkbType squad · not transient · InitType None }
+  OneManCommand --> EntityCreationRequest
+  OneManCommand --> PendingUnitCommand
+  OneManCommandSystem --> PendingUnitCommand
+  DefendAreaMapper --> OneManCommand
+  ClearAreaBehavior --> OneManCommand
+```
+*What the picture shows that prose hid:* the request and the assignment are two different moments, joined only by the pending mark on the
+man — nothing assumes the squad exists when the order arrives.
+
+| as built | deviation / why |
+|---|---|
+| the squad is recognised by its NAME ("⟨man⟩ (command)"), its force and the squad type, with no members yet | ⚠ **a stand-in**: the creation result (ack) goes back over the wire to external requesters only and the spawn may happen on another node, so the brain cannot learn the new entity's id — ⏭ [handoff to backend](batches/HANDOFF_Behaviors_To_Backend_Creation_Result.md) for a result the requester can read; the name key then retires |
+| the man fights on the order's fallback (DefendArea: CombatPosture at the area) while he waits; ClearArea on a lone man waits as its own task | the user's "nothing local and immediate" |
+| no squad within 20 s ⇒ the wait ends, he stays on the fallback; ⛔ never a second request | two squads for one man is worse than none |
+| `OneManCommandSystem` runs on the brain node after `RestlessSystem` (`CgfLogicPack`), gated on the man's brain authority | — |
+
+Rail: `SquadManeuverTests.CE2375_ALoneMansAreaOrder_AsksForASquad_AndOnlyAssignsHimOnceItExists`. ⏭ live: a demo that orders a lone man
+`DefendArea` straight (its params are lat/lon — the demos still author the one-man squad by hand).

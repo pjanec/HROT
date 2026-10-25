@@ -263,6 +263,8 @@ namespace Hrot.CGF
             simList.Add(new Hrot.AI.Behaviors.Brains.UnderFireMoveSystem(gateOnAuthority));
             // ⭐ CE-2368 (AQ103 §3.3) — idle life: a stationary person shifts a little — after the reflex over a MOVE, so a man on one is its
             simList.Add(new Hrot.AI.Behaviors.Brains.RestlessSystem(gateOnAuthority));
+            // ⭐ CE-2375 (AQ104 A-1, R-2081) — a lone man's area order: once the squad asked for him exists here, assign him and give it the play.
+            simList.Add(new Hrot.AI.Behaviors.Brains.OneManCommandSystem(gateOnAuthority));
             simList.Add(_routeContextSystem);
             // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here. They are now
             // contributed by the infrastructure capabilities (see the field block above).

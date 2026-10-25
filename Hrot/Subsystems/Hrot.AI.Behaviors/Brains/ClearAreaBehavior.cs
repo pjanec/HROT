@@ -6,6 +6,7 @@ using Fbt.Compiler;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Perception.Survey;
 using Fdp.Toolkit.Squad;
 using Hrot.Map.Definitions.Behavior;
@@ -79,9 +80,9 @@ namespace Hrot.AI.Behaviors.Brains
 
         public static unsafe NodeStatus Run(ref ClearAreaParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
         {
-            if (!world.HasComponent<UnitRoster>(self) || !world.HasComponent<SquadCognitiveState>(self)) return NodeStatus.Failure;
+            if (!world.HasComponent<UnitRoster>(self) || !world.HasComponent<SquadCognitiveState>(self) || world.GetComponentRO<UnitRoster>(self).Count == 0)
+                return Lone(ref p, self, world);
             var roster = world.GetComponentRO<UnitRoster>(self);
-            if (roster.Count == 0) return NodeStatus.Failure;
             var ctx = new SquadPlayContext(world, self, SquadManeuverRunner.Now(world), in roster);
             if (!SquadManeuverRunner.AnyLive(in ctx)) return NodeStatus.Failure;
             AreaAlert.KeepInArea(in ctx, p.Centre, p.Radius);   // CA-5 — the whole area stays alerted
@@ -109,6 +110,20 @@ namespace Hrot.AI.Behaviors.Brains
             ClearBuildingPlay.DropSurvey(world, self);   // the next building asks its own
             p.Current = -1;
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-2375</c> (AQ104 A-1, R-2081) — the order on a LONE man: his squad is asked for (once) and gets this ClearArea when it
+        /// exists; he waits on it (its member order replaces this task). Not lone (a commander with no men) ⇒ Failure as before.</summary>
+        private static NodeStatus Lone(ref ClearAreaParams p, Entity self, EntityRepository world)
+        {
+            if (!OneManCommand.IsLone(world, self)) return NodeStatus.Failure;
+            if (world.HasManagedComponent<PendingUnitCommand>(self) || p.Asked != 0) return NodeStatus.Running;
+            p.Asked = 1;
+            var json = System.Text.Json.JsonSerializer.Serialize(new ClearAreaParamsJsonDto
+            {
+                Centre = p.Centre, Radius = p.Radius, Speed = p.Speed, Intensity = p.Intensity, Suspected = p.Suspected != 0,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            return OneManCommand.Request(world, self, BehaviorNames.ClearArea, json) ? NodeStatus.Running : NodeStatus.Failure;
         }
 
         /// <summary>Leaving the node: both surveys go.</summary>

@@ -5383,6 +5383,65 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new[] { new Vector3(5f, 14f, 0f), new Vector3(25f, 14f, 0f) }, clear);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2375</c> (AQ104 A-1, R-2081) — a LONE man's area order asks for a real squad and waits for it: one creation request (the
+        /// squad type, his name + " (command)", his force, NOT transient, nobody to ACK), one only however often it is asked; nothing is
+        /// assigned while no such squad exists here; once it appears he is assigned under it (squad leader) and it gets its SOP and the play,
+        /// and the wait is over. A squad of the same name but another force is not his. ✅ Red-proofs: the system assigning on the first tick
+        /// (no wait) ⇒ an assignment with no squad; the force check dropped ⇒ the enemy's squad taken.
+        /// </summary>
+        [Fact]
+        public void CE2375_ALoneMansAreaOrder_AsksForASquad_AndOnlyAssignsHimOnceItExists()
+        {
+            var s = new Squad(members: 1);
+            var repo = s.Repo;
+            if (!repo.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>()) repo.Bus.RegisterManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>();
+            if (!repo.Bus.IsRegistered<CmdAssignSubordinate>()) repo.Bus.Register<CmdAssignSubordinate>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var man = repo.CreateEntity();
+            repo.AddComponent(man, new SimTransform { Position = new Vector3(5, 5, 0), Rotation = Quaternion.Identity });
+            repo.AddComponent(man, new EntityInfo { Name = "Guard", ForceId = ForceId.Hostile });
+            Assert.True(OneManCommand.IsLone(repo, man));
+            Assert.True(OneManCommand.Request(repo, man, BehaviorNames.SquadDefend, "{\"Position\":[5,5,0],\"SearchRadius\":25}"));
+            Assert.False(OneManCommand.Request(repo, man, BehaviorNames.SquadDefend, "{}"));   // already waiting: never a second squad
+            repo.Bus.SwapBuffers();
+            var asked = repo.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>().ToList();
+            Assert.Single(asked);
+            Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad, asked[0].TkbType);
+            Assert.False(asked[0].IsTransient);
+            Assert.Equal(Fdp.Toolkit.Replication.ReliableInitType.None, asked[0].InitType);
+            var born = (EntityInfo)asked[0].InitialComponents!.Single(c => c is EntityInfo);
+            Assert.Equal("Guard (command)", (string)born.Name);
+
+            var system = new OneManCommandSystem();
+            system.Execute(repo, 0.016f);
+            Assert.Equal(0, system.Assigned);   // the squad is not there yet
+            Assert.True(repo.HasManagedComponent<Fdp.Toolkit.Behavior.Components.PendingUnitCommand>(man));
+
+            Entity Squad(ForceId force)
+            {
+                var q = repo.CreateEntity();
+                repo.AddComponent(q, new EntityInfo { Name = "Guard (command)", ForceId = force });
+                repo.AddComponent(q, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad });
+                return q;
+            }
+            Squad(ForceId.Friend);   // the other side's of that name: not his
+            system.Execute(repo, 0.016f);
+            Assert.Equal(0, system.Assigned);
+            var his = Squad(ForceId.Hostile);
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            Assert.Equal(1, system.Assigned);
+            repo.Bus.SwapBuffers();
+            var assign = repo.Bus.Read<CmdAssignSubordinate>().ToArray();
+            Assert.Single(assign);
+            Assert.Equal((man, his, TacticalDesignation.SquadLeader), (assign[0].Subordinate, assign[0].Commander, assign[0].Designation));
+            var play = repo.Bus.ReadManaged<AssignBehaviorEvent>().Single(e => e.Entity.Equals(his));
+            Assert.Equal((BehaviorNames.SquadDefend, BehaviorOrigin.Superior), (play.BehaviorName, play.Origin));
+            Assert.Contains(repo.Bus.ReadManaged<AssignSopEvent>(), e => e.Entity.Equals(his));
+            Assert.False(repo.HasManagedComponent<Fdp.Toolkit.Behavior.Components.PendingUnitCommand>(man));
+        }
+
         /// <summary>⭐ <c>CE-2259</c> BC-3 (CB-57) — the survey never answers: after 5 s the drill fails with RoomBlocked at the order's point.
         /// ✅ Red-proof: no timeout ⇒ it waits for ever.</summary>
         [Fact]

@@ -1066,6 +1066,10 @@ namespace Fdp.Core
         /// coordinator 2026-10-25. 📄 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md §4 D.</summary>
         public const int Alerted = 422;
 
+        /// <summary>⭐ <c>CE-2375</c> (behaviors, AQ104 A-1, R-2081) — <c>PendingUnitCommand</c>: a lone man waiting for the squad his area order
+        /// asked to be created; brain-local, managed, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
+        public const int PendingUnitCommand = 423;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>
