@@ -84,6 +84,8 @@ public sealed class DataBreakpointManager
 
     private readonly Dictionary<BreakpointId, Breakpoint> _breakpoints = new();
     private readonly Dictionary<BreakpointId, CompiledComponentPredicate> _componentPredicates = new();
+    private readonly Dictionary<BreakpointId, (BehaviourStepPredicateDto Step, Func<EntityRepository, Entity, bool>? Remaining)> _behaviourSteps = new();
+    private string? _pendingHitDetail;
     private readonly Dictionary<BreakpointId, CompiledEventScanner> _eventScanners = new();
 
     // Structural trackers: BreakpointId -> (Breakpoint, dto, set of entities known to have the component)
@@ -588,6 +590,7 @@ public sealed class DataBreakpointManager
         // Halt the clock.
         _timeController.RequestPause();
         _isPaused = true;
+        LastHitDetail = _pendingHitDetail;   // ⭐ CE-1323 — what a behaviour step said; null for every other source
         // ⭐⭐ MX-009 — record the HOLDER. The only write to this field.
         _pausedBy = updated.Id;
         _pausedTick = _liveRepo.HasSingletonUnmanaged<GlobalTime>()
@@ -598,6 +601,36 @@ public sealed class DataBreakpointManager
         OnBreakpointHit?.Invoke(updated, entity);
         OnPauseStateChanged?.Invoke(true);
     }
+
+    // ---- Behaviour steps (CE-1323) ---------------------------------------
+
+    /// <inheritdoc/>
+    public IReadOnlyList<(Breakpoint Breakpoint, BehaviourStepPredicateDto Step)> MountedBehaviourSteps
+    {
+        get
+        {
+            // built per call (a few entries, read once a tick): the records carry Enabled / HitCount, which change without a remount
+            if (_behaviourSteps.Count == 0) return Array.Empty<(Breakpoint, BehaviourStepPredicateDto)>();
+            var list = new List<(Breakpoint, BehaviourStepPredicateDto)>(_behaviourSteps.Count);
+            foreach (var (id, mounted) in _behaviourSteps)
+                if (_breakpoints.TryGetValue(id, out var bp)) list.Add((bp, mounted.Step));
+            return list;
+        }
+    }
+
+    /// <inheritdoc/>
+    public void OnBehaviourStepHit(Breakpoint bp, Entity unit, string what)
+    {
+        if (bp == null || !_breakpoints.TryGetValue(bp.Id, out var current) || !current.Enabled) return;
+        if (current.FilterEntity is { } only && only != unit) return;
+        if (_behaviourSteps.TryGetValue(bp.Id, out var mounted) && mounted.Remaining is { } rest && !rest(_liveRepo, unit)) return;
+        _pendingHitDetail = what;
+        try { OnHit(current, unit); }
+        finally { _pendingHitDetail = null; }
+    }
+
+    /// <inheritdoc/>
+    public string? LastHitDetail { get; private set; }
 
     // ---- Step / Continue ------------------------------------------------
 
@@ -972,6 +1005,7 @@ public sealed class DataBreakpointManager
             {
                 if (!_breakpoints.TryGetValue(bpId, out var bp)) continue;
                 if (!bp.Enabled) continue;
+                if (bp.FilterEntity is { } only && only != entity) continue;   // ⭐ CE-1323 — the unit filter (it was ignored here)
 
                 bool shouldFire = remainingDelegate == null
                     || remainingDelegate(_liveRepo, entity);
@@ -1023,6 +1057,24 @@ public sealed class DataBreakpointManager
                 }
                 // Do NOT fall through to the component-predicate path;
                 // ExternalHitTag compounds are evaluated only via OnExternalHit.
+                break;
+            }
+
+            // ⭐ CE-1323 (DBG-9) — a behaviour step: watched by the editor's evaluator, never by the component path (a whole-ring scan
+            //   refires); inside an AND compound the rest is compiled and checked on the unit at the hit.
+            case BehaviourStepPredicateDto step:
+                _behaviourSteps[id] = (step, null);
+                break;
+
+            case CompoundPredicateDto stepCompound when stepCompound.Operator == LogicalOperator.And
+                                                       && stepCompound.Conditions.OfType<BehaviourStepPredicateDto>().Any():
+            {
+                var rest = stepCompound.Conditions.Where(c => c is not BehaviourStepPredicateDto).ToList();
+                Func<EntityRepository, Entity, bool>? restDelegate = null;
+                if (rest.Count > 0 && _predicateCompiler != null)
+                    restDelegate = _predicateCompiler.CompileComponentPredicate(
+                        rest.Count == 1 ? rest[0] : new CompoundPredicateDto { Operator = LogicalOperator.And, Conditions = rest });
+                _behaviourSteps[id] = (stepCompound.Conditions.OfType<BehaviourStepPredicateDto>().First(), restDelegate);
                 break;
             }
 
@@ -1086,6 +1138,7 @@ public sealed class DataBreakpointManager
 
     private void UnmountDelegate(BreakpointId id)
     {
+        _behaviourSteps.Remove(id);
         _componentPredicates.Remove(id);
         _eventScanners.Remove(id);
         _structuralTrackers.Remove(id);

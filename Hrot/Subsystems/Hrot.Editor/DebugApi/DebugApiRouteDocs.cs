@@ -1386,7 +1386,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "set_breakpoint",
             Group:   "G — Breakpoints",
             Summary: "Register a run-until-condition breakpoint.",
-            Returns: "{ breakpointId } (e.g. \"BP#1\").",
+            Returns: "{ breakpointId, conditionSummary } (e.g. \"BP#1\", \"Withdrawing entered (PlatoonCommander)\").",
             Hint:    "Req: condition (SearchPredicateDto with $type). Optional: filterNetworkId, occurrenceThreshold, name. Example: set_breakpoint({condition:{\"$type\":\"Lifecycle\",...}})",
             Params: new RouteParam[]
             {
@@ -1400,6 +1400,9 @@ namespace Hrot.Editor.DebugApi
             {
                 "condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).",
                 "Poll get_breakpoint_status after play to detect when the breakpoint fires.",
+                "⭐ CE-1323 — BEHAVIOUR BREAKPOINTS: {\"$type\":\"BehaviourStep\",\"Behaviour\":\"<running behaviour name>\",\"Kind\":K,...} with K = StateEnter|StateExit {State} · InsideEnter {State, Region?: -1 = anything under it, n = region n of a parallel state} · TransitionFires {From?, To, Event?} (no From = a global transition) · EventHandled {Event} (dequeued, consumed or deferred, even when no transition uses it) · NodeRuns {Node: the BTree node's VisualId}. Names are the machine's own (GET /entities/{id}/brain names the running behaviour); a name not in it is a 400 that lists what is.",
+                "Per unit: filterNetworkId. Any other condition: {\"$type\":\"Compound\",\"Operator\":\"And\",\"Conditions\":[<BehaviourStep>, <PropertyMatch …>]} — the rest is checked on the unit at the step. A step scoped to a unit arms its traces; an unscoped step sees only armed units (a Brain tab open, Debug this unit, observe-all).",
+                "Only records written since the last look count, so continue_from_breakpoint never stops twice on one arrival. get_breakpoint_status names what fired (lastHit.what).",
             },
             ExampleArgsJson: "{\"condition\":{\"$type\":\"PropertyMatch\",\"ComponentType\":\"SimTransform\",\"PropertyPath\":\"Position.X\",\"Operator\":\"GreaterThan\",\"Predicate\":{\"$type\":\"Numeric\",\"MinValue\":100,\"MaxValue\":1000000000}},\"name\":\"moved-east\"}",
             ExampleGist: "pause when entity SimTransform.Position.X > 100"),
@@ -1784,7 +1787,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_breakpoint_status",
             Group:   "G — Breakpoints",
             Summary: "Current pause state and last breakpoint hit.",
-            Returns: "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }",
+            Returns: "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, name, conditionSummary, what, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }  — what (CE-1323) is what a behaviour step saw: \"entered Withdrawing\", \"Engaging -> Withdrawing fired on OrderReceived\", \"event Contact handled (consumed)\"; null for a data breakpoint",
             Hint:    "No params. Example: get_breakpoint_status({})",
             Notes: new[]
             {

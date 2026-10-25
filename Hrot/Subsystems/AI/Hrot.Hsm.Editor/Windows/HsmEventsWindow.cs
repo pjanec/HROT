@@ -73,6 +73,9 @@ public sealed class HsmEventsWindow
         _findResults = findResults;
     }
 
+    /// <summary>⭐ CE-1323 — the breakpoint manager, for a row's "Break when handled"; null = no breakpoint item.</summary>
+    public System.Func<Hrot.Diagnostics.Breakpoints.IDataBreakpointManager?>? Breakpoints { get; init; }
+
     /// <summary>⭐⭐⭐ BUILD — a pure projection of the asset's event declarations. No ImGui. ⚠ The
     /// STANDALONE shape — <c>WindowId</c> for both address and kind. <see cref="HsmEventsDetailsView"/>
     /// uses the <see cref="BuildViewModel(string,string)"/> overload instead, composing the address
@@ -206,6 +209,16 @@ public sealed class HsmEventsWindow
                         : $"Delete ({referencing} transition(s) will dangle)";
                     if (ImGui.MenuItem(deleteLabel))
                         _pendingDeleteId = ev.EventId;
+
+                    // ⭐ CE-1323 (DBG-10) — stop when the machine takes this event off its queue, in whatever state
+                    if (Breakpoints?.Invoke() is { } manager)
+                    {
+                        ImGui.Separator();
+                        var items = new Hrot.Hsm.Editor.Host.HsmContextMenuItemCollector();
+                        Hrot.Hsm.Editor.Debug.HsmBreakpointMenuPopulator.PopulateEventMenu(_asset, ev, items, manager);
+                        foreach (var item in items.Items)
+                            if (ImGui.MenuItem(item.Label, "", false, item.Enabled)) item.Execute();
+                    }
 
                     ImGui.EndPopup();
                 }
