@@ -34,3 +34,13 @@ squad, on your node, whichever node built it. `OneManCommandSystem.Find`'s name 
 - ⚠ Lifecycle-managed entities only (anything made by a creation request is). ⚠ A BDC-replicated entity carries `Guid.Empty`.
 - ⭐ Proved across two nodes: IT-SA-7 (`SplitAuthoritySpawnTests.AQ107_ARequestFromTheBrain_ServicedOnSimHost_ComesBackToTheBrain_NamingItsRequest`)
   — the Brain asks, SimHost builds, both announce the entity with the request's id.
+
+## ⚠ Unrelated, found on the way — two `Hrot.ClusterRunner.Tests` rails are red on fields your lane added
+
+After merging `behaviors` (CE-1323 and the A-1 squad work), `EverySystemStateFieldIsClassifiedTests` and
+`EverySystemForgetsTheLastWorldTests` fail on fields backend did not touch: `NodeBreakpointEvaluator` (`_registered`, `_seen`, `_gone`,
+`_btreePos`, `_hsmPos`, `_resolved`, `_armedHere`, `_forUnit`, `_unresolved`), `GrenadeDangerSystem` (`_rounds`, `_reacted`, `_seen`,
+`_near`), `OneManCommandSystem` (`_done`, `Assigned`), `TraceBufferLifecycleSystem._toAddLog`, `ChangeBaselineSystem._manager`.
+⭐ Each needs a row in `docs/DESIGN_System_State_Inventory.md` (K / A / B) — or the state in a component (R-3039) — and an entity-holding
+one a `WorldEpoch.Moved` reset or an exemption. Backend classified its own two (`EntityLifecycleModule._outcomes`, `SoundEmissionSystem._doorsSeen`).
+`TheLayoutIsOneUnitTests.TheDefaultIsNeverASubsystemThatClaimsNoPerspective` is red too (expects `SimHost`, gets `Scenario`) — not backend's.
