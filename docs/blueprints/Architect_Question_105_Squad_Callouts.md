@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — leans written 2026-10-25, AWAITING THE USER
+state: LIVE — ✅ APPROVED 2026-10-25 (R-2080), A–F as leaned
 updated: 2026-10-25
-build-state: DESIGN
+build-state: READY-TO-BUILD — order §5
 current-answer: §4 the sub-questions with their leans · §3 the diagrams
 stale-below: nothing
 known-rot: none yet
@@ -90,4 +90,4 @@ sequenceDiagram
 
 ## 6. Answers
 
-*(awaiting the user)*
+🔒 **User, `2026-10-25`:** *"AQ105 approved"* ⇒ ✅ **A–F as leaned (R-2080).**
