@@ -32,11 +32,11 @@ public sealed class HostOnlyWiringTests : IDisposable
 
     public void Dispose() => _w.Dispose();
 
-    private Entity Unit(bool brain = false)
+    private Entity Unit(bool brain = false, long net = 77)
     {
         var e = _w.CreateEntity();
         _w.AddComponent(e, new SimTransform { Position = new Vector3(5, 5, 0) });
-        _w.AddComponent(e, new NetworkIdentity(77));
+        _w.AddComponent(e, new NetworkIdentity(net));   // ⭐ CE-1329 — the debug store keys units by it: two units need two ids
         if (brain) _w.AddComponent(e, new BehaviorState());
         return e;
     }
@@ -74,7 +74,7 @@ public sealed class HostOnlyWiringTests : IDisposable
         _w.RegisterComponent<BehaviorState>();
         var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w });
         var brain = Unit(brain: true);
-        var plain = Unit();
+        var plain = Unit(net: 78);
 
         Assert.Contains("AI trace", ContextMenuProjectorGizmo.MenuJsonFor(_w, brain));
         Assert.Contains($"\"id\":{GlobalActionIds.ToggleAiTrace},", ContextMenuProjectorGizmo.MenuJsonFor(_w, brain));

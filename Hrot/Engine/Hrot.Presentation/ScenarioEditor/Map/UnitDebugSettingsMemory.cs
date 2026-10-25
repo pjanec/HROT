@@ -61,7 +61,12 @@ namespace Hrot.ScenarioEditor.Map
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                File.WriteAllText(path, store.ToJson().ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                // a writer, not JsonSerializerOptions: this repo turns reflection-based serialization off (measured: the options form threw
+                // "must specify a TypeInfoResolver", swallowed below — nothing was ever saved)
+                using var bytes = new MemoryStream();
+                using (var writer = new System.Text.Json.Utf8JsonWriter(bytes, new System.Text.Json.JsonWriterOptions { Indented = true }))
+                    store.ToJson().WriteTo(writer);
+                File.WriteAllBytes(path, bytes.ToArray());
             }
             catch (Exception) { /* a read-only folder: the settings live for this run only */ }
         }

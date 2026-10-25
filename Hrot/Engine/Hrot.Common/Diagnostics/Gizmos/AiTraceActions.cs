@@ -55,7 +55,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public static void Set(ISimulationView view, Entity target, BehaviorDebugFlags flag, bool on, Requester by = Requester.User)
         {
             if (target == Entity.Null || view is not EntityRepository repo || !repo.IsAlive(target)) return;
-            if (!HasBrain(repo, target) || !repo.IsComponentTypeRegistered<DebugState>()) return;
+            if (!HasBrain(repo, target)) return;
+            // the store needs no DebugState registered (it is copied where one is); the direct patch below does
             if (flag == BehaviorDebugFlags.EnableTraceBuffer && UnitDebugSettings.NetIdOf(repo, target) is var id and not 0)
             {
                 var store = UnitDebugSettings.Of(repo);
@@ -64,6 +65,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 else store.SetArmed(id, on);
                 return;
             }
+            if (!repo.IsComponentTypeRegistered<DebugState>()) return;
             repo.Bus.PublishManaged(new PatchDebugStateCommand
             {
                 Target    = target,

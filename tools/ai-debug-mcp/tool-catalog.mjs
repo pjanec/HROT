@@ -1989,7 +1989,7 @@ export const TOOLS_CATALOG = [
     "returns": "{ networkId, hasBrain, onBrainNode, doing, origin, urgency, sinceSeconds, paused, sop, roe, rightNow:[{channel, actionId, reason, hold, progress, needed}], regions:[{region, state, stateIndex}], squad, choices:[{decisionId, winner, previousWinner, margin, switches}], contacts, heardOnly, journal:{on, seq, changes:[{seq, at, kind, text}]} }",
     "notes": [
       "onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.",
-      "choices fill only while the unit is observed (observe_trace or debug_unit); the journal is always on.",
+      "choices fill only while the unit is observed (observe_trace, set_debug_settings trace, or its Brain tab open); the journal is always on.",
       "journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones."
     ],
     "example": {
@@ -2003,12 +2003,39 @@ export const TOOLS_CATALOG = [
   },
 
   {
-    "name": "debug_unit",
+    "name": "get_debug_settings",
     "group": "K — AI behavior traces",
-    "summary": "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on) and keeps the AI graph's live overlay on it instead of the selection. ⛔ CE-1317: it no longer pins every map gizmo family — pin_gizmos one family at a time; a unit whose Brain tab is open is traced anyway. One unit at a time.",
+    "summary": "A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario.",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/debug-settings"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ networkId, pins:[family labels], trace, traceOn, follow }",
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "what is switched on for unit 1000"
+    },
+    "hint": "Req: networkId (number). Editor only. Example: get_debug_settings({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_debug_settings",
+    "group": "K — AI behavior traces",
+    "summary": "Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit.",
     "http": {
       "method": "POST",
-      "path": "/entities/{networkId}/debug"
+      "path": "/entities/{networkId}/debug-settings"
     },
     "params": [
       {
@@ -2018,26 +2045,46 @@ export const TOOLS_CATALOG = [
         "description": "Network entity ID (long)"
       },
       {
-        "name": "on",
+        "name": "pins",
+        "type": "array",
+        "required": false,
+        "description": "The gizmo families to pin (replaces the set); [] unpins all"
+      },
+      {
+        "name": "trace",
         "type": "boolean",
         "required": false,
-        "description": "true = start debugging this unit (moves it from any other), false = stop",
-        "default": true
+        "description": "Record the unit's behaviour trace (remembered)"
+      },
+      {
+        "name": "follow",
+        "type": "boolean",
+        "required": false,
+        "description": "The 3-D camera follows the unit (remembered); false lets go"
+      },
+      {
+        "name": "reset",
+        "type": "boolean",
+        "required": false,
+        "description": "Forget everything remembered for this unit first"
       }
     ],
-    "returns": "{ networkId, debugging, debugged }",
+    "returns": "{ networkId, pins:[family labels], trace, traceOn, follow }",
     "notes": [
-      "The operator sees it too: the gizmos pin on the map and the graph's highlight follows this unit.",
-      "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal."
+      "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal.",
+      "A unit whose Brain tab is open is traced anyway (traceOn), without touching its trace switch."
     ],
     "example": {
       "args": {
         "networkId": 1000,
-        "on": true
+        "pins": [
+          "Perception"
+        ],
+        "trace": true
       },
-      "gist": "watch unit 1000 closely, live"
+      "gist": "watch unit 1000 closely: its vision cone on the map and its trace"
     },
-    "hint": "Req: networkId (number); optional on (bool, default true). Editor only. Example: debug_unit({networkId:1000, on:true})",
+    "hint": "Req: networkId (number); optional pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
     "manualVerify": false
   },
 
@@ -3395,7 +3442,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "get_view",
     "group": "O — Manual-assist (focus / annotations)",
-    "summary": "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, the debugged unit, and the units in view nearest first with their screen point.",
+    "summary": "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, and the units in view nearest first with their screen point.",
     "http": {
       "method": "GET",
       "path": "/view"
@@ -3408,7 +3455,7 @@ export const TOOLS_CATALOG = [
         "description": "How many in-view units to list, nearest first (query; default 50, max 500)"
       }
     ],
-    "returns": "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
+    "returns": "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
     "notes": [
       "The operator points by SELECTING (click; in first person the select key on the unit under the crosshair) — read primary / selection.",
       "aimTarget is what the first-person crosshair rests on right now; it moves with the aim.",

@@ -93,14 +93,11 @@ public sealed class TheFloatAndPinEntryPointsAreReachableTests
         var wm = Wm();
 
         wm.RegisterWindow(shell);   // ⭐ the ONLY wiring of the shell — as the Scenario root does it
-        var host = Menus(wm);
 
-        // ⭐ The View-menu entry acts on the registered shell; that it opens a float proves the
-        //   manager reached it, because OpenFloat registers into the manager it was handed.
+        // ⭐ The panel's own float acts on the registered shell; that it opens a float proves the manager reached it, because OpenFloat
+        //   registers into the manager it was handed. ⛔ CE-1334: there is no View ▸ Details menu to go through any more.
         wm.SwitchPerspective("Scenario");
-        Invoke(wm, "View/Details/Float current view");
-        Assert.DoesNotContain(wm.RegisteredWindowIds, id => id == DetailsWindow.FloatIdFor("Scenario", "v0"));   // ⭐ CE-1150 — only a REQUEST
-        Pump(host);
+        Assert.NotNull(shell.OpenFloat(wm));
 
         Assert.Contains(wm.RegisteredWindowIds,
                         id => id == DetailsWindow.FloatIdFor("Scenario", "v0"));

@@ -58,8 +58,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public static void Set(ISimulationView view, Entity target, AiOverlayFlags family, bool pinned)
         {
             if (target == Entity.Null || view is not EntityRepository repo || !repo.IsAlive(target)) return;
-            if (!repo.IsComponentTypeRegistered<DebugState>()) return;
             if (UnitDebugSettings.NetIdOf(repo, target) is var id and not 0) { UnitDebugSettings.Of(repo).SetPin(id, family, pinned); return; }
+            if (!repo.IsComponentTypeRegistered<DebugState>()) return;
             repo.Bus.PublishManaged(new PatchDebugStateCommand
             {
                 Target    = target,
