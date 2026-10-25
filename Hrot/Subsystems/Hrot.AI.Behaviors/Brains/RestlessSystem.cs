@@ -63,6 +63,11 @@ namespace Hrot.AI.Behaviors.Brains
             BehaviorHash.FromName("Sentry"),
         };
 
+        /// <summary>⭐ <c>CE-2372</c> (AQ105 C) — his task is one whose stillness is the point (B⑤): the same list the stay-still rule reads, so a
+        /// hidden man is also a SILENT one.</summary>
+        public static bool IsHiddenOnPurpose(EntityRepository world, Entity self)
+            => world.HasComponent<BehaviorState>(self) && Array.IndexOf(StillOnPurpose, world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash) >= 0;
+
         private static readonly int FightFromCoverHash = BehaviorHash.FromName(BehaviorNames.FightFromCover);
         private static readonly int CombatPostureHash = BehaviorHash.FromName(BehaviorNames.CombatPosture);
 

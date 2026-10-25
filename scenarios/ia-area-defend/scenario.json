@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "bt-range",
-    "description": "What: AQ104 K (CE-2371) - on bt-range, 'Guard' (Hostile rifleman, immortal) defends the area round House A (centre (105.6,97), ~25 m) - \u23ed AQ104 A + L: DefendArea with coverage posts and the guard round; today what the mapper gives a lone man, CombatPosture at the centre, staying - between two parked cars; 'Blue South' (from (106,55)) and 'Blue East' (from (150,98)) attack him (mortal). Judge (240 s): (1) the guard sees each attacker before he is within 30 m of the centre; (2) the guard fires first at each; (3) printed: where the guard stood over time and what he could see. Check: python3 scripts/utility-demo-check.py --launch ia-area-defend. \ud83d\udcc4 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K"
+    "description": "What: AQ104 K (CE-2371) - on bt-range, 'Guard' (Hostile rifleman, mortal) defends the area round House A (centre (105.6,97), ~25 m) - AQ104 L (CE-2373): the one man of 'Guard Post' (SquadDefend over the area): posts chosen for COVERAGE, a guard round between them while nothing is known (\u23ed AQ104 A: the order straight on the man) - two parked cars by the centre;'Blue South' (from (106,5)) and 'Blue East' (from (195,98)), ~90 m out, each CLEAR the area (ClearArea on a lone man: his own squad is created first, AQ104 A-1) - they must find him (mortal). Judge (240 s): (1) the guard sees each attacker before he is within 30 m of the centre; (2) the guard fires first at each; (3) printed: where the guard stood over time and what he could see. Check: python3 scripts/utility-demo-check.py --launch ia-area-defend. \ud83d\udcc4 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K"
   },
   "entities": {
     "a1040003-0000-4000-8000-000000000001": {
@@ -78,13 +78,48 @@
         "Rotation": [
           0,
           0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10470
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Guard Post",
+        "ForceId": "Hostile"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "SquadDefend",
+        "Params": "{\"Position\": [105.6, 97, 0], \"SearchRadius\": 25, \"Speed\": 2}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040003-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          104.5,
+          103.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
           -0.7071068,
           0.7071068
         ]
       },
       "Health": {
-        "Current": 100000,
-        "Max": 100000
+        "Current": 100,
+        "Max": 100
       },
       "NetworkIdentity": {
         "Value": 10471
@@ -99,17 +134,16 @@
       "TargetMemory": {
         "Entries": []
       },
-      "Behavior": {
-        "Name": "CombatPosture",
-        "Params": "{\"stay\": true, \"advance\": {\"Objective\": [105.6, 97, 0], \"Speed\": 2, \"ArrivalRadius\": 1}}",
-        "Origin": "Superior"
+      "UnitSubordinate": {
+        "CommanderGuid": "a1040003-0000-4000-8000-000000000003",
+        "Designation": "SquadLeader"
       }
     },
-    "a1040003-0000-4000-8000-000000000004": {
+    "a1040003-0000-4000-8000-000000000005": {
       "SimTransform": {
         "Position": [
           106,
-          55,
+          5,
           0
         ],
         "Rotation": [
@@ -137,15 +171,15 @@
         "Entries": []
       },
       "Behavior": {
-        "Name": "CombatPosture",
-        "Params": "{\"target\": 10471, \"assault\": true}",
+        "Name": "ClearArea",
+        "Params": "{\"Centre\": [105.6, 104, 0], \"Radius\": 20, \"Speed\": 2}",
         "Origin": "Superior"
       }
     },
-    "a1040003-0000-4000-8000-000000000005": {
+    "a1040003-0000-4000-8000-000000000006": {
       "SimTransform": {
         "Position": [
-          150,
+          195,
           98,
           0
         ],
@@ -174,8 +208,8 @@
         "Entries": []
       },
       "Behavior": {
-        "Name": "CombatPosture",
-        "Params": "{\"target\": 10471, \"assault\": true}",
+        "Name": "ClearArea",
+        "Params": "{\"Centre\": [105.6, 104, 0], \"Radius\": 20, \"Speed\": 2}",
         "Origin": "Superior"
       }
     }

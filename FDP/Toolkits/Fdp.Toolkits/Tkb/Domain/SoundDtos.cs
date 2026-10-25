@@ -14,6 +14,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>The possessed unit's own sounds (his weapon, his steps, his breathing, his reload).</summary>
         Own = 4,
         Impacts = 5,
+        /// <summary>⭐ CE-2372 (AQ105 F, R-2080) — what people SAY: the squad's calls, the police commands, a crowd's chant. Appended.</summary>
+        Voices = 6,
     }
 
     /// <summary>
@@ -33,6 +35,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Wind, Birds, Insects, Town, BattleRumble,
         /// <summary>⭐ CE-1231 (Hrot DESIGN_Visual_Effects §11 CH-1) — the bang of 5 kg and more (an IED, a vest, a bomb). Appended: stored values never move.</summary>
         ExplosionHuge,
+        /// <summary>⭐ CE-2372 (AQ105 F) — a SHOUTED PHRASE, generated from its words and the speaker's voice (<c>VoiceTkbCatalog</c>). Appended.</summary>
+        Voice,
     }
 
     /// <summary>

@@ -40,6 +40,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<Restless>();       // ⭐ CE-2368 (AQ103) — a stationary person's idle life, kept by RestlessSystem
             world.RegisterComponent<Stress>();         // ⭐ CE-2270 (TS-B) — a combatant's live stress, kept by StressSystem
             world.RegisterComponent<Fdp.Toolkit.Perception.Components.Alerted>();   // ⭐ CE-2371 (AQ104 D) — the enemies he must not forget (leases)
+            world.RegisterManagedComponent<PendingUnitCommand>();   // ⭐ CE-2375 (AQ104 A-1) — a lone man waiting for the squad his area order asked for
+            world.RegisterComponent<Fdp.Toolkit.Squad.CalloutState>();   // ⭐ CE-2372 (AQ105) — a man's last squad call and the edges his calls watch
             world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();   // ⭐ CE-2235 — a civilian's fear and mode (brain-local, never replicated)
             world.RegisterComponent<Fdp.Toolkit.Civilians.Crowd>();           // ⭐ CE-2237 — a crowd of civilians (brain-local, never replicated)
             world.RegisterComponent<SopState>();       // CE-3035 — the SOP slot (R-189, R-198)
@@ -49,6 +51,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();   // ⭐ CE-3136 — the channels' status (T1)
             world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();   // ⭐ CE-1249 — the brain journal (BV-9)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>();   // ⭐ CE-1319 — a commander's report history (BV-57)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();    // ⭐ CE-1319 — a commander's order history (BV-58)
             world.RegisterComponent<InteractionChannel>();
             // ⭐ MOVED 2026-09-12 to CombatComponentRegistry (CE-259bf slice 2): ActorCapabilityState
             //   is stamped by BehaviorTkbTranslator alongside EntityInfo — which ALREADY lives in the

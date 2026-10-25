@@ -60,3 +60,34 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 2. `get_world_info` for the geo origin + placement extent; `geo_to_local`/`local_to_geo` to convert coords.
 3. `spawn_entity {tkbType, transform}` (step to process); `patch_attribute` to set Name/Affiliation/etc.
 4. `save_scenario {name}`.
+
+### J. Choose the CHEAPEST experiment — before you edit code and restart anything
+⛔ **The default failure: change C#, rebuild, reload the scenario, run to the moment again — minutes per try — for a
+question a live edit answers in seconds.** Climb this ladder from the top; stop at the first rung that answers the question.
+📄 `docs/DESIGN_Entity_Brain_View.md` §12g (BV-65) owns the edit path.
+
+| rung | the question | tools | cost | what it does NOT tell you |
+|---|---|---|---|---|
+| **0. Read** | *what is it doing, why, with what?* | `get_entity_brain`, `get_entity_journal`, `get_entity_slots` (every slot: task, SOP, paused, hosted children — params + working state decoded), `observe_trace` → `get_entity_trace` | ms | nothing about a different value |
+| **1. What-if a VALUE** | *would a different param / variable / trait change the outcome?* *is this value the cause?* | `checkpoint` → write (below) → `step {count}` / `play` + breakpoint → read → `restore_checkpoint`; repeat per value | seconds per try | whether the LOGIC is right — only whether this value matters |
+| **2. What-if the STRUCTURE (JSON assets)** | *would another node / transition / wiring fix it?* | `read_asset_graph` → `add_graph_node` / `add_graph_link` / `set_graph_param` / `apply_graph_command` → **`reload_ai_asset`** — hot-applies to the running brain | seconds | ⚠ a **SOFT** reload keeps live instances' state; a **HARD** (topology) reload bumps the generation and RESETS them — re-reach the moment (rung 1's checkpoint first) |
+| **3. Change C# in `Hrot.AI.Behaviors`** | the fix is a C# behaviour / node / action in THAT assembly | edit the source → ✅ **`reload_ai_behaviours({})`** (`POST /ai/reload`, CE-1321 — the same path as the toolbar's **Reload AI**): builds the AI Behaviors project in the editor's configuration, COPIES the dll into the directory the watcher watches, waits for the swap (`AiHotReloadCoordinator`: a fresh collectible ALC, every registrar re-run, the registry merged in place), the catalog re-projects the C#-built graphs and open documents are re-decompiled (`AiDocumentManager.ReconcileFromCatalog`). It answers `{build, errors[], reloaded, added[], removed[], documentsReconciled}` — a failed build is `build:failed` with the compiler's lines, the running assembly unchanged | a build (~tens of s), no restart | ⚠ running units KEEP their task and slot memory across the swap — a changed params / state LAYOUT is yours to restart (assign again); ⛔ C# outside `Hrot.AI.Behaviors` is rung 4 |
+| **4. Change C# anywhere else** | engine / toolkit / system code (`Fdp.Toolkits`, `Hrot.*` outside the AI Behaviors assembly) | edit → build → restart the editor → reload the scenario → re-reach the moment | minutes | — the hot-reload watcher covers ONE assembly |
+
+**Rung 1's writes**
+- **a blueprint variable:** `stage_entity_variable {networkId, path, value}` — staged, lands on the next advancing tick (✅ built).
+- **a trait / setting / any component field:** `edit_component {networkId, componentType, patch}` or `patch_attribute` (✅ built). For
+  `CombatTemperament` also set its `Set` bit, or the reader keeps the type's value.
+- ✅ **a behaviour's PARAMS or a BTree / HSM / C# behaviour's WORKING STATE, any slot (task, SOP, paused task, hosted child, attached
+  blueprint)** *(CE-1320)*: `stage_entity_variable {networkId, owner:"task"|"sop"|"paused"|"blueprint", behaviour?, part?, role:"params"|"variables",
+  path, value}` — `path` is dotted, `[n]` indexes an inline array (`Shots.Items[1]`); discover owners, behaviours and parts (node labels)
+  with `get_entity_slots`. Or `paramsJson` instead of `path`/`value`: a whole parameter set through the behaviour's own parser. It lands
+  IN PLACE on the next advancing tick, keeps the start record true, and NEVER restarts the behaviour (`restarted:false` in the reply).
+  ⚠ `order_entity {kind:'behavior', params}` RESTARTS the behaviour — use it only when a restart is the experiment.
+
+**Use rung 1 for:** sweeping a threshold / radius / timing (two or three values from one checkpoint) · confirming a bug hypothesis before
+touching code (*"force `Phase = Assault` — does the squad move? then the bug is whatever should have set it"*) · reaching a node path
+without staging the whole situation.
+⚠ **A forced value can create a state the behaviour never reaches on its own** — a rung-1 result is a HINT to confirm (a rail, or the
+real situation), never proof. ⭐ A value that should STAY changed belongs in the order's / asset's defaults or the unit's settings — not
+in a live edit (it lasts until the behaviour is replaced).

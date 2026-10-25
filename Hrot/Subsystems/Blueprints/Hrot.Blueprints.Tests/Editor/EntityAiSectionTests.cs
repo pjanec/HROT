@@ -157,13 +157,20 @@ public sealed class EntityAiSectionTests
         Assert.Equal(json, BehaviorParamsForm.ToJson(BehaviorParamsForm.Hydrate(type, json), type));
     }
 
+    /// <summary>⭐ <c>CE-1314</c> (R-1036, BV-38) — the AI editing is a SECTION of the Brain tab, ⛔ no longer its own tab.
+    /// 🔴 Red-proof: register it on the workspace again ⇒ red.</summary>
     [Fact]
-    public void CE3043_TheScenarioCatalogue_OffersTheAiSection()
+    public void CE1314_TheBrainTab_OffersTheAiEditing_AsASection_AndThereIsNoAiTab()
     {
         var editor = new EditorSubsystem();
         editor.RegisterWindows(new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f)));
-        Assert.Contains(EntityAiDetailsViewDescriptor.ViewId, editor.ScenarioWorkspace!.DetailsViews.All.Select(d => d.Id));
+        Assert.DoesNotContain(EntityAiDetailsViewDescriptor.ViewId, editor.ScenarioWorkspace!.DetailsViews.All.Select(d => d.Id));
+        Assert.Contains(EntityAiDetailsViewDescriptor.ViewId, ScenarioBrain(editor).Embeds.Select(d => d.Id));
     }
+
+    private static Hrot.Editor.AiShared.Shell.EntityBrainView ScenarioBrain(EditorSubsystem editor)
+        => (Hrot.Editor.AiShared.Shell.EntityBrainView)editor.ScenarioWorkspace!.DetailsViews.All
+            .Single(d => d.Id == Hrot.Editor.AiShared.Shell.EntityBrainViewDescriptor.ViewId).Create();
 
     /// <summary>
     /// ⭐⭐ <c>CE-1023</c> — the forwarding rail, on the CONSTRUCTED view: the editor holds the map-pick adapter, so the AI section's
@@ -174,8 +181,7 @@ public sealed class EntityAiSectionTests
     {
         var editor = new EditorSubsystem();
         editor.RegisterWindows(new WindowManager(new IconAtlas(IntPtr.Zero, 16f, 16f)));
-        var view = (EntityAiDetailsView)editor.ScenarioWorkspace!.DetailsViews.All
-            .Single(d => d.Id == EntityAiDetailsViewDescriptor.ViewId).Create();
+        var view = (EntityAiDetailsView)ScenarioBrain(editor).EmbedInstance(EntityAiDetailsViewDescriptor.ViewId);
 
         var task = Assert.IsType<Fdp.Presentation.Editing.ScopedMapPickContext>(view.PicksFor("$.task"));
         Assert.Equal("$.task.Vehicle", task.Path("$.Vehicle"));

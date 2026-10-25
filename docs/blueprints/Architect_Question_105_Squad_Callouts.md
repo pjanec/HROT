@@ -91,3 +91,37 @@ sequenceDiagram
 ## 6. Answers
 
 🔒 **User, `2026-10-25`:** *"AQ105 approved"* ⇒ ✅ **A–F as leaned (R-2080).**
+
+## 7. As built *(`CE-2372`, behaviors, 2026-10-25 — A, B, C (two of its three reasons), E)*
+
+```mermaid
+classDiagram
+  class UtteranceKind { <<CHANGED>> + CallContact 15 … CallAck 25 (below 48: ui's side lines) }
+  class Callouts { <<NEW>> Say(man, kind, target) · Hushed(man) · OnIssue(ctx, kinds, maneuver, lastCall) }
+  class CalloutSystem { <<NEW, CGF>> throw · reload · new contact · man down }
+  class CalloutState { <<NEW component 424>> LastAt · LastKind · WasReloading · Grenades · Called0..3 }
+  class SquadManeuverRunner { <<CHANGED>> Issue ⇒ Callouts.OnIssue }
+  class RoomDrill { <<CHANGED>> RoomClear ⇒ CallClear }
+  class GrenadeDangerSystem { <<CHANGED>> reflex ⇒ CallGrenade }
+  class RestlessHolds { <<CHANGED>> + IsHiddenOnPurpose }
+  SquadManeuverRunner --> Callouts
+  RoomDrill --> Callouts
+  GrenadeDangerSystem --> Callouts
+  CalloutSystem --> Callouts
+  CalloutSystem --> CalloutState
+  Callouts --> RestlessHolds : hush
+```
+*What the picture shows that prose hid:* every call — direct or observed — goes through ONE `Say`, so the hush, the cool-down and the
+no-echo rule are written once. The three moments that happen in FDP code (the staff's SPOT, the weapon brain's throw, the reload) are
+OBSERVED by `CalloutSystem`, because FDP does not reference Hrot.
+
+| as built | deviation / why |
+|---|---|
+| `Say` is silent: alone (no friend within 25 m) · hushed · within 3 s of his last call (grenade / man down break it) · a friend within 10 m said the same in the last ~2 s | — |
+| hush (C): his task is hidden on purpose (`RestlessHolds.IsHiddenOnPurpose` — the AQ103 B⑤ list) · HoldFire and no near miss / hit on him in 60 s | ⏭ the third reason — an order's `Silent` flag (noise discipline) — is not built: no squad order carries it yet |
+| at an issue the leader calls the command (fall back · move · suppress · hold) only when it changes; in a bound movers "moving", suppressors "covering"; else the man nearest the leader acks | ⚠ "suppress" is spoken as `CallSuppress` by the leader (the kind's name) |
+| contact: the first identified, armed, non-neutral enemy he SEES that he has not called (the last four remembered); the first look learns silently | the SPOT itself is composed by FDP's staff — the call reads the man's memory, the same fact the SPOT is made from |
+| frag out: his throwable mount's grenades falling · reloading: a mount going busy (`WeaponAmmo.Busy`) · man down: the live member nearest the fallen | — |
+
+Rails: `CalloutsTests` ×3, red-proved 6/6 (earshot, cool-down, echo, last-call memory, reload edge, hush). ⏭ live: a squad demo with the
+IG listening (ui's `SoundSources.Voices`).

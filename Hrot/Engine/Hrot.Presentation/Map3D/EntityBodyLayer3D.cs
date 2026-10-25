@@ -564,7 +564,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>
     /// ⭐ <c>CE-1193</c> (backend's <c>Lean</c>, <c>CE-3257</c> §13 LN-2; behaviors' poses note CB-21) — a man LEANING round a corner is drawn
     /// exactly as the sim leans him: a SHEAR about his feet across his own left axis (body frame +Y), a point <c>h</c> above his feet moving
-    /// <see cref="Fdp.Toolkit.Combat.Leans.Shift"/>·h / eye sideways, eye = the sim's eye height for his stance — so the head is drawn where
+    /// <see cref="Fdp.Toolkit.Combat.Leans.ShiftOf(Fdp.ModuleHost.Abstractions.ISimulationView, Entity)"/>·h / eye sideways (⭐ CE-2371: his own
+    /// depth, 0.4 m when unset), eye = the sim's eye height for his stance — so the head is drawn where
     /// he sees round the corner, is seen and is hit. Identity when he does not lean or lies prone (the sim ignores it then).
     /// ⛔ <c>MotionPose.Lean</c> is a FORWARD pitch; a sideways lean is this shear, applied after the pose (in body space).
     /// </summary>
@@ -576,7 +577,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         float eye = stance == StanceId.Crouched ? Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched
                                                 : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
         var m = Matrix4x4.Identity;
-        m.M32 = sign * Fdp.Toolkit.Combat.Leans.Shift / eye;   // row vectors: y' = y + k·z
+        // ⭐ CE-2371 (AQ104 G, R-2079; backend CE-3321) — HIS depth (a trained man leans further), the sim's own reader: 0.4 m when unset
+        m.M32 = sign * Fdp.Toolkit.Combat.Leans.ShiftOf(world, e) / eye;   // row vectors: y' = y + k·z
         return m;
     }
 

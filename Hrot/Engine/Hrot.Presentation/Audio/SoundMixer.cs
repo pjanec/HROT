@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.UI.Common.Audio
 {
@@ -35,7 +36,9 @@ namespace Hrot.UI.Common.Audio
         private readonly Dictionary<long, Voice> _loops = new();
 
         /// <summary>Per category volume (AU-9), multiplied into every gain; the category's index is <c>SoundCategory</c>.</summary>
-        public float[] CategoryVolume { get; } = { 1f, 1f, 1f, 1f, 1f, 1f };
+        public float[] CategoryVolume { get; } = NewVolumes();   // ⭐ CE-2372 — one per category, Voices included
+
+        private static float[] NewVolumes() { var a = new float[Enum.GetValues<SoundCategory>().Length]; Array.Fill(a, 1f); return a; }
 
         /// <summary>Counters for the rails: started, dropped (budget / range), waiting for their delay.</summary>
         public int Started { get; private set; }

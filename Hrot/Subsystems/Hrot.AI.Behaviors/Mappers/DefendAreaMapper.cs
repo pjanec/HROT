@@ -69,7 +69,13 @@ namespace Hrot.AI.Behaviors.Mappers
                 return false;
 
             if (behaviorName == BehaviorNames.CombatPosture)
+            {
+                // ⭐ CE-2375 (AQ104 A-1, R-2081) — a LONE man defends with a squad of his own: it is asked for now and gets SquadDefend once it
+                //   exists on this node (OneManCommandSystem); until then he holds the area on the posture below — creation is never immediate
+                if (Hrot.AI.Behaviors.Brains.OneManCommand.IsLone(repo, self))
+                    Hrot.AI.Behaviors.Brains.OneManCommand.Request(repo, self, BehaviorNames.SquadDefend, SquadDefendAt(repo, jsonParams));
                 jsonParams = PostureAt(repo, jsonParams);
+            }
 
             assignment = new AssignBehaviorEvent
             {

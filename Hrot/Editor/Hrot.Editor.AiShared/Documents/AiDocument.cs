@@ -11,11 +11,21 @@ public sealed class AiDocument
 
     /// <param name="asset">The backing editable asset.</param>
     /// <param name="kind">The asset kind (BTree, HSM, Blueprint, …).</param>
-    public AiDocument(IEditableAsset asset, AssetKind kind)
+    public AiDocument(IEditableAsset asset, AssetKind kind, Fdp.Core.Entity? pinnedEntity = null, string? pinLabel = null)
     {
         Asset = asset ?? throw new ArgumentNullException(nameof(asset));
         Kind  = kind;
+        PinnedEntity = pinnedEntity;
+        PinLabel     = pinLabel;
     }
+
+    /// <summary>⭐⭐ <c>CE-1318</c> (Brain View §12d BV-55, R-1039) — the unit this graph is PINNED to: opened from a pinned Brain tab, its
+    /// live overlay shows THIS unit whatever is selected (🔒 user: <i>"the graph should be also pinned to the entity. The graph needs to
+    /// indicate the pinning"</i>). Null = it follows the selection. Fixed for the document's life (two pins ⇒ two documents).</summary>
+    public Fdp.Core.Entity? PinnedEntity { get; }
+
+    /// <summary>How the tab header names the pin (<c>#1:2975</c>); null when not pinned.</summary>
+    public string? PinLabel { get; }
 
     /// <summary>The backing editable asset.</summary>
     public IEditableAsset Asset { get; private set; }

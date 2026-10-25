@@ -36,7 +36,7 @@ namespace Hrot.SimHost.Tests
         public void Dispose() => _w.Dispose();
 
         /// <summary>A soldier standing at <paramref name="x"/>, healthy, with a brain.</summary>
-        private Entity Man(float x = 0f, float? nerve = null, float? obedience = null)
+        private Entity Man(float x = 0f, float? nerve = null, float? obedience = null, float? resolve = null)
         {
             var e = _w.CreateEntity();
             _w.AddComponent(e, new BehaviorState());
@@ -47,6 +47,7 @@ namespace Hrot.SimHost.Tests
             var t = new CombatTemperament();
             if (nerve is { } n) { t.Nerve = n; t.Set |= CombatTemperament.NerveSet; }
             if (obedience is { } o) { t.Obedience = o; t.Set |= CombatTemperament.ObedienceSet; }
+            if (resolve is { } r) { t.Resolve = r; t.Set |= CombatTemperament.ResolveSet; }
             if (t.Set != 0) _w.AddComponent(e, t);
             return e;
         }
@@ -372,6 +373,95 @@ namespace Hrot.SimHost.Tests
             _w.SetSingletonManaged<ICoverProvider>(new CoverAt(new Vector2(10f, 0f), new Vector2(1f, 0f)));
             Assert.True(UnderFire.CoverNear(_w, m, Vector3.Zero, StressModel.RetreatMetres, StressModel.RetreatGainMetres, out _, out _));   // it IS cover from him …
             Assert.False(StressModel.Retreat(_w, m, out _));   // … but toward him: no way out
+        }
+
+        // ── ⭐ CE-2376 (AQ104 C + F) — the enemy heard behind the wall, the near miss in cover, panic flees ──────────────────────
+
+        /// <summary>A memory slot for someone HEARD (acoustic) just now at (<paramref name="x"/>, 0), anonymous — an unknown sound.</summary>
+        private unsafe void Heard(Entity self, float x, bool acoustic = true)
+        {
+            if (!_w.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self)) _w.AddComponent(self, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            ref var mem = ref _w.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
+            int i = mem.Count++;
+            mem.EntityIds[i] = -1 - i;
+            mem.Anonymous[i] = 1;
+            mem.Freshness[i] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+            mem.Modalities[i] = (byte)(acoustic ? Fdp.Toolkit.Perception.Components.SensorModality.Acoustic : Fdp.Toolkit.Perception.Components.SensorModality.Visual);
+            mem.PositionsX[i] = x;
+            mem.LastSeenTick[i] = Fdp.Toolkit.Perception.PerceptionClock.Now(_w);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2376</c> (AQ104 F, Temperament §7.6 DF-1) — someone HEARD within 10 m whom he cannot see stops his calming and raises him
+        /// 0.03 / s × (1 − effective nerve): "walking around behind a wall". The same sound 20 m off, or a man only SEEN (no sound), lets him calm
+        /// as before. 🔴 Red-proof: the term dropped ⇒ he calms.
+        /// </summary>
+        [Fact]
+        public void CE2376_SomeoneHeardBehindTheWall_RaisesHim_FarOrSeenOnlyDoesNot()
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = 0.0, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = 600 });
+            var e = Man(0f);
+            Man(5f);   // a friend near: not alone
+            SetLevel(e, 0.2f, 0.0);
+            Heard(e, 8f);
+            StressModel.Step(_w, e, 1.0);
+            Assert.True(Level(e) > 0.2f, $"heard behind the wall: rises ({Level(e)})");   // ⚠ the sound also counts toward 'outnumbered'
+
+            var far = Man(40f); Man(45f);
+            SetLevel(far, 0.2f, 0.0);
+            Heard(far, 60f);   // 20 m from him
+            StressModel.Step(_w, far, 1.0);
+            Assert.True(Level(far) < 0.2f, $"20 m off: he calms ({Level(far)})");
+
+            var seen = Man(80f); Man(85f);
+            SetLevel(seen, 0.2f, 0.0);
+            Heard(seen, 88f, acoustic: false);
+            StressModel.Step(_w, seen, 1.0);
+            Assert.True(Level(seen) < 0.2f, $"seen only: he calms ({Level(seen)})");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2376</c> (DF-2, the measured re-tune) — a near miss on a man IN COVER counts half (0.04 before his nerve); in the open the
+        /// whole 0.08. 📐 Live <c>ia-area-defend</c>: a regular behind a wall under two rifles reached 1.0 in ~10 s and never recovered.
+        /// 🔴 Red-proof: the cover share dropped ⇒ 0.052 in cover too.
+        /// </summary>
+        [Fact]
+        public void CE2376_ANearMissInCover_CountsHalf()
+        {
+            var e = Man(0f);
+            _w.SetSingleton(new GlobalTime { TotalTime = 2.0, DeltaTime = 0.016f, TimeScale = 1f });
+            _w.Bus.Publish(new SensorChangedEvent { Unit = e, What = SensorChange.NearMiss });
+            _w.Bus.SwapBuffers();
+            new StressSystem().Execute(_w, 0.016f);
+            float open = Level(e);
+            Assert.True(open > 0.05f, $"in the open {open}");
+
+            var c = Man(100f);
+            _w.SetSingletonManaged<ICoverProvider>(new CoverAtFeet());
+            Assert.Equal(0.04f, StressModel.NearMissIn(_w, c), 4);   // half of TS-4's 0.08 — the number itself, not the constant
+            Assert.Equal(0.026f, StressModel.NearMissIn(_w, c) * StressModel.Reach(_w, c), 4);   // × his reach 0.65
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2376</c> (AQ104 C, DS-3) — panic FLEES: a man of low resolve (0.2, no discipline to temper it) who breaks runs to cover up to
+        /// 60 m off that gains ≥ 15 m on the threat — out of the house — not to the nearest; an ordinary man's resolve does not flee; a point
+        /// gaining only 10 m is no flight. 🔴 Red-proof: Flees always false ⇒ the break takes the near retreat.
+        /// </summary>
+        [Fact]
+        public void CE2376_ALowResolveMan_FleesFar_AnOrdinaryManDoesNot()
+        {
+            var coward = Man(0f, obedience: 0f, resolve: 0.2f);
+            Contact(coward, armed: true, x: 50f);
+            Assert.True(StressModel.Flees(_w, coward));
+            Assert.False(StressModel.Flees(_w, Man(5f)));   // effective resolve ≥ 0.4
+
+            _w.SetSingletonManaged<ICoverProvider>(new CoverAt(new Vector2(-30f, 0f), new Vector2(1f, 0f)));
+            Assert.True(StressModel.Flee(_w, coward, out var to));
+            Assert.Equal(-30f, to.X, 2);
+
+            _w.SetSingletonManaged<ICoverProvider>(new CoverAt(new Vector2(-10f, 0f), new Vector2(1f, 0f)));
+            Assert.False(StressModel.Flee(_w, coward, out _));   // only 10 m farther: no flight
+            Assert.True(StressModel.Retreat(_w, coward, out _));  // … the near retreat still is one
         }
 
         // ── ⭐ CE-2365 (AQ103 C/H) — the nervous man: the fidget and the head ──────────────────────────────────────────────────

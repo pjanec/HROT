@@ -1066,6 +1066,78 @@ transport, `dtLean`) — no new system is registered anywhere.
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
 scenario (DA-5) · `ContactOutsideSector` displacement (DA-21) · `sq-defend-house` live + its twin (needs D-2's roof check).
 
+#### D-2m — posts for COVERAGE, and a lone man's guard round *(`CE-2373`; behaviors — AQ104 L ✅ approved 2026-10-25, R-2079; build-state: BUILDING — L1 below; L2 the open-ground overview ask)*
+
+🔒 User, `2026-10-25`: *"defendenrs always need to have a good overview of the surroundings"* · *"in case there is a squad … the goys need to
+guard clevely not just randomly changing their observation posts"*. 📄 [AQ104](../../blueprints/Architect_Question_104_Area_And_Building_Combat.md) §4 L.
+
+| the lean rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| an all-round defence (no engagement area) asks ONLY the windows — roof and cover asks need an EA | ✅ `SquadDefendBehavior.cs` `Plan` (the roof and cover stages are gated on `hasEa`) | ✅ DA-36 all-round = the windows; ⛔ nothing on coverage (searched docs/, .dev/: `coverage`, `overview`, `guard round`) |
+| posts go out in the ask's rank — NEAREST first — each to the nearest man | ✅ `DefencePostPicker.Pick` | ✅ DA-34 "ranked points" — the rank is the ask's distance score |
+| a posted man with nothing known stays on his post forever | ✅ `Update`: no rotation anywhere | ⛔ AQ104 L asks for the round (new) |
+| a visibility fan answers how far one sees along each ray | ✅ `WorldSurveySolve.Fan` (≤ 12 origins × ≤ 24 rays, `Free` = the range when nothing stops it) | ✅ [World Survey Sensor](../../DESIGN_World_Survey_Sensor.md) VisibilityFan; D-2h already uses it (EA only) |
+
+```mermaid
+classDiagram
+  class SquadDefendPlay { <<EXTENDED>> CoverageSite 0x22750006 · Plan: Coverage() after the windows, all-round only · Update: Round() }
+  class DefencePosts { <<EXTENDED>> CoverageStage · Rank[16] · RankCount · Sees[16] · RoundCount · RoundAt · WatchedAt[32] }
+  class Coverage { <<NEW, pure>> Probes(centre, radius) · Seen(posts, rays, probes) · Greedy(sees, n) · NextRound(sees, round, current, watchedAt, now) }
+  class DefencePostPicker { <<existing>> Pick — now fed the candidates in coverage rank }
+  class WorldSurveyChildSensor { <<existing CE-3249>> Ensure Fan · Read · Release }
+  SquadDefendPlay --> Coverage
+  SquadDefendPlay --> DefencePostPicker
+  SquadDefendPlay --> WorldSurveyChildSensor : one fan from the candidates
+  SquadDefendPlay --> DefencePosts
+```
+*What the picture shows that prose hid:* coverage changes only the ORDER the existing picker hands posts out in — no new picker, no new
+member order. The round is the same post change `Displace` already makes (`PostOf` + re-issue), on a timer instead of a hit.
+
+```mermaid
+sequenceDiagram
+  participant SQ as SquadDefend (commander)
+  participant WS as VisibilityFan (CoverageSite)
+  participant M as the man (CombatPosture)
+  SQ->>SQ: windows settled · all-round · ≥ 2 candidates
+  SQ->>WS: Fan from up to 12 candidates, 16 rays all round, range = radius + 25 m
+  WS-->>SQ: rays (or nothing in 5 s ⇒ the old nearest-first order)
+  SQ->>SQ: probes = 16 bearings × {radius, radius + 25 m} round the centre · Seen per candidate
+  SQ->>SQ: Greedy: each next post the one that sees most still unseen · Rank · round = the first ≤ 3 that each add ≥ 3 probes
+  SQ->>M: Watch {post = rank 0 …}
+  loop lone man, nothing known in the area, no hunt
+    SQ->>SQ: 30 s on this post ⇒ next = the round post whose probes were watched longest ago
+    SQ->>M: Watch {post = next} (re-issue)
+  end
+  SQ->>SQ: an enemy known in the area ⇒ no round: he fights from where he is
+```
+*What the picture shows that prose hid:* the round STOPS the moment the squad knows an enemy in the area — it is a watch pattern, never a
+fight pattern, so it cannot cause the window-hopping the user saw under fire.
+
+```mermaid
+graph TD
+  CGF[CGF: BrainTickSystem] --> SQB[SquadDefend on the commander - Plan / Update]
+  SQB -->|WorldSurvey child sensor, solved on SimHost| SH[SimHost: WorldSurveySolve.Fan]
+  SQB -->|member order: Watch at post| MB[CombatPosture on the man]
+```
+*No new system:* the fan rides the survey sensor D-2h and D-2l already use.
+
+| id | decision (AQ104 L, refined by the measurement above) | rejected — one line each |
+|---|---|---|
+| **DL-1** | **coverage only for the ALL-ROUND defence** — a squad with an engagement area keeps its sector-facing posts (D-2a…D-2l) | for every defence: an EA defence already faces the threat; coverage would turn men away from it |
+| **DL-2** | **the area is 32 probes**: 16 bearings round the centre at the search radius and 25 m beyond it (the approaches); a candidate SEES a probe when the fan ray nearest its bearing is free past it (−1 m) | a grid over the area: more probes, the same answer for a ring of approaches |
+| **DL-3** | **greedy union**: rank 0 sees the most probes, each next the most still unseen; ties by the ask's own rank (nearest) | best single view per man: two men watching the same street |
+| **DL-4** | **the round, for a LONE live man only**: the first ≤ 3 ranked posts that each add ≥ 3 probes; ≥ 2 of them ⇒ 30 s on each, the next the one whose probes were watched longest ago; never while the squad knows an identified enemy in the area (radius + 25 m) or during a hunt (CE-2359) | a squad short of men rotating: L2 (gap-only reassignment) · a random next post: leaves a sector unwatched twice in a row · a round under fire: the user's "erratic window to window" |
+| **DL-5** | **no fan answer in 5 s** ⇒ the old nearest-first order, no round | waiting: a squad that never posts |
+
+📐 **As built — measured live (`ia-area-defend`, 2026-10-25):** the coverage pass picks an UPSTAIRS frame window when it sees most (the
+guard's was House A's south window, z 3) — so reaching a post on another storey is now load-bearing: the occupy move re-sends when it
+"arrives" or stands still (3 s, < 0.5 m) on the wrong storey (`PostureNodes.AdvanceAndAttack`, `Stay`; with backend's level-aware
+arrival `CE-3319`). ⛔ Before it, he stood under his window one floor down and never fired.
+
+**Slices.** **L1** (`CE-2373`, this build): DL-1…DL-5 over the candidates the existing asks give (the windows). **L2** (open, its own row):
+the open-ground OVERVIEW ask (a new all-round cover-points template + its golden capture) so a man defending ground with no building gets
+candidates too · a squad's gap-only reassignment when a man falls or is pulled to an interior post (AQ104 L, H).
+
 ### 8d. DA-E in detail — `PlatoonDefend`, the platoon holds a position over its squads *(`CE-2276`, behaviors, 2026-10-19 — slice E-1 designed and built here; E-2, E-3 below)*
 
 **INVENTORY** *(2026-10-19 — codebase-memory MCP `search_graph` `.*Platoon.*` (Class): 13 — `PlatoonBound`, `PlatoonHold`, `PlatoonHillAttack` + their DTOs and tests; `^(ElementsAt|PirMet|TimeInState|SetSquadRoe|SetSquadSector|SplitArea|PlanDefence|TaskOrganize|MarkNoFire|AnswerRequest|…)$`: 16 hits, ⛔ none of the platoon-play actions Platoon §3 names exists; `.*(EngagementArea|SquadSector|SectorPlanner|DefendArea|SquadDefend|NoFire).*` (Class): 22; grep `PirFlags`/`PirArea` readers; `check_index_coverage` run on the five files read — no recorded issue, best effort)*

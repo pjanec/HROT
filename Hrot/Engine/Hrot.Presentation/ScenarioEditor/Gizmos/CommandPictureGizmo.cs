@@ -25,7 +25,7 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// <see cref="CommandPicture"/> has not reached this node yet says so over his head, rather than drawing nothing: 🔒 the user asked for
 /// absence to be visible. A commander = a unit some <see cref="UnitSubordinate"/> names as its commander.
 /// </summary>
-[GizmoProjector(typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment)]
+[GizmoProjector(typeof(SimTransform), Family = AiOverlayFlags.CommandPicture)]
 public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
 {
     public const string Text = "no picture on this node yet";   // ≤ 31 bytes (FixedString32)
@@ -50,7 +50,7 @@ public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
     }
 }
 
-[GizmoProjector(typeof(CommandPicture), typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment)]
+[GizmoProjector(typeof(CommandPicture), typeof(SimTransform), Family = AiOverlayFlags.CommandPicture)]
 public sealed class CommandPictureGizmo : IStatelessGizmo
 {
     public static readonly Rgba32 ElementColour = new(230, 60, 40, 255);
@@ -129,7 +129,7 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
 /// S-3): on the <see cref="DebugTraceLayers.Sectors"/> layer, on the ground (z = 0, draped in 3-D); a COMMANDER's arc is also drawn for
 /// everyone by <see cref="SectorAreasGizmo"/> (the same line twice when he is selected — S-5).
 /// </summary>
-[GizmoProjector(typeof(EngagementArea), typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment)]
+[GizmoProjector(typeof(EngagementArea), typeof(SimTransform), Family = AiOverlayFlags.CommandPicture)]
 public sealed class SectorArcGizmo : IStatelessGizmo
 {
     public const float UnlimitedDrawRange = 50f;

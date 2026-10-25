@@ -14,7 +14,8 @@ namespace Hrot.Presentation.Panels.Breakpoints;
 /// <summary>⭐ One breakpoint row, projected for the dump. Mirrors <see cref="DataBreakpointManagerPanel.DrawGrid"/>'s
 /// columns; <c>TypeName</c>/<c>Summary</c> reuse the SAME <see cref="DataBreakpointManagerPanel.GetTypeName"/>
 /// and <c>BreakpointConditionSummarizer.Summarize</c> the draw calls.</summary>
-public sealed record DataBreakpointRowViewModel(string Id, bool Enabled, string Scope, string TypeName, string Summary, int HitCount);
+public sealed record DataBreakpointRowViewModel(string Id, bool Enabled, string Scope, string TypeName, string Summary, int HitCount,
+    string Kind = "Data", string Name = "");
 
 /// <summary>
 /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="DataBreakpointManagerPanel"/> shows, this frame.</b>
@@ -40,17 +41,34 @@ public sealed class DataBreakpointManagerPanel
     private readonly IDataBreakpointManager _manager;
     private readonly TemporalStatusBannerPanel _bannerPanel;
     private readonly Func<SearchPredicateDto>? _createDefaultPredicate;
+    private readonly Func<Fdp.Core.Entity, string>? _entityLabel;
+    private readonly Action<Fdp.Core.Entity>? _selectEntity;
     private BreakpointId _selectedId;
+    private bool _showCondition;
+    private int _kindFilter;   // 0 = all, else (int)BreakpointKindOf + 1
 
+    /// <param name="entityLabel">⭐ CE-1285 — how the Scope column names a unit (its network id); default the raw handle.</param>
+    /// <param name="selectEntity">⭐ CE-1285 — a click on a row selects its unit (the host's selection); null ⇒ no selection.</param>
     public DataBreakpointManagerPanel(
         IDataBreakpointManager manager,
         TemporalStatusBannerState bannerState,
-        Func<SearchPredicateDto>? createDefaultPredicate = null)
+        Func<SearchPredicateDto>? createDefaultPredicate = null,
+        Func<Fdp.Core.Entity, string>? entityLabel = null,
+        Action<Fdp.Core.Entity>? selectEntity = null)
     {
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
         _bannerPanel = new TemporalStatusBannerPanel(bannerState);
         _createDefaultPredicate = createDefaultPredicate;
+        _entityLabel = entityLabel;
+        _selectEntity = selectEntity;
     }
+
+    private string ScopeOf(Breakpoint bp)
+        => bp.FilterEntity is { } e ? (_entityLabel?.Invoke(e) ?? $"Entity {e}") : "Global";
+
+    /// <summary>⭐ CE-1285 — the row's text: its name when it has one (a node, a journal break), else the readable condition.</summary>
+    private static string NameOf(Breakpoint bp)
+        => bp.DisplayName.Length > 0 ? bp.DisplayName : BreakpointConditionSummarizer.Summarize(bp.Condition);
 
     /// <summary>Currently selected breakpoint, or <see cref="BreakpointId.Invalid"/>.</summary>
     public BreakpointId SelectedId => _selectedId;
@@ -76,10 +94,12 @@ public sealed class DataBreakpointManagerPanel
         var rows = _manager.AllBreakpoints.Select(bp => new DataBreakpointRowViewModel(
             bp.Id.ToString(),
             bp.Enabled,
-            bp.FilterEntity.HasValue ? $"Entity {bp.FilterEntity.Value}" : "Global",
+            ScopeOf(bp),
             GetTypeName(bp.Condition),
             BreakpointConditionSummarizer.Summarize(bp.Condition),
-            bp.HitCount)).ToList();
+            bp.HitCount,
+            BreakpointKind.Of(bp).ToString(),
+            NameOf(bp))).ToList();
 
         return new DataBreakpointManagerPanelViewModel(
             panelId, panelKind, _selectedId.IsValid ? _selectedId.ToString() : null, rows, _bannerPanel.BuildViewModel());
@@ -137,14 +157,11 @@ public sealed class DataBreakpointManagerPanel
     {
         if (ImGuiApi.Button("+ Add"))
             AddBreakpoint();
-
         ImGuiApi.SameLine();
-        bool canRemove = _selectedId.IsValid;
-        if (!canRemove) ImGuiApi.BeginDisabled();
-        if (ImGuiApi.Button("- Remove"))
-            RemoveSelected();
-        if (!canRemove) ImGuiApi.EndDisabled();
-
+        // ⭐ CE-1285 — ⛔ the "- Remove" button is gone: a row's own menu deletes it (🔒 user: "the button on top … can be removed once we
+        //   have context menu"). ⭐ Q44-A: one list, a Kind FILTER (not tabs, which would re-split it)
+        ImGuiApi.SetNextItemWidth(110f);
+        ImGuiApi.Combo("##kind", ref _kindFilter, "All kinds\0Data\0Node\0Journal\0");
         ImGuiApi.SameLine();
         if (ImGuiApi.Button("Enable All"))
             EnableAll();
@@ -158,52 +175,70 @@ public sealed class DataBreakpointManagerPanel
             DrawJsonPopup();
     }
 
+    /// <summary>⭐⭐ <c>CE-1285</c> (DBG-6, Q44 R-97) — THE one list: every kind with a Kind column, resizable columns, a readable name, a
+    /// row menu (Enable/Disable · Show condition · Select the unit · Delete), click selects the row and its unit, double-click shows the
+    /// condition. 🔒 User: <i>"columns unsiazable … items have no context menus … clicking does nothing, doubleclicking does nothing"</i>.</summary>
     private void DrawGrid()
     {
         const ImGuiTableFlags flags =
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY;
-
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable;
         if (!ImGuiApi.BeginTable("##bpgrid", 5, flags)) return;
-
         ImGuiApi.TableSetupColumn("##en",  ImGuiTableColumnFlags.WidthFixed, 20f);
-        ImGuiApi.TableSetupColumn("Scope", ImGuiTableColumnFlags.WidthFixed, 100f);
-        ImGuiApi.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 80f);
-        ImGuiApi.TableSetupColumn("Condition Summary", ImGuiTableColumnFlags.WidthStretch);
-        ImGuiApi.TableSetupColumn("Hits", ImGuiTableColumnFlags.WidthFixed, 50f);
+        ImGuiApi.TableSetupColumn("Kind",  ImGuiTableColumnFlags.WidthFixed, 60f);
+        ImGuiApi.TableSetupColumn("Breakpoint", ImGuiTableColumnFlags.WidthStretch);
+        ImGuiApi.TableSetupColumn("Scope", ImGuiTableColumnFlags.WidthFixed, 90f);
+        ImGuiApi.TableSetupColumn("Hits",  ImGuiTableColumnFlags.WidthFixed, 40f);
         ImGuiApi.TableHeadersRow();
 
+        BreakpointId? toDelete = null;
         foreach (var bp in _manager.AllBreakpoints)
         {
+            var kind = BreakpointKind.Of(bp);
+            if (_kindFilter != 0 && (int)kind + 1 != _kindFilter) continue;
             ImGuiApi.TableNextRow();
-            ImGuiApi.TableSetColumnIndex(0);
+            ImGuiApi.PushID(bp.Id.ToString());
 
+            ImGuiApi.TableSetColumnIndex(0);
             bool enabled = bp.Enabled;
-            if (ImGuiApi.Checkbox($"##en_{bp.Id}", ref enabled))
+            if (ImGuiApi.Checkbox("##en", ref enabled))
                 ToggleEnabled(bp.Id);
 
             ImGuiApi.TableSetColumnIndex(1);
-            ImGuiApi.TextUnformatted(bp.FilterEntity.HasValue
-                ? $"Entity {bp.FilterEntity.Value}"
-                : "Global");
+            ImGuiApi.TextUnformatted(kind.ToString());
 
             ImGuiApi.TableSetColumnIndex(2);
-            ImGuiApi.TextUnformatted(GetTypeName(bp.Condition));
-
-            ImGuiApi.TableSetColumnIndex(3);
             bool isSelected = _selectedId == bp.Id;
-            if (ImGuiApi.Selectable(
-                    BreakpointConditionSummarizer.Summarize(bp.Condition) + $"##sel_{bp.Id}",
-                    isSelected,
-                    ImGuiSelectableFlags.SpanAllColumns))
+            if (ImGuiApi.Selectable(NameOf(bp) + "##sel", isSelected,
+                    ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowDoubleClick))
             {
                 _selectedId = bp.Id;
+                if (bp.FilterEntity is { } e) _selectEntity?.Invoke(e);
+                if (ImGuiApi.IsMouseDoubleClicked(ImGuiMouseButton.Left)) _showCondition = true;
+            }
+            if (ImGuiApi.IsItemHovered()) ImGuiApi.SetTooltip(BreakpointConditionSummarizer.Summarize(bp.Condition));
+            if (ImGuiApi.BeginPopupContextItem("##row"))
+            {
+                _selectedId = bp.Id;
+                if (ImGuiApi.MenuItem(bp.Enabled ? "Disable" : "Enable")) ToggleEnabled(bp.Id);
+                if (ImGuiApi.MenuItem("Show condition")) _showCondition = true;
+                if (bp.FilterEntity is { } unit && _selectEntity != null && ImGuiApi.MenuItem("Select the unit")) _selectEntity(unit);
+                ImGuiApi.Separator();
+                if (ImGuiApi.MenuItem("Delete")) toDelete = bp.Id;
+                ImGuiApi.EndPopup();
             }
 
+            ImGuiApi.TableSetColumnIndex(3);
+            ImGuiApi.TextUnformatted(ScopeOf(bp));
             ImGuiApi.TableSetColumnIndex(4);
             ImGuiApi.TextUnformatted(bp.HitCount.ToString());
+            ImGuiApi.PopID();
         }
-
         ImGuiApi.EndTable();
+        if (toDelete is { } d)
+        {
+            _manager.Remove(d);
+            if (_selectedId == d) _selectedId = BreakpointId.Invalid;
+        }
     }
 
     /// <summary>
@@ -213,7 +248,7 @@ public sealed class DataBreakpointManagerPanel
     /// </summary>
     private void DrawPredicateEditor()
     {
-        if (!_selectedId.IsValid) return;
+        if (!_selectedId.IsValid || !_showCondition) return;   // ⭐ CE-1285 — shown on double-click / "Show condition"
 
         var bp = _manager.AllBreakpoints.FirstOrDefault(b => b.Id == _selectedId);
         if (bp == null) return;

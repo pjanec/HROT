@@ -65,6 +65,14 @@ public static class ImGuiPropertyTree
     /// <c>null</c> when no row was double-clicked during this render.
     /// </param>
     public static void Render(object? obj, Type? contextType, out string? doubleClickedPath)
+        => Render(obj, contextType, include: null, out doubleClickedPath);
+
+    /// <summary>
+    /// ⭐ <c>CE-1315</c> (Brain View §12b) — as above, drawing only the ROOT members <paramref name="include"/> accepts (e.g. a blueprint
+    /// instance's <c>State</c> without its <c>Cursor</c> and <c>Params</c>, which the Brain tab shows elsewhere). Nested members are
+    /// all drawn.
+    /// </summary>
+    public static void Render(object? obj, Type? contextType, Func<MemberInfo, bool>? include, out string? doubleClickedPath)
     {
         doubleClickedPath = null;
         if (obj == null)
@@ -89,7 +97,7 @@ public static class ImGuiPropertyTree
         //ImGuiApi.TableHeadersRow();
 
         string? dcPath = null;
-        RenderRows(obj, obj.GetType(), contextType, 0, "$", ref dcPath);
+        RenderRows(obj, obj.GetType(), contextType, 0, "$", ref dcPath, include);
 
         ImGuiApi.EndTable();
 
@@ -99,7 +107,7 @@ public static class ImGuiPropertyTree
     // ── Row rendering ─────────────────────────────────────────────────────────
 
     private static void RenderRows(object obj, Type type, Type? contextType, int depth,
-        string jsonPath, ref string? doubleClickedPath)
+        string jsonPath, ref string? doubleClickedPath, Func<MemberInfo, bool>? include = null)
     {
         if (depth >= MaxDepth) return;
 
@@ -108,6 +116,7 @@ public static class ImGuiPropertyTree
         for (int i = 0; i < members.Length; i++)
         {
             var member    = members[i];
+            if (include != null && !include(member)) continue;
             string name   = member.Name;
             Type   mType  = GetMemberType(member);
             string memberPath = jsonPath + "." + name;
@@ -115,6 +124,10 @@ public static class ImGuiPropertyTree
 
             try   { value = GetValue(member, obj); }
             catch { value = null; }
+
+            // ⭐ CE-1315 (Brain View §12b BV-45) — a fixed list (int Count + one [InlineArray(N)] buffer, Fdp.Core.FixedListShape) shows
+            //   its Count items, clamped (F2: min(max(Count,0),N)), not its whole buffer.
+            if (value != null && FixedListItems.TryFrom(value, out var fixedList)) value = fixedList;
 
             Type effectiveType = value?.GetType() ?? mType;
             bool isFoldable = IsFoldable(effectiveType, value);
@@ -210,7 +223,11 @@ public static class ImGuiPropertyTree
         // Default rendering
         if (isFoldable)
         {
-            if (IsCollectionType(mType))
+            if (value is FixedListItems fl)
+            {
+                ImGuiApi.TextDisabled($"[{fl.Count} of {fl.Capacity}]");
+            }
+            else if (IsCollectionType(mType) || IsCollectionType(value.GetType()))
             {
                 ImGuiApi.TextDisabled($"[{GetCount(value)}]");
             }
@@ -303,6 +320,28 @@ public static class ImGuiPropertyTree
         var u = Nullable.GetUnderlyingType(t);
         if (u != null && IsLeafType(u)) return true;
         return false;
+    }
+
+    /// <summary>⭐ <c>CE-1315</c> — a fixed list's live items (its Count, clamped to its capacity), as a collection the tree folds.</summary>
+    public sealed class FixedListItems : IEnumerable
+    {
+        private readonly IList _items;
+        public int Count => _items.Count;
+        public int Capacity { get; }
+        private FixedListItems(IList items, int capacity) { _items = items; Capacity = capacity; }
+        public IEnumerator GetEnumerator() => _items.GetEnumerator();
+
+        public static bool TryFrom(object value, out FixedListItems list)
+        {
+            list = null!;
+            var t = value.GetType();
+            if (!Fdp.Core.FixedListShape.TryGet(t, out var element, out _, out int capacity, out var countField, out var bufferField))
+                return false;
+            int count = Math.Min(Math.Max((int)countField.GetValue(value)!, 0), capacity);
+            var items = Fdp.Toolkit.Diagnostics.DtoDiagnosticMapper.ReadBufferElements(bufferField.GetValue(value)!, element, count);
+            list = new FixedListItems((IList)items, capacity);
+            return true;
+        }
     }
 
     private static object ExtractBuffer(object bufferStruct, Type elementType, int length, string fieldName)

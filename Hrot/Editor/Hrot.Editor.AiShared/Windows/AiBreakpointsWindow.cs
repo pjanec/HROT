@@ -35,6 +35,8 @@ public sealed class AiBreakpointsWindow : ManagedWindow
     internal const string Kind = "ai-breakpoints";
 
     private readonly IDataBreakpointManager _manager;
+    /// <summary>⭐⭐ <c>CE-1285</c> (Q44-A, R-97) — THE one breakpoint list, the same panel the editor's global window draws.</summary>
+    private readonly Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel _panel;
 
     /// <summary>
     /// Constructs the window.
@@ -49,6 +51,7 @@ public sealed class AiBreakpointsWindow : ManagedWindow
         : base(id, "Breakpoints", owningPerspective, WindowScope.PerspectiveBound)
     {
         _manager = manager ?? throw new ArgumentNullException(nameof(manager));
+        _panel = new Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel(_manager, new TemporalStatusBannerState());
         IsOpen = false;
 
         // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
@@ -76,10 +79,8 @@ public sealed class AiBreakpointsWindow : ManagedWindow
     {
         // Headless-safe: DrawClientArea is only called by the window manager when
         // an ImGui frame is active, so no ImGui guard is needed here.
-        // A future iteration can render a full breakpoint grid; for now we render
-        // a minimal count banner so the window is visually useful.
-        var vm = BuildAndPublish();
-        ImGuiNET.ImGui.TextDisabled($"{vm.ActiveCount} active breakpoint(s). " +
-            "Open the global Data Breakpoints window for full management.");
+        BuildAndPublish();
+        // ⭐⭐ CE-1285 (Q44-A, R-97) — the list itself, not a count with "open the other window": ⛔ the banner and its dead end are gone
+        _panel.DrawContent();
     }
 }

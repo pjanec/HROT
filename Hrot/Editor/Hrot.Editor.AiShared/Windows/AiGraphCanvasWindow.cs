@@ -551,8 +551,11 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     /// the asset name, and a stable <c>###AssetId</c> suffix so ImGui keeps the tab's identity
     /// across reorders/renames. Exposed internally for headless label-format tests.
     /// </summary>
-    internal static string GetTabLabel(AiDocument doc) =>
-        $"{GetTabGlyph(doc)} {doc.Asset.Name}###{doc.Asset.AssetId}";
+    /// <remarks>⭐ <c>CE-1318</c> (BV-55) — a PINNED document says for whom (<c>PlatoonDefend · #1:2975</c>) and keeps its own identity
+    /// (two pins of one asset are two tabs).</remarks>
+    internal static string GetTabLabel(AiDocument doc) => doc.PinnedEntity is { } pin
+        ? $"{GetTabGlyph(doc)} {doc.Asset.Name} · {doc.PinLabel ?? $"#{pin.Index}"}###{doc.Asset.AssetId}@{pin.Index}:{pin.Generation}"
+        : $"{GetTabGlyph(doc)} {doc.Asset.Name}###{doc.Asset.AssetId}";
 
     /// <summary>
     /// Resolves the FontAwesome glyph for a document's tab: prefers a finer-grained

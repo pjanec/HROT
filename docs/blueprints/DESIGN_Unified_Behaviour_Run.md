@@ -17,6 +17,7 @@ known-rot: (otherwise) none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
   (§5 U-1); Q77 §5.14 points to this document.
 related-designs:
+  - ../DESIGN_Entity_Brain_View.md — §12b BV-44 OWNS the read-only reader that walks the hosted child slots (S5) to show every running behaviour's params and variables, on the Brain tab and in the inspector
   - ../DESIGN_Decision_Layer.md — the decision layer (doctrine, utility); ⛔ it does NOT change the mission or Demo_MissionPlan (user, 2026-10-04). §3.3d (CombatPostureBp) found CE-2115 / CE-2116 in the Behaviour Task / hosted-child abort path.
   - DESIGN_Entity_Reference.md — generalises "S8o"'s type-plan walker to the `EntityRef` type (objects, lists); retires `[RemapNetworkId]`.
   - Architect_Question_77_Blueprint_As_A_Behaviour.md — owns the blueprint behaviour (dispatch, Return = finish, own

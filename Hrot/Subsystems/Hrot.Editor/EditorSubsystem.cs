@@ -974,6 +974,22 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T1).</summary>
         internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
+        private static long NetIdOf(EntityRepository w, Entity e)
+            => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>() && w.IsAlive(e)
+                ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(w, e) : 0;
+
+        /// <summary>⭐ <c>CE-1291</c> — every BTree node marked as a breakpoint in an open document (empty before the documents exist).</summary>
+        private IEnumerable<Hrot.Editor.Debugging.MarkedNode> MarkedBTreeNodes()
+        {
+            if (_aiDocumentManager == null) yield break;
+            foreach (var doc in _aiDocumentManager.OpenDocuments)
+            {
+                if (doc.Asset is not Hrot.BTree.Editor.Model.BehaviorTreeAsset bt) continue;
+                foreach (var n in bt.Nodes)
+                    if (n.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedNode(bt.Name, n.VisualId, n.DisplayLabel);
+            }
+        }
+
         /// <summary>
         /// ⭐⭐⭐ <b>Is the simulation clock HALTED this frame?</b> — <c>DeltaTime == 0</c> on the
         /// <c>GlobalTime</c> singleton the kernel pushes into the live world every frame.
@@ -1914,16 +1930,22 @@ namespace Hrot.Editor
             // Allocate the pre-tick snapshot repo and mirror all component registrations.
             // Placed here (before gizmo systems) so _bpManager can be passed as
             // breakpointManager: to the gizmo system constructors (UBP-P10T4).
-            _bpPreTickSnapshot = new EntityRepository();
-            SimHostComponentRegistry.RegisterAll(_bpPreTickSnapshot);
-            CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
-            _bpPreTickSnapshot.RegisterComponent<MapDisplayComponent>();
-            _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.CullingState>();
-            _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
-            _bpPreTickSnapshot.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
-            _bpPreTickSnapshot.RegisterComponent<VisualEffectState>();
-            _bpPreTickSnapshot.RegisterComponent<TracerTarget>();
-            Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(_bpPreTickSnapshot);   // ⭐ CE-1042 E2 — mirror the effects
+            // ⭐ CE-1284 — ONE recipe for a world that mirrors the live one (the rewind snapshot and the PreFrame change baseline)
+            static EntityRepository MirrorWorld()
+            {
+                var mirror = new EntityRepository();
+                SimHostComponentRegistry.RegisterAll(mirror);
+                CgfComponentRegistry.RegisterAll(mirror);
+                mirror.RegisterComponent<MapDisplayComponent>();
+                mirror.RegisterComponent<Hrot.IG.Components.CullingState>();
+                mirror.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
+                mirror.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
+                mirror.RegisterComponent<VisualEffectState>();
+                mirror.RegisterComponent<TracerTarget>();
+                Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(mirror);   // ⭐ CE-1042 E2 — mirror the effects
+                return mirror;
+            }
+            _bpPreTickSnapshot = MirrorWorld();
 
             // ⭐ BATCH 84 / R-66: kept as a FIELD so RunStateSource's "is time frozen?" signal reads
             //   through this adapter -- the same one the breakpoint manager drives time with. ⛔ A
@@ -1946,9 +1968,19 @@ namespace Hrot.Editor
 
             _kernel.RegisterGlobalSystem(_bpSnapshotProvider);
             _kernel.RegisterGlobalSystem(_bpSystem);
+            // ⭐ CE-1284 (DBG-8) — "changed" compares against a copy taken BEFORE Input (where a task change lands), not the BeforeSync one
+            _kernel.RegisterGlobalSystem(new ChangeBaselineSystem(_bpManager, MirrorWorld()));
+            // ⭐⭐ CE-1291 (DBG-7) — a breakpoint marked on a BTree node in an open document BREAKS: after the tick the armed units' trace
+            //   rings are read and a marked node that ran is a hit through the manager (one breakpoint per marked node, in the one list)
+            _kernel.RegisterGlobalSystem(new Hrot.Editor.Debugging.NodeBreakpointEvaluator(
+                () => MarkedBTreeNodes(),
+                _bpManager,
+                () => _behaviorRegistry));
 
             // ⭐ CE-1257 / CE-1258 (BV-26, BV-28) — "Debug this unit" lives where the debuggers live: the editor composes the ONE controller
             //   (the Brain tab, the map's AI-trace menu and POST /entities/{id}/debug are buttons on it) and gives it the journal break.
+            // ⭐ CE-1317 (BV-48, R-1038) — viewing a unit's Brain tab arms its traces (refcounted by draw, released ~1 s after)
+            Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current = new Hrot.Common.Diagnostics.Gizmos.BrainObservation();
             Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = new Hrot.Common.Diagnostics.Gizmos.UnitDebugController
             {
                 ArmJournalBreak = (w, e) => _bpManager?.AddBreakpoint(
@@ -1960,6 +1992,15 @@ namespace Hrot.Editor
                     var asset = catalog.All.FirstOrDefault(a => a.Name == name && a.Kind is AssetKind.BTree or AssetKind.Hsm or AssetKind.Blueprint);
                     if (asset == null) return false;
                     _aiDocumentManager.Open(asset);
+                    return true;
+                },
+                // ⭐ CE-1318 (BV-55) — the same, PINNED to a unit (from a pinned Brain tab): its own document, its tab names the unit
+                OpenGraphPinned = (name, unit, label) =>
+                {
+                    if (_aiCatalogBuilder?.Catalog is not { } catalog || _aiDocumentManager == null) return false;
+                    var asset = catalog.All.FirstOrDefault(a => a.Name == name && a.Kind is AssetKind.BTree or AssetKind.Hsm or AssetKind.Blueprint);
+                    if (asset == null) return false;
+                    _aiDocumentManager.Open(asset, unit, label);
                     return true;
                 },
             };
@@ -2261,6 +2302,18 @@ namespace Hrot.Editor
                 leaveRun: () => _previewController?.ForgetPreview());
             _editorLogic = app;
             _editorApp   = app;
+
+            // ⭐⭐ CE-1321 (BV-68) — THE C# behaviour rebuild (toolbar button and POST /ai/reload): build, copy into the watched
+            //   directory, await the swap. The signal subscribes to the coordinator only when a rebuild runs, so it fires AFTER the
+            //   catalog refresh and the document reconcile (subscribed later, in RegisterWindows).
+            app.SetAiRebuild(new AiBehaviorsRebuild(
+                app.AiProjectFilePath,
+                AppDomain.CurrentDomain.BaseDirectory, "Hrot.AI.Behaviors.dll",
+                new DotnetBuildRunner(line => _hotReloadSource?.PushLine(line)),
+                _aiCoordinator != null ? new AiHotReloadSignal(_aiCoordinator) : null,
+                () => _behaviorRegistry?.GetRegisteredNames() ?? (IReadOnlyCollection<string>)Array.Empty<string>(),
+                () => _aiDocumentManager?.OpenDocuments.Count ?? 0,
+                log: line => _hotReloadSource?.PushLine(line)));
 
             // ⭐⭐ Q86 (R-215) — the editor runs the ONE orchestrator core, the same one the cluster's
             //    OrchestratorSubsystem hosts; it replaced a hand-built copy that had drifted (no scenario-load
@@ -2815,6 +2868,8 @@ namespace Hrot.Editor
             // are applied here, between kernel ticks, so no active simulation tick
             // can observe a half-swapped pointer.
             _aiCoordinator?.DrainPendingCallbacks();
+            // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
+            if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
 
             // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves
             // (BTree/HSM emit-on-dirty).  Safe in headless mode; no-op when nothing is pending.
@@ -3533,7 +3588,9 @@ namespace Hrot.Editor
                 // ⭐ CE-1059 — and the searchable entity list, in the shell's picker registry
                 EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers),
             };
-            _scenarioWorkspace.DetailsViews.Add(
+            // ⭐⭐ CE-1314 (R-1036, BV-38) — the AI tab is RETIRED as a tab: its editing (task, SOP, ROE, instance params) is a section of
+            //   the Brain tab, drawn unchanged. ⛔ SUPERSEDED: _scenarioWorkspace.DetailsViews.Add (a separate "AI" tab).
+            _scenarioDetailsBundle!.BrainSections.Add(
                 Hrot.Editor.Scenario.EntityAiDetailsViewDescriptor.For(
                     world:       () => _world,
                     registry:    () => _behaviorRegistry,
@@ -3892,9 +3949,23 @@ namespace Hrot.Editor
             // ⚠ DELEGATES, not values: RegisterWindows runs BEFORE Initialize assigns _world, so an
             //   eager For(_world!, …) throws here. 📌 The retired window hid that inside its lazy
             //   factory lambda — which is exactly why the eager form looked equivalent.
-            _blueprintRegistrar!.DetailsViews.Add(
+            // ⭐⭐ CE-1316 (R-1037, BV-46, BV-47) — Entity Blueprints is RETIRED as a tab: the panel is a section of the Brain tab, on the
+            //   Scenario perspective AND the Blueprint one (which gains the Brain tab for it), drawn unchanged; the tab applies to every
+            //   single entity, so a unit with no brain keeps its blueprints. ⛔ SUPERSEDED: _blueprintRegistrar.DetailsViews.Add of the view.
+            _scenarioDetailsBundle?.BrainSections.Add(
                 Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsDetailsViewDescriptor.For(
                     () => _world, () => _blueprintRegistry));
+            var blueprintBrainSections = new Hrot.Editor.AiShared.Shell.DetailsViewRegistry();
+            blueprintBrainSections.Add(
+                Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsDetailsViewDescriptor.For(
+                    () => _world, () => _blueprintRegistry));
+            _blueprintRegistrar!.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityBrainViewDescriptor.For(
+                () => _world,
+                hash => _behaviorRegistry is { } reg && reg.TryGetName(hash, out var n) ? n : null,
+                hash => _behaviorRegistry is { } reg && reg.TryGetDefinition(hash, out var d) ? d : null,
+                registry:   () => _behaviorRegistry,
+                blueprints: () => _blueprintRegistry,
+                embeds:     () => blueprintBrainSections));
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────
@@ -4497,9 +4568,11 @@ namespace Hrot.Editor
             {
                 // ⚠ PROVIDERS: _world is assigned during Initialize, after this hook is built.
                 World          = () => _world,
-                // ⭐ CE-1257 (BV-22) — the debugged unit while one is set, else the selection
-                SelectedEntity = () => Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is { } debug
-                    ? debug.Follow(_world, _btreeSelectionStore.SelectedEntity)
+                // ⭐⭐ CE-1318 (BV-55, R-1039) — the ACTIVE document's pin while it has one (a graph opened from a pinned Brain tab), else
+                //   the selection. ⛔ SUPERSEDED: one global debug pin for every graph (UnitDebugController.Follow, CE-1257 BV-22) — one
+                //   canvas could not show two units, and a pinned tab's graph lost its unit when another tab moved the pin.
+                SelectedEntity = () => _aiDocumentManager?.Active?.PinnedEntity is { } pin && _world != null && _world.IsAlive(pin)
+                    ? pin
                     : _btreeSelectionStore.SelectedEntity,
             };
 
@@ -4903,6 +4976,7 @@ namespace Hrot.Editor
                     _aiDocumentManager.ReconcileFromCatalog(_aiCatalogBuilder.Catalog.All);
                 };
             }
+
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── BATCH-29 (MTB-P8-T3): "Open Asset" command (shell.openAsset) — leftmost toolbar
@@ -5039,7 +5113,10 @@ namespace Hrot.Editor
             {
                 var bpBannerState = new Hrot.Diagnostics.Breakpoints.TemporalStatusBannerState();
                 var bpPanel       = new Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel(
-                    _bpManager, bpBannerState);
+                    _bpManager, bpBannerState,
+                    // ⭐ CE-1285 — a unit by its network id, and a click on its row selects it (the ONE selection, SelectEntityCommand)
+                    entityLabel:  e => _world is { } w && NetIdOf(w, e) is var n && n != 0 ? $"#{n}" : $"Entity {e}",
+                    selectEntity: e => { if (_world is { } w && NetIdOf(w, e) is var n && n != 0) _editorLogic?.SelectEntity(n); });
                 var bpWin         = new Hrot.Presentation.Windows.DataBreakpointManagerWindow(
                     "editor_bp_manager", "Scenario", bpPanel, EditorWindowColor.TitleBar);
                 windowManager.RegisterWindow(bpWin);

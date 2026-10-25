@@ -71,6 +71,38 @@ namespace Hrot.Map.Definitions.Behavior
         public bool Suspected;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2374</c> (AQ104 B, R-2079) — the authored contract of a squad commander's <c>ClearArea</c>: the squad surveys the area once and
+    /// clears its buildings one after another (each as <c>ClearBuilding</c>), the one nearest it next, until no live enemy is known in them.
+    /// 📄 docs/designs/group-maneuvers/DESIGN_Building_Clearing.md §7.4.
+    /// </summary>
+    [ParamsDto]
+    public struct ClearAreaParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.ClearArea;
+
+        /// <summary>The area's centre (sim metres).</summary>
+        [JsonPropertyName("Centre")]
+        public Vector3 Centre;
+
+        /// <summary>The area's radius (m); 0 = 30.</summary>
+        [JsonPropertyName("Radius")]
+        public float Radius;
+
+        /// <summary>The men's asked speed (m/s); 0 = 2.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+
+        /// <summary>How hard each room is gone into (as <c>ClearBuilding</c>).</summary>
+        [JsonPropertyName("Intensity")]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ClearIntensity Intensity;
+
+        /// <summary>The order says the area is held: every room of every building is suspected.</summary>
+        [JsonPropertyName("Suspected")]
+        public bool Suspected;
+    }
+
     /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — the authored contract of <c>BreachDoor</c>: walk to the door, open it, and when it refuses
     /// (locked) breach it.</summary>
     [ParamsDto]
