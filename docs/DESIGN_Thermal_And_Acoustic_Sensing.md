@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - docs/DESIGN_Node_Roles_And_Policies.md §3.0a — who hears (Perception only), who makes sound (every 3-D-map node, from replicated state)
   - DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS checkpoint restore and R1 (§1k), which found that a restored world stopped hearing; §8.3a here is the fix
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — step-only systems, step windows and the reload probe (§7e) that measured the ring's thread race (§8.3)
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — a sound signature per weapon (A), hearing bounded by distance not terrain (B), a lossless emission ring (C) — OPEN, leans await the user

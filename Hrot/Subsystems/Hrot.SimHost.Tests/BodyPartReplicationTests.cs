@@ -182,11 +182,11 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐ <c>CE-3257</c> (BR-5, hit location §13 LN-1/LN-8) — a man's lean reaches the other node (sight, fire and ui read it there),
-        /// and straightening up is a change the egress publishes. ✅ Red-proof: the ingress dropping the side ⇒ LeanNone ⇒ red.</summary>
+        /// and straightening up is a change the egress publishes. ✅ Red-proof: the ingress dropping the side ⇒ LeanNone ⇒ red. ⭐ AQ104 G — the depth crosses too (dropped ⇒ the default 0.4 m ⇒ red).</summary>
         [Fact]
         public void CE3257_Lean_ReachesTheOtherNode_AndStraighteningUpIsAChange()
         {
-            var lean = new Fdp.Toolkit.Combat.Lean { Side = Fdp.Toolkit.Combat.LeanSide.LeanRight };
+            var lean = new Fdp.Toolkit.Combat.Lean { Side = Fdp.Toolkit.Combat.LeanSide.LeanRight, Depth = 100 };   // ⭐ AQ104 G — and his depth
             var sample = EntityLeanEgressTranslator.ToSample(48L, lean);
 
             var (node, unit, map) = Node(48L);
@@ -197,9 +197,11 @@ namespace Hrot.SimHost.Tests
                 ingress.Apply(in sample, cmd, node);
                 cmd.Playback(node);
                 Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanRight, Fdp.Toolkit.Combat.Leans.Of(node, unit));
+                Assert.Equal(100 / 255f * Fdp.Toolkit.Combat.Leans.MaxShift, Fdp.Toolkit.Combat.Leans.ShiftOf(node, unit), 4);   // ⭐ AQ104 G
             }
 
             Assert.NotEqual(sample, EntityLeanEgressTranslator.ToSample(48L, default));
+            Assert.NotEqual(sample, EntityLeanEgressTranslator.ToSample(48L, lean with { Depth = 0 }));   // ⭐ AQ104 G — a deeper lean is a change
         }
 
         /// <summary>⭐ <c>CE-3259</c> (BR-6) — a soldier's proficiency reaches the node that resolves his shots with every source and set bit, so

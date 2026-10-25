@@ -196,3 +196,12 @@ Each scenario authors TODAY's closest orders (the build steps swap them for the 
 | the planner | `RoutePlanner`'s half-metre short move (two points as asked) only on ONE level — the man under the point gets a navmesh plan (the stairs) instead of a two-point "path" that would arrive at once |
 | ⛔ not here | the brain's own check (`PostureNodes`, behaviors' belt) — ⚠ the brain reads no terrain (user, 2026-10-25: *"brain should use map only for rendering, no direct access"*): its level comes from a survey answer, never `BuildingLayout` itself |
 | rails | `CarKinematicsSystemTests.AQ104I_APersonUnderTheirDestination_OnAnotherFloor_HasNotArrived` (path + direct, other floor + the same-floor control) · `TerrainHeightTests.AQ104I_AShortMove_ToTheLevelAbove_IsNotTheTwoPoints` — 3 red with the production change stashed, 5/5 green with it |
+
+### 7.3 E ② ③ and G — the backend halves *(backend, 2026-10-25; behaviors' handoff items 2–5)*
+
+| | as built | owning design |
+|---|---|---|
+| E ② sound through walls / floors | a wall or slab HALVES a high sound's carry (per crossing `min(material dB, 6.02) × band`); `Trace(Sound)` on the world-query seam (WQ-E Q3 v1) | [Sensing §8.8](../DESIGN_Thermal_And_Acoustic_Sensing.md) |
+| E ③ door sounds | every sound node hears a replicated `DoorState` change once, at the doorway: lock 5 m, swing 15 m, breach 40 m, of the side of the man at it | Sensing §8.8 |
+| AQ105 D the voice | a replica's live shouted `Utterance` (all but `Talk`) is heard 40 m — as a man's sound (kind/class bits are full) | Sensing §8.8 |
+| G the lean's depth | `Lean.Depth` (replicated); `Leans.SetDepth(metres)` for behaviors; eye, seen points, hit boxes and aim read `Leans.ShiftOf` | [Hit location §13 LN-9](../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md) |
