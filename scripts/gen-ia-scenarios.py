@@ -72,11 +72,14 @@ gq = defend_squad(s, "Guard Post", "Hostile", (105.6, 97, 0), 10470, radius=25) 
 # the guard starts INSIDE House A (a defender is in place, not caught walking in the open); MORTAL like every other demo — an immortal
 # man absorbs hit after hit and each hit is stress (TS-4), so he breaks for good (measured 2026-10-25)
 guard = s.man("Guard", "Hostile", (104.5, 103.5, 0), 180, tkb=2002, health=100, commander=gq, designation="SquadLeader", nid=10471)
-s.man("Blue South", "Friend", (106, 5, 0), 0, tkb=2002, health=100, behavior=attack(10471), nid=10472)
-s.man("Blue East", "Friend", (195, 98, 0), 270, tkb=2002, health=100, behavior=attack(10471), nid=10473)
+# the attackers CLEAR the area (not an Attack order naming the guard — that tells them where he is from the first frame); each is a lone
+# man, so his ClearArea asks for his own squad first (AQ104 A-1, CE-2375)
+clear = {"Name": "ClearArea", "Params": json.dumps({"Centre": [105.6, 104, 0], "Radius": 20, "Speed": 2}), "Origin": "Superior"}
+s.man("Blue South", "Friend", (106, 5, 0), 0, tkb=2002, health=100, behavior=clear, nid=10472)
+s.man("Blue East", "Friend", (195, 98, 0), 270, tkb=2002, health=100, behavior=clear, nid=10473)
 s.write("ia-area-defend", "bt-range",
         "What: AQ104 K (CE-2371) - on bt-range, 'Guard' (Hostile rifleman, mortal) defends the area round House A (centre (105.6,97), "
         "~25 m) - AQ104 L (CE-2373): the one man of 'Guard Post' (SquadDefend over the area): posts chosen for COVERAGE, a guard round "
-        "between them while nothing is known (⏭ AQ104 A: the order straight on the man) - two parked cars by the centre;'Blue South' (from (106,5)) and 'Blue East' (from (195,98)), ~90 m out so the guard posts before they arrive, attack him (mortal). "
+        "between them while nothing is known (⏭ AQ104 A: the order straight on the man) - two parked cars by the centre;'Blue South' (from (106,5)) and 'Blue East' (from (195,98)), ~90 m out, each CLEAR the area (ClearArea on a lone man: his own squad is created first, AQ104 A-1) - they must find him (mortal). "
         "Judge (240 s): (1) the guard sees each attacker before he is within 30 m of the centre; (2) the guard fires first at each; "
         "(3) printed: where the guard stood over time and what he could see. " + CHECK.format(sid="ia-area-defend"))

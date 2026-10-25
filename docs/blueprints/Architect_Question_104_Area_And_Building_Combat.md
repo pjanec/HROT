@@ -349,3 +349,9 @@ says why: he STARTS IN THE OPEN at the area's centre, both attackers see him at 
 break ⇄ resume (49 s, 59 s, 110 s …) and never arrives. DF-2 (half a near miss in cover) cannot help a man who is never in cover. ⇒ ⭐ the
 stress model doing what TS-6 says (a regular caught in the open by two rifles breaks); the DEMO judged "sees them first" of a man not yet
 posted. ⇒ the guard now starts INSIDE House A (104.5, 103.5), as a defender would be.
+
+📐 **Re-run with the guard repaired** (`66cc88c78` — ⚠ the run before it was INVALID: a comment had swallowed his squad, type and
+health): a real fight at last — ✅ the guard **engages both attackers before 30 m** (11.9 s, 22.1 s), fires 10 rounds, Blue East bleeds
+out, Blue South is wounded; the guard, wounded, leaves the house at ~100 s and dies at ~198 s. ⛔ "fires first" fails — and cannot be won:
+both attackers open at the SAME 2.05 s from ~90 m, because their Attack order NAMES the guard (`CombatPosture {target}`), so they know where
+he is from the first frame. ⇒ the attackers now get an AREA order (`ClearArea` on a lone man — which also runs A-1 live).
