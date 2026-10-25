@@ -230,6 +230,28 @@ save-format question, not a behaviour one, so it is the user's.
 | A-2 | a brain-local commander (created on CGF only, never replicated or saved) and the man's link written there | ⛔ the man's `UnitSubordinate` is replicated and saved — a local-only commander would be a dangling handle on every other node and in every save |
 | A-3 | no commander: the lone man's brain runs the squad play itself | ⛔ rejected in §4 A (an order to himself replaces his own task) |
 
+🔒 **User, `2026-10-25`:** *"creating an entity is a cross cluster operation initiated via sending creation request event and is acked by
+other nodes … the code needs to wait for confirmation from the local node anyway … this is nothing local and immediate so it needs to be
+treated that way."* ⇒ **A-1's sequence is ASYNCHRONOUS:**
+
+```mermaid
+sequenceDiagram
+  participant O as Area order (DefendArea / ClearArea) on a lone man
+  participant B as the man's brain (CGF)
+  participant R as CreateEntityRequestSystem
+  participant S as NetworkSpawningSystem
+  O->>B: lone man - no commander
+  B->>B: fight now on the fallback (CombatPosture at the area, as today)
+  B->>R: EntityCreationRequest {squad type, owner = this brain node, marker = the man}
+  R->>S: id allocated, spawn ordered (next frame at the earliest)
+  S-->>B: the squad entity exists on this node (Active per its InitType)
+  B->>B: CmdAssignSubordinate(man to squad) + the play to the squad
+  B-->>O: the play's member order replaces the fallback
+  B->>B: no squad within a timeout - stay on the fallback, ask again later
+```
+*What the picture shows that prose hid:* the man is never idle while his commander is being created, and nothing is assigned until the
+entity is really there on this node.
+
 ⇒ ⭐ **Lean A-1**, with one ask of the ui lane later: hide a squad whose only member is its creator's lone man (a display filter, not a
 model change). **What would change the lean:** if a hidden commander is a must, A-1 still holds and the filter becomes required.
 
