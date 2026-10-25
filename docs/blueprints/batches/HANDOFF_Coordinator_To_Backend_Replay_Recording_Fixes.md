@@ -15,7 +15,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: what the recording must and must not hold (CE-4046, CE-3309, CE-4048)
 
-**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at** the commit that adds this file. ⭐ Scope FROZEN
+**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at `876f32057`**. ⭐ Scope FROZEN
 there; later documents are FYI. A later document that invalidates an item ⇒ STOP that item, report it (R-106), keep the rest.
 Questions ⇒ a NOTE to coordinator.
 
