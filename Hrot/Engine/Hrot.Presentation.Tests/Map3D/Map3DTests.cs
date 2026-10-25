@@ -2388,6 +2388,12 @@ public sealed class Map3DTests
 
             world.AddComponent(man, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = StanceId.Crouched });
             Assert.Equal(-Fdp.Toolkit.Combat.Leans.Shift, Vector3.Transform(new Vector3(0f, 0f, crouch), EntityBodyLayer3D.LeanShear(world, man)).Y, 4);
+            // ⭐ CE-2371 (AQ104 G) — his DEPTH: a man who leans 0.55 m is drawn 0.55 m round the corner, the sim's own number.
+            //   🔴 Red-proof: the constant Leans.Shift back in LeanShear ⇒ 0.4 here.
+            Assert.True(Fdp.Toolkit.Combat.Leans.SetDepth(world, man, 0.55f));
+            Assert.Equal(-Fdp.Toolkit.Combat.Leans.ShiftOf(world, man), Vector3.Transform(new Vector3(0f, 0f, crouch), EntityBodyLayer3D.LeanShear(world, man)).Y, 4);
+            Assert.Equal(0.55f, Fdp.Toolkit.Combat.Leans.ShiftOf(world, man), 2);
+
             world.GetComponentRW<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(man).TargetStance = StanceId.Prone;
             Assert.Equal(Matrix4x4.Identity, EntityBodyLayer3D.LeanShear(world, man));   // a prone man does not lean (the sim ignores it too)
         }
