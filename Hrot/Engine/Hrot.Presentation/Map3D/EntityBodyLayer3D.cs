@@ -346,6 +346,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         foreach (var k in _eyes.Keys) if (!_drawn.Contains(k)) _tipsGone.Add(k);
         foreach (var k in _tipsGone) _eyes.Remove(k);
         _postures.EndFrame(_drawn);
+        _stances.EndFrame(_drawn);
     }
 
     /// <summary>⭐ AQ93 §15.8 (CE-4031) — the bodies with NO entity (<see cref="AmbientBody"/>): a person is a civilian walking upright (no
@@ -497,6 +498,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             return motion with { Lean = 0f, Twist = 0f, KneeFlexL = 0f, KneeFlexR = 0f };
         }
         motion = Stepping(motion, stance);
+        var (hipFrom, hipTo, hipT) = DrawnStance(world, e, stance, simTime);   // ⭐ CE-1348 — the hips go down with the blend, not ahead of it
+        if (hipT < 1f && hipFrom != hipTo)
+            motion = motion with { HipZ = BlockFigure.HipFraction(hipFrom) + (BlockFigure.HipFraction(hipTo) - BlockFigure.HipFraction(hipFrom)) * hipT };
         if (stance == StanceId.Crouched && crouchRun > 0f)
             motion = motion with
             {
@@ -736,6 +740,15 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <returns>The parts, how AIMED he is standing (0..1, the posture blend) — the athletic stance and the glide follow it — and
     /// ⭐ CE-1064 how much a CROUCHED figure is running (0..1, its stride).</returns>
+    /// <summary>⭐ <c>CE-1348</c> — the figure's drawn stance this frame (<see cref="StanceBlend"/>): idempotent within a frame, so the pose
+    /// and the hip height read the same blend.</summary>
+    private (StanceId From, StanceId To, float T) DrawnStance(EntityRepository world, Entity e, StanceId target, double simTime)
+    {
+        StanceStatus? muscle = world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e)
+            ? world.GetComponentRO<StanceStatus>(e) : null;
+        return _stances.Of(e, target, simTime, muscle);
+    }
+
     private (KitPart[] Parts, float Aimed, float CrouchRun) FigurePose(EntityRepository world, Entity e, bool soldier, double simTime, in MotionPose motion)
     {
         float stride = motion.Stride;
@@ -755,12 +768,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         }
         _fall.Alive(e, target, simTime);
         if (Cowers(world, e, soldier)) return (BlockFigure.Cower, 0f, 0f);
-        if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
-        {
-            ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
-            if (status.Phase == StanceTransitionPhase.Transitioning && status.CurrentStance != target)
-                return (BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT), 0f, 0f);
-        }
+        // ⭐ CE-1348 — the drawn stance moves smoothly to the logical one (StanceBlend), following the muscle's blend where it runs one
+        var (stanceFrom, stanceTo, stanceT) = DrawnStance(world, e, target, simTime);
+        if (stanceT < 1f && stanceFrom != stanceTo)
+            return (BlockFigure.Blend(stanceFrom, stanceTo, stanceT, soldier, postureFrom, postureTo, postureT), 0f, 0f);
         var parts = BlockFigure.Parts(target, soldier, postureFrom, postureTo, postureT);
         // ⭐ WL-6d — prone and moving: the crawl (never aimed), blended in by how much he moves
         if (target == StanceId.Prone && motion.Moving > 0f) return (BlockFigure.Crawl(parts, soldier, motion.CrawlPhase, motion.Moving), 0f, 0f);
@@ -1420,6 +1431,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         }
     }
     private readonly PostureBlend _postures = new();
+    private readonly StanceBlend _stances = new();   // ⭐ CE-1348 — the drawn stance moves smoothly to the logical one
 
     /// <summary>⭐ WL-6b — the posture changes' timing (the rail's seam).</summary>
     public PostureBlend Postures => _postures;

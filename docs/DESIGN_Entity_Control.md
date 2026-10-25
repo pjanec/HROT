@@ -2372,6 +2372,13 @@ sequenceDiagram
 through the brain's one stance writer (`StanceRequest`, CE-2121), so the hit model, the fire chain and perception read it the tick it
 is asked for (Buildings §3f).
 
+⭐ **AS-BUILT `2026-10-25` (ui, `CE-1348`) — the DRAWN body follows smoothly.** The logical stance changes the tick it is asked for, but the
+muscle reports its blend (`StanceStatus`) a tick later — first Idle in the OLD stance, then Transitioning from 0 — and the figure drew the
+new stance for that tick, then snapped back to the old one: the head, and the first-person camera at its eyes, jumped down and up.
+`StanceBlend` (beside `PostureBlend`) now owns the drawn stance: it moves to the logical stance over 0.35 s (crouch) / 0.8 s (prone) of sim
+time, follows the muscle's progress when the muscle runs the same change and is ahead, never steps back, and turns round from where the
+figure is on a change of mind. The hips (`MotionPose.HipZ`) follow the same blend. Rail `Map3DTests.CE1348_*` (red-proved).
+
 | as-built detail | why |
 |---|---|
 | `Stance` = `StanceId + 1`, 0 = no request — on the event, `OperatorInput` and the wire payload (`ControlFrameInteractionPayload.Stance`) | an HTTP or older frame that does not mention it keeps the stance the unit has |

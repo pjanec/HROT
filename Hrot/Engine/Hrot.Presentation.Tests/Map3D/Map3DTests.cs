@@ -3283,6 +3283,58 @@ public sealed class Map3DTests
         Assert.Equal(PartRole.LegRight, halfway[2].Role);
     }
 
+    /// <summary>⭐ <c>CE-1348</c> — C (crouch) or Z (prone): the drawn figure — and so the eye the first-person camera sits at — goes
+    /// SMOOTHLY to the new height. The logical stance changes in the tick it is ordered and the muscle reports its blend a tick later
+    /// (first Idle in the OLD stance, then Transitioning from 0): the head never drops to the new height and back up, a muscle blend that
+    /// runs ahead is followed, and a change of mind mid-way turns round from where the head is.
+    /// ✅ Red-proof: StanceBlend bypassed (the logical stance drawn at once, the old muscle-only blend) ⇒ the head drops and rises.</summary>
+    [Fact]
+    public void CE1348_CrouchAndProne_MoveTheHeadSmoothly_NeverDownAndBackUp()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        float Head(StanceId from, StanceId to, float t)
+            => Vector3.Transform(Vector3.Zero, BlockFigure.Blend(from, to, t, true)[BlockFigure.HeadIndex].BodyTransform(size)).Z;
+        var blend = new StanceBlend();
+        var man = new Entity(9, 1);
+        Hrot.MuscleCharacter.Animation.Components.StanceStatus Muscle(StanceId current, bool moving, float progress = 0f)
+            => new() { CurrentStance = current, Phase = moving ? Hrot.MuscleCharacter.Animation.Components.StanceTransitionPhase.Transitioning : Hrot.MuscleCharacter.Animation.Components.StanceTransitionPhase.Idle, TransitionProgress = progress };
+
+        blend.Of(man, StanceId.Standing, 10.0, Muscle(StanceId.Standing, false));
+        float standing = Head(StanceId.Standing, StanceId.Standing, 1f), crouched = Head(StanceId.Crouched, StanceId.Crouched, 1f);
+        float last = standing;
+        var frames = new (double At, Hrot.MuscleCharacter.Animation.Components.StanceStatus Muscle)[]
+        {
+            (10.016, Muscle(StanceId.Standing, false)),          // C pressed: the logical stance is crouched, the muscle has not started
+            (10.033, Muscle(StanceId.Standing, true, 0f)),       // its blend starts at 0
+            (10.10, Muscle(StanceId.Standing, true, 0.5f)),      // and runs ahead of ours: followed
+            (10.12, Muscle(StanceId.Standing, true, 0.1f)),      // a stale sample behind: never stepped back
+            (10.30, Muscle(StanceId.Standing, true, 0.9f)),
+            (10.50, Muscle(StanceId.Crouched, false)),
+        };
+        foreach (var (at, muscle) in frames)
+        {
+            var (f, to, t) = blend.Of(man, StanceId.Crouched, at, muscle);
+            float head = Head(f, to, t);
+            Assert.True(head <= last + 1e-4f, $"at {at}: the head rose from {last} to {head}");
+            Assert.True(head >= crouched - 1e-4f, $"at {at}: the head went below the crouch ({head} < {crouched})");
+            last = head;
+        }
+        Assert.Equal(crouched, last, 3);
+
+        // the first frame after the order shows the OLD height, not the new one (the jump this fixes)
+        var other = new Entity(10, 1);
+        blend.Of(other, StanceId.Standing, 20.0);
+        var first = blend.Of(other, StanceId.Prone, 20.0, Muscle(StanceId.Standing, false));
+        Assert.Equal(standing, Head(first.From, first.To, first.T), 3);
+        var mid = blend.Of(other, StanceId.Prone, 20.0 + StanceBlend.ProneSeconds / 2);
+        float midHead = Head(mid.From, mid.To, mid.T);
+        var back = blend.Of(other, StanceId.Standing, 20.0 + StanceBlend.ProneSeconds / 2);   // a change of mind halfway down
+        Assert.Equal(midHead, Head(back.From, back.To, back.T), 2);                           // turns round from where the head is
+        Assert.Equal(standing, Head(StanceId.Standing, StanceId.Standing, 1f), 3);
+        var up = blend.Of(other, StanceId.Standing, 20.0 + StanceBlend.ProneSeconds * 2);
+        Assert.Equal(standing, Head(up.From, up.To, up.T), 3);
+    }
+
     /// <summary>⭐ WL-6b — the aimed body TURNS toward its target over a fraction of a second instead of jumping, and turns back when
     /// it is no longer aimed; a pause freezes it; a unit first seen is already turned.</summary>
     [Fact]

@@ -1721,6 +1721,81 @@ public sealed class PostureBlend
 }
 
 /// <summary>
+/// ⭐ <c>CE-1348</c> — the DRAWN stance of each figure, moving smoothly to his logical stance (<see cref="LogicalStance"/>, which changes in the
+/// tick it is ordered) over <see cref="SecondsBetween"/> of sim time; the muscle's own blend (<see cref="StanceStatus"/>) is followed when it
+/// runs the same change, never stepped back from. 🔴 The figure used to draw the NEW stance in full until the muscle reported its transition
+/// a tick later, then snap back to the OLD one as that blend started at 0 — and the camera at his eyes jumped down and up with it.
+/// 🔒 User, 2026-10-25: "when pressing C for crouch or Z for prone, the camera jump vertically down and up before finally settles … i would
+/// expect the camera (as well as the character body) to smoothly go into the new height."
+/// </summary>
+public sealed class StanceBlend
+{
+    /// <summary>Standing ↔ crouched (s, sim time).</summary>
+    public const float CrouchSeconds = 0.35f;
+
+    /// <summary>Into or out of prone (s, sim time).</summary>
+    public const float ProneSeconds = 0.8f;
+
+    public static float SecondsBetween(StanceId a, StanceId b)
+        => a == b ? 0f : a == StanceId.Prone || b == StanceId.Prone ? ProneSeconds : CrouchSeconds;
+
+    private struct State
+    {
+        public StanceId From, To;
+        public double ChangedAt;
+        public float Floor;   // the progress already shown (the muscle's, when it ran ahead) — never stepped back from
+    }
+
+    private readonly Dictionary<Entity, State> _states = new();
+    private readonly List<Entity> _gone = new();
+
+    /// <summary>Where <paramref name="e"/>'s figure is this frame: between <c>From</c> and <c>To</c>, <c>T</c> of the way (1 = there, eased
+    /// in and out). <paramref name="muscle"/>: the replicated transition, when the unit has one.</summary>
+    public (StanceId From, StanceId To, float T) Of(Entity e, StanceId now, double simTime, StanceStatus? muscle = null)
+    {
+        if (!_states.TryGetValue(e, out var st))
+        {
+            _states[e] = new State { From = now, To = now, ChangedAt = double.NegativeInfinity, Floor = 1f };
+            return (now, now, 1f);
+        }
+        if (now != st.To)
+        {
+            float done = Raw(st, simTime);
+            if (now == st.From && done < 1f)
+            {
+                // back where it came from, mid-way: turn round from where the figure is
+                float seconds = SecondsBetween(st.To, now);
+                st = new State { From = st.To, To = now, ChangedAt = simTime - (1f - done) * seconds, Floor = 0f };
+            }
+            else st = new State { From = done < 0.5f ? st.From : st.To, To = now, ChangedAt = simTime, Floor = 0f };
+        }
+        float t = Raw(st, simTime);
+        if (muscle is { Phase: StanceTransitionPhase.Transitioning } m && m.CurrentStance == st.From && now == st.To)
+            t = MathF.Max(t, Math.Clamp(m.TransitionProgress, 0f, 1f));
+        t = MathF.Max(t, st.Floor);
+        st.Floor = t;
+        _states[e] = st;
+        return (st.From, st.To, t * t * (3f - 2f * t));
+    }
+
+    private static float Raw(in State st, double simTime)
+    {
+        float seconds = SecondsBetween(st.From, st.To);
+        if (seconds <= 0f || double.IsNegativeInfinity(st.ChangedAt)) return 1f;
+        if (simTime < st.ChangedAt) return st.Floor;   // a clock step back (a rewind): hold
+        return (float)Math.Clamp((simTime - st.ChangedAt) / seconds, 0.0, 1.0);
+    }
+
+    /// <summary>Forgets everyone not drawn this frame.</summary>
+    public void EndFrame(HashSet<Entity> drawn)
+    {
+        _gone.Clear();
+        foreach (var e in _states.Keys) if (!drawn.Contains(e)) _gone.Add(e);
+        foreach (var e in _gone) _states.Remove(e);
+    }
+}
+
+/// <summary>
 /// ⭐ W4 (docs/DESIGN_Visual_Effects.md §7 VE-S) — when each dead man fell, so the renderer can blend him from his last stance into
 /// <see cref="BlockFigure.Dead"/> over <see cref="Seconds"/> of SIMULATION time (a pause freezes the fall). Only a death SEEN happening
 /// falls: a body first seen already dead (a load, a late host, a replay jump) is simply lying there.
