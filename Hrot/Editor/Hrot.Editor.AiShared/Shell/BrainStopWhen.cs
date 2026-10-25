@@ -156,7 +156,7 @@ public static class BrainStopWhen
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Delete this breakpoint");
             ImGui.SameLine();
             string scope = bp.FilterEntity == null ? "every unit" : "this unit";
-            ImGui.TextUnformatted($"{BreakpointConditionSummarizer.Summarize(bp.Condition)} — {scope}{(bp.HitCount > 0 ? $", hit {bp.HitCount}x" : "")}"
+            ImGui.TextUnformatted($"{BreakpointConditionSummarizer.Summarize(bp.Condition)} - {scope}{(bp.HitCount > 0 ? $", hit {bp.HitCount}x" : "")}"
                                   + (bp.Enabled ? "" : " (disabled)"));
             ImGui.PopID();
         }

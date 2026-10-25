@@ -32,6 +32,8 @@ public sealed class BehaviourBreakpointTests : SystemTestBase
             {
                 long n = e!["networkId"]?.GetValue<long>() ?? 0;
                 var slots = (await Mcp.GetEntitySlotsAsync(n)).Field("slots") as JsonArray;
+                foreach (var sl in slots ?? new JsonArray())
+                    Output.WriteLine($"  #{n} {sl?["owner"]} {sl?["role"]} {sl?["behaviour"]} = {sl?["value"]?.ToJsonString()}");
                 var p = slots?.FirstOrDefault(s => s?["owner"]?.GetValue<string>() == "Task" && s?["role"]?.GetValue<string>() == "Params"
                                                   && s?["behaviour"]?.GetValue<string>() == Machine);
                 if (p?["value"]?["Guard"]?["EngageTarget"]?.GetValue<bool>() == false) { unit = n; break; }
