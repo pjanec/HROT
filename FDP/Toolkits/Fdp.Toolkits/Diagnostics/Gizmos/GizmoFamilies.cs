@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             AiOverlayFlags.Path, AiOverlayFlags.Perception, AiOverlayFlags.TargetMemory, AiOverlayFlags.Eqs,
             AiOverlayFlags.UtilityDecision, AiOverlayFlags.SquadAssignment,
             AiOverlayFlags.Channels,   // ⭐ CE-3136 — the action status (why a unit is not firing)
+            AiOverlayFlags.CommandPicture, AiOverlayFlags.SquadContacts,   // ⭐ CE-1317 BV-50 — split out of Squad
         };
 
         /// <summary>The settings key of a family's scope.</summary>
@@ -48,6 +49,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             AiOverlayFlags.UtilityDecision => "Utility",
             AiOverlayFlags.SquadAssignment => "Squad",
             AiOverlayFlags.Channels        => "Actions",
+            AiOverlayFlags.CommandPicture  => "Command picture",
+            AiOverlayFlags.SquadContacts   => "My units' contacts",
             _                              => family.ToString(),
         };
 

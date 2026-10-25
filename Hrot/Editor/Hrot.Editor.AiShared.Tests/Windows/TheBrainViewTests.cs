@@ -287,6 +287,94 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Equal(2, view.Running(w, e).Count);
     }
 
+    // ── CE-1310 / CE-1311 / CE-1317 (Brain View §12b, §12c, B5): expanders, grouped settings, one map family per checkbox ───────────
+
+    private static void Steering(EntityRepository w, Entity e)
+    {
+        if (!w.IsComponentTypeRegistered<CombatTemperament>()) w.RegisterComponent<CombatTemperament>();
+        if (!w.IsComponentTypeRegistered<CombatProficiency>()) w.RegisterComponent<CombatProficiency>();
+        w.AddComponent(e, new CombatTemperament
+        {
+            TypeRiskAcceptance = 0.5f, TypeObedience = 0.8f, TypeNerve = 0.5f, TypeResolve = 0.5f, TypeSet = 15,
+            RiskAcceptance = 0.62f, Set = CombatTemperament.RiskAcceptanceSet,
+        });
+        w.AddComponent(e, new CombatProficiency { TypeDefault = 0.6f, Set = CombatProficiency.TypeDefaultSet });
+    }
+
+    /// <summary>⭐⭐ <c>CE-1311</c> (BV-41) — the settings come as the user's GROUPS (Temperament, Combat skill), never components; a slider
+    /// write sets the AUTHORED bit (the reader honours it — a raw value alone would change nothing) and a reset clears it back to the
+    /// type's value. 🔴 Red-proof: drop the <c>Set |=</c> in <c>CombatTemperamentSettings.Write</c> ⇒ the unit keeps its old bravery.</summary>
+    [Fact]
+    public void CE1311_Settings_AreGroups_AWriteIsAuthored_AndAResetGoesBackToTheType()
+    {
+        var (w, e, _, _) = RunningWorld();
+        using var _w = w;
+        Steering(w, e);
+
+        var groups = BrainSettingRegistry.Default.For(w, e);
+        Assert.Equal(new[] { "Temperament", "Combat skill" }, groups.Select(g => g.Group));
+        var bravery = groups[0].Settings.Single(x => x.Setting.Key == "bravery");
+        Assert.Equal((0.62f, 0.5f, true), (bravery.Setting.Value, bravery.Setting.TypeValue, bravery.Setting.IsAuthored));
+        var skill = groups[1].Settings.Single().Setting;
+        Assert.Equal((0.6f, false), (skill.Value, skill.IsAuthored));
+
+        groups[0].Settings.Single(x => x.Setting.Key == "nerve").Provider.Write(w, e, "nerve", 0.9f);
+        Assert.Equal(0.9f, TemperamentOf.Nerve(w, e));
+        groups[1].Settings.Single().Provider.Write(w, e, "proficiency", ProficiencyOf.Elite);
+        Assert.Equal(ProficiencyTier.Elite, ProficiencyOf.Tier(w, e));
+
+        bravery.Provider.Reset(w, e, "bravery");
+        Assert.Equal(0.5f, TemperamentOf.RiskAcceptance(w, e));                 // the type's value again
+        Assert.False(BrainSettingRegistry.Default.For(w, e)[0].Settings.Single(x => x.Setting.Key == "bravery").Setting.IsAuthored);
+    }
+
+    /// <summary>⭐ <c>CE-1317</c> (BV-49, R-1038) — <i>Show on map</i> offers the brain-debug families, ⛔ never Path (the user's ruling),
+    /// with the two commander families split out of Squad (BV-50).</summary>
+    [Fact]
+    public void CE1317_ShowOnMap_OffersOneCheckboxPerBrainFamily_NeverPath()
+    {
+        Assert.DoesNotContain(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path, EntityBrainView.MapFamilies);
+        Assert.Contains(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.CommandPicture, EntityBrainView.MapFamilies);
+        Assert.Contains(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadContacts, EntityBrainView.MapFamilies);
+        Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All.Length - 1, EntityBrainView.MapFamilies.Length);
+    }
+
+    /// <summary>⭐ <c>CE-1310</c> (BV-34, BV-64) — the tab is EXPANDERS: photographed collapsed (as a fresh tab opens: nothing forced) and
+    /// open (the rail opens each once). 📷 <c>HROT_RAIL_SHOTS</c>/<c>brain-expanders-*.png</c>.</summary>
+    [SkippableFact]
+    public void CE1310_TheTab_IsCollapsingSections_PhotographedClosedAndOpen()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-brain");
+        Directory.CreateDirectory(shots);
+        var (w, e, reg, bps) = RunningWorld();
+        using var _ = w;
+        Steering(w, e);
+        BrainJournalOf.Write(w, e, BrainJournalKind.TaskStarted, a: Fight, origin: (byte)BehaviorOrigin.Superior);
+        var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null, null, () => reg, () => bps);
+        var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
+
+        using var frame = UiFrameHarness.Begin(760, 1000);
+        void Draw()
+        {
+            ImGui.SetNextWindowPos(new Vector2(8, 8));
+            ImGui.SetNextWindowSize(new Vector2(740, 980));
+            ImGui.Begin("Brain##ce1310");
+            view.Draw(ctx, "details_ce1310");
+            ImGui.End();
+        }
+        frame.StepN(3, Draw);
+        frame.Screenshot(Path.Combine(shots, "brain-expanders-closed.png"));
+        EntityBrainView.ExpandForRail = true;
+        try
+        {
+            frame.StepN(4, Draw);
+            frame.Screenshot(Path.Combine(shots, "brain-expanders-open.png"));
+        }
+        finally { EntityBrainView.ExpandForRail = false; }
+        Assert.NotEmpty(BrainSettingRegistry.Default.For(w, e));
+    }
+
     // ── CE-1320 (Brain View §12g BV-65): ONE live write for params and working state, no restart ──────────────────────────────
 
     /// <summary>A stager that applies at once (production stages through the breakpoint manager and the drain lands it next tick).</summary>

@@ -313,6 +313,40 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new SquadGizmo().Draw(_w, cmd, d), DebugTraceLayers.SquadCommand);
     }
 
+    /// <summary>⭐ <c>CE-1317</c> (Brain View §12c BV-50) — the commander's merged contacts are their OWN family: <see cref="SquadContactsGizmo"/>
+    /// draws a sphere and a line from the commander to each, the squad gizmo no longer draws them, and the picture projectors moved to
+    /// <c>CommandPicture</c> — so the Brain tab can pin each alone. ✅ Red-proof: the contact loop back in <c>SquadGizmo</c> ⇒ red.</summary>
+    [Fact]
+    public void CE1317_TheCommandersContactsAndPicture_AreFamiliesOfTheirOwn()
+    {
+        _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        _w.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        var cmd = _w.CreateEntity();
+        _w.AddComponent(cmd, new SimTransform { Position = new Vector3(0, 0, 0) });
+        _w.AddComponent(cmd, default(Fdp.Core.CommandHierarchy.UnitRoster));
+        var st = default(Fdp.Toolkit.Squad.SquadCognitiveState);
+        st.Contacts.Count = 2;
+        st.Contacts.Contacts[0] = new Fdp.Toolkit.Squad.SquadContact { PositionX = 40, PositionY = 0 };
+        st.Contacts.Contacts[1] = new Fdp.Toolkit.Squad.SquadContact { PositionX = 0, PositionY = 30 };
+        _w.AddComponent(cmd, st);
+
+        new SquadGizmo().Draw(_w, cmd, _draw);
+        Assert.DoesNotContain(_draw.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.Sphere);
+        _draw.Clear();
+        new SquadContactsGizmo().Draw(_w, cmd, _draw);
+        var frame = _draw.GetFrame().ToArray();
+        Assert.Equal(2, frame.Count(p => p.Shape == DebugPrimitiveShape.Sphere));
+        Assert.Equal(new[] { new Vector3(40, 0, 0), new Vector3(0, 30, 0) },
+            frame.Where(p => p.Shape == DebugPrimitiveShape.Line).Select(p => p.LineEnd).ToArray());   // a line from the commander to each
+
+        static Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags FamilyOf(System.Type t)
+            => ((Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute)System.Attribute.GetCustomAttribute(t,
+                typeof(Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute))!).Family;
+        Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadContacts, FamilyOf(typeof(SquadContactsGizmo)));
+        Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.CommandPicture, FamilyOf(typeof(CommandPictureGizmo)));
+        Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, FamilyOf(typeof(SquadGizmo)));
+    }
+
     /// <summary>⭐ CE-1203 (§5e FL-1) — the CONTACTS row, split from Perception: the contact line to a remembered unit and a heard contact's
     /// dashed circle are on the Contacts layer (25), not Perception (1, now the vision cones only), and nothing draws with it hidden.</summary>
     [Fact]

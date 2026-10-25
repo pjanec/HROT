@@ -2222,7 +2222,7 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/debug")] = new RouteDoc(
             Tool:    "debug_unit",
             Group:   "K — AI behavior traces",
-            Summary: "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
+            Summary: "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on) and keeps the AI graph's live overlay on it instead of the selection. ⛔ CE-1317: it no longer pins every map gizmo family — pin_gizmos one family at a time; a unit whose Brain tab is open is traced anyway. One unit at a time.",
             Returns: "{ networkId, debugging, debugged }",
             Hint:    "Req: networkId (number); optional on (bool, default true). Editor only. Example: debug_unit({networkId:1000, on:true})",
             Params: new RouteParam[]

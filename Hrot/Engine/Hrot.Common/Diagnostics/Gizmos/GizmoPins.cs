@@ -27,6 +27,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             AiOverlayFlags.UtilityDecision => GlobalActionIds.PinGizmosUtility,
             AiOverlayFlags.SquadAssignment => GlobalActionIds.PinGizmosSquad,
             AiOverlayFlags.Channels        => GlobalActionIds.PinGizmosActions,   // ⭐ CE-3136
+            AiOverlayFlags.CommandPicture  => GlobalActionIds.PinGizmosCommandPicture,   // ⭐ CE-1317
+            AiOverlayFlags.SquadContacts   => GlobalActionIds.PinGizmosSquadContacts,
             _                              => 0,
         };
 

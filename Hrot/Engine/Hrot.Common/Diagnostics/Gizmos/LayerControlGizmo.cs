@@ -93,6 +93,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs,             Ai.EqsSelectedOnly);
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision, Ai.UtilitySelectedOnly);
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, Command.SquadCommandSelectedOnly);
+            // ⭐ CE-1317 (BV-50) — the two families split out of Squad keep riding its "selected only" scope switch (one layer, one switch)
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.CommandPicture,  Command.SquadCommandSelectedOnly);
+            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadContacts,   Command.SquadCommandSelectedOnly);
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels,        Ai.ActionsSelectedOnly);
             NavmeshLayerSetting.Register(settings);
             if (NavmeshLayerSetting.Of(settings) != Map.NavmeshLayers) NavmeshLayerSetting.Set(settings, Map.NavmeshLayers);   // ⭐ CE-3133

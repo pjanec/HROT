@@ -169,6 +169,21 @@ related-designs:
 
 ## ⭐⭐⭐ SESSION `2026-10-25` — THE BRAIN TAB PROGRAMME *(designed and approved today; the build plan is the design's §12h)*
 
+### ⭐ Progress (updated as each stage lands; each stage's as-built is in Brain View §12i onwards)
+
+| stage | rows | state |
+|---|---|---|
+| B1 one reader | CE-1315 | ✅ (§12i) |
+| B2 one writer | CE-1320 | ✅ `151bea9b7` (§12j) |
+| B4 replay inputs | CE-1319 | ✅ `d20465cd3`, `b200a7ef9` (§12k) |
+| B3 C# hot reload over HTTP | CE-1321 | ✅ `6660686b1` (§12l). 🔴 the toolbar's build never reached the watched directory; fixed |
+| B5 layout + observation | CE-1310, CE-1317, CE-1311 | ✅ (§12m) |
+| B6 the tab absorbs the AI tab + Entity Blueprints | CE-1316, CE-1314 | next. Plan: the two views become EMBEDS drawn in the Brain tab's sections (a `DetailsViewRegistry` of embeds the host fills); the tab applies to every single entity (BV-47); `details.ai` / `details.entityblueprints` are unregistered |
+| B7 commander + graph pin | CE-1312, CE-1318 | after B6; retires `UnitDebugController`'s overlay pin (BV-55) |
+| D debugging S1 | CE-1284, CE-1291, CE-1285 | after B7 |
+| handoff behaviors → ui (callout voices, lean depth) | CE-2372, CE-2371 | queued after the programme |
+
+
 ⭐ Designed end to end with the user: [Brain View §12b…§12h](../DESIGN_Entity_Brain_View.md) (R-1037…R-1041) — grouped settings, every
 running behaviour alike with the inspector's read-only dump, blueprints managed on the tab, viewing = debugging, one gizmo family per
 checkbox, commander's picture / contacts / reports / orders with history, a graph pinned to its Brain tab, every input recorded for replay,

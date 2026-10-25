@@ -328,21 +328,28 @@ public sealed class EntityBrainView : IDetailsViewInstance
     {
         var (_, b) = BuildAndPublish(context, idScope);
         if (b is null) { ImGui.TextDisabled("No brain on this unit."); return; }
-        DrawDebugControls(context);
+        var unit = context.Entities[0];
+        var world = _world();
+        bool replay = context.Mode == VariableRunState.Replay;
+        // ⭐ CE-1317 (BV-48) — drawing this tab IS debugging the unit: its traces are armed while any tab draws it (released ~1 s after)
+        if (!replay && world is not null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Viewed(world, unit);
         if (!b.OnBrainNode)
             ImGui.TextColored(Amber, "This node does not run the unit's brain: only its task, SOP and ROE are known here.");
 
-        Header("Doing");
-        Row("Task", b.Doing + (b.SinceSeconds is { } s ? $"  ({s:0} s)" : ""));
-        if (b.Origin is { } o) Row("Ordered by", o + (b.Urgency is { } u ? $"  · {u}" : ""));
-        if (b.Paused is { } p) Row("Paused", p);
-        if (b.Sop is { } sop) Row("SOP", sop);
-        foreach (var g in b.Regions) Row($"Region {g.Region}", g.State);
-        if (b.Roe is { } roe) Row("ROE", roe);
-
-        if (b.RightNow.Count > 0)
+        // ⭐⭐ CE-1310 (BV-34, BV-64) — every section is a collapsing header with a STABLE id (the label may carry a count); which are
+        //   open is ImGui's own memory, nothing forced
+        if (Section("Doing", "doing"))
         {
-            Header("Right now");
+            Row("Task", b.Doing + (b.SinceSeconds is { } s ? $"  ({s:0} s)" : ""));
+            if (b.Origin is { } o) Row("Ordered by", o + (b.Urgency is { } u ? $"  · {u}" : ""));
+            if (b.Paused is { } p) Row("Paused", p);
+            if (b.Sop is { } sop) Row("SOP", sop);
+            foreach (var g in b.Regions) Row($"Region {g.Region}", g.State);
+            if (b.Roe is { } roe) Row("ROE", roe);
+        }
+
+        if (b.RightNow.Count > 0 && Section("Right now", "now"))
+        {
             foreach (var r in b.RightNow)
             {
                 var text = r.Reason + (r.Needed > 0 ? $"  {r.Progress:0.0}/{r.Needed:0.0}" : r.Progress > 0 ? $"  {r.Progress:0.0}" : "");
@@ -352,46 +359,116 @@ public sealed class EntityBrainView : IDetailsViewInstance
             }
         }
 
-        if (b.Squad is { } squad) { Header("Squad"); ImGui.TextWrapped(squad); }
+        if (b.Squad is { } squad && Section("Squad", "squad")) ImGui.TextWrapped(squad);
 
-        Header("Why this choice");
-        if (b.Choices.Count == 0) ImGui.TextDisabled("No utility decision has run on this unit.");
-        foreach (var c in b.Choices)
-            Row($"Decision {c.DecisionId}", $"winner {c.Winner} (was {c.PreviousWinner}), margin {c.Margin:0.00}, {c.Switches} switches");
-        // ⭐ CE-1319 (BV-61) — the graph's step-by-step trace is kept only for an observed unit; say which, honestly, in replay too
-        if (!b.Traced)
-            ImGui.TextDisabled(TraceLine(context.Mode));
-
-        Header("Knows");
-        Row("Contacts", $"{b.Contacts} seen" + (b.HeardOnly > 0 ? $", {b.HeardOnly} heard only" : ""));
-
-        if (_world() is { } rw && Running(rw, context.Entities[0]) is { Count: > 0 } running)
+        if (Section("Why", "why"))
         {
-            Header("Running behaviours");
-            DrawRunning(running);
+            if (b.Choices.Count == 0) ImGui.TextDisabled("No utility decision has run on this unit.");
+            foreach (var c in b.Choices)
+                Row($"Decision {c.DecisionId}", $"winner {c.Winner} (was {c.PreviousWinner}), margin {c.Margin:0.00}, {c.Switches} switches");
+            // ⭐ CE-1319 (BV-61) — the graph's step-by-step trace is kept only for an observed unit; say which, honestly, in replay too
+            if (!b.Traced) ImGui.TextDisabled(TraceLine(context.Mode));
         }
 
-        Header("Recent changes");
-        if (!b.JournalOn) ImGui.TextDisabled("Journal off on this host (or no brain here).");
-        foreach (var c in b.Changes)
+        if (Section("Knows", "knows"))
+            Row("Contacts", $"{b.Contacts} seen" + (b.HeardOnly > 0 ? $", {b.HeardOnly} heard only" : ""));
+
+        if (Section($"Recent changes ({b.Changes.Count})", "changes"))
         {
-            ImGui.TextDisabled($"{c.At,7:0.0}s");
-            ImGui.SameLine();
-            ImGui.TextWrapped(c.Text);
+            if (!b.JournalOn) ImGui.TextDisabled("Journal off on this host (or no brain here).");
+            foreach (var c in b.Changes)
+            {
+                ImGui.TextDisabled($"{c.At,7:0.0}s");
+                ImGui.SameLine();
+                ImGui.TextWrapped(c.Text);
+            }
+        }
+
+        if (world is not null && _settings.For(world, unit) is { Count: > 0 } groups && Section("Settings", "settings"))
+            DrawSettings(world, unit, groups, editable: !replay);
+
+        if (world is not null && Running(world, unit) is { Count: > 0 } running && Section($"Running behaviours ({running.Count})", "running"))
+            DrawRunning(running);
+
+        if (world is not null && !replay && Section("Show on map", "map")) DrawShowOnMap(world, unit);
+
+        if (Section("Debug", "debug")) DrawDebugControls(context);
+    }
+
+    /// <summary>⭐ <c>CE-1310</c> — a section's collapsing header: <paramref name="id"/> is the stable ImGui id, so a label carrying a count
+    /// keeps its open state. ⛔ Nothing forced open (BV-64) — only a frame rail opens them, once, to photograph.</summary>
+    private static bool Section(string label, string id)
+    {
+        if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
+        return ImGui.CollapsingHeader($"{label}###brain.{id}");
+    }
+
+    private readonly BrainSettingRegistry _settings = BrainSettingRegistry.Default;
+
+    /// <summary>⭐⭐ <c>CE-1311</c> (BV-41) — the settings as the user's GROUPS (never components): one slider per setting with the type's
+    /// value beside it and a reset when an authored value is set. A write is local, on the node that runs the brain (R-1036).</summary>
+    private static void DrawSettings(EntityRepository world, Entity unit,
+        IReadOnlyList<(string Group, IReadOnlyList<(IBrainSettingProvider Provider, BrainSetting Setting)> Settings)> groups, bool editable)
+    {
+        foreach (var (group, settings) in groups)
+        {
+            ImGui.TextDisabled(group);
+            foreach (var (provider, s) in settings)
+            {
+                ImGui.PushID(provider.Group + "/" + s.Key);
+                ImGui.TextUnformatted("  " + s.Label);
+                ImGui.SameLine(LabelWidth);
+                float v = s.Value;
+                ImGui.SetNextItemWidth(160f);
+                if (!editable) ImGui.BeginDisabled();
+                string format = s.Presets is { Count: > 0 } presets ? $"%.2f  {Nearest(presets, v)}" : "%.2f";
+                if (ImGui.SliderFloat("##v", ref v, s.Min, s.Max, format)) provider.Write(world, unit, s.Key, v);
+                if (!editable) ImGui.EndDisabled();
+                if (s.Tooltip is { } tip && ImGui.IsItemHovered()) ImGui.SetTooltip(tip);
+                ImGui.SameLine();
+                ImGui.TextDisabled($"type {s.TypeValue:0.00}");
+                if (s.IsAuthored && editable)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton("reset")) provider.Reset(world, unit, s.Key);
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Back to the type's value (clears the authored value).");
+                }
+                ImGui.PopID();
+            }
         }
     }
 
-    /// <summary>⭐ <c>CE-1315</c> (BV-42, BV-43) — one tree node per running behaviour; its parameters and variables are the inspector's
-    /// own read-only dump (<see cref="Fdp.Presentation.Utils.ImGuiPropertyTree"/>: the registered renderers, fixed lists at their Count).
-    /// ImGui remembers what is open (BV-64).</summary>
+    private static string Nearest(IReadOnlyList<(string Name, float Value)> presets, float v)
+        => presets.OrderBy(p => MathF.Abs(p.Value - v)).First().Name;
+
+    /// <summary>⭐⭐ <c>CE-1317</c> (BV-49, BV-50) — ONE map-gizmo family per checkbox, the brain-debug families only (⛔ no Path, the user's
+    /// ruling); nothing is pinned by opening the tab, and no control pins them all.</summary>
+    internal static readonly Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags[] MapFamilies =
+        Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All.Where(f => f != Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path).ToArray();
+
+    private static void DrawShowOnMap(EntityRepository world, Entity unit)
+    {
+        for (int i = 0; i < MapFamilies.Length; i++)
+        {
+            var f = MapFamilies[i];
+            bool on = Hrot.Common.Diagnostics.Gizmos.GizmoPins.IsPinned(world, unit, f);
+            if (i > 0 && i % 4 != 0) ImGui.SameLine();
+            if (ImGui.Checkbox(Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.Label(f) + "##map" + i, ref on))
+                Hrot.Common.Diagnostics.Gizmos.GizmoPins.Set(world, unit, f, on);
+        }
+    }
+
     /// <summary>⭐ <c>CE-1319</c> (BV-61) — what the tab says when the unit's graph trace rings are absent.</summary>
     internal static string TraceLine(VariableRunState mode) => mode == VariableRunState.Replay
         ? "Graph trace: not traced during the recording (Observe all brain units while recording traces everyone)."
-        : "Graph trace: off (Debug this unit traces it).";
+        : "Graph trace: armed while this tab shows the unit (it fills from the next decision).";
 
     /// <summary>A frame rail opens the nodes once to photograph them; the product never forces an open state (BV-64).</summary>
     internal static bool ExpandForRail;
 
+    /// <summary>⭐ <c>CE-1315</c> (BV-42, BV-43) — one tree node per running behaviour; its parameters and variables are the inspector's
+    /// own read-only dump (<see cref="Fdp.Presentation.Utils.ImGuiPropertyTree"/>: the registered renderers, fixed lists at their Count).
+    /// ImGui remembers what is open (BV-64).</summary>
     private static void DrawRunning(IReadOnlyList<RunningBehaviourView> running)
     {
         for (int i = 0; i < running.Count; i++)
@@ -441,19 +518,21 @@ public sealed class EntityBrainView : IDetailsViewInstance
 
     private string? _breakNote;
 
-    /// <summary>⭐ <c>CE-1257</c> / <c>CE-1258</c> — the two debugging buttons, where the host composes the controller (the editor).</summary>
+    /// <summary>⭐ <c>CE-1257</c> / <c>CE-1258</c> — the debugging buttons (follow, open the running graph, break when it changes its mind),
+    /// where the host composes the controller (the editor). ⭐ <c>CE-1317</c> — in the tab's <b>Debug</b> section.</summary>
     private void DrawDebugControls(DetailsContext context)
     {
-        if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is not { } c || _world() is not { } w) return;
+        if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is not { } c || _world() is not { } w)
+        {
+            ImGui.TextDisabled("No debugger on this host.");
+            return;
+        }
         var unit = context.Entities[0];
-        bool on = c.IsDebugged(unit);
-        if (ImGui.Checkbox("Debug this unit", ref on)) c.Set(w, unit, on);
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Arms its traces, pins its map gizmos and keeps the AI graph's live overlay on it (not on the selection).");
+        // ⛔ CE-1317 (BV-48) — the "Debug this unit" checkbox is gone: viewing the tab arms the traces, and the map families are
+        //   pinned one by one in "Show on map"
         // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — watch him: the map's 3-D camera follows this unit (wheel: in to his eyes)
         if (Hrot.UI.Common.Map3D.ViewControl.Of(w) is { } view)
         {
-            ImGui.SameLine();
             if (ImGui.Button("Follow"))
                 _breakNote = view.FollowUnit(unit) ?? "the map camera follows it (W/A/S/D or Esc lets go)";
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("The map's 3-D camera follows this unit: the wheel goes in to his eyes, RMB orbits.");
@@ -461,7 +540,6 @@ public sealed class EntityBrainView : IDetailsViewInstance
         // ⭐ CE-1254 (BV-21, BV-22) — open THE RUNNING behaviour's graph, with the overlay pinned to this unit ("Debug this unit").
         if (c.OpenGraph is { } open && RunningBehaviourLocator.Resolve(w, unit, _behaviorName, _definition) is { } running)
         {
-            ImGui.SameLine();
             if (ImGui.Button("Open running behaviour"))
             {
                 c.Set(w, unit, true);
@@ -471,22 +549,14 @@ public sealed class EntityBrainView : IDetailsViewInstance
         }
         if (c.ArmJournalBreak is { } arm)
         {
-            ImGui.SameLine();
             if (ImGui.Button("Break when it changes its mind"))
                 _breakNote = arm(w, unit) is { } id ? $"breakpoint {id} armed" : "no breakpoint manager on this host";
-            if (_breakNote is { } note) { ImGui.SameLine(); ImGui.TextDisabled(note); }
         }
+        if (_breakNote is { } note) ImGui.TextDisabled(note);
     }
 
     private static readonly Vector4 Amber = new(1f, 0.75f, 0.2f, 1f);
     private const float LabelWidth = 110f;
-
-    private static void Header(string text)
-    {
-        ImGui.Spacing();
-        ImGui.TextUnformatted(text);
-        ImGui.Separator();
-    }
 
     private static void Row(string label, string value)
     {

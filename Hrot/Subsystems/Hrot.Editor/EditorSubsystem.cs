@@ -1949,6 +1949,8 @@ namespace Hrot.Editor
 
             // ⭐ CE-1257 / CE-1258 (BV-26, BV-28) — "Debug this unit" lives where the debuggers live: the editor composes the ONE controller
             //   (the Brain tab, the map's AI-trace menu and POST /entities/{id}/debug are buttons on it) and gives it the journal break.
+            // ⭐ CE-1317 (BV-48, R-1038) — viewing a unit's Brain tab arms its traces (refcounted by draw, released ~1 s after)
+            Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current = new Hrot.Common.Diagnostics.Gizmos.BrainObservation();
             Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = new Hrot.Common.Diagnostics.Gizmos.UnitDebugController
             {
                 ArmJournalBreak = (w, e) => _bpManager?.AddBreakpoint(
@@ -2827,6 +2829,8 @@ namespace Hrot.Editor
             // are applied here, between kernel ticks, so no active simulation tick
             // can observe a half-swapped pointer.
             _aiCoordinator?.DrainPendingCallbacks();
+            // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
+            if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
 
             // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves
             // (BTree/HSM emit-on-dirty).  Safe in headless mode; no-op when nothing is pending.

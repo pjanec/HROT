@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -1266,3 +1266,68 @@ sequenceDiagram
 | `POST /ai/reload` (tool `reload_ai_behaviours`), route doc, skill §J rung 3 | `DebugApiHost.cs`, `DebugApiService.AiReload.cs`, `DebugApiRouteDocs.cs`, `skill-parts/30-workflows.md` | ✅ |
 | running units keep their task across the swap: measured end to end (`AiBehaviourHotReloadTests`, hill-attack: 150 behaviours, 9.8 s, unit 1000 still `PlatoonHillAttack`) | `Hrot.SystemTests` | ✅ the measurement BV-68 asked for |
 | ⚠ **not measured:** on Windows, whether the default load context holds the base directory's `Hrot.AI.Behaviors.dll` open so the copy fails | — | the copy reports `could not be replaced` rather than hanging; a Windows run settles it |
+
+### 12m. AS-BUILT — B5 *(CE-1310, CE-1317, CE-1311, `2026-10-25`)*
+
+```mermaid
+classDiagram
+  class EntityBrainView {
+    <<EXISTS, sections are collapsing headers>>
+    Section(label, id) bool
+    DrawSettings()
+    DrawShowOnMap()
+  }
+  class BrainObservation {
+    <<NEW, Hrot.Common>>
+    +Current
+    +Viewed(world, unit)
+    +Tick(world)
+  }
+  class UnitDebugController {
+    <<EXISTS, pins nothing now>>
+    overlay pin, journal break, open graph
+  }
+  class BrainSettingRegistry {
+    <<NEW>>
+    +Default
+    +For(view, unit) groups
+  }
+  class IBrainSettingProvider {
+    <<NEW>>
+    +Group
+    +Settings(view, unit)
+    +Write(world, unit, key, value)
+    +Reset(world, unit, key)
+  }
+  class CombatTemperamentSettings { <<NEW>> Temperament }
+  class CombatProficiencySettings { <<NEW>> Combat skill }
+  class GizmoPins { <<EXISTS>> Set(view, unit, family, on) }
+  class SquadContactsGizmo { <<NEW, family SquadContacts>> }
+  class SquadGizmo { <<EXISTS, contacts removed>> }
+  class CommandPictureGizmo { <<EXISTS, family CommandPicture>> }
+  class AiTraceActions { <<EXISTS>> }
+  EntityBrainView --> BrainObservation : Viewed each draw
+  BrainObservation --> AiTraceActions : arm or disarm
+  BrainObservation ..> UnitDebugController : a debugged unit stays armed
+  EntityBrainView --> BrainSettingRegistry
+  BrainSettingRegistry o-- "*" IBrainSettingProvider
+  IBrainSettingProvider <|.. CombatTemperamentSettings
+  IBrainSettingProvider <|.. CombatProficiencySettings
+  EntityBrainView --> GizmoPins : one family per checkbox
+```
+
+*What the picture shows that prose hid:* nothing in the tab pins every family any more. The observation only arms traces, the
+controller kept its overlay-pin job but lost `SetAll`, and each map checkbox is one `GizmoPins.Set`.
+
+| piece | where | matches §12b / §12c / deviates |
+|---|---|---|
+| every section a `CollapsingHeader` with a stable `###brain.<id>` id (a label may carry a count: *Recent changes (14)*, *Running behaviours (2)*); nothing forced open; the rail opens each once to photograph | `EntityBrainView.cs` (`Section`) | ✅ BV-34, BV-64 |
+| `BrainObservation`: the tab's draw calls `Viewed`; the first view arms the unit's traces; the editor's frame loop `Tick`s and disarms a unit no tab drew for 1 s; ⭐ it disarms only what IT armed (a trace the menu or the debug switch armed stays) | `Hrot.Common/Diagnostics/Gizmos/BrainObservation.cs`, `EditorSubsystem.cs` | ✅ BV-48 — ⚠ **deviation:** NOT a rename of `UnitDebugController`. The controller still carries the graph-overlay pin, the journal break, *Open graph* and `POST /entities/{id}/debug`; those retire with the overlay pin in B7 (BV-55). It lost `GizmoPins.SetAll` |
+| the *Debug this unit* checkbox is gone; the *Debug* section keeps *Follow*, *Open running behaviour*, *Break when it changes its mind* | `EntityBrainView.cs` | ✅ BV-48 |
+| *Show on map*: one checkbox per family, `GizmoFamilies.All` minus Path; no "pin all" | `EntityBrainView.MapFamilies` | ✅ BV-49 + the user's no-Path ruling |
+| two families split out of `SquadAssignment`: `CommandPicture` (bit 7: the picture, its absence note, the sector arcs) and `SquadContacts` (bit 8: the merged pool, a sphere and a LINE from the commander to each — `SquadContactsGizmo`, split from `SquadGizmo`); menu labels *Command picture* / *My units' contacts*; pin actions 269 / 270; both ride the Squad layer's "selected only" switch | `AiOverlayFlags.cs`, `GizmoFamilies.cs`, `GizmoPins.cs`, `GlobalActionIds.cs`, `SquadGizmo.cs`, `CommandPictureGizmo.cs`, `LayerControlGizmo.cs` | ✅ BV-50, BV-56 |
+| *Settings*: `IBrainSettingProvider` per component, merged by user-facing GROUP; `CombatTemperamentSettings` (*Temperament*: bravery, obedience, nerve, resolve) and `CombatProficiencySettings` (*Combat skill*: one value, the tier named in the slider); a write sets the authored bit, *reset* clears it, the type's value beside each; disabled in replay | `Hrot.Editor.AiShared/Shell/BrainSettings.cs` | ✅ BV-41 — ⚠ proficiency is a slider with the tier's name, not the wireframe's tier drop-down (one control for all settings; a drop-down can come with a non-float setting) |
+
+📷 `TheBrainViewTests.CE1310_TheTab_IsCollapsingSections_PhotographedClosedAndOpen` — a fresh tab (nothing forced) and every section opened:
+
+![B5 — closed](assets/brain-view/b5-expanders-closed.png) ![B5 — open](assets/brain-view/b5-expanders-open.png)
