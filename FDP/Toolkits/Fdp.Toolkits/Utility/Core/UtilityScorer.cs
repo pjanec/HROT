@@ -249,13 +249,13 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
-        /// ⭐ <c>CE-3069</c> G2 — records the decision's FINAL ranking (after hysteresis) on an observed unit's
-        /// <see cref="UtilityDecisionLog"/>; nothing when the unit is not observed.
+        /// ⭐ <c>CE-3069</c> G2 — records the decision's FINAL ranking (after hysteresis) on the unit's <see cref="UtilityDecisionLog"/>.
+        /// ⭐ <c>CE-1319</c> (BV-61) — whenever the unit carries one (every brain unit, always), not only while it is observed: the
+        /// Brain tab's Why section then replays for every unit. Nothing when the unit has none (a test world, a non-brain host).
         /// </summary>
         private static void LogDecision(EntityRepository repo, Entity self, int decisionId, in UtilityResultBuffer output, bool isOption)
         {
-            if (!repo.HasComponent<UtilityDecisionLog>(self) || !repo.HasComponent<UtilityDebugFlags>(self)) return;
-            if (repo.GetComponentRO<UtilityDebugFlags>(self).TraceEnabled == 0) return;
+            if (!repo.IsComponentTypeRegistered<UtilityDecisionLog>() || !repo.HasComponent<UtilityDecisionLog>(self)) return;
             repo.GetComponentRW<UtilityDecisionLog>(self).Record(decisionId, in output, isOption);
         }
 

@@ -10,6 +10,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Perception.Components;
+using Hrot.Editor.AiShared.Variables;
 using ImGuiNET;
 
 namespace Hrot.Editor.AiShared.Shell;
@@ -17,7 +18,7 @@ namespace Hrot.Editor.AiShared.Shell;
 /// <summary>One action channel's "right now" (an <see cref="ActionStatus"/> row).</summary>
 public sealed record BrainActionRow(string Channel, int ActionId, string Reason, bool IsHold, float Progress, float Needed);
 
-/// <summary>One utility decision's last choice (observed units only — <see cref="Fdp.Toolkit.Utility.UtilityDecisionLog"/>).</summary>
+/// <summary>One utility decision's last choice (<see cref="Fdp.Toolkit.Utility.UtilityDecisionLog"/> — on every brain unit, CE-1319 BV-61).</summary>
 public sealed record BrainChoice(int DecisionId, long Winner, long PreviousWinner, float Margin, int Switches);
 
 /// <summary>One HSM region's active state (CE-1261).</summary>
@@ -48,7 +49,8 @@ public sealed record BrainSnapshot(
     int HeardOnly,
     uint JournalSeq,
     bool JournalOn,
-    IReadOnlyList<BrainChange> Changes)
+    IReadOnlyList<BrainChange> Changes,
+    bool Traced = false)
 {
     /// <summary>The unit's brain, or <c>null</c> when it has none (no <see cref="BehaviorState"/>).</summary>
     public static BrainSnapshot? Read(ISimulationView view, Entity unit, Func<int, string?>? behaviorName = null,
@@ -138,7 +140,10 @@ public sealed record BrainSnapshot(
             running && b.Urgency != ReactionUrgency.NotAReaction ? b.Urgency.ToString() : null,
             running && b.RunSince > 0 ? Math.Max(0d, now - b.RunSince) : null,
             paused, sop, roe, rows, BrainRegions.Of(view, unit, b.ActiveBehaviorHash, definition), squad, choices, contacts, heard, seq,
-            journalOn, changes);
+            journalOn, changes,
+            // ⭐ CE-1319 (BV-61) — the graph's trace rings are observe-only; the tab says whether this unit's are on (in replay: were)
+            Has<BTreeTraceWorkingMemory1024>(view, unit) || Has<HsmTraceWorkingMemory1024>(view, unit)
+            || Has<Fdp.Toolkit.Utility.UtilityTraceWorkingMemory1024>(view, unit));
     }
 
     private static void AddRow(List<BrainActionRow> rows, string channel, in ActionStatusRow row)
@@ -173,6 +178,7 @@ public sealed record BrainSnapshot(
             ["paused"] = Paused, ["sop"] = Sop, ["roe"] = Roe, ["rightNow"] = rows, ["regions"] = regions, ["squad"] = Squad,
             ["choices"] = choices, ["contacts"] = Contacts, ["heardOnly"] = HeardOnly,
             ["journal"] = new JsonObject { ["on"] = JournalOn, ["seq"] = JournalSeq, ["changes"] = changes },
+            ["traced"] = Traced,
         };
     }
 
@@ -349,9 +355,12 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (b.Squad is { } squad) { Header("Squad"); ImGui.TextWrapped(squad); }
 
         Header("Why this choice");
-        if (b.Choices.Count == 0) ImGui.TextDisabled("Utility scores are kept only while the unit is observed (Debug this unit).");
+        if (b.Choices.Count == 0) ImGui.TextDisabled("No utility decision has run on this unit.");
         foreach (var c in b.Choices)
             Row($"Decision {c.DecisionId}", $"winner {c.Winner} (was {c.PreviousWinner}), margin {c.Margin:0.00}, {c.Switches} switches");
+        // ⭐ CE-1319 (BV-61) — the graph's step-by-step trace is kept only for an observed unit; say which, honestly, in replay too
+        if (!b.Traced)
+            ImGui.TextDisabled(TraceLine(context.Mode));
 
         Header("Knows");
         Row("Contacts", $"{b.Contacts} seen" + (b.HeardOnly > 0 ? $", {b.HeardOnly} heard only" : ""));
@@ -375,6 +384,11 @@ public sealed class EntityBrainView : IDetailsViewInstance
     /// <summary>⭐ <c>CE-1315</c> (BV-42, BV-43) — one tree node per running behaviour; its parameters and variables are the inspector's
     /// own read-only dump (<see cref="Fdp.Presentation.Utils.ImGuiPropertyTree"/>: the registered renderers, fixed lists at their Count).
     /// ImGui remembers what is open (BV-64).</summary>
+    /// <summary>⭐ <c>CE-1319</c> (BV-61) — what the tab says when the unit's graph trace rings are absent.</summary>
+    internal static string TraceLine(VariableRunState mode) => mode == VariableRunState.Replay
+        ? "Graph trace: not traced during the recording (Observe all brain units while recording traces everyone)."
+        : "Graph trace: off (Debug this unit traces it).";
+
     /// <summary>A frame rail opens the nodes once to photograph them; the product never forces an open state (BV-64).</summary>
     internal static bool ExpandForRail;
 

@@ -1129,5 +1129,10 @@ namespace Fdp.Core
         // ── ⭐ ui's block 460–475 (R-2056) ──
         /// <summary><c>BrainJournal</c> — a brain unit's last 24 changes with their causes (CE-1249, R-1027); NoScenario, brain-only.</summary>
         public const int BrainJournal = 460;
+        // 461 — taken by a test-local struct (TheBrainViewTests); left free in production to keep the census unambiguous.
+        /// <summary><c>CommandReportHistory</c> — a commander's last 32 reports to and from him (CE-1319, BV-57); NoScenario, brain-only.</summary>
+        public const int CommandReportHistory = 462;
+        /// <summary><c>CommandOrderHistory</c> — a commander's last 32 orders given and received, each with its cause (CE-1319, BV-58); NoScenario, brain-only.</summary>
+        public const int CommandOrderHistory = 463;
     }
 }

@@ -48,6 +48,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();   // ⭐ CE-3136 — the channels' status (T1)
             world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();   // ⭐ CE-1249 — the brain journal (BV-9)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>();   // ⭐ CE-1319 — a commander's report history (BV-57)
+            world.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();    // ⭐ CE-1319 — a commander's order history (BV-58)
             world.RegisterComponent<InteractionChannel>();
             // ⭐ MOVED 2026-09-12 to CombatComponentRegistry (CE-259bf slice 2): ActorCapabilityState
             //   is stamped by BehaviorTkbTranslator alongside EntityInfo — which ALREADY lives in the

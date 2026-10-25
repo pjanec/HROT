@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
-build-state: BUILDING 2026-10-25 — §12h stages (B1 built, §12i); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
+current-answer: §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -1161,3 +1161,73 @@ that needs both the reader and the writer, because it moves editing onto the tab
 📷 The frame rail `TheBrainViewTests.CE1315_TheRunningBehavioursSection_Draws` photographs the section (`HROT_RAIL_SHOTS`).
 
 ![B1 — Running behaviours](assets/brain-view/b1-running-behaviours.png)
+
+### 12j. AS-BUILT — B2 *(CE-1320, `2026-10-25`)*
+
+| piece | where | matches §12g / deviates |
+|---|---|---|
+| the ADDRESS beside the reader: `OccurrenceSlotCatalog.ResolveField(world, unit, registry, blueprints, owner, behaviour?, part?, role, path)` → `SlotFieldAddress(ComponentType, ComponentOffset, FieldType, Size, …)`. It reuses the reader's own naming (`ReadNamed`), splits a block `{ In; St }` exactly as the display does, refuses a blueprint's `Cursor` / `Params` as variables, walks `A.B[n]` by the managed layout (`TypeLayout.OffsetOf`, `[n]` into an `[InlineArray]`), and finds the tier component the slot lives in (the ladder, ascending — the debug session's order). Empty path = the whole half | `Fdp.Toolkits/Behavior/OccurrenceSlotCatalog.cs` | ✅ BV-65 — ⚠ the class diagram's `OccurrenceSlotWriter` is split in TWO by layer: the address lives in `Fdp.Toolkits` (beside the reader), the staging in `Hrot.Editor.AiShared` (it needs the breakpoint manager's stager) |
+| THE ONE LIVE WRITE: `OccurrenceSlotWriter.WriteField` (a field, JSON of the field's own type → its exact managed image) and `WriteParamsJson` (a whole parameter set through the behaviour's OWN `ParseParams`, as an assignment runs it); both stage through a `FieldStager` (`IDataBreakpointManager.StageFieldMutation` in production) and NEVER restart; a task-params write patches `BehaviorStartRecord.JsonParams` by name (case-insensitive) or replaces it with the applied JSON | `Hrot.Editor.AiShared/Variables/OccurrenceSlotWriter.cs` | ✅ BV-65 — ⚠ an indexed path (`X.Items[1]`) does not patch the record's text (no name to patch by) |
+| the route: `POST /entities/{id}/variable` with `owner` (task · sop · paused · blueprint) + `behaviour` / `part` / `role` / `path` / `value`, or `paramsJson`; the reply says `restarted:false`, `startRecordUpdated`, `willDrain`. `GET /entities/{id}/slots` now passes the blueprint registry the service holds (a held value was not passed) | `DebugApiHost.cs`, `DebugApiService.Slots.cs`, `DebugApiRouteDocs.cs` | ✅ BV-66 |
+| the skill: §J rung 1's params / working-state line flipped to built (source `skill-parts/30-workflows.md`, regenerated) | `tools/ai-debug-mcp/` | ✅ BV-67 |
+| ⚠ **moved to B6:** the tab's *[Edit params…]* / *[Restart with these params]* buttons and the Watch's edits through the writer | — | the params form and its editing model (`EntityAiEditModel`, editor-only) arrive on the tab in B6 with the AI tab's content; the buttons belong to that move, not to a second editing path built ahead of it |
+
+### 12k. AS-BUILT — B4 *(CE-1319, `2026-10-25`)*
+
+```mermaid
+classDiagram
+  class CommandReportHistory {
+    <<component 462, NoScenario, brain-only>>
+    int Count
+    CommandReportEntries Items "InlineArray 32, newest first"
+  }
+  class CommandOrderHistory {
+    <<component 463, NoScenario, brain-only>>
+    int Count
+    CommandOrderEntries Items "InlineArray 32, newest first"
+  }
+  class CommandOrderEntry {
+    float At
+    CommandTraffic Traffic
+    BrainJournalKind CauseKind
+    byte Cause
+    int CauseA
+    ushort Repeats
+    long CounterpartNetId
+    int Behaviour
+  }
+  class CommandHistoryOf {
+    <<static, the one writer>>
+    Report(world, from, to, report, now, fate)
+    Order(world, giver, member, hash, now)
+  }
+  class StaffInboxSystem { <<exists>> }
+  class CommandOrders { <<exists, Hrot.AI.Behaviors>> }
+  class SquadStateProvisioning { <<exists>> EnsureForCommander() }
+  class BrainJournal { <<exists, 24 entries>> }
+  class SquadReportLog { <<exists, node-wide, HTTP only>> }
+  StaffInboxSystem ..> CommandHistoryOf : every report
+  StaffInboxSystem ..> SquadReportLog : unchanged
+  CommandOrders ..> CommandHistoryOf : every order, before its journal entry
+  CommandHistoryOf ..> BrainJournal : copies the cause
+  CommandHistoryOf --> CommandReportHistory
+  CommandHistoryOf --> CommandOrderHistory
+  CommandOrderHistory *-- CommandOrderEntry
+  SquadStateProvisioning ..> CommandReportHistory : adds on a commander
+  SquadStateProvisioning ..> CommandOrderHistory : adds on a commander
+```
+
+*What the picture shows that prose hid:* ONE writer serves both directions — a report is written once by the inbox into the addressee's
+history (incoming) AND the sender's (outgoing); an order once by `CommandOrders.Journal` into the giver's (outgoing) AND the member's when
+he is himself a commander (incoming, BV-58's *Received*). The provisioning rides the existing commander fact, so no new attach path exists.
+
+| piece | where | matches §12e / deviates |
+|---|---|---|
+| `CommandReportHistory` (462) / `CommandOrderHistory` (463): fixed lists (`int Count` + `[InlineArray(32)]`, exactly the `FixedListShape` shape), newest first, `NoScenario` ⇒ recorded and snapshotted; registered by `CognitiveComponentRegistry`, `brainOnly` in `HrotRoleComponentSets` | `Fdp.Toolkits/Squad/Command/CommandHistory.cs`, `GlobalComponentIds.cs` | ✅ BV-60 — the dump, the JSON converter and the watch formatter read them with no new code |
+| provisioning: `SquadStateProvisioning.EnsureForCommander` adds both where the type is registered (a node without a brain gets none) | `Fdp.Toolkits/Squad/State/SquadStateProvisioning.cs` | ✅ "commanders only" |
+| reports: `StaffInboxSystem.Execute` → `CommandHistoryOf.Report` with the inbox's verdict as `ReportFate` (folded · stale · not-owned-here); `SquadReportLog` unchanged | `StaffSystems.cs` | ✅ BV-57 |
+| orders: `CommandOrders.Journal` → `CommandHistoryOf.Order` BEFORE the journal's `OrderIssued`, so the copied cause is the change that issued the order (the play start, the phase change, the task start). The runner's re-send of the same order with the same cause counts `Repeats` instead of a new row | `Hrot.AI.Behaviors/Brains/CommandNodes.cs` | ✅ BV-58 — ⚠ the *params summary* column is not stored (an unmanaged entry holds no text; the current order's JSON stays on `SubordinateOrders`) |
+| the *Why* log on EVERY brain unit: `TraceBufferLifecycleSystem` attaches `UtilityDecisionLog` to every `BehaviorState` unit; arming adds/removes only the per-consideration trace + flags; `UtilityScorer.LogDecision` writes whenever the log is present | `TraceBufferLifecycleSystem.cs`, `UtilityScorer.cs` | ✅ BV-61 — ⚠ *"every unit with a utility reasoner"* is not knowable statically (utility is reached through `UtilityNodes` at run time) ⇒ every brain unit; one that never decides keeps an empty 4-slot log. ⛔ SUPERSEDES CE-3069's "attached only while observed" (its two rails replaced) |
+| the tab: *Why this choice* no longer says scores need observing; a unit whose graph trace rings are absent reads *"Graph trace: off (Debug this unit traces it)"*, in replay *"not traced during the recording …"*; `BrainSnapshot.Traced` (and `traced` in `GET /entities/{id}/brain`) | `EntityBrainView.cs` | ✅ BV-61 |
+| `GET /entities/{id}/utility` + route docs: decisions need no arming; `observe_trace` arms only the traces | `DebugApiService.Utility.cs`, `DebugApiRouteDocs.cs` | ✅ BV-61 |
+| ⚠ **the expanders that SHOW the histories are B7** (CE-1312, the commander's Reports / Orders) — B4 makes the inputs exist and record | — | as planned (§12h) |

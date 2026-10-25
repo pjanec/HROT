@@ -341,6 +341,53 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-1319</c> (Brain View §12e BV-58, BV-60) — a play's orders land in the commander's ORDER HISTORY, newest first, each
+        /// with its WHY copied from the journal (the play start or the phase change that issued it); the runner's re-send is counted, not
+        /// listed; and the cause SURVIVES the 24-entry journal's eviction. Provisioned by the commander fact (<c>EnsureForCommander</c>).
+        /// 🔴 Red-proof: drop <c>CommandHistoryOf.Order</c> from <c>CommandOrders.Journal</c> ⇒ red; drop <c>CauseOf</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1319_APlaysOrders_LandInTheCommandersOrderHistory_WithTheirCause_ThatOutlivesTheJournal()
+        {
+            var s = new Squad(members: 4);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>())
+                s.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Attach(s.Repo, s.Commander);
+            Fdp.Toolkit.Squad.SquadStateProvisioning.EnsureForCommander(s.Repo, s.Commander);
+            Assert.True(s.Repo.HasComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>(s.Commander));
+            Assert.True(s.Repo.HasComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>(s.Commander));
+            Assert.False(s.Repo.HasComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>(s.Members[0]));   // a soldier pays nothing
+            for (int i = 0; i < s.Members.Length; i++)
+                s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1000 + i });
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":5}");
+            s.Tick(); s.Tick();
+            foreach (var m in s.Members.Take(2)) s.Teleport(m, s.LastObjectives()[m]);   // Alpha arrives: the next phase
+            for (int i = 0; i < 6; i++) s.Tick();
+
+            var h = s.Repo.GetComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>(s.Commander);
+            Assert.InRange(h.Count, 2, Fdp.Toolkit.Squad.Command.CommandOrderHistory.Capacity);
+            var entries = Enumerable.Range(0, h.Count).Select(i => h.Items[i]).ToList();
+            Assert.All(entries, e => Assert.Equal(Fdp.Toolkit.Squad.Command.CommandTraffic.Outgoing, e.Traffic));
+            Assert.All(entries, e => Assert.NotEqual(0, e.Behaviour));
+            Assert.Contains(entries, e => e.CounterpartNetId == 1000);
+            Assert.Contains(entries, e => e.CounterpartNetId == 1003);                    // Bravo's man, once Bravo bounds
+            Assert.True(entries.Zip(entries.Skip(1)).All(p => p.First.At >= p.Second.At), "newest first");
+            Assert.All(entries, e => Assert.Contains(e.CauseKind, new[]
+                { Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayStarted, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayPhase,
+                  Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskStarted }));
+            var bravo = entries.First(e => e.CounterpartNetId == 1003);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayPhase, bravo.CauseKind);   // Bravo moves BECAUSE Alpha arrived
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached, bravo.Cause);
+
+            // the journal forgets — 30 later changes evict every entry — the history keeps its why
+            for (int i = 0; i < 30; i++)
+                Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(s.Repo, s.Commander, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.MoveStarted, a: 7000 + i);
+            var later = s.Repo.GetComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>(s.Commander);
+            var kept = Enumerable.Range(0, later.Count).Select(i => later.Items[i]).First(e => e.CounterpartNetId == 1003);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.PlayPhase, kept.CauseKind);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-1250</c> (BV-12) — a squad member's advance is a <c>SquadPost</c> move in his journal, an operator's the same advance an
         /// <c>Order</c>: the move's source is noted for the command instance the dispatcher will start.
         /// 🔴 Red-proof: drop <c>source:</c> from <c>PostureNodes.AdvanceAndAttack</c>'s <c>Issue</c> ⇒ red.
@@ -1768,6 +1815,36 @@ namespace Hrot.SimHost.Tests
             var set = new Fdp.Toolkit.Squad.Command.ProgressReachedParams { Slot = 0, Progress = Fdp.Toolkit.Squad.Command.ProgressKind.Set };
             Assert.True(Fdp.Toolkit.Squad.Command.PictureConditions.ProgressReached(ref set, c.Platoon, c.S.Repo));
             Assert.Equal(1, c.Composer.SentCount);
+        }
+
+        /// <summary>⭐⭐ <c>CE-1319</c> (Brain View §12e BV-57, BV-60) — the report the squad's staff sends lands in BOTH commanders' REPORT
+        /// HISTORY: incoming on the platoon (folded), outgoing on the squad leader — the one inbox writes both, beside the node-wide log.
+        /// ✅ Red-proof: drop <c>CommandHistoryOf.Report</c> from <c>StaffInboxSystem.Execute</c> ⇒ both empty.</summary>
+        [Fact]
+        public void CE1319_AReport_IsInBothCommandersHistory_IncomingFolded_AndOutgoing()
+        {
+            var c = new Chain(members: 3);
+            Fdp.Toolkit.Squad.SquadStateProvisioning.EnsureForCommander(c.S.Repo, c.Platoon);
+            Fdp.Toolkit.Squad.SquadStateProvisioning.EnsureForCommander(c.S.Repo, c.S.Commander);
+            c.S.Order("{\"DurationSeconds\":0.5}", BehaviorNames.SquadHold);
+            bool done = false;
+            for (int i = 0; i < 80 && !done; i++) { c.Tick(); done = c.S.Finished(out _); }
+            Assert.True(done);
+            c.Ticks(2); c.S.Pause(3.5); c.Ticks(3);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.Set, c.SquadProgress);
+
+            var platoon = c.S.Repo.GetComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>(c.Platoon);
+            var squad = c.S.Repo.GetComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>(c.S.Commander);
+            Assert.True(platoon.Count >= 1);
+            Assert.True(squad.Count >= 1);
+            var inbound = Enumerable.Range(0, platoon.Count).Select(i => platoon.Items[i])
+                .First(e => e.Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Progress);
+            Assert.Equal((Fdp.Toolkit.Squad.Command.CommandTraffic.Incoming, Fdp.Toolkit.Squad.Command.ReportFate.Folded), (inbound.Traffic, inbound.Fate));
+            Assert.Equal((byte)Fdp.Toolkit.Squad.Command.ProgressKind.Set, inbound.Report.Subtype);
+            var outbound = Enumerable.Range(0, squad.Count).Select(i => squad.Items[i])
+                .First(e => e.Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Progress);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.CommandTraffic.Outgoing, outbound.Traffic);
+            Assert.Equal((inbound.FromNetId, inbound.ToNetId, inbound.At), (outbound.FromNetId, outbound.ToNetId, outbound.At));
         }
 
         /// <summary>⭐⭐ <c>CE-2293</c> CC-C (CC-7, cc-platoon-bound ③) — three contacts in the squad's pool are ONE element: one SPOT (size

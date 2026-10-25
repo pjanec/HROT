@@ -34,6 +34,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         private readonly List<Entity> _toRemoveHsm = new();
         private readonly List<Entity> _toAddUtility = new();
         private readonly List<Entity> _toRemoveUtility = new();
+        private readonly List<Entity> _toAddLog = new();
 
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -68,9 +69,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
 
                 if (utility)
                 {
-                    bool logged = repo.HasComponent<UtilityDecisionLog>(entity);
-                    if (enabled && !logged) _toAddUtility.Add(entity);
-                    else if (!enabled && logged) _toRemoveUtility.Add(entity);
+                    bool traced = repo.HasComponent<UtilityTraceWorkingMemory1024>(entity);
+                    if (enabled && !traced) _toAddUtility.Add(entity);
+                    else if (!enabled && traced) _toRemoveUtility.Add(entity);
                 }
 
                 byte tier = repo.GetComponentRO<BehaviorState>(entity).BrainTier;
@@ -100,15 +101,29 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 repo.RemoveComponent<HsmTraceWorkingMemory1024>(e);
             foreach (var e in _toAddUtility)
             {
-                repo.AddComponent(e, new UtilityDecisionLog());
                 repo.AddComponent(e, new UtilityTraceWorkingMemory1024());
-                repo.AddComponent(e, new UtilityDebugFlags { TraceEnabled = 1 });
+                if (repo.HasComponent<UtilityDebugFlags>(e)) repo.GetComponentRW<UtilityDebugFlags>(e).TraceEnabled = 1;
+                else repo.AddComponent(e, new UtilityDebugFlags { TraceEnabled = 1 });
             }
             foreach (var e in _toRemoveUtility)
             {
-                repo.RemoveComponent<UtilityDecisionLog>(e);
-                if (repo.HasComponent<UtilityTraceWorkingMemory1024>(e)) repo.RemoveComponent<UtilityTraceWorkingMemory1024>(e);
+                // ⭐ CE-1319 (BV-61) — the trace goes, the decision log STAYS (it is always on)
+                repo.RemoveComponent<UtilityTraceWorkingMemory1024>(e);
                 if (repo.HasComponent<UtilityDebugFlags>(e)) repo.RemoveComponent<UtilityDebugFlags>(e);
+            }
+
+            // ⭐⭐ CE-1319 (Brain View §12e BV-61, R-1040) — the "why did it pick this?" log is on EVERY brain unit, always, so the Brain
+            //   tab's Why section replays for every unit, not only the ones somebody watched while recording. It is small (4 decisions ×
+            //   8 ranked) and written only when a decision runs. ⚠ "every unit with a utility reasoner" is not knowable statically
+            //   (utility is reached through UtilityNodes at run time) ⇒ every BehaviorState unit; one that never decides keeps an empty log.
+            //   ⛔ The per-consideration TRACE stays observe-only (above): 1 KB per unit, written every evaluation.
+            if (utility)
+            {
+                _toAddLog.Clear();
+                foreach (var entity in repo.Query().With<BehaviorState>().Without<UtilityDecisionLog>().Build())
+                    _toAddLog.Add(entity);
+                foreach (var e in _toAddLog)
+                    repo.AddComponent(e, new UtilityDecisionLog());
             }
         }
     }

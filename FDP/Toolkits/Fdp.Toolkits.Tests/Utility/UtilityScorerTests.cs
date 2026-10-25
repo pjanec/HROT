@@ -636,8 +636,11 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((long)b.PackedValue, slots[1].Winner);
         }
 
+        /// <summary>⭐ <c>CE-1319</c> (BV-61; ⛔ SUPERSEDES CE-3069's "an unobserved unit is not logged") — the decision is logged whenever
+        /// the unit carries the log, trace switch off or no flags at all: the Why replays for every unit. ✅ Red-proof: the old
+        /// <c>TraceEnabled</c> gate back in <c>LogDecision</c> ⇒ the slot stays empty.</summary>
         [Fact]
-        public unsafe void CE3069_AnUnobservedUnit_IsNotLogged()
+        public unsafe void CE1319_AnUnobservedUnit_IsLoggedToo()
         {
             UtilityInputReaderStore.Register(60, &Stub07);
             UtilityInputReaderStore.Register(61, &Stub075);
@@ -647,7 +650,7 @@ namespace Fdp.Toolkit.Tests
             world.GetComponentRW<UtilityDebugFlags>(unit).TraceEnabled = 0;
 
             scorer.ChooseOption(world, unit, id, lastWinner: 0);
-            Assert.Equal(0, world.GetComponentRO<UtilityDecisionLog>(unit).SlotsRO()[0].DecisionId);
+            Assert.Equal(id, world.GetComponentRO<UtilityDecisionLog>(unit).SlotsRO()[0].DecisionId);
         }
 
         private static UtilityOption BuildSingleLinearOption(ushort optionId, ushort inputId)
