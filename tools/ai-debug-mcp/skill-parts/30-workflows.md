@@ -22,6 +22,15 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 3. Poll `get_breakpoint_status` → when `isPaused:true`, the condition fired; `lastHit` names the entity.
 4. Inspect, then `remove_breakpoint {id}` and continue.
 
+#### C0. What a utility decision IS, and which node runs it (CE-1325)
+- `list_utility_decisions` → every decision (the C# `[UtilityDecision]` classes).
+- `get_utility_decision {key:"Combat posture", networkId?}` → per option its aggregation and considerations (input, context, weight, curve
+  kind + slope / exponent / shift, modifier); with `networkId` that unit's winner, margin and raw → curved → weighted per consideration
+  (traced units), and the consideration that zeroed an option.
+- `get_behaviour_decisions {name:"CombatPosture"}` → which node / state / transition binds which decision: `Chooses` (ChooseOption),
+  `Ranks` (RankCandidates), `Reads` + the option (an IsOption guard), `Holds` (a custom action's params). Works for C#-built behaviours
+  with no asset.
+
 #### C1. Stop on a BEHAVIOUR STEP (CE-1323) — "when he enters Withdrawing", "when that transition fires"
 Read the running behaviour's name first (`get_entity_brain` → the running behaviour), then:
 ```json

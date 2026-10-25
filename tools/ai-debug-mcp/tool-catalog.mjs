@@ -724,10 +724,13 @@ export const TOOLS_CATALOG = [
         "description": "Human-readable label for the breakpoint"
       }
     ],
-    "returns": "{ breakpointId } (e.g. \"BP#1\").",
+    "returns": "{ breakpointId, conditionSummary } (e.g. \"BP#1\", \"Withdrawing entered (PlatoonCommander)\").",
     "notes": [
       "condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).",
-      "Poll get_breakpoint_status after play to detect when the breakpoint fires."
+      "Poll get_breakpoint_status after play to detect when the breakpoint fires.",
+      "⭐ CE-1323 — BEHAVIOUR BREAKPOINTS: {\"$type\":\"BehaviourStep\",\"Behaviour\":\"<running behaviour name>\",\"Kind\":K,...} with K = StateEnter|StateExit {State} · InsideEnter {State, Region?: -1 = anything under it, n = region n of a parallel state} · TransitionFires {From?, To, Event?} (no From = a global transition) · EventHandled {Event} (dequeued, consumed or deferred, even when no transition uses it) · NodeRuns {Node: the BTree node's VisualId}. Names are the machine's own (GET /entities/{id}/brain names the running behaviour); a name not in it is a 400 that lists what is.",
+      "Per unit: filterNetworkId. Any other condition: {\"$type\":\"Compound\",\"Operator\":\"And\",\"Conditions\":[<BehaviourStep>, <PropertyMatch …>]} — the rest is checked on the unit at the step. A step scoped to a unit arms its traces; an unscoped step sees only armed units (a Brain tab open, Debug this unit, observe-all).",
+      "Only records written since the last look count, so continue_from_breakpoint never stops twice on one arrival. get_breakpoint_status names what fired (lastHit.what)."
     ],
     "example": {
       "args": {
@@ -816,7 +819,7 @@ export const TOOLS_CATALOG = [
       "path": "/breakpoints/hits"
     },
     "params": [],
-    "returns": "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }",
+    "returns": "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, name, conditionSummary, what, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }  — what (CE-1323) is what a behaviour step saw: \"entered Withdrawing\", \"Engaging -> Withdrawing fired on OrderReceived\", \"event Contact handled (consumed)\"; null for a data breakpoint",
     "notes": [
       "Poll this after play to detect when a breakpoint fires."
     ],
@@ -1972,7 +1975,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "debug_unit",
     "group": "K — AI behavior traces",
-    "summary": "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
+    "summary": "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on) and keeps the AI graph's live overlay on it instead of the selection. ⛔ CE-1317: it no longer pins every map gizmo family — pin_gizmos one family at a time; a unit whose Brain tab is open is traced anyway. One unit at a time.",
     "http": {
       "method": "POST",
       "path": "/entities/{networkId}/debug"
@@ -2494,45 +2497,6 @@ export const TOOLS_CATALOG = [
       "gist": "see which weapon a unit would fire at a target, and why"
     },
     "hint": "Req: networkId (number); optional target (number, query). Read on the Brain perspective. Example: get_entity_weapons({networkId:1000, target:1002})",
-    "manualVerify": false
-  },
-
-  {
-    "name": "explain_hearing",
-    "group": "K — AI behavior traces",
-    "summary": "What one unit could hear in the last seconds and why not, as this node's hearing sensor decides it — each sound's verdict (heard / beyond its carry / beyond his ear / walls or corners / his own side), the straight line's loss, the way round through doorways, windows, stairs and street corners, and where it seems to come from (AQ106 L).",
-    "http": {
-      "method": "GET",
-      "path": "/perception/hearing"
-    },
-    "params": [
-      {
-        "name": "listener",
-        "type": "number",
-        "required": true,
-        "description": "the hearing unit's network id"
-      },
-      {
-        "name": "seconds",
-        "type": "number",
-        "required": false,
-        "description": "how far back the short sounds (shots, bursts, doors) are listed; default 10"
-      }
-    ],
-    "returns": "{ listener, seconds, count, heard, sounds:[{source, kind, class, at, ageSeconds, carry, distance, effectiveCarry, verdict, via, heardFrom, straightDb, crossings, pathMetres, pathDb, openings, corners, route:[[x,y,z]]}], note }",
-    "notes": [
-      "A dry run of the SAME sensor (its ears and its one verdict, AcousticSensorGenerator.Judge) — it cannot disagree with what was heard; it moves no cursor.",
-      "Answers where hearing runs (the Perception node: SimHost, the editor); 404 when the listener is not on this node or has no acoustic sensor here.",
-      "The moving and shouting bodies are those near him NOW; the short sounds are the ring's of the last `seconds`."
-    ],
-    "example": {
-      "args": {
-        "listener": 1001,
-        "seconds": 5
-      },
-      "gist": "find out why the defender did not hear the attacker on the stairs"
-    },
-    "hint": "Req: listener (network id); seconds (default 10). Example: explain_hearing({listener:1001, seconds:5})",
     "manualVerify": false
   },
 
