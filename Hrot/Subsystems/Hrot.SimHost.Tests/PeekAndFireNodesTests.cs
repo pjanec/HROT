@@ -881,6 +881,28 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> (R-2078) — a window used up (burned) with NOWHERE ELSE to go is still peeked from, at a third of the rhythm: the
+        /// 2 s hide wait becomes 6 s, and he comes up again long before the spot cools (~70 s). 📐 Live <c>bt-window-duel</c>: he waited 64 s
+        /// behind the sill without a peek. 🔴 Red-proof: the old "a burned spot waits to cool" return restored ⇒ no exposure within 20 s.
+        /// </summary>
+        [Fact]
+        public void CE2366_AHotWindowWithNowhereElse_IsStillPeeked_AtAThirdOfTheRhythm()
+        {
+            var d = new Duel(Window());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (10f, 10f, StanceId.Crouched));
+            for (int exposure = 0; exposure < 3; exposure++)
+            {
+                Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+                Assert.Equal(PeekPhase.Hidden, d.RunUntil(PeekPhase.Hidden));
+            }
+            double down = d.Time;   // three exposures: heat 3 ≥ BurnHeat 2.5 — burned, and the only window
+            Assert.Equal(PeekPhase.Expose, d.RunUntil(PeekPhase.Expose, maxSeconds: 20));
+            Assert.InRange(d.Time - down, 5.5, 7.0);   // 3 × the 2 s wait
+            Assert.All(d.Moves, m => Assert.Equal(new Vector3(10f, 10f, 0f), m));
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <c>P7_R2</c> — D12, SUPPRESS AND BOUND (B in the street, <c>SuppressBeforeRelocate</c>): the cover is used up, so the
         /// unit picks the next one, but first steps out and fires a suppressive burst (<c>FireAtPoint</c>, no aim time) at the enemy's
         /// freshest spot, and then RUNS to the new cover — never back to the used one. ⭐ Under fire it stays down: a near miss holds the

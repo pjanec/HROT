@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
+updated: 2026-10-25 (§12.6 R-2078: a hot spot still peeked, no drop indoors, the duel's tasks) · 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
 current-answer: ⭐ §12 THE POSTED MAN'S ONE CYCLE + A LOOK IS NOT A BURST (R-2077) · ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
 stale-below: nothing
-known-rot: §4.2 and D13 (§6) — a blind burst now answers only FRESH evidence (≤ 5 s), else the exposure is a look (§12.4 B, R-2077) · D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
+known-rot: §8 B4 "a burned one with nowhere to go waits to cool" — he now peeks from it at a third of the rhythm (§12.6, R-2078) · §4.2 and D13 (§6) — a blind burst now answers only FRESH evidence (≤ 5 s), else the exposure is a look (§12.4 B, R-2077) · D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) A, B, D: the posted window man fights through PeekAndFire; under fire ducks whatever his health; the next spot a seeded pick
@@ -1153,3 +1153,23 @@ Suppress branch" is superseded by §12.2.
 | ⛔ the displacement walk | moved to his alternate while prone (under fire), crawling the long way round the stairwell: ~15 s for ~4 m of straight line |
 | ⚠ the hunt | H re-sent his order twice (start, end), each restarting the cycle (§12.4 C) |
 | ⚠ the street man | 3 rounds, then nothing: his reflex ends after 8 s of quiet and he has no task (`CE-2366` D) — after ~70 s the window man forgets him and stands at his frame watching |
+
+### 12.6 The three after the live run *(✅ R-2078, `2026-10-25`)*
+
+🔒 **User, `2026-10-25`:** *"the 3 approved. the street man's goal is to attack the house, i.e. to win over the window man, so his task/behavior
+should say so"* · *"and the task of the window man is to defend the house"*.
+
+| | as built | why |
+|---|---|---|
+| **hot spot, nowhere else** | `Hidden` / `FrameHidden` no longer return on a burned spot with nowhere to go; `EnterHidden` multiplies the hide wait by `HotWaitFactor` = 3 while the spot is burned | he keeps watching, slower — ⛔ SUPERSEDED B4's "a burned one with nowhere to go waits to cool" (§8) |
+| **no drop indoors** | `UnderFire.Step`'s drop (AQ96 C) also needs `!GrenadeRules.Indoors(at)` — inside a building the move stays the tactical one: crouched, at the rush pace | R-2061 says *"a near miss **in the open** drops him"*; the code dropped him anywhere |
+| **the tasks** | street man: `CombatPosture {"target": Window Rifleman, "assault": true}` — the Attack order (Entity Control C-5), **no squad needed**; window man: the one man of a `SquadDefend` squad | ⚠ a LONE soldier's DefendArea is `CombatPosture` at the area's centre (`DefendAreaMapper`) — **no window posts**: posting a house lives only in `SquadDefend`, so the window man needs his one-man squad |
+
+### 12.7 Live after R-2078 *(`bt-window-duel`, 200 s)* — the attacker gets in, and both stand one floor apart
+
+| | measured |
+|---|---|
+| ✅ no drop indoors | displaced to his alternate under fire: crouched, at the rush, no prone crawl (11–13 s) |
+| ✅ the Attack order | the street man fired 4 rounds, then flanked round the house (the approach decision) and came in by the back (13–42 s) |
+| ⛔ one floor apart | from 42 s the attacker stands on the GROUND floor at the window man's last-seen x/y (106, 101) — the attack's advance walks to the remembered spot's map position — and the defender, upstairs, has no window that sees an enemy INSIDE the house: his cycle finds no cover answer, fails after `NoCoverSeconds`, a decision branch steps him back to his post, and it starts again every ~3 s. Neither fires for 160 s |
+| ⏳ hot spot | not reached this run (§12.6's rail covers it) |

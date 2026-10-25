@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "bt-range",
-  "description": "What: On bt-range, 'Window Rifleman' (Friend, upstairs in House A at (107.1,100.9), z 3) defends House A as the one man of 'Window Squad' (SquadDefend, the house-defence play: it posts him at a window, beside its frame for a Regular) and 'Street Rifleman' (Hostile, in the open at (108.5,80) behind parked 'Van 1') is a lone soldier with no task and his type's default reflexes (BasicInfantrySop); 'Van 2' at (113,76) is the next cover. Standard behaviours only (CE-2366, R-2073 R2-5: WindowDuel retired). Nothing is scripted or written over HTTP. Judge: (1) both sides fire (each side's ammunition falls); (2) the Window Rifleman fires from at least two different House A window spots; (3) the Street Rifleman changes cover. Check: python3 scripts/utility-demo-check.py --launch bt-window-duel"
+  "description": "What: On bt-range, 'Window Rifleman' (Friend, upstairs in House A at (107.1,100.9), z 3) defends House A (his task: defend the house) as the one man of 'Window Squad' (SquadDefend, the house-defence play: it posts him at a window, beside its frame for a Regular) and 'Street Rifleman' (Hostile, in the open at (108.5,80) behind parked 'Van 1') is a lone soldier ordered to ATTACK the Window Rifleman (CombatPosture with him as target, assault: the operator's Attack order, Entity Control C-5; his type's default reflexes); 'Van 2' at (113,76) is the next cover. Standard behaviours only (CE-2366, R-2073 R2-5: WindowDuel retired). Nothing is scripted or written over HTTP. Judge: (1) both sides fire (each side's ammunition falls); (2) the Window Rifleman fires from at least two different House A window spots; (3) the Street Rifleman changes cover. Check: python3 scripts/utility-demo-check.py --launch bt-window-duel"
  },
  "entities": {
   "2a970101-0000-4000-8000-000000000101": {
@@ -96,6 +96,11 @@
       "Modality": 1
      }
     ]
+   },
+   "Behavior": {
+    "Name": "CombatPosture",
+    "Params": "{\"target\": 7421, \"assault\": true}",
+    "Origin": "Superior"
    }
   },
   "2a970103-0000-4000-8000-000000000103": {

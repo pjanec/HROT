@@ -1157,6 +1157,34 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> (R-2078; R-2061 "a near miss IN THE OPEN drops him") — INSIDE a building a near miss does not drop him: his move
+        /// stays the crouched rush. In the open the same near miss drops him (the AQ96 C rail below). 📐 Live <c>bt-window-duel</c>: a defender
+        /// moving between two windows dropped and crawled the long way round the stairwell. 🔴 Red-proof: the indoors test dropped from the
+        /// drop ⇒ Down.
+        /// </summary>
+        [Fact]
+        public void CE2366_ANearMissIndoors_DoesNotDropHim_TheMoveStaysTheCrouchedRush()
+        {
+            var w = new World();
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+            w.Repo.SetSingletonManaged(terrain);
+            var house = terrain.Buildings.Single(b => b.Label == "House A").Footprint;
+            var mid = new Vector3(house.Average(v => v.X), house.Average(v => v.Y), 0f);
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = mid, Rotation = Quaternion.Identity });
+            w.Contact(armed: true);
+            Mover(w, mid + new Vector3(20f, 0f, 0f));   // farther than ArrivingMetres: the drop's own distance rule passes
+            ShotAt(w, 20.0);
+            StepAt(w, 20.1);
+            Assert.Equal(UnderFirePhase.Moving, Reflex(w).Phase);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
+            Assert.Equal(UnderFire.RushSpeed, Intent(w).TargetSpeed);
+        }
+
+        /// <summary>
         /// ⭐⭐ AQ96 A + B — a soldier who set off unthreatened (upright, the order's 2 m/s) crouches and rushes when a threat appears MID-MOVE,
         /// and the play's move is the same move (its instance unchanged). 🔴 Red before: the gait and the pace were fixed at issue (CE-2319).
         /// ✅ Red-proof: the threat re-check removed from <c>UnderFire.Step</c> ⇒ he stays upright at 2 ⇒ red.
