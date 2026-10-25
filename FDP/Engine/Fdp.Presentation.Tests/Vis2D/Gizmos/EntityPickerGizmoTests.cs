@@ -43,8 +43,8 @@ public class EntityPickerGizmoTests
             if (p.Shape == DebugPrimitiveShape.Line)
                 reach = MathF.Max(reach, MathF.Max(MathF.Abs(p.LineStart.X), MathF.Max(MathF.Abs(p.LineEnd.X), MathF.Max(MathF.Abs(p.LineStart.Y), MathF.Abs(p.LineEnd.Y)))));
         }
-        Assert.Equal(6f, reach, 3);
-        Assert.Equal(2f, circle);
+        Assert.Equal(3f, reach, 3);   // CE-1337 — halved again
+        Assert.Equal(1f, circle);
     }
 
     [Fact]

@@ -119,4 +119,60 @@ public sealed class CodeBuiltMachinesTests
         }
         Assert.True(problems.Count == 0, string.Join("\n", problems.Take(20)));
     }
+
+    /// <summary>⭐ <c>CE-1274</c> — the statechart lays out as a FLOW: the initial state in the first column, a column never taller than six
+    /// states, and the states reached from the initial one to its right. 📷 With <c>HROT_RAIL_SHOTS</c> set it writes each machine's boxes and
+    /// arrows (<c>hsm-layout.json</c>) for a picture. ✅ Red-proof: the old near-square grid ⇒ red (the platoon machines' first column holds
+    /// more than the initial state's column).</summary>
+    [Fact]
+    public void CE1274_EveryCodeBuiltMachine_FlowsLeftToRight_InShortColumns()
+    {
+        var contributor = new HsmAssetContributor();
+        contributor.LoadFrom(Behaviors);
+        var problems = new System.Collections.Generic.List<string>();
+        var dump = new System.Text.Json.Nodes.JsonArray();
+        foreach (var asset in contributor.Enumerate().Where(AiDocument.IsCodeBuilt).Cast<HsmAsset>())
+        {
+            var sizes = new System.Collections.Generic.Dictionary<StateNode, System.Numerics.Vector2>();
+            var boxes = new System.Text.Json.Nodes.JsonArray();
+            var arrows = new System.Text.Json.Nodes.JsonArray();
+            void Walk(StateNode parent, System.Numerics.Vector2 at, bool root)
+            {
+                foreach (var band in parent.Children.GroupBy(c => parent.IsParallel ? c.RegionIndex : 0))
+                {
+                    var cols = Hrot.Hsm.Editor.Layout.HsmAutoLayout.Columns(band.ToList());
+                    if (cols.Any(c => c.Count > 6)) problems.Add($"{asset.Name}/{parent.Name}: a column of {cols.Max(c => c.Count)}");
+                    var initial = band.FirstOrDefault(c => c.IsInitial);
+                    if (initial != null && cols.Count > 0 && !cols[0].Contains(initial)) problems.Add($"{asset.Name}/{parent.Name}: initial not first");
+                    // ⭐ the PLACED positions follow the flow: a transition to a later column points to the right on the canvas
+                    int ColumnOf(StateNode n) => cols.FindIndex(c => c.Contains(n));
+                    foreach (var from in band)
+                        foreach (var t in from.OutgoingTransitions)
+                            if (band.Contains(t.Target) && ColumnOf(t.Target) > ColumnOf(from) && t.Target.Position.X <= from.Position.X)
+                                problems.Add($"{asset.Name}: {from.Name} -> {t.Target.Name} points left");
+                }
+                foreach (var c in parent.Children)
+                {
+                    var size = Hrot.Hsm.Editor.Layout.HsmAutoLayout.Measure(c, sizes);
+                    var abs = root ? c.Position : at + c.Position + new System.Numerics.Vector2(8f, 32f);
+                    boxes.Add(new System.Text.Json.Nodes.JsonObject
+                    {
+                        ["name"] = c.Name, ["x"] = abs.X, ["y"] = abs.Y, ["w"] = size.X, ["h"] = size.Y, ["container"] = c.IsContainer,
+                        ["initial"] = c.IsInitial, ["id"] = c.StableId.ToString(),
+                    });
+                    foreach (var t in c.OutgoingTransitions)
+                        arrows.Add(new System.Text.Json.Nodes.JsonObject { ["from"] = c.StableId.ToString(), ["to"] = t.Target.StableId.ToString() });
+                    if (c.IsContainer) Walk(c, abs, false);
+                }
+            }
+            Walk(asset.RootState, default, true);
+            dump.Add(new System.Text.Json.Nodes.JsonObject { ["name"] = asset.Name, ["boxes"] = boxes, ["arrows"] = arrows });
+        }
+        if (System.Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir)
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "hsm-layout.json"), dump.ToJsonString());
+        }
+        Assert.True(problems.Count == 0, string.Join("\n", problems.Take(20)));
+    }
 }

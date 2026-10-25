@@ -1039,7 +1039,68 @@ entry after the bang · no grenade into an unsuspected room or where it would st
 first two pie on frame posts, 3 s quiet resumes · a man down before the entry, the next takes his place); the nine BC-1 / BC-3 rails pass on the
 gate unchanged.
 
-## 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
+### 7.4 `ClearArea` — a squad clears an AREA, building after building *(`CE-2374`, behaviors — AQ104 B ✅ approved 2026-10-25, R-2079; build-state: BUILDING)*
+
+🔒 User, `2026-10-25`: *"the house is not the only place, i would like we could have also behaviors for … 'attack /clear given area'"*.
+📄 [AQ104](../../blueprints/Architect_Question_104_Area_And_Building_Combat.md) §4 B; R-2060 (Platoon §5a): *"a building is its one-position case"*.
+
+| the lean rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| `ClearBuilding` clears ONE building: the survey round its point, the nearest non-solid building | ✅ `ClearBuildingPlay.Survey` (`BuildingAskMetres` 3) | ✅ §7.2 CB-57 |
+| a play ends by `Outcome`; the runner then only releases (no member clear) and a fresh state starts it again | ✅ `SquadManeuverRunner.Tick` / `End` | ✅ Squad Tactics §3 |
+| a building survey of an AREA answers up to 4 buildings | ✅ `WorldSurveyRequest.OfArea`, `MaxBuildings` 4 | ✅ World Survey Sensor WS-9 |
+| a heard contact in a room suspects it; a hostile seen again reopens a cleared room | ✅ `RoomSuspicion.Of`, `ClearBuildingPlay.Reopen` | ✅ CB-66, CB-74 |
+
+```mermaid
+classDiagram
+  class ClearAreaBehavior { <<NEW>> Resolve · BuildTree · Run · Deactivate_Run }
+  class ClearAreaParams { <<NEW>> Centre · Radius · Speed · Intensity · Suspected · the area survey's clock · Buildings[4] + state · Current · Inner : ClearBuildingParams · InnerState : SquadPlayState }
+  class ClearAreaParamsJsonDto { <<NEW>> Centre · Radius · Speed · Intensity · Suspected }
+  class ClearBuildingPlay { <<existing>> runs unchanged, one building at a time }
+  class SquadManeuverRunner { <<existing>> Tick of ClearBuildingPlay }
+  class AreaAlert { <<existing CE-2371>> KeepInArea(centre, radius) }
+  class WorldSurveyChildSensor { <<existing>> OfArea }
+  ClearAreaBehavior --> ClearAreaParams
+  ClearAreaBehavior --> SquadManeuverRunner : Inner, InnerState
+  SquadManeuverRunner --> ClearBuildingPlay
+  ClearAreaBehavior --> AreaAlert
+  ClearAreaBehavior --> WorldSurveyChildSensor : AreaSite
+```
+*What the picture shows that prose hid:* ClearArea is a SEQUENCER over the existing building play — it holds one `ClearBuildingParams` and
+runs the same runner on it; no second clearing drill exists (ruling 9).
+
+```mermaid
+sequenceDiagram
+  participant CA as ClearArea (commander)
+  participant WS as BuildingSurvey OfArea (AreaSite)
+  participant CB as ClearBuildingPlay (inner)
+  CA->>WS: OfArea(centre, radius)
+  WS-->>CA: the area's buildings (≤ 4) — or nothing in 5 s ⇒ Failure
+  loop each building, nearest the squad first
+    CA->>CB: fresh Inner {Point = the building}, InnerState = default
+    CB-->>CA: Running … Success (BuildingClear) / Failure (blocked)
+    CA->>CA: mark it Cleared / Blocked · drop its survey
+  end
+  CA->>CA: a known enemy still near a cleared building ⇒ that building once more (CA-4)
+  CA-->>CA: Success — no live enemy known in the area's buildings
+```
+
+```mermaid
+graph TD
+  CGF[CGF: BrainTickSystem] --> CAB[ClearArea on the commander]
+  CAB -->|the same runner, inner state| CBP[ClearBuildingPlay → RoomDrill → member orders]
+  CAB -->|survey child sensor, solved on SimHost| SH[SimHost: WorldSurveySolve]
+```
+
+| id | decision | rejected — one line each |
+|---|---|---|
+| **CA-1** | **a sequencer over `ClearBuildingPlay`**, not a new drill: one `ClearBuildingParams` + its own `SquadPlayState`, run by the existing runner | a second room-by-room drill: ruling 9 · a platoon play: a fire team must clear an area too (AQ104 A/B) |
+| **CA-2** | the buildings: ONE area survey (`OfArea(centre, radius)`, ≤ 4), non-solid only; next = the uncleared one nearest the squad's centre | a fixed order by distance from the area's centre: the squad crosses the area twice |
+| **CA-3** | a building that fails (no way in) is **Blocked** and the squad goes on; the play fails only when NO building could be cleared | failing on the first: one locked house ends the order |
+| **CA-4** | the end: every building done ⇒ a known, live, non-neutral enemy within 10 m of a CLEARED building's centre sends the squad through it **once more**; then Success. An enemy in the OPEN is fought by each man's own posture (no open-ground sweep in v1) | sweeping the open ground by bounds: AQ104 B's open half — later, with `L2`'s overview points · ending while an enemy is known inside: the user's "alerted until the enemy is incapacitated" |
+| **CA-5** | the whole area stays alerted (`AreaAlert.KeepInArea(centre, radius)`), on top of each building's own 15 m | only the building in hand: a man upstairs in house B is forgotten while house A is cleared |
+
+### 7a. Building blocks — the whole list *(2026-10-18; ✅ reuse as is · ⚙ extend · 🆕 new; measured where marked)*
 
 ### Engine and wire *(backend)*
 | block | kind | what | slice |

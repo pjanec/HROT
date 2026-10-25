@@ -197,5 +197,52 @@ namespace Hrot.Presentation.Tests.Tools
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
             Assert.Contains(reports, r => r.Contains("no global gizmo manager"));
         }
-    }
+    
+        // ── CE-1346 — a pick from ANOTHER source (an ORBAT row) ───────────────────────────────────────────
+
+        private sealed class OnlyEven : Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter
+        {
+            public bool IsMatch(Fdp.Core.Entity entity) => entity.Index % 2 == 0;
+        }
+
+        private static Task<Fdp.Core.Entity> ArmEntityPick(Fixture fx)
+            => fx.Pickers.RunPickAsync<Fdp.Core.Entity>(ScenarioToolIds.PickEntity, (tcs, remove) =>
+                new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(_ => Fdp.Core.Entity.Null, new OnlyEven(),
+                    e => tcs.TrySetResult(e), () => tcs.TrySetCanceled(), remove));
+
+        /// <summary>⭐⭐ <c>CE-1346</c> (Tool Model §4.16) — an entity offered from elsewhere completes the pick exactly as a map click
+        /// would: the picker's filter decides, the await gets the entity, and the tool underneath resumes. ✅ Red-proof: the filter
+        /// check dropped from <c>TryPick</c> ⇒ the refused entity is taken.</summary>
+        [Fact]
+        public async Task AnOfferedEntity_CompletesThePick_ThroughThePickersOwnFilter()
+        {
+            var fx    = new Fixture();
+            var route = fx.ArmATool();
+            var task  = ArmEntityPick(fx);
+
+            Assert.False(fx.Pickers.TryOfferEntity(new Fdp.Core.Entity(3, 1)));   // the filter refuses it: the pick waits
+            Assert.False(task.IsCompleted);
+            Assert.Equal(ScenarioToolIds.PickEntity, fx.Controller.ActiveModal?.Id);
+
+            Assert.True(fx.Pickers.TryOfferEntity(new Fdp.Core.Entity(4, 1)));
+            Assert.Equal(4, (await task).Index);
+            Assert.True(route.IsFocused);                                           // the tool underneath has the input back
+            Assert.Equal("route", fx.Controller.ActiveModal?.Id);
+            Assert.False(fx.Pickers.TryOfferEntity(new Fdp.Core.Entity(6, 1)));   // and the pick is over
+        }
+
+        /// <summary>⭐ <c>CE-1346</c> — with no entity pick up, or one suspended under another tool, an offer is refused (the ORBAT row
+        /// then selects, as before). ✅ Red-proof: the suspended check dropped ⇒ a buried pick is answered.</summary>
+        [Fact]
+        public void NoPickOrASuspendedPick_RefusesAnOffer()
+        {
+            var fx = new Fixture();
+            Assert.False(fx.Pickers.TryOfferEntity(new Fdp.Core.Entity(2, 1)));   // nothing armed
+
+            var task = ArmEntityPick(fx);
+            fx.Pickers.PushPicker(ScenarioToolIds.PickLocation, _ => new ToolProbe());   // a location pick over it
+            Assert.False(fx.Pickers.TryOfferEntity(new Fdp.Core.Entity(2, 1)));
+            Assert.False(task.IsCompleted);
+        }
+}
 }

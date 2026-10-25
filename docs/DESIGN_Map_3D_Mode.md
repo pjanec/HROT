@@ -3190,6 +3190,69 @@ graph TD
 
 ⏭ **Not done:** the standalone IG's `Mouse World` raylib overlay is not routed through the status-bar section (it has no status bar of its own outside the cluster window, and `ruling 9`'s "one readout" is satisfied only inside `ClusterRunner`; IG's world singleton also carries no `IGeographicTransform`, so its status-bar section shows the flat point alone — `DESIGN_Geo_Origin.md` §1) · the Config window's `Grid` tick is a duplicate of the layer row (Q28 E′ deletes the duplicate `ConfigPanel` — not this slice) · a grid in the 3-D view · the title names the Editor's/CGF's loaded scenario only — a SimHost-only or IG-only run has no session to ask.
 
+### 6ad. CE-1328 — grass on the open ground, so walking reads as moving — AS-BUILT `2026-10-25` (ui)
+
+🔒 User, `2026-10-25`: *"The green ground on the terrain needs some simple texture (grass?) so we see that we are moving (the solid green
+colour looks the same and not giving much feeling of movement when we are looking down while walking in FPS mode)."*
+
+```mermaid
+graph LR
+  T[TerrainLayer3D.Draw3D] -->|SetGroundDetail 1| S[LitShader fragment]
+  S --> G{"normal up AND green base?"}
+  G -->|yes| N["value noise on WORLD x,y: ~12 m patches, ~1 m tufts, fine streaks fading out by 90 m"]
+  G -->|no| P[colour as before]
+  T -->|SetGroundDetail 0 after the draw| S
+```
+*What the picture shows that prose hid:* the grass is anchored to the WORLD, not the screen or the mesh, so it slides past a moving eye; and
+it is one uniform the terrain sets for its own draw only — the bodies, roads and effects drawn through the same program stay plain.
+
+| piece | where |
+|---|---|
+| `grass()` in the fragment program (`grassNoise`, value noise; 12 m patches toward a drier tint, 1 m tufts, streaks that fade by 90 m so nothing shimmers far away); `uniform groundDetail`; `SetGroundDetail(float)` | `FDP/Engine/Fdp.Presentation/Vis3D/LitShader.cs` |
+| the terrain sets it for its draw and puts it back to 0 | `TerrainLayer3D.Draw3D` |
+| only faces pointing up whose base colour is GREEN (ground, forest, a hedge's top) — a flat roof, water, roads stay plain | the shader's `flat_` gate |
+
+📷 `Map3DFrameRail` shots `posture-1-side.png` (first-person height) and `map3d-2-tilted.png`. ⚠ Looked at in the frame rail only, not in the
+live editor; the strength (`0.80 + 0.30·tufts`) may want tuning on a real screen.
+
+![grass at first-person height](assets/map3d/grass-first-person.png)
+
+### 6ae. CE-1333 — the terrain's materials: brick, concrete panels, sandbags, roof tiles, planks, earth, hedge — AS-BUILT `2026-10-25` (ui)
+
+🔒 User, `2026-10-25`: *"the grass texture looks great, pls add also textures to different materials (like the house walls from bricks,
+sandbag walls, concrete walls, building roofs)"*.
+
+```mermaid
+graph LR
+  T[TerrainLayer3D.BuildVertexData] -->|"colour.A = MaterialCode(kind, material)"| V[vertex colour]
+  V --> F["LitShader: materialDetail(code, world, normal)"]
+  F --> P["pattern on the face's own frame: level along it, up its slope"]
+```
+*What the picture shows that prose hid:* no new vertex attribute — the material rides in the ALPHA of the colour the terrain already
+sends, read only while the terrain draws (`groundDetail` on), so every other layer through the same program is untouched.
+
+| code | material | pattern |
+|---|---|---|
+| 250 / 249 | open ground / forest floor | §6ad's grass |
+| 248 | brick (walls) | 25 × 8.5 cm courses, half-bond, mortar, per-brick tint |
+| 247 | concrete, a wall with no material | 3 m × 2.9 m panel joints, stains, rain streaks |
+| 246 | sandbags | rows of 55 × 14 cm bulging bags, staggered |
+| 245 / 241 | a roof (concrete / brick) | tiles on its top (flat or pitched); its sides concrete / brick |
+| 244 | fence-wood, door-wood | planks with grain |
+| 243 / 242 | earth berm / hedge | mottled noise |
+| 255 | water, glass, metal, a car body | none |
+
+Small courses (bricks, bags, planks) fade out by 70 m so nothing shimmers. 📷 `Map3DFrameRail` — `door-2-open.png` (brick walls, a
+tiled roof, grass) and `fps-1-station.png` (concrete panels at first-person height). ⚠ bt-range tags some vertical faces as ROOF with no
+material: they get the faint concrete pattern. 📐 `Map3DTests.S4_TheTerrainTags_*` asserts the codes.
+
+![brick, roof tiles and grass](assets/map3d/materials-brick-roof.png)
+
+⭐ **`2026-10-25` (ui, `CE-1341`)** — the roof colour is SLATE GREY (112,114,118), not terracotta: a building's floors arrive as the same
+upward `Roof` triangles as its roof, and a red floor read as the brick walls (🔒 user: *"change the roof texture to something non-red what can
+work as the floor as well"*). ⚠ A floor material of its own needs the terrain producer to tag floors. ⚠ The screenshot above predates it.
+⭐ **`CE-1340`** — the free fly reaches its 5× in 3 s (was 5) and is ×2 near the ground, fading to ×1 by 30 m eye height (`MapCamera3D.FlySpeed`).
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

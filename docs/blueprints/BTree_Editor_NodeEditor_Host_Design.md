@@ -279,6 +279,14 @@ Auto-layout runs only on opening an asset with missing layout entries. Once posi
 
 A "Reset layout" toolbar action re-runs tidy-tree across the whole tree, ignoring stored positions. Used when an asset has drifted into mess via hand-edits or merge conflicts.
 
+> ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1273](Blueprint_Issues_Tracker.md))** — `BTreeAutoLayout` is **subtree-width placement**: each subtree gets a span as wide as its leaves need (`160 + 40` per leaf), its children side by side inside it, the parent centred over them. Overlap-free by construction. Two measured faults fixed: ① a **C#-built** tree (`BTreeBuilder.Compile`) has **no `Root` node**, and the layout gave up ⇒ every node at (0, 0) — the top is now the node no other node lists as a child; ② the "simplified Walker" spaced a node one node-width after its left sibling, ignoring the sibling's **subtree** width ⇒ `PersonAttack`: 48 nodes in 42 places. Rail: `CodeBuiltTreeLayoutTests.CE1273_EveryCodeBuiltTree_HasOnePlacePerNode` (every code-built tree in `Hrot.AI.Behaviors`). ⛔ SUPERSEDED above: "Reingold-Tilford".
+
+> ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1344 / CE-1345](Blueprint_Issues_Tracker.md)) — supersedes the flat 160 px above.** A node is as wide as
+> its TITLE (`BTreeAutoLayout.WidthOf`: 7.5 px a character + 48, at least 160 — what `CanvasLayout` draws), and a parent with more than three
+> children that are all leaves STAGGERS them over 2 layers (up to 8) or 3, 70 px apart, each leaf clearing the one before it on its own layer.
+> ⭐ A C#-built tree's node ids are DETERMINISTIC (`BTreeBuilder.AssignIds`: tree name, label, file, line, depth-first index), so the editor's
+> rebuilt copy and the running blob agree — what the Decision view and breakpoints key on. Rails `CodeBuiltTreeLayoutTests.CE1344_*`, `CE1345_*`.
+
 ---
 
 ## 4. The fluent C# emitter

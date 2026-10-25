@@ -1634,7 +1634,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐ CE-060 made this ctor host-agnostic: its one `IEditorLogic.ActivateTool` call is now the
             //   shared ActivateEditorToolEvent + SelectEntityCommand that E3's systems drain on BOTH hosts.
             _orbatAdapter      = new Hrot.UI.Common.Adapters.ScenarioOrbatAdapter(
-                _context.World, _context.World.Bus, _spawnAdapter);
+                _context.World, _context.World.Bus, _spawnAdapter)
+            {
+                PickOffer = e => _cgfMapPick?.TryOfferEntity(e) == true,   // ⭐ CE-1346 — an ORBAT row answers a map entity pick (built later)
+            };
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
             // 🔴🔴🔴 THE CAMERA IS NOT OPTIONAL HERE, and omitting it made the whole 2-D map DEAD.

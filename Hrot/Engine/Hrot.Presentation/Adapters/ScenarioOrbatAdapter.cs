@@ -162,12 +162,18 @@ namespace Hrot.UI.Common.Adapters
         /// </remarks>
         public void SelectEntity(int entityId)
         {
+            // ⭐ CE-1346 (docs/UX/UX_Feature_Tool_Model.md §4.16) — while the map waits for an entity pick, the row is the pick
+            if (PickOffer != null && _indexCache.TryGetValue(entityId, out var offered) && _world.IsAlive(offered) && PickOffer(offered)) return;
             _bus.Publish(new ActivateEditorToolEvent(EditorTool.Select));
             if (_indexCache.TryGetValue(entityId, out var entity) && _world.IsAlive(entity)
                 && _world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                 && _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity))
                 _bus.Publish(new SelectEntityCommand { NetworkId = _world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value });
         }
+
+        /// <summary>⭐ <c>CE-1346</c> — offers a clicked row's entity to the map's entity pick in progress (the host sets it to its map pick
+        /// adapter's <c>TryOfferEntity</c>); true = the pick took it and the row is NOT selected.</summary>
+        public System.Func<Entity, bool>? PickOffer { get; set; }
 
         /// <inheritdoc/>
         public void CreateUnit(long tkbType)

@@ -64,11 +64,15 @@ namespace Fdp.Toolkit.Vis3D
         public const float WheelStreakGrowth = 0.6f, WheelStreakMax = 8f;
 
         /// <summary>⭐ CE-1142 — fly speed per metre of the EYE's height above the ground (m/s per m), at least <see cref="FlyMinSpeed"/>.</summary>
-        public const float FlySpeedPerHeight = 0.4f, FlyMinSpeed = 0.6f;
+        public const float FlySpeedPerHeight = 0.4f, FlyMinSpeed = 1.2f;
+
+        /// <summary>⭐ CE-1340 — near the ground the speed is ×<see cref="FlyGroundBoost"/>, fading to ×1 by <see cref="FlyGroundBoostUntil"/> m up.
+        /// 🔒 User, 2026-10-25: "max speed should be 2 times larger than now on the ground level (high in the air the speed is ok)".</summary>
+        public const float FlyGroundBoost = 2f, FlyGroundBoostFrom = 3f, FlyGroundBoostUntil = 30f;
 
         /// <summary>⭐ CE-1142 — a fly STARTS at this share of its speed, reaches it after <see cref="FlyRampSeconds"/>, and keeps
         /// accelerating to <see cref="FlyMaxAcceleration"/>× by <see cref="FlyAccelerateSeconds"/> of holding a key.</summary>
-        public const float FlyStartShare = 0.25f, FlyRampSeconds = 1f, FlyMaxAcceleration = 5f, FlyAccelerateSeconds = 5f;
+        public const float FlyStartShare = 0.25f, FlyRampSeconds = 1f, FlyMaxAcceleration = 5f, FlyAccelerateSeconds = 3f;   // ⭐ CE-1340 — full speed in 3 s ("in 3 seconds it should be on its max speed"), was 5
 
         /// <summary>⭐ CE-1142 — the modifiers, distinct: Shift ×4 (faster), Ctrl ×20 (travel), both ×100 (cross the map).</summary>
         public const float FlyShiftBoost = 4f, FlyCtrlBoost = 20f, FlyBothBoost = 100f;
@@ -212,6 +216,10 @@ namespace Fdp.Toolkit.Vis3D
                 _looking = _panning = false;
                 _wheelTravel = 0f;
                 _flyVelocity = Vector3.Zero;
+                // ⭐ CE-1339 — a driver let go (Esc from a follow): the free camera stays where it was. 🔴 Its look-at XY differed from the
+                //   last one matched to the ground, so the next Update re-pinned LookAt.Z to the relief and the eye dropped to ground level.
+                //   🔒 User, 2026-10-25: "better if it stays where the follow was cancelled."
+                _followedXY = new Vector2(LookAt.X, LookAt.Y);
             }
         }
         private ICameraDriver? _driver;
@@ -374,7 +382,9 @@ namespace Fdp.Toolkit.Vis3D
         /// </summary>
         public static float FlySpeed(float heightAboveGround, float heldSeconds, bool shift, bool ctrl)
         {
-            float basis = MathF.Max(FlyMinSpeed, MathF.Max(0f, heightAboveGround) * FlySpeedPerHeight);
+            float h = MathF.Max(0f, heightAboveGround);
+            float groundBoost = 1f + (FlyGroundBoost - 1f) * Math.Clamp((FlyGroundBoostUntil - h) / (FlyGroundBoostUntil - FlyGroundBoostFrom), 0f, 1f);
+            float basis = MathF.Max(FlyMinSpeed, h * FlySpeedPerHeight * groundBoost);
             float ramp = heldSeconds < FlyRampSeconds
                 ? FlyStartShare + (1f - FlyStartShare) * (heldSeconds / FlyRampSeconds)
                 : 1f + (FlyMaxAcceleration - 1f) * MathF.Min(1f, (heldSeconds - FlyRampSeconds) / (FlyAccelerateSeconds - FlyRampSeconds));

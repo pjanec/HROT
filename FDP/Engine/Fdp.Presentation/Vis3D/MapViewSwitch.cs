@@ -41,14 +41,19 @@ namespace Fdp.Toolkit.Vis3D
 
         public void Toggle() => Set(!Is3D);
 
-        /// <summary>Switch to 3-D (<paramref name="on"/>) or back to 2-D, animated; <paramref name="animate"/> false snaps (tests, restore).</summary>
-        public void Set(bool on, bool animate = true)
+        /// <summary>⭐ <c>CE-1342</c> — the switch, landing centred on <paramref name="centreOn"/> (the selected unit; null = where the map looks).</summary>
+        public void Toggle(Vector3? centreOn) => Set(!Is3D, centreOn: centreOn);
+
+        /// <summary>Switch to 3-D (<paramref name="on"/>) or back to 2-D, animated; <paramref name="animate"/> false snaps (tests, restore);
+        /// <paramref name="centreOn"/> set = the new view is centred there (⭐ <c>CE-1342</c>).</summary>
+        public void Set(bool on, bool animate = true, Vector3? centreOn = null)
         {
             if (_toggling || on == Is3D) return;
             float seconds = animate ? Seconds : 0.0001f;
             if (on)
             {
                 var overhead = Camera3D.OverheadMatching(_camera2D);
+                if (centreOn is { } c) overhead = overhead with { LookAt = c };
                 Camera3D.Pose = overhead;
                 _canvas.Camera = Camera3D;
                 _toggling = true;
@@ -58,6 +63,8 @@ namespace Fdp.Toolkit.Vis3D
             else
             {
                 var p = Camera3D.Pose;
+                if (Camera3D.Driver != null) Camera3D.Driver = null;   // a follow lets go: the 2-D map has no driver
+                if (centreOn is { } c) p = p with { LookAt = c };
                 _toggling = true;
                 Camera3D.AnimateTo(p with { Yaw = MapCamera3D.NorthUpYaw, Pitch = MapCamera3D.OverheadPitch }, seconds, () =>
                 {

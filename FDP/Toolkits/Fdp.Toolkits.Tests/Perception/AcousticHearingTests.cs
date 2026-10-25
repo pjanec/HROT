@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Numerics;
 using CarKinem.Spatial;
@@ -118,6 +119,95 @@ namespace Fdp.Toolkit.Tests.Perception
         {
             Assert.True(Heard(true, new Vector3(5f, 5f, 0f), new Vector3(-8f, 5f, 0f), 15f, SoundSourceClass.Explosion));
             Assert.Equal(1f, AcousticPerception.WallFactor(null, Vector3.Zero, Vector3.One, (byte)SoundSourceClass.Footsteps));
+        }
+
+        /// <summary>⭐ AQ106 (R-3050) F — at the SENSOR: steps in house-2f's west room, a man in the east room, the hall door open; an 8 m carry
+        /// is heard (6.5 m away, round through the door) though the straight line alone (the inner wall's halving) would stop it at 4 m, and
+        /// the answer is placed at the DOORWAY, not on the steps. ✅ Red-proof: the answer at the source (<c>where</c>) ⇒ red.</summary>
+        [Fact]
+        public void AQ106_ASoundRoundTheCorner_IsHeard_FromTheDoorway()
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            string json = "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-50,-50,50,50],\"groundZ\":0},\"features\":[" +
+                          "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"H\",\"baseZ\":0," +
+                          "\"rotation\":0,\"doors\":{\"hall\":\"open\"}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,0]}}]}";
+            using var w = World(house: false);
+            w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(json, "h", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder)));
+            var source = new Vector3(2f, 6.6f, 0f);
+            var maker = Man(w, source, ForceId.Hostile);
+            SoundEmissionRing.Of(w).Append(new SoundEmission { Source = maker.PackedValue, Force = (byte)ForceId.Hostile,
+                Kind = (byte)SoundKind.Movement, Class = (byte)SoundSourceClass.Footsteps, At = source, Carry = 8f });
+            var unit = Man(w, new Vector3(8f, 4f, 0f), ForceId.Friend);
+            var s = w.CreateEntity();
+            var entry = new SensorEntryDto { Acoustic = new AcousticSensorDto { Range = 100f } };
+            w.SetManagedComponent(s, new SensorCapability { Default = entry, Current = entry });
+            w.SetSingleton(new GlobalTime { TotalTime = 0.1 });
+            var grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
+            try
+            {
+                var sensor = new EqsSensor { ContextSlot0 = unit };
+                Span<EqsResult> c = stackalloc EqsResult[8];
+                Assert.Equal(1, new AcousticSensorGenerator(grid).Generate(s, ref sensor, w, c));
+                var heardAt = new Vector2(c[0].PositionX, c[0].PositionY);
+                Assert.True(Vector2.Distance(heardAt, new Vector2(5f, 6.6f)) <= c[0].Score + 0.1f, $"answered at {heardAt}, radius {c[0].Score}");
+                Assert.True(Vector2.Distance(heardAt, new Vector2(source.X, source.Y)) > 1.5f, $"answered on the steps themselves: {heardAt}");
+            }
+            finally { grid.Dispose(); }
+        }
+
+        /// <summary>⭐ AQ106 L — the debug explain is a dry run of the SAME sensor: in house-2f, steps round the open hall door (heard, via the
+        /// openings, waypoints through the doorway), a shot 300 m off carrying 100 m (beyond its carry), a friend's steps (his own side); and
+        /// what it calls heard is exactly what the sensor answered. ✅ Red-proof: Explain judging without the walls ⇒ reasons disagree ⇒ red.</summary>
+        [Fact]
+        public void AQ106L_ExplainHearing_GivesEachSoundsVerdict_AsTheSensorHeardIt()
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            string json = "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-500,-500,500,500],\"groundZ\":0},\"features\":[" +
+                          "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"H\",\"baseZ\":0," +
+                          "\"rotation\":0,\"doors\":{\"hall\":\"open\"}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,0]}}]}";
+            using var w = World(house: false);
+            w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(json, "h", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder)));
+            var ring = SoundEmissionRing.Of(w);
+            var steps = Man(w, new Vector3(2f, 6.6f, 0f), ForceId.Hostile);
+            ring.Append(new SoundEmission { Source = steps.PackedValue, Force = (byte)ForceId.Hostile, Kind = (byte)SoundKind.Movement,
+                Class = (byte)SoundSourceClass.Footsteps, At = new Vector3(2f, 6.6f, 0f), Carry = 8f });
+            var far = Man(w, new Vector3(300f, 0f, 0f), ForceId.Hostile);
+            ring.Append(new SoundEmission { Source = far.PackedValue, Force = (byte)ForceId.Hostile, Kind = (byte)SoundKind.Shot,
+                Class = (byte)SoundSourceClass.SmallArms, At = new Vector3(300f, 0f, 0f), Carry = 100f });
+            var friend = Man(w, new Vector3(9f, 6f, 0f), ForceId.Friend);
+            ring.Append(new SoundEmission { Source = friend.PackedValue, Force = (byte)ForceId.Friend, Kind = (byte)SoundKind.Movement,
+                Class = (byte)SoundSourceClass.Footsteps, At = new Vector3(9f, 6f, 0f), Carry = 20f });
+            var unit = Man(w, new Vector3(8f, 4f, 0f), ForceId.Friend);
+            var s = w.CreateEntity();
+            var entry = new SensorEntryDto { Acoustic = new AcousticSensorDto { Range = 100f } };
+            w.SetManagedComponent(s, new SensorCapability { Default = entry, Current = entry });
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            w.AddComponent(s, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit });
+            w.SetSingleton(new GlobalTime { TotalTime = 0.1 });
+
+            var list = new System.Collections.Generic.List<HeardSoundExplanation>();
+            Assert.True(HearingExplain.TryExplain(w, unit, 10, list, out var why), why);
+            var byFrom = list.ToDictionary(x => x.Source);
+            Assert.Equal(HearingReason.Heard, byFrom[steps.PackedValue].Verdict.Reason);
+            Assert.Equal(SoundVia.Openings, byFrom[steps.PackedValue].Verdict.Route.Via);
+            Assert.Contains(byFrom[steps.PackedValue].Waypoints, p => Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(5f, 6.6f)) < 0.3f);
+            Assert.Equal(HearingReason.BeyondItsCarry, byFrom[far.PackedValue].Verdict.Reason);
+            Assert.Equal(HearingReason.HisOwnSide, byFrom[friend.PackedValue].Verdict.Reason);
+
+            var grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
+            try
+            {
+                var sensor = new EqsSensor { ContextSlot0 = unit };
+                Span<EqsResult> c = stackalloc EqsResult[8];
+                Assert.Equal(list.Count(x => x.Verdict.Reason == HearingReason.Heard), new AcousticSensorGenerator(grid).Generate(s, ref sensor, w, c));
+            }
+            finally { grid.Dispose(); }
         }
 
         /// <summary>⭐ AQ105 D (R-2080) — a SHOUT: a hostile challenging 30 m off is heard (no emitter needed); talk is not; 50 m is past

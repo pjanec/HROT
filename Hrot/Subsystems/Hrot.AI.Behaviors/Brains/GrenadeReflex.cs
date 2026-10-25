@@ -390,7 +390,10 @@ namespace Hrot.AI.Behaviors.Brains
                         Response = answer, At = g.At, LethalMetres = g.LethalMetres, FuzeSeconds = g.FuzeLeft > 0f ? g.FuzeLeft : 0f, ThrowAt = g.From,
                     };
                     if (SopActions.React(repo, man, BehaviorNames.EvadeGrenade, ReactionUrgency.Grenade, in dto) == NodeStatus.Success)
+                    {
                         _reacted.Add((man.PackedValue, g.Round.PackedValue));
+                        Callouts.Say(repo, man, Fdp.Toolkit.Civilians.UtteranceKind.CallGrenade);   // ⭐ CE-2372 (AQ105 B) — "grenade!" (one near says it: the repeat rule)
+                    }
                 }
             }
         }

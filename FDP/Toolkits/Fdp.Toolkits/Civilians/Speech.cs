@@ -31,6 +31,22 @@ namespace Fdp.Toolkit.Civilians
         CallClear = 13,
         /// <summary>CB-27 — the team call "man down".</summary>
         CallManDown = 14,
+        // ⭐ CE-2372 (AQ105 A, R-2080, behaviors) — the squad's combat calls, written by behaviors' Callouts.Say; the IG plays a line per NAME
+        //   (ui's VoiceTkbCatalog). ⚠ keep new values below 48 — 48–51 are ui's contact side lines.
+        /// <summary>"Contact!" — with the contact as <see cref="Utterance.Target"/>, so the IG can say front / left.</summary>
+        CallContact = 15,
+        CallMoving = 16,
+        CallCovering = 17,
+        CallReloading = 18,
+        /// <summary>"Frag out!" — he threw a grenade.</summary>
+        CallFragOut = 19,
+        /// <summary>"Grenade!" — one landed near.</summary>
+        CallGrenade = 20,
+        CallSuppress = 21,
+        CmdMove = 22,
+        CmdHold = 23,
+        CmdFallBack = 24,
+        CallAck = 25,
     }
 
     /// <summary>

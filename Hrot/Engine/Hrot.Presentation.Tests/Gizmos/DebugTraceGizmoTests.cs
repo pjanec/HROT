@@ -258,7 +258,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
     {
         Assert.Contains(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels, GizmoFamilies.All);
         Assert.Equal("Actions", GizmoFamilies.Label(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
-        Assert.Equal(GizmoScope.SelectedOrPinned, GizmoFamilies.DefaultScope(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
+        Assert.Equal(GizmoScope.PinnedOnly, GizmoFamilies.DefaultScope(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));   // ⭐ CE-1329
         Assert.Equal(Hrot.Common.Constants.GlobalActionIds.PinGizmosActions, Hrot.Common.Diagnostics.Gizmos.GizmoPins.ActionIdOf(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
     }
 
@@ -268,12 +268,13 @@ public sealed class DebugTraceGizmoTests : IDisposable
     /// itself in <c>GizmoFamilyVisibilityPolicy.IsEntityVisible</c> and the first assertion fails.
     /// </summary>
     [Fact]
-    public void CE3143_APartFollowsItsUnit_UnderSelectedOrPinned_AndEqsDefaultsToIt()
+    public void CE3143_APartFollowsItsUnit_WhenTheUnitIsPinned_AndEqsDefaultsToPinnedOnly()
     {
         var eqs = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs;
-        Assert.Equal(GizmoScope.SelectedOrPinned, GizmoFamilies.DefaultScope(eqs));
+        Assert.Equal(GizmoScope.PinnedOnly, GizmoFamilies.DefaultScope(eqs));   // ⭐ CE-1329 — a brain family: pinned units only
         _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
         _w.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+        _w.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>();
         var unit = _w.CreateEntity();
         _w.AddComponent(unit, new Hrot.IG.Components.SelectionState { IsSelected = false });
         var sensor = _w.CreateEntity();
@@ -282,7 +283,9 @@ public sealed class DebugTraceGizmoTests : IDisposable
 
         Assert.False(policy.IsEntityVisible(_w, sensor));
         _w.SetComponent(unit, new Hrot.IG.Components.SelectionState { IsSelected = true });
-        Assert.True(policy.IsEntityVisible(_w, sensor), "the selected unit's sensor child must draw");
+        Assert.False(policy.IsEntityVisible(_w, sensor), "⭐ CE-1329 — selection draws no brain family");
+        _w.AddComponent(unit, new Fdp.Toolkit.Behavior.Diagnostics.DebugState { Ai = eqs });   // the unit's pin (the store's copy)
+        Assert.True(policy.IsEntityVisible(_w, sensor), "the pinned unit's sensor child must draw");
         Assert.Equal(unit, Hrot.ScenarioEditor.Map.GizmoFamilyVisibilityPolicy.UnitOf(_w, sensor));
     }
 

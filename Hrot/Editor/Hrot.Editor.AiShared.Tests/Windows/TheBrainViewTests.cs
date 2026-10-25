@@ -287,6 +287,47 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Equal(2, view.Running(w, e).Count);
     }
 
+    // ── CE-1327 — the Knows table: each contact, how it was sensed, where, how old ────────────────────────────────────────────────
+
+    /// <summary>Two contacts in <paramref name="e"/>'s memory: a rifleman SEEN 40 m north, and gunfire HEARD (unidentified) 120 m east.</summary>
+    private static unsafe Entity Contacts(EntityRepository w, Entity e)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()) w.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+        if (!w.IsComponentTypeRegistered<SimTransform>()) w.RegisterComponent<SimTransform>();
+        if (!w.IsComponentTypeRegistered<EntityInfo>()) w.RegisterComponent<EntityInfo>();
+        var enemy = w.CreateEntity();
+        w.AddComponent(enemy, new EntityInfo { Name = new FixedString64("Rifleman") });
+        if (!w.HasComponent<SimTransform>(e)) w.AddComponent(e, new SimTransform());
+        var m = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 2 };
+        m.EntityIds[0] = (long)enemy.PackedValue; m.PositionsY[0] = 40f; m.Freshness[0] = 0.9f;
+        m.Modalities[0] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+        m.EntityIds[1] = -1; m.PositionsX[1] = 120f; m.Freshness[1] = 0.4f; m.Anonymous[1] = 1; m.Radius[1] = 15f;
+        m.SourceClass[1] = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms;
+        m.Modalities[1] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Acoustic;
+        w.AddComponent(e, m);
+        return enemy;
+    }
+
+    /// <summary>⭐ <c>CE-1327</c> — the Knows section's rows come from the unit's memory: the seen rifleman named, the heard gunfire as a
+    /// "something" with its radius, freshest first, with distances; the API's brain JSON carries them. ✅ Red-proof: the rows not read
+    /// (ContactsOf skipped) ⇒ red.</summary>
+    [Fact]
+    public void CE1327_TheKnowsRows_AreEachContact_HowAndWhere()
+    {
+        var (w, e, _, _) = RunningWorld();
+        using var _w = w;
+        var enemy = Contacts(w, e);
+        var b = BrainSnapshot.Read(w, e)!;
+        Assert.Equal(2, b.ContactRows.Count);
+        var seen = b.ContactRows[0];
+        Assert.Equal((false, "seen", enemy), (seen.Heard, seen.How, seen.Unit!.Value));
+        Assert.Equal(40f, seen.Distance, 1);
+        var heard = b.ContactRows[1];
+        Assert.Equal((true, "heard: smallarms", 15f), (heard.Heard, heard.How, heard.Radius));
+        Assert.Null(heard.Unit);
+        Assert.Equal(2, b.ToJson()["contactList"]!.AsArray().Count);
+    }
+
     // ── CE-1310 / CE-1311 / CE-1317 (Brain View §12b, §12c, B5): expanders, grouped settings, one map family per checkbox ───────────
 
     private static void Steering(EntityRepository w, Entity e)
@@ -350,6 +391,7 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         var (w, e, reg, bps) = RunningWorld();
         using var _ = w;
         Steering(w, e);
+        Contacts(w, e);
         BrainJournalOf.Write(w, e, BrainJournalKind.TaskStarted, a: Fight, origin: (byte)BehaviorOrigin.Superior);
         var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null, null, () => reg, () => bps);
         var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
@@ -636,4 +678,107 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Equal(33f, Assert.IsType<FightParams>(running[0].Parameters).CoverRadius);
         Assert.Equal("{\"CoverRadius\":33}", ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<BehaviorStartRecord>(e)!.JsonParams);
     }
+
+    // ── CE-1323 (Behaviour Debugging §9): "Stop when…" — breakpoints from the Brain tab ───────────────────────────────────────────
+
+    private const string Squad = "SquadLeader";
+
+    private static Fdp.Toolkit.Behavior.BehaviorDefinition SquadMachine()
+    {
+        var b = new Fhsm.Compiler.HsmBuilder(Squad);
+        b.Event("Contact", 1); b.Event("Lost", 2); b.Event("Order", 3);
+        var patrol = b.State("Patrol").Initial();
+        var engage = b.State("Engage").Child("Aim", c => c.Initial()).Child("Fire", _ => { });
+        b.State("Withdraw");
+        patrol.On("Contact").GoTo("Engage");
+        engage.On("Lost").GoTo("Withdraw");
+        b.GlobalTransition("Order", "Withdraw");
+        var graph = b.Build();
+        Fhsm.Compiler.HsmNormalizer.Normalize(graph);
+        return new Fdp.Toolkit.Behavior.BehaviorDefinition
+        {
+            Name = Squad, BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm,
+            HsmDefinition = Fhsm.Compiler.HsmEmitter.Emit(Fhsm.Compiler.HsmFlattener.Flatten(graph)),
+            HsmMetadata = Fhsm.Compiler.HsmEmitter.BuildMachineMetadata(graph),
+        };
+    }
+
+    /// <summary>⭐ CE-1323 — the tab offers the RUNNING machine's own steps, from the registry (no document): its states (the root never),
+    /// only composites for "anything inside", every transition (a global from any state), every event.</summary>
+    [Fact]
+    public void CE1323_StopWhen_OffersTheRunningMachinesOwnSteps()
+    {
+        var def = SquadMachine();
+        string[] Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind k) => BrainStopWhen.Choices(Squad, def, k).Select(c => c.Label).ToArray();
+        var entered = Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.StateEnter);
+        Assert.Contains("Withdraw", entered);
+        Assert.Contains("Aim", entered);
+        Assert.DoesNotContain(entered, l => l.StartsWith("__"));
+        Assert.Equal(new[] { "Engage" }, Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.InsideEnter));
+        var fires = Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.TransitionFires);
+        Assert.Contains("Patrol -> Engage on Contact", fires);
+        Assert.Contains("any state -> Withdraw on Order", fires);
+        Assert.Equal(new[] { "Contact", "Lost", "Order" }, Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.EventHandled));
+        Assert.Empty(Labels(Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.NodeRuns));
+        var step = BrainStopWhen.Choices(Squad, def, Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.StateEnter).First(c => c.Label == "Withdraw").Step;
+        Assert.Equal((Squad, "Withdraw"), (step.Behaviour, step.State));
+        Assert.NotEqual(Guid.Empty, step.Element);   // the canvas draws its dot on the state
+    }
+
+    private sealed class NoClock : Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController
+    {
+        public bool IsPausedByDebugger => false;
+        public void RequestPause() { }
+        public void RequestResume() { }
+        public void RequestStepOneTick() { }
+    }
+
+    /// <summary>⭐ CE-1323 — the Debug section's "Stop when…", drawn for real with one breakpoint set on this unit. 📷
+    /// <c>HROT_RAIL_SHOTS</c>/<c>brain-stop-when.png</c>.</summary>
+    [SkippableFact]
+    public void CE1323_TheDebugSection_StopWhen_Draws()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-brain");
+        Directory.CreateDirectory(shots);
+        var def = SquadMachine();
+        int hash = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Squad);
+        using var w = new EntityRepository();
+        using var snap = new EntityRepository();
+        w.RegisterComponent<BehaviorState>();
+        var e = w.CreateEntity();
+        w.AddComponent(e, new BehaviorState { ActiveBehaviorHash = hash });
+        var manager = new Hrot.Diagnostics.Breakpoints.DataBreakpointManager(w, snap, new Hrot.Diagnostics.Breakpoints.DebugSnapshotProvider(snap), new NoClock());
+        var withdraw = BrainStopWhen.Choices(Squad, def, Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepKind.StateEnter).First(c => c.Label == "Withdraw").Step;
+        manager.AddBreakpoint(withdraw, e, 1, "Withdraw entered · #7");
+        var view = new EntityBrainView(() => w, h => h == hash ? Squad : null, h => h == hash ? def : null);
+        var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { e } };
+
+        var oldController = Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current;
+        var oldManager = BrainStopWhen.Manager;
+        Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = new Hrot.Common.Diagnostics.Gizmos.UnitDebugController();
+        BrainStopWhen.Manager = () => manager;
+        EntityBrainView.ExpandForRail = true;
+        try
+        {
+            using var frame = UiFrameHarness.Begin(760, 900);
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(8, 8));
+                ImGui.SetNextWindowSize(new Vector2(740, 880));
+                ImGui.Begin("Brain##ce1323");
+                view.Draw(ctx, "details_ce1323");
+                ImGui.End();
+            });
+            frame.Screenshot(Path.Combine(shots, "brain-stop-when.png"));
+        }
+        finally
+        {
+            EntityBrainView.ExpandForRail = false;
+            Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = oldController;
+            BrainStopWhen.Manager = oldManager;
+        }
+        Assert.Single(BrainStopWhen.On(manager, Squad, e));
+    }
 }
+

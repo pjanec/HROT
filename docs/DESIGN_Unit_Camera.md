@@ -212,3 +212,9 @@ implemented"* — ⇒ C0 (CE-1294, measured but not reproduced) is deferred unti
 | **C3** a man in a seat (UC-8) | `FpsCameraDriver.RigScheme` — aboard, the camera is the **vehicle's** chase camera (its distance, ×4; a flyer ×8) hung from his seat eye; the wheel sets the vehicle's distance | ⚠ the pivot is his **seat eye** — a gunner sits at his gun, so the camera stands behind the gun; no separate gun-mount point was needed |
 
 ⭐ Rails: `PossessionStationTests.CE1293_*` (continuum, spring arm, playing controls, Follow continuum + let-go, menu → layer → camera + the possession refusal, the default + the car's chase camera + re-centre / not an armed turret's, a man in a seat on the vehicle's chase camera, the round stopping short at a test-town wall — ✅ 7 mutations red; one first stayed green and showed the on-the-wall check passing for another reason, now aimed 0.3 m past the face) — ✅ red-proved: 6 mutations on the rig/station, 5 on Follow; `TheBrainAndViewRoutesAnswerTests.FollowUnit_IsRefusedHeadless_FollowsOnAMap_AndLetsGo`.
+
+⭐ **AS-BUILT `2026-10-25` (ui) — three follow fixes from use:** `CE-1338` a wall pulling the arm in lifts the camera toward 0.6 m over his eyes
+(`UnitCameraRig.AboveHeadWhenSqueezed` — the pivot sits between feet and eyes, so a short arm used to bring the camera to his belly) ·
+`CE-1339` Esc / W / a map drag leave the free camera exactly where the follow was (`MapCamera3D.Driver`'s setter matches its look-at XY, so
+the relief re-pin no longer drops the eye) · `CE-1342` Ctrl+M switches 2-D ↔ 3-D centred on the selected unit (`MapViewModeLayer.HandleKeyInput`
+→ `MapViewSwitch.Toggle(centreOn)`; going 2-D lets a follow go). Rails `PossessionStationTests.CE1338_*`, `CE1339_*`, `CE1342_*`.

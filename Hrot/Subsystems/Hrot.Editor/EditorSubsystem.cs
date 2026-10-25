@@ -258,6 +258,8 @@ namespace Hrot.Editor
         private EditorApplication?      _editorApp;
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
+        private readonly Hrot.ScenarioEditor.Map.UnitDebugSettingsMemory _debugSettingsMemory =
+            new(Hrot.ScenarioEditor.Map.UnitDebugSettingsMemory.DefaultDirectory);   // ⭐ CE-1329
         private bool                    _headless;
         // GZH-016: gate — false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
@@ -974,19 +976,37 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T1).</summary>
         internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
+        private Hrot.Editor.Debugging.NodeBreakpointEvaluator? _stepEvaluator;
+
+        /// <summary>⭐ CE-1323 — the behaviour-breakpoint reader (the API names a step that cannot resolve through it).</summary>
+        internal Hrot.Editor.Debugging.NodeBreakpointEvaluator? StepEvaluator => _stepEvaluator;
+
         private static long NetIdOf(EntityRepository w, Entity e)
             => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>() && w.IsAlive(e)
                 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(w, e) : 0;
 
-        /// <summary>⭐ <c>CE-1291</c> — every BTree node marked as a breakpoint in an open document (empty before the documents exist).</summary>
-        private IEnumerable<Hrot.Editor.Debugging.MarkedNode> MarkedBTreeNodes()
+        /// <summary>⭐ <c>CE-1291</c> / <c>CE-1323</c> — every element whose "Breakpoint" is ticked in an open document, as the step it means: a
+        /// BTree node runs · an HSM state is entered · an HSM transition fires (empty before the documents exist).</summary>
+        private IEnumerable<Hrot.Editor.Debugging.MarkedStep> MarkedSteps()
         {
             if (_aiDocumentManager == null) yield break;
             foreach (var doc in _aiDocumentManager.OpenDocuments)
             {
-                if (doc.Asset is not Hrot.BTree.Editor.Model.BehaviorTreeAsset bt) continue;
-                foreach (var n in bt.Nodes)
-                    if (n.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedNode(bt.Name, n.VisualId, n.DisplayLabel);
+                if (doc.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset bt)
+                {
+                    foreach (var n in bt.Nodes)
+                        if (n.IsBreakpoint)
+                            yield return Hrot.Editor.Debugging.MarkedStep.Of(new Hrot.Editor.Debugging.MarkedNode(bt.Name, n.VisualId, n.DisplayLabel));
+                }
+                else if (doc.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsm)
+                {
+                    foreach (var st in hsm.AllStates)
+                        if (st.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Enter(hsm, st), st.StableId);
+                    foreach (var tr in hsm.AllTransitions)
+                        if (tr.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Fires(hsm, tr), tr.VisualId);
+                    foreach (var gt in hsm.AllGlobalTransitions)
+                        if (gt.IsBreakpoint) yield return new Hrot.Editor.Debugging.MarkedStep(Hrot.Hsm.Editor.Debug.HsmBreakpointSteps.Fires(hsm, gt), gt.VisualId);
+                }
             }
         }
 
@@ -1972,10 +1992,40 @@ namespace Hrot.Editor
             _kernel.RegisterGlobalSystem(new ChangeBaselineSystem(_bpManager, MirrorWorld()));
             // ⭐⭐ CE-1291 (DBG-7) — a breakpoint marked on a BTree node in an open document BREAKS: after the tick the armed units' trace
             //   rings are read and a marked node that ran is a hit through the manager (one breakpoint per marked node, in the one list)
-            _kernel.RegisterGlobalSystem(new Hrot.Editor.Debugging.NodeBreakpointEvaluator(
-                () => MarkedBTreeNodes(),
+            Hrot.Editor.AiShared.Shell.BrainStopWhen.Manager = () => _bpManager;
+            // ⭐ CE-1325 (docs/DESIGN_Utility_Decision_View.md) — the Decision tab and the Brain tab's Why: the registry, the world, the unit a
+            //   graph follows (its pin, else the selection — the overlay's rule), the trace switch and a unit's name
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.Registry = () => _behaviorRegistry;
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.World = () => _world;
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.FollowedUnit = () =>
+                _aiDocumentManager?.Active?.PinnedEntity is { } pin && _world != null && _world.IsAlive(pin) ? pin : _btreeSelectionStore.SelectedEntity;
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.Trace = u =>
+            {
+                if (_world != null && _world.IsAlive(u))
+                    Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(_world, u, Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer, true);   // the user's (remembered)
+            };
+            Hrot.Editor.AiShared.Utility.UtilityDecisionHost.UnitLabel = u => _world != null ? Hrot.Editor.AiShared.Shell.EntityBrainView.PinLabelOf(_world, u) : $"#{u.Index}";   // ⭐ CE-1323 — the Brain tab's "Stop when…"
+            // ⭐ CE-1323 (§9) — and every behaviour step (the HSM's five kinds), from the canvas, the Brain tab or the API; a step scoped to a
+            //   unit arms its traces
+            _kernel.RegisterGlobalSystem(_stepEvaluator = new Hrot.Editor.Debugging.NodeBreakpointEvaluator(
+                () => MarkedSteps(),
                 _bpManager,
-                () => _behaviorRegistry));
+                () => _behaviorRegistry,
+                arm: (w, u, on) =>
+                {
+                    var flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer;
+                    // ⭐ CE-1329 — a breakpoint's arming is its own temporary request in the one store: it never clears the user's switch
+                    if (Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(w, u) is var nid and not 0)
+                    {
+                        var store = Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(w);
+                        if (on == store.IsArmed(nid)) return false;
+                        Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(w, u, flag, on, Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Requester.Armed);
+                        return true;
+                    }
+                    if (on == Hrot.Common.Diagnostics.Gizmos.AiTraceActions.IsOn(w, u, flag)) return false;
+                    Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(w, u, flag, on);
+                    return true;
+                }));
 
             // ⭐ CE-1257 / CE-1258 (BV-26, BV-28) — "Debug this unit" lives where the debuggers live: the editor composes the ONE controller
             //   (the Brain tab, the map's AI-trace menu and POST /entities/{id}/debug are buttons on it) and gives it the journal break.
@@ -2017,10 +2067,22 @@ namespace Hrot.Editor
             var bpBlueprintSession = Hrot.Editor.AiComposition.AiDebugSessionComposer.ComposeBlueprint(
                 _blueprintRegistry, _world!, bpTimeAdapter, _bpManager, _behaviorRegistry);
             _blueprintDebugSession = bpBlueprintSession;
-            // ⭐ CE-1256 (BV-25) — the Blueprint highlight follows the debugged unit (the same pin as the BTree / HSM overlays), not
-            //   whichever unit ran last; SetEntityFilter had no production caller.
-            if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is { } debugPin)
-                debugPin.Changed += e => bpBlueprintSession.SetEntityFilter(e);
+            // ⛔ CE-1329 (BV-72) — the "debugged unit" is gone; the Blueprint highlight is filtered by the graph opened pinned to a unit (below)
+            // ⭐ CE-1326 — the Brain tab's blueprint rows open their graph pinned to the unit, and the blueprint overlay shows HIS values
+            Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsPanel.OpenGraph = (name, unit) =>
+            {
+                if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current?.OpenGraphPinned is not { } open || _world == null) return;
+                if (open(name, unit, Hrot.Editor.AiShared.Shell.EntityBrainView.PinLabelOf(_world, unit))) bpBlueprintSession.SetEntityFilter(unit);
+            };
+            // ⭐ CE-1327 — the Brain tab's contact rows bring the map's camera (2-D or 3-D) to where the unit believes a contact is; a
+            //   camera following a unit lets go first (the station's first-person eye is left alone — FocusOn ignores a driven camera)
+            Hrot.Editor.AiShared.Shell.EntityBrainView.JumpCamera = (world, at) =>
+            {
+                if (_canvas?.Camera is not { } camera) return false;
+                Hrot.UI.Common.Map3D.ViewControl.Of(world)?.StopFollowing();
+                camera.FocusOn(new System.Numerics.Vector2(at.X, at.Y));
+                return true;
+            };
 
             // ── CF-8: Debounced save on breakpoint/session changes ────────────────────────
             bpBlueprintSession.OnBreakpointListChanged += _ => ScheduleDebugSessionSave();
@@ -2602,7 +2664,10 @@ namespace Hrot.Editor
                 //    keeps it correct on a host that does not own the entity (the AX-005b lesson).
                 _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal(
                     (netId, components) => _editorLogic?.CommitPropertyEdit(netId, components));
-                _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter);
+                _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter)
+                {
+                    PickOffer = e => _mapPickAdapter?.TryOfferEntity(e) == true,   // ⭐ CE-1346 — an ORBAT row answers a map entity pick
+                };
                 _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
 
                 // Register context menu handlers with the FDP entity inspector.
@@ -2870,6 +2935,8 @@ namespace Hrot.Editor
             _aiCoordinator?.DrainPendingCallbacks();
             // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
             if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
+            // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
+            if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
 
             // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves
             // (BTree/HSM emit-on-dirty).  Safe in headless mode; no-op when nothing is pending.
@@ -3470,7 +3537,8 @@ namespace Hrot.Editor
             _hsmRegistrar.DetailsViews.Add(
                 Hrot.Hsm.Editor.Windows.HsmEventsDetailsViewDescriptor.For(
                     refactorService: refactorService,
-                    findResults:     _hsmRegistrar.FindResults));
+                    findResults:     _hsmRegistrar.FindResults,
+                    breakpoints:     () => _bpManager));   // ⭐ CE-1323 — an event row's "Break when handled"
 
             // ⭐⭐⭐ Batch 88a — Blueprint's live-value provider, row 58's unbuilt half.
             //    🔴 This call used to say "no live-value provider yet" and pass none, so the Details
@@ -3853,6 +3921,12 @@ namespace Hrot.Editor
             // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor (Scenario, where the map is).
             Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "editor/map-menus", "Scenario",
                 () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+            // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
+            //   loaded scenario; the Brain tab's Debug section resets one unit
+            windowManager.GlobalMenu.RegisterItem("Settings/Reset all debug settings for this scenario", () =>
+            {
+                if (_world != null) Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world).ResetAll();
+            });
 
             // ⭐ CE-1150 — composed as a bundle: the panel AND its actions (Properties…, View ▸ Details ▸ Float / Pin).
             if (_scenarioDetailsBundle is not null)
@@ -5280,6 +5354,8 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
+            // ⭐ CE-1329 — the scenario's per-unit debug settings, once more on exit (they are saved on change already)
+            if (_world != null) _debugSettingsMemory.Save(Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world));
             // ── SAVE-ON-CLOSE FIX: app-exit does NOT save open documents ───────────────────────────
             // Saving is decoupled from closing (see AiGraphCanvasWindow.ResolveCloseSave): only an
             // explicit prompt-"Save" persists a doc; every other close path — including app-exit —

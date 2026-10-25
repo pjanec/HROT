@@ -41,7 +41,8 @@ namespace Hrot.ScenarioEditor.Gizmos
         private const byte GhostAlpha        = 128;
         // ⭐ CE-1065 — half the size it was (user, 2026-10-14: "make the entity placement and entity picker gizmo 2 times smaller").
         //   ⚠ Despite the "Px" name these are WORLD METRES (DrawSphere's default SizeMode) — a 15 m translucent ball hid the scene in 3-D.
-        private const float GhostRadiusPx     = 7.5f;
+        // ⭐ CE-1337 — 6 m across, about one tank (user, 2026-10-25: "it should not be bigger than 2 tank lengths"); the ghost box shows the real size.
+        private const float GhostRadiusPx     = 3f;
         private const float GhostLabelOffsetY = 10f;
 
         private readonly Action<SpawnEntityCommand> _onEntityCreated;

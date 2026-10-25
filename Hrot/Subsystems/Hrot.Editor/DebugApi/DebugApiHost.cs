@@ -844,6 +844,17 @@ namespace Hrot.Editor.DebugApi
                 return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
             }));
 
+            // ⭐ AQ106 L (R-3050) — hearing with its evidence: every sound near a listener, heard or why not, and the way it took.
+            _routes.Add(new("GET", "/perception/hearing", ctx =>
+            {
+                if (!long.TryParse(ctx.Query("listener"), out var who))
+                    return Task.FromResult(Fail(400, "Query 'listener' (a network id) is required."));
+                double seconds = double.TryParse(ctx.Query("seconds"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var sec) && sec > 0 ? sec : 10d;
+                var node = Service().ExplainHearing(who, seconds);
+                return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
+            }));
+
             // ⭐ Tuning T-4 — the shot records the fire chain writes (docs/DESIGN_Terrain_Combat_Tuning.md §4).
             _routes.Add(new("GET", "/combat/shots", ctx =>
             {
@@ -1214,15 +1225,23 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
-            // ⭐ CE-1257 (BV-26) — "Debug this unit"; ⭐ CE-1258 (BV-28) — stop when it changes its mind.
-            _routes.Add(new("POST", "/entities/{networkId}/debug", async ctx =>
+            // ⭐ CE-1329 (Brain View §12r BV-72) — a unit's debug settings (pins, trace, follow) in the one store; ⛔ SUPERSEDED: POST /debug.
+            _routes.Add(new("GET", "/entities/{networkId}/debug-settings", async ctx =>
             {
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
-                bool on = ctx.Body?["on"]?.GetValue<bool>() ?? true;
-                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().DebugUnit(id, on)).ConfigureAwait(false);
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().GetDebugSettings(id)).ConfigureAwait(false);
+                return error != null ? Fail(404, error) : Ok(node);
+            }));
+            _routes.Add(new("POST", "/entities/{networkId}/debug-settings", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var body = ctx.Body;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().SetDebugSettings(id, body)).ConfigureAwait(false);
                 return error != null ? Fail(400, error) : Ok(node);
             }));
+            // ⭐ CE-1258 (BV-28) — stop when it changes its mind.
 
             _routes.Add(new("POST", "/entities/{networkId}/journal/break", async ctx =>
             {
@@ -1241,6 +1260,22 @@ namespace Hrot.Editor.DebugApi
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityUtility(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-1325 (docs/DESIGN_Utility_Decision_View.md) — what a utility decision IS, and which node binds it
+            _routes.Add(new("GET", "/utility/decisions", _ => RunMain(s => s.ListUtilityDecisions())));
+            _routes.Add(new("GET", "/utility/decisions/{key}", async ctx =>
+            {
+                string key = Uri.UnescapeDataString(ctx.RouteValue("key") ?? "");
+                long? unit = long.TryParse(ctx.Query("networkId"), out var n) ? n : null;
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetUtilityDecision(key, unit)).ConfigureAwait(false);
+                return node is null ? Fail(404, $"No utility decision '{key}'. List them with GET /utility/decisions.") : Ok(node);
+            }));
+            _routes.Add(new("GET", "/behaviours/{name}/decisions", async ctx =>
+            {
+                string name = Uri.UnescapeDataString(ctx.RouteValue("name") ?? "");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetBehaviourDecisions(name)).ConfigureAwait(false);
                 return Ok(node);
             }));
 

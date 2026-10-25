@@ -25,15 +25,24 @@ internal sealed class HsmNodeContextMenuProvider : INodeContextMenuProvider
     public IReadOnlyList<ContextMenuItem> GetItemsFor(NodeId node, IReadOnlyList<NodeId> selection)
     {
         var state = _asset.FindStateByStableId(node.Value);
-        if (state is null || ReferenceEquals(state, _asset.RootState) || Recorder is null)
+        if (state is null || ReferenceEquals(state, _asset.RootState))
             return Array.Empty<ContextMenuItem>();
 
-        bool already = _asset.IsStartState(state);
-        return new[]
+        var items = new List<ContextMenuItem>();
+        if (Recorder is not null)
+            items.Add(new ContextMenuItem("Set as Initial State", () => SetInitial(state), Enabled: !_asset.IsStartState(state)));
+        // ⭐ CE-1323 (DBG-13) — the state's breakpoints, on the state itself (they were only on its gutter dot)
+        if (Breakpoints is { } manager)
         {
-            new ContextMenuItem("Set as Initial State", () => SetInitial(state), Enabled: !already),
-        };
+            var collector = new HsmContextMenuItemCollector();
+            Hrot.Hsm.Editor.Debug.HsmBreakpointMenuPopulator.PopulateStateMenu(_asset, state, collector, manager);
+            items.AddRange(collector.Items);
+        }
+        return items;
     }
+
+    /// <summary>⭐ CE-1323 — the breakpoint manager; null = no breakpoint items.</summary>
+    public Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? Breakpoints { get; set; }
 
     internal void SetInitial(StateNode state)
     {

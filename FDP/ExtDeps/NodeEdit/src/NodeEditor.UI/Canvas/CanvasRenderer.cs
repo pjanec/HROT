@@ -782,6 +782,13 @@ public sealed class CanvasRenderer
                 ImGui.BeginDisabled();
                 ImGui.MenuItem("Hide Wire");
                 ImGui.EndDisabled();
+
+                // ⭐ CE-1323 — the host's items (an HSM transition's breakpoint)
+                if (view.Host.LinkContextMenu?.GetItemsFor(linkId) is { Count: > 0 } linkItems)
+                {
+                    ImGui.Separator();
+                    RenderItems(linkItems);
+                }
                 break;
             }
 

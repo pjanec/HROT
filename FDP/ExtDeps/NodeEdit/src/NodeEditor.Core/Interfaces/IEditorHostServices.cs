@@ -62,6 +62,9 @@ public interface IEditorHostServices
     /// </summary>
     INodeContextMenuProvider? NodeContextMenu => null;
 
+    /// <summary>⭐ CE-1323 — optional provider for link right-click menus, appended after the built-in link items; null = none.</summary>
+    ILinkContextMenuProvider? LinkContextMenu => null;
+
     /// <summary>
     /// Custom canvas renderers registered by this host.
     /// Renderers are invoked at their declared render pass

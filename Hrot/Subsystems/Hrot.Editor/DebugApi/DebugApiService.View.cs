@@ -51,7 +51,6 @@ namespace Hrot.Editor.DebugApi
             var (primary, all) = SelectionOf(_world, _entityMap);
             result["selection"] = all;
             result["primary"] = primary;
-            result["debugged"] = Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current?.Debugged is { } d ? NetworkIdOrNull(d) : null;
             if (ViewControl.Of(_world)?.Following is { } follow)   // ⭐ CE-1293 (UC-10) — the unit the camera follows
             {
                 result["following"] = NetworkIdOrNull(follow.Unit);

@@ -173,13 +173,17 @@ public sealed class Map3DTests
     [Fact]
     public void CE1142_TheFlySpeed_FollowsTheEyeHeight_StartsSlow_Accelerates_AndTheModifiersAreDistinct()
     {
-        Assert.Equal(4f, MapCamera3D.FlySpeed(10f, 1f, false, false), 3);            // 10 m up: 4 m/s once ramped
-        Assert.Equal(1f, MapCamera3D.FlySpeed(10f, 0f, false, false), 3);            // the press: a quarter
-        Assert.Equal(20f, MapCamera3D.FlySpeed(10f, 5f, false, false), 3);           // held 5 s: 5×
+        // ⭐ CE-1340 — high up (40 m, past the ground boost) as before; the acceleration reaches its 5× in 3 s (was 5)
+        Assert.Equal(16f, MapCamera3D.FlySpeed(40f, 1f, false, false), 3);           // 40 m up: 16 m/s once ramped
+        Assert.Equal(4f, MapCamera3D.FlySpeed(40f, 0f, false, false), 3);            // the press: a quarter
+        Assert.Equal(80f, MapCamera3D.FlySpeed(40f, 3f, false, false), 3);           // held 3 s: 5×
+        Assert.Equal(80f, MapCamera3D.FlySpeed(40f, 5f, false, false), 3);           // and no more after
         Assert.Equal(MapCamera3D.FlyMinSpeed, MapCamera3D.FlySpeed(0.5f, 1f, false, false), 3);   // on the ground: the floor
-        Assert.Equal(16f, MapCamera3D.FlySpeed(10f, 1f, true, false), 3);
-        Assert.Equal(80f, MapCamera3D.FlySpeed(10f, 1f, false, true), 3);
-        Assert.Equal(400f, MapCamera3D.FlySpeed(10f, 1f, true, true), 3);
+        Assert.Equal(1.2f, MapCamera3D.FlyMinSpeed, 3);                              // twice the old 0.6
+        Assert.Equal(2f * 2f * 0.4f * 5f, MapCamera3D.FlySpeed(2f, 3f, false, false), 3);   // a standing eye (2 m): twice the old full speed
+        Assert.Equal(64f, MapCamera3D.FlySpeed(40f, 1f, true, false), 3);
+        Assert.Equal(320f, MapCamera3D.FlySpeed(40f, 1f, false, true), 3);
+        Assert.Equal(1600f, MapCamera3D.FlySpeed(40f, 1f, true, true), 3);
     }
 
     /// <summary>⭐ CE-1142 — a metre above a soldier with the pivot far ahead, a short tap moves centimetres, not the 30 m/s the old
@@ -3071,7 +3075,11 @@ public sealed class Map3DTests
         Assert.Equal(TerrainLayer3D.WaterColor, colours[3 * water]);
         Assert.True(normals[3 * water].Y > 0.9f, "the water faces up");
         int forest = Array.IndexOf(materials, "forest");
-        Assert.Equal(TerrainLayer3D.ForestColor, colours[3 * forest]);
+        Assert.Equal(TerrainLayer3D.ForestColor with { A = 249 }, colours[3 * forest]);   // ⭐ CE-1333 — the alpha is the material code
+        int wall = Enumerable.Range(0, kinds.Length).First(i => kinds[i] == TerrainSurfaceKind.Wall && materials[i] == "concrete");
+        Assert.Equal(247, colours[3 * wall].A);                                                   // a concrete wall: panels
+        int roof = Enumerable.Range(0, kinds.Length).First(i => kinds[i] == TerrainSurfaceKind.Roof);
+        Assert.Contains(colours[3 * roof].A, new byte[] { 241, 245 });                            // a roof: tiles (241: a brick one)
         Assert.Equal(new Raylib_cs.Color(172, 96, 72, 255), TerrainLayer3D.ColourOf(TerrainSurfaceKind.Wall, "brick"));
         Assert.Equal(TerrainLayer3D.RoofColor, TerrainLayer3D.ColourOf(TerrainSurfaceKind.Roof, "concrete"));
     }
@@ -4480,7 +4488,7 @@ public sealed class Map3DTests
         {
             if (kinds[t] == TerrainSurfaceKind.Wall) continue;
             Assert.True(normals[3 * t].Y > 0.5f, $"ground/roof triangle {t} faces {normals[3 * t]} (Raylib +Y is up)");
-            Assert.Equal(TerrainLayer3D.ColourOf(kinds[t]), colours[3 * t]);
+            Assert.Equal(TerrainLayer3D.ColourOf(kinds[t]) with { A = TerrainLayer3D.MaterialCode(kinds[t], null) }, colours[3 * t]);   // CE-1333
         }
     }
 

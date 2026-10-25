@@ -149,13 +149,23 @@ public sealed class HsmBreakpointWiringTests
     [Fact]
     public void Hsm_ContextMenu_ShowsBreakpointItems_WhenManagerWired()
     {
-        var provider = new HsmBreakpointContextMenuProvider(new StubBreakpointManager());
+        // ⭐ CE-1323 — the dot's state is looked up in the document (it built a stub with FlatIndex 0: the ROOT state of every HSM);
+        //   an id that is not a state offers nothing
+        var state = new Hrot.Hsm.Editor.Model.StateNode("Patrol") { FlatIndex = 3 };
+        var asset = new Hrot.Hsm.Editor.Model.HsmAsset(Guid.NewGuid(), "Guard", "", false, "",
+            new Fhsm.Kernel.Data.HsmDefinitionBlob(), new Fhsm.Kernel.Data.MachineMetadata(),
+            new Hrot.Hsm.Editor.Model.StateNode("__root__") { FlatIndex = 0 },
+            new List<Hrot.Hsm.Editor.Model.StateNode> { state }, new List<Hrot.Hsm.Editor.Model.TransitionNode>(),
+            new List<Hrot.Hsm.Editor.Model.GlobalTransitionNode>(), new List<Hrot.Hsm.Editor.Model.RegionNode>(),
+            new List<Hrot.Hsm.Editor.Model.EventDefinition>());
+        var provider = new HsmBreakpointContextMenuProvider(new StubBreakpointManager()) { Asset = asset };
+        var hit = new CustomElementHit("key", CustomElementKind.Standalone, default);
 
-        var items = provider.GetItemsFor(
-            Guid.NewGuid().ToString("D"),
-            new CustomElementHit("key", CustomElementKind.Standalone, default));
-
-        Assert.Contains(items, i => i.Label == "Break on Enter");
+        var items = provider.GetItemsFor(state.StableId.ToString("D"), hit);
+        var add = Assert.Single(items, i => i.Label == "Add Breakpoint");
+        Assert.Contains(add.Children!, i => i.Label == "Break on Enter");
+        Assert.Contains(add.Children!, i => i.Label == "Break on Exit");
+        Assert.Empty(provider.GetItemsFor(Guid.NewGuid().ToString("D"), hit));
     }
 
     // ── Test 2: RendererId matches the gutter renderer ID ──────────────────

@@ -62,6 +62,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string ClearRoom = "ClearRoom";
         /// <summary>⭐ <c>CE-2259</c> BC-3 (CB-57) — a squad clears a building room by room (Building Clearing §7.2).</summary>
         public const string ClearBuilding = "ClearBuilding";
+        /// <summary>⭐ <c>CE-2374</c> (AQ104 B, R-2079) — a squad clears an AREA: its buildings one after another (Building Clearing §7.4).</summary>
+        public const string ClearArea = "ClearArea";
         /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — a man opens a door, and breaches it when it is locked.</summary>
         public const string BreachDoor = "BreachDoor";
 

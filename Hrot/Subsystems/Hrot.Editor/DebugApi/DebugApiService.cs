@@ -600,6 +600,9 @@ namespace Hrot.Editor.DebugApi
                 _bpManager.OnBreakpointHit += (bp, entity) =>
                 {
                     _lastHitBreakpointId = bp.Id;
+                    _lastHitName = bp.DisplayName;
+                    _lastHitSummary = BreakpointConditionSummarizer.Summarize(bp.Condition);
+                    _lastHitWhat = _bpManager.LastHitDetail;   // ⭐ CE-1323 — "entered Withdrawing" for a behaviour step
                     _entityMap.TryGetNetworkId(entity, out _lastHitNetworkId);
                 };
             }
@@ -2287,6 +2290,10 @@ namespace Hrot.Editor.DebugApi
         public JsonNode ExplainLos(long observer, long target)
             => CombatReport.Los(_world, _editorEntityMap ?? _dispatcher?.EntityMap, observer, target);
 
+        /// <summary>GET /perception/hearing — ⭐ AQ106 L: what a unit could hear in the last seconds and why not, as this node's hearing decides it.</summary>
+        public JsonNode ExplainHearing(long listener, double seconds)
+            => CombatReport.Hearing(_world, _editorEntityMap ?? _dispatcher?.EntityMap, listener, seconds);
+
         /// <summary>GET /doors — ⭐ buildings Stage 1: the doors the terrain defines.</summary>
         public JsonNode GetDoors() => TerrainReport.Doors(_world);
 
@@ -2376,10 +2383,38 @@ namespace Hrot.Editor.DebugApi
             int occurrenceThreshold = body?["occurrenceThreshold"]?.GetValue<int>() ?? 1;
             string name = body?["name"]?.GetValue<string>() ?? "";
 
-            var id = _bpManager.AddBreakpoint(condition, filterEntity, occurrenceThreshold, name);
+            // ⭐ CE-1323 (DBG-9) — a behaviour step is checked against the behaviour NOW: a state / event / transition name that is not in it
+            //   is a 400 that lists what is (it would otherwise never fire, silently)
+            Guid? element = null;
+            if (StepIn(condition) is { } step)
+            {
+                if (string.IsNullOrWhiteSpace(step.Behaviour))
+                    throw new ArgumentException("a BehaviourStep condition needs 'behaviour' (the running behaviour's name, GET /entities/{id}/brain).");
+                if (_behaviorRegistry is { } registry
+                    && Hrot.Editor.Debugging.BehaviourStepResolver.Resolve(step, registry, Fdp.Toolkit.Behavior.BehaviorHash.FromName(step.Behaviour), out var why) is null)
+                    throw new ArgumentException($"BehaviourStep cannot match: {why}.");
+                if (string.IsNullOrEmpty(name)) name = BreakpointConditionSummarizer.Step(step);
+                if (step.Element != Guid.Empty) element = step.Element;
+                else if (step.Node != Guid.Empty) element = step.Node;
+            }
 
-            return new JsonObject { ["breakpointId"] = id.ToString() };
+            var id = _bpManager.AddBreakpoint(condition, filterEntity, occurrenceThreshold, name, element);
+
+            return new JsonObject
+            {
+                ["breakpointId"]     = id.ToString(),
+                ["conditionSummary"] = BreakpointConditionSummarizer.Summarize(condition),
+            };
         }
+
+        private string? _lastHitName, _lastHitSummary, _lastHitWhat;
+
+        private static BehaviourStepPredicateDto? StepIn(SearchPredicateDto c) => c switch
+        {
+            BehaviourStepPredicateDto st => st,
+            CompoundPredicateDto cp      => cp.Conditions.OfType<BehaviourStepPredicateDto>().FirstOrDefault(),
+            _                            => null,
+        };
 
         /// <summary>GET /breakpoints — list all registered breakpoints.</summary>
         public JsonNode ListBreakpoints()
@@ -2399,6 +2434,8 @@ namespace Hrot.Editor.DebugApi
                     ["occurrenceThreshold"] = bp.OccurrenceThreshold,
                     ["hitCount"]            = bp.HitCount,
                     ["name"]                = bp.DisplayName,
+                    ["kind"]                = BreakpointKind.Of(bp).ToString(),   // ⭐ CE-1323 — Node / Journal / Data
+                    ["filterNetworkId"]     = bp.FilterEntity is { } fe && _entityMap.TryGetNetworkId(fe, out var fnid) ? (JsonNode?)fnid : null,
                 });
             }
             return arr;
@@ -2427,8 +2464,11 @@ namespace Hrot.Editor.DebugApi
             {
                 lastHit = new JsonObject
                 {
-                    ["breakpointId"] = _lastHitBreakpointId.ToString(),
-                    ["networkId"]    = _lastHitNetworkId,
+                    ["breakpointId"]     = _lastHitBreakpointId.ToString(),
+                    ["networkId"]        = _lastHitNetworkId,
+                    ["name"]             = _lastHitName,
+                    ["conditionSummary"] = _lastHitSummary,
+                    ["what"]             = _lastHitWhat,   // ⭐ CE-1323 — what a behaviour step saw ("entered Withdrawing"); null for data breakpoints
                 };
             }
 

@@ -45,6 +45,13 @@ namespace Hrot.Editor.DebugApi
 
         private void PatchEntity(Entity entity, bool enable)
         {
+            // ⭐ CE-1329 (Brain View §12r) — an observe arming is a temporary request in the one per-unit store: it never clears the user's
+            //   switch, and a unit with a network id is not patched behind the store's back
+            if (UnitDebugSettings.NetIdOf(_world, entity) is var id and not 0)
+            {
+                UnitDebugSettings.Of(_world).SetArmed(id, enable);
+                return;
+            }
             _world.Bus.PublishManaged(new PatchDebugStateCommand
             {
                 Target    = entity,

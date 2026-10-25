@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "bt-range",
-    "description": "What: AQ104 K (CE-2371) - on bt-range, 'Blue Team' (Friend, 'Blue 1-4') at (130,60) is to CLEAR the area holding House A (105.6,104) and House B (156,105.5) - \u23ed AQ104 B: ClearArea; today the closest order, ClearBuilding of House A. One defender in each house ('Red 1' upstairs in A, 'Red 2' in B - each a one-man SquadDefend). All mortal. Judge (420 s): (1) both houses are entered; (2) both defenders are down, or the team is still clearing; (3) no house is left once entered with a live known enemy in it. Baseline expectation: House B is never visited (the order names one building). Check: python3 scripts/utility-demo-check.py --launch ia-area-clear. \ud83d\udcc4 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K"
+    "description": "What: AQ104 K (CE-2371) - on bt-range, 'Blue Team' (Friend, 'Blue 1-4') at (130,60) is to CLEAR the area holding House A (105.6,104) and House B (156,105.5) - AQ104 B: ClearArea (centre midway, 32 m; CE-2374), building after building, the nearest first. One defender in each house ('Red 1' upstairs in A, 'Red 2' in B - each a one-man SquadDefend). All mortal. Judge (420 s): (1) both houses are entered; (2) both defenders are down, or the team is still clearing; (3) no house is left once entered with a live known enemy in it. Check: python3 scripts/utility-demo-check.py --launch ia-area-clear. \ud83d\udcc4 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K"
   },
   "entities": {
     "a1040002-0000-4000-8000-000000000001": {
@@ -35,8 +35,8 @@
         "ForceId": "Friend"
       },
       "Behavior": {
-        "Name": "ClearBuilding",
-        "Params": "{\"Building\": [105.6, 104.0, 0], \"Speed\": 2}",
+        "Name": "ClearArea",
+        "Params": "{\"Centre\": [130.8, 104.75, 0], \"Radius\": 32, \"Speed\": 2}",
         "Origin": "Superior"
       }
     },

@@ -119,7 +119,16 @@ internal sealed class CanvasInput
             return;
         }
 
-        // Right-mouse → pan
+        // Right-mouse → pan; ⭐ CE-1343 — the middle button too, as on the 2-D and 3-D maps (user, 2026-10-25: "the graph window needs to
+        //   use middle mouse wheel for dragging map (next to right click) to stay consistent with 3d and 2d maps")
+        if (canProcess && input.IsMousePressed(MouseButton.Middle))
+        {
+            view.Interaction.Mode = InteractionMode.Panning;
+            view.Interaction.PanByMiddle = true;
+            view.Interaction.DragStartScreen = input.MousePosition;
+            view.Interaction.DragThresholdCrossed = false;
+            return;
+        }
         if (canProcess && input.IsMousePressed(MouseButton.Right))
         {
             view.Interaction.Mode = InteractionMode.Panning;
@@ -414,7 +423,7 @@ internal sealed class CanvasInput
 
     // ── Panning ───────────────────────────────────────────────────────────────
 
-    private static void HandlePanning(GraphView view, IInputSource input)
+    internal static void HandlePanning(GraphView view, IInputSource input)
     {
         var delta = input.MousePosition - view.Interaction.DragStartScreen;
         if (!view.Interaction.DragThresholdCrossed
@@ -425,6 +434,12 @@ internal sealed class CanvasInput
 
         if (input.MouseDelta != Vector2.Zero)
             view.Viewport.PanScreen(-input.MouseDelta);
+
+        if (view.Interaction.PanByMiddle)
+        {
+            if (input.IsMouseReleased(MouseButton.Middle)) view.Interaction.ResetToIdle();
+            return;
+        }
 
         if (input.IsMouseReleased(MouseButton.Right))
         {

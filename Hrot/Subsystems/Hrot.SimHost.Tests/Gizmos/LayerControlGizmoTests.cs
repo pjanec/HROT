@@ -294,12 +294,12 @@ namespace Hrot.SimHost.Tests.Gizmos
                 bool is3D = false;
                 var gizmo = new LayerControlGizmo(7, new FdpEventBus(), MakeEditService(), settings: settings,
                     saveSettings: () => { saves++; settings.SaveToDisk(file); }) { Is3D = () => is3D };
-                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View2D, Units = { Rounds = false }, Ai = { ContactsSelectedOnly = false } }));
+                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View2D, Units = { Rounds = false }, Command = { PathsSelectedOnly = false } }));
                 is3D = true;
                 gizmo.UpdateAndDraw(new EntityRepository(), 0f, new DebugPrimitiveBuffer());
                 // the panel sends the WHOLE shown set — the 3-D set, which re-read the scope the 2-D edit wrote
-                Assert.False(gizmo.SetOf(is3D: true).Ai.ContactsSelectedOnly, "the 3-D set shows the scope the 2-D edit wrote");
-                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View3D, Ai = { ContactsSelectedOnly = false }, Map = { Navmesh = true, NavmeshLayers = NavmeshDrawLayers.Vehicle } }));
+                Assert.False(gizmo.SetOf(is3D: true).Command.PathsSelectedOnly, "the 3-D set shows the scope the 2-D edit wrote");
+                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View3D, Command = { PathsSelectedOnly = false }, Map = { Navmesh = true, NavmeshLayers = NavmeshDrawLayers.Vehicle } }));
                 Assert.Equal(2, saves);
 
                 var loaded = new GizmoSettingsRegistry();
@@ -310,8 +310,8 @@ namespace Hrot.SimHost.Tests.Gizmos
                 Assert.True(next.SetOf(is3D: true).Units.Rounds);
                 Assert.True(next.SetOf(is3D: true).Map.Navmesh);
                 Assert.Equal(NavmeshDrawLayers.Vehicle, next.SetOf(is3D: true).Map.NavmeshLayers);
-                Assert.False(next.SetOf(is3D: false).Ai.ContactsSelectedOnly, "the family scope is one per family, for both views");
-                Assert.False(next.SetOf(is3D: true).Ai.ContactsSelectedOnly);
+                Assert.False(next.SetOf(is3D: false).Command.PathsSelectedOnly, "the family scope is one per family, for both views");
+                Assert.False(next.SetOf(is3D: true).Command.PathsSelectedOnly);
                 Assert.False(next.ActiveLayers.IsSet(DebugTraceLayers.Rounds), "it starts in 2-D with the remembered 2-D set");
                 Assert.True(LayerControlSets.RowCount >= 26, $"{LayerControlSets.RowCount} rows remembered per set");
             }
@@ -391,24 +391,22 @@ namespace Hrot.SimHost.Tests.Gizmos
             var gizmo = new LayerControlGizmo(7, new FdpEventBus(), edit, settings: settings);
             Assert.Equal(GizmoScope.SelectedOrPinned,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
-            Assert.Equal(GizmoScope.SelectedOrPinned,   // ⭐ CE-1065 — every family starts on the selection
+            Assert.Equal(GizmoScope.PinnedOnly,   // ⭐ CE-1329 — a brain family draws for pinned units only, and has no scope row
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
-            var edited = new LayerControlDto { Command = { PathsSelectedOnly = false }, Ai = { ContactsSelectedOnly = false } };
+            var edited = new LayerControlDto { Command = { PathsSelectedOnly = false } };
             string json;
             using (var s = edit.Open(edited, typeof(LayerControlDto))) json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
             gizmo.OnStructUpdate(json);
 
             Assert.Equal(GizmoScope.All,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
-            Assert.Equal(GizmoScope.All,
+            Assert.Equal(GizmoScope.PinnedOnly,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
             var reread = new LayerControlDto();
             reread.ReadScopes(settings);
             Assert.False(reread.Command.PathsSelectedOnly);
-            Assert.False(reread.Ai.ContactsSelectedOnly);
-            Assert.True(reread.Command.SquadCommandSelectedOnly);   // untouched family keeps its default
         }
 
         // ⭐ CE-3149 — Apply in the layer panel must REACH the gizmo through the arbiter that owns it. 🔒 User, 2026-10-10:

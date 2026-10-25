@@ -18,6 +18,9 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     private readonly EntityBlueprintsEditModel _model;
     private readonly EntityRepository _world;
     private readonly BlueprintRegistry _registry;
+
+    /// <summary>⭐ CE-1326 — opens a blueprint's graph live on a unit (the host's: the Brain tab's controller); null = no button.</summary>
+    public static Action<string, Entity>? OpenGraph { get; set; }
     private readonly Func<Entity?>? _entityResolver;
     private bool _isRunning;
     private Entity? _lastEntity;
@@ -115,7 +118,9 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         }
 
         var rows = new List<EntityBlueprintRow>();
-        foreach (var slot in _model.Reality)
+        // ⭐ CE-1326 — only the BLUEPRINTS: the unit's task / SOP / hosted children keep their own slots in the same store (they count
+        //   toward its capacity, above), but they are no blueprints. 🔴 They were listed as "0x7C4ED832 · Active · Remove".
+        foreach (var slot in _model.Reality.Where(s => s.Kind == Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint))
         {
             bool isRemoved = _model.StagedRemoves.Contains(slot.AssetId);
             rows.Add(new EntityBlueprintRow(
@@ -124,7 +129,8 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
                 Emphasis:    isRemoved ? "warning" : "none",
                 ActionLabel: isRemoved ? "Restore" : "Remove",
                 AssetId:     slot.AssetId,
-                ActionScope: slot.BlueprintId.ToString()));
+                ActionScope: slot.BlueprintId.ToString(),
+                Memory:      $"{slot.PayloadSize} B"));
         }
 
         // ⚠ Iterate a COPY — the render's Cancel button mutates StagedAdds, and the original code took
@@ -147,12 +153,12 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         return new EntityBlueprintsViewModel
         {
             HasEntity        = true,
-            SimState         = _isRunning ? "Running" : "Paused",
-            Tier             = _model.GetCurrentTier().ToString(),
             ProjectionLabel  = ProjectionLabelOf(proj),
+            ShowProjection   = proj.Status == UsageStatus.OverCeiling,   // ⭐ CE-1327 — "upgrade needed" is no action: the store appends a block (R-236)
             ProjectionStatus = proj.Status.ToString(),
             AddOptions       = addOptions,
             Rows             = rows,
+            BehaviourSlots   = _model.Reality.Count(s => s.Kind != Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint),
             CanApply         = hasChanges && proj.Status != UsageStatus.OverCeiling,
             CanRevert        = hasChanges,
         };
@@ -173,19 +179,29 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
             return;
         }
 
-        ImGui.Text(vm.Title);
-        ImGui.Separator();
-        ImGui.Text($"Sim: {vm.SimState}");
-        ImGui.Text($"Current tier: {vm.Tier}");
-        ImGui.Text(vm.ProjectionLabel);
-        ImGui.Separator();
+        // ⛔ CE-1327 — no title / "Sim:" / "Current tier:" lines (the Brain tab's section header names it); the capacity only when it matters
+        if (vm.ShowProjection) ImGui.TextColored(new Vector4(1, 0.5f, 0, 1), vm.ProjectionLabel);
 
         if (ImGui.Button("+ Add Blueprint..."))
+        {
             ImGui.OpenPopup("##addBlueprintPopup");
+            _addSearch = "";
+        }
 
         if (ImGui.BeginPopup("##addBlueprintPopup"))
         {
-            foreach (var option in vm.AddOptions)
+            // ⭐ CE-1327 — an incremental search, focused on open; Enter adds the first selectable match
+            if (ImGui.IsWindowAppearing()) ImGui.SetKeyboardFocusHere();
+            ImGui.SetNextItemWidth(260f);
+            bool enter = ImGui.InputTextWithHint("##addSearch", "search...", ref _addSearch, 128, ImGuiInputTextFlags.EnterReturnsTrue);
+            var shown = FilterAddOptions(vm.AddOptions, _addSearch);
+            if (shown.Count == 0) ImGui.TextDisabled("no blueprint matches");
+            if (enter && shown.FirstOrDefault(o => o.State == "selectable") is { } first)
+            {
+                _model.StageAdd(first.AssetId);
+                ImGui.CloseCurrentPopup();
+            }
+            foreach (var option in shown)
             {
                 if (option.State != "selectable")
                 {
@@ -204,11 +220,12 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
         ImGui.Separator();
 
-        if (ImGui.BeginTable("##entityBpTable", 3,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        if (ImGui.BeginTable("##entityBpTable", 4,
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Blueprint");
             ImGui.TableSetupColumn("Status");
+            ImGui.TableSetupColumn("Memory");
             ImGui.TableSetupColumn("");
             ImGui.TableHeadersRow();
 
@@ -218,12 +235,23 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
                 ImGui.TableNextColumn();
                 ImGui.Text(row.Name);
+                // ⭐ CE-1326 — open its graph, live on this unit (pinned to him, as "Open running behaviour" from a pinned tab)
+                if (row.Status != "Add pending" && OpenGraph is { } open)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton($"Open graph##open{row.ActionScope}")) open(row.Name, _model.GetEntity());
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Opens {row.Name}'s graph with this unit's live values.");
+                }
 
                 ImGui.TableNextColumn();
                 if (EmphasisColor(row.Emphasis) is { } color)
                     ImGui.TextColored(color, row.Status);
                 else
                     ImGui.Text(row.Status);
+
+                ImGui.TableNextColumn();
+                ImGui.TextDisabled(row.Memory);
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("This blueprint's own slot in the unit's blueprint memory.");
 
                 ImGui.TableNextColumn();
                 if (ImGui.SmallButton($"{row.ActionLabel}##{row.ActionScope}"))
@@ -235,6 +263,8 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
             ImGui.EndTable();
         }
+        if (vm.BehaviourSlots > 0)
+            ImGui.TextDisabled($"+ {vm.BehaviourSlots} slot(s) of the running behaviours (see Running behaviours)");
 
         ImGui.Separator();
 
@@ -254,6 +284,15 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         if (ImGui.Button("Revert All"))
             _model.RevertAll();
         if (!vm.CanRevert) ImGui.EndDisabled();
+    }
+
+    private string _addSearch = "";
+
+    /// <summary>⭐ <c>CE-1327</c> — the add options a search keeps: every word in the label, case-insensitive. Pure.</summary>
+    public static IReadOnlyList<EntityBlueprintAddOption> FilterAddOptions(IReadOnlyList<EntityBlueprintAddOption> options, string search)
+    {
+        var words = search.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return options.Where(o => words.All(w => o.Label.Contains(w, StringComparison.OrdinalIgnoreCase))).ToList();
     }
 
     /// <summary>⭐ The colour ROLE resolves to a colour here, in the render — ⛔ never in the model, so a

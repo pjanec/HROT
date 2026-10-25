@@ -107,6 +107,23 @@ public static class UnitCameraRig
     public static float EaseArm(float current, float wanted, float dt, float scale = 1f)
         => wanted <= current ? wanted : MathF.Min(wanted, current + ArmOutRate * scale * dt);
 
+    /// <summary>How far above his eyes the camera rises when a wall pulls the arm right in (m).</summary>
+    public const float SqueezedAboveEyes = 0.6f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1338</c> — the camera's height when a wall pulls the arm in: it rises toward <see cref="SqueezedAboveEyes"/> over his eyes as
+    /// the <paramref name="arm"/> shortens from <paramref name="fullArm"/> (no wall ⇒ <paramref name="at"/> unchanged; never lowered). The
+    /// pivot sits between his feet and eyes, so a short arm used to bring the camera to his belly. 🔒 User, 2026-10-25: "better if the
+    /// camera in such situation stays a bit above the character's head".
+    /// </summary>
+    public static Vector3 AboveHeadWhenSqueezed(Vector3 at, Vector3 eye, float arm, float fullArm)
+    {
+        if (fullArm <= 1e-3f || arm >= fullArm) return at;
+        float squeeze = Math.Clamp(1f - arm / fullArm, 0f, 1f);
+        float lifted = at.Z + (eye.Z + SqueezedAboveEyes - at.Z) * squeeze;
+        return at with { Z = MathF.Max(at.Z, lifted) };
+    }
+
     private static Vector3 Level(Vector3 v)
     {
         var level = new Vector3(v.X, v.Y, 0f);

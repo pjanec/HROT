@@ -46,7 +46,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private static object? _menusBuiltFor;
 
         private static string UnitMenuFor(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form = false, bool manned = false,
-                                          EmbarkItem embark = EmbarkItem.None)
+                                          EmbarkItem embark = EmbarkItem.None, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags pins = default, bool traceOn = false)
         {
             var vocabulary = Hrot.Common.Orders.OrderMenu.Orders;
             if (!ReferenceEquals(vocabulary, System.Threading.Volatile.Read(ref _menusBuiltFor)))
@@ -59,15 +59,17 @@ namespace Hrot.Common.Diagnostics.Gizmos
             int flags = (degraded ? 1 : 0) | (brain ? 2 : 0) | (orders ? 4 : 0) | (form ? 8 : 0)   // ⭐ CE-1059 — 8: an order form here
                       | (manned ? 16 : 0)                                                          // ⭐ CE-1205 — 16: a weapon (manned, not possessed)
                       | ((int)embark << 5)                                                         // ⭐ CE-1230 — 32 / 64: Embark… / Disembark
-                      | (brain && UnitDebugController.Current != null ? 128 : 0);                  // ⭐ CE-1257 — 128: Debug this unit offered
-            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit), _ => UnitMenu(degraded, brain, orders, dis, isUnit, form, manned, embark));
+                      | ((int)pins << 8)                                                           // ⭐ CE-1329 — the pinned families' checks
+                      | (brain && traceOn ? 1 << 24 : 0);                                          // ⭐ CE-1329 — the trace switch's check
+            return UnitMenus.GetOrAdd((flags, orders ? dis.Value : 0UL, orders && isUnit),
+                _ => UnitMenu(degraded, brain, orders, dis, isUnit, form, manned, embark, pins, traceOn));
         }
 
         /// <summary>⭐ <c>CE-1230</c> (canvas context menu §11 OM-2, OM-3) — the embark item a unit's menu carries.</summary>
         public enum EmbarkItem : byte { None = 0, Embark = 1, Disembark = 2 }
 
         private static string UnitMenu(bool degraded, bool brain, bool orders, DISEntityType dis, bool isUnit, bool form, bool manned = false,
-                                        EmbarkItem embark = EmbarkItem.None)
+                                        EmbarkItem embark = EmbarkItem.None, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags pins = default, bool traceOn = false)
         {
             var items = new System.Collections.Generic.List<ContextMenuItemDto>();
             if (orders)
@@ -125,9 +127,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
                 new ContextMenuItemDto { IsSeparator = true },
-                GizmoPins.Submenu(),   // ⭐ CE-3120 — pin gizmo families on this unit
+                GizmoPins.Submenu(pins),   // ⭐ CE-3120 — pin gizmo families on this unit; ⭐ CE-1329 checked as pinned
             });
-            if (brain) items.Add(AiTraceActions.Submenu(UnitDebugController.Current != null));   // ⭐ CE-3123 — the AI trace toggles, on every map host; ⭐ CE-1257 + Debug this unit
+            if (brain) items.Add(AiTraceActions.Submenu(traceOn));   // ⭐ CE-3123 — the AI trace toggles, on every map host
             return JsonSerializer.Serialize(items.ToArray(), SerializerOptions);
         }
 
@@ -242,7 +244,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 var embark = repo == null || isUnit ? EmbarkItem.None                                                  // ⭐ CE-1230
                     : Hrot.Common.Orders.EmbarkOrders.IsAboard(repo, entity) ? EmbarkItem.Disembark
                     : Hrot.Common.Orders.EmbarkOrders.CanOffer(repo, entity) ? EmbarkItem.Embark : EmbarkItem.None;
-                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit, form, manned, embark);
+                var pins = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.None;   // ⭐ CE-1329 — the same store the Brain tab reads
+                foreach (var f in Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All)
+                    if (GizmoPins.IsPinned(view, entity, f)) pins |= f;
+                bool traceOn = brain && repo != null && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(repo, entity) is var nid and not 0
+                               && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(repo)?.IsTraceSet(nid) == true;
+                menuJson = UnitMenuFor(degraded, brain, orders, dis, isUnit, form, manned, embark, pins, traceOn);
             }
 
             return menuJson;
