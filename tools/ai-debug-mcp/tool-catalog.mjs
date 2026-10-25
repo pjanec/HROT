@@ -1864,6 +1864,36 @@ export const TOOLS_CATALOG = [
   // ── Group K — AI behavior traces ────────────────────────────────────────────
 
   {
+    "name": "get_behaviour_decisions",
+    "group": "K — AI behavior traces",
+    "summary": "Which node / state / transition of a behaviour binds which utility decision, and how (CE-1325): ChooseOption chooses, RankCandidates ranks, an IsOption guard reads one option, a custom action holds one in its params.",
+    "http": {
+      "method": "GET",
+      "path": "/behaviours/{name}/decisions"
+    },
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "The registered behaviour name"
+      }
+    ],
+    "returns": "{ behaviour, bindings:[{kind: node|state|transition, element, label, role: Chooses|Ranks|Reads|Holds, via (the params field), decision, assetId, decisionId, option?}] }",
+    "notes": [
+      "Read from the running blob: a node's method key carries its params offset, and the behaviour's default params hold the decision reference there."
+    ],
+    "example": {
+      "args": {
+        "name": "CombatPosture"
+      },
+      "gist": "which nodes of a behaviour run which utility decision"
+    },
+    "hint": "Req: name (the registered behaviour). Example: get_behaviour_decisions({name:\"CombatPosture\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_combat_detonations",
     "group": "K — AI behavior traces",
     "summary": "The last warhead bursts on this node (grenades, mortars, HE) — the warhead and where its numbers came from, every entity in reach with its stance, fragment exposure and blast barrier/shadow, the damage each effect did, and the doors breached (buildings Stage 6).",
@@ -2501,6 +2531,45 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "explain_hearing",
+    "group": "K — AI behavior traces",
+    "summary": "What one unit could hear in the last seconds and why not, as this node's hearing sensor decides it — each sound's verdict (heard / beyond its carry / beyond his ear / walls or corners / his own side), the straight line's loss, the way round through doorways, windows, stairs and street corners, and where it seems to come from (AQ106 L).",
+    "http": {
+      "method": "GET",
+      "path": "/perception/hearing"
+    },
+    "params": [
+      {
+        "name": "listener",
+        "type": "number",
+        "required": true,
+        "description": "the hearing unit's network id"
+      },
+      {
+        "name": "seconds",
+        "type": "number",
+        "required": false,
+        "description": "how far back the short sounds (shots, bursts, doors) are listed; default 10"
+      }
+    ],
+    "returns": "{ listener, seconds, count, heard, sounds:[{source, kind, class, at, ageSeconds, carry, distance, effectiveCarry, verdict, via, heardFrom, straightDb, crossings, pathMetres, pathDb, openings, corners, route:[[x,y,z]]}], note }",
+    "notes": [
+      "A dry run of the SAME sensor (its ears and its one verdict, AcousticSensorGenerator.Judge) — it cannot disagree with what was heard; it moves no cursor.",
+      "Answers where hearing runs (the Perception node: SimHost, the editor); 404 when the listener is not on this node or has no acoustic sensor here.",
+      "The moving and shouting bodies are those near him NOW; the short sounds are the ring's of the last `seconds`."
+    ],
+    "example": {
+      "args": {
+        "listener": 1001,
+        "seconds": 5
+      },
+      "gist": "find out why the defender did not hear the attacker on the stairs"
+    },
+    "hint": "Req: listener (network id); seconds (default 10). Example: explain_hearing({listener:1001, seconds:5})",
+    "manualVerify": false
+  },
+
+  {
     "name": "explain_line_of_sight",
     "group": "K — AI behavior traces",
     "summary": "Why one unit does or does not see another, as this node's perception decides it — eye and aim heights, stances, every terrain crossing with its transmittance, and any entity in the way (tuning T-4).",
@@ -2610,6 +2679,62 @@ export const TOOLS_CATALOG = [
       "gist": "arm AI behavior tracing for entity 1000"
     },
     "hint": "Req: networkId (number), on (bool). Example: observe_trace({networkId:1000,on:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_utility_decisions",
+    "group": "K — AI behavior traces",
+    "summary": "Every registered utility decision (CE-1325): name, asset id, kind, option count — the C# [UtilityDecision] classes.",
+    "http": {
+      "method": "GET",
+      "path": "/utility/decisions"
+    },
+    "params": [],
+    "returns": "[{ decisionId, name, assetId, kind, options }]",
+    "example": {
+      "args": {},
+      "gist": "list the utility decisions"
+    },
+    "hint": "No params. Example: list_utility_decisions({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_utility_decision",
+    "group": "K — AI behavior traces",
+    "summary": "What a utility decision IS (CE-1325): per option its aggregation and considerations (input, context, weight, curve kind + slope / exponent / shift, modifier); with networkId that unit's values (winner, margin, per-consideration raw -> curved -> weighted).",
+    "http": {
+      "method": "GET",
+      "path": "/utility/decisions/{key}"
+    },
+    "params": [
+      {
+        "name": "key",
+        "type": "string",
+        "required": true,
+        "description": "The decision's asset id, its name, or its numeric id"
+      },
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": false,
+        "description": "A unit: adds its values (query parameter)"
+      }
+    ],
+    "returns": "{ decisionId, name, assetId, kind, ranking, hysteresis, options:[{optionId, name, aggregation, considerations:[{input, context, weight, curve, slope, exponent, xShift, modifier, raw?, curved?, weighted?}], score?, winner?, zeroedBy?}], live?:{unit, traced, evaluations, switches, winner, runnerUp, margin, ranked} }",
+    "notes": [
+      "The settings come from the RUNNING definition — the same for a C#-built behaviour as for an authored one.",
+      "Live per-consideration values need the unit traced (observe_trace); without, live.traced is still true when the decision log exists and the rows have no raw values.",
+      "An option scored 0 names the consideration that zeroed it (zeroedBy)."
+    ],
+    "example": {
+      "args": {
+        "key": "Combat posture"
+      },
+      "gist": "read a utility decision's settings"
+    },
+    "hint": "Req: key (asset id, name or id). Optional networkId (query). Example: get_utility_decision({key:\"Combat posture\", networkId:1007})",
     "manualVerify": false
   },
 
