@@ -177,10 +177,11 @@ related-designs:
 | B2 one writer | CE-1320 | ✅ `151bea9b7` (§12j) |
 | B4 replay inputs | CE-1319 | ✅ `d20465cd3`, `b200a7ef9` (§12k) |
 | B3 C# hot reload over HTTP | CE-1321 | ✅ `6660686b1` (§12l). 🔴 the toolbar's build never reached the watched directory; fixed |
-| B5 layout + observation | CE-1310, CE-1317, CE-1311 | ✅ (§12m) |
-| B6 the tab absorbs the AI tab + Entity Blueprints | CE-1316, CE-1314 | next. Plan: the two views become EMBEDS drawn in the Brain tab's sections (a `DetailsViewRegistry` of embeds the host fills); the tab applies to every single entity (BV-47); `details.ai` / `details.entityblueprints` are unregistered |
-| B7 commander + graph pin | CE-1312, CE-1318 | after B6; retires `UnitDebugController`'s overlay pin (BV-55) |
-| D debugging S1 | CE-1284, CE-1291, CE-1285 | after B7 |
+| B5 layout + observation | CE-1310, CE-1317, CE-1311 | ✅ `a2b4f6008` (§12m) |
+| B6 the tab absorbs the AI tab + Entity Blueprints | CE-1316, CE-1314 | ✅ `be80d3348` (§12n); CE-1322 filed (split the AI editing into the per-behaviour expanders) |
+| B7 commander + graph pin | CE-1312, CE-1318 | ✅ `39a722487` (§12o) |
+| D debugging S1 | CE-1284, CE-1291, CE-1285 | ✅ `ece387414`, `6929a5d66` (Behaviour Debugging §8); ⚠ HSM-state breakpoints and Q44-B follow |
+| handoff ui → coordinator: the Timeline's Behaviour lane over the recorded histories (BV-59) | — | sent `b53791c52` |
 | handoff behaviors → ui (callout voices, lean depth) | CE-2372, CE-2371 | queued after the programme |
 
 
