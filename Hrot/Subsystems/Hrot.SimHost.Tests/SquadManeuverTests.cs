@@ -122,7 +122,12 @@ namespace Hrot.SimHost.Tests
             {
                 foreach (var (site, payload) in Surveys) AnswerSurvey(site, payload);
                 AnswerSurvey(SquadDefendPlay.FrameSite, FrameSurvey);
+                AnswerSurvey(SquadDefendPlay.CoverageSite, CoverageSurvey);
             }
+
+            /// <summary>⭐ <c>CE-2373</c> D-2m — the answer the all-round defence's coverage fan gets at once: empty by default (no rays ⇒ every
+            /// candidate sees nothing ⇒ the ask's own order, no round); null = never answered (the 5 s fallback).</summary>
+            public Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? CoverageSurvey = new();
 
             private void AnswerSurvey(int site, Fdp.Toolkit.Perception.Survey.WorldSurveyPayload? payload)
             {
@@ -2253,7 +2258,7 @@ namespace Hrot.SimHost.Tests
             AnswerAll(t, DefendQuery(t, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
             t.Orders.Clear();
-            t.Tick(); t.Tick();
+            t.Tick(); t.Tick(); t.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
             var first = t.Members.Single(m => PostureOf(t, m).Advance.Objective == new Vector3(0, 5, 0));
             var spare = PostureOf(t, first).Post;
             Assert.True(spare.HasAlternate);
@@ -2291,7 +2296,7 @@ namespace Hrot.SimHost.Tests
 
             AnswerAll(s, ask, new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(12, 5, 0));
             s.Orders.Clear();
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
             foreach (var m in s.Members)
             {
                 var dto = PostureOf(s, m);
@@ -2677,6 +2682,79 @@ namespace Hrot.SimHost.Tests
             Assert.All(given, d => Assert.True(d.Post.Window && !d.Post.Frame));
         }
 
+        /// <summary>⭐ <c>CE-2373</c> D-2m — a fan answer: candidate o sees far (100 m) along the bearings <paramref name="open"/>[o] accepts,
+        /// 1 m elsewhere; the rays spread as the solver spreads them.</summary>
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload Fan(params Func<float, bool>[] open)
+        {
+            var payload = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.VisibilityFan };
+            float half = CoveragePosts.HalfArc;
+            for (int o = 0; o < open.Length; o++)
+                for (int r = 0; r < CoveragePosts.Rays; r++)
+                {
+                    float b = -half + 2f * half * r / (CoveragePosts.Rays - 1);
+                    payload.Rays.Add(new Fdp.Toolkit.Perception.Survey.SurveyRay { Origin = o, Bearing = b, Free = open[o](b) ? 100f : 1f });
+                }
+            return payload;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2373</c> (AQ104 L, D-2m DL-2…DL-4) — a LONE all-round defender is posted for COVERAGE, not nearness, and guards on a round:
+        /// three window posts — the nearest sees only north, one sees the east half, one the west half. He is posted at the east one (the most
+        /// it sees), after 30 s there he goes to the west one (the half not yet watched), never to the north one (it adds nothing); and with
+        /// an enemy known in the area he stays where he is. ✅ Red-proofs: the picker fed the ask's order ⇒ the nearest (north) post; no round
+        /// ⇒ he stays east; the round ignoring a known enemy ⇒ he moves.
+        /// </summary>
+        [Fact]
+        public void CE2373_ALoneDefender_IsPostedForCoverage_AndGuardsOnARound_UntilAnEnemyIsKnown()
+        {
+            var s = new Squad(members: 1);
+            var north = new Vector3(0, 2, 3); var east = new Vector3(6, 0, 3); var west = new Vector3(-6, 0, 3);
+            s.CoverageSurvey = Fan(b => b > 1.2f && b < 1.9f, b => MathF.Abs(b) < MathF.PI / 2f + 0.1f, b => MathF.Abs(b) > MathF.PI / 2f - 0.1f);
+            s.Order("{\"Position\":[0,0,0],\"SearchRadius\":10}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), north, east, west);
+            s.Orders.Clear();
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(east, PostureOf(s, s.Members[0]).Post.Point);
+
+            s.Teleport(s.Members[0], east);
+            s.Tick();
+            s.Orders.Clear();
+            for (int i = 0; i < 20; i++) s.Tick();
+            Assert.Empty(s.Orders);   // not yet: 30 s on each post
+            s.Pause(SquadDefendPlay.RoundDwellSeconds + 1);
+            s.Tick(); s.Tick();
+            Assert.Equal(west, PostureOf(s, s.Members[0]).Post.Point);
+
+            s.Teleport(s.Members[0], west);
+            s.Tick();
+            var enemy = s.Repo.CreateEntity();
+            s.Repo.AddComponent(enemy, new SimTransform { Position = new Vector3(20, 0, 0), Rotation = Quaternion.Identity });
+            s.Pool(enemy, new Vector3(20, 0, 0), reporters: 1);
+            s.Orders.Clear();
+            s.Pause(SquadDefendPlay.RoundDwellSeconds + 1);
+            s.Tick(); s.Tick();
+            Assert.True(s.Orders.Count == 0 || PostureOf(s, s.Members[0]).Post.Point == west, "an enemy in the area: no round");
+        }
+
+        /// <summary>⭐ <c>CE-2373</c> D-2m — the pure greedy union and the round's next post: the post seeing most first, a post adding fewer than
+        /// <see cref="CoveragePosts.MinRoundGain"/> is no round post; the next round post is the one whose probes were watched longest ago.</summary>
+        [Fact]
+        public void CE2373_Coverage_GreedyUnion_AndTheRoundGoesWhereItWatchedLeast()
+        {
+            Span<uint> sees = stackalloc uint[] { 0b11u, 0xFF00u, 0x00FFu, 0x0100u };
+            Span<int> order = stackalloc int[4];
+            int round = CoveragePosts.Greedy(sees, order);
+            Assert.Equal(new[] { 1, 2, 0, 3 }, order.ToArray());
+            Assert.Equal(2, round);   // 0 adds nothing after 1 and 2; 3 is inside 1
+
+            Span<double> watched = stackalloc double[CoveragePosts.ProbeCount];
+            for (int q = 0; q < 8; q++) watched[q] = 50;    // the low byte watched at 50 s
+            for (int q = 8; q < 16; q++) watched[q] = 90;   // the high byte at 90 s
+            Span<uint> roundSees = stackalloc uint[] { 0xFF00u, 0x00FFu, 0x0F0Fu };
+            Assert.Equal(1, CoveragePosts.NextRound(roundSees, current: 0, watched, now: 100, since: 0));
+        }
+
         /// <summary>⭐ CE-2334 — where <paramref name="m"/>'s latest <c>AdvanceTo</c> order sends him.</summary>
         private static Vector3 AdvanceOf(Squad s, Entity m)
         {
@@ -2705,7 +2783,7 @@ namespace Hrot.SimHost.Tests
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
             s.Orders.Clear();
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
             var given = s.LastOrders();
             var first = s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
             foreach (var m in s.Members) s.Teleport(m, given[m].Objective);
@@ -2729,7 +2807,7 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0), new Vector3(4, 8, 0), new Vector3(8, 8, 0));
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
             var given = s.LastOrders();
             foreach (var m in s.Members)
             {
@@ -2785,7 +2863,7 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
             var given = s.LastOrders();
             var first = s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
             s.Teleport(first, given[first].Objective);
@@ -2836,7 +2914,7 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite),
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
-            s.Tick(); s.Tick();
+            s.Tick(); s.Tick(); s.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
             var given = s.LastOrders();
             var first = s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
             foreach (var m in s.Members) s.Teleport(m, given[m].Objective);
@@ -5182,6 +5260,50 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear && r.At == new Vector3(8f, 12f, 0f));
             Assert.Contains(progress, r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear && r.At == new Vector3(3f, 14f, 3f));
             Assert.Equal(Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear, progress[^1].Kind);
+        }
+
+        /// <summary>⭐ <c>CE-2374</c> — <see cref="HouseAnswer"/> twice: building 5 and its copy 20 m east as building 6 (doors "t/G/…"),
+        /// plus a SOLID building 9 between them that no squad can clear.</summary>
+        private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload TwoHousesAnswer()
+        {
+            var a = HouseAnswer();
+            var b = HouseAnswer();
+            foreach (var x in b.Buildings) { x.Building = 6; x.CentreX += 20f; }
+            foreach (var r in b.Rooms)
+            {
+                r.Building = 6; r.CentreX += 20f;
+                for (int c = 0; c < r.Corners.Length; c += 2) r.Corners[c] += 20f;
+            }
+            foreach (var p in b.Portals) { p.Building = 6; p.X += 20f; if (p.DoorKey != null) p.DoorKey = p.DoorKey.Replace("t/H/", "t/G/"); }
+            a.Buildings.AddRange(b.Buildings); a.Rooms.AddRange(b.Rooms); a.Portals.AddRange(b.Portals);
+            a.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 9, CentreX = 15f, CentreY = 14f, Solid = true });
+            return a;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2374</c> (AQ104 B, Building Clearing §7.4 CA-1…CA-3) — a squad ordered to CLEAR AN AREA clears every building in it, one
+        /// after the other, the one nearest it first: two BuildingClear reports (house 5, then house 6 20 m east), the solid building
+        /// skipped, then the run succeeds. ✅ Red-proofs: the sequencer stopping after the first building ⇒ one BuildingClear; the solid filter
+        /// dropped ⇒ the run fails on building 9 (no rooms: blocked, then CA-3 still succeeds — so asserted by its missing BuildingClear).
+        /// </summary>
+        [Fact]
+        public void CE2374_ClearArea_ClearsEveryBuilding_NearestFirst_ThenSucceeds()
+        {
+            var s = new Squad(members: 6);
+            foreach (var h in new[] { "H", "G" })
+            {
+                HouseDoor(s, $"t/{h}/front", Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+                HouseDoor(s, $"t/{h}/side", Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            }
+            var both = TwoHousesAnswer();
+            s.Surveys[ClearAreaBehavior.AreaSite] = both;
+            s.Surveys[ClearBuildingPlay.BuildingSite] = both;
+            s.Order("{\"Centre\":[15,14,0],\"Radius\":20}", BehaviorNames.ClearArea);
+            var (done, result) = Obey(s, 240, new List<(string, Entity)>());
+            Assert.True(done, "the area is cleared");
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+            var clear = Progress(s).Where(r => r.Kind == Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear).Select(r => r.At).ToList();
+            Assert.Equal(new[] { new Vector3(5f, 14f, 0f), new Vector3(25f, 14f, 0f) }, clear);
         }
 
         /// <summary>⭐ <c>CE-2259</c> BC-3 (CB-57) — the survey never answers: after 5 s the drill fails with RoomBlocked at the order's point.

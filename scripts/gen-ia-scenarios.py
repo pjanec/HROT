@@ -3,9 +3,9 @@
 
 Each scenario authors TODAY's closest orders; the build steps of AQ104 §5 swap them for the approved ones (marked ⏭ below):
   ia-house-hunt   — lone attacker (Attack order) v lone defender of House A (a one-man SquadDefend — ⏭ A: DefendArea)
-  ia-area-clear   — a fire team clears an area holding House A and House B (⏭ B: ClearArea; today ClearBuilding of House A)
-  ia-area-defend  — a lone man defends the area around House A (⏭ A + L: DefendArea, coverage posts, the guard round;
-                    today what the mapper gives a lone man: CombatPosture at the centre, staying)
+  ia-area-clear   — a fire team clears an area holding House A and House B (✅ B: ClearArea, CE-2374)
+  ia-area-defend  — a lone man defends the area around House A (✅ L: a one-man SquadDefend over the area — coverage posts and the
+                    guard round, CE-2373; ⏭ A: the mapper's own one-man command for a lone man's DefendArea)
 """
 import json, sys
 
@@ -47,8 +47,9 @@ s.write("ia-house-hunt", "bt-range",
 
 # ── ia-area-clear: a fire team clears an area holding two houses ─────────────────────────────────────────────
 s = Scn("ia-area-clear", "a1040002")
+AREA = ((HOUSE_A[0] + HOUSE_B[0]) / 2, (HOUSE_A[1] + HOUSE_B[1]) / 2, 0)   # midway: both houses within 32 m
 bq = s.squad("Blue Team", "Friend", (130, 62, 0), 10440)
-s.ents[bq]["Behavior"] = {"Name": "ClearBuilding", "Params": json.dumps({"Building": list(HOUSE_A), "Speed": 2}), "Origin": "Superior"}
+s.ents[bq]["Behavior"] = {"Name": "ClearArea", "Params": json.dumps({"Centre": list(AREA), "Radius": 32, "Speed": 2}), "Origin": "Superior"}
 for i, x in enumerate((126, 129, 132, 135)):
     s.man(f"Blue {i + 1}", "Friend", (x, 60, 0), 0, tkb=2002, health=100, commander=bq,
           designation="SquadLeader" if i == 0 else "Wingman", nid=10441 + i)
@@ -58,23 +59,22 @@ r2 = defend_squad(s, "Red B", "Hostile", HOUSE_B, 10460)
 s.man("Red 2", "Hostile", HOUSE_B, 180, tkb=2002, health=100, commander=r2, designation="SquadLeader", nid=10461)
 s.write("ia-area-clear", "bt-range",
         "What: AQ104 K (CE-2371) - on bt-range, 'Blue Team' (Friend, 'Blue 1-4') at (130,60) is to CLEAR the area holding House A "
-        "(105.6,104) and House B (156,105.5) - ⏭ AQ104 B: ClearArea; today the closest order, ClearBuilding of House A. One defender in "
-        "each house ('Red 1' upstairs in A, 'Red 2' in B - each a one-man SquadDefend). All mortal. Judge (420 s): (1) both houses are "
-        "entered; (2) both defenders are down, or the team is still clearing; (3) no house is left once entered with a live known enemy "
-        "in it. Baseline expectation: House B is never visited (the order names one building). " + CHECK.format(sid="ia-area-clear"))
+        "(105.6,104) and House B (156,105.5) - AQ104 B: ClearArea (centre midway, 32 m; CE-2374), building after building, the nearest "
+        "first. One defender in each house ('Red 1' upstairs in A, 'Red 2' in B - each a one-man SquadDefend). All mortal. Judge (420 s): "
+        "(1) both houses are entered; (2) both defenders are down, or the team is still clearing; (3) no house is left once entered with a "
+        "live known enemy in it. " + CHECK.format(sid="ia-area-clear"))
 
 # ── ia-area-defend: a lone man defends the area round House A ────────────────────────────────────────────────
 s = Scn("ia-area-defend", "a1040003")
 s.car("Car 1", (96, 96, 0), heading=0, nid=10480)
 s.car("Car 2", (115, 96, 0), heading=0, nid=10481)
-guard = s.man("Guard", "Hostile", (105.6, 97, 0), 180, tkb=2002, health=100000, nid=10471,
-              behavior={"Name": "CombatPosture", "Params": json.dumps({"stay": True, "advance": {"Objective": [105.6, 97, 0],
-                        "Speed": 2, "ArrivalRadius": 1}}), "Origin": "Superior"})
+gq = defend_squad(s, "Guard Post", "Hostile", (105.6, 97, 0), 10470, radius=25)   # ⏭ A: the mapper makes this for a lone man
+guard = s.man("Guard", "Hostile", (105.6, 97, 0), 180, tkb=2002, health=100000, commander=gq, designation="SquadLeader", nid=10471)
 s.man("Blue South", "Friend", (106, 55, 0), 0, tkb=2002, health=100, behavior=attack(10471), nid=10472)
 s.man("Blue East", "Friend", (150, 98, 0), 270, tkb=2002, health=100, behavior=attack(10471), nid=10473)
 s.write("ia-area-defend", "bt-range",
         "What: AQ104 K (CE-2371) - on bt-range, 'Guard' (Hostile rifleman, immortal) defends the area round House A (centre (105.6,97), "
-        "~25 m) - ⏭ AQ104 A + L: DefendArea with coverage posts and the guard round; today what the mapper gives a lone man, CombatPosture "
-        "at the centre, staying - between two parked cars; 'Blue South' (from (106,55)) and 'Blue East' (from (150,98)) attack him (mortal). "
+        "~25 m) - AQ104 L (CE-2373): the one man of 'Guard Post' (SquadDefend over the area): posts chosen for COVERAGE, a guard round "
+        "between them while nothing is known (⏭ AQ104 A: the order straight on the man) - two parked cars by the centre;'Blue South' (from (106,55)) and 'Blue East' (from (150,98)) attack him (mortal). "
         "Judge (240 s): (1) the guard sees each attacker before he is within 30 m of the centre; (2) the guard fires first at each; "
         "(3) printed: where the guard stood over time and what he could see. " + CHECK.format(sid="ia-area-defend"))

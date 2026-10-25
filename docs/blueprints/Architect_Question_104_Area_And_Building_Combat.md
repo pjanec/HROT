@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-25 (R-2079), A–L as leaned
 updated: 2026-10-25
-build-state: READY-TO-BUILD — order §5, K (the demos) first
-current-answer: §6 the answers (approved) · §4 the sub-questions with their leans · §3 the diagrams · §2 the claims they rest on · §5 the order
+build-state: BUILDING — K, I, D built (§7.1, §7.2); L1 and B built (§7.3); A stopped for a user decision (§7.3a, lean A-1)
+current-answer: §7.3a the open decision (A) · §6 the answers (approved) · §4 the sub-questions with their leans · §3 the diagrams · §2 the claims they rest on · §5 the order
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -197,3 +197,43 @@ Each scenario authors TODAY's closest orders (the build steps swap them for the 
 Rails: `ThreatEvaluationSystemTests.CE2371_AnAlertedContact_IsNotForgotten_WhileTheLeaseRuns` ·
 `TacticsTreesTests.CE2371_TheAttackTarget_StaysKnownUntilDown_ButNotOnOldEvidence` · `…CE2371_HuntingATargetUpstairs_AnArrivalBelowHim_IsReissued`.
 Red-proofs (one build, three mutations: no lease check, no evidence age, no storey check) ⇒ 3 / 3 red.
+
+📐 **Live after step 2** (one run each, the step-1 orders unchanged): `ia-house-hunt` ✅ 2/2 decided — run 1 the defender shot at his
+window at 31 s (the check now accepts a fight won before entry), run 2 inside at 26 s, on his storey at 29 s, defender down ·
+`ia-area-clear` ⛔ House B still never entered (the order names one building — B's job) but **both defenders down** (baseline: neither) ·
+`ia-area-defend` ⛔ the guard now **fires 16 rounds** (baseline 0) but still second, and never at Blue East — the stand-at-the-centre
+L replaces.
+
+### 7.3 Step 3 — L1 and B built; A stopped on a measured hazard *(2026-10-25)*
+
+| | as built | where |
+|---|---|---|
+| **L** (L1, `CE-2373`) | the all-round `SquadDefend` ranks its candidate posts by COVERAGE — one visibility fan, 32 area probes, the views' greedy union — and a lone man rounds 30 s per post over the first ≤ 3 while no enemy is known in the area | [Defend §8c D-2m](../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md) (DL-1…DL-5) — ⏭ L2: the open-ground overview ask, a squad's gap-only reassignment |
+| **B** (`CE-2374`) | `ClearArea` — a sequencer over `ClearBuildingPlay`: one area survey, the nearest building next, a blocked one skipped, a known enemy at a cleared building ⇒ once more; the area stays alerted | [Building Clearing §7.4](../designs/group-maneuvers/DESIGN_Building_Clearing.md) (CA-1…CA-5) — ⏭ the open ground by bounds |
+| **A** | ⛔ **NOT BUILT — stopped on a measured hazard** (R-106: the item stops, not the batch); the demos keep an authored one-man squad, which runs the same plays today | §7.3a below — a decision for the user |
+
+#### 7.3a A — where the implicit commander can live *(measured; a lean for the user)*
+
+| the choice rests on | code — how it IS | design |
+|---|---|---|
+| a gameplay system may create an entity at runtime | ✅ `EntityCreationRequest` on the bus (`EjectionSystem.cs:79`, `TrafficPanic.cs:174`); `InitialComponents` applied by reflection, managed ones too (`NetworkSpawningSystem.cs:208`) | ✅ Entity Creation §3.4d (CE-3228) |
+| a created commander could start its play by itself | ✅ an `InitialBrainIntent` becomes the `AssignBehaviorEvent` (`InitialBrainMaterializationSystem`) — ⚠ only on the node that holds the managed component (the spawning node) | ✅ Sensors §7.5 |
+| ⛔ **the man's link to his commander is SAVED** | ✅ `UnitSubordinate` is `DataPolicy.Default` — recorded, saved, snapshotted (`UnitSubordinate.cs:18`); a `IsTransient` commander carries `ScenarioIgnoreTag` and is NOT saved | ⛔ searched docs/ and .dev/ (`implicit commander`, `one-man`, `transient squad`): no design for a saved man under an unsaved commander |
+| the roster is derived, event-driven | ✅ `UnitRoster` is `NoScenario`; `UnitHierarchySystem` changes it only on `CmdAssign/RemoveSubordinate` (`UnitHierarchySystem.cs:146`) — it never sweeps a roster it did not build | ✅ `UnitRoster.cs` header |
+
+⇒ **A transient (unsaved) commander leaves the saved man pointing at nothing** — the next load drops the link or fails on it. That is a
+save-format question, not a behaviour one, so it is the user's.
+
+| option | what | ⭐ lean |
+|---|---|---|
+| **A-1** | the mapper asks for a **real squad entity** (not transient, `Unit_InfantrySquad`), named "⟨man⟩ (command)", then assigns the man under it and gives it the play: saved and loaded like any authored squad; **visible** in the hierarchy | ⭐ **this** — it is exactly what the demos author by hand today, so nothing new can break on save/load; the only cost is a visible squad node, which AQ104 A wanted hidden |
+| A-2 | a brain-local commander (created on CGF only, never replicated or saved) and the man's link written there | ⛔ the man's `UnitSubordinate` is replicated and saved — a local-only commander would be a dangling handle on every other node and in every save |
+| A-3 | no commander: the lone man's brain runs the squad play itself | ⛔ rejected in §4 A (an order to himself replaces his own task) |
+
+⇒ ⭐ **Lean A-1**, with one ask of the ui lane later: hide a squad whose only member is its creator's lone man (a display filter, not a
+model change). **What would change the lean:** if a hidden commander is a must, A-1 still holds and the filter becomes required.
+
+Rails (step 3): `SquadManeuverTests.CE2373_ALoneDefender_IsPostedForCoverage_AndGuardsOnARound_UntilAnEnemyIsKnown` ·
+`CE2373_Coverage_GreedyUnion_AndTheRoundGoesWhereItWatchedLeast` · `CE2374_ClearArea_ClearsEveryBuilding_NearestFirst_ThenSucceeds`.
+Red-proofs: the picker fed the ask's order ⇒ red · the round ignoring a known enemy ⇒ red · the sequencer stopping after one building ⇒
+red · ⏭ the no-round mutation to re-run (its first form did not compile). Six existing defend rails gained one tick (the fan's round trip).

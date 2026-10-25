@@ -824,7 +824,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Sensor = default;
         }
 
-        private static double Now(EntityRepository world)
+        internal static double Now(EntityRepository world)
             => world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
     }
 }
