@@ -461,6 +461,79 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Null(BrainCommandView.Read(w, soldier, _ => null, 0f));                  // a soldier: no commander sections
     }
 
+    /// <summary>📷 <c>CE-1312</c> — a commander's tab photographed with its sections open (<c>brain-commander.png</c>).</summary>
+    [SkippableFact]
+    public void CE1312_ACommandersTab_Draws()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-brain");
+        Directory.CreateDirectory(shots);
+        var (w, _, reg, bps) = RunningWorld();
+        using var _w = w;
+        var hq = Commander(w);
+        var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null, null, () => reg, () => bps);
+        var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { hq } };
+        EntityBrainView.ExpandForRail = true;
+        try
+        {
+            using var frame = UiFrameHarness.Begin(860, 900);
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(8, 8));
+                ImGui.SetNextWindowSize(new Vector2(840, 880));
+                ImGui.Begin("Brain##ce1312");
+                view.Draw(ctx, "details_ce1312");
+                ImGui.End();
+            });
+            frame.Screenshot(Path.Combine(shots, "brain-commander.png"));
+        }
+        finally { EntityBrainView.ExpandForRail = false; }
+    }
+
+    /// <summary>A platoon HQ with a picture, his units' contacts, a report each way and an order each way.</summary>
+    private static Entity Commander(EntityRepository w)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Squad.Command.CommandPicture>()) w.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandPicture>();
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Squad.Command.CommandReportHistory>()) w.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandReportHistory>();
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Squad.Command.CommandOrderHistory>()) w.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Squad.SquadCognitiveState>()) w.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        if (!w.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>()) w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        var hq = w.CreateEntity();
+        w.AddComponent(hq, new BehaviorState { ActiveBehaviorHash = Fight });
+        w.AddComponent(hq, new BrainJournal());
+        var pic = default(Fdp.Toolkit.Squad.Command.CommandPicture);
+        pic.Elements.Count = 2;
+        pic.Elements.Items[0] = new Fdp.Toolkit.Squad.Command.ReportedElement { At = new Vector3(455, -90, 0), Count = 3, FromNetId = 1001, Size = Fdp.Toolkit.Squad.Command.ElementSize.SquadSize };
+        pic.Elements.Items[1] = new Fdp.Toolkit.Squad.Command.ReportedElement { At = new Vector3(470, -102, 0), Count = 1, FromNetId = 1002 };
+        pic.Subordinates.Count = 2;
+        pic.Subordinates.Items[0] = new Fdp.Toolkit.Squad.Command.SubordinateRow { UnitNetId = 1001, Progress = Fdp.Toolkit.Squad.Command.ProgressKind.Set };
+        pic.Subordinates.Items[1] = new Fdp.Toolkit.Squad.Command.SubordinateRow { UnitNetId = 1002 };
+        w.AddComponent(hq, pic);
+        var st = default(Fdp.Toolkit.Squad.SquadCognitiveState);
+        st.Contacts.Count = 1;
+        st.Contacts.Contacts[0] = new Fdp.Toolkit.Squad.SquadContact { PositionX = 470, PositionY = -102 };
+        w.AddComponent(hq, st);
+        w.AddComponent(hq, default(Fdp.Core.CommandHierarchy.UnitRoster));
+        w.AddComponent(hq, default(Fdp.Toolkit.Squad.Command.CommandReportHistory));
+        w.AddComponent(hq, default(Fdp.Toolkit.Squad.Command.CommandOrderHistory));
+        var sqd = w.CreateEntity();
+        Fdp.Toolkit.Squad.Command.CommandHistoryOf.Report(w, sqd, hq,
+            new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, Count = 3, At = new Vector3(455, -90, 0) },
+            4f, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
+        Fdp.Toolkit.Squad.Command.CommandHistoryOf.Report(w, sqd, hq,
+            new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.Set },
+            10f, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
+        ref var oh = ref w.GetComponentRW<Fdp.Toolkit.Squad.Command.CommandOrderHistory>(hq);
+        Fdp.Toolkit.Squad.Command.CommandHistoryOf.Push(ref oh, new Fdp.Toolkit.Squad.Command.CommandOrderEntry
+            { At = 2f, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Incoming, CounterpartNetId = 900, Behaviour = Fight });
+        Fdp.Toolkit.Squad.Command.CommandHistoryOf.Push(ref oh, new Fdp.Toolkit.Squad.Command.CommandOrderEntry
+        {
+            At = 12f, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Outgoing, CounterpartNetId = 1001, Behaviour = Fight,
+            CauseKind = BrainJournalKind.PlayPhase, Cause = (byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached,
+        });
+        return hq;
+    }
+
     /// <summary>⭐ <c>CE-1318</c> (BV-55) — the tab knows whether it is the docked one (follows the selection) or a PIN (opens a pinned
     /// graph): a pin's window id is <c>DetailsWindow.PinIdFor</c>'s.</summary>
     [Fact]

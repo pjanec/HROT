@@ -44,7 +44,7 @@ public sealed record BrainCommandView(
             for (int i = 0; i < Math.Min(p.Elements.Count, CommandPicture.MaxElements); i++)
             {
                 var e = p.Elements.Items[i];
-                pic.Add($"Enemy  {e.Size} x{e.Count}  {e.Activity}  ({e.At.X:0}, {e.At.Y:0})  from #{e.FromNetId}  {Age(now, e.ReceivedAt)}");
+                pic.Add($"Enemy  {Known(e.Size)}x{e.Count}  {Known(e.Activity)}({e.At.X:0}, {e.At.Y:0})  from #{e.FromNetId}  {Age(now, e.ReceivedAt)}");
             }
             for (int i = 0; i < Math.Min(p.Requests.Count, CommandPicture.MaxRequests); i++)
             {
@@ -54,7 +54,7 @@ public sealed record BrainCommandView(
             for (int i = 0; i < Math.Min(p.Subordinates.Count, CommandPicture.MaxSubordinates); i++)
             {
                 var s = p.Subordinates.Items[i];
-                subs.Add($"#{s.UnitNetId}  {s.Progress}  strength {s.Strength}, ammo {s.Ammo}" +
+                subs.Add($"#{s.UnitNetId}  {s.Progress}" + Colours(s.Strength, s.Ammo) +
                          (s.LastReportAt > 0 ? $"  last report {Age(now, s.LastReportAt)}" : "  no report yet"));
             }
         }
@@ -77,7 +77,7 @@ public sealed record BrainCommandView(
             for (int i = 0; i < Math.Min(h.Count, CommandReportHistory.Capacity); i++)
             {
                 var r = h.Items[i];
-                string dir = r.Traffic == CommandTraffic.Outgoing ? $"me → #{r.ToNetId}" : $"#{r.FromNetId} → me";
+                string dir = r.Traffic == CommandTraffic.Outgoing ? $"me -> #{r.ToNetId}" : $"#{r.FromNetId} -> me";
                 string fate = r.Fate is ReportFate.Stale ? "  (stale, dropped)" : "";
                 rep.Add(new BrainHistoryRow(r.At, $"{dir}  {ReportText(in r.Report)}{fate}",
                     r.Traffic == CommandTraffic.Outgoing ? r.ToNetId : r.FromNetId));
@@ -120,13 +120,20 @@ public sealed record BrainCommandView(
     internal static string ReportText(in CommandReport r) => r.Kind switch
     {
         ReportKind.Contact  => $"CONTACT  ({r.At.X:0}, {r.At.Y:0})",
-        ReportKind.Spot     => $"SPOT  {r.Size} x{r.Count} {r.Activity}  ({r.At.X:0}, {r.At.Y:0})",
-        ReportKind.Sitrep   => $"SITREP  strength {r.Strength}, ammo {r.Ammo}, phase {r.Phase}",
+        ReportKind.Spot     => $"SPOT  {Known(r.Size)}x{r.Count} {Known(r.Activity)}({r.At.X:0}, {r.At.Y:0})",
+        ReportKind.Sitrep   => $"SITREP {Colours(r.Strength, r.Ammo)}, phase {r.Phase}",
         ReportKind.Lace     => $"LACE  ammo {r.Ammo}, WIA {r.Wia}, KIA {r.Kia}",
         ReportKind.Progress => $"PROGRESS  {(ProgressKind)r.Subtype}",
         ReportKind.Request  => $"REQUEST  {(RequestKind)r.Subtype}",
         _                   => r.Kind.ToString(),
     };
+
+    /// <summary>An enum value as words, or nothing for its "unknown" member (0) — an unreported field is not news.</summary>
+    private static string Known<TEnum>(TEnum v) where TEnum : struct, Enum
+        => Convert.ToInt32(v) == 0 ? "" : v + " ";
+
+    private static string Colours(StatusColour strength, StatusColour ammo)
+        => (Convert.ToInt32(strength) == 0 ? "" : $"  strength {strength}") + (Convert.ToInt32(ammo) == 0 ? "" : $"  ammo {ammo}");
 
     private static string Age(float now, float at) => at <= 0 ? "" : $"{Math.Max(0f, now - at):0} s ago";
 

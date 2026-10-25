@@ -478,7 +478,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
     private static void History(string id, IReadOnlyList<BrainHistoryRow> rows, string empty)
     {
         if (rows.Count == 0) { ImGui.TextDisabled("  " + empty); return; }
-        float h = Math.Min(rows.Count, 8) * ImGui.GetTextLineHeightWithSpacing() + 6f;
+        float h = Math.Min(rows.Count, 8) * ImGui.GetTextLineHeightWithSpacing() + ImGui.GetStyle().WindowPadding.Y * 2f + 2f;
         if (ImGui.BeginChild("##hist." + id, new Vector2(0, h), ImGuiChildFlags.Borders))
             foreach (var r in rows)
             {

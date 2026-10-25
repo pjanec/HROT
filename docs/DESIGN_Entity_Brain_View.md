@@ -1387,3 +1387,7 @@ documents, and each overlay stays on its own unit, which one global debug pin co
 | the tab's *Open running behaviour*: from a PINNED tab → `OpenGraphPinned` (its own document); from the docked tab → the plain open (follows the selection); ⛔ it no longer sets the global debug pin | `EntityBrainView.cs` (`IsPinnedScope`, `PinLabelOf`), `UnitDebugController.OpenGraphPinned` | ✅ BV-55 |
 | ONE contact-line drawing: `ContactLine.Draw` (red, fading, a heard one dashed with its circle), used by `LineOfSightGizmo` and the commander's `SquadContactsGizmo` | `Hrot.Common/Diagnostics/Gizmos/ContactLine.cs` | ✅ BV-52 |
 
+📷 `TheBrainViewTests.CE1312_ACommandersTab_Draws`:
+
+![B7 — a commander](assets/brain-view/b7-commander.png)
+
