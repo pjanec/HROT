@@ -1129,6 +1129,11 @@ graph TD
 | **DL-4** | **the round, for a LONE live man only**: the first ≤ 3 ranked posts that each add ≥ 3 probes; ≥ 2 of them ⇒ 30 s on each, the next the one whose probes were watched longest ago; never while the squad knows an identified enemy in the area (radius + 25 m) or during a hunt (CE-2359) | a squad short of men rotating: L2 (gap-only reassignment) · a random next post: leaves a sector unwatched twice in a row · a round under fire: the user's "erratic window to window" |
 | **DL-5** | **no fan answer in 5 s** ⇒ the old nearest-first order, no round | waiting: a squad that never posts |
 
+📐 **As built — measured live (`ia-area-defend`, 2026-10-25):** the coverage pass picks an UPSTAIRS frame window when it sees most (the
+guard's was House A's south window, z 3) — so reaching a post on another storey is now load-bearing: the occupy move re-sends when it
+"arrives" or stands still (3 s, < 0.5 m) on the wrong storey (`PostureNodes.AdvanceAndAttack`, `Stay`; with backend's level-aware
+arrival `CE-3319`). ⛔ Before it, he stood under his window one floor down and never fired.
+
 **Slices.** **L1** (`CE-2373`, this build): DL-1…DL-5 over the candidates the existing asks give (the windows). **L2** (open, its own row):
 the open-ground OVERVIEW ask (a new all-round cover-points template + its golden capture) so a man defending ground with no building gets
 candidates too · a squad's gap-only reassignment when a man falls or is pulled to an interior post (AQ104 L, H).

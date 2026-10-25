@@ -1226,6 +1226,40 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2373</c> — a POSTED man (Stay) whose post is one floor up, standing under it: the mover neither arrives (backend's
+        /// storey-aware arrival, CE-3319) nor moves — after <see cref="PostureNodes.StoreyRetrySeconds"/> without half a metre of progress the move
+        /// is re-sent (the planner then takes the stairs); a man who IS moving is left alone. 📐 Live <c>ia-area-defend</c>: the guard's coverage
+        /// post was an upstairs frame and he stood under it on the ground floor, never firing. 🔴 Red-proof: the belt kept to hunting only ⇒ no
+        /// re-issue.
+        /// </summary>
+        [Fact]
+        public void CE2373_APostedManUnderHisUpstairsPost_NotMoving_IsSentAgain()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.Identity });
+            var p = new AdvanceParams { Objective = new Vector3(0.5f, 0, 3f), Speed = 2f, ArrivalRadius = 1f, Stay = 1 };
+            var ws = new AdvanceState();
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            uint first = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Running;   // not arrived (other level), not moving
+            Later(w, 1.0);
+            PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo);
+            Assert.Equal(first, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);   // too soon
+            Later(w, PostureNodes.StoreyRetrySeconds);
+            PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo);
+            uint second = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Assert.NotEqual(first, second);   // sent again
+
+            // walking (to the stairs): no re-issue
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Running;
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(3f, 0, 0);
+            Later(w, PostureNodes.StoreyRetrySeconds + 1);
+            PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo);
+            Assert.Equal(second, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2366</c> (R-2078; R-2061 "a near miss IN THE OPEN drops him") — INSIDE a building a near miss does not drop him: his move
         /// stays the crouched rush. In the open the same near miss drops him (the AQ96 C rail below). 📐 Live <c>bt-window-duel</c>: a defender
         /// moving between two windows dropped and crawled the long way round the stairwell. 🔴 Red-proof: the indoors test dropped from the

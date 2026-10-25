@@ -192,7 +192,7 @@ Each scenario authors TODAY's closest orders (the build steps swap them for the 
 | | as built | deviation |
 |---|---|---|
 | **D** | `Alerted` (component 422, brain-local) + `Alerts.Pin / IsPinned` (FDP Perception): up to 4 leases of 2 s; `ThreatEvaluationSystem` holds a pinned slot at `ForgetThreatScore` instead of forgetting it; `HiddenTargetThrow.LastKnown` reads a pinned slot as live (the hunt follows it). Pinners (`AreaAlert`, behaviors): the attack order's target (`PostureNodes.UntilTargetDown`), and every identified enemy in the squad's picture within the area of `SquadDefend` (max(search radius, 15 m)), `ClearBuilding` and `ClearRoom` (15 m) for every live member — each renewal only while the enemy is in the fight and the man's memory has evidence from the last 10 min | the lease (renewed each tick) instead of a stored "until down": a task that ends lets go by itself, no release path |
-| **I** | `PostureNodes.AdvanceAndAttack`: hunting, a move "arrived" while the target is on another storey (> 2 m of height) is re-issued — the first at once, then every 3 s; on his floor "arrived" holds as before | ⚠ only a belt: the person mover arrives in 2-D (`CarKinematicsSystem.cs:752`), so a re-issued move can "arrive" again at once — the root fix is backend's ([handoff](batches/HANDOFF_Behaviors_To_Backend_Area_Combat_And_Callouts.md) item 1) |
+| **I** | `PostureNodes.AdvanceAndAttack`: hunting, a move "arrived" while the target is on another storey (> 2 m of height) is re-issued — the first at once, then every 3 s; on his floor "arrived" holds as before | ⚠ only a belt: the person mover arrived in 2-D — ✅ backend's root fix landed (`CE-3319`: no arrival on another level); ⭐ `CE-2373` widened the belt to a posted man and to "not arrived, not moving" (§7.3) |
 
 Rails: `ThreatEvaluationSystemTests.CE2371_AnAlertedContact_IsNotForgotten_WhileTheLeaseRuns` ·
 `TacticsTreesTests.CE2371_TheAttackTarget_StaysKnownUntilDown_ButNotOnOldEvidence` · `…CE2371_HuntingATargetUpstairs_AnArrivalBelowHim_IsReissued`.
@@ -298,3 +298,12 @@ while the attackers opened at 2.8 s from ~92 m. ⇒ not a posting defect; ⏭ pr
 | AQ105 D the voice | a replica's live shouted `Utterance` (all but `Talk`) is heard 40 m — as a man's sound (kind/class bits are full) | Sensing §8.8 |
 | G the lean's depth | `Lean.Depth` (replicated); `Leans.SetDepth(metres)` for behaviors; eye, seen points, hit boxes and aim read `Leans.ShiftOf` | [Hit location §13 LN-9](../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md) |
 >>>>>>> origin/backend
+
+📐 **Why the guard never fired — measured** (brain + slots snapshot at 8 / 16 / 30 s): L's coverage pass gave him an **UPSTAIRS frame
+post** (`Anchor` z 3 — House A's south window, the widest view), and he stayed on the GROUND floor all along: `OffPost` (3-D) kept the
+occupy branch running, its move "arrived" in 2-D under the post and then held (the order says Stay) — so he stood one floor below his
+window, unable to see out ("hold: not seen"). ⇒ the I belt was too narrow: it re-sent only a HUNT.
+⭐ **Fixed (`CE-2373`):** the storey re-send now covers a posted man (`Stay`) too, and — with backend's storey-aware arrival merged
+(`CE-3319`, [NOTE](batches/NOTE_Backend_To_Behaviors_Area_Combat_And_Callouts_Done.md) item 1: *"the case left is 'not arrived, not
+moving' under the target — a move node must RE-SEND there"*) — a move that has not made half a metre in 3 s on the wrong storey is re-sent,
+so the planner takes the stairs. Rail: `TacticsTreesTests.CE2373_APostedManUnderHisUpstairsPost_NotMoving_IsSentAgain`.

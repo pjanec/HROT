@@ -158,6 +158,9 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 IssuedTo;
         /// <summary>⭐ <c>CE-2371</c> (AQ104 I) — when an arrival on the wrong storey last re-issued the move (sim s).</summary>
         public double RetriedAt;
+        /// <summary>⭐ <c>CE-2373</c> — when, and from where, the move was last issued (the "not arrived, not moving" check).</summary>
+        public double IssuedAt;
+        public Vector3 IssuedFrom;
     }
 
     /// <summary>
@@ -296,9 +299,14 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐ CE-2371 (AQ104 I, R-2079) — HUNTING, "arrived" on ANOTHER storey than the target is no arrival (📐 Peek and Fire §12.7: the
                 //   person mover arrives in 2-D, so a man stood under his target one floor down for 160 s — the mover's own fix is backend's,
                 //   HANDOFF_Behaviors_To_Backend_Area_Combat_And_Callouts item 1): re-issue the move, at most every StoreyRetrySeconds
-                if (status == NodeStatus.Success && hunting && OtherStorey(world, self, objective))
+                //   ⭐ CE-2373 — also a POSTED man (Stay: his post upstairs, D-2m's coverage picks one) — and, since backend's storey-aware
+                //   arrival (CE-3319), "not arrived, not moving" under it: the mover stands still and a re-sent move plans the stairs
+                double t = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+                bool storeyBound = (hunting || p.Stay != 0) && OtherStorey(world, self, objective);
+                bool stuck = status == NodeStatus.Running && t - ws.IssuedAt >= StoreyRetrySeconds && world.HasComponent<SimTransform>(self)
+                             && Vector3.Distance(world.GetComponentRO<SimTransform>(self).Position, ws.IssuedFrom) < StuckMetres;
+                if (storeyBound && (status == NodeStatus.Success || stuck))
                 {
-                    double t = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
                     if (ws.RetriedAt > 0 && t - ws.RetriedAt < StoreyRetrySeconds) return NodeStatus.Running;   // the first at once, then throttled
                     ws.RetriedAt = t;
                     ws.Moving = 0;
@@ -311,6 +319,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (!LocomotionMoveTo.Issue(world, self, objective, p.Speed, p.ArrivalRadius, source: hunting ? MoveSource.Attack : LocomotionMoveTo.OrderSource(world, self))) return NodeStatus.Failure;
             ws.Moving = 1;
             ws.IssuedTo = objective;
+            ws.IssuedAt = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+            ws.IssuedFrom = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : default;
             return NodeStatus.Running;
         }
 
@@ -318,6 +328,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float StoreyMetres = 2.0f;
         /// <summary>⭐ <c>CE-2371</c> — an arrival on the wrong storey re-issues the hunt's move at most this often (s).</summary>
         public const double StoreyRetrySeconds = 3.0;
+        /// <summary>⭐ <c>CE-2373</c> — moved less than this since the move was issued (m), for <see cref="StoreyRetrySeconds"/>: not moving.</summary>
+        public const float StuckMetres = 0.5f;
 
         /// <summary>⭐ <c>CE-2371</c> (AQ104 I) — <paramref name="objective"/> is on another floor than <paramref name="self"/> stands on.</summary>
         internal static bool OtherStorey(EntityRepository world, Entity self, Vector3 objective)
