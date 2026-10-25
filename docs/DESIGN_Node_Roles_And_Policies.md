@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25 (§3.0a NEW — who hears, who reads the terrain, who makes sound; the user's rulings) · 2026-10-19 (§3.5 — the EntityHitDamage pair joins the shared pack, CE-3246) · 2026-10-17 (§3.5 NEW — R-3015: one translator set on every node; CE-1148's slices S1–S3 + the event own-sample skip) · 2026-10-15 (§3.4 NEW — R-4005: a role is what a host DOES, never a network fact; the editor's NodeRole.None vs EditorCapabilities.DefaultRole contradiction measured and the one-line fix scoped) · 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
+updated: 2026-10-25 (§3.0a NEW — who hears, who reads the terrain, sound calculated on Perception and output on every 3-D map host; the user's rulings) · 2026-10-19 (§3.5 — the EntityHitDamage pair joins the shared pack, CE-3246) · 2026-10-17 (§3.5 NEW — R-3015: one translator set on every node; CE-1148's slices S1–S3 + the event own-sample skip) · 2026-10-15 (§3.4 NEW — R-4005: a role is what a host DOES, never a network fact; the editor's NodeRole.None vs EditorCapabilities.DefaultRole contradiction measured and the one-line fix scoped) · 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
 known-rot: ⛔ §4's role-affinity ownership (IG passing a Map2D policy; create/promote legs claiming by role, e.g. the §4.1 seam ② row) is RETIRED 2026-10-02 by push-only ownership — DESIGN_Ownership_Groups_And_Grants.md §5.6 S4 (no host passes a policy; the creator claims all and grants role groups).
 current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a role never denies a
   capability), ⭐ §3.3 is ONE CODE PATH ON EVERY NODE (R-4000 — behaviour differs by role, never by a missing
@@ -142,17 +142,17 @@ a deployment is described by a *set* of roles, not by a node "type".
 
 > 🔒 **User, verbatim:** *"sounds sensors are calculated on simhost (perception) node only, not on brain, so brain should not assume the sensor
 > code is reachable"* · *"same for map; brain should use map only for rendering, no direct access"* · *"map = terrain"* · *"every node with 3d
-> map has a sound system, not just SimHost"*
+> map has a sound system, not just SimHost"* · ⭐ clarified: *"i meant the sound output anywhere where 3d map is, sound calculation on
+> percpetion node"*
 
 | concern | where it runs | ⛔ never |
 |---|---|---|
 | ⭐ **hearing** (the acoustic sensor, its memory stage) | `Perception` only — the brain receives the anonymous `SoundContact` result | the brain calling sensor code |
 | ⭐ **the terrain** (`TerrainWorld`, `IWorldQuery`, `BuildingLayout`) | read by `MuscleGround` / `Perception` / `NavigationSolver`; **drawn** by every map | ⛔ the brain reading it for a decision — it asks a survey sensor (R-2037, [`DESIGN_World_Survey_Sensor.md`](DESIGN_World_Survey_Sensor.md)) |
-| ⭐ **sound making** (`SoundEmissionSystem` and its ring) | every node with a 3-D map (the user's statement) — each from REPLICATED state only (`DoorState`, `Utterance`, the shot / burst events), never from another node's local command | ⛔ a sound made only where the actor's command was raised |
+| ⭐ **sound CALCULATION** (`SoundEmissionSystem`, its ring, hearing) | `Perception` — composed by every perception host's capability through the ONE helper `EqsSolverStartup.PopulateSystems` (SimHost, the editor, Stride); built from REPLICATED state only (`DoorState`, `Utterance`, the shot / burst events) | ⛔ a sound made only where the actor's command was raised |
+| ⭐ **sound OUTPUT** (what an operator hears: `AudioLayer`) | every node with a 3-D map — attached by the ONE shared `MapInteractionPack.AttachMapLayers` (`MapInteractionPack.cs:554`): IG, CGF, the editor, SimHost's map, the replay browser | ⛔ a host wiring its own audio |
 
-⚠ **Measured `2026-10-25`, and it disagrees with row 3:** `SoundEmissionSystem` is registered by `EqsInfrastructureCapability.cs:80` (SimHost, and the
-editor composing it) only; nothing in `Stride/` or the IG registers one. ⇒ either the 3-D-map nodes' sound is a different system (the FPS audio,
-[`designs/audio/DESIGN_FPS_Audio.md`](designs/audio/DESIGN_FPS_Audio.md)) or it is not composed there yet — ⏳ asked of the user. 📄 hearing's own map: [`DESIGN_Thermal_And_Acoustic_Sensing.md`](DESIGN_Thermal_And_Acoustic_Sensing.md) §3, §8.8.
+⚠ **Measured `2026-10-25` — the two gaps under the output row:** `AudioLayer` plays shots and bursts only (`SoundEvents.cs`) — not a door's sound nor a voice (the voice clips are ui's AQ105 F handoff; door sounds ⏳ ui), and it hears no wall (the operator's ear ignores §8.8's loss); Stride composes no `MapInteractionPack`. 📄 hearing's own map: [`DESIGN_Thermal_And_Acoustic_Sensing.md`](DESIGN_Thermal_And_Acoustic_Sensing.md) §3, §8.8; the output's: [`designs/audio/DESIGN_FPS_Audio.md`](designs/audio/DESIGN_FPS_Audio.md) §8.
 
 ### 3.1 ⭐⭐⭐ A ROLE NEVER DENIES A CAPABILITY — **entity-creation uniformity**
 
