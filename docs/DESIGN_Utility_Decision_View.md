@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-25
-build-state: BUILDING — the lean APPROVED 2026-10-25; the wireframes (§2) APPROVED 2026-10-25 ("approved, record this to design. merge behaviors and build this"); UML §4
-current-answer: §1 when it shows · §2 the wireframes (approved) · §3 the data sources · §4 UML
+build-state: BUILT 2026-10-25 (§5 as-built) — the lean APPROVED 2026-10-25; the wireframes (§2) APPROVED 2026-10-25 ("approved, record this to design. merge behaviors and build this"); UML §4
+current-answer: §5 as built · §1 when it shows · §2 the wireframes (approved) · §3 the data sources · §4 UML
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -215,4 +215,24 @@ graph TD
 ```
 *What it shows that prose hid: the details view is registered per perspective (drawn only where a graph is selected); the Brain tab's
 expanders draw on every host, the CGF / IG included.*
+
+## 5. AS BUILT *(`2026-10-25`, ui)*
+
+| piece | where | matches §4 / deviates |
+|---|---|---|
+| `UtilityDecisionSheet` — `Build(decisionId)` (the running def: option names, aggregation, inputs by name, weight, curve, modifier) · `WithLive(world, unit)` (the log slot: winner, runner-up, margin, switches, evaluations, every option's score, ranked candidates; the newest traced pass MATCHED to this decision by its option and input ids — the ring carries no decision id) · `ToJson` | `Hrot.Editor.AiShared/Utility/UtilityDecisionSheet.cs` | ✅ — ⚠ the trace ring holds 31 records: a decision with more considerations than fit shows "-" for the rows that scrolled out |
+| `UtilityBindings` — BTree node (by VisualId in the RUNNING blob), HSM state (activity) and transition (guard), through the method key's param offset into the behaviour's DEFAULT block (`ParseParams("{}")`, else `BakeDefaults`; cached per definition); `IsOption` → the `ChooseOption` with the same state offset; a custom action → every `UtilityDecisionRef` in its params field | `Hrot.Editor.AiShared/Utility/UtilityBindings.cs` | ✅ — ⚠ the decision bound is the behaviour's DEFAULT; an authored params override that names another decision is not seen (none exists today) · ⚠ blueprint `ScoreDecision` not resolved yet (its node is a blueprint document object) |
+| `UtilityDecisionWidget` — W1 / W2 / W3 (an option opened) / W4 (ranked candidates), a curve plot from the running `ResponseCurve.Evaluate` with the unit's raw value as a dot | `UtilityDecisionWidget.cs` | ✅ |
+| the **Decision** tab (`details.utility.decision`, rank 19), every AI perspective; W6 picks among a node's decisions; W3 says which option the branch stands for; "Trace this unit" arms a followed unit | `UtilityDecisionDetailsView.cs`, `PerspectiveWorkspaceRegistrar`, `EditorSubsystem` (`UtilityDecisionHost`: registry, world, the pin-else-selection unit, trace, label) | ✅ |
+| Brain tab ▸ Why — each decision by name and winner, an expander drawing the widget for this unit (⛔ SUPERSEDED: "Decision <id>: winner <number>") | `EntityBrainView` | ✅ W5 |
+| API: `GET /utility/decisions`, `GET /utility/decisions/{key}?networkId=`, `GET /behaviours/{name}/decisions`; `UtilityInputNames` moved to the toolkit (the API's one table) | `DebugApiService.Decisions.cs`, `DebugApiHost`, route docs, skill §C0 | ✅ |
+
+Rails: `Hrot.Editor.AiShared.Tests` `UtilityDecisionViewTests` (4; red-proofs 3/3: the modifier flag · the pass matching · the IsOption state offset) ·
+E2E `Hrot.SystemTests` `UtilityDecisionViewTests` ✅ — the C#-built `CombatPosture` (no asset) names `Choose` → Combat posture, `Approach` →
+Attack approach, an IsOption reading TakeCover; the decision's settings read back; a wrong key is a 404.
+
+📷 W1 and W2 (`UtilityDecisionViewTests.CE1325_TheDecision_Draws`):
+
+![settings](assets/utility-decision/decision-settings.png)
+![a unit's values](assets/utility-decision/decision-live.png)
 
