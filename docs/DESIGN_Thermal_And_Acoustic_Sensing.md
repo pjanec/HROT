@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (§8.3a CE-3315 — cursors and seeds are timeline PLACES; the world carries the count, so a restored world goes on hearing) · 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-25 (§8.8 AQ104 E ② ③ / AQ105 D — walls and slabs halve a high sound, door sounds and the voice from replicated state) · 2026-10-22 (§8.3a CE-3315 — cursors and seeds are timeline PLACES; the world carries the count, so a restored world goes on hearing) · 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -29,6 +29,8 @@ related-designs:
   - docs/designs/packs-1/DESIGN.md §7.B — introduced TargetHeardEvent; retired here (§6 A).
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS TakeCover / FallBack; §8 here points their sensor at a heard contact's position.
   - docs/DESIGN_Decision_Layer.md §3.3b — OWNS CombatPosture, whose PostureSensors §8 points the same way.
+  - docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md — OWNS E (sound through walls / floors, door sounds); §8.8 here builds ② ③
+  - docs/blueprints/Architect_Question_105_Squad_Callouts.md — OWNS D (a shout is a voice the enemy hears); §8.8 here builds it
   - DESIGN_Terrain_Combat_Tuning.md §5a — the hearing debug layer: emitter rings and heard estimates (HeardTraces), recorded for replay (CE-3117).
 -->
 
@@ -932,3 +934,69 @@ mount, the FPV drone's warhead, a static obstacle car) and SUMO traffic, kept si
 
 ⚠ **Behaviour changes in every scenario using these types**: BDC soldiers' shots, tanks' guns and aircraft are now heard — a soldier who hears a
 shot reacts (CE-2106). Told behaviors ([note](blueprints/batches/NOTE_Backend_To_Behaviors_Catalogue_Heard.md)).
+
+### 8.8 AQ104 E ② ③ / AQ105 D — through walls and floors, door sounds, the voice *(backend, `2026-10-25`; R-2079, R-2080; behaviors' handoff items 2–4; build-state: BUILT)*
+
+```mermaid
+classDiagram
+  class IWorldQuery { <<exists>> Trace(from, to, purpose, into) }
+  class TerrainWorldQuery { <<changed>> Trace(Sound): the fire trace's pieces less the ground, Loss = material soundDb }
+  class AcousticPerception { <<changed>> WallFactor(world, ear, source, class) · BandFactor · WallCapDb 6.02 · BodyHeight 1.2 · VoiceRange 40 }
+  class AcousticSensorGenerator { <<changed>> Generate: + the voice of a live shouted Utterance · Hear: + the wall share }
+  class SoundEmissionSystem { <<changed>> HearDoors: a DoorState change ⇒ one ring sound at the doorway }
+  class DoorHeard { <<NEW component 448>> Last : TerrainDoorState }
+  class DoorSounds { <<NEW>> Carry(from, to): lock 5 · swing 15 · breach 40 m }
+  class Utterances { <<changed>> IsShouted(kind): all but Talk }
+  class Utterance { <<exists, replicated dtUtterance>> }
+  class DoorState { <<exists, replicated dtDoorState>> }
+  IWorldQuery <|.. TerrainWorldQuery
+  AcousticSensorGenerator --> AcousticPerception : WallFactor
+  AcousticPerception --> IWorldQuery : Trace(Sound)
+  AcousticSensorGenerator ..> Utterance : reads the replica
+  AcousticSensorGenerator ..> Utterances : IsShouted
+  SoundEmissionSystem ..> DoorState : reads the replica
+  SoundEmissionSystem --> DoorHeard : remembers
+  SoundEmissionSystem --> DoorSounds
+```
+
+*What the picture shows that prose hid:* every new input is a REPLICATED component (`DoorState`, `Utterance`) read on the node that hears —
+never the actor's door command nor the brain's `Callouts.Say`, which live on other nodes (🔒 user, `2026-10-25`: *"sounds sensors are calculated
+on simhost (perception) node only, not on brain"*; *"every node with 3d map has a sound system"*). The brain gains no reader: it hears only the
+anonymous `SoundContact` as before, and never touches the terrain (*"brain should use map only for rendering, no direct access"*).
+
+```mermaid
+sequenceDiagram
+  participant B as Brain node
+  participant N as any node with a sound system
+  participant R as its SoundEmissionRing
+  participant G as AcousticSensorGenerator (Perception)
+  B-->>N: dtDoorState (Closed→Open) · dtUtterance (Challenge)
+  N->>N: SoundEmissionSystem.HearDoors — DoorHeard.Last ≠ state
+  N->>R: Append(Movement, Footsteps, 15 m, at the doorway, the force of the man at it)
+  G->>R: ReadAfter(cursor)
+  G->>G: Hear: d ≤ carry × WallFactor(Trace(Sound) ear↔source)
+  G->>G: a live shouted Utterance on a broadphase target ⇒ a 40 m voice, the same wall share
+```
+
+| decision | why | rejected |
+|---|---|---|
+| ⭐ **a wall or slab HALVES the carry of a high sound** — per crossing `min(material dB, 6.02 dB) × band` (Low ×0.2, Mid ×0.6, High ×1, Q95 B3), `carry × 10^(−Σ/20)` | AQ104 E ②'s approved v1 (R-2079). The cap keeps what the user approved while a material stopping less still stops less (chain-link 0, hedge 5) | ⛔ the full material dB (WQ-E's loudness model): concrete's 40 dB takes a 40 m voice to 0.4 m and every stand-in wall is concrete (M7) — the house would be deaf until v2's paths through open doors exist |
+| `Trace(Sound)` on the seam returns the material's TRUE dB | the seam's contract (`TracePurpose.Sound`: Loss in dB) stays true for v2; the v1 cap is the hearing's rule, not the world's | a seam that answers the capped number — it would lie to v2 |
+| ⛔ the ground is no sound crossing | Q95 B: over terrain hearing is distance only; bass bends round hills | — |
+| the line runs at **1.2 m** over both feet | two men on one floor cross its walls, never its slab; a man upstairs crosses the slab | feet to feet — it grazes the ground floor's own slab |
+| ⭐ a door sound is made by EVERY sound node from the replicated `DoorState` | the hearing node is not the actor's node | ⛔ from `DoorCommandEvent` — it exists on the actor's and the owner's nodes only |
+| its side: the man nearest the doorway within reach (DoorRules, one storey); nobody ⇒ the door's own, no side | the listener's "not my own side" rule needs a force, and the replicated state carries no actor | an actor field on `DoorState` — a wire change for a guess the geometry already makes |
+| `DoorHeard` component (448) holds the last heard state; the first sight only records | R-3039 (a system's memory is ECS state — a checkpoint carries it, no false bang on restore); a load / late join makes no sound | a dictionary on the system |
+| ⚠ a voice is heard as **kind Movement, class Footsteps** | the answer's kind (2 bits) and class (3 bits) are full — the same trade as jets heard as `Rotor` (§8.6, user: *"Jets ok"*); both say "a man there" | widening the flags — every reader and recording |
+| a shout = every kind but `Talk` (`Utterances.IsShouted`), heard 40 m while it lasts | AQ105 D; behaviors' squad calls (`CE-2372`) are shouted by default when appended | a per-kind table — nothing distinguishes them yet |
+
+| ⛔ not built | |
+|---|---|
+| v2 — round corners, through the open door (WQ-E) | the shortest open path room to room; the heard direction the last opening |
+| the TKB's per-signature band (`MovingBand` …) | still read by nothing: v1 takes the band from the class (`SoundBands.Of`) |
+| the hearing gizmo | draws no wall share, no door sound, no voice |
+
+✅ Rails: `AcousticHearingTests` (a wall halves 20 m steps 13 m off: heard in the open, not through it, a 30 m carry still heard · the slab · a low
+sound passes · a shout heard 30 m, talk not, 50 m not, own side not · the shouted kinds); `SoundEmissionSystemTests.AQ104E_ADoorOpened_ShutAndBroken_…`
+(first sight silent; open 15 m at the doorway of the hostile at it; shut, lock 5, breach 40). Red-proofs: each production line removed in turn
+(the wall share · the voice · the door call) ⇒ red.

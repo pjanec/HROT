@@ -19,6 +19,9 @@ namespace Fdp.Toolkit.Terrain
         [ThreadStatic] private static TerrainWorldQuery? t_last;
         [ThreadStatic] private static List<TerrainWorld.FireCrossing>? t_fire;
 
+        /// <summary>⭐ WQ-E Q3 — a piece whose material the library does not know stops this much sound (dB): concrete's.</summary>
+        public const float DefaultSoundDb = 40f;
+
         /// <summary>⭐ <c>CE-3219</c> part 3 — the gas / smoke clouds of the same view (null = none): sight through one is multiplied by its
         /// transmittance (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b). Fire and movement ignore them.</summary>
         public Fdp.Toolkit.Combat.CloudTable? Clouds { get; }
@@ -107,8 +110,25 @@ namespace Fdp.Toolkit.Terrain
                     }
                     break;
                 }
+                case TracePurpose.Sound:
+                {
+                    // ⭐ WQ-E Q3 v1 (AQ104 E ②) — the straight line through what it crosses, each piece's material dB (materials.json
+                    //   soundDb; a slab is the default material). ⛔ The ground (a hill) is no crossing: bass bends round it and off the
+                    //   terrain hearing is distance only (Q95 B) — the loss over terrain is WQ-E's v2, not this
+                    var fire = t_fire ??= new List<TerrainWorld.FireCrossing>();
+                    World.QueryFire(from, to, fire, Doors);
+                    for (int i = 0; i < fire.Count; i++)
+                    {
+                        var c = fire[i];
+                        if (c.Kind == TerrainWorld.GroundKind) continue;
+                        float db = World.Materials.TryGet(c.Material, out var m) ? m.SoundAttenuationDb : DefaultSoundDb;
+                        into.Add(new TraceCrossing(c.T, c.PathMetres, db, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
+                            c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal });
+                    }
+                    break;
+                }
                 default:
-                    throw new NotSupportedException($"Trace({purpose}) is not built yet — DESIGN_World_Query_Seam.md slice Q3 (sound).");
+                    throw new NotSupportedException($"Trace({purpose}) is not built.");
             }
         }
 
