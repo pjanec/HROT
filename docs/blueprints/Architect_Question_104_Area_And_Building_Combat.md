@@ -342,3 +342,10 @@ man — nothing assumes the squad exists when the order arrives.
 
 Rail: `SquadManeuverTests.CE2375_ALoneMansAreaOrder_AsksForASquad_AndOnlyAssignsHimOnceItExists`. ⏭ live: a demo that orders a lone man
 `DefendArea` straight (its params are lat/lon — the demos still author the one-man squad by hand).
+
+📐 **Live after step 5** (`01de0b843` + the callouts): the guard fired **0** rounds again. The probe (brain + journal at 20 / 60 / 120 s)
+says why: he STARTS IN THE OPEN at the area's centre, both attackers see him at once from ~90 m (fire from 2 s), and walking to his post
+(this run a ground-floor frame, (103, 101)) under two rifles his stress reaches his break level within seconds; from then on he cycles
+break ⇄ resume (49 s, 59 s, 110 s …) and never arrives. DF-2 (half a near miss in cover) cannot help a man who is never in cover. ⇒ ⭐ the
+stress model doing what TS-6 says (a regular caught in the open by two rifles breaks); the DEMO judged "sees them first" of a man not yet
+posted. ⇒ the guard now starts INSIDE House A (104.5, 103.5), as a defender would be.

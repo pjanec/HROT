@@ -69,7 +69,7 @@ s = Scn("ia-area-defend", "a1040003")
 s.car("Car 1", (96, 96, 0), heading=0, nid=10480)
 s.car("Car 2", (115, 96, 0), heading=0, nid=10481)
 gq = defend_squad(s, "Guard Post", "Hostile", (105.6, 97, 0), 10470, radius=25)   # ⏭ A: the mapper makes this for a lone man
-guard = s.man("Guard", "Hostile", (105.6, 97, 0), 180, tkb=2002, health=100000, commander=gq, designation="SquadLeader", nid=10471)
+guard = s.man("Guard", "Hostile", (104.5, 103.5, 0), 180,   # starts INSIDE House A (a defender is in place, not caught walking in the open) tkb=2002, health=100000, commander=gq, designation="SquadLeader", nid=10471)
 s.man("Blue South", "Friend", (106, 5, 0), 0, tkb=2002, health=100, behavior=attack(10471), nid=10472)
 s.man("Blue East", "Friend", (195, 98, 0), 270, tkb=2002, health=100, behavior=attack(10471), nid=10473)
 s.write("ia-area-defend", "bt-range",
