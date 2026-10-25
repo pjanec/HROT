@@ -6,6 +6,7 @@ stale-below: §6 "Overlay architecture" and the overlay half of §8 — the IGiz
   [GizmoProjector] gizmos with per-family scope and per-unit pins (R-227); DebugState.Ai survives as the pin store
 superseded-by: ../../DESIGN_Terrain_Combat_Tuning.md §5b (overlay half only)
 related-designs:
+  - ../../DESIGN_Entity_Brain_View.md — §12b BV-41 OWNS per-entity behaviour settings (component sliders, grouped for the user) on the Brain tab; this console's PerEntity scope (§4.3) is not where they live
   - ../../DESIGN_Terrain_Combat_Tuning.md §5b — owns map-gizmo scope and pins; folded this file's overlays (CE-3121).
 -->
 # Runtime AI Tuning Console & AI Debug Overlays — Design v1.0

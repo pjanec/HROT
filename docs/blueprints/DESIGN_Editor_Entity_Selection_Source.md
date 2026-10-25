@@ -27,6 +27,7 @@ design-basis: UX_Feature_Selection.md §2.7.8 (the announcement) and §2.7.17 (t
   §5.1.1 ("SelectedEntity stays global") · DESIGN_Staged_Live_Write.md (the one write path) ·
   UXI-11 ruling ① (selection is global; ChainToMap retired) · user rulings 2026-09-21, quoted in §1.
 related-designs:
+  - ../DESIGN_Entity_Brain_View.md — §12b BV-46 moves the Entity Blueprints panel (§5, CE-302) into the Brain tab and RETIRES details.entityblueprints
   - ../DESIGN_Entity_Brain_View.md — §9 BV-22 uses §3.2 pinning: the debug overlay stays on the unit the Brain tab opened
   - docs/blueprints/Architect_Question_73_Canvas_Interaction_Scope.md — the WIRE half of the same
     story: CE-306 fixed the in-process Stride 3-D empty-space clear, and Q73 asks how an EXTERNAL

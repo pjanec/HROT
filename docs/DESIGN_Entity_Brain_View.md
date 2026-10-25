@@ -1,12 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
+updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — S5a/S5b OWN the hosted child's site slot [brain][start][block] that §12b BV-44's reader walks
+  - docs/blueprints/Blueprint_Fixed_Collections_Design.md — OWNS the fixed-list shape and the F2 clamp §12b BV-45 applies to the dump
+  - docs/designs/utility-ai/Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md — the global / per-decision tuning console; §12b BV-41 owns PER-ENTITY component settings instead (its §4.3 PerEntity scope was never built)
   - docs/DESIGN_Director_Timeline_Editor.md — BV-30's Brain lane becomes the shared timeline's Behaviour lane (TE-21), read from the recorded journal by the index
   - docs/DESIGN_Behaviour_Debugging.md — OWNS the debugging WORKFLOW around this tab (CE-1270): the tab as the hub, the per-node Runtime view, the Variables view, one breakpoint list; it also records two measured faults in §10's build (the journal break's baseline is taken after Input — CE-1284; node breakpoints never break — CE-1291)
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.6 OWNS the task / SOP / ROE editing model and THE one params form; ⛔ its AI tab (details.ai) is RETIRED by §12a BV-38 (R-1036) — the editing moves into Brain tab expanders
@@ -567,7 +570,7 @@ in the header of such a list, there should be a checkbox that turns on or off th
 | # | idea | ⭐ lean | open point |
 |---|---|---|---|
 | **BV-34** | every section of the tab in an EXPANDER | `ImGui.CollapsingHeader` per section; open state remembered per section (not per unit); "Right now" and "Doing" open by default, the rest closed | — |
-| **BV-35** | a **Settings** expander with SLIDERS on **every brain-equipped entity** (soldier, civilian, vehicle, aircraft, commander) — ⭐ built GENERICALLY, never a hand list per type: ① his TRAIT components, whichever he has (`CombatTemperament` — bravery shown as "Aggressiveness", obedience, nerve, resolve; `CombatProficiency`; a civilian's temperament), ② the **running behaviour's params** through THE one params form (`BehaviorParamsForm`, CE-3043 — the AI tab's own), ③ his blueprint variables (the staged write `POST /entities/{id}/variable` already does); every number with an `[EditRange]` draws as a slider (StructEdit); each shows the type's value and a reset; writes are LOCAL to the node that runs his brain — ⛔ nothing travels over the network (§12a BV-39); ⛔ disabled in the replay browser | ⚠ **supersedes BV-1's "read-only"** for this expander; ✅ a trait edit is a runtime component change and is SAVED with the scenario like any other (user, 2026-10-24); a changed running-behaviour param re-assigns that task with the new params, as the AI tab's edit does — lean: yes; fields with no `[EditRange]` get one added where the design gives a range (0–1 traits) |
+| **BV-35** ⛔ *reshaped by §12b BV-41…BV-43* | a **Settings** expander with SLIDERS on **every brain-equipped entity** (soldier, civilian, vehicle, aircraft, commander) — ⭐ built GENERICALLY, never a hand list per type: ① his TRAIT components, whichever he has (`CombatTemperament` — bravery shown as "Aggressiveness", obedience, nerve, resolve; `CombatProficiency`; a civilian's temperament), ② the **running behaviour's params** through THE one params form (`BehaviorParamsForm`, CE-3043 — the AI tab's own), ③ his blueprint variables (the staged write `POST /entities/{id}/variable` already does); every number with an `[EditRange]` draws as a slider (StructEdit); each shows the type's value and a reset; writes are LOCAL to the node that runs his brain — ⛔ nothing travels over the network (§12a BV-39); ⛔ disabled in the replay browser | ⚠ **supersedes BV-1's "read-only"** for this expander; ✅ a trait edit is a runtime component change and is SAVED with the scenario like any other (user, 2026-10-24); a changed running-behaviour param re-assigns that task with the new params, as the AI tab's edit does — lean: yes; fields with no `[EditRange]` get one added where the design gives a range (0–1 traits) |
 | **BV-36** | the COMMANDER's lists | on a commander: three expanders — **Picture** (`CommandPicture`'s elements and requests), **Squad contacts** (`SquadContactPool`: who, threat, how old, how many members saw it), **Reports** (the subordinates' last report and sitrep, newest first — the Reports window's rows for this commander) | the brain tab runs on every host; the picture is replicated, the pool is brain-local — show "not on this node" where absent |
 | **BV-37** | a CHECKBOX in each list's header that draws its gizmo | ticked = that gizmo draws for THIS commander, whatever is selected (it pins the unit for that family — the pinning `DESIGN_Editor_Entity_Selection_Source.md` §3.2 already owns), and turns the **Squad & command** layer on if it is off; ✅ **a LINE from the commander to every target the list holds a position for** (user, 2026-10-24) — so it is clear whose targets they are | the squad contacts are drawn inside `SquadGizmo` with the member lines — lean: split the contacts into their own family so the checkbox shows only them |
 
@@ -588,3 +591,201 @@ entity to the targets. So it is clear for who those target gizmos are displayed.
 | **BV-40** | ✅ a setting changed live is a runtime COMPONENT change; saving the scenario saves it like any other component | — |
 | **BV-37+** | ✅ each target-list gizmo draws a LINE from the commander to every target it has a position for | — |
 
+
+### 12b. ✅ DECIDED `2026-10-25` — the tab's LAYOUT: grouped settings, every running behaviour alike, blueprints managed here *(`R-1037`, build-state: DESIGN — UML below, ready to slice)*
+
+🔒 User, `2026-10-25`, verbatim: *"the user who wants to see and tune the behavior doesn't care what component the settings lives in.
+He just wants some tunable UI. So we can technically do it per component, but we need some way of aggregation to the user interface."* ·
+*"the brain view is mostly the diagnostic view. So we might reuse the dump which is used by entity inspector … The goal is to be able to see
+the variables of the behavior, no matter whether it is C# hard-coded or JSON asset defined."* · *"we need to show the currently running
+behaviors and their variables and their parameters for every behavior which is running in parallel. And there are, of course, blueprints
+that can be running on the entity. I think they should be listed on their own expander … treated as such from the user point of view."* ·
+*"The brain view shoudl also allow/edit/remote new blueprint instances to be added to an antity - i guess there is a separate panel for
+that now - should become ex expander on the brain view i guess"* · on the variables: *"let the variables as they are, no sliders there"* (edits go through the Watch window).
+
+⛔ **Supersedes:** BV-35's three-part Settings expander (its ② params → the task / SOP / blueprint expander's params form, ③ blueprint
+variables → that expander's read-only dump) · `DESIGN_Behaviour_Debugging.md` DBG-1 (deeper VIEWS → deeper EXPANDERS) and DBG-5 (a new
+Variables view → the dump below) · the Entity Blueprints Details view (`details.entityblueprints`, CE-302) as a separate home.
+
+**INVENTORY / measurements** *(`2026-10-25`, grep + reads; the codebase-memory CLI was indexing a fresh VM; ⚠ coverage not provable)*:
+
+| the layout rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a trait slider must set the authored bit, not just the value | ✅ `CombatTemperament.Set` — *"A clear bit ⇒ the type's value"* (`Fdp.Toolkits/Behavior/Components/CombatTemperament.cs:24-26`); reset = clear the bit | ✅ Temperament & Stress, CE-2269 TS-3 |
+| the existing tuning console does not fit | ⛔ `Hrot.Diagnostics.Tuning`: global / per-decision values, NO production caller (grep), and it sits ABOVE `Fdp.Toolkits` so a component cannot carry `[Tunable]` | its §4.3 `PerEntity` scope was never built |
+| the inspector's dump renders a behaviour's params + working state as C# values with the custom renderers | ✅ `BlueprintBlackboardRendererBase.cs:116-119` → `RootParamsProjection` / `StatefulWorkingStateProjection` → `ImGuiPropertyTree.Render` → `ImGuiRendererRegistry` (`ImGuiPropertyTree.cs:206`; `EntityRenderer` = `[index, vN]`) | ✅ Occurrence Storage §17 |
+| it shows only the TASK slot | ⛔ `StatefulWorkingStateProjection.cs:58` reads `BehaviorState.ActiveBehaviorHash` only; the SOP slot (`SopState.SopHash`) runs beside it and storage keys by behaviour hash (`BrainSlotScope`) ⇒ the SOP is readable by its hash | ✅ Decision Layer §4, Sensors & Doctrine §6 |
+| hosted children (an HSM in a BTree node, a subtree, a blueprint child) have their own state | ✅ a site slot `[brain][start][block]` laid out from the CHILD's definition, keyed by the nested occurrence key | ✅ `DESIGN_Unified_Behaviour_Run.md` S5a/S5b |
+| attached blueprints' variables are NOT in the dump | ⛔ the inspector lists name / version / size only (`BlueprintBlackboardRendererBase.cs:84-104`); the editor's decoder is `BlueprintDebugSession.ReadInstanceState` (`Hrot.Blueprints.Editor`, unreachable from the Brain tab's assembly) | the types exist: `BlueprintDefinition.StateClrType` / `ParamsClrType` (`Fdp.Toolkits/Blueprints/BlueprintDefinition.cs:86-91`); the payload offset owner is `BlueprintBlackboardPartitions.TryGetSlotOffset`, which the debugger's own owner delegates to (`BlueprintDebugSession.cs:1848`) |
+| a fixed list in the dump shows its whole buffer | ⚠ `ImGuiPropertyTree.cs:171` expands an `[InlineArray(N)]` to N elements, ignoring `Count` | ✅ `Blueprint_Fixed_Collections_Design.md` — F2 clamp `min(max(Count,0),N)`; `Fdp.Core.FixedListShape` is the one shape test |
+| blueprint add / remove already has a staged model | ✅ `EntityBlueprintsEditModel` (StageAdd / StageRemove / BuildCommitPlan, paused vs running) + `EntityBlueprintsPanel` ("+ Add Blueprint…", Apply, Revert All) | ✅ `DESIGN_Editor_Entity_Selection_Source.md` §5 (CE-302) |
+| blueprint params already have an editor | ✅ `EntityAiEditModel.InstanceRows` / `ApplyInstanceParams` + THE one params form | ✅ Sensors & Doctrine §7.6a (CE-2086) |
+| the Brain tab is shown in PLANNING | ✅ predicate = one entity with `BehaviorState` (`EntityBrainView.cs:421`); `BehaviorTkbTranslator.cs:99` attaches it at spawn for every type with a behaviour profile, planning included | — |
+| ⚠ but Entity Blueprints applies to ANY one entity | ⛔ `EntityBlueprintsDetailsView.Applies = ExactlyOneEntity` (`:120`) ⇒ an entity with NO brain can carry blueprints today and would lose its only place | ⛔ searched `docs/`, no ruling on brainless blueprint hosts |
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityBrainView {
+    <<EXISTS>>
+    grows expanders per §12b layout
+  }
+  class BrainSettingsSection {
+    <<NEW>>
+    groups → sliders
+  }
+  class IBrainSettingProvider {
+    <<NEW>>
+    interface
+    +Group string
+    +AppliesTo(view, e) bool
+    +Settings(view, e) BrainSetting list
+    +Write(e, key, value)
+    +Reset(e, key)
+  }
+  class BrainSetting {
+    <<NEW>>
+    record Key · Label · Value · TypeValue · Min · Max · IsAuthored
+  }
+  class CombatTemperamentSettings {
+    <<NEW>>
+    Group Temperament, Write sets the Set bit
+  }
+  class CombatProficiencySettings {
+    <<NEW>>
+    Group Combat skill
+  }
+  class BrainSettingRegistry {
+    <<NEW>>
+    providers; For(view, e) groups merged by Group
+  }
+  class BehaviourStateReader {
+    <<NEW>>
+    Hrot.Presentation
+    +Running(session, e) RunningBehaviour list
+  }
+  class RunningBehaviour {
+    <<NEW>>
+    record Kind(Task·Sop·Hosted·Blueprint) · Name · Depth · Params object? · Variables object?
+  }
+  class RootParamsProjection {
+    <<EXISTS>>
+    routes through the reader
+  }
+  class StatefulWorkingStateProjection {
+    <<EXISTS>>
+    routes through the reader
+  }
+  class ImGuiPropertyTree {
+    <<EXISTS>>
+    grows: FixedListShape clamp
+  }
+  class ImGuiRendererRegistry {
+    <<EXISTS>>
+  }
+  class BrainSlotScope {
+    <<EXISTS>>
+  }
+  class HostedChildren {
+    <<EXISTS>>
+  }
+  class BlueprintBlackboardPartitions {
+    <<EXISTS>>
+    TryGetSlotOffset
+  }
+  class BlueprintDefinition {
+    <<EXISTS>>
+    StateClrType · ParamsClrType
+  }
+  class EntityBlueprintsEditModel {
+    <<EXISTS>>
+    unchanged
+  }
+  class EntityBlueprintsPanel {
+    <<EXISTS>>
+    drawn inside the tab
+  }
+  class EntityAiEditModel {
+    <<EXISTS>>
+    InstanceRows · ApplyInstanceParams
+  }
+  class BehaviorParamsForm {
+    <<EXISTS>>
+    THE one params form
+  }
+  class EntityBlueprintsDetailsView {
+    <<RETIRED>>
+  }
+  EntityBrainView --> BrainSettingsSection
+  BrainSettingsSection --> BrainSettingRegistry
+  BrainSettingRegistry o-- "*" IBrainSettingProvider
+  IBrainSettingProvider <|.. CombatTemperamentSettings
+  IBrainSettingProvider <|.. CombatProficiencySettings
+  IBrainSettingProvider ..> BrainSetting
+  EntityBrainView --> BehaviourStateReader
+  BehaviourStateReader ..> RunningBehaviour
+  BehaviourStateReader --> BrainSlotScope : SOP by hash
+  BehaviourStateReader --> HostedChildren : nested, recursive
+  BehaviourStateReader --> BlueprintBlackboardPartitions
+  BehaviourStateReader --> BlueprintDefinition
+  RootParamsProjection --> BehaviourStateReader
+  StatefulWorkingStateProjection --> BehaviourStateReader
+  EntityBrainView --> ImGuiPropertyTree : read-only dump
+  ImGuiPropertyTree --> ImGuiRendererRegistry
+  EntityBrainView --> EntityBlueprintsPanel
+  EntityBlueprintsPanel --> EntityBlueprintsEditModel
+  EntityBrainView --> BehaviorParamsForm : task · SOP · blueprint params
+  BehaviorParamsForm ..> EntityAiEditModel
+```
+*What the picture shows that prose hid:* ONE new reader feeds BOTH the inspector and the tab (the two projections route through it), so
+the SOP, hosted children and blueprints appear in both at once; the slider half is a registry of providers whose GROUP, not component,
+is what the user sees; and blueprint management adds no class — the existing panel and model are drawn somewhere else.
+
+```mermaid
+sequenceDiagram
+  participant T as EntityBrainView (Draw)
+  participant S as BrainSettingRegistry
+  participant P as provider (e.g. CombatTemperamentSettings)
+  participant R as BehaviourStateReader
+  participant D as ImGuiPropertyTree
+  T->>S: For(view, unit)
+  S->>P: AppliesTo / Settings
+  P-->>S: settings, tagged with Group
+  S-->>T: groups (merged by Group)
+  T->>P: slider moved ⇒ Write(unit, key, v)  [local, sets the Set bit]
+  T->>R: Running(session, unit)
+  R->>R: task (BehaviorState) · SOP (SopState via BrainSlotScope) · hosted children (recursive) · each attached blueprint
+  R-->>T: RunningBehaviour list
+  loop each running behaviour = one expander
+    T->>D: Render(Params)  [read-only]
+    T->>D: Render(Variables)  [read-only, FixedListShape clamp]
+  end
+  T->>T: Blueprints foot: EntityBlueprintsPanel (+ Add · Remove · Apply · Revert)
+```
+*What the picture shows that prose hid:* the slider is the ONLY write the tab does itself; params go through the existing form and
+blueprint changes through the existing staged model, so the tab owns no new write path.
+
+```mermaid
+graph TD
+  REG["Details view registry"] -->|"registers details.brain"| BV["EntityBrainView"]
+  REG -.->|"details.entityblueprints — RETIRED"| EBV["EntityBlueprintsDetailsView"]
+  REG -.->|"details.ai — RETIRED (R-1036)"| AI["EntityAiDetailsView"]
+  INS["ECS inspector: BlueprintBlackboardRendererBase"] --> RDR["BehaviourStateReader"]
+  BV --> RDR
+  BV --> SET["BrainSettingRegistry"]
+  BOOT["editor / CGF bootstrap (where the brain runs, BV-39)"] -->|"registers providers"| SET
+  classDef dead stroke-dasharray: 5 5,stroke:#c33
+  class EBV,AI dead
+```
+*What the picture shows that prose hid:* the tab and the inspector share one reader each frame; the two retired views are dashed — they
+draw nothing once their content lives here.
+
+| # | decided | ⭐ lean / rule |
+|---|---|---|
+| **BV-41** | **Settings = GROUPS, never components** | every component that steers a behaviour gets an `IBrainSettingProvider`; each declares a user-facing **Group** (*Temperament*, *Combat skill*, later e.g. *Weapon weights*); two providers may share a group and merge into it; the expander draws one sub-header per group, a slider per setting with the type's value and a reset. ⛔ Rejected: reflection over `[EditRange]` fields (misses the authored bit — the slider moves, the unit does not change) · the tuning registry (global / per-decision, unwired, wrong layer) |
+| **BV-42** | **every running behaviour alike** | a *Running behaviours* section: one expander per behaviour — the task, the SOP, each attached blueprint — nested runs (HSM regions, subtrees, a hosted child of any tier) as sub-headers of their owner; each shows **Parameters** and **Variables** |
+| **BV-43** | **the variables are the inspector's DUMP, read-only** | `ImGuiPropertyTree` with the registered renderers; no sliders, no inline edits — *Add to Watch* / the Watch window edit them. ⛔ Rejected: the asset-variable table (`VariableTableControl`) — it cannot show a C# behaviour (CE-1286) |
+| **BV-44** | **ONE reader, shared with the inspector** | `BehaviourStateReader` (Hrot.Presentation) enumerates task + SOP (by hash, the `BrainSlotScope` rule) + hosted children (recursive, the S5 site slot) + attached blueprints (`TryGetSlotOffset` + `StateClrType` / `ParamsClrType`); `RootParamsProjection` / `StatefulWorkingStateProjection` route through it, so the inspector gains the SOP, the children and the blueprint variables too. ⛔ Rejected: a second decoder for the tab (two decoders drift) · calling `BlueprintDebugSession` (wrong assembly; its owner already delegates to `TryGetSlotOffset`) |
+| **BV-45** | **a fixed list shows its Count** | `ImGuiPropertyTree`'s `[InlineArray]` arm asks `FixedListShape`; a list draws `Count` items (clamped, F2), a plain inline array keeps drawing N |
+| **BV-46** | **blueprints are managed on the tab** | the task / SOP / blueprint expanders carry the params form (BV-38); at the section's foot **+ Add blueprint…**, a **Remove** per blueprint expander, **Apply / Revert all** — `EntityBlueprintsPanel` + `EntityBlueprintsEditModel` unchanged, drawn here; ⛔ `details.entityblueprints` is RETIRED once it moves; disabled in the replay browser |
+| **BV-47** | ⏳ *lean, awaiting the user* — **an entity with no brain** | the tab applies to EVERY single entity; with no `BehaviorState` it shows only the Running-behaviours section (its blueprints, + Add). ⛔ Rejected: keep the Entity Blueprints view for brainless entities (two places again) · leave them without a home (the measured regression) |
