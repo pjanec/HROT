@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -569,7 +569,7 @@ in the header of such a list, there should be a checkbox that turns on or off th
 
 | # | idea | ⭐ lean | open point |
 |---|---|---|---|
-| **BV-34** | every section of the tab in an EXPANDER | `ImGui.CollapsingHeader` per section; open state remembered per section (not per unit); "Right now" and "Doing" open by default, the rest closed | — |
+| **BV-34** ⛔ *open state revised by §12f BV-64* | every section of the tab in an EXPANDER | `ImGui.CollapsingHeader` per section; ~~"Right now" and "Doing" open by default~~ ⇒ ImGui's own remembered state, keyed per SECTION (not per unit), nothing forced | — |
 | **BV-35** ⛔ *reshaped by §12b BV-41…BV-43* | a **Settings** expander with SLIDERS on **every brain-equipped entity** (soldier, civilian, vehicle, aircraft, commander) — ⭐ built GENERICALLY, never a hand list per type: ① his TRAIT components, whichever he has (`CombatTemperament` — bravery shown as "Aggressiveness", obedience, nerve, resolve; `CombatProficiency`; a civilian's temperament), ② the **running behaviour's params** through THE one params form (`BehaviorParamsForm`, CE-3043 — the AI tab's own), ③ his blueprint variables (the staged write `POST /entities/{id}/variable` already does); every number with an `[EditRange]` draws as a slider (StructEdit); each shows the type's value and a reset; writes are LOCAL to the node that runs his brain — ⛔ nothing travels over the network (§12a BV-39); ⛔ disabled in the replay browser | ⚠ **supersedes BV-1's "read-only"** for this expander; ✅ a trait edit is a runtime component change and is SAVED with the scenario like any other (user, 2026-10-24); a changed running-behaviour param re-assigns that task with the new params, as the AI tab's edit does — lean: yes; fields with no `[EditRange]` get one added where the design gives a range (0–1 traits) |
 | **BV-36** | the COMMANDER's lists | on a commander: three expanders — **Picture** (`CommandPicture`'s elements and requests), **Squad contacts** (`SquadContactPool`: who, threat, how old, how many members saw it), **Reports** (the subordinates' last report and sitrep, newest first — the Reports window's rows for this commander) | the brain tab runs on every host; the picture is replicated, the pool is brain-local — show "not on this node" where absent |
 | **BV-37** | a CHECKBOX in each list's header that draws its gizmo | ticked = that gizmo draws for THIS commander, whatever is selected (it pins the unit for that family — the pinning `DESIGN_Editor_Entity_Selection_Source.md` §3.2 already owns), and turns the **Squad & command** layer on if it is off; ✅ **a LINE from the commander to every target the list holds a position for** (user, 2026-10-24) — so it is clear whose targets they are | the squad contacts are drawn inside `SquadGizmo` with the member lines — lean: split the contacts into their own family so the checkbox shows only them |
@@ -935,3 +935,117 @@ the scenario file; the recorder skips only `NoReplay`, §2)*:
 | **BV-60** | ✅ **the report and order histories are COMPONENTS** (the user) | `CommandReportHistory` and `CommandOrderHistory`, on commanders only (a `UnitRoster` owner), `[DataPolicy(NoScenario)]` ⇒ recorded and snapshotted, never in the scenario file; each a fixed list — `int Count` + an `[InlineArray(32)]` ring buffer, the `FixedListShape` shape — so the dump (BV-45), the JSON converter and the watch formatter read it with no new code. An order entry COPIES its cause (the journal entry's cause code, not a reference into the 24-entry journal) so the *why* survives the journal's eviction. ⛔ `SquadReportLog` stays the node-wide HTTP record, never the tab's source |
 | **BV-61** | ✅ *approved `2026-10-25`* — **what was not observed live** | the **Why** log is small (4 decisions × 8 ranked options) and changes only when a decision runs ⇒ ⭐ attach `UtilityDecisionLog` to EVERY unit with a utility reasoner, always — the *Why* section then replays for every unit. ⛔ The trace rings stay observe-only (1 KB per unit and tier, written every tick); in replay a unit that was not observed shows *"not traced during the recording"*, and DBG-2's **Observe all brain units** switch, on while recording, traces everyone. Rejected: trace every unit always — every recording pays 1 KB × units × ticks of churn |
 | **BV-62** | ✅ **the rule, for every future section** | a Brain-tab section reads ONLY recorded components (no side stores, no live-only services); a new section that needs new data adds a component — the check is this table, extended in the same commit |
+
+### 12f. The WIREFRAME `2026-10-25` — what the tab shows *(build-state: DESIGN; the picture §12b…§12e build to)*
+
+🔒 User, `2026-10-25`, verbatim: *"why editable, isnt that the same dump as other DTOs?"* · *"Which sections start open" - those opened
+before, imgui remember opened/closed state, no forcing*
+
+`▼` an open expander · `▶` a closed one · `[x]` a checkbox · `[…]` a button · `⋮` a row menu.
+
+**A soldier**
+```
+┌─ Details ─ Brain ──────────────────────────────── Rifleman A2 · #1:2975 ─┐
+│ recording since this tab opened                                          │
+│                                                                          │
+│ ▼ Doing                                                                  │
+│   Task   FightFromCover        ordered by Sqd Ldr 1-1   since 00:42      │
+│   SOP    InfantrySop           firing: ReactToContact                    │
+│   ROE    Return fire                                                     │
+│   region control: Engage (12 s)   region move: HoldCover (12 s)          │
+│                                                                          │
+│ ▼ Why                                                                    │
+│   CombatPosture   TakeCover 0.81 › Advance 0.44 › Flee 0.10              │
+│   TargetPick      #1:3110 0.72 › #1:3114 0.31                            │
+│                                                                          │
+│ ▶ Recent changes (14)                                                    │
+│ ┌──────────────────────────────────────────────────────────────────┐     │
+│ │ 00:42 TaskStarted FightFromCover  (Superior, via SquadAssault)   │ ⋮   │
+│ │ 00:40 StateChanged control: Move → Engage  (EnemySeen)           │ ⋮   │
+│ │ 00:31 TaskStarted MoveTo          (Superior)                     │ ⋮   │
+│ └──────────────────────────── fixed height, scrolls ───────────────┘     │
+│                                                                          │
+│ ▼ Settings                                                               │
+│   Temperament                                                            │
+│     Aggressiveness  [━━━━━━●━━━━] 0.62   type 0.50   ↺                   │
+│     Obedience       [━━━━━━━━●━━] 0.80   type 0.80                       │
+│     Nerve           [━━━━●━━━━━━] 0.45   type 0.50   ↺                   │
+│     Resolve         [━━━━━●━━━━━] 0.50   type 0.50                       │
+│   Combat skill                                                           │
+│     Proficiency     [Trained ▾]          type Trained                    │
+│                                                                          │
+│ ▼ Running behaviours                                                     │
+│   ▼ Task · FightFromCover   BTree (C#)                 [Open graph]      │
+│       [Assign task…]  [Edit params…]  ROE [Return fire ▾]                │
+│       Parameters                                                         │
+│         Target        [1:3110, v2]                                       │
+│         CoverRadius   25.0                                               │
+│       Variables                                                          │
+│         CoverPoint    (412.0, 3.1, -88.5)                                │
+│         Shots         [7 of 16] …                                        │
+│         Phase         Engage                                             │
+│       ▶ hosted · MoveToCover   HSM                     [Open graph]      │
+│   ▶ SOP · InfantrySop        BTree        [Assign SOP…] [Open graph]     │
+│   ▶ Blueprint · RadioChatter v2           [Edit params…] [Remove]        │
+│   [+ Add blueprint…]                         [Apply]  [Revert all]       │
+│                                                                          │
+│ ▶ Show on map                                                            │
+│     [x] Perception  [ ] Contacts  [ ] EQS  [ ] Utility  [ ] Actions      │
+│                                                                          │
+│ ▶ Debug                                                                  │
+│     [ ] Break when it changes its mind                                   │
+│     Breakpoints on this unit (2)                       [Breakpoints…]    │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**A commander** *(only what differs)*
+```
+┌─ Details ─ Brain ───────────────────────────────────── Platoon HQ · #1:3001 ─┐
+│ ▼ Doing                                                                      │
+│   Task  PlatoonAttack     ordered by Coy HQ   since 00:30                    │
+│   region phase: Assault (40 s)    region control: Reinforce (6 s)            │
+│                                                                              │
+│ ▼ Command picture                                          [x] on map        │
+│   Enemy  squad ×3   dug-in   (455, -90)       reported by 1st Sqd   40 s     │
+│   Enemy  MG                  (470, -102)      reported by 2nd Sqd   12 s     │
+│   Request  fire support      from 2nd Sqd                           12 s     │
+│                                                                              │
+│ ▼ My units' contacts                                       [ ] on map        │
+│   empty: my units have no eyes of their own, see Command picture             │
+│                                                                              │
+│ ▼ Reports                                                  [ ] on map        │
+│   1st Sqd   SITREP  engaging, 1 wounded          8 s                         │
+│   2nd Sqd   CONTACT MG at (470,-102)            12 s                         │
+│   3rd Sqd   PROGRESS phase line 2               31 s                         │
+│ ┌────────────────────────────────────────────────────────────────────┐       │
+│ │ 00:58 2nd Sqd → HQ   CONTACT  MG ×1 (470,-102)                     │ ⋮     │
+│ │ 00:50 1st Sqd → HQ   SITREP   engaging, 1 wounded                  │ ⋮     │
+│ │ 00:44 HQ → Coy HQ    PROGRESS phase line 1 crossed                 │ ⋮     │
+│ │ 00:41 1st Sqd → HQ   SPOT     enemy squad ×3 (455,-90)             │ ⋮     │
+│ └──────────────────────────────────── last 32, scrolls ──────────────┘       │
+│                                                                              │
+│ ▼ Orders                                                   [x] on map        │
+│   Received                                                                   │
+│     00:30 Coy HQ → HQ    PlatoonAttack  obj OBJ-RED                          │
+│   Sent                                                                       │
+│     00:47 HQ → 2nd Sqd   SuppressAndManeuver   why: EnemyFixed → Assault     │
+│     00:31 HQ → 1st Sqd   SquadAssault          why: phase Move → Assault     │
+│     00:31 HQ → 3rd Sqd   TravellingOverwatch   why: phase Move → Assault     │
+│                                                                              │
+│ ▶ Running behaviours …   ▶ Settings …   ▶ Show on map …   ▶ Debug …          │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+| reading the picture | where it is decided |
+|---|---|
+| row menus `⋮`: Recent changes → *Open that behaviour* · *Break on this kind*; reports / orders → *Select the sender* · *Open his Brain tab* · *Seek here on the Timeline* | DBG-10, BV-57, BV-58 |
+| *Open graph* follows this tab; from a pinned tab its header reads the same `#1:3001` | BV-55 |
+| the commander's *on map* checkboxes draw commander → target lines (picture, reports); Orders draws leader → member lines | BV-50, BV-52 |
+| `[7 of 16]` — a fixed list shows its Count | BV-45 |
+| an entity with no brain (a crate with a blueprint) shows only *Running behaviours* | BV-47 |
+| in the replay browser the same layout; sliders, *Assign*, *Edit params*, *+ Add*, *Remove*, *Apply* disabled; an unwatched unit's graph says *"not traced during the recording"* | BV-35, BV-46, BV-61 |
+
+| # | decided | rule |
+|---|---|---|
+| **BV-63** | ⭐ *lean* — **parameters are the SAME dump as the variables, editing is an explicit act** | *Parameters* draw read-only through the one dump (BV-43), exactly like *Variables*; an **[Edit params…]** button opens THE one params form (`BehaviorParamsForm`, Sensors & Doctrine §7.6) — for the task / SOP its OK **re-assigns** the behaviour (📐 *"a behaviour's params are fixed for its run (changing them = re-assigning)"*, Sensors & Doctrine §7.5), so it says *"restarts FightFromCover"*; for a blueprint it is the paused write / re-attach of §7.6a. Rejected: an always-editable inline form — a stray click would restart the unit's task, and params would look different from every other DTO on the tab |
+| **BV-64** | ✅ *the user* — **no forced open state** | each expander is an `ImGui.CollapsingHeader` with an id per SECTION (not per unit) and no `DefaultOpen` flag ⇒ ImGui remembers what the user opened or closed, across units and sessions (its ini); ⛔ BV-34's "open by default" is dropped |
