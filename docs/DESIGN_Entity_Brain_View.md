@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12c RECORDED 2026-10-25 (viewing is debugging; one gizmo family per checkbox — leans BV-48…BV-51) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -788,4 +788,75 @@ draw nothing once their content lives here.
 | **BV-44** | **ONE reader, shared with the inspector** | `BehaviourStateReader` (Hrot.Presentation) enumerates task + SOP (by hash, the `BrainSlotScope` rule) + hosted children (recursive, the S5 site slot) + attached blueprints (`TryGetSlotOffset` + `StateClrType` / `ParamsClrType`); `RootParamsProjection` / `StatefulWorkingStateProjection` route through it, so the inspector gains the SOP, the children and the blueprint variables too. ⛔ Rejected: a second decoder for the tab (two decoders drift) · calling `BlueprintDebugSession` (wrong assembly; its owner already delegates to `TryGetSlotOffset`) |
 | **BV-45** | **a fixed list shows its Count** | `ImGuiPropertyTree`'s `[InlineArray]` arm asks `FixedListShape`; a list draws `Count` items (clamped, F2), a plain inline array keeps drawing N |
 | **BV-46** | **blueprints are managed on the tab** | the task / SOP / blueprint expanders carry the params form (BV-38); at the section's foot **+ Add blueprint…**, a **Remove** per blueprint expander, **Apply / Revert all** — `EntityBlueprintsPanel` + `EntityBlueprintsEditModel` unchanged, drawn here; ⛔ `details.entityblueprints` is RETIRED once it moves; disabled in the replay browser |
-| **BV-47** | ⏳ *lean, awaiting the user* — **an entity with no brain** | the tab applies to EVERY single entity; with no `BehaviorState` it shows only the Running-behaviours section (its blueprints, + Add). ⛔ Rejected: keep the Entity Blueprints view for brainless entities (two places again) · leave them without a home (the measured regression) |
+| **BV-47** | ✅ *accepted by the user `2026-10-25`* — **an entity with no brain** | the tab applies to EVERY single entity; with no `BehaviorState` it shows only the Running-behaviours section (its blueprints, + Add). ⛔ Rejected: keep the Entity Blueprints view for brainless entities (two places again) · leave them without a home (the measured regression) |
+
+### 12c. RECORDED `2026-10-25` — viewing IS debugging; the map gizmos one family at a time *(build-state: DESIGN — leans for the user)*
+
+🔒 User, `2026-10-25`, verbatim: *"that checkbox debug entity should not turn on every gizmo at once. It should just turn on some extended
+tracing or something, but not all gizmos; turning all gizmos at once would be overwhelming and would not help. That needs to be more
+granular."* · *"when I am watching an entity and its brain view is being shown, this is the place, this is the condition that should turn
+this full debug on"* · *"the brain view tab should also allow turning on off the tactical map symbol gizmos that are related to the brain"*
+· the commander's picture, the squad's merged target list, and *"a way how to show the targets in 3D as lines using gizmos, lines leading
+from the commaner entity"* (already BV-36, BV-37, BV-37+).
+
+| the leans rest on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| *Debug this unit* does three things at once | ✅ `UnitDebugController.Apply`: `AiTraceActions.Set(EnableTraceBuffer)` + **`GizmoPins.SetAll`** (`Hrot.Common/Diagnostics/Gizmos/UnitDebugController.cs:63-66`); the graph overlay follows `Debugged` (`Follow`, `:37`) | BV-26 (§10) — the "pins everything" half is what the user rejects |
+| tracing alone fills what the tab shows | ✅ the trace flag makes `TraceBufferLifecycleSystem` attach `UtilityDebugFlags` (`:105`) ⇒ the utility log the *Why* section reads (`UtilityScorer.cs:253-257`), plus the BTree / HSM rings | ✅ Utility AI §9 (*"filled only while observed"*) |
+| pins already exist per family | ✅ `GizmoPins.Set(view, unit, family, on)` (`GizmoPins.cs:49`); 7 families: Path · Perception · Contacts · EQS · Utility · Squad · Actions (`GizmoFamilies.All`); every family's scope defaults to selected-or-pinned (CE-1065) | ✅ `DESIGN_Terrain_Combat_Tuning.md` §5b/§5d |
+| the commander's three gizmos are NOT separable today | ⛔ the command picture, its engagement areas AND the squad's contacts all draw under ONE family, `SquadAssignment` (`CommandPictureGizmo.cs:28,53,132`; `SquadGizmo.cs:23`) ⇒ one checkbox would show all of them | BV-37's open point already leaned "split the contacts into their own family" |
+| the flag word has room | ✅ `AiOverlayFlags : ushort`, bits 0…6 used (`AiOverlayFlags.cs:12-22`) | — |
+
+```mermaid
+sequenceDiagram
+  participant T as EntityBrainView (each draw, docked or pinned)
+  participant O as BrainObservation (was UnitDebugController)
+  participant W as world (the brain's node)
+  T->>O: Viewed(unit)  [every frame the tab draws this unit]
+  O->>W: first view ⇒ AiTraceActions.Set(EnableTraceBuffer, on)
+  Note over O: refcount per unit — a docked tab and two pinned copies arm three units
+  T->>W: a "Show on map" checkbox ⇒ GizmoPins.Set(unit, family, on)  [one family]
+  T->>O: "Open running behaviour" ⇒ OverlayPin = unit
+  O->>O: a unit not drawn for ~1 s (selection moved, pin closed) ⇒ release
+  O->>W: last release ⇒ trace off, its pins stay as the user left them
+```
+*What the picture shows that prose hid:* the tab's DRAW is the arming signal, so nothing has to be remembered; tracing and gizmos are two
+separate switches with two separate owners — the observation owns tracing, the user owns each family.
+
+```mermaid
+classDiagram
+  class BrainObservation {
+    <<RENAMED from UnitDebugController>>
+    +Viewed(world, unit)
+    +Tick(world) releases units not drawn lately
+    +OverlayPin Entity?
+    +ArmJournalBreak
+    +OpenGraph
+  }
+  class GizmoPins {
+    <<EXISTS>>
+    +Set(view, unit, family, on)
+  }
+  class AiTraceActions {
+    <<EXISTS>>
+    +Set(view, unit, EnableTraceBuffer, on)
+  }
+  class AiOverlayFlags {
+    <<EXISTS, grows>>
+    +CommandPicture NEW
+    +SquadContacts NEW
+  }
+  BrainObservation --> AiTraceActions : tracing only
+  EntityBrainView --> BrainObservation : Viewed each draw
+  EntityBrainView --> GizmoPins : one family per checkbox
+  GizmoPins ..> AiOverlayFlags
+```
+*What the picture shows that prose hid:* the controller loses `GizmoPins.SetAll` entirely — no path left turns every family on.
+
+| # | idea | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **BV-48** | **viewing a unit's Brain tab IS debugging it** | every unit a Brain tab is drawing (docked on the selection, or a pinned copy) has its traces armed — BTree / HSM rings and the utility log — refcounted, released ~1 s after no tab draws it; ⛔ the *Debug this unit* checkbox is REMOVED, and the *"kept only while … (Debug this unit)"* hint goes with it (the tab says *"recording since this tab opened"* until the first entry) | keep the checkbox — the user's ruling · arm on SELECTION — a selected unit with no tab open would pay for rings nobody reads |
+| **BV-49** | **never every gizmo at once** | a **Show on map** expander: one checkbox per family the unit has data for — Path · Perception · Contacts · EQS · Utility · Squad · Actions — each `GizmoPins.Set` for that one family; nothing is pinned by opening the tab; ⛔ `GizmoPins.SetAll` loses its caller in the controller | pin all on view — the overwhelm the user named · keep a "pin all" button — the same overwhelm one click away |
+| **BV-50** | **the commander's lists, separable** | two NEW families, `CommandPicture` (the picture + its engagement areas) and `SquadContacts` (the merged contact pool), split out of `SquadAssignment`; each list's header checkbox (BV-37) is that family's pin; each target with a position draws a LINE from the commander (BV-37+); `Squad` keeps the member / assignment lines | one family for all three — one checkbox would draw everything (measured) |
+| **BV-51** | **which unit the graph overlay follows** | *Open running behaviour* pins the overlay to the unit it was pressed on (BV-22's pin, without the checkbox); otherwise the overlay follows the selection | follow every viewed unit — one canvas cannot show two units |
+| ⚠ **open** | *"tactical map symbol gizmos related to the brain"* | read as the families above (incl. the commander's). ⚠ If it ALSO means the unit's mission graphics (its route, objective, phase lines — CE-1018's planned route), they join BV-49 as one more checkbox each | — |
