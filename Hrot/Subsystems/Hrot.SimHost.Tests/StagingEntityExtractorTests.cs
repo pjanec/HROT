@@ -571,7 +571,10 @@ namespace Hrot.SimHost.Tests
             var requests = new StagingEntityExtractor()
                 .Extract(serializer, json, new StubIdAllocator(100));
 
-            Assert.Equal(0L, Assert.Single(requests).PreAllocatedNetworkId);
+            var req = Assert.Single(requests);
+            Assert.Equal(0L, req.PreAllocatedNetworkId);
+            // ⭐ CE-3324 — a scenario load SAYS so, even with no id to infer it from (its subordinates are roots in the file too)
+            Assert.True(req.IsScenarioLoad);
         }
 
         // ── Test 10: ChildComponentOverrides populated from PartMetadata children ─
