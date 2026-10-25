@@ -3127,6 +3127,42 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(part.IsNull);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1359</c> (DESIGN_Weapon_Layers W-8c) — an OPERATOR aiming a station gun beyond its arc: the gun turns to its limit and
+        /// holds its fire (Track, no grant), saying OutOfArc — its rounds would go where he is not aiming. Inside the arc, or within
+        /// <see cref="BallisticAim.OperatorTraverseToleranceDeg"/> of its edge, it fires. A full-circle turret never holds (a tank turns to
+        /// the point and fires — W-8b unchanged). 🔒 User, 2026-10-25: "wepon should fire only if its barrel aiming point is close to the
+        /// mouse driven aim point" · "tank turret should keep working as now". 🔴 Red-proof: drop <c>!beyond</c> from the grant ⇒ the
+        /// rounds fly along the 45° limit at a crosshair square to the left.
+        /// </summary>
+        [Fact]
+        public void CE1359_AStationGun_AimedBeyondItsArc_TurnsToTheLimit_AndHoldsItsFire()
+        {
+            var (pickup, m2, _, channel, _) = Technical(rounds: 0, stationArc: true);
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            var part = TurretParts.Find(_world, m2, 0);
+            float D = MathF.PI / 180f;
+            Vector3 At(float deg) => new(MathF.Cos(deg * D) * 40f, MathF.Sin(deg * D) * 40f, 1.4f);
+
+            AskOperator(ref channel, At(90f), trigger: 1, cooldown: 0.1f);   // square to the left: 45° past the edge
+            _executor.OnEnter(pickup, ref channel, _world);
+            int shots = WsRun(pickup, ref channel, 4f, expectShooter: m2);
+            Assert.Equal(0, shots);
+            Assert.InRange(_world.GetComponent<TurretPose>(part).Azimuth, 44f * D, 45.1f * D);   // turned to the limit
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(part).Mode);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc, LastWeaponReason(pickup));
+
+            AskOperator(ref channel, At(46.5f), trigger: 1, cooldown: 0.1f);   // within the tolerance of the edge: it fires
+            Assert.True(WsRun(pickup, ref channel, 1f, expectShooter: m2) > 0);
+            AskOperator(ref channel, At(10f), trigger: 1, cooldown: 0.1f);     // inside the arc
+            Assert.True(WsRun(pickup, ref channel, 2f, expectShooter: m2) > 0);
+
+            var tank = new Fdp.Toolkit.Tkb.Domain.TurretDto { TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -8f, ElevationMaxDeg = 20f };
+            Assert.False(BallisticAim.BeyondTraverse(_world, pickup, tank, null, At(170f)));   // all round: never held
+            Assert.False(BallisticAim.BeyondTraverse(_world, pickup, tank, null, new Vector3(3f, 0f, -20f)));   // below the depression: W-8b
+        }
+
         /// <summary>⭐ <c>CE-1356</c> — the conversion, pure: a UH-60's doors (left 20°…160° facing 90°, right −160°…−20° facing −90°) are each
         /// −70°…70° off the gun's own forward; elevation is the overlap; an arc that would cross straight behind the gun leaves its traverse.</summary>
         [Fact]

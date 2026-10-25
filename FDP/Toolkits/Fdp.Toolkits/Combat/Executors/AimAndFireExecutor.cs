@@ -507,6 +507,15 @@ namespace Fdp.Toolkit.Combat.Executors
                 ? BallisticAim.Reachable(world, hull, turret, mountDto, point) : point;
         }
 
+        /// <summary>⭐ <c>CE-1359</c> (W-8c) — the operator's point is beyond the turret's limited traverse (<see cref="BallisticAim.BeyondTraverse"/>).</summary>
+        private static bool OperatorBeyondTraverse(EntityRepository world, Entity part, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, Vector3 point)
+        {
+            if (mountDto is not { TurretIndex: >= 0 } || part.IsNull || !world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(part)) return false;
+            var hull = world.GetComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(part).ParentEntity;
+            return world.IsAlive(hull) && CombatTkb.TurretOf(world, hull, mountDto.TurretIndex) is { } turret
+                && BallisticAim.BeyondTraverse(world, hull, turret, mountDto, point);
+        }
+
         private static void TurretPath(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
                                        int mountIndex, Entity part, ref WeaponState weapon,
                                        int roundsInFlight = 0, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto = null, float dt = 0f,
@@ -577,8 +586,10 @@ namespace Fdp.Toolkit.Combat.Executors
                 if (hold >= lockSeconds) { aimState.Ready = 1; hold = 0f; locking = false; }
             }
             bool otherHold = held is { } h && h != ActionReason.Reloading;   // ⭐ M4 too close · D-L moving
+            // ⭐ CE-1359 (W-8c) — the operator's crosshair beyond a door gun's traverse: the gun turns to its limit and holds its fire
+            bool beyond = atPoint && OperatorBeyondTraverse(world, part, mountDto, p.Point);
             int grant = accounted;
-            if (seen && roe && loaded && !locking && !otherHold)
+            if (seen && roe && loaded && !locking && !otherHold && !beyond)
             {
                 int inHand = weapon.MagazineSize > 0 ? weapon.MagazineRounds : weapon.Ammo;
                 if (p.Rounds > 0) inHand = System.Math.Min(inHand, p.Rounds - RoundsFired(ref channel));
@@ -604,7 +615,8 @@ namespace Fdp.Toolkit.Combat.Executors
             channel.Status = NodeStatus.Running;
             if (op)
             {
-                SayAt(world, entity, BarrelHeat.IsOverheated(weapon) ? ActionReason.Overheated   // ⭐ CE-1358
+                SayAt(world, entity, beyond && p.Trigger != 0 ? ActionReason.OutOfArc   // ⭐ CE-1359
+                    : BarrelHeat.IsOverheated(weapon) ? ActionReason.Overheated   // ⭐ CE-1358
                     : !loaded ? ActionReason.Reloading : p.Trigger == 0 ? ActionReason.Aiming
                     : mine && status.State == WeaponTaskState.Slewing ? ActionReason.Slewing : ActionReason.Firing, p.Point);
                 return;

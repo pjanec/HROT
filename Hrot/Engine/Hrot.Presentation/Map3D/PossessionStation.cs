@@ -402,6 +402,14 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, use.Text, cx - uw / 2, uy, use.Colour);
                 uy += HudLineHeight;
             }
+            // ⭐ CE-1359 (W-8c) — the gun cannot turn to the crosshair: say so, where he looks
+            if (BeyondTraverse(w, _driver.Unit, _driver.Mount, _driver.AimAt))
+            {
+                int bw = (int)HudText.Measure(font, BeyondArcText);
+                Raylib.DrawRectangle(cx - bw / 2 - 6, uy - 3, bw + 12, HudLineHeight, new Color(0, 0, 0, 130));
+                HudText.Draw(font, BeyondArcText, cx - bw / 2, uy, Color.Orange);
+                uy += HudLineHeight;
+            }
             // ⭐ CE-1213 (§8j W-1) — the command wheel round the crosshair while T is held; then what the order did, under it
             if (_driver.WheelOpen) DrawWheel(font, cx, cy);
             else if ((_driver.NoBinoculars ? "no binoculars" : _driver.WheelVerdict(Clock)) is { } verdict)
@@ -732,6 +740,21 @@ namespace Hrot.UI.Common.Map3D
         /// as far out as the crosshair's point. Null for a weapon on no turret. ⚠ The pose carries the ballistic elevation, so at long
         /// range the ring sits a little above the target when the gun is laid.
         /// </summary>
+        /// <summary>⭐ <c>CE-1359</c> (docs/DESIGN_Weapon_Layers.md W-8c) — the words under the crosshair while the selected gun cannot traverse
+        /// to it (a door gun's arc): its fire is held, so the operator is told why.</summary>
+        public const string BeyondArcText = "OUT OF ARC - the gun cannot turn there, fire held";
+
+        /// <summary>⭐ <c>CE-1359</c> — the crosshair's point is beyond the selected gun's limited traverse (<c>BallisticAim.BeyondTraverse</c>,
+        /// the rule its weapon brain holds the fire by). False for a full-circle turret, a mount with no turret, or out of elevation only.</summary>
+        public static bool BeyondTraverse(EntityRepository w, Entity unit, int mount, Vector3 aimAt)
+        {
+            (unit, mount) = Hud.Resolve(w, unit, mount);
+            if (!w.HasComponent<SimTransform>(unit)) return false;
+            var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, unit, mount);
+            return dto is { TurretIndex: >= 0 } && Fdp.Toolkit.Combat.CombatTkb.TurretOf(w, unit, dto.TurretIndex) is { } turret
+                && Fdp.Toolkit.Combat.BallisticAim.BeyondTraverse(w, unit, turret, dto, aimAt);
+        }
+
         public static Vector3? BarrelPoint(EntityRepository w, Entity unit, int mount, Vector3 aimAt)
         {
             (unit, mount) = Hud.Resolve(w, unit, mount);   // ⭐ CE-1158 — a controlled weapon's own turret
