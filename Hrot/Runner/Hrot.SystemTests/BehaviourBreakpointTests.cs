@@ -36,7 +36,7 @@ public sealed class BehaviourBreakpointTests : SystemTestBase
                     Output.WriteLine($"  #{n} {sl?["owner"]} {sl?["role"]} {sl?["behaviour"]} = {sl?["value"]?.ToJsonString()}");
                 var p = slots?.FirstOrDefault(s => s?["owner"]?.GetValue<string>() == "Task" && s?["role"]?.GetValue<string>() == "Params"
                                                   && s?["behaviour"]?.GetValue<string>() == Machine);
-                if (p?["value"]?["Guard"]?["EngageTarget"]?.GetValue<bool>() == false) { unit = n; break; }
+                if (p?["value"]?["In"]?["Guard"]?["EngageTarget"]?.GetValue<bool>() == false) { unit = n; break; }
             }
             Assert.True(unit != 0, "hsm-channel-e2e has its Open=false Bradley running HsmChannelE2E");
 
@@ -56,7 +56,7 @@ public sealed class BehaviourBreakpointTests : SystemTestBase
 
             (await Mcp.StageSlotFieldAsync(unit, new JsonObject
             {
-                ["owner"] = "task", ["behaviour"] = Machine, ["role"] = "params", ["path"] = "Guard.EngageTarget", ["value"] = true,
+                ["owner"] = "task", ["behaviour"] = Machine, ["role"] = "params", ["path"] = "In.Guard.EngageTarget", ["value"] = true,
             })).EnsureOk();
             (await Mcp.PlayAsync()).EnsureOk();
             JsonNode? status = null;
