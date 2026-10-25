@@ -1494,3 +1494,41 @@ selected (a pinned tab). A family also draws nothing when the unit has no data f
 📷 `TheBrainViewTests.CE1310_*` (open):
 
 ![the tab's tables and contacts](assets/brain-view/b8-tables.png)
+
+### 12r. DECISIONS `2026-10-25` — ONE store for every per-unit debug switch, remembered per scenario *(CE-1329; build-state: DESIGN — not built, still being discussed)*
+
+🔒 User, `2026-10-25` (abridged): *"the unit's Brain-tab ticks become the only switch — yes from UI point of view, internally this needs to
+be controllable from similar data model as before"* · *"clicking a unit no longer shows its vision cone until you tick Perception — this
+is exactly what I want"* · *"I like better one model for all debug switches"* · *"save those on exit / scenario unload per scenario …
+restore automatically on scenario load … would need a way to reset it in the UI"* · *"replace debug_unit with that route"* ·
+*"Reset all debug settings for this scenario in the Settings menu"*.
+
+```mermaid
+graph TD
+  BT[Brain tab: Show on map ticks] --> S
+  MM[map right-click: Pin gizmos, with check marks] --> S
+  API["HTTP: GET/POST /entities/{id}/debug-settings"] --> S
+  FD["film take: pins (handoff to backend, temporary)"] -.-> S
+  S["DebugSettings — ONE world singleton, keyed by network id:\n gizmo pins · trace switches · the followed unit"]
+  S --> P[map: GizmoFamilyVisibilityPolicy]
+  S --> R[BTreeRunner / HsmRunner / TraceBufferLifecycleSystem]
+  S --> F[follow camera]
+  S <-->|save on change, unload, exit; load with the scenario| U["per-scenario user file"]
+  V[Brain tab showing a unit] -->|temporary, not stored| R
+```
+*What the picture shows that prose hid:* one store with many writers and three readers; the Brain tab's own arming while it shows a unit
+is a separate, temporary input (tracing = stored switch OR viewed), so closing a tab never turns off what an agent switched on.
+
+| # | decision | why |
+|---|---|---|
+| BV-65 | per-unit debug switches — gizmo pins AND trace switches AND the followed unit — live in ONE world singleton keyed by network id; `DebugState` stops carrying them | the user: one model; a singleton is outside the preview's capture (`WorldKeyframes.EditorDryRun`, `Singletons: false`), so a tick set during a preview survives its Stop — today it is rewound away (`DebugState` is captured and restored) |
+| BV-66 | a BRAIN gizmo family draws for a unit only when ticked on it (Brain tab or the right-click menu); selection draws none | the user: *"exactly what I want"*; selection drew every family at once, so the tick could add nothing |
+| BV-67 | the Layers panel keeps only GLOBAL switches: each brain family's row stays as a global on / off (off hides it for every unit); the six "selected only" rows go | the user: the tactical layer shows global-scope checkboxes; per-unit ticks are on the Brain tab and the right-click menu |
+| BV-68 | the right-click "Pin gizmos" menu stays, with check marks read from the same store | the user |
+| BV-69 | behaviour-bound gizmos (the hill attack's) — no change: their layer, the selected unit running the behaviour | the user. ⏭ a "behaviour-specific" layer switch to hide them all is an idea, not scheduled |
+| BV-70 | saved per scenario in a user file (on change, on unload, on exit), restored on scenario load; network ids of PLACED units are stored in the scenario (`NetworkIdentity.Value`), so they key it. ⚠ runtime-SPAWNED units repeat their ids across previews (`DESIGN_Deterministic_Network_Ids.md` §4d, built) but across a reload only if its §11 (reset to 1000 on load) is built — **not verified** | the user: survives crashes and restarts |
+| BV-71 | resets: "Reset this unit's debug settings" on the Brain tab's Debug section; "Reset all debug settings for this scenario" in the **Settings** menu | the user |
+| BV-72 | `POST /entities/{id}/debug` (`debug_unit`) is REPLACED by `GET` / `POST /entities/{id}/debug-settings {trace, pins, follow}` (its help text also claimed it pins gizmos; it does not — `UnitDebugController.Apply:67`) | the user: *"replace debug_unit with that route"* |
+| BV-73 | the film director gets a take-level `pins` override (temporary, like its layers) — a handoff to the backend lane, not built here | a take's `"layers": {"on": ["Ai.VisionCones"]}` would otherwise draw nothing (`DESIGN_Film_Director.md` §4b) |
+
+⚠ A draft built before these decisions (rows removed, pins left on `DebugState`) is in a local git stash and is **obsolete** — rebuild from this table.
