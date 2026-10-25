@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: docs/designs/mgmt-1/DESIGN.md §9.1/§9.3 still DESCRIBE the SyncFrom snapshot and the .dds supplement as the mechanism — both carry SUPERSEDED / WITHDRAWN banners pointing here (R-3040, R-3041).
 related-designs:
+  - docs/DESIGN_Replay_Census_H0.md — the REPLAY classification of every type (H0, CE-4045), beside §6b's restore one
   - DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS the sound ring (§8.3); §8.3a makes hearing survive a restore (CE-3315: the world carries the sound count)
   - DESIGN_Scenario_Regression.md — OWNS the editor verifier R1 runs on (a fresh process per run, one step per frame, full component snapshots, the golden compare); §1k adds the checkpoint around it
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7g (R-3039 system memory in components; R-3040 the recorder; R-3041 no network buffers) and §7g.0c the review this resolves. It owns the STATE rules; this owns the SAVE/RESTORE mechanism.
