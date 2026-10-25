@@ -61,7 +61,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityLean ToSample(long netId, in Lean c)
-            => new() { EntityId = netId, Side = (byte)c.Side };
+            => new() { EntityId = netId, Side = (byte)c.Side, Depth = c.Depth };
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
@@ -110,7 +110,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_entityMap.TryGetEntity(d.EntityId, out var unit) || !view.IsAlive(unit)) { DroppedSampleCount++; return; }
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
-            cmd.AddComponent(unit, new Lean { Side = (LeanSide)d.Side });
+            cmd.AddComponent(unit, new Lean { Side = (LeanSide)d.Side, Depth = d.Depth });
         }
 
         public void ScanAndPublish(ISimulationView view) { }

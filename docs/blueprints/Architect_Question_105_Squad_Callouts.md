@@ -11,7 +11,7 @@ related-designs:
   - docs/DESIGN_People_Display.md — OWNS how an utterance is SHOWN (U15 overhead marks, `OverheadMarkGizmo`) and G1 (§8); the IG's SOUND for it is the ui lane's
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS CB-27 (challenge, commands, "clear", "man down", R-2033) — load-bearing speech the target's brain reads
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS the squad plays whose orders and reports become calls (fire and movement, the SPOT, the casualty)
-  - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS hearing (R-205, R-207); D here makes a shout a sound the enemy can hear
+  - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS hearing (R-205, R-207); D here makes a shout a sound the enemy can hear — ✅ built in its §8.8 (backend, 2026-10-25)
   - docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md — the in-building fight where calls matter most ("moving", "clear", "grenade")
 -->
 

@@ -66,6 +66,11 @@ namespace Fdp.Toolkit.Civilians
             return true;
         }
 
+        /// <summary>⭐ AQ105 D (R-2080) — is <paramref name="kind"/> SHOUTED, so an enemy in earshot hears it (the voice sound,
+        /// <c>AcousticPerception.VoiceRange</c>)? Everything but talk: a challenge, a command, a team call, an insult, a chant — and any call
+        /// appended later (behaviors' squad calls, <c>CE-2372</c>), unless it is added here as quiet.</summary>
+        public static bool IsShouted(UtteranceKind kind) => kind is not (UtteranceKind.UtterNone or UtteranceKind.Talk);
+
         /// <summary>What <paramref name="man"/> is saying at <paramref name="now"/>; <see cref="UtteranceKind.UtterNone"/> when nothing (or it
         /// is over).</summary>
         public static UtteranceKind Of(ISimulationView view, Entity man, double now, out Entity target)

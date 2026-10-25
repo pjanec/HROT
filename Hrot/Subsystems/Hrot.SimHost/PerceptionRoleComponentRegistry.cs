@@ -51,6 +51,7 @@ public static class PerceptionRoleComponentRegistry
         // ⭐ CE-3062 — what an acoustic sensor hears on its sources, and the anonymous contact it makes.
         world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
         world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticCursor>();   // ⭐ CE-3282 — a hearing sensor's ring cursor (Sensing §8.3)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.DoorHeard>();   // ⭐ AQ104 E ③ — the door state this node last heard (Sensing §8.8)
         world.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
         world.RegisterManagedEvent<EqsResultUpdateEvent>();
         world.RegisterManagedEvent<Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent>();   // ⭐ CE-3072 B3

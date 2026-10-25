@@ -112,6 +112,8 @@ namespace Fdp.Toolkit.Perception.Signatures
                                              a.DetonationAudibleRange, ring.Now, det.Ammo, a.Family));   // a burst's signature is its munition (Q95 A)
                 }
 
+            HearDoors(repo, ring);
+
             // ⭐ CE-3315/CE-3316 — the world's count of this timeline's sounds and the newest of them, kept beside the ring (a checkpoint
             //   carries them; the ring it cannot)
             long count = ring.Places;
@@ -121,6 +123,56 @@ namespace Fdp.Toolkit.Perception.Signatures
                 timeline.TailCount = ring.TailBefore(double.PositiveInfinity, timeline.TailSpan(), out timeline.Places);
                 repo.SetSingletonUnmanaged(timeline);
             }
+        }
+
+        // ⭐ AQ104 E ③ (Sensing §8.8) — a door whose replicated state changed since this node last heard it made a sound at its doorway:
+        //   a short Movement sound (a man's doing — class Footsteps, High band), carried by DoorSounds.Carry, of the side of the man who
+        //   stands at it. The first sight of a door only records its state (a load, a late join: no bang).
+        private readonly System.Collections.Generic.List<(Entity Door, Fdp.Toolkit.Terrain.TerrainDoorState State)> _doorsSeen = new();   // this frame's scratch
+
+        private void HearDoors(EntityRepository repo, SoundEmissionRing ring)
+        {
+            if (!repo.IsComponentTypeRegistered<DoorHeard>() || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.DoorState>()
+                || !repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
+                || repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is not { Doors.Count: > 0 } world) return;
+            _doorsSeen.Clear();
+            foreach (var d in repo.Query().With<Fdp.Toolkit.Terrain.DoorState>().WithManaged<Fdp.Toolkit.Terrain.TerrainObjectKey>().Build())
+            {
+                var state = repo.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(d).State;
+                if (repo.HasComponent<DoorHeard>(d) && repo.GetComponentRO<DoorHeard>(d).Last == state) continue;
+                _doorsSeen.Add((d, state));
+            }
+            foreach (var (d, state) in _doorsSeen)
+            {
+                if (!repo.HasComponent<DoorHeard>(d)) { repo.AddComponent(d, new DoorHeard { Last = state }); continue; }
+                ref var heard = ref repo.GetComponentRW<DoorHeard>(d);
+                float carry = DoorSounds.Carry(heard.Last, state);
+                heard.Last = state;
+                int index = world.DoorIndexOf(repo.GetManagedComponentRO<Fdp.Toolkit.Terrain.TerrainObjectKey>(d).Key);
+                if (carry <= 0f || index < 0) continue;
+                var door = world.Doors[index];
+                var at = new System.Numerics.Vector3(door.Center, door.SillZ);
+                var actor = ActorAt(repo, at);
+                var e = Emission(repo, actor.IsNull ? d : actor, SoundKind.Movement, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Footsteps, at, carry, ring.Now, 0L, 0);
+                if (actor.IsNull) e.Force = 0;
+                ring.Append(e);
+            }
+        }
+
+        // the man nearest the doorway within reach, on its storey; Entity.Null when nobody is
+        private static Entity ActorAt(EntityRepository repo, System.Numerics.Vector3 at)
+        {
+            if (!repo.IsComponentTypeRegistered<EntityInfo>()) return Entity.Null;
+            Entity best = Entity.Null;
+            float bestD = DoorSounds.ActorSearchMetres;
+            foreach (var m in repo.Query().With<EntityInfo>().With<SimTransform>().Build())
+            {
+                var p = repo.GetComponentRO<SimTransform>(m).Position;
+                if (MathF.Abs(p.Z - at.Z) > Fdp.Toolkit.Terrain.DoorRules.ReachHeightMetres) continue;
+                float dist = System.Numerics.Vector2.Distance(new System.Numerics.Vector2(p.X, p.Y), new System.Numerics.Vector2(at.X, at.Y));
+                if (dist <= bestD) { bestD = dist; best = m; }
+            }
+            return best;
         }
 
         // ⭐ CE-3282 — one ring entry: the source (anonymous to the listener — only the error's seed and the own-force test read it).

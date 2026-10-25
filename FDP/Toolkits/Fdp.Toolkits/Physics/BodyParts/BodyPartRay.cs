@@ -41,12 +41,13 @@ namespace Fdp.Toolkit.Physics.BodyParts
             var stance = LogicalStance.Of(world, e);
             int lean = pose == PersonPose.Downed ? 0 : Leans.SignOf(world, e, stance);   // ⭐ CE-3257 (BR-5, §13 LN-5)
             var sphereCentre = tf.Position + Vector3.Transform(bc * scale, tf.Rotation);
-            if (!BodyPartHit.SegmentTouchesSphere(a, b, sphereCentre, br * scale + (lean != 0 ? Leans.Shift : 0f))) return BodyPartTest.SphereMiss;
+            float shift = lean != 0 ? Leans.ShiftOf(world, e) : 0f;   // ⭐ AQ104 G — his own depth
+            if (!BodyPartHit.SegmentTouchesSphere(a, b, sphereCentre, br * scale + shift)) return BodyPartTest.SphereMiss;
             if (lean == 0)
                 return BodyPartHit.Segment(PersonBody.Boxes(pose), tf.Position, tf.Rotation, scale, a, b, out hit) ? BodyPartTest.Hit : BodyPartTest.Miss;
             // ⭐ LN-5 — a LEANING man: the segment in his upright frame, clipped to the half he shows; the hit's t back on the original segment
             float eye = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(world, e, stance);
-            if (!Leans.Upright(tf, lean, eye, ref a, ref b, out float t0, out float t1)) return BodyPartTest.Miss;
+            if (!Leans.Upright(tf, lean, eye, ref a, ref b, out float t0, out float t1, shift)) return BodyPartTest.Miss;
             if (!BodyPartHit.Segment(PersonBody.Boxes(pose), tf.Position, tf.Rotation, scale, a, b, out hit)) return BodyPartTest.Miss;
             hit = hit with { T = t0 + hit.T * (t1 - t0) };
             return BodyPartTest.Hit;

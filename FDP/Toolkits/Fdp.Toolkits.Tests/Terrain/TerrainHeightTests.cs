@@ -317,6 +317,23 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.All(planner.Points, p => Assert.Equal(g(p.X, p.Y), p.Z, 1));
         }
 
+        /// <summary>⭐ AQ104 I (R-2079) — the planner's half-metre short move is two points only on ONE level: a man on the ground under
+        /// the deck sent to the point straight above him gets no two-point "path" (it would arrive at once, a floor short); his own level
+        /// still gets the two points.</summary>
+        [Fact]
+        public void AQ104I_AShortMove_ToTheLevelAbove_IsNotTheTwoPoints()
+        {
+            var w = Overpass();
+            var planner = new Fdp.Toolkit.Navigation.RoutePlanner { World = new TerrainWorldQuery(w) };
+            float g = w.GroundHeightAt(100f, 100f);
+            var none = default(global::CarKinem.Road.RoadNetworkBlob);
+            var up = new Fdp.Toolkit.Navigation.RouteQuery(new Vector3(100f, 100f, g), new Vector3(100.2f, 100f, g + 6f), Fdp.Toolkit.Navigation.RoadUse.Neutral);
+            Assert.Null(planner.Plan(in up, in none, navmesh: null, doors: null, out _));   // no navmesh, no roads: no way up
+            var same = new Fdp.Toolkit.Navigation.RouteQuery(new Vector3(100f, 100f, g), new Vector3(100.2f, 100f, g), Fdp.Toolkit.Navigation.RoadUse.Neutral);
+            Assert.NotNull(planner.Plan(in same, in none, navmesh: null, doors: null, out _));
+            Assert.Equal(2, planner.Points.Count);
+        }
+
         [Fact]
         public void H5c_AVehicleBornOnTheBridgeRoad_StandsOnTheDeck_AndOneBesideIt_OnTheGround()
         {

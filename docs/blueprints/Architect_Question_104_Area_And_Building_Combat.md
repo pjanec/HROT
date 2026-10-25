@@ -198,6 +198,7 @@ Rails: `ThreatEvaluationSystemTests.CE2371_AnAlertedContact_IsNotForgotten_While
 `TacticsTreesTests.CE2371_TheAttackTarget_StaysKnownUntilDown_ButNotOnOldEvidence` · `…CE2371_HuntingATargetUpstairs_AnArrivalBelowHim_IsReissued`.
 Red-proofs (one build, three mutations: no lease check, no evidence age, no storey check) ⇒ 3 / 3 red.
 
+<<<<<<< HEAD
 📐 **Live after step 2** (one run each, the step-1 orders unchanged): `ia-house-hunt` ✅ 2/2 decided — run 1 the defender shot at his
 window at 31 s (the check now accepts a fight won before entry), run 2 inside at 26 s, on his storey at 29 s, defender down ·
 `ia-area-clear` ⛔ House B still never entered (the order names one building — B's job) but **both defenders down** (baseline: neither) ·
@@ -277,3 +278,23 @@ fires are step 5's (C + F) — recorded there, not treated as an L defect.
 📐 **Re-run with the attackers ~90 m out** (`7d12a9b39`): the guard posted INTO House A within 10 s (L's window post — ✅ he no longer
 stands at the centre), but ⛔ **fired ZERO rounds in 240 s** — not at 90 m, not at Blue East a few metres from him inside the house —
 while the attackers opened at 2.8 s from ~92 m. ⇒ not a posting defect; ⏭ probing his ROE / stress / weapon state.
+=======
+### 7.3 I — arrival on the target's level, the mover's half (the root fix under §7.2's belt) *(backend, 2026-10-25; behaviors' handoff item 1)*
+
+| | as built |
+|---|---|
+| the rule | a PERSON arrives only when he stands on the destination's LEVEL — `Levels.Same` (`World/Levels.cs`): the level of each point by the surfaces stacked at its own (x, y), through the world query (no building code, R-248). Where only the ground stands, any two heights are level 0 — an order authored at z 0 on a hill still arrives. A vehicle keeps the 2-D rule |
+| the mover | `CarKinematicsSystem`: the Direct branch and the path's end both refuse `HasArrived` on another level — he stands where he is, the move stays open; its owner re-sends it |
+| the planner | `RoutePlanner`'s half-metre short move (two points as asked) only on ONE level — the man under the point gets a navmesh plan (the stairs) instead of a two-point "path" that would arrive at once |
+| ⛔ not here | the brain's own check (`PostureNodes`, behaviors' belt) — ⚠ the brain reads no terrain (user, 2026-10-25: *"brain should use map only for rendering, no direct access"*): its level comes from a survey answer, never `BuildingLayout` itself |
+| rails | `CarKinematicsSystemTests.AQ104I_APersonUnderTheirDestination_OnAnotherFloor_HasNotArrived` (path + direct, other floor + the same-floor control) · `TerrainHeightTests.AQ104I_AShortMove_ToTheLevelAbove_IsNotTheTwoPoints` — 3 red with the production change stashed, 5/5 green with it |
+
+### 7.4 E ② ③ and G — the backend halves *(backend, 2026-10-25; behaviors' handoff items 2–5)*
+
+| | as built | owning design |
+|---|---|---|
+| E ② sound through walls / floors | a wall or slab HALVES a high sound's carry (per crossing `min(material dB, 6.02) × band`); `Trace(Sound)` on the world-query seam (WQ-E Q3 v1) | [Sensing §8.8](../DESIGN_Thermal_And_Acoustic_Sensing.md) |
+| E ③ door sounds | every sound node hears a replicated `DoorState` change once, at the doorway: lock 5 m, swing 15 m, breach 40 m, of the side of the man at it | Sensing §8.8 |
+| AQ105 D the voice | a replica's live shouted `Utterance` (all but `Talk`) is heard 40 m — as a man's sound (kind/class bits are full) | Sensing §8.8 |
+| G the lean's depth | `Lean.Depth` (replicated); `Leans.SetDepth(metres)` for behaviors; eye, seen points, hit boxes and aim read `Leans.ShiftOf` | [Hit location §13 LN-9](../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md) |
+>>>>>>> origin/backend
