@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-25
-build-state: DESIGN — the lean APPROVED by the user 2026-10-25 ("approved, but need clarification when and how the data is shown"); §2 wireframes for review; the UML lands before the build
-current-answer: §1 when it shows · §2 the wireframes · §3 the data sources
+build-state: BUILDING — the lean APPROVED 2026-10-25; the wireframes (§2) APPROVED 2026-10-25 ("approved, record this to design. merge behaviors and build this"); UML §4
+current-answer: §1 when it shows · §2 the wireframes (approved) · §3 the data sources · §4 UML
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -20,7 +20,7 @@ related-designs:
 🔒 **User, `2026-10-25`:** *"I am not able to find a way how to display the details of the utility decision, the settings, what kind of
 inputs, what kind of curves, what kind of aggregation function is used … give the user some kind of insight into how the behaviors are
 constructed, not just by drawing the graph."* → lean approved: *"approved, but need clarification when and how the data is shown. best as
-ASCII art wireframes."*
+ASCII art wireframes."* → on the wireframes: *"approved, record this to design. merge behaviors and build this"* (`2026-10-25`).
 
 ## 1. When it shows — one view, four ways in
 
@@ -149,3 +149,70 @@ part; the graph read names each node's bound decision(s).
 | which decision a node binds | authored node: its params' `Decision` (asset id) · C# node: the method key `{method}@{paramOffset}@…` → the behaviour's params field at that offset → its `UtilityDecisionRef` (the unit's live params, else the behaviour's defaults) · blueprint: `ScoreDecision.AssetId` · a custom action: every `UtilityDecisionRef` field in its param slice | ONE resolver, shared by the view and the API |
 | winner, margin, switches, ranked | `UtilityDecisionLog` (per unit, 4 decisions) | while traced |
 | raw → curve → weighted per consideration | `UtilityTraceWorkingMemory1024` | while traced |
+
+## 4. UML *(drawn after the inventory: `scripts/cbm.sh search_graph` `.*Utility.*` Class → ~60, `.*Project.*` Class; grep the scorer callers and `UtilityDecisionRef`; `check_index_coverage` not reachable through the CLI)*
+
+```mermaid
+classDiagram
+  class UtilityDecisionDef { <<exists>> DebugName; AssetId; Kind; Options; OptionNames }
+  class UtilityDecisionCatalog { <<exists>> Shared registry by decision id }
+  class UtilityDecisionLog { <<exists, per unit>> 4 slots: winner, margin, ranked }
+  class UtilityTraceWorkingMemory1024 { <<exists, per unit>> raw, normalized, curve, weight per consideration }
+  class UtilityInputNames { <<MOVED from DebugApiService.Utility>> Of(inputId) }
+  class UtilityDecisionSheet { <<NEW, Hrot.Editor.AiShared>> Build(def) settings; WithLive(log, trace) }
+  class UtilityBindings { <<NEW, Hrot.Editor.AiShared>> Of(registry, behaviour, node / state / transition) : BoundDecision[] }
+  class BoundDecision { <<NEW>> DecisionId; ParamField; Role Chooses|Reads(option)|Ranks }
+  class UtilityDecisionDetailsView { <<NEW>> details.utility.decision · W1 W2 W3 W4 W6 }
+  class UtilityDecisionWidget { <<NEW>> the option / consideration table, curve plot }
+  class EntityBrainView { <<exists>> Why: W5 expanders }
+  class DebugApiService { <<exists>> GET /utility/decisions/{assetId} NEW }
+  UtilityDecisionCatalog --> UtilityDecisionDef
+  UtilityBindings ..> UtilityDecisionCatalog
+  UtilityBindings --> BoundDecision
+  UtilityDecisionSheet ..> UtilityDecisionDef
+  UtilityDecisionSheet ..> UtilityInputNames
+  UtilityDecisionSheet ..> UtilityDecisionLog
+  UtilityDecisionSheet ..> UtilityTraceWorkingMemory1024
+  UtilityDecisionDetailsView --> UtilityBindings
+  UtilityDecisionDetailsView --> UtilityDecisionWidget
+  EntityBrainView --> UtilityDecisionWidget
+  UtilityDecisionWidget --> UtilityDecisionSheet
+  DebugApiService ..> UtilityDecisionSheet
+```
+*What it shows that prose hid: the view, the Brain tab and the API share ONE sheet (settings + live) and ONE binding resolver — nothing
+is drawn from a document, so a C#-built behaviour and an authored one take the same path.*
+
+```mermaid
+sequenceDiagram
+  participant U as user selects a node
+  participant V as UtilityDecisionDetailsView
+  participant B as UtilityBindings
+  participant R as BehaviorRegistry
+  participant S as UtilityDecisionSheet
+  participant W as unit (log + trace)
+  U->>V: BTreeNodeSelection(VisualId) / HsmStateSelection / HsmTransitionSelection / BlueprintNodeSelection
+  V->>B: Of(registry, the asset's behaviour, the selection)
+  B->>R: the running blob: node → its method key "{method}@{paramOffset}@{stateOffset}"
+  B->>R: the params region from ParseParams("{}") — the Decision ref at paramOffset
+  Note over B: IsOption: the ChooseOption with the SAME state offset owns the decision
+  B-->>V: BoundDecision[] (none ⇒ the view does not apply)
+  V->>S: Build(UtilityDecisionCatalog def)
+  V->>W: the followed unit (pinned graph, else the selected unit) runs this behaviour and is traced?
+  W-->>S: WithLive(log slot, trace records)
+  S-->>V: W1 / W2 / W3 / W4 drawn by UtilityDecisionWidget
+```
+*What it shows that prose hid: the node is resolved through the RUNNING blob by its VisualId, not through the document — the method key's
+param offset is what names the decision, and an `IsOption` finds its decision through the shared state offset.*
+
+```mermaid
+graph TD
+  REG["PerspectiveWorkspaceRegistrar (BTree, HSM, Blueprint perspectives)"] -->|"DetailsViews.Add"| V["UtilityDecisionDetailsView"]
+  ES["EditorSubsystem"] -->|"registry, world, followed unit"| V
+  BV["EntityBrainView (Brain tab, every host)"] -->|"Why expanders"| WG["UtilityDecisionWidget"]
+  V --> WG
+  API["DebugApiService: GET /utility/decisions/{assetId}"] --> SH["UtilityDecisionSheet"]
+  WG --> SH
+```
+*What it shows that prose hid: the details view is registered per perspective (drawn only where a graph is selected); the Brain tab's
+expanders draw on every host, the CGF / IG included.*
+
