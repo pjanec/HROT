@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -976,7 +976,7 @@ before, imgui remember opened/closed state, no forcing*
 │                                                                          │
 │ ▼ Running behaviours                                                     │
 │   ▼ Task · FightFromCover   BTree (C#)                 [Open graph]      │
-│       [Assign task…]  [Edit params…]  ROE [Return fire ▾]                │
+│       [Assign task…]  [Edit params…]  [Restart…]  ROE [Return fire ▾]    │
 │       Parameters                                                         │
 │         Target        [1:3110, v2]                                       │
 │         CoverRadius   25.0                                               │
@@ -1047,5 +1047,72 @@ before, imgui remember opened/closed state, no forcing*
 
 | # | decided | rule |
 |---|---|---|
-| **BV-63** | ⭐ *lean* — **parameters are the SAME dump as the variables, editing is an explicit act** | *Parameters* draw read-only through the one dump (BV-43), exactly like *Variables*; an **[Edit params…]** button opens THE one params form (`BehaviorParamsForm`, Sensors & Doctrine §7.6) — for the task / SOP its OK **re-assigns** the behaviour (📐 *"a behaviour's params are fixed for its run (changing them = re-assigning)"*, Sensors & Doctrine §7.5), so it says *"restarts FightFromCover"*; for a blueprint it is the paused write / re-attach of §7.6a. Rejected: an always-editable inline form — a stray click would restart the unit's task, and params would look different from every other DTO on the tab |
+| **BV-63** ✅ *approved `2026-10-25`, revised by §12g* | **parameters are the SAME dump as the variables, editing is an explicit act** | *Parameters* draw read-only through the one dump, like *Variables*; **[Edit params…]** opens THE one params form and its **Apply writes the params IN PLACE — no restart** (BV-65); a separate **[Restart with these params]** re-assigns. ⛔ SUPERSEDED: "its OK re-assigns the behaviour" — params are a struct read in place, the restart was a convention | an always-editable inline form — a stray click edits the running unit; params would look unlike every other DTO |
 | **BV-64** | ✅ *the user* — **no forced open state** | each expander is an `ImGui.CollapsingHeader` with an id per SECTION (not per unit) and no `DefaultOpen` flag ⇒ ImGui remembers what the user opened or closed, across units and sessions (its ini); ⛔ BV-34's "open by default" is dropped |
+
+### 12g. ✅ DECIDED `2026-10-25` — ONE live-write path for params and working state; the AI agent's what-if *(`R-1041`; build-state: DESIGN)*
+
+🔒 User, `2026-10-25`, verbatim: *"why would it restart the behavior, parameters are just DTO in memory and can be scanned by the
+behavior action code duriong running; shouldnt we have explicit restart only if we want it to force the parameters to be re-applied?"* ·
+*"these days the behavior is developed by an AI agent (you). do the what-if edits have a real value for the ai agent … If usefull for ai,
+let's build the edit way for the user as well as it would share lots of implementation. Similarly the blackboard variable edits"* ·
+*"approved, fold it in. the skill should definitely explain the possibilities and use cases"*
+
+| the decision rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| params are a struct read IN PLACE each access | ✅ generated code: `ref RootParamsAccess.RootRef(world, self)` + the field offset (`Fdp.Toolkits.Analyzers/Shared/BlackboardParamsExpression.cs:49`) ⇒ a write is seen next access | ✅ Occurrence Storage §29.6 |
+| "fixed for its run" was a SAVE convention | ✅ the scenario saves the start record's JSON (`BehaviorStartRecord`) | ✅ Sensors & Doctrine §7.5 — ⛔ its "changing them = re-assigning" is now revised there |
+| the start record is READ by logic | ✅ `SopActions.cs:84-85`, `BrainIntentReader.cs:58` | ⚠ an in-place write must update it too |
+| one reader of every slot exists | ✅ `OccurrenceSlotCatalog` (BV-44) behind `GET /entities/{id}/slots` | ✅ CE-2288 |
+| the live write today covers blueprint variables only | ⛔ `POST /entities/{id}/variable` = *"STAGE a write to one blueprint variable"* | — |
+| what-if around it already exists | ✅ `POST /checkpoint` / `/checkpoint/restore` (one RAM snapshot), `/sim/pause`, `/sim/step`; JSON graph hot reload `POST /assets/{id}/reload` (soft keeps state, hard resets) | ⛔ **no C# hot reload** for behaviours (no `MetadataUpdateHandler` on them; a C# graph is compiled in, read-only) |
+
+```mermaid
+sequenceDiagram
+  participant A as caller (HTTP route · Watch · Brain tab Edit params)
+  participant W as OccurrenceSlotWriter (NEW, beside OccurrenceSlotCatalog)
+  participant S as staged write (EXISTS, Q32)
+  participant St as occurrence store slot
+  participant R as BehaviorStartRecord
+  A->>W: Write(unit, owner = Task·Sop·Hosted·Blueprint, role = Params·Variables, path, value)
+  W->>W: resolve the slot + field via the catalog's naming and layout
+  W->>S: stage (paused ⇒ applied now, running ⇒ at the frame boundary)
+  S->>St: write the field in place
+  S->>R: role = Params ⇒ update the record's params JSON
+  Note over St,R: recorded like every component write ⇒ replay matches, the scenario save stays true
+```
+*What the picture shows that prose hid:* three callers, ONE writer, and the existing staged path does the timing — the Watch, the tab and
+the agent cannot drift apart; the restart is not on this path at all.
+
+```mermaid
+classDiagram
+  class OccurrenceSlotCatalog {
+    <<EXISTS>>
+    +Read(world, e, registry) slot views
+  }
+  class OccurrenceSlotWriter {
+    <<NEW>>
+    +Write(world, e, owner, role, path, value) result
+  }
+  class StagedWriteView {
+    <<EXISTS>>
+  }
+  class BehaviorStartRecord {
+    <<EXISTS>>
+  }
+  class DebugApiVariableRoute {
+    <<EXISTS, grows owner and role>>
+  }
+  OccurrenceSlotWriter --> OccurrenceSlotCatalog : names and layouts
+  OccurrenceSlotWriter --> StagedWriteView : timing
+  OccurrenceSlotWriter --> BehaviorStartRecord : params JSON
+  DebugApiVariableRoute --> OccurrenceSlotWriter
+```
+*What the picture shows that prose hid:* the writer reuses the reader's slot naming, so a path the agent READ from `/slots` is exactly the
+path it WRITES — no second addressing scheme.
+
+| # | decided | rule |
+|---|---|---|
+| **BV-65** | ✅ **ONE live write for any slot field** | `OccurrenceSlotWriter`: any owner (task, SOP, hosted child, blueprint), role (params, variables), field path; through the staged write; a params write updates the start record and NEVER restarts; recorded. Callers: the HTTP route, the Watch's edits, the tab's *[Edit params…]*. ⛔ Rejected: blueprint-only writes (the C# BTree / HSM behaviours are the ones debugged most) · params changes only by re-assign (destroys the comparison point) |
+| **BV-66** | ✅ **the HTTP route grows, not a new one** | `POST /entities/{id}/variable` gains `owner` + `role` (defaults = today's blueprint-variable behaviour) |
+| **BV-67** | ✅ **the agent is taught to pick the cheapest experiment** | `tools/ai-debug-mcp/skill-parts/30-workflows.md` §J — the ladder: read → what-if a value (checkpoint · write · step · restore) → what-if the structure (graph edit + `reload_ai_asset`) → change C# (rebuild, restart); its built / planned split stated per tool |
