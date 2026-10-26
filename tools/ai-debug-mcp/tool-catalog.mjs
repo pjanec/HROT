@@ -1554,7 +1554,7 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
     "notes": [
-      "Answered by a host that keeps the cluster read model (the editor, the orchestrator, ExCon); other nodes answer 503."
+      "Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus."
     ],
     "example": {
       "args": {},
@@ -1577,7 +1577,7 @@ export const TOOLS_CATALOG = [
         "name": "exerciseId",
         "type": "string",
         "required": false,
-        "description": "The exercise (list_exercises); when omitted: the live run in progress, else the newest finished one"
+        "description": "The exercise (list_exercises); when omitted the master picks: the live run in progress, else the newest finished one"
       },
       {
         "name": "atSeconds",
@@ -1594,7 +1594,7 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "{ published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).",
     "notes": [
-      "With no exerciseId it needs a host that keeps the cluster read model (the editor, the orchestrator, ExCon); a CGF / SimHost / IG process needs the exerciseId.",
+      "With no exerciseId the cluster master picks: the live run in progress, else the newest finished one — the same on every host.",
       "Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.",
       "play / pause / step drive the replay clock; seek_replay jumps."
     ],
@@ -5697,11 +5697,17 @@ export const TOOLS_CATALOG = [
         "type": "boolean",
         "required": false,
         "description": "Run in a fresh child process per scenario (the regression verdict); answers a job id"
+      },
+      {
+        "name": "replay",
+        "type": "boolean",
+        "required": false,
+        "description": "Run LIVE and compare with the run's own recording played back (CE-4045 H1a, R-4085); not with capture"
       }
     ],
-    "returns": "the director's status (phase, reports[{ status: pass|fail, verify{ passed, verdicts[{name, ok, t, kind}], golden: none|same|different|missing|captured|not-captured, goldenDiff[], written[], problems[] } }])",
+    "returns": "the director's status (phase, reports[{ status: pass|fail, verify{ passed, verdicts[{name, ok, t, kind}], golden: none|same|different|missing|captured|not-captured, goldenDiff[], written[], problems[], replay: null|same|different|failed, replaySnapshots, replayDiff[], replayNotCarried[] } }])",
     "notes": [
-      "docs/DESIGN_Scenario_Regression.md — R-4065 (conditions for all, a golden for a feature scenario, a fresh process each), R-4066 (the engine runs it; HTTP and the command line drive it)."
+      "docs/DESIGN_Scenario_Regression.md — R-4085 (replay: the live run against its own recording, §10-1), R-4065 (conditions for all, a golden for a feature scenario, a fresh process each), R-4066 (the engine runs it; HTTP and the command line drive it)."
     ],
     "example": {
       "args": {
@@ -5709,7 +5715,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "verify a scenario against its checks and golden"
     },
-    "hint": "{scenario} or {scenarios:[…]} or {all:true}; capture:true re-records the golden (refused for a failing run, and refused on a RELOAD). ⭐ fresh:true runs it in a FRESH child process per scenario — the regression verdict and the only safe re-record; it answers {job} at once, read the report with director_verify_job. Without fresh it plays in THIS editor (on screen; each run after the first is a reload, CE-3294). Example: director_verify({scenario:\"ua-tank-ammo\", fresh:true})",
+    "hint": "{scenario} or {scenarios:[…]} or {all:true}; ⭐ replay:true runs it LIVE and compares it, snapshot by snapshot, with its OWN recording played back (CE-4045 H1a — no golden compared; components the recording's manifest does not carry are listed in replayNotCarried, never failed); capture:true re-records the golden (refused for a failing run, and refused on a RELOAD). ⭐ fresh:true runs it in a FRESH child process per scenario — the regression verdict and the only safe re-record; it answers {job} at once, read the report with director_verify_job. Without fresh it plays in THIS editor (on screen; each run after the first is a reload, CE-3294). Example: director_verify({scenario:\"ua-tank-ammo\", fresh:true})",
     "manualVerify": false
   },
 
@@ -5722,7 +5728,7 @@ export const TOOLS_CATALOG = [
       "path": "/director/verify/jobs"
     },
     "params": [],
-    "returns": "{ jobs[{ job, state: running|done, exitCode, passed, scenarios[], capture, out, junit, log, seconds }] }",
+    "returns": "{ jobs[{ job, state: running|done, exitCode, passed, scenarios[], capture, replay, out, junit, log, seconds }] }",
     "example": {
       "args": {},
       "gist": "list the fresh verify jobs"
