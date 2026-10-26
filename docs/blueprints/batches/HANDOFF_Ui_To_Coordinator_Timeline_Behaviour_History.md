@@ -1,6 +1,6 @@
 <!--STATUS
-state: LIVE — dispatched, not started
-updated: 2026-10-25
+state: DONE — answered by the coordinator as TE-22 (R-4076, the user approved all five leans, 2026-10-25) and BUILT by ui as BehaviourTimelineLanes (Changes · Orders · Reports · Decisions — R-4079 shipped lanes as data); closed by the coordinator 2026-10-26
+updated: 2026-10-26
 current-answer: the whole file (short)
 stale-below: nothing
 known-rot: none
