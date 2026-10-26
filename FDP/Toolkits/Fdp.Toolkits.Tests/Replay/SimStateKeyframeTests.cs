@@ -96,6 +96,27 @@ namespace Fdp.Toolkits.Tests.Replay
             Assert.Equal(value, repo.GetComponentRO<AirFollower>(e));
         }
 
+        /// <summary>⭐ CE-4057 — the construction barrier's tag is part of what a restore re-derives from: the ELM re-opens a Constructing entity
+        /// (<c>ResumeFromRestoredWorld</c>) and the gateway waits for peers only when the entity carries <c>PendingNetworkAck</c>. ⛔ It was
+        /// <c>Transient</c>, so a review's return dropped it and a reliable entity went Active without its peers.</summary>
+        [Fact] public void CE4057_PendingNetworkAck_SurvivesAKeyframe()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.PendingNetworkAck>();
+            Assert.True(ComponentTypeRegistry.IsRecordable(ComponentTypeRegistry.GetId(typeof(Fdp.Toolkit.Replication.Components.PendingNetworkAck))),
+                "PendingNetworkAck must be recordable (CE-4057)");
+            var e = repo.CreateEntity();
+            var value = new Fdp.Toolkit.Replication.Components.PendingNetworkAck { ExpectedType = Fdp.Toolkit.Replication.ReliableInitType.AllPeers };
+            repo.AddComponent(e, value);
+            repo.Tick();
+            var keyframe = WorldKeyframes.Capture(repo, CaptureOptions.Recording);
+            repo.Tick();
+            repo.RemoveComponent<Fdp.Toolkit.Replication.Components.PendingNetworkAck>(e);
+            WorldKeyframes.Apply(repo, keyframe);
+            Assert.True(repo.HasComponent<Fdp.Toolkit.Replication.Components.PendingNetworkAck>(e), "PendingNetworkAck must come back from the keyframe");
+            Assert.Equal(value, repo.GetComponentRO<Fdp.Toolkit.Replication.Components.PendingNetworkAck>(e));
+        }
+
         [Fact] public void D1_SensorCapability() => SurvivesAKeyframe(_ => new SensorCapability
         {
             Default = new SensorEntryDto { Kind = SensorModality.Visual, Template = Guid.NewGuid(), SearchRadius = 50f,

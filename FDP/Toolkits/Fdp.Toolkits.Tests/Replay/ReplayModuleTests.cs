@@ -235,6 +235,41 @@ namespace Fdp.Toolkit.Replay.Tests
             Assert.Equal(0, world.EntityCount);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-4056 — a seek BACK while the clock still stands later (a review entered from the live point, any seek below the clock): the
+        /// clock is moved to the landing only when the seek round completes, a tick or more later. ⛔ The pull model then played the world
+        /// forward to the OLD clock position, and once the clock was snapped back below that frame it never returned — every entry stood one
+        /// seek behind (measured: a review entered at sim 5 stood at L). ⇒ after a seek the playback holds until the clock has moved.
+        /// </summary>
+        [Fact]
+        public void CE4056_A_seek_back_holds_until_the_clock_moves_to_it()
+        {
+            var filePath = CreateSmallRecording(frameCount: 10);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            long start = playback.GetFrameMetadata(0).WallClockTicks;
+            var stub = new StubTimeController(playback.GetFrameMetadata(8).WallClockTicks, start);   // the clock stands at frame 8 (L)
+            var sys  = new PlaybackTickSystem(playback, stub);
+            sys.Execute(world, 0f);
+            Assert.Equal(8, playback.CurrentFrame);
+
+            Assert.True(sys.SeekTo(world, playback.GetFrameMetadata(2).WallClockTicks));   // the seek round: back to frame 2
+            Assert.Equal(2, playback.CurrentFrame);
+            sys.Execute(world, 0f);                                                        // the clock has not been moved yet
+            sys.Execute(world, 0f);
+            Assert.Equal(2, playback.CurrentFrame);                                        // ⛔ not played forward to the old clock
+
+            long frame2 = playback.GetFrameMetadata(2).WallClockTicks;                     // the snap lands: the clock at the landing
+            stub.SeedState(new GlobalTime { TotalTime = (frame2 - start) / (double)TimeSpan.TicksPerSecond });
+            sys.Execute(world, 0f);
+            Assert.Equal(2, playback.CurrentFrame);
+
+            long frame5 = playback.GetFrameMetadata(5).WallClockTicks;                     // play on: the clock drives it again
+            stub.SeedState(new GlobalTime { TotalTime = (frame5 - start) / (double)TimeSpan.TicksPerSecond });
+            sys.Execute(world, 0f);
+            Assert.Equal(5, playback.CurrentFrame);
+        }
+
         [Fact]
         public void R4012_The_playhead_crossing_into_the_span_restores_by_a_seek()
         {

@@ -1339,3 +1339,30 @@ mutation. Seven older seek rails that sought from Idle now put the master in a r
 ⚠ Not changed: the frame FORMAT — a paused frame still writes those chunks (now identical bytes). Skipping an unchanged chunk would shrink a pause's
 frames; it is a format-level choice left open. Rail: `FlightRecorderTests.CE3332_A_write_of_the_same_value_does_not_mark_the_frame_changed`
 (red-proved: the version test makes it fail).
+
+### 12r. ✅ FIXED `2026-10-26` — a seek BACK stood one seek behind (CE-4056); the barrier's tag across a return (CE-4057)
+
+**CE-4056.** 📐 Reproduced live (`scratchpad/run-4056b.sh`, the editor, demo-city): a review entered at sim 5 → the world's clock (`SimClock`,
+`/replay/status.simSeconds`) stayed at L (12.43 s); a seek to 3 then showed 4.997 — the previous target. The root cause is not the entry:
+
+```mermaid
+sequenceDiagram
+  participant M as master (seek round)
+  participant N as node PlaybackTickSystem
+  participant C as master clock
+  M->>N: NodeReplaySeek(back to t)
+  N->>N: SeekTo — the world at t
+  Note over N,C: the clock still stands at the OLD moment (later than t)
+  N->>N: next tick: pull forward to the clock — the world back at the old moment
+  M->>C: round complete — SnapTo(t)
+  N->>N: the clock (t) is BEHIND the frame shown: forward-only pull ignores it
+```
+*What the picture shows that the prose hid:* the pull model is forward-only, and the clock moves a round LATER than the world — so only a seek
+BACK goes wrong (the harness's later seeks went forward). ✅ After a seek (by time or by frame) `PlaybackTickSystem` holds the seek's frame
+until the clock's reading changes (`HoldUntilTheClockMoves`). 📐 After: entry at 5 → 4.998, then back to 3 → 2.999, both at once. Rail
+`ReplayModuleTests.CE4056_A_seek_back_holds_until_the_clock_moves_to_it` (red before the fix).
+
+**CE-4057.** The return re-derives in-flight constructions (`EntityLifecycleModule.ResumeFromRestoredWorld`), and the gateway waits for peers
+only when the entity carries `PendingNetworkAck` — `Transient` until now (M4 classification: PROTOCOL, a watch item), so a reliable entity
+went Active after a review without its peers. ✅ `DataPolicy.NoScenario` (recorded; not in an authored scenario). ⚠ The re-opened barrier's
+timeout starts at the resume frame (the ELM's rule), so an offline run drops the tag later than the straight run.
