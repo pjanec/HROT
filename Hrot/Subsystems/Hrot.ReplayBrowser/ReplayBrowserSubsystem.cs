@@ -177,6 +177,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         _activeRepo = null;
         _entityHistory = new EntitySelectionHistory();
         _playbackHistory = new PlaybackHistoryTracker();
+        if (_headless) WireHeadlessHistories();   // RB-3 — a windowed host wires them with its panels
 
         if (!_headless)
         {

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — steps 1–2 (RB-1, RB-2, RB-5) BUILT 2026-10-26, as-built in §7; R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
-updated: 2026-10-26 (§7.2 step 2 as-built — the seek forms on every host, lifecycle search, /events; the lifecycle search's network-id defect fixed) · 2026-10-26 (§7 step 1 as-built — backend) · 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
+build-state: BUILDING — steps 1–3 (RB-1…RB-5) BUILT 2026-10-26, as-built in §7; R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
+updated: 2026-10-26 (§7.3 step 3 as-built — view, histories, export jobs) · 2026-10-26 (§7.2 step 2 as-built — the seek forms on every host, lifecycle search, /events; the lifecycle search's network-id defect fixed) · 2026-10-26 (§7 step 1 as-built — backend) · 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
 current-answer: §0 rulings and leans · §1 before / now / needed · §2 the feature map · §3 UML · §4 claim table · §5 INVENTORY · §6 build · §7 as-built (where it deviates from §3)
 stale-below: none
 known-rot: none
@@ -238,4 +238,17 @@ Rails: `TheClusterControlRoutesTests.RB2_*` ×3 (a frame, a step back and a caus
 reader, forward / backward / none; refused outside a replay), `RB5_The_replay_search_has_the_Search_panels_lifecycle_mode` (red-proved: index
 rule ⇒ no span), `ReplayBrowserSubsystemTests.RB5_*` (red-proved: no capture ⇒ frame 0 only); `TheNetworkIdPredicateAnswersTests` (the
 breakpoint's rule, unchanged behaviour).
+
+### 7.3 Step 3 — RB-3 the Replay Browser's own seam, RB-4 the JSON export
+
+| as built | where | why / deviation |
+|---|---|---|
+| `POST /replay/view {view: "merged" \| "<nodeId>"}` — the Federation panel's switch (`SetViewMode`, `SetLocalEntitiesProvider`) | `IReplayBrowserControl.View` | RB-3 |
+| `POST /replay/history {direction}` — the playback waypoints (the Timeline's ◀ ▶); `POST /selection/history {direction}` — the units selected; `GET /replay/status`'s `browser` carries `canGoBack` / `canGoForward` for both | `History`, `SelectionHistory` | ⭐ on a HEADLESS host the playback history moves the federation too (`WireHeadlessHistories`) — a windowed host wires it with its panels. ⚠ The selection history moves nothing headless yet: no selection systems run there (step 4, RB-7) |
+| `POST /replay/export {window: full \| frames \| time, from, to, format: absolute \| changelog \| incremental, entities: [networkId], entityIndex, includeEntities, includeEvents, minified, epsilon, output}` → `{job, state, path}`; `GET /replay/export/{job}` → `{state: running \| done \| failed, path, bytes, error}` | `StartExport` | RB-4 — the Timeline panel's own call (`IRecordingExportService.ExportToJson` of the shown node's recording on a `LongRunning` task, never the GUI's sandbox). ⭐ `entities` are network ids resolved in the shown node's world, whose handles are the recording's. ⚠ `format` adds `incremental`, which the panel also offers (`ExportFormatMode`) and §0 RB-4 did not list |
+| every other host answers these four routes `NOT_SUPPORTED_HERE(replay.browser)` | `DebugApiService.ReplayBrowser.cs` | §0 RB-3: no meaning on a cluster host |
+
+Rails: `ReplayBrowserSubsystemTests.RB3_*` (node / merged view; the playback history back and forward, headless), `RB4_*` (⭐ the job's file is
+byte-identical to the panel's export for the same options; bad window, unknown unit, unknown job), `TheClusterControlRoutesTests.RB3_*` (a cluster host
+refuses all four; a malformed direction is told so).
 

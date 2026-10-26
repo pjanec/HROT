@@ -1022,6 +1022,16 @@ namespace Hrot.Editor.DebugApi
                 if (seek.Result is JsonObject o) o["found"] = true;
                 return ResultOf(seek, unavailable: 503);
             }));
+            // ⭐ RB-3 / RB-4 — what only the standalone Replay Browser has (every other host: NOT_SUPPORTED_HERE(replay.browser)).
+            _routes.Add(new("POST", "/replay/view", ctx => RunMainResult(s => ResultOf(s.SetReplayView(ctx.Body), unavailable: 503))));
+            _routes.Add(new("POST", "/replay/history", ctx => RunMainResult(s => ResultOf(s.StepReplayHistory(ctx.Body), unavailable: 503))));
+            _routes.Add(new("POST", "/selection/history", ctx => RunMainResult(s => ResultOf(s.StepSelectionHistory(ctx.Body), unavailable: 503))));
+            _routes.Add(new("POST", "/replay/export", ctx => RunMainResult(s => ResultOf(s.StartReplayExport(ctx.Body), unavailable: 503))));
+            _routes.Add(new("GET", "/replay/export/{job}", ctx => RunMainResult(s =>
+            {
+                var (status, error) = s.GetReplayExport(ctx.RouteValue("job") ?? "");
+                return error is null ? Ok(status) : Fail(404, error);
+            })));
             _routes.Add(new("POST", "/replay/stop", ctx => PublishAndAwait(ctx, s => s.StopReplay(), Fdp.Toolkit.Orchestration.ClusterState.Idle)));
             _routes.Add(new("GET", "/replay/status", _ => RunMain(s => s.GetReplayStatus())));
 

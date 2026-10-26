@@ -98,6 +98,11 @@ public static class CapabilityManifest
         if (path.StartsWith("/scenario/save", StringComparison.Ordinal)) return DebugCapabilities.SaveScenarioJson;
         if (path.StartsWith("/scenario", StringComparison.Ordinal))    return DebugCapabilities.EditorAuthoring;
         if (path.StartsWith("/scenarios", StringComparison.Ordinal))   return DebugCapabilities.EditorAuthoring;
+        // ⭐ RB-3 / RB-4 — what only the standalone Replay Browser has; measured from its seam (ISubsystemDebugProvider.ReplayBrowser).
+        if (path.StartsWith("/replay/view", StringComparison.Ordinal)
+         || path.StartsWith("/replay/history", StringComparison.Ordinal)
+         || path.StartsWith("/replay/export", StringComparison.Ordinal))
+            return Hrot.Presentation.DebugApi.DebugCapabilities.ReplayBrowser;
         if (path.StartsWith("/replay", StringComparison.Ordinal))      return DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/checkpoint", StringComparison.Ordinal))  return DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/diff", StringComparison.Ordinal))        return DebugCapabilities.WorldRead;
@@ -108,6 +113,7 @@ public static class CapabilityManifest
         if (path.StartsWith("/behaviors", StringComparison.Ordinal))   return DebugCapabilities.WorldRead;
         if (path.StartsWith("/annotations", StringComparison.Ordinal)) return DebugCapabilities.WorldRead;
         if (path.StartsWith("/view", StringComparison.Ordinal))        return DebugCapabilities.WorldRead;   // ⭐ CE-1262
+        if (path.StartsWith("/selection/history", StringComparison.Ordinal)) return Hrot.Presentation.DebugApi.DebugCapabilities.ReplayBrowser;   // RB-3
         if (path.StartsWith("/selection", StringComparison.Ordinal))   return DebugCapabilities.WorldRead;   // ⭐ CE-1263
         if (path.StartsWith("/trace", StringComparison.Ordinal))       return DebugCapabilities.WorldRead;
         if (path.StartsWith("/attributes", StringComparison.Ordinal))  return DebugCapabilities.WorldRead;

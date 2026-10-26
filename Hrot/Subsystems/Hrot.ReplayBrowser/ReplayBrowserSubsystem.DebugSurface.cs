@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Core;
@@ -7,6 +8,7 @@ using Fdp.Presentation.Panels.ReplayBrowser;
 using Fdp.Toolkit.Behavior;
 using Hrot.CGF.Configuration;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.ReplayBrowser;
 using Fdp.Toolkit.ReplayBrowser.Federation;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Presentation.DebugApi;
@@ -238,6 +240,9 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
 
     private bool _behaviorsLoaded;
 
+    /// <summary>The serializer the host's exports and dumps use (test seam).</summary>
+    internal Fdp.Toolkit.Scenario.ScenarioSerializer SerializerForTest => Serializer;
+
     /// <summary>The exercises on disk this host can open, newest first (<c>GET /exercises</c>).</summary>
     private IReadOnlyList<ExerciseInventoryItem> ExercisesOnDisk()
         => RecordingGroupInventory.Scan(RecordingsRoot)
@@ -405,8 +410,149 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
                 ["playing"]      = _host.IsPlaying,
                 ["rate"]         = _host.PlaybackRate,
                 ["nodes"]        = nodes,
+                ["history"]      = new JsonObject
+                {
+                    ["canGoBack"] = _host._playbackHistory.CanGoBack, ["canGoForward"] = _host._playbackHistory.CanGoForward,
+                },
+                ["selectionHistory"] = new JsonObject
+                {
+                    ["canGoBack"] = _host._entityHistory.CanGoBack, ["canGoForward"] = _host._entityHistory.CanGoForward,
+                },
             };
         }
+
+        public string? View(string view)
+        {
+            var m = _host._manager;
+            if (m == null) return "No recording is open: POST /replay first.";
+            if (string.Equals(view, "merged", StringComparison.OrdinalIgnoreCase))
+            {
+                _host.SetViewMode(ViewMode.Merged);
+                return null;
+            }
+            if (!int.TryParse(view, out int node) || !m.Contexts.ContainsKey(node))
+                return $"view is \"merged\" or a loaded node id ({string.Join(", ", m.Contexts.Keys.OrderBy(k => k))}).";
+            _host.SetViewMode(ViewMode.SingleNode);
+            m.SetLocalEntitiesProvider(node);
+            return null;
+        }
+
+        public string? History(bool back)
+        {
+            var h = _host._playbackHistory;
+            if (back ? !h.CanGoBack : !h.CanGoForward) return $"Nothing to go {(back ? "back" : "forward")} to in the playback history.";
+            if (back) h.GoBack(); else h.GoForward();
+            return null;
+        }
+
+        public string? SelectionHistory(bool back)
+        {
+            var h = _host._entityHistory;
+            if (back ? !h.CanGoBack : !h.CanGoForward) return $"Nothing to go {(back ? "back" : "forward")} to in the selection history.";
+            if (back) h.GoBack(); else h.GoForward();
+            return null;
+        }
+
+        public (string? Job, string? Error) Export(ReplayExportRequest request) => _host.StartExport(request);
+
+        public JsonObject? ExportStatus(string job) => _host._exports.TryGetValue(job, out var j) ? j.Describe() : null;
+    }
+
+    // ── RB-4 — JSON export jobs ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    private readonly ConcurrentDictionary<string, ExportJob> _exports = new();
+
+    /// <summary>One export: running, then done (the file) or failed (why).</summary>
+    private sealed class ExportJob
+    {
+        public required string Id { get; init; }
+        public required string Input { get; init; }
+        public required string Output { get; init; }
+        public volatile string State = "running";
+        public string? Error;
+
+        public JsonObject Describe() => new()
+        {
+            ["job"] = Id, ["state"] = State, ["input"] = Input, ["path"] = Output,
+            ["bytes"] = State == "done" && System.IO.File.Exists(Output) ? new System.IO.FileInfo(Output).Length : null,
+            ["error"] = Error,
+        };
+    }
+
+    /// <summary>
+    /// ⭐ RB-4 — the Timeline panel's export (<see cref="IRecordingExportService.ExportToJson"/> of the shown node's recording, on a
+    /// long-running task of its own — the panel's own call), with every option the panel has. ⭐ The units are network ids, resolved in the
+    /// shown node's world, whose handles are the recording's.
+    /// </summary>
+    private (string? Job, string? Error) StartExport(ReplayExportRequest r)
+    {
+        if (_manager == null || !_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) || ctx.CurrentFdpPath is not { } input)
+            return (null, "No recording is open: POST /replay first.");
+
+        var o = new JsonExportOptions
+        {
+            IncludeEntities = r.IncludeEntities, IncludeEvents = r.IncludeEvents, Minified = r.Minified, EpsilonTolerance = r.Epsilon,
+        };
+        switch (r.Window.ToLowerInvariant())
+        {
+            case "full": o.WindowMode = ExportWindowMode.FullFile; break;
+            case "frames":
+                o.WindowMode = ExportWindowMode.ByFrame;
+                o.StartFrame = (int)(r.From ?? 0);
+                o.EndFrame = r.To is { } toFrame ? (int)toFrame : int.MaxValue;
+                break;
+            case "time":
+                o.WindowMode = ExportWindowMode.ByTime;
+                o.StartTimeSec = (float)(r.From ?? 0);
+                o.EndTimeSec = r.To is { } toSec ? (float)toSec : float.PositiveInfinity;
+                break;
+            default: return (null, $"window '{r.Window}' is full, frames or time.");
+        }
+        switch (r.Format.ToLowerInvariant())
+        {
+            case "absolute": o.FormatMode = ExportFormatMode.AbsoluteState; break;
+            case "changelog": o.FormatMode = ExportFormatMode.Changelog; break;
+            case "incremental": o.FormatMode = ExportFormatMode.Incremental; break;
+            default: return (null, $"format '{r.Format}' is absolute, changelog or incremental.");
+        }
+        if (r.Entities is { Count: > 0 } ids)
+        {
+            o.FilterBySelection = true;
+            foreach (long id in ids)
+            {
+                var e = NetworkIdResolver.ResolveNetworkId(ctx.SandboxRepo, id);
+                if (e.IsNull) return (null, $"Unit {id} is not in the shown world at this frame.");
+                o.TargetEntities.Add(e);
+            }
+        }
+        if (r.EntityIndex is { } index)
+        {
+            o.FilterByEntityIndex = true;
+            o.TargetEntityIndex = index;
+        }
+
+        string job = Guid.NewGuid().ToString("N")[..12];
+        string output = r.Output ?? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-replay-exports", $"{job}.json");
+        var dir = System.IO.Path.GetDirectoryName(output);
+        if (!string.IsNullOrEmpty(dir)) System.IO.Directory.CreateDirectory(dir);
+        var entry = new ExportJob { Id = job, Input = input, Output = output };
+        _exports[job] = entry;
+        var export = _exportService ??= new RecordingExportService(Serializer, _diffService);
+        System.Threading.Tasks.Task.Factory.StartNew(() =>
+        {
+            try { export.ExportToJson(input, output, o); entry.State = "done"; }
+            catch (Exception ex) { entry.Error = $"{ex.GetType().Name}: {ex.Message}"; entry.State = "failed"; }
+        }, System.Threading.Tasks.TaskCreationOptions.LongRunning);
+        return (job, null);
+    }
+
+    /// <summary>
+    /// ⭐ RB-3 — the histories move the federation on a headless host too. ⚠ A windowed host wires them with its panels
+    /// (<see cref="WireDelegatesForTest"/>); a headless one builds no panel, so a back / forward would otherwise move nothing.
+    /// </summary>
+    private void WireHeadlessHistories()
+    {
+        _playbackHistory.OnWaypointRequested += wp => SeekFrameViaManager(wp.FrameIndex);
     }
 
     /// <summary>

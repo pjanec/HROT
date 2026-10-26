@@ -1189,4 +1189,78 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(new[] { 3 }, Frames());                                            // a jump starts over
         Assert.NotEmpty(provider.EventHistory!.GetHistory().Where(e => e.TypeName == nameof(RbFramePing) && ((RbFramePing)e.RawEvent).Frame == 3));
     }
+
+    /// <summary>⭐ RB-3 — the node / merged view and the playback history, through the Replay Browser's own seam, on a headless host.</summary>
+    [Fact]
+    public void RB3_TheView_AndThePlaybackHistory_MoveTheFederation_OnAHeadlessHost()
+    {
+        string root = Path.Combine(_tempDir, "view");
+        var exercise = Guid.NewGuid();
+        string node1 = RecordNode(root, exercise, 1, startSeconds: 1.0);
+        string node2 = RecordNode(root, exercise, 2, startSeconds: 1.0);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var p = _subsystem.CreateDebugProvider()!;
+        var rb = p.ReplayBrowser!;
+        Assert.Null(rb.Open(new[] { node1, node2 }, 0));
+
+        Assert.Null(rb.View("2"));
+        Assert.Equal(node2, p.ReplayRecordingPath);                                  // the shown node's recording
+        Assert.Contains("merged", rb.View("7"));                                     // not a loaded node
+        Assert.Null(rb.View("merged"));
+        Assert.Equal("merged", rb.Status()["view"]!.GetValue<string>());
+        Assert.Null(rb.View("1"));
+
+        p.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = TimeSpan.FromSeconds(3).Ticks });
+        Assert.Equal(3, _subsystem.PrimaryNodeCurrentFrame());
+        Assert.Null(rb.History(back: true));                                         // back to where the seek started
+        Assert.Equal(0, _subsystem.PrimaryNodeCurrentFrame());
+        Assert.Null(rb.History(back: false));
+        Assert.Equal(3, _subsystem.PrimaryNodeCurrentFrame());
+        Assert.NotNull(rb.History(back: false));                                     // nothing further
+    }
+
+    /// <summary>
+    /// ⭐ RB-4 — a JSON export job writes the SAME file the Timeline panel's export writes for the same options (one service, one call),
+    /// off the main thread; units are network ids resolved in the shown world.
+    /// </summary>
+    [Fact]
+    public void RB4_AnExportJob_WritesWhatThePanelsExportWrites_ForTheSameOptions()
+    {
+        string root = Path.Combine(_tempDir, "export");
+        string path = RecordNode(root, Guid.NewGuid(), 1, startSeconds: 1.0);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var rb = _subsystem.CreateDebugProvider()!.ReplayBrowser!;
+        Assert.Null(rb.Open(new[] { path }, 0));
+
+        string output = Path.Combine(_tempDir, "out", "export.json");
+        var (job, error) = rb.Export(new Hrot.Presentation.DebugApi.ReplayExportRequest(
+            Window: "frames", From: 1, To: 3, Format: "changelog", Entities: new long[] { 100 }, Minified: true, Output: output));
+        Assert.Null(error);
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (rb.ExportStatus(job!)!["state"]!.GetValue<string>() == "running" && DateTime.UtcNow < deadline)
+            System.Threading.Thread.Sleep(20);
+        var status = rb.ExportStatus(job!)!;
+        Assert.Equal("done", status["state"]!.GetValue<string>());
+        Assert.True(status["bytes"]!.GetValue<long>() > 0);
+
+        // the panel's own call: the same service, the same options (the unit as the handle the panel's selection holds)
+        using var ctx = new ReplayBrowserContext();
+        ctx.LoadRecording(path);
+        var unit = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(ctx.SandboxRepo, 100);
+        var options = new JsonExportOptions
+        {
+            WindowMode = ExportWindowMode.ByFrame, StartFrame = 1, EndFrame = 3, FormatMode = ExportFormatMode.Changelog,
+            FilterBySelection = true, TargetEntities = new List<Entity> { unit }, Minified = true,
+        };
+        string panels = Path.Combine(_tempDir, "out", "panel.json");
+        new RecordingExportService(_subsystem.SerializerForTest, new Fdp.Toolkit.ReplayBrowser.Diff.ComponentDiffService())
+            .ExportToJson(path, panels, options);
+        Assert.Equal(File.ReadAllText(panels), File.ReadAllText(output));
+
+        Assert.Contains("window", rb.Export(new Hrot.Presentation.DebugApi.ReplayExportRequest(Window: "sideways")).Error);
+        Assert.Contains("not in the shown world", rb.Export(new Hrot.Presentation.DebugApi.ReplayExportRequest(Entities: new long[] { 999 })).Error);
+        Assert.Null(rb.ExportStatus("no-such-job"));
+    }
 }

@@ -1877,18 +1877,21 @@ namespace Hrot.Editor.DebugApi
             Group:   "I — Replay",
             Summary: "Replay an exercise on the whole cluster, from ANY state, in ONE request — the cluster master plans the way (unload, load, seek) (R-3055).",
             Returns: "{ published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).",
-            Hint:    "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool). Example: enter_replay({atSeconds:30, waitForReady:true})",
+            Hint:    "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool); on the Replay Browser also path or paths (recording files). Example: enter_replay({atSeconds:30, waitForReady:true})",
             Params: new RouteParam[]
             {
                 new("exerciseId", "string", false, "The exercise (list_exercises); when omitted the master picks: the live run in progress, else the newest finished one"),
                 new("atSeconds", "number", false, "Where to enter, seconds after the exercise's start (default 0)"),
                 new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReplay"),
+                new("path", "string", false, "Replay Browser only (RB-2): one recording file (.fdp) to open, need not be in list_exercises"),
+                new("paths", "array", false, "Replay Browser only (RB-2): a node group — one .fdp per node of one exercise"),
             },
             Notes: new[]
             {
                 "With no exerciseId the cluster master picks: the live run in progress, else the newest finished one — the same on every host.",
                 "Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.",
                 "play / pause / step drive the replay clock; seek_replay jumps.",
+                "The Replay Browser (-m replaybrowser, standalone) answers the same: its exercises are the recordings under the staging root; path / paths open any file or node group. A cluster host refuses a path.",
             },
             ExampleArgsJson: "{\"atSeconds\":30,\"waitForReady\":true}",
             ExampleGist: "replay the last exercise from 30 s in"),
@@ -1896,11 +1899,23 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/replay/seek")] = new RouteDoc(
             Tool:    "seek_replay",
             Group:   "I — Replay",
-            Summary: "Seek the cluster's replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap.",
-            Returns: "{ published, requestId, atSeconds }",
-            Hint:    "Req: atSeconds (number, from the exercise's start). Example: seek_replay({atSeconds:45})",
-            Params: new RouteParam[] { new("atSeconds", "number", true, "Seconds after the exercise's start") },
-            Notes: new[] { "The cluster pauses for the seek; read get_replay_status, then the ordinary readers." },
+            Summary: "Seek the replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap. The moment is atSeconds, or a lookup over THIS node's recording: a frame, a step of frames, the frame after an event (cause), or the next / previous change of a unit (RB-2).",
+            Returns: "{ published, requestId, atSeconds } (+ frame, resolvedFrom for a lookup; next: found, or {found:false, note})",
+            Hint:    "One of: atSeconds (number) · frame (integer) · frames (integer, ±) · cause ({frame, entity}) · next ({entity, component?}) with direction (1 | -1). Example: seek_replay({next:{entity:1042, component:\"Health\"}, direction:1})",
+            Params: new RouteParam[]
+            {
+                new("atSeconds", "number", false, "Seconds after the exercise's start"),
+                new("frame", "integer", false, "A frame of this node's recording"),
+                new("frames", "integer", false, "Frames forward (+) or back (-) from the one shown"),
+                new("cause", "object", false, "{frame, entity}: the frame after an event, where its effect shows (the Event browser's causality jump); select the entity with select_entity"),
+                new("next", "object", false, "{entity, component?}: the next frame where the unit changed (in that component, or any)"),
+                new("direction", "integer", false, "With next: 1 forward (default), -1 backward"),
+            },
+            Notes: new[]
+            {
+                "The cluster pauses for the seek; read get_replay_status, then the ordinary readers.",
+                "A lookup reads this node's own recording; next scans it off the main thread in a reader of its own (the replayed world is not touched) — a long file takes a moment.",
+            },
             ExampleArgsJson: "{\"atSeconds\":45}",
             ExampleGist: "jump the replay to 45 s"),
 
@@ -1918,10 +1933,75 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_replay_status",
             Group:   "I — Replay",
             Summary: "The cluster's state, the loaded replay's length, this node's replay recording, and its clock.",
-            Returns: "{ clusterState, replaying, durationSeconds, recording, sim }",
+            Returns: "{ clusterState, replaying, durationSeconds, recording, sim, browser } — browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
             Hint:    "No params. Example: get_replay_status({})",
             ExampleArgsJson: "{}",
             ExampleGist: "is the cluster replaying, and where"),
+
+        [("POST", "/replay/view")] = new RouteDoc(
+            Tool:    "set_replay_view",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-3): show one node's replayed world or the merged world of all nodes — the Federation panel's switch.",
+            Returns: "the Replay Browser's status (get_replay_status's browser field)",
+            Hint:    "Req: view (\"merged\" or a loaded node id). Example: set_replay_view({view:\"merged\"})",
+            Params: new RouteParam[] { new("view", "string", true, "\"merged\", or the node id whose world to show") },
+            Notes: new[] { "The ordinary readers then read that world. Every other host answers NOT_SUPPORTED_HERE(replay.browser)." },
+            ExampleArgsJson: "{\"view\":\"merged\"}",
+            ExampleGist: "look at every node's units together"),
+
+        [("POST", "/replay/history")] = new RouteDoc(
+            Tool:    "step_replay_history",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-3): back / forward through the playback waypoints — the Timeline's back and forward buttons (every seek leaves one).",
+            Returns: "the Replay Browser's status",
+            Hint:    "Req: direction (\"back\" | \"forward\"). Example: step_replay_history({direction:\"back\"})",
+            Params: new RouteParam[] { new("direction", "string", true, "back | forward") },
+            ExampleArgsJson: "{\"direction\":\"back\"}",
+            ExampleGist: "go back to where the replay was before the last jump"),
+
+        [("POST", "/selection/history")] = new RouteDoc(
+            Tool:    "step_selection_history",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-3): back / forward through the units selected.",
+            Returns: "the Replay Browser's status",
+            Hint:    "Req: direction (\"back\" | \"forward\"). Example: step_selection_history({direction:\"back\"})",
+            Params: new RouteParam[] { new("direction", "string", true, "back | forward") },
+            ExampleArgsJson: "{\"direction\":\"back\"}",
+            ExampleGist: "select the unit selected before"),
+
+        [("POST", "/replay/export")] = new RouteDoc(
+            Tool:    "export_replay_json",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-4): export the shown node's recording to JSON, every option the Timeline panel has, as a job off the main thread.",
+            Returns: "{ job, state:'running', input, path } — poll get_replay_export",
+            Hint:    "All optional: window (full|frames|time), from, to, format (absolute|changelog|incremental), entities (network ids), entityIndex, includeEntities, includeEvents, minified, epsilon, output (file path; default a temp file). Example: export_replay_json({window:\"frames\", from:4000, to:4200, entities:[1042]})",
+            Params: new RouteParam[]
+            {
+                new("window", "string", false, "full (default) | frames | time"),
+                new("from", "number", false, "First frame (frames) or second (time)"),
+                new("to", "number", false, "Last frame (frames) or second (time)"),
+                new("format", "string", false, "absolute (default) | changelog | incremental"),
+                new("entities", "array", false, "Only these units (network ids, resolved in the shown world)"),
+                new("entityIndex", "integer", false, "Only the entity with this index"),
+                new("includeEntities", "boolean", false, "Default true"),
+                new("includeEvents", "boolean", false, "Default true"),
+                new("minified", "boolean", false, "Default false"),
+                new("epsilon", "number", false, "Float tolerance for changes (default 0.001)"),
+                new("output", "string", false, "Where to write (default: a temp file, named in the answer)"),
+            },
+            Notes: new[] { "The file is what the panel's 'Save to JSON' writes for the same options." },
+            ExampleArgsJson: "{\"window\":\"frames\",\"from\":0,\"to\":300,\"format\":\"changelog\"}",
+            ExampleGist: "dump the first 300 frames' changes to a JSON file"),
+
+        [("GET", "/replay/export/{job}")] = new RouteDoc(
+            Tool:    "get_replay_export",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-4): an export job's state, file and size.",
+            Returns: "{ job, state: running | done | failed, input, path, bytes, error }",
+            Hint:    "Req: job (string, from export_replay_json). Example: get_replay_export({job:\"a1b2c3d4e5f6\"})",
+            Params: new RouteParam[] { new("job", "string", true, "The job id") },
+            ExampleArgsJson: "{\"job\":\"a1b2c3d4e5f6\"}",
+            ExampleGist: "is the export finished, and where is the file"),
 
         [("GET", "/entities/{networkId}/journal/history")] = new RouteDoc(
             Tool:    "get_journal_history",
@@ -1949,10 +2029,11 @@ namespace Hrot.Editor.DebugApi
             Group:   "I — Replay",
             Summary: "Find the frames of this node's replay recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
             Returns: "{ count, truncated, hits:[{frame, networkId, context}] }",
-            Hint:    "Req: condition (object, a SearchPredicateDto). Optional networkId (number), limit (number, default 200). Example: search_replay({condition:{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}, networkId:1000})",
+            Hint:    "Req: condition (object, a SearchPredicateDto) or lifecycle (object: {IdentifierType: NetworkId|EcsHandle|NameSubstring, TargetValue, NameComponentType?}). Optional networkId (number), limit (number, default 200). Example: search_replay({condition:{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}, networkId:1000})",
             Params: new RouteParam[]
             {
-                new("condition", "object", true, "The condition (SearchPredicateDto JSON, as add_breakpoint takes)"),
+                new("condition", "object", false, "The condition (SearchPredicateDto JSON, as add_breakpoint takes)"),
+                new("lifecycle", "object", false, "RB-5 — the Search panel's lifecycle mode: each matching unit's first and last frame ({mode:'lifecycle', hits:[{startFrame, endFrame, networkId, context}]})"),
                 new("networkId", "number", false, "Only this unit"),
                 new("limit", "number", false, "How many hits to return (default 200)"),
             },

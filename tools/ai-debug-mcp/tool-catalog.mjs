@@ -1554,7 +1554,7 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
     "notes": [
-      "Answered by a host that keeps the cluster read model (the editor, the orchestrator, ExCon); other nodes answer 503."
+      "Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus."
     ],
     "example": {
       "args": {},
@@ -1577,7 +1577,7 @@ export const TOOLS_CATALOG = [
         "name": "exerciseId",
         "type": "string",
         "required": false,
-        "description": "The exercise (list_exercises); when omitted: the live run in progress, else the newest finished one"
+        "description": "The exercise (list_exercises); when omitted the master picks: the live run in progress, else the newest finished one"
       },
       {
         "name": "atSeconds",
@@ -1590,13 +1590,26 @@ export const TOOLS_CATALOG = [
         "type": "boolean",
         "required": false,
         "description": "Wait until the cluster reports OperatingReplay"
+      },
+      {
+        "name": "path",
+        "type": "string",
+        "required": false,
+        "description": "Replay Browser only (RB-2): one recording file (.fdp) to open, need not be in list_exercises"
+      },
+      {
+        "name": "paths",
+        "type": "array",
+        "required": false,
+        "description": "Replay Browser only (RB-2): a node group — one .fdp per node of one exercise"
       }
     ],
     "returns": "{ published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).",
     "notes": [
-      "With no exerciseId it needs a host that keeps the cluster read model (the editor, the orchestrator, ExCon); a CGF / SimHost / IG process needs the exerciseId.",
+      "With no exerciseId the cluster master picks: the live run in progress, else the newest finished one — the same on every host.",
       "Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.",
-      "play / pause / step drive the replay clock; seek_replay jumps."
+      "play / pause / step drive the replay clock; seek_replay jumps.",
+      "The Replay Browser (-m replaybrowser, standalone) answers the same: its exercises are the recordings under the staging root; path / paths open any file or node group. A cluster host refuses a path."
     ],
     "example": {
       "args": {
@@ -1605,7 +1618,154 @@ export const TOOLS_CATALOG = [
       },
       "gist": "replay the last exercise from 30 s in"
     },
-    "hint": "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool). Example: enter_replay({atSeconds:30, waitForReady:true})",
+    "hint": "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool); on the Replay Browser also path or paths (recording files). Example: enter_replay({atSeconds:30, waitForReady:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "export_replay_json",
+    "group": "I — Replay",
+    "summary": "Replay Browser only (RB-4): export the shown node's recording to JSON, every option the Timeline panel has, as a job off the main thread.",
+    "http": {
+      "method": "POST",
+      "path": "/replay/export"
+    },
+    "params": [
+      {
+        "name": "window",
+        "type": "string",
+        "required": false,
+        "description": "full (default) | frames | time"
+      },
+      {
+        "name": "from",
+        "type": "number",
+        "required": false,
+        "description": "First frame (frames) or second (time)"
+      },
+      {
+        "name": "to",
+        "type": "number",
+        "required": false,
+        "description": "Last frame (frames) or second (time)"
+      },
+      {
+        "name": "format",
+        "type": "string",
+        "required": false,
+        "description": "absolute (default) | changelog | incremental"
+      },
+      {
+        "name": "entities",
+        "type": "array",
+        "required": false,
+        "description": "Only these units (network ids, resolved in the shown world)"
+      },
+      {
+        "name": "entityIndex",
+        "type": "integer",
+        "required": false,
+        "description": "Only the entity with this index"
+      },
+      {
+        "name": "includeEntities",
+        "type": "boolean",
+        "required": false,
+        "description": "Default true"
+      },
+      {
+        "name": "includeEvents",
+        "type": "boolean",
+        "required": false,
+        "description": "Default true"
+      },
+      {
+        "name": "minified",
+        "type": "boolean",
+        "required": false,
+        "description": "Default false"
+      },
+      {
+        "name": "epsilon",
+        "type": "number",
+        "required": false,
+        "description": "Float tolerance for changes (default 0.001)"
+      },
+      {
+        "name": "output",
+        "type": "string",
+        "required": false,
+        "description": "Where to write (default: a temp file, named in the answer)"
+      }
+    ],
+    "returns": "{ job, state:'running', input, path } — poll get_replay_export",
+    "notes": [
+      "The file is what the panel's 'Save to JSON' writes for the same options."
+    ],
+    "example": {
+      "args": {
+        "window": "frames",
+        "from": 0,
+        "to": 300,
+        "format": "changelog"
+      },
+      "gist": "dump the first 300 frames' changes to a JSON file"
+    },
+    "hint": "All optional: window (full|frames|time), from, to, format (absolute|changelog|incremental), entities (network ids), entityIndex, includeEntities, includeEvents, minified, epsilon, output (file path; default a temp file). Example: export_replay_json({window:\"frames\", from:4000, to:4200, entities:[1042]})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_replay_export",
+    "group": "I — Replay",
+    "summary": "Replay Browser only (RB-4): an export job's state, file and size.",
+    "http": {
+      "method": "GET",
+      "path": "/replay/export/{job}"
+    },
+    "params": [
+      {
+        "name": "job",
+        "type": "string",
+        "required": true,
+        "description": "The job id"
+      }
+    ],
+    "returns": "{ job, state: running | done | failed, input, path, bytes, error }",
+    "example": {
+      "args": {
+        "job": "a1b2c3d4e5f6"
+      },
+      "gist": "is the export finished, and where is the file"
+    },
+    "hint": "Req: job (string, from export_replay_json). Example: get_replay_export({job:\"a1b2c3d4e5f6\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "step_replay_history",
+    "group": "I — Replay",
+    "summary": "Replay Browser only (RB-3): back / forward through the playback waypoints — the Timeline's back and forward buttons (every seek leaves one).",
+    "http": {
+      "method": "POST",
+      "path": "/replay/history"
+    },
+    "params": [
+      {
+        "name": "direction",
+        "type": "string",
+        "required": true,
+        "description": "back | forward"
+      }
+    ],
+    "returns": "the Replay Browser's status",
+    "example": {
+      "args": {
+        "direction": "back"
+      },
+      "gist": "go back to where the replay was before the last jump"
+    },
+    "hint": "Req: direction (\"back\" | \"forward\"). Example: step_replay_history({direction:\"back\"})",
     "manualVerify": false
   },
 
@@ -1621,8 +1781,14 @@ export const TOOLS_CATALOG = [
       {
         "name": "condition",
         "type": "object",
-        "required": true,
+        "required": false,
         "description": "The condition (SearchPredicateDto JSON, as add_breakpoint takes)"
+      },
+      {
+        "name": "lifecycle",
+        "type": "object",
+        "required": false,
+        "description": "RB-5 — the Search panel's lifecycle mode: each matching unit's first and last frame ({mode:'lifecycle', hits:[{startFrame, endFrame, networkId, context}]})"
       },
       {
         "name": "networkId",
@@ -1659,14 +1825,14 @@ export const TOOLS_CATALOG = [
       },
       "gist": "find when something happened in the recording"
     },
-    "hint": "Req: condition (object, a SearchPredicateDto). Optional networkId (number), limit (number, default 200). Example: search_replay({condition:{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}, networkId:1000})",
+    "hint": "Req: condition (object, a SearchPredicateDto) or lifecycle (object: {IdentifierType: NetworkId|EcsHandle|NameSubstring, TargetValue, NameComponentType?}). Optional networkId (number), limit (number, default 200). Example: search_replay({condition:{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}, networkId:1000})",
     "manualVerify": false
   },
 
   {
     "name": "seek_replay",
     "group": "I — Replay",
-    "summary": "Seek the cluster's replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap.",
+    "summary": "Seek the replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap. The moment is atSeconds, or a lookup over THIS node's recording: a frame, a step of frames, the frame after an event (cause), or the next / previous change of a unit (RB-2).",
     "http": {
       "method": "POST",
       "path": "/replay/seek"
@@ -1675,13 +1841,44 @@ export const TOOLS_CATALOG = [
       {
         "name": "atSeconds",
         "type": "number",
-        "required": true,
+        "required": false,
         "description": "Seconds after the exercise's start"
+      },
+      {
+        "name": "frame",
+        "type": "integer",
+        "required": false,
+        "description": "A frame of this node's recording"
+      },
+      {
+        "name": "frames",
+        "type": "integer",
+        "required": false,
+        "description": "Frames forward (+) or back (-) from the one shown"
+      },
+      {
+        "name": "cause",
+        "type": "object",
+        "required": false,
+        "description": "{frame, entity}: the frame after an event, where its effect shows (the Event browser's causality jump); select the entity with select_entity"
+      },
+      {
+        "name": "next",
+        "type": "object",
+        "required": false,
+        "description": "{entity, component?}: the next frame where the unit changed (in that component, or any)"
+      },
+      {
+        "name": "direction",
+        "type": "integer",
+        "required": false,
+        "description": "With next: 1 forward (default), -1 backward"
       }
     ],
-    "returns": "{ published, requestId, atSeconds }",
+    "returns": "{ published, requestId, atSeconds } (+ frame, resolvedFrom for a lookup; next: found, or {found:false, note})",
     "notes": [
-      "The cluster pauses for the seek; read get_replay_status, then the ordinary readers."
+      "The cluster pauses for the seek; read get_replay_status, then the ordinary readers.",
+      "A lookup reads this node's own recording; next scans it off the main thread in a reader of its own (the replayed world is not touched) — a long file takes a moment."
     ],
     "example": {
       "args": {
@@ -1689,7 +1886,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "jump the replay to 45 s"
     },
-    "hint": "Req: atSeconds (number, from the exercise's start). Example: seek_replay({atSeconds:45})",
+    "hint": "One of: atSeconds (number) · frame (integer) · frames (integer, ±) · cause ({frame, entity}) · next ({entity, component?}) with direction (1 | -1). Example: seek_replay({next:{entity:1042, component:\"Health\"}, direction:1})",
     "manualVerify": false
   },
 
@@ -1702,7 +1899,7 @@ export const TOOLS_CATALOG = [
       "path": "/replay/status"
     },
     "params": [],
-    "returns": "{ clusterState, replaying, durationSeconds, recording, sim }",
+    "returns": "{ clusterState, replaying, durationSeconds, recording, sim, browser } — browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
     "example": {
       "args": {},
       "gist": "is the cluster replaying, and where"
@@ -1735,6 +1932,63 @@ export const TOOLS_CATALOG = [
       "gist": "end the replay"
     },
     "hint": "Optional: waitForReady (bool). Example: stop_replay({waitForReady:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_replay_view",
+    "group": "I — Replay",
+    "summary": "Replay Browser only (RB-3): show one node's replayed world or the merged world of all nodes — the Federation panel's switch.",
+    "http": {
+      "method": "POST",
+      "path": "/replay/view"
+    },
+    "params": [
+      {
+        "name": "view",
+        "type": "string",
+        "required": true,
+        "description": "\"merged\", or the node id whose world to show"
+      }
+    ],
+    "returns": "the Replay Browser's status (get_replay_status's browser field)",
+    "notes": [
+      "The ordinary readers then read that world. Every other host answers NOT_SUPPORTED_HERE(replay.browser)."
+    ],
+    "example": {
+      "args": {
+        "view": "merged"
+      },
+      "gist": "look at every node's units together"
+    },
+    "hint": "Req: view (\"merged\" or a loaded node id). Example: set_replay_view({view:\"merged\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "step_selection_history",
+    "group": "I — Replay",
+    "summary": "Replay Browser only (RB-3): back / forward through the units selected.",
+    "http": {
+      "method": "POST",
+      "path": "/selection/history"
+    },
+    "params": [
+      {
+        "name": "direction",
+        "type": "string",
+        "required": true,
+        "description": "back | forward"
+      }
+    ],
+    "returns": "the Replay Browser's status",
+    "example": {
+      "args": {
+        "direction": "back"
+      },
+      "gist": "select the unit selected before"
+    },
+    "hint": "Req: direction (\"back\" | \"forward\"). Example: step_selection_history({direction:\"back\"})",
     "manualVerify": false
   },
 

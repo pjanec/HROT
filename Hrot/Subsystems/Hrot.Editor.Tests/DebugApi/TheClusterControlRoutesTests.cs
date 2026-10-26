@@ -134,6 +134,11 @@ public sealed class TheClusterControlRoutesTests
             return Refuse;
         }
         public JsonObject Status() => new() { ["frame"] = 7 };
+        public string? View(string view) => null;
+        public string? History(bool back) => null;
+        public string? SelectionHistory(bool back) => null;
+        public (string? Job, string? Error) Export(ReplayExportRequest request) => ("job1", null);
+        public JsonObject? ExportStatus(string job) => new() { ["job"] = job };
     }
 
     private DebugApiService BrowserHost(RecordingBrowserControl browser)
@@ -332,6 +337,18 @@ public sealed class TheClusterControlRoutesTests
             .ResolveReplaySeek(new JsonObject { ["frame"] = 1 });
         Assert.Contains("POST /replay", r.Error);
         Assert.Empty(_master.Sent);
+    }
+
+    [Fact]
+    public void RB3_The_Replay_Browsers_own_routes_are_not_supported_on_a_cluster_host()
+    {
+        var svc = Host();
+        Assert.Throws<NotSupportedHereException>(() => svc.SetReplayView(new JsonObject { ["view"] = "merged" }));
+        Assert.Throws<NotSupportedHereException>(() => svc.StepReplayHistory(new JsonObject { ["direction"] = "back" }));
+        Assert.Throws<NotSupportedHereException>(() => svc.StepSelectionHistory(new JsonObject { ["direction"] = "back" }));
+        Assert.Throws<NotSupportedHereException>(() => svc.StartReplayExport(new JsonObject()));
+        // ⭐ a malformed request is told so before anything else
+        Assert.Contains("back", BrowserHost(new RecordingBrowserControl()).StepReplayHistory(new JsonObject { ["direction"] = "up" }).Error);
     }
 
     [Fact]
