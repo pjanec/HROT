@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — DISPATCHED at the commit that adds this file (2026-10-26); scope frozen there
+state: LIVE — DISPATCHED at `c7bcb4319` (2026-10-26); scope frozen there
 updated: 2026-10-26
 current-answer: the whole file
 stale-below: nothing
@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — ui: the Replay Browser over the AI debug HTTP API, every feature
 
-**For:** the ui lane (`ui`). **From:** the coordinator lane. ⭐ **Dispatched at the commit that adds this file**; your scope is FROZEN there
+**For:** the ui lane (`ui`). **From:** the coordinator lane. ⭐ **Dispatched at `c7bcb4319`**; your scope is FROZEN there
 and later documents are FYI. If one invalidates an item, STOP that item and report it (R-106).
 
 🔒 **User, `2026-10-26`:** *"we of course still need the replay browser to be controllable via ai debug http … preferrably using the existing
@@ -27,7 +27,7 @@ can read a Replay Browser's world but not open, seek, step, search over or expor
 
 ## 1. Before anything
 
-Merge `coordinator` at the dispatch commit or later; push a `chore: started …` marker (rule 1b); ids from your block. **Read
+Merge `coordinator` at `c7bcb4319` or later; push a `chore: started …` marker (rule 1b); ids from your block. **Read
 [`DESIGN_Replay_Browser_Debug_Http.md`](../../DESIGN_Replay_Browser_Debug_Http.md)** §0 (rulings, leans), §2 (every feature → its route), §3
 (UML), §4 (claim table). The design is yours to finish and fold the as-built into (obligation ⑤).
 
