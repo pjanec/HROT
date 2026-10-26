@@ -64,19 +64,6 @@ public sealed class TrafficSubsystem : ISubsystem, IProvidesDebugSurface, Hrot.C
 
     /// <summary>The node's debug surface: its world, entity map, catalogue, cluster state, control bus and architecture.</summary>
     public ISubsystemDebugProvider? CreateDebugProvider()
-        => new SubsystemDebugProvider(
-            subsystemName: Name,
-            perspective:   Name,
-            world:         () => _bootstrapper?.Context?.World,
-            entityMap:     () => _bootstrapper?.Context?.EntityMap,
-            tkbDb:         SubsystemDebugProvider.TkbFrom(() => _bootstrapper?.Context?.World),
-            // ⭐⭐⭐ R-3052…R-3055 — the cluster master through the node's own orchestration bus (every state/storage/seek route).
-            master:        OrchestrationBusMasterControl.Via(() => _bootstrapper?.Context?.EventBus),
-            // ⭐ R-3055 — the master's exercise inventory, as this node's ClusterSlave received it (the same read model on every node)
-            exercises:     Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _bootstrapper?.Context?.ClusterSlave),
-            clusterState:  SubsystemDebugProvider.ClusterStateFrom(() => _bootstrapper?.Context?.ClusterSlave),
-            descriptorMap: () => _bootstrapper?.Context?.NedReplication?.DescriptorOwnershipMap,
-            architecture:  () => _bootstrapper?.Context?.Kernel is null
-                                 ? null
-                                 : new ArchitectureDiagnosticsService(() => _bootstrapper?.Context?.Kernel));
+        // ⭐⭐⭐ the ONE ECS-node debug surface (EcsNodeDebugProvider): the traffic node adds nothing of its own.
+        => EcsNodeDebugProvider.For(Name, Name, () => _bootstrapper?.Context);
 }

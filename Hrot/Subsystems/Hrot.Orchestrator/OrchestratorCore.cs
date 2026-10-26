@@ -82,15 +82,15 @@ public sealed class OrchestratorCore : IDisposable
         // ⭐ CE-3299 B3 (D3) — a checkpoint is named for ONE wall time on the clock every slave follows (silent-default rule:
         //   every host builds its master here, with its time reads, so none can forget it).
         _master.WallTicks = () => o.TimeReads.GetCurrentState().TotalWallTicks;
-        // ⭐ R-3055 — the master resolves a replay that names no exercise; the newest finished one is in the core's inventory read model
-        _master.NewestExercise = () => UiCache.AvailableExercises.Length == 0
-            ? null
-            : UiCache.AvailableExercises.MaxBy(x => x.StartTimeUtc).ExerciseId;
         // ⭐⭐⭐ HN-037 — the world's ONE id authority, so a scenario load resets it to 1000.
         //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11.
         _master.IdAuthority = o.IdAuthority;
 
         UiCache       = new ClusterUiCache(bus, o.TimeReads);
+        // ⭐ R-3055 — the master resolves a replay that names no exercise; the newest finished one is in the core's inventory read model
+        _master.NewestExercise = () => UiCache.AvailableExercises.Length == 0
+            ? null
+            : UiCache.AvailableExercises.MaxBy(x => x.StartTimeUtc).ExerciseId;
         ScenarioPanel = new ClusterScenarioPanel(bus, UiCache);
 
         // Aggregators — one per node-op whose ACKs carry a result.

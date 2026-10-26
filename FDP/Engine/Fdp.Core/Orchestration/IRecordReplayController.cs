@@ -127,6 +127,10 @@ namespace Fdp.Core.Orchestration
         /// </summary>
         long ReplayAnchorWallTicks { get; set; }
 
+        /// <summary>⭐ R-3055 — the recording this node replays now, or <see langword="null"/> outside a replay: what the debug
+        /// surface's journal history and recording search scan, read-only.</summary>
+        string? ActiveReplayFilePath { get; }
+
         /// <summary>⭐⭐ R-4012 — true while this node restores the current replay moment from its own recording.</summary>
         bool IsRestoringReplay { get; }
 

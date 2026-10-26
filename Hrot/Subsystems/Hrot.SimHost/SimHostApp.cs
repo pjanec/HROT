@@ -218,6 +218,9 @@ namespace Hrot.SimHost
         /// </summary>
         internal FdpEventBus? OrchestrationBus => _context?.EventBus;
 
+        /// <summary>⭐ The node's context — what the ONE ECS-node debug surface (<c>EcsNodeDebugProvider</c>) derives from.</summary>
+        internal Hrot.Common.Infrastructure.HrotNodeContext? NodeContext => _context;
+
         /// <summary>
         /// ⭐⭐ <b>This node's <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/></b> — the control-plane
         /// endpoint that commits cluster-state transitions for SimHost and holds

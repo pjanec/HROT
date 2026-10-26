@@ -1808,6 +1808,9 @@ public class IgApplication : IDisposable
     /// </summary>
     internal Fdp.Core.FdpEventBus? OrchestrationBus => _context?.EventBus;
 
+    /// <summary>⭐ The node's context — what the ONE ECS-node debug surface (<c>EcsNodeDebugProvider</c>) derives from.</summary>
+    internal Hrot.Common.Infrastructure.HrotNodeContext? NodeContext => _context;
+
     /// <summary>Current kernel sim time in seconds ? available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;
 

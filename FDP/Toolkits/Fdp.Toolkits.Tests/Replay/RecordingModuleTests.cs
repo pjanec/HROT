@@ -772,6 +772,7 @@ namespace Fdp.Toolkit.Replay.Tests
             public long ActiveRecordingStartWallTicks => 0;
             public long ActiveRecordingEndWallTicks => 0;
             public long ReplayAnchorWallTicks { get; set; }
+            public string? ActiveReplayFilePath => null;
             public bool IsRestoringReplay => false;
             public long ActiveMaxNetworkId => 0;
         }
