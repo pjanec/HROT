@@ -175,7 +175,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                 Assert.NotNull(reread);
                 double recorded = index.FrameTicks.Count > 1 ? TimeSpan.FromTicks(index.FrameTicks[^1] - index.FrameTicks[0]).TotalSeconds : 0;
                 _out.WriteLine($"first ticks: {string.Join(", ", index.FrameTicks.Take(3))} … last {index.FrameTicks[^1]}");
-                if (index.FrameTicks.Count > 2) recorded = TimeSpan.FromTicks(index.FrameTicks[^1] - index.FrameTicks[1]).TotalSeconds;   // frame 0 may carry no wall time
+                int jump = 1; long gap = 0, backwards = 0;
+                for (int f = 1; f < index.FrameTicks.Count; f++)
+                {
+                    long d = index.FrameTicks[f] - index.FrameTicks[f - 1];
+                    if (d > gap) { gap = d; jump = f; }
+                    if (d < 0) backwards++;
+                }
+                _out.WriteLine($"largest step: frame {jump - 1} → {jump} ({index.FrameTicks[jump - 1]} → {index.FrameTicks[jump]}); steps backwards: {backwards}");
+                if (index.FrameTicks.Count > jump + 1) recorded = TimeSpan.FromTicks(index.FrameTicks[^1] - index.FrameTicks[jump]).TotalSeconds;   // after the jump
                 _out.WriteLine($"recording {new FileInfo(path).Length / 1e6:0.0} MB · {index.TotalFrames} frames · {recorded:0} s recorded");
                 _out.WriteLine($"scan {scan:0.0} s = {index.TotalFrames / Math.Max(scan, 1e-6):0} frames/s ({recorded / Math.Max(scan, 1e-6):0.0}× real time)");
                 _out.WriteLine($"sidecar {sidecar / 1e3:0.0} kB · reopen {open:0.0} ms");
