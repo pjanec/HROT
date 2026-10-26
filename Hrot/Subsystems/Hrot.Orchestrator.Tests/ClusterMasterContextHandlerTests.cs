@@ -313,4 +313,19 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         Assert.False(eventFired,
             "OnContextLoaded must not fire for non-load transitions such as UnloadingLive.");
     }
+
+    /// <summary>⭐ backend `2026-10-26` (run C) — a load of a fresh scenario (no saved start) puts the wall clock on the REAL clock, so a
+    /// recording that spans the load and the next resume keeps one basis.</summary>
+    [Fact]
+    public void ALoadOfAFreshScenario_PutsTheWallClockOnTheRealClock_NotAtZero()
+    {
+        long now = DateTime.UtcNow.Ticks;
+        var fresh = Hrot.Orchestrator.OrchestratorCore.LoadedClock(startTicks: 0, simTimeSeconds: 0, nowTicks: now);
+        Assert.Equal(now, fresh.TotalWallTicks);
+        Assert.Equal(0.0, fresh.TotalTime);
+
+        var saved = Hrot.Orchestrator.OrchestratorCore.LoadedClock(startTicks: 12345, simTimeSeconds: 7.5, nowTicks: now);
+        Assert.Equal(12345, saved.TotalWallTicks);
+        Assert.Equal(7.5, saved.TotalTime);
+    }
 }

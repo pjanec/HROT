@@ -111,12 +111,7 @@ public sealed class OrchestratorCore : IDisposable
             // ⭐ CE-122 / CE-3093 — a scenario load JUMPS the clock to the loaded time and holds it while the world
             //   is rebuilt. Whether it then runs is the load's property — GlobalContextProcessManager resumes at
             //   OperatingLive unless it asked to start paused (Q86 §4-G).
-            time.SnapTo(new GlobalTime
-            {
-                TotalWallTicks    = startTicks,
-                TotalTime         = simTimeSeconds,
-                UnscaledTotalTime = simTimeSeconds,
-            });
+            time.SnapTo(LoadedClock(startTicks, simTimeSeconds, DateTime.UtcNow.Ticks));
             FdpLog<OrchestratorCore>.Info(
                 "[Orchestrator] Scenario loaded: clock reset to SimTime={1:F1}s (WallTicks={0})",
                 startTicks, simTimeSeconds);
@@ -198,4 +193,17 @@ public sealed class OrchestratorCore : IDisposable
         _master.Dispose();
         _mergeWorker.Dispose();
     }
+
+    /// <summary>
+    /// ⭐ backend `2026-10-26` (run C) — where a scenario load puts the clock: the loaded sim time, and the wall clock on the REAL
+    /// clock's basis (<paramref name="nowTicks"/>) unless the context names its own start. ⛔ Never wall 0: every resume re-anchors the
+    /// wall to the real clock (MasterSyncController), so a load at 0 gave a recording TWO bases — 📌 measured on the editor (its own
+    /// clock is the master): frames from 1.7e8 to 6.39e17 ticks, a replay "63 928 598 528 s" long.
+    /// </summary>
+    public static GlobalTime LoadedClock(long startTicks, double simTimeSeconds, long nowTicks) => new()
+    {
+        TotalWallTicks    = startTicks != 0 ? startTicks : nowTicks,
+        TotalTime         = simTimeSeconds,
+        UnscaledTotalTime = simTimeSeconds,
+    };
 }
