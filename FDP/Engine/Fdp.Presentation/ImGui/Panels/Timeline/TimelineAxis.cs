@@ -61,9 +61,7 @@ public sealed class TimelineAxis
         if (ReferenceEquals(index, _projectedFrom)) return _projected;
         var ticks = new long[index.FrameTicks.Count];
         for (int i = 0; i < ticks.Length; i++) ticks[i] = ToAxis(index.FrameTicks[i]);
-        var lanes = new Dictionary<string, TimelineEvent[]>(StringComparer.Ordinal);
-        foreach (var id in index.LaneIds) lanes[id] = (TimelineEvent[])index.Lane(id);
-        _projected = new TimelineIndex(lanes, ticks, index.ScannedFrames, index.TotalFrames, index.LaneErrors);
+        _projected = index.WithFrameTicks(ticks);   // ⭐ CE-1361 ② — the lanes shared as they are (a live index's are views of a grow-only buffer)
         _projectedFrom = index;
         return _projected;
     }

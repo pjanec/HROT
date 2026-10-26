@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var hashes = lanes.ToDictionary(l => l.Lane.Id, TimelineSidecar.HashOf, StringComparer.Ordinal);
 
             var cached = TimelineSidecar.TryRead(fdpPath);
-            var reused = new Dictionary<string, TimelineEvent[]>(StringComparer.Ordinal);
+            var reused = new Dictionary<string, SharedList<TimelineEvent>>(StringComparer.Ordinal);
             var missing = new List<IndexedLaneDefinition>();
             foreach (var lane in lanes)
             {
@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                 else missing.Add(lane);
             }
             TimelineIndex? kept = cached is { } k
-                ? new TimelineIndex(reused, k.Index.FrameTicks.ToArray(), k.Index.ScannedFrames, k.Index.TotalFrames)
+                ? new TimelineIndex(reused, new SharedList<long>(k.Index.FrameTicks.ToArray()), k.Index.ScannedFrames, k.Index.TotalFrames)
                 : null;
             source.ScannedLanes = missing.Select(l => l.Lane.Id).ToArray();
             if (missing.Count == 0 && kept != null)

@@ -56,7 +56,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// <summary>The union of two indexes over the same recording — lanes from <paramref name="fresh"/> win; frames from the one that scanned more.</summary>
         public static TimelineIndex Merge(TimelineIndex cached, TimelineIndex fresh)
         {
-            var lanes = new Dictionary<string, TimelineEvent[]>(StringComparer.Ordinal);
+            var lanes = new Dictionary<string, SharedList<TimelineEvent>>(StringComparer.Ordinal);
             foreach (var id in cached.LaneIds) lanes[id] = cached.Raw(id);
             foreach (var id in fresh.LaneIds) lanes[id] = fresh.Raw(id);
             var errors = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             foreach (var (k, v) in fresh.LaneErrors) errors[k] = v;
             var ticks = new long[fresh.FrameTicks.Count];
             for (int i = 0; i < ticks.Length; i++) ticks[i] = fresh.FrameTicks[i];
-            return new TimelineIndex(lanes, ticks, fresh.ScannedFrames, fresh.TotalFrames, errors);
+            return new TimelineIndex(lanes, new SharedList<long>(ticks), fresh.ScannedFrames, fresh.TotalFrames, errors);
         }
     }
 }

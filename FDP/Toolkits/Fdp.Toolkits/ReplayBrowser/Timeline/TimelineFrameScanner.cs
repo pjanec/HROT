@@ -16,9 +16,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     {
         private readonly List<(string Lane, ILaneScan Scan)> _scans = new();
         private readonly Dictionary<string, string> _errors = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, List<TimelineEvent>> _sink = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, GrowOnlyBuffer<TimelineEvent>> _sink = new(StringComparer.Ordinal);
         private readonly List<SearchResultDto> _results = new(64);
-        private readonly List<long> _ticks = new();
+        private readonly GrowOnlyBuffer<long> _ticks = new();
 
         public TimelineFrameScanner(IReadOnlyList<IndexedLaneDefinition> lanes, TimelineLaneCompiler compiler)
         {
@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             if (compiler == null) throw new ArgumentNullException(nameof(compiler));
             foreach (var lane in lanes)
             {
-                _sink[lane.Lane.Id] = new List<TimelineEvent>();
+                _sink[lane.Lane.Id] = new GrowOnlyBuffer<TimelineEvent>();
                 try { _scans.Add((lane.Lane.Id, compiler.Compile(lane))); }
                 catch (Exception ex) when (ex is ArgumentException or NotSupportedException or InvalidOperationException) { _errors[lane.Lane.Id] = ex.Message; }
             }
@@ -42,8 +42,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// </summary>
         public void Step(EntityRepository repo, int frame, long ticks, bool clearDestructionLog)
         {
-            while (_ticks.Count <= frame) _ticks.Add(ticks);
-            _ticks[frame] = ticks;
+            if (_ticks.Count <= frame) { while (_ticks.Count <= frame) _ticks.Add(ticks); }
+            else _ticks[frame] = ticks;   // a re-step of an existing frame (never the live source's: it only appends, so no published slot is written)
             foreach (var (laneId, scan) in _scans)
             {
                 _results.Clear();
@@ -64,13 +64,16 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// the last ticks when the caller pre-sized it).</summary>
         public TimelineIndex Snapshot(int scannedFrames, int totalFrames, long[]? frameTicks = null)
         {
-            var lanes = new Dictionary<string, TimelineEvent[]>(_sink.Count, StringComparer.Ordinal);
-            foreach (var (id, list) in _sink) lanes[id] = list.ToArray();
-            var ticks = frameTicks ?? _ticks.GetRange(0, Math.Min(scannedFrames, _ticks.Count)).ToArray();
+            // ⭐ CE-1361 ② — O(lanes), not O(events): the lanes (and the frame table) are SHARED views of the grow-only buffers
+            var lanes = new Dictionary<string, SharedList<TimelineEvent>>(_sink.Count, StringComparer.Ordinal);
+            foreach (var (id, buffer) in _sink) lanes[id] = buffer.Snapshot();
+            var ticks = frameTicks != null ? new SharedList<long>(frameTicks)
+                : scannedFrames >= _ticks.Count ? _ticks.Snapshot()
+                : new SharedList<long>(_ticks.Snapshot().Memory.Slice(0, scannedFrames).ToArray());
             return new TimelineIndex(lanes, ticks, scannedFrames, totalFrames, new Dictionary<string, string>(_errors));
         }
 
         /// <summary>The frame → ticks table so far (a copy).</summary>
-        public long[] FrameTicks() => _ticks.ToArray();
+        public long[] FrameTicks() => _ticks.Snapshot().Memory.ToArray();
     }
 }

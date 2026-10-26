@@ -17,12 +17,24 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     /// </summary>
     public sealed class TimelineIndex
     {
-        private readonly Dictionary<string, TimelineEvent[]> _lanes;
+        private readonly Dictionary<string, SharedList<TimelineEvent>> _lanes;
 
         public TimelineIndex(IReadOnlyDictionary<string, TimelineEvent[]> lanes, long[] frameTicks, int scannedFrames, int totalFrames,
             IReadOnlyDictionary<string, string>? laneErrors = null)
         {
-            _lanes = new Dictionary<string, TimelineEvent[]>(lanes, StringComparer.Ordinal);
+            _lanes = new Dictionary<string, SharedList<TimelineEvent>>(lanes.Count, StringComparer.Ordinal);
+            foreach (var (id, events) in lanes) _lanes[id] = new SharedList<TimelineEvent>(events);
+            FrameTicks = new SharedList<long>(frameTicks);
+            ScannedFrames = scannedFrames;
+            TotalFrames = totalFrames;
+            LaneErrors = laneErrors ?? new Dictionary<string, string>();
+        }
+
+        /// <summary>⭐ <c>CE-1361</c> ② — an index over SHARED lane and frame views (no copy): the live source's snapshots.</summary>
+        public TimelineIndex(IReadOnlyDictionary<string, SharedList<TimelineEvent>> lanes, SharedList<long> frameTicks, int scannedFrames, int totalFrames,
+            IReadOnlyDictionary<string, string>? laneErrors = null)
+        {
+            _lanes = new Dictionary<string, SharedList<TimelineEvent>>(lanes, StringComparer.Ordinal);
             FrameTicks = frameTicks;
             ScannedFrames = scannedFrames;
             TotalFrames = totalFrames;
@@ -30,6 +42,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         }
 
         public static readonly TimelineIndex Empty = new(new Dictionary<string, TimelineEvent[]>(), Array.Empty<long>(), 0, 0);
+
+        /// <summary>This index with other frame times (an axis's), its lanes shared as they are.</summary>
+        public TimelineIndex WithFrameTicks(long[] frameTicks) => new(_lanes, new SharedList<long>(frameTicks), ScannedFrames, TotalFrames, LaneErrors);
 
         /// <summary>Wall-clock ticks of each scanned frame (index = frame).</summary>
         public IReadOnlyList<long> FrameTicks { get; }
@@ -47,22 +62,25 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// <summary>The lane's events, in frame order (empty for a lane the index does not hold).</summary>
         public IReadOnlyList<TimelineEvent> Lane(string lane) => Raw(lane);
 
+        /// <summary>The lane's events as memory over the shared array (no copy) — for a reader that binary-searches many lanes.</summary>
+        public ReadOnlyMemory<TimelineEvent> LaneMemory(string lane) => Raw(lane).Memory;
+
         /// <summary>How many of the lane's events fall in frames [<paramref name="from"/>, <paramref name="to"/>).</summary>
         public int Count(string lane, int from, int to)
         {
-            var a = Raw(lane);
+            var a = Raw(lane).Span;
             return LowerBound(a, to) - LowerBound(a, from);
         }
 
         /// <summary>How many of the lane's events fall before <paramref name="frame"/> — a position, so a run of edges costs one search each.</summary>
-        public int Before(string lane, int frame) => LowerBound(Raw(lane), frame);
+        public int Before(string lane, int frame) => LowerBound(Raw(lane).Span, frame);
 
         /// <summary>The lane's events in frames [<paramref name="from"/>, <paramref name="to"/>).</summary>
         public ReadOnlySpan<TimelineEvent> Events(string lane, int from, int to)
         {
-            var a = Raw(lane);
+            var a = Raw(lane).Span;
             int lo = LowerBound(a, from), hi = LowerBound(a, to);
-            return new ReadOnlySpan<TimelineEvent>(a, lo, Math.Max(0, hi - lo));
+            return a.Slice(lo, Math.Max(0, hi - lo));
         }
 
         /// <summary>The frame whose wall-clock ticks are nearest at or before <paramref name="ticks"/> (0 when none).</summary>
@@ -77,9 +95,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             return best;
         }
 
-        internal TimelineEvent[] Raw(string lane) => _lanes.TryGetValue(lane, out var a) ? a : Array.Empty<TimelineEvent>();
+        internal SharedList<TimelineEvent> Raw(string lane) => _lanes.TryGetValue(lane, out var a) ? a : SharedList<TimelineEvent>.Empty;
 
-        private static int LowerBound(TimelineEvent[] a, int frame)
+        private static int LowerBound(ReadOnlySpan<TimelineEvent> a, int frame)
         {
             int lo = 0, hi = a.Length;
             while (lo < hi)

@@ -169,6 +169,48 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.Null(ShippedTimelineLanes.Catalog().Find("mine"));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1361</c> ② — a published snapshot is IMMUTABLE and publishing is O(1) in the events indexed: after a snapshot, hundreds more
+        /// frames are appended (the lane and the frame table outgrow their buffers several times, each growth a copy), and the OLD snapshot still
+        /// holds exactly its own events and frame ticks — same count, same values — while the NEW one holds old + new.
+        /// 🔴 Red-proofs: a snapshot that reports its buffer's capacity instead of its count (compiles) ⇒ the old snapshot grows;
+        /// a publish that shares the buffer's full length ⇒ the same.
+        /// </summary>
+        [Fact]
+        public void CE3330_Node_AnOldSnapshotIsUnchanged_WhileTheLiveIndexGrowsPastSeveralBufferGrowths()
+        {
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            using var world = new EntityRepository();
+            world.RegisterComponent<NetworkIdentity>();
+            long next = 1;
+            void Frame(int n)
+            {
+                world.SetSingleton(new GlobalTime { FrameNumber = n });
+                var e = world.CreateEntity();
+                world.AddComponent(e, new NetworkIdentity(next++));
+                live.Step(world, 1_000 + n * 10L, force: true);
+            }
+            for (int n = 1; n <= 5; n++) Frame(n);
+            var old = live.Index;
+            var oldEvents = old.Lane(ReplicationTimelineLanes.Spawned.Id).ToArray();
+            var oldTicks = old.FrameTicks.ToArray();
+            Assert.Equal(5, oldTicks.Length);
+            Assert.NotEmpty(oldEvents);
+
+            for (int n = 6; n <= 700; n++) Frame(n);                         // 16 → 32 → … → 1024: six growths of each buffer
+            var now = live.Index;
+
+            Assert.Equal(oldEvents.Length, old.Lane(ReplicationTimelineLanes.Spawned.Id).Count);       // the old snapshot did not grow...
+            Assert.Equal(oldEvents, old.Lane(ReplicationTimelineLanes.Spawned.Id).ToArray());           // ...nor change
+            Assert.Equal(oldTicks, old.FrameTicks.ToArray());
+            Assert.Equal(oldEvents.Length, old.Count(ReplicationTimelineLanes.Spawned.Id, 0, int.MaxValue));
+            Assert.Equal(700, now.FrameTicks.Count);
+            Assert.True(now.Lane(ReplicationTimelineLanes.Spawned.Id).Count > oldEvents.Length + 600);
+            Assert.Equal(oldEvents, now.Lane(ReplicationTimelineLanes.Spawned.Id).Take(oldEvents.Length).ToArray());   // the new one holds old + new
+            Assert.Equal(oldTicks, now.FrameTicks.Take(oldTicks.Length).ToArray());
+            Assert.Throws<ArgumentOutOfRangeException>(() => old.FrameTicks[oldTicks.Length]);          // a reader cannot reach past its snapshot
+        }
+
         private static (int Frame, long Subject, long Other)[] Of(TimelineIndex index, TimelineLaneDescriptor lane)
             => index.Lane(lane.Id).Select(e => (e.Frame, e.Subject, e.Other)).ToArray();
 

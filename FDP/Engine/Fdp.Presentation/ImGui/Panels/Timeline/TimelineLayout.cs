@@ -132,15 +132,14 @@ public static class TimelineLayout
         int f0, int f1, Func<string, int> priorityOf, List<TimelineMark> marks)
     {
         // A k-way merge of the lanes' frame-sorted spans, so a collapsed group clusters across its lanes in time order.
-        var spans = new TimelineEvent[lanes.Count][];
+        var spans = new ReadOnlyMemory<TimelineEvent>[lanes.Count];
         var offs = new int[lanes.Count];
         var ends = new int[lanes.Count];
         for (int i = 0; i < lanes.Count; i++)
         {
-            var all = index.Lane(lanes[i]);
-            spans[i] = all as TimelineEvent[] ?? new List<TimelineEvent>(all).ToArray();
-            offs[i] = LowerBound(spans[i], f0);
-            ends[i] = LowerBound(spans[i], f1);
+            spans[i] = index.LaneMemory(lanes[i]);   // ⭐ CE-1361 ② — a view of the lane, never a copy
+            offs[i] = LowerBound(spans[i].Span, f0);
+            ends[i] = LowerBound(spans[i].Span, f1);
         }
         bool open = false;
         TimelineMark cur = default;
@@ -149,9 +148,9 @@ public static class TimelineLayout
         {
             int pick = -1;
             for (int i = 0; i < lanes.Count; i++)
-                if (offs[i] < ends[i] && (pick < 0 || spans[i][offs[i]].Frame < spans[pick][offs[pick]].Frame)) pick = i;
+                if (offs[i] < ends[i] && (pick < 0 || spans[i].Span[offs[i]].Frame < spans[pick].Span[offs[pick]].Frame)) pick = i;
             if (pick < 0) break;
-            var e = spans[pick][offs[pick]++];
+            var e = spans[pick].Span[offs[pick]++];
             float x = window.XOf(index.FrameTicks[e.Frame], width);
             int p = priorityOf(e.Lane);
             if (open && x - cur.X0 < glyphPx)
@@ -264,7 +263,7 @@ public static class TimelineLayout
         return Math.Max(1, gaps[n / 2]);
     }
 
-    private static int LowerBound(TimelineEvent[] a, int frame)
+    private static int LowerBound(ReadOnlySpan<TimelineEvent> a, int frame)
     {
         int lo = 0, hi = a.Length;
         while (lo < hi)
