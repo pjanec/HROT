@@ -93,31 +93,23 @@ public sealed class MainToolbarTimeControlSection
 
     // ── ⭐ CE-3330 E3 — the mode indicator, its menu, ■ → ⏏, the axis icon (DAR §9a) ──────────────────────────────────
 
-    /// <summary>The mode indicator of <see cref="ModeGlyph"/>: the spec glyph, the colour.</summary>
+    /// <summary>The mode indicator of <see cref="ModeGlyph"/>: its FontAwesome 6 glyph (the spec's ✎ ◐ ● ⟲ ▶ — no baked font carries them, CE-1063), the colour.</summary>
     public sealed record ModeIndicator(string Glyph, Vector4 Color, string Name);
 
-    /// <summary>DAR §9a — the indicator per mode: Edit grey ✎, Preview violet ◐, Live green ●, Review amber ⟲, Replay blue ▶; Idle none (<see langword="null"/>).</summary>
+    /// <summary>DAR §9a — the indicator per mode: Edit grey pen, Preview violet half circle, Live green circle, Review amber clock-back, Replay blue play; Idle none (<see langword="null"/>).</summary>
     public static ModeIndicator? ModeGlyph(TransportMode mode) => mode switch
     {
-        TransportMode.Edit    => new("✎", new Vector4(0.60f, 0.60f, 0.60f, 1f), "Edit"),
-        TransportMode.Preview => new("◐", new Vector4(0.66f, 0.45f, 0.92f, 1f), "Preview"),
-        TransportMode.Live    => new("●", new Vector4(0.25f, 0.80f, 0.30f, 1f), "Live"),
-        TransportMode.Review  => new("⟲", new Vector4(1.00f, 0.70f, 0.20f, 1f), "Review"),
-        TransportMode.Replay  => new("▶", new Vector4(0.30f, 0.60f, 1.00f, 1f), "Replay"),
+        TransportMode.Edit    => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Pen, new Vector4(0.60f, 0.60f, 0.60f, 1f), "Edit"),
+        TransportMode.Preview => new(Fdp.Presentation.Fonts.IconsFontAwesome6.CircleHalfStroke, new Vector4(0.66f, 0.45f, 0.92f, 1f), "Preview"),
+        TransportMode.Live    => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Circle, new Vector4(0.25f, 0.80f, 0.30f, 1f), "Live"),
+        TransportMode.Review  => new(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, new Vector4(1.00f, 0.70f, 0.20f, 1f), "Review"),
+        TransportMode.Replay  => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Play, new Vector4(0.30f, 0.60f, 1.00f, 1f), "Replay"),
         _ => null,
     };
 
     /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview CircleHalfStroke, Live Circle,
     /// Review ClockRotateLeft, Replay Play; Idle none (<see langword="null"/>).</summary>
-    public static string? ModeIcon(TransportMode mode) => mode switch
-    {
-        TransportMode.Edit    => Fdp.Presentation.Fonts.IconsFontAwesome6.Pen,
-        TransportMode.Preview => Fdp.Presentation.Fonts.IconsFontAwesome6.CircleHalfStroke,
-        TransportMode.Live    => Fdp.Presentation.Fonts.IconsFontAwesome6.Circle,
-        TransportMode.Review  => Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft,
-        TransportMode.Replay  => Fdp.Presentation.Fonts.IconsFontAwesome6.Play,
-        _ => null,
-    };
+    public static string? ModeIcon(TransportMode mode) => ModeGlyph(mode)?.Glyph;   // ONE table: the indicator's
 
     /// <summary>One entry of the mode menu: a label, what it does, whether it can be chosen, and (a sub-menu) its children.</summary>
     public sealed record ModeMenuItem(string Label, Action? Invoke, bool Enabled = true, IReadOnlyList<ModeMenuItem>? Children = null);

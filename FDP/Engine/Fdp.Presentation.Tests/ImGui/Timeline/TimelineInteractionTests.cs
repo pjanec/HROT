@@ -342,12 +342,12 @@ public sealed class TimelineInteractionTests
         var live = new SessionCursor { Mode = TimelineMode.Live, CanReview = true };
         var liveItems = TimelinePanel.MenuItems(index, live, Shot, 300 * Tick, 300, E(300, Shot), "0:05.0", view);
         var liveLabels = liveItems.Select(i => i.Label).ToList();
-        Assert.Contains("⟲ Review from 0:05.0", liveLabels);
-        Assert.Contains(liveLabels, l => l.StartsWith("⟲ Review from this event"));
+        Assert.Contains(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from 0:05.0", liveLabels);
+        Assert.Contains(liveLabels, l => l.StartsWith(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from this event"));
         Assert.DoesNotContain(liveLabels, l => l.StartsWith("Seek") || l.StartsWith("Play") || l.Contains("live point"));
         Assert.Empty(live.Reviews);                                           // building the menu entered nothing
-        liveItems.First(i => i.Label == "⟲ Review from 0:05.0").Run();
-        liveItems.First(i => i.Label.StartsWith("⟲ Review from this event")).Run();
+        liveItems.First(i => i.Label == Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from 0:05.0").Run();
+        liveItems.First(i => i.Label.StartsWith(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from this event")).Run();
         Assert.Equal(new[] { 300 * Tick, 300 * Tick }, live.Reviews);          // the snapped click, then the event's frame
 
         Assert.DoesNotContain(Labels(new SessionCursor { Mode = TimelineMode.Live, CanReview = false }), l => l.Contains("Review"));   // nothing to review

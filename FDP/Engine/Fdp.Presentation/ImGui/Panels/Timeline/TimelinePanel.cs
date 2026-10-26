@@ -588,9 +588,9 @@ public sealed class TimelinePanel
         var t = index.FrameTicks;
         if (cursor is { Mode: TimelineMode.Live, CanReview: true })   // ⭐ CE-3330 E2 (R-3059) — a live host seeks by ENTERING A REVIEW
         {
-            items.Add(new TimelineMenuItem($"⟲ Review from {time}", () => cursor.EnterReview(at)));
+            items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} Review from {time}", () => cursor.EnterReview(at)));
             if (ev is { } re && re.Frame < t.Count)
-                items.Add(new TimelineMenuItem($"⟲ Review from this event ({nameOf?.Invoke(re.Lane) ?? re.Lane})", () => cursor.EnterReview(t[re.Frame])));
+                items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} Review from this event ({nameOf?.Invoke(re.Lane) ?? re.Lane})", () => cursor.EnterReview(t[re.Frame])));
         }
         if (cursor is { CanSeek: true })
         {
