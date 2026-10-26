@@ -926,6 +926,7 @@ the scenario file; the recorder skips only `NoReplay`, §2)*:
 | Command picture | `CommandPicture` (`NoScenario`) | ✅ |
 | My units' contacts | `SquadCognitiveState` (`NoScenario`) | ✅ |
 | current orders line | `SubordinateOrders` (`NoPreview \| NoScenario`) | ✅ |
+| Squad (the drill line) | ~~`SquadDrillTrace` (`Transient`)~~ ⇒ ⭐ `SquadDrillState` (`NoScenario`, written beside the trace by its `Put`) — `CE-4047`, `2026-10-26` | ✅ *(was ⛔: the trace is `Transient` and an immutable managed class — this table never listed it; the coordinator's census found it)* |
 | ⛔ report HISTORY | `SquadReportLog` — a per-world SIDE STORE (`ConditionalWeakTable`, `ReportInjection.cs:33`), not a component | ⛔ **never recorded** |
 | ⛔ Why (utility) | `UtilityDecisionLog` (`NoScenario`) — but ATTACHED ONLY while the unit is observed (`TraceBufferLifecycleSystem.cs:105`) | ⚠ only for units someone viewed while recording |
 | ⛔ trace rings (graph overlay history) | `BTree/HsmTraceWorkingMemory1024` (`NoScenario`, 63 × 16 B, written every tick) — attached only while observed | ⚠ same |

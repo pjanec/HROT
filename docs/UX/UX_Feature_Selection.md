@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (§2.7 is the consolidated TARGET STATE with class + sequence diagrams;
+build-state: BUILT (⭐ 2026-10-26 §2.7.19 CE-4049: selection is a never-recorded store; §2.7 is the consolidated TARGET STATE with class + sequence diagrams;
   ⭐ BUILT means the SLICE LIST S-1..S-6 is complete and S-4/S-4b are operator-verified — ⛔ NOT that
   nothing is open: the residuals are listed in the header status line, each in its own section.
   §2.7.5 carries the slice order S-1..S-6. ☑ S-1 BUILT 2026-09-20 — as-built in §2.7.6.
@@ -1897,3 +1897,43 @@ assertion catches an implementation that agrees. ⭐ **Red-proved.**
 | ⚠ **Right-click-selects changes Editor behaviour** for anyone who relied on right-click *not* disturbing a selection | it is the ruling, and it matches file-manager convention; note it in the changelog |
 | 🔒 **Fan-out multiplies side effects** — *Delete* on 12 entities is 12 deletes | 🔒 **RULED (user, 2026-08-12): multi-delete gets a modal confirmation dialog.** ⭐ Intersects [UXI-16](UX_Issues.md#uxi-16) (no `Delete` confirms anywhere, in any host) — that issue now has a hard requirement rather than a preference, and [ruling 13](UX_RESUME_INTERACTION.md)'s modal-dialog machinery is the vehicle |
 | ⚠ **CGF depends on UXI-10 landing first** | strict order: pick box → interaction system → component → ring |
+
+
+#### 2.7.19 ☑ **`CE-4049` — SELECTION IS UI STATE: a store that is never recorded** *(ui, `2026-10-26`; the coordinator's replay-UI-state handoff ①)*
+
+🔒 User, `2026-10-25`: *"selection is not the simulation state of an entity, it is a UI state having nothing to do with simulation and
+recording"* · *"debug pins have been converted to singleton … maybe selection need to follow same convention"*.
+
+```mermaid
+classDiagram
+  direction LR
+  class SelectionStore { <<NEW, Hrot.Core, managed world singleton, Transient>> Selected netIds · Primary · Set(net, selected, primary) · Clear }
+  class SelectionState { <<exists, per entity>> IsSelected · IsPrimarySelection · NoScenario+NoReplay (was NoScenario only) }
+  class EcsSelectionState { <<exists, the ONE writer>> Write(world, e, selected, primary) · Sync(world) }
+  class SelectionRequestSystem { <<exists, every map host>> Sync first, then the requests }
+  class UnitDebugSettings { <<exists, CE-1329 — the pattern followed>> }
+  EcsSelectionState --> SelectionStore : writes (net id)
+  EcsSelectionState --> SelectionState : writes the copy
+  SelectionRequestSystem --> EcsSelectionState : Sync each frame
+  SelectionStore ..> UnitDebugSettings : same shape
+```
+*Caption:* the truth moved off the entities into one singleton keyed by network id; the per-entity component stays for its ~14 readers
+as a copy the one writer keeps in step, so no reader changed.
+
+```mermaid
+sequenceDiagram
+  participant P as PlaybackController
+  participant W as world
+  participant R as SelectionRequestSystem
+  participant E as EcsSelectionState
+  P->>W: seek → keyframe: Clear() empties the component tables (SelectionState not in the recording)
+  R->>E: Sync(world) — next frame
+  E->>W: SelectionStore (untouched singleton) → re-mark each selected net id's SelectionState
+```
+*Caption:* why a seek keeps the selection: the keyframe clears and refills tables, a non-recorded singleton is neither cleared nor written.
+
+As built: `SelectionStore` (component id 465); `EcsSelectionState.Write` / `Sync`; `SelectionRequestSystem` calls `Sync` first; the IG's
+`ContextMenuState` is `Transient` (its sibling `CanvasContextMenuState` was already `NoReplay`). A unit with no network id keeps the direct
+component write. `GET /replay/selection` (CE-1265) was already withdrawn by backend (R-3052…R-3055). ② the six UI command events
+(select, centre, rename, tool, shortcut, world reset) are `NoReplay` — measured first: all six were recorded and came back from a player
+given an event bus. Rails: `EcsSelectionStateTests.CE4049_*`, `ReplayUiState2_*` (red-proved).
