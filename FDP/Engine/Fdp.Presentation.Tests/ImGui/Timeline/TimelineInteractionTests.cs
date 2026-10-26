@@ -527,7 +527,7 @@ public sealed class TimelineInteractionTests
 
         b.List[0] = b.List[0] with { Selected = false };   // nothing selected any more
         b.Calls.Clear();
-        Assert.False(TrackLayout.OfferKey(new ITimelineTrack[] { a, b }, 'K', 1.0));
-        Assert.Empty(a.Calls); Assert.Empty(b.Calls);
+        Assert.True(TrackLayout.OfferKey(new ITimelineTrack[] { a, b }, 'K', 1.0));   // T3: nothing selected ⇒ the first track that takes it
+        Assert.Equal(new[] { "key K 1" }, a.Calls); Assert.Empty(b.Calls);
     }
 }

@@ -339,6 +339,10 @@ namespace Hrot.Editor
 
         // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
         private Hrot.Editor.Director.DirectorRunner? _director;
+        /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
+        private Hrot.Editor.Director.DirectorTakeSession? _directorTakes;
+        internal Hrot.Editor.Director.DirectorTakeSession? DirectorTakesForTest => _directorTakes;
+        internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
         // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md §2a) — a --verify run's start and exit (null when the runner did not ask for one)
         private Hrot.Editor.Director.CommandLineVerify? _commandLineVerify;
         private Hrot.UI.Common.Map3D.Director.TakeStore? _takeStore;
@@ -1219,6 +1223,25 @@ namespace Hrot.Editor
 
         // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _camera;
+
+        /// <summary>
+        /// ⭐ CE-1364 T3 (TE-2) — the pilot camera as a take key's camera: the 3-D map camera's pose, and — when a NAMED unit is selected on the map — a follow
+        /// camera on that unit from the same eye (<see cref="Hrot.UI.Common.Map3D.Director.PilotCamera"/>). Null when the map camera is not a 3-D one.
+        /// </summary>
+        private Hrot.UI.Common.Map3D.Director.CameraSpec? PilotCameraSpec()
+        {
+            if (_camera is not Fdp.Toolkit.Vis3D.MapCamera3D cam) return null;
+            var pose = new Fdp.Toolkit.Vis3D.CameraPose(cam.LookAt, cam.Distance, cam.Yaw, cam.Pitch);
+            string? unit = null;
+            System.Numerics.Vector3? at = null;
+            if (_world != null && Selected2DEntity is { } e && !e.IsNull && _world.IsAlive(e)
+                && _world.HasComponent<EntityInfo>(e) && _world.HasComponent<SimTransform>(e))
+            {
+                var name = _world.GetComponentRO<EntityInfo>(e).Name.ToString();
+                if (name.Length > 0) { unit = name; at = _world.GetComponentRO<SimTransform>(e).Position; }
+            }
+            return Hrot.UI.Common.Map3D.Director.PilotCamera.Of(pose, unit, at);   // the lens stays the film's default (a key sets Fov when it means to)
+        }
 
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
@@ -2486,6 +2509,11 @@ namespace Hrot.Editor
                         () => _debugApiService));
                 cinema.EscapePressed = () => runner.Stop();
                 _director = runner;
+                // ⭐ CE-1364 T3 — the open take: the Event Timeline shows ITS Camera / Time tracks, Ctrl+Z on the panel undoes an edit of them
+                _directorTakes = new Hrot.Editor.Director.DirectorTakeSession(() => _takeStore, () => _director, PilotCameraSpec);
+                _eventTimeline.Tracks = () => _directorTakes.Tracks;
+                _eventTimeline.Undo = () => _directorTakes.UndoLast();
+                _eventTimeline.Redo = () => _directorTakes.RedoLast();
                 _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 
@@ -5275,7 +5303,7 @@ namespace Hrot.Editor
             windowManager.RegisterWindow(new EditorBlueprintToolsWindow(DrawBlueprintToolsContent));
 
             // ⭐ CE-4038 B6 — View › Director: the same runner the /director/* routes drive
-            windowManager.RegisterWindow(new Hrot.Editor.Director.DirectorWindow(() => _director, () => _takeStore));
+            windowManager.RegisterWindow(new Hrot.Editor.Director.DirectorWindow(() => _director, () => _takeStore, _directorTakes!));
 
             // ?? FDP framework panels (entity inspector + event browser) ???????
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,

@@ -1033,7 +1033,7 @@ predicate editor will call.*
 | **the extractors' knowledge** | `TimelineExtractors.cs` deleted; every rule it held is now asserted against the DEFINITIONS (`TimelineIndexTests`): a refused shot is not a shot, two orders in a frame are two events, a repeat is one more, the pre-recording order is a baseline, a death keeps its last position | — |
 | **⑤ user lanes** | `TimelineLaneCatalog.Register(IndexedLaneDefinition)` + per-lane hashing ⇒ a user lane indexes like a shipped one, incrementally (rail: "who was hit") | ⏳ no editor UI to author one yet (dead edge above) |
 
-## 10. R2-T — the director's tracks on the panel: the build plan *(ui, `2026-10-26`; build-state: DESIGN — dispatched by [NOTE_Coordinator_To_Ui_After_Review_Timeline](blueprints/batches/NOTE_Coordinator_To_Ui_After_Review_Timeline.md) item A1)*
+## 10. R2-T — the director's tracks on the panel: the build plan *(ui, `2026-10-26`; build-state: T1 · T2 · T3 · T4 BUILT — dispatched by [NOTE_Coordinator_To_Ui_After_Review_Timeline](blueprints/batches/NOTE_Coordinator_To_Ui_After_Review_Timeline.md) item A1)*
 
 **Scope** — the part of R2 (§6) that puts a take on the timeline: format v2 `keys[]` / `segments[]` (§5), the **Time** and **Camera**
 tracks drawn and edited on the ONE panel (§2c rows 2, 3, 10), **K** / **J** / **L**, undo (TE-14). ⛔ Not here: TE-5 (the runner's move)
@@ -1063,7 +1063,8 @@ classDiagram
   class TrackGesture { <<NEW, pure>> Press · Update · Release — select / preview / commit once }
   class ITimelineTrack { <<NEW, Fdp.Presentation>> Id · Label · Items · Select(id) · Move(id, toSimSeconds, commit) · Key(char, atSimSeconds) bool · MenuItems(id?) }
   class TimelineTrackItem { <<NEW, record>> Id · From · To? (sim s) · Label · Kind (key / segment) · Selected }
-  class DirectorTracks { <<NEW, Hrot.Presentation/Map3D/Director>> Time + Camera tracks over the edited take }
+  class DirectorTracks { <<NEW, Hrot.Presentation/Map3D/Director>> HOLDS the Camera + Time ITimelineTracks over the edited take · pilot Func · rate Action }
+  class DirectorTakeSession { <<NEW, Hrot.Editor/Director>> the open take: ONE TakeEditor + the editor's GizmoUndoStack + Speed · Open / Save / Close · UndoLast / RedoLast }
   class TakeEditor { <<NEW>> Take (current) · Apply(edit) · Undo / Redo via GizmoUndoStack · Dirty · Save → TakeStore }
   class TakeEditRecord { <<NEW>> IGizmoUndoRecord: before / after take snapshots (TE-14) }
   class Take { <<exists, grows>> + Keys · + Segments (format v2) }
@@ -1076,7 +1077,10 @@ classDiagram
   TimelinePanel --> TrackLayout : places items on the active axis
   TimelinePanel --> TrackGesture : one per panel
   TrackGesture ..> ITimelineTrack : Select / Move(preview) / Move(commit)
-  DirectorTracks ..|> ITimelineTrack
+  DirectorTracks o-- ITimelineTrack : Camera, Time
+  DirectorTakeSession --> DirectorTracks : while a take is open
+  DirectorTakeSession --> GizmoUndoStack : owns the editor's one
+  TimelinePanel ..> DirectorTakeSession : Tracks / Undo / Redo hooks
   DirectorTracks --> TakeEditor
   TakeEditor --> Take
   TakeEditor --> GizmoUndoStack : Push(TakeEditRecord)
@@ -1102,7 +1106,7 @@ sequenceDiagram
   P->>D: Move(item, final, commit:true) once
   D->>E: Apply(MoveKey(id, at))
   E->>S: Push(TakeEditRecord(before, after))
-  E-->>R: the runner reads the edited take on its next ProgramAt
+  Note over E,R: the runner loads the SAVED file at Play — an unsaved edit is not played until Save (T3 as built)
   Note over P,E: the world is never touched — an edit of the TAKE (§2c row 2)
   U->>P: K (panel focused)
   P->>D: Key(K, playhead sim s)
@@ -1113,7 +1117,7 @@ sequenceDiagram
 |---|---|---|---|
 | **T1** ✅ BUILT `2026-10-26` | format v2 | `CameraKey`, `TimeSegment`, `Take.Keys` / `Segments`; `TakeJson` reads `keys[]` / `segments[]`, reads `shots[]` AS keys (a shot → a cut key at `at`; a shot with `to` → a fly key at its end), writes v2; `TakeTimeline.ProgramAt` | every seeded take loads and lays out as before (55 takes); a v2 file round-trips |
 | **T2** ✅ BUILT `2026-10-26` | the track seam | `ITimelineTrack` + `TimelineTrackItem`; the panel draws tracks above the lanes, hit-tests, selects on a click, drags (preview each frame, commit on release); keys on the active axis through the time map | a frame rail: a drag moves the item, a click only selects, empty space still does nothing |
-| **T3** | the director's tracks | `DirectorTracks` (Time = segments, Camera = keys), `TakeEditor` + `TakeEditRecord` on `GizmoUndoStack`, save through `TakeStore`; **K** adds a key from the pilot camera (relative to a selected unit, TE-2); **J** / **L** the rate | a key moved on the panel is where the saved file says; undo puts it back; K adds one at the playhead |
+| **T3** ✅ BUILT `2026-10-26` | the director's tracks | `DirectorTracks` (Camera = keys, Time = segments), `TakeEditor` + `TakeEditRecord` on `GizmoUndoStack`, save through `TakeStore`; **K** adds a key from the pilot camera (relative to a selected unit, TE-2); **J** / **L** the rate; the open take (`DirectorTakeSession`) on the Event Timeline | a key moved on the panel is where the saved file says; undo puts it back; K adds one at the playhead |
 | **T4** ✅ BUILT `2026-10-26` | playing keys | `DirectorRunner` plays `ProgramAt`: cut, fly (eased), dip (TE-8) | a take plays from the panel with its keys where the take's file says (note A1's acceptance) |
 
 **T2 as built** — `ITimelineTrack` + `TimelineTrackItem` (`Id`, `From`, `To?` in SIM seconds, `Label`, `Kind` key / segment, `Selected`) in
@@ -1135,6 +1139,29 @@ event-snapping within 7 px on a drop (frame snap only).
 is the ONE place a take's keys come from (its own `keys[]`, else its `shots[]` per TE-2); `TakeJson` reads / writes v2 and the camera read /
 write is now one helper shared by shots and keys (`ParseCamera` / `WriteCamera`); `TakeTimeline.ProgramAt` reuses `ShotEvaluator.Eased` (no
 second easing). Rails `FilmDirectorTests.TE2_*` ×5, `T1_ProgramAt_*` — each red-proved; the 55 seeded takes read unchanged and write back v1.
+
+**T3 as built** *(ui, `2026-10-26`)* — `TakeEditor` (`Apply(TakeEdit)` — `MoveKey` · `AddKey` · `RemoveKey` · `MoveSegment(Whole | From | To)`; `Preview` for a drag in
+flight; `Dirty`; `Save()` = `TakeStore.Save`, **a no-op when the take was not edited** — T-L4) pushes one `TakeEditRecord` (before / after take) per edit; `DirectorTracks` holds the
+Camera track (items = `CameraKeys.Of(take)` at their RESOLVED sim seconds, so an anchored key sits at anchor + offset; a drop on an anchored key changes the OFFSET and keeps the
+anchor) and the Time track (segments From–To; a move keeps the length); `PilotCamera.Of(pose, unit?, unitAt?)` makes K's camera — a look-at key of the map camera's pose, or, with a
+unit selected, a follow key from the SAME eye looking at the unit (the film's follow camera looks at `unit + lift`). A v1 take's first edit turns its shots into `keys[]` as they
+PLAY (`CameraKeys.Played`) but keeps the anchor of any key the layout did not move. Deviations, each superseding the text above:
+- **⛔ SUPERSEDED: "the editor's EXISTING `GizmoUndoStack`".** Measured: the editor had **none** (only `IgApplication` holds one) and no global Ctrl+Z. `DirectorTakeSession` (Hrot.Editor)
+  owns the editor's ONE stack for take edits; `TimelinePanel` gained `Undo` / `Redo` hooks fired by Ctrl+Z · Ctrl+Y · Ctrl+Shift+Z **only while the panel is focused and shows tracks**
+  (⛔ never stolen from the map or another editor), and the Director window has Undo / Redo buttons on the same session.
+- **`DirectorTracks` is not itself an `ITimelineTrack`** — it holds the two (`Camera`, `Time`); the diagram's realisation edge is corrected.
+- **The Director window edited nothing before T3** (it only played), so there was no second edit path to route: its "Edit on the timeline" button (One take) opens the take in the session,
+  and Save / Undo / Redo / Close sit beside it. **The runner loads the saved FILE at Play**, so an unsaved edit is not played; the window says so while the take is dirty
+  (the sequence's old "the runner reads the edited take" arrow is replaced by that note).
+- **`TrackLayout.OfferKey` changed** (the T2 text above): the selected item's track first, then the others in order — it used to ask nobody when nothing was selected, which left K no way
+  to add the FIRST key. The T2 rail `CE1364_T2_K_IsOfferedToTheSelectedItemsTrack_Only` was updated to match.
+- **The seams found:** the pilot camera is `EditorSubsystem._camera as MapCamera3D` (`LookAt` · `Distance` · `Yaw` · `Pitch` → `CameraPose`), the unit is `Selected2DEntity` with a non-empty
+  `EntityInfo.Name`; the rate is `DirectorRunner.SetSpeed` fed by the window's slider — now ONE number, `DirectorTakeSession.Speed`, stepped by J / L through 0.25 · 0.5 · 0.75 · 1 · 1.5 · 2 and
+  handed to the runner while it plays.
+- ⚠ Not built / known edges: no "add / delete segment" and no edge-drag handles on the panel (the edge edit is `TakeEditor` API only, rail-covered); K stores no lens (`Fov` stays the film default);
+  deleting the LAST key of a take that still has `shots[]` makes `CameraKeys.Of` read the shots as keys again; a move of an anchored key whose anchor has no baked time is refused.
+Rails: `DirectorTracksTests.CE1364_T3_*` ×11 (Hrot.Presentation.Tests) · `DirectorTracksOnTheEditorTests.CE1364_T3_*` ×2 (a headless editor: the panel's `Tracks` are the open take's, the panel's
+`Undo` is the editor's stack) · the frame rail `CE1364_T3_CtrlZ_OnTheFocusedPanel_CallsTheHostsUndo`.
 
 **T4 as built** *(ui, `2026-10-26`)* — `DirectorRunner.DirectUpcoming` now holds the camera `ShotEvaluator.Evaluate(ProgramFrame)` returns for
 `TakeTimeline.ProgramAt(CameraKeys.Played(take, plan), anchors, t)` — `Played` is `Of` with each shot's start taken from `Plan`'s layout (a shot

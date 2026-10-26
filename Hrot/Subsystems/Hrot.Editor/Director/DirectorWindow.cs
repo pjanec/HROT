@@ -24,14 +24,18 @@ namespace Hrot.Editor.Director
         private enum Pick { Reel, Take, Verify }
         private Pick _pick = Pick.Reel;
         private int _reel, _scenario, _take, _verify;
-        private float _speed = 1f;
+        private readonly DirectorTakeSession _takes;
         private string? _message;
 
-        public DirectorWindow(Func<DirectorRunner?> runner, Func<TakeStore?> store)
+        // ⭐ CE-1364 T3 — the playback rate is the session's (the timeline's J / L change the same number)
+        private float _speed { get => _takes.Speed; set => _takes.Speed = value; }
+
+        public DirectorWindow(Func<DirectorRunner?> runner, Func<TakeStore?> store, DirectorTakeSession takes)
             : base(WindowId, "Director", "Scenario", WindowScope.PerspectiveBound)
         {
             _runner = runner;
             _store = store;
+            _takes = takes ?? throw new ArgumentNullException(nameof(takes));
             IsOpen = false;
             TitleBarColor = Hrot.Editor.Windows.EditorWindowColor.TitleBar;
         }
@@ -82,8 +86,11 @@ namespace Hrot.Editor.Director
                 }
             }
 
-            ImGui.SliderFloat("Speed", ref _speed, 0.25f, 2f, "%.2fx");
+            float speed = _speed;
+            ImGui.SliderFloat("Speed", ref speed, 0.25f, 2f, "%.2fx");
+            _speed = speed;
             if (runner.Busy && ImGui.IsItemDeactivatedAfterEdit()) runner.SetSpeed(_speed);
+            if (_pick == Pick.Take && chosen != null) DrawEdit(chosen.Items[0].Scenario, chosen.Items[0].Take);
 
             ImGui.BeginDisabled(chosen == null);
             if (ImGui.Button("Play")) Start(runner, new PlayRequest(chosen!, _speed));
@@ -101,6 +108,32 @@ namespace Hrot.Editor.Director
             ImGui.EndDisabled();
 
             DrawStatus(runner);
+        }
+
+        /// <summary>⭐ CE-1364 T3 — open the picked take on the Event Timeline's Camera / Time tracks (one <see cref="TakeEditor"/>, shared with the panel); save · close · undo · redo.</summary>
+        private void DrawEdit(string scenario, string take)
+        {
+            var editor = _takes.Editor;
+            bool isOpen = editor != null && editor.Take.Scenario == scenario && editor.Take.Name == take;
+            if (!isOpen)
+            {
+                if (ImGui.Button("Edit on the timeline")) _message = _takes.Open(scenario, take) is { Count: > 0 } p ? string.Join("\n", p) : null;
+                return;
+            }
+            ImGui.TextUnformatted($"Editing {scenario}/{take}{(editor!.Dirty ? " * (unsaved - Play runs the saved file)" : "")} - Event Timeline: K adds a key, drag to move, Ctrl+Z undoes");
+            ImGui.BeginDisabled(!editor.Dirty);
+            if (ImGui.Button("Save")) _message = _takes.Save() is not null ? null : "nothing to save";
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            ImGui.BeginDisabled(!_takes.CanUndo);
+            if (ImGui.Button("Undo")) _takes.UndoLast();
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            ImGui.BeginDisabled(!_takes.CanRedo);
+            if (ImGui.Button("Redo")) _takes.RedoLast();
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            if (ImGui.Button("Close")) _takes.Close();
         }
 
         /// <summary>⭐ CE-4042 — pick a scenario that has checks; Verify, or re-record its golden (refused for a failing run).</summary>

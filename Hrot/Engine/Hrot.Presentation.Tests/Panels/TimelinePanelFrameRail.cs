@@ -283,6 +283,79 @@ public sealed class TimelinePanelFrameRail
         Assert.Equal(300.0, track.List[1].From);   // the other key stayed
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1364</c> T3 (TE-14) — in a REAL ImGui frame, Ctrl+Z on the focused panel calls the host's <c>Undo</c>, Ctrl+Shift+Z and Ctrl+Y call <c>Redo</c>;
+    /// a bare Z does nothing, and a panel with NO tracks ignores the chord (so Ctrl+Z is never stolen on a host that has no track edit to undo).
+    /// 🔴 Red-proof: the chord's <c>io.KeyShift</c> test inverted ⇒ Ctrl+Shift+Z undoes instead of redoing.
+    /// </summary>
+    [SkippableFact]
+    public void CE1364_T3_CtrlZ_OnTheFocusedPanel_CallsTheHostsUndo()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        const int frames = 10 * 60 * Hz;
+        var wall = Enumerable.Range(0, frames).Select(f => T0 + f * Tick).ToArray();
+        var simT = Enumerable.Range(0, frames).Select(f => f / (double)Hz).ToArray();
+        var map = Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(wall, simT, new Fdp.Core.FlightRecorder.FrameFlags[frames]);
+        var cursor = new SimCursor { ExtentFrom = T0, ExtentTo = wall[^1], Now = T0, Axis = TimelineAxis.Sim(map), TimeMap = map };
+        var source = new Source { Index = Firefight() };
+        var track = new RailTrack();
+        track.List.Add(new TimelineTrackItem("a", 100.0, null, "key a", TimelineTrackItemKind.Key, false));
+        int undos = 0, redos = 0;
+        bool withTracks = true;
+        var panel = new TimelinePanel
+        {
+            Tracks = () => withTracks ? new ITimelineTrack[] { track } : Array.Empty<ITimelineTrack>(),
+            Undo = () => undos++, Redo = () => redos++,
+        };
+
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        void Step(Action<ImGuiIOPtr>? inject)
+        {
+            frame.Step(() =>
+            {
+                if (inject != null) inject(ImGui.GetIO());
+                ImGui.SetNextWindowPos(new Vector2(0, 0));
+                ImGui.SetNextWindowSize(new Vector2(1280, 300));
+                ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                panel.Draw(source, cursor, Lanes);
+                ImGui.End();
+            });
+        }
+        void Chord(ImGuiKey key, bool shift)
+        {
+            Step(io => { io.AddKeyEvent(ImGuiKey.ModCtrl, true); if (shift) io.AddKeyEvent(ImGuiKey.ModShift, true); });
+            Step(io => io.AddKeyEvent(key, true));
+            Step(io => io.AddKeyEvent(key, false));
+            Step(io => { io.AddKeyEvent(ImGuiKey.ModCtrl, false); io.AddKeyEvent(ImGuiKey.ModShift, false); });
+            Step(null);
+        }
+        for (int i = 0; i < 5; i++) Step(null);
+
+        // focus the panel by clicking its key
+        var a = panel.LastTrackHits.Single(h => h.ItemId == "a");
+        var at = new Vector2(a.X, a.Y);
+        Step(io => Pos(io, at.X, at.Y));
+        Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, true); });
+        Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, false); });
+        Step(null);
+
+        Step(io => io.AddKeyEvent(ImGuiKey.Z, true)); Step(io => io.AddKeyEvent(ImGuiKey.Z, false)); Step(null);
+        Assert.Equal((0, 0), (undos, redos));   // a bare Z
+
+        Chord(ImGuiKey.Z, shift: false);
+        Assert.Equal((1, 0), (undos, redos));
+        Chord(ImGuiKey.Z, shift: true);
+        Assert.Equal((1, 1), (undos, redos));
+        Chord(ImGuiKey.Y, shift: false);
+        Assert.Equal((1, 2), (undos, redos));
+
+        withTracks = false;
+        Step(null); Step(null);
+        Chord(ImGuiKey.Z, shift: false);
+        Assert.Equal((1, 2), (undos, redos));   // no tracks ⇒ the chord is not ours
+    }
+
     private sealed class SessionCursor : ITimelineCursor
     {
         public long ExtentFrom { get; init; }

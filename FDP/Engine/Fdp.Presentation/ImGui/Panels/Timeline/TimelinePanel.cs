@@ -76,6 +76,11 @@ public sealed class TimelinePanel
     /// Camera); null or empty = none, every existing host unchanged. The panel draws, hit-tests, selects and drags; it knows nothing about takes.</summary>
     public Func<IReadOnlyList<ITimelineTrack>>? Tracks { get; set; }
 
+    /// <summary>⭐ <c>CE-1364</c> T3 (TE-14) — Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) while the panel is focused AND it shows tracks: the host's undo of a track edit (the
+    /// editor's existing stack). Null = the key does nothing here.</summary>
+    public Action? Undo { get; set; }
+    public Action? Redo { get; set; }
+
     /// <summary>Where each track item was drawn last frame (screen pixels) — for a frame rail that must press on one.</summary>
     public IReadOnlyList<TrackItemHit> LastTrackHits => _trackHits;
 
@@ -519,6 +524,11 @@ public sealed class TimelinePanel
     private void Keys(ImGuiIOPtr io, TimelineIndex index, string[] lanes, float width, long now, ITimelineCursor? cursor)
     {
         bool seek = cursor is { CanSeek: true };
+        if (_tracksNow is { Count: > 0 } && io.KeyCtrl && !io.KeyAlt)   // ⭐ CE-1364 T3 — undo / redo of a track edit
+        {
+            if (ImGui.IsKeyPressed(ImGuiKey.Z, true)) { if (io.KeyShift) Redo?.Invoke(); else Undo?.Invoke(); }
+            else if (ImGui.IsKeyPressed(ImGuiKey.Y, true)) Redo?.Invoke();
+        }
         if (_tracksNow is { Count: > 0 } tracks && _axis != null && !io.KeyCtrl && !io.KeyAlt &&   // ⭐ CE-1364 T2 — K / J / L go to the selected item's track first
             TrackLayout.SimSeconds(now, _axis, _timeMap) is { } playheadSim)
         {
