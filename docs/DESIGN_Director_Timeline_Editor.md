@@ -1114,7 +1114,7 @@ sequenceDiagram
 | **T1** ✅ BUILT `2026-10-26` | format v2 | `CameraKey`, `TimeSegment`, `Take.Keys` / `Segments`; `TakeJson` reads `keys[]` / `segments[]`, reads `shots[]` AS keys (a shot → a cut key at `at`; a shot with `to` → a fly key at its end), writes v2; `TakeTimeline.ProgramAt` | every seeded take loads and lays out as before (55 takes); a v2 file round-trips |
 | **T2** ✅ BUILT `2026-10-26` | the track seam | `ITimelineTrack` + `TimelineTrackItem`; the panel draws tracks above the lanes, hit-tests, selects on a click, drags (preview each frame, commit on release); keys on the active axis through the time map | a frame rail: a drag moves the item, a click only selects, empty space still does nothing |
 | **T3** | the director's tracks | `DirectorTracks` (Time = segments, Camera = keys), `TakeEditor` + `TakeEditRecord` on `GizmoUndoStack`, save through `TakeStore`; **K** adds a key from the pilot camera (relative to a selected unit, TE-2); **J** / **L** the rate | a key moved on the panel is where the saved file says; undo puts it back; K adds one at the playhead |
-| **T4** | playing keys | `DirectorRunner` plays `ProgramAt`: cut, fly (eased), dip (TE-8) | a take plays from the panel with its keys where the take's file says (note A1's acceptance) |
+| **T4** ✅ BUILT `2026-10-26` | playing keys | `DirectorRunner` plays `ProgramAt`: cut, fly (eased), dip (TE-8) | a take plays from the panel with its keys where the take's file says (note A1's acceptance) |
 
 **T2 as built** — `ITimelineTrack` + `TimelineTrackItem` (`Id`, `From`, `To?` in SIM seconds, `Label`, `Kind` key / segment, `Selected`) in
 `Fdp.Presentation/ImGui/Panels/Timeline/`; the panel takes `Tracks` (a `Func<IReadOnlyList<ITimelineTrack>>?` PROPERTY — `Draw`'s signature is
@@ -1135,6 +1135,24 @@ event-snapping within 7 px on a drop (frame snap only).
 is the ONE place a take's keys come from (its own `keys[]`, else its `shots[]` per TE-2); `TakeJson` reads / writes v2 and the camera read /
 write is now one helper shared by shots and keys (`ParseCamera` / `WriteCamera`); `TakeTimeline.ProgramAt` reuses `ShotEvaluator.Eased` (no
 second easing). Rails `FilmDirectorTests.TE2_*` ×5, `T1_ProgramAt_*` — each red-proved; the 55 seeded takes read unchanged and write back v1.
+
+**T4 as built** *(ui, `2026-10-26`)* — `DirectorRunner.DirectUpcoming` now holds the camera `ShotEvaluator.Evaluate(ProgramFrame)` returns for
+`TakeTimeline.ProgramAt(CameraKeys.Played(take, plan), anchors, t)` — `Played` is `Of` with each shot's start taken from `Plan`'s layout (a shot
+listed after one still running starts LATER than its `at`; measured in `scenarios/pc-defend-house/takes/main.take.json`, whose third shot's anchor
+precedes its second's end — keyed at the raw `at`, that seeded take would have filmed differently, so `Played` re-times it; same per-shot helper as `Of`); ⛔ there is no second shot-playing path (a v1 take is read AS keys, TE-2). `Plan`'s
+shots stay, but only as the **stretches the film runs in** (captions, layers, speed, capture, the end) — and a take with `keys[]` and no `shots[]`
+gets one stretch per placed key (`TakeTimeline.Stretches`), so a v2 take runs at all. The dip's black is the same frame's `Fade`, carried by one new
+mailbox value `FilmStudio.Fade` (set by the runner, cleared by `Release`), drawn over the live picture by `EditorCinema` and over every captured scene
+frame in `Film.cs`'s capture. Deviations, each SUPERSEDING the T1 text:
+- **⛔ SUPERSEDED (T1): "a fly key blends from the key before it over its seconds AFTER its time."** A fly **arrives AT its key's time**, over the
+  seconds before it (clamped to start no earlier than the key it leaves) — TE-8's "how the camera gets TO a key", the dip's out-window shape, and the only
+  reading under which `CameraKeys.Of`'s "fly key at the shot's end" reproduces a shot's `to`. T1's `ProgramAt` rail was moved to match (`T1_ProgramAt_*`).
+- `ProgramFrame.Key` is the key flown INTO while a fly is under way; new `Since` = sim seconds since the key the camera leaves (an orbit's clock).
+- A fly between cameras of **different kinds** (a follow into a look-at) has nothing to blend: the leaving camera stays, the arriving one cuts in at the
+  fly's end. Same-kind cameras blend their numbers with the arithmetic `ShotEvaluator.At` already used.
+- Gap hold unchanged: in a gap the camera is the NEXT stretch's at its start; the black is of NOW.
+Rails `FilmDirectorTests.CE1364_T4_*` ×4 (fly, dip, keys-only layout, and ⭐ all 55 seeded takes + a hand-made one play the SAME shots through the key path
+as through the old per-shot path, 0.25 s samples) and `DirectorRunnerTests.CE1364_T4_TheRunner_PlaysTheKeys_*`.
 
 ⚠ **OPEN before T2 — the live panel has no sim axis** *(measured `2026-10-26`)*: the editor's live index records only WALL ticks
 (`LiveTimelineSource.cs:61` → `TimelineFrameScanner.Step(…, wallTicks, …)`) and its cursor carries no time map
