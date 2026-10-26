@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — handed to BACKEND (R-4082); R-4080, R-4081 ruled; RB-1…RB-8 leans for approval; ⚠ RB-7 (POST /selection) reopens a route R-1029's value review withdrew — needs the user's word
-updated: 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
+build-state: DESIGN — handed to BACKEND (R-4082); R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
+updated: 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
 current-answer: §0 rulings and leans · §1 before / now / needed · §2 the feature map · §3 UML · §4 claim table · §5 INVENTORY · §6 build
 stale-below: none
 known-rot: none
@@ -34,7 +34,7 @@ feature should be excluded from ai debug http api"*.
 | ⭐ RB-4 | **JSON export as a job**: `POST /replay/export {window: full \| frames \| time, from, to, format: absolute \| changelog, entities?: [ids], includeEntities, includeEvents, minified, epsilon}` → `{job}`; `GET /replay/export/{job}` → state, path, bytes. It runs `IRecordingExportService.ExportToJson` off the main thread as the panel does (`LongRunning`), never on the GUI's sandbox | a synchronous route — an hour's recording blocks the request |
 | ⭐ RB-5 | **the gaps in shared routes, closed for every host**: `POST /replay/search` gains the LIFECYCLE mode (`ExecuteLifecycleSearch`; today only `ExecuteSearch`) · `GET /events` reads the active provider's event history (a provider member; today only the editor's) — in the Replay Browser the recorded events at the current frame | — |
 | ⭐ RB-6 | **timeline reads for every host with an index**: `GET /timeline/lanes`, `GET /timeline/events?lane=&from=&to=&entity=`, `POST /timeline/lanes {IndexedLaneDefinition}` (a user's lane — the catalogue's existing `Register`) | the agent scanning the file for what the index already holds |
-| ⚠ RB-7 | **`POST /selection {entity}`** — the inspector's selection, which export's "by selection" and the diff panel use. ⚠ R-1029's value review WITHDREW it (agents pass ids). R-4081 says no Replay Browser feature is excluded ⇒ ⭐ lean: reopen it, Replay Browser and every host alike — **the user decides** | keep it withdrawn: the selection-driven features would be reachable only with ids, which is equivalent but not the feature |
+| ✅ RB-7 — **R-4083** | **`POST /selection {entity}` REOPENED, on every host — through the UI's own request path** (`SelectEntityCommand` → `SelectionRequestSystem`, the click's path; ⛔ never a direct `SelectionState` write, AV-4's rejected alternative); the selection history (RB-3) rides on it. 🔒 User: *"Reopen rb 7 if the feature makes sense"*. ⭐ **Why it makes sense** (measured): the agent's OWN work needs no selection — every selection-driven panel takes an explicit id over HTTP (§2) — but POINTING THE OPERATOR at a unit does: `/entities/{id}/focus` only centres the camera (`DebugApiService.cs:1838` publishes `CenterOnEntityCommand`), while the Replay Browser's inspector, diff and seek-to-change follow the SELECTION ⇒ after *"look at 1042 at frame 4120"* its panels still show the old unit. No route answers that ⇒ it passes AV-13's value test that withdrew it | keep it withdrawn — the operator's panels could not be pointed at the unit an agent means |
 | ⭐ RB-8 | **the map routes the other hosts answer, answered here too**: `GET /view`, `POST /view/follow`, `POST /entities/{id}/focus`, `GET/POST /map/layers`, `POST /entities/{id}/debug` (the map menu's pins and AI trace) | — |
 
 ## 1. Before, now, needed
@@ -63,7 +63,7 @@ feature should be excluded from ai debug http api"*.
 | inspector: entities, components | `GET /entities`, `GET /entities/{id}` | shared (serializer-backed, RB-1) |
 | brain, journal, history | `GET /entities/{id}/brain`, `/journal`, `/journal/history` | shared |
 | single node / merged view (Federation) | `POST /replay/view {node \| "merged"}` | Replay Browser only |
-| entity selection and its back / forward | `GET /selection` · ⚠ `POST /selection` (RB-7) · `POST /selection/history {back \| forward}` | shared / Replay Browser only |
+| entity selection and its back / forward | `GET /selection` · `POST /selection` (RB-7, R-4083) · `POST /selection/history {back \| forward}` | shared / Replay Browser only |
 | JSON export, every option (Timeline) | `POST /replay/export {…}` · `GET /replay/export/{job}` | Replay Browser only |
 | Event Timeline: lanes, events, user lanes | `GET /timeline/lanes`, `GET /timeline/events`, `POST /timeline/lanes` | shared (RB-6) |
 | the map: camera, follow, centre, layers, pins / AI trace | `GET /view`, `POST /view/follow`, `POST /entities/{id}/focus`, `/map/layers`, `POST /entities/{id}/debug` | shared (RB-8) |
