@@ -469,6 +469,8 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => _host.MasterControl.SetReplayAxis(ReplaySessionIntents.SetAxis(axis));
         public void EnterReview(double? at = null) { }   // offline: no live run
         public void ExitReview() { }
+        public void EnterReviewAtSim(double simSeconds) { }   // offline: no live run
+        public Fdp.Toolkit.Orchestration.ReplaySession? Session => null;
         public double? LivePoint => null;
 
         // ⭐ CE-3329 §12n — the loop is the viewer's own (its clock is its own): set through the same intents and the same master control.

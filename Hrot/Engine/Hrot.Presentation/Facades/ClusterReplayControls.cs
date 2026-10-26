@@ -133,6 +133,9 @@ public sealed class ClusterReplayControls
         _master.Transition(ReplaySessionIntents.EnterReview(sim is null ? wall : null, sim));
     }
 
+    /// <summary>⭐ CE-3330 E3 — a review from LIVE, by the run's sim seconds (the host has no session / wall zero yet; the sim target wins).</summary>
+    public void EnterReviewAtSim(double simSeconds) => _master.Transition(ReplaySessionIntents.EnterReview(simSeconds: simSeconds));
+
     public void ExitReview() => _master.Transition(ReplaySessionIntents.ExitReview());
 
     public double? LivePoint

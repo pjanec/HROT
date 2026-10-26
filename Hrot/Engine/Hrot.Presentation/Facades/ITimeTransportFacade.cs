@@ -81,6 +81,15 @@ public interface ITimeTransportFacade
 
     /// <summary>⭐ CE-3329 §12n — the session's loop on the active axis; <see langword="null"/> = none.</summary>
     (double From, double To)? Loop { get; }
+
+    // ── ⭐ CE-3330 E3 (ui lane — a cross-lane edit of this backend-owned facade, said in the commit): what the toolbar's mode menu needs ──
+
+    /// <summary>The session layer as this host last heard it (<see langword="null"/> before the first sample) — checkpoints, the wall zero, the live point.</summary>
+    Fdp.Toolkit.Orchestration.ReplaySession? Session { get; }
+
+    /// <summary>Reviews the live run from <paramref name="simSeconds"/> of the run's own clock — from LIVE the host has no session yet (no map, no wall zero),
+    /// and the master takes a sim target on either axis ("the sim target wins", <c>ReplaySessionIntents.EnterReview</c>).</summary>
+    void EnterReviewAtSim(double simSeconds);
 }
 
 /// <summary>⭐ CE-3329 row 21 — what the cluster shows (the facade's <see cref="ITimeTransportFacade.Mode"/>).</summary>

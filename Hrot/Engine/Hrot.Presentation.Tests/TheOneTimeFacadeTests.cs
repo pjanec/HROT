@@ -116,6 +116,28 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(7.25, Published<SeekReplayIntent>(simSeekBus).TargetSimSeconds);
     }
 
+    /// <summary>⭐ CE-3330 E3 — a review from LIVE goes by the run's sim seconds (no session, no wall zero there), on either axis.</summary>
+    [Theory]
+    [InlineData(ReplayAxis.Sim)]
+    [InlineData(ReplayAxis.Wall)]
+    public void EnterReviewAtSim_PublishesAReviewEntryWithTheSimTarget_OnEitherAxis(ReplayAxis axis)
+    {
+        var (facade, bus) = In(ClusterState.OperatingLive, axis);
+        facade.EnterReviewAtSim(95.5);
+        var intent = Published<TransitionStateIntent>(bus);
+        Assert.Equal(ClusterState.OperatingReview, intent.TargetState);
+        Assert.Equal(95.5, intent.TargetSimSeconds);
+        Assert.Equal(0, intent.TargetWallTicks);
+    }
+
+    [Fact]
+    public void TheFacadeExposesTheSessionLayer()
+    {
+        var session = new ReplaySession { Active = true, IsReview = true };
+        Assert.Same(session, In(ClusterState.OperatingReview, ReplayAxis.Sim, session).Facade.Session);
+        Assert.Null(In(ClusterState.OperatingLive).Facade.Session);
+    }
+
     [Fact]
     public void ExitReview_AndSetAxis_AreTheMastersIntents()
     {

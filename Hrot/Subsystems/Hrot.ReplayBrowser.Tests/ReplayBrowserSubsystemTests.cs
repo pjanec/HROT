@@ -51,7 +51,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// (behind a runtime-false guard) ⇒ the source half fails.
     /// </summary>
     [Fact]
-    public void CE3330_Node_TheReplayBrowserAndTheEditor_ComposeTheShippedCatalogue()
+    public void CE3330_Node_TheReplayBrowser_ComposesTheShippedCatalogue()
     {
         var ctx = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Recording: true);
         var before = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog()
@@ -62,13 +62,11 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
         string root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
-        // ⭐ CE-3330 (629adc0db) — the editor's live timeline is its node context's: the catalogue is composed by HrotNodeContext, one owner.
-        foreach (var file in new[] { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs", "Hrot/Engine/Hrot.Core/Infrastructure/HrotNodeContext.cs" })
-        {
-            string text = File.ReadAllText(Path.Combine(root, file));
-            Assert.Contains("ShippedTimelineLanes.Catalog()", text);
-            Assert.DoesNotContain("new Fdp.Toolkit.Replication.ReplicationTimelineLanes()", text);
-        }
+        // the Replay Browser composes the shipped catalogue from the factory, never by hand (the editor's side is proven on a real headless editor:
+        //   TheEditorRunsTheOrchestratorCoreTests.CE3330_Node_TheEditorsLiveTimelineIsItsNodeContexts_…)
+        string text = File.ReadAllText(Path.Combine(root, "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs"));
+        Assert.Contains("ShippedTimelineLanes.Catalog()", text);
+        Assert.DoesNotContain("new Fdp.Toolkit.Replication.ReplicationTimelineLanes()", text);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
