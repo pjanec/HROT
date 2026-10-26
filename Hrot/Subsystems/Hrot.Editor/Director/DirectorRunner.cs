@@ -437,7 +437,8 @@ namespace Hrot.Editor.Director
             var missing = ScenarioVerification.MissingNames(checks, _units);
             if (missing.Count > 0) { Report.Problems.AddRange(missing); Fail("the checks name what this scenario does not have"); return; }
             // ⭐ CE-4045 H1a — a replay check compares the run with its own recording, not with golden.json (a live run is not the preview
-            //   the golden was recorded from — RH-2), every component in full every second, or on the checks' own grid
+            //   the golden was recorded from — RH-2), every component in full, every second at least (📐 ua-tank-ammo's 10 s grid gave 7
+            //   points for 60 s — too coarse to say WHEN a recording first drops something)
             bool replay = ReplayCheck;
             var golden = checks.GoldenEvery is null || replay ? null : _host.Takes.LoadScenarioJson(Item.Scenario, ScenarioGolden.FileName).Value;
             _take = new Take { Scenario = Item.Scenario, Name = "_verify", TickHz = 60, EndAt = new AtExpr(checks.RunFor) };
@@ -450,7 +451,7 @@ namespace Hrot.Editor.Director
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             _simFrame0 = SimFrameNow();
             _verification = new ScenarioVerification(checks, golden, _request!.Verify!.Capture, _verifyWorld!, _t0,
-                startAt: at, snapshotEvery: r1?.Every ?? (replay ? checks.GoldenEvery ?? 1d : null));
+                startAt: at, snapshotEvery: r1?.Every ?? (replay ? Math.Min(checks.GoldenEvery ?? 1d, 1d) : null));
             if (restored) _verification.MarkDone(ReadSidecar(r1!).Done);
             Replan();
             _clock = new PacedClock(60, 1d);
