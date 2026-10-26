@@ -1,0 +1,153 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior.Diagnostics;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.ReplayBrowser.Support;
+using Fdp.Toolkit.Squad.Command;
+using Fdp.Toolkit.Utility;
+using Xunit;
+
+namespace Fdp.Toolkit.ReplayBrowser.Timeline
+{
+    /// <summary>
+    /// ⭐ <c>CE-1302</c> R1-a (docs/DESIGN_Director_Timeline_Editor.md §9) — the acceptance: a recorded run's shots, hits, blasts, spawns,
+    /// deaths and a commander's orders come out of ONE pass in frame order; the second open reads the sidecar; a changed recording rebuilds.
+    /// </summary>
+    public sealed class TimelineIndexTests
+    {
+        private const long Commander = 101, Soldier = 102, Late = 104;
+
+        /// <summary>
+        /// Four frames: 0 both units present · 1 a shot (and a REFUSED one), a hit on the commander, an order · 2 a blast, a decision
+        /// switch, a journal entry · 3 the soldier is gone, a third unit arrives.
+        /// </summary>
+        private static string Record(FdpRecordingHarness harness)
+        {
+            var repo = harness.Repository;
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<BrainJournal>();
+            repo.RegisterComponent<CommandOrderHistory>();
+            repo.RegisterComponent<UtilityDecisionLog>();
+
+            var commander = repo.CreateEntity();
+            repo.AddComponent(commander, new NetworkIdentity(Commander));
+            repo.AddComponent(commander, new SimTransform { Position = new Vector3(10, 20, 0) });
+            repo.AddComponent(commander, new BrainJournal());
+            repo.AddComponent(commander, default(CommandOrderHistory));
+            var soldier = repo.CreateEntity();
+            repo.AddComponent(soldier, new NetworkIdentity(Soldier));
+            repo.AddComponent(soldier, new SimTransform { Position = new Vector3(30, 40, 0) });
+            repo.AddComponent(soldier, default(UtilityDecisionLog));
+            harness.Tick().RecordKeyframe(100_000L);                                                          // frame 0
+
+            harness.FireUnmanagedEvent(new WeaponFireNotification { Shooter = soldier, Target = commander, Origin = new Vector3(30, 40, 1), Quantity = 3 });
+            harness.FireUnmanagedEvent(new WeaponFireNotification { Shooter = soldier, Refusal = FireRefusal.TooFar });
+            harness.FireUnmanagedEvent(new HitEvent { HitEntity = commander });
+            CommandHistoryOf.Order(repo, commander, soldier, 0x5A11, 1f);
+            harness.Tick().RecordDelta(200_000L);                                                             // frame 1
+
+            harness.FireUnmanagedEvent(new DetonationNotification { Shooter = soldier, HitX = 5, HitY = 6, Damage = 0.5f });
+            ref var slot = ref repo.GetComponentRW<UtilityDecisionLog>(soldier).SlotsRW()[0];
+            slot.DecisionId = 0x2067; slot.SwitchCount = 1; slot.Winner = 7;
+            BrainJournalOf.Write(repo, commander, BrainJournalKind.TaskStarted, point: new Vector3(1, 2, 0));
+            harness.Tick().RecordDelta(300_000L);                                                             // frame 2
+
+            harness.DestroyEntity(soldier);
+            var late = repo.CreateEntity();
+            repo.AddComponent(late, new NetworkIdentity(Late));
+            harness.Tick().RecordDelta(400_000L);                                                             // frame 3
+            return harness.BuildToTempFile();
+        }
+
+        private static (int Frame, long Subject, long Other)[] Of(TimelineIndex index, TimelineLane lane)
+            => index.Lane(lane).Select(e => (e.Frame, e.Subject, e.Other)).ToArray();
+
+        [Fact]
+        public void CE1302_OnePass_YieldsEveryLane_InFrameOrder()
+        {
+            using var harness = new FdpRecordingHarness();
+            string path = Record(harness);
+            var chunks = new List<TimelineIndex>();
+
+            var index = TimelineIndexBuilder.Build(path, chunks.Add, chunkFrames: 1);
+
+            Assert.True(index.IsComplete);
+            Assert.Equal(new long[] { 100_000, 200_000, 300_000, 400_000 }, index.FrameTicks);
+            Assert.Equal(1, index.FrameAt(250_000));
+            Assert.Equal(new[] { (0, Commander, 0L), (0, Soldier, 0L), (3, Late, 0L) }, Of(index, TimelineLane.Spawned).OrderBy(e => e.Frame).ThenBy(e => e.Subject));
+            var died = Assert.Single(index.Lane(TimelineLane.Destroyed));
+            Assert.Equal((3, Soldier, 30f, 40f), (died.Frame, died.Subject, died.X, died.Y));        // where it was last seen
+            var shot = Assert.Single(index.Lane(TimelineLane.Shot));                                    // ⛔ the refused one is not a shot
+            Assert.Equal((1, Soldier, Commander, 30f, 3f), (shot.Frame, shot.Subject, shot.Other, shot.X, shot.Value));
+            Assert.Equal(new[] { (1, Commander, 0L) }, Of(index, TimelineLane.Hit));
+            var blast = Assert.Single(index.Lane(TimelineLane.Blast));
+            Assert.Equal((2, Soldier, 5f, 6f, 0.5f), (blast.Frame, blast.Subject, blast.X, blast.Y, blast.Value));
+            Assert.Equal(new[] { (1, Commander, Soldier) }, Of(index, TimelineLane.Order));             // the commander's order, to whom
+            var decision = Assert.Single(index.Lane(TimelineLane.Decision));
+            Assert.Equal((2, Soldier, 7L, (float)0x2067), (decision.Frame, decision.Subject, decision.Other, decision.Value));
+            var change = Assert.Single(index.Lane(TimelineLane.Change));
+            Assert.Equal((2, Commander, (float)BrainJournalKind.TaskStarted), (change.Frame, change.Subject, change.Value));
+            Assert.Equal(1, index.Count(TimelineLane.Shot, 0, 2));
+            Assert.Equal(0, index.Count(TimelineLane.Shot, 2, 4));
+
+            Assert.Equal(new[] { 1, 2, 3, 4 }, chunks.Select(c => c.ScannedFrames));                    // progressive, the last complete
+            Assert.True(chunks[^1].IsComplete && !chunks[0].IsComplete);
+        }
+
+        [Fact]
+        public void CE1302_TheSecondOpen_ReadsTheSidecar_AndAChangedRecordingRebuilds()
+        {
+            using var harness = new FdpRecordingHarness();
+            string path = Record(harness);
+            try
+            {
+                using var first = RecordingTimelineSource.Open(path, background: false);
+                Assert.False(first.FromSidecar);
+                Assert.True(first.IsComplete);
+                Assert.True(File.Exists(TimelineSidecar.PathFor(path)));
+
+                using var second = RecordingTimelineSource.Open(path, background: false);
+                Assert.True(second.FromSidecar);
+                foreach (TimelineLane lane in Enum.GetValues<TimelineLane>())
+                    Assert.Equal(first.Index.Lane(lane), second.Index.Lane(lane));
+                Assert.Equal(first.Index.FrameTicks, second.Index.FrameTicks);
+
+                File.SetLastWriteTimeUtc(path, File.GetLastWriteTimeUtc(path).AddSeconds(5));          // the recording changed
+                using var third = RecordingTimelineSource.Open(path, background: false);
+                Assert.False(third.FromSidecar);
+                Assert.Single(third.Index.Lane(TimelineLane.Shot));
+            }
+            finally
+            {
+                try { File.Delete(TimelineSidecar.PathFor(path)); } catch { /* best effort */ }
+            }
+        }
+
+        [Fact]
+        public void CE1302_ABackgroundBuild_PublishesTheFinalIndex()
+        {
+            using var harness = new FdpRecordingHarness();
+            string path = Record(harness);
+            try
+            {
+                using var source = RecordingTimelineSource.Open(path);
+                Assert.True(source.Completion.Wait(TimeSpan.FromSeconds(30)));
+                Assert.True(source.IsComplete);
+                Assert.Equal(1f, source.Progress);
+                Assert.Single(source.Index.Lane(TimelineLane.Blast));
+            }
+            finally
+            {
+                try { File.Delete(TimelineSidecar.PathFor(path)); } catch { /* best effort */ }
+            }
+        }
+    }
+}
