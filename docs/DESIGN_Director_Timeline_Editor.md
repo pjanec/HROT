@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+updated: 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
 current-answer: ⭐ §9 R1 BUILD PLAN + §9a R1-a AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
-known-rot: §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
+known-rot: §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
 related-designs:
   - docs/DESIGN_Unit_Camera.md — the follow camera (orbit → shoulder → eyes) is a candidate shot type for the camera track
@@ -645,6 +645,26 @@ absolute ones — the mixed clock `6052a75a1` fixed in `RecorderTickSystem` the 
 ⏳ **Of §2b's cache tables only `events` is built.** `entities` (names, side) waits for R1-d's swimlane, which is its first reader; the
 `position track` for R2b (Movement); the `pyramid` is replaced in R1-b by a binary search per pixel column (`Count(lane, from, to)`),
 which already costs pixels × lanes × log(events) — a pyramid only if R1-b's < 1 ms budget is missed.
+
+### 9b. Coordinator review of R1-a…c *(coordinator, `2026-10-26` — merged `ui@42f1ff7b5`)*
+
+⭐ **Verdict: it is the timeline the design asked for, and it is measured.** One background pass on its own playback (12.9× real
+time), a sidecar reopened in 1.1 ms, drawing by pixels in 0.59 ms, density / glyph / cluster / priority, zoom about the cursor, progress
+shading, a failed build reported, clicks that seek. 🔒 The deviations of §9 / §9a are ACCEPTED as argued: D1 / TL-2 (seek through the
+browser's manager, a per-host cursor), D3 / TL-1 (the panel in `Fdp.Presentation`), TL-6 (size + write time), the pyramid replaced by
+a per-column count while under budget.
+
+| # | gap — for the slice named | why it matters | lean |
+|---|---|---|---|
+| ① | **sim time per frame** — the index keeps `FrameTicks` (wall clock) only; `FrameMetadata` carries `Tick` and `WallClockTicks`, no sim time (`PlaybackController.cs:426-433`) | a take is written in SIM seconds (`AtExpr`, `TakeTimeline`), and so are `checks.json`'s windows; a recorded run that paused has wall gaps that sim time does not | **R2:** the builder also stores `FrameSimTime[]` from `GlobalTime.TotalTime` as it plays (it already holds the repository) |
+| ② | **the director host's seek** — §1 / §3 / §4b say `ReplayBrowserContext.SeekToFrame` (known-rot) | D1: the browser seeks through `FederatedReplayManager` | **R2:** `ReplayDirectorHost` binds to the same `ITimelineCursor` as the panel — one seek path |
+| ③ | **the TKB in the Replay Browser (R-4069)** is in §6's R1 and the handoff's R1 row, but in no slice of §9 | the swimlane's names, types and sides (R1-d) and the 3-D bodies need it | **R1-d** |
+| ④ | the recording-replay defect found in R0 ⑧ had no tracker row | the browser itself cannot open such a recording | filed: **CE-4050** (replay harness) |
+
+| ❓ for the user | the facts | ⭐ lean |
+|---|---|---|
+| **Q-a — TL-3 against R-4075** | R-4075 says the row seam is `ITraceLaneProvider`, generalised. TL-3 adds `ITimelineRowProvider` in `Fdp.Presentation` instead, because `ITraceLaneProvider` lives in an editor assembly the browser cannot reference and only DESCRIBES lanes (D2, D3) — and plans an ADAPTER for the three trace providers | accept TL-3's seam, but ⛔ no adapter: at R1-e the three trace providers (descriptor-only today) implement `ITimelineRowProvider` and `ITraceLaneProvider` is retired — one seam, as R-4075 meant. Amend R-4075's mechanism, keep its intent |
+| **Q-b — the extractors against R-4077** | R-4077: every "is this true at this frame" — *timeline queries* named — is a predicate. The index's Life / Combat / Behaviour extractors are hand-written per-frame code. But they are a CATALOGUE (what happened, with its payload: who, whom, where, how much); a predicate search returns frame + entity only (`SearchResultDto`, `SearchPredicateDto.cs:344`) | **the line:** the fixed lanes stay a catalogue; **every condition on the timeline is a predicate** — a custom lane, a filter, an anchor, the search lane — run by `PredicateCompiler` in the same builder pass. A new FIXED lane is a catalogue entry; ⛔ a new CONDITION is never extractor code |
 
 ## 8. INVENTORY
 
