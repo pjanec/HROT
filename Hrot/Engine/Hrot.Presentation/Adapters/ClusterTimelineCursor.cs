@@ -81,10 +81,40 @@ public sealed class ClusterTimelineCursor : ITimelineCursor
     public void Seek(long ticks)
     {
         if (!CanSeek || _facade() is not { } f || ActiveSession is not { } s) return;
-        double t = f.Axis == ReplayAxis.Sim && s.TimeMap is { HasSimTime: true } map
-            ? map.SimAt(ticks)                                  // Sim: sim seconds
-            : (ticks - s.ZeroWallTicks) / (double)Tps;          // Wall: seconds after the session's zero
-        f.Seek(t);
+        f.Seek(ToFacadeAxis(f, s, ticks));
+    }
+
+    /// <summary>⭐ The ONE wall → facade conversion (Seek and SetLoop share it): Sim = sim seconds through the session's map; Wall (or a map-less
+    /// v6 session) = seconds after the session's zero.</summary>
+    private static double ToFacadeAxis(ITimeTransportFacade f, ReplaySession s, long wallTicks)
+        => f.Axis == ReplayAxis.Sim && s.TimeMap is { HasSimTime: true } map
+            ? map.SimAt(wallTicks)
+            : (wallTicks - s.ZeroWallTicks) / (double)Tps;
+
+    /// <summary>The inverse of <see cref="ToFacadeAxis"/>: a time on the facade's axis as wall ticks.</summary>
+    private static long FromFacadeAxis(ITimeTransportFacade f, ReplaySession s, double t)
+        => f.Axis == ReplayAxis.Sim && s.TimeMap is { HasSimTime: true } map
+            ? map.WallAt(t)
+            : s.ZeroWallTicks + (long)Math.Round(t * Tps);
+
+    // ── the master's loop (E5, DAR §12n) ─────────────────────────────────────────────────────────────────────
+
+    public bool CanLoop => Mode is TimelineMode.Review or TimelineMode.Replay;
+
+    public (long From, long To)? Loop
+        => CanLoop && _facade() is { } f && ActiveSession is { } s && f.Loop is { } l
+            ? (FromFacadeAxis(f, s, l.From), FromFacadeAxis(f, s, l.To))
+            : null;
+
+    public void SetLoop(long fromWall, long toWall)
+    {
+        if (!CanLoop || _facade() is not { } f || ActiveSession is not { } s) return;
+        f.SetLoop(ToFacadeAxis(f, s, fromWall), ToFacadeAxis(f, s, toWall));
+    }
+
+    public void ClearLoop()
+    {
+        if (CanLoop && _facade() is { } f) f.ClearLoop();
     }
 
     // ── review ───────────────────────────────────────────────────────────────────────────────────────────────

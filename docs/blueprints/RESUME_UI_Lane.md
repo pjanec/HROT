@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-26
-current-answer: ⭐⭐⭐ 2026-10-26 (b) — START AT "SESSION 2026-10-26 (b) — THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
+current-answer: ⭐⭐⭐ 2026-10-26 (c) — START AT "SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS", then (b) "THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
   what was built 10-25/26, what is open, the traps measured). Then the 10-25 Brain-tab section and the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
@@ -168,6 +168,23 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS *(state at `ui` after the CE-1364 merge; merged `backend@491e09c7a`, `coordinator@8375318cc`)*
+
+**RELEARN**, then verify every line against git. ⭐ Working mode this session (user): Sonnet subagents in git worktrees build slices with
+checkable success conditions and their own red-proved rails; Opus reviews the tests + diff, VERIFIES every limitation / absence claim,
+merges, build-checks the merged tree, pushes (CLAUDE.md "SONNET DELEGATION").
+
+| built | where |
+|---|---|
+| CE-3330 E1–E5 — the review UI on backend's ONE facade: `ClusterTimelineCursor` (live / review / replay), the menu by mode, checkpoint flags + live point, the live index on `GlobalTime.TotalWallTicks` + `FrameSim` (R-4089), frozen in a review, the toolbar mode icon + menus + ⏏ / F15 + S / W, the slider on the axis, Loop range | [Director Timeline §2e](../DESIGN_Director_Timeline_Editor.md) |
+| CE-1361 — the live timeline's cost (1.7 → ≈ 1.0 ms busy / ≈ 0.5 ms idle at 1000 units; O(1) publish) · CE-1362 filed (fill a node's index on first use from its recording) | §2d, tracker |
+| CE-1364 (A1) — the director's tracks T1–T4 | [§10](../DESIGN_Director_Timeline_Editor.md) |
+| every ECS node keeps a live timeline (`HrotNodeContext.Timeline`, one owner — the editor's too) | §2d |
+
+**Next, in order:** ① a cluster REPLAY's own lanes on these hosts (`RecordingTimelineSource` over the node's recording — §2e's red edge) ·
+② CE-1362 · ③ the deferred §2e items (review-and-play, before / after a pause's edits, ⚑ mark, ⑂ go live) · ④ A1 leftovers (segment
+add / delete + edge handles, K lens). ⚠ Headless editor tests: run serially until CE-1365 (backend) lands.
 
 ## ⭐⭐⭐ SESSION 2026-10-26 (b) — THE REVIEW TIMELINE, ui HALF *(state at `ui@109f29525`; merged `coordinator@9029aaa4d` + `backend@c79d3de12`)*
 

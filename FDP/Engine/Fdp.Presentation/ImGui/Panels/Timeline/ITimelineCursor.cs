@@ -51,6 +51,19 @@ public interface ITimelineCursor
 
     /// <summary>⭐ <c>CE-3330</c> E2 — reviews the live run from the frame at / before <paramref name="wallTicks"/> (no-op when <see cref="CanReview"/> is false).</summary>
     void EnterReview(long wallTicks) { }
+
+    /// <summary>⭐ <c>CE-3330</c> E5 (§2e) — the MASTER's loop of the open replay / review (WALL ticks, like every cursor time; converted by
+    /// <see cref="AxisCursor"/>); null = none. A session setting every host draws (DAR §12n), ⛔ never the Replay Browser's own clock loop.</summary>
+    (long From, long To)? Loop => null;
+
+    /// <summary>⭐ <c>CE-3330</c> E5 — whether the host can set the session's loop (a review / replay on the cluster).</summary>
+    bool CanLoop => false;
+
+    /// <summary>⭐ <c>CE-3330</c> E5 — loops the session between the two WALL times (no-op when <see cref="CanLoop"/> is false).</summary>
+    void SetLoop(long fromWall, long toWall) { }
+
+    /// <summary>⭐ <c>CE-3330</c> E5 — clears the session's loop (no-op when <see cref="CanLoop"/> is false).</summary>
+    void ClearLoop() { }
 }
 
 /// <summary>
