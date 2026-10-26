@@ -1008,6 +1008,15 @@ is the ONE place a take's keys come from (its own `keys[]`, else its `shots[]` p
 write is now one helper shared by shots and keys (`ParseCamera` / `WriteCamera`); `TakeTimeline.ProgramAt` reuses `ShotEvaluator.Eased` (no
 second easing). Rails `FilmDirectorTests.TE2_*` ×5, `T1_ProgramAt_*` — each red-proved; the 55 seeded takes read unchanged and write back v1.
 
+⚠ **OPEN before T2 — the live panel has no sim axis** *(measured `2026-10-26`)*: the editor's live index records only WALL ticks
+(`LiveTimelineSource.cs:61` → `TimelineFrameScanner.Step(…, wallTicks, …)`) and its cursor carries no time map
+(`EditorSubsystem.cs:5285`, `new LiveTimelineCursor(...)` with no `timeMap`) ⇒ a key in SIM seconds (§2c row 10) has nothing to be placed
+through on a live host. ⭐ Lean **T-L5**: the live scanner records each frame's sim time beside its wall ticks (it already steps the world
+every frame) and the live cursor exposes `ReplayTimeMap.FromFrames` over them — the SAME map a recording's v7 frame index gives, one node's
+own frames; ⛔ not a second map owner: when backend's `ReplaySessionTopic` (note B, item 6) lands, the session's map replaces it on the
+cursor. Rejected: wait for B (blocks A1, which the note says nothing blocks) · place keys on wall ticks (breaks §2c row 10 the moment a
+pause collapses).
+
 **Leans** (ask before building any that the user overturns): **T-L1** the seam is a NEW `ITimelineTrack`, ⛔ not a lane provider (lanes are
 READ from an index; a track's items are EDITED — two different lifetimes) · **T-L2** undo on `GizmoUndoStack` (its `IEntityCommandBuffer`
 argument is unused by a take record — a wart, not a fifth stack) · **T-L3** one `TakeEditor` per open take, shared by the panel and the
