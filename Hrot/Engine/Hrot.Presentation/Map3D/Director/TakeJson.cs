@@ -23,7 +23,16 @@ public static class TakeJson
     private static readonly HashSet<string> ToKeys = new(StringComparer.Ordinal) { "distance", "yaw", "pitch", "lift", "back", "height", "ahead", "fov" };
 
     private static readonly HashSet<string> TakeKeys = new(StringComparer.Ordinal)
-        { "title", "caption", "tickHz", "endAt", "anchors", "baked", "shots", "layers", "sound" };
+        { "title", "caption", "tickHz", "endAt", "anchors", "baked", "shots", "keys", "segments", "layers", "sound" };
+
+    /// <summary>⭐ <c>TE-2</c> — a camera key's keys: a shot's camera keys at its top level, plus <c>in</c> and <c>still</c>.</summary>
+    private static readonly HashSet<string> KeyKeys = new(StringComparer.Ordinal)
+    {
+        "at", "follow", "over", "toward", "look_at", "lookAt", "eye", "target", "distance", "yaw", "pitch", "orbit", "lift",
+        "back", "height", "ahead", "fov", "in", "still",
+    };
+
+    private static readonly HashSet<string> SegmentKeys = new(StringComparer.Ordinal) { "from", "to", "speed", "gap" };
 
     /// <summary>Kept, not read: what <c>clips.json</c> carries per clip, and a file's own note.</summary>
     private static readonly HashSet<string> ExtraKeys = new(StringComparer.Ordinal)
@@ -46,6 +55,18 @@ public static class TakeJson
                 if (arr[i] is JsonObject s) shots.Add(ParseShot(s, i + 1, problems));
                 else problems.Add($"shot {i + 1} is not an object");
 
+        var keys = new List<CameraKey>();
+        if (json["keys"] is JsonArray karr)
+            for (int i = 0; i < karr.Count; i++)
+                if (karr[i] is JsonObject k) keys.Add(ParseKey(k, i + 1, problems));
+                else problems.Add($"key {i + 1} is not an object");
+
+        var segments = new List<TimeSegment>();
+        if (json["segments"] is JsonArray sarr)
+            for (int i = 0; i < sarr.Count; i++)
+                if (sarr[i] is JsonObject g) { if (ParseSegment(g, i + 1, problems) is { } seg) segments.Add(seg); }
+                else problems.Add($"segment {i + 1} is not an object");
+
         JsonObject? extra = null;
         foreach (var (key, node) in json)
         {
@@ -65,29 +86,109 @@ public static class TakeJson
             EndAt = TryAt(json["endAt"], "endAt", problems),
             Anchors = anchors,
             Baked = json["baked"] is JsonObject b ? ParseBaked(b) : null,
-            Shots = shots,
+            Shots = shots, Keys = keys, Segments = segments,
             Layers = json["layers"] is JsonObject l ? ParseLayers(l, "the take", problems) : null,
             Sound = Bool(json["sound"]),
             Extra = extra,
         };
     }
 
-    public static ShotSpec ParseShot(JsonObject s, int number, List<string> problems)
+    /// <summary>
+    /// The camera a shot or a key writes at its top level (film.py's plan keys). <paramref name="where"/> is "shot 3" / "key 2" — it prefixes
+    /// every problem. A camera must name exactly one kind.
+    /// </summary>
+    private static CameraSpec ParseCamera(JsonObject s, string where, List<string> problems)
     {
-        foreach (var (key, _) in s)
-            if (!ShotKeys.Contains(key)) problems.Add($"shot {number}: unknown key '{key}'");
         var camera = new CameraSpec
         {
             Follow = Name(s["follow"]), Over = Name(s["over"]), Toward = Name(s["toward"]),
-            LookAt = Vec(s["lookAt"] ?? s["look_at"], $"shot {number} lookAt", problems),
-            Eye = Vec(s["eye"], $"shot {number} eye", problems), Target = Vec(s["target"], $"shot {number} target", problems),
+            LookAt = Vec(s["lookAt"] ?? s["look_at"], $"{where} lookAt", problems),
+            Eye = Vec(s["eye"], $"{where} eye", problems), Target = Vec(s["target"], $"{where} target", problems),
             Distance = Float(s["distance"]) ?? 30f, Yaw = Float(s["yaw"]) ?? 0f, Pitch = Float(s["pitch"]) ?? -20f,
             Orbit = Float(s["orbit"]) ?? 0f, Lift = Float(s["lift"]) ?? 1.5f, Back = Float(s["back"]) ?? 20f,
             Height = Float(s["height"]) ?? 6f, Ahead = Float(s["ahead"]) ?? 0.35f, Fov = Float(s["fov"]),
         };
-        if (camera.Kinds != 1) problems.Add($"shot {number}: needs exactly one of follow · over (+ toward) · lookAt · eye + target ({camera.Kinds} given)");
-        if (camera.Over != null && camera.Toward == null) problems.Add($"shot {number}: over needs toward");
-        if ((camera.Eye == null) != (camera.Target == null)) problems.Add($"shot {number}: eye needs target");
+        if (camera.Kinds != 1) problems.Add($"{where}: needs exactly one of follow · over (+ toward) · lookAt · eye + target ({camera.Kinds} given)");
+        if (camera.Over != null && camera.Toward == null) problems.Add($"{where}: over needs toward");
+        if ((camera.Eye == null) != (camera.Target == null)) problems.Add($"{where}: eye needs target");
+        return camera;
+    }
+
+    /// <summary>
+    /// ⭐ <c>TE-2</c> — one camera key: <c>at</c>, the camera at its top level, <c>in</c> (<c>"cut"</c> · <c>{"fly": seconds, "ease": …}</c> ·
+    /// <c>{"dip": [out, in]}</c>), <c>fov</c>, <c>still</c>. ⛔ An unknown key is a problem naming the key's number.
+    /// </summary>
+    public static CameraKey ParseKey(JsonObject k, int number, List<string> problems)
+    {
+        var where = $"key {number}";
+        foreach (var (key, _) in k)
+            if (!KeyKeys.Contains(key)) problems.Add($"{where}: unknown key '{key}'");
+        if (k["at"] is null) problems.Add($"{where}: needs at");
+        var camera = ParseCamera(k, where, problems);
+        return new CameraKey
+        {
+            At = TryAt(k["at"], $"{where} at", problems) ?? new AtExpr(0),
+            Camera = camera, Fov = camera.Fov,
+            In = ParseTransition(k["in"], where, problems),
+            Still = Str(k["still"]),
+        };
+    }
+
+    private static KeyTransition ParseTransition(JsonNode? n, string where, List<string> problems)
+    {
+        if (n is null) return KeyTransition.Cut;
+        if (n is JsonValue v)
+        {
+            if (string.Equals(v.ToString(), "cut", StringComparison.Ordinal)) return KeyTransition.Cut;
+            problems.Add($"{where}: in '{v}' (\"cut\", {{\"fly\": seconds}} or {{\"dip\": [out, in]}})");
+            return KeyTransition.Cut;
+        }
+        if (n is not JsonObject o) { problems.Add($"{where}: in is \"cut\", {{\"fly\": seconds, \"ease\": …}} or {{\"dip\": [out, in]}}"); return KeyTransition.Cut; }
+        foreach (var (key, _) in o)
+            if (key is not ("fly" or "ease" or "dip")) problems.Add($"{where}: in has unknown key '{key}'");
+        if (o["fly"] is not null && o["dip"] is not null) problems.Add($"{where}: in names both fly and dip");
+        if (o["fly"] is { } fly)
+        {
+            var seconds = Double(fly);
+            if (seconds is not > 0) { problems.Add($"{where}: in.fly must be positive seconds"); seconds = 1d; }
+            var ease = Ease.InOut;
+            if (Str(o["ease"]) is { } e && !Enum.TryParse(e, ignoreCase: true, out ease)) problems.Add($"{where}: ease '{e}' (linear, in, out, inOut)");
+            return KeyTransition.Fly(seconds.Value, ease);
+        }
+        if (o["dip"] is { } dip)
+        {
+            if (dip is JsonArray { Count: 2 } d && Double(d[0]) is { } outS && Double(d[1]) is { } inS && outS >= 0 && inS >= 0)
+                return KeyTransition.Dip(outS, inS);
+            problems.Add($"{where}: in.dip is [out seconds, in seconds], both 0 or more");
+            return KeyTransition.Dip(0.5d, 0.5d);
+        }
+        problems.Add($"{where}: in names neither fly nor dip");
+        return KeyTransition.Cut;
+    }
+
+    /// <summary>⭐ <c>TE-2</c> — one time segment: <c>from</c>, <c>to</c>, optional <c>speed</c>, <c>gap</c> (<c>"cut"</c> | <c>"dip"</c>). Null (and a problem) when it has no <c>from</c> / <c>to</c>.</summary>
+    public static TimeSegment? ParseSegment(JsonObject g, int number, List<string> problems)
+    {
+        var where = $"segment {number}";
+        foreach (var (key, _) in g)
+            if (!SegmentKeys.Contains(key)) problems.Add($"{where}: unknown key '{key}'");
+        var from = TryAt(g["from"], $"{where} from", problems);
+        var to = TryAt(g["to"], $"{where} to", problems);
+        if (g["from"] is null) problems.Add($"{where}: needs from");
+        if (g["to"] is null) problems.Add($"{where}: needs to");
+        double speed = Float(g["speed"]) ?? 1f;
+        if (!(speed > 0)) problems.Add($"{where}: speed must be positive");
+        var gap = SegmentGap.Cut;
+        if (Str(g["gap"]) is { } gp && !Enum.TryParse(gp, ignoreCase: true, out gap)) problems.Add($"{where}: gap '{gp}' (cut, dip)");
+        if (from is not { } f || to is not { } t) return null;
+        return new TimeSegment { From = f, To = t, Speed = speed, Gap = gap };
+    }
+
+    public static ShotSpec ParseShot(JsonObject s, int number, List<string> problems)
+    {
+        foreach (var (key, _) in s)
+            if (!ShotKeys.Contains(key)) problems.Add($"shot {number}: unknown key '{key}'");
+        var camera = ParseCamera(s, $"shot {number}", problems);
 
         Dictionary<string, float>? to = null;
         if (s["to"] is JsonObject t)
@@ -170,6 +271,8 @@ public static class TakeJson
         var shots = new JsonArray();
         foreach (var s in take.Shots) shots.Add(WriteShot(s));
         o["shots"] = shots;
+        if (take.Keys.Count > 0) o["keys"] = new JsonArray(take.Keys.Select(k => (JsonNode?)WriteKey(k)).ToArray());
+        if (take.Segments.Count > 0) o["segments"] = new JsonArray(take.Segments.Select(g => (JsonNode?)WriteSegment(g)).ToArray());
         if (take.Extra != null)
             foreach (var (k, v) in take.Extra) o[k] = v?.DeepClone();
         return o;
@@ -177,19 +280,8 @@ public static class TakeJson
 
     public static JsonObject WriteShot(ShotSpec s)
     {
-        var d = new CameraSpec();
-        var c = s.Camera;
         var o = new JsonObject { ["at"] = s.At.ToJson(), ["seconds"] = s.Seconds };
-        if (c.Follow != null) o["follow"] = c.Follow;
-        if (c.Over != null) o["over"] = c.Over;
-        if (c.Toward != null) o["toward"] = c.Toward;
-        if (c.LookAt is { } la) o["lookAt"] = V(la);
-        if (c.Eye is { } eye) o["eye"] = V(eye);
-        if (c.Target is { } tg) o["target"] = V(tg);
-        void F(string key, float value, float fallback) { if (value != fallback) o[key] = value; }
-        F("distance", c.Distance, d.Distance); F("yaw", c.Yaw, d.Yaw); F("pitch", c.Pitch, d.Pitch); F("orbit", c.Orbit, d.Orbit);
-        F("lift", c.Lift, d.Lift); F("back", c.Back, d.Back); F("height", c.Height, d.Height); F("ahead", c.Ahead, d.Ahead);
-        if (c.Fov is { } fov) o["fov"] = fov;
+        WriteCamera(o, s.Camera);
         if (s.To is { Count: > 0 } to)
         {
             var t = new JsonObject();
@@ -203,6 +295,49 @@ public static class TakeJson
         if (s.Layers != null) o["layers"] = WriteLayers(s.Layers);
         if (s.Sound is { } sound) o["sound"] = sound;
         if (s.Why != null) o["why"] = s.Why;
+        return o;
+    }
+
+    /// <summary>A camera's keys into <paramref name="o"/>, each only when it differs from the default (as a shot and a key write it).</summary>
+    private static void WriteCamera(JsonObject o, CameraSpec c)
+    {
+        var d = new CameraSpec();
+        if (c.Follow != null) o["follow"] = c.Follow;
+        if (c.Over != null) o["over"] = c.Over;
+        if (c.Toward != null) o["toward"] = c.Toward;
+        if (c.LookAt is { } la) o["lookAt"] = V(la);
+        if (c.Eye is { } eye) o["eye"] = V(eye);
+        if (c.Target is { } tg) o["target"] = V(tg);
+        void F(string key, float value, float fallback) { if (value != fallback) o[key] = value; }
+        F("distance", c.Distance, d.Distance); F("yaw", c.Yaw, d.Yaw); F("pitch", c.Pitch, d.Pitch); F("orbit", c.Orbit, d.Orbit);
+        F("lift", c.Lift, d.Lift); F("back", c.Back, d.Back); F("height", c.Height, d.Height); F("ahead", c.Ahead, d.Ahead);
+        if (c.Fov is { } fov) o["fov"] = fov;
+    }
+
+    /// <summary>⭐ <c>TE-2</c> — a key as written: <c>at</c>, its camera, <c>in</c> (omitted for a cut), <c>still</c>. <see cref="CameraKey.Fov"/> is the lens that is written.</summary>
+    public static JsonObject WriteKey(CameraKey k)
+    {
+        var o = new JsonObject { ["at"] = k.At.ToJson() };
+        WriteCamera(o, k.Camera with { Fov = k.Fov });
+        switch (k.In.Kind)
+        {
+            case KeyTransitionKind.Fly:
+                o["in"] = new JsonObject { ["fly"] = k.In.Seconds, ["ease"] = k.In.Ease == Ease.InOut ? "inOut" : k.In.Ease == Ease.Linear ? "linear" : k.In.Ease == Ease.In ? "in" : "out" };
+                break;
+            case KeyTransitionKind.Dip:
+                o["in"] = new JsonObject { ["dip"] = new JsonArray(k.In.OutSeconds, k.In.InSeconds) };
+                break;
+        }
+        if (k.Still != null) o["still"] = k.Still;
+        return o;
+    }
+
+    /// <summary>⭐ <c>TE-2</c> — a segment as written (<c>speed</c> / <c>gap</c> only when they differ from 1 / cut).</summary>
+    public static JsonObject WriteSegment(TimeSegment g)
+    {
+        var o = new JsonObject { ["from"] = g.From.ToJson(), ["to"] = g.To.ToJson() };
+        if (g.Speed != 1d) o["speed"] = g.Speed;
+        if (g.Gap != SegmentGap.Cut) o["gap"] = "dip";
         return o;
     }
 

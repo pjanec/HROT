@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
 updated: 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+current-answer: ⭐ §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -924,6 +924,104 @@ predicate editor will call.*
 | **④ the cache** | sidecar schema 2: per lane its id, a definition hash (SHA-256 of the id + the predicate's polymorphic JSON + the projection) and its events; `RecordingTimelineSource` reuses matching lanes and scans only the rest (`ScannedLanes`); the panel shows reused lanes at once | an unserialisable predicate hashes fresh — rebuilt every open rather than reused wrongly |
 | **the extractors' knowledge** | `TimelineExtractors.cs` deleted; every rule it held is now asserted against the DEFINITIONS (`TimelineIndexTests`): a refused shot is not a shot, two orders in a frame are two events, a repeat is one more, the pre-recording order is a baseline, a death keeps its last position | — |
 | **⑤ user lanes** | `TimelineLaneCatalog.Register(IndexedLaneDefinition)` + per-lane hashing ⇒ a user lane indexes like a shipped one, incrementally (rail: "who was hit") | ⏳ no editor UI to author one yet (dead edge above) |
+
+## 10. R2-T — the director's tracks on the panel: the build plan *(ui, `2026-10-26`; build-state: DESIGN — dispatched by [NOTE_Coordinator_To_Ui_After_Review_Timeline](blueprints/batches/NOTE_Coordinator_To_Ui_After_Review_Timeline.md) item A1)*
+
+**Scope** — the part of R2 (§6) that puts a take on the timeline: format v2 `keys[]` / `segments[]` (§5), the **Time** and **Camera**
+tracks drawn and edited on the ONE panel (§2c rows 2, 3, 10), **K** / **J** / **L**, undo (TE-14). ⛔ Not here: TE-5 (the runner's move)
+and `ReplayDirectorHost` — a take from a RECORDING plays once those land (§6 R2's acceptance); here a take plays on the editor's live run.
+
+**INVENTORY** (`2026-10-26`, graph re-indexed — `search_graph` `.*Timeline.*` Interface → 3 / Class → 34, `.*(Director|Take|Shot|Reel).*`
+Interface → 4 / Class, `.*Undo.*` → 2 interfaces, 2 stacks; `search_code` `ProgramAt|ReplayDirectorHost|CameraKey` → 0): the panel
+(`TimelinePanel`, `TimelineView`, `TimelineLayout`, `TimelineAxis`, `ITimelineCursor`, `TimelineMenuItem`) draws only index EVENTS — ⛔ no
+editable item, no track seam; the take (`Take`, `ShotSpec`, `CameraSpec`, `AtExpr`, `TakeJson`, `TakeTimeline.Plan`) has only `shots[]`;
+`ProgramAt`, `keys[]`, `segments[]`, `ReplayDirectorHost` do not exist; the undo stacks are `GizmoUndoStack` (Fdp.Toolkits — a record per
+edit), its GizmoMap twin, NodeEditor's `UndoStack` (graph commands only) and Blueprints' `CommandHistory` (not reachable from Presentation).
+
+| the plan rests on | code — how it is | design basis |
+|---|---|---|
+| the panel cannot reference the take (FDP below Hrot) | ✅ `TimelinePanel` in `Fdp.Presentation`; `Take` in `Hrot.Presentation/Map3D/Director` | ✅ §9 D2/D3 (the panel lives in Fdp.Presentation) |
+| the panel's rows are the index's lanes only | ✅ `TimelinePanel.Draw` → `DrawRow(index, lanes…)` | ✅ §2a: a track is a row of the SAME panel (R-4073) |
+| a key is the unit; old `shots[]` read as keys | ✅ `ShotSpec` (`At`, `Seconds`, `Camera`, `To` = a fly) | ✅ TE-2 |
+| keys stay in SIM seconds; drawn through the session's map on Wall | ✅ `ITimelineCursor.TimeMap`, `TimelineAxis.IsSim` | ✅ §2c row 10 |
+| an edit is undoable by an EXISTING stack | ✅ `GizmoUndoStack.Push(IGizmoUndoRecord)` (Fdp.Toolkits, reachable) | ✅ TE-14 ("no fifth") |
+| a drag never moves the world | — | ✅ §2c row 2 |
+
+```mermaid
+classDiagram
+  direction LR
+  class TimelinePanel { <<exists, grows>> Draw(source, cursor, lanes, tracks) · tracks above the lanes · hit · drag · keys }
+  class ITimelineTrack { <<NEW, Fdp.Presentation>> Id · Label · Items(axis) · Select(item) · Move(item, toSeconds) · Key(k, atSeconds) bool · MenuItems(ctx) }
+  class TimelineTrackItem { <<NEW, record>> Id · From · To? (sim s) · Label · Kind (key / segment) · Selected }
+  class DirectorTracks { <<NEW, Hrot.Presentation/Map3D/Director>> Time + Camera tracks over the edited take }
+  class TakeEditor { <<NEW>> Take (current) · Apply(edit) · Undo / Redo via GizmoUndoStack · Dirty · Save → TakeStore }
+  class TakeEditRecord { <<NEW>> IGizmoUndoRecord: before / after take snapshots (TE-14) }
+  class Take { <<exists, grows>> + Keys · + Segments (format v2) }
+  class CameraKey { <<NEW, record>> At · Camera (CameraSpec) · In (cut / fly(s, ease) / dip(a, b)) · Fov? · Still? }
+  class TimeSegment { <<NEW, record>> From · To · Speed · Gap (cut / dip) }
+  class TakeJson { <<exists, grows>> reads keys[] / segments[]; shots[] read AS keys (TE-2); writes v2 }
+  class TakeTimeline { <<exists, grows>> + ProgramAt(simTime) → key, blend, fade }
+  class GizmoUndoStack { <<exists, Fdp.Toolkits>> }
+  TimelinePanel --> ITimelineTrack : draws, hit-tests, drags
+  DirectorTracks ..|> ITimelineTrack
+  DirectorTracks --> TakeEditor
+  TakeEditor --> Take
+  TakeEditor --> GizmoUndoStack : Push(TakeEditRecord)
+  Take *-- CameraKey
+  Take *-- TimeSegment
+  TakeJson ..> Take
+  TakeTimeline ..> CameraKey
+```
+*What the picture shows that prose hid:* the panel learns one small interface and nothing about takes; the take's editor owns undo and
+saving, so a drag on the panel and an edit in the Director window are the SAME edit path.
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant P as TimelinePanel
+  participant D as DirectorTracks
+  participant E as TakeEditor
+  participant S as GizmoUndoStack
+  participant R as DirectorRunner
+  U->>P: press on a Camera key, drag
+  P->>D: Select(item) then Move(item, simSeconds) each frame (preview only)
+  U->>P: release
+  P->>D: Move(item, final) commit
+  D->>E: Apply(MoveKey(id, at))
+  E->>S: Push(TakeEditRecord(before, after))
+  E-->>R: the runner reads the edited take on its next ProgramAt
+  Note over P,E: the world is never touched — an edit of the TAKE (§2c row 2)
+  U->>P: K (panel focused)
+  P->>D: Key(K, playhead sim s)
+  D->>E: Apply(AddKey(pilot camera pose, at, in: last used))
+```
+
+| # | slice | builds | accepted when |
+|---|---|---|---|
+| **T1** ✅ BUILT `2026-10-26` | format v2 | `CameraKey`, `TimeSegment`, `Take.Keys` / `Segments`; `TakeJson` reads `keys[]` / `segments[]`, reads `shots[]` AS keys (a shot → a cut key at `at`; a shot with `to` → a fly key at its end), writes v2; `TakeTimeline.ProgramAt` | every seeded take loads and lays out as before (55 takes); a v2 file round-trips |
+| **T2** | the track seam | `ITimelineTrack` + `TimelineTrackItem`; the panel draws tracks above the lanes, hit-tests, selects on a click, drags (preview each frame, commit on release); keys on the active axis through the time map | a frame rail: a drag moves the item, a click only selects, empty space still does nothing |
+| **T3** | the director's tracks | `DirectorTracks` (Time = segments, Camera = keys), `TakeEditor` + `TakeEditRecord` on `GizmoUndoStack`, save through `TakeStore`; **K** adds a key from the pilot camera (relative to a selected unit, TE-2); **J** / **L** the rate | a key moved on the panel is where the saved file says; undo puts it back; K adds one at the playhead |
+| **T4** | playing keys | `DirectorRunner` plays `ProgramAt`: cut, fly (eased), dip (TE-8) | a take plays from the panel with its keys where the take's file says (note A1's acceptance) |
+
+**T1 as built** — `KeyTransition` (Cut / Fly(s, ease) / Dip(out, in)), `CameraKey`, `TimeSegment`, `Take.Keys` / `Segments`; `CameraKeys.Of(take)`
+is the ONE place a take's keys come from (its own `keys[]`, else its `shots[]` per TE-2); `TakeJson` reads / writes v2 and the camera read /
+write is now one helper shared by shots and keys (`ParseCamera` / `WriteCamera`); `TakeTimeline.ProgramAt` reuses `ShotEvaluator.Eased` (no
+second easing). Rails `FilmDirectorTests.TE2_*` ×5, `T1_ProgramAt_*` — each red-proved; the 55 seeded takes read unchanged and write back v1.
+
+⚠ **OPEN before T2 — the live panel has no sim axis** *(measured `2026-10-26`)*: the editor's live index records only WALL ticks
+(`LiveTimelineSource.cs:61` → `TimelineFrameScanner.Step(…, wallTicks, …)`) and its cursor carries no time map
+(`EditorSubsystem.cs:5285`, `new LiveTimelineCursor(...)` with no `timeMap`) ⇒ a key in SIM seconds (§2c row 10) has nothing to be placed
+through on a live host. ⭐ Lean **T-L5**: the live scanner records each frame's sim time beside its wall ticks (it already steps the world
+every frame) and the live cursor exposes `ReplayTimeMap.FromFrames` over them — the SAME map a recording's v7 frame index gives, one node's
+own frames; ⛔ not a second map owner: when backend's `ReplaySessionTopic` (note B, item 6) lands, the session's map replaces it on the
+cursor. Rejected: wait for B (blocks A1, which the note says nothing blocks) · place keys on wall ticks (breaks §2c row 10 the moment a
+pause collapses).
+
+**Leans** (ask before building any that the user overturns): **T-L1** the seam is a NEW `ITimelineTrack`, ⛔ not a lane provider (lanes are
+READ from an index; a track's items are EDITED — two different lifetimes) · **T-L2** undo on `GizmoUndoStack` (its `IEntityCommandBuffer`
+argument is unused by a take record — a wart, not a fifth stack) · **T-L3** one `TakeEditor` per open take, shared by the panel and the
+Director window (one edit path) · **T-L4** T1 keeps reading `shots[]` and WRITES v2 only when a take is edited (seeded takes stay as they are
+until touched).
 
 ## 8. INVENTORY
 

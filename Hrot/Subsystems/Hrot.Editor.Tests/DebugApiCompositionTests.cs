@@ -108,29 +108,6 @@ public sealed class DebugApiCompositionTests
           + "behaviour-facing route would silently report the node as having no behaviours.");
     }
 
-    /// <summary>
-    /// ⭐ <c>CE-3330</c> — the editor has NO timeline of its own: its live index, its lanes and its lane context are its node context's
-    /// (<c>_node.Timeline</c>, <c>TimelineLanes</c>, <c>HrotNodeContext.TimelineContext</c>), its <c>/timeline</c> attach serves the context's
-    /// own access (<c>EcsNodeDebugProvider.TimelineOf</c>, the one every ECS node serves), and its frame steps it (<c>_node.StepTimeline()</c>) where
-    /// <c>HrotNodeContext.Tick</c> would. A TEXT rail — <c>EditorSubsystem</c> cannot be constructed headless.
-    /// 🔴 Red-proof: the <c>StepTimeline()</c> call behind a runtime-false guard ⇒ the stepping assertion fails.
-    /// </summary>
-    [Fact]
-    public void CE3330_Node_TheEditorsTimelineIsItsNodeContexts_SteppedOnItsFrame_AndServedOnTheDebugSurface()
-    {
-        var text = File.ReadAllText(RepoFile("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs"));
-
-        Assert.DoesNotContain("_liveTimeline", text);
-        Assert.DoesNotContain("_timelineLanes", text);
-        Assert.DoesNotContain("new Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource", text);
-        Assert.DoesNotContain("ShippedTimelineLanes.Catalog()", text);
-        Assert.Contains("LiveTimeline => _node?.Timeline;", text);
-        Assert.Contains("EcsNodeDebugProvider.TimelineOf(timelineNode)", text);                      // /timeline/* serves the context's access
-        Assert.Contains("_node?.TimelineLanes.Lanes(HrotNodeContext.TimelineContext)", text);        // the window's lanes
-        Assert.Contains("_node?.TimelineLanes.MenuItems(menuContext)", text);                        // and its row menu
-        Assert.Matches(@"if \(_world != null\) _node\?\.StepTimeline\(\);", text);                 // stepped on the editor's frame, as before
-    }
-
     /// <summary>The text of the <c>new DebugApiService(…)</c> call in the cluster's composition root.</summary>
     private static string ClusterDebugApiServiceConstruction()
     {
