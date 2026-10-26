@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+updated: 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
 current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building)
 stale-below: none
 known-rot: none
@@ -466,6 +466,71 @@ when a recording is replayed by another process (H4, the Replay Browser).
 same table the timeline needs, Timeline §9b ①) via `/replay/seek {frame}` (Replay Browser design RB-2, resolved for every host) — so H1
 runs even before CE-4051…4053 are fixed, and asserts them once they are. ⛔ Rejected: waiting for the fixes — H1 would find nothing until
 then; mapping by wall time — CE-4053 says it is not the run's time.
+
+### 10-1. ⭐ H1 split — H1a (the recording's DATA, now) · H1b (the product's replay CONTROL, after CE-4051…4053) *(R-4085)*
+
+🔒 **User, `2026-10-26`:** *"note passed to backend. try doing whatever you can without them before they imple,ment that"*.
+
+📐 **Measured first** (a probe over the step-0 recording, every Hrot/Fdp assembly loaded, `ReplayBrowserContext`): every recorded frame
+carries the run's `GlobalTime` — **601 distinct sim frames (0…600)**, 1 629 paused duplicates, `TotalTime` 10.0000 at sim frame 600. ⇒ a
+recorded frame can be matched to the live snapshot by its OWN sim frame number, whatever the wall clock says (CE-4053).
+
+| | H1a — NOW | H1b — after the fixes |
+|---|---|---|
+| asks | does the RECORDING hold the world, applied by the product's player? | does the product's replay CONTROL (enter, seek, step through the master) show it? |
+| reads the recording with | `ReplayBrowserContext` → `PlaybackController` / `PlaybackSystem.ApplyFrame` — ⭐ the SAME player the product's `ReplayModule` drives | `POST /replay`, `/replay/seek {frame}`, `/sim/step` (RH-1 as approved) |
+| aligned by | the recorded `GlobalTime.FrameNumber` (first frame of each live snapshot's sim frame) | the same, once CE-4052/4053 make time mean sim time |
+| where | the verify process itself, after the live run is stopped (the recording is closed) — every assembly is loaded, so CE-4050 cannot bite | the same process |
+| compares | `ScenarioGolden.CompareFrom(LIVE, RECORDED, 0, carried)` + `CompareNotCarried` — R1's comparator; `carried` = the recording's OWN schema manifest (`<file>.meta.json`, the reader R1 uses) | the same |
+
+⚠ **RH-1 is not reversed:** RH-1 rejected a sandbox AS the replay under test. H1a tests the recording's data through the product's own
+player; H1b still tests the product's control path — the two halves the step-0 findings separate.
+
+```mermaid
+classDiagram
+  direction LR
+  class VerifyOptions { <<exists, grown>> +bool Replay }
+  class IDirectorHost { <<exists, grown>> +LoadLive(scenario) +IsOperatingLive +StopLive() +IsIdle +LiveRecordingPath +OpenRecording(path) RecordedRun }
+  class EditorDirectorHost { <<exists, grown>> live load / stop through the editor's master (IClusterMasterControl) · the recorder's file path }
+  class RecordedRun { <<NEW>> +bool AdvanceToSimFrame(long) +IVerifyWorld World +Dispose() }
+  class RecordedRunWorld { <<NEW>> IVerifyWorld over the playback world — the same entity dump as the HTTP route, serializer-backed }
+  class VerifyWorldNames { <<NEW, extracted>> Named(repo) · NameOfEntityIndex(repo, i) — shared with EditorVerifyWorld (no copy) }
+  class ReplayBrowserContext { <<exists>> LoadRecording · StepForward · SandboxRepo }
+  class ScenarioGolden { <<exists, grown>> Snapshot · CompareFrom · CompareNotCarried · +CarriedBy(recording) (moved from VerifyCommand.Carried) }
+  class DirectorRunner { <<exists, grown>> Verify(Replay): load LIVE → steps + snapshots → StopLive → OpenRecording → advance + snapshot → compare }
+  class EditorVerifyWorld { <<exists>> }
+  DirectorRunner --> VerifyOptions
+  DirectorRunner --> IDirectorHost
+  EditorDirectorHost ..|> IDirectorHost
+  IDirectorHost ..> RecordedRun : OpenRecording
+  RecordedRun --> ReplayBrowserContext
+  RecordedRun --> RecordedRunWorld
+  RecordedRunWorld --> VerifyWorldNames
+  EditorVerifyWorld --> VerifyWorldNames
+  DirectorRunner --> ScenarioGolden : LIVE and RECORDED snapshots
+```
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (Verify, Replay)
+  participant H as EditorDirectorHost
+  participant G as ScenarioGolden
+  participant P as RecordedRun (ReplayBrowserContext)
+  R->>H: LoadLive(s) — the master: OperatingLive, paused, recording
+  loop one step per frame until runFor
+    R->>G: LIVE snapshot every s (full components), with its sim frame
+    R->>H: StepBy(1/60)
+  end
+  R->>H: StopLive() — Idle, the recorder closes the file
+  R->>H: OpenRecording(LiveRecordingPath)
+  loop each LIVE snapshot
+    R->>P: AdvanceToSimFrame(f)
+    R->>G: RECORDED snapshot through RecordedRunWorld
+  end
+  R->>R: CompareFrom(LIVE, RECORDED, 0, CarriedBy(recording)) + CompareNotCarried → the report's replay section
+```
+*What it shows: H1a needs NOTHING from the master after the live run — no replay transition, no replay seek, no replay step — so CE-4051…4053
+cannot mask a data defect, and a data defect cannot be blamed on them.*
 
 ### 10a. Claim table — what the leans rest on
 
