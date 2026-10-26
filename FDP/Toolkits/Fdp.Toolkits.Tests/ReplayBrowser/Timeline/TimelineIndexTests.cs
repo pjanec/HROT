@@ -78,6 +78,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             harness.FireUnmanagedEvent(new DetonationNotification { Shooter = soldier, HitX = 5, HitY = 6, Damage = 0.5f });
             ref var slot = ref repo.GetComponentRW<UtilityDecisionLog>(soldier).SlotsRW()[0];
             slot.DecisionId = 0x2067; slot.SwitchCount = 1; slot.Winner = 7;
+            ref var idle = ref repo.GetComponentRW<UtilityDecisionLog>(soldier).SlotsRW()[1];
+            idle.DecisionId = 0x3001; idle.SwitchCount = 0; idle.Winner = 9;                                 // a decision that ran but never switched: not news
             CommandHistoryOf.Order(repo, commander, soldier, 0x7777, 2f);                                     // the same order REPEATED: counted, still news
             BrainJournalOf.Write(repo, commander, BrainJournalKind.TaskStarted, point: new Vector3(1, 2, 0));
             harness.Tick().RecordDelta(300_000L);                                                             // frame 2
