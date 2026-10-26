@@ -62,9 +62,7 @@ namespace Fdp.Toolkits.Tests.Replay
 
         [Fact] public void D1_SopStartRecord() => SurvivesAKeyframe(_ =>
         {
-            var r = new SopStartRecord { BehaviorName = "Sop", JsonParams = "{}", InstanceId = 5 };
-            r.HostedKeys.Add(41); r.HostedKeys.Add(42);
-            return r;
+            return new SopStartRecord { BehaviorName = "Sop", JsonParams = "{}", InstanceId = 5, HostedKeys = new[] { 41, 42 } };
         });
 
         // ⭐ CE-4046 ② — the route geometry (an immutable record) and the follower (an unmanaged struct) survive a keyframe apart

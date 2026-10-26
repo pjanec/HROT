@@ -60,30 +60,30 @@ namespace Fdp.Toolkit.Perception.Survey
     // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
     [DataPolicy(DataPolicy.NoScenario)]
     [ComponentId(GlobalComponentIds.WorldSurveyRequest)]
-    public sealed class WorldSurveyRequest
+    public sealed record WorldSurveyRequest   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
         /// <summary>The caps (WS-9).</summary>
         public const int MaxOrigins = 12, MaxRays = 24, MaxBuildings = 4, MaxPoints = 16;
 
-        public WorldSurveyKind Kind { get; set; }
+        public WorldSurveyKind Kind { get; init; }
         /// <summary>VisibilityFan: the origins (≤ <see cref="MaxOrigins"/>).</summary>
-        public List<SurveyOrigin> Origins { get; set; } = new();
+        public IReadOnlyList<SurveyOrigin> Origins { get; init; } = new List<SurveyOrigin>();
         /// <summary>VisibilityFan: rays per origin, spread evenly across its arc (≤ <see cref="MaxRays"/>).</summary>
-        public int Rays { get; set; } = 12;
+        public int Rays { get; init; } = 12;
         /// <summary>VisibilityFan: how far a ray looks (m).</summary>
-        public float Range { get; set; } = 150f;
+        public float Range { get; init; } = 150f;
         /// <summary>VisibilityFan: the eye above each origin (m).</summary>
-        public float EyeHeight { get; set; } = 1.6f;
+        public float EyeHeight { get; init; } = 1.6f;
         /// <summary>BuildingSurvey: the buildings by index (the terrain's building list — the same on every node).</summary>
-        public List<int> Buildings { get; set; } = new();
+        public IReadOnlyList<int> Buildings { get; init; } = new List<int>();
         /// <summary>BuildingSurvey: also every building whose footprint meets this circle (radius 0 = none).</summary>
-        public float AreaX { get; set; }
-        public float AreaY { get; set; }
-        public float AreaRadius { get; set; }
+        public float AreaX { get; init; }
+        public float AreaY { get; init; }
+        public float AreaRadius { get; init; }
         /// <summary>PointSurvey: the points (≤ <see cref="MaxPoints"/>).</summary>
-        public List<SurveyPointQuery> Points { get; set; } = new();
+        public IReadOnlyList<SurveyPointQuery> Points { get; init; } = new List<SurveyPointQuery>();
         /// <summary>WS-7 — the solver answers at most this often (s).</summary>
-        public float RefreshSeconds { get; set; } = 1f;
+        public float RefreshSeconds { get; init; } = 1f;
 
         /// <summary>A fan from <paramref name="origins"/>.</summary>
         public static WorldSurveyRequest Fan(IEnumerable<SurveyOrigin> origins, int rays = 12, float range = 150f, float eyeHeight = 1.6f)
@@ -101,9 +101,9 @@ namespace Fdp.Toolkit.Perception.Survey
         /// <summary>Place these points.</summary>
         public static WorldSurveyRequest OfPoints(IEnumerable<Vector3> points)
         {
-            var r = new WorldSurveyRequest { Kind = WorldSurveyKind.PointSurvey };
-            foreach (var p in points) r.Points.Add(new SurveyPointQuery { X = p.X, Y = p.Y, Z = p.Z });
-            return r;
+            var list = new List<SurveyPointQuery>();
+            foreach (var p in points) list.Add(new SurveyPointQuery { X = p.X, Y = p.Y, Z = p.Z });
+            return new WorldSurveyRequest { Kind = WorldSurveyKind.PointSurvey, Points = list };
         }
     }
 
