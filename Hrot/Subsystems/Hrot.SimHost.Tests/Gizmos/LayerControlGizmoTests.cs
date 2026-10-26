@@ -92,6 +92,35 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Equal(1, publisher.Published.Count);
         }
 
+        /// <summary>⭐ CE-1363 — the View menu lists "RTS Command Mode" on a live map that offers orders and NOT while the world shows a recording (the context menu's
+        /// own test, <c>OrdersOffered.IsOfferedIn</c> — read each frame, so entering a review after the map was built hides it too). Also absent where no orders are offered.
+        /// 🔴 Mutation: the View menu testing only the <c>OrdersOffered</c> singleton (the old predicate) ⇒ the review assertion fails.</summary>
+        [Fact]
+        public void CE1363_TheViewMenu_OffersRtsCommandMode_OnALiveMapWithOrders_NotWhileARecordingIsShown()
+        {
+            string ViewMenu(EntityRepository w)
+            {
+                var gizmo = new LayerControlGizmo(7, new FdpEventBus(), MakeEditService(), settings: new GizmoSettingsRegistry());
+                var draw = new DebugPrimitiveBuffer();
+                gizmo.UpdateAndDraw(w, 0f, draw);
+                var p = Assert.Single(draw.GetFrame().ToArray(), x => x.Shape == DebugPrimitiveShape.MainMenuBinding);
+                return draw.InternMap.TryResolve(p.StringHash)!;
+            }
+
+            using var world = new EntityRepository();
+            Assert.DoesNotContain("RTS Command Mode", ViewMenu(world));          // a map with no orders: not offered
+
+            world.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
+            Assert.Contains("RTS Command Mode", ViewMenu(world));                // live, with orders
+
+            Fdp.Toolkit.Replay.ReplayState.Enter(world);                          // a review / replay starts on this world
+            Assert.DoesNotContain("RTS Command Mode", ViewMenu(world));
+            Assert.Contains("Tactical Map Layers", ViewMenu(world));              // the rest of the View menu stays
+
+            Fdp.Toolkit.Replay.ReplayState.Leave(world);                          // back to live
+            Assert.Contains("RTS Command Mode", ViewMenu(world));
+        }
+
         // ⭐ CE-3117 — each debug-trace layer has its own toggle; the first untoggled bit and above stay always on.
         [Fact]
         public void CE3117_TheDebugTraceLayers_AreToggledByTheirOwnBits()

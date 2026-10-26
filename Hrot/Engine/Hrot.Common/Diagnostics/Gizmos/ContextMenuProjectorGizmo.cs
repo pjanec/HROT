@@ -239,7 +239,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 // ⭐ CE-3169 — a map that offers orders; ⭐ DAR F7 (D-E) — and never while it shows a recording (a review or a replay), read
                 //   each frame from the world's flag (R-3064), so a host that enters a review AFTER its map was built hides them too.
                 bool showsRecording = Fdp.Toolkit.Replay.ReplayState.IsActive(view);
-                bool orders = repo != null && !showsRecording && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>();
+                bool orders = Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view);   // ⭐ CE-1363 — the one shared test (the View menu asks it too)
                 var dis = repo != null ? repo.GetDisType(entity) : default;                                 // ⭐ CE-2143 — its class
                 bool isUnit = view.HasComponent<Fdp.Core.CommandHierarchy.UnitEntity>(entity);
                 bool form = orders && repo!.HasSingletonManaged<Hrot.Common.Orders.IOrderForm>();             // ⭐ CE-1059
