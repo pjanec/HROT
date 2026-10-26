@@ -548,6 +548,22 @@ cannot mask a data defect, and a data defect cannot be blamed on them.*
 
 Rail: `DirectorRunnerTests.CE4045_H1a_TheLiveRun_IsComparedWithItsOwnRecording_FrameBySimFrame` (a faithful recording ⇒ same; a recorder
 that loses `Health` ⇒ different from t=2 s, naming the unit and the component; a component outside the manifest ⇒ listed apart).
+🔴 Red-proof: a snapshot mapped one sim frame late ⇒ `different`.
+
+#### 10-1b. ⭐ H1a MEASURED on the four feature scenarios (`2026-10-26`, `coordinator@3cb5d8889`, fresh process each, `--verify-replay`)
+
+| scenario | replay (snapshots, every 1 s) | listed apart (not in the manifest) | the run's own checks |
+|---|---|---|---|
+| `ua-tank-ammo` | ✅ **same** (61) | `PendingNetworkAck` on every unit at t=0 | ⛔ 1 red — CE-4055 (also red in the preview, same times) |
+| `bt-grenade-posture` | ✅ **same** (13) | `PendingNetworkAck` at t=0 | ⛔ *"the standing man … is hurt"* — see CE-4055 |
+| `ua-civ-melee` | ✅ **same** (41) | `PendingNetworkAck` at t=0 | ✅ |
+| `ua-posture` | ✅ **same** (61) | `PendingNetworkAck` at t=0 | ✅ |
+
+⇒ ⭐ **the recording HOLDS the run** on all four: every unit, every recorded component in full, at every second, played back by the
+product's player — the half of the replay question CE-4051…4053 cannot reach. ⭐ **RH-2's free measurement:** a stepped LIVE run gives
+the SAME verdict times as the preview (`ua-tank-ammo`: 8.93 · 28.5 · 39.12 · 51.07 s in both). ⚠ What this does NOT cover yet: the product's
+replay CONTROL (H1b, after CE-4051…4053), seek (H2), branch (H3), and shots / blasts (RH-5 — the recording's Combat lanes).
+⚠ The not-carried lines print the live side as "golden" and the recorded side as "run" (the comparator's words, shared with R1).
 
 ### 10a. Claim table — what the leans rest on
 
