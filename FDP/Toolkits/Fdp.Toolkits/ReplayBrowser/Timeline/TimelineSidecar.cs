@@ -4,6 +4,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Fdp.Core.Serialization;
 using Fdp.Toolkit.ReplayBrowser.Search;
 
 namespace Fdp.Toolkit.ReplayBrowser.Timeline
@@ -29,8 +30,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             string json;
             try
             {
-                json = lane.Lane.Id + "|" + JsonSerializer.Serialize<SearchPredicateDto>(lane.When) + "|" +
-                       (lane.Payload == null ? "" : JsonSerializer.Serialize(lane.Payload));
+                // ⭐ CE-3187 — the one shared options instance (OneSharedJsonOptionsTests). ⚠ A changed hash only rebuilds a lane once.
+                json = lane.Lane.Id + "|" + JsonSerializer.Serialize<SearchPredicateDto>(lane.When, FdpJsonOptionsRegistry.DefaultRelaxed) + "|" +
+                       (lane.Payload == null ? "" : JsonSerializer.Serialize(lane.Payload, FdpJsonOptionsRegistry.DefaultRelaxed));
             }
             catch (Exception ex) when (ex is NotSupportedException or JsonException or InvalidOperationException)
             {
