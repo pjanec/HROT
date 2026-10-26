@@ -198,3 +198,13 @@ live → play 60 s → `POST /replay` at 30 s → read a car replica and a unit 
 | replayed world | CGF 545 entities with **26 `TrafficCar`-tagged** replicas (B2: before, the replayed bodies carried no tag); no duplicate network id (id 0 = local parts, as in live) |
 | `POST /replay/seek {atSeconds:45}` | clock **45.0 s**; 30 replicas (the recording's own set at 45 s) |
 | `POST /replay/stop` | Idle |
+
+⭐ **MEASURED `2026-10-26` — the editor (a one-node cluster), the same routes** *(script `run-c-editor.sh`)*:
+
+| step | answer |
+|---|---|
+| live load → play 45 s → `/checkpoint` → `POST /replay {atSeconds:20}` (no exercise named, from Live) | ⭐ ONE request into `OperatingReplay` of the run just played |
+| 1st run | ⛔ **found two defects, both fixed:** the recording carried TWO wall-clock bases (frames 1.7e8 … 6.39e17 ticks ⇒ a replay "63 928 598 528 s" long). ① the scenario load snapped the wall clock to 0 while every resume re-anchors it to the real clock — `OrchestratorCore.LoadedClock` (load = the real clock); ② `RecorderTickSystem` stamped a frame whose clock read 0 with the calendar clock — now the frame-locked clock only, monotonic |
+| after both fixes | span `639285989791610359..639285990276805715` = **48.6 s**; the seek rounds land exactly at zero + 20 s and zero + 30 s (`NodeReplaySeek … restoredWallTicks`), the master clock logs sim 20.000 / 30.000, paused |
+| `/preview/enter` / `/preview/exit` (from Edit) | reached `OperatingPreview`, then `OperatingEdit` |
+| ⚠ open, ui (the editor's own state) | `GET /replay/status`'s `sim` (the editor's `EditorTimeTransportFacade`) reads 48.0 s after entering at 20 s and 29.4 s after the seek to 30 s, `isPaused:false` — not the master clock; and `inPreview` is `true` in Live/Replay and `false` in Preview. Reported to ui |
