@@ -933,9 +933,12 @@ namespace Hrot.Editor.Director
             after.Snapshot(_liveAtRel);
             _returnDiff.AddRange(ScenarioGolden.CompareFrom(_atLive!.SnapshotsJson(), after.SnapshotsJson(), _liveAtRel));
             // the review against the live run, on what the recording carries (what a review can show)
-            var live = new JsonObject { ["snapshots"] = new JsonArray(((_verification!.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray())
-                .Where(n => (ConditionBook.Num(n?["t"]) ?? double.MaxValue) <= _liveAtRel + 1e-6).Select(n => n!.DeepClone()).ToArray()) };
+            // ⚠ the comparator pairs snapshots by INDEX: compare only the live snapshots at the times the review actually stood at
+            //   (📐 measured: a review that never reached 0 s shifted every later pair by one second)
             var seen = _reviewSnapshots!.SnapshotsJson();
+            var seenTimes = ((seen["snapshots"] as JsonArray) ?? new JsonArray()).Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).ToList();
+            var live = new JsonObject { ["snapshots"] = new JsonArray(((_verification!.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray())
+                .Where(n => ConditionBook.Num(n?["t"]) is { } t && seenTimes.Any(st => Math.Abs(st - t) < 1e-4)).Select(n => n!.DeepClone()).ToArray()) };
             var carried = _liveRecording is { } path ? ScenarioGolden.CarriedBy(path) : null;
             _reviewCount = _reviewSnapshots.Snapshots;
             _reviewDiff.AddRange(ScenarioGolden.CompareFrom(live, seen, 0d, carried));
