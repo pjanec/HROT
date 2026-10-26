@@ -46,6 +46,7 @@ public sealed class TimelinePanel
     private TimelineEvent? _selected;
     private TimelineAxis? _axis;                                 // the axis last drawn on
     private Fdp.Core.FlightRecorder.ReplayTimeMap? _timeMap;     // its paused stretches
+    private long? _livePoint;                                    // ⭐ CE-3330 E2 — the review's live point on the drawn axis (null = none)
 
     /// <summary>⭐ CE-3330 (§10b "an axis switch keeps the view") — the window and the range mapped through wall time onto the new axis.</summary>
     private void Remap(TimelineAxis from, TimelineAxis to)
@@ -102,6 +103,7 @@ public sealed class TimelinePanel
         _axis = axis;
         _timeMap = cursor?.TimeMap;
         if (cursor != null && axis.IsSim) cursor = new AxisCursor(cursor, axis);
+        _livePoint = cursor?.LivePoint;
         var index = axis.Project(source?.Index ?? TimelineIndex.Empty);
         long from = cursor?.ExtentFrom ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[0] : 0);
         long to = cursor?.ExtentTo ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[^1] : 0);
@@ -232,6 +234,16 @@ public sealed class TimelinePanel
                 if (pz.Changed) dl.AddCircleFilled(c, 3f, 0xFFD0A060); else dl.AddCircle(c, 3f, 0xFFD0A060);
                 if (hovered && Math.Abs(ImGui.GetIO().MousePos.X - p.X - xp) <= 4)
                     ImGui.SetTooltip(pz.Changed ? "A pause, with edits (they appear at the unpause)" : "A pause (nothing changed)");
+            }
+
+        // ⭐ CE-3330 E2 (§2e) — the session's named checkpoints: a flag on the ruler, its label in a tooltip (off-screen ones are not drawn)
+        if (cursor != null)
+            foreach (var cp in cursor.Checkpoints)
+            {
+                float xc = w.XOf(cp.WallTicks, width);
+                if (xc < 0 || xc > width) continue;
+                dl.AddText(p + new Vector2(xc - 3, 0), 0xFF60C0F0, Fdp.Presentation.Fonts.IconsFontAwesome6.Flag);
+                if (hovered && Math.Abs(ImGui.GetIO().MousePos.X - p.X - xc) <= 5) ImGui.SetTooltip(cp.Label);
             }
 
         // the playhead ▼ (a handle where the cursor seeks), or an arrow at the edge it left by (§10b)
@@ -382,6 +394,15 @@ public sealed class TimelinePanel
                 float a = Math.Clamp(w.XOf(pz.From, width), 0, width), b = Math.Clamp(w.XOf(pz.To, width), 0, width);
                 if (b > a) dl.AddRectFilled(new Vector2(x0 + a, top), new Vector2(x0 + b, bottom), pz.Changed ? 0x40804020u : 0x28804020u);
             }
+        if (_livePoint is { } lp)   // ⭐ CE-3330 E2 — a review's live point: where the live run stopped
+        {
+            float xl = w.XOf(lp, width);
+            if (xl >= 0 && xl <= width)
+            {
+                dl.AddLine(new Vector2(x0 + xl, top), new Vector2(x0 + xl, bottom), 0xFF40C0FF, 1.5f);
+                dl.AddText(new Vector2(x0 + xl + 3, top + 1), 0xFF40C0FF, "live");
+            }
+        }
         float xn = w.XOf(now, width);
         if (xn >= 0 && xn <= width) dl.AddLine(new Vector2(x0 + xn, top), new Vector2(x0 + xn, bottom), 0xFF4040FF, 1.5f);
         if (_hoverX >= 0 && _hoverX <= width)   // ⭐ §10b hover readout: a thin line and the time at the mouse
@@ -459,20 +480,28 @@ public sealed class TimelinePanel
 
     /// <summary>
     /// ⭐ <c>CE-3330</c> (DAR §9b) — the MODE's items: where the cursor seeks (a review, a replay, the Replay Browser) "Seek here", "Play from
-    /// here", "Seek to this event", the previous / next event in the lane; a range's zoom / clear; always "Copy the time". ⏳ A live host's
-    /// "Review from here" waits on backend's <c>EnterReview</c> (handoff P1, row 21): until then a live host offers none. Pure — a rail lists it.
+    /// here", "Seek to this event", the previous / next event in the lane (in a review also "Seek to the live point"); a range's zoom / clear;
+    /// always "Copy the time". ⭐ A live host that <c>CanReview</c> offers "Review from here" / "from this event" instead of any seek (§2e). Pure — a rail lists it.
     /// </summary>
     public static List<TimelineMenuItem> MenuItems(TimelineIndex index, ITimelineCursor? cursor, string? lane, long at, int frame,
         TimelineEvent? ev, string time, TimelineView view, Func<string, string>? nameOf = null)
     {
         var items = new List<TimelineMenuItem>();
         var t = index.FrameTicks;
+        if (cursor is { Mode: TimelineMode.Live, CanReview: true })   // ⭐ CE-3330 E2 (R-3059) — a live host seeks by ENTERING A REVIEW
+        {
+            items.Add(new TimelineMenuItem($"⟲ Review from {time}", () => cursor.EnterReview(at)));
+            if (ev is { } re && re.Frame < t.Count)
+                items.Add(new TimelineMenuItem($"⟲ Review from this event ({nameOf?.Invoke(re.Lane) ?? re.Lane})", () => cursor.EnterReview(t[re.Frame])));
+        }
         if (cursor is { CanSeek: true })
         {
             items.Add(new TimelineMenuItem($"Seek here ({time})", () => cursor.Seek(at)));
             if (cursor.CanPlay) items.Add(new TimelineMenuItem("Play from here", () => { cursor.Seek(at); if (!cursor.IsPlaying) cursor.TogglePlay(); }));
             if (ev is { } e && e.Frame < t.Count)
                 items.Add(new TimelineMenuItem($"Seek to this event ({nameOf?.Invoke(e.Lane) ?? e.Lane})", () => cursor.Seek(t[e.Frame])));
+            if (cursor is { Mode: TimelineMode.Review, LivePoint: { } live })
+                items.Add(new TimelineMenuItem("⏏ Seek to the live point", () => cursor.Seek(live)));
             if (lane != null)
             {
                 var lanes = new[] { lane };

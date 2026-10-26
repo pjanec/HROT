@@ -86,4 +86,28 @@ public sealed class AxisCursor : ITimelineCursor
     public bool IsPlaying => _inner.IsPlaying;
     public bool CanPlay => _inner.CanPlay;
     public void TogglePlay() => _inner.TogglePlay();
+
+    // ⭐ CE-3330 E2 — the session layer: times convert to the axis, a review's entry converts back to the host's wall ticks
+    public TimelineMode Mode => _inner.Mode;
+    public bool CanReview => _inner.CanReview;
+    public void EnterReview(long ticks) => _inner.EnterReview(Axis.ToWall(ticks));
+    public long? LivePoint => _inner.LivePoint is { } l ? Axis.ToAxis(l) : null;
+
+    private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>? _marksFor;
+    private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> _marks = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+
+    /// <summary>The host's checkpoints with their <c>WallTicks</c> on the axis — projected once per list the host hands out.</summary>
+    public IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> Checkpoints
+    {
+        get
+        {
+            var inner = _inner.Checkpoints;
+            if (ReferenceEquals(inner, _marksFor)) return _marks;
+            var list = new Fdp.Core.FlightRecorder.Metadata.CheckpointMark[inner.Count];
+            for (int i = 0; i < list.Length; i++)
+                list[i] = new Fdp.Core.FlightRecorder.Metadata.CheckpointMark { Label = inner[i].Label, Frame = inner[i].Frame, WallTicks = Axis.ToAxis(inner[i].WallTicks), TotalTime = inner[i].TotalTime };
+            _marksFor = inner;
+            return _marks = list;
+        }
+    }
 }

@@ -307,4 +307,92 @@ public sealed class TimelineInteractionTests
     }
 
     private static long ExtentToOf(AxisCursor c) => c.ExtentTo;
+
+    /// <summary>A cursor with a session layer: a mode, a live point, checkpoints, and a review to enter (all in WALL ticks).</summary>
+    private sealed class SessionCursor : ITimelineCursor
+    {
+        public long ExtentFrom => 0;
+        public long ExtentTo => 600 * Tick;
+        public long Now { get; set; }
+        public bool CanSeek { get; init; }
+        public TimelineMode Mode { get; init; }
+        public bool CanReview { get; init; }
+        public long? LivePoint { get; init; }
+        public IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> Checkpoints { get; init; } = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+        public List<long> Seeks { get; } = new();
+        public List<long> Reviews { get; } = new();
+        public void Seek(long ticks) { Seeks.Add(ticks); Now = ticks; }
+        public void EnterReview(long wallTicks) => Reviews.Add(wallTicks);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3330 E2 (§2e, DAR §9b) — the menu by MODE: a LIVE host that can review offers "Review from here" (and "from this event") and NO seek
+    /// (R-3059: a live host seeks by entering a review); a REVIEW offers the seek items plus "Seek to the live point"; a REPLAY the seek items and no
+    /// live point. 🔴 Red-proof: the live branch gated on a runtime-false condition ⇒ no review item; the live-point item shown in a replay ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3330_E2_TheMenuByMode_LiveReviews_ReviewSeeksToTheLivePoint_ReplaySeeks()
+    {
+        var index = Index(601, E(100, Shot), E(300, Shot), E(500, Shot));
+        var view = new TimelineView();
+        view.OnExtent(0, 600 * Tick);
+        List<string> Labels(ITimelineCursor c, TimelineEvent? ev = null) =>
+            TimelinePanel.MenuItems(index, c, Shot, 300 * Tick, 300, ev, "0:05.0", view).Select(i => i.Label).ToList();
+
+        var live = new SessionCursor { Mode = TimelineMode.Live, CanReview = true };
+        var liveItems = TimelinePanel.MenuItems(index, live, Shot, 300 * Tick, 300, E(300, Shot), "0:05.0", view);
+        var liveLabels = liveItems.Select(i => i.Label).ToList();
+        Assert.Contains("⟲ Review from 0:05.0", liveLabels);
+        Assert.Contains(liveLabels, l => l.StartsWith("⟲ Review from this event"));
+        Assert.DoesNotContain(liveLabels, l => l.StartsWith("Seek") || l.StartsWith("Play") || l.Contains("live point"));
+        Assert.Empty(live.Reviews);                                           // building the menu entered nothing
+        liveItems.First(i => i.Label == "⟲ Review from 0:05.0").Run();
+        liveItems.First(i => i.Label.StartsWith("⟲ Review from this event")).Run();
+        Assert.Equal(new[] { 300 * Tick, 300 * Tick }, live.Reviews);          // the snapped click, then the event's frame
+
+        Assert.DoesNotContain(Labels(new SessionCursor { Mode = TimelineMode.Live, CanReview = false }), l => l.Contains("Review"));   // nothing to review
+
+        var review = new SessionCursor { Mode = TimelineMode.Review, CanSeek = true, LivePoint = 550 * Tick };
+        var reviewItems = TimelinePanel.MenuItems(index, review, Shot, 300 * Tick, 300, E(300, Shot), "0:05.0", view);
+        Assert.Contains("Seek here (0:05.0)", reviewItems.Select(i => i.Label));
+        Assert.DoesNotContain(reviewItems.Select(i => i.Label), l => l.Contains("Review"));
+        reviewItems.First(i => i.Label == "⏏ Seek to the live point").Run();
+        Assert.Equal(new[] { 550 * Tick }, review.Seeks);
+
+        Assert.DoesNotContain("⏏ Seek to the live point", Labels(new SessionCursor { Mode = TimelineMode.Review, CanSeek = true }));   // live point not known yet
+
+        var replay = new SessionCursor { Mode = TimelineMode.Replay, CanSeek = true, LivePoint = 550 * Tick };
+        var replayLabels = Labels(replay);
+        Assert.Contains("Seek here (0:05.0)", replayLabels);
+        Assert.DoesNotContain("⏏ Seek to the live point", replayLabels);
+    }
+
+    /// <summary>⭐ CE-3330 E2 — the Sim-axis view of a session cursor: the live point and the checkpoints convert to the axis, a review's entry
+    /// converts BACK to the host's wall ticks (pause-end rule). 🔴 Red-proof: forwarding <c>LivePoint</c> unconverted ⇒ the live point stays wall.</summary>
+    [Fact]
+    public void CE3330_E2_AxisCursor_ForwardsTheSessionLayer_ConvertedToTheAxis()
+    {
+        var (_, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var inner = new SessionCursor
+        {
+            Mode = TimelineMode.Review, CanReview = true, CanSeek = true, LivePoint = 8 * S,
+            Checkpoints = new[]
+            {
+                new Fdp.Core.FlightRecorder.Metadata.CheckpointMark { Label = "early", WallTicks = 2 * S, TotalTime = 2 },
+                new Fdp.Core.FlightRecorder.Metadata.CheckpointMark { Label = "late", WallTicks = 8 * S, TotalTime = 5 },
+            },
+        };
+        var c = new AxisCursor(inner, sim);
+        Assert.Equal(TimelineMode.Review, c.Mode);
+        Assert.True(c.CanReview);
+        Assert.Equal(5 * S, c.LivePoint);                                       // wall 8 s is sim 5 s
+        Assert.Equal(new[] { ("early", 2 * S), ("late", 5 * S) }, c.Checkpoints.Select(m => (m.Label, m.WallTicks)));
+        Assert.Same(c.Checkpoints, c.Checkpoints);                              // projected once per list the host hands out
+
+        c.EnterReview(3 * S);                                                   // the paused instant → its END, in wall ticks
+        Assert.Equal(new[] { 6 * S }, inner.Reviews);
+
+        Assert.Null(new AxisCursor(new SessionCursor(), sim).LivePoint);        // no live point stays none
+    }
 }

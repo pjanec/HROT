@@ -1,0 +1,165 @@
+using System;
+using System.Collections.Generic;
+using Fdp.Core.FlightRecorder;
+using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Presentation.Panels.Timeline;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
+using Hrot.UI.Common.Facades;
+
+namespace Hrot.UI.Common.Adapters;
+
+/// <summary>
+/// ⭐⭐ <c>CE-3330</c> E2 (docs/DESIGN_Director_Timeline_Editor.md §2e) — the event timeline's cursor on a CLUSTER host (the editor; any host with
+/// <see cref="ITimeTransportFacade"/>): live, review and replay through THE ONE facade — ⛔ no second seek or review path (R-3059). It REPLACES
+/// the editor's old live-only cursor: its Live mode is that cursor's behaviour (the index's first → last frame, "now" at the live edge, no seek),
+/// plus the entry to a review.
+/// <para>All times are the recording's WALL ticks (TL-2/TL-4): <see cref="TimelineAxis"/> / <c>AxisCursor</c> convert for the Sim axis. The
+/// session's own zero and map turn them into the facade's seconds on the session axis (<see cref="Seek"/>); from LIVE there is no session yet, so
+/// a review is entered by the frame's SIM seconds (<see cref="ITimeTransportFacade.EnterReviewAtSim"/> — "the sim target wins").</para>
+/// </summary>
+public sealed class ClusterTimelineCursor : ITimelineCursor
+{
+    private const long Tps = TimeSpan.TicksPerSecond;
+
+    private readonly Func<ITimeTransportFacade?> _facade;
+    private readonly Func<ITimelineSource?> _source;
+
+    private TimelineIndex? _mapFor;                      // the live index the live map was built from
+    private ReplayTimeMap? _liveMap;
+    private ReplayTimeMap? _axisFor;                     // the map the cached Sim axis is over
+    private TimelineAxis _axis = TimelineAxis.Wall;
+
+    /// <param name="facade">The host's ONE time facade (null before it exists).</param>
+    /// <param name="source">The index the panel draws — ⭐ the SAME func the window hands the panel (the editor's returns null while a replay shows).</param>
+    public ClusterTimelineCursor(Func<ITimeTransportFacade?> facade, Func<ITimelineSource?> source)
+    {
+        _facade = facade ?? throw new ArgumentNullException(nameof(facade));
+        _source = source ?? throw new ArgumentNullException(nameof(source));
+    }
+
+    private TimelineIndex Index => _source()?.Index ?? TimelineIndex.Empty;
+
+    private ReplaySession? ActiveSession => _facade()?.Session is { Active: true } s ? s : null;
+
+    public TimelineMode Mode => _facade()?.Mode switch
+    {
+        TransportMode.Live => TimelineMode.Live,
+        TransportMode.Review => TimelineMode.Review,
+        TransportMode.Replay => TimelineMode.Replay,
+        _ => TimelineMode.None,
+    };
+
+    // ── the extent and "now" ─────────────────────────────────────────────────────────────────────────────────
+
+    public long ExtentFrom => Mode == TimelineMode.Replay && ActiveSession is { } s ? s.ZeroWallTicks : IndexFrom;
+    public long ExtentTo => Mode == TimelineMode.Replay && ActiveSession is { } s ? s.ZeroWallTicks + (long)Math.Round(s.LengthSeconds * Tps) : IndexTo;
+
+    private long IndexFrom => Index.FrameTicks is { Count: > 0 } t ? t[0] : 0;
+    private long IndexTo => Index.FrameTicks is { Count: > 0 } t ? t[^1] : 0;
+
+    /// <summary>
+    /// Live / none: the live edge. Review / replay: the frame on screen — 📐 measured (2026-10-26): the cluster clock the facade reads is, in a
+    /// review or replay, <b>wall seconds after the session's zero</b> (<c>ReferenceReplayLoadHandler</c> overwrites the seek's
+    /// <c>RestoredTime.TotalTime</c> with exactly that, <c>ReplaySeekProcessManager</c> snaps the master clock to it, and
+    /// <c>ReplayClockProcessManager</c> reads it back as <c>anchor + TotalTime</c>) — NOT sim seconds; so the playhead is the zero plus it.
+    /// </summary>
+    public long Now
+    {
+        get
+        {
+            var m = Mode;
+            if (m is not (TimelineMode.Review or TimelineMode.Replay) || ActiveSession is not { } s || _facade() is not { } f) return ExtentTo;
+            return Math.Clamp(s.ZeroWallTicks + (long)Math.Round(f.TotalTime * Tps), ExtentFrom, ExtentTo);
+        }
+    }
+
+    // ── seeking ──────────────────────────────────────────────────────────────────────────────────────────────
+
+    public bool CanSeek => Mode is TimelineMode.Review or TimelineMode.Replay;
+
+    public void Seek(long ticks)
+    {
+        if (!CanSeek || _facade() is not { } f || ActiveSession is not { } s) return;
+        double t = f.Axis == ReplayAxis.Sim && s.TimeMap is { HasSimTime: true } map
+            ? map.SimAt(ticks)                                  // Sim: sim seconds
+            : (ticks - s.ZeroWallTicks) / (double)Tps;          // Wall: seconds after the session's zero
+        f.Seek(t);
+    }
+
+    // ── review ───────────────────────────────────────────────────────────────────────────────────────────────
+
+    public bool CanReview
+    {
+        get
+        {
+            if (Mode != TimelineMode.Live) return false;
+            var index = Index;
+            return index.FrameTicks.Count > 0 && index.FrameSim.Count == index.FrameTicks.Count;
+        }
+    }
+
+    public void EnterReview(long wallTicks)
+    {
+        if (!CanReview || _facade() is not { } f) return;
+        var index = Index;
+        f.EnterReviewAtSim(index.FrameSim[index.FrameAt(wallTicks)]);   // the frame at / before the click
+    }
+
+    public long? LivePoint => ActiveSession is { IsReview: true, LivePointSeconds: { } l } s ? s.ZeroWallTicks + (long)Math.Round(l * Tps) : null;
+
+    public IReadOnlyList<CheckpointMark> Checkpoints => ActiveSession?.Checkpoints ?? Array.Empty<CheckpointMark>();
+
+    // ── the axis ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The session's map in a review / replay; in live a map built from the live index's own sim column (cached per index snapshot).</summary>
+    public ReplayTimeMap? TimeMap
+    {
+        get
+        {
+            switch (Mode)
+            {
+                case TimelineMode.Review:
+                case TimelineMode.Replay:
+                    return ActiveSession?.TimeMap;
+                case TimelineMode.Live:
+                    var index = Index;
+                    if (index.FrameSim.Count == 0 || index.FrameSim.Count != index.FrameTicks.Count) return null;
+                    if (!ReferenceEquals(index, _mapFor))
+                    {
+                        var wall = index.FrameTicks is SharedList<long> sl ? sl.Span : new ReadOnlySpan<long>(ToArray(index.FrameTicks));
+                        _liveMap = ReplayTimeMap.FromFrames(wall, index.FrameSim.Span, new FrameFlags[wall.Length]);
+                        _mapFor = index;
+                    }
+                    return _liveMap;
+                default:
+                    return null;
+            }
+        }
+    }
+
+    /// <summary>Sim over <see cref="TimeMap"/> when the facade's axis is Sim (one <see cref="TimelineAxis"/> per map, so the panel's projection cache holds), else Wall.</summary>
+    public TimelineAxis Axis
+    {
+        get
+        {
+            var map = TimeMap;
+            if (map == null || _facade()?.Axis != ReplayAxis.Sim) return TimelineAxis.Wall;
+            if (!ReferenceEquals(map, _axisFor)) { _axis = TimelineAxis.Sim(map); _axisFor = map; }
+            return _axis;
+        }
+    }
+
+    // ── play / pause: the facade's ─────────────────────────────────────────────────────────────────────────────
+
+    public bool IsPlaying => _facade() is { IsPaused: false };
+    public bool CanPlay => _facade() is { IsPlayPauseEnabled: true };
+    public void TogglePlay() { if (_facade() is { IsPlayPauseEnabled: true } f) f.TogglePlayPause(); }
+
+    private static long[] ToArray(IReadOnlyList<long> list)
+    {
+        var a = new long[list.Count];
+        for (int i = 0; i < a.Length; i++) a[i] = list[i];
+        return a;
+    }
+}

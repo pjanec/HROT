@@ -42,6 +42,7 @@ public static class IconsFontAwesome6
     public const string ArrowsRotate        = "\uf021"; // reload / refresh
 
     // Run / transport
+    public const string Flag                = "\uf024"; // a named mark (the timeline's session checkpoints)
     public const string Play                = "\uf04b";
     public const string CircleHalfStroke    = "\uf042"; // preview (dry run)
     public const string Circle              = "\uf111"; // live
