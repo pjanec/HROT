@@ -343,6 +343,8 @@ namespace Hrot.Editor
         private Hrot.Editor.Director.DirectorTakeSession? _directorTakes;
         internal Hrot.Editor.Director.DirectorTakeSession? DirectorTakesForTest => _directorTakes;
         internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
+        /// <summary>CE-1364 — a rail puts a 3-D map camera in (a headless editor has none).</summary>
+        internal void SetMapCameraForTest(MapCamera camera) => _camera = camera;
         // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md §2a) — a --verify run's start and exit (null when the runner did not ask for one)
         private Hrot.Editor.Director.CommandLineVerify? _commandLineVerify;
         private Hrot.UI.Common.Map3D.Director.TakeStore? _takeStore;
@@ -1240,7 +1242,7 @@ namespace Hrot.Editor
                 var name = _world.GetComponentRO<EntityInfo>(e).Name.ToString();
                 if (name.Length > 0) { unit = name; at = _world.GetComponentRO<SimTransform>(e).Position; }
             }
-            return Hrot.UI.Common.Map3D.Director.PilotCamera.Of(pose, unit, at);   // the lens stays the film's default (a key sets Fov when it means to)
+            return Hrot.UI.Common.Map3D.Director.PilotCamera.Of(pose, unit, at, fov: cam.FovyDegrees);   // CE-1364: K stores the map camera's lens
         }
 
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????

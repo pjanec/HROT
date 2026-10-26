@@ -1206,10 +1206,47 @@ PLAY (`CameraKeys.Played`) but keeps the anchor of any key the layout did not mo
 - **The seams found:** the pilot camera is `EditorSubsystem._camera as MapCamera3D` (`LookAt` · `Distance` · `Yaw` · `Pitch` → `CameraPose`), the unit is `Selected2DEntity` with a non-empty
   `EntityInfo.Name`; the rate is `DirectorRunner.SetSpeed` fed by the window's slider — now ONE number, `DirectorTakeSession.Speed`, stepped by J / L through 0.25 · 0.5 · 0.75 · 1 · 1.5 · 2 and
   handed to the runner while it plays.
-- ⚠ Not built / known edges: no "add / delete segment" and no edge-drag handles on the panel (the edge edit is `TakeEditor` API only, rail-covered); K stores no lens (`Fov` stays the film default);
-  deleting the LAST key of a take that still has `shots[]` makes `CameraKeys.Of` read the shots as keys again; a move of an anchored key whose anchor has no baked time is refused.
+- ⚠ Known edges (⛔ SUPERSEDED, built since: segment add / delete and edge handles, K's lens — see "Leftovers as built" below): deleting the LAST key of a take that still has `shots[]` makes `CameraKeys.Of` read the shots as keys again; a move of an anchored key whose anchor has no baked time is refused.
 Rails: `DirectorTracksTests.CE1364_T3_*` ×11 (Hrot.Presentation.Tests) · `DirectorTracksOnTheEditorTests.CE1364_T3_*` ×2 (a headless editor: the panel's `Tracks` are the open take's, the panel's
 `Undo` is the editor's stack) · the frame rail `CE1364_T3_CtrlZ_OnTheFocusedPanel_CallsTheHostsUndo`.
+
+**Leftovers as built** *(ui, `2026-10-26` — CE-1364 "Left")* — the three things T3 listed as not built:
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant P as TimelinePanel
+  participant G as TrackGesture
+  participant T as TimeTrack
+  participant E as TakeEditor
+  U->>P: press on a segment's first or last 5 px
+  P->>P: TrackLayout.HitPart gives Body, StartEdge or EndEdge
+  P->>G: Press(track, item, x, edgeX, part)
+  loop each frame while held
+    G->>T: Move(id, sim, commit false, part)
+    T->>E: SetPreview(id, sim, edge)
+  end
+  U->>P: release
+  G->>T: Move(id, sim, commit true, part)
+  T->>E: Apply(MoveSegment(i, From or To or Whole, sim))
+  U->>P: right click on empty Time space
+  P->>T: MenuItems(null, simAtClick)
+  T->>E: Apply(AddSegment) when "Add a segment here" is run
+```
+*What the picture shows that prose hid:* the edge is a PART of the hit, carried by the gesture to the track — the panel still knows nothing about takes — and the
+preview carries the edge, so a half-dragged edge shows only that edge moved while the take stays untouched.
+- **The seam grew two default interface members, nothing else:** `TrackItemPart { Body, StartEdge, EndEdge }`; `ITimelineTrack.Move(id, sim, commit, part)` (default: the 3-argument `Move`) and
+  `ITimelineTrack.MenuItems(itemId, atSimSeconds)` (default: the plain menu) — a track with no edges or no empty-space items is untouched. `TrackLayout.HitPart` (a segment's first / last
+  `EdgePx` = 5 px, at most a third of its width; a key and a narrow segment are all body); `TrackGesture.Press` takes the part (the grab offset is the EDGE's x) and hands it to every preview and the commit.
+  The panel draws a 3 px handle at each edge and shows the resize cursor over one.
+- **Edges cannot cross:** `TakeEditor.MinSegmentSeconds` = **0.1 sim s** (chosen, not measured: short enough to be a real cut, long enough to stay a grabbable item) —
+  `MoveSegment(From|To)` stops an edge that short of the other, in the preview and the commit. ⚠ Changed from T3's "an edge stops AT the other" (a zero-length segment).
+- **Add / delete:** `TakeEdit.AddSegment` / `RemoveSegment` (undo descriptions "Add time segment" / "Delete time segment", through the same `TakeEditRecord`); the Time track's menu offers
+  "Add a segment here" on empty space (`DefaultSegmentSeconds` = 2 sim s at the clicked time, speed 1, cut gap, selected after) and "Delete segment" on a segment. Neither converts a v1 take's shots to keys (only camera edits do).
+- **K's lens:** the map camera's field of view is `MapCamera3D.FovyDegrees` (default 45°, `FpsZoom.NormalFovDegrees`; a possession zoom changes it for the moment it is held, and K then stores that
+  lens). `EditorSubsystem.PilotCameraSpec` passes it to `PilotCamera.Of(…, fov:)`, which sets `CameraSpec.Fov` for both the look-at and the follow camera; K copies it to `CameraKey.Fov`.
+  A pilot with no 3-D camera still makes no key.
+Rails: `DirectorTracksTests.CE1364_AnEdgeDrag_*` · `CE1364_TheEdges_CannotCross_*` · `CE1364_AddASegmentHere_*` · `CE1364_DeleteSegment_*` · `CE1364_K_StoresThePilotsLens_*` (Hrot.Presentation.Tests),
+`TimelineInteractionTests.CE1364_AnEdgeOfASegment_*` (Fdp.Presentation.Tests), `DirectorTracksOnTheEditorTests.CE1364_K_OnTheEditorsTimeline_StoresTheMapCamerasFov` (Hrot.Editor.Tests).
 
 **T4 as built** *(ui, `2026-10-26`)* — `DirectorRunner.DirectUpcoming` now holds the camera `ShotEvaluator.Evaluate(ProgramFrame)` returns for
 `TakeTimeline.ProgramAt(CameraKeys.Played(take, plan), anchors, t)` — `Played` is `Of` with each shot's start taken from `Plan`'s layout (a shot

@@ -62,6 +62,19 @@ public static class TrackLayout
         return -1;
     }
 
+    public const float EdgePx = 5f;
+
+    /// <summary>⭐ <c>CE-1364</c> — which part of <paramref name="item"/> the pixel <paramref name="x"/> grabs: a segment's first / last <see cref="EdgePx"/> px (at most a
+    /// third of its width, so a narrow segment keeps a body) are its edges; a key and everything else is the body.</summary>
+    public static TrackItemPart HitPart(TimelineTrackItem item, TimelineWindow window, float width, TimelineAxis axis, ReplayTimeMap? map, float x)
+    {
+        if (item.Kind != TimelineTrackItemKind.Segment || SpanOf(item, window, width, axis, map) is not { } s) return TrackItemPart.Body;
+        float edge = Math.Min(EdgePx, (s.X1 - s.X0) / 3f);
+        if (edge < 2f) return TrackItemPart.Body;   // under 6 px wide: no room for handles
+        if (x <= s.X0 + edge) return TrackItemPart.StartEdge;
+        return x >= s.X1 - edge ? TrackItemPart.EndEdge : TrackItemPart.Body;
+    }
+
     /// <summary>The sim seconds a drop at <paramref name="x"/> means (clamped into the window); <paramref name="snapTo"/> snaps it to the nearest frame of
     /// the (axis-projected) index first. Null when not <see cref="Drawable"/>.</summary>
     public static double? SimAtX(float x, TimelineWindow window, float width, TimelineAxis axis, ReplayTimeMap? map, TimelineIndex? snapTo = null)
@@ -100,6 +113,7 @@ public sealed class TrackGesture
     public const float ThresholdPx = 3f;
 
     private ITimelineTrack? _track;
+    private TrackItemPart _part;
     private string? _itemId;
     private float _pressX, _grab;
     private bool _moved;
@@ -108,12 +122,12 @@ public sealed class TrackGesture
     public bool Active => _track != null;
     public ITimelineTrack? Track => _track;
 
-    /// <param name="x">The mouse x in the row.</param><param name="itemX">The item's x (the grab offset: the item does not jump under the mouse).</param>
-    public void Press(ITimelineTrack track, TimelineTrackItem? item, float x, float itemX)
+    /// <param name="x">The mouse x in the row.</param><param name="itemX">The grabbed part's x (the grab offset: the item does not jump under the mouse).</param><param name="part">CE-1364: the part grabbed (a segment's edge).</param>
+    public void Press(ITimelineTrack track, TimelineTrackItem? item, float x, float itemX, TrackItemPart part = TrackItemPart.Body)
     {
         if (item == null) return;   // ⛔ a drag on empty track space does nothing
         track.Select(item.Id);
-        _track = track; _itemId = item.Id; _pressX = x; _grab = x - itemX; _moved = false;
+        _track = track; _part = part; _itemId = item.Id; _pressX = x; _grab = x - itemX; _moved = false;
     }
 
     /// <summary>The mouse is held at <paramref name="x"/>; <paramref name="simAt"/> maps an item x to sim seconds (null = not placeable).</summary>
@@ -124,14 +138,14 @@ public sealed class TrackGesture
         if (simAt(x - _grab) is not { } sim) return;
         _moved = true;
         _lastSim = sim;
-        _track.Move(_itemId, sim, commit: false);
+        _track.Move(_itemId, sim, commit: false, _part);
     }
 
     /// <summary>The button went up — wherever the mouse is. Commits once if the item moved; returns whether it did.</summary>
     public bool Release()
     {
         bool commit = _track != null && _itemId != null && _moved;
-        if (commit) _track!.Move(_itemId!, _lastSim, commit: true);
+        if (commit) _track!.Move(_itemId!, _lastSim, commit: true, _part);
         _track = null; _itemId = null; _moved = false;
         return commit;
     }
