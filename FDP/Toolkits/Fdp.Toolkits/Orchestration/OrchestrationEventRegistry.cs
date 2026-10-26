@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<TransitionStateIntent>();
             bus.RegisterManaged<ManageEpisodeIntent>();
             bus.RegisterManaged<SeekReplayIntent>();
+            bus.RegisterManaged<SetReplayAxisIntent>();   // ⭐ CE-3329 R-3058
             bus.RegisterManaged<CancelOperationIntent>();
             bus.RegisterManaged<ExecuteStorageOpIntent>();
             bus.RegisterManaged<StorageOpCompletedEvent>();
@@ -47,6 +48,7 @@ namespace Fdp.Toolkit.Orchestration
             // Time Control Intents (Domain)
             bus.RegisterManaged<PauseTimeIntent>();
             bus.RegisterManaged<SnapTimeIntent>();
+            bus.RegisterManaged<JumpTimeIntent>();   // ⭐ CE-3329 R4
             bus.RegisterManaged<ResumeTimeIntent>();
             bus.RegisterManaged<StepTimeIntent>();
             bus.RegisterManaged<SetTimeScaleIntent>();

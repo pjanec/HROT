@@ -130,6 +130,21 @@ namespace Hrot.SimHost.Modules.Orchestration
             }
         }
 
+        /// <inheritdoc />
+        /// <remarks>During a replay the kernel does not push the clock singleton (<c>SuspendGlobalTimePush</c>), so the world's
+        /// <c>GlobalTime</c> is the one the playback restored — the frame's recorded clock.</remarks>
+        public double? CurrentReplaySimSeconds
+            => _activeReplayModule != null && _repo.HasSingletonUnmanaged<GlobalTime>() ? _repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : null;
+
+        /// <inheritdoc />
+        public ReplayTimeMap? ActiveReplayTimeMap => _activeReplayModule?.TimeMap;
+
+        /// <inheritdoc />
+        public void HoldEgress(string reason) => Fdp.Toolkit.Replication.Services.EgressHold.Hold(_repo, reason);
+
+        /// <inheritdoc />
+        public void ReleaseEgress() => Fdp.Toolkit.Replication.Services.EgressHold.Release(_repo);
+
         /// <param name="kernel">Kernel that manages module topology.</param>
         /// <param name="nodeId">Local node identifier embedded in recording file names.</param>
         /// <param name="repo">

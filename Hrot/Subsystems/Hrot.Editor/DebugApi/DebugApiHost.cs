@@ -1033,6 +1033,8 @@ namespace Hrot.Editor.DebugApi
                 return error is null ? Ok(status) : Fail(404, error);
             })));
             _routes.Add(new("POST", "/replay/stop", ctx => PublishAndAwait(ctx, s => s.StopReplay(), Fdp.Toolkit.Orchestration.ClusterState.Idle)));
+            // ⭐ CE-3329 R-3058 — the replay session's time axis, from any host
+            _routes.Add(new("POST", "/replay/axis", ctx => PublishAndAwait(ctx, s => s.SetReplayAxis(ctx.Body), waitFor: null)));
             _routes.Add(new("GET", "/replay/status", _ => RunMain(s => s.GetReplayStatus())));
 
             // ⭐ CE-1265 (AV-8) — every journal entry of one unit across this node's replay recording; CE-1266 (AV-9) — the frames where a

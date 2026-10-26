@@ -222,8 +222,39 @@ public sealed class ReferenceHandlerTests
         Assert.Equal(90_000_000L, span.LastFrameWallTicks);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3329</c> PW — §12c W2: a replay seek holds this node's egress BEFORE the world swaps and keeps it held after the node
+    /// answers; only the master's next cluster-state broadcast (sent when every node answered) releases it — once.
+    /// </summary>
+    [Fact]
+    public async Task W2_A_replay_seek_holds_egress_until_the_masters_commit_broadcast()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 1_000_000L };
+        var handler    = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        handler.OnClusterStateUpdate(ClusterState.OperatingReplay, masterGone: false);   // a broadcast before any seek: nothing
+        Assert.Equal(0, controller.Releases);
+
+        await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 1,
+            Operation     = NodeOpType.NodeReplaySeek,
+            DomainPayload = new ReplaySeekPayload(5_000L),
+        }, CancellationToken.None);
+        Assert.Equal(new[] { "hold" }, controller.HoldLog);   // held before the seek, still held after the answer
+
+        handler.OnClusterStateUpdate(ClusterState.OperatingReplay, masterGone: false);   // the master's commit
+        handler.OnClusterStateUpdate(ClusterState.OperatingReplay, masterGone: false);
+        Assert.Equal(new[] { "hold", "release" }, controller.HoldLog);
+    }
+
     private sealed class SeekCapturingController : IRecordReplayController
     {
+        public System.Collections.Generic.List<string> HoldLog { get; } = new();
+        public int Releases => HoldLog.FindAll(x => x == "release").Count;
+        public void HoldEgress(string reason) => HoldLog.Add(LastSeekTarget == 0 ? "hold" : "hold-after-seek");
+        public void ReleaseEgress() => HoldLog.Add("release");
         public long LastSeekTarget { get; private set; }
         public long ActiveRecordingStartWallTicks { get; set; }
         public long ActiveRecordingEndWallTicks { get; set; }

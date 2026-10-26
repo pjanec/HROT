@@ -49,8 +49,14 @@ namespace Fdp.Core
         /// PositionZ (24→32 B); TargetMemory gained PositionsZ; NavigationIntent/NavState/MoveToParams
         /// destinations and TrajectoryWaypoint.Position widened to Vector3. Pre-v6 recordings are
         /// rejected fast by PlaybackController/PlaybackSystem (version-mismatch), not mis-deserialized.
+        /// v7 (⭐ CE-3329 P0, R1): the frame's outer header grew <c>SimTime</c> + <c>Flags</c> (25 → 34 bytes,
+        /// <c>FrameOuterHeader</c>); the frame BODY is unchanged, so a v6 recording is still read — its index carries no sim time
+        /// (<see cref="MIN_READABLE_FORMAT_VERSION"/>).
         /// </summary>
-        public const uint FORMAT_VERSION = 6;
+        public const uint FORMAT_VERSION = 7;
+
+        /// <summary>⭐ CE-3329 P0 — the oldest format a reader still opens: v6 differs from v7 only in the outer header.</summary>
+        public const uint MIN_READABLE_FORMAT_VERSION = 6;
         
         /// <summary>
         /// Calculate chunk capacity for a given element size.

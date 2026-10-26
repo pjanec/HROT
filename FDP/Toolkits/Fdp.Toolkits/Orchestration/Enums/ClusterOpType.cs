@@ -50,5 +50,9 @@ namespace Fdp.Toolkit.Orchestration
         // ⭐ CE-3299 B4 — restore checkpoint X on every node (mgmt-1 §9.3 named this request; no enum carried it).
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-22 — the next free value in BOTH enums.
         RestoreCheckpoint = 21,
+
+        // ⭐ CE-3329 P1 (R-3058) — switch the replay's time axis (Sim | Wall) for the whole session, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayAxisPayloadDto.
+        SetReplayAxis = 22,
     }
 }

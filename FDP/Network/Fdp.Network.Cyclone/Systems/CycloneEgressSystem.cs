@@ -85,6 +85,11 @@ namespace Fdp.Network.Cyclone.Systems
         {
             ContributeDescriptorMap(view);
 
+            // ⭐⭐ CE-3329 PW — §12c W2: between a world swap and the master's commit this node publishes NOTHING (the cleanup's
+            //   disposes still go out — they are another system). 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12a.
+            //   ⚠ Nothing is lost: a seek / restore marks every descriptor dirty (W4), so the release republishes everything.
+            if (Fdp.Toolkit.Replication.Services.EgressHold.IsHeld(view)) return;
+
             // Process force-publish requests first
             ProcessForcePublish(view);
             

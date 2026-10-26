@@ -59,6 +59,7 @@ public sealed class OrchestratorCore : IDisposable
     private readonly GlobalContextProcessManager   _globalContext;
     private readonly AssetPrefetchProcessManager   _prefetch;
     private readonly ReplayProcessManager          _replay;
+    private readonly ReplayClockProcessManager     _replayClock;   // ⭐ CE-3329 P1 — the sim axis jumps the paused stretches
     private readonly StorageProcessManager         _storage;
     private readonly AssetInventoryProcessManager  _inventory;
     private readonly EpisodeProcessManager         _episodes;
@@ -148,6 +149,13 @@ public sealed class OrchestratorCore : IDisposable
         // TASK-T002 — the seek. Must tick BEFORE ClusterMaster so its precondition events precede the fan-out.
         _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule
 
+        // ⭐ CE-3329 P1 (R4) — on the Sim axis a running replay jumps every paused stretch (non-pausing: no epoch move)
+        _replayClock = new ReplayClockProcessManager(timeReads, time,
+            replaying:       () => (int)_master.CurrentClusterState == (int)Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+            axis:            () => _master.ReplayAxis,
+            map:             () => _master.ReplayTimeMap,
+            anchorWallTicks: () => _master.ReplayAnchorWallTicks);
+
         // ⭐ CE-3299 B2 / D5 — a cluster dry run puts the clock back with the world (the editor's own Play/Stop already does, CE-3156).
         _previewClock = new PreviewClockProcessManager(bus, timeReads, time);
 
@@ -177,6 +185,7 @@ public sealed class OrchestratorCore : IDisposable
         _prefetch.Tick();
         _master.Tick();
         _replay.Tick();
+        _replayClock.Tick();   // CE-3329
         _storage.Tick();
         _inventory.Tick();
         _episodes.Tick();

@@ -154,8 +154,9 @@ namespace Fdp.Toolkit.Replay
         /// <summary>
         /// ① the entity map is rebuilt from the restored world (it indexes entities the apply just replaced) ·
         /// ② <see cref="WorldEpoch.Restored"/> — every per-id cache keyed on <see cref="WorldEpoch.Moved"/> clears
-        /// (class A/B), while <see cref="WorldEpoch.Ended"/> does NOT move, so nothing is deleted on the wire ·
-        /// ③ the step window restarts (<see cref="EventAccumulator.Restart"/>) — a window must not span two worlds.
+        /// (class A/B), while <see cref="WorldEpoch.Ended"/> does NOT move (the survivors stay this node's; what did not survive is
+        /// retracted by the cleanup's sweep — CE-3329 W1) · ③ the step window restarts (<see cref="EventAccumulator.Restart"/>) —
+        /// a window must not span two worlds · ④ every descriptor is marked dirty, so the restored world is republished (W4).
         /// </summary>
         public static void Run(EntityRepository repo, EventAccumulator? accumulator = null)
         {
@@ -166,6 +167,12 @@ namespace Fdp.Toolkit.Replay
 
             WorldEpoch.Restored(repo);
             accumulator?.Restart();
+
+            // ⭐⭐ CE-3329 PW — §12c W4 (CE-3331): a FULL republish of the restored world. ⛔ Before, only a replay seek forced it
+            //   (PlaybackTickSystem), so after a checkpoint restore / a dry-run exit the wire kept the ABANDONED future's samples for
+            //   every survivor — and the run comes back paused, so nothing changed to repair it. What did not survive is retracted by
+            //   CycloneNetworkCleanupSystem's sweep (W1).
+            Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(repo);
         }
     }
 }

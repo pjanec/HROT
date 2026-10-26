@@ -26,7 +26,8 @@ public sealed class TheClusterControlRoutesTests
                    {
                        new SubsystemDebugProvider("CGF", "CGF",
                            master:    withMaster ? () => _master : null,
-                           exercises: () => new[] { Older, Newer }),
+                           exercises: () => new[] { Older, Newer },
+                           replayAxis: () => ReplayAxis.Wall),
                    },
                    currentPerspective: () => "CGF",
                    acksPending: null),
@@ -110,6 +111,36 @@ public sealed class TheClusterControlRoutesTests
 
         Assert.Null(svc.StopReplay().Error);
         Assert.Equal(ClusterState.Idle, _master.Transitions.Last().TargetState);
+    }
+
+    /// <summary>⭐ CE-3329 R11 — a seek or an entry in RECORDED sim time is the SAME master intent carrying <c>TargetSimSeconds</c>;
+    /// the master resolves it (nodes unchanged). Malformed input is refused here.</summary>
+    [Fact]
+    public void A_seek_or_an_entry_in_sim_time_carries_the_sim_target_to_the_master()
+    {
+        _state = ClusterState.OperatingReplay;
+        var svc = Host();
+
+        Assert.Null(svc.SeekReplayTo(new JsonObject { ["atSimSeconds"] = 12.5 }).Error);
+        Assert.Equal(12.5, Assert.IsType<SeekReplayIntent>(Assert.Single(_master.Sent)).TargetSimSeconds);
+
+        Assert.Null(Host().EnterReplay(new JsonObject { ["atSimSeconds"] = 3 }).Error);
+        Assert.Equal(3.0, _master.Transitions[^1].TargetSimSeconds);
+
+        Assert.NotNull(svc.SeekReplayTo(new JsonObject { ["atSimSeconds"] = -1 }).Error);
+        Assert.NotNull(svc.SeekReplayTo(new JsonObject()).Error);
+    }
+
+    /// <summary>⭐ CE-3329 R-3058 — <c>POST /replay/axis</c> is one master intent from any host; the status reports the session's axis.</summary>
+    [Fact]
+    public void The_axis_is_one_master_intent_and_the_status_reports_it()
+    {
+        var svc = Host();
+        Assert.Null(svc.SetReplayAxis(new JsonObject { ["axis"] = "wall" }).Error);
+        Assert.Equal(ReplayAxis.Wall, Assert.IsType<SetReplayAxisIntent>(Assert.Single(_master.Sent)).Axis);
+        Assert.NotNull(svc.SetReplayAxis(new JsonObject { ["axis"] = "sideways" }).Error);
+
+        Assert.Equal("Wall", svc.GetReplayStatus()["axis"]!.GetValue<string>());
     }
 
     [Fact]
@@ -201,6 +232,7 @@ public sealed class TheClusterControlRoutesTests
     {
         public void Transition(TransitionStateIntent intent) => throw new InvalidOperationException("no such exercise");
         public void SeekReplay(SeekReplayIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void SetReplayAxis(SetReplayAxisIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Storage(ExecuteStorageOpIntent intent) => throw new InvalidOperationException("no such exercise");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");

@@ -149,6 +149,20 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     /// <summary>The latest last frame across the loaded nodes.</summary>
     internal long? ReplayEndTicks => FrameTicksAcrossNodes(first: false);
 
+    /// <summary>
+    /// ⭐ CE-3329 P1 (row 13) — the loaded node group's wall ↔ sim map: each node's map from its frame index, intersected as the
+    /// master does (R3, the earliest-starting node's sim times). Built on demand; Empty with nothing open or for v6 recordings.
+    /// </summary>
+    internal Fdp.Core.FlightRecorder.ReplayTimeMap TimeMap
+        => _manager == null ? Fdp.Core.FlightRecorder.ReplayTimeMap.Empty
+           : Fdp.Core.FlightRecorder.ReplayTimeMap.Intersect(_manager.Contexts.Values
+                 .Where(c => c.Playback is { TotalFrames: > 0 })
+                 .OrderBy(c => c.Playback!.GetFrameMetadata(0).WallClockTicks)
+                 .Select(c => Fdp.Core.FlightRecorder.ReplayTimeMap.FromRecording(c.Playback!)));
+
+    /// <summary>⭐ CE-3329 R-3058 — this viewer's time axis (the Replay Browser keeps its own, R2). Sim by default.</summary>
+    internal Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; set; } = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+
     /// <summary>Where the replay stands, in seconds after its zero.</summary>
     internal double? ReplaySeconds
         => _manager is { } m && ReplayZeroTicks is { } zero ? (m.BaseWallTicks - zero) / (double)TimeSpan.TicksPerSecond : null;
@@ -327,8 +341,20 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         public void SeekReplay(SeekReplayIntent intent)
         {
             if (_host.ReplayState != ClusterState.OperatingReplay) throw new InvalidOperationException("No recording is open: POST /replay first.");
+            // ⭐ CE-3329 P1 (R11, row 13) — a target in RECORDED sim time resolves through the group's map, as the master's does
+            if (intent.TargetSimSeconds is { } sim)
+            {
+                var map = _host.TimeMap;
+                if (!map.HasSimTime || _host.ReplayZeroTicks is not { } zero)
+                    throw new InvalidOperationException("These recordings have no sim axis (format v6): seek with atSeconds.");
+                _host.SeekToSeconds((map.WallAt(sim) - zero) / (double)TimeSpan.TicksPerSecond);
+                return;
+            }
             _host.SeekToSeconds(intent.TargetWallTicks / (double)TimeSpan.TicksPerSecond);
         }
+
+        /// <summary>⭐ CE-3329 R-3058 — in the Replay Browser the axis is the VIEWER's (R2); held by the browser, read back in the status.</summary>
+        public void SetReplayAxis(SetReplayAxisIntent intent) => _host.Axis = intent.Axis;
 
         public void Storage(ExecuteStorageOpIntent intent) => throw Offline("storage");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw Offline("checkpoint");
@@ -625,10 +651,12 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             master:        () => MasterControl,
             clusterState:  () => ReplayState,
             exercises:     ExercisesOnDisk,
+            replayAxis:     () => Axis,   // ⭐ CE-3329 — the viewer's
             replayDuration: () => ReplayZeroTicks is { } z && ReplayEndTicks is { } e ? (float)((e - z) / (double)TimeSpan.TicksPerSecond) : null,
             replayRecording: () => PrimaryRecordingPath,
             // ⭐ RB-2 — where the replay stands on the wall clock and its zero: what frame-based seeks resolve against
-            replayPosition: () => ReplayZeroTicks is { } z && _manager is { } m ? new ReplayPosition(z, m.BaseWallTicks) : null,
+            replayPosition: () => ReplayZeroTicks is { } z && _manager is { } m
+                                  ? new ReplayPosition(z, m.BaseWallTicks, TimeMap is { HasSimTime: true } tm ? tm.SimAt(m.BaseWallTicks) : null) : null,
             // ⭐ RB-5 — the shown frame's recorded events
             eventHistory:  () => PrimaryEventHistory,
             // ⭐ RB-6 — the shown node's timeline index and this host's lane catalogue

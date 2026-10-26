@@ -252,6 +252,10 @@ public sealed class PerspectiveScopedDispatcher
     public TimelineAccess? Timeline => Active()?.Timeline;
 
     /// <summary>⭐ <c>R-3055</c> — the loaded replay's length from whichever node caches it.</summary>
+    /// <summary>⭐ CE-3329 R-3058 — the replay session's axis from the active node, else any node that keeps a read model.</summary>
+    public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxisAnyNode
+        => Active()?.ReplayAxis ?? _providers.Select(p => p.ReplayAxis).FirstOrDefault(x => x is not null);
+
     public float? ReplayDurationAnyNode
         => Active()?.ReplayDurationSeconds
            ?? _providers.Select(p => p.ReplayDurationSeconds).FirstOrDefault(x => x is not null);

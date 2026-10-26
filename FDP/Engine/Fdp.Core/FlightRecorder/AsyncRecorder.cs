@@ -195,6 +195,7 @@ namespace Fdp.Core.FlightRecorder
             // Use the logic from FDP-DES-002
             _recorderSystem.RecordDeltaFrame(repo, prevTick, _frontWriter, wallClockTicks, eventBus);
             _frontWriter.Flush();
+            StampIndex(repo);   // ⭐ CE-3329 P0 — SimTime + Flags for the v7 frame index
             bytesWritten = (int)_frontStream.Position;
             
             // Clear the destruction log after recording
@@ -234,6 +235,7 @@ namespace Fdp.Core.FlightRecorder
             _frontStream.Position = 0;
             _recorderSystem.RecordKeyframe(repo, _frontWriter, wallClockTicks, eventBus);
             _frontWriter.Flush();
+            StampIndex(repo);   // ⭐ CE-3329 P0
             bytesWritten = (int)_frontStream.Position;
             
             // Clear the destruction log
@@ -278,6 +280,25 @@ namespace Fdp.Core.FlightRecorder
             task.Wait();
         }
 
+        // ⭐⭐ CE-3329 P0 (R1) — what the v7 frame index says about the frame being dispatched: its recorded sim time and flags.
+        //   Set on the main thread before the worker is dispatched; the worker reads them (a capture waits for, or drops instead of
+        //   overlapping, a busy worker, so they cannot change under it).
+        private double _pendingSimTime = double.NaN;
+        private byte _pendingFlags;
+
+        private void StampIndex(EntityRepository repo)
+        {
+            var flags = _recorderSystem.LastFrameChanged ? FrameFlags.Changed : FrameFlags.None;
+            if (repo.HasSingletonUnmanaged<GlobalTime>())
+            {
+                var time = repo.GetSingletonUnmanaged<GlobalTime>();
+                _pendingSimTime = time.TotalTime;
+                if (time.IsHalted) flags |= FrameFlags.Halted;
+            }
+            else _pendingSimTime = double.NaN;
+            _pendingFlags = (byte)flags;
+        }
+
         private void ProcessBuffer(byte[] rawData, int length)
         {
             try
@@ -303,7 +324,9 @@ namespace Fdp.Core.FlightRecorder
                         UncompressedSize = length,
                         Tick = tick,
                         FrameType = type,
-                        WallClockTicks = wallClockTicks
+                        WallClockTicks = wallClockTicks,
+                        SimTime = _pendingSimTime,
+                        Flags = _pendingFlags,
                     };
 
                     ReadOnlySpan<byte> headerSpan = System.Runtime.InteropServices.MemoryMarshal.AsBytes(

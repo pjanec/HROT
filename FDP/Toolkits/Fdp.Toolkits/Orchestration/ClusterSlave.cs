@@ -624,6 +624,10 @@ namespace Fdp.Toolkit.Orchestration
         /// the node's slave translator); <see langword="null"/> until one arrives. The same read model on every node.</summary>
         public System.Collections.Generic.IReadOnlyList<ExerciseInventoryItem>? KnownExercises { get; private set; }
 
+        /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master's last cluster-state broadcast said (Sim until one
+        /// arrives — the default). The same read model on every node.</summary>
+        public ReplayAxis ReplayAxis { get; private set; } = ReplayAxis.Sim;
+
         private void FollowInventory()
         {
             if (_eventBus == null) return;
@@ -636,6 +640,7 @@ namespace Fdp.Toolkit.Orchestration
             if (_eventBus == null) return;
             foreach (var ev in _eventBus.ReadManaged<ClusterStateUpdateEvent>())
             {
+                NotifyClusterStateUpdate(ev.CurrentState, ev.MasterGone);   // ⭐ CE-3329 W2 — the master's commit reached this node
                 if (ev.MasterGone)
                 {
                     if (_followingSessionId != Guid.Empty)
@@ -645,10 +650,26 @@ namespace Fdp.Toolkit.Orchestration
                     continue;
                 }
                 _clusterState = ev.CurrentState;
+                ReplayAxis    = ev.ReplayAxis;   // ⭐ CE-3329 R-3058
                 if (ev.SessionId == Guid.Empty) continue;   // a sender that does not carry the session says nothing about it
                 if (_followingSessionId != Guid.Empty && ev.SessionId != _followingSessionId)
                     DropToIdle($"a new cluster session {ev.SessionId} replaced {_followingSessionId}");
                 _followingSessionId = ev.SessionId;
+            }
+        }
+
+        /// <summary>⭐ CE-3329 W2 — every handler waiting for the master's commit (an egress hold) hears each broadcast.</summary>
+        private void NotifyClusterStateUpdate(ClusterState state, bool masterGone)
+        {
+            foreach (var handler in _handlers)
+            {
+                if (handler is not IClusterStateUpdateObserver observer) continue;
+                try { observer.OnClusterStateUpdate(state, masterGone); }
+                catch (Exception ex)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: {1}.OnClusterStateUpdate failed: {2}",
+                        _nodeId, handler.GetType().Name, ex.Message);
+                }
             }
         }
 

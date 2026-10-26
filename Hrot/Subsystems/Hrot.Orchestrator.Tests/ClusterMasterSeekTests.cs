@@ -487,6 +487,187 @@ public sealed class ClusterMasterSeekTests
         Assert.Equal(4_000_000L, payload.AnchorWallTicks);
     }
 
+    // ── CE-3329 P1 (R3, R11) — the cluster's sim axis: the nodes' maps intersected, sim targets resolved by the master ──
+
+    private const long Tk = TimeSpan.TicksPerSecond / 10;   // one frame = 0.1 s of wall
+
+    /// <summary>A node's map: <paramref name="runBefore"/> frames advancing 0.1 s of sim each, <paramref name="pause"/> paused, 10 more.</summary>
+    private static Fdp.Core.FlightRecorder.ReplayTimeMap NodeMap(long firstWall, int runBefore, int pause)
+    {
+        int n = runBefore + pause + 10;
+        var wall = new long[n]; var sim = new double[n]; var flags = new Fdp.Core.FlightRecorder.FrameFlags[n];
+        double s = 0;
+        for (int i = 0; i < n; i++)
+        {
+            bool halted = i >= runBefore && i < runBefore + pause;
+            if (!halted) s += 0.1;
+            wall[i] = firstWall + i * Tk; sim[i] = s;
+            flags[i] = halted ? Fdp.Core.FlightRecorder.FrameFlags.Halted : Fdp.Core.FlightRecorder.FrameFlags.None;
+        }
+        return Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(wall, sim, flags);
+    }
+
+    /// <summary>⭐ R3 — the prepare aggregate carries the CLUSTER's map: the maps cross the wire as JSON (as a node's result does) and
+    /// come back intersected — a stretch only where every node paused, the earliest-starting node's sim times.</summary>
+    [Fact]
+    public void CE3329_The_prepare_aggregate_carries_the_clusters_time_map()
+    {
+        var early = NodeMap(firstWall: 100_000_000, runBefore: 10, pause: 20);   // paused frames 10–29
+        var late  = NodeMap(firstWall: 100_000_000 + 5 * Tk, runBefore: 10, pause: 10);   // paused 15–24 on the early node's frames
+        static string Wire(Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult r)
+            => JsonSerializer.Serialize(r, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        // ⚠ node 2 is listed first on purpose: the anchor is the EARLIEST first frame, not the lowest node id
+        var responses = new Dictionary<int, Dictionary<FdpNodeOpType, string>>
+        {
+            [2] = new() { [FdpNodeOpType.PrepareReplay] = Wire(new(7, 4f, 100_000_000 + 5 * Tk, 100_000_000 + 34 * Tk, late)) },
+            [1] = new() { [FdpNodeOpType.PrepareReplay] = Wire(new(5, 4f, 100_000_000, 100_000_000 + 39 * Tk, early)) },
+        };
+
+        var r = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(new ReplayConsensusAggregator().Aggregate(responses));
+        var map = Assert.IsType<Fdp.Core.FlightRecorder.ReplayTimeMap>(r.TimeMap);
+        Assert.True(map.HasSimTime);
+        Assert.Equal(early.Points, map.Points);                                 // the anchor (earliest) node's sim times
+        var s = Assert.Single(map.Stretches);
+        Assert.Equal(100_000_000 + 14 * Tk, s.StartWallTicks);                  // where BOTH paused
+        Assert.Equal(100_000_000 + 25 * Tk, s.EndWallTicks);
+    }
+
+    /// <summary>⭐ R11 — a seek in RECORDED sim time is turned into wall ticks by the MASTER (nodes unchanged): a paused instant lands at
+    /// the end of the pause; a replay with no sim axis (v6) refuses it.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3329_A_sim_seek_is_resolved_to_wall_ticks_by_the_master_and_refused_without_a_sim_axis()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        master.RegisterAggregator(new ReplayConsensusAggregator());
+        RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+
+        var map = NodeMap(firstWall: 4_000_000L, runBefore: 10, pause: 20);   // sim 1.0 paused from frame 9 to 30
+        EnterReplay(bus, master, new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 4f, 4_000_000L, 4_000_000L + 39 * Tk, map),
+                    targetSimSeconds: 1.5);
+        var entry = Assert.Single(bus.ReadManaged<SeekReplayIntent>());
+        Assert.Equal(map.WallAt(1.5) - 4_000_000L, entry.TargetWallTicks);       // the entry, named in sim time
+
+        bus.PublishManaged(new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetSimSeconds = 1.0 });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var fanOut = bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation == FdpNodeOpType.NodeReplaySeek).ToList();
+        var payload = Assert.IsType<ReplaySeekPayload>(fanOut.Last().DomainPayload);
+        Assert.Equal(29 * Tk, payload.TargetWallTicks);                          // the pause's END: its changes shown
+
+        // a v6 replay: no map ⇒ a sim seek is refused, never sent as "0 ticks"
+        var bus2 = new FdpEventBus();
+        using var master2 = new ClusterMaster(bus2, NoMandatoryConfig());
+        master2.RegisterAggregator(new ReplayConsensusAggregator());
+        RegisterNode(bus2, master2, nodeId: 1, subsystem: "SimHost");
+        EnterReplay(bus2, master2, new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 4f, 4_000_000L, 44_000_000L), targetSimSeconds: null);
+        bus2.ReadManaged<SeekReplayIntent>().ToList();
+        var refused = Guid.NewGuid();
+        bus2.PublishManaged(new SeekReplayIntent { RequestId = refused, TargetSimSeconds = 1.0 });
+        bus2.SwapBuffers(); master2.Tick(); bus2.SwapBuffers();
+        Assert.Contains(bus2.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == refused && e.StatusCode == OrchestrationStatusCode.Rejected);
+        Assert.DoesNotContain(bus2.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.NodeReplaySeek);
+    }
+
+    /// <summary>⭐ CE-3329 R-3058 — the axis is the SESSION's: any host's request switches it at the master, and the master's cluster-state
+    /// broadcast carries it to every node.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3329_The_axis_switch_is_broadcast_with_the_cluster_state()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        Assert.Equal(Fdp.Toolkit.Orchestration.ReplayAxis.Sim, master.ReplayAxis);   // R2: Sim by default
+
+        var req = Guid.NewGuid();
+        bus.PublishManaged(new SetReplayAxisIntent { RequestId = req, Axis = Fdp.Toolkit.Orchestration.ReplayAxis.Wall });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        Assert.Equal(Fdp.Toolkit.Orchestration.ReplayAxis.Wall, master.ReplayAxis);
+        Assert.Contains(bus.ReadManaged<ClusterStateUpdateEvent>(), e => e.ReplayAxis == Fdp.Toolkit.Orchestration.ReplayAxis.Wall);
+        Assert.Contains(bus.ReadManaged<ClusterStateTransitionedEvent>(), e => e.ReplayAxis == Fdp.Toolkit.Orchestration.ReplayAxis.Wall);
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == req && !e.StatusCode.IsError());
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3329 R4 — on the Sim axis a RUNNING replay clock jumps a paused stretch (non-pausing: <c>JumpTo</c>, never a snap), once
+    /// per stretch; on the Wall axis, paused, or outside a replay, it never jumps.
+    /// </summary>
+    [Fact]
+    public void CE3329_On_the_sim_axis_a_running_replay_jumps_each_paused_stretch_once()
+    {
+        var map   = NodeMap(firstWall: 4_000_000L, runBefore: 10, pause: 20);   // flat from 9T to 29T after the zero
+        var clock = new FakeReplayClock { Mode = TimeMode.Continuous };
+        var cmds  = new RecordingTimeCommands();
+        var axis  = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+        bool replaying = true;
+        var pm = new ReplayClockProcessManager(clock, cmds, () => replaying, () => axis, () => map, () => 4_000_000L);
+
+        clock.TotalTime = 0.5;   pm.Tick();
+        Assert.Empty(cmds.Jumps);                                           // before the pause: plays on
+        clock.TotalTime = 1.0;   pm.Tick();
+        Assert.Equal(new[] { 2.9 }, cmds.Jumps.Select(j => Math.Round(j, 6)));   // inside it: jumped to its end
+        clock.TotalTime = 1.2;   pm.Tick();
+        Assert.Single(cmds.Jumps);                                          // the jump in flight: not repeated
+        clock.TotalTime = 3.2;   pm.Tick();
+        Assert.Single(cmds.Jumps);                                          // after it: plays on
+
+        clock.TotalTime = 1.5; axis = Fdp.Toolkit.Orchestration.ReplayAxis.Wall; pm.Tick();
+        Assert.Single(cmds.Jumps);                                          // Wall: the pause plays out
+        axis = Fdp.Toolkit.Orchestration.ReplayAxis.Sim; clock.Mode = TimeMode.Deterministic; pm.Tick();
+        Assert.Single(cmds.Jumps);                                          // paused: never
+        clock.Mode = TimeMode.Continuous; replaying = false; pm.Tick();
+        Assert.Single(cmds.Jumps);                                          // live: never
+    }
+
+    private sealed class FakeReplayClock : ITimeController
+    {
+        public double TotalTime;
+        public TimeMode Mode;
+        public GlobalTime Update() => GetCurrentState();
+        public void SetTimeScale(float scale) { }
+        public float GetTimeScale() => 1f;
+        public TimeMode GetMode() => Mode;
+        public GlobalTime GetCurrentState() => new() { TotalTime = TotalTime };
+        public void SeedState(GlobalTime state) { }
+        public void Dispose() { }
+    }
+
+    private sealed class RecordingTimeCommands : Fdp.Toolkit.Time.ITimeCommands
+    {
+        public List<double> Jumps { get; } = new();
+        public void Pause() { }
+        public void Resume() { }
+        public void StepOneTick() { }
+        public void StepBy(float seconds) { }
+        public void SetTimeScale(float scale) { }
+        public void SnapTo(GlobalTime position) => throw new InvalidOperationException("the sim axis must never snap (F14)");
+        public void JumpTo(double totalTime) => Jumps.Add(totalTime);
+    }
+
+    /// <summary>Enters a replay on one registered node, answering its prepare round with <paramref name="prepared"/>.</summary>
+    private static void EnterReplay(FdpEventBus bus, ClusterMaster master, Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult prepared,
+                                    double? targetSimSeconds)
+    {
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId    = Guid.NewGuid(),
+            TargetState      = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+            ExerciseId       = Guid.NewGuid(),
+            TargetSimSeconds = targetSimSeconds,
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        foreach (var p in bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList())
+            bus.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = p.TransactionId,
+                Operation       = p.Operation,
+                NodeId          = 1,
+                StatusCode      = OrchestrationStatusCode.Success,
+                IsParticipating = true,
+                ResultPayload   = p.Operation == FdpNodeOpType.PrepareReplay ? prepared : null,
+            });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+    }
+
     /// <summary>
     /// ⭐ C9 P7 — entering a replay seeks every node to the replay's zero, so the playhead is seconds after it and the end IS
     /// the duration. 🔴 Before: "now + duration" with "now" the live clock's time at entry; and a seek back from the end

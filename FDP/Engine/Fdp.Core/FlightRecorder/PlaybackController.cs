@@ -119,10 +119,11 @@ namespace Fdp.Core.FlightRecorder
             // Read version
             FormatVersion = _reader.ReadUInt32();
             
-            if (FormatVersion != FdpConfig.FORMAT_VERSION)
+            // ⭐ CE-3329 P0 — v6 differs from v7 only in the outer header (FrameOuterHeader.SizeFor)
+            if (FormatVersion < FdpConfig.MIN_READABLE_FORMAT_VERSION || FormatVersion > FdpConfig.FORMAT_VERSION)
             {
                 throw new InvalidDataException(
-                    $"Format version mismatch. File version: {FormatVersion}, Expected: {FdpConfig.FORMAT_VERSION}");
+                    $"Format version mismatch. File version: {FormatVersion}, Expected: {FdpConfig.MIN_READABLE_FORMAT_VERSION}–{FdpConfig.FORMAT_VERSION}");
             }
             
             // Read timestamp
@@ -140,18 +141,20 @@ namespace Fdp.Core.FlightRecorder
             _fileStream.Position = _headerEndPosition;
 
             // Pre-allocate the header buffer once outside the loop to avoid CA2014 (stackalloc in loop)
+            int headerSize = FrameOuterHeader.SizeFor(FormatVersion);
             Span<byte> headerBytes = stackalloc byte[FrameOuterHeader.Size];
+            headerBytes = headerBytes.Slice(0, headerSize);
 
             while (_fileStream.Position < _fileStream.Length)
             {
                 try
                 {
                     long frameStart = _fileStream.Position;
-                    if (_fileStream.Position + FrameOuterHeader.Size > _fileStream.Length) break; // Incomplete header
+                    if (_fileStream.Position + headerSize > _fileStream.Length) break; // Incomplete header
 
                     // Read the entire header in one bulk read
                     _fileStream.Read(headerBytes);
-                    FrameOuterHeader header = System.Runtime.InteropServices.MemoryMarshal.Read<FrameOuterHeader>(headerBytes);
+                    FrameOuterHeader header = FrameOuterHeader.Read(headerBytes, FormatVersion);
 
                     if (header.CompressedSize <= 0) break;
 
@@ -162,7 +165,9 @@ namespace Fdp.Core.FlightRecorder
                         UncompressedSize = header.UncompressedSize,
                         Tick = header.Tick,
                         FrameType = (FrameType)header.FrameType,
-                        WallClockTicks = header.WallClockTicks
+                        WallClockTicks = header.WallClockTicks,
+                        SimTime = header.SimTime,
+                        Flags = (FrameFlags)header.Flags,
                     });
 
                     // Skip compressed payload
@@ -384,7 +389,7 @@ namespace Fdp.Core.FlightRecorder
             _fileStream.Position = metadata.FilePosition;
 
             // Skip the structured header to reach the compressed payload
-            _fileStream.Position += FrameOuterHeader.Size;
+            _fileStream.Position += FrameOuterHeader.SizeFor(FormatVersion);
 
             // Read compressed data
             byte[] compressedData = _reader.ReadBytes(metadata.CompressedSize);
@@ -431,6 +436,12 @@ namespace Fdp.Core.FlightRecorder
         public ulong Tick;
         public FrameType FrameType;
         public long WallClockTicks;
+
+        /// <summary>⭐ CE-3329 P0 — the frame's recorded sim time (<c>GlobalTime.TotalTime</c>); NaN in a v6 recording.</summary>
+        public double SimTime;
+
+        /// <summary>⭐ CE-3329 P0 — <see cref="FrameFlags"/>; <see cref="FrameFlags.Unknown"/> in a v6 recording.</summary>
+        public FrameFlags Flags;
     }
     
     public enum FrameType : byte

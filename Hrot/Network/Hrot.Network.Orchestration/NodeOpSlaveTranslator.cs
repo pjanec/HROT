@@ -90,12 +90,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             foreach (var s in stateScope)
             {
                 if (s.IsValid)
-                    _bus.PublishManaged(new ClusterStateUpdateEvent
-                    {
-                        CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)s.Data.CurrentState,
-                        ExerciseId   = s.Data.ExerciseId,
-                        SessionId    = s.Data.SessionId,
-                    });
+                    _bus.PublishManaged(OrchestrationObserverTranslator.StateOf(s.Data));   // ⭐ CE-3329 — the one decoding
                 else if (s.Info.InstanceState != DdsInstanceState.Alive)
                     _bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
             }

@@ -44,5 +44,11 @@ namespace Fdp.Toolkit.Time
         /// seek, a live branch, a scenario load). The caller knows why; the clock only knows where.
         /// </summary>
         void SnapTo(Fdp.Core.GlobalTime position);
+
+        /// <summary>
+        /// ⭐ <c>CE-3329</c> P1 (R4) — a RUNNING clock jumps to <paramref name="totalTime"/> and keeps running: no pause, no timeline-epoch
+        /// move (so the kernel resets nothing). The replay's sim axis skips a paused stretch with it. A paused clock ignores it.
+        /// </summary>
+        void JumpTo(double totalTime) => throw new System.NotSupportedException($"{GetType().Name} cannot jump a running clock");
     }
 }

@@ -194,6 +194,11 @@ namespace Fdp.Toolkit.Replay
         /// </summary>
         public TimeSpan Duration => _playback?.Metadata.Duration ?? TimeSpan.Zero;
 
+        /// <summary>⭐ CE-3329 P1 (row 7) — the recording's wall ↔ sim map, built once from the frame index (no frame decoded);
+        /// <see cref="ReplayTimeMap.Empty"/> for a listener or a v6 recording.</summary>
+        public ReplayTimeMap TimeMap => _timeMap ??= _playback != null ? ReplayTimeMap.FromRecording(_playback) : ReplayTimeMap.Empty;
+        private ReplayTimeMap? _timeMap;
+
         /// <summary>
         /// The maximum network entity ID present in the recording, as reported by
         /// the recording session's <c>AsyncRecorder</c>.

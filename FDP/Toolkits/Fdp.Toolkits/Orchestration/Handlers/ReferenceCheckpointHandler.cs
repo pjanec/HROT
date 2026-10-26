@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// recording, then on the main thread puts the world back to X (<see cref="WorldKeyframes.Apply"/>, <see cref="AfterRestore"/>, the
     /// ELM re-derive) and records on as the new exercise, its first frames a copy of the old one's up to X (D18).</para>
     /// </summary>
-    public sealed class ReferenceCheckpointHandler : IClusterStateHandler
+    public sealed class ReferenceCheckpointHandler : IClusterStateHandler, IClusterStateUpdateObserver
     {
         private readonly Func<RecordingModule?> _recording;
         private readonly IRecordReplayController? _controller;
@@ -174,6 +174,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             if (intent.Operation != NodeOpType.RestoreSnapshot || _committing is not { } restore) return;
             _committing = null;
 
+            // ⭐⭐ CE-3329 PW — §12c W2: the restored world is published only after the master's commit broadcast (every node has
+            //   swapped); the cleanup's sweep retracts the abandoned future meanwhile (W1), AfterRestore marks the survivors dirty (W4).
+            Fdp.Toolkit.Replication.Services.EgressHold.Hold(_world!, "checkpoint restore");
+            _awaitingCommit = true;
             PutBack(_world!, restore.Keyframe, _accumulator, _worldReplaced, _resumeSchedule);
 
             var exercise = restore.Payload.NewExerciseId;
@@ -189,6 +193,17 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
         /// <inheritdoc />
         public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+
+        private bool _awaitingCommit;   // ⭐ CE-3329 W2
+
+        /// <inheritdoc />
+        /// <remarks>⭐ CE-3329 W2 — the master's broadcast after the restore round releases the egress hold.</remarks>
+        public void OnClusterStateUpdate(ClusterState state, bool masterGone)
+        {
+            if (!_awaitingCommit || _world == null) return;
+            _awaitingCommit = false;
+            Fdp.Toolkit.Replication.Services.EgressHold.Release(_world);
+        }
 
         /// <summary>
         /// ⭐ <c>CE-3299</c> B4/B5 — <b>a checkpoint's world put back</b>: the keyframe in place, the after-restore step, the ELM's world

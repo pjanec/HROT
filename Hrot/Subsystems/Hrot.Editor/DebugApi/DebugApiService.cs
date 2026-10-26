@@ -70,6 +70,7 @@ namespace Hrot.Editor.DebugApi
         private readonly Hrot.Presentation.DebugApi.IClusterMasterControl? _editorMaster;   // ⭐ R-3052…R-3055 — the editor's own core, on its bus
         private readonly Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? _editorExercises;
         private readonly Func<float?>? _editorReplayDuration;
+        private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _editorReplayAxis;   // CE-3329
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
@@ -563,9 +564,12 @@ namespace Hrot.Editor.DebugApi
             Func<IReadOnlyList<Hrot.Presentation.DebugApi.ClusterRosterEntry>?>? clusterRoster = null,
             // ⭐ R-3055 — the master's exercise inventory and the loaded replay's length (the core's ClusterUiCache).
             Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? exercises = null,
-            Func<float?>? replayDuration = null)
+            Func<float?>? replayDuration = null,
+            // ⭐ CE-3329 R-3058 — the replay session's time axis (the core's ClusterUiCache)
+            Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? replayAxis = null)
         {
             _entityCreationGetter = entityCreation;
+            _editorReplayAxis     = replayAxis;
             _editorClusterRoster  = clusterRoster;
             _editorExercises      = exercises;
             _editorReplayDuration = replayDuration;

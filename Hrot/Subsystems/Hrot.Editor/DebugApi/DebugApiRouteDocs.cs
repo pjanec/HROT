@@ -1883,6 +1883,7 @@ namespace Hrot.Editor.DebugApi
             {
                 new("exerciseId", "string", false, "The exercise (list_exercises); when omitted the master picks: the live run in progress, else the newest finished one"),
                 new("atSeconds", "number", false, "Where to enter, seconds after the exercise's start (default 0)"),
+                new("atSimSeconds", "number", false, "⭐ CE-3329 — or where to enter in the RECORDED sim time (the run's own clock; a pause lands at its end); needs a v7 recording"),
                 new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReplay"),
                 new("path", "string", false, "Replay Browser only (RB-2): one recording file (.fdp) to open, need not be in list_exercises"),
                 new("paths", "array", false, "Replay Browser only (RB-2): a node group — one .fdp per node of one exercise"),
@@ -1902,10 +1903,11 @@ namespace Hrot.Editor.DebugApi
             Group:   "I — Replay",
             Summary: "Seek the replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap. The moment is atSeconds, or a lookup over THIS node's recording: a frame, a step of frames, the frame after an event (cause), or the next / previous change of a unit (RB-2).",
             Returns: "{ published, requestId, atSeconds } (+ frame, resolvedFrom for a lookup; next: found, or {found:false, note})",
-            Hint:    "One of: atSeconds (number) · frame (integer) · frames (integer, ±) · cause ({frame, entity}) · next ({entity, component?}) with direction (1 | -1). Example: seek_replay({next:{entity:1042, component:\"Health\"}, direction:1})",
+            Hint:    "One of: atSeconds (number) · atSimSeconds (number, the recorded sim time) · frame (integer) · frames (integer, ±) · cause ({frame, entity}) · next ({entity, component?}) with direction (1 | -1). Example: seek_replay({next:{entity:1042, component:\"Health\"}, direction:1})",
             Params: new RouteParam[]
             {
                 new("atSeconds", "number", false, "Seconds after the exercise's start"),
+                new("atSimSeconds", "number", false, "⭐ CE-3329 — or the RECORDED sim time to land on (a paused instant lands at its end, so what changed during the pause shows); refused for a v6 recording"),
                 new("frame", "integer", false, "A frame of this node's recording"),
                 new("frames", "integer", false, "Frames forward (+) or back (-) from the one shown"),
                 new("cause", "object", false, "{frame, entity}: the frame after an event, where its effect shows (the Event browser's causality jump); select the entity with select_entity"),
@@ -1930,11 +1932,23 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"waitForReady\":true}",
             ExampleGist: "end the replay"),
 
+        [("POST", "/replay/axis")] = new RouteDoc(
+            Tool:    "set_replay_axis",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 — switch the replay's time axis for the whole session (R-3058): Sim (the run's own clock — a play jumps over every paused stretch and its changes land at once) or Wall (pauses play out). No seek: the frame on screen stays.",
+            Returns: "{ published, requestId, axis }",
+            Hint:    "Req: axis (\"Sim\" | \"Wall\"). Example: set_replay_axis({axis:\"Wall\"})",
+            Params: new RouteParam[] { new("axis", "string", true, "\"Sim\" (default) or \"Wall\"") },
+            Notes: new[] { "The master holds it and every node hears it (the cluster-state broadcast); the Replay Browser keeps its own (the viewer's).",
+                           "get_replay_status reports it as axis; atSimSeconds seeks work on either axis." },
+            ExampleArgsJson: "{\"axis\":\"Wall\"}",
+            ExampleGist: "skip or play the pauses"),
+
         [("GET", "/replay/status")] = new RouteDoc(
             Tool:    "get_replay_status",
             Group:   "I — Replay",
             Summary: "The cluster's state, the loaded replay's length, this node's replay recording, and its clock.",
-            Returns: "{ clusterState, replaying, durationSeconds, recording, sim, browser } — browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
+            Returns: "{ clusterState, replaying, durationSeconds, recording, simSeconds, axis, sim, browser } — axis: the session's time axis (Sim | Wall, CE-3329) — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
             Hint:    "No params. Example: get_replay_status({})",
             ExampleArgsJson: "{}",
             ExampleGist: "is the cluster replaying, and where"),

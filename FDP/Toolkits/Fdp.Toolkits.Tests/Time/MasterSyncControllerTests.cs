@@ -1023,6 +1023,57 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
         }
 
+        // ── CE-3329 P1 (R4 as amended, F14): the NON-PAUSING jump of the sim axis ─────────────
+
+        /// <summary>
+        /// ⭐⭐ CE-3329 — a RUNNING clock jumps to a new sim time and KEEPS RUNNING: the mode and the timeline epoch are untouched (a snap
+        /// moves the epoch and the kernel resets every slot), slaves get a Continuous event carrying the new time, wall ticks move by
+        /// the same amount. A paused clock ignores it.
+        /// </summary>
+        [Fact]
+        public void CE3329_A_jump_moves_a_running_clock_without_pausing_or_moving_the_epoch()
+        {
+            long ticks = 1000L;
+            var bus  = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => ticks);
+            bus.SwapBuffers(); bus.Read<SwitchTimeModeEvent>();   // the constructor's baseline event
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            long epoch = ctrl.TimelineEpoch;
+            var before = ctrl.GetCurrentState();
+
+            ctrl.JumpWhileRunning(before.TotalTime + 12.5);
+
+            var after = ctrl.GetCurrentState();
+            Assert.Equal(before.TotalTime + 12.5, after.TotalTime, 6);
+            Assert.Equal(before.TotalWallTicks + TicksFromSeconds(12.5), after.TotalWallTicks);
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.Equal(epoch, ctrl.TimelineEpoch);
+            bus.SwapBuffers();
+            var evt = Assert.Single(bus.Read<SwitchTimeModeEvent>().ToArray());
+            Assert.Equal(TimeMode.Continuous, evt.TargetMode);
+            Assert.Equal(after.TotalTime, evt.SimTimeSnapshot, 6);
+
+            ctrl.SwitchToDeterministic(new HashSet<int>());
+            ticks += TicksFromSeconds(1);
+            ctrl.Update();
+            var paused = ctrl.GetCurrentState().TotalTime;
+            ctrl.JumpWhileRunning(paused + 100);
+            Assert.Equal(paused, ctrl.GetCurrentState().TotalTime, 6);   // a paused clock is moved by a seek, never a jump
+        }
+
+        /// <summary>⭐ CE-3329 — the request travels as a bus intent (ITimeCommands.JumpTo), read in Update like a snap.</summary>
+        [Fact]
+        public void CE3329_A_jump_intent_is_applied_in_Update()
+        {
+            long ticks = 1000L;
+            var bus  = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => ticks);
+            new Fdp.Toolkit.Time.IntentTimeCommands(bus).JumpTo(40.0);
+            bus.SwapBuffers();
+            ctrl.Update();
+            Assert.True(ctrl.GetCurrentState().TotalTime >= 40.0);
+        }
+
         // ── RT-014: SnapAndPause tests ───────────────────────────────────────
 
         /// <summary>
