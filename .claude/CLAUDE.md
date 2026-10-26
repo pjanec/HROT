@@ -310,6 +310,23 @@ query, drive the server over stdio with a longer timeout instead.
 restart it between questions; **batch every symbol question into one run.** ⛔ **A one-shot CLI invocation
 pays the ~59 s every time.**
 
+## ⭐⭐⭐ SHARED AND UNIFIED, NEVER DUPLICATED — **the goal in EVERYTHING we build** *(user, `2026-10-26`)*
+
+> 🔒 **User, verbatim:** *"our desire in everything what we do is to do it in a shared and unified way wherever possible instead of duplications."*
+> ⭐ The standing rulings it generalises: *"no keeping two implementations for the same concept"* (ruling 9) · *"Best if the nodes cannot
+> get different stuff by construction (unless really necessary)."* (`2026-10-26`)
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **ONE implementation per concept, ONE owner per piece of state, ONE place a thing is composed** | ⛔ a second copy — of an algorithm, a catalogue, a registration list, a per-frame step, a state owner — is a defect even when both copies work today; they drift |
+| ⭐⭐⭐ **before building, FIND what already does it** (graph + grep, the seam law below) **and extend THAT** | ⭐ the usual answer to *"we need a shared X"* is *"X exists and is under-adopted"* |
+| ⭐⭐ **make hosts agree BY CONSTRUCTION** | ⭐ put the behaviour where every host passes through it (the shared node frame, the one provider factory), so no host can lack it or differ — ⛔ not N hosts each remembering to wire it |
+| ⭐⭐ **a difference must be NECESSARY, and say why** | ⭐ a host-specific variant states the measured reason it cannot share; ⛔ *"it was built first"* / *"it was easier"* is not a reason |
+| ⭐⭐ **when you FIND a duplicate, unify it or file it** | ⭐ in the same piece of work when small; otherwise a tracker row naming both copies. ⚠ Duplicate CODE ≠ duplicate SURFACE — see *"no rush removals"* below |
+
+📌 **The case that prompted writing it down:** the editor kept its live timeline in its own fields while every cluster node kept one on
+`HrotNodeContext` — though the editor builds that same context. Nothing required two owners; it was build order.
+
 ## ⭐⭐⭐ THE MAP OF WHAT EXISTS — **read it before designing behaviours, squads or vehicles; extend it when you measure** *(user, `2026-10-11`)*
 
 > 🔒 **User, verbatim:** *"I need the guide to serve every other future you so it does not need to rederive the stuff that is available."*
@@ -611,7 +628,21 @@ ever considered, which is what obligation ① exists to prevent.
   | ⛔ **never `send_later` / `create_trigger` a "check the other lanes" reminder** | ⭐ each firing waits for the user's approval, and the session stalls until they give it |
   | ⭐⭐ **instead: `git fetch` the other lanes at the end of each piece of work** | `git fetch origin behaviors ui coordinator` then `git diff --name-only HEAD...origin/<lane>` for new `HANDOFF_*` / `STEER_*` / `NOTE_*` addressed to your lane; follow what is there before starting the next item |
 
-- **Model delegation (token thrift):** keep Opus for orchestration and hard reviews; delegate heavier work that does not need Opus-level intelligence (mirror-an-existing-pattern slices, mechanical edits, broad searches) to a **Sonnet** subagent. Opus reviews the real diff and re-runs the gates. Do novel scheduler/IR/compiler work hands-on.
+- ### ⭐⭐⭐ SONNET DELEGATION — **Sonnet builds and tests; Opus briefs and reviews the tests** *(user, `2026-10-26`)*
+  > 🔒 **User, verbatim:** *"Sonnet should be used for task whose complexity allows for that, and you Opus should make sure that the
+  > instructions always contains a clear success conditions, and the Sonnet is supposed to write its own unit tests and work until they
+  > pass and report to you back, and you will check if the unit tests are written correctly, meaning that they test what really matters
+  > and that the code is okay. You do not run the tests again, you believe the Sonnet that it has run those."*
+
+  | ⭐ the contract | |
+  |---|---|
+  | ⭐⭐ **use Sonnet wherever the task's complexity allows** | mirror-an-existing-pattern slices, mechanical edits, measurements, broad searches, a well-scoped fix. ⭐ Keep for Opus: novel scheduler / IR / compiler work, design calls, anything whose brief cannot be written clearly — ⛔ if you cannot write the brief, you do not understand the task well enough to hand it off |
+  | ⭐⭐⭐ **the brief ALWAYS carries checkable SUCCESS CONDITIONS** | the goal, the files and the existing seams to reuse (from your own graph + grep pass), the fences, and numbered conditions a test can decide — ⛔ never *"make it work"* |
+  | ⭐⭐⭐ **Sonnet writes its OWN tests and works UNTIL THEY PASS** | in the feature's existing suite (T-1); each red-proved by a mutation that COMPILES; the test project built before `--no-build`; then it reports: diff summary, each test + what it asserts + its mutation, the gate commands with pass/fail counts |
+  | ⭐⭐⭐ **Opus does NOT re-run the tests — it believes the reported run** | ⭐ the review is: **do the tests assert what really MATTERS** *(the behaviour the success condition names — not the helper under test, not a tautology, not a condition a mutation cannot break)* **and is the CODE okay** *(read the diff: the risky parts, reuse vs duplication, semantics that differ from what it replaced)* |
+  | ⭐ **a test that misses what matters goes BACK to Sonnet** | with the missing case named; ⛔ do not patch it silently yourself |
+
+  ⛔ **SUPERSEDED:** *"Opus reviews the real diff and re-runs the gates"* (the earlier token-thrift line) — ⭐ Opus reviews the tests and the diff; it does not re-run them.
 - **Build general, not just minimal (round-out):** when a task needs a generic node, implement the whole obvious set rather than only the one value the immediate task needs — e.g. the `Compare` node ships every `ComparisonOperator`, not just `==`; an operator/enum-keyed node covers the full enum. Proactively add closely-similar, generally-useful companions (the arithmetic/boolean peers of a comparison node) when they reuse the same machinery and are plausibly usable. Default toward completeness over minimalism. Balance against the architect's demand-driven caution: if a round-out means a whole new *speculative* vocabulary or contradicts an explicit architect ruling, flag it for a quick nod first rather than silently building it — but don't be stingy with cheap, obvious generality.
 - **Prior-art discipline (the seam law):** in this codebase a *"we need a shared X"* almost always means **X already exists and is under-adopted** — 24 measured instances so far. So every design opens with a prior-art pass, and that pass **starts with `search_graph`, not grep** (see the Codebase Memory section above — this is the rule that keeps getting skipped). Two failure modes to name explicitly: ⚠ **never read a reference *count* as adoption** — open the call sites; and ⚠ *"the seam is unused"* has two very different meanings — an interface nobody calls, versus one called every frame with a dead parameter. The fixes differ completely.
 - **Architect-questioning discipline (engine-rules gate):** no non-trivial capability / node / slice starts without a design, and no non-trivial design ships without an **architect pass**. For each non-trivial task, draft an `docs/blueprints/Architect_Question_N_*.md` mirroring the existing Q#2–Q#5 docs (decision-shaped sub-questions A/B/C/D + Claude's recommended lean + the reuse-vs-build tradeoff for each), record the answers in that doc, **then** build. Trivial mirror-pattern nodes (a documented recipe already exists) may proceed on a short in-repo design note without a full architect round.
