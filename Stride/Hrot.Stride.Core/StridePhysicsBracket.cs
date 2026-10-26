@@ -195,7 +195,11 @@ public sealed class StridePhysicsBracket
         // this line a cluster-wide pause stopped the motors below and left gravity and contacts
         // running, so bodies kept falling in a paused simulation. Driven from the SIM clock, so no
         // separate pause flag is needed: sim time simply does not advance when paused or stepped.
-        PhysicsBodyService?.SetSimulationAdvancing(simRunning);
+        // ⭐ CE-3329 P2 (DESIGN_Replay_Time_Axis_And_Review §12l) — in a REPLAY the recording owns every pose: Bullet does not step,
+        //   the motors do not drive, and the reverse sync does not write Bullet's poses over the recorded SimTransform. The body
+        //   lifecycle still runs (the bodies follow the replayed entities).
+        bool replaying = Fdp.Toolkit.Replay.ReplayState.IsActive(world);
+        PhysicsBodyService?.SetSimulationAdvancing(simRunning && !replaying);
 
         // ALWAYS runs regardless of simRunning (drag/reposition must work while paused).
         _lifecycleSw.Restart();
@@ -206,21 +210,21 @@ public sealed class StridePhysicsBracket
         // Step 2b: Pre-physics motors (VehicleNavIntent first — STR-D21 F7 fix, then motors).
         // VehicleNavIntent is step-only ([TickMode(WhenTimeAdvances)]): when paused, the gate does not advance navigation/steering.
         _vehicleNavIntentSw.Restart();
-        if (VehicleNavIntentSystem != null) _systems.Run(VehicleNavIntentSystem, world, dt, simRunning);
+        if (VehicleNavIntentSystem != null) _systems.Run(VehicleNavIntentSystem, world, dt, simRunning);   // gated itself (P2)
         _vehicleNavIntentSw.Stop();
 
         _charMotorSw.Restart();
-        CharacterMotor?.Execute(world, dt, simRunning);
+        if (!replaying) CharacterMotor?.Execute(world, dt, simRunning);
         _charMotorSw.Stop();
 
         _vehicleMotorSw.Restart();
-        VehicleMotor?.Execute(world, dt, simRunning);
+        if (!replaying) VehicleMotor?.Execute(world, dt, simRunning);
         _vehicleMotorSw.Stop();
 
         // Step 3: Reverse-sync BEFORE kernel tick — writes Bullet pose+velocity into
         // SimTransform/SimVelocity for owned entities (design §8.3).
         _reverseSyncSw.Restart();
-        _systems.Run(ReverseSyncGroup, world, dt, simRunning);
+        if (!replaying) _systems.Run(ReverseSyncGroup, world, dt, simRunning);
         _reverseSyncSw.Stop();
 
         // ── Throttled breakdown log (~once per second at 60 fps) ─────────────

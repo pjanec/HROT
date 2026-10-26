@@ -917,7 +917,7 @@ perform, and every jump becomes the resume they already follow. The only new nod
 
 **Rails**: `ReplayTimeMapTests` ×7 (Toolkits); `ClusterMasterSeekTests.CE3329_*` ×4 (the aggregate's map over JSON, a sim seek resolved / refused without a sim axis, the axis broadcast, the jump manager — once per stretch, never on Wall / paused / live, never a snap); `MasterSyncControllerTests.CE3329_*` ×2 (a jump keeps the clock running and the epoch still; the intent path); `TranslatorDtoTests` (seek + axis cross the wire whole; the transition's sim target); `TheClusterControlRoutesTests` ×2 (sim seek / entry carry the target; `/replay/axis` and the status).
 
-### 12i. ⏸ P2 STOPPED `2026-10-26` — a module-level `[RunsDuringReplay]` cannot express what runs (R-106: the item stops, the batch goes on)
+### 12i. ⛔ HISTORY — P2 stopped `2026-10-26` (the census below is still true; the lean is SUPERSEDED by §12l — the user chose the replay flag)
 
 📐 **The census** (read-only sweep: `search_graph(".*Module$", Class)` → 104 total over two pages, grep `IEcsModule` → 40 production
 module classes, 30 registered, 10 dead; `RegisterGlobalSystem(` → **79** production call sites in 17 files):
@@ -930,7 +930,7 @@ module classes, 30 registered, 10 dead; `RegisterGlobalSystem(` → **79** produ
 | UNSURE without a measurement: `IgGroundClampingModule` (writes the recorded `SimTransform` Z), `HistoryTrailModule` (appends to a recorded trail), `GizmoInteractionModule` (the map's order dispatcher), `AnimationMuscleModule`'s pose bridge (display?), and whether `[TickMode(WhenTimeAdvances)]` modules tick at all while the kernel's clock push is suspended | — | ⏭ measure in a live replay before classifying |
 | the Replay Browser has no kernel (`ReplayBrowserSubsystem.cs:352`) | — | nothing to gate there |
 
-⏳ **Lean for the user** (R-3057 R7 amended): ⭐ **declare per SYSTEM** — `[RunsDuringReplay]` on `IEcsModuleSystem` types (egress, playback, recorder, presentation, diagnostics), and the kernel's gate skips every other system registered outside the four toggle groups while a replay or review is open; a module's `Tick` follows its systems' majority only where it has no systems. A census rail lists every production system outside the groups with its decision (the shape of `EverySystemStateFieldIsClassifiedTests`). Blast radius: every host's replay; what would change the lean: the TickMode measurement showing most of them already idle in a replay.
+⛔ ~~**Lean for the user**~~ *(SUPERSEDED by §12l)* (R-3057 R7 amended): ⭐ **declare per SYSTEM** — `[RunsDuringReplay]` on `IEcsModuleSystem` types (egress, playback, recorder, presentation, diagnostics), and the kernel's gate skips every other system registered outside the four toggle groups while a replay or review is open; a module's `Tick` follows its systems' majority only where it has no systems. A census rail lists every production system outside the groups with its decision (the shape of `EverySystemStateFieldIsClassifiedTests`). Blast radius: every host's replay; what would change the lean: the TickMode measurement showing most of them already idle in a replay.
 ⇒ ⛔ **not built in this batch.** ⚠ P3's review therefore runs with today's replay gates — the four groups, the ELM, frozen ingress; the modules above still tick during a review (the same as in an ordinary replay today).
 
 ### 12j. ✅ As built — P3 `2026-10-26` (rows 15–20, 40–43; 44 partly)
@@ -962,3 +962,68 @@ module classes, 30 registered, 10 dead; `RegisterGlobalSystem(` → **79** produ
 | the live recording afterwards | 🔴 **runs 1–2: three review-era frames (sim 10.43 s) written after the return** — the kernel's clock push resumes at the node's commit, the master's snap to L lands a frame later, and the first frame carries L in the RESTORED singleton (so "the clock is at L once" proved nothing). ✅ **Fixed** (`RecorderTickSystem.Resume(atSimSeconds)`: the resumed recorder writes only after the clock STANDS at L for 3 frames — the return snaps and pauses there; rail extended, red-proved). Run 3: no review frame; the pause before the review and the paused return are ONE flat run at 31.366 s |
 
 ⏭ Not measured: M3 (the capture + apply time of a `Recording` keyframe on `uc-urban-battle`) and a five-process review (the coordinator's H5 runs live → review → live at scenario scale).
+
+### 12l. ✅ As built — P2 `2026-10-26`: ONE replay flag in the world; every world writer reads it
+
+🔒 User, `2026-10-26`: *"Cannot every system simply check if there is a replay or not and behave according to that?"* → *"P2 using the
+replay flag approved."* ⛔ SUPERSEDES row 14's `ReviewGate` + `[RunsDuringReplay]` and §12i's per-system-attribute lean.
+
+```mermaid
+classDiagram
+  class ReplayState {
+    <<new, world singleton, Transient, id 478>>
+    -volatile bool active
+    +Ensure(world)
+    +Enter(world)
+    +Leave(world)
+    +IsActive(view) bool
+  }
+  class EcsRecordReplayController {
+    <<exists, grown>>
+    ctor: Ensure
+    PrepareReplayAsync: Enter
+    TeardownReplayAsync: Leave
+  }
+  class ReplayBrowserSubsystem {
+    <<exists, grown>>
+    PrepareRepo: Enter on every world it binds
+  }
+  class EntityRepositorySync {
+    <<exists, grown>>
+    SyncFrom: borrows ReplayState like WorldEpoch
+  }
+  class WorldWriter {
+    <<every system that writes world state>>
+    Execute: if IsActive(view) return
+  }
+  EcsRecordReplayController --> ReplayState : sets
+  ReplayBrowserSubsystem --> ReplayState : sets
+  EntityRepositorySync --> ReplayState : snapshot sees the live flag
+  WorldWriter ..> ReplayState : reads
+```
+*What the picture shows that the prose hid:* nothing is WIRED into a system any more — the writer reads the world it is handed, so a
+host cannot forget a gate; and a background (snapshot) module reads the SAME flag object, borrowed by `SyncFrom`.
+
+| rule | why |
+|---|---|
+| the flag is set by what INSTALLS a replay (the controller every ECS host builds; the Replay Browser for its worlds) | ⛔ SUPERSEDED: six injected `Func<bool>? IsReplayActive` predicates wired in five host roots — unset meant "live", silently |
+| Transient, created once on the composing thread; prepare only flips a volatile field | a keyframe never carries it (a seek, a review's return keep it); no singleton is written off the frame thread |
+| borrowed into snapshots (`EntityRepository.Sync.cs`, beside `WorldEpoch`) | 📐 the census: `EqsModule`, `NavigationSolverModule` run on a snapshot — without it their check read "live" forever |
+| a writer stands down, a reader / publisher does not | the review is ON the wire (R-3062): egress, cleanup, presentation, recorder, playback, diagnostics keep running |
+| the Stride pre-kernel bracket: Bullet does not step, motors and the reverse sync do not run | they write Bullet's poses over the recorded `SimTransform` (`StridePhysicsBracket.RunPreKernelStep`) |
+
+⭐ **The gated writers** — one line at the top of `Execute`. ⚠ The table is a RAIL: `EveryReplayWriterIsGatedTests` reads it and fails when a
+listed file no longer calls `ReplayState.IsActive`.
+
+<!--REPLAY-WRITERS-->
+| system | file |
+|---|---|
+<!--/REPLAY-WRITERS-->
+
+⭐ **Kept running on purpose:** Cyclone ingress / egress / cleanup, `SmartEgressSystem`, `GhostCreationSystem` (no-op), `DisposalMonitoringSystem`,
+`SpatialHashSystem` and `CoordinateTransformSystem` (derived), `AnimationRuntimeBridgeSystem` (the pose shown), presentation / gizmo / map,
+the recorder and playback, diagnostics, `TrafficSteppingModule` (no world access; SUMO stalls without the mirror's input).
+⏭ **UNSURE, not gated, to measure in a live replay:** `NetworkGatewaySystem` (acks a replayed `ConstructionOrder`?), `SubEntityCleanupSystem`,
+`StaticObstacleBakeSystem`, `TerrainQueryResolutionSystem` (`IgGroundClampingModule`), `ResumeAndDrainSystem`, `BehaviorDiagnosticsModule`,
+`GizmoInteractionModule`, `ContextMenuSystem`, `MapLayerAssignmentSystem`.
+
