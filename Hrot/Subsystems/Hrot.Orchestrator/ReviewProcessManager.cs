@@ -33,6 +33,7 @@ public sealed class ReviewProcessManager
     private bool _inReview;
     private GlobalTime _livePoint;
     private float _liveRate = 1f;
+    private long _wallAtReviewOpen;   // ⭐ F12 — the master's wall when the review opened: every node's recorder has stopped by then
 
     /// <summary>The live clock the review returns to (valid once the entry pause has landed).</summary>
     public GlobalTime LivePoint => _livePoint;
@@ -77,10 +78,19 @@ public sealed class ReviewProcessManager
 
         foreach (var ev in _bus.ReadManaged<ClusterStateTransitionedEvent>())
         {
+            // ⭐ F12 — the review is open: every node suspended its recorder in the prepare round, before this. The master's wall now is
+            //   not below any stamp they wrote (slaves stamp the master's synced wall), and the review's seeks have not moved it yet.
+            if (_inReview && ev.NewStateId == ClusterState.OperatingReview && _wallAtReviewOpen == 0)
+                _wallAtReviewOpen = _clock.GetCurrentState().TotalWallTicks;
             if (!_inReview || ev.NewStateId != ClusterState.OperatingLive) continue;
             _inReview = false;
             ReviewId = Guid.Empty;
-            _time.SnapTo(_livePoint);          // live, paused, at L — the checkpoint restore's clock (CE-3316)
+            // ⭐ F12 — only the SIM clock goes back to L; the wall resumes where the live recording stopped (never below its last stamp,
+            //   which stamped a flat run of frames after the return — Math.Max in the recorder), so no frame repeats a wall time
+            var back = _livePoint;
+            back.TotalWallTicks = Math.Max(back.TotalWallTicks, _wallAtReviewOpen);
+            _wallAtReviewOpen = 0;
+            _time.SnapTo(back);                // live, paused, at L — the checkpoint restore's clock (CE-3316)
             _time.SetTimeScale(_liveRate);     // F19 — the review's rate does not carry into live
             FdpLog<ReviewProcessManager>.Info("[Orchestrator] CE-3329: back to live at sim {0:F3}s, rate {1}.", _livePoint.TotalTime, _liveRate);
         }

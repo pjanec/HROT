@@ -100,7 +100,17 @@ internal sealed class FakeTimeTransportFacade : ITimeTransportFacade
     public Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; set; }
     public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => Axis = axis;
     public void EnterReview(double? at = null) { }
-    public void ExitReview() { }
+    public void ExitReview() => ExitReviewCallCount++;
     public double? LivePoint { get; set; }
-    public void Seek(double t) { }
+    public void Seek(double t) => LastSeek = t;
+
+    // CE-3330 E3 — what the toolbar's mode menu reads and calls
+    public Fdp.Toolkit.Orchestration.ReplaySession? Session { get; set; }
+    public void EnterReviewAtSim(double simSeconds) => LastEnterReviewAtSim = simSeconds;
+    public double? LastEnterReviewAtSim { get; private set; }
+    public double? LastSeek { get; private set; }
+    public int ExitReviewCallCount { get; private set; }
+    public void SetLoop(double from, double to) { }   // CE-3329 §12n
+    public void ClearLoop() { }
+    public (double From, double To)? Loop => null;
 }

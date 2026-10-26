@@ -318,12 +318,12 @@ public sealed class ClusterScenarioPanel
         if (_seekDebounceTimer > 0f) return;
 
         _seekPending = false;
-        long wallTicks = (long)(_seekSliderValue * 10_000_000L);
+        // ⭐ CE-3330 E4 — the slider is on the session's axis (Sim: sim seconds; Wall: seconds after the zero)
         SendRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ReplaySeek,
-            PayloadJson   = JsonSerializer.Serialize(new SeekReplayPayloadDto(TargetWallTicks: wallTicks), OrchestrationJsonOptions.Default),
+            PayloadJson   = JsonSerializer.Serialize(ReplaySliderAxis.Seek(_uiCache.ReplayAxis, _seekSliderValue), OrchestrationJsonOptions.Default),
         });
     }
 
@@ -937,15 +937,16 @@ public sealed class ClusterScenarioPanel
             // Seek slider — only when RunningReplay
             if (EffectiveState == ClusterState.OperatingReplay)
             {
-                float currentExerciseTime = (float)_uiCache.MasterSimTime;
+                var axis = _uiCache.ReplayAxis;   // ⭐ CE-3330 E4 — R-3058: one axis for the whole session
                 if (!_seekPending)
-                    _seekSliderValue = currentExerciseTime;
+                    _seekSliderValue = ReplaySliderAxis.Value(_uiCache.ReplaySession, axis, _uiCache.MasterSimTime);
 
                 ImGui.Spacing();
-                ImGui.Text("Seek (s):");
+                ImGui.Text(axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim ? "Seek (sim s):" : "Seek (wall s):");
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth(300f);
-                if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f, _uiCache.ReplayDuration))
+                if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f,
+                        ReplaySliderAxis.Max(_uiCache.ReplaySession, axis, _uiCache.ReplayDuration)))
                 {
                     _seekPending       = true;
                     _seekDebounceTimer = 0.5f;

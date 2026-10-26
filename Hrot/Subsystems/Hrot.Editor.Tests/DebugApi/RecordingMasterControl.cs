@@ -14,6 +14,7 @@ internal sealed class RecordingMasterControl : IClusterMasterControl
     public void Transition(TransitionStateIntent intent) { Transitions.Add(intent); Sent.Add(intent); }
     public void SeekReplay(SeekReplayIntent intent) => Sent.Add(intent);
     public void SetReplayAxis(SetReplayAxisIntent intent) => Sent.Add(intent);
+    public void SetReplayLoop(SetReplayLoopIntent intent) => Sent.Add(intent);   // CE-3329 §12n
     public void Storage(ExecuteStorageOpIntent intent) => Sent.Add(intent);
     public void TakeCheckpoint(TakeCheckpointIntent intent) => Sent.Add(intent);
     public void RestoreCheckpoint(RestoreCheckpointIntent intent) => Sent.Add(intent);

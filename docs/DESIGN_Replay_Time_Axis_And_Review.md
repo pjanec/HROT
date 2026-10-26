@@ -941,7 +941,7 @@ module classes, 30 registered, 10 dead; `RegisterGlobalSystem(` → **79** produ
 | 16 | `ReferenceReviewHandler` (every ECS host — `EcsHostClusterHandlers.Compose`): `PrepareReview` = wait for the barrier pause (F5) → the forced `review-<n>` keyframe (D-C) → `SuspendForReview` → the FULL checkpoint (`CaptureOptions.Recording`, F1 — red-proved: `NodeDryRun` brings the singleton back replayed) → egress hold → the replay through the SAME `IRecordReplayController.PrepareReplayAsync`; Commit = `ReferenceReplayLoadHandler.EnterReplayGates` (the ONE gate set, extracted, F9). `FinalizeReview` = teardown awaited (F8) → Commit: hold, `ReferenceCheckpointHandler.PutBack` (the checkpoint's return: `AfterRestore` + republish, the ELM, `ResumeAfterRestore`), `LeaveReplayGates`, `ResumeAfterReview`. Idle during a review ⇒ abandon (D-C, F4) | ⚠ ⏭ not built: the quiesce round (F6), W3 acks, W5 the readers' state discard, F10 "every ECS node must participate" (every ECS host composes the handler, so it does), F15's ■ confirm (UI) |
 | 17 | `RecorderTickSystem.Suspend / Resume(atSimSeconds)` (resume: waits until the clock stands at L — §12k —, then the destruction log cleared, a keyframe forced — F11, W6); `RecordingModule.SuspendForReview / ResumeAfterReview / PendingCheckpoints` | ⚠ `.meta.json` `Reviews[]` and the episode recorders' suspension not built |
 | 18 | ⚠ **no `BeginReview / EndReview`**: the review uses the controller's ordinary `PrepareReplayAsync` / `TeardownReplayAsync` — the live exercise's file IS the recording to replay | one path, not two |
-| 19 | `ReviewProcessManager` (master, before `ClusterMaster`): the barrier `Pause` at entry (never a snap, F3), L + the rate remembered when the pause lands, on `OperatingLive` after a review: `SnapTo(L)` + `SetTimeScale(rate)` (F19) | ⚠ F8's "refuse new seeks, drain pending ones" and F12's wall restore not built |
+| 19 | `ReviewProcessManager` (master, before `ClusterMaster`): the barrier `Pause` at entry (never a snap, F3), L + the rate remembered when the pause lands, on `OperatingLive` after a review: `SnapTo(L)` + `SetTimeScale(rate)` (F19) | ✅ **F8 + F12 built `2026-10-26`** (§12p) |
 | 20 | `POST /review {atSeconds? | atSimSeconds?}` (default: the live point), `POST /review/exit`, `POST /review/seek` (= `/replay/seek`); `/replay/status` `review`; MCP `enter_review` / `exit_review` / `seek_review` | the live point is `/replay/status.durationSeconds` in a review (the review's aggregate ends at the EARLIEST last frame, F13) |
 | 41 | `ClusterStates.IsReplaying` / `IsReview` (F20) used by the end pause, the jump manager, seeks; the guard: `DebugApiHost.WorldChangingRoutes` (24 routes) answer **409** while a recording is shown, the master refuses `SaveScenario` | ✅ the map's order actions hidden (ui, `2026-10-26`, CE-1363): the unit menu (orders, Designate, Possess, Embark — and the key shortcuts, which read the same menu), the RTS tool and the Delete key read the world's `ReplayState` each frame; Add Entity greys out ("a recording is shown"); the build-time `MapInteractionContext.IsReplayActive` is removed (R-3064 — it left the editor and CGF offering orders in a review); F20's census of the 25 state checks / 42 `IsReplayActive` readers not done |
 | 42 | the entry is the replay's seek round (`NoteReplayEntry` sees `OperatingReview`, `_reviewEntryWallTicks` = `long.MaxValue` → the live point) | the barrier-ack ordering is node-side (each handler waits for its own pause), not a master round |
@@ -1158,3 +1158,172 @@ process; the before run on the binaries without the change, golden of `ua-civ-me
 ⚠ The first after-run failed every load: an edit had put `_editorLogic?.Update()` inside a comment (the editor's scenario session stopped
 reading the cluster state). Caught by this very check, fixed before commit.
 
+### 12n. ✅ BUILT `2026-10-26` — "Loop range": a SESSION setting of the master's replay clock (NOTE_Coordinator_To_Backend_After_DAR item 3)
+
+🔒 User: *"go ahead with loop range"* — on the coordinator's lean (NOTE_Coordinator_To_Backend_Review_Harness §3): a loop drives the CLUSTER
+clock, so it is the master's, set by an intent from any host and carried on `ReplaySessionTopic`; ⛔ never per host (two operators'
+panels would fight over one clock). The Replay Browser's clock is its own (it may loop locally).
+
+```mermaid
+classDiagram
+  class SetReplayLoopIntent {
+    <<new, EventId 9072, ClusterOpType 23>>
+    from/to: wall seconds after the zero OR sim seconds
+    none = clear
+  }
+  class ClusterMaster {
+    <<exists, grown>>
+    ReplayLoop (wall seconds after the zero)
+    resolves sim targets via its ReplayTimeMap
+    clears the loop when the cluster leaves a replay / review
+  }
+  class ReplayClockProcessManager {
+    <<exists, grown>>
+    playhead at or past To, clock running: JumpTo(From)
+    a backward jump has its own landing guard
+  }
+  class ReplaySession {
+    <<exists, grown>>
+    LoopFromSeconds, LoopToSeconds
+  }
+  class ITimeTransportFacade {
+    <<exists, grown>>
+    SetLoop(from, to) on the active axis, ClearLoop(), Loop
+  }
+  ITimeTransportFacade --> SetReplayLoopIntent : publishes (ReplaySessionIntents)
+  SetReplayLoopIntent --> ClusterMaster : any host, the SetReplayAxis path
+  ClusterMaster --> ReplaySession : republished on change
+  ClusterMaster --> ReplayClockProcessManager : the loop it enforces
+```
+*What the picture shows that the prose hid:* the loop exists in ONE place (the master), so every host's panel draws the same bracket and the
+clock wraps once for the whole cluster; the panel only asks.
+
+```mermaid
+sequenceDiagram
+  participant H as any host (menu / HTTP)
+  participant M as ClusterMaster
+  participant C as ReplayClockProcessManager
+  participant K as the master clock
+  H->>M: SetReplayLoopIntent(from, to)
+  M->>M: resolve sim to wall, validate, hold
+  M-->>H: ReplaySessionTopic (the loop drawn on every host)
+  loop each master tick, replaying, clock running
+    C->>K: playhead at or past To?
+    C->>K: JumpTo(From) - non-pausing, no epoch move (F14)
+    C->>C: wait until the clock reads below To (the jump landed)
+  end
+```
+*What the picture shows that the prose hid:* the wrap is the same non-pausing jump the Sim axis already uses for paused stretches
+(`ITimeCommands.JumpTo`), so slaves follow it as an ordinary continuous move — no pause, no slot reset.
+
+| rule | why |
+|---|---|
+| bounds are held in WALL seconds after the zero (the clock's unit); a sim request is resolved by the master's map | the clock the loop drives is the wall replay clock (R-4012); one unit at the enforcer |
+| valid only `0 ≤ from < to ≤ length`; otherwise the request is refused with a status | an inverted / empty loop would jump every frame |
+| cleared whenever the cluster leaves a replay or a review | a new session starts unlooped; a stale bracket from the last exercise is never enforced |
+| enforced only while the clock RUNS; a seek outside the loop is honoured (the loop catches the playhead when it next crosses `To`) | the operator can always leave it by seeking or clearing |
+| `POST /replay/loop {fromSeconds, toSeconds}` · `{fromSimSeconds, toSimSeconds}` · `{}` = clear; `GET /replay/status` carries `loop` | one path with the facade |
+
+**As built** (matches the diagrams; deviations named):
+
+| piece | where |
+|---|---|
+| the intent, its ONE resolve + validate (`IsClear`, `Resolve`) — used by the master AND the Replay Browser's own clock | `ClusterOpIntents.cs` `SetReplayLoopIntent` |
+| held, resolved, refused (`Rejected`, the old loop stays), cleared on any transition to a state that is not replay / review | `ClusterMaster.Replay.cs` `ProcessSetReplayLoopIntent` · `ClusterMaster.cs` `ExecuteTransitionTrajectory` |
+| the wrap — either axis, clock Continuous only, checked BEFORE the Sim axis's paused-stretch jump; `LoopJumps` counter | `ReplayClockProcessManager.TickLoop` |
+| the session carries `LoopFromSeconds` / `LoopToSeconds` (wall); JSON on `ReplaySessionWire`, so no wire-format change | `ReplaySession` |
+| the facade: `SetLoop` / `ClearLoop` / `Loop` (on the active axis; Sim converts through the session's map, wall when it has none) | `ClusterReplayControls` · `ReplaySessionIntents.SetLoop/ClearLoop` |
+| ⚠ deviation: the Replay Browser loops LOCALLY for real (not a no-op) — `TickLocalLoop` moves its playback base after each step, never through `SeekToSeconds` (a wrap is not a navigation) | `ReplayBrowserSubsystem.DebugSurface.cs` |
+
+Rails (each red-proved by a compiling mutation): `ClusterMasterSeekTests` — holds / resolves / validates / clears; wraps once per crossing
+(Wall and Sim; landing guard; not paused, not without a loop, not outside a replay; never `SnapTo`); the session carries it ·
+`TranslatorDtoTests` — wall, sim and clear on the wire · `TheOneTimeFacadeTests` — intents and `Loop` on the active axis ·
+`TheClusterControlRoutesTests` — one intent per request, refused inputs publish nothing, status `loop`.
+⏭ Not exercised: the Replay Browser's local wrap (compile-checked only) and a wrap on a live multi-node cluster.
+
+
+### 12o. ✅ BUILT `2026-10-26` — the destruction log: ONE log, a mark per reader (CE-3335; NOTE_Coordinator_To_Backend_After_DAR item 11)
+
+🔒 User: *"item 11 approved, go ahead autonomously"* (on the lean: one log, one owner, a mark per reader, the frame start trims). Found by ui
+(their timeline missed every death on a live world). Design basis: [FDP-FlightRecorder](../FDP/Engine/docs/FDP-FlightRecorder.md) §8 meant
+*"ClearDestructionLog at the END of the frame (post-recorder)"* — ⛔ SUPERSEDED here: a frame-end clear drops the deaths that come after the
+recorder in the frame (its PostSimulation neighbours, Export, the host between frames), so the recording would lose them.
+
+```mermaid
+classDiagram
+  class EntityRepository {
+    <<exists, grown>>
+    DestroyEntity() appends to the log
+    DestructionMark
+    ReadDestructions(ref mark) deaths since the mark, moves it
+    Tick() frame start: keeps the last frame and this one
+    ClearDestructionLog() for a world ONE owner steps (sandbox)
+  }
+  class RecorderSystem {
+    <<exists>>
+    a mark per recorder
+    a keyframe moves it to the end
+  }
+  class DataBreakpointManager {
+    <<exists>>
+    a mark, read once per evaluation
+  }
+  class StructuralScanner {
+    <<exists, ui>>
+    a mark per scanner
+  }
+  class PlaybackSandboxes {
+    <<exists>>
+    RecordingSearchService, RecordingExportService, TimelineIndexBuilder
+    step, read, ClearDestructionLog (they never Tick)
+  }
+  RecorderSystem --> EntityRepository : ReadDestructions
+  DataBreakpointManager --> EntityRepository : ReadDestructions
+  StructuralScanner --> EntityRepository : ReadDestructions
+  PlaybackSandboxes --> EntityRepository : GetDestructionLog + Clear
+```
+*What the picture shows that the prose hid:* no live reader empties the log any more. The only owner of its size is the world's own frame
+start (`Tick()`, called once a frame by the kernel); the clear survives only for worlds that never tick.
+
+```mermaid
+sequenceDiagram
+  participant K as kernel
+  participant W as EntityRepository
+  participant R as recorder (PostSimulation)
+  participant B as breakpoints (PostSimulation)
+  K->>W: Tick() — drop deaths before the LAST frame
+  K->>W: systems destroy e1
+  R->>W: ReadDestructions(ref recMark) = [e1]
+  B->>W: ReadDestructions(ref bpMark) = [e1] (the recorder no longer took it)
+  K->>W: Export / between frames destroys e2
+  K->>W: Tick() — e1 and e2 kept (last frame)
+  R->>W: ReadDestructions(ref recMark) = [e2] (once, next frame)
+```
+*What the picture shows that the prose hid:* keeping TWO frames is what lets a reader that runs once a frame, anywhere in it, see a death
+that came after it in the previous frame.
+
+| rule | why |
+|---|---|
+| a live reader reads ONCE a frame by its own mark; a mark from another world resets | a reader that skips frames loses only what the two-frame window dropped |
+| the recorder's keyframe moves its mark to the end | the deaths before a keyframe are in it (as absences); this also skips a review's swaps (F11 / W6) — the resume's clear is gone |
+| bounded: at most two frames of deaths with nothing recording | 📌 before: only the recorder emptied the log, and it exists only while recording — the editor's log grew for the whole session |
+
+Measured before choosing (claim table): ✅ no Export-phase system destroys directly (grep over `[UpdateInPhase(SystemPhase.Export)]` files);
+⚠ deaths after the recorder still happen in PostSimulation (order inside a phase is not fixed) and between frames (host / HTTP edits) — the
+two-frame window covers both. ✅ the playback sandboxes never `Tick()` (grep over FlightRecorder / Replay / ReplayBrowser), so their clear
+behaves as before. Rails: `FlightRecorderTests.CE3335_*` (two readers · a death after the reader · bounded · the recorder writes once and
+leaves it), each red-proved.
+
+### 12p. ✅ BUILT `2026-10-26` — F8 (seeks around the review's exit) and F12 (the wall clock across the return) (NOTE_Coordinator_To_Backend_After_DAR item 4)
+
+| | as built | where |
+|---|---|---|
+| **F8 — seeks only in a recording** | a seek is admitted only while the cluster shows a recording (`OperatingReplay` / `OperatingReview`, or entering one); otherwise `Rejected` — ⛔ SUPERSEDED: a seek fanned out in any state, and any seek paused even a live run | `ClusterMaster.ProcessSeekReplayIntent` |
+| **F8 — the exit drains the seeks** | leaving a replay / review with a seek round still pending HOLDS the exit (one, like L8's one parked transition; a second is `Rejected`) and refuses new seeks; the exit proceeds at the start of the tick after the round completes — after its clock snap was requested, before the return's own snap (which waits for the exit's round) | `ClusterMaster.ReleaseHeldReplayExit` / `ProcessTransitionStateIntent` |
+| **F12 — the wall across the return** | only the SIM clock goes back to L; the wall resumes at the master's wall when the review OPENED (every recorder had stopped by then — the prepare round suspends them), never L's — so the live recording never stamps a flat run of frames after the return (the recorder's `Math.Max`) | `ReviewProcessManager` (`_wallAtReviewOpen`) |
+
+⚠ Deviation from §11b F12's fix column: the review's span is not yet written into `Reviews[]` (item 7). The node side of F8 (*"await the module's
+removal, then apply the keyframe"*) was already built in P3 (row 16, `FinalizeReview`). Rails: `ClusterMasterSeekTests.CE3329_F8_*` (refused outside a
+recording · the exit fans out nothing while a seek is in flight · a seek while it waits is refused · the exit proceeds once it landed) and
+`ClusterMasterReviewTests.The_review_clock_pauses_…` (the return's wall = the wall at the review's opening, not L's), each red-proved by a compiling
+mutation. Seven older seek rails that sought from Idle now put the master in a replay first (`MasterShows`) — what they meant to test.

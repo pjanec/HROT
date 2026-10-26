@@ -103,4 +103,32 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
             editor.Shutdown();
         }
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4054</c> — <c>/status</c> reports <c>inPreview</c> from the editor's preview controller, and that controller says "in preview" for
+    /// ONE cluster state only: the dry run's operating state. Not Live, not Replay, not Review (nor the loading/unloading states around them).
+    /// 🔴 Red-proof: the comparison widened to also hold in <c>OperatingLive</c> (behind a runtime-true guard) ⇒ the Live row fails.
+    /// </summary>
+    [Fact]
+    public void CE4054_InPreview_IsTrueOnlyInADryRun_NotInLiveReplayOrReview()
+    {
+        foreach (var state in Enum.GetValues<ClusterState>())
+        {
+            var bus = new Fdp.Core.FdpEventBus();
+            var controller = new EditorSubsystem.EditorPreviewController(
+                new Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler(null), () => bus, () => state,
+                new Fdp.Toolkit.Time.IntentTimeCommands(bus));
+            Assert.Equal(state == ClusterState.OperatingPreview, controller.IsInPreviewMode);
+        }
+    }
+
+    /// <summary>⭐ <c>CE-4054</c> — on a real headless editor (Idle / Edit, no dry run) the controller <c>/status</c> reads says "not in preview".</summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4054_AHeadlessEditorOutsideADryRun_IsNotInPreview()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true });
+        try { Assert.False(editor.PreviewControllerForTest!.IsInPreviewMode); }
+        finally { editor.Shutdown(); }
+    }
 }

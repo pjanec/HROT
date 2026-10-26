@@ -198,8 +198,7 @@ namespace Fdp.Core.FlightRecorder
             StampIndex(repo);   // ⭐ CE-3329 P0 — SimTime + Flags for the v7 frame index
             bytesWritten = (int)_frontStream.Position;
             
-            // Clear the destruction log after recording
-            repo.ClearDestructionLog();
+            // ⭐ CE-3335 — the recorder keeps its own mark in the world's destruction log (RecorderSystem); ⛔ it no longer empties it
             
             // 3. SWAP POINTERS
             var dataToWrite = _frontBuffer;
@@ -238,8 +237,7 @@ namespace Fdp.Core.FlightRecorder
             StampIndex(repo);   // ⭐ CE-3329 P0
             bytesWritten = (int)_frontStream.Position;
             
-            // Clear the destruction log
-            repo.ClearDestructionLog();
+            // ⭐ CE-3335 — the keyframe moved the recorder's destruction mark; ⛔ the world's log is no longer emptied here
             
             // Swap and dispatch
             var dataToWrite = _frontBuffer;

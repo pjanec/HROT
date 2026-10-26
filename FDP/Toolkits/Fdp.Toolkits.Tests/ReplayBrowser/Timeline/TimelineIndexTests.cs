@@ -102,10 +102,20 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         {
             using var harness = new FdpRecordingHarness();
             var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
-            string path = Record(harness, ticks => live.Step(harness.Repository, ticks, force: true));
+            // CE-3330 E1 - the world carries a sim clock (the recorder stamps it into the v7 frame index): 0.5 s, 1.0 s, 1.5 s, 2.0 s
+            int n = 1;
+            harness.Repository.SetSingleton(new GlobalTime { FrameNumber = n, TotalTime = n * 0.5 });
+            string path = Record(harness, ticks =>
+            {
+                live.Step(harness.Repository, ticks, force: true);
+                n++;
+                harness.Repository.SetSingleton(new GlobalTime { FrameNumber = n, TotalTime = n * 0.5 });   // the NEXT frame's clock
+            });
             var rebuilt = TimelineIndexBuilder.Build(path, Lanes, Compiler());
 
             Assert.Equal(rebuilt.FrameTicks, live.Index.FrameTicks);
+            Assert.Equal(new[] { 0.5, 1.0, 1.5, 2.0 }, live.Index.FrameSim.ToArray());
+            Assert.Equal(live.Index.FrameSim, rebuilt.FrameSim);   // E1-c: the recording's v7 sim time = what the live index stamped
             Assert.Equal(4, live.Frames);
             foreach (var lane in Shipped().Lanes(new TimelineLaneContext(Live: true)))
                 Assert.Equal(rebuilt.Lane(lane.Id).OrderBy(e => e.Frame).ThenBy(e => e.Subject), live.Index.Lane(lane.Id).OrderBy(e => e.Frame).ThenBy(e => e.Subject));
@@ -146,6 +156,76 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             world.SetSingleton(new GlobalTime { FrameNumber = 1 });         // rewound — a new run
             live.Step(world, 9_000, force: true);
             Assert.Equal(1, live.Frames);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> E1 (§2e) — the live index's clock is the world's own: a frame is stamped with <see cref="GlobalTime.TotalWallTicks"/>
+        /// (the frame-locked wall the flight recorder writes) when the world has one, and the passed wall ticks only as the FALLBACK (a world without
+        /// a clock, or a zero <c>TotalWallTicks</c>). The publish throttle runs off the same value.
+        /// 🔴 Red-proof: the GlobalTime wall ignored (behind a runtime condition) ⇒ the frame ticks are the passed values.
+        /// </summary>
+        [Fact]
+        public void CE3330_TheLiveSource_StampsFramesWithTheWorldsFrameLockedWallClock_AndFallsBackToThePassedTicks()
+        {
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            using var world = new EntityRepository();
+            world.RegisterComponent<NetworkIdentity>();
+
+            world.SetSingleton(new GlobalTime { FrameNumber = 1, TotalWallTicks = 5_000 });
+            live.Step(world, 1_000, force: true);                                   // passed 1 000, the world says 5 000
+            world.SetSingleton(new GlobalTime { FrameNumber = 2, TotalWallTicks = 7_000 });
+            live.Step(world, 2_000, force: true);
+            world.SetSingleton(new GlobalTime { FrameNumber = 3 });                 // no wall clock on this frame: the passed ticks
+            live.Step(world, 9_000, force: true);
+
+            Assert.Equal(new long[] { 5_000, 7_000, 9_000 }, live.Index.FrameTicks.ToArray());
+
+            // the throttle works off the world's clock too: 5 000 -> +PublishTicks/2 is not published, +PublishTicks is
+            var throttled = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            world.SetSingleton(new GlobalTime { FrameNumber = 1, TotalWallTicks = 5_000 });
+            throttled.Step(world, 0);
+            world.SetSingleton(new GlobalTime { FrameNumber = 2, TotalWallTicks = 5_000 + LiveTimelineSource.PublishTicks / 2 });
+            throttled.Step(world, 0);
+            Assert.Equal(1, throttled.Index.FrameTicks.Count);
+            world.SetSingleton(new GlobalTime { FrameNumber = 3, TotalWallTicks = 5_000 + LiveTimelineSource.PublishTicks });
+            throttled.Step(world, 0);
+            Assert.Equal(3, throttled.Index.FrameTicks.Count);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> E1 (§2e) — the live index records each frame's SIM time (<see cref="GlobalTime.TotalTime"/>) in <c>FrameSim</c>, and the
+        /// column is SHARED like the rest (CE-1361 ②): a snapshot taken earlier keeps its count and values while hundreds more frames grow the
+        /// buffer. A world with no <see cref="GlobalTime"/> records none (<c>FrameSim</c> empty).
+        /// 🔴 Red-proofs: the sim argument dropped (behind a runtime condition) ⇒ FrameSim empty; the column snapshot sharing the buffer's full length ⇒ the old one grows.
+        /// </summary>
+        [Fact]
+        public void CE3330_TheLiveSource_RecordsEachFramesSimTime_AndAnOldSnapshotKeepsItsColumn()
+        {
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            using var world = new EntityRepository();
+            void Frame(int n)
+            {
+                world.SetSingleton(new GlobalTime { FrameNumber = n, TotalTime = n * 0.25 });
+                live.Step(world, 1_000 + n * 10L, force: true);
+            }
+            for (int n = 1; n <= 5; n++) Frame(n);
+            var old = live.Index;
+            Assert.Equal(new[] { 0.25, 0.5, 0.75, 1.0, 1.25 }, old.FrameSim.ToArray());
+
+            for (int n = 6; n <= 700; n++) Frame(n);                                // several buffer growths
+            var now = live.Index;
+
+            Assert.Equal(5, old.FrameSim.Count);                                    // the old snapshot did not grow...
+            Assert.Equal(new[] { 0.25, 0.5, 0.75, 1.0, 1.25 }, old.FrameSim.ToArray());   // ...nor change
+            Assert.Equal(700, now.FrameSim.Count);
+            Assert.Equal(700 * 0.25, now.FrameSim[699]);
+            Assert.Throws<ArgumentOutOfRangeException>(() => old.FrameSim[5]);
+
+            var bare = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            using var noClock = new EntityRepository();
+            bare.Step(noClock, 1_000, force: true);
+            Assert.Equal(1, bare.Index.FrameTicks.Count);
+            Assert.Empty(bare.Index.FrameSim);                                      // nothing recorded a sim time
         }
 
         /// <summary>

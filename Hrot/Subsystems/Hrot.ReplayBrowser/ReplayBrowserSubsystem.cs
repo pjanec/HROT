@@ -413,6 +413,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                     break;
                 }
             }
+            TickLocalLoop();   // ⭐ CE-3329 §12n — the viewer's own loop wraps its playback
         }
 
         if (!_headless)

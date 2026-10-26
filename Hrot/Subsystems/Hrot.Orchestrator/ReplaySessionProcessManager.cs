@@ -59,6 +59,8 @@ public sealed class ReplaySessionProcessManager
             LengthSeconds = _master.ReplayDurationSeconds,
             TimeMap       = _master.ReplayTimeMap.HasSimTime ? _master.ReplayTimeMap : null,
             Checkpoints   = _master.ReplayCheckpoints,
+            LoopFromSeconds = _master.ReplayLoop?.FromSeconds,   // ⭐ CE-3329 §12n
+            LoopToSeconds   = _master.ReplayLoop?.ToSeconds,
         };
         if (session.IsReview && _review.HasLivePoint)
         {

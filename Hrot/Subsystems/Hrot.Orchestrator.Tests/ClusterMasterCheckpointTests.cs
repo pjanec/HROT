@@ -383,6 +383,7 @@ public sealed class ClusterMasterCheckpointTests
     {
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus);
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         var seekRequestId = Guid.NewGuid();
         master.HandleClusterOpRequest(new ClusterOpRequest

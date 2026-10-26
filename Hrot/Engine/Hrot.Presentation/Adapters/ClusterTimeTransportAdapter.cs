@@ -182,6 +182,9 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     public void EnterReview(double? at = null) => _replay.EnterReview(at);
 
     /// <inheritdoc/>
+    public void EnterReviewAtSim(double simSeconds) => _replay.EnterReviewAtSim(simSeconds);
+
+    /// <inheritdoc/>
     public void ExitReview() => _replay.ExitReview();
 
     /// <inheritdoc/>
@@ -189,6 +192,15 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
 
     /// <inheritdoc/>
     public void Seek(double t) => _replay.Seek(t);
+
+    /// <inheritdoc/>
+    public void SetLoop(double from, double to) => _replay.SetLoop(from, to);   // ⭐ CE-3329 §12n
+
+    /// <inheritdoc/>
+    public void ClearLoop() => _replay.ClearLoop();
+
+    /// <inheritdoc/>
+    public (double From, double To)? Loop => _replay.Loop;
 
     /// <summary>The session layer as this host last heard it (<see langword="null"/> before the first sample).</summary>
     public ReplaySession? Session => _session;

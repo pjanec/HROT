@@ -351,6 +351,7 @@ public sealed partial class ClusterMaster : IDisposable
         // ⭐⭐⭐ L8 — resume or expire a PARKED transition BEFORE new intents are admitted, so a transition
         //    whose files landed this frame does not cause the next request to be rejected as "busy".
         ProcessParkedTransition();
+        ReleaseHeldReplayExit();   // ⭐ CE-3329 F8 — an exit from a replay / review waits for the seeks in flight
 
         // Bus-based intent drain (CMC-S008).
         ProcessTransitionStateIntents();
@@ -516,6 +517,10 @@ public sealed partial class ClusterMaster : IDisposable
 
             case ClusterOpType.SetReplayAxis:   // ⭐ CE-3329 R-3058
                 ProcessSetReplayAxisIntent(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
+            case ClusterOpType.SetReplayLoop:   // ⭐ CE-3329 §12n
+                ProcessSetReplayLoopIntent(SetReplayLoopPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
 
             case ClusterOpType.CancelOperation:
@@ -974,6 +979,8 @@ public sealed partial class ClusterMaster : IDisposable
         }
         foreach (var intent in _eventBus.ReadManaged<SetReplayAxisIntent>())
             ProcessSetReplayAxisIntent(intent);   // ⭐ CE-3329 R-3058
+        foreach (var intent in _eventBus.ReadManaged<SetReplayLoopIntent>())
+            ProcessSetReplayLoopIntent(intent);   // ⭐ CE-3329 §12n
     }
 
     private void ProcessCancelOperationIntents()
@@ -1257,9 +1264,47 @@ public sealed partial class ClusterMaster : IDisposable
         PublishOpStatus(parked.RequestId, OrchestrationStatusCode.Timeout);
     }
 
+    // ⭐⭐ CE-3329 F8 — a seek still in flight when the cluster leaves a replay / review would land AFTER the exit and snap the live clock
+    //   back into history (ReplaySeekProcessManager snaps on the seek's completion). ⇒ the exit WAITS for the seeks (one held exit, like
+    //   L8's one parked transition; a second is refused), and no new seek is admitted while it waits or outside a replay / review.
+    private readonly HashSet<Guid> _seekTx = new();
+    private TransitionStateIntent? _heldReplayExit;
+
+    /// <summary>⭐ CE-3329 F8 — a seek round is still pending. ⭐ The release runs at the START of the master's tick, before it consumes the
+    /// round's acks, so a held exit fans out a tick after the seek completed — after its clock snap was requested.</summary>
+    private bool SeeksInFlight()
+    {
+        _seekTx.RemoveWhere(id => !_pendingTransactions.ContainsKey(id));
+        return _seekTx.Count > 0;
+    }
+
+    private void ReleaseHeldReplayExit()
+    {
+        if (_heldReplayExit is not { } exit || SeeksInFlight()) return;
+        _heldReplayExit = null;
+        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-3329 F8: the seeks have landed — exit {0} to {1} proceeds.", exit.TransactionId, exit.TargetState);
+        ProcessTransitionStateIntent(exit);
+    }
+
     private void ProcessTransitionStateIntent(TransitionStateIntent intent)
     {
         var requestId = intent.TransactionId;
+
+        // ⭐ CE-3329 F8 — leaving a replay / review drains the seeks first
+        var showing = (FdpClusterState)(int)_currentDsmState;
+        if (ClusterStates.IsReplaying(showing) && !ClusterStates.IsReplaying(intent.TargetState) && SeeksInFlight())
+        {
+            if (_heldReplayExit != null)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] CE-3329 F8: transition {0} REJECTED — exit {1} already waits for the seeks in flight.",
+                    requestId, _heldReplayExit.Value.TransactionId);
+                PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+                return;
+            }
+            _heldReplayExit = intent;
+            FdpLog<ClusterMaster>.Info("[Orchestrator] CE-3329 F8: exit {0} to {1} waits for the seeks in flight.", requestId, intent.TargetState);
+            return;
+        }
 
         // ⭐⭐ R-3055 (the R-3049 rule, for a replay) — a replay whose request names no exercise gets one from the MASTER: the run in
         //    progress when the cluster is live (the planner ends it on the way in), else the newest finished one. ⛔ It used to be chosen
@@ -1438,6 +1483,8 @@ public sealed partial class ClusterMaster : IDisposable
 
         // ⚠ §7.2a — the optimistic advance belongs HERE, not at planning time.
         _currentDsmState = resolvedTarget;
+        // ⭐ CE-3329 §12n — a new session starts unlooped: a stale bracket from the last exercise is never enforced.
+        if (!ClusterStates.IsReplaying((FdpClusterState)(int)resolvedTarget)) _replayLoop = null;
 
         var tx = new DistributedTransaction
         {
@@ -1903,6 +1950,16 @@ public sealed partial class ClusterMaster : IDisposable
 
     private void ProcessSeekReplayIntent(SeekReplayIntent intent)
     {
+        // ⭐ CE-3329 F8 — a seek moves the clock: only inside a replay / review (its entry included), never while the exit waits
+        var showing = (FdpClusterState)(int)_currentDsmState;
+        bool replaying = ClusterStates.IsReplaying(showing) || showing is FdpClusterState.LoadingReplay or FdpClusterState.LoadingReview;
+        if (!replaying || _heldReplayExit != null)
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] CE-3329 F8: seek {0} REJECTED — {1}.", intent.RequestId,
+                replaying ? "the cluster is leaving the recording" : $"the cluster shows no recording ({showing})");
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
         // ⭐ CE-3329 P1 (R11) — a target in RECORDED sim time becomes wall ticks here, with the cluster's map; nodes are unchanged
         if (intent.TargetSimSeconds is { } sim)
         {
@@ -1927,6 +1984,7 @@ public sealed partial class ClusterMaster : IDisposable
         // ⭐ C9 (R-4012) — every node measures the target from the SAME zero.
         FanOutNodeOp(NodeOpType.NodeReplaySeek, txId,
             new ReplaySeekPayload(intent.TargetWallTicks, _replayAnchorWallTicks), seekNodeIds);
+        _seekTx.Add(txId);   // ⭐ F8
         _pendingTransactions[txId] = new GenericTransactionTracker
         {
             RequestId                       = intent.RequestId,

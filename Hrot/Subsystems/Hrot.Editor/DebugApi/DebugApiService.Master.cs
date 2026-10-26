@@ -187,6 +187,45 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["axis"] = axis.ToString() }, null, null);
         }
 
+        /// <summary>
+        /// ⭐ CE-3329 §12n <c>POST /replay/loop {fromSeconds, toSeconds} | {fromSimSeconds, toSimSeconds} | {}</c> — loop the replay between
+        /// two moments (wall seconds after the zero, or the recording's sim seconds); <c>{}</c> clears. A SESSION setting: the master holds
+        /// it, every host draws it, the master's replay clock wraps it. A non-number is refused here, nothing is published.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) SetReplayLoop(JsonNode? body)
+        {
+            if (!TryReadLoopBound(body, "fromSeconds", out var from, out var error)
+                || !TryReadLoopBound(body, "toSeconds", out var to, out error)
+                || !TryReadLoopBound(body, "fromSimSeconds", out var fromSim, out error)
+                || !TryReadLoopBound(body, "toSimSeconds", out var toSim, out error))
+                return (null, error, DebugApiHints.Scenario);
+            bool anyWall = from.HasValue || to.HasValue, anySim = fromSim.HasValue || toSim.HasValue;
+            if (anyWall && anySim)
+                return (null, "Name the loop in wall seconds (fromSeconds + toSeconds) OR in sim seconds (fromSimSeconds + toSimSeconds), not both.", DebugApiHints.Scenario);
+            if (anyWall && !(from.HasValue && to.HasValue) || anySim && !(fromSim.HasValue && toSim.HasValue))
+                return (null, "A loop needs both bounds: fromSeconds + toSeconds, or fromSimSeconds + toSimSeconds ({} clears it).", DebugApiHints.Scenario);
+            var master = MasterOrNull;
+            if (master is null) return (null, NoMaster, DebugApiHints.Panel);
+            var intent = anySim ? Hrot.UI.Common.Facades.ReplaySessionIntents.SetLoopSim(fromSim!.Value, toSim!.Value)
+                       : anyWall ? Hrot.UI.Common.Facades.ReplaySessionIntents.SetLoopWall(from!.Value, to!.Value)
+                       : Hrot.UI.Common.Facades.ReplaySessionIntents.ClearLoop();
+            try { master.SetReplayLoop(intent); }
+            catch (InvalidOperationException ex) { return (null, ex.Message, DebugApiHints.Scenario); }
+            return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["cleared"] = !anySim && !anyWall }, null, null);
+        }
+
+        /// <summary>⭐ CE-3329 §12n — a loop bound: absent ⇒ null; else a finite non-negative number (like <see cref="TryReadSimSeconds"/>).</summary>
+        private static bool TryReadLoopBound(JsonNode? body, string key, out double? seconds, out string? error)
+        {
+            seconds = null; error = null;
+            var text = body?[key]?.ToString();
+            if (string.IsNullOrWhiteSpace(text)) return true;
+            if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
+                && v >= 0 && double.IsFinite(v)) { seconds = v; return true; }
+            error = $"{key} '{text}' is not a non-negative number of seconds.";
+            return true;
+        }
+
         /// <summary><c>POST /replay/stop</c> — leave the replay (to <c>Idle</c>).</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) StopReplay()
             => PublishTransition(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.Idle });
@@ -207,6 +246,8 @@ namespace Hrot.Editor.DebugApi
                 ["simSeconds"]      = ReplayPositionOrNull?.SimSeconds is { } simSeconds ? Math.Round(simSeconds, 6) : null,
                 // ⭐ CE-3329 R-3058 — the session's axis: Sim (a play jumps the paused stretches) or Wall
                 ["axis"]            = ReplayAxisOrNull?.ToString(),
+                // ⭐ CE-3329 §12n — the session's loop range on the ACTIVE axis (the session carries wall seconds; the facade converts); null = none
+                ["loop"]            = TryRead(() => _time.Loop is { } lp ? new JsonObject { ["fromSeconds"] = Math.Round(lp.From, 6), ["toSeconds"] = Math.Round(lp.To, 6) } : null),
                 ["sim"]             = TryRead(() => GetSimState()),
                 // ⭐ RB-2 — the Replay Browser adds its frame, frames, span, nodes, view and rate; null on every other host
                 ["browser"]         = TryRead(() => _dispatcher?.ReplayBrowser?.Status()),
@@ -282,7 +323,7 @@ namespace Hrot.Editor.DebugApi
             if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds)
                 && seconds >= 0 && double.IsFinite(seconds)) return true;
             error = $"atSeconds '{text}' is not a non-negative number of seconds.";
-            return false;
+            return true;
         }
     }
 }

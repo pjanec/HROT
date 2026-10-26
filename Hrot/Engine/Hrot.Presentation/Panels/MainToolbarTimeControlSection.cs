@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
+using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
 using ImGuiNET;
 
@@ -19,10 +22,22 @@ namespace Hrot.UI.Common.Panels;
 public sealed class MainToolbarTimeControlSection
 {
     private readonly ITimeTransportFacade _facade;
+    private readonly Func<DateTime> _now;
 
-    public MainToolbarTimeControlSection(ITimeTransportFacade facade)
+    // ⭐ F15 — ■ ignores a press for StopGuard after a review returned to live (a double press across ■ → ⏏ must not stop the exercise)
+    private TransportMode _lastMode;
+    private bool _modeSeen;
+    private DateTime? _returnedToLiveAt;
+
+    /// <summary>F15 — how long ■ ignores presses after a review returned to live.</summary>
+    public static readonly TimeSpan StopGuard = TimeSpan.FromSeconds(3);
+
+    /// <param name="facade">THE time facade.</param>
+    /// <param name="now">The clock of the F15 guard (tests inject one); default <see cref="DateTime.UtcNow"/>.</param>
+    public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null)
     {
         _facade = facade;
+        _now = now ?? (() => DateTime.UtcNow);
     }
 
     // ── Headless-testable seams ────────────────────────────────────────
@@ -61,6 +76,8 @@ public sealed class MainToolbarTimeControlSection
     /// </summary>
     public void OnStop()
     {
+        Observe();
+        if (StopGuarded) return;   // ⭐ F15 — a second press right after the return to live must not stop the exercise
         if (_facade.IsStopEnabled)
             _facade.Stop();
     }
@@ -71,6 +88,164 @@ public sealed class MainToolbarTimeControlSection
     public void OnSelectRate(float rate)
     {
         _facade.SetTimeScale(rate);
+    }
+
+
+    // ── ⭐ CE-3330 E3 — the mode indicator, its menu, ■ → ⏏, the axis icon (DAR §9a) ──────────────────────────────────
+
+    /// <summary>The mode indicator of <see cref="ModeGlyph"/>: the spec glyph, the colour.</summary>
+    public sealed record ModeIndicator(string Glyph, Vector4 Color, string Name);
+
+    /// <summary>DAR §9a — the indicator per mode: Edit grey ✎, Preview violet ◐, Live green ●, Review amber ⟲, Replay blue ▶; Idle none (<see langword="null"/>).</summary>
+    public static ModeIndicator? ModeGlyph(TransportMode mode) => mode switch
+    {
+        TransportMode.Edit    => new("✎", new Vector4(0.60f, 0.60f, 0.60f, 1f), "Edit"),
+        TransportMode.Preview => new("◐", new Vector4(0.66f, 0.45f, 0.92f, 1f), "Preview"),
+        TransportMode.Live    => new("●", new Vector4(0.25f, 0.80f, 0.30f, 1f), "Live"),
+        TransportMode.Review  => new("⟲", new Vector4(1.00f, 0.70f, 0.20f, 1f), "Review"),
+        TransportMode.Replay  => new("▶", new Vector4(0.30f, 0.60f, 1.00f, 1f), "Replay"),
+        _ => null,
+    };
+
+    /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview CircleHalfStroke, Live Circle,
+    /// Review ClockRotateLeft, Replay Play; Idle none (<see langword="null"/>).</summary>
+    public static string? ModeIcon(TransportMode mode) => mode switch
+    {
+        TransportMode.Edit    => Fdp.Presentation.Fonts.IconsFontAwesome6.Pen,
+        TransportMode.Preview => Fdp.Presentation.Fonts.IconsFontAwesome6.CircleHalfStroke,
+        TransportMode.Live    => Fdp.Presentation.Fonts.IconsFontAwesome6.Circle,
+        TransportMode.Review  => Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft,
+        TransportMode.Replay  => Fdp.Presentation.Fonts.IconsFontAwesome6.Play,
+        _ => null,
+    };
+
+    /// <summary>One entry of the mode menu: a label, what it does, whether it can be chosen, and (a sub-menu) its children.</summary>
+    public sealed record ModeMenuItem(string Label, Action? Invoke, bool Enabled = true, IReadOnlyList<ModeMenuItem>? Children = null);
+
+    /// <summary>The mode menu: the header line (mode + context) and the items.</summary>
+    public sealed record ModeMenuModel(string Header, IReadOnlyList<ModeMenuItem> Items);
+
+    private static readonly double[] ReviewWindows = { 30, 120, 600 };
+
+    private static string WindowLabel(double seconds) => seconds < 60 ? $"{seconds:0} s" : $"{seconds / 60:0} min";
+
+    /// <summary>m:ss of a span in seconds ("5:27").</summary>
+    public static string FormatSpan(double seconds)
+    {
+        var t = (long)Math.Round(Math.Max(0, seconds));
+        return $"{t / 60}:{t % 60:00}";
+    }
+
+    /// <summary>How far the playhead is behind the live point, seconds — <see langword="null"/> when the live point is not known.</summary>
+    private double? SecondsBehindLive()
+    {
+        if (_facade.Session?.LivePointSimSeconds is { } lp) return Math.Max(0, lp - _facade.TotalTime);   // TotalTime is the run's sim clock
+        if (_facade.Axis == ReplayAxis.Sim && _facade.LivePoint is { } l) return Math.Max(0, l - _facade.TotalTime);
+        return null;
+    }
+
+    /// <summary>The seek value of a checkpoint on the active axis — Sim: its sim time; Wall: seconds after the session's zero.</summary>
+    private double CheckpointAt(CheckpointMark cp)
+        => _facade.Axis == ReplayAxis.Sim
+            ? cp.TotalTime
+            : (cp.WallTicks - (_facade.Session?.ZeroWallTicks ?? 0)) / (double)TimeSpan.TicksPerSecond;
+
+    /// <summary>
+    /// The mode indicator's menu (DAR §9a) — <see langword="null"/> where there is nothing worth offering (Edit, Preview, Replay, Idle:
+    /// the deferred items — ⚑ mark, ⑂ go live from here, review from a checkpoint — are not built). Every action goes through the ONE facade.
+    /// </summary>
+    public ModeMenuModel? ModeMenu()
+    {
+        switch (_facade.Mode)
+        {
+            case TransportMode.Live:
+            {
+                var items = new List<ModeMenuItem>();
+                foreach (var d in ReviewWindows)
+                {
+                    var window = d;
+                    items.Add(new($"Review the last {WindowLabel(window)}",
+                        () => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window))));
+                }
+                items.Add(new("Review from the start", () => _facade.EnterReviewAtSim(0)));
+                return new($"Live · {TransportIcons.FormatTime(_facade.TotalTime)}", items);
+            }
+            case TransportMode.Review:
+            {
+                var items = new List<ModeMenuItem>();
+                if (_facade.LivePoint is { } live)
+                    for (int i = 0; i < 2; i++)
+                    {
+                        var window = ReviewWindows[i];
+                        items.Add(new($"Restart from {WindowLabel(window)} before live",
+                            () => _facade.Seek(Math.Max(0, live - window))));
+                    }
+                var marks = _facade.Session?.Checkpoints ?? Array.Empty<CheckpointMark>();
+                var children = new List<ModeMenuItem>();
+                foreach (var cp in marks)
+                {
+                    var mark = cp;
+                    children.Add(new(mark.Label, () => _facade.Seek(CheckpointAt(mark))));
+                }
+                items.Add(new("Restart from a checkpoint", null, Enabled: children.Count > 0, Children: children));
+                items.Add(new("⏏ Back to live", _facade.ExitReview));
+                var behind = SecondsBehindLive();
+                return new(behind is { } b ? $"Review · {FormatSpan(b)} behind live" : "Review", items);
+            }
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>What ■ looks like: the red square, or — in a review — the green ⏏ "Back to live".</summary>
+    public enum StopFaceKind { Stop, BackToLive }
+
+    /// <summary>■ in a review is ⏏ Back to live (R-3060), else ■.</summary>
+    public static StopFaceKind StopFace(TransportMode mode) => mode == TransportMode.Review ? StopFaceKind.BackToLive : StopFaceKind.Stop;
+
+    /// <summary>The ■ tooltip per DAR §9a — and, for 3 s after a return to live, why a press is ignored (F15).</summary>
+    public string StopTooltip()
+    {
+        Observe();
+        if (StopGuarded) return "Just returned to live — press again in a moment to stop the exercise";
+        return _facade.Mode switch
+        {
+            TransportMode.Review  => SecondsBehindLive() is { } b ? $"Back to live — {FormatSpan(b)} ahead" : "Back to live",
+            TransportMode.Replay  => "Leave the replay",
+            TransportMode.Preview => "Back to edit",
+            TransportMode.Live    => "Stop the exercise",
+            _                     => "Stop",
+        };
+    }
+
+    /// <summary>⭐ F15 — observes <see cref="ITimeTransportFacade.Mode"/> across calls; a Review → Live change starts the guard.</summary>
+    public void Observe()
+    {
+        var mode = _facade.Mode;
+        if (_modeSeen && _lastMode == TransportMode.Review && mode == TransportMode.Live)
+            _returnedToLiveAt = _now();
+        _lastMode = mode;
+        _modeSeen = true;
+    }
+
+    private bool StopGuarded =>
+        _facade.Mode == TransportMode.Live && _returnedToLiveAt is { } at && _now() - at < StopGuard;
+
+    /// <summary>The axis icon's letter: S = sim (pauses skipped), W = wall (pauses shown).</summary>
+    public static string AxisFace(ReplayAxis axis) => axis == ReplayAxis.Sim ? "S" : "W";
+
+    /// <summary>The axis icon's tooltip.</summary>
+    public static string AxisTooltip(ReplayAxis axis)
+        => axis == ReplayAxis.Sim ? "Sim time — pauses skipped" : "Wall time — pauses shown";
+
+    /// <summary>The axis toggles only where a session runs: Live, Review, Replay.</summary>
+    public bool IsAxisEnabled => _facade.Mode is TransportMode.Live or TransportMode.Review or TransportMode.Replay;
+
+    /// <summary>An axis-icon click: S ⇄ W for the whole session (R-3058).</summary>
+    public void OnToggleAxis()
+    {
+        if (!IsAxisEnabled) return;
+        _facade.SetAxis(_facade.Axis == ReplayAxis.Sim ? ReplayAxis.Wall : ReplayAxis.Sim);
     }
 
     // ── Render helpers ────────────────────────────────────────────────
@@ -100,6 +275,11 @@ public sealed class MainToolbarTimeControlSection
         float iconSize = ImGui.GetFrameHeight();
         bool isPaused = _facade.IsPaused;
         float timeScale = _facade.TimeScale;
+        Observe();
+
+        // ── [Mode indicator] — opens its menu, never acts (R-3061) ─────────
+        DrawModeIndicator(iconSize);
+        ImGui.SameLine();
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
@@ -119,12 +299,14 @@ public sealed class MainToolbarTimeControlSection
 
         ImGui.SameLine();
 
-        // ── [Stop] ─────────────────────────────────────────────────────
-        if (TransportIcons.DrawTransportButton("##mt_stop", iconSize,
-                TransportIcons.BtnShape.Stop, enabled: _facade.IsStopEnabled))
+        // ── [Stop] — ⏏ Back to live in a review ────────────────────────
+        var stopShape = StopFace(_facade.Mode) == StopFaceKind.BackToLive
+            ? TransportIcons.BtnShape.Eject : TransportIcons.BtnShape.Stop;
+        if (TransportIcons.DrawTransportButton("##mt_stop", iconSize, stopShape, enabled: _facade.IsStopEnabled))
         {
             OnStop();
         }
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(StopTooltip());
 
         ImGui.SameLine();
 
@@ -151,5 +333,60 @@ public sealed class MainToolbarTimeControlSection
             }
             ImGui.EndPopup();
         }
+
+        // ── [Axis] S / W ───────────────────────────────────────────────────
+        ImGui.SameLine();
+        ImGui.BeginDisabled(!IsAxisEnabled);
+        if (ImGui.SmallButton(AxisFace(_facade.Axis) + "##mt_axis")) OnToggleAxis();
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(AxisTooltip(_facade.Axis));
+    }
+
+    /// <summary>A coloured disc with the mode's letter; a click opens the mode menu (where there is one).</summary>
+    private void DrawModeIndicator(float size)
+    {
+        var mode = _facade.Mode;
+        var ind = ModeGlyph(mode);
+        if (ind is null) { ImGui.Dummy(new Vector2(size, size)); return; }
+
+        var pos = ImGui.GetCursorScreenPos();
+        bool clicked = ImGui.InvisibleButton("##mt_mode", new Vector2(size, size));
+        bool hovered = ImGui.IsItemHovered();
+        var dl = ImGui.GetWindowDrawList();
+        var icon = ModeIcon(mode)!;   // FontAwesome 6 Solid, drawn in the mode's colour
+        var ts = ImGui.CalcTextSize(icon);
+        dl.AddText(pos + (new Vector2(size, size) - ts) * 0.5f, ImGui.GetColorU32(ind.Color with { W = hovered ? 1f : 0.85f }), icon);
+        if (hovered)
+        {
+            var behind = SecondsBehindLive();
+            ImGui.SetTooltip(mode == TransportMode.Review && behind is { } b ? $"Review — {FormatSpan(b)} behind live" : ind.Name);
+        }
+
+        var menu = ModeMenu();
+        if (clicked && menu is not null) ImGui.OpenPopup("##mt_mode_popup");
+        if (ImGui.BeginPopup("##mt_mode_popup"))
+        {
+            if (menu is not null)
+            {
+                ImGui.TextDisabled(menu.Header);
+                ImGui.Separator();
+                foreach (var item in menu.Items) DrawMenuItem(item);
+            }
+            ImGui.EndPopup();
+        }
+    }
+
+    private static void DrawMenuItem(ModeMenuItem item)
+    {
+        if (item.Children is { } kids)
+        {
+            if (ImGui.BeginMenu(item.Label, item.Enabled))
+            {
+                foreach (var k in kids) DrawMenuItem(k);
+                ImGui.EndMenu();
+            }
+        }
+        else if (ImGui.MenuItem(item.Label, null, false, item.Enabled))
+            item.Invoke?.Invoke();
     }
 }

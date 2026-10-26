@@ -39,6 +39,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private bool ReportsAdded => _predicate.ModificationType is StructuralModification.Added or StructuralModification.AnyChange;
         private bool ReportsRemoved => _predicate.ModificationType is StructuralModification.Removed or StructuralModification.AnyChange;
 
+        private EntityRepository? _destructionRepo;   // ⭐ CE-3335 — the world this scanner's destruction mark belongs to
+        private long _destructionMark;
+
         /// <summary>Scans one played frame. ⚠ Reads the repository's destruction log and leaves it for the caller to clear.</summary>
         public void Scan(EntityRepository repo, int frame, long ticks, List<SearchResultDto> results, TargetEntityFilter? entityFilter = null)
         {
@@ -60,7 +63,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 bool active = meta.IsActive;
                 int tracked = _gen[i];
                 // a tracked entity that is gone (destroyed, or its index reused by another generation) departs here — no IsAlive sweep, and it
-                //   needs no destruction log (a live world's recorder clears that before the timeline looks)
+                //   needs no destruction log (it catches a death the log no longer holds — a scanner that started late)
                 if (tracked >= 0 && (!active || meta.Generation != tracked))
                 {
                     _departed.Add(new Entity(i, (ushort)tracked));
@@ -90,8 +93,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             }
 
             // departures the destruction log names come first (the log's order), then the ones it never showed — the order the report always had
-            var destroyed = repo.GetDestructionLog();
-            for (int i = 0; i < destroyed.Count; i++)
+            // ⭐ CE-3335 — by this scanner's own mark: a live world's log is shared (the recorder no longer empties it), a playback world's
+            //   owner clears it per frame — both read the same way
+            if (!ReferenceEquals(repo, _destructionRepo)) { _destructionRepo = repo; _destructionMark = 0; }
+            var destroyed = repo.ReadDestructions(ref _destructionMark);
+            for (int i = 0; i < destroyed.Length; i++)
             {
                 Entity dead = destroyed[i];
                 int at = _departed.IndexOf(dead);

@@ -92,8 +92,8 @@ namespace Fdp.Toolkit.Replay
                 _framesWaitingForLivePoint = 0;
                 _framesAtLivePoint = 0;
                 // ⭐ CE-3329 F11 / W6 — what the review's swaps destroyed is not a live destruction; the first frame after a review is a
-                //   keyframe of the restored world (no delta against a frame of the past).
-                resumed.ClearDestructionLog();
+                //   keyframe of the restored world (no delta against a frame of the past), and the keyframe moves the recorder's
+                //   destruction mark past them (CE-3335 — ⛔ no longer by emptying the world's log, which other readers share).
                 _framesSinceKeyframe = KeyframeInterval - 1;
                 _lastKeyframeSimTime = null;
                 _resumePending = false;

@@ -175,7 +175,30 @@ public sealed record HrotNodeContext : IDisposable
     /// ⭐ <c>CE-3330</c> — one live-timeline step: the lanes evaluated on this world (nothing while its sim frame does not advance). <see cref="Tick"/>
     /// calls it after the kernel; a host with its OWN frame (the editor) calls it at the same point.
     /// </summary>
-    public void StepTimeline() => Timeline.Step(World, System.DateTime.UtcNow.Ticks);
+    /// <remarks>
+    /// ⭐ <c>CE-3330</c> E1 (docs/DESIGN_Director_Timeline_Editor.md §2e) — the index is FROZEN while this node's <see cref="ClusterSlave.LocalClusterState"/>
+    /// is a review or replay (a review rewinds the world: the frame counter going back would otherwise reset it; its history IS the run up to the
+    /// live point), and starts AFRESH on entering <c>OperatingLive</c> from anything but a review (edit, preview, idle, loading…) so frame 0 is the
+    /// run's first frame. Returning to live FROM a review does not reset — the index continues from the live point.
+    /// </remarks>
+    public void StepTimeline()
+    {
+        var state = ClusterSlave.LocalClusterState;
+        if (Fdp.Toolkit.Orchestration.ClusterStates.IsReview(state)) _timelineAfterReview = true;
+        else if (state == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)
+        {
+            if (_timelineState != Fdp.Toolkit.Orchestration.ClusterState.OperatingLive && !_timelineAfterReview) Timeline.Reset(World);
+            _timelineAfterReview = false;
+        }
+        else if (state is not (Fdp.Toolkit.Orchestration.ClusterState.LoadingLive or Fdp.Toolkit.Orchestration.ClusterState.UnloadingLive))
+            _timelineAfterReview = false;   // another activity (edit, preview, replay, idle) intervened: the next live is a new run
+        _timelineState = state;
+        if (Fdp.Toolkit.Orchestration.ClusterStates.IsReplaying(state) || Fdp.Toolkit.Orchestration.ClusterStates.IsReview(state)) return;
+        Timeline.Step(World, System.DateTime.UtcNow.Ticks);
+    }
+
+    private Fdp.Toolkit.Orchestration.ClusterState _timelineState;
+    private bool _timelineAfterReview;
 
     /// <summary>The context the node's timeline lanes apply in: the live world.</summary>
     public static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext { get; } = new(Live: true);
