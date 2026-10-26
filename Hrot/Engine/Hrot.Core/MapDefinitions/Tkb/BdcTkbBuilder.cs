@@ -249,14 +249,15 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>
         /// Add combat properties (future).
         /// </summary>
-        public NedTkbBuilder WithCombat(long tkbId, Action<SimCombatDef> configure)
+        public NedTkbBuilder WithCombat(long tkbId, Action<SimCombatDefBuilder> configure)
         {
             var template = _db.GetByType(tkbId);
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            var combatDef = new SimCombatDef();
-            configure(combatDef);
+            var combatBuilder = new SimCombatDefBuilder();
+            configure(combatBuilder);
+            var combatDef = combatBuilder.Build();
 
             // Store the combat definition as a descriptor for inspector / ORBAT display.
             template.AddDescriptor(combatDef);
@@ -515,7 +516,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>
         /// Add composite (ORBAT) definition.
         /// </summary>
-        public NedTkbBuilder AsComposite(long tkbId, Action<TkbCompositionDef> configure)
+        public NedTkbBuilder AsComposite(long tkbId, Action<TkbCompositionDefBuilder> configure)
         {
             var template = _db.GetByType(tkbId);
             if (template == null)
@@ -528,8 +529,9 @@ namespace Hrot.Map.Definitions.Tkb
             //   check invites. 📄 docs/designs/tkb-1/DESIGN.md §6.6b.
 
             // Evaluate composition immediately to populate TkbTemplate metadata.
-            var compositionDef = new TkbCompositionDef();
-            configure(compositionDef);
+            var compositionBuilder = new TkbCompositionDefBuilder();
+            configure(compositionBuilder);
+            var compositionDef = compositionBuilder.Build();
 
             if (compositionDef.AutoCreateChildren)
             {

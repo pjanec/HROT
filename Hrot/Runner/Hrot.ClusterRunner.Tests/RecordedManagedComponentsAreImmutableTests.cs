@@ -38,10 +38,6 @@ public sealed class RecordedManagedComponentsAreImmutableTests
         "Fdp.Toolkit.Replication.Components.NetworkAckPeerSet",
         "Fdp.Toolkit.Replication.Components.PendingAuthorityGrants",
         "Hrot.AI.Behaviors.BpManagedCollectionDemo",
-        "Hrot.IG.Components.EditablePolyline",
-        "Hrot.Map.Common.Components.RoutePlan",
-        "Hrot.Map.Definitions.Tkb.SimCombatDef",
-        "Hrot.Map.Definitions.Tkb.TkbCompositionDef",
     };
 
     private readonly ITestOutputHelper _out;

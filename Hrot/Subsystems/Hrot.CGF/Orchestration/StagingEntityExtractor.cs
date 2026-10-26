@@ -439,12 +439,13 @@ namespace Hrot.CGF.Orchestration
                 }
             }
 
-            static void RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Dictionary<long, long> map)
+            static Hrot.Map.Common.Components.RoutePlan RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Dictionary<long, long> map)
             {
                 bool any = false;
                 foreach (var w in route.Waypoints) any |= w.HoldUnit != 0 && map.ContainsKey(w.HoldUnit);
-                if (!any) return;
-                route.Mutate(list =>
+                if (!any) return route;
+                // CE-4046 — RoutePlan is an immutable record: the remapped plan is a NEW value the caller puts back in the list.
+                return route.WithWaypoints(list =>
                 {
                     for (int i = 0; i < list.Count; i++)
                         if (list[i].HoldUnit != 0 && map.TryGetValue(list[i].HoldUnit, out var renamed))
@@ -463,11 +464,11 @@ namespace Hrot.CGF.Orchestration
             }
 
             // ⭐ CE-2226 — a route's Pickup waypoint names the unit it waits for (RouteWaypoint.HoldUnit, a network id). The type plan
-            //   below cannot reach it (RoutePlan.Waypoints is a read-only view over a private list), so it is rewritten here, like the
+            //   below cannot reach it (RoutePlan.Waypoints is a immutable record), so it is rewritten here, like the
             //   brain params above. 🔴 Measured live on ua-air-rescue: the hold kept the saved id, named nothing, and the UH-60 waited
             //   at the LZ with every man aboard until the casualty it had picked up died.
-            foreach (var comp in comps)
-                if (comp is Hrot.Map.Common.Components.RoutePlan route) RemapHoldUnits(route, oldToNewMap);
+            for (int ri = 0; ri < comps.Count; ri++)
+                if (comps[ri] is Hrot.Map.Common.Components.RoutePlan route) comps[ri] = RemapHoldUnits(route, oldToNewMap);
 
             // ⭐⭐ DESIGN_Entity_Reference.md D4 — every EntityRef inside every component (the Initial*Intent DTOs the
             // scenario translators write, and any other component holding one) is rewritten by the ONE type plan, in place

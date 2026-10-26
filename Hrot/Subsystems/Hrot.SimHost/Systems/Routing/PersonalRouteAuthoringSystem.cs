@@ -109,11 +109,12 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                     continue;
 
                 var existingPlan = view.GetManagedComponentRO<RoutePlan>(routeEntity);
-                existingPlan.Mutate(wps => wps.Add(new RouteWaypoint
+                // CE-4046 — RoutePlan is an immutable record: the appended plan is a NEW value, Set back.
+                repo.SetManagedComponent(routeEntity, existingPlan.WithWaypoints(wps => wps.Add(new RouteWaypoint
                 {
                     Position    = clickedPos,
                     TargetSpeed = 0f,
-                }));
+                })));
 
                 repo.GetComponentRW<PersonalRouteRef>(vehicleEntity).FollowPending = 1;
             }
@@ -126,8 +127,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                     ? view.GetComponentRO<SimTransform>(vehicleEntity).Position
                     : Vector3.Zero;
 
-                var newPlan = new RoutePlan { IsLoop = false };
-                newPlan.Mutate(wps =>
+                var newPlan = new RoutePlan { IsLoop = false }.WithWaypoints(wps =>
                 {
                     wps.Add(new RouteWaypoint { Position = vehiclePos, TargetSpeed = 0f });
                     wps.Add(new RouteWaypoint { Position = clickedPos, TargetSpeed = 0f });

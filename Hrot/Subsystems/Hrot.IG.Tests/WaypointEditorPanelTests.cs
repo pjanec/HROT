@@ -60,7 +60,7 @@ public class WaypointEditorPanelTests
     private static RoutePlan MakePlan(params string?[] jsonValues)
     {
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             for (int i = 0; i < jsonValues.Length; i++)
                 wps.Add(new RouteWaypoint

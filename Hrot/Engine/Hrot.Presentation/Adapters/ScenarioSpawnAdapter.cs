@@ -381,8 +381,7 @@ namespace Hrot.UI.Common.Adapters
                     if (points.Length < 2)
                         return;
 
-                    var routePlan = new RoutePlan { IsLoop = false };
-                    routePlan.Mutate(wps =>
+                    var routePlan = new RoutePlan { IsLoop = false }.WithWaypoints(wps =>
                     {
                         for (int i = 0; i < points.Length; i++)
                         {
