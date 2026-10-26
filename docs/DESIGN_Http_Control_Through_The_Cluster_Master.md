@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-26
+updated: 2026-10-26 (§1a: the replay's time axis stays wall time; a sim-time seek/step is a future extension — R-3056)
 build-state: BUILT (A: CE-3326, B2: CE-3325) — the as-built tables in §3 and §6 say where it deviates
 current-answer: §3 (the route table) and §4 (UML). §2 is the inventory it was drawn from.
 stale-below: nothing.
@@ -34,6 +34,16 @@ related-designs:
 > replay/seek - this need to apply to loading scenario and saving and checkpointing etc. No specific shortcuts. Entering a replay should not
 > need cluster/transition, the cluster state machine handles the intermediate transitions automatically."*
 > 🔒 *"Record traffic car, do not rebuild map every frame there can be thousands of traffic cars and pedestrians."*
+
+### 1a. The replay's time axis *(CE-4053, R-3056 — user, `2026-10-26`)*
+
+> 🔒 *"Leans accepted, just i think the seek/step form that works with simulation time and skips the unchanged pauses is not mandatory and can be added later, as future extension."*
+
+| ruled | why |
+|---|---|
+| ⭐ a replay's time stays the cluster's **synced wall clock** — `atSeconds` = wall seconds after the replay's zero | slaves stamp frames with the synced wall clock (`SlaveSyncController.cs:65`); mgmt-1 §8.12 records paused frames on purpose |
+| ⏭ **future extension, not built:** a seek / step form in SIMULATION time that skips the unchanged paused frames | ⚠ the replay harness's second half (Scenario Regression §10-1 H1b) will need it to address a sim frame through the product's control; H1a matches sim frames itself and needs nothing |
+| ⛔ rejected: a stepped master clock that advances only by the step | the slaves stamp real time ⇒ the nodes' recordings would no longer line up |
 
 ## 2. INVENTORY — what each route did before this design *(grep + reading every handler, then the graph once it indexed)*
 
