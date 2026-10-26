@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+updated: 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
 current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building)
 stale-below: none
 known-rot: none
@@ -448,6 +448,24 @@ as the original did?).*
 
 ⭐ **CE-4050 is not a blocker here**: the process that recorded the run replays it, so every component's assembly is loaded. It becomes one
 when a recording is replayed by another process (H4, the Replay Browser).
+
+### 10-0. ⭐ Step 0 MEASURED (`2026-10-26`) — ⛔ RH-3's premise is FALSE; H1 is STOPPED pending the user (R-106)
+
+`--mode editor --headless`, `ua-tank-ammo`: load live (paused, recording on) → `/sim/step` ×600 → `/replay {atSeconds: 0}` → `/sim/step` ×60 → `/replay/seek 5`.
+
+| # | question | measured | verdict |
+|---|---|---|---|
+| ① | a stepped LIVE run records | `recording: true`; 600 steps ⇒ sim clock **10.0 s** (14.6 s wall) | ✅ RH-2 holds |
+| ② | the recording's frame ticks advance by the step | **2 230 frames for 600 steps**, gaps **2–19 ms**, span **25.16 s** for 10 s of sim — every rendered frame, paused ones too, on the WALL clock | ⛔ **CE-4053** |
+| ③ | `/sim/step` steps the replay clock | ⛔ never landed (*"the master never entered the step barrier"*) | ⛔ **CE-4051** |
+| ④ | the replay enters at 0 | ⛔ entered at **3.18 s**; a seek to 5 s landed at **1.20 s** | ⛔ **CE-4052** |
+| — | also | `GET /exercises` empty while the run records; `inPreview: true` in live and replay (**CE-4054**); the dumper fails on the recording (**CE-4050**) | — |
+
+⇒ the harness did its job before H1 was written: the product's replay clock is not yet usable for a time-for-time comparison. ⭐ **Lean (for the user):**
+**H1 seeks by FRAME, mapped through the recording's OWN sim time per frame** (`GlobalTime.TotalTime` read as the index builder plays — the
+same table the timeline needs, Timeline §9b ①) via `/replay/seek {frame}` (Replay Browser design RB-2, resolved for every host) — so H1
+runs even before CE-4051…4053 are fixed, and asserts them once they are. ⛔ Rejected: waiting for the fixes — H1 would find nothing until
+then; mapping by wall time — CE-4053 says it is not the run's time.
 
 ### 10a. Claim table — what the leans rest on
 
