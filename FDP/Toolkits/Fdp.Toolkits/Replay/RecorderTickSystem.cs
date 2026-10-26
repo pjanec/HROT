@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Replay
         private readonly bool _blocking;
         private int _framesSinceKeyframe;
         private uint _prevTick;
+        private long _lastWallTicks;   // the last frame's wall stamp: the recording's timeline never goes back
 
         // ⭐ CE-3299 B3 (R-3044) — checkpoints asked for and not yet written: (label, the wall time to write at).
         private readonly System.Collections.Generic.List<(string Label, long AtWallTicks)> _requested = new();
@@ -79,12 +80,13 @@ namespace Fdp.Toolkit.Replay
             // Read the atomic, frame-locked wall-clock timestamp from the GlobalTime singleton.
             // This is the single source of truth populated by the time controller at the start
             // of every frame, guaranteeing all PostSimulation systems see identical ticks.
-            // Falls back to DateTime.UtcNow.Ticks until Phase 3 time controllers populate
-            // GlobalTime.TotalWallTicks (WCR-P3-T002/T003).
+            // ⭐ backend `2026-10-26` (run C, R-3055) — ONE timeline per recording: the frame-locked clock only, never below the frame
+            //   before. 📌 Measured on the editor: the clock resets to 0 during the unload into a replay, and the old fallback stamped
+            //   that last frame with the host calendar clock — the replay's span ran from 17 s to the year 2026 (63 928 598 528 s), so its
+            //   length and every moment past the first frame were nonsense. ⛔ A wall stamp on a second clock poisons the frame index.
             var globalTime = repo.GetSingletonUnmanaged<GlobalTime>();
-            long wallClockTicks = globalTime.TotalWallTicks != 0
-                ? globalTime.TotalWallTicks
-                : DateTime.UtcNow.Ticks;
+            long wallClockTicks = Math.Max(globalTime.TotalWallTicks, _lastWallTicks);
+            _lastWallTicks = wallClockTicks;
 
             bool checkpoint = CheckpointsDue(wallClockTicks, _due);
             // ⭐ CE-3316 (restore design §1l) — not while a slot-paced background run is in flight: its input is an earlier frame's world,
