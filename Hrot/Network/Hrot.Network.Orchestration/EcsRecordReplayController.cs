@@ -70,10 +70,8 @@ namespace Hrot.SimHost.Modules.Orchestration
                 afterSeek = () => { lifecycle.OnWorldReplaced(resumingToLive: false); chained?.Invoke(); };
             }
 
-            var controller = new EcsRecordReplayController(kernel, nodeId, world, afterSeek);
-            if (lifecycle != null)
-                lifecycle.IsReplayActive = () => controller.IsReplayActive;
-            return controller;
+            // ⭐ CE-3329 P2 — the ELM's LifecycleSystem reads the world's ReplayState; ⛔ SUPERSEDED: lifecycle.IsReplayActive wired here.
+            return new EcsRecordReplayController(kernel, nodeId, world, afterSeek);
         }
 
         private readonly ModuleHostKernel _kernel;
@@ -156,6 +154,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             _kernel    = kernel ?? throw new ArgumentNullException(nameof(kernel));
             _repo      = repo   ?? throw new ArgumentNullException(nameof(repo));
             _nodeId    = nodeId;
+            Fdp.Toolkit.Replay.ReplayState.Ensure(_repo);   // ⭐ CE-3329 P2 — created here, on the composing thread; prepare only flips it
 
             // Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)
             // Wrap the downstream afterSeek callback with NetworkEntityMap rebuild logic.
@@ -288,6 +287,9 @@ namespace Hrot.SimHost.Modules.Orchestration
             ActiveReplayFilePath = filePath;
             _activeReplayModule = new ReplayModule(filePath, _repo, _kernel.GetTimeController(), _afterSeek);
             await _kernel.InstallModuleAsync(_activeReplayModule);
+            // ⭐⭐ CE-3329 P2 (DESIGN_Replay_Time_Axis_And_Review §12l) — the world says it is a replay: every system that writes world
+            //   state reads it and stands down. Set HERE, by the controller every ECS host builds, so no host has to wire it.
+            Fdp.Toolkit.Replay.ReplayState.Enter(_repo);
 
             // ⭐⭐ R-4012 (Q91 §4-P P6) — while this node restores its own recording it takes in no world state (the
             //   recording holds everything). Wired HERE, by the controller every ECS host builds, so no host can miss it;
@@ -315,6 +317,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             await _kernel.UninstallModuleAsync(_activeReplayModule);
             _activeReplayModule = null;
             ActiveReplayFilePath = null;
+            Fdp.Toolkit.Replay.ReplayState.Leave(_repo);   // ⭐ CE-3329 P2
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────

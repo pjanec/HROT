@@ -118,13 +118,17 @@ namespace Hrot.SimHost.Tests
             var cts2      = new CancellationTokenSource();
             var loopTask2 = RunKernelLoop(_kernel, cts2.Token);
 
+            Assert.False(Fdp.Toolkit.Replay.ReplayState.IsActive(_world));   // ⭐ CE-3329 P2 — live: the world is not a replay
             await controller.PrepareReplayAsync(exerciseId, _tempDir);
+            Assert.True(Fdp.Toolkit.Replay.ReplayState.IsActive(_world));    // ⭐ the controller says so, no host wiring
 
             // Seek to frame 2 (mid-point) — blasts historical entity state into _world.
             await controller.ActiveReplayModule!.SeekToFrameAsync(2);
+            Assert.True(Fdp.Toolkit.Replay.ReplayState.IsActive(_world));    // ⭐ a seek's keyframe does not carry it away (Transient)
 
             // ── Step 4: teardown replay ───────────────────────────────────────
             await controller.TeardownReplayAsync();
+            Assert.False(Fdp.Toolkit.Replay.ReplayState.IsActive(_world));   // ⭐ live again
             cts2.Cancel();
             await loopTask2;
 

@@ -166,16 +166,15 @@ namespace Fdp.Toolkit.Replication.Systems
         /// editor or on BDC nodes, and this system is <c>[SingleInstance]</c> and already scheduler-
         /// registered by <c>EntityCreationPack</c>. Authorised deviation; 📄 <c>DESIGN.md</c> §2.1m.</para>
         ///
-        /// <para>⚠ Unset (the default) means "never replaying", so a host that does not wire it behaves
-        /// exactly as before.</para>
+        /// <para>⭐ CE-3329 P2 — read from the world (<see cref="Fdp.Toolkit.Replay.ReplayState"/>). ⛔ SUPERSEDED: an injected
+        /// <c>Func&lt;bool&gt;? IsReplayActive</c>, "never replaying" when a host did not wire it.</para>
         /// </summary>
-        public System.Func<bool>? IsReplayActive { get; set; }
 
         public void Execute(ISimulationView view, float dt)
         {
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _promotionQueue.Clear(); _inQueue.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
             // ⛔ The log owns the world during playback — a restored ghost is the log's, not ours to promote.
-            if (IsReplayActive != null && IsReplayActive()) return;
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
 
             _world = view as EntityRepository;
             if (_world == null) return;

@@ -31,7 +31,7 @@ namespace Hrot.UI.Common.Effects;
 /// The events reach every node (local fire, or the NED ingress), so every host makes its own — effects are never replicated.
 /// <para>⭐ W1 (§7 VE-Q, VE-R): each effect carries the generic <see cref="Lifespan"/> (made at sim now, lives the type's
 /// <c>Duration</c>) — <see cref="LifespanSystem"/> removes it. Effects ARE RECORDED (never saved); ⛔ so during a replay this system is
-/// OFF (<see cref="IsReplayActive"/>): the recording already holds every effect, and spawning from the replayed events would draw each
+/// OFF (the world's <see cref="Fdp.Toolkit.Replay.ReplayState"/>): the recording already holds every effect, and spawning from the replayed events would draw each
 /// one twice.</para>
 /// <para>It also keeps its own population honest, which no generic timer can: an attached effect whose shooter is gone ends at once
 /// (VE-J), and decals over <see cref="DecalCap"/> are removed oldest first (VE-H).</para>
@@ -53,14 +53,11 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
     public int Spawned { get; private set; }
 
-    /// <summary>True while this node's world is driven by a replay ⇒ the system does nothing (VE-R); null ⇒ never.</summary>
-    public Func<bool>? IsReplayActive { get; set; }
-
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
-        if (IsReplayActive?.Invoke() == true) return;
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) return;   // ⭐ CE-3329 P2 — the world says it is a replay
         var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
         var cmd = view.GetCommandBuffer();
         double now = SimClock.Of(world).TotalTime;
@@ -354,7 +351,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 ///   <item>Only a CROSSING burns: an entity first seen already destroyed (a scenario saved with a wreck, a late-joining host) does
 ///   not (VE-P: "a wreck loaded already dead does not burn").</item>
 ///   <item>Soldiers do not burn — only a type whose drawn body is a vehicle family (<see cref="EntityBodyLayer3D.Resolve"/>).</item>
-///   <item>⛔ OFF during a replay (<see cref="IsReplayActive"/>, VE-R): the recording holds the flames; and its memory is dropped, so
+///   <item>⛔ OFF during a replay (the world's <see cref="Fdp.Toolkit.Replay.ReplayState"/>, VE-R): the recording holds the flames; and its memory is dropped, so
 ///   coming back live cannot mistake the replayed wrecks for fresh kills.</item>
 /// </list>
 /// </summary>
@@ -373,15 +370,12 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
     /// <summary>Effect entities made in the last tick — the rail's counter.</summary>
     public int Spawned { get; private set; }
 
-    /// <summary>True while this node's world is driven by a replay ⇒ the system does nothing and forgets (VE-R); null ⇒ never.</summary>
-    public Func<bool>? IsReplayActive { get; set; }
-
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()
             || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return;
-        if (IsReplayActive?.Invoke() == true) { _wasDestroyed.Clear(); return; }
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) { _wasDestroyed.Clear(); return; }   // ⭐ CE-3329 P2
         // ⭐ CE-3294 — a reload is a new world in the same repository (its units under the same handles): forget like a new instance
         if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch) | !ReferenceEquals(world, _queryWorld))
         {

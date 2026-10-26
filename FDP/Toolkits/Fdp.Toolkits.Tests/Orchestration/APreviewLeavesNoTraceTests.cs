@@ -407,7 +407,8 @@ public sealed class APreviewLeavesNoTraceTests
         var entity = repo.CreateEntity();
         elm.BeginConstruction(entity, blueprintId: 1, currentFrame: 0, cmd);
 
-        var system = new Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem(elm) { IsReplayActive = () => true };
+        Fdp.Toolkit.Replay.ReplayState.Enter(repo);   // ⭐ CE-3329 P2 — the world says it is a replay
+        var system = new Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem(elm);
         for (int i = 0; i < 3; i++) system.Execute(repo, 0f);
 
         // Ungated, DrainInstantComplete would have promoted this zero-participant construction by now.
@@ -481,8 +482,8 @@ public sealed class APreviewLeavesNoTraceTests
 
         var promotion = new Fdp.Toolkit.Replication.Systems.GhostPromotionSystem(
             new Fdp.Toolkit.Replication.Tests.GatewayTestTkbDb(), elm,
-            System.Array.Empty<Fdp.Interfaces.ITkbEntityTranslator>())
-        { IsReplayActive = () => true };
+            System.Array.Empty<Fdp.Interfaces.ITkbEntityTranslator>());
+        Fdp.Toolkit.Replay.ReplayState.Enter(repo);   // ⭐ CE-3329 P2 — the world says it is a replay
 
         promotion.Execute(repo, 0f);
 
