@@ -364,7 +364,7 @@ sequenceDiagram
 | ⭐ **was "waits on backend's data D" — UNBLOCKED `2026-10-26`** (backend `5aa14d2b0` one facade, `0784f356c` `ReplaySessionTopic`) | the session layer, the review menu items, the toolbar's mode / axis icons, the slider on the axis — designed in **§2e**; Loop range still waits on backend §12n | — |
 | ⏳ not in this slice | addendum 1 / 9 (director tracks — R2 has none yet), K / J / L (no rate in the cursor) | — |
 
-## 2e. The panel and the toolbar on a cluster host — live, review, replay *(ui, `2026-10-26`; build-state: READY-TO-BUILD — coordinator note B6–B9 on backend's facade `5aa14d2b0` + `ReplaySessionTopic` `0784f356c`)*
+## 2e. The panel and the toolbar on a cluster host — live, review, replay *(ui, `2026-10-26`; build-state: BUILT (E1–E4, `2026-10-26`) — coordinator note B6–B9 on backend's facade `5aa14d2b0` + `ReplaySessionTopic` `0784f356c`)*
 
 ⭐ Spec: [DAR §9a / §9b / §9e](DESIGN_Replay_Time_Axis_And_Review.md) (the toolbar, the menu, the two layers) and §12m (the ONE facade,
 as built). This section is HOW the ui half is built on it. INVENTORY (graph + grep, `2026-10-26`): `MainToolbarTimeControlSection`
@@ -458,6 +458,19 @@ live run's, which is a different exercise, so the panel shows only the session l
 + `StepTimeline` freeze / reset · **E2** — `TimelineMode` + the cursor members, `ClusterTimelineCursor`, the panel's menu by mode and the
 session marks, the editor wired (`LiveTimelineCursor` deleted), the facade's `Session` + `EnterReviewAtSim` · **E3** — the toolbar: mode
 glyph + menu, ⏏ + F15, the axis icon · **E4** — `ClusterScenarioPanel`'s slider on the active axis (row 24).
+
+#### 2e-E2 as built *(ui, `2026-10-26` — slice E2 BUILT; E1/E3 per their own commits; E4 open)*
+
+| built | where | deviation from the diagrams above, and why |
+|---|---|---|
+| `TimelineMode` + `ITimelineCursor.Mode / LivePoint / Checkpoints / CanReview / EnterReview` (defaults: None / null / empty / false / no-op) | `Fdp.Presentation/ImGui/Panels/Timeline/ITimelineCursor.cs` | none. `FederatedReplayCursor` keeps the defaults (the Replay Browser has no review, DAR §9c) |
+| `AxisCursor` forwards them: `LivePoint` and each checkpoint's `WallTicks` converted to the axis (checkpoints projected once per list the host hands out), `EnterReview` converted back to wall | `TimelineAxis.cs` | none |
+| menu by `Mode` (`TimelinePanel.MenuItems`, still pure): Live + `CanReview` ⇒ "⟲ Review from \<time\>" + "⟲ Review from this event (\<lane\>)" and no seek item; Review ⇒ the seek items + "⏏ Seek to the live point" (when `LivePoint` is known); Replay ⇒ the seek items only | `TimelinePanel.cs` | none. The deferred items of the table above are NOT built |
+| session marks: each checkpoint a `IconsFontAwesome6.Flag` on the ruler (label in the tooltip), the live point a vertical line labelled "live" over the lanes; off-screen ones not drawn | `TimelinePanel.DrawRuler` / `DrawOverlays`, `IconsFontAwesome6.Flag` | none |
+| `ClusterTimelineCursor : ITimelineCursor` `(Func<ITimeTransportFacade?>, Func<ITimelineSource?>)` | `Hrot.Presentation/Adapters/` (beside `ClusterTimeTransportAdapter`, the facade's implementation; `Facades/` holds interfaces and the intents builder) | **"Now" in a review / replay is `Session.ZeroWallTicks + facade.TotalTime·TPS`, not `TimeMap.WallAt(TotalTime)`.** 📐 Measured: the cluster clock the facade reads is, after a seek, *wall seconds after the session's zero* (`ReferenceReplayLoadHandler` overwrites `RestoredTime.TotalTime` with exactly that; `ReplaySeekProcessManager` snaps the master clock to it; `ReplayClockProcessManager` reads it back as `anchor + TotalTime`) — so it is not sim seconds and a `WallAt` would double-convert on a paused session. Clamped to the extent. `TimeMap` is returned whatever the facade's axis (the Wall axis shades the pauses from it); `Axis` is `Sim` only when the facade's axis is Sim |
+| `LiveTimelineCursor` deleted; the editor window's source func and the cursor's are ONE func, `null` while the facade's Mode is Replay | `EditorSubsystem.cs` (`editor_event_timeline`) | none |
+| the live map is `ReplayTimeMap.FromFrames(FrameTicks, FrameSim, 0)` per index SNAPSHOT (cached by instance) | `ClusterTimelineCursor.TimeMap` | the snapshot is republished at the source's throttle (not per frame), so the O(n) rebuild is the same cost class as `TimelineAxis.Project`'s |
+| rails | `Hrot.Presentation.Tests/ClusterTimelineCursorTests.cs` (mode, extent per mode, seek on both axes, review entry, live point / checkpoints, axis, play) · `Fdp.Presentation.Tests/…/TimelineInteractionTests.cs` `CE3330_E2_*` (menu by mode, `AxisCursor` session layer) · `Hrot.Presentation.Tests/Panels/TimelinePanelFrameRail.cs` `CE3330_E2_TheSessionLayer_…` | |
 
 
 ```mermaid
@@ -1045,8 +1058,10 @@ edit), its GizmoMap twin, NodeEditor's `UndoStack` (graph commands only) and Blu
 ```mermaid
 classDiagram
   direction LR
-  class TimelinePanel { <<exists, grows>> Draw(source, cursor, lanes, tracks) · tracks above the lanes · hit · drag · keys }
-  class ITimelineTrack { <<NEW, Fdp.Presentation>> Id · Label · Items(axis) · Select(item) · Move(item, toSeconds) · Key(k, atSeconds) bool · MenuItems(ctx) }
+  class TimelinePanel { <<exists, grows>> Tracks : Func~IReadOnlyList~ITimelineTrack~~ · Draw(source, cursor, lanes) unchanged · tracks above the lanes }
+  class TrackLayout { <<NEW, static, pure>> AxisTicks / SimSeconds · SpanOf · HitTest · SimAtX · OfferKey }
+  class TrackGesture { <<NEW, pure>> Press · Update · Release — select / preview / commit once }
+  class ITimelineTrack { <<NEW, Fdp.Presentation>> Id · Label · Items · Select(id) · Move(id, toSimSeconds, commit) · Key(char, atSimSeconds) bool · MenuItems(id?) }
   class TimelineTrackItem { <<NEW, record>> Id · From · To? (sim s) · Label · Kind (key / segment) · Selected }
   class DirectorTracks { <<NEW, Hrot.Presentation/Map3D/Director>> Time + Camera tracks over the edited take }
   class TakeEditor { <<NEW>> Take (current) · Apply(edit) · Undo / Redo via GizmoUndoStack · Dirty · Save → TakeStore }
@@ -1058,6 +1073,9 @@ classDiagram
   class TakeTimeline { <<exists, grows>> + ProgramAt(simTime) → key, blend, fade }
   class GizmoUndoStack { <<exists, Fdp.Toolkits>> }
   TimelinePanel --> ITimelineTrack : draws, hit-tests, drags
+  TimelinePanel --> TrackLayout : places items on the active axis
+  TimelinePanel --> TrackGesture : one per panel
+  TrackGesture ..> ITimelineTrack : Select / Move(preview) / Move(commit)
   DirectorTracks ..|> ITimelineTrack
   DirectorTracks --> TakeEditor
   TakeEditor --> Take
@@ -1079,9 +1097,9 @@ sequenceDiagram
   participant S as GizmoUndoStack
   participant R as DirectorRunner
   U->>P: press on a Camera key, drag
-  P->>D: Select(item) then Move(item, simSeconds) each frame (preview only)
+  P->>D: Select(item) then Move(item, simSeconds, commit:false) each frame (preview only)
   U->>P: release
-  P->>D: Move(item, final) commit
+  P->>D: Move(item, final, commit:true) once
   D->>E: Apply(MoveKey(id, at))
   E->>S: Push(TakeEditRecord(before, after))
   E-->>R: the runner reads the edited take on its next ProgramAt
@@ -1094,14 +1112,47 @@ sequenceDiagram
 | # | slice | builds | accepted when |
 |---|---|---|---|
 | **T1** ✅ BUILT `2026-10-26` | format v2 | `CameraKey`, `TimeSegment`, `Take.Keys` / `Segments`; `TakeJson` reads `keys[]` / `segments[]`, reads `shots[]` AS keys (a shot → a cut key at `at`; a shot with `to` → a fly key at its end), writes v2; `TakeTimeline.ProgramAt` | every seeded take loads and lays out as before (55 takes); a v2 file round-trips |
-| **T2** | the track seam | `ITimelineTrack` + `TimelineTrackItem`; the panel draws tracks above the lanes, hit-tests, selects on a click, drags (preview each frame, commit on release); keys on the active axis through the time map | a frame rail: a drag moves the item, a click only selects, empty space still does nothing |
+| **T2** ✅ BUILT `2026-10-26` | the track seam | `ITimelineTrack` + `TimelineTrackItem`; the panel draws tracks above the lanes, hit-tests, selects on a click, drags (preview each frame, commit on release); keys on the active axis through the time map | a frame rail: a drag moves the item, a click only selects, empty space still does nothing |
 | **T3** | the director's tracks | `DirectorTracks` (Time = segments, Camera = keys), `TakeEditor` + `TakeEditRecord` on `GizmoUndoStack`, save through `TakeStore`; **K** adds a key from the pilot camera (relative to a selected unit, TE-2); **J** / **L** the rate | a key moved on the panel is where the saved file says; undo puts it back; K adds one at the playhead |
-| **T4** | playing keys | `DirectorRunner` plays `ProgramAt`: cut, fly (eased), dip (TE-8) | a take plays from the panel with its keys where the take's file says (note A1's acceptance) |
+| **T4** ✅ BUILT `2026-10-26` | playing keys | `DirectorRunner` plays `ProgramAt`: cut, fly (eased), dip (TE-8) | a take plays from the panel with its keys where the take's file says (note A1's acceptance) |
+
+**T2 as built** — `ITimelineTrack` + `TimelineTrackItem` (`Id`, `From`, `To?` in SIM seconds, `Label`, `Kind` key / segment, `Selected`) in
+`Fdp.Presentation/ImGui/Panels/Timeline/`; the panel takes `Tracks` (a `Func<IReadOnlyList<ITimelineTrack>>?` PROPERTY — `Draw`'s signature is
+unchanged, every existing host untouched) and draws them as rows at the top of the lanes child, so the "now" line, range and pause shading cover them.
+The rules are two pure classes: `TrackLayout` (sim seconds ⇄ axis ticks ⇄ x on BOTH axes — Sim: seconds × ticks; Wall: `ReplayTimeMap.WallAt` / `SimAt`,
+so a key inside a collapsed pause draws at the pause's wall END and a drop there reads back as the pause's instant; no map ⇒ not drawable, the row's
+tooltip says so) and `TrackGesture` (press on an item selects, a drag past 3 px previews `Move(commit:false)` each frame with the grab offset kept, the
+release — wherever — commits ONCE; a press on empty space starts nothing). A drop snaps to the nearest frame of the axis-projected index. Right-click
+adds `MenuItems(itemId)` (null on empty space) in front of the mode's items. **K / J / L** are offered through `TrackLayout.OfferKey` to the track holding
+the selected item, before the panel's keymap (which has no K/J/L; every existing key unchanged). **Deviations from the diagram above (corrected):**
+`Items` takes no axis argument (the panel converts, §2c row 10); `Move` carries `commit`; `MenuItems` takes the item id, not a context; `Tracks` is a
+property, not a `Draw` parameter; two helper classes were added. Rails: `TimelineInteractionTests.CE1364_T2_*` ×6 (placement on both axes through a
+pause, frame snap, click-only-selects, drag preview + one commit, empty space, K to the selected track) and the frame rail
+`CE1364_T2_ATrackWithTwoKeys_*` (injected `AddMousePosEvent` / `AddMouseButtonEvent`; precedent `tools/ui-probe/synthetic-input`). ⚠ Not built:
+event-snapping within 7 px on a drop (frame snap only).
 
 **T1 as built** — `KeyTransition` (Cut / Fly(s, ease) / Dip(out, in)), `CameraKey`, `TimeSegment`, `Take.Keys` / `Segments`; `CameraKeys.Of(take)`
 is the ONE place a take's keys come from (its own `keys[]`, else its `shots[]` per TE-2); `TakeJson` reads / writes v2 and the camera read /
 write is now one helper shared by shots and keys (`ParseCamera` / `WriteCamera`); `TakeTimeline.ProgramAt` reuses `ShotEvaluator.Eased` (no
 second easing). Rails `FilmDirectorTests.TE2_*` ×5, `T1_ProgramAt_*` — each red-proved; the 55 seeded takes read unchanged and write back v1.
+
+**T4 as built** *(ui, `2026-10-26`)* — `DirectorRunner.DirectUpcoming` now holds the camera `ShotEvaluator.Evaluate(ProgramFrame)` returns for
+`TakeTimeline.ProgramAt(CameraKeys.Played(take, plan), anchors, t)` — `Played` is `Of` with each shot's start taken from `Plan`'s layout (a shot
+listed after one still running starts LATER than its `at`; measured in `scenarios/pc-defend-house/takes/main.take.json`, whose third shot's anchor
+precedes its second's end — keyed at the raw `at`, that seeded take would have filmed differently, so `Played` re-times it; same per-shot helper as `Of`); ⛔ there is no second shot-playing path (a v1 take is read AS keys, TE-2). `Plan`'s
+shots stay, but only as the **stretches the film runs in** (captions, layers, speed, capture, the end) — and a take with `keys[]` and no `shots[]`
+gets one stretch per placed key (`TakeTimeline.Stretches`), so a v2 take runs at all. The dip's black is the same frame's `Fade`, carried by one new
+mailbox value `FilmStudio.Fade` (set by the runner, cleared by `Release`), drawn over the live picture by `EditorCinema` and over every captured scene
+frame in `Film.cs`'s capture. Deviations, each SUPERSEDING the T1 text:
+- **⛔ SUPERSEDED (T1): "a fly key blends from the key before it over its seconds AFTER its time."** A fly **arrives AT its key's time**, over the
+  seconds before it (clamped to start no earlier than the key it leaves) — TE-8's "how the camera gets TO a key", the dip's out-window shape, and the only
+  reading under which `CameraKeys.Of`'s "fly key at the shot's end" reproduces a shot's `to`. T1's `ProgramAt` rail was moved to match (`T1_ProgramAt_*`).
+- `ProgramFrame.Key` is the key flown INTO while a fly is under way; new `Since` = sim seconds since the key the camera leaves (an orbit's clock).
+- A fly between cameras of **different kinds** (a follow into a look-at) has nothing to blend: the leaving camera stays, the arriving one cuts in at the
+  fly's end. Same-kind cameras blend their numbers with the arithmetic `ShotEvaluator.At` already used.
+- Gap hold unchanged: in a gap the camera is the NEXT stretch's at its start; the black is of NOW.
+Rails `FilmDirectorTests.CE1364_T4_*` ×4 (fly, dip, keys-only layout, and ⭐ all 55 seeded takes + a hand-made one play the SAME shots through the key path
+as through the old per-shot path, 0.25 s samples) and `DirectorRunnerTests.CE1364_T4_TheRunner_PlaysTheKeys_*`.
 
 ✅ **T-L5 APPROVED `2026-10-26` (R-4089)** — 🔒 user: *"T-L5 approved"* — with the coordinator's amendment: the sim time per frame goes into
 the ONE per-frame step both timelines share (`TimelineFrameScanner` — the live source AND the recording's builder), so every index carries
@@ -1109,7 +1160,7 @@ the ONE per-frame step both timelines share (`TimelineFrameScanner` — the live
 the v7 frame index when present. The live cursor's map is `ReplayTimeMap.FromFrames` over the live index until a `ReplaySessionTopic`
 session exists (replay / review), then the session's map — one owner at a time.
 
-⚠ **(was) OPEN before T2 — the live panel has no sim axis** *(measured `2026-10-26`)*: the editor's live index records only WALL ticks
+⚠ **(was) OPEN before T2 — ✅ BUILT by CE-3330 E1 / E2 (`TimelineIndex.FrameSim`, `ClusterTimelineCursor`) — the live panel has no sim axis** *(measured `2026-10-26`)*: the editor's live index records only WALL ticks
 (`LiveTimelineSource.cs:61` → `TimelineFrameScanner.Step(…, wallTicks, …)`) and its cursor carries no time map
 (`EditorSubsystem.cs:5285`, `new LiveTimelineCursor(...)` with no `timeMap`) ⇒ a key in SIM seconds (§2c row 10) has nothing to be placed
 through on a live host. ⭐ Lean **T-L5**: the live scanner records each frame's sim time beside its wall ticks (it already steps the world

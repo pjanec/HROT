@@ -3,6 +3,10 @@ using Fdp.Toolkit.ReplayBrowser.Federation;
 
 namespace Fdp.Presentation.Panels.Timeline;
 
+/// <summary>⭐ <c>CE-3330</c> E2 (docs/DESIGN_Director_Timeline_Editor.md §2e) — what the host's cluster shows, as the panel's menu and marks need to
+/// know it: a live run (enters a review from the menu), a review of it, a replay; None for every host that has no such session.</summary>
+public enum TimelineMode { None, Live, Review, Replay }
+
 /// <summary>
 /// ⭐ <c>CE-1302</c> (docs/DESIGN_Director_Timeline_Editor.md §9 TL-2) — how the timeline panel learns where time is and moves it. A
 /// one-method adapter each host binds to ITS OWN transport — ⛔ never a second transport, no state of its own. All times are the
@@ -31,6 +35,22 @@ public interface ITimelineCursor
 
     /// <summary>⭐ <c>CE-3330</c> T13 — the session's wall ↔ sim map (its paused stretches are drawn on either axis); null when unknown.</summary>
     Fdp.Core.FlightRecorder.ReplayTimeMap? TimeMap => null;
+
+    /// <summary>⭐ <c>CE-3330</c> E2 — the mode the host is in (§2e): the menu offers "Review from here" on Live, the seek items on Review / Replay.</summary>
+    TimelineMode Mode => TimelineMode.None;
+
+    /// <summary>⭐ <c>CE-3330</c> E2 — the review's live point (WALL ticks, like every cursor time; converted by <see cref="AxisCursor"/>); null outside a review.</summary>
+    long? LivePoint => null;
+
+    /// <summary>⭐ <c>CE-3330</c> E2 — the session's named checkpoints (their <c>WallTicks</c> are this cursor's ticks); drawn as flags on the ruler.</summary>
+    System.Collections.Generic.IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> Checkpoints
+        => System.Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+
+    /// <summary>⭐ <c>CE-3330</c> E2 — whether the host can enter a review of its live run (the menu's "Review from here").</summary>
+    bool CanReview => false;
+
+    /// <summary>⭐ <c>CE-3330</c> E2 — reviews the live run from the frame at / before <paramref name="wallTicks"/> (no-op when <see cref="CanReview"/> is false).</summary>
+    void EnterReview(long wallTicks) { }
 }
 
 /// <summary>
@@ -108,34 +128,4 @@ public sealed class FederatedReplayCursor : ITimelineCursor
         long offset = m.NodeOffsets.TryGetValue(_nodeId(), out long o) ? o : 0L;
         m.SetBaseWallTicks(ticks - offset);
     }
-}
-
-/// <summary>
-/// ⭐ <c>CE-3330</c> (DAR row 28; docs/DESIGN_Director_Timeline_Editor.md §2d) — a LIVE host's cursor over its <c>LiveTimelineSource</c>:
-/// the extent is the index's first → last frame, "now" its last (the live edge), and it never seeks — ⭐ a live host seeks by ENTERING A
-/// REVIEW (R-3059), which waits on backend's <c>EnterReview</c>; until then the panel offers no seek on a live host and its arrows move the
-/// selection. Play / pause go through the host's own transport (Space).
-/// </summary>
-public sealed class LiveTimelineCursor : ITimelineCursor
-{
-    private readonly Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> _source;
-    private readonly Func<bool>? _isPlaying;
-    private readonly Action? _togglePlay;
-
-    public LiveTimelineCursor(Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> source, Func<bool>? isPlaying = null, Action? togglePlay = null)
-    {
-        _source = source;
-        _isPlaying = isPlaying;
-        _togglePlay = togglePlay;
-    }
-
-    private System.Collections.Generic.IReadOnlyList<long> Ticks => _source()?.Index.FrameTicks ?? Array.Empty<long>();
-    public long ExtentFrom => Ticks.Count > 0 ? Ticks[0] : 0;
-    public long ExtentTo => Ticks.Count > 0 ? Ticks[^1] : 0;
-    public long Now => ExtentTo;
-    public bool CanSeek => false;
-    public void Seek(long ticks) { }
-    public bool IsPlaying => _isPlaying?.Invoke() ?? false;
-    public bool CanPlay => _togglePlay != null;
-    public void TogglePlay() => _togglePlay?.Invoke();
 }

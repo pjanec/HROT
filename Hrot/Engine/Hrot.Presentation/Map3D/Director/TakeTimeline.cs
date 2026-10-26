@@ -14,9 +14,10 @@ public sealed record TimelineShot(int Number, ShotSpec Shot, double Start, doubl
 /// ⭐ <c>TE-2</c> / <c>TE-8</c> (docs/DESIGN_Director_Timeline_Editor.md §10 T1) — what the program shows at one sim time: <see cref="Key"/> is
 /// the key on screen; while a fly INTO it is under way <see cref="From"/> is the key before it and <see cref="Blend"/> (0…1, eased) the way
 /// from <see cref="From"/> to <see cref="Key"/> (otherwise <see cref="From"/> is null and Blend 1); <see cref="Fade"/> is the black over it
-/// (0 = none, 1 = full) in a dip.
+/// (0 = none, 1 = full) in a dip. <see cref="Since"/> is the sim time since the key the camera LEAVES (<see cref="From"/> while flying, else
+/// <see cref="Key"/>) — the time an orbiting camera has turned for.
 /// </summary>
-public sealed record ProgramFrame(CameraKey Key, CameraKey? From, float Blend, float Fade);
+public sealed record ProgramFrame(CameraKey Key, CameraKey? From, float Blend, float Fade, double Since = 0d);
 
 /// <summary>
 /// ⭐ <c>CE-4038</c> (docs/DESIGN_Film_Director.md §0, §3a) — a take laid out in SIM time from its anchor times. As <c>film.py</c>'s plan does,
@@ -59,9 +60,10 @@ public sealed class TakeTimeline
         var replays = new List<int>();
         double? lo = from?.Resolve(anchorTime), hi = to?.Resolve(anchorTime);
         double lastEnd = 0d;
-        for (int i = 0; i < take.Shots.Count; i++)
+        var specs = take.Shots.Count == 0 && take.Keys.Count > 0 ? Stretches(take, anchorTime, unresolved) : take.Shots;
+        for (int i = 0; i < specs.Count; i++)
         {
-            var s = take.Shots[i];
+            var s = specs[i];
             if (s.Replay != null) { replays.Add(i + 1); continue; }
             if (s.At.Resolve(anchorTime) is not { } at) { unresolved.Add($"shot {i + 1}: anchor '{s.At.Anchor}'"); continue; }
             double start = Math.Max(at, lastEnd);
@@ -77,6 +79,31 @@ public sealed class TakeTimeline
         return new TakeTimeline(shots, Math.Max(takeEnd, lastEnd), unresolved, replays);
     }
 
+    /// <summary>
+    /// ⭐ <c>T4</c> — a take that has KEYS and no shots (format v2 written by the editor) still needs the stretches the film runs in (what gates
+    /// captions, layers, speed and the capture): one per placed key, from its time to the next key's (the last to the take's end, else 3 s). The
+    /// CAMERA never comes from these — that is <see cref="ProgramAt"/>'s; a key whose anchor has no time is named in <paramref name="unresolved"/>.
+    /// </summary>
+    private static List<ShotSpec> Stretches(Take take, Func<string, double?> anchorTime, List<string> unresolved)
+    {
+        var placed = new List<(double At, CameraKey Key)>();
+        for (int i = 0; i < take.Keys.Count; i++)
+        {
+            if (take.Keys[i].At.Resolve(anchorTime) is { } at) placed.Add((at, take.Keys[i]));
+            else unresolved.Add($"key {i + 1}: anchor '{take.Keys[i].At.Anchor}'");
+        }
+        placed = placed.OrderBy(p => p.At).ToList();
+        double? end = take.EndAt?.Resolve(anchorTime);
+        var list = new List<ShotSpec>();
+        for (int j = 0; j < placed.Count; j++)
+        {
+            double until = j + 1 < placed.Count ? placed[j + 1].At : end is { } e && e > placed[j].At + 1e-9 ? e : placed[j].At + 3d;
+            if (until - placed[j].At <= 1e-9) continue;
+            list.Add(new ShotSpec { At = new AtExpr(placed[j].At), Seconds = until - placed[j].At, Camera = placed[j].Key.Camera });
+        }
+        return list;
+    }
+
     /// <summary>The shot held at <paramref name="simTime"/>, or null in a gap.</summary>
     public TimelineShot? At(double simTime)
     {
@@ -87,8 +114,9 @@ public sealed class TakeTimeline
 
     /// <summary>
     /// ⭐ <c>TE-2</c> / <c>TE-8</c> — the program at <paramref name="simTime"/>: the LAST key whose time (resolved through <paramref name="anchorTime"/>)
-    /// is at or before it; null before the first. A key whose anchor has no time is ignored. A fly key blends from the key before it over its
-    /// seconds; a dip key's black rises over its out-seconds BEFORE its time (the previous key still on screen) and falls over its in-seconds after.
+    /// is at or before it; null before the first. A key whose anchor has no time is ignored. ⭐ A key is where the camera ARRIVES (TE-8): a fly key
+    /// blends from the key before it over its seconds ENDING at its time (clamped to start no earlier than that key); a dip key's black rises over
+    /// its out-seconds BEFORE its time (the previous key still on screen) and falls over its in-seconds after.
     /// </summary>
     public static ProgramFrame? ProgramAt(IReadOnlyList<CameraKey> keys, Func<string, double?> anchorTime, double simTime)
     {
@@ -103,28 +131,37 @@ public sealed class TakeTimeline
         if (cur < 0) return null;
 
         double fade = 0d;
-        // the black that rises BEFORE the next key, when that key is a dip
-        if (cur + 1 < placed.Count && placed[cur + 1].Key.In is { Kind: KeyTransitionKind.Dip, OutSeconds: > 0 } next)
+        var (at0, key) = placed[cur];
+        CameraKey? from = null;
+        CameraKey shown = key;
+        float blend = 1f;
+        if (cur + 1 < placed.Count)
         {
-            double begin = placed[cur + 1].At - next.OutSeconds;
-            if (simTime > begin) fade = (simTime - begin) / next.OutSeconds;
+            var (nextAt, nextKey) = placed[cur + 1];
+            switch (nextKey.In)
+            {
+                // the black that rises BEFORE the next key, when that key is a dip (the key on screen stays)
+                case { Kind: KeyTransitionKind.Dip, OutSeconds: > 0 } dip:
+                    double begin = nextAt - dip.OutSeconds;
+                    if (simTime > begin) fade = (simTime - begin) / dip.OutSeconds;
+                    break;
+                // the fly INTO the next key: it arrives at its time, after at most its seconds (never before the key it leaves)
+                case { Kind: KeyTransitionKind.Fly, Seconds: > 0 } fly:
+                    double start = Math.Max(nextAt - fly.Seconds, at0);
+                    if (simTime > start + 1e-9)
+                    {
+                        from = key;
+                        shown = nextKey;
+                        blend = ShotEvaluator.Eased(fly.Ease, (float)Math.Clamp((simTime - start) / (nextAt - start), 0d, 1d));
+                    }
+                    break;
+            }
         }
 
-        var (at0, key) = placed[cur];
         double since = Math.Max(simTime - at0, 0d);
-        CameraKey? from = null;
-        float blend = 1f;
-        switch (key.In.Kind)
-        {
-            case KeyTransitionKind.Fly when key.In.Seconds > 0 && since < key.In.Seconds && cur > 0:
-                from = placed[cur - 1].Key;
-                blend = ShotEvaluator.Eased(key.In.Ease, (float)(since / key.In.Seconds));
-                break;
-            case KeyTransitionKind.Dip when key.In.InSeconds > 0 && since < key.In.InSeconds:
-                fade = Math.Max(fade, 1d - since / key.In.InSeconds);
-                break;
-        }
-        return new ProgramFrame(key, from, blend, (float)Math.Clamp(fade, 0d, 1d));
+        if (key.In is { Kind: KeyTransitionKind.Dip, InSeconds: > 0 } back && since < back.InSeconds)
+            fade = Math.Max(fade, 1d - since / back.InSeconds);   // the black that clears AFTER a dip key
+        return new ProgramFrame(shown, from, blend, (float)Math.Clamp(fade, 0d, 1d), since);
     }
 
     /// <summary>The next shot to start after <paramref name="simTime"/>, or null.</summary>

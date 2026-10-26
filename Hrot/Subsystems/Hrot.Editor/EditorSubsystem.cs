@@ -5247,14 +5247,15 @@ namespace Hrot.Editor
                 new Hrot.UI.Common.Panels.WaypointEditorPanel(() => Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo.Current),
                 Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorWaypoint, "Scenario", EditorWindowColor.TitleBar));
 
-            // ⭐ CE-3330 (DAR row 28; Director Timeline §2d) — the shared event timeline, LIVE: it never seeks (a live host seeks by entering a
-            //   review — backend's EnterReview); Space plays / pauses through the editor's own transport
+            // ⭐ CE-3330 (DAR row 28; Director Timeline §2d / §2e) — the shared event timeline on the cluster: live (enters a review from the menu),
+            //   review, replay — all through the ONE facade (ClusterTimelineCursor); Space plays / pauses through its transport.
+            //   ⭐ In a REPLAY the index is the previous run's (§2e), so the window and the cursor share a source func that is null then.
             var timelineTransport = _timeTransport;   // ⭐ CE-3329 row 21 — the one facade
+            Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> timelineSource =
+                () => timelineTransport is { Mode: Hrot.UI.Common.Facades.TransportMode.Replay } ? null : LiveTimeline;
             windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
-                "editor_event_timeline", "Event Timeline", "Scenario", _eventTimeline, () => LiveTimeline,
-                new Fdp.Presentation.Panels.Timeline.LiveTimelineCursor(() => LiveTimeline,
-                    isPlaying: () => timelineTransport is { IsPaused: false },
-                    togglePlay: timelineTransport == null ? null : () => { if (timelineTransport.IsPlayPauseEnabled) timelineTransport.TogglePlayPause(); }),
+                "editor_event_timeline", "Event Timeline", "Scenario", _eventTimeline, timelineSource,
+                new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
                 () => _node?.TimelineLanes.Lanes(HrotNodeContext.TimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
                 onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>())
             { IsOpen = false });
