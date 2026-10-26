@@ -111,16 +111,15 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> SetTimeScaleAsync(float scale, CancellationToken ct = default)
         => PostAsync("/sim/timescale", new JsonObject { ["scale"] = scale }, ct);
 
+    /// <summary>⭐ R-3052 — the cluster's dry run through the master; waits until the cluster reports <c>OperatingPreview</c>.</summary>
     public Task<ApiResult> EnterPreviewAsync(bool startPaused = false, CancellationToken ct = default)
-        => PostAsync("/preview/enter", new JsonObject { ["startPaused"] = startPaused }, ct);
+        => PostAsync("/preview/enter", new JsonObject { ["startPaused"] = startPaused, ["waitForReady"] = true }, ct);
 
-    public Task<ApiResult> ExitPreviewAsync(CancellationToken ct = default) => PostAsync("/preview/exit", null, ct);
+    /// <summary>⭐ R-3052 — back to Edit through the master (the dry run rewinds); waits until the cluster reports <c>OperatingEdit</c>.</summary>
+    public Task<ApiResult> ExitPreviewAsync(CancellationToken ct = default)
+        => PostAsync("/preview/exit", new JsonObject { ["waitForReady"] = true }, ct);
 
-    /// <summary>
-    /// Enters preview only when not already in it. The service-side <c>EnterPreview</c> is itself
-    /// guarded, but <c>/recording/start</c> is NOT — it throws when the session is already
-    /// previewing — so tests that mix the two need this gate to stay order-independent.
-    /// </summary>
+    /// <summary>Enters preview only when not already in it (the service-side <c>EnterPreview</c> is itself guarded).</summary>
     public async Task<ApiResult> EnterPreviewIfNeededAsync(bool startPaused = false, CancellationToken ct = default)
     {
         var state = await GetSimStateAsync(ct).ConfigureAwait(false);
@@ -257,8 +256,11 @@ public sealed class McpClient : IDisposable
 
     // ── Group H — checkpoint / restore / diff ──────────────────────────────────
 
-    public Task<ApiResult> CheckpointAsync(CancellationToken ct = default) => PostAsync("/checkpoint", null, ct);
-    public Task<ApiResult> RestoreCheckpointAsync(CancellationToken ct = default) => PostAsync("/checkpoint/restore", null, ct);
+    /// <summary>⭐ R-3044/R-3052 — a named keyframe of the LIVE recording, through the cluster master (the answer carries the label).</summary>
+    public Task<ApiResult> CheckpointAsync(string? label = null, CancellationToken ct = default)
+        => PostAsync("/checkpoint", label is null ? null : new JsonObject { ["label"] = label }, ct);
+    public Task<ApiResult> RestoreCheckpointAsync(string label, CancellationToken ct = default)
+        => PostAsync("/checkpoint/restore", new JsonObject { ["label"] = label }, ct);
 
     public Task<ApiResult> DiffCaptureAsync(IEnumerable<long>? entities = null, CancellationToken ct = default)
         => PostAsync("/diff/capture", EntitiesBody(entities), ct);
@@ -278,26 +280,26 @@ public sealed class McpClient : IDisposable
         return new JsonObject { ["entities"] = arr };
     }
 
-    // ── Group I — recording / replay ───────────────────────────────────────────
+    // ── Group I — replay (R-3052…R-3055: the CLUSTER's replay, through the master) ───────────
 
-    public Task<ApiResult> StartRecordingAsync(string mode = "preview", CancellationToken ct = default)
-        => PostAsync("/recording/start", new JsonObject { ["mode"] = mode }, ct);
+    public Task<ApiResult> ListExercisesAsync(CancellationToken ct = default) => GetAsync("/exercises", ct);
 
-    public Task<ApiResult> StopRecordingAsync(CancellationToken ct = default) => PostAsync("/recording/stop", null, ct);
+    /// <summary><c>POST /replay</c> — one request from any state; <paramref name="exerciseId"/> null ⇒ the newest exercise.</summary>
+    public Task<ApiResult> EnterReplayAsync(string? exerciseId = null, double? atSeconds = null, bool waitForReady = true, CancellationToken ct = default)
+    {
+        var body = new JsonObject { ["waitForReady"] = waitForReady };
+        if (exerciseId is not null) body["exerciseId"] = exerciseId;
+        if (atSeconds is not null) body["atSeconds"] = atSeconds.Value;
+        return PostAsync("/replay", body, ct);
+    }
 
-    /// <summary>⚠ The field is <c>fdpPath</c>, not <c>path</c> — the mistake cost an iteration once already.</summary>
-    public Task<ApiResult> LoadReplayAsync(string fdpPath, CancellationToken ct = default)
-        => PostAsync("/replay/load", new JsonObject { ["fdpPath"] = fdpPath }, ct);
+    public Task<ApiResult> SeekReplayAsync(double atSeconds, CancellationToken ct = default)
+        => PostAsync("/replay/seek", new JsonObject { ["atSeconds"] = atSeconds }, ct);
 
-    public Task<ApiResult> SeekReplayAsync(int frame, CancellationToken ct = default)
-        => PostAsync("/replay/seek", new JsonObject { ["frame"] = frame }, ct);
-
-    public Task<ApiResult> ReplayStepAsync(string dir = "forward", CancellationToken ct = default)
-        => PostAsync("/replay/step", new JsonObject { ["dir"] = dir }, ct);
+    public Task<ApiResult> StopReplayAsync(bool waitForReady = true, CancellationToken ct = default)
+        => PostAsync("/replay/stop", new JsonObject { ["waitForReady"] = waitForReady }, ct);
 
     public Task<ApiResult> GetReplayStatusAsync(CancellationToken ct = default) => GetAsync("/replay/status", ct);
-    public Task<ApiResult> ListReplayEntitiesAsync(CancellationToken ct = default) => GetAsync("/replay/entities", ct);
-    public Task<ApiResult> UnloadReplayAsync(CancellationToken ct = default) => PostAsync("/replay/unload", null, ct);
 
     // ── Group K — behaviour traces ─────────────────────────────────────────────
 

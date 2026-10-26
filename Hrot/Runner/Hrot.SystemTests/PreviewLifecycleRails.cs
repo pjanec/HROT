@@ -92,35 +92,21 @@ public sealed class PreviewLifecycleRails
     }
 
     /// <summary>
-    /// The record→replay round trip from the design's H4 list (record → stop → load → step frames).
-    /// It was blocked by <c>HN-001</c>: <c>/recording/stop</c> ends with <c>ExitPreviewMode</c>, so it
-    /// died on the same rewind.
+    /// ⭐ R-3053 — <b>a dry run is never recorded</b>: the API that used to record a preview (<c>/recording/start</c>) is gone, and
+    /// <c>/replay/status</c> names no recording on a node that only ran a preview.
     /// </summary>
     [Fact]
-    public async Task Record_then_replay_round_trips_frames()
+    public async Task A_preview_is_never_recorded()
     {
         (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
-
-        // /recording/start enters preview itself and REJECTS a session already previewing.
-        var start = (await Mcp.StartRecordingAsync("preview")).EnsureOk();
-        Assert.False(string.IsNullOrWhiteSpace(start.String("fdpPath")));
-
+        (await Mcp.EnterPreviewAsync(startPaused: false)).EnsureOk();
         (await Mcp.PlayAsync()).EnsureOk();
-        await Task.Delay(TimeSpan.FromSeconds(2));   // capture some frames
+        await Task.Delay(TimeSpan.FromSeconds(1));
 
-        var stop = (await Mcp.StopRecordingAsync()).EnsureOk();
-        var recorded = stop.String("fdpPath");
-        Assert.False(string.IsNullOrWhiteSpace(recorded));
+        var status = (await Mcp.GetStatusAsync()).EnsureOk();
+        Assert.False(status.Bool("recording"));
 
-        var loaded = (await Mcp.LoadReplayAsync(recorded!)).EnsureOk();
-        Assert.True(loaded.Int("totalFrames") > 0);
-
-        (await Mcp.ReplayStepAsync("forward")).EnsureOk();
-        var status = (await Mcp.GetReplayStatusAsync()).EnsureOk();
-        Assert.True(status.Bool("replayActive"));
-
-        _output.WriteLine($"recorded {loaded.Int("totalFrames")} frames to {recorded}");
-        (await Mcp.UnloadReplayAsync()).EnsureOk();
+        (await Mcp.ExitPreviewAsync()).EnsureOk();
     }
 }
 

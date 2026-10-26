@@ -70,10 +70,9 @@ public sealed class TrafficSubsystem : ISubsystem, IProvidesDebugSurface, Hrot.C
             world:         () => _bootstrapper?.Context?.World,
             entityMap:     () => _bootstrapper?.Context?.EntityMap,
             tkbDb:         SubsystemDebugProvider.TkbFrom(() => _bootstrapper?.Context?.World),
-            requestTransition: SubsystemDebugProvider.TransitionsVia(() => _bootstrapper?.Context?.EventBus),
-            requestCancel: SubsystemDebugProvider.CancelsVia(() => _bootstrapper?.Context?.EventBus),
+            // ⭐⭐⭐ R-3052…R-3055 — the cluster master through the node's own orchestration bus (every state/storage/seek route).
+            master:        OrchestrationBusMasterControl.Via(() => _bootstrapper?.Context?.EventBus),
             clusterState:  SubsystemDebugProvider.ClusterStateFrom(() => _bootstrapper?.Context?.ClusterSlave),
-            requestDiagnosticDump: SubsystemDebugProvider.DumpsVia(() => _bootstrapper?.Context?.EventBus),
             descriptorMap: () => _bootstrapper?.Context?.NedReplication?.DescriptorOwnershipMap,
             architecture:  () => _bootstrapper?.Context?.Kernel is null
                                  ? null

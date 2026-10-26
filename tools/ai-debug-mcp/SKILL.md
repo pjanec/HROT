@@ -48,8 +48,8 @@ multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + exco
 |-------|---------------|----------------|------------------|
 | **Edit** | Authoring; world is static | No | `load_scenario_edit` |
 | **Live** | A real run on every node | Yes — **once you `play`** | `load_scenario_live` |
-| **Preview** | A revertible run from a RAM snapshot | Only when **unpaused** | `enter_preview`, `play`, `checkpoint`, or `start_recording{preview}` |
-| **Replay** | Read-only playback of a `.fdp` in an isolated sandbox | N/A (you seek frames) | `load_replay` |
+| **Preview** | The cluster's dry run, rewound on exit; **never recorded** | Only when **unpaused** | `enter_preview` (from Edit) |
+| **Replay** | Every node replays its OWN recording of a past live run | `play`/`pause`/`step` drive the replay clock; `seek_replay` jumps | `enter_replay` (from ANY state) |
 
 **Two load modes, and they are not the same operation.** `load_scenario_edit` freezes time for authoring;
 `load_scenario_live` starts an exercise run. Both are cluster-wide two-phase-commit transitions — the editor
@@ -66,13 +66,16 @@ edit-load handler yet), so use **live** when every node must hold the world.
   also meant every `step` was silently refused. If you meet an old build whose `simTime` climbs on its own
   with `clusterState:Idle`, that is the old behaviour — and any pause/step measurement taken on it is
   unreliable.
-- **Preview is revertible.** Entering preview snapshots the world; exiting (`stop_preview` /
-  `restore_checkpoint`) rewinds to that snapshot. This is the basis of checkpoint/restore.
-- **Replay is isolated.** Seeking a replay never touches the live world — they are independent.
-
-**Single preview slot.** `checkpoint`, `enter_preview`, and `start_recording{preview}` all use the *same one*
-snapshot slot. You cannot nest them. Restore/stop/exit before starting another. Recording and checkpoint are
-mutually exclusive.
+- **Preview is revertible.** Entering preview snapshots the world; `stop_preview` rewinds to it. It is never
+  recorded — only a LIVE run records, on every node, by itself.
+- **Every route that changes the cluster goes through the cluster master, on every host** — the editor is a
+  one-node cluster. There is no editor shortcut and no `cluster/` prefix to remember: `enter_preview`,
+  `checkpoint`, `enter_replay`, `seek_replay`, `save_scenario` are each one master intent.
+- **A checkpoint is part of the LIVE recording** — a named keyframe on every node — not a preview snapshot.
+  `restore_checkpoint {label}` continues the live run from it.
+- **A replay is the cluster's, not a sandbox.** `enter_replay` (one request from any state — the master plans
+  the way) puts every node into its own recording; the ORDINARY readers (`list_entities`, `get_entity`,
+  `get_entity_brain`, `get_entity_journal`) then read the replayed world. `stop_replay` goes to Idle.
 
 **The envelope.** Every tool returns `{ ok, data, error, awaited }`. On success read `data`. On failure
 `ok:false` and `error` explains why (and the tool result is flagged as an MCP error). `awaited` relates to
@@ -191,12 +194,15 @@ set_breakpoint {"condition":{"$type":"BehaviourStep","Behaviour":"<name>","Kind"
 3. `diff_state {baselineId}` → a tree of only the changed components (plus entity births/deaths).
 
 ### F. Record and replay (post-mortem)
-1. `start_recording {mode:"preview"}` → enters preview + begins recording; returns `fdpPath`.
-2. `play` / `step` to record some frames.
-3. `stop_recording` → finalizes the `.fdp` (and rewinds, since it's preview); returns `fdpPath`.
-4. `load_replay {fdpPath}` → isolated sandbox; `get_replay_status` shows `totalFrames`.
-5. `seek_replay {frame}` / `step_replay {dir}` → move through it; `list_replay_entities` to inspect a frame.
-6. `unload_replay` when done. The live world was never touched.
+1. `load_scenario_live {name}` → a live run; every node records it by itself (nothing to start).
+2. `play` for a while (optionally `checkpoint {label}` at an interesting moment).
+3. `enter_replay {atSeconds:30, waitForReady:true}` → the newest exercise (or name one from `list_exercises`),
+   entered in ONE request from wherever the cluster is.
+4. Read the moment with the ordinary readers: `list_entities`, `get_entity`, `get_entity_brain`.
+5. `seek_replay {atSeconds:45}` → jump; `get_replay_status` shows the state and the replay's length.
+6. `get_journal_history {networkId}` / `search_replay {condition}` → scan this node's whole recording (ask the
+   node that runs the unit's brain).
+7. `stop_replay` when done (the cluster goes to Idle).
 
 ### G. Inspect AI behavior (BTree/HSM/blueprint)
 1. `observe_trace {networkId, on:true}` — **arms** tracing (allocates trace buffers). Without this, traces
@@ -342,12 +348,11 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `break_on_journal({"networkId":1000})` — pause the next time unit 1000's brain changes.
 
 ### Group H — Checkpoint / diff
-- **`checkpoint`** — Take a single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true). No params. Returns ok:true with inPreview:true. Returns 409 if a live run is active; 400 if already in preview/checkpointed.
-  Notes: Single slot: mutually exclusive with enter_preview and start_recording{preview}.; Restore with restore_checkpoint to rewind all changes..
-  Example: `checkpoint({})` — take a checkpoint before an experiment.
-- **`restore_checkpoint`** — Rewind the simulation to the checkpointed state via IPreviewController.ExitPreviewMode(). No params. Returns ok:true with inPreview:false. Returns 400 if no checkpoint is active.
-  Notes: Returns 400 if no checkpoint is active..
-  Example: `restore_checkpoint({})` — revert all changes since the last checkpoint.
+- **`checkpoint`** — Take a named checkpoint of the LIVE run — a keyframe of every node's live recording, through the cluster master (R-3044). `label?` (string). Returns { published, requestId, label }
+  Notes: A checkpoint is part of the live recording (it survives into the replay), not a preview snapshot.; restore_checkpoint continues the live run from it..
+  Example: `checkpoint({"label":"before-assault"})` — take a checkpoint before an experiment.
+- **`restore_checkpoint`** — Continue the live run from a named checkpoint, through the cluster master. Req `label` (string). Returns { published, requestId, label }
+  Example: `restore_checkpoint({"label":"before-assault"})` — revert all changes since the last checkpoint.
 - **`capture_diff_baseline`** — Serialize current entity states server-side and return a baselineId. `entities?` (array). Returns { baselineId } (e.g. "BL#1")
   Notes: Use before mutating the world, then call diff_state with the baselineId to see what changed.; Optional entities array (networkId list) scopes which entities to capture (default: all)..
   Example: `capture_diff_baseline({"entities":[1000]})` — capture baseline for entity 1000 before mutation.
@@ -366,12 +371,12 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `get_event_history({"bus":"world","type":"CenterOnEntityCommand","max":10})` — query world bus for recent CenterOnEntityCommand events.
 
 ### Group D — Sim / preview / time
-- **`enter_preview`** — Enter preview mode. Snapshots the world (revertible via stop_preview). `startPaused?` (boolean). Returns ok:true envelope.
-  Notes: Snapshots the world; stop_preview rewinds to this snapshot.; Single preview slot — mutually exclusive with checkpoint and start_recording{preview}..
-  Example: `enter_preview({"startPaused":true})` — enter preview paused for deterministic step-based control.
-- **`stop_preview`** — Exit preview mode; rewinds to the pre-preview snapshot. No params. Returns ok:true envelope.
-  Notes: Rewinds all changes made during preview back to the snapshot taken at enter_preview..
-  Example: `stop_preview({})` — exit preview and revert all changes since entering preview.
+- **`enter_preview`** — Enter the cluster's dry run (OperatingPreview) from Edit, through the cluster master on every host (R-3052). Never recorded (R-3053). `startPaused?` (boolean), `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Notes: stop_preview rewinds every node to the moment the dry run began.; A dry run is never recorded: only a live run records (R-3053)..
+  Example: `enter_preview({"startPaused":true,"waitForReady":true})` — enter preview paused for deterministic step-based control.
+- **`stop_preview`** — Leave the dry run back to Edit through the cluster master; every node rewinds to the moment it began. `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Notes: Rewinds all changes made during the dry run..
+  Example: `stop_preview({"waitForReady":true})` — exit preview and revert all changes since entering preview.
 - **`pause`** — Pause the simulation. Time freezes; commands queue until step/play. No params. Returns ok:true envelope.
   Notes: Commands and spawns while paused are queued and take effect on the next step/play.; THE ACK MEANS APPLIED as of CE-104: the route waits until isPaused is actually true before returning, so the next read is safe. Measured before the fix on --mode all: ok:true while /status still read isPaused:false, with the clock running a further ~0.2s — because a cluster-wide pause is a FUTURE BARRIER so every node stops at the same simTime.; A 504 from this route means the pause barrier is stuck — a node never reached it. Check get_logs({level:"Warning"})..
   Example: `pause({})` — pause the running simulation.
@@ -399,43 +404,26 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: Spawn is queued and processed on the next tick — call step to realize it.; CE-515 ③: goes through the node's EntityCreationPack (RequestEntityCreation), like every other author — the creator owns the entity and grants each role's group (Brain/MuscleGround/Perception) to a node serving that role. It no longer publishes a raw SpawnEntityCommand that nobody owned.; Use list_entity_types to discover valid tkbType values.; CE-292 — reliable:true engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor)..
   Example: `spawn_entity({"tkbType":1101,"transform":{"position":{"x":100,"y":0,"z":50},"rotation":{"x":0,"y":0,"z":0,"w":1}}})` — spawn entity type 1101 at position (100,0,50).
 
-### Group I — Recording / replay
-- **`start_recording`** — Start recording. Enters preview and begins writing a .fdp file. `mode?` (string, "preview"|"live", def "preview"). Returns { recording:true, mode, fdpPath }
-  Notes: mode="preview" (default): revertible, uses EnterPreviewMode→PrepareRecordingAsync.; mode="live": not supported in editor mode.; Mutually exclusive with checkpoint (both use the preview slot)..
-  Example: `start_recording({"mode":"preview"})` — start a revertible preview recording.
-- **`stop_recording`** — Stop the active recording. Finalizes BEFORE the exit rewind. No params. Returns { recording:false, fdpPath }
-  Notes: For preview mode: finalizes BEFORE the exit rewind (hard ordering rule)..
-  Example: `stop_recording({})` — stop recording and get the .fdp file path.
-- **`list_replay_entities`** — List entities from the ISOLATED replay sandbox at the current frame. No params. Returns Same schema as list_entities but from the sandbox repo, NOT the live world.
-  Notes: Requires an active replay (call load_replay first).; Does not touch or affect the live world..
-  Example: `list_replay_entities({})` — inspect entities at current replay frame.
-- **`get_replay_entity_brain`** — get_entity_brain over the loaded recording at the current replay frame (CE-1265): what the unit was doing, who ordered it, what it knew, its recent journal. Req `networkId` (number). Returns Same as get_entity_brain, plus frame.
-  Notes: Reads the replay SANDBOX, never the live world; seek_replay to the frame before a change to see its cause..
-  Example: `get_replay_entity_brain({"networkId":1000})` — what unit 1000 was doing at this replay frame.
-- **`get_replay_entity_journal`** — get_entity_journal over the loaded recording at the current replay frame (CE-1265) — the last 24 entries as they were then. Req `networkId` (number), `since?` (number). Returns Same as get_entity_journal, plus frame.
-  Example: `get_replay_entity_journal({"networkId":1000})` — the unit's recent changes at this replay frame.
-- **`get_replay_journal_history`** — EVERY brain-journal entry of one unit across the loaded recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a finished exercise. Req `networkId` (number), `from?` (number), `to?` (number). Returns { networkId, from, to, found, gap, count, entries:[{seq, at, kind, text, frame}] }
-  Notes: It walks the recording frame by frame, so a long file takes a moment; the replay's current frame is restored afterwards.; Then seek_replay to an entry's frame - 1 and read get_replay_entity_brain to see what led to it.; gap:true means entries were lost between two recorded frames (should not happen: every change dirties the unit's record)..
-  Example: `get_replay_journal_history({"networkId":1000})` — list every decision unit 1000 made in the exercise, and why.
-- **`load_replay`** — Load a .fdp recording into an ISOLATED ReplayBrowserContext. Req `fdpPath` (string). Returns { loaded:true, fdpPath, totalFrames, currentFrame }
-  Notes: While replay is active, /replay/entities returns entities from the sandbox (not the live world).; Use list_replay_entities (not list_entities) while replaying..
-  Example: `load_replay({"fdpPath":"/path/to/recording.fdp"})` — load a .fdp recording for inspection.
-- **`search_replay`** — Find the frames of the loaded recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound). Req `condition` (object), `networkId?` (number), `limit?` (number). Returns { count, truncated, hits:[{frame, networkId, context}] }
-  Notes: Changed compares each frame with the frame before it (a unit's first frame counts as changed) — e.g. every frame a unit's ActiveBehaviorHash switched.; ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result..
+### Group I — Replay
+- **`get_journal_history`** — EVERY brain-journal entry of one unit across this node's replay recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a replayed exercise. Req `networkId` (number), `from?` (number), `to?` (number). Returns { networkId, from, to, found, gap, count, entries:[{seq, at, kind, text, frame}] }
+  Notes: Ask the node that runs the unit's brain (its journal is in that node's recording).; It reads the recording file frame by frame, read-only: the replayed world is not touched; a long file takes a moment.; gap:true means entries were lost between two recorded frames (should not happen: every change dirties the unit's record)..
+  Example: `get_journal_history({"networkId":1000})` — list every decision unit 1000 made in the exercise, and why.
+- **`list_exercises`** — The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053). No params. Returns { count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.
+  Notes: Answered by a host that keeps the cluster read model (the editor, the orchestrator, ExCon); other nodes answer 503..
+  Example: `list_exercises({})` — what can be replayed.
+- **`enter_replay`** — Replay an exercise on the whole cluster, from ANY state, in ONE request — the cluster master plans the way (unload, load, seek) (R-3055). `exerciseId?` (string), `atSeconds?` (number), `waitForReady?` (boolean). Returns { published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).
+  Notes: Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.; play / pause / step drive the replay clock; seek_replay jumps..
+  Example: `enter_replay({"atSeconds":30,"waitForReady":true})` — replay the last exercise from 30 s in.
+- **`search_replay`** — Find the frames of this node's replay recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound). Req `condition` (object), `networkId?` (number), `limit?` (number). Returns { count, truncated, hits:[{frame, networkId, context}] }
+  Notes: Changed compares each frame with the frame before it (a unit's first frame counts as changed) — e.g. every frame a unit's ActiveBehaviorHash switched.; ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result.; Then seek_replay to a hit to read the moment with the ordinary readers..
   Example: `search_replay({"condition":{"$type":"PropertyMatch","ComponentType":"Fdp.Toolkit.Behavior.Components.BehaviorState","PropertyPath":"ActiveBehaviorHash","Operator":"Changed","Predicate":{"$type":"Numeric"}},"networkId":1000,"limit":10})` — find when something happened in the recording.
-- **`seek_replay`** — Seek to a specific frame in the ISOLATED sandbox. Does NOT touch the live world. Req `frame` (number). Returns { frame, totalFrames }
-  Notes: Isolation guarantee: does NOT touch the live world..
-  Example: `seek_replay({"frame":0})` — seek replay to frame 0 (start).
-- **`get_replay_selection`** — The operator's selection at the current replay frame (CE-1265) — the unit they were pointing at then (the selection is recorded). No params. Returns { frame, primary, selection:[networkId] }
-  Notes: To find WHEN the operator selected something, search_replay a Changed condition on SelectionState.IsSelected..
-  Example: `get_replay_selection({})` — which unit the operator had selected at this frame.
-- **`get_replay_status`** — Replay sandbox status. No params. Returns { replayActive, currentFrame, totalFrames }
-  Example: `get_replay_status({})` — check if replay is active and current frame.
-- **`step_replay`** — Step one frame forward or backward in the ISOLATED sandbox. Does NOT touch the live world. `dir?` (string, "forward"|"back", def "forward"). Returns { stepped:bool, frame, totalFrames }
-  Notes: Isolation guarantee: does NOT touch the live world..
-  Example: `step_replay({"dir":"forward"})` — step one frame forward in the replay.
-- **`unload_replay`** — Dispose the replay sandbox and return to live world queries. No params. Returns ok:true envelope.
-  Example: `unload_replay({})` — unload replay sandbox when done inspecting.
+- **`seek_replay`** — Seek the cluster's replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap. Req `atSeconds` (number). Returns { published, requestId, atSeconds }
+  Notes: The cluster pauses for the seek; read get_replay_status, then the ordinary readers..
+  Example: `seek_replay({"atSeconds":45})` — jump the replay to 45 s.
+- **`get_replay_status`** — The cluster's state, the loaded replay's length, this node's replay recording, and its clock. No params. Returns { clusterState, replaying, durationSeconds, recording, sim }
+  Example: `get_replay_status({})` — is the cluster replaying, and where.
+- **`stop_replay`** — Leave the replay: the cluster goes to Idle. `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Example: `stop_replay({"waitForReady":true})` — end the replay.
 
 ### Group K — AI behavior traces
 - **`get_behaviour_decisions`** — Which node / state / transition of a behaviour binds which utility decision, and how (CE-1325): ChooseOption chooses, RankCandidates ranks, an IsOption guard reads one option, a custom action holds one in its params. Req `name` (string). Returns { behaviour, bindings:[{kind: node|state|transition, element, label, role: Chooses|Ranks|Reads|Holds, via (the params field), decision, assetId, decisionId, option?}] }
@@ -821,10 +809,11 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 2. **Arm traces first.** `get_entity_trace` is empty unless you `observe_trace{on:true}` and then step.
 3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; pause-step
    to observe results instead of waiting.
-4. **One preview slot.** Don't `checkpoint` while in preview, or `start_recording` while checkpointed.
-   Restore/stop first.
-5. **Replay never affects the live world** — and the live world never affects replay. Use
-   `list_replay_entities` (not `list_entities`) while replaying.
+4. **A checkpoint needs a live run, a restore needs its label.** `checkpoint` answers the label it used; pass it
+   to `restore_checkpoint`. A preview is not a checkpoint and is never recorded.
+5. **A replay is the cluster's.** `enter_replay` puts every node into its recording; read it with the ordinary
+   readers (`list_entities`, `get_entity_brain`). The routes PUBLISH — pass `waitForReady:true` or poll
+   `get_replay_status` before reading.
 6. **`patch_attribute` keys must be registered** (see `get_attributes_schema`); unregistered keys are silently
    ignored. For arbitrary fields use `edit_component`.
 7. **Non-finite floats** appear as the strings `"NaN"`/`"Infinity"`/`"-Infinity"` in dumps — that's valid

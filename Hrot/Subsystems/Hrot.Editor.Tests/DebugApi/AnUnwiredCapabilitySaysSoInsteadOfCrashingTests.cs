@@ -52,7 +52,9 @@ public sealed class AnUnwiredCapabilitySaysSoInsteadOfCrashingTests
     /// </summary>
     [Theory]
     [InlineData("_bpManager",    "Breakpoints",  "/breakpoints/* would read as a crash rather than an absence")]
-    [InlineData("_rrController", "RecordReplay", "/recording|/replay would read as a crash rather than an absence")]
+    // ⛔ "_rrController" (RecordReplay) is gone from this theory: the /recording and sandbox /replay routes it guarded are retired
+    //    (R-3052…R-3055) — the cluster's replay goes through the master, and the controller is now only READ (status, the recording a
+    //    journal history scans), never required.
     public void AnAbsentDependencyThrowsTheTypedAbsence(string field, string capability, string consequence)
     {
         string src = ServiceSource();

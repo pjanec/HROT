@@ -16,8 +16,9 @@ namespace Hrot.Editor.Tests.DebugApi;
 /// </summary>
 public sealed class TheClusterMembershipRoutesTests
 {
-    private readonly List<TransitionStateIntent> _transitions = new();
-    private readonly List<CancelOperationIntent> _cancels = new();
+    private readonly RecordingMasterControl _master = new();
+    private List<TransitionStateIntent> _transitions => _master.Transitions;
+    private List<CancelOperationIntent> _cancels => _master.Cancels;
 
     // ⭐ Two providers, the shape of a real multi-subsystem host: the ACTIVE one has no master (an IG), the other
     //   hosts it (the orchestrator) — so the any-node fallback is what is under test, not a lucky active perspective.
@@ -27,9 +28,8 @@ public sealed class TheClusterMembershipRoutesTests
                    {
                        new SubsystemDebugProvider("IG", "IG"),
                        new SubsystemDebugProvider("Orchestrator", "Orchestrator",
-                           requestTransition: withBus ? () => i => _transitions.Add(i) : null,
-                           clusterRoster:     roster is null ? null : () => roster,
-                           requestCancel:     withBus ? () => c => _cancels.Add(c) : null),
+                           master:            withBus ? () => _master : null,
+                           clusterRoster:     roster is null ? null : () => roster),
                    },
                    currentPerspective: () => "IG",
                    acksPending: null));
@@ -124,7 +124,7 @@ public sealed class TheClusterMembershipRoutesTests
         var bare = new SubsystemDebugProvider("IG", "IG").DescribeCapabilities();
         var master = new SubsystemDebugProvider("Orchestrator", "Orchestrator",
             clusterRoster: () => Array.Empty<ClusterRosterEntry>(),
-            requestCancel: () => _ => { }).DescribeCapabilities();
+            master:        () => _master).DescribeCapabilities();
 
         Assert.False(bare[DebugCapabilities.ClusterRoster]);
         Assert.False(bare[DebugCapabilities.ClusterCancel]);

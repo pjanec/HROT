@@ -72,10 +72,8 @@ namespace Hrot.SimHost
                 tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                    .TkbFrom(() => _app?.WorldOrNull),
                 // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
-                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransitionsVia(() => _app?.OrchestrationBus),
-                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
-                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _app?.OrchestrationBus),
+                //    ⭐⭐⭐ R-3052…R-3055 — every master intent (transition, cancel, dump, save, seek, checkpoint) on that bus.
+                master: Hrot.Presentation.DebugApi.OrchestrationBusMasterControl.Via(() => _app?.OrchestrationBus),
                 // ⭐⭐⭐ CE-163 — SimHost's OWN committed cluster state, from its OWN ClusterSlave, through
                 //    the SAME shared projection CGF and IG use. 🔒 "every ECS node must use the same shared
                 //    code" — ⛔ the identical line, deliberately, in all three composition roots.
@@ -84,15 +82,6 @@ namespace Hrot.SimHost
                                    .ClusterStateFrom(() => _app?.ClusterSlave),
                 // ⭐⭐ MD-002 — this subsystem's OWN kernel snapshot. ⚠ Lazily, like every accessor here:
                 //    the kernel is created in Initialize, after the composition root builds the provider.
-                // ⭐⭐ MD-006 — the dump trigger, on the SAME bus and by the SAME argument as
-                //    requestTransition above: any node can ask, the pipeline is cluster-wide.
-                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .DumpsVia(() => _app?.OrchestrationBus),
-                // ⭐⭐ CE-277(c0, HTTP) — POST /scenario/save on THIS node triggers the cluster-wide JSON
-                //    save by publishing ExecuteStorageOpIntent{SaveScenarioJson} on the same control-plane
-                //    bus as requestTransition/DumpsVia. Any node may ask; the fan-out + merge is cluster-wide.
-                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                             .SavesScenarioJsonVia(() => _app?.OrchestrationBus),
                 // ⭐⭐⭐ CE-276 — SimHost's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) +
                 //    its OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns
                 //    the entity. Mirrors CgfSubsystem.CreateDebugProvider() exactly.

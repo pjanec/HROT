@@ -54,7 +54,7 @@ namespace Hrot.Editor.DebugApi
             Breakpoint  => Hint("GET /breakpoints",      "the registered breakpoints and their ids"),
             Scenario    => Hint("GET /scenarios",        "the scenarios this build can load"),
             TkbType     => Hint("GET /tkb/types",        "the TKB templates and their tkbType ids"),
-            Recording   => Hint("POST /recording/start", "start a recording before stopping or replaying one"),
+            Recording   => Hint("GET /exercises", "the recorded live runs the cluster can replay (POST /replay enters one)"),
             Panel       => Hint("GET /panels", "which panels are instrumented, and which published a model this frame"),
             Blueprint   => Hint("GET /blueprints", "the blueprints this editor has compiled, by name"),
             _           => null,

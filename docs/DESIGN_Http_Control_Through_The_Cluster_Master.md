@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-26
-build-state: READY-TO-BUILD
+build-state: BUILT (A: CE-3326, B2: CE-3325) — the as-built tables in §3 and §6 say where it deviates
 current-answer: §3 (the route table) and §4 (UML). §2 is the inventory it was drawn from.
 stale-below: nothing.
 known-rot: none yet.
@@ -33,9 +33,19 @@ related-designs:
 > need cluster/transition, the cluster state machine handles the intermediate transitions automatically."*
 > 🔒 *"Record traffic car, do not rebuild map every frame there can be thousands of traffic cars and pedestrians."*
 
-## 2. INVENTORY — what each route does today *(grep + reading every handler; ⚠ the codebase-memory graph could not be indexed this session — the worktrees of three running agents kept changing files — so this is grep-only, and coverage could not be checked)*
+## 2. INVENTORY — what each route did before this design *(grep + reading every handler, then the graph once it indexed)*
 
-| route | today | through the master? |
+| graph query *(`scripts/cbm.sh search_graph`, `2026-10-26`)* | total | what it settled |
+|---|---|---|
+| `name_pattern:".*DebugProvider.*"`, `label:Interface` | 1 | ⭐ ONE provider seam (`ISubsystemDebugProvider`) — the place the master control belongs |
+| `name_pattern:".*Preview(Controller\|Handler\|Adapter).*"`, `label:Class` | 8 | ⭐ ONE dry-run handler (`ReferencePreviewHandler`, D14); `EditorPreviewAdapter` / `EditorPreviewController` are the editor's local shortcuts to it — the HTTP surface no longer uses them |
+| `name_pattern:".*ReplayBrowser.*"`, `label:Class` | 5 | the sandbox (`ReplayBrowserContext`) and the separate offline viewer (`ReplayBrowserSubsystem`) — the viewer is kept; the debug service's own sandbox world is retired |
+| `name_pattern:".*RecordReplayController.*"`, `label:Class` | 2 | ⭐ ONE recorder per node (`EcsRecordReplayController`) — it now names the file it replays |
+| `search_code "WorldEpoch.Moved"` | ~75 users | why B1 (a seek counting as a restore) is a finding, not a build |
+
+⚠ `check_index_coverage` is not available through the CLI, so coverage could not be checked.
+
+| route | before | through the master? |
 |---|---|---|
 | `POST /scenario/load/edit`, `/scenario/load/live` | `TransitionStateIntent` (HN-029) | ✅ |
 | `POST /scenario/save` | editor: `_editorLogic.SaveScenarioAs` (`DebugApiService.cs:1346`); others: `RequestSaveScenarioJsonAnyNode` | ⛔ editor shortcut |
@@ -70,9 +80,20 @@ related-designs:
 | ⛔ `POST /recording/start`, `/recording/stop` | **retired** — a live run records on every node (R-4000); a preview never does (R-3053) | — |
 | `POST /cluster/transition`, `/cluster/cancel`, `GET /cluster/roster` | kept: the operator's raw primitives — ⛔ no workflow needs them | — |
 
-⭐ **One seam replaces the per-intent delegates:** `ISubsystemDebugProvider.PublishToMaster(object intent)` = this host's orchestration bus.
-On a node that is not the master the intent leaves through `ClusterOpEgressTranslator`; the editor's own master reads the same bus. ⇒ ⛔ no
+⭐ **One seam replaces the per-intent delegates:** `ISubsystemDebugProvider.Master` = an `IClusterMasterControl` on this host's orchestration
+bus. On a node that is not the master the intent leaves through `ClusterOpEgressTranslator`; the editor's own master reads the same bus. ⇒ ⛔ no
 route has an editor arm.
+
+⭐ **AS-BUILT `2026-10-26` (CE-3326)** — and where it deviates from the table above:
+
+| as built | why |
+|---|---|
+| ⚠ the seam is **typed**, `IClusterMasterControl` (`Transition` · `SeekReplay` · `Storage` · `TakeCheckpoint` · `RestoreCheckpoint` · `Cancel` · `Dump`), not `PublishToMaster(object)` | ⭐ the provider's own rule: the debug host may ask the master to act, never inject arbitrary events into a control plane. One implementation, `OrchestrationBusMasterControl`; it replaces `RequestTransition` · `RequestCancel` · `RequestDiagnosticDump` · `RequestSaveScenarioJson` and their four `…Via` factories. ⭐ The orchestrator and the traffic node now also save and dump (they lacked the delegates) |
+| `POST /checkpoint` makes a label when given none and returns it; `POST /checkpoint/restore` requires one | ⭐ `ClusterMaster.StartRestore` refuses a restore with no label, and an unnamed checkpoint is named after the master's wall time, which the caller cannot know |
+| `GET /entities/{id}/journal/history` and `POST /replay/search` scan **this node's replay recording**, read-only (`EcsRecordReplayController.ActiveReplayFilePath` → provider `ReplayRecordingPath`, no any-node fallback) | ⭐ a journal is in the recording of the node that runs the brain. Wired on the editor and CGF (where brains run); ⚠ SimHost / IG name none yet — a search there answers *"not in a replay"* |
+| `GET /exercises` and `GET /replay/status`'s `durationSeconds` read the cluster read model (`ClusterUiCache`) of a host that keeps one — the editor, the orchestrator, ExCon | ⚠ a CGF / SimHost / IG process answers 503 for `/exercises`; `POST /replay` there needs an `exerciseId` |
+| every publishing route takes `waitForReady` (preview, replay, stop) and then polls the cluster state | ⭐ the same contract as the scenario loads |
+| ⚠ `POST /scenario/save` no longer copies film takes (`EditorScenarioSession.SaveAs` did) | the take copy is an editor-session step, not a cluster save — reported to ui (§7) |
 
 ## 4. UML
 

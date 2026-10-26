@@ -84,6 +84,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
 
     private HrotNodeContext?  _context;
+    private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _rrController;   // CE-1265/CE-1266 — its replay recording, for the debug API
     private NetworkEntityMap? _entityMap;
 
     /// <summary>
@@ -501,10 +502,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐⭐ HN-029: the node's own orchestration bus — the same one its ClusterSlave and
             //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
             //    path the operator's own "Load into Live" button takes.
-            requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .TransitionsVia(() => _context?.EventBus),
-            // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
-            requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _context?.EventBus),
+            //    ⭐⭐⭐ R-3052…R-3055 — every master intent (transition, cancel, dump, save, seek, checkpoint) on that bus.
+            master: Hrot.Presentation.DebugApi.OrchestrationBusMasterControl.Via(() => _context?.EventBus),
+            // ⭐ CE-1265/CE-1266 — the recording this node replays now: the journal history and recording search scan it.
+            replayRecording: () => _rrController?.ActiveReplayFilePath,
             // ⭐⭐⭐ CE-163 — CGF's OWN committed cluster state, from its OWN ClusterSlave, through the SAME
             //    shared projection SimHost and IG use. 🔒 "every ECS node must use the same shared code".
             // ⚠ Lazy for a LOAD-BEARING reason, not style: Initialize REPLACES the context's slave with the
@@ -515,11 +516,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                                .ClusterStateFrom(() => _context?.ClusterSlave),
             // ⭐⭐ MD-002 — CGF's own kernel snapshot, the same one its Architecture Diagnostics window
             //    already renders (line ~1038). ⚠ Lazy: _context is null until Initialize.
-            // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
-            requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .DumpsVia(() => _context?.EventBus),
-            requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .SavesScenarioJsonVia(() => _context?.EventBus),
             // ⭐⭐⭐ CE-276 — CGF's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) + its
             //    OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns the entity.
             requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
@@ -1138,7 +1134,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    extractor and THE SUBSYSTEM wires it — ⛔ the extractor never learns about a bus, which is
         //    what keeps Hrot.CGF separately deployable (R-79).
         // ⭐ `_context.EventBus` is the node's own orchestration bus — the same one its ClusterSlave
-        //   drains (HN-029's TransitionsVia reads it too), ⛔ not the CGF interaction bus.
+        //   drains (the debug surface's OrchestrationBusMasterControl reads it too), ⛔ not the CGF interaction bus.
         extractor.OnRemap = map =>
         {
             // ⭐⭐ Slice 1 — this node's OWN Watch needs the same table it publishes to the cluster.
@@ -1231,6 +1227,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 TerrainStagingRoot  = isolatedTempRoot,
             });
         var rrController = cgfHandlers.RecordReplayController;
+        _rrController = rrController;   // ⭐ CE-1265/CE-1266 — the debug provider names this node's replay recording
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);
         _fdpEntityInspector.ExtractionService = cgfEntityService;

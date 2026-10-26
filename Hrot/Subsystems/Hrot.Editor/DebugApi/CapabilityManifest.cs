@@ -79,7 +79,10 @@ public static class CapabilityManifest
         //    would have made it undiagnosable — exactly R-133's complaint about declared cells.
         if (path.StartsWith("/missions", StringComparison.Ordinal))    return DebugCapabilities.MissionEdit;
 
-        if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.Preview;
+        // ⭐⭐⭐ R-3052…R-3055 — preview, checkpoint, replay and the exercise list drive (or read) the CLUSTER MASTER, so they are the
+        //    master cell (a bus that reaches it), the same as a scenario load — ⛔ no longer the editor's preview controller.
+        if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.ScenarioLoad;
+        if (path.StartsWith("/exercises", StringComparison.Ordinal))  return DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
         // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.
         //    📌 While `/scenario/load` was hardwired to IEditorLogic, a cluster refusal read "authoring is
@@ -95,9 +98,8 @@ public static class CapabilityManifest
         if (path.StartsWith("/scenario/save", StringComparison.Ordinal)) return DebugCapabilities.SaveScenarioJson;
         if (path.StartsWith("/scenario", StringComparison.Ordinal))    return DebugCapabilities.EditorAuthoring;
         if (path.StartsWith("/scenarios", StringComparison.Ordinal))   return DebugCapabilities.EditorAuthoring;
-        if (path.StartsWith("/recording", StringComparison.Ordinal))   return DebugCapabilities.EditorAuthoring;
-        if (path.StartsWith("/replay", StringComparison.Ordinal))      return DebugCapabilities.EditorAuthoring;
-        if (path.StartsWith("/checkpoint", StringComparison.Ordinal))  return DebugCapabilities.WorldRead;
+        if (path.StartsWith("/replay", StringComparison.Ordinal))      return DebugCapabilities.ScenarioLoad;
+        if (path.StartsWith("/checkpoint", StringComparison.Ordinal))  return DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/diff", StringComparison.Ordinal))        return DebugCapabilities.WorldRead;
         if (path.StartsWith("/entities", StringComparison.Ordinal))    return DebugCapabilities.WorldRead;
         if (path.StartsWith("/breakpoints", StringComparison.Ordinal)) return DebugCapabilities.EditorAuthoring;

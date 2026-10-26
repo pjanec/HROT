@@ -1227,32 +1227,34 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/preview/enter")] = new RouteDoc(
             Tool:    "enter_preview",
             Group:   "D — Sim / preview / time",
-            Summary: "Enter preview mode. Snapshots the world (revertible via stop_preview).",
-            Returns: "ok:true envelope.",
-            Hint:    "No required params. Optional: startPaused (bool). Example: enter_preview({startPaused:true})",
+            Summary: "Enter the cluster's dry run (OperatingPreview) from Edit, through the cluster master on every host (R-3052). Never recorded (R-3053).",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "No required params. Optional: startPaused (bool), waitForReady (bool). Example: enter_preview({startPaused:true, waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("startPaused", "boolean", false, "Start preview in paused state"),
+                new("startPaused", "boolean", false, "Start the dry run paused"),
+                new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingPreview"),
             },
             Notes: new[]
             {
-                "Snapshots the world; stop_preview rewinds to this snapshot.",
-                "Single preview slot — mutually exclusive with checkpoint and start_recording{preview}.",
+                "stop_preview rewinds every node to the moment the dry run began.",
+                "A dry run is never recorded: only a live run records (R-3053).",
             },
-            ExampleArgsJson: "{\"startPaused\":true}",
+            ExampleArgsJson: "{\"startPaused\":true,\"waitForReady\":true}",
             ExampleGist: "enter preview paused for deterministic step-based control"),
 
         [("POST", "/preview/exit")] = new RouteDoc(
             Tool:    "stop_preview",
             Group:   "D — Sim / preview / time",
-            Summary: "Exit preview mode; rewinds to the pre-preview snapshot.",
-            Returns: "ok:true envelope.",
-            Hint:    "No params. Example: stop_preview({})",
+            Summary: "Leave the dry run back to Edit through the cluster master; every node rewinds to the moment it began.",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "No required params. Optional: waitForReady (bool). Example: stop_preview({waitForReady:true})",
+            Params: new RouteParam[] { new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingEdit") },
             Notes: new[]
             {
-                "Rewinds all changes made during preview back to the snapshot taken at enter_preview.",
+                "Rewinds all changes made during the dry run.",
             },
-            ExampleArgsJson: "{}",
+            ExampleArgsJson: "{\"waitForReady\":true}",
             ExampleGist: "exit preview and revert all changes since entering preview"),
 
         [("POST", "/scenario/load/edit")] = new RouteDoc(
@@ -1799,28 +1801,26 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/checkpoint")] = new RouteDoc(
             Tool:    "checkpoint",
             Group:   "H — Checkpoint / diff",
-            Summary: "Take a single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true).",
-            Returns: "ok:true with inPreview:true. Returns 409 if a live run is active; 400 if already in preview/checkpointed.",
-            Hint:    "No params. Must NOT be in preview. Example: checkpoint({})",
+            Summary: "Take a named checkpoint of the LIVE run — a keyframe of every node's live recording, through the cluster master (R-3044).",
+            Returns: "{ published, requestId, label }",
+            Hint:    "Optional: label (string). Requires a live run. Example: checkpoint({label:\"before-assault\"})",
+            Params: new RouteParam[] { new("label", "string", false, "The checkpoint's name (restore_checkpoint finds it by it); one is made when omitted, and returned") },
             Notes: new[]
             {
-                "Single slot: mutually exclusive with enter_preview and start_recording{preview}.",
-                "Restore with restore_checkpoint to rewind all changes.",
+                "A checkpoint is part of the live recording (it survives into the replay), not a preview snapshot.",
+                "restore_checkpoint continues the live run from it.",
             },
-            ExampleArgsJson: "{}",
+            ExampleArgsJson: "{\"label\":\"before-assault\"}",
             ExampleGist: "take a checkpoint before an experiment"),
 
         [("POST", "/checkpoint/restore")] = new RouteDoc(
             Tool:    "restore_checkpoint",
             Group:   "H — Checkpoint / diff",
-            Summary: "Rewind the simulation to the checkpointed state via IPreviewController.ExitPreviewMode().",
-            Returns: "ok:true with inPreview:false. Returns 400 if no checkpoint is active.",
-            Hint:    "No params. Requires an active checkpoint. Example: restore_checkpoint({})",
-            Notes: new[]
-            {
-                "Returns 400 if no checkpoint is active.",
-            },
-            ExampleArgsJson: "{}",
+            Summary: "Continue the live run from a named checkpoint, through the cluster master.",
+            Returns: "{ published, requestId, label }",
+            Hint:    "Req: label (string, as checkpoint returned it). Requires a live run. Example: restore_checkpoint({label:\"before-assault\"})",
+            Params: new RouteParam[] { new("label", "string", true, "The checkpoint to restore") },
+            ExampleArgsJson: "{\"label\":\"before-assault\"}",
             ExampleGist: "revert all changes since the last checkpoint"),
 
         [("POST", "/diff/capture")] = new RouteDoc(
@@ -1862,134 +1862,72 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"baselineId\":\"BL#1\",\"entities\":[1000]}",
             ExampleGist: "diff entity 1000 against baseline BL#1"),
 
-        [("POST", "/recording/start")] = new RouteDoc(
-            Tool:    "start_recording",
-            Group:   "I — Recording / replay",
-            Summary: "Start recording. Enters preview and begins writing a .fdp file.",
-            Returns: "{ recording:true, mode, fdpPath }",
-            Hint:    "No required params. Optional: mode (\"preview\"|\"live\", def \"preview\"). Example: start_recording({mode:\"preview\"})",
-            Params: new RouteParam[]
-            {
-                new("mode", "string", false, "Recording mode: \"preview\" (revertible) or \"live\" (not supported in editor mode). Default: \"preview\"",
-                    DefaultJson: "\"preview\"",
-                    EnumJson: "[\"preview\",\"live\"]"),
-            },
-            Notes: new[]
-            {
-                "mode=\"preview\" (default): revertible, uses EnterPreviewMode→PrepareRecordingAsync.",
-                "mode=\"live\": not supported in editor mode.",
-                "Mutually exclusive with checkpoint (both use the preview slot).",
-            },
-            ExampleArgsJson: "{\"mode\":\"preview\"}",
-            ExampleGist: "start a revertible preview recording"),
-
-        [("POST", "/recording/stop")] = new RouteDoc(
-            Tool:    "stop_recording",
-            Group:   "I — Recording / replay",
-            Summary: "Stop the active recording. Finalizes BEFORE the exit rewind.",
-            Returns: "{ recording:false, fdpPath }",
-            Hint:    "No params. Example: stop_recording({})",
-            Notes: new[]
-            {
-                "For preview mode: finalizes BEFORE the exit rewind (hard ordering rule).",
-            },
+        [("GET", "/exercises")] = new RouteDoc(
+            Tool:    "list_exercises",
+            Group:   "I — Replay",
+            Summary: "The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053).",
+            Returns: "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
+            Hint:    "No params. Example: list_exercises({})",
+            Notes: new[] { "Answered by a host that keeps the cluster read model (the editor, the orchestrator, ExCon); other nodes answer 503." },
             ExampleArgsJson: "{}",
-            ExampleGist: "stop recording and get the .fdp file path"),
+            ExampleGist: "what can be replayed"),
 
-        [("POST", "/replay/load")] = new RouteDoc(
-            Tool:    "load_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Load a .fdp recording into an ISOLATED ReplayBrowserContext.",
-            Returns: "{ loaded:true, fdpPath, totalFrames, currentFrame }",
-            Hint:    "Req: fdpPath (string, absolute path to .fdp file). Example: load_replay({fdpPath:\"/path/to/recording.fdp\"})",
+        [("POST", "/replay")] = new RouteDoc(
+            Tool:    "enter_replay",
+            Group:   "I — Replay",
+            Summary: "Replay an exercise on the whole cluster, from ANY state, in ONE request — the cluster master plans the way (unload, load, seek) (R-3055).",
+            Returns: "{ published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).",
+            Hint:    "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool). Example: enter_replay({atSeconds:30, waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("fdpPath", "string", true, "Absolute path to the .fdp recording file"),
+                new("exerciseId", "string", false, "The exercise (list_exercises); the newest when omitted"),
+                new("atSeconds", "number", false, "Where to enter, seconds after the exercise's start (default 0)"),
+                new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReplay"),
             },
             Notes: new[]
             {
-                "While replay is active, /replay/entities returns entities from the sandbox (not the live world).",
-                "Use list_replay_entities (not list_entities) while replaying.",
+                "Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.",
+                "play / pause / step drive the replay clock; seek_replay jumps.",
             },
-            ExampleArgsJson: "{\"fdpPath\":\"/path/to/recording.fdp\"}",
-            ExampleGist: "load a .fdp recording for inspection"),
+            ExampleArgsJson: "{\"atSeconds\":30,\"waitForReady\":true}",
+            ExampleGist: "replay the last exercise from 30 s in"),
 
         [("POST", "/replay/seek")] = new RouteDoc(
             Tool:    "seek_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Seek to a specific frame in the ISOLATED sandbox. Does NOT touch the live world.",
-            Returns: "{ frame, totalFrames }",
-            Hint:    "Req: frame (number, 0-based). Example: seek_replay({frame:0})",
-            Params: new RouteParam[]
-            {
-                new("frame", "number", true, "Frame index to seek to (0-based)"),
-            },
-            Notes: new[]
-            {
-                "Isolation guarantee: does NOT touch the live world.",
-            },
-            ExampleArgsJson: "{\"frame\":0}",
-            ExampleGist: "seek replay to frame 0 (start)"),
+            Group:   "I — Replay",
+            Summary: "Seek the cluster's replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap.",
+            Returns: "{ published, requestId, atSeconds }",
+            Hint:    "Req: atSeconds (number, from the exercise's start). Example: seek_replay({atSeconds:45})",
+            Params: new RouteParam[] { new("atSeconds", "number", true, "Seconds after the exercise's start") },
+            Notes: new[] { "The cluster pauses for the seek; read get_replay_status, then the ordinary readers." },
+            ExampleArgsJson: "{\"atSeconds\":45}",
+            ExampleGist: "jump the replay to 45 s"),
 
-        [("POST", "/replay/step")] = new RouteDoc(
-            Tool:    "step_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Step one frame forward or backward in the ISOLATED sandbox. Does NOT touch the live world.",
-            Returns: "{ stepped:bool, frame, totalFrames }",
-            Hint:    "No required params. Optional: dir (\"forward\"|\"back\", def \"forward\"). Example: step_replay({dir:\"forward\"})",
-            Params: new RouteParam[]
-            {
-                new("dir", "string", false, "Step direction: \"forward\" or \"back\". Default: \"forward\"",
-                    DefaultJson: "\"forward\"",
-                    EnumJson: "[\"forward\",\"back\"]"),
-            },
-            Notes: new[]
-            {
-                "Isolation guarantee: does NOT touch the live world.",
-            },
-            ExampleArgsJson: "{\"dir\":\"forward\"}",
-            ExampleGist: "step one frame forward in the replay"),
+        [("POST", "/replay/stop")] = new RouteDoc(
+            Tool:    "stop_replay",
+            Group:   "I — Replay",
+            Summary: "Leave the replay: the cluster goes to Idle.",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "Optional: waitForReady (bool). Example: stop_replay({waitForReady:true})",
+            Params: new RouteParam[] { new("waitForReady", "boolean", false, "Wait until the cluster reports Idle") },
+            ExampleArgsJson: "{\"waitForReady\":true}",
+            ExampleGist: "end the replay"),
 
         [("GET", "/replay/status")] = new RouteDoc(
             Tool:    "get_replay_status",
-            Group:   "I — Recording / replay",
-            Summary: "Replay sandbox status.",
-            Returns: "{ replayActive, currentFrame, totalFrames }",
+            Group:   "I — Replay",
+            Summary: "The cluster's state, the loaded replay's length, this node's replay recording, and its clock.",
+            Returns: "{ clusterState, replaying, durationSeconds, recording, sim }",
             Hint:    "No params. Example: get_replay_status({})",
             ExampleArgsJson: "{}",
-            ExampleGist: "check if replay is active and current frame"),
+            ExampleGist: "is the cluster replaying, and where"),
 
-        [("GET", "/replay/entities/{networkId}/brain")] = new RouteDoc(
-            Tool:    "get_replay_entity_brain",
-            Group:   "I — Recording / replay",
-            Summary: "get_entity_brain over the loaded recording at the current replay frame (CE-1265): what the unit was doing, who ordered it, what it knew, its recent journal.",
-            Returns: "Same as get_entity_brain, plus frame.",
-            Hint:    "Req: networkId (number). Load with load_replay and seek first. Example: get_replay_entity_brain({networkId:1000})",
-            Params: new RouteParam[] { new("networkId", "number", true, "Network entity ID (long)") },
-            Notes: new[] { "Reads the replay SANDBOX, never the live world; seek_replay to the frame before a change to see its cause." },
-            ExampleArgsJson: "{\"networkId\":1000}",
-            ExampleGist: "what unit 1000 was doing at this replay frame"),
-
-        [("GET", "/replay/entities/{networkId}/journal")] = new RouteDoc(
-            Tool:    "get_replay_entity_journal",
-            Group:   "I — Recording / replay",
-            Summary: "get_entity_journal over the loaded recording at the current replay frame (CE-1265) — the last 24 entries as they were then.",
-            Returns: "Same as get_entity_journal, plus frame.",
-            Hint:    "Req: networkId (number); optional since (number, query). Example: get_replay_entity_journal({networkId:1000})",
-            Params: new RouteParam[]
-            {
-                new("networkId", "number", true, "Network entity ID (long)"),
-                new("since", "number", false, "Only entries with seq greater than this (query)"),
-            },
-            ExampleArgsJson: "{\"networkId\":1000}",
-            ExampleGist: "the unit's recent changes at this replay frame"),
-
-        [("GET", "/replay/entities/{networkId}/journal/history")] = new RouteDoc(
-            Tool:    "get_replay_journal_history",
-            Group:   "I — Recording / replay",
-            Summary: "EVERY brain-journal entry of one unit across the loaded recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a finished exercise.",
+        [("GET", "/entities/{networkId}/journal/history")] = new RouteDoc(
+            Tool:    "get_journal_history",
+            Group:   "I — Replay",
+            Summary: "EVERY brain-journal entry of one unit across this node's replay recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a replayed exercise.",
             Returns: "{ networkId, from, to, found, gap, count, entries:[{seq, at, kind, text, frame}] }",
-            Hint:    "Req: networkId (number); optional from, to (frames, query). Example: get_replay_journal_history({networkId:1000})",
+            Hint:    "Req: networkId (number); optional from, to (frames, query). In a replay. Example: get_journal_history({networkId:1000})",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network entity ID (long)"),
@@ -1998,27 +1936,17 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
-                "It walks the recording frame by frame, so a long file takes a moment; the replay's current frame is restored afterwards.",
-                "Then seek_replay to an entry's frame - 1 and read get_replay_entity_brain to see what led to it.",
+                "Ask the node that runs the unit's brain (its journal is in that node's recording).",
+                "It reads the recording file frame by frame, read-only: the replayed world is not touched; a long file takes a moment.",
                 "gap:true means entries were lost between two recorded frames (should not happen: every change dirties the unit's record).",
             },
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "list every decision unit 1000 made in the exercise, and why"),
 
-        [("GET", "/replay/selection")] = new RouteDoc(
-            Tool:    "get_replay_selection",
-            Group:   "I — Recording / replay",
-            Summary: "The operator's selection at the current replay frame (CE-1265) — the unit they were pointing at then (the selection is recorded).",
-            Returns: "{ frame, primary, selection:[networkId] }",
-            Hint:    "No params. Example: get_replay_selection({})",
-            Notes: new[] { "To find WHEN the operator selected something, search_replay a Changed condition on SelectionState.IsSelected." },
-            ExampleArgsJson: "{}",
-            ExampleGist: "which unit the operator had selected at this frame"),
-
         [("POST", "/replay/search")] = new RouteDoc(
             Tool:    "search_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Find the frames of the loaded recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
+            Group:   "I — Replay",
+            Summary: "Find the frames of this node's replay recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
             Returns: "{ count, truncated, hits:[{frame, networkId, context}] }",
             Hint:    "Req: condition (object, a SearchPredicateDto). Optional networkId (number), limit (number, default 200). Example: search_replay({condition:{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}, networkId:1000})",
             Params: new RouteParam[]
@@ -2031,32 +1959,10 @@ namespace Hrot.Editor.DebugApi
             {
                 "Changed compares each frame with the frame before it (a unit's first frame counts as changed) — e.g. every frame a unit's ActiveBehaviorHash switched.",
                 "ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result.",
+                "Then seek_replay to a hit to read the moment with the ordinary readers.",
             },
             ExampleArgsJson: "{\"condition\":{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}},\"networkId\":1000,\"limit\":10}",
             ExampleGist: "find when something happened in the recording"),
-
-        [("GET", "/replay/entities")] = new RouteDoc(
-            Tool:    "list_replay_entities",
-            Group:   "I — Recording / replay",
-            Summary: "List entities from the ISOLATED replay sandbox at the current frame.",
-            Returns: "Same schema as list_entities but from the sandbox repo, NOT the live world.",
-            Hint:    "No params. Requires load_replay first. Example: list_replay_entities({})",
-            Notes: new[]
-            {
-                "Requires an active replay (call load_replay first).",
-                "Does not touch or affect the live world.",
-            },
-            ExampleArgsJson: "{}",
-            ExampleGist: "inspect entities at current replay frame"),
-
-        [("POST", "/replay/unload")] = new RouteDoc(
-            Tool:    "unload_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Dispose the replay sandbox and return to live world queries.",
-            Returns: "ok:true envelope.",
-            Hint:    "No params. Example: unload_replay({})",
-            ExampleArgsJson: "{}",
-            ExampleGist: "unload replay sandbox when done inspecting"),
 
         [("GET", "/logs")] = new RouteDoc(
             Tool:    "get_logs",

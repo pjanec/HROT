@@ -177,17 +177,19 @@ namespace Hrot.Editor.DebugApi
             };
         }
 
-        // ── ⭐ CE-1265 / CE-1266 (AV-6…AV-9) — the same readers over ONE loaded recording (POST /replay/load first) ──────────────
+        // ── ⭐ CE-1265 / CE-1266 (AV-8, AV-9) — the two queries over a whole RECORDING: this node's own recording of the replay it is in
+        //    (R-3052…R-3055 — the brain, journal and selection of the replayed moment are the ORDINARY readers on the replayed world; a
+        //    second replay world in the debug service is retired). 📄 docs/DESIGN_Http_Control_Through_The_Cluster_Master.md §3.
 
-        private string? _replayFdpPath;
+        private (string Path, Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext Context)? _scanned;
         private Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchService? _recordingSearch;
 
-        private (EntityRepository World, NetworkEntityMap Map) ReplayWorld()
-        {
-            if (_replayContext is null) throw new InvalidOperationException("No replay loaded. Call /replay/load first.");
-            var repo = _replayContext.SandboxRepo;
-            return (repo, SandboxMap(repo));
-        }
+        /// <summary>The file this node replays now: the editor's own recorder, else the active perspective's node.</summary>
+        private string? ReplayRecordingPathOrNull
+            => _rrController?.ActiveReplayFilePath ?? _dispatcher?.ReplayRecordingPath;
+
+        private const string NoReplayRecording =
+            "This node is not in a replay (POST /replay {exerciseId} enters one), so there is no recording to scan.";
 
         private static NetworkEntityMap SandboxMap(EntityRepository repo)
         {
@@ -201,41 +203,31 @@ namespace Hrot.Editor.DebugApi
             return map;
         }
 
-        /// <summary><c>GET /replay/entities/{networkId}/brain</c> — the Brain tab's snapshot at the seeked frame.</summary>
-        public JsonNode GetReplayEntityBrain(long networkId)
+        /// <summary>A read-only reader over this node's replay recording, kept while the file is the same.</summary>
+        private Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext? ScanContext(out string? path)
         {
-            var (w, m) = ReplayWorld();
-            var node = BrainOf(w, m, networkId);
-            node["frame"] = _replayContext!.CurrentFrame;
-            return node;
-        }
-
-        /// <summary><c>GET /replay/entities/{networkId}/journal?since=</c> — the ring as it was at the seeked frame.</summary>
-        public JsonNode GetReplayEntityJournal(long networkId, uint since)
-        {
-            var (w, m) = ReplayWorld();
-            var node = JournalOf(w, m, networkId, since);
-            node["frame"] = _replayContext!.CurrentFrame;
-            return node;
-        }
-
-        /// <summary><c>GET /replay/selection</c> — the operator's selection at the seeked frame (recorded: <c>SelectionState</c> is NoScenario).</summary>
-        public JsonNode GetReplaySelection()
-        {
-            var (w, m) = ReplayWorld();
-            var (primary, all) = SelectionOf(w, m);
-            return new JsonObject { ["frame"] = _replayContext!.CurrentFrame, ["primary"] = primary, ["selection"] = all };
+            path = ReplayRecordingPathOrNull;
+            if (path is null || !System.IO.File.Exists(path)) return null;
+            if (_scanned is not { } held || held.Path != path)
+            {
+                _scanned?.Context.Dispose();
+                var ctx = new Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext();
+                ctx.LoadRecording(path);
+                if (ctx.Playback is null) { ctx.Dispose(); _scanned = null; return null; }
+                _scanned = (path, ctx);
+            }
+            return _scanned.Value.Context;
         }
 
         /// <summary>
-        /// ⭐ <c>CE-1265</c> (AV-8) — <c>GET /replay/entities/{networkId}/journal/history?from=&amp;to=</c>: EVERY journal entry of one unit
-        /// in the frame range, each once (keyed by its <c>Seq</c>), with the frame it was first seen at. A walk of the recording frame by
-        /// frame (every entry dirties the unit's chunk, so the recorder wrote that frame); the seek is restored afterwards.
+        /// ⭐ <c>CE-1265</c> (AV-8) — <c>GET /entities/{networkId}/journal/history?from=&amp;to=</c>: EVERY journal entry of one unit
+        /// in the frame range of this node's replay recording, each once (keyed by its <c>Seq</c>), with the frame it was first seen at.
+        /// A walk of the recording frame by frame (every entry dirties the unit's chunk, so the recorder wrote that frame), in a read-only
+        /// reader of the file — ⛔ the replayed world is not touched.
         /// </summary>
-        public JsonNode GetReplayJournalHistory(long networkId, int? from, int? to)
+        public JsonNode GetJournalHistory(long networkId, int? from, int? to)
         {
-            if (_replayContext is null) throw new InvalidOperationException("No replay loaded. Call /replay/load first.");
-            var ctx = _replayContext;
+            var ctx = ScanContext(out _) ?? throw new InvalidOperationException(NoReplayRecording);
             int total = ctx.Playback?.TotalFrames ?? 0;
             int start = Math.Clamp(from ?? 0, 0, Math.Max(0, total - 1));
             int end = Math.Clamp(to ?? total - 1, start, Math.Max(0, total - 1));
@@ -273,7 +265,6 @@ namespace Hrot.Editor.DebugApi
                 if (frame >= end || !ctx.StepForward(suppressHistory: true)) break;
             }
             ctx.SeekToFrame(restore, suppressHistory: true);
-            _replayExtraction = BuildReplayExtractionService(ctx.SandboxRepo);
 
             return new JsonObject
             {
@@ -282,11 +273,12 @@ namespace Hrot.Editor.DebugApi
             };
         }
 
-        /// <summary>⭐ <c>CE-1266</c> (AV-9) — <c>POST /replay/search {condition, networkId?, limit?}</c>: the frames (and units) of the loaded
-        /// recording where <paramref name="body"/>'s condition holds — the same condition DTO breakpoints take.</summary>
+        /// <summary>⭐ <c>CE-1266</c> (AV-9) — <c>POST /replay/search {condition, networkId?, limit?}</c>: the frames (and units) of this
+        /// node's replay recording where <paramref name="body"/>'s condition holds — the same condition DTO breakpoints take.</summary>
         public (JsonNode? Result, string? Error) SearchReplay(JsonNode? body)
         {
-            if (_replayContext is null || _replayFdpPath is null) return (null, "No replay loaded. Call /replay/load first.");
+            var ctx = ScanContext(out var path);
+            if (ctx is null || path is null) return (null, NoReplayRecording);
             if (body?["condition"] is not JsonNode conditionNode) return (null, "condition is required.");
             Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto condition;
             try
@@ -305,9 +297,9 @@ namespace Hrot.Editor.DebugApi
             _recordingSearch ??= new Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchService(
                 new Fdp.Toolkit.ReplayBrowser.Search.PredicateCompiler(_componentEditSvc, _behaviorRegistry, _blueprintRegistry),
                 new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(_componentEditSvc));
-            var hits = _recordingSearch.ExecuteSearch(_replayFdpPath, condition, filter);
+            var hits = _recordingSearch.ExecuteSearch(path, condition, filter);
 
-            var map = SandboxMap(_replayContext.SandboxRepo);
+            var map = SandboxMap(ctx.SandboxRepo);
             var list = new JsonArray();
             foreach (var h in hits)
             {

@@ -103,6 +103,10 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// <inheritdoc />
         public long ActiveRecordingEndWallTicks => _activeReplayModule?.RecordingEndWallTicks ?? 0;
 
+        /// <summary>⭐ R-3052…R-3055 — the recording this node replays now (its own, of the exercise the cluster replays), or
+        /// <see langword="null"/> outside a replay: what the debug API's journal history and recording search scan, read-only.</summary>
+        public string? ActiveReplayFilePath { get; private set; }
+
         /// <inheritdoc />
         public long ReplayAnchorWallTicks
         {
@@ -266,6 +270,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public async Task PrepareReplayAsync(Guid exerciseId, string storageDirectory)
         {
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
+            ActiveReplayFilePath = filePath;
             _activeReplayModule = new ReplayModule(filePath, _repo, _kernel.GetTimeController(), _afterSeek);
             await _kernel.InstallModuleAsync(_activeReplayModule);
 
@@ -294,6 +299,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             if (_activeReplayModule == null) return;
             await _kernel.UninstallModuleAsync(_activeReplayModule);
             _activeReplayModule = null;
+            ActiveReplayFilePath = null;
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
