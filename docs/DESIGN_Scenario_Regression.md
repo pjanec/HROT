@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
-current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (DESIGN, leans RH-1…RH-10)
+updated: 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building)
 stale-below: none
 known-rot: none
 known-conflict: blueprints/DESIGN_Smoke_Suite.md says "do not build a DSL" — written for a different shape (one entity, one behaviour, panel checks; the JSON TestScript kept for cluster/DDS/replay). checks.json EXTENDS the film takes' anchor grammar, which is already built and read by the engine (AnchorBook); it is not a new language. Not reconciled with the Smoke Suite's author — named here so a reader sees both.
@@ -336,7 +336,9 @@ grep and are not proof of completeness.
 
 ⚠ Until these exist, a check encodes only the expressible part and its `$doc` says what was left out — ⛔ never a weaker condition dressed as the Judge point.
 
-## 10. The replay harness — H1–H4 *(CE-4045; coordinator, `2026-10-26`; build-state: DESIGN — leans RH-1…RH-10 for approval)*
+## 10. The replay harness — H1–H4 *(CE-4045; coordinator, `2026-10-26`; build-state: READY-TO-BUILD — RH-1…RH-10 APPROVED, R-4084)*
+
+🔒 **User, `2026-10-26`:** *"Harness leans approved."*
 
 🔒 **User, `2026-10-25`** (the census, H0): *"it relies on that snapshots really save what should be saved … are we saving what needs to be
 saved to recording? aren't we saving what should not be?"* · on the harness: *"approved"*, *"yes run H0 first"* (CE-4045).
