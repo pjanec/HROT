@@ -148,10 +148,13 @@ namespace Fdp.Core.FlightRecorder
             var result = Expression.Variable(type, "result");
             var block = new List<Expression>();
             
-            // result = new T();
-            // Note: This requires a parameterless constructor!
-            // If custom object lacks it, this throws.
-            block.Add(Expression.Assign(result, Expression.New(type)));
+            // result = new T(); — ⭐ CE-4046: a positional record has no parameterless constructor, so it is created UNINITIALISED and
+            //   every recorded member (its init properties included) is assigned below, as for any other object.
+            block.Add(Expression.Assign(result, type.IsValueType || type.GetConstructor(Type.EmptyTypes) != null
+                ? Expression.New(type)
+                : Expression.Convert(Expression.Call(
+                    typeof(System.Runtime.CompilerServices.RuntimeHelpers).GetMethod(nameof(System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject))!,
+                    Expression.Constant(type, typeof(Type))), type)));
             
             // Find ordered properties/fields
             var members = GetSortedMembers(type);
@@ -580,6 +583,30 @@ namespace Fdp.Core.FlightRecorder
                 return GenerateConcurrentBagWrite(type, valueAccess, writer);
             }
             
+            // ⭐ CE-4046 — the read-only collections an IMMUTABLE record holds: on the wire exactly like their mutable twins
+            //   (a list / array as count + items, a dictionary as count + pairs), read back as an array / Dictionary.
+            if (ReadOnlyListItem(type) is { } roItem)
+                return GenerateArrayWrite(roItem.MakeArrayType(),
+                    Expression.Call(typeof(Enumerable).GetMethod(nameof(Enumerable.ToArray))!.MakeGenericMethod(roItem), valueAccess), writer);
+            if (ImmutableArrayItem(type) is { } iaItem)
+            {
+                // a value type with a DEFAULT state (IsDefault) distinct from empty: [bool isDefault] [count + items]
+                var isDefault = Expression.Property(valueAccess, "IsDefault");
+                return Expression.Block(
+                    CallWrite(writer, typeof(bool), isDefault),
+                    Expression.IfThen(Expression.Not(isDefault),
+                        GenerateArrayWrite(iaItem.MakeArrayType(),
+                            Expression.Call(typeof(System.Runtime.InteropServices.ImmutableCollectionsMarshal)
+                                .GetMethod(nameof(System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray))!.MakeGenericMethod(iaItem),
+                                valueAccess), writer)));   // the backing array itself — no copy
+            }
+            if (ReadOnlyDictionaryTypes(type) is { } roDict)
+            {
+                var dictType = typeof(Dictionary<,>).MakeGenericType(roDict.Key, roDict.Value);
+                var pairs = typeof(IEnumerable<>).MakeGenericType(typeof(KeyValuePair<,>).MakeGenericType(roDict.Key, roDict.Value));
+                return GenerateDictionaryWrite(dictType, Expression.New(dictType.GetConstructor(new[] { pairs })!, valueAccess), writer);
+            }
+
             // CASE Z: Recursive nested object
             var recurseMethod = typeof(FdpAutoSerializer)
                 .GetMethod("Serialize", BindingFlags.Public | BindingFlags.Static)!
@@ -680,6 +707,22 @@ namespace Fdp.Core.FlightRecorder
                 return GenerateConcurrentBagRead(type, reader);
             }
             
+            // ⭐ CE-4046 — see the write side.
+            if (ReadOnlyListItem(type) is { } roItem)
+                return Expression.Convert(GenerateArrayRead(roItem.MakeArrayType(), reader), type);
+            if (ImmutableArrayItem(type) is { } iaItem)
+            {
+                var create = typeof(System.Collections.Immutable.ImmutableArray).GetMethods()
+                    .Single(m => m.Name == nameof(System.Collections.Immutable.ImmutableArray.Create) && m.IsGenericMethodDefinition
+                              && m.GetParameters() is { Length: 1 } ps && ps[0].ParameterType.IsArray)
+                    .MakeGenericMethod(iaItem);
+                return Expression.Condition(CallRead(reader, typeof(bool)),
+                    Expression.Default(type),
+                    Expression.Call(create, GenerateArrayRead(iaItem.MakeArrayType(), reader)));
+            }
+            if (ReadOnlyDictionaryTypes(type) is { } roDict)
+                return Expression.Convert(GenerateDictionaryRead(typeof(Dictionary<,>).MakeGenericType(roDict.Key, roDict.Value), reader), type);
+
             // CASE Z: Recursive nested object
             var recurseMethod = typeof(FdpAutoSerializer)
                 .GetMethod("Deserialize", BindingFlags.Public | BindingFlags.Static)!
@@ -1629,6 +1672,19 @@ namespace Fdp.Core.FlightRecorder
             throw new NotSupportedException($"No read method for type {t.Name}");
         }
         
+        // ⭐ CE-4046 — the read-only collection shapes an immutable record may hold.
+        private static Type? ReadOnlyListItem(Type t)
+            => t.IsInterface && t.IsGenericType
+               && (t.GetGenericTypeDefinition() == typeof(IReadOnlyList<>) || t.GetGenericTypeDefinition() == typeof(IReadOnlyCollection<>))
+                ? t.GetGenericArguments()[0] : null;
+
+        private static Type? ImmutableArrayItem(Type t)
+            => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(System.Collections.Immutable.ImmutableArray<>) ? t.GetGenericArguments()[0] : null;
+
+        private static (Type Key, Type Value)? ReadOnlyDictionaryTypes(Type t)
+            => t.IsInterface && t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)
+                ? (t.GetGenericArguments()[0], t.GetGenericArguments()[1]) : null;
+
         internal static List<MemberInfo> GetSortedMembers(Type t)
         {
             var members = t.GetFields(BindingFlags.Public | BindingFlags.Instance)
