@@ -1158,3 +1158,69 @@ process; the before run on the binaries without the change, golden of `ua-civ-me
 ⚠ The first after-run failed every load: an edit had put `_editorLogic?.Update()` inside a comment (the editor's scenario session stopped
 reading the cluster state). Caught by this very check, fixed before commit.
 
+### 12n. ⏳ BUILDING `2026-10-26` — "Loop range": a SESSION setting of the master's replay clock (NOTE_Coordinator_To_Backend_After_DAR item 3)
+
+🔒 User: *"go ahead with loop range"* — on the coordinator's lean (NOTE_Coordinator_To_Backend_Review_Harness §3): a loop drives the CLUSTER
+clock, so it is the master's, set by an intent from any host and carried on `ReplaySessionTopic`; ⛔ never per host (two operators'
+panels would fight over one clock). The Replay Browser's clock is its own (it may loop locally).
+
+```mermaid
+classDiagram
+  class SetReplayLoopIntent {
+    <<new, EventId 9072, ClusterOpType 23>>
+    from/to: wall seconds after the zero OR sim seconds
+    none = clear
+  }
+  class ClusterMaster {
+    <<exists, grown>>
+    ReplayLoop (wall seconds after the zero)
+    resolves sim targets via its ReplayTimeMap
+    clears the loop when the cluster leaves a replay / review
+  }
+  class ReplayClockProcessManager {
+    <<exists, grown>>
+    playhead at or past To, clock running: JumpTo(From)
+    a backward jump has its own landing guard
+  }
+  class ReplaySession {
+    <<exists, grown>>
+    LoopFromSeconds, LoopToSeconds
+  }
+  class ITimeTransportFacade {
+    <<exists, grown>>
+    SetLoop(from, to) on the active axis, ClearLoop(), Loop
+  }
+  ITimeTransportFacade --> SetReplayLoopIntent : publishes (ReplaySessionIntents)
+  SetReplayLoopIntent --> ClusterMaster : any host, the SetReplayAxis path
+  ClusterMaster --> ReplaySession : republished on change
+  ClusterMaster --> ReplayClockProcessManager : the loop it enforces
+```
+*What the picture shows that the prose hid:* the loop exists in ONE place (the master), so every host's panel draws the same bracket and the
+clock wraps once for the whole cluster; the panel only asks.
+
+```mermaid
+sequenceDiagram
+  participant H as any host (menu / HTTP)
+  participant M as ClusterMaster
+  participant C as ReplayClockProcessManager
+  participant K as the master clock
+  H->>M: SetReplayLoopIntent(from, to)
+  M->>M: resolve sim to wall, validate, hold
+  M-->>H: ReplaySessionTopic (the loop drawn on every host)
+  loop each master tick, replaying, clock running
+    C->>K: playhead at or past To?
+    C->>K: JumpTo(From) - non-pausing, no epoch move (F14)
+    C->>C: wait until the clock reads below To (the jump landed)
+  end
+```
+*What the picture shows that the prose hid:* the wrap is the same non-pausing jump the Sim axis already uses for paused stretches
+(`ITimeCommands.JumpTo`), so slaves follow it as an ordinary continuous move — no pause, no slot reset.
+
+| rule | why |
+|---|---|
+| bounds are held in WALL seconds after the zero (the clock's unit); a sim request is resolved by the master's map | the clock the loop drives is the wall replay clock (R-4012); one unit at the enforcer |
+| valid only `0 ≤ from < to ≤ length`; otherwise the request is refused with a status | an inverted / empty loop would jump every frame |
+| cleared whenever the cluster leaves a replay or a review | a new session starts unlooped; a stale bracket from the last exercise is never enforced |
+| enforced only while the clock RUNS; a seek outside the loop is honoured (the loop catches the playhead when it next crosses `To`) | the operator can always leave it by seeking or clearing |
+| `POST /replay/loop {fromSeconds, toSeconds}` · `{fromSimSeconds, toSimSeconds}` · `{}` = clear; `GET /replay/status` carries `loop` | one path with the facade |
+
