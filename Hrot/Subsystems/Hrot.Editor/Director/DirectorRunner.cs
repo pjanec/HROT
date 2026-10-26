@@ -215,6 +215,10 @@ namespace Hrot.Editor.Director
         private int _standing;
         private ScenarioGolden? _reviewSnapshots, _atLive;
         private readonly List<string> _reviewProblems = new();
+        // the review's outcome, kept until the run's result exists (FinishItem)
+        private string? _reviewVerdict;
+        private int _reviewCount;
+        private readonly List<string> _reviewDiff = new(), _reviewNotCarried = new(), _returnDiff = new();
 
         /// <param name="verifyWorld">⭐ CE-4042 — what a verify run reads and edits (the editor's entity dump, combat rows and component edit);
         /// a host without one refuses a verify run.</param>
@@ -374,6 +378,7 @@ namespace Hrot.Editor.Director
             _r1Target = double.NaN; _r1Frames = 0; _r1Written = false;
             _liveRecording = null; _pendingVerify = null; _recordedSnapshots = null; _checkIndex = 0; CloseRecorded();
             _reviewDone = false; _reviewTimes = null; _reviewIndex = 0; _standing = 0; _reviewSnapshots = null; _atLive = null; _reviewProblems.Clear();
+            _reviewVerdict = null; _reviewCount = 0; _reviewDiff.Clear(); _reviewNotCarried.Clear(); _returnDiff.Clear();
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -729,6 +734,11 @@ namespace Hrot.Editor.Director
                     if (!rc.Straight)
                     {
                         if (!_reviewDone) v.Problems.Add($"H5: the run ended before the review time {rc.At} s");
+                        v.Review = _reviewVerdict;
+                        v.ReviewSnapshots = _reviewCount;
+                        v.ReviewDiff.AddRange(_reviewDiff);
+                        v.ReviewNotCarried.AddRange(_reviewNotCarried);
+                        v.ReturnDiff.AddRange(_returnDiff);
                         v.ReviewProblems.AddRange(_reviewProblems);
                     }
                 }
@@ -921,18 +931,17 @@ namespace Hrot.Editor.Director
             }
             var after = new ScenarioGolden(_verifyWorld!, full: true);
             after.Snapshot(_liveAtRel);
-            var v = _verification!;
-            v.ReturnDiff.AddRange(ScenarioGolden.CompareFrom(_atLive!.SnapshotsJson(), after.SnapshotsJson(), _liveAtRel));
+            _returnDiff.AddRange(ScenarioGolden.CompareFrom(_atLive!.SnapshotsJson(), after.SnapshotsJson(), _liveAtRel));
             // the review against the live run, on what the recording carries (what a review can show)
-            var live = new JsonObject { ["snapshots"] = new JsonArray(((_verification.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray())
+            var live = new JsonObject { ["snapshots"] = new JsonArray(((_verification!.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray())
                 .Where(n => (ConditionBook.Num(n?["t"]) ?? double.MaxValue) <= _liveAtRel + 1e-6).Select(n => n!.DeepClone()).ToArray()) };
             var seen = _reviewSnapshots!.SnapshotsJson();
             var carried = _liveRecording is { } path ? ScenarioGolden.CarriedBy(path) : null;
-            v.ReviewSnapshots = _reviewSnapshots.Snapshots;
-            v.ReviewDiff.AddRange(ScenarioGolden.CompareFrom(live, seen, 0d, carried));
-            if (carried != null) v.ReviewNotCarried.AddRange(ScenarioGolden.CompareNotCarried(live, seen, 0d, carried));
-            else v.ReviewNotCarried.Add("⚠ no recording manifest was found — every component compared");
-            v.Review = v.ReviewDiff.Count == 0 && _reviewProblems.Count == 0 ? "same" : "different";
+            _reviewCount = _reviewSnapshots.Snapshots;
+            _reviewDiff.AddRange(ScenarioGolden.CompareFrom(live, seen, 0d, carried));
+            if (carried != null) _reviewNotCarried.AddRange(ScenarioGolden.CompareNotCarried(live, seen, 0d, carried));
+            else _reviewNotCarried.Add("⚠ no recording manifest was found — every component compared");
+            _reviewVerdict = _reviewDiff.Count == 0 && _reviewProblems.Count == 0 ? "same" : "different";
             _reviewDone = true;
             if (!_host.Paused) _host.Pause();
             Phase = DirectorPhase.Playing;
