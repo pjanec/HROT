@@ -135,10 +135,21 @@ CE-4045, may keep using the class).
 
 ## 6. The traffic replica map *(R-3052; AQ93 E5)*
 
-`TrafficCar` is recorded (`NoScenario`, no longer `Transient`); `TrafficReplicas` keeps its `(owner, handle) → entity` dictionaries as an
-index and REBUILDS them from the world's `TrafficCar` components only when `WorldEpoch.Moved` (a load, a restore, a replay seek) — ⛔ never
-per frame. The replay gate (CE-4048) then only skips the mirror while the node restores; the first live frame after reconciles against the
-rebuilt index.
+⭐ **AS-BUILT `2026-10-26`** *(B2, approved)* — `TrafficCar` is recorded (`NoScenario`, no longer `Transient`); `TrafficReplicas` keeps its
+`(owner, handle) → entity` and `(owner, networkId) → entity` dictionaries as an index and `Rebuild()`s them from the world's `TrafficCar` +
+`NetworkAuthority` (+ `NetworkIdentity` for a pedestrian) — destroying nothing — **once** per world put back: on `WorldEpoch.Moved` (a load, a
+checkpoint restore) and on the first frame after the replay gate (CE-4048) lifts. ⛔ Never per frame (`Rebuilds` is pinned by a rail). The
+first live frame reconciles the rebuilt index with the wire.
+
+| ⚠ deviation from the approved wording | why |
+|---|---|
+| the trigger is **the gate lifting**, not each replay **seek** | ⭐ while the node restores its recording the mirror writes nothing (CE-4048), so an index rebuilt at every seek would never be read; the one moment it is needed is when live frames resume over the restored world. ⛔ It also needed no hook into `EcsRecordReplayController._afterSeek` |
+| B1 *(a seek counting as a `WorldEpoch` restore)* is **not built** | ⚠ a finding: ~75 systems and translators clear per-id caches on `WorldEpoch.Moved` (mostly egress) — whether a replay seek should move them is unmeasured; filed, not decided here |
+
+| rail *(`Hrot.Traffic.Tests/TrafficRuntimeTests`)* | pins |
+|---|---|
+| `R3052_AfterTheWorldWasPutBack_TheBookIsRekeyedFromTheRecordedCars_AndNoCarGetsASecondReplica` | the book follows the restored entity; one entity per network id |
+| `R3052_WhenTheReplayGateLifts_TheMirrorRekeysOnce_AndReconcilesTheRestoredReplicas` | one rebuild at the lift, none per frame, no doubled car |
 
 ## 7. Cross-lane
 

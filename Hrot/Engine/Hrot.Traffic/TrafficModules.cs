@@ -80,6 +80,8 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
     private readonly List<(int, uint)> _staleMirrors = new();
     private TrafficReplicas? _replicas;
     private EntityRepository? _replicaWorld;
+    private int _epoch;
+    private bool _restored;
     private DdsMultiSourceSubscriber? _dds;
     private double _wireNow;
     private SilenceClock _silence;
@@ -139,12 +141,13 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
     {
         if (view is not EntityRepository world)
             throw new InvalidOperationException($"{nameof(TrafficMirrorSystem)} needs the live EntityRepository, not {view.GetType().Name}.");
-        // ⭐ CE-4048 — the recording owns the world while this node restores it: no entity is touched (the replica bookkeeping is kept,
-        //   so the next live frame reconciles the same entities), and the live frame the map draws is withdrawn (it is NoReplay).
+        // ⭐ CE-4048 — the recording owns the world while this node restores it: no entity is touched, and the live frame the map draws
+        //   is withdrawn (it is NoReplay).
         if (IsReplayRestoring?.Invoke() == true)
         {
             if (_frame is not null && world.HasSingletonManaged<TrafficFrame>()) world.SetSingletonManaged<TrafficFrame>(null!);
             _frame = null;
+            _restored = true;
             return;
         }
         if (!ReferenceEquals(world, _replicaWorld))
@@ -153,6 +156,10 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
             _replicas = new TrafficReplicas(world, _entityMap, _localNodeId);
             _replicaWorld = world;
         }
+        // ⭐ R-3052 (B2) — the world was put back (a load, a checkpoint restore, or the recording restored into it — the replicas are
+        //   recorded): the book is re-keyed from the world's TrafficCar entities ONCE, and this frame reconciles them with the wire.
+        if (WorldEpoch.Moved(world, ref _epoch) | _restored) _replicas!.Rebuild();
+        _restored = false;
 
         var net = TrafficNetCache.Of(world);
         if (net is null) { Stop(world); return; }
