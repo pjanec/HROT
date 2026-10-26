@@ -71,12 +71,21 @@ public static class TrackLayout
         return SimSeconds(ticks, axis, map);
     }
 
-    /// <summary>Offers <paramref name="key"/> to the track that holds the selected item (the first such); true when it took it. Nothing selected ⇒ false, no call.</summary>
+    /// <summary>Offers <paramref name="key"/> to the track that holds the selected item first; when it declines — or nothing is selected (K on an empty
+    /// timeline adds a key at the playhead, §2c row 3) — to the other tracks in order. True when one took it. ⭐ <c>T3</c>: was "nothing selected ⇒ nobody
+    /// asked", which left K with no way to add the first key.</summary>
     public static bool OfferKey(IReadOnlyList<ITimelineTrack> tracks, char key, double atSimSeconds)
     {
+        ITimelineTrack? holder = null;
         foreach (var t in tracks)
+        {
             foreach (var it in t.Items)
-                if (it.Selected) return t.Key(key, atSimSeconds);
+                if (it.Selected) { holder = t; break; }
+            if (holder != null) break;
+        }
+        if (holder != null && holder.Key(key, atSimSeconds)) return true;
+        foreach (var t in tracks)
+            if (!ReferenceEquals(t, holder) && t.Key(key, atSimSeconds)) return true;
         return false;
     }
 }
