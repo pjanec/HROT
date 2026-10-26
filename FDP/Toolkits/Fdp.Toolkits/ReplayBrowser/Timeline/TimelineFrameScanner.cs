@@ -19,6 +19,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         private readonly Dictionary<string, GrowOnlyBuffer<TimelineEvent>> _sink = new(StringComparer.Ordinal);
         private readonly List<SearchResultDto> _results = new(64);
         private readonly GrowOnlyBuffer<long> _ticks = new();
+        private readonly GrowOnlyBuffer<double> _sim = new();   // ⭐ CE-3330 E1 — each frame's sim seconds (NaN when unknown), beside its ticks
+        private bool _anySim;
 
         public TimelineFrameScanner(IReadOnlyList<IndexedLaneDefinition> lanes, TimelineLaneCompiler compiler)
         {
@@ -40,10 +42,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// read the world's destruction log: a PLAYBACK world's caller clears it after each frame (<paramref name="clearDestructionLog"/>);
         /// ⛔ a LIVE world's must not — its log belongs to the recorder, and a structural scan reports a death once whatever the log holds.
         /// </summary>
-        public void Step(EntityRepository repo, int frame, long ticks, bool clearDestructionLog)
+        /// <param name="simSeconds">⭐ CE-3330 E1 — the frame's sim time in seconds; <c>null</c> / NaN when unknown (a v6 recording, a world without a clock).</param>
+        public void Step(EntityRepository repo, int frame, long ticks, bool clearDestructionLog, double? simSeconds = null)
         {
-            if (_ticks.Count <= frame) { while (_ticks.Count <= frame) _ticks.Add(ticks); }
-            else _ticks[frame] = ticks;   // a re-step of an existing frame (never the live source's: it only appends, so no published slot is written)
+            double sim = simSeconds ?? double.NaN;
+            if (!double.IsNaN(sim)) _anySim = true;
+            if (_ticks.Count <= frame) { while (_ticks.Count <= frame) { _ticks.Add(ticks); _sim.Add(sim); } }
+            else { _ticks[frame] = ticks; _sim[frame] = sim; }   // a re-step of an existing frame (never the live source's: it only appends, so no published slot is written)
             foreach (var (laneId, scan) in _scans)
             {
                 _results.Clear();
@@ -70,7 +75,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var ticks = frameTicks != null ? new SharedList<long>(frameTicks)
                 : scannedFrames >= _ticks.Count ? _ticks.Snapshot()
                 : new SharedList<long>(_ticks.Snapshot().Memory.Slice(0, scannedFrames).ToArray());
-            return new TimelineIndex(lanes, ticks, scannedFrames, totalFrames, new Dictionary<string, string>(_errors));
+            // ⭐ CE-3330 E1 — the sim column shares its buffer the same way; empty when no frame carried a sim time
+            var sim = !_anySim ? SharedList<double>.Empty
+                : scannedFrames >= _sim.Count ? _sim.Snapshot()
+                : new SharedList<double>(_sim.Snapshot().Memory.Slice(0, scannedFrames).ToArray());
+            return new TimelineIndex(lanes, ticks, scannedFrames, totalFrames, new Dictionary<string, string>(_errors), sim);
         }
 
         /// <summary>The frame → ticks table so far (a copy).</summary>

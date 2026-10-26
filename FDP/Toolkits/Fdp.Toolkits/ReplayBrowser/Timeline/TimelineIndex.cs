@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             _lanes = new Dictionary<string, SharedList<TimelineEvent>>(lanes.Count, StringComparer.Ordinal);
             foreach (var (id, events) in lanes) _lanes[id] = new SharedList<TimelineEvent>(events);
             FrameTicks = new SharedList<long>(frameTicks);
+            FrameSim = SharedList<double>.Empty;
             ScannedFrames = scannedFrames;
             TotalFrames = totalFrames;
             LaneErrors = laneErrors ?? new Dictionary<string, string>();
@@ -32,8 +33,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
 
         /// <summary>⭐ <c>CE-1361</c> ② — an index over SHARED lane and frame views (no copy): the live source's snapshots.</summary>
         public TimelineIndex(IReadOnlyDictionary<string, SharedList<TimelineEvent>> lanes, SharedList<long> frameTicks, int scannedFrames, int totalFrames,
-            IReadOnlyDictionary<string, string>? laneErrors = null)
+            IReadOnlyDictionary<string, string>? laneErrors = null, SharedList<double>? frameSim = null)
         {
+            FrameSim = frameSim ?? SharedList<double>.Empty;
             _lanes = new Dictionary<string, SharedList<TimelineEvent>>(lanes, StringComparer.Ordinal);
             FrameTicks = frameTicks;
             ScannedFrames = scannedFrames;
@@ -44,10 +46,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public static readonly TimelineIndex Empty = new(new Dictionary<string, TimelineEvent[]>(), Array.Empty<long>(), 0, 0);
 
         /// <summary>This index with other frame times (an axis's), its lanes shared as they are.</summary>
-        public TimelineIndex WithFrameTicks(long[] frameTicks) => new(_lanes, new SharedList<long>(frameTicks), ScannedFrames, TotalFrames, LaneErrors);
+        public TimelineIndex WithFrameTicks(long[] frameTicks) => new(_lanes, new SharedList<long>(frameTicks), ScannedFrames, TotalFrames, LaneErrors, FrameSim);
 
         /// <summary>Wall-clock ticks of each scanned frame (index = frame).</summary>
         public IReadOnlyList<long> FrameTicks { get; }
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> E1 — each scanned frame's SIM time in seconds (index = frame; NaN where unknown). EMPTY when nothing recorded it
+        /// (a v6 recording, a world without a clock) — a reader checks <c>Count</c> before indexing.
+        /// </summary>
+        public SharedList<double> FrameSim { get; }
         /// <summary>Frames scanned so far (== <see cref="TotalFrames"/> when complete).</summary>
         public int ScannedFrames { get; }
         public int TotalFrames { get; }
