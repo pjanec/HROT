@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: LIVE — DONE 2026-10-26 by ui (all three items; report NOTE_Ui_To_Coordinator_Replay_Ui_State_Done.md)
 updated: 2026-10-25
 current-answer: the whole file
 stale-below: nothing
