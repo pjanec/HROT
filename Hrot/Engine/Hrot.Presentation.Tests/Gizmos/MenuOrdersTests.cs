@@ -320,8 +320,8 @@ public sealed class MenuOrdersTests : IDisposable
         using var replayWorld = new EntityRepository();
         replayWorld.RegisterComponent<SimTransform>();
         replayWorld.RegisterComponent<NetworkIdentity>();
-        var replay = MapInteractionPack.Build(new MapInteractionContext { World = replayWorld, IsReplayActive = static () => true });
-        Assert.False(replay.Actions.TryGetHandler(Id("Move"), out _), "a replay registers no orders");
+        MapInteractionPack.Build(new MapInteractionContext { World = replayWorld });
+        Fdp.Toolkit.Replay.ReplayState.Enter(replayWorld);   // ⭐ DAR F7 — the world says it shows a recording (R-3064)
         var ghost = replayWorld.CreateEntity();
         replayWorld.AddComponent(ghost, new NetworkIdentity(5));
         Assert.DoesNotContain("\"Move\"", ContextMenuProjectorGizmo.MenuJsonFor(replayWorld, ghost));
@@ -609,8 +609,8 @@ public sealed class MenuOrdersTests : IDisposable
 
         string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
         int registered = pack.IndexOf("new Hrot.Presentation.Orders.FireMissionOverlayGizmo(", StringComparison.Ordinal);
-        Assert.True(registered > 0 && registered < pack.IndexOf("if (ctx.IsReplayActive?.Invoke() != true)", StringComparison.Ordinal),
-            "registered on every map host, before the live-only orders (a replay draws the marks too)");
+        Assert.True(registered > 0 && registered < pack.IndexOf("menuOrders.RegisterOn(actions)", StringComparison.Ordinal),
+            "registered on every map host, before the orders (a replay draws the marks too)");
     }
 
     private static string RepoRoot()
@@ -719,5 +719,49 @@ public sealed class MenuOrdersTests : IDisposable
         var entries = Hrot.Presentation.Orders.EntityListSource.Entries(_w, null, exclude: new[] { UnitId });
         Assert.Contains(entries, e => e.Tag is long id && id == EnemyId);
         Assert.DoesNotContain(entries, e => e.Tag is long id && id == UnitId);
+    }
+
+    /// <summary>⭐ DAR F7 (D-E, <c>DESIGN_Replay_Time_Axis_And_Review.md</c> §12j row 41) — a map built LIVE hides its order items (and their
+    /// key shortcuts, which read the same menu) for as long as its world shows a recording, then offers them again. ⛔ The build-time
+    /// predicate this replaces left the editor and CGF offering orders in a review: they build their map before any review starts.</summary>
+    [Fact]
+    public void DARF7_ALiveMap_HidesItsOrders_WhileItShowsARecording_AndOffersThemAgainAfter()
+    {
+        var (live, _) = Live();
+        Assert.Contains("\"Move\"", ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit));
+
+        Fdp.Toolkit.Replay.ReplayState.Enter(_w);   // a review or a replay starts on this world (R-3064)
+        var inReview = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        Assert.DoesNotContain("\"Move\"", inReview);
+        Assert.DoesNotContain($"\"id\":{GlobalActionIds.Possess},", inReview);
+        Assert.DoesNotContain("Designate", inReview);
+
+        Fdp.Toolkit.Replay.ReplayState.Leave(_w);   // back to live
+        Assert.Contains("\"Move\"", ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit));
+        Assert.Contains(live.MenuOrders, live.InteractionSystems);
+    }
+
+    /// <summary>⭐ DAR F7 — Add Entity greys out while the map shows a recording, and gives the host's own reason back after.</summary>
+    [Fact]
+    public void DARF7_AddEntity_IsSuspended_WhileARecordingIsShown()
+    {
+        string? hostReason = null;
+        var mi = MapInteractionPack.Build(new MapInteractionContext
+        {
+            World = _w,
+            EntityAuthoring = new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(() => null, () => null, () => null)
+            {
+                SuspendedReason = () => hostReason,
+            },
+        });
+        var add = mi.EntityAuthoring!.AddEntity;
+        Assert.Null(add.SuspendedReason);
+
+        Fdp.Toolkit.Replay.ReplayState.Enter(_w);
+        Assert.Equal("a recording is shown", add.SuspendedReason);
+
+        Fdp.Toolkit.Replay.ReplayState.Leave(_w);
+        hostReason = "loading";
+        Assert.Equal("loading", add.SuspendedReason);
     }
 }
