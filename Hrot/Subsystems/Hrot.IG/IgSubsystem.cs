@@ -98,6 +98,8 @@ namespace Hrot.IG
                 //    arms. In a separate-process cluster neither exists, so scenario/load/live's readiness
                 //    poll answered NOT_SUPPORTED_HERE(cluster.state) on a node that knew its own state.
                 // ⚠ This is the NODE's committed state, not the cluster's; see ClusterStateFrom's remarks.
+                // ⭐ R-3055 — the master's exercise inventory, as this node's ClusterSlave received it (the same read model on every node)
+                exercises:     Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _app?.ClusterSlave),
                 clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                    .ClusterStateFrom(() => _app?.ClusterSlave),
                 // ⭐⭐ MD-002 — IG's own kernel snapshot (it already builds one for its window, line ~169).

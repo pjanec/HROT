@@ -222,6 +222,7 @@ namespace Fdp.Toolkit.Orchestration
 
             // ⭐⭐ C2 (Q91 §4-I I5, R-4006) — follow ONE cluster session.
             FollowClusterSession();
+            FollowInventory();
 
             // Poll tickable handlers for deferred ACKs.
             foreach (var handler in _handlers)
@@ -619,6 +620,17 @@ namespace Fdp.Toolkit.Orchestration
         /// learns it is stale the moment the new master's durable sample arrives. ⚠ What the node does with the WORLD it still
         /// holds is not decided here (Q91 §4-I I6 ties it to <c>CE-4000</c>); the next load's world boundary clears it.
         /// </summary>
+        /// <summary>⭐ R-3055 — the exercises the master can replay, as its last inventory said (DDS <c>AssetInventoryTopic</c>, through
+        /// the node's slave translator); <see langword="null"/> until one arrives. The same read model on every node.</summary>
+        public System.Collections.Generic.IReadOnlyList<ExerciseInventoryItem>? KnownExercises { get; private set; }
+
+        private void FollowInventory()
+        {
+            if (_eventBus == null) return;
+            foreach (var ev in _eventBus.ReadManaged<AssetInventoryUpdateEvent>())
+                KnownExercises = ev.LocalExercises ?? System.Array.Empty<ExerciseInventoryItem>();
+        }
+
         private void FollowClusterSession()
         {
             if (_eventBus == null) return;

@@ -1577,7 +1577,7 @@ export const TOOLS_CATALOG = [
         "name": "exerciseId",
         "type": "string",
         "required": false,
-        "description": "The exercise (list_exercises); the newest when omitted"
+        "description": "The exercise (list_exercises); when omitted: the live run in progress, else the newest finished one"
       },
       {
         "name": "atSeconds",
@@ -1594,6 +1594,7 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "{ published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).",
     "notes": [
+      "With no exerciseId it needs a host that keeps the cluster read model (the editor, the orchestrator, ExCon); a CGF / SimHost / IG process needs the exerciseId.",
       "Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.",
       "play / pause / step drive the replay clock; seek_replay jumps."
     ],

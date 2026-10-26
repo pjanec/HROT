@@ -238,11 +238,6 @@ public sealed class PerspectiveScopedDispatcher
     /// the node that runs the brain, so another node's file would answer about the wrong node (Q54-2).</summary>
     public string? ReplayRecordingPath => Active()?.ReplayRecordingPath;
 
-    /// <summary>⭐ <c>R-3055</c> — the exercise the cluster runs now, from whichever node caches it.</summary>
-    public Guid? ActiveExerciseAnyNode
-        => Active()?.ActiveExerciseId
-           ?? _providers.Select(p => p.ActiveExerciseId).FirstOrDefault(x => x is not null);
-
     /// <summary>⭐ <c>R-3055</c> — the loaded replay's length from whichever node caches it.</summary>
     public float? ReplayDurationAnyNode
         => Active()?.ReplayDurationSeconds

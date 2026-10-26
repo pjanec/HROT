@@ -78,6 +78,8 @@ namespace Hrot.SimHost
                 //    the SAME shared projection CGF and IG use. 🔒 "every ECS node must use the same shared
                 //    code" — ⛔ the identical line, deliberately, in all three composition roots.
                 // 📐 See ClusterStateFrom's remarks for why it was missing everywhere and what it means.
+                // ⭐ R-3055 — the master's exercise inventory, as this node's ClusterSlave received it (the same read model on every node)
+                exercises:     Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _app?.ClusterSlave),
                 clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                    .ClusterStateFrom(() => _app?.ClusterSlave),
                 // ⭐⭐ MD-002 — this subsystem's OWN kernel snapshot. ⚠ Lazily, like every accessor here:

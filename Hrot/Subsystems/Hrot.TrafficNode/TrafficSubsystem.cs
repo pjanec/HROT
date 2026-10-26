@@ -72,6 +72,8 @@ public sealed class TrafficSubsystem : ISubsystem, IProvidesDebugSurface, Hrot.C
             tkbDb:         SubsystemDebugProvider.TkbFrom(() => _bootstrapper?.Context?.World),
             // ⭐⭐⭐ R-3052…R-3055 — the cluster master through the node's own orchestration bus (every state/storage/seek route).
             master:        OrchestrationBusMasterControl.Via(() => _bootstrapper?.Context?.EventBus),
+            // ⭐ R-3055 — the master's exercise inventory, as this node's ClusterSlave received it (the same read model on every node)
+            exercises:     Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _bootstrapper?.Context?.ClusterSlave),
             clusterState:  SubsystemDebugProvider.ClusterStateFrom(() => _bootstrapper?.Context?.ClusterSlave),
             descriptorMap: () => _bootstrapper?.Context?.NedReplication?.DescriptorOwnershipMap,
             architecture:  () => _bootstrapper?.Context?.Kernel is null

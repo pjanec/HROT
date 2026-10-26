@@ -70,7 +70,6 @@ namespace Hrot.Editor.DebugApi
         private readonly Hrot.Presentation.DebugApi.IClusterMasterControl? _editorMaster;   // ⭐ R-3052…R-3055 — the editor's own core, on its bus
         private readonly Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? _editorExercises;
         private readonly Func<float?>? _editorReplayDuration;
-        private readonly Func<Guid?>? _editorActiveExercise;
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
@@ -562,14 +561,12 @@ namespace Hrot.Editor.DebugApi
             Func<IReadOnlyList<Hrot.Presentation.DebugApi.ClusterRosterEntry>?>? clusterRoster = null,
             // ⭐ R-3055 — the master's exercise inventory and the loaded replay's length (the core's ClusterUiCache).
             Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? exercises = null,
-            Func<float?>? replayDuration = null,
-            Func<Guid?>? activeExercise = null)
+            Func<float?>? replayDuration = null)
         {
             _entityCreationGetter = entityCreation;
             _editorClusterRoster  = clusterRoster;
             _editorExercises      = exercises;
             _editorReplayDuration = replayDuration;
-            _editorActiveExercise = activeExercise;
             // ⭐ The EDITOR shape still requires all nine — ⛔ this ctor has not become permissive. The
             //   cluster shape is a SEPARATE ctor below, so an editor wiring bug still fails loudly at boot.
             _editorWorld        = world            ?? throw new ArgumentNullException(nameof(world));

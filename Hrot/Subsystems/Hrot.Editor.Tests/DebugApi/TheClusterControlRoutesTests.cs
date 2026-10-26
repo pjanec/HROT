@@ -16,7 +16,6 @@ public sealed class TheClusterControlRoutesTests
 {
     private readonly RecordingMasterControl _master = new();
     private ClusterState _state = ClusterState.Idle;
-    private Guid? _running;
 
     private static readonly ExerciseInventoryItem Older = new(Guid.NewGuid(), new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(5), "a");
     private static readonly ExerciseInventoryItem Newer = new(Guid.NewGuid(), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "b");
@@ -27,8 +26,7 @@ public sealed class TheClusterControlRoutesTests
                    {
                        new SubsystemDebugProvider("CGF", "CGF",
                            master:    withMaster ? () => _master : null,
-                           exercises: () => new[] { Older, Newer },
-                           activeExercise: () => _running),
+                           exercises: () => new[] { Older, Newer }),
                    },
                    currentPerspective: () => "CGF",
                    acksPending: null),
@@ -77,7 +75,7 @@ public sealed class TheClusterControlRoutesTests
     }
 
     [Fact]
-    public void Entering_a_replay_is_one_transition_from_any_state_to_the_newest_exercise_at_a_moment()
+    public void Entering_a_replay_is_one_transition_from_any_state_and_the_MASTER_picks_the_exercise()
     {
         _state = ClusterState.OperatingLive;   // ⭐ R-3055: no /cluster/transition walk — the planner plans the way
 
@@ -86,22 +84,15 @@ public sealed class TheClusterControlRoutesTests
         Assert.Null(error);
         var t = Assert.Single(_master.Transitions);
         Assert.Equal(ClusterState.OperatingReplay, t.TargetState);
-        Assert.Equal(Newer.ExerciseId, t.ExerciseId);
+        // ⭐ none named ⇒ Guid.Empty on EVERY host: the master resolves it (ClusterMaster.ResolveReplayExercise) — ⛔ the asker never
+        //   picks from a cache it may not have (measured: the same request worked on the editor and was refused on CGF)
+        Assert.Equal(Guid.Empty, t.ExerciseId);
         Assert.Equal(TimeSpan.FromSeconds(30).Ticks, t.TargetWallTicks);   // C9: ticks after the replay's zero
-        Assert.Equal(Newer.ExerciseId.ToString(), result!["exerciseId"]!.GetValue<string>());
-    }
+        Assert.Null(result!["exerciseId"]);
 
-    [Fact]
-    public void From_a_live_run_the_replay_with_no_exercise_named_is_THAT_run()
-    {
-        // ⭐ the master lists an exercise only once it ENDED (AssetInventoryProcessManager), so "replay what I just ran" from Live is
-        //   the running one — measured on the five-process cluster: the newest listed exercise was an older run.
-        _state = ClusterState.OperatingLive;
-        _running = Guid.NewGuid();
-
-        Assert.Null(Host().EnterReplay(new JsonObject { ["atSeconds"] = 30 }).Error);
-
-        Assert.Equal(_running, Assert.Single(_master.Transitions).ExerciseId);
+        var named = Guid.NewGuid();
+        Assert.Null(Host().EnterReplay(new JsonObject { ["exerciseId"] = named.ToString() }).Error);
+        Assert.Equal(named, _master.Transitions[^1].ExerciseId);   // a named exercise is kept
     }
 
     [Fact]

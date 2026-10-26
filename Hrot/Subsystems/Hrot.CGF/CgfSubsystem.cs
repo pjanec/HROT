@@ -512,6 +512,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   one it builds itself (`_context = _context with { ClusterSlave = newClusterSlave }`, so it
             //   can control handler registration order). A captured value would read the pre-Initialize
             //   slave forever — the one that never commits anything.
+            // ⭐ R-3055 — the master's exercise inventory, as this node's ClusterSlave received it (the same read model on every node)
+            exercises:     Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _context?.ClusterSlave),
             clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                .ClusterStateFrom(() => _context?.ClusterSlave),
             // ⭐⭐ MD-002 — CGF's own kernel snapshot, the same one its Architecture Diagnostics window
