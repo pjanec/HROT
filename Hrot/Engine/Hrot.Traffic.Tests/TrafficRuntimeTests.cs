@@ -314,6 +314,47 @@ public sealed class TrafficRuntimeTests
         return new TrafficServeOptions(ids ?? (() => Interlocked.Increment(ref n)), Participant: null, Source: 1);
     }
 
+/// <summary>⭐ CE-4048 (coordinator handoff "Replay Recording Fixes" ④; AQ93 E5 / R-4027: the mirror is gated in replay LIKE INGRESS) —
+    /// while this node restores its own recording, the mirror writes nothing into the world: no new replicas from the live wire, the
+    /// recorded replicas are not moved, and the live car frame the map draws is withdrawn (it is NoReplay — a replay has none). When
+    /// the gate lifts it serves again.</summary>
+    [Fact]
+    public void CE4048_WhileTheNodeRestoresItsRecording_TheMirrorWritesNothing_AndServesAgainAfter()
+    {
+        LoadDemoCity(out var world);
+        using var _ = world;
+        RegisterReplicaComponents(world);
+        world.RegisterComponent<TrafficDemand>();
+        long next = 80000;
+        using var runtime = new TrafficRuntime(Options(() => Interlocked.Increment(ref next)));
+        var mirror = new TrafficMirrorSystem(runtime, participant: null, entityMap: null, localNodeId: 1);
+        var traffic = world.CreateEntity();
+        world.AddComponent(traffic, TrafficDemand.Default);
+        double t = 600.0;
+        for (int i = 0; i < 160; i++) Frame(world, mirror, runtime, t += 0.25);
+        Assert.NotEmpty(mirror.Cars);
+        var c = mirror.Cars[0];
+        Body(world, c.X, c.Y);
+        Frame(world, mirror, runtime, t += 0.25);
+        Assert.NotEmpty(mirror.Replicas!.Replicas);   // ⛔ otherwise the rail proves nothing
+
+        var gate = Assert.IsAssignableFrom<IReplayRestoreGated>(mirror);   // the controller gates every IReplayRestoreGated system it schedules
+        bool restoring = true;
+        gate.IsReplayRestoring = () => restoring;
+        var recorded = mirror.Replicas.Replicas.Values.ToDictionary(e => e, e => world.GetComponentRO<SimTransform>(e).Position);
+        int entities = world.EntityCount;
+        for (int i = 0; i < 40; i++) Frame(world, mirror, runtime, t += 0.25);   // 10 s of a replay
+
+        Assert.Equal(entities, world.EntityCount);
+        foreach (var (e, at) in recorded)
+            Assert.Equal(at, world.GetComponentRO<SimTransform>(e).Position);   // the recording owns them
+        Assert.Null(TrafficFrame.Of(world));                                     // no live cars drawn over the replay
+
+        restoring = false;
+        for (int i = 0; i < 8; i++) Frame(world, mirror, runtime, t += 0.25);
+        Assert.NotNull(TrafficFrame.Of(world));                                  // live again
+    }
+
     private static void Frame(EntityRepository world, TrafficMirrorSystem mirror, TrafficRuntime runtime, double now)
     {
         world.SetSingleton(new GlobalTime { TotalTime = now, DeltaTime = 0.25f, TimeScale = 1f });

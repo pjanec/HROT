@@ -60,7 +60,7 @@ public sealed class TrafficSteppingModule : IEcsModule
 /// </remarks>
 [UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.Input)]
 [TickMode(TickPolicy.WhenTimeAdvances)]
-public sealed class TrafficMirrorSystem : IEcsModuleSystem
+public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IReplayRestoreGated
 {
     /// <summary>⭐ AQ93 §12 N4 — <c>EDescriptorType.dtTrafficDemand</c> (Hrot.Network.NED); a rail pins the two equal.</summary>
     public const long TrafficDemandDescriptor = 160;
@@ -108,6 +108,13 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
     /// <param name="runtime">Non-null on a node that SERVES traffic (the traffic node, the editor).</param>
     /// <param name="participant">The node's DDS participant: null ⇒ no other node's traffic is mirrored (the networkless editor).</param>
     /// <param name="entityMap">The node's network entity map, so a replica answers to its network id.</param>
+    /// <summary>
+    /// ⭐ CE-4048 (AQ93 E5, R-4027: the mirror is gated in replay LIKE INGRESS, R-4012) — true while this node restores its own
+    /// recording; set by <c>EcsRecordReplayController.PrepareReplayAsync</c> on every <see cref="Fdp.Interfaces.IReplayRestoreGated"/>
+    /// system. ⛔ Ungated, a replay kept moving the recorded replicas with the LIVE wire, made new ones, and drew live cars over it.
+    /// </summary>
+    public Func<bool>? IsReplayRestoring { get; set; }
+
     public TrafficMirrorSystem(TrafficRuntime? runtime, DdsParticipant? participant, NetworkEntityMap? entityMap, int localNodeId)
     {
         _runtime = runtime;
@@ -132,6 +139,14 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world)
             throw new InvalidOperationException($"{nameof(TrafficMirrorSystem)} needs the live EntityRepository, not {view.GetType().Name}.");
+        // ⭐ CE-4048 — the recording owns the world while this node restores it: no entity is touched (the replica bookkeeping is kept,
+        //   so the next live frame reconciles the same entities), and the live frame the map draws is withdrawn (it is NoReplay).
+        if (IsReplayRestoring?.Invoke() == true)
+        {
+            if (_frame is not null && world.HasSingletonManaged<TrafficFrame>()) world.SetSingletonManaged<TrafficFrame>(null!);
+            _frame = null;
+            return;
+        }
         if (!ReferenceEquals(world, _replicaWorld))
         {
             _replicas?.Clear();
