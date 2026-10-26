@@ -1807,6 +1807,56 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "set_replay_loop",
+    "group": "I — Replay",
+    "summary": "⭐ CE-3329 §12n — loop the replay (or review) between two moments: when the playhead reaches the end the master's replay clock jumps back to the start, on either axis. A SESSION setting held by the master and drawn by every host; {} clears it.",
+    "http": {
+      "method": "POST",
+      "path": "/replay/loop"
+    },
+    "params": [
+      {
+        "name": "fromSeconds",
+        "type": "number",
+        "required": false,
+        "description": "Loop start, wall seconds after the replay's zero"
+      },
+      {
+        "name": "toSeconds",
+        "type": "number",
+        "required": false,
+        "description": "Loop end, wall seconds after the replay's zero"
+      },
+      {
+        "name": "fromSimSeconds",
+        "type": "number",
+        "required": false,
+        "description": "Loop start in the recording's own sim seconds (the master resolves it)"
+      },
+      {
+        "name": "toSimSeconds",
+        "type": "number",
+        "required": false,
+        "description": "Loop end in the recording's own sim seconds"
+      }
+    ],
+    "returns": "{ published, requestId, cleared }",
+    "notes": [
+      "Valid only 0 <= from < to <= the replay's length; otherwise the master refuses it (the previous loop stays). Cleared when the cluster leaves the replay / review.",
+      "Enforced only while the clock runs; a seek outside the loop is honoured. get_replay_status reports it as loop {fromSeconds,toSeconds} on the active axis (null = none). The Replay Browser keeps its own loop (the viewer's)."
+    ],
+    "example": {
+      "args": {
+        "fromSeconds": 2,
+        "toSeconds": 5
+      },
+      "gist": "loop a stretch of the replay"
+    },
+    "hint": "Req: fromSeconds+toSeconds (wall seconds after the zero) OR fromSimSeconds+toSimSeconds (the recording's sim seconds); none = clear. Example: set_replay_loop({fromSeconds:2,toSeconds:5})",
+    "manualVerify": false
+  },
+
+  {
     "name": "search_replay",
     "group": "I — Replay",
     "summary": "Find the frames of this node's replay recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
@@ -1942,7 +1992,7 @@ export const TOOLS_CATALOG = [
       "path": "/replay/status"
     },
     "params": [],
-    "returns": "{ clusterState, replaying, durationSeconds, recording, simSeconds, axis, sim, browser } — axis: the session's time axis (Sim | Wall, CE-3329) — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
+    "returns": "{ clusterState, replaying, durationSeconds, recording, simSeconds, axis, loop, sim, browser } — axis: the session's time axis (Sim | Wall, CE-3329) — loop: {fromSeconds,toSeconds} on the active axis, or null (CE-3329 §12n) — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
     "example": {
       "args": {},
       "gist": "is the cluster replaying, and where"

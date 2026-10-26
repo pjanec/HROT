@@ -54,5 +54,9 @@ namespace Fdp.Toolkit.Orchestration
         // ⭐ CE-3329 P1 (R-3058) — switch the replay's time axis (Sim | Wall) for the whole session, from any host.
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayAxisPayloadDto.
         SetReplayAxis = 22,
+
+        // ⭐ CE-3329 §12n — set / clear the replay's LOOP range (a session setting of the master's replay clock), from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayLoopPayloadDto.
+        SetReplayLoop = 23,
     }
 }

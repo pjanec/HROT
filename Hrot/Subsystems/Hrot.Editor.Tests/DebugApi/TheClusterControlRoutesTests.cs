@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Text.Json.Nodes;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.DebugApi;
 using Hrot.Presentation.DebugApi;
@@ -143,6 +144,46 @@ public sealed class TheClusterControlRoutesTests
         Assert.Equal("Wall", svc.GetReplayStatus()["axis"]!.GetValue<string>());
     }
 
+    /// <summary>⭐ CE-3329 §12n — <c>POST /replay/loop</c> is one master intent from any host: wall bounds, sim bounds, or none (= clear); a
+    /// non-number, a half loop or a mix of the two units is refused here and publishes nothing. The status reports the session's loop.</summary>
+    [Fact]
+    public void The_loop_is_one_master_intent_and_the_status_reports_it()
+    {
+        var svc = Host();
+        Assert.Null(svc.SetReplayLoop(new JsonObject { ["fromSeconds"] = 2, ["toSeconds"] = 5 }).Error);
+        var wall = Assert.IsType<SetReplayLoopIntent>(Assert.Single(_master.Sent));
+        Assert.Equal(2, wall.FromSeconds); Assert.Equal(5, wall.ToSeconds);
+        Assert.Null(wall.FromSimSeconds);
+
+        Assert.Null(svc.SetReplayLoop(new JsonObject { ["fromSimSeconds"] = 1.5, ["toSimSeconds"] = 3 }).Error);
+        var sim = Assert.IsType<SetReplayLoopIntent>(_master.Sent[^1]);
+        Assert.Equal(1.5, sim.FromSimSeconds); Assert.Equal(3, sim.ToSimSeconds);
+        Assert.Null(sim.FromSeconds);
+
+        Assert.Null(svc.SetReplayLoop(new JsonObject()).Error);                       // {} clears
+        var clear = Assert.IsType<SetReplayLoopIntent>(_master.Sent[^1]);
+        Assert.Null(clear.FromSeconds); Assert.Null(clear.ToSeconds); Assert.Null(clear.FromSimSeconds); Assert.Null(clear.ToSimSeconds);
+
+        int sent = _master.Sent.Count;
+        Assert.NotNull(svc.SetReplayLoop(new JsonObject { ["fromSeconds"] = "abc", ["toSeconds"] = 5 }).Error);   // not a number
+        Assert.NotNull(svc.SetReplayLoop(new JsonObject { ["fromSeconds"] = -1, ["toSeconds"] = 5 }).Error);     // negative
+        Assert.NotNull(svc.SetReplayLoop(new JsonObject { ["fromSeconds"] = 2 }).Error);                         // half a loop
+        Assert.NotNull(svc.SetReplayLoop(new JsonObject { ["fromSeconds"] = 2, ["toSimSeconds"] = 5 }).Error);   // two units
+        Assert.Equal(sent, _master.Sent.Count);                                                                  // none of them published
+
+        Assert.Null(svc.GetReplayStatus()["loop"]);                                   // no session loop on this host
+        var bus = new FdpEventBus();
+        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => 0);
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingReplay, ReplayAxis = ReplayAxis.Wall });
+        bus.PublishManaged(new ReplaySessionUpdateEvent { Session = new ReplaySession { Active = true, LoopFromSeconds = 2, LoopToSeconds = 5 } });
+        bus.SwapBuffers(); facade.Update();
+        var withLoop = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", master: () => _master, drive: () => facade) },
+            currentPerspective: () => "CGF", acksPending: null), clusterState: () => _state);
+        var loop = withLoop.GetReplayStatus()["loop"]!.AsObject();
+        Assert.Equal(2, loop["fromSeconds"]!.GetValue<double>()); Assert.Equal(5, loop["toSeconds"]!.GetValue<double>());
+    }
+
     /// <summary>⭐ CE-3329 P3 — <c>POST /review</c> is ONE transition to OperatingReview (the live point unless a moment is named), only
     /// from a live run; <c>/review/exit</c> goes back to OperatingLive; the host reports it shows a recording (world-changing routes 409).</summary>
     [Fact]
@@ -270,6 +311,7 @@ public sealed class TheClusterControlRoutesTests
         public void Transition(TransitionStateIntent intent) => throw new InvalidOperationException("no such exercise");
         public void SeekReplay(SeekReplayIntent intent) => throw new InvalidOperationException("no such exercise");
         public void SetReplayAxis(SetReplayAxisIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void SetReplayLoop(SetReplayLoopIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Storage(ExecuteStorageOpIntent intent) => throw new InvalidOperationException("no such exercise");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");

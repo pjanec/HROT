@@ -167,6 +167,10 @@ public sealed class ClusterOpMasterTranslator
                 _bus.PublishManaged(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
 
+            case NedClusterOpType.SetReplayLoop:   // ⭐ CE-3329 §12n
+                _bus.PublishManaged(SetReplayLoopPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
             case NedClusterOpType.CancelOperation:
             {
                 _bus.PublishManaged(new CancelOperationIntent

@@ -1158,7 +1158,7 @@ process; the before run on the binaries without the change, golden of `ua-civ-me
 ⚠ The first after-run failed every load: an edit had put `_editorLogic?.Update()` inside a comment (the editor's scenario session stopped
 reading the cluster state). Caught by this very check, fixed before commit.
 
-### 12n. ⏳ BUILDING `2026-10-26` — "Loop range": a SESSION setting of the master's replay clock (NOTE_Coordinator_To_Backend_After_DAR item 3)
+### 12n. ✅ BUILT `2026-10-26` — "Loop range": a SESSION setting of the master's replay clock (NOTE_Coordinator_To_Backend_After_DAR item 3)
 
 🔒 User: *"go ahead with loop range"* — on the coordinator's lean (NOTE_Coordinator_To_Backend_Review_Harness §3): a loop drives the CLUSTER
 clock, so it is the master's, set by an intent from any host and carried on `ReplaySessionTopic`; ⛔ never per host (two operators'
@@ -1223,4 +1223,21 @@ sequenceDiagram
 | cleared whenever the cluster leaves a replay or a review | a new session starts unlooped; a stale bracket from the last exercise is never enforced |
 | enforced only while the clock RUNS; a seek outside the loop is honoured (the loop catches the playhead when it next crosses `To`) | the operator can always leave it by seeking or clearing |
 | `POST /replay/loop {fromSeconds, toSeconds}` · `{fromSimSeconds, toSimSeconds}` · `{}` = clear; `GET /replay/status` carries `loop` | one path with the facade |
+
+**As built** (matches the diagrams; deviations named):
+
+| piece | where |
+|---|---|
+| the intent, its ONE resolve + validate (`IsClear`, `Resolve`) — used by the master AND the Replay Browser's own clock | `ClusterOpIntents.cs` `SetReplayLoopIntent` |
+| held, resolved, refused (`Rejected`, the old loop stays), cleared on any transition to a state that is not replay / review | `ClusterMaster.Replay.cs` `ProcessSetReplayLoopIntent` · `ClusterMaster.cs` `ExecuteTransitionTrajectory` |
+| the wrap — either axis, clock Continuous only, checked BEFORE the Sim axis's paused-stretch jump; `LoopJumps` counter | `ReplayClockProcessManager.TickLoop` |
+| the session carries `LoopFromSeconds` / `LoopToSeconds` (wall); JSON on `ReplaySessionWire`, so no wire-format change | `ReplaySession` |
+| the facade: `SetLoop` / `ClearLoop` / `Loop` (on the active axis; Sim converts through the session's map, wall when it has none) | `ClusterReplayControls` · `ReplaySessionIntents.SetLoop/ClearLoop` |
+| ⚠ deviation: the Replay Browser loops LOCALLY for real (not a no-op) — `TickLocalLoop` moves its playback base after each step, never through `SeekToSeconds` (a wrap is not a navigation) | `ReplayBrowserSubsystem.DebugSurface.cs` |
+
+Rails (each red-proved by a compiling mutation): `ClusterMasterSeekTests` — holds / resolves / validates / clears; wraps once per crossing
+(Wall and Sim; landing guard; not paused, not without a loop, not outside a replay; never `SnapTo`); the session carries it ·
+`TranslatorDtoTests` — wall, sim and clear on the wire · `TheOneTimeFacadeTests` — intents and `Loop` on the active axis ·
+`TheClusterControlRoutesTests` — one intent per request, refused inputs publish nothing, status `loop`.
+⏭ Not exercised: the Replay Browser's local wrap (compile-checked only) and a wrap on a live multi-node cluster.
 

@@ -8,6 +8,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ReplayAxis    = Fdp.Toolkit.Orchestration.ReplayAxis;
 using SetReplayAxisIntent = Fdp.Toolkit.Orchestration.SetReplayAxisIntent;
+using SetReplayLoopIntent = Fdp.Toolkit.Orchestration.SetReplayLoopIntent;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 
 namespace Hrot.Orchestrator;
@@ -43,6 +44,42 @@ public sealed partial class ClusterMaster
         PublishClusterState(_currentDsmState);
         PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
     }
+
+    private (double FromSeconds, double ToSeconds)? _replayLoop;   // ⭐ CE-3329 §12n — wall seconds after the zero
+
+    /// <summary>⭐ CE-3329 §12n — the replay's LOOP range in WALL seconds after its zero, or <see langword="null"/>. A session setting
+    /// held here and enforced by <c>ReplayClockProcessManager</c>; cleared whenever the cluster leaves a replay / review.</summary>
+    public (double FromSeconds, double ToSeconds)? ReplayLoop => _replayLoop;
+
+    /// <summary>
+    /// ⭐ CE-3329 §12n — any host sets or clears the loop. Sim bounds are resolved through <see cref="RelativeTicksForSim"/>; valid only
+    /// <c>0 ≤ from &lt; to ≤ length</c> (length checked when known), else <c>Rejected</c> and the previous loop stays. All-null = clear.
+    /// </summary>
+    private void ProcessSetReplayLoopIntent(SetReplayLoopIntent intent)
+    {
+        if (intent.IsClear)
+        {
+            _replayLoop = null;
+            FdpLog<ClusterMaster>.Info("[Orchestrator] CE-3329 §12n: the replay loop is cleared.");
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
+            return;
+        }
+
+        var loop = intent.Resolve(sim => RelativeTicksForSim(sim) is { } rel ? rel / (double)TimeSpan.TicksPerSecond : null,
+                                  _replayDurationSeconds);
+        if (loop is not { } resolved)
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] CE-3329 §12n: a loop refused — needs 0 <= from < to <= the replay's length ({0}s); the previous loop stays.",
+                _replayDurationSeconds);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
+
+        _replayLoop = resolved;
+        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-3329 §12n: the replay loops [{0:F2}s, {1:F2}s].", resolved.FromSeconds, resolved.ToSeconds);
+        PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
+    }
+
     private Fdp.Core.FlightRecorder.ReplayTimeMap _replayTimeMap = Fdp.Core.FlightRecorder.ReplayTimeMap.Empty;
 
     /// <summary>⭐ CE-3329 P1 (R3) — the cluster's wall ↔ sim map of the loaded replay (the nodes' maps intersected by

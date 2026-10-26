@@ -1065,6 +1065,8 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/review/exit", ctx => PublishAndAwait(ctx, s => s.ExitReview(), Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
             // ⭐ CE-3329 R-3058 — the replay session's time axis, from any host
             _routes.Add(new("POST", "/replay/axis", ctx => PublishAndAwait(ctx, s => s.SetReplayAxis(ctx.Body), waitFor: null)));
+            // ⭐ CE-3329 §12n — the replay's LOOP range (a session setting of the master's replay clock), from any host
+            _routes.Add(new("POST", "/replay/loop", ctx => PublishAndAwait(ctx, s => s.SetReplayLoop(ctx.Body), waitFor: null)));
             _routes.Add(new("GET", "/replay/status", _ => RunMain(s => s.GetReplayStatus())));
 
             // ⭐ CE-1265 (AV-8) — every journal entry of one unit across this node's replay recording; CE-1266 (AV-9) — the frames where a

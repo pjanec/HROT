@@ -518,6 +518,10 @@ public sealed partial class ClusterMaster : IDisposable
                 ProcessSetReplayAxisIntent(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
 
+            case ClusterOpType.SetReplayLoop:   // ⭐ CE-3329 §12n
+                ProcessSetReplayLoopIntent(SetReplayLoopPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
             case ClusterOpType.CancelOperation:
                 ProcessCancelOperationIntent(ClusterOpRequestAdapter.ToCancelOperationIntent(req));
                 break;
@@ -974,6 +978,8 @@ public sealed partial class ClusterMaster : IDisposable
         }
         foreach (var intent in _eventBus.ReadManaged<SetReplayAxisIntent>())
             ProcessSetReplayAxisIntent(intent);   // ⭐ CE-3329 R-3058
+        foreach (var intent in _eventBus.ReadManaged<SetReplayLoopIntent>())
+            ProcessSetReplayLoopIntent(intent);   // ⭐ CE-3329 §12n
     }
 
     private void ProcessCancelOperationIntents()
@@ -1438,6 +1444,8 @@ public sealed partial class ClusterMaster : IDisposable
 
         // ⚠ §7.2a — the optimistic advance belongs HERE, not at planning time.
         _currentDsmState = resolvedTarget;
+        // ⭐ CE-3329 §12n — a new session starts unlooped: a stale bracket from the last exercise is never enforced.
+        if (!ClusterStates.IsReplaying((FdpClusterState)(int)resolvedTarget)) _replayLoop = null;
 
         var tx = new DistributedTransaction
         {

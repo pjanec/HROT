@@ -26,6 +26,9 @@ public interface IClusterMasterControl
     /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis (Sim | Wall), for every host.</summary>
     void SetReplayAxis(SetReplayAxisIntent intent);
 
+    /// <summary>⭐ CE-3329 §12n — set or clear the replay's loop range (a session setting of the master's replay clock), for every host.</summary>
+    void SetReplayLoop(SetReplayLoopIntent intent);
+
     /// <summary>A storage operation (a scenario save, an export, …).</summary>
     void Storage(ExecuteStorageOpIntent intent);
 
@@ -53,6 +56,7 @@ public sealed class OrchestrationBusMasterControl : IClusterMasterControl
     public void Transition(TransitionStateIntent intent) => Bus.PublishManaged(intent);
     public void SeekReplay(SeekReplayIntent intent) => Bus.PublishManaged(intent);
     public void SetReplayAxis(SetReplayAxisIntent intent) => Bus.PublishManaged(intent);   // CE-3329
+    public void SetReplayLoop(SetReplayLoopIntent intent) => Bus.PublishManaged(intent);   // CE-3329 §12n
     public void Storage(ExecuteStorageOpIntent intent) => Bus.PublishManaged(intent);
     public void TakeCheckpoint(TakeCheckpointIntent intent) => Bus.PublishManaged(intent);
     public void RestoreCheckpoint(RestoreCheckpointIntent intent) => Bus.PublishManaged(intent);

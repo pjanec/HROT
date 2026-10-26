@@ -54,6 +54,12 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ The live point in wall seconds after the zero (the review's span is [0, this]); <see langword="null"/> outside a review.</summary>
         public double? LivePointSeconds { get; set; }
 
+        /// <summary>⭐ CE-3329 §12n — the loop range's start in WALL seconds after the zero; <see langword="null"/> = no loop.</summary>
+        public double? LoopFromSeconds { get; set; }
+
+        /// <summary>⭐ CE-3329 §12n — the loop range's end in WALL seconds after the zero; <see langword="null"/> = no loop.</summary>
+        public double? LoopToSeconds { get; set; }
+
         /// <summary>The empty sample: no replay, no review.</summary>
         public static ReplaySession None(Guid sessionId) => new() { SessionId = sessionId };
 
@@ -63,7 +69,8 @@ namespace Fdp.Toolkit.Orchestration
                && Active == other.Active && IsReview == other.IsReview && Axis == other.Axis && ZeroWallTicks == other.ZeroWallTicks
                && LengthSeconds.Equals(other.LengthSeconds) && ReferenceEquals(TimeMap, other.TimeMap)
                && Checkpoints.Length == other.Checkpoints.Length && Nullable.Equals(LivePointSimSeconds, other.LivePointSimSeconds)
-               && Nullable.Equals(LivePointSeconds, other.LivePointSeconds);
+               && Nullable.Equals(LivePointSeconds, other.LivePointSeconds)
+               && Nullable.Equals(LoopFromSeconds, other.LoopFromSeconds) && Nullable.Equals(LoopToSeconds, other.LoopToSeconds);
     }
 
     /// <summary>

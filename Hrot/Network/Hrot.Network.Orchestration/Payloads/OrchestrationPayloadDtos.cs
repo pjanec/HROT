@@ -194,6 +194,41 @@ public record SetReplayAxisPayloadDto(
     }
 }
 
+/// <summary>⭐ CE-3329 §12n — payload of <c>ClusterOpType.SetReplayLoop</c>: wall bounds, sim bounds, or none (= clear).</summary>
+public record SetReplayLoopPayloadDto(
+    [property: JsonPropertyName("FromSeconds")]
+    double? FromSeconds,
+    [property: JsonPropertyName("ToSeconds")]
+    double? ToSeconds,
+    [property: JsonPropertyName("FromSimSeconds")]
+    double? FromSimSeconds,
+    [property: JsonPropertyName("ToSimSeconds")]
+    double? ToSimSeconds)
+{
+    /// <summary>The ONE encoding of a loop request on the wire.</summary>
+    public static SetReplayLoopPayloadDto From(Fdp.Toolkit.Orchestration.SetReplayLoopIntent intent)
+        => new(intent.FromSeconds, intent.ToSeconds, intent.FromSimSeconds, intent.ToSimSeconds);
+
+    /// <summary>The ONE decoding (the master's translator and its request adapter). Unreadable ⇒ all-null, i.e. a CLEAR.</summary>
+    public static Fdp.Toolkit.Orchestration.SetReplayLoopIntent Decode(Guid requestId, string? json)
+    {
+        var intent = new Fdp.Toolkit.Orchestration.SetReplayLoopIntent { RequestId = requestId };
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(json)
+                && System.Text.Json.JsonSerializer.Deserialize<SetReplayLoopPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
+            {
+                intent.FromSeconds = dto.FromSeconds;
+                intent.ToSeconds = dto.ToSeconds;
+                intent.FromSimSeconds = dto.FromSimSeconds;
+                intent.ToSimSeconds = dto.ToSimSeconds;
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        return intent;
+    }
+}
+
 /// <summary>Payload DTO for <c>ClusterOpType.StepTime</c> DDS requests.</summary>
 public record StepTimePayloadDto(
     [property: JsonPropertyName("FixedDelta")]

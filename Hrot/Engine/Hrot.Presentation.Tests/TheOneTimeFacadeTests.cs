@@ -128,6 +128,53 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(ReplayAxis.Wall, Published<SetReplayAxisIntent>(axisBus).Axis);
     }
 
+    /// <summary>⭐ CE-3329 §12n — a loop is asked of the master in the ACTIVE axis's unit: sim bounds on Sim (no wall bounds), wall bounds
+    /// on Wall (no sim bounds); clearing is the all-null request. The facade holds nothing — the master does.</summary>
+    [Fact]
+    public void SetLoop_AndClearLoop_AreTheMastersIntents_OnTheActiveAxis()
+    {
+        var (sim, simBus) = In(ClusterState.OperatingReplay, ReplayAxis.Sim);
+        sim.SetLoop(2, 5);
+        var onSim = Published<SetReplayLoopIntent>(simBus);
+        Assert.Equal(2, onSim.FromSimSeconds); Assert.Equal(5, onSim.ToSimSeconds);
+        Assert.Null(onSim.FromSeconds); Assert.Null(onSim.ToSeconds);
+
+        var (wall, wallBus) = In(ClusterState.OperatingReplay, ReplayAxis.Wall);
+        wall.SetLoop(2, 5);
+        var onWall = Published<SetReplayLoopIntent>(wallBus);
+        Assert.Equal(2, onWall.FromSeconds); Assert.Equal(5, onWall.ToSeconds);
+        Assert.Null(onWall.FromSimSeconds); Assert.Null(onWall.ToSimSeconds);
+
+        var (clearer, clearBus) = In(ClusterState.OperatingReplay, ReplayAxis.Sim);
+        clearer.ClearLoop();
+        var cleared = Published<SetReplayLoopIntent>(clearBus);
+        Assert.Null(cleared.FromSeconds); Assert.Null(cleared.ToSeconds);
+        Assert.Null(cleared.FromSimSeconds); Assert.Null(cleared.ToSimSeconds);
+    }
+
+    /// <summary>⭐ CE-3329 §12n — <c>Loop</c> reads the session's bounds (wall seconds after the zero): as they are on Wall, through the
+    /// session's map on Sim, and as wall when there is no sim axis; nothing without a loop or a session.</summary>
+    [Fact]
+    public void Loop_IsTheSessionsBounds_OnTheActiveAxis()
+    {
+        const long zero = 1_000_000L;
+        var map = Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(
+            new[] { zero, zero + 10 * TimeSpan.TicksPerSecond }, new[] { 0.0, 5.0 },     // sim runs at half the wall's pace
+            new[] { Fdp.Core.FlightRecorder.FrameFlags.None, Fdp.Core.FlightRecorder.FrameFlags.None });
+        Assert.True(map.HasSimTime);
+        var session = new ReplaySession { Active = true, ZeroWallTicks = zero, TimeMap = map, LoopFromSeconds = 2, LoopToSeconds = 4 };
+
+        Assert.Equal((2.0, 4.0), In(ClusterState.OperatingReplay, ReplayAxis.Wall, session).Facade.Loop);
+        var onSim = In(ClusterState.OperatingReplay, ReplayAxis.Sim, session).Facade.Loop!.Value;
+        Assert.Equal(1.0, onSim.From, 6); Assert.Equal(2.0, onSim.To, 6);
+
+        var noMap = new ReplaySession { Active = true, ZeroWallTicks = zero, LoopFromSeconds = 2, LoopToSeconds = 4 };
+        Assert.Equal((2.0, 4.0), In(ClusterState.OperatingReplay, ReplayAxis.Sim, noMap).Facade.Loop);   // v6: the wall values
+
+        Assert.Null(In(ClusterState.OperatingReplay, ReplayAxis.Sim, new ReplaySession { Active = true, ZeroWallTicks = zero, TimeMap = map }).Facade.Loop);
+        Assert.Null(In(ClusterState.OperatingReplay, ReplayAxis.Sim).Facade.Loop);                       // no session yet
+    }
+
     [Fact]
     public void LivePoint_IsTheSessionsOnTheActiveAxis_AndNothingOutsideAReview()
     {

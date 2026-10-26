@@ -39,6 +39,21 @@ public static class ReplaySessionIntents
     /// <summary>The session's axis.</summary>
     public static SetReplayAxisIntent SetAxis(ReplayAxis axis) => new() { RequestId = Guid.NewGuid(), Axis = axis };
 
+    /// <summary>⭐ CE-3329 §12n — loop the replay between two moments given in WALL seconds after the zero.</summary>
+    public static SetReplayLoopIntent SetLoopWall(double fromSeconds, double toSeconds)
+        => new() { RequestId = Guid.NewGuid(), FromSeconds = fromSeconds, ToSeconds = toSeconds };
+
+    /// <summary>⭐ CE-3329 §12n — loop the replay between two moments of the recording's SIM time (the master resolves them).</summary>
+    public static SetReplayLoopIntent SetLoopSim(double fromSimSeconds, double toSimSeconds)
+        => new() { RequestId = Guid.NewGuid(), FromSimSeconds = fromSimSeconds, ToSimSeconds = toSimSeconds };
+
+    /// <summary>⭐ CE-3329 §12n — a loop on <paramref name="axis"/>: Sim ⇒ sim bounds; Wall ⇒ wall bounds.</summary>
+    public static SetReplayLoopIntent SetLoop(ReplayAxis axis, double from, double to)
+        => axis == ReplayAxis.Sim ? SetLoopSim(from, to) : SetLoopWall(from, to);
+
+    /// <summary>⭐ CE-3329 §12n — clear the loop (all bounds null).</summary>
+    public static SetReplayLoopIntent ClearLoop() => new() { RequestId = Guid.NewGuid() };
+
     /// <summary>A time on <paramref name="axis"/> as the two targets: Sim ⇒ the sim target; Wall ⇒ the wall seconds.</summary>
     public static (double Wall, double? Sim) OnAxis(ReplayAxis axis, double t)
         => axis == ReplayAxis.Sim ? (0, t) : (t, null);
@@ -127,6 +142,28 @@ public sealed class ClusterReplayControls
             var s = _session();
             if (s is not { Active: true, IsReview: true }) return null;
             return Axis == ReplayAxis.Sim ? s.LivePointSimSeconds : s.LivePointSeconds;
+        }
+    }
+
+    /// <summary>⭐ CE-3329 §12n — loop the open replay / review between <paramref name="from"/> and <paramref name="to"/> on the active axis.</summary>
+    public void SetLoop(double from, double to) => _master.SetReplayLoop(ReplaySessionIntents.SetLoop(Axis, from, to));
+
+    /// <summary>⭐ CE-3329 §12n — clear the loop.</summary>
+    public void ClearLoop() => _master.SetReplayLoop(ReplaySessionIntents.ClearLoop());
+
+    /// <summary>
+    /// ⭐ CE-3329 §12n — the session's loop on the active axis, or <see langword="null"/>. The session carries WALL seconds after the zero;
+    /// on the Sim axis each bound goes through the session's map (no map / no sim time ⇒ the wall values).
+    /// </summary>
+    public (double From, double To)? Loop
+    {
+        get
+        {
+            var s = _session();
+            if (s is not { Active: true, LoopFromSeconds: { } from, LoopToSeconds: { } to }) return null;
+            if (Axis != ReplayAxis.Sim || s.TimeMap is not { HasSimTime: true } map) return (from, to);
+            double Sim(double wallSeconds) => map.SimAt(s.ZeroWallTicks + (long)(wallSeconds * TimeSpan.TicksPerSecond));
+            return (Sim(from), Sim(to));
         }
     }
 

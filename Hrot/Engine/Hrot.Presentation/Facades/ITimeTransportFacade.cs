@@ -71,6 +71,16 @@ public interface ITimeTransportFacade
 
     /// <summary>Seeks the open replay or review to <paramref name="t"/> on the active axis.</summary>
     void Seek(double t);
+
+    /// <summary>⭐ CE-3329 §12n — loops the open replay / review between <paramref name="from"/> and <paramref name="to"/> on the active
+    /// axis: a SESSION setting of the master's replay clock (never this host's), so every host draws the same bracket.</summary>
+    void SetLoop(double from, double to);
+
+    /// <summary>⭐ CE-3329 §12n — clears the loop.</summary>
+    void ClearLoop();
+
+    /// <summary>⭐ CE-3329 §12n — the session's loop on the active axis; <see langword="null"/> = none.</summary>
+    (double From, double To)? Loop { get; }
 }
 
 /// <summary>⭐ CE-3329 row 21 — what the cluster shows (the facade's <see cref="ITimeTransportFacade.Mode"/>).</summary>

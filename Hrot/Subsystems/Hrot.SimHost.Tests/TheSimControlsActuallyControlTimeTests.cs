@@ -43,6 +43,9 @@ public class TheSimControlsActuallyControlTimeTests
         public void ExitReview() { }
         public double? LivePoint { get; set; }
         public void Seek(double t) { }
+        public void SetLoop(double from, double to) { }   // CE-3329 §12n
+        public void ClearLoop() { }
+        public (double From, double To)? Loop => null;
     }
 
     /// <summary>

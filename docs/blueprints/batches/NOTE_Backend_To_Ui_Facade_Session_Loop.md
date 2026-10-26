@@ -25,7 +25,7 @@ is deleted (design §12m). Your menu and toolbar call only `ITimeTransportFacade
 | `ExitReview()` | back to live; ⭐ `Stop()` in a review does the same (R-3060) |
 | `LivePoint` | the review's live point on the active axis (null outside a review) — "Seek to the live point" = `Seek(LivePoint)` |
 | `Seek(t)` | on the active axis |
-| `SetLoop(from, to)` / `ClearLoop()` / `Loop` | ⭐ "Loop range" — the MASTER's loop (§12n): every host draws the same bracket. ⚠ building as this note is written; it lands in the next backend commit |
+| `SetLoop(from, to)` / `ClearLoop()` / `Loop` | ⭐ "Loop range" — the MASTER's loop (§12n): every host draws the same bracket (`POST /replay/loop` too) |
 
 ⚠ Play from EDIT is now the cluster's dry run on every host (the editor's too); Stop leaves a dry run back to edit.
 
