@@ -15,6 +15,15 @@ public interface ITimelineCursor
     long Now { get; }
     bool CanSeek { get; }
     void Seek(long ticks);
+
+    /// <summary>⭐ <c>CE-3330</c> — whether time is running (the panel pages to keep the playhead in view, T12); false when the host cannot say.</summary>
+    bool IsPlaying => false;
+
+    /// <summary>⭐ <c>CE-3330</c> — whether this cursor can play / pause (Space, "Play from here"); a host binds it to its own transport.</summary>
+    bool CanPlay => false;
+
+    /// <summary>⭐ <c>CE-3330</c> — play / pause through the host's transport (no-op when <see cref="CanPlay"/> is false).</summary>
+    void TogglePlay() { }
 }
 
 /// <summary>
@@ -26,11 +35,22 @@ public sealed class FederatedReplayCursor : ITimelineCursor
     private readonly Func<FederatedReplayManager?> _manager;
     private readonly Func<int> _nodeId;
 
-    public FederatedReplayCursor(Func<FederatedReplayManager?> manager, Func<int> nodeId)
+    private readonly Func<bool>? _isPlaying;
+    private readonly Action? _togglePlay;
+
+    /// <param name="isPlaying">⭐ <c>CE-3330</c> — the host's transport says whether the replay plays (null = never).</param>
+    /// <param name="togglePlay">⭐ <c>CE-3330</c> — the host's play / pause (null = the panel offers none).</param>
+    public FederatedReplayCursor(Func<FederatedReplayManager?> manager, Func<int> nodeId, Func<bool>? isPlaying = null, Action? togglePlay = null)
     {
         _manager = manager;
         _nodeId = nodeId;
+        _isPlaying = isPlaying;
+        _togglePlay = togglePlay;
     }
+
+    public bool IsPlaying => _isPlaying?.Invoke() ?? false;
+    public bool CanPlay => _togglePlay != null && Playback != null;
+    public void TogglePlay() => _togglePlay?.Invoke();
 
     private Fdp.Core.FlightRecorder.PlaybackController? Playback =>
         _manager() is { } m && m.Contexts.TryGetValue(_nodeId(), out var ctx) ? ctx.Playback : null;

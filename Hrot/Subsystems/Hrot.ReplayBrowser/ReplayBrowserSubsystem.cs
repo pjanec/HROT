@@ -904,8 +904,11 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
             "rb_event_timeline", "Event Timeline", perspective, _eventTimeline, () => _timelineSource,
-            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0),
-            () => _timelineLanes.Lanes(TimelineContext), color));
+            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause()),   // ⭐ CE-3330 — Space, "Play from here"
+            () => _timelineLanes.Lanes(TimelineContext), color,
+            onSelect: e => SelectTimelineEvent(e),        // ⭐ CE-3330 (R-4087 addendum 5) — the ONE selection, RB-7's path
+            rowMenu: _timelineLanes.MenuItems));          // ⭐ CE-3330 (addendum 4) — the row's provider's items
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
             "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));

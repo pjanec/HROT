@@ -51,5 +51,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
 
         /// <summary>Marks the provider draws itself for frames [<paramref name="fromFrame"/>, <paramref name="toFrame"/>) of a lane it owns.</summary>
         void Marks(string laneId, int fromFrame, int toFrame, List<TimelineEvent> into) { }
+
+        /// <summary>⭐ <c>CE-3330</c> (R-4087 addendum 4; DESIGN_Director_Timeline_Editor.md §2c rule 5) — what the row under the mouse adds to
+        /// the timeline's right-click menu (<i>Set breakpoint here</i>, <i>Add key here</i>…), after the mode's own seek items. ⛔ The panel never
+        /// switches on a lane's kind: a lane's menu is its provider's.</summary>
+        IEnumerable<TimelineMenuItem> MenuItems(TimelineMenuContext context) => Array.Empty<TimelineMenuItem>();
     }
+
+    /// <summary>⭐ <c>CE-3330</c> — one item of the timeline's right-click menu; <see cref="Run"/> is called when it is chosen.</summary>
+    public sealed record TimelineMenuItem(string Label, Action Run, bool Enabled = true);
+
+    /// <summary>⭐ <c>CE-3330</c> — where the right click was: the lane (null over the ruler / empty space), the time and frame under the mouse
+    /// (snapped to a frame), and the event there, if any.</summary>
+    public sealed record TimelineMenuContext(string? LaneId, long Ticks, int Frame, TimelineEvent? Event);
 }

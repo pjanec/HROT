@@ -480,6 +480,27 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> (R-4087 addendum 5) — a timeline event clicked selects its UNIT through the one selection: the subject's network id
+    /// resolves to the shown world's entity and a selection request goes out (RB-7's path); an event with no networked subject, or one whose
+    /// unit the shown world does not hold, selects nothing. ⛔ Never a seek. 🔴 Red-proof: the network map lookup skipped ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3330_ATimelineEvent_SelectsItsUnit_NeverSeeks()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var path = MakeOneFrameRecording(nodeId: 1, Guid.NewGuid());   // one unit, network id 100
+        _subsystem.LoadFdpViaManager(path);
+        var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _subsystem.Manager, () => _subsystem.Manager!.LocalEntitiesProviderNodeId);
+        cursor.Seek(1_000_000L);
+        int frame = _subsystem.PrimaryNodeCurrentFrame();
+
+        Assert.True(_subsystem.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 100, 0, 0, 0, 0)));
+        Assert.False(_subsystem.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "combat.shot", 0, 0, 0, 0, 0)));
+        Assert.False(_subsystem.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 999, 0, 0, 0, 0)));
+        Assert.Equal(frame, _subsystem.PrimaryNodeCurrentFrame());   // a selection moved no time
+    }
+
     // ── RBF-P2T3: minimal recording helper ───────────────────────────────────
 
     /// <summary>

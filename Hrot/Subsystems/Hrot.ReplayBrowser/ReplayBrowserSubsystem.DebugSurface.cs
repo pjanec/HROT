@@ -582,6 +582,19 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3330</c> (R-4087 addendum 5; DESIGN_Director_Timeline_Editor.md §2c rule 6) — a timeline event clicked selects its unit through
+    /// the ONE selection (the request RB-7's history and <c>POST /selection</c> use): the subject's network id → the shown world's entity.
+    /// ⛔ An event with no networked subject (a round) selects nothing. Never a seek (R-3059).
+    /// </summary>
+    internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e)
+    {
+        if (e.Subject <= 0 || _activeRepo is not { } world || !world.HasSingletonManaged<NetworkEntityMap>()) return false;
+        if (world.GetSingletonManaged<NetworkEntityMap>() is not { } map || !map.TryGetEntity(e.Subject, out var entity) || !world.IsAlive(entity))
+            return false;
+        return RequestSelectionFromHistory(entity);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ UXI-11 S-3b — a step through the selection history REQUESTS the selection (the map ring and the inspector follow it through
     /// <c>SelectionRequestSystem</c>), on a windowed and a headless host alike. <see langword="false"/> when no world is shown.
     /// </summary>

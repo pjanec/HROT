@@ -276,7 +276,72 @@ toolbar is its own, R-3060). This section owns only what this design adds to it.
 | 10 | **a take's keys stay in SIM seconds**; on the Wall axis drawn through the session's `ReplayTimeMap`; never inside a paused stretch | — |
 | 11 | **events inside one collapsed pause** (Sim axis) draw as one cluster with a count at the pause's tick | — |
 
-## 3. Classes
+## 2d. CE-3330 — the panel's zoom, pan and menu, as built *(ui, `2026-10-26`; build-state: BUILT — the parts that need backend's data D wait, below)*
+
+```mermaid
+classDiagram
+  direction LR
+  class TimelinePanel { <<exists, reworked>> input map DAR §10c · sticky ruler + overview, lanes in a child · menu · hover line · range · keys }
+  class TimelineView { <<NEW, pure>> Window · Extent · Follow · Range · History · OnExtent() · Zoom() · Pan() · Fit() · Last(span) · KeepInView(now) · Back() }
+  class TimelineRuler { <<NEW, pure>> Ticks(window, width, extent, measure) major + minor, measured labels, h:mm:ss / m:ss.f / +frame }
+  class TimelineLayout { <<exists>> Marks · ZoomAbout · Pan · Clamp · Bracket · Snap (NEW) · NearestEvent (NEW) }
+  class TimelineMenuItem { <<NEW, record>> Label · Run · Enabled }
+  class TimelineMenuContext { <<NEW, record>> LaneId · Ticks · Frame · Event? }
+  class ITimelineLaneProvider { <<exists>> + MenuItems(context) default empty — a row contributes (addendum 4) }
+  class ITimelineCursor { <<exists>> Extent · Now · CanSeek · Seek + IsPlaying · TogglePlay (default members) }
+  class FederatedReplayCursor { <<exists>> + play / pause through the host's transport }
+  class EventTimelineWindow { <<exists>> + onSelect, provider lookup }
+  class ReplayBrowserSubsystem { <<exists>> binds onSelect to SelectionChangeRequest (RB-7's path) }
+  TimelinePanel --> TimelineView
+  TimelinePanel --> TimelineRuler
+  TimelinePanel --> TimelineLayout
+  TimelinePanel --> ITimelineCursor
+  TimelinePanel ..> TimelineMenuItem : the mode's seek items + the row's
+  ITimelineLaneProvider ..> TimelineMenuItem : MenuItems(TimelineMenuContext)
+  FederatedReplayCursor ..|> ITimelineCursor
+  EventTimelineWindow --> TimelinePanel
+  ReplayBrowserSubsystem --> EventTimelineWindow
+```
+*What the picture shows that prose hid: every rule of DAR §10 that is not drawing — follow, fit, presets, history, the zoom limits, the ruler's
+steps and labels, snapping — is in two PURE classes (`TimelineView`, `TimelineRuler`), so the panel only maps input to their calls and
+they are tested without ImGui; and the menu is one list the mode and the row under the mouse both add to, so no lane kind is named in the panel.*
+
+```mermaid
+sequenceDiagram
+  actor U as user
+  participant P as TimelinePanel
+  participant V as TimelineView
+  participant C as ITimelineCursor
+  participant H as host (onSelect)
+  U->>P: left click on a mark
+  P->>H: onSelect(event) — the ONE selection (SelectionChangeRequest), never a seek
+  U->>P: right click
+  P->>P: menu = mode items (Seek here, Seek to event, prev / next, Play from here, Copy time) + the row's provider items
+  U->>P: Seek here
+  P->>C: Seek(snapped ticks)
+  loop each frame
+    P->>V: OnExtent(from, to) — tail follows the live edge, else the window is KEPT (T1)
+    P->>V: KeepInView(now) while playing — page when the playhead leaves (T12)
+  end
+```
+
+| DAR §10 / R-4087 | as built | rail (`TimelineInteractionTests` unless named) |
+|---|---|---|
+| T1 view reset | `TimelineView.OnExtent`: the first extent fits, a fitted view stays fitted, a view at the end TAILS (span kept), any other is clamped; a window shown before the first extent is kept | `CE3330_T1_*` ×2 (+ `TimelinePanelFrameRail`, which caught the "shown before" case) |
+| T2 / T3 click seeks, drag pans | a left click SELECTS the nearest event (`OnSelect`); a left drag on empty lanes does nothing; seeks are the menu, the ▼ scrub (on release) and the keys | `CE3330_TheMenu_*` (a seek only when an item runs); RB `CE3330_ATimelineEvent_SelectsItsUnit_NeverSeeks` |
+| T4 / T5 / T6 wheel | the wheel over the ruler / overview zooms about the mouse by `1.0015^(−Δ×120)`; over the lanes it scrolls them (Ctrl zooms); Shift+wheel, the horizontal wheel and a middle drag pan | `CE3330_T5_T7_*` |
+| T7 closest zoom | `MinSpanFrames` = 10 frames at the index's median frame spacing | `CE3330_T5_T7_*` |
+| T8 ruler | `TimelineRuler`: 0.01 s … 12 h steps, five minors per major, labels measured and skipped on collision, `h:mm:ss` past an hour, `+frame` at the closest zoom | `CE3330_T8_*` |
+| T9 overview edges | the bracket's edges drag to zoom (resize cursor), its inside moves it, a click outside jumps it | — (ImGui input; read) |
+| T10 stuck drag | a release anywhere ends the drag | — (read) |
+| T11 sticky ruler | the lanes draw in a child window; the overview and the ruler stay | `TimelinePanelFrameRail` draws it |
+| T12 follow | `KeepInView` pages the window (playhead 10 % in) while `ITimelineCursor.IsPlaying`; an arrow at the edge where it left, click = reveal | `CE3330_T12_*` |
+| §10b fit · presets · range · history · hover · snapping · keys | F / double-click the ruler = fit; 0–3 = 30 s / 2 min / 10 min / all; Shift+drag = a range (duration shown; I / O set it; Esc clears); Backspace = back; a hover line with its time; seeks snap to an event within 7 px, else a frame; Space / ←→ / Shift+←→ / Home / End / + − — ⭐ arrows move the SELECTION where the cursor cannot seek (live) | `CE3330_FitPresetsRangeAndHistory`, `CE3330_Snapping_*` |
+| §9b menu + addendum 4 | `TimelinePanel.MenuItems` (pure): Seek here / Play from here / Seek to this event / previous · next in the lane where `CanSeek`; zoom / clear the range; Copy the time — then `TimelineLaneCatalog.MenuItems` (the row's provider, `ITimelineLaneProvider.MenuItems`) | `CE3330_TheMenu_*`, `CE3330_TheRowUnderTheMouse_*` |
+| addendum 5 selection | `EventTimelineWindow(onSelect, rowMenu)`; the Replay Browser binds `SelectTimelineEvent` → `SelectionChangeRequest` (RB-7) and play / pause to its transport | RB `CE3330_*` |
+| ⏳ **waits on backend's data D** | T13 / R10 the Sim axis, the ◯ / ● pause ticks and break marks (addendum 10), the session layer, the live point marker, "Review from here", "Seek to the live point", "Loop range" (addendum 8) — the menu offers none of them until the facade's `EnterReview` / `ReplaySessionTopic` exist | — |
+| ⏳ not in this slice | addendum 1 / 9 (director tracks — R2 has none yet), K / J / L (no rate in the cursor) | — |
+
 
 ```mermaid
 classDiagram
