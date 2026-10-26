@@ -104,6 +104,9 @@ public sealed class TimelinePanelFrameRail
 
     /// <summary>Renders the panel full-window for a few frames, screenshots it, and counts pixels of <paramref name="lane"/>'s colour.</summary>
     private static int DrawAndShoot(UiFrameSession frame, TimelinePanel panel, ITimelineSource source, ITimelineCursor cursor, string name, TimelineLaneDescriptor lane)
+        => DrawAndShoot(frame, panel, source, cursor, name, TimelinePanel.ColorOf(lane));
+
+    private static int DrawAndShoot(UiFrameSession frame, TimelinePanel panel, ITimelineSource source, ITimelineCursor cursor, string name, uint abgr)
     {
         frame.StepN(4, () =>
         {
@@ -118,7 +121,7 @@ public sealed class TimelinePanelFrameRail
         var image = Raylib.LoadImage(path);
         try
         {
-            uint c = TimelinePanel.ColorOf(lane);                         // ABGR
+            uint c = abgr;                                                // ABGR
             int r = (int)(c & 0xFF), g = (int)((c >> 8) & 0xFF), b = (int)((c >> 16) & 0xFF), hits = 0;
             for (int y = 0; y < image.Height; y += 2)
                 for (int x = 0; x < image.Width; x += 2)
@@ -154,5 +157,43 @@ public sealed class TimelinePanelFrameRail
         var half = new Source { Index = Firefight(scannedFrames: 5 * 60 * Hz) };
         int halfShots = DrawAndShoot(frame, new TimelinePanel(), half, cursor, "timeline-3-half-scanned.png", Combat.Shot);
         Assert.True(halfShots > 10 && halfShots < shotPixels, $"a half-scanned index draws only its scanned half ({halfShots} vs {shotPixels} px)");
+    }
+
+    private sealed class SessionCursor : ITimelineCursor
+    {
+        public long ExtentFrom { get; init; }
+        public long ExtentTo { get; init; }
+        public long Now { get; set; }
+        public bool CanSeek => true;
+        public void Seek(long ticks) => Now = ticks;
+        public TimelineMode Mode => TimelineMode.Review;
+        public long? LivePoint { get; init; }
+        public IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> Checkpoints { get; init; } = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E2 (docs/DESIGN_Director_Timeline_Editor.md §2e) — a review's session layer in a REAL ImGui frame: a checkpoint flag on the ruler
+    /// (a glyph, tooltip label) and the live point as a vertical line labelled "live" draw without error, and the live line's colour is on screen only
+    /// when there is a live point. 🔴 Red-proof: the overlay's live-point branch gated on a runtime-false condition ⇒ no live-coloured pixels.
+    /// </summary>
+    [SkippableFact]
+    public void CE3330_E2_TheSessionLayer_DrawsACheckpointFlagAndTheLivePoint()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        var full = new Source { Index = Firefight() };
+        long end = T0 + (10 * 60 * Hz - 1) * Tick;
+        var withLive = new SessionCursor
+        {
+            ExtentFrom = T0, ExtentTo = end, Now = T0 + 100 * TimeSpan.TicksPerSecond, LivePoint = T0 + 400 * TimeSpan.TicksPerSecond,
+            Checkpoints = new[] { new Fdp.Core.FlightRecorder.Metadata.CheckpointMark { Label = "contact-1", WallTicks = T0 + 120 * TimeSpan.TicksPerSecond } },
+        };
+        var without = new SessionCursor { ExtentFrom = T0, ExtentTo = end, Now = T0 + 100 * TimeSpan.TicksPerSecond };
+
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        const uint LiveColour = 0xFF40C0FF;   // the live point's line (ABGR), a colour no lane uses
+        int live = DrawAndShoot(frame, new TimelinePanel(), full, withLive, "timeline-4-review-session-layer.png", LiveColour);
+        int none = DrawAndShoot(frame, new TimelinePanel(), full, without, "timeline-5-review-no-live-point.png", LiveColour);
+        Assert.True(live > none + 10, $"the live point's line did not draw ({live} px with it, {none} without)");
     }
 }
