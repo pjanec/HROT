@@ -15,6 +15,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// <summary>0…1 — the share of the recording scanned.</summary>
         float Progress { get; }
         bool IsComplete { get; }
+        /// <summary>Why the index could not be built (e.g. the recording holds a component type this process does not know), else null.</summary>
+        string? Error { get; }
     }
 
     /// <summary>
@@ -32,6 +34,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public TimelineIndex Index => _index;
         public float Progress { get { var i = _index; return i.TotalFrames == 0 ? (Completion.IsCompleted ? 1f : 0f) : (float)i.ScannedFrames / i.TotalFrames; } }
         public bool IsComplete => Completion.IsCompleted && _index.IsComplete;
+        public string? Error { get; private set; }
         /// <summary>True when the index came from the sidecar (no pass ran).</summary>
         public bool FromSidecar { get; private set; }
         /// <summary>Completes when the index is final (at once for a sidecar).</summary>
@@ -52,9 +55,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var ct = source._cts.Token;
             void Run()
             {
-                var index = TimelineIndexBuilder.Build(fdpPath, snap => source._index = snap, chunkFrames, ct);
-                source._index = index;
-                if (!ct.IsCancellationRequested) TimelineSidecar.Write(fdpPath, index);
+                try
+                {
+                    var index = TimelineIndexBuilder.Build(fdpPath, snap => source._index = snap, chunkFrames, ct);
+                    source._index = index;
+                    if (!ct.IsCancellationRequested) TimelineSidecar.Write(fdpPath, index);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)   // a background task: the error is SHOWN, never lost in a faulted task
+                {
+                    // ⚠ measured on a real recording: a component type from an assembly this process never loaded stops the playback
+                    //   (the Replay Browser's own sandbox registers the same way). The part scanned so far stays drawn; the panel says why.
+                    source.Error = ex.Message;
+                }
             }
             if (background) source.Completion = Task.Run(Run, ct);
             else Run();

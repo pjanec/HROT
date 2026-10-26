@@ -24,7 +24,8 @@ public sealed record TimelinePanelViewModel(
     long Now,
     bool CanSeek,
     IReadOnlyDictionary<string, int> InWindow,
-    IReadOnlyDictionary<string, int> Total) : IPanelViewModel
+    IReadOnlyDictionary<string, int> Total,
+    string? Error) : IPanelViewModel
 {
     public JsonNode Dump() => PanelDump.Of(this);
 
@@ -40,6 +41,6 @@ public sealed record TimelinePanelViewModel(
             inWindow[lane.ToString()] = f1 > f0 ? index.Count(lane, f0, f1) : 0;
         }
         return new TimelinePanelViewModel(id, kind, source != null, source?.IsComplete ?? false, index.ScannedFrames, index.TotalFrames,
-            cursor?.ExtentFrom ?? 0, cursor?.ExtentTo ?? 0, window.From, window.To, cursor?.Now ?? 0, cursor?.CanSeek ?? false, inWindow, total);
+            cursor?.ExtentFrom ?? 0, cursor?.ExtentTo ?? 0, window.From, window.To, cursor?.Now ?? 0, cursor?.CanSeek ?? false, inWindow, total, source?.Error);
     }
 }

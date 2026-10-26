@@ -121,8 +121,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     public sealed class BehaviourExtractor : ITimelineExtractor
     {
         private readonly Dictionary<long, uint> _journal = new();
-        private readonly Dictionary<long, (int Count, float At, ushort Repeats)> _orders = new();
-        private readonly Dictionary<long, (int Count, float At)> _reports = new();
+        private readonly Dictionary<long, (int Count, float At, long Other, int Behaviour, ushort Repeats)> _orders = new();
+        private readonly Dictionary<long, (int Count, float At, long From, long To)> _reports = new();
         private readonly Dictionary<long, int[]> _switches = new();
 
         public void Frame(EntityRepository repo, FdpEventBus bus, int frame, TimelineEventSink sink)
@@ -144,15 +144,25 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                     _journal[id] = j.Seq;
                 }
 
+            // TE-22 ②: every NEW entry is an event, found by the previous newest entry's key (its time + counterpart) — so two orders in
+            // one frame are two events, and a ring's eviction never loses one. The same order repeated (counted, not listed) is one more.
             if (repo.IsComponentTypeRegistered<CommandOrderHistory>())
                 foreach (var e in repo.Query().With<CommandOrderHistory>().Build())
                 {
                     long id = TimelineEventSink.IdOf(repo, e);
                     ref readonly var h = ref repo.GetComponentRO<CommandOrderHistory>(e);
-                    var now = h.Count > 0 ? (h.Count, h.Items[0].At, h.Items[0].Repeats) : (0, 0f, (ushort)0);
-                    if (_orders.TryGetValue(id, out var was) && h.Count > 0 && now != was)
-                        sink.Add(new TimelineEvent(frame, TimelineLane.Order, id, h.Items[0].CounterpartNetId, 0, 0, (float)h.Items[0].Traffic));
-                    _orders[id] = now;
+                    if (h.Count == 0) { _orders[id] = default; continue; }
+                    if (_orders.TryGetValue(id, out var was))
+                    {
+                        int fresh = h.Count;
+                        for (int i = 0; i < h.Count; i++)
+                            if (was.Count > 0 && h.Items[i].At == was.At && h.Items[i].CounterpartNetId == was.Other && h.Items[i].Behaviour == was.Behaviour) { fresh = i; break; }
+                        for (int i = fresh - 1; i >= 0; i--)   // oldest new entry first
+                            sink.Add(new TimelineEvent(frame, TimelineLane.Order, id, h.Items[i].CounterpartNetId, 0, 0, (float)h.Items[i].Traffic));
+                        if (fresh == 0 && h.Items[0].Repeats != was.Repeats)
+                            sink.Add(new TimelineEvent(frame, TimelineLane.Order, id, h.Items[0].CounterpartNetId, 0, 0, (float)h.Items[0].Traffic));
+                    }
+                    _orders[id] = (h.Count, h.Items[0].At, h.Items[0].CounterpartNetId, h.Items[0].Behaviour, h.Items[0].Repeats);
                 }
 
             if (repo.IsComponentTypeRegistered<CommandReportHistory>())
@@ -160,14 +170,20 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                 {
                     long id = TimelineEventSink.IdOf(repo, e);
                     ref readonly var h = ref repo.GetComponentRO<CommandReportHistory>(e);
-                    var now = h.Count > 0 ? (h.Count, h.Items[0].At) : (0, 0f);
-                    if (_reports.TryGetValue(id, out var was) && h.Count > 0 && now != was)
+                    if (h.Count == 0) { _reports[id] = default; continue; }
+                    if (_reports.TryGetValue(id, out var was))
                     {
-                        var r = h.Items[0];
-                        long other = r.Traffic == CommandTraffic.Incoming ? r.FromNetId : r.ToNetId;
-                        sink.Add(new TimelineEvent(frame, TimelineLane.Report, id, other, 0, 0, (float)r.Traffic));
+                        int fresh = h.Count;
+                        for (int i = 0; i < h.Count; i++)
+                            if (was.Count > 0 && h.Items[i].At == was.At && h.Items[i].FromNetId == was.From && h.Items[i].ToNetId == was.To) { fresh = i; break; }
+                        for (int i = fresh - 1; i >= 0; i--)
+                        {
+                            var r = h.Items[i];
+                            long other = r.Traffic == CommandTraffic.Incoming ? r.FromNetId : r.ToNetId;
+                            sink.Add(new TimelineEvent(frame, TimelineLane.Report, id, other, 0, 0, (float)r.Traffic));
+                        }
                     }
-                    _reports[id] = now;
+                    _reports[id] = (h.Count, h.Items[0].At, h.Items[0].FromNetId, h.Items[0].ToNetId);
                 }
 
             if (repo.IsComponentTypeRegistered<UtilityDecisionLog>())

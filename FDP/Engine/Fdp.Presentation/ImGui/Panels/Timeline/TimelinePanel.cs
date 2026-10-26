@@ -64,7 +64,8 @@ public sealed class TimelinePanel
             _window = new TimelineWindow(from, to);
         }
 
-        if (source is { IsComplete: false }) ImGui.TextDisabled($"Indexing… {source.Progress * 100f:0}%");
+        if (source?.Error is { } error) ImGui.TextColored(new Vector4(1f, 0.5f, 0.4f, 1f), $"Index stopped at {source.Progress * 100f:0}%: {error}");
+        else if (source is { IsComplete: false }) ImGui.TextDisabled($"Indexing… {source.Progress * 100f:0}%");
 
         var dl = ImGui.GetWindowDrawList();
         float width = Math.Max(10f, ImGui.GetContentRegionAvail().X - LabelWidth);

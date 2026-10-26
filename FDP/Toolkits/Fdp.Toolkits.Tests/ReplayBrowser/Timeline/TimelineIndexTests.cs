@@ -57,12 +57,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             harness.FireUnmanagedEvent(new WeaponFireNotification { Shooter = soldier, Refusal = FireRefusal.TooFar });
             harness.FireUnmanagedEvent(new HitEvent { HitEntity = commander });
             CommandHistoryOf.Order(repo, commander, soldier, 0x5A11, 1f);
+            CommandHistoryOf.Order(repo, commander, soldier, 0x7777, 1f);                                     // a second order the same frame: two events (TE-22 ②)
             harness.Tick().RecordDelta(200_000L);                                                             // frame 1
 
             harness.FireUnmanagedEvent(new DetonationNotification { Shooter = soldier, HitX = 5, HitY = 6, Damage = 0.5f });
             ref var slot = ref repo.GetComponentRW<UtilityDecisionLog>(soldier).SlotsRW()[0];
             slot.DecisionId = 0x2067; slot.SwitchCount = 1; slot.Winner = 7;
-            CommandHistoryOf.Order(repo, commander, soldier, 0x5A11, 2f);                                     // the same order REPEATED: counted, still news
+            CommandHistoryOf.Order(repo, commander, soldier, 0x7777, 2f);                                     // the same order REPEATED: counted, still news
             BrainJournalOf.Write(repo, commander, BrainJournalKind.TaskStarted, point: new Vector3(1, 2, 0));
             harness.Tick().RecordDelta(300_000L);                                                             // frame 2
 
@@ -96,7 +97,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.Equal(new[] { (1, Commander, 0L) }, Of(index, TimelineLane.Hit));
             var blast = Assert.Single(index.Lane(TimelineLane.Blast));
             Assert.Equal((2, Soldier, 5f, 6f, 0.5f), (blast.Frame, blast.Subject, blast.X, blast.Y, blast.Value));
-            Assert.Equal(new[] { (1, Commander, Soldier), (2, Commander, Soldier) }, Of(index, TimelineLane.Order));   // to whom; the repeat too, not the baseline
+            Assert.Equal(new[] { (1, Commander, Soldier), (1, Commander, Soldier), (2, Commander, Soldier) }, Of(index, TimelineLane.Order));   // to whom; the repeat too, not the baseline
             var decision = Assert.Single(index.Lane(TimelineLane.Decision));
             Assert.Equal((2, Soldier, 7L, (float)0x2067), (decision.Frame, decision.Subject, decision.Other, decision.Value));
             var change = Assert.Single(index.Lane(TimelineLane.Change));
@@ -146,6 +147,19 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         {
             string? path = Environment.GetEnvironmentVariable("HROT_TIMELINE_RECORDING");
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) { _out.WriteLine("HROT_TIMELINE_RECORDING not set — nothing measured"); return; }
+            // The recording's component types must be known to this process (as in the editor): HROT_TIMELINE_ASSEMBLY_DIR names a build
+            // output whose Hrot.* / Fdp.* assemblies are loaded first (e.g. Hrot.ClusterRunner's bin).
+            string? dir = Environment.GetEnvironmentVariable("HROT_TIMELINE_ASSEMBLY_DIR");
+            if (!string.IsNullOrEmpty(dir))
+            {
+                var loaded = new HashSet<string>(AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name ?? ""));
+                foreach (var dll in Directory.GetFiles(dir, "*.dll"))
+                {
+                    string name = Path.GetFileNameWithoutExtension(dll);
+                    if (!(name.StartsWith("Hrot.") || name.StartsWith("Fdp.")) || loaded.Contains(name)) continue;
+                    try { System.Reflection.Assembly.LoadFrom(dll); } catch (Exception ex) { _out.WriteLine($"skip {name}: {ex.GetType().Name}"); }
+                }
+            }
             string copy = Path.Combine(Path.GetTempPath(), $"r0-8-{Guid.NewGuid():N}.fdp");   // the sidecar lands beside the copy, never beside the original
             File.Copy(path, copy);
             try
@@ -160,6 +174,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                 double open = sw.Elapsed.TotalMilliseconds;
                 Assert.NotNull(reread);
                 double recorded = index.FrameTicks.Count > 1 ? TimeSpan.FromTicks(index.FrameTicks[^1] - index.FrameTicks[0]).TotalSeconds : 0;
+                _out.WriteLine($"first ticks: {string.Join(", ", index.FrameTicks.Take(3))} … last {index.FrameTicks[^1]}");
+                if (index.FrameTicks.Count > 2) recorded = TimeSpan.FromTicks(index.FrameTicks[^1] - index.FrameTicks[1]).TotalSeconds;   // frame 0 may carry no wall time
                 _out.WriteLine($"recording {new FileInfo(path).Length / 1e6:0.0} MB · {index.TotalFrames} frames · {recorded:0} s recorded");
                 _out.WriteLine($"scan {scan:0.0} s = {index.TotalFrames / Math.Max(scan, 1e-6):0} frames/s ({recorded / Math.Max(scan, 1e-6):0.0}× real time)");
                 _out.WriteLine($"sidecar {sidecar / 1e3:0.0} kB · reopen {open:0.0} ms");
@@ -168,6 +184,26 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             finally
             {
                 try { File.Delete(copy); File.Delete(TimelineSidecar.PathFor(copy)); } catch { /* best effort */ }
+            }
+        }
+
+        [Fact]
+        public void CE1302_AnUnreadableRecording_StopsTheBuildWithAReason_NotAHang()
+        {
+            string bad = Path.Combine(Path.GetTempPath(), $"bad-{Guid.NewGuid():N}.fdp");
+            File.WriteAllBytes(bad, new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 });
+            try
+            {
+                using var source = RecordingTimelineSource.Open(bad);
+                Assert.True(source.Completion.Wait(TimeSpan.FromSeconds(30)));
+                Assert.False(source.Completion.IsFaulted);
+                Assert.False(source.IsComplete && source.Index.TotalFrames > 0);
+                Assert.False(string.IsNullOrEmpty(source.Error));
+                Assert.False(File.Exists(TimelineSidecar.PathFor(bad)));
+            }
+            finally
+            {
+                try { File.Delete(bad); } catch { /* best effort */ }
             }
         }
 
