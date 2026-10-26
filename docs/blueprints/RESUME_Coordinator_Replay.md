@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-26
-current-answer: §1 (state at writing) then §2 (what to do next, in order)
+current-answer: §0 (the 2026-10-26 update) then §1 (state at writing) and §2 (what to do next, in order)
 stale-below: nothing — §5 is the record of decisions, not history
 known-rot: ⚠ RESUME_Scenario_Regression.md §1 still says the post-R-3039 re-record is in flight — it landed 2026-10-23 (8e84265f…39aab237); its §2 rows 1–6 are still the open list
 known-conflict: none
@@ -19,6 +19,15 @@ RELEARN
 
 ⭐ Start: `RULINGS.md` → this file §1–§2 → `git fetch origin backend ui behaviors` and **merge `backend` first** (it built most of the
 backend handoff overnight, §1). Graph: run `scripts/cbm.sh list_projects` in the BACKGROUND first (a fresh VM indexes, ~minutes).
+
+## 0. ⭐ Update `2026-10-26` (later) — read this before §1
+
+| | |
+|---|---|
+| **merged** | `ui@37992db4c` (Timeline steer R-4078/R-4079 built — REVIEWED and accepted: one `ITimelineLaneProvider` in `Fdp.Toolkits`, no lane enum / extractors / adapter, lanes = predicate + projection registered by their toolkits, per-lane sidecar hash; red-proofs 6/6) · `backend@9c1297c37` (one wire mapping of a transition; replay span finding) |
+| **§2 item 1** | ✅ done (backend's CE-4046 groups were already merged) |
+| **§2 item 2** | ✅ **Scenario Regression §10 WRITTEN** — leans RH-1…RH-10 wait for the user. ⚠ It changes the plan below: the harness replays a STEPPED LIVE run through the master (R-3053: previews never record), not the sandbox |
+| **next** | the user's answer on RH-1…RH-10 → §10c step 0 (four measurements) → H1. ⚠ RH-9 (one replay host shared with the director) needs the ui lane |
 
 ## 1. State at writing (`2026-10-26`, coordinator @ `07bd8cfa`)
 

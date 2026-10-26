@@ -10,6 +10,7 @@ known-conflict: CE-259an (tracker) leaned "do NOT rewire /replay/load — improv
   docs/blueprints/Architect_Question_86_Editor_Runs_The_Orchestrator_Core.md:68 says the editor lacks ReplayMasterModule /
   LiveBranchProcessManager — measured FALSE: OrchestratorCore.cs:144-151 builds both and the editor runs that core (EditorSubsystem.cs:2387).
 related-designs:
+  - docs/DESIGN_Scenario_Regression.md — §10 the replay harness (CE-4045): checks THIS replay path scenario by scenario — live vs playback, seek, branch (RH-1)
   - docs/MCP_Integration.md — owns the ai-debug HTTP surface and its Group U rule ("publish the host-agnostic intent to whichever ClusterMaster
     the host owns"); THIS document extends that rule from the two load routes to every state/storage route
   - docs/DESIGN_Agent_Shared_View.md — owns the readers of one unit (brain, journal, selection, search); §3 here moves their REPLAY twins from the

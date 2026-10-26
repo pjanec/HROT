@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
-current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (leans)
+updated: 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (DESIGN, leans RH-1…RH-10)
 stale-below: none
 known-rot: none
 known-conflict: blueprints/DESIGN_Smoke_Suite.md says "do not build a DSL" — written for a different shape (one entity, one behaviour, panel checks; the JSON TestScript kept for cluster/DDS/replay). checks.json EXTENDS the film takes' anchor grammar, which is already built and read by the engine (AnchorBook); it is not a new language. Not reconciled with the Smoke Suite's author — named here so a reader sees both.
 related-designs:
+  - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS replay through the master (R-3053…R-3055: previews never record; the ordinary world replays; the sandbox retired from HTTP) — the path §10's harness tests
   - DESIGN_Replay_Census_H0.md — H0 of the replay harness (CE-4045): which types a recording must / must not hold; the replay mode this verifier grows (H1–H4) reads its verdicts
   - DESIGN_Director_Timeline_Editor.md — OWNS still keys (TE-10): a take's key captured as a PNG artefact by the Verify run; and the anchor kinds cross / enter / leave this design's checks.json may reuse
   - DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS R1, the restore-equivalence oracle (§1k): this verifier run twice around a checkpoint written at T1 and restored in a second fresh process
@@ -334,6 +335,157 @@ grep and are not proof of completeness.
 ⭐ **Approved `2026-10-25` (R-4077) — and they land in the ONE predicate model, not in `AnchorBook`.** 🔒 User: *"predicates, we should share and unify (this is a generic rule everywhere), not duplicate"*. Every condition gap above that is a condition (by side / kind, `any`, a run-time point, a `decision` cue) is built as a `SearchPredicateDto` + `PredicateCompiler` extension ([Predicate-Infrastructure-Capabilities](Predicate-Infrastructure-Capabilities.md)), and `ConditionBook` lowers its cues to predicates — the same lowering TE-3b (R-4074) asks of the film anchors. The injected `do` is an ACTION, not a condition, and stays in the verifier.
 
 ⚠ Until these exist, a check encodes only the expressible part and its `$doc` says what was left out — ⛔ never a weaker condition dressed as the Judge point.
+
+## 10. The replay harness — H1–H4 *(CE-4045; coordinator, `2026-10-26`; build-state: DESIGN — leans RH-1…RH-10 for approval)*
+
+🔒 **User, `2026-10-25`** (the census, H0): *"it relies on that snapshots really save what should be saved … are we saving what needs to be
+saved to recording? aren't we saving what should not be?"* · on the harness: *"approved"*, *"yes run H0 first"* (CE-4045).
+
+⭐ **The question:** does a recording REPLAY what the live run did — at real scale, scenario by scenario? Nothing answers it today except
+`ParallelEpisodes_ReplayMatchesLiveAtTick25` (one vehicle, an FDP example). H0 (the [census](DESIGN_Replay_Census_H0.md)) asked it of every
+TYPE; H1–H4 ask it of whole RUNS, with this verifier.
+
+⚠ **What moved since CE-4045 was written (`2026-10-25`), and why the plan changes:** backend ruled the same day that ⛔ a preview is never
+recorded (**R-3053**) and that replay is the ORDINARY world, entered and sought through the cluster master on every host — the editor is a
+one-node cluster — with the Replay Browser's sandbox retired from HTTP (**R-3054, R-3055**,
+[HTTP through the master](DESIGN_Http_Control_Through_The_Cluster_Master.md) §3). ⇒ the run H1 replays must be a **LIVE** run, and the
+replay it checks is the **product's** — read by the SAME `IVerifyWorld` the verifier already has. CE-4045's *"an `IVerifyWorld` over
+`ReplayBrowserContext.SandboxRepo`"* is superseded by RH-1.
+
+```mermaid
+graph TD
+  CLI["Hrot.ClusterRunner --verify a,b --verify-replay playback,seek,branch"]:::grown --> CH["one child editor per scenario (as today)"]
+  HTTP["POST /director/verify {scenario, replay: [...]}"]:::grown --> DR
+  CH --> DR["DirectorRunner — Verify(Replay) (EditorSubsystem.Update → Tick, once per frame)"]:::grown
+  DR --> H["EditorDirectorHost — LoadLive · EnterReplay · SeekReplay · BranchLive (NEW members)"]:::grown
+  H --> MC["IClusterMasterControl (exists, R-3054): Transition · SeekReplay"]
+  MC --> CM["ClusterMaster in the editor (OrchestratorCore): planner · ReplayMasterModule · ReplaySeekProcessManager · LiveBranchProcessManager (exist)"]
+  CM --> W["the editor's ONE world: live → recorded → replayed → branched"]
+  DR --> SV["ScenarioVerification + ScenarioGolden (exist): Snapshot · Compare · CompareFrom · CompareNotCarried"]
+  SV --> VW["EditorVerifyWorld (exists, unchanged) — DumpEntity reads whatever the world is now"]
+  VW --> W
+  DR --> TS["RecordingTimelineSource (exists, ui): the recording's Shot / Hit / Blast lanes"]
+  DR --> RC["ReplayCarried (NEW, data): DataPolicy + the census's LOSSY / OVER rows"]
+  SB["ReplayBrowserContext sandbox"]:::dead -.->|"not used: a second reader of the file (RH-1)"| SV
+  classDef grown fill:#fff2cc,stroke:#a68a00
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33
+```
+*What the picture shows that prose hid: the harness adds NO world reader and NO replay path. Every arrow into the world goes through the
+master the product uses, and every snapshot through the reader the goldens already use — so a difference is the product's, never the test's.
+The yellow boxes grow members; the only new types are data (`ReplayCarried`) and the report.*
+
+```mermaid
+classDiagram
+  class VerifyOptions { <<exists, grown>> +ReplayChecks Replay (Playback | Seek | Branch flags) }
+  class IDirectorHost { <<exists, grown>> +LoadLive(scenario) +EnterReplay(exerciseId, atSeconds) +SeekReplay(atSeconds) +BranchLive() +string? ExerciseId +ClusterState State }
+  class EditorDirectorHost { <<exists, grown>> members via IClusterMasterControl + the cluster state }
+  class IClusterMasterControl { <<exists>> Transition(TransitionStateIntent) · SeekReplay(SeekReplayIntent) }
+  class DirectorRunner { <<exists, grown>> Verify(Replay): live phase → replay phases → report }
+  class ScenarioGolden { <<exists>> Snapshot(rel) · Compare · CompareFrom(a, b, t1, carried) · CompareNotCarried }
+  class ReplayCarried { <<NEW, data>> +Carries(component, path) bool — DataPolicy (NoReplay, Transient) + census LOSSY/OVER }
+  class ReplayReport { <<NEW>> per phase: first difference, explained differences, shots/blasts by lane }
+  class RecordingTimelineSource { <<exists, ui>> Index · lanes by id }
+  class EditorVerifyWorld { <<exists, unchanged>> }
+  VerifyOptions --> DirectorRunner
+  DirectorRunner --> IDirectorHost
+  EditorDirectorHost ..|> IDirectorHost
+  EditorDirectorHost --> IClusterMasterControl
+  DirectorRunner --> ScenarioGolden : live · playback · seek · branch snapshots
+  ScenarioGolden --> EditorVerifyWorld
+  DirectorRunner --> ReplayCarried
+  DirectorRunner --> RecordingTimelineSource : combat lanes of the recording
+  DirectorRunner --> ReplayReport
+```
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (Verify, Replay)
+  participant H as EditorDirectorHost → ClusterMaster
+  participant G as ScenarioGolden (EditorVerifyWorld)
+  R->>H: LoadLive(s) — OperatingLive, paused (it records: R-4000, R-3053)
+  loop one step per frame until runFor (the existing loop)
+    R->>G: at each reference time t: Snapshot → LIVE[t]
+    R->>H: StepBy(1/tickHz)
+  end
+  R->>H: EnterReplay(this exercise, 0) — the planner: Live → Idle → LoadingReplay → OperatingReplay (R-3055)
+  Note over R,H: H1 PLAYBACK — the replay clock stepped once per frame, the same step
+  loop until runFor
+    R->>G: at each t: Snapshot → PLAY[t], then Compare(LIVE[t], PLAY[t]) with ReplayCarried
+    R->>H: StepBy(1/tickHz) — drives the replay clock (route table: /sim/step in a replay)
+  end
+  Note over R,H: H2 SEEK — the reference times, shuffled (seeded)
+  loop each t
+    R->>H: SeekReplay(t) → ReplaySeekProcessManager
+    R->>G: Snapshot → SEEK[t], then Compare(PLAY[t], SEEK[t])
+  end
+  Note over R,H: H3 BRANCH — at a chosen T
+  R->>H: SeekReplay(T), BranchLive() → LiveBranchProcessManager
+  loop until runFor
+    R->>G: Snapshot → BRANCH[t]
+    R->>H: StepBy
+  end
+  R->>G: CompareFrom(LIVE, BRANCH, T, carried) + CompareNotCarried
+  R->>R: report: per phase the FIRST difference, explained ones apart, shots/blasts LIVE rows vs the recording's lanes
+```
+*What the sequence shows: each phase compares against the phase that isolates it — playback against LIVE (does the recording hold the
+world?), seek against PLAYBACK (does a seek land where playing gets?), branch against LIVE (does a world rebuilt from the recording run on
+as the original did?).*
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **RH-1** | **test the PRODUCT's replay**: the editor's own world, entered and sought through `IClusterMasterControl` (R-3054), read by the existing `EditorVerifyWorld` | an `IVerifyWorld` over `ReplayBrowserContext.SandboxRepo` (CE-4045's first plan) — a second world reader of a path HTTP no longer serves |
+| **RH-2** | **the run is a STEPPED LIVE run** — the runner's loop unchanged (one step per frame), only the load differs (`OperatingLive` instead of the preview); its own snapshots are the reference, no `golden.json` needed. ⭐ Free measurement, not a gate: LIVE vs `golden.json` answers *"does a stepped live run equal the preview?"* | replaying the preview — never recorded (R-3053) |
+| **RH-3** | **H1 = playback**: enter the replay paused at 0 and step the replay clock once per frame by the run's step; snapshot at the same sim times. ⭐ A stepped run's recording advances its frame ticks by the fixed step (`SteppingTimeController.cs:60`, `MasterSyncController.cs:357`) ⇒ replay seconds = sim seconds — ⛔ **measured first** (H1 step 0) | seeking in H1 — it would mix two questions (H2 isolates the seek) |
+| **RH-4** | **explained differences are DATA, listed apart, never masked** (N1): `ReplayCarried` = the component's `DataPolicy` (`NoReplay`, `Transient` ⇒ not carried) + the census's LOSSY / OVER rows (CE-4046's mutated-in-place types until converted, `SelectionState`, `DebugState` pins, `TerrainAssetLoadState`); the report lists them in `CompareNotCarried`'s shape | an allow-list in the harness — the census is the record; a second list rots apart from it |
+| **RH-5** | **shots and blasts from the recording's Combat lanes** — the timeline index (`RecordingTimelineSource`, R-4079) built on THIS recording, compared per lane (count, frame, subject) with the live run's `CombatReport` rows | reading `ShotLog` / `DetonationLog` in replay — they live beside the live world and are not recorded (census, Timeline R0 ②) |
+| **RH-6** | **H2 = seek**: the reference times in a shuffled, seeded order through `SeekReplayIntent`, each compared with H1's PLAYBACK snapshot | comparing seeks with LIVE — a playback difference would be blamed on the seek |
+| **RH-7** | **H3 = branch from replay**: seek to T, go live through the product's `LiveBranchProcessManager`, run on; `CompareFrom` + `CompareNotCarried` — R1's comparison ([Checkpoint](DESIGN_Checkpoint_And_Dry_Run_Restore.md) §1k) on the replay path. ⚠ It needs a stepped LIVE run to repeat from a rebuilt world — measured for the preview only (§7, R1); a red is a work-list row, as R1's are | a new comparator — R1's exists and already separates what a keyframe does not carry |
+| **RH-8** | **H4 = the cluster, designed when H1–H3 are green**: the same phases on a `--mode all` / multi-process cluster through the same master routes (R-3054 — the editor is a one-node cluster, so H1–H3 already run the cluster's path), each node read through its own perspective; reads backend's open findings first (the replay span is `null` on non-master hosts) | designing it now — H1–H3 decide what H4 must still prove |
+| **RH-9** | **one replay host for the verifier AND the director**: the `IDirectorHost` members RH-1 adds are what a take needs to play on a recording in the editor's replay. ⇒ the timeline design's `ReplayDirectorHost` (TE-5, over the Replay Browser) and these are ONE implementation over `IClusterMasterControl` — ⛔ to be reconciled with the ui lane before either is built | two replay hosts (R-4078: unify and share) |
+| **RH-10** | **entry points**: `--verify-replay playback,seek,branch` on the command line (one child per scenario, as today), `{"replay": [...]}` on `POST /director/verify`; the report gains a section per phase; the CI template unchanged (a flag) | a separate command — the verifier is the harness (CE-4045: *"reuse the verifier, never a second harness"*) |
+
+⭐ **CE-4050 is not a blocker here**: the process that recorded the run replays it, so every component's assembly is loaded. It becomes one
+when a recording is replayed by another process (H4, the Replay Browser).
+
+### 10a. Claim table — what the leans rest on
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a preview is never recorded; a live run records on every node | `/recording/start` retired (HTTP-through-master §3 as built) | ✅ R-3053, R-4000 |
+| in a replay the ordinary readers read the replayed world | `DebugApiService.Master.cs:94` `EnterReplay` publishes the master's transition; `/entities` reads the host's world | ✅ HTTP-through-master §3 ("reading a replay") |
+| the master can enter, seek and branch a replay in the editor | `IClusterMasterControl.Transition` / `SeekReplay` (`IClusterMasterControl.cs:21-24`); `OrchestratorCore.cs:146` builds `LiveBranchProcessManager`; the editor runs that core | ✅ HTTP-through-master §1 (known-conflict: AQ86 measured false) |
+| a stepped run's recording ticks advance by the step | ✅ `SteppingTimeController.cs:60` (`TotalWallTicks` = unscaled total time) · `MasterSyncController.cs:357` (`+= fixedDelta`) · `RecorderTickSystem.cs:88` stamps `GlobalTime.TotalWallTicks` | ⚠ mgmt-1 (~l.1300-1430) designs `TotalWallTicks` for continuous play (the PLL); silent on stepping ⇒ RH-3's mapping is MEASURED in H1 step 0 |
+| the replay clock steps with `/sim/step` | ⛔ not measured in code here | ✅ HTTP-through-master §3: *"during a replay they drive the replay clock"* |
+| the golden's snapshot and compare exist | ✅ `ScenarioGolden.Snapshot` / `Compare` / `CompareFrom` / `CompareNotCarried` (`ScenarioVerification.cs:333-520`) | ✅ §4, Checkpoint §1k |
+| shots / blasts are not in a replay as `CombatReport` rows | ✅ `ShotLog.cs:68` per-world side store; the timeline's Combat lanes read the recorded events (`CombatTimelineLanes`) | ✅ census §2; Timeline §9 TL-5, §9d |
+| a stepped LIVE run repeats from a rebuilt world | ⛔ not measured — R1 measured the PREVIEW only | ⛔ R-3035 says stepped mode is deterministic; ⚠ load-bearing for H3 only, and H3 measures it |
+
+### 10b. INVENTORY
+
+```
+scripts/cbm.sh search_graph name_pattern=".*(Verify|Golden|Replay|Recording|Playback|Sandbox).*" label=Interface
+   → 5: IRecordReplayController, IRecordingExportService, IRecordingSearchService, IReplayRestoreGated, IVerifyWorld
+scripts/cbm.sh search_graph name_pattern=".*(Verify|Golden|ReplayExtraction|ReplayContext|Sandbox|RecordingStart|RecordingSession|RecordingControl).*" label=Class
+   → CommandLineVerify, EditorVerifyWorld, FreshVerifyJobs, ScenarioGolden, VerifyCommand, VerifyOptions, VerifyResult (+ AiGoldenSnapshot,
+     EqsGolden* — unrelated goldens)
+grep: IClusterMasterControl (+ OrchestrationBusMasterControl), DebugApiService.Master.cs (EnterPreview, EnterReplay, SeekReplayTo, StopReplay,
+   GetReplayStatus), ReplayMasterModule, LiveBranchProcessManager, ReplaySeekProcessManager; "ReplayMatchesLive" → only
+   ParallelEpisodes_ReplayMatchesLiveAtTick25 (FDP example) and .dev/_DONE/demos-1 (the batch that built it)
+docs: DESIGN_Replay_Census_H0.md · DESIGN_Http_Control_Through_The_Cluster_Master.md §3-§4 · DESIGN_Checkpoint_And_Dry_Run_Restore.md §1k ·
+   DESIGN_Director_Timeline_Editor.md §9c-§9d · designs/mgmt-1/DESIGN.md (TotalWallTicks) — searched docs/ + .dev/ for "replay fidelity",
+   "verify-replay", "replay equals live": none
+check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
+```
+
+### 10c. Build order and acceptance
+
+| step | builds | accepted when |
+|---|---|---|
+| **0** | measure on one feature scenario (`ua-tank-ammo`): a stepped LIVE run in the editor records; the recording's frame ticks advance by the step; `/sim/step` steps the replay clock by the same step; replay enters at 0 | four numbers in §10a's ⛔ rows, each with its file:line |
+| **H1** | `IDirectorHost` live + replay members over `IClusterMasterControl` · Verify(Replay) playback phase · `ReplayCarried` from DataPolicy + the census · the Combat lanes compare · the report | the four feature scenarios: PLAY = LIVE at every reference time except the listed explained differences; shots / blasts per lane equal; a mutation (a component made `NoReplay` that a reader needs) turns it red |
+| **H2** | the seek phase | shuffled seeks equal playback on the four |
+| **H3** | the branch phase (R1's comparator) | equal, or a work list like R1's |
+| **H4** | §10 RH-8, written then | — |
 
 ## ⛔ HISTORY
 
