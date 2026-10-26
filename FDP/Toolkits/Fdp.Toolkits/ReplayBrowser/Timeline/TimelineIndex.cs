@@ -99,6 +99,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             return LowerBound(a, to) - LowerBound(a, from);
         }
 
+        /// <summary>How many of the lane's events fall before <paramref name="frame"/> — a position, so a run of edges costs one search each.</summary>
+        public int Before(TimelineLane lane, int frame) => LowerBound(_lanes[(int)lane], frame);
+
         /// <summary>The lane's events in frames [<paramref name="from"/>, <paramref name="to"/>).</summary>
         public ReadOnlySpan<TimelineEvent> Events(TimelineLane lane, int from, int to)
         {

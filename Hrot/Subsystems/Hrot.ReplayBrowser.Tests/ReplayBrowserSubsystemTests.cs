@@ -152,7 +152,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
         // ⭐ CE-1150 + CE-1244 — the shared Details panel (rb_details) and the shared diagnostics bundle's inspector / event browser
         //   (rb_fdp_inspector / rb_fdp_events, which replaced this host's own rb_inspector / rb_events copies).
-        Assert.Equal(new[] { "rb_details", "rb_diff", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline" }, windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
+        // ⭐ CE-1302 R1-c — and the event timeline (rb_event_timeline) over the primary node's recording.
+        Assert.Equal(new[] { "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline" }, windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
 
         foreach (var (_, win) in windows)
         {
@@ -193,7 +194,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
 
-        Assert.Equal(6, windows.Count);   // ⭐ CE-1150 / CE-1244 — see the rail above
+        Assert.Equal(7, windows.Count);   // ⭐ CE-1150 / CE-1244 / CE-1302 — see the rail above
         Assert.False(windows.ContainsKey("rb_federation"));
     }
 
@@ -431,6 +432,48 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         }
         finally
         {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1302</c> R1-c (docs/DESIGN_Director_Timeline_Editor.md §9) — the event timeline opens the PRIMARY node's recording, re-opens on
+    /// a new one, and its cursor seeks through the manager (D1) and reads the frame back.
+    /// </summary>
+    [Fact]
+    public void CE1302_TheEventTimeline_FollowsThePrimaryRecording_AndSeeksThroughTheManager()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ce1302_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var first = CreateMinimalFdpFile(tempDir, Guid.NewGuid(), nodeId: 1);
+            _subsystem.LoadFdpViaManager(first);
+            _subsystem.SyncTimelineSource();
+            var source = _subsystem.TimelineSource!;
+            Assert.Equal(first, source.Path);
+            Assert.True(source.Completion.Wait(TimeSpan.FromSeconds(30)));
+            Assert.Equal(2, source.Index.TotalFrames);
+
+            var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _subsystem.Manager, () => _subsystem.Manager!.LocalEntitiesProviderNodeId);
+            Assert.Equal((1_000_000L, 2_000_000L), (cursor.ExtentFrom, cursor.ExtentTo));
+            cursor.Seek(2_000_000L);
+            Assert.Equal(1, _subsystem.PrimaryNodeCurrentFrame());
+            Assert.Equal(2_000_000L, cursor.Now);
+            var vm = Fdp.Presentation.Panels.Timeline.TimelinePanelViewModel.Build("rb_event_timeline", "event-timeline", source, cursor,
+                new Fdp.Presentation.Panels.Timeline.TimelineWindow(cursor.ExtentFrom, cursor.ExtentTo));
+            Assert.True(vm.IsComplete && vm.CanSeek);
+            Assert.Equal(2_000_000L, vm.Now);
+
+            var second = CreateMinimalFdpFile(tempDir, Guid.NewGuid(), nodeId: 2);
+            _subsystem.LoadFdpViaManager(second);
+            _subsystem.SyncTimelineSource();
+            Assert.Equal(second, _subsystem.TimelineSource!.Path);
+        }
+        finally
+        {
+            _subsystem.TimelineSource?.Dispose();
             try { Directory.Delete(tempDir, recursive: true); } catch { }
         }
     }

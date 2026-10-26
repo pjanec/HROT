@@ -537,7 +537,10 @@ the browser's transport and slider), `TraceTimelineWindow` (a shell) + `ITraceLa
 ```mermaid
 classDiagram
   direction LR
-  class TimelineIndex { <<NEW, Fdp.Toolkits>> Lanes · FrameTicks[] · Entities · Events(lane, from, to) · Count(lane, from, to) }
+  class TimelineIndex { <<NEW, Fdp.Toolkits>> Lanes · FrameTicks[] · Events(lane, from, to) · Count(lane, from, to) · Before(lane, frame) · FrameAt(ticks) }
+  class TimelineEventSink { <<NEW, as built>> per-lane lists · Snapshot() }
+  class FederatedReplayCursor { <<NEW, as built, Fdp.Presentation>> }
+  class EventTimelineWindow { <<NEW, as built>> U-obs-5 dump }
   class TimelineEvent { <<NEW, struct>> Frame · Lane · Subject · Other · X · Y · Value }
   class TimelineLane { <<NEW, enum>> Spawn Destroyed Shot Hit Blast · Change Order Report Decision }
   class TimelineIndexBuilder { <<NEW>> Build(path, onChunk, ct) — own PlaybackController + repo + bus }
@@ -569,7 +572,10 @@ classDiagram
   TimelinePanel --> TimelineLayout
   TimelinePanel --> ITimelineCursor
   TimelinePanel --> ITimelineRowProvider
-  ITimelineCursor ..> FederatedReplayManager : the browser binds it
+  FederatedReplayCursor ..|> ITimelineCursor
+  FederatedReplayCursor --> FederatedReplayManager : SetBaseWallTicks
+  ITimelineExtractor ..> TimelineEventSink : adds to
+  EventTimelineWindow --> TimelinePanel
   TimelinePanel ..> ReplayTimelinePanel : sits beside it, the transport row stays there
 ```
 *Caption:* what the picture shows that prose hid — nothing in the index or the panel knows a host: the browser binds a cursor to its
@@ -613,6 +619,17 @@ Built in `FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Timeline/` as the class diagra
 | `TimelineIndexBuilder.Build` | its own `PlaybackController` + repository (+ the repository's bus), `RecordingSearchService.RegisterAllComponents`; a snapshot every `chunkFrames` (default 2000) | — |
 | `TimelineSidecar` | `<recording>.timeline`: magic, schema version, the recording's **byte size and last-write time**, then the tables; written via a temp file, only when complete | ⚠ TL-6 said "its last frame's ticks": reading those needs the recording opened; size + write time is checked without opening it |
 | `RecordingTimelineSource` | `Open(path)`: the sidecar if it matches, else a `Task.Run` build publishing snapshots into a volatile field, then the sidecar; `Dispose` cancels | — |
+
+**R1-b / R1-c as built** *(same day)* — in `Fdp.Presentation/ImGui/Panels/Timeline/` + `Windows/Timeline/`; rails `TimelineLayoutTests`
+(Fdp.Presentation.Tests) and `CE1302_TheEventTimeline_*` (Hrot.ReplayBrowser.Tests):
+
+| what | as built | deviates from the plan |
+|---|---|---|
+| `TimelineLayout` (pure) | `Marks(index, lanes, window, width)`: more events than pixels ⇒ contiguous density bins (frame edges, log-scaled intensity), else glyphs clustered within 7 px across the row's lanes (a k-way merge), each mark carrying its top-priority lane and frame range; `ZoomAbout` / `Pan` / `Clamp` / `Bracket` / `RulerStep`; `MarkAt` + `Describe` (the tooltip, events counted per lane) | ⭐ the bin edges are cached per window, so the rows of one draw share them — 📐 **0.59 ms per draw** for 9 rows × 1600 px over an hour (216 000 frames, 100 000 events), Debug build; before the cache 1.5 ms |
+| `TimelinePanel` | overview strip + bracket (drag moves it), ruler, Life / Combat / Behaviour groups (collapsed = one row), unscanned part shaded, "now" line; Ctrl+wheel zooms about the mouse, drag pans, click seeks, hover lists the mark | ⏳ not yet: jump to next / previous event, the search box, focus-dimming (R1-d with the pinned unit) |
+| `ITimelineCursor` + `FederatedReplayCursor` | Extent / Now / CanSeek / Seek over `FederatedReplayManager`; a seek subtracts the node's offset and calls `SetBaseWallTicks` (which seeks every node) | — |
+| `EventTimelineWindow` + `TimelinePanelViewModel` | the window (U-obs-5: declared, dumps scanned / total frames, window, now, per-lane counts in window and in total) | ⚠ named *Event* Timeline: "Replay Timeline" is already the browser's transport window |
+| Replay Browser hosting | `rb_event_timeline` registered beside `rb_timeline`; `SyncTimelineSource()` opens the primary node's recording each update when it changes (sidecar or background build), disposed on shutdown | — |
 
 ⏳ **Of §2b's cache tables only `events` is built.** `entities` (names, side) waits for R1-d's swimlane, which is its first reader; the
 `position track` for R2b (Movement); the `pyramid` is replaced in R1-b by a binary search per pixel column (`Count(lane, from, to)`),

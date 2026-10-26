@@ -13,6 +13,7 @@ using Fdp.Toolkit.ReplayBrowser.Support;
 using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Utility;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Fdp.Toolkit.ReplayBrowser.Timeline
 {
@@ -23,6 +24,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     public sealed class TimelineIndexTests
     {
         private const long Commander = 101, Soldier = 102, Late = 104;
+        private readonly ITestOutputHelper _out;
+
+        public TimelineIndexTests(ITestOutputHelper output) { _out = output; }
 
         /// <summary>
         /// Four frames: 0 both units present · 1 a shot (and a REFUSED one), a hit on the commander, an order · 2 a blast, a decision
@@ -46,6 +50,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             repo.AddComponent(soldier, new NetworkIdentity(Soldier));
             repo.AddComponent(soldier, new SimTransform { Position = new Vector3(30, 40, 0) });
             repo.AddComponent(soldier, default(UtilityDecisionLog));
+            CommandHistoryOf.Order(repo, commander, soldier, 0x1111, 0f);                                     // before the recording: a baseline, not an event
             harness.Tick().RecordKeyframe(100_000L);                                                          // frame 0
 
             harness.FireUnmanagedEvent(new WeaponFireNotification { Shooter = soldier, Target = commander, Origin = new Vector3(30, 40, 1), Quantity = 3 });
@@ -57,6 +62,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             harness.FireUnmanagedEvent(new DetonationNotification { Shooter = soldier, HitX = 5, HitY = 6, Damage = 0.5f });
             ref var slot = ref repo.GetComponentRW<UtilityDecisionLog>(soldier).SlotsRW()[0];
             slot.DecisionId = 0x2067; slot.SwitchCount = 1; slot.Winner = 7;
+            CommandHistoryOf.Order(repo, commander, soldier, 0x5A11, 2f);                                     // the same order REPEATED: counted, still news
             BrainJournalOf.Write(repo, commander, BrainJournalKind.TaskStarted, point: new Vector3(1, 2, 0));
             harness.Tick().RecordDelta(300_000L);                                                             // frame 2
 
@@ -90,7 +96,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.Equal(new[] { (1, Commander, 0L) }, Of(index, TimelineLane.Hit));
             var blast = Assert.Single(index.Lane(TimelineLane.Blast));
             Assert.Equal((2, Soldier, 5f, 6f, 0.5f), (blast.Frame, blast.Subject, blast.X, blast.Y, blast.Value));
-            Assert.Equal(new[] { (1, Commander, Soldier) }, Of(index, TimelineLane.Order));             // the commander's order, to whom
+            Assert.Equal(new[] { (1, Commander, Soldier), (2, Commander, Soldier) }, Of(index, TimelineLane.Order));   // to whom; the repeat too, not the baseline
             var decision = Assert.Single(index.Lane(TimelineLane.Decision));
             Assert.Equal((2, Soldier, 7L, (float)0x2067), (decision.Frame, decision.Subject, decision.Other, decision.Value));
             var change = Assert.Single(index.Lane(TimelineLane.Change));
@@ -128,6 +134,40 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             finally
             {
                 try { File.Delete(TimelineSidecar.PathFor(path)); } catch { /* best effort */ }
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1301</c> R0 ⑧ (§9 R1-c) — scan rate and index size on a REAL recording. Opt-in: set <c>HROT_TIMELINE_RECORDING</c> to an
+        /// <c>.fdp</c>; without it the rail only says so (a measurement, not a gate).
+        /// </summary>
+        [Fact]
+        public void CE1301_R0_8_ScanRate_AndIndexSize_OnARealRecording()
+        {
+            string? path = Environment.GetEnvironmentVariable("HROT_TIMELINE_RECORDING");
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) { _out.WriteLine("HROT_TIMELINE_RECORDING not set — nothing measured"); return; }
+            string copy = Path.Combine(Path.GetTempPath(), $"r0-8-{Guid.NewGuid():N}.fdp");   // the sidecar lands beside the copy, never beside the original
+            File.Copy(path, copy);
+            try
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var index = TimelineIndexBuilder.Build(copy);
+                double scan = sw.Elapsed.TotalSeconds;
+                Assert.True(TimelineSidecar.Write(copy, index));
+                long sidecar = new FileInfo(TimelineSidecar.PathFor(copy)).Length;
+                sw.Restart();
+                var reread = TimelineSidecar.TryRead(copy);
+                double open = sw.Elapsed.TotalMilliseconds;
+                Assert.NotNull(reread);
+                double recorded = index.FrameTicks.Count > 1 ? TimeSpan.FromTicks(index.FrameTicks[^1] - index.FrameTicks[0]).TotalSeconds : 0;
+                _out.WriteLine($"recording {new FileInfo(path).Length / 1e6:0.0} MB · {index.TotalFrames} frames · {recorded:0} s recorded");
+                _out.WriteLine($"scan {scan:0.0} s = {index.TotalFrames / Math.Max(scan, 1e-6):0} frames/s ({recorded / Math.Max(scan, 1e-6):0.0}× real time)");
+                _out.WriteLine($"sidecar {sidecar / 1e3:0.0} kB · reopen {open:0.0} ms");
+                foreach (TimelineLane lane in Enum.GetValues<TimelineLane>()) _out.WriteLine($"  {lane}: {index.Lane(lane).Count}");
+            }
+            finally
+            {
+                try { File.Delete(copy); File.Delete(TimelineSidecar.PathFor(copy)); } catch { /* best effort */ }
             }
         }
 

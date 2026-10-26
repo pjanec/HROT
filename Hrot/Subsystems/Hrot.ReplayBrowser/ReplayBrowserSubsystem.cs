@@ -82,6 +82,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     private InspectorState? _inspectorState;
     private RepositoryAdapter? _session;
     private ReplayTimelinePanel? _timelinePanel;
+    // ⭐ CE-1302 R1-c (DESIGN_Director_Timeline_Editor.md §9) — the event timeline over the primary node's recording: its index comes from
+    //   the sidecar or a background pass on its own playback (TL-7), its clicks seek through the manager (D1, FederatedReplayCursor).
+    private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? _timelineSource;
+    private string? _timelineFor;
+    internal Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? TimelineSource => _timelineSource;
     private IFileDialogService? _fileDialogService;
     private IRecordingExportService? _exportService;
     private ComponentDiffPanel? _diffPanel;
@@ -387,6 +393,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             }
         }
 
+        if (!_headless) SyncTimelineSource();
+
         if (!_headless)
         {
             if (_timelinePanel != null && _timelinePanel.IsPlaying)
@@ -505,8 +513,19 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterWindowsCore).
     }
 
+    /// <summary>⭐ CE-1302 R1-c — re-opens the timeline's index when the primary node's recording changes (a new group, another node).</summary>
+    internal void SyncTimelineSource()
+    {
+        string? path = PrimaryNodeCurrentFdpPath();
+        if (path == _timelineFor) return;
+        _timelineSource?.Dispose();
+        _timelineSource = path == null ? null : Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource.Open(path);
+        _timelineFor = path;
+    }
+
     public void Shutdown()
     {
+        _timelineSource?.Dispose();
         _manager?.Dispose();
         _transientMaster?.Dispose();
         _terrain?.Unload(_terrainCarrier);   // CE-3118 — the holder frees the road graph
@@ -958,6 +977,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplayTimelineWindow(
             "rb_timeline", "Replay Timeline", perspective, timelinePanel, color));
+
+        windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
+            "rb_event_timeline", "Event Timeline", perspective, _eventTimeline, () => _timelineSource,
+            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0), color));
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
             "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));
