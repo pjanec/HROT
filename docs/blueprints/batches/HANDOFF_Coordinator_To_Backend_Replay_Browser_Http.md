@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — DISPATCHED at the commit that adds this file (2026-10-26); scope frozen there
+state: LIVE — DISPATCHED at `b9ae78e6d` (2026-10-26); scope frozen there
 updated: 2026-10-26
 current-answer: the whole file
 stale-below: nothing
@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — backend: the Replay Browser over the AI debug HTTP API, every feature
 
-**For:** the backend lane (`backend`). **From:** the coordinator lane. ⭐ **Dispatched at the commit that adds this file**; your scope is
+**For:** the backend lane (`backend`). **From:** the coordinator lane. ⭐ **Dispatched at `b9ae78e6d`**; your scope is
 FROZEN there and later documents are FYI. If one invalidates an item, STOP that item and report it (R-106).
 
 🔒 **User, `2026-10-26`:** *"backed unified the replay control across hosts which likely broke the replay browser ai http control; we of course
@@ -29,7 +29,7 @@ is yours, map and selection routes included — one lane for the HTTP surface (R
 
 ## 1. Before anything
 
-Merge `coordinator` at the dispatch commit or later (it carries `ui` and your own `9c1297c37`); push a `chore: started …` marker (rule 1b);
+Merge `coordinator` at `b9ae78e6d` or later (it carries `ui` and your own `9c1297c37`); push a `chore: started …` marker (rule 1b);
 ids from your block. **Read [`DESIGN_Replay_Browser_Debug_Http.md`](../../DESIGN_Replay_Browser_Debug_Http.md)** §0 (rulings, leans RB-1…RB-8),
 §2 (every Replay Browser feature → its route), §3 (UML), §4 (claim table). The design is yours to finish and fold the as-built into
 (obligation ⑤). ⚠ The Replay Browser host and its panels are the ui lane's code — a cross-lane edit is allowed and said in the commit.
