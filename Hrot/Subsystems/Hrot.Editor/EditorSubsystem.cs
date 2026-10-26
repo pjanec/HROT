@@ -531,6 +531,9 @@ namespace Hrot.Editor
         /// <summary>Q86 test hook: this node's clock (the editor's own master — Q86 keeps it here).</summary>
         internal MasterSyncController? TimeControllerForTest => _timeController;
 
+        /// <summary>CE-3330 test hook: the node context the editor was built from (its world, kernel and timeline).</summary>
+        internal HrotNodeContext? NodeForTest => _node;
+
         /// <summary>Q86 test hook: the orchestration bus the shared orchestrator core runs on.</summary>
         internal FdpEventBus? OrchestrationBusForTest => _orchestrationBus;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
