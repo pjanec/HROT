@@ -8,6 +8,7 @@ known-rot: ⚠ predates UXI-11 (selection unification, ☑ 2026-09-20). ReplayBr
   UNAFFECTED and stays this design's own: it is a HISTORY of selections over a recording, not a store
   of the current one. ⛔ Do not read this file for how the replay browser selects today.
 related-designs:
+  - docs/DESIGN_Replay_Browser_Debug_Http.md — OWNS this browser's AI debug HTTP surface: every feature mapped to a route (R-4081)
   - docs/DESIGN_Director_Timeline_Editor.md — OWNS the director timeline panel docked in the Replay Browser, ReplayDirectorHost over this design's sandbox, the recording scout on RecordingSearchService's frame loop, and the TKB load (R-4069)
   - docs/DESIGN_Entity_Brain_View.md — a recorded brain journal makes the Brain tab an after-action "why" at any scrubbed frame
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: the one selection store and the request/notification
