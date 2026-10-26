@@ -22,6 +22,14 @@ related-designs:
 ⚠ **Merge first:** `origin/behaviors` (`421c32cbf`, 53 commits ahead) and `origin/ui` (`88a60d1c8`, 16 ahead) are NOT merged —
 then `dotnet restore` the test projects you run (CLAUDE.md, third stale-binary trap). The behaviors merge closes `CE-3306`.
 
+⛔⛔ **The merge brings NEW `.claude/CLAUDE.md` rules — re-read the file after merging** (`ui` / `coordinator` carry all three, `behaviors` the first):
+
+| rule *(user, `2026-10-25/26`)* | ⇒ for B3 |
+|---|---|
+| **graph AND grep, an imperative** — the FIRST command of a session is `scripts/cbm.sh list_projects` with `run_in_background: true` (a cold index outlives the foreground timeout); a timeout is never "unavailable"; name the graph queries in every `INVENTORY` and existence claim | the B3 inventory (`RecorderTickSystem`, `ReferenceCheckpointHandler`, `CheckpointIOWorker`, `TakeCheckpoint` / `CollectCheckpoint`) runs `search_graph` + grep, both named |
+| **shared and unified, never duplicated** — one implementation per concept, one owner per state, hosts agree by construction | the checkpoint keyframe IS the recorder's keyframe (`R-3044`); the FDPC writer retires rather than living beside it |
+| **Sonnet delegation** — Sonnet builds and writes its own tests to clear success conditions; Opus reviews whether the tests assert what matters and the code, **does not re-run them**, and **verifies every "cannot be done / does not exist" claim** in a subagent report | B3's mechanical slices (FDPC retirement, the export) can go to Sonnet with numbered success conditions |
+
 **The programme.** [`CE-3299`](https://github.com/pjanec/HROT/blob/backend/docs/blueprints/Blueprint_Issues_Tracker.md) (restore a checkpoint and continue) —
 owning design [**DESIGN_Checkpoint_And_Dry_Run_Restore.md**](https://github.com/pjanec/HROT/blob/backend/docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md): §5 decisions,
 §8 build order. Its precondition is `R-3039` (*a system's memory lives in ECS components; a checkpoint is a plain ECS snapshot*),
