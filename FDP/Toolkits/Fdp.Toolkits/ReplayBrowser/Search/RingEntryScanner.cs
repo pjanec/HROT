@@ -80,7 +80,16 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private readonly Func<string, bool>? _filter;
         private readonly CompiledProjection? _projection;
         private readonly string _label;
-        private readonly Dictionary<int, (int Generation, HashSet<long> Keys)> _seen = new();
+        /// <summary>⭐ CE-3330 — what was seen of one entity's ring last frame: its key set, and an exact COPY of the entries it was built from
+        /// (reused in place every changed frame — no allocation for an unchanged ring).</summary>
+        private sealed class Seen
+        {
+            public int Generation;
+            public HashSet<long> Keys = new();
+            public TElem[] Copy = Array.Empty<TElem>();
+            public int Count = -1;
+        }
+        private readonly Dictionary<int, Seen> _seen = new();
         private readonly HashSet<long> _now = new();
         private readonly List<int> _gone = new();
         private int _stamp;
@@ -115,12 +124,22 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 int n = Math.Clamp(_count?.Invoke(comp) ?? _capacity, 0, _capacity);
                 ReadOnlySpan<TElem> entries = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<TArr, TElem>(ref arr), _capacity)[..n];
 
-                _now.Clear();
                 bool baseline = !_seen.TryGetValue(entity.Index, out var was) || was.Generation != entity.Generation;
+                if (!baseline)
+                {
+                    // ⭐ CE-3330 — O(changes): a ring byte-identical to last frame's (same count, same entries — a memcmp, never a hash, so a
+                    //   collision cannot drop an event) has the same key set and so reports nothing; skip the hashing and the union.
+                    if (was!.Count == n && MemoryMarshal.AsBytes(entries).SequenceEqual(MemoryMarshal.AsBytes(was.Copy.AsSpan(0, n))))
+                    {
+                        _lastFrameSeen[entity.Index] = _stamp;
+                        continue;
+                    }
+                }
+                _now.Clear();
                 for (int i = 0; i < entries.Length; i++)
                 {
                     long key = _key(entries[i]);
-                    if (!_now.Add(key) || baseline || was.Keys.Contains(key)) continue;
+                    if (!_now.Add(key) || baseline || was!.Keys.Contains(key)) continue;
                     if (_filter != null)
                     {
                         object boxed = entries[i];
@@ -133,10 +152,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     }
                     else results.Add(new SearchResultDto(frame, ticks, entity, _label));
                 }
-                var keys = baseline || was.Keys == null ? new HashSet<long>() : was.Keys;
-                keys.Clear();
-                keys.UnionWith(_now);
-                _seen[entity.Index] = (entity.Generation, keys);
+                if (baseline) { was = new Seen(); _seen[entity.Index] = was; }
+                was!.Generation = entity.Generation;
+                was.Keys.Clear();
+                was.Keys.UnionWith(_now);
+                if (was.Copy.Length < _capacity) was.Copy = new TElem[_capacity];
+                entries.CopyTo(was.Copy);
+                was.Count = n;
                 _lastFrameSeen[entity.Index] = _stamp;
             }
             // an entity whose component went away is forgotten: if it comes back, that frame is its baseline again

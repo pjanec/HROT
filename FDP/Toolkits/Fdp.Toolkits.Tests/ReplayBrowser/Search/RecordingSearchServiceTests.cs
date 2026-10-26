@@ -808,6 +808,52 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Assert.All(results, r => Assert.Equal(commander.Index, r.Entity.Index));
         }
 
+        [System.Runtime.CompilerServices.InlineArray(4)] private struct ScanRing { public ScanEntry _e; }
+        private struct ScanEntry { public long Id; }
+        [Fdp.Core.ComponentId(508)] private struct ScanRingHolder { public ScanRing Items; public int Count; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> — the ring scanner reports nothing for a ring byte-identical to last frame's (it skips the hashing), yet still sees
+        /// every change: (a) an untouched ring adds no events over many frames; (b) a FULL ring whose oldest slot is overwritten by a new entry
+        /// (count unchanged) yields exactly that one entry; (c) an existing entry rewritten in place with a new key yields it; a new entity's
+        /// first frame is its baseline. 🔴 Red-proofs: equal count treated as unchanged ⇒ (b) and (c) yield nothing; always-skip ⇒ the same.
+        /// </summary>
+        [Fact]
+        public void CE3330_Node_RingScanner_SkipsAnUnchangedRing_ButSeesAWrapAndAnInPlaceRewrite()
+        {
+            using var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<ScanRingHolder>();
+            var unit = repo.CreateEntity();
+            var holder = new ScanRingHolder { Count = 4 };
+            for (int i = 0; i < 4; i++) holder.Items[i].Id = 10 + i;
+            repo.AddComponent(unit, holder);
+            var scanner = RingEntryScanner.Compile(new RingEntryPredicateDto
+            {
+                ComponentType = typeof(ScanRingHolder), ItemsPath = "Items", CountPath = "Count", KeyPaths = { "Id" },
+            });
+            int frame = 0;
+            int Scan() { var r = new System.Collections.Generic.List<SearchResultDto>(); scanner.Scan(repo, frame++, 0, r); return r.Count; }
+
+            Assert.Equal(0, Scan());                                    // baseline
+            for (int i = 0; i < 50; i++) Assert.Equal(0, Scan());       // (a) untouched: nothing, however long
+
+            repo.GetComponentRW<ScanRingHolder>(unit).Items[0].Id = 14;    // (b) wrap: the oldest slot takes a new entry, the count stays 4
+            Assert.Equal(1, Scan());
+            Assert.Equal(0, Scan());                                    // and it is not reported again
+
+            repo.GetComponentRW<ScanRingHolder>(unit).Items[2].Id = 99;    // (c) an existing slot rewritten in place with a new key
+            Assert.Equal(1, Scan());
+            Assert.Equal(0, Scan());
+
+            repo.GetComponentRW<ScanRingHolder>(unit).Items[2].Id = 12;    // back to a key that left the ring: new again
+            Assert.Equal(1, Scan());
+
+            var late = repo.CreateEntity();
+            repo.AddComponent(late, holder);
+            Assert.Equal(0, Scan());                                    // a new entity's first sight is its baseline
+            Assert.Equal(0, Scan());
+        }
+
         /// <summary>⚠ CE-1302 as-built (StructuralScanner): an ADDED-only search no longer reports a destroyed entity as "Lost".</summary>
         [Fact]
         public void CE1302_StructuralAdded_DoesNotReportADestroyedEntity_RemovedDoes()
