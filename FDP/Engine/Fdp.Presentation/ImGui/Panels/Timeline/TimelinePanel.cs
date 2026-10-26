@@ -31,9 +31,13 @@ public sealed class TimelinePanel
     private TimelineWindow _window;
     private long _extentFrom, _extentTo;
     private bool _dragging;
+    private bool _shown;
 
     /// <summary>The visible span (ticks). Set by the panel; exposed for tests and hosts that want to restore it.</summary>
     public TimelineWindow Window => _window;
+
+    /// <summary>Shows <paramref name="window"/> (clamped to the extent on the next draw) — a host zooming to an event, a rail, R1-d's jump.</summary>
+    public void Show(TimelineWindow window) => (_window, _shown) = (window, true);
 
     public static uint ColorOf(TimelineLane lane) => lane switch
     {
@@ -55,17 +59,18 @@ public sealed class TimelinePanel
         long to = cursor?.ExtentTo ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[^1] : 0);
         if (to <= from)
         {
-            ImGui.TextDisabled(source == null ? "No recording." : "Indexing…");
+            Plain(source == null ? "No recording." : "Indexing...", Dim);
             return;
         }
         if (from != _extentFrom || to != _extentTo || _window.Span <= 1)
         {
             (_extentFrom, _extentTo) = (from, to);
-            _window = new TimelineWindow(from, to);
+            _window = _shown ? TimelineLayout.Clamp(_window, from, to) : new TimelineWindow(from, to);
         }
+        _shown = false;
 
-        if (source?.Error is { } error) ImGui.TextColored(new Vector4(1f, 0.5f, 0.4f, 1f), $"Index stopped at {source.Progress * 100f:0}%: {error}");
-        else if (source is { IsComplete: false }) ImGui.TextDisabled($"Indexing… {source.Progress * 100f:0}%");
+        if (source?.Error is { } error) Plain($"Index stopped at {source.Progress * 100f:0}%: {error}", new Vector4(1f, 0.5f, 0.4f, 1f));
+        else if (source is { IsComplete: false }) Plain($"Indexing... {source.Progress * 100f:0}%", Dim);
 
         var dl = ImGui.GetWindowDrawList();
         float width = Math.Max(10f, ImGui.GetContentRegionAvail().X - LabelWidth);
@@ -108,7 +113,7 @@ public sealed class TimelinePanel
         var all = new TimelineWindow(_extentFrom, _extentTo);
         dl.AddRectFilled(p, p + new Vector2(width, OverviewHeight), 0x30FFFFFF);
         foreach (var m in TimelineLayout.Marks(index, AllLanes, all, width, into: _marks))
-            DrawMark(dl, m, p, OverviewHeight);
+            DrawMark(dl, m, p, OverviewHeight, labelRoom: 0);   // the overview shows marks, never counts
         var (b0, b1) = TimelineLayout.Bracket(_window, _extentFrom, _extentTo, width);
         dl.AddRect(p + new Vector2(b0, 0), p + new Vector2(Math.Max(b1, b0 + 2), OverviewHeight), 0xFFFFFFFF);
         float xn = all.XOf(now, width);
@@ -143,7 +148,7 @@ public sealed class TimelinePanel
     {
         if (label.Length > 0)
         {
-            ImGui.TextColored(ImGui.ColorConvertU32ToFloat4(ColorOf(lanes[0])), label);
+            Plain(label, ImGui.ColorConvertU32ToFloat4(ColorOf(lanes[0])));
             ImGui.SameLine(LabelWidth);
         }
         else ImGui.SameLine(LabelWidth);
@@ -152,7 +157,8 @@ public sealed class TimelinePanel
         bool hovered = ImGui.IsItemHovered();
         dl.AddRectFilled(p, p + new Vector2(width, RowHeight), 0x18FFFFFF);
         TimelineLayout.Marks(index, lanes, _window, width, into: _marks);
-        foreach (var m in _marks) DrawMark(dl, m, p, RowHeight);
+        for (int i = 0; i < _marks.Count; i++)   // a count label only where it fits before the next mark
+            DrawMark(dl, _marks[i], p, RowHeight, (i + 1 < _marks.Count ? _marks[i + 1].X0 : width) - _marks[i].X0 - 6f);
         if (!hovered) return;
 
         var io = ImGui.GetIO();
@@ -170,10 +176,26 @@ public sealed class TimelinePanel
             _dragging = false;
         }
         int hit = TimelineLayout.MarkAt(_marks, mx, TimelineLayout.DefaultGlyphPx);
-        if (hit >= 0) ImGui.SetTooltip(TimelineLayout.Describe(index, lanes, _marks[hit], _extentFrom));
+        if (hit >= 0)
+        {
+            ImGui.BeginTooltip();
+            ImGui.TextUnformatted(TimelineLayout.Describe(index, lanes, _marks[hit], _extentFrom));
+            ImGui.EndTooltip();
+        }
     }
 
-    private static void DrawMark(ImDrawListPtr dl, in TimelineMark m, Vector2 p, float h)
+    private static readonly Vector4 Dim = new(0.6f, 0.6f, 0.6f, 1f);
+
+    /// <summary>⛔ Never <c>ImGui.Text*(string)</c> with data in it: those take a printf FORMAT — 📐 "Indexing… 50%" read garbage after its
+    /// trailing <c>%</c> and drew a run of <c>?</c> (the frame rail's screenshot). <c>TextUnformatted</c> takes the text as is.</summary>
+    private static void Plain(string text, Vector4 colour)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, colour);
+        ImGui.TextUnformatted(text);
+        ImGui.PopStyleColor();
+    }
+
+    private static void DrawMark(ImDrawListPtr dl, in TimelineMark m, Vector2 p, float h, float labelRoom)
     {
         uint c = ColorOf(m.Top);
         if (m.Kind == TimelineMarkKind.Density)
@@ -184,6 +206,8 @@ public sealed class TimelinePanel
         }
         var centre = p + new Vector2(m.X0, h / 2);
         dl.AddCircleFilled(centre, m.Count > 1 ? 4f : 3f, c);
-        if (m.Count > 1) dl.AddText(centre + new Vector2(5, -h / 2), 0xFFE0E0E0, "×" + m.Count);
+        if (m.Count <= 1) return;
+        string label = "×" + m.Count;
+        if (ImGui.CalcTextSize(label).X + 5 <= labelRoom) dl.AddText(centre + new Vector2(5, -h / 2), 0xFFE0E0E0, label);
     }
 }

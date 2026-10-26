@@ -186,7 +186,8 @@ public static class TimelineLayout
         if (mark.FromFrame < t.Count)
             sb.Append(TimeSpan.FromTicks(t[mark.FromFrame] - extentFrom).ToString(@"h\:mm\:ss\.f"));
         if (mark.ToFrame - 1 > mark.FromFrame && mark.ToFrame - 1 < t.Count)
-            sb.Append(" – ").Append(TimeSpan.FromTicks(t[mark.ToFrame - 1] - extentFrom).ToString(@"h\:mm\:ss\.f"));
+            sb.Append(" - ")   // ⚠ the editor font has no en dash (drawn as ?)
+                .Append(TimeSpan.FromTicks(t[mark.ToFrame - 1] - extentFrom).ToString(@"h\:mm\:ss\.f"));
         foreach (var lane in lanes)
         {
             int n = index.Count(lane, mark.FromFrame, mark.ToFrame);
