@@ -126,16 +126,7 @@ public sealed class ClusterOpMasterTranslator
                     WriteError(req.RequestId, (int)NedStatusCode.ValidationFailed);
                     break;
                 }
-                _bus.PublishManaged(new TransitionStateIntent
-                {
-                    TransactionId   = req.RequestId,
-                    TargetState     = (FdpClusterState)(int)dto.TargetState.Value,
-                    ScenarioId      = dto.ScenarioId,
-                    ExerciseId      = dto.ExerciseId,
-                    TimeMode        = dto.TimeMode,
-                    CheckpointingSeconds = dto.CheckpointingSeconds,   // D17
-                    TargetWallTicks = 0,
-                });
+                _bus.PublishManaged(dto.ToIntent(req.RequestId));   // ⭐ R-3055 — the ONE decoding (TargetWallTicks included)
                 break;
             }
 

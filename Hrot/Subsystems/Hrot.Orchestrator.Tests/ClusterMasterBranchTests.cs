@@ -27,9 +27,13 @@ public sealed class ClusterMasterBranchTests
         TransactionHistoryCapacity = 10,
     };
 
+    private static readonly Guid FinishedExercise = Guid.NewGuid();
+
     private static int BootstrapToOperatingReplay(FdpEventBus bus, ClusterMaster master)
     {
         const int nodeId = 1;
+        // ⭐ R-3055 — a replay replays an EXERCISE: the request below names none, so the master resolves it (else it is rejected)
+        master.NewestExercise ??= () => FinishedExercise;
 
         bus.PublishManaged(new NodeHeartbeatEvent
         {
