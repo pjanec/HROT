@@ -25,6 +25,10 @@ namespace Hrot.Editor.UI
         // has no bus but would leave the cluster uninformed on one that does.
         private readonly ITimeCommands?       _commands;
 
+        // ⭐ CE-4051 / CE-4052 — whether a replay is on: the world's GlobalTime is then the RECORDED frame's (playback writes it), so the
+        //   clock this facade drives is the master's — the replay clock (R-3056: seconds after the replay's zero).
+        private readonly System.Func<bool>?   _isReplaying;
+
         /// <summary>
         /// Creates a new <see cref="EditorTimeTransportFacade"/>.
         /// </summary>
@@ -41,15 +45,19 @@ namespace Hrot.Editor.UI
             IPreviewController   preview,
             MasterSyncController timeCtrl,
             EntityRepository     world,
-            ITimeCommands?       commands = null)
+            ITimeCommands?       commands = null,
+            System.Func<bool>?   isReplaying = null)
         {
             _preview  = preview  ?? throw new System.ArgumentNullException(nameof(preview));
             _timeCtrl = timeCtrl ?? throw new System.ArgumentNullException(nameof(timeCtrl));
             _world    = world    ?? throw new System.ArgumentNullException(nameof(world));
             _commands = commands;
+            _isReplaying = isReplaying;
         }
 
         private bool InPreview => _preview.IsInPreviewMode;
+
+        private bool Replaying => _isReplaying?.Invoke() == true;
 
         /// <summary>
         /// `T7`: was <c>GetMode() == Deterministic</c>, which is LATE by the Future Barrier window.
@@ -72,7 +80,11 @@ namespace Hrot.Editor.UI
         /// </summary>
         public HaltReason Reason => HaltReasonResolver.Resolve(
             isPublishing:          true,   // the editor host does not suspend its own clock push
-            isAdvancing:           SimClock.Of(_world).IsAdvancing,
+            // ⭐ CE-4051 — in a replay the world's clock is the RECORDED frame's: a stepped frame carries DeltaTime 1/60, so it read "running"
+            //   while the master stood paused, and every step became a Pause() that never landed. ⇒ the replay clock is the master's mode.
+            isAdvancing:           Replaying
+                                       ? _timeCtrl.GetMode() == TimeMode.Continuous && !_timeCtrl.IsPauseBarrierPending
+                                       : SimClock.Of(_world).IsAdvancing,
             isRewound:             false,  // the breakpoint's rewind is `W5`, not wired here yet
             isAwaitingStepAcks:    _timeCtrl.IsAwaitingStepAcks,
             isDeterministic:       _timeCtrl.GetMode() == TimeMode.Deterministic,
@@ -91,12 +103,16 @@ namespace Hrot.Editor.UI
         // Not in preview: show play button (simulation not running).
         // In preview, paused: show play button.
         // In preview, running: show pause button.
-        public bool IsPaused => !InPreview || Paused;
+        public bool IsPaused => Replaying ? Paused : !InPreview || Paused;
 
         /// <inheritdoc/>
-        public double TotalTime => _world.HasSingleton<GlobalTime>()
-            ? _world.GetSingleton<GlobalTime>().TotalTime
-            : 0.0;
+        /// <remarks>⭐ CE-4052 — in a replay, the replay clock: the master's seconds after the replay's zero (R-3056), what
+        /// <c>atSeconds</c> means. ⛔ Not the recorded frame's sim time, which stands still across the paused frames a live run recorded.</remarks>
+        public double TotalTime => Replaying
+            ? _timeCtrl.GetCurrentState().TotalTime
+            : _world.HasSingleton<GlobalTime>()
+                ? _world.GetSingleton<GlobalTime>().TotalTime
+                : 0.0;
 
         /// <inheritdoc/>
         public float TimeScale => _timeCtrl.GetTimeScale();
@@ -104,6 +120,11 @@ namespace Hrot.Editor.UI
         /// <inheritdoc/>
         public void TogglePlayPause()
         {
+            if (Replaying)
+            {
+                if (Paused) Resume(); else Pause();   // a replay has no preview to enter: play / pause drive the replay clock
+                return;
+            }
             if (!InPreview)
                 _preview.EnterPreviewMode();   // entering preview is not time control
             else if (Paused)
@@ -118,6 +139,13 @@ namespace Hrot.Editor.UI
         /// <inheritdoc/>
         public void StepBy(float seconds)
         {
+            if (Replaying)
+            {
+                if (!Paused) Pause();
+                else if (_commands != null) _commands.StepBy(seconds);
+                else _timeCtrl.Step(seconds);
+                return;
+            }
             if (!InPreview)
                 _preview.EnterPreviewMode(startPaused: true);
             else if (!Paused)

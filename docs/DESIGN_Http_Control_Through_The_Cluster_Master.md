@@ -45,6 +45,14 @@ related-designs:
 | ⏭ **future extension, not built:** a seek / step form in SIMULATION time that skips the unchanged paused frames | ⚠ the replay harness's second half (Scenario Regression §10-1 H1b) will need it to address a sim frame through the product's control; H1a matches sim frames itself and needs nothing |
 | ⛔ rejected: a stepped master clock that advances only by the step | the slaves stamp real time ⇒ the nodes' recordings would no longer line up |
 
+**As built `2026-10-26` (backend) — what the time routes read in a replay** *(CE-4051, CE-4052, CE-4054; measured live on a headless editor: ua-tank-ammo, 120 steps, `POST /replay {atSeconds: 0}`)*
+
+| finding | root cause | fix |
+|---|---|---|
+| CE-4051 — `POST /sim/step` in a replay never landed (504 after 20 s) | the editor's time facade decides "running" from the WORLD's `GlobalTime.DeltaTime`; in a replay that singleton is the PLAYED-BACK frame's, and a stepped frame carries 1/60 ⇒ it read "running" while the master stood paused, and every step became a `Pause()` (`EditorTimeTransportFacade.StepBy`) | ⭐ in a replay the facade reads the REPLAY clock — paused from the master's mode, time from the master's `TotalTime` (`isReplaying`, passed by every editor caller). Rail `EditorTimeTransportFacadeReplayTests` |
+| CE-4052 — a replay "entered at 3.18 s", a seek to 5 s "landed at 1.20 s" | the same read: `totalTime` showed the recorded frame's SIM time, which stands still across the paused frames a live run records (R-3056) | ⭐ the same fix: `totalTime` is now the seconds after the replay's zero — measured: entry at 0 reads 0, a seek to 1 s reads 1. ⚠ A read in the same instant `POST /replay` returns can still show the live clock for a frame (`waitForReady` ends when the STATE is reached, a frame before the entry seek snaps the clock) |
+| CE-4054 — `GET /exercises` empty through a whole live run | the master's inventory listed a local exercise only once its run ENDED (`AssetInventoryProcessManager` ledger) | ⭐ the run in progress is listed too, its length so far — it is replayable (`ResolveReplayExercise`); ⛔ not among the unarchived, so nothing offers to export it while it records. Rail `CE4054_TheRunInProgress_IsReplayable_ButNotOfferedForExport` |
+
 ## 2. INVENTORY — what each route did before this design *(grep + reading every handler, then the graph once it indexed)*
 
 | graph query *(`scripts/cbm.sh search_graph`, `2026-10-26`)* | total | what it settled |

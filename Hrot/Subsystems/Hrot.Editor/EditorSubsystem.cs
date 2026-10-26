@@ -327,6 +327,9 @@ namespace Hrot.Editor
         private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
         private Hrot.Editor.DebugApi.EditorAiTracerCoordinator?          _debugApiTracer;
         private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _debugApiRrController;
+
+        /// <summary>⭐ CE-4051 — a replay is on: the time controls drive the replay clock, not the recorded frame's (EditorTimeTransportFacade).</summary>
+        private bool IsReplaying() => _clusterHandlers?.RecordReplayController?.IsReplayActive == true;
         /// <summary>⭐ D16 — what the shared host composition built: the ONE recorder and the ONE dry-run handler.</summary>
         private Hrot.SimHost.Modules.Orchestration.EcsHostClusterHandlers? _clusterHandlers;
         private FdpInspectorState       _fdpInspectorState  = new();
@@ -2440,7 +2443,7 @@ namespace Hrot.Editor
             {
                 _takeStore = new Hrot.UI.Common.Map3D.Director.TakeStore(() => EditorBootstrap.ScenariosRoot,
                                                                          Hrot.UI.Common.Map3D.Director.TakeStore.FindFilmsDirectory);
-                var directorTime = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world);
+                var directorTime = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world, isReplaying: IsReplaying);
                 var directorHost = new Hrot.Editor.Director.EditorDirectorHost(
                     world:          () => _world,
                     load:           name => _editorLogic!.LoadScenarioByName(name),
@@ -2521,7 +2524,7 @@ namespace Hrot.Editor
                         debugApiPort, _debugApiJobQueue, () => _requestAppExit());
 
                     var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap!, scenarioSerializer);
-                    var debugTimeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world);
+                    var debugTimeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world, isReplaying: IsReplaying);
                     // The behavior-trace arming coordinator (Hrot.Editor.DebugApi.*) — distinct from the
                     // time-control tracer of the same short name in Hrot.Editor.Debug. Self-contained.
                     _debugApiTracer = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(_world);
@@ -5330,7 +5333,7 @@ namespace Hrot.Editor
                 && windowManager.MainToolbar != null)
             {
                 var timeControls = new TimeControlStatusBarSection(
-                    _previewController, _timeController, _world, _timeCommands);
+                    _previewController, _timeController, _world, _timeCommands, IsReplaying);
                 windowManager.StatusBar.RegisterSection(
                     id:             "editor_time_controls",
                     sortOrder:      100,
@@ -5343,7 +5346,7 @@ namespace Hrot.Editor
                 // ⭐⭐⭐ CE-090 — the `withSeparator` parameter is GONE: both hosts emit the separator, and
                 //    a shared surface takes no host gate. 📄 §5c.14.
                 var timeTransportFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
-                    _previewController, _timeController, _world, _timeCommands);
+                    _previewController, _timeController, _world, _timeCommands, IsReplaying);
                 Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
                     windowManager.MainToolbar, timeTransportFacade);
             }
