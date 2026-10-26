@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25
-current-answer: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
+updated: 2026-10-26
+current-answer: ⭐⭐⭐ 2026-10-26 — START AT "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
+  what was built 10-25/26, what is open, the traps measured). Then the 10-25 Brain-tab section and the 10-23 plan for the rest.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
   open work: behaviour debugging CE-1270, the coordinator's Timeline handoff CE-1301…1306, the camera CE-1293, the regressions).
   ⛔ OLDER: ⭐⭐⭐ 2026-10-22 EVENING — START AT "SESSION 2026-10-22 — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH" directly below
@@ -166,6 +168,53 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-10-26 — RESUME HERE *(state at `ui@8d85ea7ba`, everything pushed, tree clean)*
+
+**RELEARN** — then read this section; verify every sha / "done" line against git before acting on it.
+
+### What was built (2026-10-25 → 26), newest first — all ✅ in the [tracker](Blueprint_Issues_Tracker.md)
+
+| id | what | owning design |
+|---|---|---|
+| `CE-1360` | a decompiled (C#-built) BTree's leaves titled with the METHOD in words (`Advance and attack`, `Is option: Advance?`, `Squad march`) — `BTreeNodeTitles`, `SharedNodeBinder.ParamFieldOf`; the layout re-runs with the real ImGui font on open and staggers rows of small subtrees | [BTree host §3.4](BTree_Editor_NodeEditor_Host_Design.md) |
+| `CE-1359` | an operator's door gun aimed > 3° past its arc turns to the limit and HOLDS fire; HUD "OUT OF ARC - …" (tanks / full-circle turrets and elevation limits unchanged — user ruled) | [Weapon Layers W-8c](../DESIGN_Weapon_Layers.md) |
+| `CE-1358` | BARREL HEAT on every gun (`BarrelHeat` beside `Magazine`): automatic weapons fire at their cyclic rate until too hot, latched until half; single-shot guns warm for the thermal sensor (`ThermalState.BarrelHeat`); HUD `HEAT n%` / `OVERHEATED n%`; the operator fires at the mount's `RateOfFire` | [Weapon Layers §5k](../DESIGN_Weapon_Layers.md), [Thermal §5.2](../DESIGN_Thermal_And_Acoustic_Sensing.md) |
+| `CE-1356/1357` | a door gun stays in its door's arc (`CombatTkb.TurretOf` narrows by the station arc); a station gun's burst stream follows its rounds | [Weapon Systems §9](../designs/weapons/DESIGN_Weapon_Systems.md), [Map 3D §6u](../DESIGN_Map_3D_Mode.md) |
+| `CE-1354` | a possessed helicopter holds its heading after a turn (the two-tick-delayed feedback swing) | [Entity Control §13.5](../DESIGN_Entity_Control.md) |
+| `CE-1348…1353` | smooth crouch/prone (`StanceBlend`), long-label crash, ORBAT destroyed colour + double-click centre, WASD/V vehicle + flyer keys with Q/Z climb, camera synced before draw, even rotor spin | Entity Control §13.5, Unit Camera §8, Map 3D |
+| `CE-1346` | pick an entity by clicking it in the ORBAT | [Tool Model §4.16](../UX/UX_Feature_Tool_Model.md) |
+| `CE-1335…1347` | the 2026-10-25b user round (14 items) | per row |
+
+Next free ui id: **`CE-1361`** (tracker header table).
+
+### Open — the user's last asks are all done; the lane's backlog is
+
+| what | where |
+|---|---|
+| ⭐ **two coordinator → ui handoffs not yet read this session** | `git fetch origin coordinator` ⇒ `batches/HANDOFF_Coordinator_To_Ui_Replay_Ui_State.md`, `batches/NOTE_Coordinator_To_Ui_Timeline_Behaviour_History_Approved.md` — read them FIRST |
+| the Timeline programme `CE-1301…1306` | [handoff](batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md) |
+| Brain-tab / runtime rows `CE-1278…1286`, `CE-1322`, `CE-1324` | tracker; Brain View design |
+| camera story `CE-1293` (design first), `CE-1295` (M key), `CE-1298…1300`, `CE-1313` health bar | tracker |
+| ⚠ `CE-1296` / `CE-1297` (crouch camera jump, prone from FPS) are probably FIXED by `CE-1348` — verify and close | tracker |
+| `CE-1330` (rework/drop the MCP server), `CE-1331` (scenario GUID keys) — "think about later" | tracker |
+| ⚠ `git stash@{0}` "CE-1329 draft (awaiting user approval): brain families pinned-only, layer rows removed" — ask the user before dropping or applying | git stash |
+| a possible follow-up the user has NOT asked for: the muscle fires at most ONE round per tick (no remainder carried) — a cyclic rate above the frame rate is capped by it | Weapon Layers §5k ⚠ |
+
+### Known reds / environment (measured this session)
+
+- Presentation: `Map3DFrameRail.CE1227_V_DemoCity…` and `CE3174_V_TheFpsStation…` are pre-existing reds; flakes `AiBehaviorsRebuildTests`, `CE1325_TheDecision_Draws`.
+- `Hrot.Network.NED.Tests` needed a `dotnet restore` on a fresh VM (`project.assets.json` missing).
+- The headless editor (xvfb) runs at ~8–17 fps ⇒ a live fire-rate check is frame-capped there; heat was confirmed live on the UH-60's M134 (`HeatPerRound` 0.005, cool 1/12) but the lock needs ≥ the cyclic rate.
+- Live run: `bash <scratchpad>/launch-editor.sh` (port 8131), `/scenario/load/edit {"name":"ua-fast-rope-roof"}`, `/sim/play`, `/entities/1012/possess`, `/entities/1012/control` (seq ≥ 1e6, `mount: 32` = his door M134, the gun entity is `1013`).
+
+### Traps that cost time this session — do not repeat
+
+- ⛔ `pkill -f "<pattern>"` in the same command as the launch kills its own shell (exit 144) — use `pkill -f "[H]rot.ClusterRunner…"` in a SEPARATE call.
+- ⛔ a red-proof mutation that does not COMPILE (e.g. `if (false)` ⇒ CS0162 as error) leaves the old binary and "passes" — always read the build line.
+- ⛔ a rail that checks with the SAME helper it guards (`WidthOf`) cannot see that helper broken — compute the expectation independently.
+- ⛔ a single-node rail cannot see a cross-node overshoot (the `RoundsLeft` grant cap) — assert the GRANT, not only the shots.
+
 
 ## ⭐⭐⭐ SESSION `2026-10-25` — THE BRAIN TAB PROGRAMME *(designed and approved today; the build plan is the design's §12h)*
 
