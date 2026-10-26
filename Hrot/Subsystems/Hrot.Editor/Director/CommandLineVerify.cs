@@ -21,6 +21,8 @@ namespace Hrot.Editor.Director
         public const string RestoreCheckVariable = "HROT_VERIFY_R1";
         /// <summary>⭐ <c>CE-4045</c> H1a — "1": the run is LIVE and compared with its own recording (Scenario Regression §10-1).</summary>
         public const string ReplayVariable = "HROT_VERIFY_REPLAY";
+        /// <summary>⭐ <c>CE-4045</c> H5 — this child is one half of the review check: a <see cref="ReviewCheck"/> as JSON.</summary>
+        public const string ReviewVariable = "HROT_VERIFY_REVIEW";
         /// <summary>Frames to wait in Idle before the first load (the editor's own start-up settles first).</summary>
         private const int SettleFrames = 30;
         /// <summary>The editor never reaching Idle is a failure, not a wait forever.</summary>
@@ -31,12 +33,14 @@ namespace Hrot.Editor.Director
         private readonly string? _report;
         private readonly RestoreCheck? _r1;
         private readonly bool _replay;
+        private readonly ReviewCheck? _review;
         private int _frames, _idleFrames;
         private bool _started, _done;
 
-        private CommandLineVerify(string[] scenarios, bool capture, string? report, RestoreCheck? r1, bool replay)
+        private CommandLineVerify(string[] scenarios, bool capture, string? report, RestoreCheck? r1, bool replay, ReviewCheck? review)
         {
             _replay = replay;
+            _review = review;
             _scenarios = scenarios;
             _capture = capture;
             _report = report;
@@ -49,6 +53,12 @@ namespace Hrot.Editor.Director
                 ? JsonSerializer.Deserialize<RestoreCheck>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)
                 : null;
 
+        /// <summary>⭐ H5 — the review half this child runs, from <see cref="ReviewVariable"/>; null when it is not one.</summary>
+        public static ReviewCheck? ReviewCheckFromEnvironment()
+            => Environment.GetEnvironmentVariable(ReviewVariable) is { Length: > 0 } json
+                ? JsonSerializer.Deserialize<ReviewCheck>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)
+                : null;
+
         /// <summary>The request the runner left in the environment; null when this is not a verify run.</summary>
         public static CommandLineVerify? FromEnvironment()
         {
@@ -56,7 +66,7 @@ namespace Hrot.Editor.Director
             if (string.IsNullOrWhiteSpace(s)) return null;
             return new CommandLineVerify(s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                 Environment.GetEnvironmentVariable(CaptureVariable) == "1", Environment.GetEnvironmentVariable(ReportVariable),
-                RestoreCheckFromEnvironment(), Environment.GetEnvironmentVariable(ReplayVariable) == "1");
+                RestoreCheckFromEnvironment(), Environment.GetEnvironmentVariable(ReplayVariable) == "1", ReviewCheckFromEnvironment());
         }
 
         /// <param name="ready">The editor can load a scenario now (its cluster is Idle).</param>
@@ -78,7 +88,7 @@ namespace Hrot.Editor.Director
                     Name = "verify",
                     Items = _scenarios.Select(s => new ReelItem { Scenario = s, Take = "_verify" }).ToList(),
                 };
-                var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(_capture, _r1, _replay)));
+                var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(_capture, _r1, _replay, _review)));
                 if (refused.Count > 0) { Finish(2, "not started: " + string.Join("; ", refused), null, exit); return; }
                 _started = true;
                 return;
@@ -134,6 +144,7 @@ namespace Hrot.Editor.Director
             psi.Environment.Remove(ScenariosVariable);
             psi.Environment.Remove(RestoreCheckVariable);   // ⭐ B5 — set per child by the parent that wants one
             psi.Environment.Remove(ReplayVariable);   // ⭐ H1a — a child's own --verify-replay sets it
+            psi.Environment.Remove(ReviewVariable);   // ⭐ H5 — set per child by the parent that wants one
             return psi;
         }
 
@@ -149,6 +160,10 @@ namespace Hrot.Editor.Director
             if (item["replay"] is { } rp) w.WriteLine($"{indent}  REPLAY {rp} ({item["replaySnapshots"]} snapshots matched to the recording)");
             foreach (var d in (item["replayDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
             foreach (var d in (item["replayNotCarried"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    (not recorded, by the manifest) {d}");
+            if (item["review"] is { } rv) w.WriteLine($"{indent}  REVIEW {rv} ({item["reviewSnapshots"]} snapshots looked back at)");
+            foreach (var d in (item["reviewDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
+            foreach (var d in (item["returnDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    RETURN {d}");
+            foreach (var d in (item["reviewProblems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    PROBLEM {d}");
             foreach (var p in (item["written"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  wrote {p}");
             foreach (var p in (item["problems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");
             foreach (var p in (item["runProblems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");

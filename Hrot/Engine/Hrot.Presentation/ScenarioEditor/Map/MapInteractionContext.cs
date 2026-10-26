@@ -298,14 +298,7 @@ namespace Hrot.ScenarioEditor.Map
         /// </summary>
         public Hrot.UI.Common.AddEntity.EntityAuthoringInputs? EntityAuthoring { get; init; }
 
-        /// <summary>
-        /// ⭐ W1 (docs/DESIGN_Visual_Effects.md §7 VE-R) — true while THIS host's world is driven by a replay: the effect spawner and the
-        /// lifespan collector stand down, because effects are recorded and the replay restores them. Read late (each frame).
-        /// <para>🔒 Silent-default rule — a host whose node can replay its OWN world passes it (SimHost, CGF: the ELM's gate, which
-        /// already reads their record/replay controller); the replay browser passes <c>() =&gt; true</c>. Null ⇒ never replaying: the
-        /// editor (its replay is an isolated sandbox) and IG (listen-only — it holds no recording, so it keeps making its own).</para>
-        /// </summary>
-        public Func<bool>? IsReplayActive { get; init; }
+        // ⛔ SUPERSEDED (R-3064, DAR F7): IsReplayActive — a build-time predicate; the map reads the world's ReplayState each frame.
 
         /// <summary>
         /// ⭐ CE-1203 FL-9 (docs/DESIGN_Terrain_Combat_Tuning.md §5e) — the file the map layers are remembered in. Null (every production

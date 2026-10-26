@@ -137,6 +137,14 @@ namespace Hrot.ClusterRunner.Configuration
                          + "(components the recording's manifest does not carry are listed apart, never failed)")]
         public bool VerifyReplay { get; set; }
 
+        /// <summary>⭐ CE-4045 H5 (docs/DESIGN_Scenario_Regression.md §10-3, R-4086) — each scenario runs LIVE twice, each in a fresh process:
+        /// straight, and with a During Action Review at this sim time (every earlier second looked back at, then back to live); the review
+        /// must show the live run, the return must give the world back, and the run after it must be the straight run. 0 = off.</summary>
+        [Option("verify-review-at", Required = false, Default = 0d,
+                HelpText = "With --verify: H5 — review each scenario's LIVE run at this sim time (s) and require the review to show the live "
+                         + "run, the return to give the world back and the rest of the run to equal a straight run; exit 0 when all hold")]
+        public double VerifyReviewAt { get; set; }
+
         /// <summary>⭐ CE-4042 — the nightly's output folder: a log and a report per scenario, <c>summary.json</c> and <c>junit.xml</c>.</summary>
         [Option("verify-out", Required = false,
                 HelpText = "With --verify: write each scenario's log and report, summary.json and junit.xml (for CI) to this folder")]

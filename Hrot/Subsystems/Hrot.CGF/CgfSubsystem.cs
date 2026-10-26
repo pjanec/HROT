@@ -1173,7 +1173,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 TerrainService      = _cgfTerrainLoadService,
                 TerrainStagingRoot  = isolatedTempRoot,
             });
-        var rrController = cgfHandlers.RecordReplayController;
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);
         _fdpEntityInspector.ExtractionService = cgfEntityService;
@@ -1237,9 +1236,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 {
                     HostPickers = () => _shellPickers,
                 },
-                // ⭐ W1 (VE-R) — in a replay the effect systems stand down through the world's ReplayState (CE-3329 P2). This
-                //   predicate only decides, at build, whether the map offers orders.
-                IsReplayActive = () => rrController.IsReplayActive,
             });
 
         _cgfGizmoBuffer           = _cgfMapInteraction.Buffer;

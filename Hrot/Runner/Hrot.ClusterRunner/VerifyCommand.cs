@@ -165,10 +165,10 @@ internal static class VerifyCommand
             string cp = Path.Combine(dir, s + ".r1.fdp"), runA = Path.Combine(dir, s + ".r1-a.json"), runB = Path.Combine(dir, s + ".r1-b.json");
             foreach (var f in new[] { cp, cp + ".meta.json", cp + ".r1.json", runA, runB }) if (File.Exists(f)) File.Delete(f);
             int codeA = RunChild(keep, s, Path.Combine(dir, s + ".r1-a.report.json"), Path.Combine(dir, s + ".r1-a.log"),
-                                 new RestoreCheck(t1, cp, Restore: false, runA, every), childLimit);
+                                 CommandLineVerify.RestoreCheckVariable, Json(new RestoreCheck(t1, cp, Restore: false, runA, every)), childLimit);
             int codeB = File.Exists(cp)
                 ? RunChild(keep, s, Path.Combine(dir, s + ".r1-b.report.json"), Path.Combine(dir, s + ".r1-b.log"),
-                           new RestoreCheck(t1, cp, Restore: true, runB, every), childLimit)
+                           CommandLineVerify.RestoreCheckVariable, Json(new RestoreCheck(t1, cp, Restore: true, runB, every)), childLimit)
                 : -1;
             var item = new JsonObject { ["scenario"] = s, ["checkpointAt"] = t1, ["exitA"] = codeA, ["exitB"] = codeB };
             var problems = new JsonArray();
@@ -211,11 +211,84 @@ internal static class VerifyCommand
         return failed.Count == 0 ? 0 : 1;
     }
 
-    // ⭐ B5 — one child: this binary again, verifying one scenario as one half of R1 (the half rides in the environment)
-    private static int RunChild(IEnumerable<string> keep, string scenario, string childReport, string log, RestoreCheck half, TimeSpan limit)
+    private static string Json<T>(T half) => JsonSerializer.Serialize(half, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4045</c> H5 — <b>the review check</b> (docs/DESIGN_Scenario_Regression.md §10-3, R-4086). Per scenario, two fresh LIVE
+    /// children: A runs straight; B runs to <paramref name="at"/>, reviews every earlier snapshot time through the master, returns to live and
+    /// runs on. B judges the review (against its own live snapshots) and the return (the world it left); this parent judges the run after it
+    /// (B from <paramref name="at"/> = A — R1's comparator). Exit 0 when all three hold for every scenario.
+    /// </summary>
+    public static int RunReviewChecks(string[] args, IReadOnlyList<string> scenarios, double at, string report, string outDir, int limitMinutes = 60)
+    {
+        var childLimit = TimeSpan.FromMinutes(Math.Max(1, limitMinutes));
+        double t1 = Math.Max(1d, Math.Round(at));   // on the one-second snapshot grid, so both halves snapshot the same moments
+        var dir = !string.IsNullOrWhiteSpace(outDir) ? Path.GetFullPath(outDir)
+            : Path.Combine(Path.GetTempPath(), "hrot-verify-h5", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(dir);
+        var keep = StripVerify(args);
+        var started0 = Stopwatch.StartNew();
+        var cases = new List<(string Scenario, int Code, double Seconds, JsonObject? Item, string Log)>();
+        var reports = new JsonArray();
+        var failed = new List<string>();
+        Console.WriteLine($"[Verify H5] {scenarios.Count} scenarios: live, a review at {t1} s, back to live — against a straight live run; output in {dir}");
+        foreach (var s in scenarios)
+        {
+            var started = Stopwatch.StartNew();
+            string runA = Path.Combine(dir, s + ".h5-a.json"), runB = Path.Combine(dir, s + ".h5-b.json"), repB = Path.Combine(dir, s + ".h5-b.report.json");
+            foreach (var f in new[] { runA, runB, repB }) if (File.Exists(f)) File.Delete(f);
+            int codeA = RunChild(keep, s, Path.Combine(dir, s + ".h5-a.report.json"), Path.Combine(dir, s + ".h5-a.log"),
+                                 CommandLineVerify.ReviewVariable, Json(new ReviewCheck(t1, Straight: true, runA)), childLimit);
+            int codeB = RunChild(keep, s, repB, Path.Combine(dir, s + ".h5-b.log"),
+                                 CommandLineVerify.ReviewVariable, Json(new ReviewCheck(t1, Straight: false, runB)), childLimit);
+            var item = new JsonObject { ["scenario"] = s, ["reviewAt"] = t1, ["exitA"] = codeA, ["exitB"] = codeB };
+            var problems = new JsonArray();
+            var b = File.Exists(repB) ? JsonNode.Parse(File.ReadAllText(repB))?["scenarios"]?[0] as JsonObject : null;
+            if (b == null) problems.Add($"run B wrote no report (exit {codeB}; log {s}.h5-b.log)");
+            else
+            {
+                foreach (var key in new[] { "review", "reviewSnapshots", "reviewDiff", "reviewNotCarried", "returnDiff", "reviewProblems" })
+                    item[key] = b[key]?.DeepClone();
+                foreach (var p in (b["problems"] as JsonArray ?? new JsonArray())) problems.Add(p?.DeepClone());
+            }
+            if (!File.Exists(runA) || !File.Exists(runB)) problems.Add($"a run is missing (A exit {codeA}, B exit {codeB}; logs {s}.h5-a.log, {s}.h5-b.log)");
+            else
+            {
+                var after = ScenarioGolden.CompareFrom(JsonNode.Parse(File.ReadAllText(runA))!.AsObject(), JsonNode.Parse(File.ReadAllText(runB))!.AsObject(), t1);
+                item["after"] = after.Count == 0 ? "same" : "different";
+                item["afterDiff"] = new JsonArray(after.Select(d => (JsonNode?)d).ToArray());
+            }
+            if (problems.Count > 0) item["problems"] = problems;
+            bool ok = problems.Count == 0 && item["review"]?.ToString() == "same" && (item["returnDiff"] as JsonArray ?? new JsonArray()).Count == 0
+                      && item["reviewProblems"] is null && item["after"]?.ToString() == "same";
+            item["status"] = ok ? "pass" : "fail";
+            reports.Add(item);
+            cases.Add((s, ok ? 0 : 1, started.Elapsed.TotalSeconds, item, Path.Combine(dir, s + ".h5-b.log")));
+            if (!ok) failed.Add(s);
+            Console.WriteLine($"[Verify H5] {(ok ? "SAME" : "FAIL")} {s} — review {item["review"] ?? "?"}, return {((item["returnDiff"] as JsonArray)?.Count == 0 ? "exact" : "differs")}, after {item["after"] ?? "?"} — {started.Elapsed.TotalSeconds:0} s");
+            foreach (var key in new[] { "reviewDiff", "returnDiff", "afterDiff", "reviewProblems" })
+                foreach (var d in (item[key] as JsonArray ?? new JsonArray())) Console.WriteLine($"    {key}: {d}");
+            foreach (var d in (item["reviewNotCarried"] as JsonArray ?? new JsonArray())) Console.WriteLine($"    (not recorded, by the manifest) {d}");
+            foreach (var p in problems) Console.WriteLine($"    PROBLEM {p}");
+        }
+        var all = new JsonObject
+        {
+            ["passed"] = failed.Count == 0, ["count"] = scenarios.Count, ["reviewAt"] = t1,
+            ["failed"] = new JsonArray(failed.Select(f => (JsonNode?)f).ToArray()), ["scenarios"] = reports,
+        };
+        var text = all.ToJsonString(Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented);
+        File.WriteAllText(Path.Combine(dir, "summary.json"), text);
+        File.WriteAllText(Path.Combine(dir, "junit.xml"), JUnit(cases, started0.Elapsed.TotalSeconds));
+        if (!string.IsNullOrWhiteSpace(report)) File.WriteAllText(Path.GetFullPath(report), text);
+        Console.WriteLine($"[Verify H5] {scenarios.Count - failed.Count} of {scenarios.Count} review and return exactly" + (failed.Count > 0 ? $"; failing: {string.Join(", ", failed)}" : ""));
+        return failed.Count == 0 ? 0 : 1;
+    }
+
+    // ⭐ B5 / H5 — one child: this binary again, verifying one scenario as one half of R1 or of the review check (the half rides in the environment)
+    private static int RunChild(IEnumerable<string> keep, string scenario, string childReport, string log, string variable, string half, TimeSpan limit)
     {
         var psi = CommandLineVerify.SelfStartInfo(keep.Concat(new[] { "--verify", scenario, "--verify-report", childReport }));
-        psi.Environment[CommandLineVerify.RestoreCheckVariable] = JsonSerializer.Serialize(half, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        psi.Environment[variable] = half;
         using var writer = new StreamWriter(log);
         using var p = new Process { StartInfo = psi };
         p.OutputDataReceived += (_, e) => { if (e.Data != null) lock (writer) writer.WriteLine(e.Data); };
@@ -235,8 +308,9 @@ internal static class VerifyCommand
         for (int i = 0; i < args.Length; i++)
         {
             var a = args[i];
-            if (a is "--verify" or "--verify-report" or "--verify-out" or "--verify-restore-at" or "--verify-restore-every" or "--verify-timeout") { i++; continue; }
+            if (a is "--verify" or "--verify-report" or "--verify-out" or "--verify-restore-at" or "--verify-restore-every" or "--verify-timeout" or "--verify-review-at") { i++; continue; }
             if (a.StartsWith("--verify=", StringComparison.Ordinal) || a.StartsWith("--verify-report=", StringComparison.Ordinal)
+                || a.StartsWith("--verify-review-at=", StringComparison.Ordinal)
                 || a.StartsWith("--verify-out=", StringComparison.Ordinal) || a.StartsWith("--verify-restore-at=", StringComparison.Ordinal)
                 || a.StartsWith("--verify-restore-every=", StringComparison.Ordinal) || a.StartsWith("--verify-timeout=", StringComparison.Ordinal)) continue;
             keep.Add(a);

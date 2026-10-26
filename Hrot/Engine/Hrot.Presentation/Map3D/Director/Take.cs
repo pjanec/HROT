@@ -108,6 +108,84 @@ public sealed record ShotSpec
     public string? Why { get; init; }
 }
 
+/// <summary>⭐ <c>TE-8</c> (docs/DESIGN_Director_Timeline_Editor.md §0, §5) — how the camera gets TO a key: a hard cut, a smooth eased fly, or a dip to black and back.</summary>
+public enum KeyTransitionKind : byte { Cut, Fly, Dip }
+
+/// <summary>
+/// ⭐ <c>TE-8</c> — a key's transition IN. <see cref="Cut"/> has no duration; a fly has <see cref="Seconds"/> and an <see cref="Ease"/>; a dip goes
+/// to black for <see cref="OutSeconds"/> BEFORE the key's time and comes back for <see cref="InSeconds"/> AFTER it.
+/// </summary>
+public sealed record KeyTransition(KeyTransitionKind Kind, double Seconds = 0d, Ease Ease = Ease.InOut, double OutSeconds = 0d, double InSeconds = 0d)
+{
+    public static readonly KeyTransition Cut = new(KeyTransitionKind.Cut);
+
+    public static KeyTransition Fly(double seconds, Ease ease = Ease.InOut) => new(KeyTransitionKind.Fly, Seconds: seconds, Ease: ease);
+
+    public static KeyTransition Dip(double outSeconds, double inSeconds) => new(KeyTransitionKind.Dip, OutSeconds: outSeconds, InSeconds: inSeconds);
+}
+
+/// <summary>
+/// ⭐ <c>TE-2</c> (docs/DESIGN_Director_Timeline_Editor.md §0, §5) — THE camera key, the unit of a take's camera: from <see cref="At"/> the
+/// <see cref="Camera"/> is on screen, reached by <see cref="In"/>. <see cref="Fov"/> is the lens (it is also <c>Camera.Fov</c>; the two are kept
+/// equal by the reader and <see cref="CameraKeys"/>), <see cref="Still"/> names the PNG a regression run writes at this key (TE-10).
+/// </summary>
+public sealed record CameraKey
+{
+    public AtExpr At { get; init; }
+    public CameraSpec Camera { get; init; } = new();
+    public KeyTransition In { get; init; } = KeyTransition.Cut;
+    public float? Fov { get; init; }
+    public string? Still { get; init; }
+}
+
+/// <summary>⭐ <c>TE-2</c> — what the film shows where a <see cref="TimeSegment"/> ends and the next begins: a hard cut or a dip to black.</summary>
+public enum SegmentGap : byte { Cut, Dip }
+
+/// <summary>
+/// ⭐ <c>TE-2</c> (§5) — a stretch of SIM time <see cref="From"/>…<see cref="To"/> the film keeps, at <see cref="Speed"/> sim seconds per film
+/// second; what lies between two segments is skipped (<see cref="Gap"/> says how the film joins them).
+/// </summary>
+public sealed record TimeSegment
+{
+    public AtExpr From { get; init; }
+    public AtExpr To { get; init; }
+    public double Speed { get; init; } = 1d;
+    public SegmentGap Gap { get; init; } = SegmentGap.Cut;
+}
+
+/// <summary>
+/// ⭐ <c>TE-2</c> — a take's keys, however it was written: its <see cref="Take.Keys"/> when it has any (format v2), else its <see cref="Take.Shots"/>
+/// READ AS keys — each shot a CUT key at its <c>at</c>; a shot with a <c>to</c> also a FLY key at its end carrying the <c>to</c> values, reached
+/// in the shot's seconds with its ease. A replay shot has no key (as <see cref="TakeTimeline.Plan"/> skips it).
+/// </summary>
+public static class CameraKeys
+{
+    public static IReadOnlyList<CameraKey> Of(Take take)
+    {
+        if (take.Keys.Count > 0) return take.Keys;
+        var keys = new List<CameraKey>();
+        foreach (var s in take.Shots)
+        {
+            if (s.Replay != null) continue;
+            keys.Add(new CameraKey { At = s.At, Camera = s.Camera, Fov = s.Camera.Fov, In = KeyTransition.Cut });
+            if (s.To is not { Count: > 0 } to) continue;
+            var c = s.Camera;
+            float V(string key, float from) => to.TryGetValue(key, out var reached) ? reached : from;
+            var end = c with
+            {
+                Distance = V("distance", c.Distance), Yaw = V("yaw", c.Yaw), Pitch = V("pitch", c.Pitch), Lift = V("lift", c.Lift),
+                Back = V("back", c.Back), Height = V("height", c.Height), Ahead = V("ahead", c.Ahead),
+                Fov = to.TryGetValue("fov", out var fov) ? fov : c.Fov,
+            };
+            keys.Add(new CameraKey
+            {
+                At = new AtExpr(s.At.Offset + s.Seconds, s.At.Anchor), Camera = end, Fov = end.Fov, In = KeyTransition.Fly(s.Seconds, s.Ease),
+            });
+        }
+        return keys;
+    }
+}
+
 /// <summary>
 /// ⭐ <c>CE-4038</c> (§2, D-3) — a beat the scout looks for: <see cref="On"/> is the cue (<c>shot</c> · <c>blast</c> · <c>hit</c> · <c>near</c> ·
 /// <c>task</c> · <c>side</c> · <c>health</c> · <c>embark</c> · <c>gesture</c>), the rest its parameters. <see cref="Who"/> is a name, or
@@ -169,6 +247,10 @@ public sealed record Take
     public IReadOnlyDictionary<string, AnchorSpec> Anchors { get; init; } = new Dictionary<string, AnchorSpec>(StringComparer.Ordinal);
     public BakedAnchors? Baked { get; init; }
     public IReadOnlyList<ShotSpec> Shots { get; init; } = Array.Empty<ShotSpec>();
+    /// <summary>⭐ <c>TE-2</c> — format v2's camera keys (empty in a v1 take; read the keys of either through <see cref="CameraKeys.Of"/>).</summary>
+    public IReadOnlyList<CameraKey> Keys { get; init; } = Array.Empty<CameraKey>();
+    /// <summary>⭐ <c>TE-2</c> — format v2's time segments (empty = the whole take at speed 1).</summary>
+    public IReadOnlyList<TimeSegment> Segments { get; init; } = Array.Empty<TimeSegment>();
     public LayerChange? Layers { get; init; }
     public bool? Sound { get; init; }
     /// <summary>Keys the director does not read but keeps (the clip id, its chapter, its state, what it needs).</summary>

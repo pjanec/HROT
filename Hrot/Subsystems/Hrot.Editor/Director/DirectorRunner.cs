@@ -16,7 +16,15 @@ namespace Hrot.Editor.Director
     /// <summary>⭐ <c>CE-4042</c> — a verify run: <see cref="Capture"/> re-records each scenario's golden (refused for a failing run).
     /// ⭐ <c>CE-4045</c> H1a — <see cref="Replay"/>: the run is LIVE (it records), and its recording, played back, must hold the world the run
     /// had at every snapshot (docs/DESIGN_Scenario_Regression.md §10-1, R-4085).</summary>
-    public sealed record VerifyOptions(bool Capture = false, RestoreCheck? R1 = null, bool Replay = false);
+    public sealed record VerifyOptions(bool Capture = false, RestoreCheck? R1 = null, bool Replay = false, ReviewCheck? Review = null);
+
+    /// <summary>
+    /// ⭐ <c>CE-4045</c> H5 (docs/DESIGN_Scenario_Regression.md §10-3, R-4086) — one half of the review check. Both halves run LIVE and write
+    /// their full snapshots (every <see cref="Every"/> s) to <see cref="RunOut"/>. <see cref="Straight"/>: just that. Otherwise: at
+    /// <see cref="At"/> the run enters a During Action Review, seeks every earlier snapshot time and compares it with the live one, returns
+    /// to live, compares the world with the one it left, and runs on; the command line compares the two halves from <see cref="At"/>.
+    /// </summary>
+    public sealed record ReviewCheck(double At, bool Straight, string RunOut, double Every = 1d);
 
     /// <summary>
     /// ⭐ <c>CE-3299</c> B5 — one half of R1, the restore-equivalence oracle (restore design §1k). <see cref="Restore"/> false: run from 0 and
@@ -44,7 +52,8 @@ namespace Hrot.Editor.Director
     }
 
     /// <remarks><see cref="Checking"/>: ⭐ CE-4045 H1a — a verify run's live part is over and its recording is compared.</remarks>
-    public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Checking }
+    /// <remarks><see cref="Reviewing"/> / <see cref="Returning"/>: ⭐ CE-4045 H5 — a verify run looks back in a review, then comes back.</remarks>
+    public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Checking, Reviewing, Returning }
 
     /// <summary>⭐ What one reel item did — the per-take report of §3a (missing beats, anchor mismatches, the realtime factor) and the
     /// stepping rule's own evidence (the most steps taken in one frame, steps the master had not retired by the next frame).</summary>
@@ -198,6 +207,18 @@ namespace Hrot.Editor.Director
         private IRecordedRun? _recorded;
         private ScenarioGolden? _recordedSnapshots;
         private int _checkIndex;
+        // ⭐ CE-4045 H5 — the review: the times to look back at, the one being looked at, how long the clock has stood there
+        private bool _reviewDone;
+        private List<double>? _reviewTimes;
+        private int _reviewIndex;
+        private double _reviewTarget, _liveAtRel;
+        private int _standing;
+        private ScenarioGolden? _reviewSnapshots, _atLive;
+        private readonly List<string> _reviewProblems = new();
+        // the review's outcome, kept until the run's result exists (FinishItem)
+        private string? _reviewVerdict;
+        private int _reviewCount;
+        private readonly List<string> _reviewDiff = new(), _reviewNotCarried = new(), _returnDiff = new();
 
         /// <param name="verifyWorld">⭐ CE-4042 — what a verify run reads and edits (the editor's entity dump, combat rows and component edit);
         /// a host without one refuses a verify run.</param>
@@ -215,7 +236,8 @@ namespace Hrot.Editor.Director
 
         public DirectorPhase Phase { get; private set; } = DirectorPhase.Idle;
         public DirectorMode Mode => _request?.Mode ?? DirectorMode.Live;
-        public bool Busy => Phase is DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing or DirectorPhase.Encoding or DirectorPhase.Checking;
+        public bool Busy => Phase is DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing or DirectorPhase.Encoding
+                                  or DirectorPhase.Checking or DirectorPhase.Reviewing or DirectorPhase.Returning;
         public IReadOnlyList<ItemReport> Reports => _reports;
         private readonly List<ItemReport> _reports = new();
         public string? Error { get; private set; }
@@ -245,6 +267,8 @@ namespace Hrot.Editor.Director
             if (request.Mode == DirectorMode.Verify && _verifyWorld == null) problems.Add("this host cannot verify (no entity dump / component edit wired)");
             if (request.Verify is { Replay: true } rv && (rv.Capture || rv.R1 != null))
                 problems.Add("a replay check runs LIVE: it records no golden and writes no checkpoint (drop capture / R1)");
+            if (request.Verify is { Review: not null } rw && (rw.Capture || rw.R1 != null || rw.Replay))
+                problems.Add("a review check runs LIVE on its own: no capture, no R1, no replay check in the same run");
             if (problems.Count > 0) return problems;
 
             if (Busy) Stop();
@@ -318,6 +342,8 @@ namespace Hrot.Editor.Director
                     case DirectorPhase.Playing: TickPlaying(); break;
                     case DirectorPhase.Encoding: TickEncoding(); break;
                     case DirectorPhase.Checking: TickChecking(); break;
+                    case DirectorPhase.Reviewing: TickReviewing(); break;
+                    case DirectorPhase.Returning: TickReturning(); break;
                 }
             }
             catch (Exception ex) when (ex is not DirectorSteppingException)
@@ -351,6 +377,8 @@ namespace Hrot.Editor.Director
             _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0; _verification = null;
             _r1Target = double.NaN; _r1Frames = 0; _r1Written = false;
             _liveRecording = null; _pendingVerify = null; _recordedSnapshots = null; _checkIndex = 0; CloseRecorded();
+            _reviewDone = false; _reviewTimes = null; _reviewIndex = 0; _standing = 0; _reviewSnapshots = null; _atLive = null; _reviewProblems.Clear();
+            _reviewVerdict = null; _reviewCount = 0; _reviewDiff.Clear(); _reviewNotCarried.Clear(); _returnDiff.Clear();
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -363,28 +391,31 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ CE-4045 H1a — this item runs LIVE and is compared with its recording.</summary>
         private bool ReplayCheck => _request!.Verify?.Replay == true;
 
+        /// <summary>⭐ CE-4045 — this item runs LIVE (it records): a replay check (H1a) or either half of a review check (H5).</summary>
+        private bool LiveRun => ReplayCheck || _request!.Verify?.Review != null;
+
         private void TickLoading()
         {
             if (_probe == null)
             {
                 // ⛔ never a rewind as a run (R-3034): leave the last preview, then open the file again
                 // ⚠ H1a: a live run can read as "in preview" (CE-4054) — never left as a preview (that is a rewind); the live load stops it
-                if (_host.InPreview && !_exitedForLoad && !ReplayCheck) { _host.ExitPreview(); _exitedForLoad = true; return; }
+                if (_host.InPreview && !_exitedForLoad && !LiveRun) { _host.ExitPreview(); _exitedForLoad = true; return; }
                 int? before = _host.EntityCount;
                 // ⭐ a first load in a fresh process: nothing loaded by a runner yet and no scenario open (the editor's own load leaves it
                 //   OperatingEdit) — the only run a golden may be recorded from (Regression_Net §6 ④, CE-3294)
                 _firstLoad = !_host.HasLoadedAScenario;
-                if (ReplayCheck) _host.LoadLive(Item.Scenario);   // ⭐ H1a — a live run records (R-3053); the preview never does
+                if (LiveRun) _host.LoadLive(Item.Scenario);   // ⭐ H1a — a live run records (R-3053); the preview never does
                 else _host.LoadScenario(Item.Scenario);
                 _probe = new ScenarioReadyProbe(before);
                 _phaseStartWall = _host.WallNow;
                 return;
             }
             double waited = _host.WallNow - _phaseStartWall;
-            if (_probe.Observe(ReplayCheck ? _host.IsOperatingLive : _host.IsOperatingEdit, _host.EntityCount, waited))
+            if (_probe.Observe(LiveRun ? _host.IsOperatingLive : _host.IsOperatingEdit, _host.EntityCount, waited))
             {
                 Phase = DirectorPhase.Entering;
-                if (!ReplayCheck) _host.EnterPreview(startPaused: true);
+                if (!LiveRun) _host.EnterPreview(startPaused: true);
                 return;
             }
             if (waited > LoadTimeoutSeconds) Fail($"the scenario did not load within {LoadTimeoutSeconds:0} s ({_probe.Polls} polls, count {_probe.LastCount})");
@@ -392,7 +423,7 @@ namespace Hrot.Editor.Director
 
         private void TickEntering()
         {
-            if (!ReplayCheck && !_host.InPreview) { if (++_enterFrames > 120) Fail("the preview did not start"); return; }
+            if (!LiveRun && !_host.InPreview) { if (++_enterFrames > 120) Fail("the preview did not start"); return; }
             if (!_host.Paused) { _host.Pause(); return; }
 
             if (_request!.Mode == DirectorMode.Verify) { if (!RestoringCheckpoint()) BeginVerify(); return; }
@@ -440,7 +471,8 @@ namespace Hrot.Editor.Director
             //   the golden was recorded from — RH-2), every component in full, every second at least (📐 ua-tank-ammo's 10 s grid gave 7
             //   points for 60 s — too coarse to say WHEN a recording first drops something)
             bool replay = ReplayCheck;
-            var golden = checks.GoldenEvery is null || replay ? null : _host.Takes.LoadScenarioJson(Item.Scenario, ScenarioGolden.FileName).Value;
+            var review = _request!.Verify?.Review;
+            var golden = checks.GoldenEvery is null || LiveRun ? null : _host.Takes.LoadScenarioJson(Item.Scenario, ScenarioGolden.FileName).Value;
             _take = new Take { Scenario = Item.Scenario, Name = "_verify", TickHz = 60, EndAt = new AtExpr(checks.RunFor) };
             Report.TickHz = 60;
             _book = new AnchorBook(_take.Anchors, null, _host.BehaviourName);
@@ -451,7 +483,7 @@ namespace Hrot.Editor.Director
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             _simFrame0 = SimFrameNow();
             _verification = new ScenarioVerification(checks, golden, _request!.Verify!.Capture, _verifyWorld!, _t0,
-                startAt: at, snapshotEvery: r1?.Every ?? (replay ? Math.Min(checks.GoldenEvery ?? 1d, 1d) : null));
+                startAt: at, snapshotEvery: r1?.Every ?? review?.Every ?? (replay ? Math.Min(checks.GoldenEvery ?? 1d, 1d) : null));
             if (restored) _verification.MarkDone(ReadSidecar(r1!).Done);
             Replan();
             _clock = new PacedClock(60, 1d);
@@ -533,7 +565,7 @@ namespace Hrot.Editor.Director
 
             _book!.Observe(_host.World!, _units, rel);
             _verification?.Observe(rel);
-            if (ReplayCheck) _liveRecording ??= _host.LiveRecordingPath;   // ⭐ H1a — named while it records (the recorder forgets it on close)
+            if (LiveRun) _liveRecording ??= _host.LiveRecordingPath;   // ⭐ H1a — named while it records (the recorder forgets it on close)
             if (_book.Live.Count != _liveCount)
             {
                 _liveCount = _book.Live.Count;
@@ -541,6 +573,12 @@ namespace Hrot.Editor.Director
             }
 
             if (Finished(rel)) { FinishItem(); return; }
+            // ⭐ CE-4045 H5 — at the review's time: no step more; once the master has taken every step asked for, look back
+            if (_request.Verify?.Review is { Straight: false } rc && !_reviewDone && rel + 1e-9 >= rc.At)
+            {
+                if (retired >= _issued) BeginReview(rel);
+                return;
+            }
 
             var shot = _timeline!.At(rel);
             if (!ReferenceEquals(shot, _shot) || (shot == null) != _inGap) EnterShot(shot);
@@ -689,6 +727,21 @@ namespace Hrot.Editor.Director
                 }
                 if (v.Golden == "captured" && v.GoldenJson != null)
                     v.Written.AddRange(_host.Takes.SaveScenarioJson(Item.Scenario, ScenarioGolden.FileName, v.GoldenJson));
+                if (_request.Verify?.Review is { } rc)   // ⭐ H5 — the half goes to the command line, which compares the two from At
+                {
+                    v.Golden = "none";
+                    if (v.GoldenJson != null) { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(rc.RunOut))!); File.WriteAllText(rc.RunOut, v.GoldenJson.ToJsonString()); }
+                    if (!rc.Straight)
+                    {
+                        if (!_reviewDone) v.Problems.Add($"H5: the run ended before the review time {rc.At} s");
+                        v.Review = _reviewVerdict;
+                        v.ReviewSnapshots = _reviewCount;
+                        v.ReviewDiff.AddRange(_reviewDiff);
+                        v.ReviewNotCarried.AddRange(_reviewNotCarried);
+                        v.ReturnDiff.AddRange(_returnDiff);
+                        v.ReviewProblems.AddRange(_reviewProblems);
+                    }
+                }
                 _verification = null;
                 if (ReplayCheck) { BeginReplayCheck(v); return; }
                 r.Verify = v;
@@ -707,7 +760,7 @@ namespace Hrot.Editor.Director
             FilmStudio.Release();
             _layers.Clear();
             _cinema.Caption(null);
-            if (_host.InPreview && !ReplayCheck) _host.ExitPreview();   // ⚠ a live run may read as "in preview" (CE-4054) — it is stopped, not left
+            if (_host.InPreview && !LiveRun) _host.ExitPreview();   // ⚠ a live run may read as "in preview" (CE-4054) — it is stopped, not left
 
             int next = _item + 1;
             if (next >= _request.Reel.Items.Count && _request.Loop && _request.Mode == DirectorMode.Live) next = 0;
@@ -811,6 +864,92 @@ namespace Hrot.Editor.Director
 
         private long SimFrameNow() => _host.World is { } w && w.HasSingletonUnmanaged<Fdp.Core.GlobalTime>()
             ? w.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().FrameNumber : 0;
+
+        // ── ⭐ CE-4045 H5 — a During Action Review in the middle of a live verify run (docs/DESIGN_Scenario_Regression.md §10-3) ──────
+
+        private double HalfStep => 0.5 / Math.Max(1, Report.TickHz);
+
+        /// <summary>The live run stands at the review's time with nothing in flight: remember the world, review back to the start.</summary>
+        private void BeginReview(double rel)
+        {
+            _liveAtRel = rel;
+            _atLive = new ScenarioGolden(_verifyWorld!, full: true);
+            _atLive.Snapshot(rel);
+            var live = (_verification!.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray();
+            _reviewTimes = live.Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).Where(t => t <= rel + 1e-6).ToList();
+            if (_reviewTimes.Count == 0) { _reviewProblems.Add("H5: no live snapshot to look back at"); _reviewDone = true; return; }
+            _reviewSnapshots = new ScenarioGolden(_verifyWorld!, full: true);
+            _reviewIndex = 0;
+            _reviewTarget = _t0 + _reviewTimes[0];
+            _standing = 0;
+            _phaseStartWall = _host.WallNow;
+            _host.EnterReview(_reviewTarget);
+            Phase = DirectorPhase.Reviewing;
+        }
+
+        /// <summary>⭐ Once per frame: wait until the review's clock STANDS at the target (a seek lands on a later frame), snapshot, seek on.</summary>
+        private void TickReviewing()
+        {
+            if (!_host.IsOperatingReview || Math.Abs(_host.SimTime - _reviewTarget) > HalfStep) _standing = 0;
+            else _standing++;
+            double t = _reviewTimes![_reviewIndex];
+            if (_standing >= 3)
+            {
+                _reviewSnapshots!.Snapshot(t);
+                _reviewIndex++;
+            }
+            else if (_host.WallNow - _phaseStartWall > LoadTimeoutSeconds)
+            {
+                _reviewProblems.Add($"H5: the review did not stand at {t} s within {LoadTimeoutSeconds:0} s (state {(_host.IsOperatingReview ? "review" : "not review")}, clock {_host.SimTime - _t0:0.####} s)");
+                _reviewIndex++;
+            }
+            else return;
+            if (_reviewIndex < _reviewTimes.Count)
+            {
+                _reviewTarget = _t0 + _reviewTimes[_reviewIndex];
+                _standing = 0;
+                _phaseStartWall = _host.WallNow;
+                if (_host.IsOperatingReview) _host.SeekReview(_reviewTarget);
+                return;
+            }
+            _host.ExitReview();
+            _reviewTarget = _t0 + _liveAtRel;
+            _standing = 0;
+            _phaseStartWall = _host.WallNow;
+            Phase = DirectorPhase.Returning;
+        }
+
+        /// <summary>⭐ Once per frame: wait until live stands at the point it left, compare the world, then step on.</summary>
+        private void TickReturning()
+        {
+            if (!_host.IsOperatingLive || Math.Abs(_host.SimTime - _reviewTarget) > HalfStep) _standing = 0;
+            else _standing++;
+            if (_standing < 3)
+            {
+                if (_host.WallNow - _phaseStartWall <= LoadTimeoutSeconds) return;
+                _reviewProblems.Add($"H5: live did not come back to {_liveAtRel} s within {LoadTimeoutSeconds:0} s (clock {_host.SimTime - _t0:0.####} s)");
+            }
+            var after = new ScenarioGolden(_verifyWorld!, full: true);
+            after.Snapshot(_liveAtRel);
+            _returnDiff.AddRange(ScenarioGolden.CompareFrom(_atLive!.SnapshotsJson(), after.SnapshotsJson(), _liveAtRel));
+            // the review against the live run, on what the recording carries (what a review can show)
+            // ⚠ the comparator pairs snapshots by INDEX: compare only the live snapshots at the times the review actually stood at
+            //   (📐 measured: a review that never reached 0 s shifted every later pair by one second)
+            var seen = _reviewSnapshots!.SnapshotsJson();
+            var seenTimes = ((seen["snapshots"] as JsonArray) ?? new JsonArray()).Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).ToList();
+            var live = new JsonObject { ["snapshots"] = new JsonArray(((_verification!.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray())
+                .Where(n => ConditionBook.Num(n?["t"]) is { } t && seenTimes.Any(st => Math.Abs(st - t) < 1e-4)).Select(n => n!.DeepClone()).ToArray()) };
+            var carried = _liveRecording is { } path ? ScenarioGolden.CarriedBy(path) : null;
+            _reviewCount = _reviewSnapshots.Snapshots;
+            _reviewDiff.AddRange(ScenarioGolden.CompareFrom(live, seen, 0d, carried));
+            if (carried != null) _reviewNotCarried.AddRange(ScenarioGolden.CompareNotCarried(live, seen, 0d, carried));
+            else _reviewNotCarried.Add("⚠ no recording manifest was found — every component compared");
+            _reviewVerdict = _reviewDiff.Count == 0 && _reviewProblems.Count == 0 ? "same" : "different";
+            _reviewDone = true;
+            if (!_host.Paused) _host.Pause();
+            Phase = DirectorPhase.Playing;
+            _clock?.Start(_host.WallNow);
+        }
 
         /// <summary>⭐ B7 — the scout's run becomes the take's baked anchors (its step rate, the scenario's hash), saved to the take's file.</summary>
         private void Bake(ItemReport r)

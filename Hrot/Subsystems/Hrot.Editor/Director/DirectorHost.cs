@@ -78,6 +78,19 @@ namespace Hrot.Editor.Director
 
         /// <summary>Opens a finished recording for playback (the product's player, in this process).</summary>
         IRecordedRun OpenRecording(string path) => throw new NotSupportedException("this host cannot play a recording");
+
+        // ── ⭐ CE-4045 H5 (docs/DESIGN_Scenario_Regression.md §10-3) — a During Action Review of the live run, through the master ────
+
+        /// <summary>Reviews the live run in place, at <paramref name="simSeconds"/> of its own clock (DAR — <c>OperatingReview</c>).</summary>
+        void EnterReview(double simSeconds) => throw new NotSupportedException("this host cannot review");
+
+        /// <summary>Seeks the review to <paramref name="simSeconds"/> of the run's clock.</summary>
+        void SeekReview(double simSeconds) => throw new NotSupportedException("this host cannot review");
+
+        /// <summary>Back to the live run, where it paused.</summary>
+        void ExitReview() => throw new NotSupportedException("this host cannot review");
+
+        bool IsOperatingReview => false;
     }
 
     /// <summary>

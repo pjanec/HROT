@@ -693,7 +693,7 @@ public sealed class EffectTests
 
         var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext
         {
-            World = world, IsReplayActive = static () => true,
+            World = world,
         });
         Fdp.Toolkit.Replay.ReplayState.Enter(world);                  // ⭐ CE-3329 P2 — the world says it is a replay
         var other = Living(Hrot.Map.Common.TkbEntityTypes.Tank_T72, 100f);

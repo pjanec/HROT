@@ -30,7 +30,10 @@ namespace Hrot.ScenarioEditor.Systems;
 /// </summary>
 public sealed class SelectionInteractionSystem
 {
-    private readonly EntityRepository _world;
+    private readonly Func<EntityRepository> _worldOf;
+
+    // ⭐ CE-3328 — resolved per use: a host that switches the world it shows (the Replay Browser) hands a provider.
+    private EntityRepository _world => _worldOf();
     private readonly FdpEventBus _interactionBus;
     private readonly RubberBandState? _rubberBandState;
 
@@ -68,15 +71,29 @@ public sealed class SelectionInteractionSystem
         EntityRepository world,
         FdpEventBus interactionBus,
         RubberBandState? rubberBandState = null,
+        Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null)
+        : this(Fixed(world), interactionBus, rubberBandState, selection) { }
+
+    private static Func<EntityRepository> Fixed(EntityRepository world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return () => world;
+    }
+
+    /// <summary>⭐ <c>CE-3328</c> — over the world a provider returns each frame (the shown world, which a host may switch).</summary>
+    public SelectionInteractionSystem(
+        Func<EntityRepository> world,
+        FdpEventBus interactionBus,
+        RubberBandState? rubberBandState = null,
         // ⭐⭐⭐ UXI-11 — the PACK's view. ⚠ Optional only for direct test construction; ⛔ in
         //   production MapInteractionPack always passes the one it built, so this system and the
         //   host write through the same object rather than two handles over one world.
         Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null)
     {
-        _world           = world          ?? throw new ArgumentNullException(nameof(world));
+        _worldOf         = world          ?? throw new ArgumentNullException(nameof(world));
         _interactionBus  = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
         _rubberBandState = rubberBandState;
-        _selection       = selection ?? new Hrot.ScenarioEditor.Selection.EcsSelectionState(_world);
+        _selection       = selection ?? new Hrot.ScenarioEditor.Selection.EcsSelectionState(_worldOf);
     }
 
     public void Tick(float dt)
@@ -193,6 +210,7 @@ public sealed class SelectionInteractionSystem
         foreach (ref readonly var key in _interactionBus.Read<GizmoKeyEvent>())
         {
             if (key.Key != MapKeyboardKey.Delete || key.IsPressed) continue;
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(_world)) continue;   // ⭐ DAR F7 — a recording is not edited
 
             var toDestroy = new List<Entity>();
             var q = _world.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();

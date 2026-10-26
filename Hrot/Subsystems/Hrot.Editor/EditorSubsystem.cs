@@ -533,6 +533,9 @@ namespace Hrot.Editor
         /// <summary>Q86 test hook: this node's clock (the editor's own master — Q86 keeps it here).</summary>
         internal MasterSyncController? TimeControllerForTest => _timeController;
 
+        /// <summary>CE-3330 test hook: the node context the editor was built from (its world, kernel and timeline).</summary>
+        internal HrotNodeContext? NodeForTest => _node;
+
         /// <summary>Q86 test hook: the orchestration bus the shared orchestrator core runs on.</summary>
         internal FdpEventBus? OrchestrationBusForTest => _orchestrationBus;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
@@ -2461,8 +2464,7 @@ namespace Hrot.Editor
                     //   its file named by the ONE recorder, and played back in this process by the product's player
                     loadLive: name => (_debugApiService ?? throw new InvalidOperationException(
                         "a live verify run loads through the debug service — set HROT_DEBUG_API_PORT (--verify sets one)")).LoadScenarioLive(name, startPaused: true),
-                    stopLive: () => new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus).Transition(
-                        new Fdp.Toolkit.Orchestration.TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle }),
+                    master: new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),   // ⭐ H5 — stop and review
                     state: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
                     recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,
                     openRecording: path => new Hrot.Editor.Director.RecordedRun(path, scenarioSerializer,
