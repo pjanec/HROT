@@ -124,7 +124,7 @@ public sealed class DirectorRunnerTests : IDisposable
 
         public void LoadLive(string scenario) { LoadScenario(scenario); _liveLoad = true; LiveLoads++; }
         public bool IsOperatingLive { get; private set; }
-        public void StopLive() { LiveStops++; _stopFrames = 2; }
+        public void StopLive() { if (IsOperatingReplay) ReplayStops++; else LiveStops++; _stopFrames = 2; }
         public bool IsIdle { get; private set; } = true;
         public string? LiveRecordingPath => _recording ? _recordingFile : null;
         public IRecordedRun OpenRecording(string path) { RecordingsOpened++; return Opened = new FakeRecordedRun(path); }
@@ -139,7 +139,18 @@ public sealed class DirectorRunnerTests : IDisposable
         private bool _exitAsk;
         private (double SimTime, Dictionary<long, double> Health)? _checkpoint;
         public void EnterReview(double simSeconds) { Reviews++; _reviewAsk = simSeconds; }
-        public void SeekReview(double simSeconds) { ReviewSeeks++; _reviewAsk = simSeconds; }
+        public void SeekReview(double simSeconds) { ReviewSeeks++; SeekAsks.Add(simSeconds); _reviewAsk = simSeconds; }
+
+        // ⭐ CE-4045 H1b — the product's REPLAY of the finished run: entered from Idle (a frame after it is asked), it shows the run's recorded
+        //   frames (a seek is SeekReview's — the same SeekReplayIntent), and a stop leaves it for Idle two frames later
+        /// <summary>A replay that does not show the health — what H1b exists to catch.</summary>
+        public bool ReplayLosesHealth;
+        public int Replays, ReplayStops;
+        /// <summary>The sim seconds each replay entry and each seek asked for, in order.</summary>
+        public readonly List<double> ReplayEntries = new(), SeekAsks = new();
+        public bool IsOperatingReplay { get; private set; }
+        private double? _replayAsk;
+        public void EnterReplay(double simSeconds) { Replays++; ReplayEntries.Add(simSeconds); _replayAsk = simSeconds; }
         public void ExitReview() { ReviewExits++; _exitAsk = true; }
 
         private void ShowRecorded(double simSeconds)
@@ -152,16 +163,24 @@ public sealed class DirectorRunnerTests : IDisposable
                 var u = frame["units"]![Repo.GetComponentRO<NetworkIdentity>(e).Value.ToString(System.Globalization.CultureInfo.InvariantCulture)];
                 if (u == null) continue;
                 Repo.GetComponentRW<SimTransform>(e).Position = new Vector3(u["x"]!.GetValue<float>(), 0f, 0f);
-                Verifier!.Health[Repo.GetComponentRO<NetworkIdentity>(e).Value] = u["hp"]!.GetValue<double>();
+                Verifier!.Health[Repo.GetComponentRO<NetworkIdentity>(e).Value] = ReplayLosesHealth && IsOperatingReplay ? 100d : u["hp"]!.GetValue<double>();
             }
         }
 
         private void ServeReview()
         {
+            if (_replayAsk is { } rask)
+            {
+                _replayAsk = null;
+                IsOperatingReplay = true;
+                IsIdle = false;
+                ShowRecorded(rask);
+            }
             if (_reviewAsk is { } ask)
             {
                 _reviewAsk = null;
-                if (!IsOperatingReview) { _checkpoint = (SimTime, new Dictionary<long, double>(Verifier!.Health)); IsOperatingReview = true; IsOperatingLive = false; }
+                // ⭐ H1b — a seek in a replay is the same SeekReplayIntent; only a review (re)enters from the live run, with its checkpoint
+                if (!IsOperatingReplay && !IsOperatingReview) { _checkpoint = (SimTime, new Dictionary<long, double>(Verifier!.Health)); IsOperatingReview = true; IsOperatingLive = false; }
                 ShowRecorded(ask);
             }
             if (_exitAsk && _checkpoint is { } cp)
@@ -261,7 +280,11 @@ public sealed class DirectorRunnerTests : IDisposable
                 _loadFrames = -1;
             }
             if (_recording && !IsOperatingReview) Record();   // ⭐ H5 — the recorder is suspended during a review
-            if (_stopFrames > 0 && --_stopFrames == 0) CloseRecording();
+            if (_stopFrames > 0 && --_stopFrames == 0)
+            {
+                if (IsOperatingReplay) { IsOperatingReplay = false; IsIdle = true; }   // ⭐ H1b — a replay is left for Idle
+                else CloseRecording();
+            }
             Wall += FrameSeconds;
         }
     }
@@ -451,6 +474,62 @@ public sealed class DirectorRunnerTests : IDisposable
     /// on the first poll; the probe waits for the world to change AND settle. The grace covers a count that never moves; no count ⇒ the state
     /// alone. 🔴 Red-proof: drop the sawChange term ⇒ the first poll answers ready.
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-1364 T4 — the runner plays a take's KEYS (not shots): Cut@0 (distance 10), Fly@2 (distance 30 over the second before it, linear),
+    /// Dip@3 (distance 50, black 0.5 s out and 0.5 s in), ending at 4. The film camera holds 10 at t=1, the in-between at t=1.5, 30 at t=2.5,
+    /// the OLD camera while the black rises (2.75), 50 after the dip; the black is half at 2.75 and 3.25, full at 3, none at 3.6, and the
+    /// run releases it at the end. 🔴 Red-proof: have <c>DirectUpcoming</c> set <c>FilmStudio.Fade</c> to 0 ⇒ the fade rows go red; make
+    /// <c>ProgramAt</c> start the fly AT its key ⇒ the t=1.5 row reads 10 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1364_T4_TheRunner_PlaysTheKeys_CutFlyDip_AndTheFadeReachesTheFilm()
+    {
+        var host = new FakeEditor(Store()) { Moves = false };
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        CameraSpec At(float distance) => new() { LookAt = Vector3.Zero, Distance = distance };
+        var take = new Take
+        {
+            Scenario = "s-a", Name = "keys", TickHz = 60, EndAt = new AtExpr(4),
+            Keys = new[]
+            {
+                new CameraKey { At = new AtExpr(0), Camera = At(10) },
+                new CameraKey { At = new AtExpr(2), Camera = At(30), In = KeyTransition.Fly(1, Ease.Linear) },
+                new CameraKey { At = new AtExpr(3), Camera = At(50), In = KeyTransition.Dip(0.5, 0.5) },
+            },
+        };
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "keys" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Inline: new Dictionary<string, Take> { ["s-a/keys"] = take })));
+
+        var samples = new List<(double Rel, float? Distance, float Fade)>();
+        double? t0 = null;
+        for (int f = 0; f < 20000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing)
+            {
+                t0 ??= host.SimTime;
+                samples.Add((host.SimTime - t0.Value, FilmStudio.Shot?.Pose?.Distance, FilmStudio.Fade));
+            }
+            host.EndFrame();
+        }
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.Equal("ok", runner.Reports[0].Status);
+
+        (float? Distance, float Fade) Near(double rel) => samples.OrderBy(s => Math.Abs(s.Rel - rel)).Select(s => (s.Distance, s.Fade)).First();
+        Assert.Equal(10f, Near(1.0).Distance!.Value, 0.01f);
+        Assert.Equal(20f, Near(1.5).Distance!.Value, 0.5f);                         // halfway through the linear fly
+        Assert.Equal(30f, Near(2.5).Distance!.Value, 0.01f);
+        Assert.Equal(30f, Near(2.75).Distance!.Value, 0.01f);                       // the old camera while the black rises
+        Assert.Equal(0.5f, Near(2.75).Fade, 0.05f);
+        Assert.Equal(1f, Near(3.0).Fade, 0.05f);
+        Assert.Equal(50f, Near(3.25).Distance!.Value, 0.01f);
+        Assert.Equal(0.5f, Near(3.25).Fade, 0.05f);
+        Assert.Equal(0f, Near(3.6).Fade, 0.001f);
+        Assert.Equal(0f, Near(2.0).Fade, 0.001f);
+        Assert.Equal(0f, FilmStudio.Fade);                                          // released with the film
+        Assert.Null(FilmStudio.Shot);
+    }
+
     [Fact]
     public void CE4038_TheReadyProbe_WaitsForTheEdge_NotTheLevel()
     {
@@ -882,8 +961,8 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Equal((1, 2, 1), (rh.Reviews, rh.ReviewSeeks, rh.ReviewExits));
         Assert.Equal(0, rh.Enters);                                                                         // live, never a preview
         Assert.All(rh.StepsPerFrame, n => Assert.Equal(1, n));
-        Assert.True(v.Review == "same", string.Join("\n", v.ReviewDiff.Concat(v.ReviewProblems)));
-        Assert.Equal(3, v.ReviewSnapshots);
+        Assert.True(v.Review!.Verdict == "same", string.Join("\n", v.Review.Diff.Concat(v.Review.Problems)));
+        Assert.Equal(3, v.Review.Snapshots);
         Assert.True(v.ReturnDiff.Count == 0, string.Join("\n", v.ReturnDiff));
         Assert.Equal("pass", reviewed.Status);
         Assert.Empty(ScenarioGolden.CompareFrom(RunOf(a), RunOf(b), 2d));                                 // the run after = the straight run
@@ -895,6 +974,66 @@ public sealed class DirectorRunnerTests : IDisposable
 
         Assert.Contains(Fresh().Runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Replay: true, Review: new ReviewCheck(2d, false, b)))),
                         p => p.Contains("review check runs LIVE on its own"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4045</c> H1b (docs/DESIGN_Scenario_Regression.md §10-2 ②, R-4086) — after H1a, the PRODUCT's cluster replay of the finished
+    /// run: the stopped run is entered as a replay ONCE (from Idle, at the first live snapshot's sim time), sought to every later live snapshot
+    /// time by recorded SIM time (the same <c>SeekReplayIntent</c> a review seeks with), each world snapshotted once the clock stands there,
+    /// then the replay is left for Idle and compared with the live snapshots by the review's comparator. ① a replay that shows the run: SAME
+    /// at all four snapshots (0, 1, 2, 3 s), one entry, three seeks asking 1, 2, 3 s, ending Idle, the item passes; ② a replay that does not
+    /// show the health: DIFFERENT from the first snapshot after the action, naming the unit and the component — and it fails, while H1a's
+    /// check of the recording itself stays SAME. 🔴 Red-proof: skip the replay's seek (<c>if (inLook &amp;&amp; _look == LookMode.Review)</c>) ⇒ ①
+    /// fails on its verdict, "the replay did not stand at 1 s / 2 s / 3 s within 30 s (clock 0 s)" (a PROBLEM per target); H1a's rail fails
+    /// too (its item no longer passes).
+    /// </summary>
+    [Fact]
+    public void CE4045_H1b_TheProductsReplay_SoughtBySimTime_ShowsTheLiveRun()
+    {
+        var store = Store();
+        File.WriteAllText(Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
+        var rec = Path.Combine(_root, "rec");
+        Directory.CreateDirectory(rec);
+        (DirectorRunner Runner, FakeEditor Host) Fresh()
+        {
+            var h = new FakeEditor(store) { Lag = 1, RecordDir = rec };
+            return (new DirectorRunner(h, new Cinema(), new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+        }
+        var replay = new VerifyOptions(Replay: true);
+
+        // ① a replay that shows the live run
+        var (runner, host) = Fresh();
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Run(runner, host);
+        var r = runner.Reports.Single();
+        Assert.Equal("same", r.Verify!.Replay);                                                    // H1a, unchanged
+        var pb = r.Verify.Playback!;
+        Assert.True(pb.Verdict == "same", string.Join("\n", pb.Diff.Concat(pb.Problems)));
+        Assert.Equal(4, pb.Snapshots);                                                              // t = 0, 1, 2, 3
+        Assert.Empty(pb.Problems);
+        Assert.Equal(new[] { 0d }, host.ReplayEntries);                                             // ONE entry, at the first snapshot
+        Assert.Equal(new[] { 1d, 2d, 3d }, host.SeekAsks);                                          // ⭐ by recorded sim time, one seek per later snapshot
+        Assert.Equal((1, 1, 0, 0), (host.Replays, host.ReplayStops, host.Reviews, host.Enters));    // a replay, not a review; live, never a preview
+        Assert.Equal(1, host.LiveStops);                                                            // the live run stopped once (for H1a); the replay left once
+        Assert.True(host.IsIdle);
+        Assert.False(host.IsOperatingReplay);
+        Assert.Equal("pass", r.Status);
+        Assert.Equal("same", r.Verify.ToJson()["playback"]!["verdict"]!.ToString());
+        Assert.Null(r.Verify.ToJson()["review"]);                                                   // not asked
+
+        // ② a replay that does not show the health
+        var (bad, badHost) = Fresh();
+        badHost.ReplayLosesHealth = true;
+        Assert.Empty(bad.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Run(bad, badHost);
+        var b = bad.Reports.Single();
+        Assert.Equal("same", b.Verify!.Replay);                                                    // ⭐ the recording itself is right
+        Assert.Equal("different", b.Verify.Playback!.Verdict);
+        Assert.StartsWith("FIRST differing snapshot at t=2 s", b.Verify.Playback.Diff[0]);          // the action is at 1.5 s
+        Assert.Contains("Runner", b.Verify.Playback.Diff[0]);
+        Assert.Contains(b.Verify.Playback.Diff, d => d.Contains("Health"));
+        Assert.Equal("fail", b.Status);
+        Assert.True(badHost.IsIdle);                                                                // a failed check leaves nothing running
     }
 
 }

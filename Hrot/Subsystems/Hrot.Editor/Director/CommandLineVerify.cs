@@ -160,13 +160,22 @@ namespace Hrot.Editor.Director
             if (item["replay"] is { } rp) w.WriteLine($"{indent}  REPLAY {rp} ({item["replaySnapshots"]} snapshots matched to the recording)");
             foreach (var d in (item["replayDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
             foreach (var d in (item["replayNotCarried"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    (not recorded, by the manifest) {d}");
-            if (item["review"] is { } rv) w.WriteLine($"{indent}  REVIEW {rv} ({item["reviewSnapshots"]} snapshots looked back at)");
-            foreach (var d in (item["reviewDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
+            PrintLookBack(item["review"] as JsonObject, "REVIEW", w, indent);
             foreach (var d in (item["returnDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    RETURN {d}");
-            foreach (var d in (item["reviewProblems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    PROBLEM {d}");
+            PrintLookBack(item["playback"] as JsonObject, "PLAYBACK", w, indent);   // ⭐ H1b — the product's replay of the run
             foreach (var p in (item["written"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  wrote {p}");
             foreach (var p in (item["problems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");
             foreach (var p in (item["runProblems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");
+        }
+
+        /// <summary>⭐ One look-back (<see cref="LookBackResult"/> as JSON): its verdict, what it differs in, what it could not do.</summary>
+        private static void PrintLookBack(JsonObject? look, string label, TextWriter w, string indent)
+        {
+            if (look is null) return;
+            w.WriteLine($"{indent}  {label} {look["verdict"]} ({look["snapshots"]} snapshots looked back at)");
+            foreach (var d in (look["diff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
+            foreach (var d in (look["notCarried"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    (not recorded, by the manifest) {d}");
+            foreach (var d in (look["problems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    PROBLEM {d}");
         }
     }
 }

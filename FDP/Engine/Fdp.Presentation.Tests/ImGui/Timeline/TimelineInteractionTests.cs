@@ -307,4 +307,296 @@ public sealed class TimelineInteractionTests
     }
 
     private static long ExtentToOf(AxisCursor c) => c.ExtentTo;
+
+    /// <summary>A cursor with a session layer: a mode, a live point, checkpoints, and a review to enter (all in WALL ticks).</summary>
+    private sealed class SessionCursor : ITimelineCursor
+    {
+        public long ExtentFrom => 0;
+        public long ExtentTo => 600 * Tick;
+        public long Now { get; set; }
+        public bool CanSeek { get; init; }
+        public TimelineMode Mode { get; init; }
+        public bool CanReview { get; init; }
+        public long? LivePoint { get; init; }
+        public IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> Checkpoints { get; init; } = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+        public List<long> Seeks { get; } = new();
+        public List<long> Reviews { get; } = new();
+        public void Seek(long ticks) { Seeks.Add(ticks); Now = ticks; }
+        public void EnterReview(long wallTicks) => Reviews.Add(wallTicks);
+        // ⭐ CE-3330 E5 — the master's loop (WALL ticks)
+        public bool CanLoop { get; init; }
+        public (long From, long To)? Loop { get; set; }
+        public List<(long From, long To)> SetLoops { get; } = new();
+        public int Clears { get; private set; }
+        public void SetLoop(long fromWall, long toWall) { SetLoops.Add((fromWall, toWall)); Loop = (fromWall, toWall); }
+        public void ClearLoop() { Clears++; Loop = null; }
+    }
+
+    /// <summary>
+    /// ⭐ CE-3330 E2 (§2e, DAR §9b) — the menu by MODE: a LIVE host that can review offers "Review from here" (and "from this event") and NO seek
+    /// (R-3059: a live host seeks by entering a review); a REVIEW offers the seek items plus "Seek to the live point"; a REPLAY the seek items and no
+    /// live point. 🔴 Red-proof: the live branch gated on a runtime-false condition ⇒ no review item; the live-point item shown in a replay ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3330_E2_TheMenuByMode_LiveReviews_ReviewSeeksToTheLivePoint_ReplaySeeks()
+    {
+        var index = Index(601, E(100, Shot), E(300, Shot), E(500, Shot));
+        var view = new TimelineView();
+        view.OnExtent(0, 600 * Tick);
+        List<string> Labels(ITimelineCursor c, TimelineEvent? ev = null) =>
+            TimelinePanel.MenuItems(index, c, Shot, 300 * Tick, 300, ev, "0:05.0", view).Select(i => i.Label).ToList();
+
+        var live = new SessionCursor { Mode = TimelineMode.Live, CanReview = true };
+        var liveItems = TimelinePanel.MenuItems(index, live, Shot, 300 * Tick, 300, E(300, Shot), "0:05.0", view);
+        var liveLabels = liveItems.Select(i => i.Label).ToList();
+        Assert.Contains(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from 0:05.0", liveLabels);
+        Assert.Contains(liveLabels, l => l.StartsWith(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from this event"));
+        Assert.DoesNotContain(liveLabels, l => l.StartsWith("Seek") || l.StartsWith("Play") || l.Contains("live point"));
+        Assert.Empty(live.Reviews);                                           // building the menu entered nothing
+        liveItems.First(i => i.Label == Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from 0:05.0").Run();
+        liveItems.First(i => i.Label.StartsWith(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from this event")).Run();
+        Assert.Equal(new[] { 300 * Tick, 300 * Tick }, live.Reviews);          // the snapped click, then the event's frame
+
+        Assert.DoesNotContain(Labels(new SessionCursor { Mode = TimelineMode.Live, CanReview = false }), l => l.Contains("Review"));   // nothing to review
+
+        var review = new SessionCursor { Mode = TimelineMode.Review, CanSeek = true, LivePoint = 550 * Tick };
+        var reviewItems = TimelinePanel.MenuItems(index, review, Shot, 300 * Tick, 300, E(300, Shot), "0:05.0", view);
+        Assert.Contains("Seek here (0:05.0)", reviewItems.Select(i => i.Label));
+        Assert.DoesNotContain(reviewItems.Select(i => i.Label), l => l.Contains("Review"));
+        reviewItems.First(i => i.Label == "⏏ Seek to the live point").Run();
+        Assert.Equal(new[] { 550 * Tick }, review.Seeks);
+
+        Assert.DoesNotContain("⏏ Seek to the live point", Labels(new SessionCursor { Mode = TimelineMode.Review, CanSeek = true }));   // live point not known yet
+
+        var replay = new SessionCursor { Mode = TimelineMode.Replay, CanSeek = true, LivePoint = 550 * Tick };
+        var replayLabels = Labels(replay);
+        Assert.Contains("Seek here (0:05.0)", replayLabels);
+        Assert.DoesNotContain("⏏ Seek to the live point", replayLabels);
+    }
+
+    /// <summary>⭐ CE-3330 E2 — the Sim-axis view of a session cursor: the live point and the checkpoints convert to the axis, a review's entry
+    /// converts BACK to the host's wall ticks (pause-end rule). 🔴 Red-proof: forwarding <c>LivePoint</c> unconverted ⇒ the live point stays wall.</summary>
+    [Fact]
+    public void CE3330_E2_AxisCursor_ForwardsTheSessionLayer_ConvertedToTheAxis()
+    {
+        var (_, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var inner = new SessionCursor
+        {
+            Mode = TimelineMode.Review, CanReview = true, CanSeek = true, LivePoint = 8 * S,
+            Checkpoints = new[]
+            {
+                new Fdp.Core.FlightRecorder.Metadata.CheckpointMark { Label = "early", WallTicks = 2 * S, TotalTime = 2 },
+                new Fdp.Core.FlightRecorder.Metadata.CheckpointMark { Label = "late", WallTicks = 8 * S, TotalTime = 5 },
+            },
+        };
+        var c = new AxisCursor(inner, sim);
+        Assert.Equal(TimelineMode.Review, c.Mode);
+        Assert.True(c.CanReview);
+        Assert.Equal(5 * S, c.LivePoint);                                       // wall 8 s is sim 5 s
+        Assert.Equal(new[] { ("early", 2 * S), ("late", 5 * S) }, c.Checkpoints.Select(m => (m.Label, m.WallTicks)));
+        Assert.Same(c.Checkpoints, c.Checkpoints);                              // projected once per list the host hands out
+
+        c.EnterReview(3 * S);                                                   // the paused instant → its END, in wall ticks
+        Assert.Equal(new[] { 6 * S }, inner.Reviews);
+
+        Assert.Null(new AxisCursor(new SessionCursor(), sim).LivePoint);        // no live point stays none
+    }
+
+    /// <summary>
+    /// ⭐ CE-3330 E5 (§2e, DAR §12n) — the loop items by MODE: "Loop this range" only with a range selected, in a review / replay that CanLoop, and it hands the
+    /// range (wall) to <c>SetLoop</c>; "Clear the loop" only while a loop exists; neither in Live or on a cursor that cannot loop. Building the menu loops nothing.
+    /// 🔴 Red-proof: the mode gate dropped (offered in Live) ⇒ the Live assertion reddens; the range handed swapped/shifted ⇒ the SetLoop assertion reddens.
+    /// </summary>
+    [Fact]
+    public void CE3330_E5_TheLoopItems_AreOfferedOnlyInAReviewOrReplay_WithARange_OrALoop()
+    {
+        var index = Index(601, E(100, Shot), E(300, Shot), E(500, Shot));
+        var view = new TimelineView();
+        view.OnExtent(0, 600 * Tick);
+        List<TimelineMenuItem> Items(ITimelineCursor c) => TimelinePanel.MenuItems(index, c, Shot, 300 * Tick, 300, null, "0:05.0", view);
+        List<string> Labels(ITimelineCursor c) => Items(c).Select(i => i.Label).ToList();
+
+        var review = new SessionCursor { Mode = TimelineMode.Review, CanSeek = true, CanLoop = true };
+        Assert.DoesNotContain("Loop this range", Labels(review));            // no range selected
+        Assert.DoesNotContain("Clear the loop", Labels(review));             // no loop set
+
+        view.Range = (100 * Tick, 200 * Tick);
+        Assert.Contains("Loop this range", Labels(review));
+        Assert.Empty(review.SetLoops);                                        // building the menu loops nothing
+        Items(review).First(i => i.Label == "Loop this range").Run();
+        Assert.Equal(new[] { (100 * Tick, 200 * Tick) }, review.SetLoops);   // the range, in the cursor's ticks
+
+        Assert.Contains("Clear the loop", Labels(review));                    // the loop now exists
+        Items(review).First(i => i.Label == "Clear the loop").Run();
+        Assert.Equal(1, review.Clears);
+        Assert.DoesNotContain("Clear the loop", Labels(review));
+
+        var replay = new SessionCursor { Mode = TimelineMode.Replay, CanSeek = true, CanLoop = true };
+        Assert.Contains("Loop this range", Labels(replay));
+
+        var live = new SessionCursor { Mode = TimelineMode.Live, CanReview = true, CanLoop = true, Loop = (1, 2) };   // even a stray loop / flag
+        Assert.DoesNotContain(Labels(live), l => l.Contains("Loop") || l.Contains("loop"));
+        var none = new SessionCursor { Mode = TimelineMode.None, CanLoop = true, Loop = (1, 2) };
+        Assert.DoesNotContain(Labels(none), l => l.Contains("Loop") || l.Contains("loop"));
+        Assert.DoesNotContain(Labels(new SessionCursor { Mode = TimelineMode.Review, CanSeek = true, CanLoop = false }), l => l.Contains("oop"));   // the host cannot loop
+        view.Range = null;
+    }
+
+    /// <summary>⭐ CE-3330 E5 — the Sim-axis view of a cursor's loop: drawn on the axis, set from the axis (a paused instant → its END, like every conversion
+    /// back). 🔴 Red-proof: forwarding <c>Loop</c> unconverted ⇒ the bracket stays wall; <c>SetLoop</c> unconverted ⇒ the host receives sim ticks.</summary>
+    [Fact]
+    public void CE3330_E5_AxisCursor_ConvertsTheLoop_BothWays()
+    {
+        var (_, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var inner = new SessionCursor { Mode = TimelineMode.Review, CanLoop = true, Loop = (2 * S, 8 * S) };
+        var c = new AxisCursor(inner, sim);
+        Assert.True(c.CanLoop);
+        Assert.Equal((2 * S, 5 * S), c.Loop);                                  // wall 2 s is sim 2 s, wall 8 s is sim 5 s
+
+        c.SetLoop(3 * S, 5 * S);                                               // sim 3 s is the pause (→ its END, wall 6 s); sim 5 s is wall 8 s
+        Assert.Equal(new[] { (6 * S, 8 * S) }, inner.SetLoops);
+
+        c.ClearLoop();
+        Assert.Equal(1, inner.Clears);
+        Assert.Null(c.Loop);
+
+        Assert.False(new AxisCursor(new SessionCursor(), sim).CanLoop);        // the defaults pass through
+    }
+
+    // ── CE-1364 T2 — the track seam (docs/DESIGN_Director_Timeline_Editor.md §10) ──────────────────────────────
+
+    private sealed class FakeTrack : ITimelineTrack
+    {
+        public string Id => "camera";
+        public string Label => "Camera";
+        public List<TimelineTrackItem> List { get; } = new();
+        public IReadOnlyList<TimelineTrackItem> Items => List;
+        public List<string> Calls { get; } = new();
+        public bool TakesKeys { get; init; } = true;
+        public void Select(string itemId)
+        {
+            Calls.Add("select " + itemId);
+            for (int i = 0; i < List.Count; i++) List[i] = List[i] with { Selected = List[i].Id == itemId };
+        }
+        public void Move(string itemId, double toSimSeconds, bool commit) => Calls.Add($"move {itemId} {toSimSeconds:0.###} {(commit ? "commit" : "preview")}");
+        public bool Key(char key, double atSimSeconds) { Calls.Add($"key {key} {atSimSeconds:0.###}"); return TakesKeys; }
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => new[] { new TimelineMenuItem("Delete key", () => Calls.Add("delete " + itemId)) };
+    }
+
+    private static TimelineTrackItem TrackKey(string id, double at, bool selected = false) => new(id, at, null, id, TimelineTrackItemKind.Key, selected);
+
+    /// <summary>⭐ T2 — an item's SIM seconds ⇄ x on BOTH axes. Sim: seconds × ticks. Wall: through the session's map — a key inside the collapsed pause
+    /// (sim 3, wall 3…6 s) draws at the pause's wall position (its end, 6 s) and a drop inside the pause converts back to sim 3; no map ⇒ not drawable.
+    /// 🔴 Red-proof: <c>AxisTicks</c> returning <c>sim·TPS</c> on Wall ⇒ the pause key lands at 300, not 600.</summary>
+    [Fact]
+    public void CE1364_T2_AnItem_IsPlacedAndDropped_OnBothAxes_ThroughTheMap()
+    {
+        var (_, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var key3 = TrackKey("k3", 3.0);
+        var key4 = TrackKey("k4", 4.0);
+
+        var simWindow = new TimelineWindow(0, 6 * S);
+        Assert.Equal(300f, TrackLayout.SpanOf(key3, simWindow, 600f, sim, map)!.Value.X0);
+        Assert.Equal(400f, TrackLayout.SpanOf(key4, simWindow, 600f, sim, map)!.Value.X0);
+        Assert.Equal(4.0, TrackLayout.SimAtX(400f, simWindow, 600f, sim, map)!.Value, 6);
+
+        var wallWindow = new TimelineWindow(0, 9 * S);
+        Assert.Equal(600f, TrackLayout.SpanOf(key3, wallWindow, 900f, TimelineAxis.Wall, map)!.Value.X0);   // the pause's wall position (its end)
+        Assert.Equal(700f, TrackLayout.SpanOf(key4, wallWindow, 900f, TimelineAxis.Wall, map)!.Value.X0);
+        Assert.Equal(3.0, TrackLayout.SimAtX(500f, wallWindow, 900f, TimelineAxis.Wall, map)!.Value, 6);   // a drop inside the pause = the pause's instant
+        Assert.Equal(4.0, TrackLayout.SimAtX(700f, wallWindow, 900f, TimelineAxis.Wall, map)!.Value, 6);
+
+        var seg = new TimelineTrackItem("s", 1.0, 3.0, "slow", TimelineTrackItemKind.Segment, false);
+        var span = TrackLayout.SpanOf(seg, wallWindow, 900f, TimelineAxis.Wall, map)!.Value;
+        Assert.Equal((100f, 600f), (span.X0, span.X1));
+
+        Assert.False(TrackLayout.Drawable(TimelineAxis.Wall, null));   // no map: not placeable
+        Assert.Null(TrackLayout.SpanOf(key3, wallWindow, 900f, TimelineAxis.Wall, null));
+        Assert.Null(TrackLayout.SimAtX(10f, wallWindow, 900f, TimelineAxis.Wall, null));
+
+        // hit-test: a key within 5 px, else a segment's body, else empty space
+        var items = new[] { key4, seg };
+        Assert.Equal(0, TrackLayout.HitTest(items, wallWindow, 900f, TimelineAxis.Wall, map, 703f));
+        Assert.Equal(1, TrackLayout.HitTest(items, wallWindow, 900f, TimelineAxis.Wall, map, 300f));
+        Assert.Equal(-1, TrackLayout.HitTest(items, wallWindow, 900f, TimelineAxis.Wall, map, 800f));
+    }
+
+    /// <summary>⭐ T2 — a drop snaps to the nearest recorded FRAME like every seek (the index is the axis's projection). 🔴 Red-proof: <c>snapTo</c> ignored ⇒ 2.4 s.</summary>
+    [Fact]
+    public void CE1364_T2_ADrop_SnapsToTheNearestFrame()
+    {
+        var (index, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var window = new TimelineWindow(0, 6 * S);
+        Assert.Equal(2.4, TrackLayout.SimAtX(240f, window, 600f, sim, map)!.Value, 6);
+        Assert.Equal(2.0, TrackLayout.SimAtX(240f, window, 600f, sim, map, sim.Project(index))!.Value, 6);
+    }
+
+    /// <summary>⭐ T2 (§2c row 2) — a left CLICK on an item only selects it: no Move at all, and the cursor never seeks. Jitter below the threshold is still a click.
+    /// 🔴 Red-proof: <c>Press</c> also previewing a Move ⇒ "move" in the calls.</summary>
+    [Fact]
+    public void CE1364_T2_AClickOnAnItem_OnlySelects_NoMove_NoSeek()
+    {
+        var track = new FakeTrack();
+        track.List.Add(TrackKey("k1", 2.0));
+        var cursor = new Cursor { CanSeek = true };
+        var g = new TrackGesture();
+        g.Press(track, track.Items[0], x: 200f, itemX: 200f);
+        g.Update(201.5f, x => x / 100.0);   // jitter
+        Assert.False(g.Release());
+        Assert.Equal(new[] { "select k1" }, track.Calls);
+        Assert.Empty(cursor.Seeks);
+        Assert.True(track.Items[0].Selected);
+    }
+
+    /// <summary>⭐ T2 — a drag previews Move(commit:false) each update, then EXACTLY ONE Move(commit:true) on release, at the last preview; the grab offset keeps the item
+    /// from jumping under the mouse. 🔴 Red-proof: <c>Release</c> committing twice / not at all.</summary>
+    [Fact]
+    public void CE1364_T2_ADrag_PreviewsEachFrame_ThenCommitsOnce()
+    {
+        var track = new FakeTrack();
+        track.List.Add(TrackKey("k1", 2.0));
+        var g = new TrackGesture();
+        g.Press(track, track.Items[0], x: 203f, itemX: 200f);        // grabbed 3 px right of the key's centre
+        g.Update(253f, x => x / 100.0);                              // x − grab = 250
+        g.Update(303f, x => x / 100.0);
+        Assert.True(g.Release());                                    // wherever the mouse is
+        Assert.Equal(new[] { "select k1", "move k1 2.5 preview", "move k1 3 preview", "move k1 3 commit" }, track.Calls);
+        Assert.False(g.Active);
+        Assert.False(g.Release());                                   // a second release commits nothing
+        Assert.Equal(4, track.Calls.Count);
+    }
+
+    /// <summary>⭐ T2 — a press on EMPTY track space starts nothing: no select, no move, no commit. 🔴 Red-proof: <c>Press</c> starting a gesture without an item.</summary>
+    [Fact]
+    public void CE1364_T2_ADragOnEmptyTrackSpace_CallsNothing()
+    {
+        var track = new FakeTrack();
+        track.List.Add(TrackKey("k1", 2.0));
+        var g = new TrackGesture();
+        g.Press(track, null, 50f, 50f);
+        g.Update(300f, x => x / 100.0);
+        Assert.False(g.Release());
+        Assert.Empty(track.Calls);
+    }
+
+    /// <summary>⭐ T2 — K / J / L are offered to the track holding the SELECTED item (with the playhead's sim seconds), and to no other; nothing selected ⇒ nobody is
+    /// asked. 🔴 Red-proof: <c>OfferKey</c> asking every track.</summary>
+    [Fact]
+    public void CE1364_T2_K_IsOfferedToTheSelectedItemsTrack_Only()
+    {
+        var a = new FakeTrack(); a.List.Add(TrackKey("a1", 1.0));
+        var b = new FakeTrack(); b.List.Add(TrackKey("b1", 2.0, selected: true));
+        Assert.True(TrackLayout.OfferKey(new ITimelineTrack[] { a, b }, 'K', 3.5));
+        Assert.Empty(a.Calls);
+        Assert.Equal(new[] { "key K 3.5" }, b.Calls);
+
+        b.List[0] = b.List[0] with { Selected = false };   // nothing selected any more
+        b.Calls.Clear();
+        Assert.True(TrackLayout.OfferKey(new ITimelineTrack[] { a, b }, 'K', 1.0));   // T3: nothing selected ⇒ the first track that takes it
+        Assert.Equal(new[] { "key K 1" }, a.Calls); Assert.Empty(b.Calls);
+    }
 }

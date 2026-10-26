@@ -90,6 +90,9 @@ namespace Hrot.Editor.Director
         public void SeekReview(double simSeconds) => _master.SeekReplay(Hrot.UI.Common.Facades.ReplaySessionIntents.Seek(0, simSeconds));
         public void ExitReview() => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.ExitReview());
         public bool IsOperatingReview => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingReview;
+        // ⭐ CE-4045 H1b — the cluster replay of the finished run (the master picks the newest exercise); a seek is SeekReview's
+        public void EnterReplay(double simSeconds) => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(Guid.Empty, simSeconds: simSeconds));
+        public bool IsOperatingReplay => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay;
         public bool IsIdle => _state() == Fdp.Toolkit.Orchestration.ClusterState.Idle;
         public string? LiveRecordingPath => _recordingPath();
         public IRecordedRun OpenRecording(string path) => _openRecording(path);
@@ -172,6 +175,8 @@ namespace Hrot.Editor.Director
                 dl.AddRectFilled(new Vector2(0, top), new Vector2(size.X, top + h + s), 0x96000000);
                 dl.AddText(font, s, new Vector2((size.X - w) / 2f, top + s / 2f), 0xFFFFFFFF, _caption, size.X * 0.86f);
             }
+            if (FilmStudio.Fade is > 0f and var fade && _card == null)   // ⭐ T4 / TE-8 — a dip's black over the picture
+                dl.AddRectFilled(Vector2.Zero, size, (uint)Math.Round(fade * 255f) << 24);
             dl.AddText(new Vector2(8, size.Y - 20), 0x80FFFFFF, "Esc: stop the director");
             if (ImGui.IsKeyPressed(ImGuiKey.Escape)) EscapePressed?.Invoke();
         }

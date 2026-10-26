@@ -91,6 +91,15 @@ namespace Hrot.Editor.Director
         void ExitReview() => throw new NotSupportedException("this host cannot review");
 
         bool IsOperatingReview => false;
+
+        // ── ⭐ CE-4045 H1b (docs/DESIGN_Scenario_Regression.md §10-2 ②) — the product's cluster REPLAY of the finished run, through the master ──
+
+        /// <summary>Enters a replay of the newest finished exercise (<see cref="Guid.Empty"/> — the master picks, R-3055) at
+        /// <paramref name="simSeconds"/> of the recording's own clock (<c>OperatingReplay</c>). Seeking it is <see cref="SeekReview"/> (the same
+        /// <c>SeekReplayIntent</c>); leaving it is <see cref="StopLive"/> (an Idle transition).</summary>
+        void EnterReplay(double simSeconds) => throw new NotSupportedException("this host cannot replay");
+
+        bool IsOperatingReplay => false;
     }
 
     /// <summary>

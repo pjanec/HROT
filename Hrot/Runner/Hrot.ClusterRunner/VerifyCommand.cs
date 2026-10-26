@@ -127,6 +127,12 @@ internal static class VerifyCommand
                 foreach (var d in (c.Item?["goldenDiff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
                 if (c.Item?["replay"]?.ToString() is { } rp && rp != "same") lines.Add($"replay {rp}");
                 foreach (var d in (c.Item?["replayDiff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
+                if (c.Item?["playback"] is JsonObject pb && pb["verdict"]?.ToString() is { } pv && pv != "same")   // ⭐ H1b
+                {
+                    lines.Add($"playback {pv}");
+                    foreach (var d in (pb["diff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
+                    foreach (var d in (pb["problems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {d}");
+                }
                 foreach (var p in (c.Item?["problems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {p}");
                 foreach (var p in (c.Item?["runProblems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {p}");
                 if (lines.Count == 0) lines.Add($"exit {c.Code} — {c.Item?["status"]}");
@@ -247,7 +253,7 @@ internal static class VerifyCommand
             if (b == null) problems.Add($"run B wrote no report (exit {codeB}; log {s}.h5-b.log)");
             else
             {
-                foreach (var key in new[] { "review", "reviewSnapshots", "reviewDiff", "reviewNotCarried", "returnDiff", "reviewProblems" })
+                foreach (var key in new[] { "review", "returnDiff" })   // ⭐ the look-back's nested shape (LookBackResult.ToJson) and the return
                     item[key] = b[key]?.DeepClone();
                 foreach (var p in (b["problems"] as JsonArray ?? new JsonArray())) problems.Add(p?.DeepClone());
             }
@@ -259,16 +265,18 @@ internal static class VerifyCommand
                 item["afterDiff"] = new JsonArray(after.Select(d => (JsonNode?)d).ToArray());
             }
             if (problems.Count > 0) item["problems"] = problems;
-            bool ok = problems.Count == 0 && item["review"]?.ToString() == "same" && (item["returnDiff"] as JsonArray ?? new JsonArray()).Count == 0
-                      && item["reviewProblems"] is null && item["after"]?.ToString() == "same";
+            var review = item["review"] as JsonObject;
+            var reviewProblems = review?["problems"] as JsonArray ?? new JsonArray();
+            bool ok = problems.Count == 0 && review?["verdict"]?.ToString() == "same" && (item["returnDiff"] as JsonArray ?? new JsonArray()).Count == 0
+                      && reviewProblems.Count == 0 && item["after"]?.ToString() == "same";
             item["status"] = ok ? "pass" : "fail";
             reports.Add(item);
             cases.Add((s, ok ? 0 : 1, started.Elapsed.TotalSeconds, item, Path.Combine(dir, s + ".h5-b.log")));
             if (!ok) failed.Add(s);
-            Console.WriteLine($"[Verify H5] {(ok ? "SAME" : "FAIL")} {s} — review {item["review"] ?? "?"}, return {((item["returnDiff"] as JsonArray)?.Count == 0 ? "exact" : "differs")}, after {item["after"] ?? "?"} — {started.Elapsed.TotalSeconds:0} s");
-            foreach (var key in new[] { "reviewDiff", "returnDiff", "afterDiff", "reviewProblems" })
-                foreach (var d in (item[key] as JsonArray ?? new JsonArray())) Console.WriteLine($"    {key}: {d}");
-            foreach (var d in (item["reviewNotCarried"] as JsonArray ?? new JsonArray())) Console.WriteLine($"    (not recorded, by the manifest) {d}");
+            Console.WriteLine($"[Verify H5] {(ok ? "SAME" : "FAIL")} {s} — review {review?["verdict"] ?? "?"}, return {((item["returnDiff"] as JsonArray)?.Count == 0 ? "exact" : "differs")}, after {item["after"] ?? "?"} — {started.Elapsed.TotalSeconds:0} s");
+            foreach (var (key, list) in new[] { ("reviewDiff", review?["diff"]), ("returnDiff", item["returnDiff"]), ("afterDiff", item["afterDiff"]), ("reviewProblems", review?["problems"]) })
+                foreach (var d in (list as JsonArray ?? new JsonArray())) Console.WriteLine($"    {key}: {d}");
+            foreach (var d in (review?["notCarried"] as JsonArray ?? new JsonArray())) Console.WriteLine($"    (not recorded, by the manifest) {d}");
             foreach (var p in problems) Console.WriteLine($"    PROBLEM {p}");
         }
         var all = new JsonObject

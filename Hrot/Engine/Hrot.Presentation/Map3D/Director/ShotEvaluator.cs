@@ -117,6 +117,39 @@ public static class ShotEvaluator
         return result is not null && c.Fov is { } fov ? result with { FovDeg = fov } : result;
     }
 
+    /// <summary>
+    /// ⭐ <c>T4</c> — the film shot of one <see cref="TakeTimeline.ProgramAt"/> frame. Not flying: the key's camera, <see cref="ProgramFrame.Since"/>
+    /// into it. Flying between two cameras of the SAME kind (the same unit, the same look-at / eye-target form): the leaving camera with its
+    /// numbers eased toward the arriving one's by <see cref="ProgramFrame.Blend"/> — exactly what <see cref="At"/> does for a shot's <c>to</c>.
+    /// ⚠ Between cameras of DIFFERENT kinds there is nothing to blend: the leaving camera stays until the fly ends, then the arriving one cuts in.
+    /// </summary>
+    public static FilmShot? Evaluate(ProgramFrame frame, IShotWorld world)
+    {
+        CameraSpec camera;
+        if (frame.From is null) camera = frame.Key.Camera;
+        else if (!SameKind(frame.From.Camera, frame.Key.Camera)) camera = frame.Blend >= 1f ? frame.Key.Camera : frame.From.Camera;
+        else camera = Blend(frame.From.Camera, frame.Key.Camera, frame.Blend);
+        return Evaluate(new ShotSpec { Camera = camera }, frame.Since, world);
+    }
+
+    private static bool SameKind(CameraSpec a, CameraSpec b)
+        => a.Follow == b.Follow && a.Over == b.Over && a.Toward == b.Toward
+           && (a.LookAt != null) == (b.LookAt != null) && (a.Eye != null) == (b.Eye != null) && (a.Target != null) == (b.Target != null);
+
+    /// <summary>Numbers from <paramref name="a"/> toward <paramref name="b"/> by <paramref name="u"/> (already eased); the same arithmetic as <see cref="At"/>, so a number two cameras share stays exactly itself.</summary>
+    private static CameraSpec Blend(CameraSpec a, CameraSpec b, float u)
+    {
+        float L(float from, float to) => from + (to - from) * u;
+        Vector3? V(Vector3? from, Vector3? to) => from is { } f && to is { } t ? new Vector3(L(f.X, t.X), L(f.Y, t.Y), L(f.Z, t.Z)) : from;
+        return a with
+        {
+            Distance = L(a.Distance, b.Distance), Yaw = L(a.Yaw, b.Yaw), Pitch = L(a.Pitch, b.Pitch), Lift = L(a.Lift, b.Lift),
+            Back = L(a.Back, b.Back), Height = L(a.Height, b.Height), Ahead = L(a.Ahead, b.Ahead),
+            LookAt = V(a.LookAt, b.LookAt), Eye = V(a.Eye, b.Eye), Target = V(a.Target, b.Target),
+            Fov = a.Fov is null && b.Fov is null ? null : (a.Fov ?? 45f) + ((b.Fov ?? 45f) - (a.Fov ?? 45f)) * u,
+        };
+    }
+
     /// <summary>The camera <paramref name="t"/> sim seconds into the shot: its numeric keys eased toward <see cref="ShotSpec.To"/>.</summary>
     public static CameraSpec At(ShotSpec shot, double t)
     {
