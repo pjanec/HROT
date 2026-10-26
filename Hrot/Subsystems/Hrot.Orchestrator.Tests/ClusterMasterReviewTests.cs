@@ -96,7 +96,7 @@ public sealed class ClusterMasterReviewTests
     public void The_review_clock_pauses_remembers_L_and_snaps_back_with_the_live_rate()
     {
         var bus = new FdpEventBus();
-        var clock = new StillClock { Mode = TimeMode.Continuous, Rate = 2f, Now = new GlobalTime { TotalTime = 61.5, FrameNumber = 615 } };
+        var clock = new StillClock { Mode = TimeMode.Continuous, Rate = 2f, Now = new GlobalTime { TotalTime = 61.5, FrameNumber = 615, TotalWallTicks = 100 } };
         var cmds = new Commands();
         var state = ClusterState.OperatingLive;
         var pm = new ReviewProcessManager(bus, clock, cmds, () => state);
@@ -111,12 +111,18 @@ public sealed class ClusterMasterReviewTests
         pm.Tick();
         Assert.Equal(61.5, pm.LivePoint.TotalTime);
 
+        clock.Now = new GlobalTime { TotalTime = 61.5, TotalWallTicks = 150 };   // paused frames went on being recorded: the wall moved on
+        bus.PublishManaged(new ClusterStateTransitionedEvent { NewStateId = ClusterState.OperatingReview });   // every recorder has stopped
+        bus.SwapBuffers(); pm.Tick();
+
         state = ClusterState.OperatingReview;
-        clock.Now = new GlobalTime { TotalTime = 12.0 };          // the review moved the clock into the past
+        clock.Now = new GlobalTime { TotalTime = 12.0, TotalWallTicks = 5 };   // the review moved the clock into the past
         cmds.Rates.Clear();
         bus.PublishManaged(new ClusterStateTransitionedEvent { NewStateId = ClusterState.OperatingLive });
         bus.SwapBuffers(); pm.Tick();
-        Assert.Equal(61.5, Assert.Single(cmds.Snaps).TotalTime);  // live, paused, at L
+        var back = Assert.Single(cmds.Snaps);
+        Assert.Equal(61.5, back.TotalTime);                       // live, paused, at L
+        Assert.Equal(150, back.TotalWallTicks);                   // ⭐ F12 — the wall resumes where the recording stopped, never at L's (100)
         Assert.Equal(new[] { 2f }, cmds.Rates);                   // F19 — the live rate, not the review's
         Assert.False(pm.InReview);
     }

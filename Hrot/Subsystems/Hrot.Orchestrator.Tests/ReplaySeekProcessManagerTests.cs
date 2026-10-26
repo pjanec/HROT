@@ -74,6 +74,7 @@ public sealed class ReplaySeekProcessManagerTests
         var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         // Publish SeekReplayIntent directly to the bus (as the egress translator would do).
         bus.PublishManaged(new SeekReplayIntent
@@ -119,6 +120,7 @@ public sealed class ReplaySeekProcessManagerTests
         var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         var requestId = Guid.NewGuid();
         bus.PublishManaged(new SeekReplayIntent
@@ -182,6 +184,7 @@ public sealed class ReplaySeekProcessManagerTests
         var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         long initialWallTicks = masterSync.GetCurrentState().TotalWallTicks;
 

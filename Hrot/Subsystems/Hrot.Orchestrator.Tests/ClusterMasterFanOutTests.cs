@@ -228,6 +228,8 @@ public sealed class ClusterMasterFanOutTests
 
         // Drain any PrepareReplay / CommitState messages from the transition.
         bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        MasterShows.State(exercise, Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay);   // ⭐ CE-3329 F8 — the request above names no
+                                                                                             //   exercise, so it never lands; a seek needs a recording
 
         // Now send standalone ReplaySeek.
         exercise.HandleClusterOpRequest(new ClusterOpRequest
