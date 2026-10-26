@@ -28,6 +28,6 @@ namespace Fdp.Toolkit.Replication
 
         public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Spawned, Left };
         public IReadOnlyList<IndexedLaneDefinition> Indexed => Definitions;
-        public bool Applies(TimelineLaneContext context) => context.Recording;
+        public bool Applies(TimelineLaneContext context) => context.Indexing;   // ⭐ CE-3330 — a recording's index or the live one
     }
 }

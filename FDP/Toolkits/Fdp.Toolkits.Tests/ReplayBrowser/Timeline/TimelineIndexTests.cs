@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// Four frames: 0 both units present · 1 a shot (and a REFUSED one), a hit on the commander, an order · 2 a blast, a decision
         /// switch, a journal entry · 3 the soldier is gone, a third unit arrives.
         /// </summary>
-        private static string Record(FdpRecordingHarness harness)
+        private static string Record(FdpRecordingHarness harness, Action<long>? afterFrame = null)
         {
             var repo = harness.Repository;
             repo.RegisterComponent<NetworkIdentity>();
@@ -66,14 +66,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             repo.AddComponent(soldier, new SimTransform { Position = new Vector3(30, 40, 0) });
             repo.AddComponent(soldier, default(UtilityDecisionLog));
             CommandHistoryOf.Order(repo, commander, soldier, 0x1111, 0f);                                     // before the recording: a baseline, not an event
-            harness.Tick().RecordKeyframe(100_000L);                                                          // frame 0
+            harness.Tick().RecordKeyframe(100_000L); afterFrame?.Invoke(100_000L);                                                          // frame 0
 
             harness.FireUnmanagedEvent(new WeaponFireNotification { Shooter = soldier, Target = commander, Origin = new Vector3(30, 40, 1), Quantity = 3 });
             harness.FireUnmanagedEvent(new WeaponFireNotification { Shooter = soldier, Refusal = FireRefusal.TooFar });
             harness.FireUnmanagedEvent(new HitEvent { HitEntity = commander });
             CommandHistoryOf.Order(repo, commander, soldier, 0x5A11, 1f);
             CommandHistoryOf.Order(repo, commander, soldier, 0x7777, 1f);                                     // a second order the same frame: two events (TE-22 ②)
-            harness.Tick().RecordDelta(200_000L);                                                             // frame 1
+            harness.Tick().RecordDelta(200_000L); afterFrame?.Invoke(200_000L);                                                             // frame 1
 
             harness.FireUnmanagedEvent(new DetonationNotification { Shooter = soldier, HitX = 5, HitY = 6, Damage = 0.5f });
             ref var slot = ref repo.GetComponentRW<UtilityDecisionLog>(soldier).SlotsRW()[0];
@@ -82,13 +82,133 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             idle.DecisionId = 0x3001; idle.SwitchCount = 0; idle.Winner = 9;                                 // a decision that ran but never switched: not news
             CommandHistoryOf.Order(repo, commander, soldier, 0x7777, 2f);                                     // the same order REPEATED: counted, still news
             BrainJournalOf.Write(repo, commander, BrainJournalKind.TaskStarted, point: new Vector3(1, 2, 0));
-            harness.Tick().RecordDelta(300_000L);                                                             // frame 2
+            harness.Tick().RecordDelta(300_000L); afterFrame?.Invoke(300_000L);                                                             // frame 2
 
             harness.DestroyEntity(soldier);
             var late = repo.CreateEntity();
             repo.AddComponent(late, new NetworkIdentity(Late));
-            harness.Tick().RecordDelta(400_000L);                                                             // frame 3
+            harness.Tick().RecordDelta(400_000L); afterFrame?.Invoke(400_000L);                                                             // frame 3
             return harness.BuildToTempFile();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> (R-4087 addendum 6; DESIGN_Director_Timeline_Editor.md §2c rule 7) — LIVE LANES = RECORDED LANES: the same run, indexed
+        /// live frame by frame (<see cref="LiveTimelineSource"/>, the world as it ticks — its recorder clearing the destruction log inside the
+        /// frame, as a live host's does) and rebuilt from its recording, gives the same events in every lane and the same frame table.
+        /// 🔴 Red-proof: the structural scan's alive-sweep removed ⇒ the live index misses the soldier's death (the recorder cleared the log).
+        /// </summary>
+        [Fact]
+        public void CE3330_ALiveIndex_EqualsTheIndexRebuiltFromItsRecording_LaneByLane()
+        {
+            using var harness = new FdpRecordingHarness();
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            string path = Record(harness, ticks => live.Step(harness.Repository, ticks, force: true));
+            var rebuilt = TimelineIndexBuilder.Build(path, Lanes, Compiler());
+
+            Assert.Equal(rebuilt.FrameTicks, live.Index.FrameTicks);
+            Assert.Equal(4, live.Frames);
+            foreach (var lane in Shipped().Lanes(new TimelineLaneContext(Live: true)))
+                Assert.Equal(rebuilt.Lane(lane.Id).OrderBy(e => e.Frame).ThenBy(e => e.Subject), live.Index.Lane(lane.Id).OrderBy(e => e.Frame).ThenBy(e => e.Subject));
+            Assert.Single(live.Index.Lane(ReplicationTimelineLanes.Left.Id));   // the death — though the recorder cleared the log first
+        }
+
+        /// <summary>⭐ <c>CE-3330</c> — the live source starts afresh for a NEW run (another world, or its frame counter going back), adds nothing
+        /// while the world's frame does not advance (paused), and publishes its snapshot at most every quarter second.</summary>
+        [Fact]
+        public void CE3330_TheLiveSource_ANewRunResets_APauseAddsNothing_SnapshotsAreThrottled()
+        {
+            var catalog = Shipped();
+            var live = new LiveTimelineSource(catalog, new TimelineLaneContext(Live: true), Compiler());
+            using var world = new EntityRepository();
+            world.RegisterComponent<NetworkIdentity>();
+            world.SetSingleton(new GlobalTime { FrameNumber = 1 });
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new NetworkIdentity(Commander));
+
+            live.Step(world, 1_000, force: true);
+            Assert.Equal(1, live.Frames);
+            Assert.Single(live.Index.Lane(ReplicationTimelineLanes.Spawned.Id));
+            live.Step(world, 2_000);                                        // the same sim frame (paused): nothing
+            Assert.Equal(1, live.Frames);
+
+            world.SetSingleton(new GlobalTime { FrameNumber = 2 });
+            live.Step(world, 1_000 + LiveTimelineSource.PublishTicks / 2);  // indexed, not yet published
+            Assert.Equal(2, live.Frames);
+            Assert.Equal(1, live.Index.FrameTicks.Count);
+            world.SetSingleton(new GlobalTime { FrameNumber = 3 });
+            live.Step(world, 1_000 + LiveTimelineSource.PublishTicks);      // a quarter second on: published
+            Assert.Equal(3, live.Index.FrameTicks.Count);
+
+            var fresh = new LiveTimelineSource(catalog, new TimelineLaneContext(Live: true), Compiler());
+            fresh.Step(world, DateTime.UtcNow.Ticks);                       // ⭐ never forced, real wall ticks: the first frame publishes
+            Assert.Equal(1, fresh.Index.FrameTicks.Count);                  // (⛔ measured live: an overflow kept a whole run unpublished)
+
+            world.SetSingleton(new GlobalTime { FrameNumber = 1 });         // rewound — a new run
+            live.Step(world, 9_000, force: true);
+            Assert.Equal(1, live.Frames);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> — ONE shipped catalogue: the editor, the Replay Browser and every ECS node compose their lanes from
+        /// <see cref="ShippedTimelineLanes.Catalog"/>; it registers the three toolkits' providers in the order the hosts used to (Replication,
+        /// Combat, Behaviour), and each call is a NEW catalogue (a user's lane registered into one host's never leaks into another's).
+        /// 🔴 Red-proof: the Combat provider skipped (behind a runtime-false guard) ⇒ the lane ids lose the combat group.
+        /// </summary>
+        [Fact]
+        public void CE3330_Node_TheShippedCatalog_IsTheThreeToolkitProviders_InOrder_AndNewEachCall()
+        {
+            var ctx = new TimelineLaneContext(Live: true);
+            var shipped = ShippedTimelineLanes.Catalog();
+
+            Assert.Equal(Shipped().Lanes(ctx).Select(l => l.Id), shipped.Lanes(ctx).Select(l => l.Id));
+            Assert.Equal(9, shipped.Lanes(ctx).Count);                     // the three toolkits' nine (the Replay Browser's rail asserts the same)
+            Assert.Contains(CombatTimelineLanes.Shot.Id, shipped.Lanes(ctx).Select(l => l.Id));
+            Assert.NotSame(shipped, ShippedTimelineLanes.Catalog());
+            shipped.Register(new IndexedLaneDefinition(new TimelineLaneDescriptor("mine", "Mine"),
+                new TransientEventPredicateDto { EventType = typeof(HitEvent), AnyOccurrence = true }));
+            Assert.Null(ShippedTimelineLanes.Catalog().Find("mine"));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1361</c> ② — a published snapshot is IMMUTABLE and publishing is O(1) in the events indexed: after a snapshot, hundreds more
+        /// frames are appended (the lane and the frame table outgrow their buffers several times, each growth a copy), and the OLD snapshot still
+        /// holds exactly its own events and frame ticks — same count, same values — while the NEW one holds old + new.
+        /// 🔴 Red-proofs: a snapshot that reports its buffer's capacity instead of its count (compiles) ⇒ the old snapshot grows;
+        /// a publish that shares the buffer's full length ⇒ the same.
+        /// </summary>
+        [Fact]
+        public void CE3330_Node_AnOldSnapshotIsUnchanged_WhileTheLiveIndexGrowsPastSeveralBufferGrowths()
+        {
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            using var world = new EntityRepository();
+            world.RegisterComponent<NetworkIdentity>();
+            long next = 1;
+            void Frame(int n)
+            {
+                world.SetSingleton(new GlobalTime { FrameNumber = n });
+                var e = world.CreateEntity();
+                world.AddComponent(e, new NetworkIdentity(next++));
+                live.Step(world, 1_000 + n * 10L, force: true);
+            }
+            for (int n = 1; n <= 5; n++) Frame(n);
+            var old = live.Index;
+            var oldEvents = old.Lane(ReplicationTimelineLanes.Spawned.Id).ToArray();
+            var oldTicks = old.FrameTicks.ToArray();
+            Assert.Equal(5, oldTicks.Length);
+            Assert.NotEmpty(oldEvents);
+
+            for (int n = 6; n <= 700; n++) Frame(n);                         // 16 → 32 → … → 1024: six growths of each buffer
+            var now = live.Index;
+
+            Assert.Equal(oldEvents.Length, old.Lane(ReplicationTimelineLanes.Spawned.Id).Count);       // the old snapshot did not grow...
+            Assert.Equal(oldEvents, old.Lane(ReplicationTimelineLanes.Spawned.Id).ToArray());           // ...nor change
+            Assert.Equal(oldTicks, old.FrameTicks.ToArray());
+            Assert.Equal(oldEvents.Length, old.Count(ReplicationTimelineLanes.Spawned.Id, 0, int.MaxValue));
+            Assert.Equal(700, now.FrameTicks.Count);
+            Assert.True(now.Lane(ReplicationTimelineLanes.Spawned.Id).Count > oldEvents.Length + 600);
+            Assert.Equal(oldEvents, now.Lane(ReplicationTimelineLanes.Spawned.Id).Take(oldEvents.Length).ToArray());   // the new one holds old + new
+            Assert.Equal(oldTicks, now.FrameTicks.Take(oldTicks.Length).ToArray());
+            Assert.Throws<ArgumentOutOfRangeException>(() => old.FrameTicks[oldTicks.Length]);          // a reader cannot reach past its snapshot
         }
 
         private static (int Frame, long Subject, long Other)[] Of(TimelineIndex index, TimelineLaneDescriptor lane)

@@ -160,6 +160,19 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
                  .OrderBy(c => c.Playback!.GetFrameMetadata(0).WallClockTicks)
                  .Select(c => Fdp.Core.FlightRecorder.ReplayTimeMap.FromRecording(c.Playback!)));
 
+    private FederatedReplayManager? _timeMapFor;
+    private Fdp.Core.FlightRecorder.ReplayTimeMap _timeMapCache = Fdp.Core.FlightRecorder.ReplayTimeMap.Empty;
+
+    /// <summary>⭐ CE-3330 T13 — <see cref="TimeMap"/> built once per loaded group (the timeline reads it every frame).</summary>
+    internal Fdp.Core.FlightRecorder.ReplayTimeMap CachedTimeMap
+    {
+        get
+        {
+            if (!ReferenceEquals(_manager, _timeMapFor)) { _timeMapCache = TimeMap; _timeMapFor = _manager; }
+            return _timeMapCache;
+        }
+    }
+
     /// <summary>⭐ CE-3329 R-3058 — this viewer's time axis (the Replay Browser keeps its own, R2). Sim by default.</summary>
     internal Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; set; } = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
 
@@ -605,6 +618,19 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     {
         _playbackHistory.OnWaypointRequested += wp => SeekFrameViaManager(wp.FrameIndex);
         _entityHistory.OnSelectionChanged += e => RequestSelectionFromHistory(e);   // ⭐ RB-7 — the windowed host's handler, minus its panel
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> (R-4087 addendum 5; DESIGN_Director_Timeline_Editor.md §2c rule 6) — a timeline event clicked selects its unit through
+    /// the ONE selection (the request RB-7's history and <c>POST /selection</c> use): the subject's network id → the shown world's entity.
+    /// ⛔ An event with no networked subject (a round) selects nothing. Never a seek (R-3059).
+    /// </summary>
+    internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e)
+    {
+        if (e.Subject <= 0 || _activeRepo is not { } world || !world.HasSingletonManaged<NetworkEntityMap>()) return false;
+        if (world.GetSingletonManaged<NetworkEntityMap>() is not { } map || !map.TryGetEntity(e.Subject, out var entity) || !world.IsAlive(entity))
+            return false;
+        return RequestSelectionFromHistory(entity);
     }
 
     /// <summary>

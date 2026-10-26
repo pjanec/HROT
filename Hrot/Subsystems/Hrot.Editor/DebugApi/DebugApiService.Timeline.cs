@@ -11,7 +11,13 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     public sealed partial class DebugApiService
     {
-        private TimelineAccess Timeline => _dispatcher?.Timeline ?? throw NotSupportedHere(DebugCapabilities.TimelineRead);
+        private TimelineAccess Timeline => _dispatcher?.Timeline ?? _ownTimeline?.Invoke() ?? throw NotSupportedHere(DebugCapabilities.TimelineRead);
+
+        private Func<TimelineAccess?>? _ownTimeline;
+
+        /// <summary>⭐ <c>CE-3330</c> (DAR row 28) — the editor path has no dispatcher, so it hands its LIVE timeline over directly (as
+        /// <see cref="AttachArchitectureDiagnostics"/>): <c>GET /timeline/*</c> then reads the editor's live index.</summary>
+        public void AttachTimeline(Func<TimelineAccess?> timeline) => _ownTimeline = timeline ?? throw new ArgumentNullException(nameof(timeline));
 
         /// <summary><c>GET /timeline/lanes</c> — the lanes that apply here, each with its event count, and the index's state.</summary>
         public JsonNode GetTimelineLanes()

@@ -276,7 +276,94 @@ toolbar is its own, R-3060). This section owns only what this design adds to it.
 | 10 | **a take's keys stay in SIM seconds**; on the Wall axis drawn through the session's `ReplayTimeMap`; never inside a paused stretch | — |
 | 11 | **events inside one collapsed pause** (Sim axis) draw as one cluster with a count at the pause's tick | — |
 
-## 3. Classes
+## 2d. CE-3330 — the panel's zoom, pan and menu, as built *(ui, `2026-10-26`; build-state: BUILT — the parts that need backend's data D wait, below)*
+
+```mermaid
+classDiagram
+  direction LR
+  class TimelinePanel { <<exists, reworked>> input map DAR §10c · sticky ruler + overview, lanes in a child · menu · hover line · range · keys }
+  class TimelineView { <<NEW, pure>> Window · Extent · Follow · Range · History · OnExtent() · Zoom() · Pan() · Fit() · Last(span) · KeepInView(now) · Back() }
+  class TimelineRuler { <<NEW, pure>> Ticks(window, width, extent, measure) major + minor, measured labels, h:mm:ss / m:ss.f / +frame }
+  class TimelineLayout { <<exists>> Marks · ZoomAbout · Pan · Clamp · Bracket · Snap (NEW) · NearestEvent (NEW) }
+  class TimelineMenuItem { <<NEW, record>> Label · Run · Enabled }
+  class TimelineMenuContext { <<NEW, record>> LaneId · Ticks · Frame · Event? }
+  class ITimelineLaneProvider { <<exists>> + MenuItems(context) default empty — a row contributes (addendum 4) }
+  class ITimelineCursor { <<exists>> Extent · Now · CanSeek · Seek + IsPlaying · TogglePlay (default members) }
+  class FederatedReplayCursor { <<exists>> + play / pause through the host's transport }
+  class EventTimelineWindow { <<exists>> + onSelect, provider lookup }
+  class ReplayBrowserSubsystem { <<exists>> binds onSelect to SelectionChangeRequest (RB-7's path) }
+  TimelinePanel --> TimelineView
+  TimelinePanel --> TimelineRuler
+  TimelinePanel --> TimelineLayout
+  TimelinePanel --> ITimelineCursor
+  TimelinePanel ..> TimelineMenuItem : the mode's seek items + the row's
+  ITimelineLaneProvider ..> TimelineMenuItem : MenuItems(TimelineMenuContext)
+  FederatedReplayCursor ..|> ITimelineCursor
+  EventTimelineWindow --> TimelinePanel
+  ReplayBrowserSubsystem --> EventTimelineWindow
+```
+```mermaid
+graph TD
+  EDU["EditorSubsystem.Update, after the kernel tick — _node.StepTimeline() (the editor runs its own frame)"] --> LTS["HrotNodeContext.Timeline — ONE LiveTimelineSource per node context (editor included)"]
+  LTS --> FS["TimelineFrameScanner.Step (the lanes the catalogue registers)"]
+  BLD["TimelineIndexBuilder (background, a recording)"] --> FS
+  RBU["ReplayBrowserSubsystem.SyncTimelineSource"] --> BLD
+  WIN["EventTimelineWindow.DrawClientArea (editor_event_timeline / rb_event_timeline)"] --> PAN["TimelinePanel.Draw"]
+  API["GET /timeline/lanes, /timeline/events"] --> LTS
+  NT["HrotNodeContext.Tick — the ONE node frame (CGF / SimHost / IG / Traffic / Stride), after afterKernel, before the swap"] --> LTS
+  NAPI["a node's GET /timeline/* (EcsNodeDebugProvider.For → TimelineAccess)"] --> LTS
+  SC["the end-of-run sidecar (row 33)"]:::dead -.->|"backend's, after FinalizeLive"| BLD
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33
+```
+*What the picture shows that prose hid: ONE per-frame step under both sources — so "live lanes = recorded lanes" holds by construction — and
+the dead edge: the sidecar at the end of a live run is backend's. ⭐ The cluster nodes' live source sits in the node frame itself, so no host can lack it (one catalogue, `ShippedTimelineLanes.Catalog()`, for the editor, the Replay Browser and every node).*
+
+*What the picture shows that prose hid: every rule of DAR §10 that is not drawing — follow, fit, presets, history, the zoom limits, the ruler's
+steps and labels, snapping — is in two PURE classes (`TimelineView`, `TimelineRuler`), so the panel only maps input to their calls and
+they are tested without ImGui; and the menu is one list the mode and the row under the mouse both add to, so no lane kind is named in the panel.*
+
+```mermaid
+sequenceDiagram
+  actor U as user
+  participant P as TimelinePanel
+  participant V as TimelineView
+  participant C as ITimelineCursor
+  participant H as host (onSelect)
+  U->>P: left click on a mark
+  P->>H: onSelect(event) — the ONE selection (SelectionChangeRequest), never a seek
+  U->>P: right click
+  P->>P: menu = mode items (Seek here, Seek to event, prev / next, Play from here, Copy time) + the row's provider items
+  U->>P: Seek here
+  P->>C: Seek(snapped ticks)
+  loop each frame
+    P->>V: OnExtent(from, to) — tail follows the live edge, else the window is KEPT (T1)
+    P->>V: KeepInView(now) while playing — page when the playhead leaves (T12)
+  end
+```
+
+| DAR §10 / R-4087 | as built | rail (`TimelineInteractionTests` unless named) |
+|---|---|---|
+| T1 view reset | `TimelineView.OnExtent`: the first extent fits, a fitted view stays fitted, a view at the end TAILS (span kept), any other is clamped; a window shown before the first extent is kept | `CE3330_T1_*` ×2 (+ `TimelinePanelFrameRail`, which caught the "shown before" case) |
+| T2 / T3 click seeks, drag pans | a left click SELECTS the nearest event (`OnSelect`); a left drag on empty lanes does nothing; seeks are the menu, the ▼ scrub (on release) and the keys | `CE3330_TheMenu_*` (a seek only when an item runs); RB `CE3330_ATimelineEvent_SelectsItsUnit_NeverSeeks` |
+| T4 / T5 / T6 wheel | the wheel over the ruler / overview zooms about the mouse by `1.0015^(−Δ×120)`; over the lanes it scrolls them (Ctrl zooms); Shift+wheel, the horizontal wheel and a middle drag pan | `CE3330_T5_T7_*` |
+| T7 closest zoom | `MinSpanFrames` = 10 frames at the index's median frame spacing | `CE3330_T5_T7_*` |
+| T8 ruler | `TimelineRuler`: 0.01 s … 12 h steps, five minors per major, labels measured and skipped on collision, `h:mm:ss` past an hour, `+frame` at the closest zoom | `CE3330_T8_*` |
+| T9 overview edges | the bracket's edges drag to zoom (resize cursor), its inside moves it, a click outside jumps it | — (ImGui input; read) |
+| T10 stuck drag | a release anywhere ends the drag | — (read) |
+| T11 sticky ruler | the lanes draw in a child window; the overview and the ruler stay | `TimelinePanelFrameRail` draws it |
+| T12 follow | `KeepInView` pages the window (playhead 10 % in) while `ITimelineCursor.IsPlaying`; an arrow at the edge where it left, click = reveal | `CE3330_T12_*` |
+| §10b fit · presets · range · history · hover · snapping · keys | F / double-click the ruler = fit; 0–3 = 30 s / 2 min / 10 min / all; Shift+drag = a range (duration shown; I / O set it; Esc clears); Backspace = back; a hover line with its time; seeks snap to an event within 7 px, else a frame; Space / ←→ / Shift+←→ / Home / End / + − — ⭐ arrows move the SELECTION where the cursor cannot seek (live) | `CE3330_FitPresetsRangeAndHistory`, `CE3330_Snapping_*` |
+| §9b menu + addendum 4 | `TimelinePanel.MenuItems` (pure): Seek here / Play from here / Seek to this event / previous · next in the lane where `CanSeek`; zoom / clear the range; Copy the time — then `TimelineLaneCatalog.MenuItems` (the row's provider, `ITimelineLaneProvider.MenuItems`) | `CE3330_TheMenu_*`, `CE3330_TheRowUnderTheMouse_*` |
+| addendum 5 selection | `EventTimelineWindow(onSelect, rowMenu)`; the Replay Browser binds `SelectTimelineEvent` → `SelectionChangeRequest` (RB-7) and play / pause to its transport | RB `CE3330_*` |
+| ⭐ **addendum 6 / DAR row 28 — the live source** | `TimelineFrameScanner` = the builder's per-frame step, extracted; `TimelineIndexBuilder` runs it per played frame, `LiveTimelineSource` per live sim frame (`GlobalTime.FrameNumber` advancing; a paused world adds nothing; a new world / a rewind / a changed catalogue starts afresh; a snapshot at most every 0.25 s). `TimelineLaneContext.Live` (row 30) — the shipped indexed lanes apply when `Indexing` | `TimelineIndexTests.CE3330_ALiveIndex_EqualsTheIndexRebuiltFromItsRecording_LaneByLane`, `CE3330_TheLiveSource_*` |
+| 🔴→⭐ **found by the parity rail** | on a LIVE world the recorder clears the destruction log INSIDE the tick, before the live step reads it ⇒ the Left lane missed every death. `StructuralScanner` now also reports a tracked entity that is no longer alive (once; playback unchanged — its log removed it first) | the parity rail (red-proved: without the sweep the death is missing) |
+| ⭐ **R1-e — the editor hosts the panel** | `editor_event_timeline` (closed by default; Window menu) over its NODE CONTEXT's `LiveTimelineSource` (`_node.Timeline` / `TimelineLanes`, the access `EcsNodeDebugProvider.TimelineOf` — the same owner as every cluster node; the editor calls `StepTimeline()` from its own frame) with a `LiveTimelineCursor` (extent = the index, never seeks, Space through the editor's transport); a clicked event → `SetSelection2D` (the one selection); `GET /timeline/lanes \| events` read the live index (`DebugApiService.AttachTimeline`) | the live run below |
+| ⭐ **the cluster nodes' live timeline** (the module diagram's former dead edge) | `HrotNodeContext.Timeline` (a `LiveTimelineSource` over `ShippedTimelineLanes.Catalog()`, built on first use) stepped inside `HrotNodeContext.Tick` after the host's post-kernel work and before the swap ⇒ CGF, SimHost, IG, Traffic and Stride all index by construction; `EcsNodeDebugProvider.For` serves it (`timeline.read`). The editor and the Replay Browser compose the same catalogue. ⚠ **cost, measured (1000 units, Release):** 1.7 → **≈ 1.0 ms / frame busy, ≈ 0.5 ms idle** after CE-1361 (ring lanes skip a byte-identical ring and read it in place; the structural lanes track by index + generation, no `IsAlive` sweep); the rest is the per-unit walk; a publish is O(1) — the snapshot SHARES the scanner's grow-only buffers up to its count (`SharedList`), never a copy (CE-1361 ②). ⭐ ALWAYS ON by user decision (`2026-10-26`); filling a node's index on first use from its recording is CE-1362 | `HrotNodeBuilderTests.CE3330_Node_*` ×2, `TimelineIndexTests.CE3330_Node_TheShippedCatalog_*`, RB `CE3330_Node_*` |
+| ⚠ **one frame late** | the live step runs after the kernel tick, when the bus holds the PREVIOUS tick's events: a live event is one frame (≈ 16 ms) later than the recording files it | — |
+| ⭐ **T13 / R10 — the Sim axis** (backend P0/P1: `ReplayTimeMap`, `FrameMetadata.SimTime` / `Flags`) | `TimelineAxis` (pure): Wall = the identity; `Sim(map)` projects the index's frame ticks, the extent, "now" and every seek through the map (`AxisCursor` — the host keeps seeking by wall ticks, TL-2); a pause collapses to one instant (its events cluster there — row 11) and a seek to it lands on its LAST frame (`Edge.AfterStretch` — what changed is shown); `Sim` of a v6 recording is Wall. The panel draws a pause as a shaded span on Wall and a zigzag + ◯ / ● (● = changed) on the ruler on Sim; an axis switch maps the window and range through wall time (`TimelineView.Remap`) so the same FRAMES stay in view. The Replay Browser's transport row has the **S / W** toggle (its `Axis`, disabled without sim time) | `CE3330_T13_OnTheSimAxis_APauseCollapses_ASeekLandsAtItsEnd`, `CE3330_T13_TheCursorOnTheSimAxis_AndASwitchKeepsTheFramesInView` |
+| ⏳ **waits on backend's data D** | the session layer + live point marker (`ReplaySessionTopic`), "Review from here", "Seek to the live point", "Loop range" (addendum 8) — the menu offers none of them until the facade's `EnterReview` / `Seek` exist; the S / W icon on the LIVE hosts' toolbar (C) | — |
+| ⏳ not in this slice | addendum 1 / 9 (director tracks — R2 has none yet), K / J / L (no rate in the cursor) | — |
+
 
 ```mermaid
 classDiagram

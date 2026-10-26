@@ -40,6 +40,6 @@ namespace Fdp.Toolkit.Combat
 
         public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Shot, Hit, Blast };
         public IReadOnlyList<IndexedLaneDefinition> Indexed => Definitions;
-        public bool Applies(TimelineLaneContext context) => context.Recording;
+        public bool Applies(TimelineLaneContext context) => context.Indexing;   // ⭐ CE-3330 — a recording's index or the live one
     }
 }

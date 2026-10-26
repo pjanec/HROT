@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                         w.Write(id);
                         w.Write(laneHashes[id]);
                         var events = index.Raw(id);
-                        w.Write(events.Length);
+                        w.Write(events.Count);
                         foreach (var e in events)
                         {
                             w.Write(e.Frame); w.Write(e.Subject); w.Write(e.Other);

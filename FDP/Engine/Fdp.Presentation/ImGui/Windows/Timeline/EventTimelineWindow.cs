@@ -24,11 +24,16 @@ public sealed class EventTimelineWindow : ManagedWindow
     private readonly Func<IReadOnlyList<TimelineLaneDescriptor>> _lanes;
 
     /// <param name="lanes">The registered lanes to show — the host's <c>TimelineLaneCatalog.Lanes(context)</c> (R-4079).</param>
+    /// <param name="onSelect">⭐ <c>CE-3330</c> (R-4087 addendum 5) — a left click on an event: the host requests the ONE selection.</param>
+    /// <param name="rowMenu">⭐ <c>CE-3330</c> (addendum 4) — the row's own menu items: the host's <c>TimelineLaneCatalog.MenuItems</c>.</param>
     public EventTimelineWindow(string id, string title, string owningPerspective, TimelinePanel panel, Func<ITimelineSource?> source,
-        ITimelineCursor cursor, Func<IReadOnlyList<TimelineLaneDescriptor>> lanes, Vector4 titleBarColor)
+        ITimelineCursor cursor, Func<IReadOnlyList<TimelineLaneDescriptor>> lanes, Vector4 titleBarColor,
+        Action<TimelineEvent>? onSelect = null, Func<TimelineMenuContext, IReadOnlyList<TimelineMenuItem>>? rowMenu = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _panel = panel;
+        if (onSelect != null) panel.OnSelect = onSelect;
+        if (rowMenu != null) panel.RowMenu = rowMenu;
         _source = source;
         _cursor = cursor;
         _lanes = lanes;

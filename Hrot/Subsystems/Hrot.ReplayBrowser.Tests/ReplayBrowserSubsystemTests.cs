@@ -44,6 +44,32 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         try { Directory.Delete(_tempDir, recursive: true); } catch { }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — the Replay Browser and the editor compose their timeline lanes from the ONE shipped catalogue
+    /// (<c>ShippedTimelineLanes.Catalog()</c>): same lane ids as the three providers they used to register, and neither host source
+    /// registers a toolkit's lane provider by hand any more. 🔴 Red-proof: the Replay Browser's field re-registering the providers by hand
+    /// (behind a runtime-false guard) ⇒ the source half fails.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_TheReplayBrowserAndTheEditor_ComposeTheShippedCatalogue()
+    {
+        var ctx = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Recording: true);
+        var before = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog()
+            .Register(new Fdp.Toolkit.Replication.ReplicationTimelineLanes())
+            .Register(new Fdp.Toolkit.Combat.CombatTimelineLanes())
+            .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
+        Assert.Equal(before.Lanes(ctx).Select(l => l.Id), _subsystem.TimelineLanes.Lanes(ctx).Select(l => l.Id));
+
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+        foreach (var file in new[] { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs", "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs" })
+        {
+            string text = File.ReadAllText(Path.Combine(root, file));
+            Assert.Contains("ShippedTimelineLanes.Catalog()", text);
+            Assert.DoesNotContain("new Fdp.Toolkit.Replication.ReplicationTimelineLanes()", text);
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private static SubsystemConfig HeadlessConfig() => new SubsystemConfig
@@ -478,6 +504,27 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             _subsystem.TimelineSource?.Dispose();
             try { Directory.Delete(tempDir, recursive: true); } catch { }
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> (R-4087 addendum 5) — a timeline event clicked selects its UNIT through the one selection: the subject's network id
+    /// resolves to the shown world's entity and a selection request goes out (RB-7's path); an event with no networked subject, or one whose
+    /// unit the shown world does not hold, selects nothing. ⛔ Never a seek. 🔴 Red-proof: the network map lookup skipped ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3330_ATimelineEvent_SelectsItsUnit_NeverSeeks()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var path = MakeOneFrameRecording(nodeId: 1, Guid.NewGuid());   // one unit, network id 100
+        _subsystem.LoadFdpViaManager(path);
+        var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _subsystem.Manager, () => _subsystem.Manager!.LocalEntitiesProviderNodeId);
+        cursor.Seek(1_000_000L);
+        int frame = _subsystem.PrimaryNodeCurrentFrame();
+
+        Assert.True(_subsystem.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 100, 0, 0, 0, 0)));
+        Assert.False(_subsystem.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "combat.shot", 0, 0, 0, 0, 0)));
+        Assert.False(_subsystem.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 999, 0, 0, 0, 0)));
+        Assert.Equal(frame, _subsystem.PrimaryNodeCurrentFrame());   // a selection moved no time
     }
 
     // ── RBF-P2T3: minimal recording helper ───────────────────────────────────

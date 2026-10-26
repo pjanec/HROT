@@ -41,12 +41,21 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public TimelineLaneDescriptor? Find(string laneId) =>
             _providers.SelectMany(p => p.Lanes).FirstOrDefault(l => l.Id == laneId);
 
+        /// <summary>⭐ <c>CE-3330</c> (R-4087 addendum 4) — the menu items the provider that OWNS <paramref name="context"/>'s lane contributes.</summary>
+        public IReadOnlyList<TimelineMenuItem> MenuItems(TimelineMenuContext context)
+        {
+            if (context.LaneId == null) return Array.Empty<TimelineMenuItem>();
+            foreach (var p in _providers)
+                if (p.Lanes.Any(l => l.Id == context.LaneId)) return p.MenuItems(context).ToList();
+            return Array.Empty<TimelineMenuItem>();
+        }
+
         private sealed class SingleLane : ITimelineLaneProvider
         {
             private readonly IndexedLaneDefinition _lane;
             public SingleLane(IndexedLaneDefinition lane) => _lane = lane ?? throw new ArgumentNullException(nameof(lane));
             public IReadOnlyList<TimelineLaneDescriptor> Lanes => new[] { _lane.Lane };
-            public bool Applies(TimelineLaneContext context) => context.Recording;
+            public bool Applies(TimelineLaneContext context) => context.Indexing;
             public IReadOnlyList<IndexedLaneDefinition> Indexed => new[] { _lane };
         }
     }
