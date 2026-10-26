@@ -41,9 +41,11 @@ namespace Hrot.SimHost.Modules.Orchestration
         public NetworkLifecycleSystemGroup?  LifecycleGroup { get; init; }
         public Action<bool>?                 BypassLifecycle { get; init; }
 
-        // ── checkpoint (until B3 makes it a recorder keyframe request) ──
-        public CheckpointIOWorker? CheckpointWorker { get; init; }
-        public EventAccumulator?   EventAccumulator { get; init; }
+        // ── the dry run's event history (D2) ──
+        /// <summary>⭐ <c>CE-3314</c> — the step-event window a restore restarts (dry-run exit and checkpoint restore, D4). ⛔ REQUIRED:
+        /// the editor and CGF held it (<c>HrotNodeContext.EventAccumulator</c>) and did not pass it, so a restore there kept the old
+        /// window (the silent-default rule). A host with no step window says so with an explicit null.</summary>
+        public required EventAccumulator? EventAccumulator { get; init; }
 
         // ── dry run: the non-ECS state it also puts back (DESIGN_Deterministic_Network_Ids.md §2b) ──
         public Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator? IdAllocator { get; init; }
@@ -93,19 +95,27 @@ namespace Hrot.SimHost.Modules.Orchestration
             Action<bool>? worldReplaced = h.Elm == null ? null : h.Elm.OnWorldReplaced;
 
             // 1. Replay load — FIRST, so it claims PrepareLive while a replay is active (live-from-replay, CGF1-S0305).
-            slave.RegisterHandler(new ReferenceReplayLoadHandler(
+            var replayLoad = new ReferenceReplayLoadHandler(
                 controller, h.InputGroup, h.SimGroup, h.PostSimGroup, h.LifecycleGroup, h.BypassLifecycle,
                 h.StagingRoot,
                 suspendGlobalTimePush: h.Kernel.SuspendGlobalTimePush,
                 resumeGlobalTimePush:  h.Kernel.ResumeGlobalTimePush,
                 // §2.1m step 3 — the ELM's bookkeeping is discarded at EVERY world replacement.
-                worldReplaced:         worldReplaced));
+                worldReplaced:         worldReplaced);
+            slave.RegisterHandler(replayLoad);
 
-            // 2. Checkpoint (CGF1-S0303) — where the host owns a worker. ⏳ B3 replaces it with a recorder keyframe request
-            //    that every host takes (R-3044).
-            if (h.CheckpointWorker != null)
-                slave.RegisterHandler(new ReferenceCheckpointHandler(
-                    h.CheckpointWorker, h.World, h.EventAccumulator ?? new EventAccumulator()));
+            // 2. Checkpoint — ⭐ CE-3299 B3 (R-3044): a keyframe the node's LIVE recording writes on request, on EVERY host (the
+            //    'FDPC' worker it replaced lived on SimHost only, so CGF, IG, Stride, traffic and the editor took none).
+            //    ⭐ B4 (§1h): and the RESTORE — so it is handed everything a restore touches (the silent-default rule).
+            slave.RegisterHandler(new ReferenceCheckpointHandler(
+                () => controller.ActiveRecordingModule, controller, h.World, h.EventAccumulator, worldReplaced, h.StagingRoot,
+                resumeSchedule: h.Kernel.ResumeAfterRestore));   // ⭐ CE-3316
+
+            // 2b. ⭐ CE-3329 P3 — During Action Review: the SAME controller (the replay of the OPEN recording), the SAME gates (the replay
+            //     load's), the checkpoint's return (PutBack) — every dependency a restore touches, handed over (the silent-default rule).
+            slave.RegisterHandler(new ReferenceReviewHandler(
+                controller, () => controller.ActiveRecordingModule, replayLoad, h.World, h.EventAccumulator, worldReplaced,
+                resumeSchedule: h.Kernel.ResumeAfterRestore, storageDirectory: h.StagingRoot));
 
             // 3. Dry run (D14) — this node puts back its OWN world, id pool, entity map and ELM queues (HN-017/HN-018).
             var rewindables = new List<IPreviewRewindable>();
@@ -141,7 +151,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             SerializeLocalRegistrar.Register(slave, h.ScenarioSaveHandler, h.StagingRoot, h.NodeId);
 
             // 9. Live load — LAST: FinalizeLive, and a cold PrepareLive nothing above claimed.
-            slave.RegisterHandler(new ReferenceLiveLoadHandler(h.CheckpointWorker, controller, h.StagingRoot));
+            slave.RegisterHandler(new ReferenceLiveLoadHandler(controller, h.StagingRoot));
 
             return new EcsHostClusterHandlers(controller, dryRun);
         }

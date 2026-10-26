@@ -22,14 +22,16 @@ namespace Fdp.Toolkit.Combat
             w.ReloadSecondsRemaining = 0f;
         }
 
-        /// <summary>May a round be ASKED now (ammunition left, and — with a magazine — a round in it and no reload running)? ⭐ Q94 A-3
+        /// <summary>May a round be ASKED now (ammunition left, and — with a magazine — a round in it and no reload running; ⭐ CE-1358 — and
+        /// the barrel not too hot, <see cref="BarrelHeat"/>)? ⭐ Q94 A-3
         /// (R-3018) — the rounds already asked and not yet answered are RESERVED (<see cref="ShotLedger.Pending"/>), so a burst never asks
         /// for more than the weapon holds while the muscle's answers are on their way.</summary>
         public static bool Ready(in WeaponState w)
         {
             int pending = ShotLedger.Pending(w);
             return pending < ShotLedger.MaxPending && w.Ammo - pending > 0
-                && (w.MagazineSize <= 0 || (w.ReloadSecondsRemaining <= 0f && w.MagazineRounds - pending > 0));
+                && (w.MagazineSize <= 0 || (w.ReloadSecondsRemaining <= 0f && w.MagazineRounds - pending > 0))
+                && !BarrelHeat.IsOverheated(w);   // ⭐ CE-1358 (§5k) — a too-hot barrel holds every round until it cools
         }
 
         /// <summary>True while a reload is running.</summary>
@@ -40,6 +42,7 @@ namespace Fdp.Toolkit.Combat
         {
             if (w.Ammo <= 0) return;
             w.Ammo--;
+            BarrelHeat.Fire(ref w);   // ⭐ CE-1358 (§5k) — every round that leaves heats the barrel
             if (w.MagazineSize <= 0) return;
             w.MagazineRounds--;
             StartIfEmpty(ref w);

@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CombatProficiency)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct CombatProficiency
     {
         /// <summary>Authored for this man (or, on a unit entity, for every man under it).</summary>

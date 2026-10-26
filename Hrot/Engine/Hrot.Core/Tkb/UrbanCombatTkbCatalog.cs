@@ -332,6 +332,7 @@ namespace Hrot.Core.Tkb
             {
                 var t = new TkbTemplate("Insurgent", TkbInsurgent);
                 Master(t, "Insurgent", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(TemperamentDto.Insurgent());   // ⭐ CE-2269 TS-2/TS-3 — an insurgent obeys little (0.3, ± his own spread)
                 t.AddDescriptor(new PocketItemsDto { Phone = true });   // ⭐ CE-3234 (B-12, HI-3/HI-6) — a phone: his charge's remote trigger
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
                 t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, AvoidanceRadius = VehicleParametersDto.CloseOrderAvoidanceRadius, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)

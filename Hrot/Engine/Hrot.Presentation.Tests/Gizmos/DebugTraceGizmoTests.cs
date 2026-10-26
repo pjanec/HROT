@@ -258,7 +258,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
     {
         Assert.Contains(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels, GizmoFamilies.All);
         Assert.Equal("Actions", GizmoFamilies.Label(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
-        Assert.Equal(GizmoScope.SelectedOrPinned, GizmoFamilies.DefaultScope(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
+        Assert.Equal(GizmoScope.PinnedOnly, GizmoFamilies.DefaultScope(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));   // ⭐ CE-1329
         Assert.Equal(Hrot.Common.Constants.GlobalActionIds.PinGizmosActions, Hrot.Common.Diagnostics.Gizmos.GizmoPins.ActionIdOf(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels));
     }
 
@@ -268,12 +268,13 @@ public sealed class DebugTraceGizmoTests : IDisposable
     /// itself in <c>GizmoFamilyVisibilityPolicy.IsEntityVisible</c> and the first assertion fails.
     /// </summary>
     [Fact]
-    public void CE3143_APartFollowsItsUnit_UnderSelectedOrPinned_AndEqsDefaultsToIt()
+    public void CE3143_APartFollowsItsUnit_WhenTheUnitIsPinned_AndEqsDefaultsToPinnedOnly()
     {
         var eqs = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs;
-        Assert.Equal(GizmoScope.SelectedOrPinned, GizmoFamilies.DefaultScope(eqs));
+        Assert.Equal(GizmoScope.PinnedOnly, GizmoFamilies.DefaultScope(eqs));   // ⭐ CE-1329 — a brain family: pinned units only
         _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
         _w.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+        _w.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>();
         var unit = _w.CreateEntity();
         _w.AddComponent(unit, new Hrot.IG.Components.SelectionState { IsSelected = false });
         var sensor = _w.CreateEntity();
@@ -282,7 +283,9 @@ public sealed class DebugTraceGizmoTests : IDisposable
 
         Assert.False(policy.IsEntityVisible(_w, sensor));
         _w.SetComponent(unit, new Hrot.IG.Components.SelectionState { IsSelected = true });
-        Assert.True(policy.IsEntityVisible(_w, sensor), "the selected unit's sensor child must draw");
+        Assert.False(policy.IsEntityVisible(_w, sensor), "⭐ CE-1329 — selection draws no brain family");
+        _w.AddComponent(unit, new Fdp.Toolkit.Behavior.Diagnostics.DebugState { Ai = eqs });   // the unit's pin (the store's copy)
+        Assert.True(policy.IsEntityVisible(_w, sensor), "the pinned unit's sensor child must draw");
         Assert.Equal(unit, Hrot.ScenarioEditor.Map.GizmoFamilyVisibilityPolicy.UnitOf(_w, sensor));
     }
 
@@ -311,6 +314,40 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.Equal(new[] { new Vector3(10, 0, 0), new Vector3(0, 10, 0) }, ends);
         // ⭐ CE-1203 (§5e FL-3) — the Squad & command row
         Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new SquadGizmo().Draw(_w, cmd, d), DebugTraceLayers.SquadCommand);
+    }
+
+    /// <summary>⭐ <c>CE-1317</c> (Brain View §12c BV-50) — the commander's merged contacts are their OWN family: <see cref="SquadContactsGizmo"/>
+    /// draws a sphere and a line from the commander to each, the squad gizmo no longer draws them, and the picture projectors moved to
+    /// <c>CommandPicture</c> — so the Brain tab can pin each alone. ✅ Red-proof: the contact loop back in <c>SquadGizmo</c> ⇒ red.</summary>
+    [Fact]
+    public void CE1317_TheCommandersContactsAndPicture_AreFamiliesOfTheirOwn()
+    {
+        _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        _w.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+        var cmd = _w.CreateEntity();
+        _w.AddComponent(cmd, new SimTransform { Position = new Vector3(0, 0, 0) });
+        _w.AddComponent(cmd, default(Fdp.Core.CommandHierarchy.UnitRoster));
+        var st = default(Fdp.Toolkit.Squad.SquadCognitiveState);
+        st.Contacts.Count = 2;
+        st.Contacts.Contacts[0] = new Fdp.Toolkit.Squad.SquadContact { PositionX = 40, PositionY = 0 };
+        st.Contacts.Contacts[1] = new Fdp.Toolkit.Squad.SquadContact { PositionX = 0, PositionY = 30 };
+        _w.AddComponent(cmd, st);
+
+        new SquadGizmo().Draw(_w, cmd, _draw);
+        Assert.DoesNotContain(_draw.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.Sphere);
+        _draw.Clear();
+        new SquadContactsGizmo().Draw(_w, cmd, _draw);
+        var frame = _draw.GetFrame().ToArray();
+        Assert.Equal(2, frame.Count(p => p.Shape == DebugPrimitiveShape.Sphere));
+        Assert.Equal(new[] { new Vector3(40, 0, 0), new Vector3(0, 30, 0) },
+            frame.Where(p => p.Shape == DebugPrimitiveShape.Line).Select(p => p.LineEnd).ToArray());   // a line from the commander to each
+
+        static Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags FamilyOf(System.Type t)
+            => ((Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute)System.Attribute.GetCustomAttribute(t,
+                typeof(Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute))!).Family;
+        Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadContacts, FamilyOf(typeof(SquadContactsGizmo)));
+        Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.CommandPicture, FamilyOf(typeof(CommandPictureGizmo)));
+        Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, FamilyOf(typeof(SquadGizmo)));
     }
 
     /// <summary>⭐ CE-1203 (§5e FL-1) — the CONTACTS row, split from Perception: the contact line to a remembered unit and a heard contact's

@@ -7,6 +7,8 @@ stale-below: §3.2a's class names `LookRequests`, `LookOf.EyeYaw`, `LookState.Si
 known-rot: none — §3.3a's Hold / Watch known-rot (the posture ended on arrival) is fixed by slice 2a (CE-2297, 2026-10-19, R-2055).
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) C: an unseen threat is looked for at its remembered spot, not followed
+  - docs/DESIGN_Unit_Camera.md — its observer 'eyes' mode looks along LookOf.EyeForward and draws the vision cone (CE-1293)
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the programme LD now belongs to (§6b PC-16 watch the last window, §12 demos, §13 the lane split)
   - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — §13 OWNS the LEAN (CE-3257, BR-5): it moves where the eyes SIT (TerrainWorldLosStrategy.EyeOf, 0.4 m sideways); this file owns where they POINT
   - docs/DESIGN_Peek_And_Fire.md — OWNS the expose / hide / relocate cycle; LD-3 makes the watcher keep his eyes on the last window (PC-16)

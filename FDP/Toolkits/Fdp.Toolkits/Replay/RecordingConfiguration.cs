@@ -55,5 +55,24 @@ namespace Fdp.Toolkit.Replay
         /// </para>
         /// </summary>
         public bool Blocking { get; init; } = false;
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — when set, this recording is a BRANCH: its first frames are copied from the parent up
+        /// to the branch point, then it records on (null: a recording that starts empty).
+        /// </summary>
+        public Fdp.Core.FlightRecorder.RecordingBranch? Branch { get; init; }
+
+        /// <summary>
+        /// ⭐ CE-3299 D17 (R-3045) — 0: FULL (a keyframe every 60 frames and a delta every other frame). N &gt; 0: CHECKPOINTING — a keyframe every N
+        /// seconds of SIM time (and at every named checkpoint), nothing else: restore points, no smooth replay. A branch records in its
+        /// parent's mode, whatever this says.
+        /// </summary>
+        public double CheckpointingSeconds { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design §1l) — the kernel's "a slot-paced background run is in flight" (<c>ModuleHostKernel.SlotRunInFlight</c>):
+        /// a checkpoint waits for a step where it is false, so a restore can continue exactly. Null = never in flight (a host with no kernel).
+        /// </summary>
+        public Func<bool>? SlotRunInFlight { get; init; }
     }
 }

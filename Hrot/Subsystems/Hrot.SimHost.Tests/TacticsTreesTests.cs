@@ -1156,6 +1156,170 @@ namespace Hrot.SimHost.Tests
             UnderFire.Step(w.Repo, w.Unit, t);
         }
 
+        /// <summary>Moves the clock on by <paramref name="seconds"/> without ticking any system (the node under test reads the clock itself).</summary>
+        private static void Later(World w, double seconds)
+        {
+            var t = w.Repo.GetSingleton<GlobalTime>();
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = t.TotalTime + seconds, DeltaTime = t.DeltaTime, TimeScale = 1f, FrameNumber = t.FrameNumber + (long)(seconds / 0.016) });
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2371</c> (AQ104 D, R-2079) — an attack order's target stays KNOWN until he is down: the alert renews while he is in the
+        /// fight and the man has evidence of him from the last 10 min; old evidence, or the target gone, lets him forget normally.
+        /// 🔴 Red-proof: the evidence age check dropped ⇒ the 1000-s-old contact is still pinned.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2371_TheAttackTarget_StaysKnownUntilDown_ButNotOnOldEvidence()
+        {
+            var w = new World();
+            var enemy = w.Contact(armed: true);
+            long id = (long)enemy.PackedValue;
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = 30.0, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = 1800 });
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.LastSeenTick[0] = 1700;   // seen ~1.7 s ago
+            Assert.True(AreaAlert.Keep(w.Repo, w.Unit, enemy, 30.0));
+            Assert.True(Fdp.Toolkit.Perception.Components.Alerts.IsPinned(w.Repo, w.Unit, id, 31.0));
+            Assert.False(Fdp.Toolkit.Perception.Components.Alerts.IsPinned(w.Repo, w.Unit, id, 30.0 + Fdp.Toolkit.Perception.Components.Alerts.LeaseSeconds + 0.1));
+
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = 1000.0, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = 60000 });
+            w.Repo.GetComponentRW<TargetMemory>(w.Unit).LastSeenTick[0] = 0;   // last evidence 1000 s ago
+            Assert.False(AreaAlert.Keep(w.Repo, w.Unit, enemy, 1000.0));
+
+            w.Repo.GetComponentRW<TargetMemory>(w.Unit).LastSeenTick[0] = 59990;
+            w.Repo.DestroyEntity(enemy);
+            Assert.False(AreaAlert.Keep(w.Repo, w.Unit, enemy, 1000.0));   // gone: nothing to stay alert on
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2371</c> (AQ104 I, R-2079) — HUNTING an attack order's target that is one floor up, a move that reports "arrived" while he
+        /// stands a floor below is re-issued (every 3 s at most) instead of held for ever; on the target's own floor "arrived" holds as before.
+        /// 📐 Peek and Fire §12.7. 🔴 Red-proof: the storey check removed ⇒ no second move.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2371_HuntingATargetUpstairs_AnArrivalBelowHim_IsReissued()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.Identity });
+            var enemy = w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 1f; mem.PositionsY[0] = 0f; mem.PositionsZ[0] = 3f;   // one floor up
+            mem.LastSeenTick[0] = (uint)w.Repo.GetSingleton<GlobalTime>().FrameNumber;
+            Fdp.Toolkit.Behavior.Components.DesignatedTarget.Set(w.Repo, w.Unit, enemy);
+            var p = new AdvanceParams { Speed = 2f, ArrivalRadius = 5f };
+            var ws = new AdvanceState();
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            uint first = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Assert.Equal(3f, ws.IssuedTo.Z);
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // the 2-D mover says "arrived" below him
+            Later(w, 0.2);
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            Assert.NotEqual(first, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);   // re-issued
+
+            // on his floor: "arrived" holds, no new move
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(0, 0, 3f);
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;
+            uint held = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Later(w, 10.0);
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            Assert.Equal(held, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2376</c> (AQ104 C, Temperament §7.6 DS-1/DS-2) — the attack order's hunt asks his DISPOSITION about a target he cannot see:
+        /// with no temperament (Unset) he goes after him as before; an obedient man ordered to assault (Willing) goes; a man the order cannot
+        /// move (obedience 0.3 ⇒ Hold) keeps his place — no move is issued. 🔴 Red-proof: the disposition check dropped ⇒ the holding man moves.
+        /// </summary>
+        [Theory]
+        [InlineData(null, true)]
+        [InlineData(0.9f, true)]
+        [InlineData(0.3f, false)]
+        public unsafe void CE2376_TheHunt_AHoldingMan_DoesNotChaseATargetHeCannotSee(float? obedience, bool chases)
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            if (obedience is { } o)
+            {
+                if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatTemperament>()) w.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();
+                w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Behavior.Components.CombatTemperament { Obedience = o, Set = Fdp.Toolkit.Behavior.Components.CombatTemperament.ObedienceSet });
+            }
+            var enemy = w.Contact(armed: true);
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>()) w.Repo.RegisterComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>();
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Perception.Components.ActiveSensorTracks());   // tracks nothing: he does not see him now
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 20f; mem.PositionsY[0] = 0f; mem.PositionsZ[0] = 0f;
+            mem.LastSeenTick[0] = (uint)w.Repo.GetSingleton<GlobalTime>().FrameNumber;
+            Fdp.Toolkit.Behavior.Components.DesignatedTarget.Set(w.Repo, w.Unit, enemy);
+            var p = new AdvanceParams { Speed = 2f, ArrivalRadius = 2f };
+            var ws = new AdvanceState();
+            uint before = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            Assert.Equal(chases, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId != before);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2373</c> — a POSTED man (Stay) whose post is one floor up, standing under it: the mover neither arrives (backend's
+        /// storey-aware arrival, CE-3319) nor moves — after <see cref="PostureNodes.StoreyRetrySeconds"/> without half a metre of progress the move
+        /// is re-sent (the planner then takes the stairs); a man who IS moving is left alone. 📐 Live <c>ia-area-defend</c>: the guard's coverage
+        /// post was an upstairs frame and he stood under it on the ground floor, never firing. 🔴 Red-proof: the belt kept to hunting only ⇒ no
+        /// re-issue.
+        /// </summary>
+        [Fact]
+        public void CE2373_APostedManUnderHisUpstairsPost_NotMoving_IsSentAgain()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.Identity });
+            var p = new AdvanceParams { Objective = new Vector3(0.5f, 0, 3f), Speed = 2f, ArrivalRadius = 1f, Stay = 1 };
+            var ws = new AdvanceState();
+            Assert.Equal(Fbt.NodeStatus.Running, PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo));
+            uint first = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Running;   // not arrived (other level), not moving
+            Later(w, 1.0);
+            PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo);
+            Assert.Equal(first, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);   // too soon
+            Later(w, PostureNodes.StoreyRetrySeconds);
+            PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo);
+            uint second = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;
+            Assert.NotEqual(first, second);   // sent again
+
+            // walking (to the stairs): no re-issue
+            w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Running;
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(3f, 0, 0);
+            Later(w, PostureNodes.StoreyRetrySeconds + 1);
+            PostureNodes.AdvanceAndAttack(ref p, ref ws, w.Unit, w.Repo);
+            Assert.Equal(second, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> (R-2078; R-2061 "a near miss IN THE OPEN drops him") — INSIDE a building a near miss does not drop him: his move
+        /// stays the crouched rush. In the open the same near miss drops him (the AQ96 C rail below). 📐 Live <c>bt-window-duel</c>: a defender
+        /// moving between two windows dropped and crawled the long way round the stairwell. 🔴 Red-proof: the indoors test dropped from the
+        /// drop ⇒ Down.
+        /// </summary>
+        [Fact]
+        public void CE2366_ANearMissIndoors_DoesNotDropHim_TheMoveStaysTheCrouchedRush()
+        {
+            var w = new World();
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+            w.Repo.SetSingletonManaged(terrain);
+            var house = terrain.Buildings.Single(b => b.Label == "House A").Footprint;
+            var mid = new Vector3(house.Average(v => v.X), house.Average(v => v.Y), 0f);
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = mid, Rotation = Quaternion.Identity });
+            w.Contact(armed: true);
+            Mover(w, mid + new Vector3(20f, 0f, 0f));   // farther than ArrivingMetres: the drop's own distance rule passes
+            ShotAt(w, 20.0);
+            StepAt(w, 20.1);
+            Assert.Equal(UnderFirePhase.Moving, Reflex(w).Phase);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
+            Assert.Equal(UnderFire.RushSpeed, Intent(w).TargetSpeed);
+        }
+
         /// <summary>
         /// ⭐⭐ AQ96 A + B — a soldier who set off unthreatened (upright, the order's 2 m/s) crouches and rushes when a threat appears MID-MOVE,
         /// and the play's move is the same move (its instance unchanged). 🔴 Red before: the gait and the pace were fixed at issue (CE-2319).
@@ -1294,6 +1458,372 @@ namespace Hrot.SimHost.Tests
 
             var c = Crawled(new Vector3(6f, 0f, 0f));   // the post: on his side of it
             Assert.Equal(UnderFirePhase.Shifting, Reflex(c).Phase);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2363</c> (AQ102 R2-3) — pinned in the open under steady fire with no cover near, he does not lie on one spot: after a
+        /// seeded 6–12 s down he scoots 2–4 m square to the line to his shooter (north ⇒ along x), down again there, and the next scoot goes
+        /// the other way. 🔒 User: <i>"each of them would fire a few shots and then take a pause and move to a different spot. In the open
+        /// area, that means the guy would be crawling"</i>. ✅ Red-proof: the scoot branch removed ⇒ he stays Down ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2363_PinnedInTheOpen_HeScootsSideways_OnAlternatingSides()
+        {
+            var w = new World();
+            w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 0f; mem.PositionsY[0] = 100f;   // the shooter, north
+            Mover(w, new Vector3(0f, 50f, 0f));
+            ShotAt(w, 20.0);
+            StepAt(w, 20.1);
+            Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+
+            double ScootDue(out float side)
+            {
+                double down = Reflex(w).DownSince, after = UnderFire.ScootAfter(w.Unit, down);
+                Assert.InRange(after, UnderFire.ScootAfterMinSeconds, UnderFire.ScootAfterMaxSeconds);
+                for (double t = down + 0.5; t < down + after - 0.05; t += 0.5)   // a round every half second: still down, no scoot yet
+                {
+                    ShotAt(w, t);
+                    StepAt(w, t + 0.01);
+                    Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+                }
+                ShotAt(w, down + after);
+                StepAt(w, down + after + 0.01);
+                Assert.Equal(UnderFirePhase.Scooting, Reflex(w).Phase);
+                Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+                var at = w.Repo.GetComponentRO<SimTransform>(w.Unit).Position;
+                var off = Reflex(w).SubTarget - at;
+                var toShooter = Vector3.Normalize(new Vector3(0f, 100f, 0f) - at);
+                Assert.Equal(0f, Vector3.Dot(off, toShooter), 3);                    // square to the line to the shooter
+                Assert.InRange(off.Length(), UnderFire.ScootMinMetres, UnderFire.ScootMaxMetres);
+                Assert.Equal(Reflex(w).SubTarget, Intent(w).FinalDestination);
+                side = MathF.Sign(off.X);
+                // there: down again, his play's move still in hand
+                w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = Reflex(w).SubTarget;
+                ShotAt(w, down + after + 0.5);
+                StepAt(w, down + after + 0.6);
+                Assert.Equal(UnderFirePhase.Down, Reflex(w).Phase);
+                return down + after;
+            }
+
+            ScootDue(out float first);
+            ScootDue(out float second);
+            Assert.Equal(-first, second);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2363</c> (AQ102 R2-3) — pinned 30 s with no friend within 30 m, his next move is a crawl to cover out to 30 m (20 m here,
+        /// beyond the 10 m crawl); a friend 15 m off and he scoots instead. ✅ Red-proof: the widened search removed ⇒ he only scoots ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2363_PinnedAloneThirtySeconds_CrawlsToCoverOutTo30m_WithAFriendNearHeScoots()
+        {
+            World Pinned(bool friend, out double crawlAt)
+            {
+                var w = new World();
+                w.Repo.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+                {
+                    new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 20f, PositionY = 0f, DirectionX = 0f, DirectionY = 1f, Quality = 1f, StanceHeight = 1 },
+                }));
+                w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Friend });
+                if (friend)
+                {
+                    var f = w.Repo.CreateEntity();
+                    w.Repo.AddComponent(f, new EntityInfo { ForceId = ForceId.Friend });
+                    w.Repo.AddComponent(f, new SimTransform { Position = new Vector3(-15f, 0f, 0f), Rotation = Quaternion.Identity });
+                    w.Repo.AddComponent(f, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                }
+                w.Contact(armed: true);
+                ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+                mem.PositionsX[0] = 0f; mem.PositionsY[0] = 100f;
+                Mover(w, new Vector3(0f, 50f, 0f));
+                ShotAt(w, 20.0);
+                StepAt(w, 20.1);
+                crawlAt = -1;
+                for (double t = 20.5; t < 75.0; t += 0.5)
+                {
+                    ShotAt(w, t);
+                    StepAt(w, t + 0.01);
+                    var phase = Reflex(w).Phase;
+                    if (phase == UnderFirePhase.Crawling) { crawlAt = t + 0.01; break; }
+                    if (phase == UnderFirePhase.Scooting) w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = Reflex(w).SubTarget;
+                }
+                return w;
+            }
+
+            var alone = Pinned(friend: false, out double crawlAt);
+            Assert.True(crawlAt >= 20.1 + UnderFire.AlonePinnedSeconds, $"crawled at {crawlAt}");
+            Assert.Equal(new Vector3(20f, 0f, 0f), Reflex(alone).SubTarget);
+            Assert.True(Reflex(alone).SubSeconds >= 18f / UnderFire.CrawlSpeed, $"{Reflex(alone).SubSeconds} s for the far crawl");
+            Assert.True(Reflex(alone).Scoots > 0);   // he scooted while he waited
+
+            var near = Pinned(friend: true, out double never);
+            Assert.Equal(-1, never);
+            Assert.True(Reflex(near).Scoots >= 3, $"{Reflex(near).Scoots} scoots");
+        }
+
+        // ── CE-2368 (AQ103, R-2074) — idle life: a stationary person shifts a little ─────────────────────────────────────────────
+
+        /// <summary>A person standing (or lying) still at the origin with the SOP's idle choice: a stance, a move intent, the senses.</summary>
+        private static void Idler(World w, Fdp.Toolkit.Tkb.Domain.StanceId stance = Fdp.Toolkit.Tkb.Domain.StanceId.Standing,
+                                  BehaviorOrigin origin = BehaviorOrigin.Sop, string behaviour = BehaviorNames.Idle)
+        {
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = stance });
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Navigation.NavigationIntent());
+            w.Repo.AddComponent(w.Unit, new RecentSenses());
+            ref var task = ref w.Repo.GetComponentRW<BehaviorState>(w.Unit);
+            task.ActiveBehaviorHash = BehaviorHash.FromName(behaviour);
+            task.Origin = origin;
+        }
+
+        /// <summary>
+        /// ⭐ AQ103 I (ui's ask, <c>NOTE_Ui_To_Behaviors_Idle_Gestures_Drawn</c>) — <c>IdleLookAbout</c> drives his REAL eyes: a slow scan ±60° about
+        /// his facing on a free look channel, marked as the glance's; when the gesture ends the glance releases ITS look — and a look anyone
+        /// else wrote is never touched. ✅ Red-proofs: the glance call removed ⇒ the channel stays empty; the ownership test removed ⇒ the
+        /// other writer's look is replaced.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2368_IdleLookAbout_MovesHisRealEyes_AndReleasesOnlyItsOwnLook()
+        {
+            var w = new World();
+            Idler(w);
+            CanLook(w);
+            Fdp.Toolkit.Combat.Gestures.Set(w.Repo, w.Unit, Fdp.Toolkit.Combat.GestureKind.IdleLookAbout);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 10.0);
+            ref readonly var ch = ref w.Repo.GetComponentRO<LookAtChannel>(w.Unit);
+            Assert.Equal(LookAtActionIds.LookAtPoint, ch.ActiveAction);
+            Assert.Equal(Restlessness.GlanceInstance, ch.BehaviorInstanceId);
+            var first = LookPoint(w);
+            float off = AngleOff(LookAt.BearingTo(Vector3.Zero, first), LookAt.FacingBearing(Quaternion.Identity));
+            Assert.InRange(off, 0f, Restlessness.GlanceHalfDegrees + 0.5f);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 10.0 + Restlessness.GlanceStepSeconds);
+            Assert.NotEqual(first, LookPoint(w));                                                             // it scans
+
+            Fdp.Toolkit.Combat.Gestures.Set(w.Repo, w.Unit, Fdp.Toolkit.Combat.GestureKind.None);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 20.0);
+            Assert.Equal(LookAtActionIds.ReleaseLook, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).ActiveAction);   // its own look released
+
+            Assert.True(LookRequest.AtPoint(w.Repo, w.Unit, new Vector3(0, 50, 0), behaviorInstance: 4242));        // a play's look
+            Fdp.Toolkit.Combat.Gestures.Set(w.Repo, w.Unit, Fdp.Toolkit.Combat.GestureKind.IdleLookAbout);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 30.0);
+            Assert.Equal(4242u, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).BehaviorInstanceId);                 // never taken over
+            Fdp.Toolkit.Combat.Gestures.Set(w.Repo, w.Unit, Fdp.Toolkit.Combat.GestureKind.None);
+            Restlessness.Glance(w.Repo, w.Unit, Vector3.Zero, 40.0);
+            Assert.Equal(LookAtActionIds.LookAtPoint, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).ActiveAction);  // nor released
+        }
+
+        private static Restless Settle(World w) => w.Repo.GetComponentRO<Restless>(w.Unit);
+
+        /// <summary>His shift arrives (the muscle reports on the reflex's intent) and he stands where it went.</summary>
+        private static void ShiftArrives(World w)
+        {
+            var to = Intent(w).FinalDestination;
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = to;
+            if (!w.Repo.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(w.Unit))
+                w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Navigation.NavigationStatus());
+            w.Repo.SetComponent(w.Unit, new Fdp.Toolkit.Navigation.NavigationStatus { IntentId = Intent(w).IntentId, Result = Fdp.Toolkit.Navigation.NavigationResult.Arrived });
+        }
+
+        private static void IdleAt(World w, double t)
+        {
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = t, DeltaTime = 0.016f, TimeScale = 1f });
+            Restlessness.Step(w.Repo, w.Unit, t);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2368</c> (AQ103 A/C) — a soldier on the SOP's idle choice, still 6 s, takes a 0.5–2 m step (his own intent, the play's
+        /// channel untouched), then waits a seeded 8–20 s for the next — and across many shifts never strays past 3 m from where he settled.
+        /// 🔒 User: <i>"Any entity which is just standing doing nothing is feeling weird … it should move a little bit here and there"</i>.
+        /// ✅ Red-proof: the shift removed ⇒ no intent is written ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2368_AnIdleSoldier_StepsALittle_NowAndThen_AndNeverStraysPast3m()
+        {
+            var w = new World();
+            Idler(w);
+            IdleAt(w, 0.0);
+            uint before = Intent(w).IntentId;
+            IdleAt(w, Restlessness.StillSeconds - 0.1);
+            Assert.Equal(before, Intent(w).IntentId);                       // not before he has been still a while
+            IdleAt(w, Restlessness.StillSeconds + 0.1);
+            Assert.NotEqual(before, Intent(w).IntentId);
+            Assert.Equal(Settle(w).HoldIntentId, Intent(w).IntentId);       // the reflex's own intent
+            Assert.InRange(Intent(w).FinalDestination.Length(), Restlessness.StepMinMetres - 1e-3f, Restlessness.StepMaxMetres + 1e-3f);
+            Assert.Equal(0, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);   // the play's channel untouched
+
+            double t = Restlessness.StillSeconds + 0.2;
+            for (int shift = 0; shift < 12; shift++)
+            {
+                ShiftArrives(w);
+                IdleAt(w, t);
+                var r = Settle(w);
+                Assert.Equal(0, r.Moving);
+                double wait = r.NextAt - t;
+                Assert.InRange(wait, Restlessness.StandMinSeconds, Restlessness.StandMaxSeconds);
+                IdleAt(w, r.NextAt + 0.01);
+                Assert.Equal(1, Settle(w).Moving);
+                Assert.True(Intent(w).FinalDestination.Length() <= Restlessness.TetherMetres + 1e-3f,
+                            $"shift {shift} to {Intent(w).FinalDestination}, past the 3 m tether");
+                t = r.NextAt + 0.02;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2368</c> (AQ103 B) — the ONE stay-still rule: each hold keeps him still; the SOP's own idle choice does not (the default).
+        /// ✅ Red-proof: each clause of <see cref="RestlessHolds.Holds"/> dropped in turn ⇒ its row goes red.
+        /// </summary>
+        [Theory]
+        [InlineData("default", RestlessHold.None)]
+        [InlineData("ordered hold", RestlessHold.OrderedToStay)]
+        [InlineData("dead", RestlessHold.Down)]
+        [InlineData("possessed", RestlessHold.Possessed)]
+        [InlineData("ambush", RestlessHold.HiddenOnPurpose)]
+        [InlineData("aiming", RestlessHold.WeaponUp)]
+        [InlineData("on a move", RestlessHold.Moving)]
+        [InlineData("on an upright move", RestlessHold.Moving)]
+        [InlineData("sentry", RestlessHold.OrderedToStay)]
+        public void CE2368_TheStayStillRule_EachHoldKeepsHimStill_TheDefaultDoesNot(string why, RestlessHold expected)
+        {
+            var w = new World();
+            switch (why)
+            {
+                case "ordered hold": Idler(w, origin: BehaviorOrigin.Superior); break;
+                case "possessed": Idler(w, origin: BehaviorOrigin.Possession); break;
+                case "ambush": Idler(w, behaviour: BehaviorNames.Ambush, origin: BehaviorOrigin.Superior); break;
+                case "sentry": Idler(w, behaviour: "Sentry", origin: BehaviorOrigin.Sop); break;
+                default: Idler(w); break;
+            }
+            if (why == "dead") { w.Arm(); w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(w.Unit).Current = 0f; }
+            if (why == "aiming")
+            {
+                if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>()) w.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+                w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed });
+            }
+            if (why == "on a move") Mover(w, new Vector3(30f, 0f, 0f));
+            if (why == "on an upright move") Mover(w, new Vector3(30f, 0f, 0f), gait: MoveGait.Upright);   // the channel alone (the reflex keeps no upright move)
+            Assert.Equal(expected, RestlessHolds.Holds(w.Repo, w.Unit));
+
+            IdleAt(w, 0.0);
+            uint before = Intent(w).IntentId;
+            IdleAt(w, Restlessness.StillSeconds + 0.1);
+            Assert.Equal(expected == RestlessHold.None, Intent(w).IntentId != before);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2368</c> (AQ103 C/D) — lying calm he crawls 0.5–1.5 m; lying UNDER FIRE he scoots 2–4 m square to the shooter (R2-3's rule),
+        /// even with his weapon up (the pinned man's scoot is made firing). ✅ Red-proof: the under-fire branch dropped ⇒ a calm crawl ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2368_LyingHeCrawls_UnderFireHeScootsSquareToTheShooter()
+        {
+            var calm = new World();
+            Idler(calm, Fdp.Toolkit.Tkb.Domain.StanceId.Prone);
+            IdleAt(calm, 0.0);
+            IdleAt(calm, Restlessness.StillSeconds + 0.1);
+            Assert.InRange(Intent(calm).FinalDestination.Length(), Restlessness.CrawlMinMetres - 1e-3f, Restlessness.CrawlMaxMetres + 1e-3f);
+
+            var shot = new World();
+            Idler(shot, Fdp.Toolkit.Tkb.Domain.StanceId.Prone);
+            shot.Contact(armed: true);
+            ref var mem = ref shot.Repo.GetComponentRW<TargetMemory>(shot.Unit);
+            mem.PositionsX[0] = 0f; mem.PositionsY[0] = 100f;   // the shooter, north
+            if (!shot.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>()) shot.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            shot.Repo.AddComponent(shot.Unit, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed });
+            IdleAt(shot, 0.0);
+            ShotAt(shot, Restlessness.StillSeconds);
+            IdleAt(shot, Restlessness.StillSeconds + 0.1);
+            var to = Intent(shot).FinalDestination;
+            Assert.Equal(0f, to.Y, 3);                                     // square to the line to the shooter
+            Assert.InRange(MathF.Abs(to.X), UnderFire.ScootMinMetres, UnderFire.ScootMaxMetres);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2368</c> (AQ103 I) — a relaxed man with nothing to do shows an IDLE gesture (the flag the IG animates: smoking, shifting
+        /// weight…) within the first minute, holds it a while, and a round near him clears it within a second; a gesture his BEHAVIOUR set
+        /// (hands up) is never touched. 🔒 User: <i>"This might need some flag that the IG can run an animation in such a case"</i>.
+        /// ✅ Red-proof: the calm test dropped ⇒ the idle gesture survives the near miss ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2368_ARelaxedIdleMan_ShowsAnIdleGesture_AThreatClearsIt_AnActIsNeverTouched()
+        {
+            var w = new World();
+            Idler(w);
+            double t = 0, shownAt = -1;
+            for (; t < 60.0; t += 0.5)
+            {
+                IdleAt(w, t);
+                if (Fdp.Toolkit.Combat.Gestures.IsIdle(Fdp.Toolkit.Combat.Gestures.Of(w.Repo, w.Unit))) { shownAt = t; break; }
+            }
+            Assert.True(shownAt >= 0, "no idle gesture within a minute of idling");
+            ShotAt(w, t + 0.5);
+            IdleAt(w, t + 0.6);
+            IdleAt(w, t + 1.7);
+            Assert.Equal(Fdp.Toolkit.Combat.GestureKind.None, Fdp.Toolkit.Combat.Gestures.Of(w.Repo, w.Unit));
+
+            // ⭐ a CIVILIAN is calm by his own fear, not by the armed men he sees (📐 live: soldiers beside him read as hostiles seen)
+            var civ = new World();
+            Idler(civ, origin: BehaviorOrigin.Superior);
+            if (!civ.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.CivilianState>()) civ.Repo.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
+            civ.Repo.AddComponent(civ.Unit, new Fdp.Toolkit.Civilians.CivilianState());
+            civ.Contact(armed: true);
+            bool shown = false;
+            for (double s = 0; s < 60.0 && !shown; s += 0.5) { IdleAt(civ, s); shown = Fdp.Toolkit.Combat.Gestures.IsIdle(Fdp.Toolkit.Combat.Gestures.Of(civ.Repo, civ.Unit)); }
+            Assert.True(shown, "a calm civilian waiting beside armed men shows no idle gesture");
+
+            // ⭐ a man merely STILL inside another play (a protester resting between his fists) is not idle: no idle gesture
+            var busy = new World();
+            Idler(busy, behaviour: BehaviorNames.CombatPosture);
+            for (double s = 0; s < 90.0; s += 0.5) IdleAt(busy, s);
+            Assert.Equal(Fdp.Toolkit.Combat.GestureKind.None, Fdp.Toolkit.Combat.Gestures.Of(busy.Repo, busy.Unit));
+
+            var act = new World();
+            Idler(act);
+            Fdp.Toolkit.Combat.Gestures.Set(act.Repo, act.Unit, Fdp.Toolkit.Combat.GestureKind.HandsUp);
+            for (double s = 0; s < 90.0; s += 0.5) IdleAt(act, s);
+            Assert.Equal(Fdp.Toolkit.Combat.GestureKind.HandsUp, Fdp.Toolkit.Combat.Gestures.Of(act.Repo, act.Unit));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2368</c> — lying under steady fire his scoots (2–4 m, sides alternating) would drift him off; the 3 m tether holds every one of
+        /// them. ✅ Red-proof: the clamp dropped ⇒ a scoot ends past 3 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2368_PinnedHisScootsStayWithin3mOfWhereHeSettled()
+        {
+            var w = new World();
+            Idler(w, Fdp.Toolkit.Tkb.Domain.StanceId.Prone);
+            w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 0f; mem.PositionsY[0] = 100f;
+            IdleAt(w, 0.0);
+            double t = 0.0;
+            for (int scoot = 0; scoot < 20; scoot++)
+            {
+                for (int i = 0; i < 30 && Settle(w).Moving == 0; i++) { t += 0.5; ShotAt(w, t); IdleAt(w, t + 0.01); }
+                Assert.Equal(1, Settle(w).Moving);
+                var to = Intent(w).FinalDestination;
+                Assert.True(new Vector2(to.X, to.Y).Length() <= Restlessness.TetherMetres + 1e-3f, $"scoot {scoot} to {to}, past the 3 m tether");
+                ShiftArrives(w);
+                t += 0.5; ShotAt(w, t); IdleAt(w, t + 0.01);
+            }
+        }
+
+        /// <summary>⭐ <c>CE-2368</c> — moved by anything else (a play's move, a push), he settles anew where he stands: the tether follows him,
+        /// and the 6 s of stillness start again.</summary>
+        [Fact]
+        public void CE2368_MovedByAnythingElse_HeSettlesAnew()
+        {
+            var w = new World();
+            Idler(w);
+            IdleAt(w, 0.0);
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(20f, 0f, 0f);
+            IdleAt(w, 3.0);
+            Assert.Equal(new Vector3(20f, 0f, 0f), Settle(w).Anchor);
+            uint before = Intent(w).IntentId;
+            IdleAt(w, 3.0 + Restlessness.StillSeconds - 0.1);
+            Assert.Equal(before, Intent(w).IntentId);
         }
 
         /// <summary>AQ96 C — no drop while arriving at his point (within 3 m — he is getting into his cover), and a civilian's upright run
@@ -1466,6 +1996,100 @@ namespace Hrot.SimHost.Tests
             w.Repo.SetSingletonUnmanaged(clock);
             Assert.Equal(LookChoice.Bearing, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));
             Assert.True(AngleOff(LookAt.BearingTo(Vector3.Zero, LookPoint(w)), 0f) < 1f);
+        }
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 C, R-2072) — a threat IN SIGHT is followed; once out of sight he is looked for where he is
+        /// remembered, at the eyes of the stance he was seen in — never followed through the wall. 📌 User, 2026-10-23 (a defender's head
+        /// tracked a player under the wall). 🔴 Red-proof: drop the InSightNow branch (always AtEntity) ⇒ the second half is red.</summary>
+        [Fact]
+        public unsafe void CE2356_AThreatOutOfSight_IsLookedForWhereRemembered_NotFollowed()
+        {
+            var w = new World();
+            w.Arm();
+            CanLook(w);
+            var enemy = w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 5f; mem.PositionsY[0] = 20f; mem.PositionsZ[0] = 0f;
+            mem.SeenStance[0] = (byte)Fdp.Toolkit.Tkb.Domain.StanceId.Crouched + 1;
+            mem.LastSeenTick[0] = 100;
+            var p = new LookParams();
+            var ws = new LookNodeState();
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = 2.0, FrameNumber = 110 });   // seen 10 ticks ago: in sight
+            Assert.Equal(LookChoice.Threat, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 2.0));
+            Assert.Equal(LookAtActionIds.LookAtEntity, w.Repo.GetComponentRO<LookAtChannel>(w.Unit).ActiveAction);
+            w.Repo.SetSingleton(new GlobalTime { TotalTime = 5.0, FrameNumber = 300 });   // 200 ticks ago: out of sight
+            Assert.Equal(LookChoice.Threat, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 5.0));
+            Assert.Equal(new Vector3(5f, 20f, 1.0f), LookPoint(w));                       // the remembered spot, crouched eyes
+            Assert.False(enemy.IsNull);
+        }
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 B) — a post at an OPENING (window shape, frame) is one PeekAndFire fights from; a plain cover post
+        /// and an unposted man are not. 🔴 Red-proof: return Success for any post ⇒ the cover-post half is red.</summary>
+        [Fact]
+        public void CE2356_AtOpeningPost_IsAWindowOrFramePost_NotACoverPost()
+        {
+            var w = new World();
+            var window = new PeekAndFireParams();
+            CombatPostureBehavior.Post(new Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto { Point = new Vector3(1, 2, 3), Radius = 4f, Window = true }, ref window);
+            var cover = new PeekAndFireParams();
+            CombatPostureBehavior.Post(new Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto { Point = new Vector3(1, 2, 0), Radius = 4f }, ref cover);
+            var none = new PeekAndFireParams();
+            Assert.Equal(Fbt.NodeStatus.Success, PostureNodes.AtOpeningPost(ref window, w.Unit, w.Repo));
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.AtOpeningPost(ref cover, w.Unit, w.Repo));
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.AtOpeningPost(ref none, w.Unit, w.Repo));
+        }
+
+        /// <summary>⭐ <c>CE-2366</c> A (R-2077) — the posted branch's guard: an opening post WITH something to fight; a cover post, or nothing
+        /// to fight, is not it.</summary>
+        [Fact]
+        public void CE2366_PostedWithThreat_IsAnOpeningPostWithSomethingToFight()
+        {
+            var w = new World();
+            var window = new PeekAndFireParams();
+            CombatPostureBehavior.Post(new Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto { Point = new Vector3(1, 2, 3), Radius = 4f, Window = true }, ref window);
+            var cover = new PeekAndFireParams();
+            CombatPostureBehavior.Post(new Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto { Point = new Vector3(1, 2, 0), Radius = 4f }, ref cover);
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.PostedWithThreat(ref window, w.Unit, w.Repo));   // nothing to fight
+            w.Contact(armed: true);
+            Assert.Equal(Fbt.NodeStatus.Success, PostureNodes.PostedWithThreat(ref window, w.Unit, w.Repo));
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.PostedWithThreat(ref cover, w.Unit, w.Repo));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> A (R-2077; Peek and Fire §12.2) — a man POSTED at a window with a threat runs PeekAndFire WHATEVER the posture
+        /// decision chose, and the decision changing its winner does not reset the cycle. 📐 Live <c>bt-window-duel</c>: each switch between
+        /// TakeCover / Suppress / Advance reset it, and on Advance a posted man only stood at his post. The decision's winner is forced through
+        /// each fighting option every half second; the node's working state (its peek counter, set by the test) survives every switch.
+        /// 🔴 Red-proof: the posted branch removed ⇒ on Advance PeekAndFire does not run (its cover sensor is dropped) and the marker resets.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2366_APostedWindowMan_RunsOnePeekCycle_WhateverTheDecisionChooses()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: true);
+            w.Order("CombatPosture", "{\"post\":{\"point\":[0,0,0],\"radius\":4,\"window\":true}}");
+            for (int i = 0; i < 10; i++) w.Tick();
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            var b0 = Block(w, hash);
+            Assert.True(b0->PeekState.CoverSensor.IsValid, "PeekAndFire runs: its cover sensor is up");
+            b0->PeekState.PeeksPicked = 77;   // a marker only the node's own state carries
+            foreach (var option in new[] { Fdp.Toolkit.Utility.Posture.AdvanceAndAttack, Fdp.Toolkit.Utility.Posture.Suppress, Fdp.Toolkit.Utility.Posture.TakeCover, Fdp.Toolkit.Utility.Posture.HoldProne, Fdp.Toolkit.Utility.Posture.AdvanceAndAttack })
+                for (int i = 0; i < 30; i++)
+                {
+                    Block(w, hash)->Choice.Winner = (byte)option;   // the decision's winner, as ChooseOption leaves it
+                    w.Tick();
+                    var b = Block(w, hash);
+                    Assert.True(b->PeekState.CoverSensor.IsValid, $"PeekAndFire still runs with {option} chosen");
+                    Assert.Equal(77, b->PeekState.PeeksPicked);
+                }
+        }
+
+        private static unsafe CombatPostureBehavior.CombatPostureBlackboard* Block(World w, int hash)
+        {
+            Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<CombatPostureBehavior.CombatPostureBlackboard>(w.Repo, w.Unit, hash, out var b));
+            return b;
         }
 
         /// <summary>⭐ LD-3b — SHOT AT: with a threat in sight in front of him, a near miss turns his eyes to the sound of the shot behind

@@ -6,6 +6,9 @@ namespace Hrot.ClusterRunner.Presentation;
 internal interface IPresentationShell
 {
     void InitWindow(int width, int height, string title, int targetFps);
+
+    /// <summary>⭐ CE-1290 — renames the open window (the loaded scenario's name follows the load).</summary>
+    void SetWindowTitle(string title);
     void SetupImGui();
 
     /// <summary>

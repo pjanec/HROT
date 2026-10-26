@@ -11,6 +11,7 @@ namespace CarKinem.Formation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.FormationTarget)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct FormationTarget
     {
         public Vector2 TargetPosition;   // Desired world position

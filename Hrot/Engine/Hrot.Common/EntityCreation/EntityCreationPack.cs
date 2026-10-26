@@ -226,16 +226,10 @@ namespace Hrot.Common.EntityCreation
             //   ⇒ here TkbDb and Elm are REQUIRED inputs (ctx.Validate throws), so the guard cannot exist
             //   and the question cannot recur.
             // ⛔ S4 — the promote leg claims nothing (push-only); the role-affinity policy it took is gone.
+            // ⭐⭐⭐ §2.1m step 1 — the replay gate: 📄 mgmt-1/DESIGN.md §8.10 — a ghost restored from the log is the LOG's, not
+            //   ours to promote (CE-259ap). ⭐ CE-3329 P2 — the system reads the world's ReplayState; nothing to wire here.
             var promotionSystem = new GhostPromotionSystem(
-                ctx.TkbDb, ctx.Elm, translators)
-        {
-            // ⭐⭐⭐ §2.1m step 1 — the replay gate, wired ONCE here so every host that builds the pack gets
-            //   it. Read LATE through the ELM so a root may set elm.IsReplayActive afterwards (the
-            //   record/replay controller is routinely constructed after the pack).
-            //   📄 mgmt-1/DESIGN.md §8.10 — during replay the ELM pipeline is never invoked, and a ghost
-            //   restored from the log is the LOG's, not ours to promote (CE-259ap).
-            IsReplayActive = () => ctx.Elm.IsReplayActive?.Invoke() ?? false,
-        };
+                ctx.TkbDb, ctx.Elm, translators);
 
             // ⭐⭐ S2b — the systems that only exist with a live network, built ONCE here for every host.
             //   ⚠ Before S2b only CGF built the delete system, and only SimHost/Stride registered the poll

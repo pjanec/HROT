@@ -1,7 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21
-current-answer: ⭐⭐⭐ 2026-10-22 MORNING — START AT "OVERNIGHT 2026-10-21 → 22 — RESULTS AND WHAT THE USER CONFIRMS" directly below
+updated: 2026-10-26
+current-answer: ⭐⭐⭐ 2026-10-26 — START AT "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
+  what was built 10-25/26, what is open, the traps measured). Then the 10-25 Brain-tab section and the 10-23 plan for the rest.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
+  open work: behaviour debugging CE-1270, the coordinator's Timeline handoff CE-1301…1306, the camera CE-1293, the regressions).
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-22 EVENING — START AT "SESSION 2026-10-22 — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH" directly below
+  this STATUS block (state at ui@88a60d1c8, what is owed, the next items). The overnight-results section under it still lists the leans
+  the user has not confirmed.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-22 MORNING — START AT "OVERNIGHT 2026-10-21 → 22 — RESULTS AND WHAT THE USER CONFIRMS" directly below
   this STATUS block: every item #21–#35 of PLAN_Ui_FPS_And_Quick_Wins.md §3a is done or recorded blocked, and the leans taken
   overnight wait for the user. The film director's state is the section under it.
   ⛔ OLDER: 2026-10-21 NIGHT — THE WORK LIST IS PLAN_Ui_FPS_And_Quick_Wins.md §3a (#21–#35, every open ui point up to
@@ -161,6 +169,131 @@ related-designs:
   Nothing was deleted.
 -->
 
+## ⭐⭐⭐ SESSION 2026-10-26 — RESUME HERE *(state at `ui@8d85ea7ba`, everything pushed, tree clean)*
+
+**RELEARN** — then read this section; verify every sha / "done" line against git before acting on it.
+
+### What was built (2026-10-25 → 26), newest first — all ✅ in the [tracker](Blueprint_Issues_Tracker.md)
+
+| id | what | owning design |
+|---|---|---|
+| `CE-1360` | a decompiled (C#-built) BTree's leaves titled with the METHOD in words (`Advance and attack`, `Is option: Advance?`, `Squad march`) — `BTreeNodeTitles`, `SharedNodeBinder.ParamFieldOf`; the layout re-runs with the real ImGui font on open and staggers rows of small subtrees | [BTree host §3.4](BTree_Editor_NodeEditor_Host_Design.md) |
+| `CE-1359` | an operator's door gun aimed > 3° past its arc turns to the limit and HOLDS fire; HUD "OUT OF ARC - …" (tanks / full-circle turrets and elevation limits unchanged — user ruled) | [Weapon Layers W-8c](../DESIGN_Weapon_Layers.md) |
+| `CE-1358` | BARREL HEAT on every gun (`BarrelHeat` beside `Magazine`): automatic weapons fire at their cyclic rate until too hot, latched until half; single-shot guns warm for the thermal sensor (`ThermalState.BarrelHeat`); HUD `HEAT n%` / `OVERHEATED n%`; the operator fires at the mount's `RateOfFire` | [Weapon Layers §5k](../DESIGN_Weapon_Layers.md), [Thermal §5.2](../DESIGN_Thermal_And_Acoustic_Sensing.md) |
+| `CE-1356/1357` | a door gun stays in its door's arc (`CombatTkb.TurretOf` narrows by the station arc); a station gun's burst stream follows its rounds | [Weapon Systems §9](../designs/weapons/DESIGN_Weapon_Systems.md), [Map 3D §6u](../DESIGN_Map_3D_Mode.md) |
+| `CE-1354` | a possessed helicopter holds its heading after a turn (the two-tick-delayed feedback swing) | [Entity Control §13.5](../DESIGN_Entity_Control.md) |
+| `CE-1348…1353` | smooth crouch/prone (`StanceBlend`), long-label crash, ORBAT destroyed colour + double-click centre, WASD/V vehicle + flyer keys with Q/Z climb, camera synced before draw, even rotor spin | Entity Control §13.5, Unit Camera §8, Map 3D |
+| `CE-1346` | pick an entity by clicking it in the ORBAT | [Tool Model §4.16](../UX/UX_Feature_Tool_Model.md) |
+| `CE-1335…1347` | the 2026-10-25b user round (14 items) | per row |
+
+Next free ui id: **`CE-1361`** (tracker header table).
+
+### Open — the user's last asks are all done; the lane's backlog is
+
+| what | where |
+|---|---|
+| ⭐ **two coordinator → ui handoffs not yet read this session** | `git fetch origin coordinator` ⇒ `batches/HANDOFF_Coordinator_To_Ui_Replay_Ui_State.md`, `batches/NOTE_Coordinator_To_Ui_Timeline_Behaviour_History_Approved.md` — read them FIRST |
+| the Timeline programme `CE-1301…1306` | [handoff](batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md) |
+| Brain-tab / runtime rows `CE-1278…1286`, `CE-1322`, `CE-1324` | tracker; Brain View design |
+| camera story `CE-1293` (design first), `CE-1295` (M key), `CE-1298…1300`, `CE-1313` health bar | tracker |
+| ⚠ `CE-1296` / `CE-1297` (crouch camera jump, prone from FPS) are probably FIXED by `CE-1348` — verify and close | tracker |
+| `CE-1330` (rework/drop the MCP server), `CE-1331` (scenario GUID keys) — "think about later" | tracker |
+| ⚠ `git stash@{0}` "CE-1329 draft (awaiting user approval): brain families pinned-only, layer rows removed" — ask the user before dropping or applying | git stash |
+| a possible follow-up the user has NOT asked for: the muscle fires at most ONE round per tick (no remainder carried) — a cyclic rate above the frame rate is capped by it | Weapon Layers §5k ⚠ |
+
+### Known reds / environment (measured this session)
+
+- Presentation: `Map3DFrameRail.CE1227_V_DemoCity…` and `CE3174_V_TheFpsStation…` are pre-existing reds; flakes `AiBehaviorsRebuildTests`, `CE1325_TheDecision_Draws`.
+- `Hrot.Network.NED.Tests` needed a `dotnet restore` on a fresh VM (`project.assets.json` missing).
+- The headless editor (xvfb) runs at ~8–17 fps ⇒ a live fire-rate check is frame-capped there; heat was confirmed live on the UH-60's M134 (`HeatPerRound` 0.005, cool 1/12) but the lock needs ≥ the cyclic rate.
+- Live run: `bash <scratchpad>/launch-editor.sh` (port 8131), `/scenario/load/edit {"name":"ua-fast-rope-roof"}`, `/sim/play`, `/entities/1012/possess`, `/entities/1012/control` (seq ≥ 1e6, `mount: 32` = his door M134, the gun entity is `1013`).
+
+### Traps that cost time this session — do not repeat
+
+- ⛔ `pkill -f "<pattern>"` in the same command as the launch kills its own shell (exit 144) — use `pkill -f "[H]rot.ClusterRunner…"` in a SEPARATE call.
+- ⛔ a red-proof mutation that does not COMPILE (e.g. `if (false)` ⇒ CS0162 as error) leaves the old binary and "passes" — always read the build line.
+- ⛔ a rail that checks with the SAME helper it guards (`WidthOf`) cannot see that helper broken — compute the expectation independently.
+- ⛔ a single-node rail cannot see a cross-node overshoot (the `RoundsLeft` grant cap) — assert the GRANT, not only the shots.
+
+
+## ⭐⭐⭐ SESSION `2026-10-25` — THE BRAIN TAB PROGRAMME *(designed and approved today; the build plan is the design's §12h)*
+
+### ⭐ Progress (updated as each stage lands; each stage's as-built is in Brain View §12i onwards)
+
+| stage | rows | state |
+|---|---|---|
+| B1 one reader | CE-1315 | ✅ (§12i) |
+| B2 one writer | CE-1320 | ✅ `151bea9b7` (§12j) |
+| B4 replay inputs | CE-1319 | ✅ `d20465cd3`, `b200a7ef9` (§12k) |
+| B3 C# hot reload over HTTP | CE-1321 | ✅ `6660686b1` (§12l). 🔴 the toolbar's build never reached the watched directory; fixed |
+| B5 layout + observation | CE-1310, CE-1317, CE-1311 | ✅ `a2b4f6008` (§12m) |
+| B6 the tab absorbs the AI tab + Entity Blueprints | CE-1316, CE-1314 | ✅ `be80d3348` (§12n); CE-1322 filed (split the AI editing into the per-behaviour expanders) |
+| B7 commander + graph pin | CE-1312, CE-1318 | ✅ `39a722487` (§12o) |
+| D debugging S1 | CE-1284, CE-1291, CE-1285 | ✅ `ece387414`, `6929a5d66` (Behaviour Debugging §8); ⚠ HSM-state breakpoints and Q44-B follow |
+| handoff ui → coordinator: the Timeline's Behaviour lane over the recorded histories (BV-59) | — | sent `b53791c52` |
+| handoff behaviors → ui (callout voices, lean depth) | CE-2372, CE-2371 | queued after the programme |
+
+
+⭐ Designed end to end with the user: [Brain View §12b…§12h](../DESIGN_Entity_Brain_View.md) (R-1037…R-1041) — grouped settings, every
+running behaviour alike with the inspector's read-only dump, blueprints managed on the tab, viewing = debugging, one gizmo family per
+checkbox, commander's picture / contacts / reports / orders with history, a graph pinned to its Brain tab, every input recorded for replay,
+one live-write path (params without restart) for the agent and the user, `POST /ai/reload`. **Build order = §12h:** B1 CE-1315 → B2 CE-1320
+→ B5 CE-1310/1317/1311 → B6 CE-1316/1314 → B7 CE-1312/1318; B3 CE-1321, B4 CE-1319 and D (CE-1284, CE-1291, CE-1285) in parallel.
+⭐ Also today: the ai-debug skill's §J cheapest-experiment ladder; CLAUDE.md makes the codebase graph imperative. Ids: ui next free
+**CE-1322**, rulings **R-1042**. ⚠ The 10-23 plan below still holds the rest of the lane (regressions, Timeline R0/R1, camera, quick bugs).
+
+## ⭐⭐⭐ SESSION `2026-10-23` — THE PLAN *(the order is the lean; the user gates starts)*
+
+| # | work | why here |
+|---|---|---|
+| 0 | ⏳ **the scenario regressions**: 12 scenarios fail their own checks since `18c6e3770` (not CE-1269 — measured at its parent); a bisect is finding the commit; 7 crashed on ±Infinity — fixed (CE-1292), their goldens to re-record; `uc-urban-battle` times out, `uc-a10-zu23-dry` does not load | the regression suite is the net under everything below |
+| 1 | **Behaviour Debugging S1 — make "stop me" work** ([design](../DESIGN_Behaviour_Debugging.md) DBG-6…8): CE-1284 (journal break baseline before Input), CE-1291 (node breakpoints break), CE-1285 + Q44 (one breakpoint list, in the existing condition editor) | the debugger's core promise is broken in three places; ⏸ waits for the user's DBG approval |
+| 2 | **Timeline R0 + R1** (CE-1301, CE-1302 — the coordinator's [handoff](batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md), dispatched at `7cca2013e`): measure, then THE Timeline panel — also the Trace Timeline (R-4075) | R1 is useful on its own and is the joint with debugging (the debugged unit's swimlane, the Brain lane BV-30); R0 is measurement and may start any time |
+| 3 | **Behaviour Debugging S2–S4**: the graph (CE-1273…1277), node runtime + variables (CE-1279, CE-1286), the hub (CE-1278, CE-1280…1283) | S4's "seek to this change in a recording" lands on R1 |
+| 4 | **Camera**: CE-1294 (over-the-shoulder movement stutters) first, then the CE-1293 design (over-the-shoulder on any unit / FPS default / vehicle seats / orbit) with leans | the stutter blocks the default; the design can be drafted while R1 builds |
+| 5 | **Timeline R2 → R2b → R3 → R4** (CE-1303…1306): the director on the Timeline, promote + predicate extensions, graphics / audio / stills, reels + HTTP | the handoff's own order; R2b's predicate extensions also serve the breakpoint conditions |
+| ↔ | **quick bugs in parallel** (a background agent while waiting): CE-1295 `M` key, CE-1296 crouch camera, CE-1297 prone, CE-1298 bare-hand melee, CE-1299 mounted-gun aim, CE-1300 select only the carrier | independent, small |
+
+⭐ Built today: CE-1025 (load over a run), CE-1269 (FightFromCover restarts), CE-1271/1272 (ORBAT), CE-1287…1290 (2-D map middle-drag + grid, cursor coordinates, title), CE-1292 (±Infinity in the serializer); designed: CE-1270 (Behaviour Debugging, leans DBG-1…11 await approval). Ids: ui tracker next free **CE-1307**, rulings **R-1032**.
+
+## ⭐⭐⭐ SESSION `2026-10-22` — ONE DETAILS PANEL, ONE MENU BAR, ONE ACTION PATH
+
+**State:** `ui` @ `88a60d1c8`, pushed, tree clean. ⚠ **Not merged into ui since `2026-10-21` (`d571dcfb4`):** `origin/backend`
++164 (`854e83eb4`), `origin/behaviors` +201 (`421c32cbf`), `origin/coordinator` +212 (`641a386bd`) ⇒ ⭐ **merge them first**
+(merge, not rebase), then `dotnet restore` the test projects you will run (the third stale-binary trap — this session hit it
+three times: BepuPhysics, `Hrot.SimHost.Serializers`, `Hrot.EcsNode`), build, run the Presentation + AiShared suites.
+
+### Done this session (every row ✅, gates green, red-proved)
+
+| id | what | owning design |
+|---|---|---|
+| `CE-1150` | **host actions are the HOST's** (`HostActions`: registry + interaction bus + dispatch, one per host); **Properties… opens the shared Details panel on every ECS host** (`EntityDetailsBundle` in AiShared: Editor, CGF, SimHost, IG, RB, Stride); windows know no menus (`R-1024` amended); View ▸ Details Float / Pin are actions | [canvas-context-menu-design §12 / §12.1](../designs/gizmos-1/canvas-context-menu-design.md) · [Details §8](DESIGN_Details_Panel_View_Switching.md) |
+| `CE-1027` | an open submenu keeps its icon (draw list captured before `BeginMenu`) | [UX_Feature_Menu_Follows_Focus §MB](../UX/UX_Feature_Menu_Follows_Focus.md) |
+| `CE-1243` | **one main menu bar**: per-frame contributors in `GlobalMenuRegistry`, one row renderer (`MenuRows`); Windows / Perspective / Help and every host's map menus are contributors; the four hosts' `BeginMainMenuBar` blocks deleted; CGF gains its map menus; closes UXI-13 | same, §MB.1 |
+| `CE-1244` | the ReplayBrowser composes the shared `DiagnosticsWindowsBundle`; its own inspector / event-browser copies deleted | [Subsystem Composition §5c.7.8](../DESIGN_Subsystem_Composition_Unification.md) |
+| `CE-1247` | the IG's "Entity Properties" window is the Details panel's **Summary** view (`details.summary`, Rank 35) on every host; reads `EntityInfo` / `NetworkIdentity` / `TkbIdentity` / `SimTransform` / `Health`, a *Shown as* row where the IG's style differs; IG window / panel / state deleted | [Details §9](DESIGN_Details_Panel_View_Switching.md) |
+| goldens | `ui-baseline-editor` / `-all` recaptured: +7 ids, all pre-existing drift (CE-1096, CE-1191, CE-1237, CE-4038); then −`ig_entity_properties` (CE-1247) | commit `a0094ad58` |
+
+Last gate rows (after CE-1247): AiShared 2136/0 · IG 453/0 (−18 = the deleted IG tests) · Editor 534/0; earlier in the session
+Presentation 871/0 · FDP Presentation 580/0 · RB 34/0 · Blueprints and Stride game build clean.
+
+### Owed
+
+| item | state |
+|---|---|
+| ⏳ T3 `ui-baseline` **all** mode after CE-1247 | not run — covers the edited golden and `ClusterConformanceRails` (`ig-entity-properties` removed from its cluster-only kinds). `scripts/run-system-tests.sh`, background |
+| ⚠ T3 `ui-baseline` **ReplayBrowser** mode | timed out at editor start-up (540 s) in this session's one run — not investigated; possibly the VM |
+| ⚠ Windows visual check | Properties… on CGF / SimHost / IG / RB opens Details on Components · the one menu bar (CGF's map menus, Perspective first, Help last) · a hovered submenu keeps its icon · the Summary card on IG |
+| frame-rail hygiene | AiShared frame rails live in the non-parallel `PanelSnapshotTestCollection`; a rail that opens a popup closes it before `EndMenu` — both measured as order-dependent reds |
+
+### Next, in order (leans — ask before starting)
+
+1. `CE-1246` — Stride mode 2 has the Details panel but no host actions (no Properties…, no View ▸ Details): lean `SharedHostActions.Create()` + schedule its `Dispatch` on the node's kernel, map-independent.
+2. `CE-1245` — rename `Hrot.Editor.AiShared` now that non-editor hosts compose it — **Roslyn only** (`roslyn_preview_rename` over stdio if the MCP is down), never a text rename; name to be chosen with the user.
+3. The overnight leans below still wait for the user (CR, OS, CL / MO / NL, the deviations).
+
+ids: ui tracker next free **`CE-1248`**; ui rulings next free **`R-1026`**.
+
 ## ⭐⭐⭐ OVERNIGHT `2026-10-21 → 22` — RESULTS AND WHAT THE USER CONFIRMS
 
 Work list: [PLAN §3a #21–#35](PLAN_Ui_FPS_And_Quick_Wins.md) (its §4 log has a row per item). Presentation suite at the end: 820 / 0.
@@ -235,6 +368,18 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 | `CE-1158` | the live cluster run is still owed |
 | `CE-1197` | sidewalks need a SumoSharp `SceneKind` (cross-lane, coordinator) |
 
+### ⭐ `2026-10-23` — backend merged (ff to `e894d95a1`, behaviors included); the ENTITY BRAIN VIEW designed and approved
+
+- [`DESIGN_Entity_Brain_View.md`](../DESIGN_Entity_Brain_View.md) (`R-1026`): Phase 1 the Brain tab (`CE-1248`, ui), Phase 2 the brain journal (`CE-1249` ui, `CE-1250` behaviors), the HSM history-list bug (`CE-1251`). READY-TO-BUILD; ⛔ ask before starting.
+- ✅ FIXED `2026-10-23`: the two reds after the merge — `EntityTypeCatalogTests.CE2138_…` (golden now carries behaviors' 2009 AssaultRifleman, CE-2260) and `FilmDirectorTests.CE4038_…` (a reel's `"waiting"` list of parked clips is now read, written back and never played — [Film Director §4a](../DESIGN_Film_Director.md)).
+- Phase 3 (§9, R-1028): C#-only behaviours as read-only graphs in memory — ✅ **BUILT `2026-10-23`** `CE-1251`…`CE-1256` ([Brain View §11](../DESIGN_Entity_Brain_View.md)): the 12 C# HSMs in the HSM editor, code-built BTree/HSM documents read-only (breakpoints still work), the HSM highlight + history named through the catalog's metadata, *Open running behaviour* on the Brain tab, the statechart layout, the Blueprint highlight follows the debugged unit.
+- ✅ **LIVE CHECK `2026-10-23`** ([Agent Shared View §10.1](../DESIGN_Agent_Shared_View.md)): headless editor on `df-lone-soldier-reflex`, then its own run recording — every brain / view / replay route answers; fixed what it found (2-D `/view` by the rectangle, `/replay/search` `Changed` against the previous frame + full component names, "entered" region text). `CE-1250`'s ui half built and handed to behaviors ([HANDOFF](batches/HANDOFF_Ui_To_Behaviors_Brain_Journal_Causes.md)).
+- ✅ **BUILT `2026-10-23`** (as-built: [Brain View §11](../DESIGN_Entity_Brain_View.md), [Agent Shared View §10](../DESIGN_Agent_Shared_View.md)): `CE-1268` catalog rail + regeneration (R-1030), `CE-1249` brain journal (component 460, generic writers, `--brain-journal off`), `CE-1248` Brain tab (rank 34) + `GET /entities/{id}/brain`, `/journal?since=`, `CE-1258` exact `Changed` + journal break, `CE-1257` "Debug this unit" (tab, map AI-trace menu, `POST /entities/{id}/debug`), `CE-1261` region lines + `StateChanged`, `CE-1262` `GET /view`, `CE-1263` `GET /selection`, `CE-1264` first-person **I** selects the crosshair's unit, `CE-1265` replay twins (history = a frame walk), `CE-1266` `POST /replay/search`. Owed: a live check in the editor (and over an editor recording); `CE-1250` (behaviors: the causes and play writers); Phase 3 `CE-1251…1256`; `CE-1259` deferred.
+- ⭐ `CE-1250` behaviors half merged (`ec556fdb5`) — the journal now names causes and move sources. `CE-1269` (a lone soldier restarts FightFromCover every 1–3 s) was handed to behaviors, then withdrawn and fixed by ui (below).
+- ✅ **FIXED `2026-10-23` by ui** (cross-lane, the user: *"fix it right here"*): `CE-1269` — `FightFromCover`'s `WouldReturn` guard now asks "a hostile seen and still remembered" (AQ98 row C″); the handoff is withdrawn.
+- ✅ **BUILT `2026-10-23`** `CE-1025` (`R-1031`, [Load Phase §9.1](../DESIGN_Cluster_Load_Phase.md)): a load during a live run or a dry run asks first on the File menu (*Stop & Load*), forgets the dry run's restore point (no rewind) and loads from Idle; `POST /scenario/load/live|edit` never asks and answers `stoppedRun`. ⚠ Owed: a Windows look at the prompt. A CLUSTER dry run leaves by its own rewind on the way to Idle (user-accepted, measured live).
+- ids: ui tracker next free **`CE-1270`**, rulings **`R-1032`** (earlier this day: `CE-1257` / `R-1029`) (⚠ the Brain View ids were renumbered `2026-10-23`: CE-1226…1234 → CE-1248…1256, R-1012…1014 → R-1026…1028 — the first numbers were already taken by the parallel ui session's 10-20…10-22 work).
+
 ### Next, in order (leans — ask the user before starting any; they gate starts explicitly)
 
 🔒 User, `2026-10-20`: *"leans accepted. please keep working on the open points autonomously overnight"* — work on down this list.
@@ -259,7 +404,7 @@ first** (merge, not rebase), build, run the Presentation suite, name the shas in
 - ⚠ a frame rail's `DebugGizmoLayer` needs a layer bit index < 32 — `MapCanvas` hides higher ones (measured this session: index 32 drew nothing).
 - `scenarios/hill-attack/` is the user's — do not touch. Do not build `CE-1147…CE-1150` until asked. No triggers for lane checks — `git fetch` the lanes after each piece of work.
 - cross-lane edits allowed, named in the commit; simple work may go to a Sonnet subagent.
-- ids: ui tracker next free **`CE-1235`**; ui rulings next free **`R-1018`**.
+- ids: ⛔ stale — see the newest session section (`CE-1248` / `R-1026` at `2026-10-22`).
 
 ## ⭐⭐⭐ SESSION `2026-10-15` — (older) RESUME HERE
 

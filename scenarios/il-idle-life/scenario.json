@@ -1,0 +1,311 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: AQ103 (CE-2368, R-2074) - idle life on open basic-desert, nobody hostile: 'Idler 1-4' (Friend riflemen, NO orders - the SOP's own idle choice), a 'Watchman' (ordered to stay and watch east), 'Held' (ordered to hold: Idle from a superior), 'Down' (incapacitated, 20 %), a 'Waiting civilian' (ordered to stand) and a 'Townsman' (his own routine). Judge (90 s): (1) each Idler shifts at least twice and never strays past 3 m from where he settled; (2) the Watchman, Held and Down never shift (< 0.3 m); (3) idle gestures (smoking, shifting weight, a stretch, looking about - the flag the IG animates) show on at least half of the Idlers, the Watchman, Held and the waiting civilian; (4) Down shows none. Check: python3 scripts/utility-demo-check.py --launch il-idle-life. \ud83d\udcc4 docs/blueprints/Architect_Question_103_Idle_Life.md"
+  },
+  "entities": {
+    "a1030001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          290,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10701
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Idler 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1030001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          294,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10702
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Idler 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1030001-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          298,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10703
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Idler 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1030001-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          302,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10704
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Idler 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1030001-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          310,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10711
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Watchman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [310, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [310, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [400, 300, 0]}"
+      }
+    },
+    "a1030001-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          314,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10712
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Held",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "Idle",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a1030001-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          318,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 20,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10713
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Down",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1030001-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          290,
+          310,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10721
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Waiting civilian",
+        "ForceId": "Neutral"
+      },
+      "Behavior": {
+        "Name": "Idle",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a1030001-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          300,
+          312,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 10722
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Townsman",
+        "ForceId": "Neutral"
+      }
+    }
+  }
+}

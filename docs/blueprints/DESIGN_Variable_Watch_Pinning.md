@@ -21,6 +21,8 @@ known-rot: CORRECTED 2026-08-19 by Batch 93. An earlier note here claimed Batch 
   liveness in Details comes from REBUILDING the row each frame - and PinnedVariableRowSource
   returns its stored records untouched. A pinned row is a SNAPSHOT. See Q46; section 4's
   VALUE clock is a real problem after all. The TWO CLOCKS rule itself still binds.
+related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-5's Variables view (a running behaviour's parameters + working state) feeds Add to Watch here
 -->
 
 > 🛑🛑 **STATUS `2026-08-19` — BATCH 93 ATTEMPTED IT AND STOPPED.** ⛔ **A pinned row is a SNAPSHOT**:

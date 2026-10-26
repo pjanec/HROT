@@ -115,6 +115,16 @@ namespace Fdp.Toolkit.Combat
         /// limits, measured from the host's forward in the host's frame)? True off a station, or for a station that declares no arc — the
         /// weapon's own turret limits are the muscle's (<c>TurretSlew.InArc</c>, an <c>OutOfArc</c> failure).
         /// </summary>
+        /// <summary>⭐ <c>CE-1356</c> — the station <paramref name="weapon"/> sits in, when that station declares an arc (false off a station
+        /// or for one with none). The arc is in the HOST's frame (from its forward); the weapon itself faces <see cref="StationSeat.Facing"/>.</summary>
+        public static bool TryStationArc(EntityRepository world, Entity weapon, out StationSeat station)
+        {
+            station = default;
+            if (!world.IsAlive(weapon) || !Has<IsEmbarkedTag>(world, weapon)) return false;
+            ref readonly var tag = ref world.GetComponentRO<IsEmbarkedTag>(weapon);
+            return IsStation(world, tag.VehicleEntity, tag.Seat, out station) && station.HasArc != 0;
+        }
+
         public static bool InStationArc(EntityRepository world, Entity weapon, Vector3 point)
         {
             if (!Has<IsEmbarkedTag>(world, weapon)) return true;

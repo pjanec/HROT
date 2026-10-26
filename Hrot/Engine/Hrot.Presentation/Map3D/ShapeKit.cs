@@ -1188,6 +1188,95 @@ public static partial class BlockFigure
         return gesture == ArmGesture.HoldSign ? [.. shaped, .. Placard(drop + bob)] : shaped;
     }
 
+    // ── ⭐ CE-1308 (docs/DESIGN_People_Display.md §7d U19; behaviors' CE-2368, AQ103 I) — the IDLE gestures: a mood, never an act ──────
+
+    /// <summary>⭐ U19a — the smoker's cycle (s): the hand rises, rests at his lips, comes down, and stays low the rest of it.</summary>
+    public const float SmokeCycle = 9f, SmokeRise = 1f, SmokeAtLips = 2.5f;
+
+    /// <summary>⭐ U19b — the weight shift's cycle (s) and how far the upper body sways over the standing leg (m).</summary>
+    public const float ShiftCycle = 6f, ShiftSway = 0.04f;
+
+    /// <summary>⭐ U19c — the stretch's cycle (s): up, held, down, then a long rest.</summary>
+    public const float StretchCycle = 11f, StretchRise = 0.8f, StretchHold = 2f;
+
+    /// <summary>The smoker's lips in a standing figure (metres): the front of the head, a little below its middle.</summary>
+    public static readonly Vector3 Lips = new(0.13f, -0.02f, 1.55f);
+
+    /// <summary>⭐ U19a — how far up the smoker's hand is at <paramref name="t"/> (0 low … 1 at his lips), eased.</summary>
+    public static float SmokeLift(float t) => Envelope(t, SmokeCycle, SmokeRise, SmokeAtLips);
+
+    /// <summary>⭐ U19c — how far up the stretch is at <paramref name="t"/> (0 … 1), eased.</summary>
+    public static float StretchLift(float t) => Envelope(t, StretchCycle, StretchRise, StretchHold);
+
+    /// <summary>⭐ U19b — the upper body's sway at <paramref name="t"/> (m, + = toward his left: the weight on the left leg).</summary>
+    public static float ShiftOf(float t) => ShiftSway * MathF.Sin(2f * MathF.PI * t / ShiftCycle);
+
+    /// <summary>Rise over <paramref name="rise"/> s, hold <paramref name="hold"/> s, fall over <paramref name="rise"/> s, then 0 to the end
+    /// of the <paramref name="cycle"/>; smoothstepped.</summary>
+    private static float Envelope(float t, float cycle, float rise, float hold)
+    {
+        float u = ((t % cycle) + cycle) % cycle;
+        float x = u < rise ? u / rise : u < rise + hold ? 1f : u < rise + hold + rise ? 1f - (u - rise - hold) / rise : 0f;
+        return x * x * (3f - 2f * x);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1308</c> (People Display §7d U19) — a standing or crouched figure showing an IDLE mood on his own clock <paramref name="t"/>
+    /// (stateless, like <see cref="GestureArms"/>): SMOKING — the right hand to his lips and down, a cigarette in the fingers; a STRETCH —
+    /// both arms up over his head (a soldier: the right only, the left stays on his rifle); SHIFTING WEIGHT — the upper body swaying over
+    /// the standing leg (the knee is the motion pose's, <c>EntityBodyLayer3D.IdleMotion</c>); LOOKING ABOUT — the head only (also the
+    /// motion pose's). ⛔ A mood, not an act: a soldier's rifle stays where his posture holds it (never slung).
+    /// </summary>
+    public static KitPart[] IdleArms(KitPart[] parts, Fdp.Toolkit.Combat.GestureKind kind, bool crouched, bool soldier, float t)
+    {
+        if (parts.Length < TorsoIndex + 2 + 4) return parts;
+        var drop = crouched ? CrouchDrop : Vector3.Zero;
+        var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        switch (kind)
+        {
+            case Fdp.Toolkit.Combat.GestureKind.IdleSmoking:
+            {
+                float up = SmokeLift(t);
+                var elbow = Vector3.Lerp(r + new Vector3(0.02f, -0.04f, -0.28f), r + new Vector3(0.12f, -0.10f, -0.22f), up);
+                var hand = Vector3.Lerp(r + new Vector3(0.22f, -0.02f, -0.36f), Lips + drop + new Vector3(0.02f, 0f, 0f), up);
+                var shaped = (KitPart[])parts.Clone();
+                var arm = Arm(r, elbow, hand, PartRole.Hull);
+                shaped[TorsoIndex + 4] = arm[0];
+                shaped[TorsoIndex + 5] = arm[1];
+                var dir = Vector3.Normalize(hand - elbow);
+                return [.. shaped, Limb(hand + dir * 0.02f, hand + dir * 0.02f + new Vector3(dir.X, dir.Y, 0f) * 0.08f, 0.012f, 0.012f, ColourRole.Canvas)];
+            }
+            case Fdp.Toolkit.Combat.GestureKind.IdleStretch:
+            {
+                float up = StretchLift(t);
+                if (up <= 0f) return parts;
+                var shaped = (KitPart[])parts.Clone();
+                var armR = Arm(r, Vector3.Lerp(r + new Vector3(0f, -0.02f, -0.30f), r + new Vector3(-0.02f, 0.02f, 0.30f), up),
+                                  Vector3.Lerp(r + new Vector3(0.02f, -0.02f, -0.60f), r + new Vector3(-0.04f, 0.16f, 0.60f), up), PartRole.Hull);
+                shaped[TorsoIndex + 4] = armR[0];
+                shaped[TorsoIndex + 5] = armR[1];
+                if (!soldier)
+                {
+                    var armL = Arm(l, Vector3.Lerp(l + new Vector3(0f, 0.02f, -0.30f), l + new Vector3(-0.02f, -0.02f, 0.30f), up),
+                                      Vector3.Lerp(l + new Vector3(0.02f, 0.02f, -0.60f), l + new Vector3(-0.04f, -0.16f, 0.60f), up), PartRole.Hull);
+                    shaped[TorsoIndex + 2] = armL[0];
+                    shaped[TorsoIndex + 3] = armL[1];
+                }
+                return shaped;
+            }
+            case Fdp.Toolkit.Combat.GestureKind.IdleShiftWeight:
+            {
+                var shift = new Vector3(0f, ShiftOf(t), 0f) / S;
+                var shaped = (KitPart[])parts.Clone();
+                for (int i = TorsoIndex; i < shaped.Length; i++)   // everything above the legs: torso, head, arms, rifle, what he holds
+                    shaped[i] = shaped[i] with { Centre = shaped[i].Centre + shift, SwingPivot = shaped[i].SwingPivot is { } p ? p + shift : null };
+                return shaped;
+            }
+            default:
+                return parts;   // LookAbout: the head turns in the motion pose
+        }
+    }
+
     /// <summary>⭐ <c>CE-1195</c> — how long a throw is drawn after its shot, s.</summary>
     public const float ThrowSeconds = 0.6f;
 
@@ -1620,6 +1709,81 @@ public sealed class PostureBlend
         st.HasHead = true;
         _states[e] = st;
         return st.Head;
+    }
+
+    /// <summary>Forgets everyone not drawn this frame.</summary>
+    public void EndFrame(HashSet<Entity> drawn)
+    {
+        _gone.Clear();
+        foreach (var e in _states.Keys) if (!drawn.Contains(e)) _gone.Add(e);
+        foreach (var e in _gone) _states.Remove(e);
+    }
+}
+
+/// <summary>
+/// ⭐ <c>CE-1348</c> — the DRAWN stance of each figure, moving smoothly to his logical stance (<see cref="LogicalStance"/>, which changes in the
+/// tick it is ordered) over <see cref="SecondsBetween"/> of sim time; the muscle's own blend (<see cref="StanceStatus"/>) is followed when it
+/// runs the same change, never stepped back from. 🔴 The figure used to draw the NEW stance in full until the muscle reported its transition
+/// a tick later, then snap back to the OLD one as that blend started at 0 — and the camera at his eyes jumped down and up with it.
+/// 🔒 User, 2026-10-25: "when pressing C for crouch or Z for prone, the camera jump vertically down and up before finally settles … i would
+/// expect the camera (as well as the character body) to smoothly go into the new height."
+/// </summary>
+public sealed class StanceBlend
+{
+    /// <summary>Standing ↔ crouched (s, sim time).</summary>
+    public const float CrouchSeconds = 0.35f;
+
+    /// <summary>Into or out of prone (s, sim time).</summary>
+    public const float ProneSeconds = 0.8f;
+
+    public static float SecondsBetween(StanceId a, StanceId b)
+        => a == b ? 0f : a == StanceId.Prone || b == StanceId.Prone ? ProneSeconds : CrouchSeconds;
+
+    private struct State
+    {
+        public StanceId From, To;
+        public double ChangedAt;
+        public float Floor;   // the progress already shown (the muscle's, when it ran ahead) — never stepped back from
+    }
+
+    private readonly Dictionary<Entity, State> _states = new();
+    private readonly List<Entity> _gone = new();
+
+    /// <summary>Where <paramref name="e"/>'s figure is this frame: between <c>From</c> and <c>To</c>, <c>T</c> of the way (1 = there, eased
+    /// in and out). <paramref name="muscle"/>: the replicated transition, when the unit has one.</summary>
+    public (StanceId From, StanceId To, float T) Of(Entity e, StanceId now, double simTime, StanceStatus? muscle = null)
+    {
+        if (!_states.TryGetValue(e, out var st))
+        {
+            _states[e] = new State { From = now, To = now, ChangedAt = double.NegativeInfinity, Floor = 1f };
+            return (now, now, 1f);
+        }
+        if (now != st.To)
+        {
+            float done = Raw(st, simTime);
+            if (now == st.From && done < 1f)
+            {
+                // back where it came from, mid-way: turn round from where the figure is
+                float seconds = SecondsBetween(st.To, now);
+                st = new State { From = st.To, To = now, ChangedAt = simTime - (1f - done) * seconds, Floor = 0f };
+            }
+            else st = new State { From = done < 0.5f ? st.From : st.To, To = now, ChangedAt = simTime, Floor = 0f };
+        }
+        float t = Raw(st, simTime);
+        if (muscle is { Phase: StanceTransitionPhase.Transitioning } m && m.CurrentStance == st.From && now == st.To)
+            t = MathF.Max(t, Math.Clamp(m.TransitionProgress, 0f, 1f));
+        t = MathF.Max(t, st.Floor);
+        st.Floor = t;
+        _states[e] = st;
+        return (st.From, st.To, t * t * (3f - 2f * t));
+    }
+
+    private static float Raw(in State st, double simTime)
+    {
+        float seconds = SecondsBetween(st.From, st.To);
+        if (seconds <= 0f || double.IsNegativeInfinity(st.ChangedAt)) return 1f;
+        if (simTime < st.ChangedAt) return st.Floor;   // a clock step back (a rewind): hold
+        return (float)Math.Clamp((simTime - st.ChangedAt) / seconds, 0.0, 1.0);
     }
 
     /// <summary>Forgets everyone not drawn this frame.</summary>

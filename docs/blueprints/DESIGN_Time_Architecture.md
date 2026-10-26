@@ -24,6 +24,8 @@ supersedes: DESIGN_Time_Control_And_Reporting.md and DESIGN_Time_And_Write_Archi
 roadmap: PLAN_Time_System_Refactor.md -- the ORDER. T0 (make the integration net work) blocks
   every task derived from this document.
 related-designs:
+  - ../DESIGN_Replay_Time_Axis_And_Review.md — the replay clock's SIM view (rate per segment, SnapTo over paused stretches) and the review's SnapTo back to the live clock
+  - docs/DESIGN_Director_Timeline_Editor.md — TE-19: the shared Timeline panel seeks through ITimeTransportFacade (grown: CanSeek / Seek); in a cluster replay that is this design's ReplaySeek round
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — D5: a dry-run Stop never restores the clock (§12a), a checkpoint restore does (CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS which systems run on a paused frame (an explicit TickMode on every
     system and module, no default) and the step event window that settles §17's OPEN event-visibility item (CE-3293, R-3036)
@@ -1579,6 +1581,11 @@ classDiagram
 | stepped/advancing per frame; slot cadence; harvest held to the step and waited for; epoch on a clock going back, older runs discarded | `ModuleHostKernel` (`_steppedFrame`, `SlotOf`, `WaitForRun`, `_timelineEpoch`, `ModuleEntry.LastRunSlot/DispatchEpoch`) | `ModuleHostKernelTimeTests.Stepped_*` ×3 (red with stepped mode off) · `TheClockGoingBack_*` (red with the discard off) · `Continuous_TheCadenceStaysFrameCounted` |
 | perception's clock = `GlobalTime.FrameNumber` (`PerceptionClock.Now`) at every `LastSeenTick` writer and reader; the EQS solver skips dt = 0 | solver, acoustic seed, threat evaluation, squad merge, `LookNodes`, `PostureNodes`, `VehicleFightFromCoverNodes`, `KnownCombatants`, the editor's perception layer | via the live measurement below |
 | ⭐ **found while measuring:** the sound ring (a node singleton) outlived a load — every fresh sensor heard the PREVIOUS runs' shots, and each reload heard more. A clock going back now starts a new timeline in the ring; a short sound's mishearing is seeded by its place in the timeline, not the node-wide serial | `SoundEmissionRing.Tick/FirstOfTimeline`, `AcousticPerception.HearRing` | `SoundEmissionRingTests.CE3292_*` (red with the marker removed) |
+
+⭐ **`2026-10-22` (CE-3316, backend) — the stepped rules across a CHECKPOINT:** `ModuleHostKernel.SlotRunInFlight` (a slot-paced background run
+dispatched and not yet harvested) — the recorder writes a checkpoint only on a step where it is false; `ResumeSlotsAfterRestore()` — the next
+clock snap, when it is a checkpoint restore, sets each slow module's `LastRunSlot` to the restored time's slot instead of `MinValue` (a load and
+a dry-run exit unchanged). 📄 [restore design §1l](../DESIGN_Checkpoint_And_Dry_Run_Restore.md).
 
 📐 **Measured** (`ua-tank-ammo`, `--mode editor`, 15 Hz HTTP steps, three loads in one process, cuts every 5 s to 30 s): before — the first
 load played a different story and reloads drifted; after — **behaviour identical at 6/6 cuts in all three pairs** (every position, every

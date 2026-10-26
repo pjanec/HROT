@@ -1,0 +1,458 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: Temperament & Stress \u00a76 (CE-2272, R-2034) - on open basic-desert two fire teams of four hold their spots facing south (CombatPosture, stay, a post; ROE StayOnTask): 'Regular 1-4' (Friend riflemen, the default temperament - obedience 0.8, nerve 0.5) at x 410-414.5 and 'Militia 1-4' (Friend riflemen, obedience 0.3, nerve 0.3) at x 480-484.5, y 300. Each is under the SAME fire: 'Gunner Regular' / 'Gunner Militia' (Hostile automatic riflemen, InertSop) 120 m south (inside a rifleman's 150 m sight) fire 40 rounds, one every 1.3 s, at a point 10 m behind the team, 4 m up - every round passes over the team's heads (near misses, no hits). All immortal. Judge (100 s): (1) no regular breaks and the regulars fire back; (2) at least half the militia break (the Break reaction - down, no fire); (3) every man who broke recovers once the fire stops and is back on his task by the end; (4) printed per man: his peak stress, when he broke and recovered. Check: python3 scripts/utility-demo-check.py --launch ts-fire-discipline. \ud83d\udcc4 docs/DESIGN_Temperament_And_Stress.md \u00a76"
+  },
+  "entities": {
+    "a1040001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          410.0,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10801
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Regular 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [410.0, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [410.0, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [410.0, 150, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "a1040001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          411.5,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10802
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Regular 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [411.5, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [411.5, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [411.5, 150, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "a1040001-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          413.0,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10803
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Regular 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [413.0, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [413.0, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [413.0, 150, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "a1040001-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          414.5,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10804
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Regular 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [414.5, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [414.5, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [414.5, 150, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "a1040001-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          412.25,
+          180,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10821
+      },
+      "TkbIdentity": {
+        "TkbType": 2009
+      },
+      "EntityInfo": {
+        "Name": "Gunner Regular",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Origin": "Superior",
+        "Params": "{\"x\": 412.25, \"y\": 310, \"z\": 4, \"mount\": 0, \"rounds\": 40, \"cooldownSeconds\": 1.3}"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a1040001-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          480.0,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10811
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Militia 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [480.0, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [480.0, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [480.0, 150, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Temperament": {
+        "obedience": 0.3,
+        "nerve": 0.3
+      }
+    },
+    "a1040001-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          481.5,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10812
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Militia 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [481.5, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [481.5, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [481.5, 150, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Temperament": {
+        "obedience": 0.3,
+        "nerve": 0.3
+      }
+    },
+    "a1040001-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          483.0,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10813
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Militia 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [483.0, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [483.0, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [483.0, 150, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Temperament": {
+        "obedience": 0.3,
+        "nerve": 0.3
+      }
+    },
+    "a1040001-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          484.5,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10814
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Militia 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Origin": "Superior",
+        "Params": "{\"Advance\": {\"Objective\": [484.5, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [484.5, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [484.5, 150, 0]}"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Temperament": {
+        "obedience": 0.3,
+        "nerve": 0.3
+      }
+    },
+    "a1040001-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          482.25,
+          180,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10822
+      },
+      "TkbIdentity": {
+        "TkbType": 2009
+      },
+      "EntityInfo": {
+        "Name": "Gunner Militia",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Origin": "Superior",
+        "Params": "{\"x\": 482.25, \"y\": 310, \"z\": 4, \"mount\": 0, \"rounds\": 40, \"cooldownSeconds\": 1.3}"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -188,5 +188,23 @@ namespace Fdp.Toolkits.Tests.Replay
             Assert.True(map.TryGetEntity(1001, out var back) && back == e);
             Assert.False(map.TryGetEntity(1002, out _));
         }
+
+        /// <summary>⭐⭐ CE-3329 PW — §12c W4 (CE-3331): after ANY restore the whole restored world is republished — every descriptor's
+        /// last-published record is cleared, as a replay seek already did. 🔴 Before, a checkpoint restore / a dry-run exit left the wire
+        /// on the abandoned future's samples.</summary>
+        [Fact]
+        public void AfterRestore_MarksEveryDescriptorDirty_SoTheRestoredWorldIsRepublished()
+        {
+            using var repo = NewWorld();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Replication.Components.EgressPublicationState>();
+            var e = repo.CreateEntity();
+            var state = new Fdp.Toolkit.Replication.Components.EgressPublicationState();
+            state.LastPublishedTickMap[7] = 42;
+            repo.SetManagedComponent(e, state);
+
+            AfterRestore.Run(repo);
+
+            Assert.Empty(repo.GetComponent<Fdp.Toolkit.Replication.Components.EgressPublicationState>(e).LastPublishedTickMap);
+        }
     }
 }

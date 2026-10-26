@@ -191,15 +191,6 @@ public sealed class PerspectiveScopedDispatcher
     public Fdp.Interfaces.ITkbDatabase? TkbDb => Active()?.TkbDb;
 
     /// <summary>
-    /// ⭐⭐ The active perspective's cluster-transition publisher, or <see langword="null"/> ⇒
-    /// <c>NOT_SUPPORTED_HERE(scenario.load)</c>. 📄 <c>MCP_Integration.md</c> § Group U.
-    /// <para>⭐ Perspective-scoped for the same reason a step is: the request travels the path the operator's
-    /// own button takes on that node — its bus, then DDS to the master.</para>
-    /// </summary>
-    public Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? RequestTransition
-        => Active()?.RequestTransition;
-
-    /// <summary>
     /// ⭐⭐ <b>The cluster's state, from whichever node tracks it</b> — the readiness gate for
     /// <c>scenario/load/*</c>. <see langword="null"/> when no node here does.
     ///
@@ -215,23 +206,6 @@ public sealed class PerspectiveScopedDispatcher
         => Active()?.ClusterState
            ?? _providers.Select(p => p.ClusterState).FirstOrDefault(s => s is not null);
 
-    /// <summary>
-    /// ⭐⭐ <b><c>MD-006</c> — trigger the cluster dump from whichever node can publish it.</b>
-    /// <para>⚠ Prefers the ACTIVE perspective *(the request then travels the path that operator's own button
-    /// takes)*, ⭐ but falls back to any provider with a bus — because the DUMP is cluster-wide by
-    /// construction, so it does not matter which node asks. ⛔ Contrast <see cref="Drive"/>, where the
-    /// asking node IS the answer.</para>
-    /// </summary>
-    public Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDumpAnyNode
-        => Active()?.RequestDiagnosticDump
-           ?? _providers.Select(p => p.RequestDiagnosticDump).FirstOrDefault(a => a is not null);
-
-    /// <summary>⭐ CE-277(c0, HTTP) — trigger a distributed JSON scenario save from whichever node can publish
-    /// it (active perspective preferred, else any provider with an orchestration bus); cluster-wide like the dump.</summary>
-    public Action<string>? RequestSaveScenarioJsonAnyNode
-        => Active()?.RequestSaveScenarioJson
-           ?? _providers.Select(p => p.RequestSaveScenarioJson).FirstOrDefault(a => a is not null);
-
     /// <summary>⭐ <c>MD-007</c> — the last dump's outcome from whichever node caches it; same one-cluster-one-fact rationale as <see cref="ClusterStateAnyNode"/>.</summary>
     public DiagnosticDumpStatus? DumpStatusAnyNode
         => Active()?.DumpStatus
@@ -246,19 +220,45 @@ public sealed class PerspectiveScopedDispatcher
         => Active()?.ClusterRoster
            ?? _providers.Select(p => p.ClusterRoster).FirstOrDefault(r => r is not null);
 
-    /// <summary>⭐⭐ <c>CE-4002</c> — publish the operator's cancel from whichever node has a bus; cluster-wide like the dump.</summary>
-    public Action<Fdp.Toolkit.Orchestration.CancelOperationIntent>? RequestCancelAnyNode
-        => Active()?.RequestCancel
-           ?? _providers.Select(p => p.RequestCancel).FirstOrDefault(a => a is not null);
-
     /// <summary>
-    /// ⭐⭐ <c>CE-4002</c> — a cluster TRANSITION from whichever node can publish it. ⚠ <see cref="RequestTransition"/>
-    /// stays perspective-scoped for the scenario routes; this is for <c>POST /cluster/transition</c>, which names the
-    /// cluster's target state directly and is cluster-wide by construction, like the dump.
+    /// ⭐⭐⭐ <c>R-3052</c>…<c>R-3055</c> — <b>the cluster master, from whichever node can reach it.</b> ⭐ Every node's bus reaches the ONE
+    /// master (directly on the host that holds it, through <c>ClusterOpEgressTranslator</c> elsewhere), so which node asks does not
+    /// matter — the active perspective is preferred so a request travels the path that operator's own button takes.
     /// </summary>
-    public Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? RequestTransitionAnyNode
-        => Active()?.RequestTransition
-           ?? _providers.Select(p => p.RequestTransition).FirstOrDefault(a => a is not null);
+    public IClusterMasterControl? MasterAnyNode
+        => Active()?.Master
+           ?? _providers.Select(p => p.Master).FirstOrDefault(m => m is not null);
+
+    /// <summary>⭐ <c>R-3055</c> — the master's exercise inventory from whichever node caches it (one cluster, one inventory).</summary>
+    public IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>? ExercisesAnyNode
+        => Active()?.Exercises
+           ?? _providers.Select(p => p.Exercises).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ <c>CE-1265</c>/<c>CE-1266</c> — the ACTIVE node's own replay recording. ⛔ No fallback: a journal is in the recording of
+    /// the node that runs the brain, so another node's file would answer about the wrong node (Q54-2).</summary>
+    public string? ReplayRecordingPath => Active()?.ReplayRecordingPath;
+
+    /// <summary>⭐ RB-3 — the active provider's Replay Browser seam. ⛔ No fallback: only the standalone Replay Browser has one, and it is the
+    /// only provider in its process (R-4080).</summary>
+    public IReplayBrowserControl? ReplayBrowser => Active()?.ReplayBrowser;
+
+    /// <summary>⭐ RB-2 — the ACTIVE node's replay position (its own recording). ⛔ No fallback, as <see cref="ReplayRecordingPath"/>.</summary>
+    public ReplayPosition? ReplayPosition => Active()?.ReplayPosition;
+
+    /// <summary>⭐ RB-5 — the ACTIVE provider's event history. ⛔ No fallback: another node's events would answer about the wrong world.</summary>
+    public Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory => Active()?.EventHistory;
+
+    /// <summary>⭐ RB-6 — the ACTIVE provider's timeline index. ⛔ No fallback: an index describes one node's recording.</summary>
+    public TimelineAccess? Timeline => Active()?.Timeline;
+
+    /// <summary>⭐ <c>R-3055</c> — the loaded replay's length from whichever node caches it.</summary>
+    /// <summary>⭐ CE-3329 R-3058 — the replay session's axis from the active node, else any node that keeps a read model.</summary>
+    public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxisAnyNode
+        => Active()?.ReplayAxis ?? _providers.Select(p => p.ReplayAxis).FirstOrDefault(x => x is not null);
+
+    public float? ReplayDurationAnyNode
+        => Active()?.ReplayDurationSeconds
+           ?? _providers.Select(p => p.ReplayDurationSeconds).FirstOrDefault(x => x is not null);
 
     /// <summary>⭐ Scenario inventory from whichever node caches it — same rationale as <see cref="ClusterStateAnyNode"/>.</summary>
     public IReadOnlyList<string>? AvailableScenariosAnyNode

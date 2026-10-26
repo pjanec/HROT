@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Replication.Components
     // so this component MUST be written to the scenario file. It is stripped from a loaded entity's
     // InitialComponents by StagingEntityExtractor.BuildStaticMask AFTER its id is consumed — a
     // different concern from save-exclusion. Marking it NoScenario broke 8 extractor rails.
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NetworkIdentity
     {
         /// <summary>

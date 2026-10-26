@@ -14,6 +14,7 @@ using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.Map.Definitions.Behavior;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -176,7 +177,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void GoTo(ref ShelterFromAirState ws, in ShelterFromAirParams p, Entity self, EntityRepository world, Vector3 shelter)
         {
             ws.Shelter = shelter;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, shelter, p.EvadeSpeed, ArrivalRadius, reverseAllowed: true) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, shelter, p.EvadeSpeed, ArrivalRadius, reverseAllowed: true, source: MoveSource.Flee) ? 1 : 0);
             ws.Phase = ShelterPhase.ToShelter;
         }
 
@@ -192,7 +193,7 @@ namespace Hrot.AI.Behaviors.Brains
             var dir = new Vector2(away.X * MathF.Cos(swerve) - away.Y * MathF.Sin(swerve), away.X * MathF.Sin(swerve) + away.Y * MathF.Cos(swerve));
             ws.Side ^= 1;
             var to = new Vector3(me.X + dir.X * p.EvadeLegMetres, me.Y + dir.Y * p.EvadeLegMetres, me.Z);
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, to, p.EvadeSpeed, ArrivalRadius) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, to, p.EvadeSpeed, ArrivalRadius, source: MoveSource.Flee) ? 1 : 0);
             ws.Phase = ShelterPhase.Evading;
         }
 

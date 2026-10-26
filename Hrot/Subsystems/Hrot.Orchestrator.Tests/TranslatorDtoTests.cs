@@ -51,6 +51,40 @@ public sealed class TranslatorDtoTests
         Assert.DoesNotContain("\"TimeMode\"", json);
     }
 
+    /// <summary>⭐ R-3055 — a transition crosses the wire WHOLE: the one encoding and the one decoding keep every field an intent carries.
+    /// 📌 Measured on the five-process cluster: POST /replay {atSeconds:30} sent from CGF entered at 0 — TargetWallTicks was not on the
+    /// wire and three hand-written decoders each dropped some fields (two lost CheckpointingSeconds too).</summary>
+    [Fact]
+    public void ATransition_CrossesTheWireWhole()
+    {
+        var sent = new Fdp.Toolkit.Orchestration.TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay, ScenarioId = "s",
+            ExerciseId = Guid.NewGuid(), TimeMode = "Deterministic", CheckpointingSeconds = 5, TargetWallTicks = TimeSpan.FromSeconds(30).Ticks,
+            TargetSimSeconds = 12.5,   // ⭐ CE-3329 R11
+        };
+
+        var json = JsonSerializer.Serialize(TransitionPayloadDto.From(sent), Options);
+        var got  = JsonSerializer.Deserialize<TransitionPayloadDto>(json, Options)!.ToIntent(sent.TransactionId);
+
+        Assert.Equal(sent, got);
+    }
+
+    /// <summary>⭐ CE-3329 — a seek crosses the wire whole (its sim target included), and a bare tick count from an older sender still
+    /// decodes; the axis switch round-trips, an unreadable one is Sim (the default).</summary>
+    [Fact]
+    public void A_seek_and_an_axis_switch_cross_the_wire_whole()
+    {
+        var seek = new Fdp.Toolkit.Orchestration.SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = 42, TargetSimSeconds = 7.25 };
+        var json = JsonSerializer.Serialize(SeekReplayPayloadDto.From(seek), Options);
+        Assert.Equal(seek, SeekReplayPayloadDto.Decode(seek.RequestId, json));
+        Assert.Equal(99L, SeekReplayPayloadDto.Decode(Guid.Empty, "99").TargetWallTicks);
+
+        var axis = new Fdp.Toolkit.Orchestration.SetReplayAxisIntent { RequestId = Guid.NewGuid(), Axis = Fdp.Toolkit.Orchestration.ReplayAxis.Wall };
+        Assert.Equal(axis, SetReplayAxisPayloadDto.Decode(axis.RequestId, JsonSerializer.Serialize(SetReplayAxisPayloadDto.From(axis), Options)));
+        Assert.Equal(Fdp.Toolkit.Orchestration.ReplayAxis.Sim, SetReplayAxisPayloadDto.Decode(Guid.Empty, "{\"Axis\":\"sideways\"}").Axis);
+    }
+
     // ── Test 4: Unknown enum string should throw ──────────────────────────────
 
     [Fact]

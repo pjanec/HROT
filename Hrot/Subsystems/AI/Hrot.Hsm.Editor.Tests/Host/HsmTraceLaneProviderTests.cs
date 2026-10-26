@@ -3,6 +3,7 @@ using Hrot.Editor.AiShared.Debug;
 using Hrot.Hsm.Editor.Host;
 using FluentAssertions;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Hsm.Editor.Tests.Host;
 
@@ -13,7 +14,7 @@ public sealed class HsmTraceLaneProviderTests
     [Fact]
     public void Kind_IsHsm()
     {
-        _provider.Kind.Should().Be(AssetKind.Hsm);
+        _provider.Applies(new TimelineLaneContext(nameof(AssetKind.Hsm))).Should().BeTrue();
     }
 
     [Fact]

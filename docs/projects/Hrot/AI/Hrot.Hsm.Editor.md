@@ -272,7 +272,7 @@ All types live under the root namespace `Hrot.Hsm.Editor`.
 | `Host/HsmTypeSystem.cs` | `HsmTypeSystem` (internal) | Implements `ITypeSystem`. HSM states have no typed pins; all type queries return negative answers. |
 | `Host/HsmLinkValidator.cs` | `HsmLinkValidator` (internal) | Implements `ILinkValidator`. Validates that a new transition is legal: pins must resolve to known states; Final states cannot be sources; History pseudo-states cannot be targets. |
 | `Host/HsmKinds.cs` | `HsmKinds` (internal static) | String constants for the six state kind IDs used by the catalog and `StateNode.Kind`. |
-| `Host/HsmTraceLaneProvider.cs` | `HsmTraceLaneProvider` | Implements `ITraceLaneProvider`. Declares the six HSM trace lane descriptors (States, Events, Actions, Guards, Timers, Conflicts). |
+| `Host/HsmTraceLaneProvider.cs` | `HsmTraceLaneProvider` | Implements `ITimelineLaneProvider` (moved to `Fdp.Toolkits`, R-4078). Declares the six HSM trace lane descriptors (States, Events, Actions, Guards, Timers, Conflicts). |
 | ~~`Host/HsmTransitionSnapHelper.cs`~~ | ⛔ **deleted `2026-10-06` (CE-1002)** — it had only a test caller; dragging an arrow onto a state is now resolved by the canvas hit-tester (`docs/blueprints/DESIGN_Hsm_Canvas_Authoring.md` D9) |
 
 ### Emit
@@ -750,7 +750,7 @@ full comparison feature architecture.
 |---------|------|------|
 | `Fhsm.Kernel` | `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/` | HSM runtime kernel. Provides `HsmDefinitionBlob`, `MachineMetadata`, `HsmBuilder`, `StateDef`, `TransitionDef`, `RegionDef`, `GlobalTransitionDef`, `StateFlags`, `TransitionFlags`, `EventFlags`, `CommandLane`, and the attribute types `HsmDefinitionAttribute`, `HsmLayoutAttribute`, `HsmActionAttribute`. CycloneDDS code-gen is disabled (`CycloneDdsDisableCodeGen=true`). |
 | `NodeEditor.Core` | `FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/` | Graph canvas framework. Provides `IGraphModel`, `INodeModel`, `IContainerNodeModel`, `ILinkModel`, `IPinModel`, `IEditorHostServices`, `IGraphCommandSink`, `ILinkValidator`, `INodeCatalog`, `ITypeSystem`, `ICustomCanvasRenderer`, `GraphCommand`, `NodeId`, `LinkId`, `PinId`, `TypeKey`, etc. |
-| `Hrot.Editor.AiShared` | `Hrot/Editor/Hrot.Editor.AiShared/` | Shared authoring infrastructure. Provides `IAssetCatalogContributor`, `IEditableAsset`, `AssetKind`, `AssetIdHasher`, `LayoutDiscovery`, `IFluentCSharpEmitter<T>`, `FluentCSharpEmitterBase`, `AiDebugSessionBase`, `IAiDebugSession`, `HotReloadClassifier`, `HotReloadTier`, `IAssetValidator`, `AssetDiagnostic`, `ITraceLaneProvider`, `TraceLaneDescriptor`, `IRuntimeInspectorPane`, `IAssetSubSelection`, `IRefactorService`, `FindResultsWindow`, and layout types `HsmEditorLayout`, `HsmEditorLayoutBuilder`. |
+| `Hrot.Editor.AiShared` | `Hrot/Editor/Hrot.Editor.AiShared/` | Shared authoring infrastructure. Provides `IAssetCatalogContributor`, `IEditableAsset`, `AssetKind`, `AssetIdHasher`, `LayoutDiscovery`, `IFluentCSharpEmitter<T>`, `FluentCSharpEmitterBase`, `AiDebugSessionBase`, `IAiDebugSession`, `HotReloadClassifier`, `HotReloadTier`, `IAssetValidator`, `AssetDiagnostic`, `TraceTimelineWindow` (its lane seam `ITimelineLaneProvider`/`TimelineLaneDescriptor` now lives in `Fdp.Toolkits`, R-4078), `IRuntimeInspectorPane`, `IAssetSubSelection`, `IRefactorService`, `FindResultsWindow`, and layout types `HsmEditorLayout`, `HsmEditorLayoutBuilder`. |
 
 ### NuGet packages (inherited via Directory.Build.props)
 

@@ -209,11 +209,18 @@ namespace Fdp.Toolkit.Vis2D.Components
             // Gather inputs
             float wheel = input.MouseWheelMove;
             Vector2 mousePos = input.MousePosition;
-            bool isPanDown = input.IsMouseButtonDown(InputMap.PanButton);
+            bool isPanDown = IsPanDown(input, InputMap);
             bool isCaptured = input.IsMouseCaptured;
 
             return ProcessInput(wheel, mousePos, isPanDown, isCaptured);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1287</c> — a pan is held when EITHER pan button is down: the right one (the 2-D map's original) or the middle one
+        /// (as in the 3-D view, <c>MapCamera3D.HandleInput</c>). ONE predicate, so the camera and its rails cannot disagree.
+        /// </summary>
+        public static bool IsPanDown(IInputProvider input, Vis2DInputMap map)
+            => input.IsMouseButtonDown(map.PanButton) || input.IsMouseButtonDown(map.SecondaryPanButton);
 
         /// <summary>
         /// Update camera targets based on inputs. Public for testing.

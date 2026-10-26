@@ -240,8 +240,20 @@ public static class TakeJson
     public static Reel ParseReel(JsonObject json, string name, List<string> problems)
     {
         foreach (var (k, _) in json)
-            if (k is not ("title" or "transition" or "items" or "loop" or "gapSeconds" or "note" or "$doc"))
+            if (k is not ("title" or "transition" or "items" or "loop" or "gapSeconds" or "note" or "waiting" or "$doc"))
                 problems.Add($"unknown reel key '{k}'");
+        var waiting = new List<ReelWaiting>();
+        if (json["waiting"] is JsonArray parked)
+            for (int i = 0; i < parked.Count; i++)
+            {
+                if (parked[i] is not JsonObject w) { problems.Add($"waiting {i + 1} is not an object"); continue; }
+                foreach (var (k, _) in w)
+                    if (k is not ("clip" or "why")) problems.Add($"waiting {i + 1}: unknown key '{k}'");
+                var clip = Str(w["clip"]);
+                if (string.IsNullOrWhiteSpace(clip)) { problems.Add($"waiting {i + 1}: no clip"); continue; }
+                waiting.Add(new ReelWaiting(clip!, Str(w["why"])));
+            }
+        else if (json["waiting"] is not null) problems.Add("'waiting' is a list of {clip, why}");
         var items = new List<ReelItem>();
         if (json["items"] is JsonArray arr)
             for (int i = 0; i < arr.Count; i++)
@@ -263,7 +275,7 @@ public static class TakeJson
         return new Reel
         {
             Name = name, Title = Str(json["title"]), Transition = Str(json["transition"]) ?? "fade", Items = items,
-            Loop = Bool(json["loop"]) ?? false, GapSeconds = Float(json["gapSeconds"]) ?? 1.5f,
+            Loop = Bool(json["loop"]) ?? false, GapSeconds = Float(json["gapSeconds"]) ?? 1.5f, Waiting = waiting,
         };
     }
 
@@ -285,6 +297,17 @@ public static class TakeJson
         r["transition"] = reel.Transition;
         if (reel.Loop) r["loop"] = true;
         r["items"] = items;
+        if (reel.Waiting.Count > 0)
+        {
+            var parked = new JsonArray();
+            foreach (var w in reel.Waiting)
+            {
+                var o = new JsonObject { ["clip"] = w.Clip };
+                if (w.Why != null) o["why"] = w.Why;
+                parked.Add(o);
+            }
+            r["waiting"] = parked;
+        }
         return r;
     }
 

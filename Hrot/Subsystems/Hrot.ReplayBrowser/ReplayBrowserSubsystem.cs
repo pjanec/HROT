@@ -33,8 +33,7 @@ namespace Hrot.ReplayBrowser;
 /// live simulation state. Does not implement <c>IMapCameraProvider</c> so the
 /// spatial camera remains independent of other subsystems.
 /// </summary>
-public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
-    Hrot.Presentation.DebugApi.IProvidesDebugSurface
+public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 {
     // ── ISubsystem ────────────────────────────────────────────────────────
 
@@ -82,6 +81,22 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     private InspectorState? _inspectorState;
     private RepositoryAdapter? _session;
     private ReplayTimelinePanel? _timelinePanel;
+    // ⭐ CE-1302 R1-c (DESIGN_Director_Timeline_Editor.md §9) — the event timeline over the primary node's recording: its index comes from
+    //   the sidecar or a background pass on its own playback (TL-7), its clicks seek through the manager (D1, FederatedReplayCursor).
+    private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? _timelineSource;
+    private string? _timelineFor;
+    private int _timelineLanesVersion = -1;
+    // ⭐ R-4078 / R-4079 (DESIGN_Director_Timeline_Editor.md §9c) — the lanes are REGISTERED by the toolkits that own their data; this host
+    //   only composes them (as the editor's §15.2 registers its trace providers) and hands the catalogue to the index and the panel.
+    private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog()
+        .Register(new Fdp.Toolkit.Replication.ReplicationTimelineLanes())
+        .Register(new Fdp.Toolkit.Combat.CombatTimelineLanes())
+        .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
+    private static readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext = new(Recording: true);
+    private Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler? _timelineCompiler;
+    internal Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog TimelineLanes => _timelineLanes;
+    internal Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? TimelineSource => _timelineSource;
     private IFileDialogService? _fileDialogService;
     private IRecordingExportService? _exportService;
     private ComponentDiffPanel? _diffPanel;
@@ -147,6 +162,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
     public ReplayBrowserSubsystem(INetworkFactory networkFactory) { _ = networkFactory; }
 
     /// <summary>Parameterless constructor for unit tests.</summary>
+    /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+    /// actions on them, the Details bundle registers Properties… and View ▸ Details on them.</summary>
+    internal Hrot.Common.Interactions.HostActions HostActions { get; } = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
     public ReplayBrowserSubsystem() { }
 
     // ── ISubsystem lifecycle ──────────────────────────────────────────────
@@ -158,6 +177,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         _activeRepo = null;
         _entityHistory = new EntitySelectionHistory();
         _playbackHistory = new PlaybackHistoryTracker();
+        if (_headless) WireHeadlessHistories();   // RB-3 — a windowed host wires them with its panels
 
         if (!_headless)
         {
@@ -174,6 +194,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
             CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _blueprintRegistry);
+            _behaviorsLoaded = true;
             _scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
             // ⭐ P4-③: see CgfSubsystem — the params section is on the tier renderers now.
             Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.BehaviorRegistry = behaviorRegistry;
@@ -183,93 +204,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.HsmTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             // â”€â”€ Gizmo Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
-            // 🔒 The pack CONSTRUCTS; this host still SCHEDULES (it holds the two systems directly rather
-            // than scheduling the togglable group, which remains its choice — the run-set is its role).
-            //
-            // ⚠⚠ The four projectors below go in through ContributeExtras, which the pack invokes AFTER
-            // the reflection pass and BEFORE constructing StatelessGizmoSystem. That ordering is
-            // load-bearing: the system sizes its visibility cache from registry.Rules.Count, so a rule
-            // registered afterwards lands beyond the cache and silently ignores its visibility policy.
-            //
-            // ⭐ CE-3123: EntityEditorLabelGizmo is reflected now (its BehaviorRegistry comes via Services).
-            var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
-
-            var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
-                new Hrot.ScenarioEditor.Map.MapInteractionContext
-                {
-                    World = _activeRepo!,
-                    // ⭐ CE-3123 — constructor services for reflected projectors (behaviour labels, mission lines). ⭐ CE-3126 — the
-                    //   replay's geo transform (origin from the recording), so MissionPresentationGizmo draws here too.
-                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, behaviorRegistry),
-                    GizmoUiPublisher = _gizmoUiHub,
-                    // ⭐ UXI-11 — the shared predicate, no longer hand-written here.
-                    IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
-                    // ⭐⭐⭐ UXI-11 — the pack builds this host's selection too. Resolver: _inspectorState
-                    //   is rebuilt whenever a recording loads.
-                    Inspector  = () => _inspectorState,
-                    RubberBand = rubberBandState,
-                    // The replay browser is an interactive window: it has a viewer from startup.
-                    StartEnabled = true,
-                    // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — this host only ever shows a recording, and effects are recorded:
-                    //   the spawner and the lifespan collector stand down; the recorded effects are drawn as they were.
-                    IsReplayActive = static () => true,
-                    ContributeExtras = regs =>
-                    {
-                        // ⭐ CE-3123 — the label gizmo is reflected now (BehaviorRegistry via Services); the retired
-                        //   EntityEditorPolylineGizmo (superseded by EntityPresentationGizmo) is no longer drawn here.
-                        // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20,
-                        //    §2.7.16): every host with a 2-D map gets the marquee, not just the two that
-                        //    remembered to register it. Registering here too would draw it TWICE.
-                        regs.Stateless.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
-                    },
-                });
-
-            _gizmoBuffer           = mapInteraction.Buffer;
-            _interactionBus        = mapInteraction.InteractionBus;
-            _globalGizmoManager    = mapInteraction.GlobalManager;
-            _replayToolController  = mapInteraction.Tools;
-            _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
-            _statelessGizmoSystem  = mapInteraction.StatelessSystem;
-            _effectSpawn           = mapInteraction.EffectSpawn;
-            _lifespan              = mapInteraction.Lifespan;
-            _wreckSpawn            = mapInteraction.WreckSpawn;
-            var gizmoRegistry      = mapInteraction.GizmoRegistry;
-            var statelessRegistry  = mapInteraction.StatelessRegistry;
-            var settingsRegistry   = mapInteraction.Settings;
-            // ⭐⭐ UXI-23 S3: this host drives the three systems directly from its own Update rather than
-            // scheduling the group, so it declares exactly those three. §3.2e.
-            foreach (string problem in mapInteraction.Unserviceable(
-                         new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch,
-                                        _effectSpawn, _wreckSpawn, _lifespan }))
-                Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
-
-            // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
-            //    system, the view and both systems by hand, exactly as the other four did — which is
-            //    the duplication MapInteractionPack exists to remove.
-            // ⭐ The hand-written map->inspector callback went at S-3b: it fired for a MAP click and
-            //    nothing else, so an inspector click or a diff/event entity link left the map behind.
-            _selectionSystem        = mapInteraction.SelectionInteraction;
-            _selectionView          = mapInteraction.Selection;
-            _selectionRequests      = mapInteraction.SelectionRequests;
-            _selectionNotifications = mapInteraction.SelectionNotifications;
-
-            // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
-            // ⭐ CE-1134 — Center View is MapInteractionPack.RegisterViewActions now (every map host; 2-D and 3-D, the replicated
-            //   position first). This host's own copy read SimTransform only and moved only the 2-D camera.
-
-            _actionDispatchSystem = mapInteraction.ActionDispatch;
-            // ⭐ CE-3179 — the dispatcher above was ticked here with nothing feeding it: no ingress turned a map-menu click (Center
-            //   View, the pins, the main menu's layer control) into a request, so none of them ran in the replay browser.
-            _contextIngress = new Hrot.Common.Systems.ContextActionIngressSystem(
-                () => _activeRepo is { } r && r.HasSingletonManaged<NetworkEntityMap>() ? r.GetSingletonManaged<NetworkEntityMap>() : null,
-                _interactionBus!);
-            _debugStatePatchSystem = mapInteraction.DebugStatePatch;
-            // ⭐⭐ CE-259am — a DELEGATE, not `_canvas.Camera`: the canvas is replaced on a view-mode
-            //    switch, and the system's own param doc gives that as the reason it takes a Func.
-            _centerOnEntitySystem = new Hrot.ScenarioEditor.Systems.CenterOnEntitySystem(() => _canvas?.Camera);
-
+            BuildMapInteraction(_activeRepo!, behaviorRegistry);
 
             // ⭐ §6.7 — the world IS passed now, for ONE reader: PickEntity resolves a picked anchor's
             //   network id to an Entity, against the NetworkEntityMap this module now maintains
@@ -277,7 +212,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             //   stored nowhere. See DebugGizmoLayer._world.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
             _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _gizmoBuffer, _interactionBus, () => _activeRepo).GizmoLayer;
+                _canvas, _gizmoBuffer!, _interactionBus!, () => _activeRepo).GizmoLayer;   // set by BuildMapInteraction above
 
             _diffService = new ComponentDiffService();
             _exportService = new RecordingExportService(_scenarioSerializer, _diffService);
@@ -292,42 +227,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
             // Wire up group-load delegate and merged-view query so the timeline panel
             // can coordinate with the federation manager without knowing about it.
-            _timelinePanel.OnLoadGroup = paths =>
-            {
-                try
-                {
-                    _manager?.Dispose();
-                    _transientMaster?.Dispose();
-                    _transientMaster = null;
-
-                    _manager = FederatedReplayManager.LoadGroup(paths);
-                    _manager.OnTimeChanged += OnManagerTimeChanged;
-                    ApplyRecordingGeoOrigin();   // CE-3126
-                    ApplyRecordingTerrain();     // CE-3118
-
-                    CreateOrReplaceFederationPanel();
-
-                    OnManagerTimeChanged();
-                    _timelinePanel?.SetManager(_manager!);
-                    return null;  // no rejection
-                }
-                catch (LoadGroupException ex)
-                {
-                    return ex.Message;
-                }
-                catch (System.IO.IOException ex)
-                {
-                    return $"Failed to read recording file: {ex.Message}";
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    return $"Access denied reading recording file: {ex.Message}";
-                }
-                catch (System.Text.Json.JsonException ex)
-                {
-                    return $"Recording metadata is corrupt: {ex.Message}";
-                }
-            };
+            // ⭐ RB-1 — the panel's load and POST /replay are ONE path (OpenGroup).
+            _timelinePanel.OnLoadGroup = OpenGroup;
             _timelinePanel.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
 
             _transientBuilder = new TransientMasterBuilder(_scenarioSerializer);
@@ -348,10 +249,111 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ The shared map pack's machinery for this host (selection, actions, gizmos) — ONE construction, used at boot by a windowed
+    /// host and (RB-7, <c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) on the first open by a headless one, which has no world before a
+    /// recording opens. ⭐ So <c>POST /selection</c> and the selection history work on a headless Replay Browser through the same
+    /// <c>SelectionRequestSystem</c> a click goes through.
+    /// </summary>
+    private void BuildMapInteraction(EntityRepository world, BehaviorRegistry behaviorRegistry)
+    {
+        // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
+        // 🔒 The pack CONSTRUCTS; this host still SCHEDULES (it holds the two systems directly rather
+        // than scheduling the togglable group, which remains its choice — the run-set is its role).
+        //
+        // ⚠⚠ The four projectors below go in through ContributeExtras, which the pack invokes AFTER
+        // the reflection pass and BEFORE constructing StatelessGizmoSystem. That ordering is
+        // load-bearing: the system sizes its visibility cache from registry.Rules.Count, so a rule
+        // registered afterwards lands beyond the cache and silently ignores its visibility policy.
+        //
+        // ⭐ CE-3123: EntityEditorLabelGizmo is reflected now (its BehaviorRegistry comes via Services).
+        var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+
+        var mapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            new Hrot.ScenarioEditor.Map.MapInteractionContext
+            {
+                World = world,
+                // ⭐ CE-3327 RB-7 (DESIGN_Replay_Browser_Debug_Http.md §7.4) — the selection lives in the world SHOWN now (a node's sandbox
+                //   or the merged world), never the one the pack was built over: the views switch under one map.
+                SelectionWorld = () => _activeRepo ?? world,
+                Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
+                // ⭐ CE-3123 — constructor services for reflected projectors (behaviour labels, mission lines). ⭐ CE-3126 — the
+                //   replay's geo transform (origin from the recording), so MissionPresentationGizmo draws here too.
+                Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, behaviorRegistry),
+                GizmoUiPublisher = _gizmoUiHub,
+                // ⭐ UXI-11 — the shared predicate, no longer hand-written here.
+                IsSelectedPredicate = Hrot.ScenarioEditor.Map.MapInteractionContext.SelectedEntitiesOnly,
+                // ⭐⭐⭐ UXI-11 — the pack builds this host's selection too. Resolver: _inspectorState
+                //   is rebuilt whenever a recording loads.
+                Inspector  = () => _inspectorState,
+                RubberBand = rubberBandState,
+                // The replay browser is an interactive window: it has a viewer from startup.
+                StartEnabled = true,
+                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — this host only ever shows a recording (no order menu). The effect systems
+                //   stand down through the world's ReplayState (PrepareRepo), not through this.
+                IsReplayActive = static () => true,
+                ContributeExtras = regs =>
+                {
+                    // ⭐ CE-3123 — the label gizmo is reflected now (BehaviorRegistry via Services); the retired
+                    //   EntityEditorPolylineGizmo (superseded by EntityPresentationGizmo) is no longer drawn here.
+                    // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20,
+                    //    §2.7.16): every host with a 2-D map gets the marquee, not just the two that
+                    //    remembered to register it. Registering here too would draw it TWICE.
+                    regs.Stateless.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
+                },
+            });
+
+        _gizmoBuffer           = mapInteraction.Buffer;
+        _interactionBus        = mapInteraction.InteractionBus;
+        _globalGizmoManager    = mapInteraction.GlobalManager;
+        _replayToolController  = mapInteraction.Tools;
+        _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
+        _statelessGizmoSystem  = mapInteraction.StatelessSystem;
+        _effectSpawn           = mapInteraction.EffectSpawn;
+        _lifespan              = mapInteraction.Lifespan;
+        _wreckSpawn            = mapInteraction.WreckSpawn;
+        var gizmoRegistry      = mapInteraction.GizmoRegistry;
+        var statelessRegistry  = mapInteraction.StatelessRegistry;
+        var settingsRegistry   = mapInteraction.Settings;
+        // ⭐⭐ UXI-23 S3: this host drives the three systems directly from its own Update rather than
+        // scheduling the group, so it declares exactly those three. §3.2e.
+        foreach (string problem in mapInteraction.Unserviceable(
+                     new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch,
+                                    _effectSpawn, _wreckSpawn, _lifespan }))
+            Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
+
+        // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
+        //    system, the view and both systems by hand, exactly as the other four did — which is
+        //    the duplication MapInteractionPack exists to remove.
+        // ⭐ The hand-written map->inspector callback went at S-3b: it fired for a MAP click and
+        //    nothing else, so an inspector click or a diff/event entity link left the map behind.
+        _selectionSystem        = mapInteraction.SelectionInteraction;
+        _selectionView          = mapInteraction.Selection;
+        _selectionRequests      = mapInteraction.SelectionRequests;
+        _selectionNotifications = mapInteraction.SelectionNotifications;
+
+        // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
+        // ⭐ CE-1134 / CE-1150 — Center View is SharedHostActions' (every host; 2-D and 3-D, the replicated position first). This
+        //   host's own copy read SimTransform only and moved only the 2-D camera.
+
+        _actionDispatchSystem = mapInteraction.ActionDispatch;
+        // ⭐ CE-3179 — the dispatcher above was ticked here with nothing feeding it: no ingress turned a map-menu click (Center
+        //   View, the pins, the main menu's layer control) into a request, so none of them ran in the replay browser.
+        _contextIngress = new Hrot.Common.Systems.ContextActionIngressSystem(
+            () => _activeRepo is { } r && r.HasSingletonManaged<NetworkEntityMap>() ? r.GetSingletonManaged<NetworkEntityMap>() : null,
+            _interactionBus!);
+        _debugStatePatchSystem = mapInteraction.DebugStatePatch;
+        // ⭐⭐ CE-259am — a DELEGATE, not `_canvas.Camera`: the canvas is replaced on a view-mode
+        //    switch, and the system's own param doc gives that as the reason it takes a Func.
+        _centerOnEntitySystem = new Hrot.ScenarioEditor.Systems.CenterOnEntitySystem(() => _canvas?.Camera);
+    }
 
     // ⭐ CE-3293 S2 (DESIGN_Paused_And_Stepped_Execution.md rule 3) — this host runs no ModuleHostKernel and ticks its systems
     //   itself; every one still goes through a scheduler's gate, which reads its TickMode and (from S5) the replay clock.
     private readonly Fdp.ModuleHost.Scheduling.SystemScheduler _systemRunner = new();
+
+    private System.Diagnostics.Stopwatch? _headlessClock;
 
     private void RunSystem(Fdp.ModuleHost.Abstractions.IEcsModuleSystem? system, float deltaTime)
     {
@@ -360,6 +362,15 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
     public void Update(float deltaTime)
     {
+        // ⭐ CE-3327 RB-1 — a headless orchestrator hands a non-deterministic host NO time (SubsystemOrchestrator.GetDeltaTime: 0); a kernel
+        //   host keeps its own clock, and so must this one or POST /sim/play never moves (🔴 measured live: frame 0 after 1 s of play).
+        if (_headless && deltaTime <= 0f)
+        {
+            _headlessClock ??= System.Diagnostics.Stopwatch.StartNew();
+            deltaTime = (float)_headlessClock.Elapsed.TotalSeconds;
+            _headlessClock.Restart();
+        }
+
         int pendingSeek = _pendingChangeSeekFrame;
         if (pendingSeek >= 0)
         {
@@ -382,28 +393,31 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             }
         }
 
-        if (!_headless)
+        SyncTimelineSource();   // ⭐ RB-6 — a headless host keeps the index too (GET /timeline/*)
+
+        // ⭐ RB-1 — playback runs on a headless host too (POST /sim/play): the one play state, the panel's or the headless host's.
+        if (IsPlaying)
         {
-            if (_timelinePanel != null && _timelinePanel.IsPlaying)
+            _playbackAccumulator += deltaTime * PlaybackRate;
+            float frameTime = 1.0f / 60.0f;
+
+            if (_playbackAccumulator > frameTime * 10f)
+                _playbackAccumulator = frameTime * 10f;
+
+            while (_playbackAccumulator >= frameTime)
             {
-                _playbackAccumulator += deltaTime * _timelinePanel.PlaybackRate;
-                float frameTime = 1.0f / 60.0f;
-
-                if (_playbackAccumulator > frameTime * 10f)
-                    _playbackAccumulator = frameTime * 10f;
-
-                while (_playbackAccumulator >= frameTime)
+                _playbackAccumulator -= frameTime;
+                if (!TryStepForwardViaManager())
                 {
-                    _playbackAccumulator -= frameTime;
-                    if (!TryStepForwardViaManager())
-                    {
-                        _timelinePanel.IsPlaying = false;
-                        _playbackAccumulator = 0f;
-                        break;
-                    }
+                    IsPlaying = false;
+                    _playbackAccumulator = 0f;
+                    break;
                 }
             }
+        }
 
+        if (!_headless)
+        {
             int currentFrame = PrimaryNodeCurrentFrame();
             Entity? currentEntity = _inspectorState?.SelectedEntity;
             bool isPlaying = _timelinePanel != null && _timelinePanel.IsPlaying;
@@ -435,13 +449,22 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 _canvas.Camera.HandleInput(new Fdp.Toolkit.Vis2D.Defaults.RaylibInputProvider());
 
             _canvas?.Update(deltaTime);
+        }
 
+        // ⭐ RB-7 — the map pack's systems run on a headless host too (it builds them on its first open): POST /selection goes through
+        //   the same SelectionRequestSystem a click does. Only the mouse gesture system needs a window.
+        {
             // Evict transient primitives before backend population
             _gizmoBuffer?.EndFrame(deltaTime);
 
             if (_activeRepo != null)
             {
-                _selectionSystem?.Tick(deltaTime);
+                // ⭐ CE-3327 RB-7 — the shown world's own bus, swapped once a frame as a kernel does (ModuleHostKernel.cs:657): what a
+                //   route or a panel published on it (SelectEntityCommand, SelectionChangeRequest, CenterOnEntityCommand) becomes readable
+                //   to the systems below. 🔴 Nothing swapped it before, so those events were never read. ⚠ Safe: the playback injects the
+                //   recorded events into the context's separate SandboxBus, never this one.
+                _activeRepo.Bus.SwapBuffers();
+                if (!_headless) _selectionSystem?.Tick(deltaTime);
                 // ⭐⭐⭐ UXI-11 — the shared request/notify pair, ticked directly like its neighbours
                 //    here because this host runs no ModuleHostKernel. ⚠ ORDER IS LOAD-BEARING:
                 //    requests apply, THEN the announcement is consumed, so a cause and its consequence
@@ -473,10 +496,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
                 // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — the effects are IN the recording (with their Lifespan), so the layer draws
                 //   them at the recording's own sim time and a jump lands on the right ones. ⛔ The hand-spawning from the replayed
                 //   fire / hit events is gone (it lost every long effect on a jump). Both systems are still ticked so this host's
-                //   run-set is the map's whole set; IsReplayActive keeps them standing down.
+                //   run-set is the map's whole set; ReplayState (PrepareRepo) keeps them standing down.
                 RunSystem(_effectSpawn, deltaTime);
                 RunSystem(_wreckSpawn, deltaTime);
                 RunSystem(_lifespan, deltaTime);
+                FollowTheSelectionIntoItsHistory();
             }
 
             // Swap the interaction bus so intent events are visible on the next frame
@@ -497,23 +521,26 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         _gizmoLayer?.DrawContextMenu();
         _gizmoLayer?.DrawStructInspector();
 
-        // Render gizmo-contributed main menu items (e.g., "View > Tactical Map Layers...")
-        var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-        if (gizmoMenus != null && gizmoMenus.Count > 0)
-        {
-            if (ImGuiNET.ImGui.BeginMainMenuBar())
-            {
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                {
-                    _interactionBus?.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId });
-                });
-                ImGuiNET.ImGui.EndMainMenuBar();
-            }
-        }
+        // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterWindowsCore).
+    }
+
+    /// <summary>⭐ CE-1302 R1-c — re-opens the timeline's index when the primary node's recording changes (a new group, another node).</summary>
+    internal void SyncTimelineSource()
+    {
+        string? path = PrimaryNodeCurrentFdpPath();
+        if (path == _timelineFor && _timelineLanes.Version == _timelineLanesVersion) return;
+        _timelineSource?.Dispose();
+        _timelineCompiler ??= new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
+        _timelineSource = path == null ? null
+            : Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource.Open(path, _timelineLanes.Indexed(TimelineContext), _timelineCompiler);
+        _timelineFor = path;
+        _timelineLanesVersion = _timelineLanes.Version;
     }
 
     public void Shutdown()
     {
+        _timelineSource?.Dispose();
         _manager?.Dispose();
         _transientMaster?.Dispose();
         _terrain?.Unload(_terrainCarrier);   // CE-3118 — the holder frees the road graph
@@ -541,6 +568,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             if (_manager.Contexts.TryGetValue(nodeId, out var ctx))
                 RebindActiveRepo(ctx.SandboxRepo);
         }
+
+        CaptureEventsAtTheNewFrame();
 
         // Update EventBrowserPanel's history service to the primary node's service.
         if (_eventPanel != null && _manager != null
@@ -680,6 +709,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         EnsureNetworkEntityMap(repo);
         // ⭐ CE-3126 — the replay's ONE geo transform, on every repo this host binds, like every other node's world.
         repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_geoTransform);
+        // ⭐ CE-3329 P2 (DESIGN_Replay_Time_Axis_And_Review §12l) — this host only ever shows a recording: every world it binds says so,
+        //   and the systems that would write world state (the effect spawners, the lifespan collector) stand down by reading it.
+        Fdp.Toolkit.Replay.ReplayState.Enter(repo);
         // ⭐ CE-3118 — the recording's terrain and road network, on every repo this host draws (docs/DESIGN_Geo_Origin.md §5).
         Hrot.Map.Common.Services.TerrainResidency.MirrorTerrain(_terrainCarrier, repo);
     }
@@ -804,101 +836,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         map.RebuildFromWorld(repo);
     }
 
-    // ── IProvidesDebugSurface ─────────────────────────────────────────────
+    // ── IProvidesDebugSurface — ReplayBrowserSubsystem.DebugSurface.cs (RB-1) ──
 
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>CE-259am</c> — THIS SUBSYSTEM CONTRIBUTES A DEBUG PROVIDER, like every other host that
-    /// owns a perspective.</b> 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8c ·
-    /// <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1 *(the federation: a node exposes the providers
-    /// for the subsystems it runs)* · <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5.6 *(the
-    /// classDiagram <see cref="Hrot.Presentation.DebugApi.ISubsystemDebugProvider.GizmoBuffer"/> is drawn
-    /// in)*.
-    ///
-    /// <para>🔴 <b>What its absence cost, measured `2026-09-11` driving <c>--mode replaybrowser</c> over
-    /// HTTP.</b> This was the ONLY perspective-owning subsystem that implemented nothing here, so
-    /// <c>PerspectiveScopedDispatcher</c> was built with an EMPTY provider list ⇒
-    /// <c>GET /capabilities</c> reported <c>providers=[]</c>, <c>matrix={}</c>, and every
-    /// world/gizmo route answered as if the host held nothing: <c>GET /panels/_gizmo</c> and
-    /// <c>POST /annotations</c> said <i>"no debug primitive buffer for the active perspective"</i>,
-    /// <c>GET /entities/{id}</c> said <c>NOT_SUPPORTED_HERE: world.entityMap</c>.
-    /// ⛔⛔ <b>All four answers were FALSE</b> — this host holds a world, a map and a gizmo buffer, and the
-    /// buffer is filled every frame *(proven by an inverse-edit red-proof that aborted the process out of
-    /// <c>DebugPrimitiveBuffer.AppendRaw</c> via <c>StatelessGizmoSystem.Execute</c> → <see cref="Update"/>)*.
-    /// ⇒ ⚠ the instrument reported ABSENT where the truth was PRESENT — the <c>CE-110</c> disease, which
-    /// that row records costing a wrong root-cause hypothesis.</para>
-    ///
-    /// <para>⭐⭐ <b>EVERY accessor is a <see cref="Func{T}"/>, and here that is LOAD-BEARING rather than
-    /// stylistic.</b> ⛔ <see cref="_activeRepo"/> is REPLACED on every seek, step and view-mode switch
-    /// *(<see cref="RebindActiveRepo"/>)*, so a value captured when the composition root builds this
-    /// provider would answer from the pre-load transient master FOREVER — the *"a value-captured provider
-    /// LIES"* shape <see cref="Hrot.Presentation.DebugApi.SubsystemDebugProvider"/>'s own ctor remarks were
-    /// written for. ⭐ This host is the strongest case for it in the repo: nothing else swaps its world
-    /// while running.</para>
-    ///
-    /// <para>⛔ <b>What is null, and each is a MEASURED absence rather than a silent default</b> *(the rule:
-    /// a caller that HAS a dependency must PASS it — so the ones it does not hold are named)*:
-    /// <list type="bullet">
-    ///   <item><b><c>drive</c></b> — replay time is not CLUSTER time. This host has no
-    ///     <c>ClusterTimeTransportAdapter</c>; its timeline is a <see cref="FederatedReplayManager"/>, which
-    ///     <c>/replay/seek</c> and <c>/replay/step</c> already serve. ⚠ Fronting the manager as an
-    ///     <c>ITimeTransportFacade</c> would be a NEW adapter and a design call, not a wiring fix.</item>
-    ///   <item><b><c>extraction</c></b> — 📐 measured: <see cref="_inspectorPanel"/> is given
-    ///     <c>Serializer</c> only *(`:319`)* and its <c>ExtractionService</c> is never set, so there is no
-    ///     node-owned projection to hand over. 🔒 <c>ISubsystemDebugProvider.Extraction</c>'s own contract:
-    ///     <i>"Never fabricate one here — the point is to use the node's REAL projection, not a second,
-    ///     poorer one."</i> ⇒ the API falls back as documented.</item>
-    ///   <item><b><c>architecture</c></b> — ⭐ design-confirmed absent:
-    ///     <c>DESIGN_Subsystem_Composition_Unification.md:1153</c> measures <b>zero</b>
-    ///     <c>ModuleHostKernel</c>/<c>RegisterGlobalSystem</c> references here, and `:2063` records that
-    ///     ReplayBrowser has <i>"neither kernel nor ClusterSlave"</i>.</item>
-    ///   <item><b><c>tkbDb</c> · <c>missionEditor</c> · <c>requestTransition</c> · <c>clusterState</c> ·
-    ///     <c>requestDiagnosticDump</c> · <c>dumpStatus</c> · <c>availableScenarios</c></b> — none exist in
-    ///     this subsystem *(no catalog, no mission service, no orchestration bus, no cluster slave)*. ⭐ A
-    ///     replay browser participates in no cluster; that is what it IS.</item>
-    /// </list></para>
-    ///
-    /// <para>⚠⚠ <b>The one thing to know about <c>world</c> here:</b> <c>world.read</c> is a single
-    /// capability covering the MUTATING entity routes too *(<c>/entities/spawn</c>,
-    /// <c>DELETE /entities/{id}</c>, <c>POST /entities/{id}/component</c>)*. 📐 Measured consequence: such a
-    /// write lands in the replay SANDBOX repo, which <see cref="RebindActiveRepo"/> replaces on the next
-    /// seek — ⛔ it reaches no <c>.fdp</c> and no other node, so it is discarded, not destructive.
-    /// ⭐ Exposing it anyway follows <c>R-141</c> *(an unused capability is the natural outcome of sharing,
-    /// never a per-host decision to just-not)* and <c>R-137</c> *(a unification may not cost a
-    /// capability)*: without it <c>/entities</c>, <c>/entities/{id}/state</c>, <c>/diff/*</c> and
-    /// <c>/checkpoint</c> are all dark, and <c>/replay/entities</c> reports component NAMES only — no
-    /// values. ⛔ <b>Searched <c>docs/</c> and <c>.dev/</c> for a record on whether a replay sandbox may be
-    /// mutated: none found.</b></para>
-    ///
-    /// <para>⛔⛔ <b>AND THE ONE THING A READER MUST NOT MISREAD — THERE ARE TWO REPLAY WORLDS.</b>
-    /// 📐 Measured `2026-09-11`: after <c>POST /replay/load</c> + <c>seek</c>, <c>/replay/entities</c>
-    /// returns <b>8</b> while <c>GET /entities</c> returns <b>0</b>. ⚠ Both are correct.
-    /// <c>POST /replay/load</c> loads into an <b>ISOLATED <c>ReplayBrowserContext</c> owned by the debug
-    /// service</b> — its own route doc says so, and says <i>"use list_replay_entities (not list_entities)
-    /// while replaying"</i> — whereas <see cref="_activeRepo"/> is the UI's own world, driven by this
-    /// subsystem's <see cref="FederatedReplayManager"/> and still EMPTY until an operator opens a
-    /// recording. ⭐ That isolation exists so an agent can inspect a recording without disturbing the
-    /// operator's session; on this host it is redundant but harmless. ⇒ <c>world.read</c> here reports the
-    /// UI's world honestly, ⛔ it is NOT a second view of the HTTP-loaded recording — reading
-    /// <c>/entities</c> → <c>0</c> as <i>"the recording is empty"</i> would be the <c>CE-110</c> mistake
-    /// again. 📄 Filed as <c>CE-259an</c>; wiring <c>/replay/load</c> to the UI's manager is a contract
-    /// change to a shared route, not a wiring fix.</para>
-    /// </summary>
-    public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
-        => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
-            subsystemName: Name,
-            // ⭐ "ReplayBrowser" — the perspective the window manager actually reports, design-confirmed at
-            //   DESIGN_Perspective_Unification.md:84. ⛔ The dispatcher matches on THIS string, so a
-            //   mismatch here is indistinguishable from contributing nothing at all.
-            perspective:   "ReplayBrowser",
-            world:         () => _activeRepo,
-            // ⭐⭐⭐ Read the map off the CURRENT repo through the shared helper, never a captured field:
-            //   the map is a world singleton (§6.7) and this host's world is swapped on every seek, so the
-            //   singleton it must report is whichever one EnsureNetworkEntityMap just rebuilt.
-            entityMap:     Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                               .EntityMapFrom(() => _activeRepo),
-            // ⭐⭐ The very buffer this host's map draws (`:265` takes it as the canvas DrawBuffer) and that
-            //   StatelessGizmoSystem + GlobalGizmoManager + DataDrivenGizmoSystem fill from Update (`:421`).
-            gizmoBuffer:   () => _gizmoBuffer);
 
     /// <summary>
     /// Loads one or more .fdp recording files via a fresh <see cref="FederatedReplayManager"/>
@@ -930,6 +869,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             _eventPanel!,
             _searchPanel!,
             _federationPanel);
+
+        // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+        Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _canvas, "ReplayBrowser");
 
         // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
         // Harmless no-op for the Win32 backend: WindowManager only draws the service
@@ -963,24 +905,53 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplayTimelineWindow(
             "rb_timeline", "Replay Timeline", perspective, timelinePanel, color));
 
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FdpEntityInspectorWindow(
-            "rb_inspector", "Replay Entity Inspector", perspective,
-            inspectorPanel,
-            () => _session,
-            () => stateRef,
-            color));
+        windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
+            "rb_event_timeline", "Event Timeline", perspective, _eventTimeline, () => _timelineSource,
+            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0),
+            () => _timelineLanes.Lanes(TimelineContext), color));
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
             "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));
-
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FdpEventBrowserWindow(
-            "rb_events", "Replay Event Browser", perspective, eventPanel, color));
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplaySearchWindow(
             "rb_search", "Replay Search", perspective, searchPanel, color));
 
         if (federationPanel != null)
             RegisterFederationWindow(windowManager, federationPanel);
+
+        // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds: the
+        //   Components view over the replayed world, and Properties… / View ▸ Details on this host's actions. 📐 Before: none here.
+        // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor.
+        Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "replay/map-menus", perspective,
+            () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+
+        // ⭐⭐ CE-1244 (DESIGN_Subsystem_Composition_Unification §5c.7.8 RI-1…RI-3) — the entity inspector and the event browser come
+        //   from the SAME diagnostics bundle every host composes (with the map's entity menu and "Inspect…"); no kernel here ⇒ no
+        //   architecture / profiler window. ⛔ SUPERSEDED: this host's own copies of the two window classes (rb_inspector / rb_events).
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[]
+            {
+                new Hrot.Presentation.Windows.DiagnosticsWindowsBundle(new Hrot.Presentation.Windows.DiagnosticsHostServices(
+                    IdPrefix:       "rb_",
+                    TitlePrefix:    "Replay",
+                    Perspective:    perspective,
+                    Inspector:      inspectorPanel,
+                    RepoAdapter:    () => _session,
+                    InspectorState: () => stateRef,
+                    EventBrowser:   eventPanel,
+                    TitleBarColor:  color,
+                    Host:           () => HostActions,
+                    World:          () => _activeRepo)),
+                new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                    WindowId:    "rb_details",
+                    Perspective: perspective,
+                    World:       () => _activeRepo,
+                    Inspector:   () => inspectorPanel,
+                    Session:     () => _session,
+                    RunState:    static () => Hrot.Editor.AiShared.Variables.VariableRunState.Replay,
+                    Host:        () => HostActions)),
+            },
+            new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
     }
 
     /// <summary>⭐⭐⭐ U-obs-5 follow-up — shared by <see cref="RegisterWindowsCore"/> (the initial
@@ -1061,80 +1032,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
         try
         {
-            int? foundFrame = await Task.Run(() =>
-            {
-                using var tempContext = new ReplayBrowserContext();
-                tempContext.LoadRecording(fdpPath);
-                var playback = tempContext.Playback;
-                if (playback == null)
-                    return (int?)null;
-
-                var repo = tempContext.SandboxRepo;
-                var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
-                var mask512 = repo.GetSnapshotableMask();
-
-                bool IsActualIncludedDiff(JsonNode? before, JsonNode? after)
-                {
-                    var diffs = diffSvc.ComputeTreeDiff(before, after, epsilon);
-                    foreach (var node in diffs)
-                    {
-                        if (node.IsModified && !excludedNames.Contains(node.Name))
-                            return true;
-                    }
-
-                    return false;
-                }
-
-                if (direction > 0)
-                {
-                    tempContext.SeekToFrame(startFrame, suppressHistory: true);
-                    JsonNode? baseline = repo.IsAlive(target)
-                        ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                        : null;
-                    while (tempContext.StepForward(suppressHistory: true))
-                    {
-                        JsonNode? current = repo.IsAlive(target)
-                            ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                            : null;
-
-                        if (IsActualIncludedDiff(baseline, current))
-                            return playback.CurrentFrame;
-
-                        baseline = current;
-                    }
-                }
-                else
-                {
-                    if (startFrame <= 0)
-                        return null;
-
-                    tempContext.SeekToFrame(0, suppressHistory: true);
-                    int? lastChangeFrame = null;
-                    JsonNode? baseline = repo.IsAlive(target)
-                        ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                        : null;
-
-                    if (IsActualIncludedDiff(null, baseline))
-                        lastChangeFrame = 0;
-
-                    while (playback.CurrentFrame < startFrame - 1)
-                    {
-                        if (!tempContext.StepForward(suppressHistory: true))
-                            break;
-
-                        JsonNode? current = repo.IsAlive(target)
-                            ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                            : null;
-                        if (IsActualIncludedDiff(baseline, current))
-                            lastChangeFrame = playback.CurrentFrame;
-
-                        baseline = current;
-                    }
-                    return lastChangeFrame;
-                }
-
-                return (int?)null;
-            });
+            // ⭐ RB-2 — the ONE finder the debug API's POST /replay/seek {next} runs too (EntityChangeFinder).
+            int? foundFrame = await Task.Run(() => EntityChangeFinder.Find(
+                fdpPath, startFrame, _ => target, direction,
+                (repo, e) => serializer.SerializeEntity(repo, e, new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver(), repo.GetSnapshotableMask()),
+                name => !excludedNames.Contains(name), epsilon, diffSvc));
 
             if (foundFrame.HasValue)
             {
@@ -1171,10 +1073,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         //    there is nothing to be second to.
         entityHistory.OnSelectionChanged += e =>
         {
-            if (_activeRepo != null)
-                _activeRepo.Bus.PublishManaged(
-                    Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(e, "Replay.History"));
-            else
+            if (!RequestSelectionFromHistory(e))
                 inspectorState.SelectedEntity = e;
         };
 

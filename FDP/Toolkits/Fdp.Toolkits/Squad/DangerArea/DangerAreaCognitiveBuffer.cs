@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.DangerAreaCognitiveBuffer)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct DangerAreaCognitiveBuffer
     {
         /// <summary>Number of valid descriptors in <see cref="Slots"/> (0..8).</summary>

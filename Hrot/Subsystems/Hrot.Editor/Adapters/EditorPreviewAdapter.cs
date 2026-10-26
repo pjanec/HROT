@@ -64,5 +64,8 @@ namespace Hrot.Editor.Adapters
         {
             _handler.TriggerUnloadingPreview();
         }
+
+        /// <inheritdoc/>
+        public void ForgetPreview() => _handler.TriggerForgetPreview();
     }
 }

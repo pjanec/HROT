@@ -18,7 +18,9 @@ namespace Hrot.MuscleCharacter.Animation.Look
 
         /// <summary>Look at <paramref name="point"/>. False when the unit cannot carry a look (no <see cref="LookAtChannel"/>). The same point
         /// again (within 5 cm) changes nothing.</summary>
-        public static unsafe bool AtPoint(EntityRepository world, Entity self, Vector3 point, byte priority = 0, uint behaviorInstance = 0)
+        /// <remarks>⭐ <c>CE-2365</c> (AQ103 H, behaviors) — <paramref name="blendSeconds"/>: how fast the head gets there (a nervous man's snaps).</remarks>
+        public static unsafe bool AtPoint(EntityRepository world, Entity self, Vector3 point, byte priority = 0, uint behaviorInstance = 0,
+                                          float blendSeconds = DefaultBlendSeconds)
         {
             if (!CanCarry(world, self)) return false;
             ref var ch = ref world.GetComponentRW<LookAtChannel>(self);
@@ -28,7 +30,7 @@ namespace Hrot.MuscleCharacter.Animation.Look
                 fixed (byte* src = ch.Params) old = *(LookAtPointParams*)src;
                 if (Vector3.DistanceSquared(new Vector3(old.WorldPointX, old.WorldPointY, old.WorldPointZ), point) < 0.0025f) return true;
             }
-            var p = new LookAtPointParams { WorldPointX = point.X, WorldPointY = point.Y, WorldPointZ = point.Z, BlendInTime = DefaultBlendSeconds, Priority = priority };
+            var p = new LookAtPointParams { WorldPointX = point.X, WorldPointY = point.Y, WorldPointZ = point.Z, BlendInTime = blendSeconds, Priority = priority };
             fixed (byte* dst = ch.Params) *(LookAtPointParams*)dst = p;
             ch.ActiveAction = LookAtActionIds.LookAtPoint;
             ch.BehaviorInstanceId = behaviorInstance;

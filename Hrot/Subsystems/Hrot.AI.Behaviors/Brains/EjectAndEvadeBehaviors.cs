@@ -10,6 +10,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Perception.Components;
 using Hrot.Map.Definitions.Behavior;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -119,7 +120,7 @@ namespace Hrot.AI.Behaviors.Brains
             away = dist > 0.1f ? away / dist : Vector2.UnitX;
             var to2 = new Vector2(enemy.X, enemy.Y) + away * want;
             var to = new Vector3(to2.X, to2.Y, me.Z);
-            if (!LocomotionMoveTo.Issue(world, self, to, p.Speed > 0f ? p.Speed : EvadeAndSignalBehavior.DefaultSpeed, 2f, MoveGait.Crouched))
+            if (!LocomotionMoveTo.Issue(world, self, to, p.Speed > 0f ? p.Speed : EvadeAndSignalBehavior.DefaultSpeed, 2f, MoveGait.Crouched, source: MoveSource.Flee))
                 return NodeStatus.Failure;
             p.Moving = 1; p.To = to;
             return NodeStatus.Running;

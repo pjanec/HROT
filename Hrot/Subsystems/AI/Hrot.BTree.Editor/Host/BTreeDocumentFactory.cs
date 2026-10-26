@@ -141,6 +141,14 @@ public static class BTreeDocumentFactory
         Hrot.BTree.Editor.Model.BTreeCallShapeResolver.Resolve(
             btAsset, Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.LoadedAssemblySignatures());
 
+        // ⭐ CE-1360 (§3.4) — an auto-laid-out tree (a C#-built one: nobody saved positions) is laid out again with the canvas's REAL
+        //   font, so a node's width is the one it is drawn at (the catalog laid it out before any font existed, from an estimate).
+        if (btAsset.IsAutoLaidOut && !btAsset.LaidOutWithFont && ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+        {
+            Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(btAsset, title => ImGuiNET.ImGui.CalcTextSize(title).X);
+            btAsset.LaidOutWithFont = true;
+        }
+
         // ── 1. Graph model ────────────────────────────────────────────────────
         var graphModel = new BTreeGraphModel(btAsset);
 

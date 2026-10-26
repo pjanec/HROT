@@ -7,6 +7,8 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - DESIGN_Director_Timeline_Editor.md — its View track switches these layers through the film's transient override (R-4060)
+  - DESIGN_Entity_Brain_View.md — the Brain tab's "Show on map" pins the §5b gizmo families on one unit
   - docs/DESIGN_Film_Director.md — §4b: takes turn these layers on and off as a TRANSIENT override (never saved), and GET/POST /map/layers sets them like a click (R-4060)
   - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — HL-12 builds this file's reserved ReferenceByDis step for PLATFORM body profiles (bodies.json); ammo stays matched by name
   - docs/designs/mgmt-1/DESIGN.md — §13.3a owns the exercise archive's scenario copy (CE-3119, a §5a follow-up here)
@@ -947,6 +949,7 @@ through the CLI — the 38 + 15 were cross-checked against `git grep "\[GizmoPro
 | `TacticalAreaGizmo`, `MapOverlayGizmo` | tactical-graphic areas; drawn overlay polylines | — | **Tactical graphics** · on |
 | `TerrainZoneGizmo` | terrain zones and their load state | — | **Terrain zones** · on |
 | `TerrainWorldGizmo` → ✅ `TerrainLayer2D` (`CE-1227`) | the 2-D terrain: ground cover, buildings, labels | — | **Terrain (2-D)** · on — ✅ BUILT `2026-10-20` (bit 15; a retained layer now, not a gizmo — [Terrain World §10](DESIGN_Terrain_World.md)) |
+| `GridMapLayer` (a retained layer, not a gizmo) | the 2-D map's helper grid: thin minor lines, thicker major lines, the step by zoom | — | **Grid (2-D)** · on — ✅ BUILT `2026-10-23` (`CE-1288`, bit 27; `FirstUntoggledLayer` 27 → 28 — [Map 3-D Mode §6ac](DESIGN_Map_3D_Mode.md)) |
 | `TrafficRoadGizmo` | SUMO lanes, lights, pedestrians, non-entity cars | — | **Traffic** · on |
 | `SectorAreasGizmo`, `SectorArcGizmo` | sectors, NoFire areas, arcs | SquadAssignment (arcs) | **Sectors** · off — ✅ BUILT (`CE-1225`) |
 | `ContextMenuProjectorGizmo`, `CanvasContextMenuGizmo` | menus, no drawing | — | ⛔ never gated (CE-1160) |
@@ -963,7 +966,7 @@ graph TD
   P --> C["Command: Squad & command · Sectors · Paths · Routes"]
   P --> A["AI: Vision cones · Contacts · Actions · Utility · EQS · AI helpers"]
   P --> F["Fire: Fire traces · Blast · Hearing"]
-  P --> M["Map: Terrain (2-D) · Terrain zones · Roads · Traffic · Tactical graphics · Doors · Cover · Navmesh · Spatial grid"]
+  P --> M["Map: Terrain (2-D) · Grid (2-D) · Terrain zones · Roads · Traffic · Tactical graphics · Doors · Cover · Navmesh · Spatial grid"]
   A -.->|"each family row also keeps 'selected only'"| SC["GizmoFamilies scope (§5b)"]
 ```
 *What the picture shows that prose hid:* five groups, every row one kind of drawing — the per-family "selected only" ticks stay, but now sit

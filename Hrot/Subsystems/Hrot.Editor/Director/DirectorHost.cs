@@ -47,6 +47,37 @@ namespace Hrot.Editor.Director
 
         /// <summary>The scenarios root's takes and reels.</summary>
         TakeStore Takes { get; }
+
+        /// <summary>⭐ <c>CE-3299</c> B5 (R1, restore design §1k) — writes the world as it is NOW as checkpoint <paramref name="label"/> at
+        /// <paramref name="path"/> (a one-frame recording, <c>CheckpointFile</c>).</summary>
+        void WriteCheckpoint(string path, string label) => throw new NotSupportedException("this host cannot write a checkpoint");
+
+        /// <summary>⭐ B5 — puts the checkpoint at <paramref name="path"/> back (the cluster restore's own <c>PutBack</c>) and asks the
+        /// clock to its mark (D5; the clock moves on a later frame). Returns the mark's sim time.</summary>
+        double RestoreCheckpoint(string path) => throw new NotSupportedException("this host cannot restore a checkpoint");
+
+        /// <summary>⭐ <c>CE-3316</c> — a slot-paced background run is in flight (the kernel's <c>SlotRunInFlight</c>): R1 writes its checkpoint
+        /// on a step where this is false, as the recorder does.</summary>
+        bool SlotRunInFlight => false;
+
+        // ── ⭐ CE-4045 H1a (docs/DESIGN_Scenario_Regression.md §10-1, R-4085) — a LIVE run and its recording ──────────────────────
+
+        /// <summary>Loads <paramref name="scenario"/> LIVE through the cluster master, paused at 0 (the <c>POST /scenario/load/live</c>
+        /// load) — a live run records (R-3053, R-4000); a preview never does.</summary>
+        void LoadLive(string scenario) => throw new NotSupportedException("this host cannot load a live run");
+
+        bool IsOperatingLive => false;
+
+        /// <summary>Ends the live run (the master: Idle) — the recorder finalises and closes its file.</summary>
+        void StopLive() => throw new NotSupportedException("this host cannot stop a live run");
+
+        bool IsIdle => false;
+
+        /// <summary>The file the live run records into while it records; null when nothing records (before, or once it is closed).</summary>
+        string? LiveRecordingPath => null;
+
+        /// <summary>Opens a finished recording for playback (the product's player, in this process).</summary>
+        IRecordedRun OpenRecording(string path) => throw new NotSupportedException("this host cannot play a recording");
     }
 
     /// <summary>

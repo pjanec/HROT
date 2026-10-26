@@ -111,6 +111,27 @@ public sealed class FilmDirectorTests
         foreach (var it in features.Value!.Items) Assert.Contains(it.Scenario + "/" + it.Take, found);
     }
 
+    /// <summary>A reel's <c>waiting</c> list (clips parked until ready, with the reason — PLAN_Feature_Films §5) reads, round-trips and
+    /// refuses a typo'd key; the parked clips are never played. 🔴 Red-proof: drop "waiting" from the reel's key list ⇒ red.</summary>
+    [Fact]
+    public void CE4038_AReelsWaitingList_Reads_RoundTrips_AndIsNotPlayed()
+    {
+        var json = JsonNode.Parse("""
+            {"title":"R","items":[{"scenario":"a","take":"main"}],"waiting":[{"clip":"F-03","why":"not ready"},{"clip":"F-04"}]}
+            """)!.AsObject();
+        var problems = new List<string>();
+        var reel = TakeJson.ParseReel(json, "r", problems);
+        Assert.Empty(problems);
+        Assert.Equal(new[] { new ReelWaiting("F-03", "not ready"), new ReelWaiting("F-04", null) }, reel.Waiting);
+        Assert.Single(reel.Items);
+        var again = TakeJson.ParseReel(TakeJson.WriteReel(reel), "r", problems);
+        Assert.Empty(problems);
+        Assert.Equal(reel.Waiting, again.Waiting);
+
+        TakeJson.ParseReel(JsonNode.Parse("""{"items":[],"waiting":[{"clip":"F-05","reason":"x"}]}""")!.AsObject(), "r", problems);
+        Assert.Contains(problems, p => p.Contains("waiting 1: unknown key 'reason'"));
+    }
+
     /// <summary>B1 — a take that names a unit the scenario does not have is refused WITH the name (and a near one offered); an anchor a shot
     /// uses but the take does not define is named too.</summary>
     [Fact]

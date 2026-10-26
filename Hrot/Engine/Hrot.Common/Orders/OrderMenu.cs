@@ -67,6 +67,7 @@ namespace Hrot.Common.Orders
     /// incomplete order is refused with "needs the order form".
     /// </summary>
     [ComponentId(GlobalComponentIds.IOrderForm)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public interface IOrderForm
     {
         void Open(OrderDraft draft);

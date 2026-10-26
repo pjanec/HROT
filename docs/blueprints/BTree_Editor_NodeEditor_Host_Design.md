@@ -7,6 +7,8 @@ known-rot: ⚠ predates the JSON substrate; `BTree_HSM_Editor_State_And_Forward_
   substrate assumptions here while leaving this the feature/UX spec. ⛔ Do not quote it for
   persistence shape.
 related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-4 demotes §12.7's kernel panels to a collapsed Kernel section under a per-node Runtime view; DBG-3 lays out and allows moving a code-built tree; DBG-7 makes §12.3's breakpoints break
+  - ../DESIGN_Entity_Brain_View.md — §9 opens a unit's running C#-built tree from its Brain tab, read-only and pinned to the unit (reuses §3.4 layout, §12.4 overlay)
   - DESIGN_Occurrence_Scoped_Storage.md — ⭐⭐ §33 (`E6`) owns the BTree-hosts-BTree RUNTIME + EMIT
     half that this document's §S1 does not: the thunk, the slot declaration and the tick. §32 owns
     the HSM twin (`E5`).
@@ -170,7 +172,7 @@ public sealed class BTreeEditorNode
     public NodeType KernelType;        // Root, Sequence, Selector, Action, Subtree, etc.
     public int KernelBlobIndex;        // index into Blob.Nodes (re-derived per reload)
     public Vector2 Position;           // canvas coords
-    public string DisplayLabel;        // human-readable; from DebugMetadata.Label
+    public string DisplayLabel;        // human-readable; from DebugMetadata.Label (⭐ CE-1360: a generated key ⇒ BTreeNodeTitles)
     public string? Comment;            // from DebugMetadata.CustomComment
     public List<Guid> ChildVisualIds;  // ordered (BTree composites are order-sensitive)
 
@@ -276,6 +278,31 @@ Parameters:
 Auto-layout runs only on opening an asset with missing layout entries. Once positions are persisted, they're authoritative.
 
 A "Reset layout" toolbar action re-runs tidy-tree across the whole tree, ignoring stored positions. Used when an asset has drifted into mess via hand-edits or merge conflicts.
+
+> ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1273](Blueprint_Issues_Tracker.md))** — `BTreeAutoLayout` is **subtree-width placement**: each subtree gets a span as wide as its leaves need (`160 + 40` per leaf), its children side by side inside it, the parent centred over them. Overlap-free by construction. Two measured faults fixed: ① a **C#-built** tree (`BTreeBuilder.Compile`) has **no `Root` node**, and the layout gave up ⇒ every node at (0, 0) — the top is now the node no other node lists as a child; ② the "simplified Walker" spaced a node one node-width after its left sibling, ignoring the sibling's **subtree** width ⇒ `PersonAttack`: 48 nodes in 42 places. Rail: `CodeBuiltTreeLayoutTests.CE1273_EveryCodeBuiltTree_HasOnePlacePerNode` (every code-built tree in `Hrot.AI.Behaviors`). ⛔ SUPERSEDED above: "Reingold-Tilford".
+
+> ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1344 / CE-1345](Blueprint_Issues_Tracker.md)) — supersedes the flat 160 px above.** A node is as wide as
+> its TITLE (`BTreeAutoLayout.WidthOf`: 7.5 px a character + 48, at least 160 — what `CanvasLayout` draws), and a parent with more than three
+> children that are all leaves STAGGERS them over 2 layers (up to 8) or 3, 70 px apart, each leaf clearing the one before it on its own layer.
+> ⭐ A C#-built tree's node ids are DETERMINISTIC (`BTreeBuilder.AssignIds`: tree name, label, file, line, depth-first index), so the editor's
+> rebuilt copy and the running blob agree — what the Decision view and breakpoints key on. Rails `CodeBuiltTreeLayoutTests.CE1344_*`, `CE1345_*`.
+>
+> ⭐ **AS-BUILT `2026-10-26` (ui, [CE-1360](Blueprint_Issues_Tracker.md)) — the node TITLE and two layout fixes.** 🔒 User: *"What the user needs
+> to see is basically the name of the C# method, but without too many extra stuff around."* 📐 Measured: every C#-built leaf was titled with its
+> registry KEY (`Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@24@936`, up to 85 characters ≈ 690 px), the `@` numbers being byte
+> offsets into the behaviour block.
+>
+> | what | rule |
+> |---|---|
+> | ⭐ the title (`BTreeNodeTitles.For`, applied by `BehaviorTreeAssetProjector` to a GENERATED label only — the key or its bare method name; an authored label is kept) | the method in words, sentence case: namespace, type, `@offsets`, `Action_` / `Condition_` gone; a generic method (`Run`, `Execute`, `Tick`…) takes its type's name less `Behavior` / `Nodes` (`SquadMarchBehavior.Run` ⇒ *Squad march*); a condition (or a `Condition_` method) ends with `?` |
+> | ⭐ the instance | the PARAMETER FIELD the shared node was bound at (`SharedNodeBinder.ParamFieldOf`, recorded at registration from the selector) is appended when it says something the method does not: `IsOption` at `IsAdvance` ⇒ *Is option: Advance?*, `OperateDoor` at `Breach` ⇒ *Operate door: Breach*. ⛔ A field named for its type (`Order`, `Mission`, `…Config`, `…Params`) or repeating the method (`Fallback` on `FallBack`) is not |
+> | ⛔ unchanged | the binding (`MethodFqn`, shown by the inspector) and the node ids (`BTreeBuilder.AssignIds` mints them from the BUILDER's label, which stays the key) — display only |
+> | ⭐ real font | `BTreeAutoLayout.Layout(asset, measureTitle)`: the document factory lays an auto-laid-out tree out again with `ImGui.CalcTextSize` when it opens it (the catalog laid it out before any font existed) — `BehaviorTreeAsset.IsAutoLaidOut` / `LaidOutWithFont` |
+> | ⭐ staggered pairs | a row of more than three SMALL subtrees (a node whose children are all leaves — the `Sequence(IsOption, Action)` pair) staggers over layers too; a layer is as tall as the tallest subtree in the row (+20 px), so a second-layer subtree starts below everything the first draws |
+>
+> Rejected: renaming the label in `BTreeBuilder` (it feeds the node ids — breakpoints would move); a second-line subtitle (the canvas draws
+> none); a general graph layout (Sugiyama / dagre — the tree layout is exact; the overlap was the long titles and the estimate). Rails
+> `CodeBuiltTreeLayoutTests.CE1360_*` ×3.
 
 ---
 

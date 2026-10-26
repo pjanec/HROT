@@ -250,5 +250,126 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, t1.DisposedIds.Count);
             Assert.Equal(2, t2.DisposedIds.Count);
         }
+
+        // ── CE-3329 PW — §12b W1: the mark-and-sweep by network id (CE-3331) ─────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3331</c> — a world replaced IN PLACE (a replay's backward seek, a checkpoint restore: a keyframe applied, no
+        /// DestructionOrder, the epoch NOT ended) retracts on the wire every id it published that the new world lacks — once, on every
+        /// translator — and keeps the survivors, even re-created under new handles. 🔴 Before: nothing was disposed, so the entity
+        /// created after the target stayed on the wire and TransientLocal handed it to every late joiner.
+        /// 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12b, §12e.
+        /// </summary>
+        [Fact]
+        public void CE3331_AWorldReplacedInPlace_DisposesWhatItLacks_AndKeepsTheSurvivors()
+        {
+            var repo = CreateWorld();
+            var t1 = new MockTranslator();
+            var t2 = new MockTranslator();
+            var system = new CycloneNetworkCleanupSystem(new[] { t1, t2 });
+
+            var early = CreateAuthoritativeEntity(repo, netId: 2001L);   // alive at the seek target
+            var late  = CreateAuthoritativeEntity(repo, netId: 2002L);   // created AFTER the target
+            system.Execute(repo, 0f);
+
+            // the keyframe of the target: the world cleared in place (as PlaybackSystem.ApplyFrame does for a keyframe), the early
+            //   entity re-created, the late one absent
+            repo.SoftClear();
+            CreateAuthoritativeEntity(repo, netId: 2001L);
+            system.Execute(repo, 0f);
+
+            Assert.Equal(new[] { 2002L }, t1.DisposedIds);
+            Assert.Equal(new[] { 2002L }, t2.DisposedIds);
+            Assert.Equal(1, system.SweptDisposes);
+
+            system.Execute(repo, 0f);                                    // once only
+            Assert.Single(t1.DisposedIds);
+        }
+
+        /// <summary>
+        /// ⭐⭐ §12b — the sweep is CHANGE-DRIVEN: it runs once per in-place world replacement (<c>EntityRepository.ClearGeneration</c>),
+        /// never on an ordinary frame; an ordinary frame looks only at the entities whose networking components changed — a new owned
+        /// entity spawned mid-run is still tracked and retracted by its DestructionOrder. 🔴 First build: a full sweep over every
+        /// networked entity, every frame.
+        /// </summary>
+        [Fact]
+        public void TheSweep_RunsOncePerWorldReplacement_NeverPerFrame()
+        {
+            var repo = CreateWorld();
+            var t1 = new MockTranslator();
+            var system = new CycloneNetworkCleanupSystem(new[] { t1 });
+
+            for (int i = 0; i < 50; i++) CreateAuthoritativeEntity(repo, netId: 5000L + i);
+            system.Execute(repo, 0f);                                    // the first run: one sweep learns the world
+            int afterFirst = system.Sweeps;
+            for (int frame = 0; frame < 20; frame++) { repo.Tick(); system.Execute(repo, 0f); }
+            Assert.Equal(afterFirst, system.Sweeps);                     // ordinary frames: no sweep
+
+            repo.Tick();
+            var spawned = CreateAuthoritativeEntity(repo, netId: 5999L);  // spawned mid-run: found by the delta
+            system.Execute(repo, 0f);
+            repo.Tick();
+            PublishDestructionOrder(repo, spawned);
+            system.Execute(repo, 0f);
+            Assert.Equal(new[] { 5999L }, t1.DisposedIds);
+            Assert.Equal(afterFirst, system.Sweeps);
+
+            repo.SoftClear();                                            // a world replaced in place: exactly one sweep
+            system.Execute(repo, 0f);
+            system.Execute(repo, 0f);
+            Assert.Equal(afterFirst + 1, system.Sweeps);
+            Assert.Equal(51, t1.DisposedIds.Count);                      // the 50 the replacement lacks, retracted
+        }
+
+        /// <summary>⭐ §12b — an id handed over to another node (authority flipped in place, no destroy) is FORGOTTEN, never disposed: its
+        /// new owner publishes it. Nor is it disposed when it later leaves this node's world.</summary>
+        [Fact]
+        public void AHandOver_IsForgotten_NeverDisposed()
+        {
+            var repo = CreateWorld();
+            var t1 = new MockTranslator();
+            var system = new CycloneNetworkCleanupSystem(new[] { t1 });
+
+            var unit = CreateAuthoritativeEntity(repo, netId: 3001L);
+            system.Execute(repo, 0f);
+
+            repo.SetComponent(unit, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2 owns it now
+            system.Execute(repo, 0f);
+            Assert.Empty(t1.DisposedIds);
+            Assert.Equal(1, system.ForgottenHandedOver);
+
+            repo.DestroyEntity(unit);                                   // its owner deleted it; our ghost goes
+            system.Execute(repo, 0f);
+            Assert.Empty(t1.DisposedIds);
+        }
+
+        /// <summary>⭐ §12b — an entity retracted by its DestructionOrder lingers while it tears down (awaiting acks); a tearing-down
+        /// entity counts as absent, so it is disposed ONCE, never again when it finally leaves. A seek that brings the id back alive
+        /// tracks it again.</summary>
+        [Fact]
+        public void ATornDownEntity_IsDisposedOnce_AndASeekThatBringsItBack_TracksItAgain()
+        {
+            var repo = CreateWorld();
+            var t1 = new MockTranslator();
+            var system = new CycloneNetworkCleanupSystem(new[] { t1 });
+
+            var unit = CreateAuthoritativeEntity(repo, netId: 4001L);
+            system.Execute(repo, 0f);
+            repo.SetLifecycleState(unit, EntityLifecycle.TearDown);       // as NetworkSpawningSystem does, before the order
+            PublishDestructionOrder(repo, unit);
+            system.Execute(repo, 0f);                                   // the DestructionOrder: disposed
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0f);                                   // still tearing down
+            repo.DestroyEntity(unit);
+            system.Execute(repo, 0f);                                   // gone: no second dispose
+            Assert.Equal(new[] { 4001L }, t1.DisposedIds);
+
+            repo.SoftClear();                                           // a backward seek re-creates it
+            CreateAuthoritativeEntity(repo, netId: 4001L);
+            system.Execute(repo, 0f);
+            repo.SoftClear();                                           // a forward seek past its death
+            system.Execute(repo, 0f);
+            Assert.Equal(new[] { 4001L, 4001L }, t1.DisposedIds);
+        }
     }
 }

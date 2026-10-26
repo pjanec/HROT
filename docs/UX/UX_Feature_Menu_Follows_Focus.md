@@ -3,6 +3,13 @@ state: LIVE
 build-state: PARTIAL
 verified: 2026-08-28 (coordinator source scan)
 current-answer: PARTIAL. Mechanism built + railed (GlobalMenuRegistry.ResolveBinding, WindowManager.RenderGlobalMenu, CE-041..045). MISSING: no production menu item is perspective-scoped (all register global), and 4 hosts' BeginMainMenuBar blocks stay unguarded so --mode all still stacks them.
+  ⭐ 2026-10-22: §MB (CE-1243) — ONE menu bar BUILT: one tree with per-frame contributors, one row renderer; the 4 host blocks are gone
+  and each host's map menus are a perspective-bound contributor (UXI-05 step 2 + UXI-13 closed). The STATUS line above predates it.
+updated: 2026-10-22
+known-rot: the "Out of scope" rows "Consolidating the four blocks" and "RenderPerspectiveMenu() and the host-menu DTOs" are SUPERSEDED by §MB (consolidating is now the scope).
+related-designs:
+  - ../designs/win-mgr-1/DESIGN.md — §4.3 the menu tree, §4.4.1 the shell's fixed Windows / Perspective / Help (what §MB folds into the tree)
+  - ../designs/gizmos-1/canvas-context-menu-design.md — the map's context menu (the other user of ImGuiMenuRenderer's DTO walk; §MB keeps it)
 -->
 # Feature design — the main menu follows focus
 
@@ -132,3 +139,110 @@ change with it while File/Settings/Help/Window stay put — the two-tier rule fr
 | ⚠ **Empty parents** — a `Tools` menu whose children are all filtered out | resolution must skip an intermediate node with no visible descendants, or the bar grows dead headers |
 | ⚠ [UXI-06](UX_Issues.md#uxi-06) is adjacent | perspective *restore* validates against subsystem names and drops the Editor's internal ones. If a menu item is bound to `BTree`, a bad restore hides it. Fix UXI-06 first or accept the coupling |
 | ⚠ Behaviour change is invisible in every mode we normally test | see the acceptance note above — this needs a deliberate `--mode all` walk on Windows |
+
+## MB. DESIGN — ONE MENU BAR: one model, one row renderer (`CE-1243`, `2026-10-22`, ui) — build-state: BUILT (✅ MB-1…MB-4 APPROVED by the user `2026-10-22`: *"CE-1243 and CE-1244 leans approved"*)
+
+🔒 User, `2026-10-22`, on `CE-1027` (a menu's icon vanishing while it is open): *"what is strange how comes it behaves differently,
+shouldnt the manin menu bar rendering be unified and shared?"* ⇒ this section is the answer: UXI-13's *"one bar"* plus the shell's own
+three paths, as one model. ⚠ It **supersedes this document's "Out of scope" rows** for *"Consolidating the four blocks"* and
+*"`RenderPerspectiveMenu()` and the host-menu DTOs"* — consolidating them is now the scope; filtering them by perspective still is not.
+
+**INVENTORY** (`2026-10-22`; grep `BeginMainMenuBar` · `ImGuiMenuRenderer.DrawMenus` · `RenderGlobalMenu` · `ConsumeMainMenu`;
+⚠ the codebase-memory graph was re-indexing this session, so this is grep + reading each site): FIVE paths draw into the one bar.
+
+| path | draws | where |
+|---|---|---|
+| ① the menu tree (`GlobalMenuRegistry`) | File · Edit · View · Settings · every registered item | `WindowManager.RenderGlobalMenu` (`WindowManager.cs:636`, `:638`) |
+| ② a hand-drawn block | Perspective | `WindowManager.RenderPerspectiveMenu` (`:637`) |
+| ③ per-frame DTOs, a second renderer | Windows · Help | `BuildHostMenuDtos` + `ImGuiMenuRenderer.DrawMenus` (`:639-640`) |
+| ④ a shell parameter with NO caller | gizmo menus | `WindowManager.Render(gizmoMenuItems, onGizmoMenuAction)` (`:587`, drawn `:642-643`) |
+| ⑤ each host's own `BeginMainMenuBar` | gizmo menus (*View ▸ Tactical Map Layers…, 2-D / 3-D Map …*) | Editor `EditorSubsystem.cs:3039` · IG `IgApplication.cs:1434` · SimHost `SimHostVisualization.cs:477` · ReplayBrowser `ReplayBrowserSubsystem.cs:509` (ExCon's `ExConMock.cs:195` is standalone-only) |
+
+| the design rests on | code — how it is | design basis — how it was meant to be |
+|---|---|---|
+| the shell draws THREE sources with two renderers | ✅ `WindowManager.cs:636-640`; rows in `RenderGlobalMenu` (`:745`) and `ImGuiMenuRenderer.DrawItem` (`ImGuiMenuRenderer.cs:47`) | ✅ win-mgr-1 §4.4.1 planned fixed Windows / Perspective / Help drawn by the shell — the DTO path is that plan, never folded into §4.3's tree |
+| the gizmo menus come per frame, as DTOs, possibly from another node | ✅ `DebugGizmoLayer.ConsumeMainMenu`; `MainMenuBinding` primitives (`DebugPrimitiveBuffer.cs:221`) | ✅ gizmos-1 (a gizmo binds a main-menu entry by primitive) |
+| four hosts each open their own bar for them; the shell's parameter for them has no caller | ✅ the four sites above; `WindowManager.Render(` is called with no items | ✅ [UXI-13](UX_Issues.md#uxi-13) — *"Prefer this [the shell parameter] … it yields **one** bar"* (open) |
+| a tree node can already change per frame (label, enabled) but not its CHILDREN | ✅ `MenuItemNode.GetEnabled` / `DynamicLabel`; no children hook | ✅ this document §0 (prior art) |
+| the three row renderers already share the icon helper | ✅ `MenuIconRenderer` (fixed once for CE-1027) | ⛔ searched, none — shared by accident of the gutter work |
+
+```mermaid
+classDiagram
+    direction LR
+    class WindowManager { <<existing, shrinks>> RenderMainMenuBar: ONE walk of GlobalMenu · - RenderPerspectiveMenu · - BuildHostMenuDtos · - gizmoMenuItems param }
+    class GlobalMenuRegistry { <<existing, grows>> + RegisterContributor(id, perspective?, Func~frame menus~, onAction) }
+    class MenuContributor { <<NEW>> Id · Perspective? · Items() per frame · OnAction(id) }
+    class MenuRows { <<NEW static, GizmoMap.Presentation>> DrawRow: label · icon · check · enabled · shortcut · submenu }
+    class MenuIconRenderer { <<existing>> Pad · BeginMenu · DrawIcon }
+    class ImGuiMenuRenderer { <<existing, shrinks>> walks DTOs through MenuRows (the map's own popup keeps it) }
+    class WindowMenus { <<NEW, Fdp.Presentation>> contributors: Windows · Perspective · Help }
+    class HostGizmoMenus { <<NEW, Hrot.Presentation>> contributor: the host's ConsumeMainMenu, bound to its perspective }
+    GlobalMenuRegistry o-- MenuContributor
+    WindowManager --> GlobalMenuRegistry
+    WindowManager ..> MenuRows
+    ImGuiMenuRenderer ..> MenuRows
+    MenuRows ..> MenuIconRenderer
+    WindowMenus ..> GlobalMenuRegistry : registers
+    HostGizmoMenus ..> GlobalMenuRegistry : registers
+```
+
+```mermaid
+sequenceDiagram
+    participant WM as WindowManager (once a frame)
+    participant T as GlobalMenuRegistry
+    participant C as contributors (Windows · Perspective · Help · a host's gizmo menus)
+    participant R as MenuRows
+    WM->>T: walk the tree for the current perspective
+    T->>C: Items() for each contributor bound here (or global)
+    C-->>T: DTOs, merged into the tree by label path (View ▸ …)
+    T->>R: every row - one renderer
+    R-->>WM: a click
+    WM->>C: OnAction(id) of the contributor that owns the row (a host: GizmoMenuActionEvent on its interaction bus)
+```
+
+```mermaid
+graph TD
+    WMG[WindowManager - the only BeginMainMenuBar] --> T[GlobalMenuRegistry]
+    E[Editor] -->|File items · its gizmo menus| T
+    CG[CGF] -->|items| T
+    S[SimHost] -->|its gizmo menus| T
+    IG[IG] -->|its gizmo menus| T
+    RB[ReplayBrowser] -->|its gizmo menus| T
+    W[WindowMenus] -->|Windows · Perspective · Help| T
+    X1[Editor / IG / SimHost / ReplayBrowser own BeginMainMenuBar blocks] -.->|DELETED| WMG
+    style X1 stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: the bar becomes ONE walk of ONE tree, and everything that is computed per frame — the window
+list, the perspectives, a host's gizmo menus — is a contributor that tree asks each frame, merged by label into the same menus (a gizmo's
+*View ▸ …* lands in the one View menu); and only the shell opens the bar, so a host can no longer append a second one.*
+
+| decision | ✅ approved |
+|---|---|
+| **MB-1 one row renderer** | `MenuRows.DrawRow` (GizmoMap.Presentation, beside `MenuIconRenderer`) draws a row — label, icon, check, enabled, shortcut, submenu — and both walks call it. A pure refactor; the bar looks the same |
+| **MB-2 contributors in the tree** | `GlobalMenuRegistry.RegisterContributor(id, perspective?, items, onAction)`: a node whose children are DTOs computed each frame, merged by label path; the click goes to the contributor that produced the row. The menu snapshot (`PublishSnapshot`) includes them, so a rail sees the whole bar |
+| **MB-3 Windows · Perspective · Help as contributors** | registered by the window manager itself (`WindowMenus`); `BuildHostMenuDtos`, `RenderPerspectiveMenu` and the two-model rail surface (`HostMenuLabelsForRail`) go. Order unchanged (CE-1026's leading / trailing split) |
+| **MB-4 the hosts' gizmo menus as contributors** | each host registers its `ConsumeMainMenu()` as a contributor bound to its perspective — which is also UXI-05 step 2 (the gizmo items follow focus); the four `BeginMainMenuBar` blocks and the unused `Render(gizmoMenuItems)` parameter are deleted (UXI-13 closed) |
+
+**Rejected — one line each:** *share only the icon helper (done for CE-1027)* — the rows still differ in check / enabled / shortcut, so
+the next fix lands in one of three; *register the gizmo DTOs as permanent tree items* — they are produced per frame (and from other nodes),
+so stale items would stay; *`DebugGizmoLayer.DrawMainMenu()` for the four blocks* — a tidier copy, still a second bar (UXI-13's own lean);
+*filter Windows / Perspective / Help by perspective* — they are how you switch (this document's out-of-scope row stands).
+
+**Blast radius:** FDP `WindowManager` + `GlobalMenuRegistry` (cross-lane, FDP), `GizmoMap.Presentation`, four hosts; the menu snapshot
+gains the contributed menus (a deliberate golden change). Slices in order MB-1 → MB-2 → MB-3 → MB-4, each with a frame rail on the bar.
+
+### MB.1 AS-BUILT (`2026-10-22`, ui) — build-state: BUILT
+
+| decision | as built | deviation |
+|---|---|---|
+| MB-1 | `GizmoMap.Presentation.MenuRows` (`Submenu` · `Item` · `Dto` · `Dtos`); `ImGuiMenuRenderer.DrawMenus` delegates to it; the shell's tree rows go through it | the map's right-click popup (`ContextMenuAdapter`, a JSON walk) keeps its own walk — it shares the icon helper (`MenuIconRenderer.BeginMenu`, CE-1027) |
+| MB-2 | `GlobalMenuRegistry.RegisterContributor` · `CollectContributions` (ONCE a frame) · `BarMenus` (merge by name, CE-1026 rank, `Perspective` ranked after the leading menus) · records `MenuContributor` / `MenuContribution` / `BarMenu`; the snapshot (`global_menu`) lists contributed leaves with their scope | — |
+| MB-3 | `WindowManager` draws ONE walk (`RenderMenuBar` / `RenderTreeRow`); `wm/perspective`, `wm/windows`, `wm/help` contributors (an empty Perspective / Windows menu is not offered); `RenderPerspectiveMenu`, `BuildHostMenuDtos` and `Render(gizmoMenuItems, …)` deleted | — |
+| MB-4 | `MapInteractionPack.RegisterMainMenu(menu, id, perspective, consume, bus)`; Editor (Scenario), CGF (Scenario — ⭐ it had NO consumer of its map menus before: View ▸ Tactical Map Layers… never reached CGF's bar), SimHost and Stride mode 2 (SimHost), IG (IG), ReplayBrowser (ReplayBrowser); the four `BeginMainMenuBar` blocks deleted (ExCon's standalone-only bar stays, out of scope) | — |
+
+📐 **Rails** `TheMenuBarIsOneTreeTests` ×4 (merge by name in bar order · a perspective-bound contributor offers nothing elsewhere · the
+snapshot from the bar's one collection · the shell's three contributors drawn in a real ImGui frame) — ✅ red-proved (merging by
+contributor ⇒ two rails red). Existing `TopLevelMenuOrderTests`, `TheSettingsMenuIsOneMenuTests`, `PerspectiveMenuTests` unchanged and green. **Gates** (built test projects, `--no-build`): `Fdp.Presentation.Tests` 580/0 · `Hrot.Editor.AiShared.Tests` 2131/0 ×3 under Xvfb (⚠ the real-frame rails now share the non-parallel `PanelSnapshotTestCollection` — before, 1 order-dependent red in 3 runs) · `Hrot.Editor.Tests` 534/0 · `Hrot.Presentation.Tests` 871/0 · `Hrot.ReplayBrowser.Tests` 34/0 · `Hrot.IG.Tests` 471/0 · Editor, CGF, SimHost, IG, ReplayBrowser and the Stride game build.
+⚠ Not yet seen in the GUI.
+

@@ -1,8 +1,10 @@
 using System;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Hrot.Blueprints.Editor.EntityBlueprints;
 using Hrot.Blueprints.Editor.Runtime;
 using Hrot.Common.Serializers;
@@ -74,6 +76,46 @@ public sealed class ThePilotPanelDumpsWhatItDrawsTests : IDisposable
         return new EntityBlueprintsPanel(model, _repo, _registry);
     }
 
+    /// <summary>⭐⭐ <c>CE-1326</c> — a unit's task keeps its own slot in the SAME store as its blueprints: the panel lists the BLUEPRINT by
+    /// name and only counts the task's slot. 🔴 User, 2026-10-25 (screenshot): the list showed "0x7C4ED832 · Active · Remove" — the task's
+    /// slot, nameless, with a Remove that would have torn the running task's memory. ✅ Red-proof: the kind filter dropped ⇒ red.</summary>
+    [Fact]
+    public unsafe void CE1326_ATasksOwnSlot_IsCountedNotListedAsABlueprint()
+    {
+        PanelSnapshot.CaptureEnabled = true;
+        var e = CreateEntity();
+        BlueprintInstanceService.AttachToEntity(_repo, _registry, BlueprintIdHash.Compute(_assetA), e);
+        Assert.True(OccurrenceStoreAccess.TryAttachSlot(_repo, e, 0x7C4ED832, 32, 1, OccurrenceKind.BTree, out _, out _));
+        var panel = PanelOn(e, out var model);
+
+        panel.DrawUI();
+
+        var dump = PanelSnapshot.DumpAll()[PanelIds.EntityBlueprints]!;
+        var rows = dump["rows"]!.AsArray();
+        Assert.Single(rows);
+        Assert.Equal("PatrolBlueprint", rows[0]!["name"]!.GetValue<string>());
+        Assert.Equal(1, dump["behaviourSlots"]!.GetValue<int>());
+        Assert.Equal(2, model.Reality.Count);   // the capacity still counts both
+        // ⭐ CE-1327 — the row says how big ITS slot is (the store-wide tier line is gone)
+        var slot = model.Reality.Single(s => s.Kind == OccurrenceKind.Blueprint);
+        Assert.Equal($"{slot.PayloadSize} B", rows[0]!["memory"]!.GetValue<string>());
+    }
+
+    /// <summary>⭐ <c>CE-1327</c> — the add popup's search keeps the options whose label holds every word, case-insensitive.</summary>
+    [Fact]
+    public void CE1327_TheAddSearch_KeepsEveryWordMatch()
+    {
+        var options = new[]
+        {
+            new EntityBlueprintAddOption("PatrolBlueprint", "selectable", Guid.NewGuid(), "1"),
+            new EntityBlueprintAddOption("RadioChatter (attached)", "attached", Guid.NewGuid(), "2"),
+            new EntityBlueprintAddOption("PatrolRadio", "selectable", Guid.NewGuid(), "3"),
+        };
+        Assert.Equal(3, EntityBlueprintsPanel.FilterAddOptions(options, "").Count);
+        Assert.Equal(new[] { "PatrolBlueprint", "PatrolRadio" }, EntityBlueprintsPanel.FilterAddOptions(options, "patrol").Select(o => o.Label));
+        Assert.Equal(new[] { "PatrolRadio" }, EntityBlueprintsPanel.FilterAddOptions(options, "radio PAT").Select(o => o.Label));
+    }
+
     // ── U1b, on the PRODUCTION object ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -99,7 +141,7 @@ public sealed class ThePilotPanelDumpsWhatItDrawsTests : IDisposable
 
     /// <summary>
     /// ⭐⭐⭐ <b>Draw a frame, read the model over the snapshot, assert FIELDS.</b> 📄 §Example's payload:
-    /// <c>panelId</c>, <c>simState</c>, <c>tier</c>, <c>rows[].name</c>, <c>rows[].state</c>.
+    /// <c>panelId</c>, <c>rows[].name</c>, <c>rows[].state</c> (⛔ CE-1327: <c>simState</c> and <c>tier</c> are no longer drawn).
     /// </summary>
     [Fact]
     public void AfterAFrame_TheDumpCarriesTheStateTheDesignerWouldSee()
@@ -117,8 +159,10 @@ public sealed class ThePilotPanelDumpsWhatItDrawsTests : IDisposable
         Assert.Equal(PanelIds.EntityBlueprints, dump["panelId"]!.GetValue<string>());
         Assert.Equal("Entity Blueprints",       dump["title"]!.GetValue<string>());
         Assert.True(dump["hasEntity"]!.GetValue<bool>());
-        Assert.Equal("Running",                 dump["simState"]!.GetValue<string>());
-        Assert.False(string.IsNullOrEmpty(dump["tier"]!.GetValue<string>()));
+        // ⛔ CE-1327 — "Sim:" and "Current tier:" are no longer drawn, so they are not in the dump either; the capacity line only over the ceiling
+        Assert.Null(dump["simState"]);
+        Assert.Null(dump["tier"]);
+        Assert.False(dump["showProjection"]!.GetValue<bool>());
 
         var rows = dump["rows"]!.AsArray();
         Assert.Single(rows);

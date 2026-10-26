@@ -43,6 +43,35 @@ public sealed class AiDocumentManagerTests
             focusCallback: fc != null ? doc => fc.Add(doc) : null);
     }
 
+    // ── CE-1318 (Brain View §12d BV-55): a graph pinned to a unit ────────────────────────────────────────────────────────
+
+    /// <summary>⭐⭐ <c>CE-1318</c> (BV-55, R-1039) — <c>Open</c> dedupes on (asset, pin): the docked graph and two pinned tabs on ONE
+    /// behaviour are three documents, each overlay on its own unit; opening the same pin again focuses it; and a pinned tab's header says
+    /// for whom (<c>Name · #1003</c>) with an identity of its own. 🔴 Red-proof: the pin dropped from the dedupe ⇒ one document.</summary>
+    [Fact]
+    public void CE1318_APinnedGraph_IsItsOwnDocument_AndItsTabSaysForWhom()
+    {
+        var m = Make();
+        var asset = new FakeAsset(name: "PlatoonDefend");
+        var a = new Fdp.Core.Entity(7, 1);
+        var b = new Fdp.Core.Entity(9, 1);
+
+        var docked = m.Open(asset);
+        var pinA = m.Open(asset, a, "#1003");
+        var pinB = m.Open(asset, b, "#1004");
+        Assert.Equal(3, m.OpenDocuments.Count);
+        Assert.Null(docked.PinnedEntity);
+        Assert.Equal(a, pinA.PinnedEntity);
+        Assert.Same(pinA, m.Open(asset, a, "#1003"));                                // the same pin again: focused
+        Assert.Same(pinA, m.Active);
+
+        string labelA = Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow.GetTabLabel(pinA);
+        string labelB = Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow.GetTabLabel(pinB);
+        Assert.Contains("PlatoonDefend · #1003", labelA);
+        Assert.NotEqual(labelA[labelA.IndexOf("###", StringComparison.Ordinal)..], labelB[labelB.IndexOf("###", StringComparison.Ordinal)..]);
+        Assert.DoesNotContain("·", Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow.GetTabLabel(docked));
+    }
+
     // ── AIE-012 SC1: Open adds and activates ─────────────────────────────────
 
     [Fact]

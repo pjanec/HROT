@@ -19,6 +19,7 @@ using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Utility;
 using Hrot.MuscleCharacter.Animation.Stance;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -173,6 +174,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2330</c> (R-2064) — 1 once the muscle refused a round from this hide point at the peek stance: he LOOKS at the
         /// peek stance and SHOOTS one stance taller from here (a low wall, a window sill). Reset with the hide point.</summary>
         public byte ShootTaller;
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 D) — the last step-out point used, and how many peeks were picked (the pick's seed).</summary>
+        public Vector3 LastPeek;
+        public int PeeksPicked;
     }
 
     /// <summary>
@@ -211,7 +215,7 @@ namespace Hrot.AI.Behaviors.Brains
             RelocateSpeed = 4.5f, MinRelocateMetres = 4f,
             ScoreDeltaThreshold = 0.05f,
             NoCoverSeconds = 3f,
-            HeardMatchRadius = 15f,
+            HeardMatchRadius = DefaultHeardMatchRadius,
         };
 
         /// <summary>The parameters with every zero replaced by its default (the enums, flags and filter stay as authored).</summary>
@@ -269,13 +273,19 @@ namespace Hrot.AI.Behaviors.Brains
                     s.BlindRounds = Math.Max(p.BlindRounds, magazine);
                     break;
             }
-            s.ExposuresPerPosition = ProficiencyOf.Tier(world, self) switch
+            var tier = ProficiencyOf.Tier(world, self);
+            s.ExposuresPerPosition = tier switch
             {
                 ProficiencyTier.Untrained or ProficiencyTier.Militia => int.MaxValue,   // PC-15: stays at the sill (heat still burns a spot)
                 ProficiencyTier.Veteran => Math.Max(1, p.ExposuresPerPosition - 1),
                 ProficiencyTier.Elite => 1,
                 _ => p.ExposuresPerPosition,
             };
+            // ⭐ AQ102 D (CE-2356, R-2072) — behind OPEN-GROUND cover (a car, a wall — the default template, no post) a trained man comes up
+            //   somewhere else every time (the car's other end); a window keeps PC-15's count (R-2047)
+            if (tier is not (ProficiencyTier.Untrained or ProficiencyTier.Militia) && p.AnchorRadius <= 0f
+                && (p.HideTemplate == 0 || p.HideTemplate == FindCoverFromTarget.BlueprintId))
+                s.ExposuresPerPosition = 1;
             return s;
         }
 
@@ -414,7 +424,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.ExposuresHere = 0;
             ws.Bounding = 0;
             // ⭐ AQ96 D (CE-2320) — a move to a hide is a threat move by definition: crouched, at least the rush speed
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched, source: MoveSource.CoverSearch) ? 1 : 0);
             ws.Phase = PeekPhase.MoveToHide;
         }
 
@@ -497,7 +507,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Framed == 1) { FrameHidden(ref ws, in p, ref mem, self, world, now); return; }   // ⭐ CE-2275 D-2l
             StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
 
-            // B4/D8 — a used-up position: move on if there is somewhere else (a burned one with nowhere to go waits to cool)
+            // B4/D8 — a used-up position: move on if there is somewhere else. ⭐ CE-2366 (R-2078) — a burned one with nowhere to go is still
+            //   PEEKED from, only slower (EnterHidden's HotWaitFactor). ⛔ SUPERSEDED: it waited unpeeked until it cooled (📐 64 s live)
             bool burned = PositionHeat.IsBurnedAt(ref mem, ws.HidePoint, now, Rules(in p));
             if (ws.Bounding == 0 && (burned || ws.ExposuresHere >= p.ExposuresPerPosition))
             {
@@ -513,12 +524,11 @@ namespace Hrot.AI.Behaviors.Brains
                         ws.NextKind = nextKind;
                         ws.PhaseUntil = now;   // no further wait: the bound is the reason to come up
                     }
-                    else if (burned) return;   // nowhere to go: a burned spot waits to cool
                 }
                 else
                 {
                     Choose(ref ws, in p, ref mem, self, world, now, relocating: true);   // nothing elsewhere ⇒ changes nothing
-                    if (ws.Phase == PeekPhase.MoveToHide || burned) return;
+                    if (ws.Phase == PeekPhase.MoveToHide) return;
                 }
             }
 
@@ -556,7 +566,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.PeekStance = peekStance ?? StanceId.Standing;
             ws.Stepping = 1;
             ws.Counted = 0;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, peek, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);   // AQ88: the side-step keeps this node's own stance
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, peek, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep, source: MoveSource.CoverSearch) ? 1 : 0);   // AQ88: the side-step keeps this node's own stance
             ws.Phase = PeekPhase.Expose;
         }
 
@@ -612,8 +622,44 @@ namespace Hrot.AI.Behaviors.Brains
 
             // 4.2 — not seen in time: a blind burst at the FRESHEST evidence (D13), raised to the body's middle (no aim time);
             //   ⭐ CE-3158 G8 — or, with blind fire switched off, straight back down
-            if ((p.Disable & PeekDisable.BlindFire) != 0 || !StartBurst(ref ws, in p, self, world, in threat))
+            //   ⭐⭐ CE-2366 B (approved 2026-10-25) — only while that evidence is FRESH (seen or heard within BlindFreshSeconds): an older
+            //   one makes the peek a LOOK — nothing there, back behind cover to wait and look again. 🔒 User: "peek, if nothing there, wait
+            //   a while … and when there is some enemy seen, then he should fire at him". ⛔ SUPERSEDED: every unseen exposure fired blind
+            if ((p.Disable & PeekDisable.BlindFire) != 0 || !FreshEvidence(world, self, in threat, p.HeardMatchRadius)
+                || !StartBurst(ref ws, in p, self, world, in threat))
                 Recover(ref ws, in p, ref mem, self, world, now, false);
+        }
+
+        /// <summary>⭐ <c>CE-2366</c> (R-2078) — the hide wait from a burned spot he cannot leave is this many times the usual one.</summary>
+        public const float HotWaitFactor = 3f;
+
+        /// <summary>⭐ <c>CE-2366</c> B — a blind burst answers evidence at most this old (s): the enemy seen, or his shot heard.</summary>
+        public const float BlindFreshSeconds = 5f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2366</c> B — the freshest evidence of <paramref name="threat"/> (<see cref="FreshestEvidence(EntityRepository, Entity, in ThreatAim, out Vector3, out long, float)"/>:
+        /// its own memory slot or a heard shot near it) is at most <see cref="BlindFreshSeconds"/> old. False with no memory slot to date it.
+        /// </summary>
+        internal static unsafe bool FreshEvidence(EntityRepository world, Entity self, in ThreatAim threat, float matchRadius)
+        {
+            if (!FreshestEvidence(world, self, in threat, out _, out long slotId, matchRadius) || !world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            uint now = PerceptionClock.Now(world);   // ⭐ the clock LastSeenTick is stamped in (CE-3292), never SimulationTick
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != slotId) continue;
+                uint seen = mem.LastSeenTick[i];
+                return seen >= now || (now - seen) * SecondsPerFrame(world) <= BlindFreshSeconds;
+            }
+            return false;
+        }
+
+        /// <summary>The sim seconds one perception tick (a frame) stands for: the run's average so far; 1/60 before the first frame.</summary>
+        private static double SecondsPerFrame(EntityRepository world)
+        {
+            if (!world.HasSingleton<GlobalTime>()) return 1.0 / 60.0;
+            var t = world.GetSingleton<GlobalTime>();
+            return t.FrameNumber > 0 && t.TotalTime > 0 ? t.TotalTime / t.FrameNumber : 1.0 / 60.0;
         }
 
         /// <summary>
@@ -691,7 +737,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (mem.EntityIds[i] == id) { newest = mem.LastSeenTick[i]; break; }
             for (int i = 0; i < mem.Count; i++)
             {
-                if (!TargetMemory.IsAnonymous(in mem, i) || mem.LastSeenTick[i] <= newest) continue;
+                if (!TargetMemory.IsAnonymous(in mem, i) || TargetMemory.IsBurst(in mem, i) || mem.LastSeenTick[i] <= newest) continue;   // R-2071 — no shooter stands where his round landed
                 var heard = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
                 if (filter && Vector3.Distance(heard, origin) > matchRadius) continue;
                 newest = mem.LastSeenTick[i];
@@ -786,7 +832,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.ExposuresHere = 0;
             ws.Bounding = 0;
             // ⭐ AQ96 D (CE-2320) — a move to a hide is a threat move by definition: crouched, at least the rush speed
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, point, MathF.Max(p.RelocateSpeed, UnderFire.RushSpeed), ArrivalRadius, MoveGait.Crouched, source: MoveSource.CoverSearch) ? 1 : 0);
             ws.Phase = PeekPhase.MoveToHide;
         }
 
@@ -806,7 +852,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var other = WindowFrame.Other(p.FrameA, p.FrameB, ws.HidePoint);
                 if (!PositionHeat.IsBurnedAt(ref mem, other, now, rules)) { GoToFrame(ref ws, in p, self, world, other); return; }
-                if (burned) { Leans.Set(world, self, LeanSide.LeanNone); return; }   // both sides used up: he waits for one to cool
+                // both sides used up: he goes on leaning out from this one, slower (CE-2366, EnterHidden's HotWaitFactor)
             }
             bool reloading = ReloadingOrEmpty(world, self);
             if (!AimAndFireExecutor.RoePermitsFire(world, self))
@@ -862,7 +908,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.PeekIsStep == 1 && Vector3.Distance(ws.PeekPoint, ws.HidePoint) > ArrivalRadius)
             {
                 StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);   // AQ88: the step back keeps the hide stance just set
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep, source: MoveSource.CoverSearch) ? 1 : 0);   // AQ88: the step back keeps the hide stance just set
                 ws.Phase = PeekPhase.Recover;
                 return;
             }
@@ -874,7 +920,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Framed == 1) Leans.Set(world, self, LeanSide.LeanNone);   // ⭐ CE-2275 D-2l — straighten, behind the wall
             StanceRequest.Set(world, self, ws.HideStance, StanceBlendSeconds);
             var rng = SimRng.FromSim(self.Index, CoverSite ^ (ws.Exposures * 7919), (float)now);
-            ws.PhaseUntil = now + p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin);
+            double wait = p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin);
+            // ⭐ CE-2366 (R-2078) — a HOT spot (burned: used up or shot at) he could not leave: he still peeks from it, at a third of the rhythm
+            ref var mem = ref UnitMemory.Ref<FiringPositionMemory>(world, self);
+            if (PositionHeat.IsBurnedAt(ref mem, ws.HidePoint, now, Rules(in p))) wait *= HotWaitFactor;
+            ws.PhaseUntil = now + wait;
             ws.Phase = PeekPhase.Hidden;
         }
 
@@ -919,7 +969,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The step-out point: the peek sensor's best answer within <c>PeekSearchRadius</c> of the hide point.</summary>
-        private static bool PickPeek(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem,
+        internal static bool PickPeek(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem,
                                      EntityRepository world, double now, out Vector3 point, out StanceId? stance, Entity self = default)
         {
             point = default; stance = null;
@@ -928,18 +978,56 @@ namespace Hrot.AI.Behaviors.Brains
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.PeekSensor.ChildId);
             if (!buffer.IsReady || buffer.Count == 0) return false;
             var span = buffer.GetSpanRO()[..buffer.Count];   // ⭐ CE-3144 — the span is all 16 slots; past Count they are (0,0,0) score 0
-            for (int i = 0; i < span.Length; i++)
+            // ⭐ AQ102 D (CE-2356, R-2072) — not always the sensor's first answer: a SEEDED pick among the usable answers within
+            //   PeekPickShare of the best, never the last one used — repeatable per run (unit, peek count), never learnable
+            Span<int> picks = stackalloc int[PeekPickCount];
+            int n = 0;
+            float bestScore = float.NaN;
+            for (int i = 0; i < span.Length && n < PeekPickCount; i++)
             {
                 var r = span[i];
                 var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
                 if (Vector3.Distance(at, ws.HidePoint) > p.PeekSearchRadius + ArrivalRadius) continue;
                 if (ClaimedByAFriend(world, self, at, now)) continue;   // ⭐ CE-3158 G5
-                point = at;
-                stance = r.TryGetStance(out var s) ? s : null;
-                ws.PeekFire = FireMark(in r);
-                return true;   // the sensor's order is its ranking
+                if (float.IsNaN(bestScore)) bestScore = r.Score;
+                else if (r.Score < bestScore * PeekPickShare) break;   // the sensor's order is its ranking
+                if (ws.PeeksPicked > 0 && Vector3.Distance(at, ws.LastPeek) <= MatchRadiusOf(in p)) continue;   // never the last one
+                picks[n++] = i;
             }
-            return false;
+            if (n == 0)   // only the last one is usable: take it again rather than none
+                for (int i = 0; i < span.Length; i++)
+                {
+                    var r = span[i];
+                    var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
+                    if (Vector3.Distance(at, ws.HidePoint) > p.PeekSearchRadius + ArrivalRadius || ClaimedByAFriend(world, self, at, now)) continue;
+                    picks[n++] = i;
+                    break;
+                }
+            if (n == 0) return false;
+            var chosen = span[picks[(int)(SeedOf(self, ws.PeeksPicked) % (uint)n)]];
+            point = new Vector3(chosen.PositionX, chosen.PositionY, chosen.PositionZ);
+            stance = chosen.TryGetStance(out var cs) ? cs : null;
+            ws.PeekFire = FireMark(in chosen);
+            ws.LastPeek = point;
+            ws.PeeksPicked++;
+            return true;
+        }
+
+        /// <summary>⭐ AQ102 D — the peek pick takes up to this many answers into the draw, each within this share of the best's score.</summary>
+        public const int PeekPickCount = 3;
+        public const float PeekPickShare = 0.85f;
+
+        private static float MatchRadiusOf(in PeekAndFireParams p) => p.MatchRadius > 0f ? p.MatchRadius : 1f;
+
+        /// <summary>⭐ AQ102 D — a deterministic draw for <paramref name="self"/>'s <paramref name="count"/>-th pick (a 32-bit mix of both).</summary>
+        internal static uint SeedOf(Entity self, int count)
+        {
+            unchecked
+            {
+                uint h = (uint)self.Index * 2654435761u ^ (uint)count * 40503u;
+                h ^= h >> 15; h *= 2246822519u; h ^= h >> 13;
+                return h;
+            }
         }
 
         /// <summary>⭐ <c>CE-2327</c> — an answer's fire mark: 0 not marked · 1 a round clears from it · 2 it only sees.</summary>
@@ -999,7 +1087,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.PeekPoint = spot;
             if (stance is { } s) ws.PeekStance = s;
             ws.Stepping = 1;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep, source: MoveSource.CoverSearch) ? 1 : 0);
             return true;
         }
 
@@ -1032,7 +1120,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.PeekPoint = spot;
                 if (stance is { } s) ws.PeekStance = s;
                 ws.Stepping = 1;
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep) ? 1 : 0);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, spot, p.RelocateSpeed, ArrivalRadius, MoveGait.Keep, source: MoveSource.CoverSearch) ? 1 : 0);
                 ws.Phase = PeekPhase.Expose;
                 return true;
             }
@@ -1052,7 +1140,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-3144 (P-8 D14) — the sensors look from and for where the enemy is REMEMBERED (the freshest evidence, D13), never
             //   where he is now: a hidden enemy's true position is seen from nowhere, so both soldiers' searches answered nothing and
             //   the duel stood still (measured live). Re-pointed when that spot moves by RepointMetres or another slot becomes freshest.
-            var aim = PostedAim(world, self, in p, SensorAim(world, self, in threat));
+            var aim = PostedAim(world, self, in p, SensorAim(world, self, in threat, p.HeardMatchRadius));
             bool retarget = ws.SensorId == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorId, ws.SensorAt), in aim);
             var cover = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = p.ScoreDeltaThreshold, FactionFilter = p.FactionFilter };
             ws.CoverSensor = PostureNodes.Keep(ws.CoverSensor, world, self, CoverSite, p.HideTemplate, in cover, in aim, retarget);
@@ -1074,8 +1162,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// the memory slot it came from (the threat's own, or a heard one). Falls back to <paramref name="threat"/> when nothing is
         /// remembered as a spot.
         /// </summary>
-        internal static ThreatAim SensorAim(EntityRepository world, Entity self, in ThreatAim threat)
-            => FreshestEvidence(world, self, in threat, out var at, out long id) && id != 0 ? new ThreatAim(Entity.Null, id, at) : threat;
+        /// <remarks>⭐ <c>CE-2351</c> (Exposure Cycle §4a) — with <paramref name="matchRadius"/>, a heard slot counts only near where THIS
+        /// threat is remembered, G4's rule for the burst: 📐 live <c>ua-javelin-lock</c>, sounds of ANOTHER fight 160 m off (a launch, a
+        /// missile reaching a friend) pulled a tank's hide and firing queries away from the Javelin team its attack order named.</remarks>
+        internal static ThreatAim SensorAim(EntityRepository world, Entity self, in ThreatAim threat, float matchRadius)
+            => FreshestEvidence(world, self, in threat, out var at, out long id, matchRadius) && id != 0 ? new ThreatAim(Entity.Null, id, at) : threat;
+
+        /// <summary>⭐ <c>CE-3158</c> G4 — the default <see cref="PeekAndFireParams.HeardMatchRadius"/> (m); the vehicle cycle's sensors use it too
+        /// (<c>CE-2351</c>).</summary>
+        internal const float DefaultHeardMatchRadius = 15f;
 
         /// <summary>⭐ <c>CE-2275</c> D-2i — the heard id the sensors carry when they look at the man's SECTOR, not at a threat.</summary>
         internal const long SectorAimId = -2275;

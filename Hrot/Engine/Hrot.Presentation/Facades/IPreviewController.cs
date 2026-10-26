@@ -15,4 +15,8 @@ public interface IPreviewController
 
     /// <summary>Exits preview mode, restoring authoring interactions.</summary>
     void ExitPreviewMode();
+
+    /// <summary>⭐ <c>CE-1025</c> (R-1031) — leaves preview WITHOUT rewinding: the restore point is forgotten and the world kept as it is
+    /// (a scenario load is about to replace it). A no-op when not in preview.</summary>
+    void ForgetPreview();
 }

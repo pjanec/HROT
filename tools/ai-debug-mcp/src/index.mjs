@@ -521,7 +521,9 @@ const TOOLS = [
     inputSchema: TOOL_DEFS['enter_preview'].inputSchema,
     async handler(toolArgs) {
       try {
-        const body = toolArgs.startPaused != null ? { startPaused: toolArgs.startPaused } : {};
+        const body = {};
+        if (toolArgs.startPaused != null) body.startPaused = toolArgs.startPaused;
+        if (toolArgs.waitForReady != null) body.waitForReady = toolArgs.waitForReady;
         return toolSuccess(await callApi('POST', '/preview/enter', body));
       } catch (err) { return toolError(err.message, err.envelope, 'enter_preview'); }
     },
@@ -531,8 +533,8 @@ const TOOLS = [
     name: 'stop_preview',
     description: TOOL_DEFS['stop_preview'].description,
     inputSchema: TOOL_DEFS['stop_preview'].inputSchema,
-    async handler() {
-      try { return toolSuccess(await callApi('POST', '/preview/exit', null)); }
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/preview/exit', toolArgs.waitForReady != null ? { waitForReady: toolArgs.waitForReady } : {})); }
       catch (err) { return toolError(err.message, err.envelope, 'stop_preview'); }
     },
   },
@@ -1351,8 +1353,8 @@ const TOOLS = [
     name: 'checkpoint',
     description: TOOL_DEFS['checkpoint'].description,
     inputSchema: TOOL_DEFS['checkpoint'].inputSchema,
-    async handler() {
-      try { return toolSuccess(await callApi('POST', '/checkpoint', null)); }
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/checkpoint', toolArgs.label != null ? { label: toolArgs.label } : {})); }
       catch (err) { return toolError(err.message, err.envelope, 'checkpoint'); }
     },
   },
@@ -1361,8 +1363,8 @@ const TOOLS = [
     name: 'restore_checkpoint',
     description: TOOL_DEFS['restore_checkpoint'].description,
     inputSchema: TOOL_DEFS['restore_checkpoint'].inputSchema,
-    async handler() {
-      try { return toolSuccess(await callApi('POST', '/checkpoint/restore', null)); }
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/checkpoint/restore', { label: toolArgs.label })); }
       catch (err) { return toolError(err.message, err.envelope, 'restore_checkpoint'); }
     },
   },
@@ -1393,37 +1395,33 @@ const TOOLS = [
     },
   },
 
-  // ── Group I — Recording + Replay (ADA-BATCH-10) ──────────────────────────
+  // ── Group I — Replay (R-3052…R-3055: the CLUSTER's replay, through the master) ──────────
 
   {
-    name: 'start_recording',
-    description: TOOL_DEFS['start_recording'].description,
-    inputSchema: TOOL_DEFS['start_recording'].inputSchema,
-    async handler(toolArgs) {
-      try {
-        return toolSuccess(await callApi('POST', '/recording/start', { mode: toolArgs.mode ?? 'preview' }));
-      } catch (err) { return toolError(err.message, err.envelope, 'start_recording'); }
-    },
-  },
-
-  {
-    name: 'stop_recording',
-    description: TOOL_DEFS['stop_recording'].description,
-    inputSchema: TOOL_DEFS['stop_recording'].inputSchema,
+    name: 'list_exercises',
+    description: TOOL_DEFS['list_exercises'].description,
+    inputSchema: TOOL_DEFS['list_exercises'].inputSchema,
     async handler() {
-      try { return toolSuccess(await callApi('POST', '/recording/stop', null)); }
-      catch (err) { return toolError(err.message, err.envelope, 'stop_recording'); }
+      try { return toolSuccess(await callApi('GET', '/exercises')); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_exercises'); }
     },
   },
 
   {
-    name: 'load_replay',
-    description: TOOL_DEFS['load_replay'].description,
-    inputSchema: TOOL_DEFS['load_replay'].inputSchema,
+    name: 'enter_replay',
+    description: TOOL_DEFS['enter_replay'].description,
+    inputSchema: TOOL_DEFS['enter_replay'].inputSchema,
     async handler(toolArgs) {
       try {
-        return toolSuccess(await callApi('POST', '/replay/load', { fdpPath: toolArgs.fdpPath }));
-      } catch (err) { return toolError(err.message, err.envelope, 'load_replay'); }
+        const body = {};
+        if (toolArgs.exerciseId != null) body.exerciseId = toolArgs.exerciseId;
+        if (toolArgs.atSeconds != null) body.atSeconds = toolArgs.atSeconds;
+        if (toolArgs.atSimSeconds != null) body.atSimSeconds = toolArgs.atSimSeconds;   // CE-3329
+        if (toolArgs.path != null) body.path = toolArgs.path;                           // RB-1 (Replay Browser)
+        if (toolArgs.paths != null) body.paths = toolArgs.paths;
+        if (toolArgs.waitForReady != null) body.waitForReady = toolArgs.waitForReady;
+        return toolSuccess(await callApi('POST', '/replay', body));
+      } catch (err) { return toolError(err.message, err.envelope, 'enter_replay'); }
     },
   },
 
@@ -1432,20 +1430,60 @@ const TOOLS = [
     description: TOOL_DEFS['seek_replay'].description,
     inputSchema: TOOL_DEFS['seek_replay'].inputSchema,
     async handler(toolArgs) {
-      try {
-        return toolSuccess(await callApi('POST', '/replay/seek', { frame: toolArgs.frame }));
-      } catch (err) { return toolError(err.message, err.envelope, 'seek_replay'); }
+      // every seek form passes through: atSeconds, atSimSeconds (CE-3329), frame, frames, cause, next + direction (RB-2)
+      try { return toolSuccess(await callApi('POST', '/replay/seek', toolArgs)); }
+      catch (err) { return toolError(err.message, err.envelope, 'seek_replay'); }
+    },
+  },
+
+  // ⭐ CE-3329 P3 — During Action Review
+  {
+    name: 'enter_review',
+    description: TOOL_DEFS['enter_review'].description,
+    inputSchema: TOOL_DEFS['enter_review'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/review', toolArgs)); }
+      catch (err) { return toolError(err.message, err.envelope, 'enter_review'); }
     },
   },
 
   {
-    name: 'step_replay',
-    description: TOOL_DEFS['step_replay'].description,
-    inputSchema: TOOL_DEFS['step_replay'].inputSchema,
+    name: 'exit_review',
+    description: TOOL_DEFS['exit_review'].description,
+    inputSchema: TOOL_DEFS['exit_review'].inputSchema,
     async handler(toolArgs) {
-      try {
-        return toolSuccess(await callApi('POST', '/replay/step', { dir: toolArgs.dir ?? 'forward' }));
-      } catch (err) { return toolError(err.message, err.envelope, 'step_replay'); }
+      try { return toolSuccess(await callApi('POST', '/review/exit', toolArgs)); }
+      catch (err) { return toolError(err.message, err.envelope, 'exit_review'); }
+    },
+  },
+
+  {
+    name: 'seek_review',
+    description: TOOL_DEFS['seek_review'].description,
+    inputSchema: TOOL_DEFS['seek_review'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/review/seek', toolArgs)); }
+      catch (err) { return toolError(err.message, err.envelope, 'seek_review'); }
+    },
+  },
+
+  {
+    name: 'set_replay_axis',
+    description: TOOL_DEFS['set_replay_axis'].description,
+    inputSchema: TOOL_DEFS['set_replay_axis'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/replay/axis', { axis: toolArgs.axis })); }
+      catch (err) { return toolError(err.message, err.envelope, 'set_replay_axis'); }
+    },
+  },
+
+  {
+    name: 'stop_replay',
+    description: TOOL_DEFS['stop_replay'].description,
+    inputSchema: TOOL_DEFS['stop_replay'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/replay/stop', toolArgs.waitForReady != null ? { waitForReady: toolArgs.waitForReady } : {})); }
+      catch (err) { return toolError(err.message, err.envelope, 'stop_replay'); }
     },
   },
 
@@ -1460,22 +1498,31 @@ const TOOLS = [
   },
 
   {
-    name: 'list_replay_entities',
-    description: TOOL_DEFS['list_replay_entities'].description,
-    inputSchema: TOOL_DEFS['list_replay_entities'].inputSchema,
-    async handler() {
-      try { return toolSuccess(await callApi('GET', '/replay/entities')); }
-      catch (err) { return toolError(err.message, err.envelope, 'list_replay_entities'); }
+    name: 'get_journal_history',
+    description: TOOL_DEFS['get_journal_history'].description,
+    inputSchema: TOOL_DEFS['get_journal_history'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.from != null) params.set('from', String(toolArgs.from));
+        if (toolArgs.to != null) params.set('to', String(toolArgs.to));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/entities/${toolArgs.networkId}/journal/history${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_journal_history'); }
     },
   },
 
   {
-    name: 'unload_replay',
-    description: TOOL_DEFS['unload_replay'].description,
-    inputSchema: TOOL_DEFS['unload_replay'].inputSchema,
-    async handler() {
-      try { return toolSuccess(await callApi('POST', '/replay/unload', null)); }
-      catch (err) { return toolError(err.message, err.envelope, 'unload_replay'); }
+    name: 'search_replay',
+    description: TOOL_DEFS['search_replay'].description,
+    inputSchema: TOOL_DEFS['search_replay'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        const body = { condition: toolArgs.condition };
+        if (toolArgs.networkId != null) body.networkId = toolArgs.networkId;
+        if (toolArgs.limit != null) body.limit = toolArgs.limit;
+        return toolSuccess(await callApi('POST', '/replay/search', body));
+      } catch (err) { return toolError(err.message, err.envelope, 'search_replay'); }
     },
   },
 

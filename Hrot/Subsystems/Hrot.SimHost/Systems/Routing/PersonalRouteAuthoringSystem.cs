@@ -51,6 +51,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
         if (view is not EntityRepository repo)
             throw new InvalidOperationException(
                 $"{nameof(PersonalRouteAuthoringSystem)} requires direct EntityRepository access " +
@@ -109,11 +110,12 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                     continue;
 
                 var existingPlan = view.GetManagedComponentRO<RoutePlan>(routeEntity);
-                existingPlan.Mutate(wps => wps.Add(new RouteWaypoint
+                // CE-4046 — RoutePlan is an immutable record: the appended plan is a NEW value, Set back.
+                repo.SetManagedComponent(routeEntity, existingPlan.WithWaypoints(wps => wps.Add(new RouteWaypoint
                 {
                     Position    = clickedPos,
                     TargetSpeed = 0f,
-                }));
+                })));
 
                 repo.GetComponentRW<PersonalRouteRef>(vehicleEntity).FollowPending = 1;
             }
@@ -126,8 +128,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                     ? view.GetComponentRO<SimTransform>(vehicleEntity).Position
                     : Vector3.Zero;
 
-                var newPlan = new RoutePlan { IsLoop = false };
-                newPlan.Mutate(wps =>
+                var newPlan = new RoutePlan { IsLoop = false }.WithWaypoints(wps =>
                 {
                     wps.Add(new RouteWaypoint { Position = vehiclePos, TargetSpeed = 0f });
                     wps.Add(new RouteWaypoint { Position = clickedPos, TargetSpeed = 0f });

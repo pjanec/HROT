@@ -175,6 +175,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
     public void Execute(ISimulationView view, float deltaTime)
     {
         if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _routes.Clear(); }   // ⭐ CE-3294 — a reload's units come back under the same handles
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
         if (view is not EntityRepository repo)
             throw new InvalidOperationException(
                 $"{nameof(VehicleNavigationIntentSystem)} requires direct EntityRepository access " +

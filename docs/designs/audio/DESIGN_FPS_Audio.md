@@ -1,12 +1,16 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§8.2 the 2-D ear, the film switch and sound track, CE-4038) · 2026-10-15
+updated: 2026-10-25 (§9 the voices, CE-2372) · 2026-10-21 (§8.2 the 2-D ear, the film switch and sound track, CE-4038) · 2026-10-15
 build-state: BUILT (A0–A3, 2026-10-15) — §3 APPROVED 2026-10-15 (R-1004: "Once design written pls go implementing the sounds, autonomously overnight, do as much you can without asking me"); A4 later
-current-answer: §1 the diagrams (as built), §3 the decisions, §4 the spatial rules, §5 the sound catalogue, §7 the slices, §8 AS BUILT and its deviations.
+current-answer: §1 the diagrams (as built), §3 the decisions, §4 the spatial rules, §5 the sound catalogue, §7 the slices, §8 AS BUILT and its deviations, §9 the voices (as built).
 stale-below: nothing — what the build changed is in §8 with the earlier wording quoted there.
 known-rot: AU-3 (sound only while possessed) is amended twice — §8 D11 (3-D camera sound, CE-1137) and R-4059 (2026-10-21: sound in every non-FPS view behind a menu switch, FPS always; the 2-D ear and the films' sound track are designed in docs/DESIGN_Film_Director.md §4c). §8 lists where the build refined §2 / §6 / AU-8.
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_105_Squad_Callouts.md — OWNS which calls exist and when a man shouts (R-2080, A–E); this file plays them (F, §9)
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS the speech data (§7.18: Utterance, Utterances.Say) that §9 reads
+  - docs/DESIGN_People_Display.md — OWNS how an utterance is SHOWN (U15 overhead marks); §9 is how it is HEARD
+  - docs/DESIGN_Director_Timeline_Editor.md — TE-11: sound at a playback rate other than 1× (event sounds at film time, natural pitch), live in the Replay Browser and in the film track
   - docs/DESIGN_Film_Director.md — §4c: the 2-D ear, the /audio route, a take's sound switch, and the films' sound track rendered offline from this mixer's cue log (R-4059)
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: a per-weapon SIM signature (A) — a different consumer from the viewer's SoundSetDto
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S4: the ambient beds by time of day and the wind from WeatherField
@@ -263,4 +267,36 @@ Measured: the device opens (miniaudio | ALSA), every clip loads, the loop stream
 | ⭐ the switch | `AudioDirector.CameraSound` = a film take's `sound` if it set one, else Settings ▸ Sound (`AudioPreferences.CameraSound`); `GET/POST /audio` reads and sets the menu's switch, master and mute. ⭐ **FPS always sounds** — the switch is the camera's (rail `AudioTests.CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice`, red-proven) |
 | ⭐ the film's track | while `AudioDirector.Recorder` is set, the layer's output is a `RecordingAudioOutput` (over a `NullAudioOutput` when there is no device): every clip's samples and every started sound go into a `SoundTrack`, rendered offline to a WAV on the film's own timeline and muxed by ffmpeg |
 | ⛔ known gap | a clip loaded from an `.ogg` file is not decoded for the track (`WavReader` reads PCM WAV) — it plays live but is missing from a film |
+
+## 9. AS BUILT — the VOICES: a line per utterance, a voice per side (`CE-2372`, AQ105 F, R-2080, ui, `2026-10-25`)
+
+```mermaid
+sequenceDiagram
+  participant B as a brain (behaviors)
+  participant U as Utterance (replicated, dtUtterance)
+  participant S as SoundSources.Voices
+  participant C as VoiceTkbCatalog
+  participant M as SoundMixer
+  B->>U: Utterances.Say(kind, target, now, seconds)
+  loop each audio frame
+    S->>U: kind / until changed and not over?
+    S->>C: ClipFor(VoiceOf(his ForceId), kind, side of the contact)
+    C-->>S: the line's clip (0: no line, e.g. Talk)
+    S->>M: Request(clip, his mouth, positional, gain by range 40 m, voice priority)
+  end
+```
+*What it shows that prose hid: the IG never decides WHO speaks — it only detects a NEW utterance on the replicated component, so it plays the
+same line on every map host and once per utterance, never per frame.*
+
+| decision | as built | rejected — one line each |
+|---|---|---|
+| the line | `VoiceTkbCatalog.Said`: the words per kind, keyed by the kind's NAME and resolved at load — behaviors' squad calls (AQ105 A, approved names) are spoken the moment they are appended; a line whose kind does not exist is not registered | a switch over the enum — it would not compile until behaviors lands, and a line per kind would need a ui edit |
+| the clip | one TKB sound type per (voice, line), ids `7400 + voice·64 + line`; the contact call's side lines ("Contact left!") at slots 48–51, picked by `SoundSources.SideOf` (front / left / right / rear by quadrant of his facing) | one clip plus a side clip — two clips would overlap in the budget and drift apart |
+| the sound | `SoundSynth.Voice`: the words SHOUTED as a placeholder — a syllable per vowel group through three formants, a burst per stop, a hiss per fricative, a pause per word, the phrase falling at the end; a recording named in the type's `SoundDto.Files` replaces it (AU-8, D1) | TTS — none on the build hosts, and its licence is the AU-8 question again · silence until recordings — the calls are the point (AQ105) |
+| the voice | one per `ForceId` (neutral / blue / red: pitch 150 / 118 / 98 Hz, formants scaled); a language later | one voice — the operator cannot tell his side's call from the enemy's |
+| who hears | at the speaker's mouth (1.6 m), full within 5 m, silent at `AcousticPerception.VoiceRange` (40 m) — what the AI hears (AU-4); his own utterance centred; category **Voices** (its own volume, F10) | the shot's range — a shout is not heard at 800 m |
+| ⛔ `Talk` | no line — talk is not heard across the street (as `Utterances.IsShouted`) | |
+
+Rails (`Hrot.Presentation.Tests` `AudioTests`): `CE2372_ANewUtterance_PlaysItsLineOnce_AtTheSpeaker_InHisSidesVoice`,
+`CE2372_EveryLineIsAShout_KeyedByTheKindsName_AContactNamesItsSide`; `HROT_EXPORT_SOUNDS=<dir>` writes the voice lines too, to listen.
 

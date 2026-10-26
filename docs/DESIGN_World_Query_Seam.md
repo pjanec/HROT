@@ -12,6 +12,7 @@ known-rot: ⛔ 2026-10-18 R-2037 — §1's "the brain itself never touches it" i
 known-conflict: DESIGN_Terrain_Height.md §7 rev 1 called TerrainWorld's own methods "the seam" and leaned Jolt — both
   corrected there in rev 3 by this file (a real interface; Bepu inside the stand-in).
 related-designs:
+  - docs/blueprints/Architect_Question_106_Sound_Paths.md — ✅ R-3050: WQ-E v2 (slice Q4) as approved — the path over BuildingLayout, heard from the last opening
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — B3: a TKB `Band` per sound signature scales WQ-E's obstacle loss (bass nearly ignores terrain and walls); B: off the terrain, hearing is distance only
   - docs/DESIGN_World_Survey_Sensor.md — the brain's geometry questions answered on the muscle (R-2037); WS-6 adds the Obscurant meaning to TraceCrossing; its BuildingLayout is the room/portal graph WQ-E's sound v2 reuses
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b: R-2037 (the brain never reads world geometry) and the WorldSurvey sensor; the inventory of brain-side IWorldQuery callers
@@ -247,7 +248,9 @@ ragdolls) **in the stand-in**. Either way the switch stays inside `TerrainWorldQ
 | **Q1** ✅ | `IWorldQuery` + `TerrainWorldQuery` + `WorldQuery.Of`; combat and EQS moved; `ILosService` as a policy — §5b | the busiest consumers on the seam, feature suites green |
 | **Q2** ✅ | perception (`ILosStrategy`), squad, kinematics, spawn, editor debug API moved — §5c; `Pick` / `ITerrainRenderGeometry` move to the 3-D map's S1/S2 | no production `TerrainWorld` QUESTION outside the stand-in (§5c lists what stays and why) |
 | **Q3** | sound v1 — the loudness model + `Trace(Sound)` straight with per-wall dB; the hearing gizmo shows the loss | a shot behind a concrete wall is heard less far |
+| ↳ ✅ **Q3 v1 BUILT `2026-10-25`** (backend, AQ104 E ②, R-2079) | `TerrainWorldQuery.Trace(Sound)`: the fire trace's pieces less the ground, each its material `soundDb`; hearing applies AQ104's approved v1 — each crossing `min(dB, 6.02) × band`, so a wall or slab HALVES a high sound's carry (the full dB would deafen every stand-in house — all walls are concrete, M7). ⛔ Still open: the loudness model's full dB, the gizmo, v2 paths | 📄 [`DESIGN_Thermal_And_Acoustic_Sensing.md`](DESIGN_Thermal_And_Acoustic_Sensing.md) §8.8 |
 | **Q4** | sound v2 — rooms from walls, the room/portal path (shared with blast confinement, Building Interiors W-7v2) | sound comes round a corner and through an open door; a closed door muffles it |
+| ↳ ✅ **Q4 BUILT `2026-10-25`** (backend, AQ106 A–K, R-3050) | `SoundPaths.Route` over the cached `BuildingLayout` portals (Dijkstra), the louder of path and straight line, heard from the last opening; K: outdoors round ≤ 2 buildings' hulls; a solid block is two faces on the straight line | 📄 [`AQ106`](blueprints/Architect_Question_106_Sound_Paths.md) §7 |
 | **Q5** | `StrideWorldQuery`; entity boxes in the index (WQ-F) | a second implementation passes the same rails |
 
 ## 5a. Q0 — the spike, as built and measured `2026-10-10` *(cloud VM, Debug build — indicative only)*

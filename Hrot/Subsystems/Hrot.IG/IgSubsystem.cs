@@ -53,71 +53,12 @@ namespace Hrot.IG
         /// executes the master's ticks, it just does not ISSUE them.</para>
         /// </summary>
         public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
-            => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
-                subsystemName: Name,
-                perspective:   "IG",
-                world:         () => _app?.World,
-                // ⭐⭐⭐ CE-162, 2026-09-03 — IG DOES map network ids, and this argument was `null`.
-                //
-                // 🔴 The 11th instance of "a production caller that HAS a dependency must PASS it":
-                //    IgApplication:924 assigns `_entityMap = _context.EntityMap` and exposes it at :1955,
-                //    with the same member name and shape SimHostSubsystem passes — and this provider
-                //    handed null anyway. Because the capability matrix is COMPUTED from the members being
-                //    non-null (R-133, SubsystemDebugProvider), GET /capabilities reported
-                //    `world.entityMap:false` for IG, and GET /entities answered NOT_SUPPORTED_HERE there.
-                //
-                // ⛔ That is not a hosting-topology limit: the cell comes from THIS provider, so a
-                //    standalone `--mode ig` process on its own port reported the same false. It made the
-                //    IG side of a cross-node comparison unreadable — which is exactly what CE-141's
-                //    as-built and CE-144's destroy loop need.
-                //
-                // ⚠ The comment below still says IG "can neither drive time nor map network ids". Only
-                //    the TIME half was ever true (measured: no ClusterTimeTransportAdapter on IG); the
-                //    map half was wrong and is corrected here.
-                entityMap:     () => _app?.World is null ? null : _app!.TestHook_EntityMap,
-                drive:         null,
-                // ⭐⭐ BP-487 — IG DOES draw gizmos (IgApplication:734 builds the buffer, and its
-                //    DebugGizmoLayer renders it), so its perspective reports the feed PRESENT even though it
-                //    can neither drive time nor map network ids. 📌 Another demonstration that these
-                //    capabilities are genuinely independent, not one "is it wired" bit.
-                gizmoBuffer:   () => _app?.GizmoBuffer,
-                // ⭐⭐ CE-110 — IG's own catalog, read off its world exactly as IgApplication:3353 reads it.
-                //    📐 IgNodeBootstrapper:132-133 builds it from HrotEnvironment.CreateTkb() and registers
-                //    the singleton, so this reports the very instance IG's own spawning resolves against.
-                tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .TkbFrom(() => _app?.World),
-                // ⭐⭐ HN-029 — IG cannot DRIVE time (no facade) but it CAN request a cluster transition; see
-                //    IgApplication.OrchestrationBus.
-                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransitionsVia(() => _app?.OrchestrationBus),
-                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
-                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _app?.OrchestrationBus),
-                // ⭐⭐⭐ CE-163 — IG's OWN committed cluster state, from its OWN ClusterSlave, through the
-                //    SAME shared projection CGF and SimHost use. 🔒 "every ECS node must use the same
-                //    shared code" — ⛔ so this is not an IG affordance, it is the uniform one.
-                // 📐 Why it was missing: DebugApiService.CurrentClusterState() had only two arms, the
-                //    editor's own getter and a sibling subsystem's pumped ClusterUiCache — BOTH `--mode all`
-                //    arms. In a separate-process cluster neither exists, so scenario/load/live's readiness
-                //    poll answered NOT_SUPPORTED_HERE(cluster.state) on a node that knew its own state.
-                // ⚠ This is the NODE's committed state, not the cluster's; see ClusterStateFrom's remarks.
-                clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .ClusterStateFrom(() => _app?.ClusterSlave),
-                // ⭐⭐ MD-002 — IG's own kernel snapshot (it already builds one for its window, line ~169).
-                // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
-                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .DumpsVia(() => _app?.OrchestrationBus),
-                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .SavesScenarioJsonVia(() => _app?.OrchestrationBus),
-                // ⭐⭐⭐ CE-276 — IG's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) + its
-                //    OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns
-                //    the entity. Mirrors CgfSubsystem.CreateDebugProvider() exactly.
-                requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .TransfersOwnershipVia(() => _app?.World),
-                descriptorMap: () => _app?.NedReplication?.DescriptorOwnershipMap,
-                architecture:  () => _app?.Kernel is null
-                                     ? null
-                                     : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(
-                                           () => _app?.Kernel));
+            // ⭐⭐⭐ the ONE ECS-node debug surface (EcsNodeDebugProvider) — IG adds its map feed; ⛔ no drive: IG cannot issue ticks
+            //    (it executes the master's — PARTICIPATE ≠ OBSERVE), so stepping from its perspective answers NOT_SUPPORTED_HERE.
+            => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "IG", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
+            {
+                GizmoBuffer = () => _app?.GizmoBuffer,
+            });
 
         /// <inheritdoc/>
         /// <remarks>
@@ -214,10 +155,12 @@ namespace Hrot.IG
         {
             if (_app == null) return;
             windowManager.RegisterWindow(new IgDebugWindow(_app.DebugPanel));
-            windowManager.RegisterWindow(new IgEntityPropertiesWindow(_app.EntityPropertiesPanel));
+            // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+            Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _app?.Canvas, "IG");
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(   // ⭐ CE-1096 — the shared window
                 _app.WaypointEditorPanel, Hrot.Presentation.Windows.ScenarioPanelWindowIds.IgWaypoint, "IG", IgWindowColor.TitleBar));
             windowManager.RegisterWindow(new IgMiniExConWindow(_app.MiniExConPanel));
+            _app.RegisterMainMenu(windowManager.GlobalMenu, "IG");   // ⭐ CE-1243 MB-4 — the map's menus, in the one bar
             windowManager.RegisterWindow(new IgPerformanceWindow(_app.PerformanceOverlay));
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites this host used to spell out by hand are
             //    now ONE shared bundle, `Hrot.Presentation.Windows.DiagnosticsWindowsBundle`. 📐 The same
@@ -241,6 +184,8 @@ namespace Hrot.IG
                         InspectorState: () => _app.FdpInspectorState,
                         EventBrowser:   _app.FdpEventBrowser,
                         TitleBarColor:  IgWindowColor.TitleBar,
+                        Host:           () => _app.HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                        World:          () => _app.World,
                         // ⭐ This host builds its OWN architecture service, exactly as before — the
                         //   bundle takes the finished panel, so the lazy `() => _app.Kernel` binding
                         //   this host has always used is untouched (design §5c.7 F2).
@@ -250,6 +195,18 @@ namespace Hrot.IG
                         ExecutionStats: () => _app.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS IgWindowColor.TitleBar now.
                         PickBroker:     _app.GetMapPickBroker())),
+                    // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds:
+                    //   the Components view, and Properties… / View ▸ Details on this host's actions. 📐 Before: none on the IG.
+                    new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                        WindowId:    "ig_details",
+                        Perspective: "IG",
+                        World:       () => _app.World,
+                        Inspector:   () => _app.FdpEntityInspector,
+                        Session:     () => _app.GetFdpRepoAdapter(),
+                        RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(
+                                         () => _app.World != null,
+                                         () => Fdp.Toolkit.Time.SimClock.Of(_app.World).IsHalted),
+                        Host:        () => _app.HostActions)),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // Signal IgApplication that these panels must not be double-rendered.

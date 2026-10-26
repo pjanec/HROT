@@ -53,7 +53,17 @@ public sealed class MotionTracker
         public Vector3 Last; public float Roll, Gait, Crawl; public double SimTime; public bool Seen;
         public float Swing, Lean, Stride, Moving; public bool HasGait;   // ⭐ CE-1064 — the last gait, kept over a frame with no sim time
         public float RotorRate, RotorAngle; public double LastMoved; public bool HasMoved;   // ⭐ CE-1093 — the rotor's spool and its angle
+        public double Wall; public bool HasWall; public float Pace;   // ⭐ CE-1353 — the frame clock and the sim's smoothed pace on it
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1353</c> — how quickly the rotor's smoothed pace follows the simulation's (s). The sim advances in fixed steps — 0, 1 or 2
+    /// in a drawn frame — so a rotor turned by each frame's SIM time jumped 0°, 26° or 52° frame to frame, and four blades (the picture
+    /// repeats every 90°) seemed to flick back and forth. 🔒 User, 2026-10-25: "apache possessed - flight model is shivering (left to right
+    /// and back slightly) when helicopter is hovering" · "jitter not happening when simulation is stepped". The angle now advances by the
+    /// FRAME time × the sim's pace eased over this long: an even spin at the sim's speed, still stopping when the sim pauses.
+    /// </summary>
+    public const float PaceSeconds = 0.25f;
 
     private readonly Dictionary<Entity, State> _states = new();
     private readonly Dictionary<long, State> _keyed = new();   // ⭐ AQ93 §15.8 (CE-4031) — bodies with no entity (SUMO's far agents)
@@ -62,10 +72,10 @@ public sealed class MotionTracker
     /// <summary>The pose of <paramref name="e"/>'s moving parts this frame. <paramref name="simTime"/> is the simulation clock
     /// (seconds); <paramref name="moving"/> spins a rotor (airborne or under way).</summary>
     public MotionPose Advance(Entity e, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime,
-                              bool rotorTurning)
+                              bool rotorTurning, double? wallTime = null)
     {
         _states.TryGetValue(e, out var st);
-        var pose = Step(ref st, position, rotation, family, size, simTime, rotorTurning);
+        var pose = Step(ref st, position, rotation, family, size, simTime, rotorTurning, wallTime);
         _states[e] = st;
         return pose;
     }
@@ -80,7 +90,7 @@ public sealed class MotionTracker
     }
 
     private static MotionPose Step(ref State st, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime,
-                                   bool rotorTurning)
+                                   bool rotorTurning, double? wallTime = null)
     {
         if (!st.Seen)
             st = new State { Last = position, SimTime = simTime, Seen = true, RotorRate = rotorTurning ? 1f : 0f };   // first seen flying: at speed
@@ -89,6 +99,20 @@ public sealed class MotionTracker
         if (delta.Length() > TeleportMetres) delta = Vector3.Zero;
         double dt = simTime - st.SimTime;
         if (dt < 0 || dt > 5) dt = 0;   // a rewound or jumped clock
+        // ⭐ CE-1353 — the spin's own clock: the frame time × the sim's smoothed pace (PaceSeconds); no frame clock ⇒ the sim's dt
+        float spinDt = (float)dt;
+        if (wallTime is { } wall)
+        {
+            double wdt = st.HasWall ? wall - st.Wall : 0.0;
+            st.Wall = wall; st.HasWall = true;
+            if (wdt > 1e-5 && wdt < 1.0)
+            {
+                float rate = Math.Clamp((float)(dt / wdt), 0f, 16f);
+                st.Pace += (rate - st.Pace) * (1f - MathF.Exp(-(float)wdt / PaceSeconds));
+                spinDt = st.Pace * (float)wdt;
+            }
+            else spinDt = 0f;
+        }
 
         var forward = Vector3.Transform(Vector3.UnitX, rotation);
         float along = Vector3.Dot(new Vector3(delta.X, delta.Y, 0f), new Vector3(forward.X, forward.Y, 0f));
@@ -131,7 +155,7 @@ public sealed class MotionTracker
                 bool runs = rotorTurning || (st.HasMoved && simTime - st.LastMoved <= RotorRunOnSeconds);
                 float step = (float)dt / RotorSpoolSeconds;
                 st.RotorRate = runs ? MathF.Min(1f, st.RotorRate + step) : MathF.Max(0f, st.RotorRate - step);
-                st.RotorAngle = Wrap(st.RotorAngle + st.RotorRate * RotorRevsPerSecond * MathF.PI * 2f * (float)dt);
+                st.RotorAngle = Wrap(st.RotorAngle + st.RotorRate * RotorRevsPerSecond * MathF.PI * 2f * spinDt);   // ⭐ CE-1353
                 rotor = st.RotorAngle;
                 break;
             }

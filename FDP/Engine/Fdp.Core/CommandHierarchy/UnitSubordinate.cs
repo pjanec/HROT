@@ -15,6 +15,7 @@ namespace Fdp.Core.CommandHierarchy
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.UnitSubordinate)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct UnitSubordinate
     {
         /// <summary>Generation-safe handle to the commanding entity.  <c>Entity.Null</c> when unassigned.</summary>

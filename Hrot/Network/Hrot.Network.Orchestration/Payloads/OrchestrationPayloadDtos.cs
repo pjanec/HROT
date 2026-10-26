@@ -48,8 +48,42 @@ public record TransitionPayloadDto(
     Guid          ExerciseId,
 
     [property: JsonPropertyName("TimeMode")]
-    string?        TimeMode
-);
+    string?        TimeMode,
+
+    // ⭐ CE-3299 D17 (R-3045) — the recording mode of the live session this request starts: 0 / omitted = FULL (every frame), N > 0 =
+    //   CHECKPOINTING (a keyframe every N s of sim time, nothing else). Additive on the wire.
+    [property: JsonPropertyName("CheckpointingSeconds")]
+    double         CheckpointingSeconds = 0,
+
+    // ⭐ R-3055 — where a replay enters, in ticks after the replay's zero (C9). Additive on the wire. 📌 Measured on the five-process
+    //   cluster: a POST /replay {atSeconds:30} sent from CGF entered at 0 — this field did not exist, and the master side wrote 0.
+    [property: JsonPropertyName("TargetWallTicks")]
+    long           TargetWallTicks = 0,
+
+    // ⭐ CE-3329 P1 (R11) — a replay's entry point in RECORDED sim time; the master resolves it. Additive on the wire.
+    [property: JsonPropertyName("TargetSimSeconds")]
+    double?        TargetSimSeconds = null
+)
+{
+    /// <summary>⭐ R-3055 — the ONE encoding of a transition on the wire (every node's egress).</summary>
+    public static TransitionPayloadDto From(Fdp.Toolkit.Orchestration.TransitionStateIntent intent) => new(
+        TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId,
+        TimeMode: intent.TimeMode, CheckpointingSeconds: intent.CheckpointingSeconds, TargetWallTicks: intent.TargetWallTicks,
+        TargetSimSeconds: intent.TargetSimSeconds);
+
+    /// <summary>⭐ R-3055 — the ONE decoding (the master's translator and its request adapter): nothing on the wire is dropped.</summary>
+    public Fdp.Toolkit.Orchestration.TransitionStateIntent ToIntent(Guid requestId) => new()
+    {
+        TransactionId        = requestId,
+        TargetState          = (Fdp.Toolkit.Orchestration.ClusterState)(int)TargetState!.Value,
+        ScenarioId           = ScenarioId,
+        ExerciseId           = ExerciseId,
+        TimeMode             = TimeMode,
+        CheckpointingSeconds = CheckpointingSeconds,   // D17
+        TargetWallTicks      = TargetWallTicks,
+        TargetSimSeconds     = TargetSimSeconds,   // CE-3329 R11
+    };
+}
 
 /// <summary>Payload DTO for <c>ClusterOpType.ManageEpisode</c> DDS requests.</summary>
 public record ManageEpisodePayloadDto(
@@ -105,8 +139,60 @@ public record AssetOpPayloadDto(
 /// <summary>Payload DTO for <c>ClusterOpType.ReplaySeek</c> DDS requests.</summary>
 public record SeekReplayPayloadDto(
     [property: JsonPropertyName("TargetWallTicks")]
-    long           TargetWallTicks
-);
+    long           TargetWallTicks,
+
+    // ⭐ CE-3329 P1 (R11) — the target in RECORDED sim time; the master resolves it. Additive on the wire.
+    [property: JsonPropertyName("TargetSimSeconds")]
+    double?        TargetSimSeconds = null
+)
+{
+    /// <summary>⭐ CE-3329 P1 — the ONE encoding of a seek on the wire (the R-3055 shape of <see cref="TransitionPayloadDto"/>).</summary>
+    public static SeekReplayPayloadDto From(Fdp.Toolkit.Orchestration.SeekReplayIntent intent)
+        => new(intent.TargetWallTicks, intent.TargetSimSeconds);
+
+    /// <summary>⭐ CE-3329 P1 — the ONE decoding (the master's translator, its request adapter, the cluster panel): a bare tick count
+    /// (older senders) or this DTO; nothing on the wire is dropped.</summary>
+    public static Fdp.Toolkit.Orchestration.SeekReplayIntent Decode(Guid requestId, string? json)
+    {
+        var intent = new Fdp.Toolkit.Orchestration.SeekReplayIntent { RequestId = requestId };
+        if (string.IsNullOrWhiteSpace(json)) return intent;
+        if (long.TryParse(json, out var bare)) { intent.TargetWallTicks = bare; return intent; }
+        try
+        {
+            if (System.Text.Json.JsonSerializer.Deserialize<SeekReplayPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
+            {
+                intent.TargetWallTicks  = dto.TargetWallTicks;
+                intent.TargetSimSeconds = dto.TargetSimSeconds;
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        return intent;
+    }
+}
+
+/// <summary>⭐ CE-3329 R-3058 — payload of <c>ClusterOpType.SetReplayAxis</c>: "Sim" or "Wall".</summary>
+public record SetReplayAxisPayloadDto(
+    [property: JsonPropertyName("Axis")]
+    string Axis)
+{
+    /// <summary>The ONE encoding of an axis switch on the wire.</summary>
+    public static SetReplayAxisPayloadDto From(Fdp.Toolkit.Orchestration.SetReplayAxisIntent intent) => new(intent.Axis.ToString());
+
+    /// <summary>The ONE decoding (the master's translator and its request adapter). An unreadable axis is Sim — the default (R2).</summary>
+    public static Fdp.Toolkit.Orchestration.SetReplayAxisIntent Decode(Guid requestId, string? json)
+    {
+        var axis = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(json)
+                && System.Text.Json.JsonSerializer.Deserialize<SetReplayAxisPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto
+                && Enum.TryParse<Fdp.Toolkit.Orchestration.ReplayAxis>(dto.Axis, ignoreCase: true, out var parsed))
+                axis = parsed;
+        }
+        catch (System.Text.Json.JsonException) { }
+        return new Fdp.Toolkit.Orchestration.SetReplayAxisIntent { RequestId = requestId, Axis = axis };
+    }
+}
 
 /// <summary>Payload DTO for <c>ClusterOpType.StepTime</c> DDS requests.</summary>
 public record StepTimePayloadDto(
@@ -150,7 +236,11 @@ public record NodeTransitionPayloadDto(
 
     // ⭐⭐ C7 (Q91 §4-M) — a late joiner's catch-up load: universal parts only, no scenario. Additive; omitted ⇒ false.
     [property: JsonPropertyName("IsCatchUp")]
-    bool           IsCatchUp = false
+    bool           IsCatchUp = false,
+
+    // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (see TransitionPayloadDto). Additive; omitted ⇒ 0 ⇒ FULL.
+    [property: JsonPropertyName("CheckpointingSeconds")]
+    double         CheckpointingSeconds = 0
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

@@ -112,7 +112,7 @@ namespace Hrot.Map.Common.Tests
             world.AddComponent(source, new SimTransform { Position = new System.Numerics.Vector3(100, 100, 0), Rotation = System.Numerics.Quaternion.Identity });
             world.AddComponent(source, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.StoneSource });
             world.SetManagedComponent(source, new Hrot.IG.Components.EditablePolyline
-                { Points = new() { new(-5, -5), new(5, -5), new(5, 5), new(-5, 5) } });
+                { Points = new System.Collections.Generic.List<System.Numerics.Vector2> { new(-5, -5), new(5, -5), new(5, 5), new(-5, 5) } });
 
             Entity Man(float x, float y)
             {

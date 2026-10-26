@@ -107,6 +107,12 @@ namespace Hrot.ClusterRunner.Configuration
                          + "else 20 when the staging root is the temp directory, else keep all.")]
         public int? KeepExercises { get; set; }
 
+        /// <summary>⭐ <c>CE-1249</c> (BV-16, R-1027) — <c>off</c> attaches no brain journal to any unit (default <c>on</c>; read at attach,
+        /// never toggled at runtime).</summary>
+        [Option("brain-journal", Required = false, Default = "on",
+                HelpText = "on (default) | off — the per-unit brain journal (last 24 decisions with causes, recorded)")]
+        public string BrainJournal { get; set; } = "on";
+
         /// <summary>When true, --mode migrate reports what would be done without writing any files.</summary>
         [Option("dry-run", Required = false, Default = false, HelpText = "Report what would be done without writing files")]
         public bool DryRun { get; set; }
@@ -124,10 +130,38 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("verify-capture", Required = false, Default = false, HelpText = "With --verify: re-record each scenario's golden.json")]
         public bool VerifyCapture { get; set; }
 
+        /// <summary>⭐ CE-4045 H1a (docs/DESIGN_Scenario_Regression.md §10-1, R-4085) — run each scenario LIVE (it records) and require its own
+        /// recording, played back by the product's player, to hold the same world at every snapshot.</summary>
+        [Option("verify-replay", Required = false, Default = false,
+                HelpText = "With --verify: run each scenario LIVE and compare it, snapshot by snapshot, with its own recording played back "
+                         + "(components the recording's manifest does not carry are listed apart, never failed)")]
+        public bool VerifyReplay { get; set; }
+
         /// <summary>⭐ CE-4042 — the nightly's output folder: a log and a report per scenario, <c>summary.json</c> and <c>junit.xml</c>.</summary>
         [Option("verify-out", Required = false,
                 HelpText = "With --verify: write each scenario's log and report, summary.json and junit.xml (for CI) to this folder")]
         public string VerifyOut { get; set; } = string.Empty;
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B5 — R1, the restore-equivalence oracle (docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §1k): each scenario runs
+        /// twice, each in a fresh process — straight, writing a checkpoint at this many seconds; then restored from it — and the two must
+        /// hold the same full component state from then on. 0 = off.
+        /// </summary>
+        [Option("verify-restore-at", Required = false, Default = 0d,
+                HelpText = "With --verify: R1 — checkpoint each scenario at this sim time (s), restore it in a second fresh process, and require "
+                         + "the same full component state from then on; exit 0 when every one matches")]
+        public double VerifyRestoreAt { get; set; }
+
+        /// <summary>⭐ <c>CE-3299</c> B5 — R1's snapshot grid (s; default 1). Smaller to run a difference down step by step (1/60 = every step).</summary>
+        [Option("verify-restore-every", Required = false, Default = 1d,
+                HelpText = "With --verify-restore-at: snapshot every this many seconds (default 1; 0.0166667 = every step, to run a difference down)")]
+        public double VerifyRestoreEvery { get; set; } = 1d;
+
+        /// <summary>⭐ CE-4042 — a child's wall-clock limit in minutes (a hung run fails, never waits forever). 📐 <c>uc-urban-battle</c> (200 s of
+        /// sim, ~40 men) steps ~9× slower than real time: 1751 s once, past 1800 s the next ⇒ the default is 60.</summary>
+        [Option("verify-timeout", Required = false, Default = 60,
+                HelpText = "With --verify: the wall-clock limit per scenario, in minutes (default 60); a scenario past it fails")]
+        public int VerifyTimeout { get; set; } = 60;
 
         /// <summary>⭐ CE-4042 — write the verify report (JSON) here.</summary>
         [Option("verify-report", Required = false, HelpText = "With --verify: write the report (JSON) to this file")]

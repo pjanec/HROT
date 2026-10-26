@@ -34,9 +34,10 @@ public sealed partial class PossessionStationTests
         public bool LeftPressed { get; set; }    // ⭐ CE-1078
         public bool RightPressed { get; set; }
         public bool RightDown { get; set; }       // ⭐ CE-1211 — the zoom is held
+        public bool MiddleDown { get; set; }      // ⭐ CE-1293 — a map drag
         public bool? Locked { get; private set; }
         public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right && RightPressed;
-        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right && RightDown;
+        public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right ? RightDown : b == MapMouseButton.Middle && MiddleDown;
         public bool IsMouseButtonReleased(MapMouseButton b) => false;
         public bool IsKeyPressed(MapKeyboardKey k) => Pressed.Contains((int)k);
         public bool IsKeyDown(MapKeyboardKey k) => Keys.Contains((int)k);
@@ -104,7 +105,7 @@ public sealed partial class PossessionStationTests
         {
             var (canvas, sw, two) = Map();
             var cameraLayer = new MapCameraLayer(sw, () => w);
-            var station = new PossessionStation(sw, () => w);
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view (the shoulder view is the default)
             var before = sw.CurrentPose;
             Assert.False(sw.Is3D);
 
@@ -222,7 +223,7 @@ public sealed partial class PossessionStationTests
             w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var bodies = new EntityBodyLayer3D(() => w, () => null);
-            var station = new PossessionStation(sw, () => w, bodies);
+            var station = new PossessionStation(sw, () => w, bodies) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view
             Assert.Same(bodies, station.Bodies);
             station.Update(0.016f);
             Assert.Equal(unit, bodies.FirstPerson);                           // its head is not drawn: the camera is in it
@@ -308,6 +309,26 @@ public sealed partial class PossessionStationTests
             Assert.Equal("  1 WEAPON  27/30  [7]", lines[1]);   // ⭐ CE-1079 — numbered as its key; no TKB here, so no kind or round name
             Assert.Equal("> 2 WEAPON  2/4", lines[2]);
             Assert.Contains("Esc release", lines[3]);
+        }
+    }
+
+    /// <summary>⭐ CE-1358 (DESIGN_Weapon_Layers §5k) — the weapon line shows the barrel: its heat once it is worth a word, and OVERHEATED
+    /// while the gun is held cooling. 🔴 Red-proof: drop the HUD's heat clause ⇒ red.</summary>
+    [Fact]
+    public void CE1358_TheHud_ShowsTheBarrelHeat_AndOverheated()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            var ammo = new WeaponAmmo { Count = 3 };
+            ammo.Set(0, new WeaponState { Ammo = 30, MaxAmmo = 30, Heat = 0.1f });                  // cold enough: nothing said
+            ammo.Set(1, new WeaponState { Ammo = 20, MaxAmmo = 30, Heat = 0.72f });                 // warm
+            ammo.Set(2, new WeaponState { Ammo = 10, MaxAmmo = 30, Heat = 0.9f, Overheated = 1 });   // held, cooling
+            w.AddComponent(unit, ammo);
+            var lines = PossessionStation.Hud.Lines(w, unit, mount: 0, vehicle: false, hullLocked: false);
+            Assert.Equal("> 1 WEAPON  30/30", lines[1]);
+            Assert.Equal("  2 WEAPON  20/30  HEAT 72%", lines[2]);
+            Assert.Equal("  3 WEAPON  10/30  OVERHEATED 90%", lines[3]);
         }
     }
 
@@ -1077,7 +1098,7 @@ public sealed partial class PossessionStationTests
     /// the look's); the HUD gives speed, height and heading. Letting go unbanks the operator's view.
     /// </summary>
     [Fact]
-    public void CE1095_APlane_FliesByTheLook_TheViewBanksWithIt_AndTheHudGivesSpeedHeightHeading()
+    public void CE1095_APlane_FliesByTheKeys_TheViewBanksWithIt_AndTheHudGivesSpeedHeightHeading()
     {
         var (w, unit, _) = World();
         using (w)
@@ -1092,7 +1113,7 @@ public sealed partial class PossessionStationTests
             w.AddComponent(unit, new SimVelocity { Linear = new Vector3(106f, 106f, 0f) });
             w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
-            var station = new PossessionStation(sw, () => w);
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view (the shoulder view is the default)
             station.Update(0.016f);
             var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
             Assert.Equal(ControlScheme.FixedWing, driver.Scheme);
@@ -1112,18 +1133,166 @@ public sealed partial class PossessionStationTests
             var frame = Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
             Assert.Equal(1f, frame.Forward);                                   // throttle up
             Assert.Equal(0f, frame.Lateral);                                    // a plane does not strafe
-            Assert.Equal(0.25f / FpsCameraDriver.FullClimbLook, frame.Vertical, 3);   // the look's pitch asks the climb
-            Assert.Equal(driver.Yaw, frame.Yaw);
+            // ⭐ CE-1351 — classic keys: C (or Z) dives, A turns left (the heading led ahead of the nose); the look's pitch asks nothing
+            Assert.Equal(-1f, frame.Vertical);
+            Assert.Equal(MathF.PI / 4f + FpsCameraDriver.FlyerTurnLead, frame.Yaw, 2);
             Assert.Equal((byte)0, frame.Stance);                                 // C is no stance on a plane
             Assert.Null(driver.Stance);
 
             var hud = PossessionStation.Hud.Lines(w, unit, 0, driver.IsVehicle, false, driver.Stance, false, driver.Scheme);
             Assert.Equal("SPD 150 m/s  ALT 300 m  HDG 045", hud[0]);
-            Assert.Contains(hud, l => l.StartsWith("mouse: fly where you look"));
+            Assert.Contains(hud, l => l.StartsWith("W/S throttle  A/D turn  Q/Z climb/dive"));
             Assert.DoesNotContain(hud, l => l.StartsWith("STANCE"));
 
             sw.Camera3D.Driver = null;
             Assert.Equal(0f, sw.Camera3D.Roll);                                  // the operator's own view is never banked
+        }
+    }
+
+    /// <summary>⭐ <c>CE-1351</c> — a vehicle steers on A/D whether its view is hull-locked (V) or not, and the locked view turns with the
+    /// hull; a helicopter turns on A/D (never strafes), climbs on Q and descends on Z, and V locks its view forward too. 🔒 User,
+    /// 2026-10-25: "V key switches to mouse steering - i would expect normal A-D key steering" · "possessed helicopter needs some key to go
+    /// up and down vertically, maybe Q/Z". ✅ Red-proof: the old mouse-steer back ⇒ Steer 0 with A held while locked.</summary>
+    [Fact]
+    public void CE1351_VLocksTheViewToTheHull_TheKeysStillSteer_AndAHelicopterClimbsOnQZ()
+    {
+        OperatorControlFrameEvent Frame(EntityRepository w, PossessionStation st, MapViewSwitch sw, params Raylib_cs.KeyboardKey[] held)
+        {
+            var input = new Input();
+            foreach (var k in held) input.Keys.Add((int)k);
+            st.Update(0.016f);
+            sw.Camera3D.HandleInput(input);
+            w.Bus.SwapBuffers();
+            return w.Bus.Read<OperatorControlFrameEvent>().ToArray()[^1];
+        }
+        void Press(PossessionStation st, MapViewSwitch sw, Raylib_cs.KeyboardKey key)
+        {
+            var input = new Input();
+            input.Pressed.Add((int)key);
+            st.Update(0.016f);
+            sw.Camera3D.HandleInput(input);
+        }
+
+        // a ground vehicle
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };
+            station.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            Assert.True(driver.IsVehicle);
+            Assert.Equal(1f, Frame(w, station, sw, Raylib_cs.KeyboardKey.A).Steer);    // free view: A steers
+            Press(station, sw, Raylib_cs.KeyboardKey.V);
+            Assert.True(driver.HullLocked);
+            Assert.Equal(1f, Frame(w, station, sw, Raylib_cs.KeyboardKey.A).Steer);    // hull-locked: A still steers
+            Assert.Equal(-1f, Frame(w, station, sw, Raylib_cs.KeyboardKey.D).Steer);
+            w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            Assert.Equal(MathF.PI / 2f, driver.Yaw, 3);                               // the locked view turned with the hull
+        }
+
+        // a helicopter
+        (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 50f), Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };
+            station.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            Assert.Equal(ControlScheme.Rotorcraft, driver.Scheme);
+            var up = Frame(w, station, sw, Raylib_cs.KeyboardKey.Q, Raylib_cs.KeyboardKey.A);
+            Assert.Equal(1f, up.Vertical);
+            Assert.Equal(0f, up.Lateral);                                             // A turns, it does not strafe
+            Assert.Equal(FpsCameraDriver.FlyerTurnLead, up.Yaw, 3);                   // the heading led to the left of the nose
+            var down = Frame(w, station, sw, Raylib_cs.KeyboardKey.Z);
+            Assert.Equal(-1f, down.Vertical);
+            Assert.Equal(0f, down.Yaw, 3);                                            // released: it holds its heading
+            Assert.Equal((byte)0, down.Stance);                                       // Z is no stance on a flyer
+            Press(station, sw, Raylib_cs.KeyboardKey.V);
+            Assert.True(driver.HullLocked);
+        }
+    }
+
+    /// <summary>⭐ <c>CE-1352</c> — the sim moves a possessed vehicle AFTER the map placed its camera; just before the frame is drawn the
+    /// camera is put back on it, so the two are never a step apart (the stutter). Over the shoulder (the chase camera) and at the eyes.
+    /// ✅ Red-proof: <c>BeforeDraw</c> emptied ⇒ the camera stays 3 m behind where it should be.</summary>
+    [Fact]
+    public void CE1352_ThePossessedVehiclesCamera_IsPutBackOnItJustBeforeDrawing()
+    {
+        foreach (bool shoulder in new[] { true, false })
+        {
+            var (w, unit, _) = World();
+            using (w)
+            {
+                w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+                w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled });
+                w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+                var (_, sw, _) = Map();
+                var station = new PossessionStation(sw, () => w) { OverShoulder = shoulder };
+                station.Update(0.016f);
+                Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+                sw.Camera3D.Update(0.016f);
+                var before = sw.Camera3D.Eye;
+                var tf = w.GetComponentRO<SimTransform>(unit);
+                w.SetComponent(unit, tf with { Position = tf.Position + new Vector3(3f, 0f, 0f) });   // the sim's step, after the map's update
+                sw.Camera3D.PrepareDraw();
+                Assert.True(Vector3.Distance(before + new Vector3(3f, 0f, 0f), sw.Camera3D.Eye) < 0.05f,
+                    $"shoulder={shoulder}: the camera {sw.Camera3D.Eye} did not follow the vehicle (was {before})");
+            }
+        }
+    }
+
+    /// <summary>⭐ <c>CE-1354</c> — after A/D is let go a helicopter HOLDS its heading. The loop as it runs: the station sends a heading each
+    /// frame and its MOTION applies it two ticks on (OperatorInput, then ManualDrive), turning a small gap in one tick (40°/s). Measured live before the fix: the sent yaw
+    /// alternated 0.9566 / 0.9774 frame by frame for ever — the camera and the gun ring shivering. ✅ Red-proof: the heading re-read from
+    /// the airframe every frame (the old FlyerHeading(hull, 0)) ⇒ the hull alternates by one turn step.</summary>
+    [Fact]
+    public void CE1354_AfterATurn_AHelicopterHoldsItsHeading_NoFrameToFrameSwing()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 40f), Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            const float dt = 1f / 30f, rate = 40f;
+            var inFlight = new Queue<float>();   // ⭐ a frame reaches the motion two ticks on (OperatorInput, then ManualDrive), as measured live
+            var hull = new List<float>();
+            var sent = new List<float>();
+            for (int i = 0; i < 80; i++)
+            {
+                // the sim's tick: last frame's heading, at the type's turn rate
+                var tf = w.GetComponentRO<SimTransform>(unit);
+                float yaw = Fdp.Toolkit.Motion.RotorcraftModel.YawOf(tf.Rotation);
+                if (inFlight.Count >= 2) yaw = Fdp.Toolkit.Motion.RotorcraftModel.TurnToward(yaw, inFlight.Dequeue(), rate, dt);
+                w.SetComponent(unit, tf with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+                // the map's frame
+                station.Update(dt);
+                sw.Camera3D.Update(dt);
+                var input = new Input();
+                if (i < 15) input.Keys.Add((int)Raylib_cs.KeyboardKey.A);   // turn left for half a second, then let go
+                sw.Camera3D.HandleInput(input);
+                sw.Camera3D.PrepareDraw();
+                w.Bus.SwapBuffers();
+                float sentYaw = w.Bus.Read<OperatorControlFrameEvent>().ToArray()[^1].Yaw;
+                inFlight.Enqueue(sentYaw);
+                if (i >= 40) { hull.Add(yaw); sent.Add(sentYaw); }
+            }
+            Assert.True(hull[0] > 0.2f, $"it turned ({hull[0]:F3} rad)");
+            Assert.True(hull.Max() - hull.Min() < 1e-4f, $"the hull swings {hull.Min():F5}..{hull.Max():F5} after the turn");
+            Assert.True(sent.Max() - sent.Min() < 1e-6f, $"the sent heading swings {sent.Min():F5}..{sent.Max():F5}");
         }
     }
 }

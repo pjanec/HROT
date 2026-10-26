@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CombatHealth)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct Health
     {
         public float Current;

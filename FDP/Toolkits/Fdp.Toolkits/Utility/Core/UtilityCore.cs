@@ -113,8 +113,9 @@ namespace Fdp.Toolkit.Utility
         public readonly ushort        InputId;
         /// <summary>Which entity role supplies the input value.</summary>
         public readonly InputContext  Context;
-        /// <summary>Reserved for alignment.</summary>
-        public readonly byte          Padding0;
+        /// <summary>⭐ <c>CE-2271</c> (R-2075) — what kind of consideration this is (<see cref="ConsiderationFlags"/>); was padding, so the
+        /// layout is unchanged (40 bytes).</summary>
+        public readonly ConsiderationFlags Flags;
         /// <summary>Relative weight (used as exponent in WeightedProduct; multiplier in WeightedSum).</summary>
         public readonly float         Weight;
         /// <summary>Response curve that maps raw input to [0,1].</summary>
@@ -123,15 +124,31 @@ namespace Fdp.Toolkit.Utility
         public readonly InputParams   Params;
 
         public UtilityConsideration(ushort inputId, InputContext context, float weight,
-                                    ResponseCurve curve, InputParams @params = default)
+                                    ResponseCurve curve, InputParams @params = default,
+                                    ConsiderationFlags flags = ConsiderationFlags.None)
         {
             InputId  = inputId;
             Context  = context;
-            Padding0 = 0;
+            Flags    = flags;
             Weight   = weight;
             Curve    = curve;
             Params   = @params;
         }
+    }
+
+    /// <summary>⭐ <c>CE-2271</c> (R-2075) — the kind of a consideration.</summary>
+    [System.Flags]
+    public enum ConsiderationFlags : byte
+    {
+        /// <summary>An ordinary consideration: one factor of the option's aggregate (counted in the product's compensation).</summary>
+        None = 0,
+        /// <summary>
+        /// ⭐⭐ A MODIFIER: its <c>curve ^ weight</c> MULTIPLIES the option's score AFTER the aggregate, and is NOT one of the factors the
+        /// product's compensation counts — so a modifier reading 1.0 leaves the score bit-identical (an ordinary consideration at 1.0
+        /// does not: the compensation depends on the count). For inputs that may only ever DAMP an option.
+        /// 📄 docs/DESIGN_Temperament_And_Stress.md §7.3.
+        /// </summary>
+        Modifier = 1,
     }
 
     // ── UtilityOption ────────────────────────────────────────────────────────────

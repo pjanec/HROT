@@ -181,12 +181,6 @@ namespace Hrot.SimHost
         /// is registered before the scenario handler block so TKB loading precedes scenario
         /// deserialization during <c>PrepareLive</c> and <c>PrepareEdit</c>.
         /// </param>
-        /// <param name="checkpointWorker">
-        /// Optional <see cref="CheckpointIOWorker"/> owned by the caller.  When provided a
-        /// <see cref="CheckpointClusterOpHandler"/> is registered (handles <c>TakeSnapshot</c>) and the
-        /// same worker is forwarded to <see cref="LiveLoadClusterStateHandler"/> so that
-        /// <c>FinalizeLive</c> awaits checkpoint drain before unloading (CGF1-S0303 A.1).
-        /// </param>
         /// <param name="simGroup">
         /// Optional <see cref="Fdp.ModuleHost.Scheduling.TogglableSimulationGroup"/>.  When provided (or together
         /// with <paramref name="inputGroup"/>, <paramref name="postSimGroup"/>, or <paramref name="lifecycleGroup"/>),
@@ -217,7 +211,6 @@ namespace Hrot.SimHost
             INetworkIdAllocator? scenarioIdAllocator = null,
             string? localTempRoot = null,
             ITkbDatabase? tkbDb = null,             // TKB-020: used by TkbLoadClusterStateHandler
-            CheckpointIOWorker? checkpointWorker = null,
             Fdp.ModuleHost.Scheduling.TogglableSimulationGroup?    simGroup = null,
             Fdp.ModuleHost.Scheduling.TogglableInputGroup?          inputGroup = null,
             Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup? postSimGroup = null,
@@ -324,7 +317,6 @@ namespace Hrot.SimHost
                 BypassLifecycle    = ghostCreationSystem != null
                     ? bypass => ghostCreationSystem.BypassLifecycle = bypass
                     : null,
-                CheckpointWorker   = checkpointWorker,
                 EventAccumulator   = eventAccumulator,
                 IdAllocator        = scenarioIdAllocator,
                 LoadProviders      = loadProviders,

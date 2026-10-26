@@ -64,9 +64,28 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// application wiring layer.
     /// </para>
     /// </summary>
-    public sealed class ReferenceReplayLoadHandler : IClusterStateHandler
+    public sealed class ReferenceReplayLoadHandler : IClusterStateHandler, IClusterStateUpdateObserver
     {
         private readonly IRecordReplayController      _controller;
+
+        /// <summary>⭐ R-3055 — the recording this node replays now (its controller's), or <see langword="null"/>. Every ECS host
+        /// registers this handler through the shared composition (<c>EcsHostClusterHandlers.Compose</c>), so the debug surface reads
+        /// the file from the node's own <c>ClusterSlave</c> — the same way on every node.</summary>
+        public string? ReplayFilePath => _controller.ActiveReplayFilePath;
+
+        /// <summary>
+        /// ⭐ RB-2 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — the replay's zero (the master's anchor, else this node's first
+        /// frame) and the replay clock now, in wall ticks; <see langword="null"/> outside a replay. What the debug API resolves a
+        /// frame-based seek against.
+        /// </summary>
+        public (long ZeroWallTicks, long NowWallTicks)? ReplayPosition
+            => _controller.IsReplayActive
+                ? (_controller.ReplayAnchorWallTicks > 0 ? _controller.ReplayAnchorWallTicks : _controller.ActiveRecordingStartWallTicks,
+                   _controller.GetCurrentReplayTime().TotalWallTicks)
+                : null;
+
+        /// <summary>⭐ CE-3329 P0 (row 6) — the recorded sim time of the frame on screen; <see langword="null"/> outside a replay.</summary>
+        public double? ReplaySimSeconds => _controller.IsReplayActive ? _controller.CurrentReplaySimSeconds : null;
         private readonly TogglableInputGroup?         _inputGroup;
         private readonly TogglableSimulationGroup?    _simGroup;
         private readonly TogglablePostSimulationGroup? _postSimGroup;
@@ -185,7 +204,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}, Duration={2}s, span {3}).",
                     exerciseId, maxNetworkId, durationSeconds, $"{first}..{last}");
 
-                return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last);
+                // ⭐ CE-3329 P1 (R3) — this node's wall ↔ sim map: the master intersects them into the cluster's sim axis
+                return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last, _controller.ActiveReplayTimeMap);
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {
@@ -216,8 +236,19 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     ? long.MaxValue
                     : startTicks + relativeTicks;
 
-                GlobalTime restoredTime = await _controller.SeekToTimeAsync(absoluteTargetTicks)
-                    .ConfigureAwait(false);
+                // ⭐⭐ CE-3329 PW — §12c W2: nothing is published from the swap until the master's commit (the broadcast it sends
+                //   when every node answered — OnClusterStateUpdate); the cleanup's sweep retracts what the seek removed meanwhile.
+                //   Held here, on the frame thread, before the seek goes off it.
+                _controller.HoldEgress("replay seek");
+                GlobalTime restoredTime;
+                try
+                {
+                    restoredTime = await _controller.SeekToTimeAsync(absoluteTargetTicks).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _awaitingCommit = true;   // ⭐ released by the master's next broadcast (it follows this node's answer)
+                }
 
                 // ⭐⭐ R-4012 — outside this node's recording: it restored nothing and listens. It reports no landed time, so
                 //   the master takes the time from a node that did restore (ReplaySeekAggregator skips an empty result).
@@ -251,16 +282,24 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 // Capture the historical time BEFORE teardown; after TeardownReplayAsync the
                 // replay module is gone and _controller.GetCurrentReplayTime() returns default.
                 GlobalTime historicalTime = _controller.GetCurrentReplayTime();
+                // ⭐ D18 (R-3047) — the branch keeps its history: this node's recording up to the frame on screen is copied into
+                //   the new exercise first (null on a listener — its branch starts empty). Read BEFORE the teardown closes it.
+                var history = _controller.CurrentReplayBranch;
 
+                // ⭐ D18 ① — the MASTER mints the branch's id (ClusterMaster.ExecuteTransitionTrajectory); ⛔ an empty id would send
+                //   every branch to one folder.
                 var branchedExerciseId = ResolveExerciseId(intent.DomainPayload);
+                if (branchedExerciseId == Guid.Empty)
+                    throw new InvalidOperationException("a branch from a replay needs the exercise id the master minted for it");
                 await _controller.TeardownReplayAsync().ConfigureAwait(false);
-                await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory)
+                await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory, history)
                     .ConfigureAwait(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
-                    "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}, historicalWallTicks={1}).",
+                    "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}, historicalWallTicks={1}, history {2}).",
                     branchedExerciseId,
-                    historicalTime.TotalWallTicks);
+                    historicalTime.TotalWallTicks,
+                    history == null ? "none (listener)" : $"{history.FrameCount} frame(s) of {history.ParentExerciseId}");
 
                 return new LiveBranchResult(historicalTime);
             }
@@ -273,21 +312,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         {
             if (intent.Operation == NodeOpType.PrepareReplay)
             {
-                SetSystemsEnabled(false);
-                _suspendGlobalTimePush?.Invoke();
-                _bypassLifecycleToggle?.Invoke(true);
-                // ⭐ The log is about to own the world: discard bookkeeping keyed by handles it invalidates.
-                //   ⛔ Do NOT arm the re-derive — re-opening protocols the log will overwrite is waste.
-                _worldReplaced?.Invoke(false);
+                EnterReplayGates();
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Commit(PrepareReplay) — sim+lifecycle disabled.");
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {
-                SetSystemsEnabled(true);
-                _resumeGlobalTimePush?.Invoke();
-                _bypassLifecycleToggle?.Invoke(false);
+                LeaveReplayGates();
                 // ⭐⭐ Resuming to a LIVE world: clear, then ARM the re-derive so the next tick re-opens
                 //   every protocol the restored world still implies (else restored Constructing/TearDown
                 //   entities are zombies nothing drives).
@@ -313,7 +345,42 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <inheritdoc />
         public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
 
+        // ⭐ CE-3329 W2 — a seek's egress hold waits for the master's commit broadcast.
+        private volatile bool _awaitingCommit;
+
+        /// <inheritdoc />
+        /// <remarks>⭐ CE-3329 W2 — the master's broadcast after a seek round releases this node's egress hold (a full republish follows:
+        /// the seek marked every descriptor dirty). A gone master releases it too.</remarks>
+        public void OnClusterStateUpdate(ClusterState state, bool masterGone)
+        {
+            if (!_awaitingCommit) return;
+            _awaitingCommit = false;
+            _controller.ReleaseEgress();
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ The replay's gates ON: the four toggle groups off, the kernel's clock push suspended (the playback owns <c>GlobalTime</c>),
+        /// lifecycle bypassed, the ELM's bookkeeping discarded (the log is about to own the world — ⛔ no re-derive armed).
+        /// ⭐ CE-3329 P3 — the ONE set of gates: a review enters them through here too (F9: gates before the replay module's first frame).
+        /// </summary>
+        public void EnterReplayGates()
+        {
+            SetSystemsEnabled(false);
+            _suspendGlobalTimePush?.Invoke();
+            _bypassLifecycleToggle?.Invoke(true);
+            _worldReplaced?.Invoke(false);
+        }
+
+        /// <summary>⭐ The replay's gates OFF (the caller re-derives the world it resumes to — a replay's finalize, a branch, a review's
+        /// checkpoint return).</summary>
+        public void LeaveReplayGates()
+        {
+            SetSystemsEnabled(true);
+            _resumeGlobalTimePush?.Invoke();
+            _bypassLifecycleToggle?.Invoke(false);
+        }
 
         private void SetSystemsEnabled(bool enabled)
         {

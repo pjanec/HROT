@@ -82,7 +82,8 @@ public sealed class EditorApplication : IEditorLogic
         FdpEventBus orchestrationBus,
         EntityRepository world,
         HotReloadMessageLogSource? hotReloadSource = null,
-        string[]? aiProjectPathSegments            = null)
+        string[]? aiProjectPathSegments            = null,
+        Action? leaveRun                           = null)
     {
         _simBus               = simBus           ?? throw new ArgumentNullException(nameof(simBus));
 
@@ -95,7 +96,8 @@ public sealed class EditorApplication : IEditorLogic
             fileService      ?? throw new ArgumentNullException(nameof(fileService)),
             orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus)),
             world            ?? throw new ArgumentNullException(nameof(world)),
-            () => EditorBootstrap.ScenariosRoot);
+            () => EditorBootstrap.ScenariosRoot,
+            leaveRun: leaveRun);   // ⭐ CE-1025 — the editor's dry run, left without a rewind at each load
 
         _hotReloadSource      = hotReloadSource;
         _aiProjectPathSegments = aiProjectPathSegments
@@ -163,63 +165,30 @@ public sealed class EditorApplication : IEditorLogic
     public void OpenRenameDialog(long entityId) =>
         _simBus.Publish(new OpenRenameDialogCommand { NetworkId = entityId });
 
+    private AiBehaviorsRebuild? _aiRebuild;
+
+    /// <summary>⭐ <c>CE-1321</c> — the rebuild the composition root built (late: it needs the hot-reload coordinator, which subscribes
+    /// the catalog refresh and the document reconcile first).</summary>
+    public void SetAiRebuild(AiBehaviorsRebuild rebuild) => _aiRebuild = rebuild;
+
     /// <inheritdoc/>
-    public void RebuildAndReloadAI()
+    /// <remarks>Fire-and-forget (the 60 Hz UI stays responsive); the result goes to the hot-reload log.</remarks>
+    public void RebuildAndReloadAI() => _ = Task.Run(async () =>
     {
-        // Fire-and-forget background compilation to keep the 60Hz UI responsive.
-        // Once MSBuild overwrites the DLL, the FileSystemWatcher in FbtAssemblyHotReloader
-        // will automatically detect it and swap the BTree interpreters via the ALC.
-        Task.Run(() =>
-        {
-            string? projectPath = ResolveProjectFilePath(_aiProjectPathSegments);
-            if (projectPath == null)
-            {
-                _hotReloadSource?.PushLine(
-                    $"ERROR: AI Behaviors project file not found. Searched parent directories" +
-                    $" from CWD for relative path: {Path.Combine(_aiProjectPathSegments)}");
-                return;
-            }
+        var r = await RebuildAndReloadAIAsync().ConfigureAwait(false);
+        _hotReloadSource?.PushLine(r.Reloaded
+            ? $"Reloaded: {r.Behaviours} behaviours (+{r.Added.Count} −{r.Removed.Count}), {r.DocumentsReconciled} open documents reconciled."
+            : $"{(r.Build == "failed" ? "ERROR: " : "")}Not reloaded ({r.Build}): {r.Note}");
+        foreach (var e in r.Errors) _hotReloadSource?.PushLine($"ERROR: {e}");
+    });
 
-            _hotReloadSource?.PushLine($"Starting dotnet build: {projectPath}");
+    /// <inheritdoc/>
+    public Task<AiReloadResult> RebuildAndReloadAIAsync()
+        => _aiRebuild?.RunAsync()
+           ?? Task.FromResult(AiReloadResult.NotWired("This host wires no C# behaviour hot reload."));
 
-            var psi = new ProcessStartInfo
-            {
-                FileName               = "dotnet",
-                Arguments              = $"build \"{projectPath}\"",
-                CreateNoWindow         = true,
-                UseShellExecute        = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-            };
-
-            using var process = new Process { StartInfo = psi, EnableRaisingEvents = false };
-
-            // Async line-by-line reading avoids the classic OS pipe-buffer deadlock
-            // that occurs when both stdout and stderr fill up while the caller is
-            // blocked on WaitForExit() with synchronous ReadToEnd().
-            process.OutputDataReceived += (_, e) =>
-            {
-                if (e.Data != null) _hotReloadSource?.PushLine(e.Data);
-            };
-            process.ErrorDataReceived += (_, e) =>
-            {
-                if (e.Data != null) _hotReloadSource?.PushLine($"ERROR: {e.Data}");
-            };
-
-            try
-            {
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-                process.WaitForExit();
-                _hotReloadSource?.PushLine($"Build exited with code {process.ExitCode}.");
-            }
-            catch (Exception ex)
-            {
-                _hotReloadSource?.PushLine($"ERROR: Failed to start dotnet process: {ex.Message}");
-            }
-        });
-    }
+    /// <summary>The AI Behaviors project file this editor rebuilds (<see cref="ResolveProjectFilePath"/>).</summary>
+    public string? AiProjectFilePath() => ResolveProjectFilePath(_aiProjectPathSegments);
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>CE-018</c> — the FOURTH copy of the <c>.csproj</c> walk-up, routed to the one

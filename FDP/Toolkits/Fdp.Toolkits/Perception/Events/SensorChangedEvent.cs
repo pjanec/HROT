@@ -91,6 +91,14 @@ namespace Fdp.Toolkit.Perception.Events
         /// circle, else a seen contact), stands in a BUILDING (≥ 5 of 9 points of one PointSurvey). Published on the COMMANDER; the squad also
         /// sends a CONTACT report up (the source, firing).</summary>
         FiredOnFromStructure = 24,
+
+        /// <summary>⭐ <c>CE-2272</c> (TS-6, R-2034) — his stress reached his effective nerve: he BREAKS (to ground, away, or surrenders).
+        /// Published on the MAN by <c>StressSystem</c>, once per break. ⚠ The design said 21; 21–24 were taken (Temperament §7.2).</summary>
+        StressBreak = 25,
+
+        /// <summary>⭐ <c>CE-2272</c> (TS-6) — his stress stayed under 0.6 × his effective nerve for 10 s: he has pulled himself together.
+        /// Published on the MAN by <c>StressSystem</c>, once per recovery.</summary>
+        StressRecovered = 26,
     }
 
     /// <summary>

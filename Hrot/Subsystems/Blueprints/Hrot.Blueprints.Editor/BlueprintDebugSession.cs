@@ -11,6 +11,7 @@ using Hrot.Blueprints.Editor.Debug;
 using BPCompilerMode = Hrot.Blueprints.Core.Compiler.CompilerMode;
 using EventEntryNode = Hrot.Blueprints.Core.Assets.EventEntryNode;
 using Graph = Hrot.Blueprints.Core.Assets.Graph;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Blueprints.Core.Debug;
 
@@ -2383,6 +2384,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     // IAiTraceObserver: blueprint trace data flows through DebugProbe.Sink (global), not the per-asset
     // AiTracerCoordinator ref-counting used by BTree/HSM — so these are intentional no-ops here.
     void Hrot.Editor.AiShared.Debug.IAiTraceObserver.BeginObservingAsset(
-        Guid assetId, Hrot.Editor.AiShared.Debug.TraceLevel level) { }
+        Guid assetId, Fdp.Toolkit.ReplayBrowser.Timeline.TraceLevel level) { }
     void Hrot.Editor.AiShared.Debug.IAiTraceObserver.EndObservingAsset(Guid assetId) { }
 }

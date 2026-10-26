@@ -44,9 +44,10 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-259am — ReplayBrowser gained a map in DESIGN_Gizmo_Anchor_Identity.md §6.7 and must
             //   forward it like everyone else. ⚠ Its composition and its "app" are ONE file: the subsystem
             //   holds _activeRepo and rebuilds the singleton itself (EnsureNetworkEntityMap).
+            // ⭐ RB-1 — its debug surface lives in its own partial file (ReplayBrowserSubsystem.DebugSurface.cs).
             {
-                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
-                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs"
+                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",
+                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs"
             },
         };
 
@@ -67,6 +68,9 @@ namespace Hrot.SimHost.Tests
 
             var subsystem = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(subsystemPath));
+
+            // ⭐ an ECS node gets its map from the ONE shared surface, by construction (EcsNodeDebugProvider: node()?.EntityMap)
+            if (subsystem.Contains(EcsFactoryCall)) { Assert.Contains("entityMap:     () => node()?.EntityMap", EcsFactorySource()); return; }
 
             Assert.Contains("entityMap:", subsystem);
 
@@ -99,7 +103,7 @@ namespace Hrot.SimHost.Tests
             { "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",                 "SimHost" },
             { "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",                           "IG" },
             { "Hrot/Subsystems/Hrot.ExCon/ExConSubsystem.cs",                     "ExCon" },
-            { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",     "ReplayBrowser" },
+            { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",     "ReplayBrowser" },
         };
 
         /// <summary>
@@ -153,6 +157,16 @@ namespace Hrot.SimHost.Tests
             //   registration helpers, and all of them must agree — measured 2026-09-11, CGF and SimHost
             //   each have two and both match.
             int at = 0, seen = 0;
+            // ⭐ the shared ECS-node surface takes the perspective as its 2nd argument: EcsNodeDebugProvider.For(Name, "<p>", …)
+            int f = src.IndexOf(EcsFactoryCall, System.StringComparison.Ordinal);
+            if (f >= 0)
+            {
+                var args = src[(f + EcsFactoryCall.Length)..];
+                var second = args[(args.IndexOf(',') + 1)..].TrimStart();
+                Assert.True(second.StartsWith($"\"{perspective}\"", System.StringComparison.Ordinal) || (second.StartsWith("Name,") && src.Contains($"Name => \"{perspective}\"")),
+                    $"{subsystemPath} builds its provider with a perspective that is not \"{perspective}\" (found: {second[..System.Math.Min(40, second.Length)]}).");
+                seen++;
+            }
             while ((at = src.IndexOf("perspective:", at, System.StringComparison.Ordinal)) >= 0)
             {
                 var after = src[(at + "perspective:".Length)..].TrimStart();
@@ -185,7 +199,7 @@ namespace Hrot.SimHost.Tests
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
             "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",
-            "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
+            "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",
         };
 
         [Theory]
@@ -203,10 +217,13 @@ namespace Hrot.SimHost.Tests
                 "anything. Either it genuinely stopped drawing gizmos (drop the row and say why) or the " +
                 "rail is aimed at the wrong file.");
 
-            Assert.Contains("gizmoBuffer:", src);
+            // ⭐ an ECS node passes its feed as the shared surface's extra (EcsNodeDebugExtras.GizmoBuffer)
+            var key = src.Contains(EcsFactoryCall) ? "GizmoBuffer" : "gizmoBuffer:";
+            if (key == "GizmoBuffer") key = src.Contains("GizmoBuffer   =") ? "GizmoBuffer   =" : "GizmoBuffer =";
+            Assert.Contains(key, src);
 
-            var afterKey = src[(src.IndexOf("gizmoBuffer:", System.StringComparison.Ordinal)
-                                + "gizmoBuffer:".Length)..].TrimStart();
+            var afterKey = src[(src.IndexOf(key, System.StringComparison.Ordinal)
+                                + key.Length)..].TrimStart();
 
             Assert.False(afterKey.StartsWith("null", System.StringComparison.Ordinal),
                 $"{subsystemPath} passes `gizmoBuffer: null` while it drives a DebugPrimitiveBuffer. " +
@@ -214,6 +231,31 @@ namespace Hrot.SimHost.Tests
                 "GET /panels/_gizmo and POST /annotations will refuse for this perspective — and the " +
                 "refusal reads as 'this host draws no gizmos', which would be false. Forward the buffer " +
                 "(BP-487, CE-259am).");
+        }
+
+        /// <summary>
+        /// ⭐⭐ RB-1 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — <b>the Replay Browser passes every member the shared replay routes
+        /// read.</b> 🔴 Before: it passed world, map and gizmo buffer only, so <c>/replay</c>, <c>/replay/seek</c>, <c>/sim/*</c> and
+        /// <c>/exercises</c> all failed on it, and its dumps fell back to reflection (CE-171) while it held a serializer. ⭐ The behaviour is
+        /// railed on the constructed provider (<c>ReplayBrowserSubsystemTests.RB1_*</c>); this row keeps the composition from dropping one.
+        /// </summary>
+        [Theory]
+        [InlineData("extraction:")]
+        [InlineData("drive:")]
+        [InlineData("master:")]
+        [InlineData("clusterState:")]
+        [InlineData("exercises:")]
+        [InlineData("replayDuration:")]
+        [InlineData("replayRecording:")]
+        [InlineData("replayBrowser:")]
+        public void TheReplayBrowser_PassesTheMembersTheSharedReplayRoutesRead(string key)
+        {
+            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs"));
+            int at = src.IndexOf(key, System.StringComparison.Ordinal);
+            Assert.True(at >= 0, $"The Replay Browser's provider passes no `{key}` — the shared route that reads it fails on this host (RB-1).");
+            Assert.False(src[(at + key.Length)..].TrimStart().StartsWith("null", System.StringComparison.Ordinal),
+                $"The Replay Browser's provider passes `{key} null` while it holds what it names (RB-1).");
         }
 
         /// <summary>
@@ -264,7 +306,33 @@ namespace Hrot.SimHost.Tests
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
             "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",
+            "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs",
         };
+
+        private const string EcsFactoryCall = "EcsNodeDebugProvider.For(";
+
+        private static string EcsFactorySource() => CompositionRootSource.StripComments(
+            CompositionRootSource.ReadRepoSource("Hrot/Engine/Hrot.Presentation/DebugApi/EcsNodeDebugProvider.cs"));
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>An ECS node cannot get a different debug surface by construction</b> (user, `2026-10-26`: <i>"Best if the nodes cannot
+        /// get different stuff by construction"</i>). Every ECS node builds its provider through the ONE shared
+        /// <c>EcsNodeDebugProvider.For</c>, which derives everything from the node's <c>HrotNodeContext</c>; ⛔ none builds a
+        /// <c>SubsystemDebugProvider</c> by hand. 📌 Before, each hand-wrote ~15 arguments and they had drifted: the traffic node offered
+        /// no save or dump, and only CGF named its replay recording.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(EcsNodeSubsystems))]
+        public void AnEcsNode_BuildsItsDebugSurfaceThroughTheOneSharedFactory(string subsystemPath)
+        {
+            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(subsystemPath));
+
+            Assert.True(src.Contains(EcsFactoryCall),
+                $"{subsystemPath} does not build its debug provider through EcsNodeDebugProvider.For — an ECS node's surface is derived "
+              + "from its HrotNodeContext in ONE place; pass only what the node genuinely adds (EcsNodeDebugExtras).");
+            Assert.False(CompositionRootSource.ConstructsType(src, "SubsystemDebugProvider"),
+                $"{subsystemPath} constructs a SubsystemDebugProvider by hand — that is how four ECS nodes drifted apart.");
+        }
 
         /// <summary>
         /// 🔴 <b><c>CE-163</c>.</b> 📐 Measured on a four-process cluster <c>2026-09-03</c>:
@@ -283,7 +351,7 @@ namespace Hrot.SimHost.Tests
             var subsystem = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(subsystemPath));
 
-            Assert.True(subsystem.Contains("ClusterStateFrom("),
+            Assert.True(subsystem.Contains("ClusterStateFrom(") || (subsystem.Contains(EcsFactoryCall) && EcsFactorySource().Contains("ClusterStateFrom(")),
                 $"{subsystemPath} does not pass its cluster state through " +
                 "SubsystemDebugProvider.ClusterStateFrom(...). Every ECS node holds a ClusterSlave whose " +
                 "LocalClusterState is its committed cluster state; a node that does not project it makes " +
@@ -344,6 +412,7 @@ namespace Hrot.SimHost.Tests
                 "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs"           => "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs" => "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs"         => "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+                "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs" => "Hrot/Subsystems/Hrot.TrafficNode/TrafficNodeBootstrapper.cs",
                 _ => throw new System.InvalidOperationException($"no bootstrapper mapped for {subsystemPath}"),
             };
 

@@ -43,7 +43,8 @@ namespace Fdp.TestShared
             return new Result(systems, modules, missing, assemblies);
         }
 
-        private static IEnumerable<Assembly> ProductionAssemblies()
+        // ⭐ internal: DataPolicyProbe (CE-3299 D7) walks the same assemblies — one walk, not a third copy
+        internal static IEnumerable<Assembly> ProductionAssemblies()
         {
             var dir = AppContext.BaseDirectory;
             foreach (var path in Directory.EnumerateFiles(dir, "*.dll").OrderBy(p => p, StringComparer.Ordinal))
@@ -59,7 +60,7 @@ namespace Fdp.TestShared
             }
         }
 
-        private static IEnumerable<Type> LoadableTypes(Assembly asm)
+        internal static IEnumerable<Type> LoadableTypes(Assembly asm)
         {
             try { return asm.GetTypes(); }
             catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null)!; }

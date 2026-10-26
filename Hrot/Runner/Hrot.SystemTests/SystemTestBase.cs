@@ -122,8 +122,8 @@ public abstract class SystemTestBase
     protected async Task ResetToIdleAsync()
     {
         var status = await Mcp.GetReplayStatusAsync().ConfigureAwait(false);
-        if (status.Ok && status.Bool("replayActive"))
-            await Mcp.UnloadReplayAsync().ConfigureAwait(false);
+        if (status.Ok && status.Bool("replaying"))
+            await Mcp.StopReplayAsync().ConfigureAwait(false);
 
         await ClearBreakpointsAsync().ConfigureAwait(false);
 

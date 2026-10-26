@@ -373,6 +373,25 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal("Zed", Assert.Single(root.Folders[2].Choices).Name);
         }
 
+        /// <summary>⭐ <c>CE-1327</c> — the picker's search: every word must appear in the name, the technology or the folder, case-insensitive;
+        /// a name STARTING with the first word comes first. ✅ Red-proof: the folder not searched ⇒ red ("infantry" finds nothing).</summary>
+        [Fact]
+        public void CE1327_PickerSearch_EveryWord_NameFolderOrTechnology()
+        {
+            var choices = new[]
+            {
+                new BehaviorChoice("Ambush", "BTree") { Group = "Demos/UrbanCombat" },
+                new BehaviorChoice("MoveToLocation", "BTree") { Group = "Library/Basic" },
+                new BehaviorChoice("CombatPosture", "BTree") { Group = "Library/Infantry" },
+                new BehaviorChoice("PostureHold", "Hsm") { Group = "Library/Infantry" },
+            };
+            var search = Hrot.Presentation.Behavior.BehaviorPickerTree.Matches;
+            Assert.Equal(new[] { "PostureHold", "CombatPosture" }, search(choices, "posture").Select(c => c.Name));   // the prefix first
+            Assert.Equal(new[] { "CombatPosture", "PostureHold" }, search(choices, "INFANTRY").Select(c => c.Name));  // the folder
+            Assert.Equal(new[] { "PostureHold" }, search(choices, "hsm post").Select(c => c.Name));                  // every word
+            Assert.Empty(search(choices, "zzz"));
+        }
+
         [Fact]
         public void GetAvailableBehaviors_DeadEntity_ReturnsEmpty()
         {
@@ -588,7 +607,7 @@ namespace Hrot.Editor.Tests.Adapters
             _world.AddComponent(child, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = parent });
 
             var adapter = CreateAdapter();
-            var nodes   = adapter.GetVisibleNodes("", new HashSet<int>());
+            var nodes   = adapter.GetVisibleNodes("", new HashSet<int> { parent.Index });   // CE-1272: expanded explicitly
 
             Assert.Equal(2, nodes.Count);
             var parentNode = nodes[0]; // root first (depth 0)
@@ -596,6 +615,82 @@ namespace Hrot.Editor.Tests.Adapters
 
             Assert.Equal(0, parentNode.Depth);
             Assert.Equal(1, childNode.Depth);
+        }
+
+        /// <summary>⭐ <c>CE-1346</c> (Tool Model §4.16) — a clicked row is first OFFERED to the map's entity pick; taken, the row is not
+        /// selected (no select request is published). ✅ Red-proof: the offer dropped from SelectEntity ⇒ the offer never sees the row.</summary>
+        [Fact]
+        public void CE1346_AClickedRow_IsOfferedToTheEntityPick_AndTakenItIsNotSelected()
+        {
+            _world.CreateEntity();
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new EntityInfo { Name = new Fdp.Core.FixedString64("Alpha") });
+            var adapter = CreateAdapter();
+            var offered = new List<Entity>();
+            adapter.PickOffer = e => { offered.Add(e); return true; };
+            adapter.GetVisibleNodes("", new HashSet<int>());
+
+            adapter.SelectEntity(unit.Index);   // ⚠ a select would publish ActivateEditorToolEvent — taken, it returns first
+
+            Assert.Equal(new[] { unit }, offered);
+        }
+
+        /// <summary>⭐ <c>CE-1350</c> — a destroyed unit's row says so (the panel draws it dark red); a living one does not; and a double-click's
+        /// Center View on a host with no map is a no-op, not a crash. ✅ Red-proof: IsDestroyed not filled ⇒ red.</summary>
+        [Fact]
+        public void CE1350_ADestroyedUnitsRow_IsMarked_AndCentringWithNoMapIsHarmless()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _world.CreateEntity();
+            var dead = _world.CreateEntity();
+            var alive = _world.CreateEntity();
+            _world.AddComponent(dead, new EntityInfo { Name = new Fdp.Core.FixedString64("Dead") });
+            _world.AddComponent(dead, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            _world.AddComponent(alive, new EntityInfo { Name = new Fdp.Core.FixedString64("Alive") });
+            _world.AddComponent(alive, new Fdp.Toolkit.Combat.Components.Health { Current = 80f, Max = 100f });
+            var adapter = CreateAdapter();
+            var nodes = adapter.GetVisibleNodes("", new HashSet<int>());
+            Assert.True(nodes.Single(n => n.Name == "Dead").IsDestroyed);
+            Assert.False(nodes.Single(n => n.Name == "Alive").IsDestroyed);
+            adapter.CenterOn(dead.Index);   // no canvas on this world: nothing to move, no throw
+        }
+
+        /// <summary>CE-1272 — a collapsed commander hides its subordinates, also when no row is expanded at all (the old "nothing
+        /// expanded ⇒ everything expanded" shortcut showed them).</summary>
+        [Fact]
+        public void CE1272_ACollapsedCommander_HidesItsSubordinates()
+        {
+            _world.CreateEntity();
+            var parent = _world.CreateEntity();
+            var child  = _world.CreateEntity();
+            _world.AddComponent(parent, new EntityInfo { Name = new Fdp.Core.FixedString64("Platoon") });
+            _world.AddComponent(child,  new EntityInfo { Name = new Fdp.Core.FixedString64("Squad") });
+            _world.AddComponent(child, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = parent });
+
+            var adapter = CreateAdapter();
+            var collapsed = adapter.GetVisibleNodes("", new HashSet<int>());
+            Assert.Single(collapsed);
+            Assert.Equal("Platoon", collapsed[0].Name);
+            Assert.True(collapsed[0].HasChildren);
+
+            Assert.Equal(2, adapter.GetVisibleNodes("", new HashSet<int> { parent.Index }).Count);
+        }
+
+        /// <summary>CE-1271 — a row carries the entity's NETWORK id beside its index key: the shared map entity menu looks the
+        /// network id up, and the index looked up as one missed (an empty menu).</summary>
+        [Fact]
+        public void CE1271_ARow_CarriesTheNetworkId_TheMenuLooksUp()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+                _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            _world.CreateEntity();
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new EntityInfo { Name = new Fdp.Core.FixedString64("Rifleman") });
+            _world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4711));
+
+            var row = Assert.Single(CreateAdapter().GetVisibleNodes("", new HashSet<int>()));
+            Assert.Equal(unit.Index, row.EntityId);     // the adapter's own key, unchanged
+            Assert.Equal(4711, row.NetworkId);
         }
 
         [Fact]
@@ -686,7 +781,7 @@ namespace Hrot.Editor.Tests.Adapters
             _world.AddComponent(subordinate, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
 
             var adapter = CreateAdapter();
-            var nodes   = adapter.GetVisibleNodes("", new HashSet<int>());
+            var nodes   = adapter.GetVisibleNodes("", new HashSet<int> { commander.Index });   // CE-1272: expanded explicitly
 
             var cmdNode = nodes.Single(n => n.EntityId == commander.Index);
             var subNode = nodes.Single(n => n.EntityId == subordinate.Index);

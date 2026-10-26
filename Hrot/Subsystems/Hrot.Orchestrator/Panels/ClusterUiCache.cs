@@ -31,6 +31,9 @@ public sealed class ClusterUiCache : IDisposable
 
     // ── Published state ────────────────────────────────────────────────────────
     public ClusterState    CurrentState           { get; private set; }
+
+    /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master's last cluster-state broadcast said.</summary>
+    public Fdp.Toolkit.Orchestration.ReplayAxis ReplayAxis { get; private set; } = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
     public Guid        ActiveExerciseId       { get; private set; }
     public bool        IsBootstrapped         { get; private set; }
     public bool        HasInFlightTransaction  { get; private set; }
@@ -148,6 +151,7 @@ public sealed class ClusterUiCache : IDisposable
             var prev = CurrentState;
             CurrentState   = (ClusterState)(int)ev.CurrentState;
             ActiveExerciseId = ev.ExerciseId;
+            if (!ev.MasterGone) ReplayAxis = ev.ReplayAxis;   // ⭐ CE-3329 R-3058
             IsBootstrapped = CurrentState != ClusterState.Degraded;
             if (CurrentState != prev)
                 ReachableTargets = _planner.GetReachableTargets(CurrentState);

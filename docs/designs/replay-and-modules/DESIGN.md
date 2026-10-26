@@ -22,7 +22,7 @@ current-answer: ⭐ TO BUILD: §2.1m. ⭐ TO UNDERSTAND WHY: §2.1k (the owning 
   that already exists). ⚠ This document was written as a DESIGN of replay isolation, and §1.1 is titled
   "Broken Replay Isolation" — so its tables describe how it was MEANT to be, not how it IS. Read §2.1a
   before quoting the NetworkLifecycleSystemGroup row.
-known-rot: ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during replay | block ghost
+known-rot: ⛔⛔ `2026-10-26` (user): §2.2 / §2.3's "IG nodes use ListenerRecordReplayController … do not record and do not replay" is SUPERSEDED — EVERY node that records replays, our IG node included (R-4010; the Listener controller is deleted). ⛔ §3.10.4's fix ("clear _trackedEntities on a seek") is SUPERSEDED by DESIGN_Replay_Time_Axis_And_Review.md §12 (R-3062): a seek / restore / review swap disposes every published id ABSENT from the new world — clearing without disposing is what leaves zombies on the wire for external consumers (CE-3331). ⛔⛔ §2.1's row "NetworkLifecycleSystemGroup | Disabled during replay | block ghost
   create/promote/destroy" is NOT the as-is, measured 2026-09-11 (§2.1a): every production site passes
   that group exactly ONE member (GhostCreationSystem), whose Execute is an EMPTY BODY, so toggling the
   group's Enabled flag changes no behaviour at all. GhostPromotionSystem and NetworkGatewaySystem have
@@ -66,6 +66,7 @@ stale-below: §2.1e's class-B conclusion and its 3-step plan (superseded by §2.
   lifecycle line above; §2.1f's "asymmetry in BeginDestruction" flag (moot — see §2.1i). The other §2.1
   rows were not re-measured on 2026-09-11 and carry no claim either way.
 related-designs:
+  - ../../DESIGN_Replay_Time_Axis_And_Review.md — the review (DAR): replay in place beside a SUSPENDED live recorder — relaxes §5.7 for a review only; ⭐ §12 OWNS the zombie cleanup on the wire at every world swap (supersedes §3.10.4); the ReviewGate closes the ungated-module gap
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — the checkpoint restore and the dry run reuse §2.1d's restore-then-re-derive and §2.1m's ELM participant (CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f/§7f.1 (CE-3294, CE-3298): systems reset per-entity state on `WorldEpoch`; the editor's Stop is a rewind that moves no epoch (same seam as §2.1l).
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-L: L2′ (APPROVED, R-4007) adopts this design's freeze gate (CE-259ap) as one node-level predicate; L3″ (OPEN) extends Plan A to every ECS node — replay locally only with a COMPLETE recording, else listen — which supersedes §2.2's "IG does not record" (R-4003); L5 (OPEN) one controller.

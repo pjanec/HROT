@@ -83,6 +83,81 @@ public sealed class DirectorRunnerTests : IDisposable
         public string? BehaviourName(int hash) => null;
         public TakeStore Takes { get; }
 
+        // ⭐ CE-3299 B5 — the fake's checkpoint: the clock and the verify world's health (the position follows the clock)
+        public FakeVerifyWorld? Verifier;
+        public double? CheckpointWrittenAt;
+        public int Restores;
+        /// <summary>A checkpoint that does not carry the health — what R1 exists to catch.</summary>
+        public bool LoseHealthOnRestore;
+        private double? _snapTo;
+
+        public void WriteCheckpoint(string path, string label)
+        {
+            CheckpointWrittenAt = SimTime;
+            var health = new System.Text.Json.Nodes.JsonObject();
+            foreach (var (id, hp) in Verifier!.Health) health[id.ToString(System.Globalization.CultureInfo.InvariantCulture)] = hp;
+            System.IO.File.WriteAllText(path, new System.Text.Json.Nodes.JsonObject { ["t"] = SimTime, ["health"] = health }.ToJsonString());
+        }
+
+        public double RestoreCheckpoint(string path)
+        {
+            Restores++;
+            var o = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(path))!;
+            Verifier!.Fresh();
+            if (!LoseHealthOnRestore)
+                foreach (var (id, hp) in o["health"]!.AsObject()) Verifier.Health[long.Parse(id, System.Globalization.CultureInfo.InvariantCulture)] = hp!.GetValue<double>();
+            _snapTo = o["t"]!.GetValue<double>();   // the clock moves on a later frame, as ITimeCommands.SnapTo does
+            return _snapTo.Value;
+        }
+
+        // ⭐ CE-4045 H1a — a LIVE run: it records EVERY frame with its sim frame (paused ones too, as the editor's recorder does — CE-4053),
+        //   and a stop closes the file two frames later (the recorder's module is uninstalled by the master's Idle transition)
+        public string? RecordDir;
+        /// <summary>A recorder that loses the health — what H1a exists to catch.</summary>
+        public bool RecorderCarriesHealth = true;
+        public int LiveLoads, LiveStops, RecordingsOpened;
+        public FakeRecordedRun? Opened;
+        private bool _liveLoad, _recording;
+        private int _stopFrames = -1;
+        private string? _recordingFile;
+        private readonly System.Text.Json.Nodes.JsonArray _recorded = new();
+
+        public void LoadLive(string scenario) { LoadScenario(scenario); _liveLoad = true; LiveLoads++; }
+        public bool IsOperatingLive { get; private set; }
+        public void StopLive() { LiveStops++; _stopFrames = 2; }
+        public bool IsIdle { get; private set; } = true;
+        public string? LiveRecordingPath => _recording ? _recordingFile : null;
+        public IRecordedRun OpenRecording(string path) { RecordingsOpened++; return Opened = new FakeRecordedRun(path); }
+
+        private void Record()
+        {
+            var units = new System.Text.Json.Nodes.JsonObject();
+            foreach (var e in Repo.Query().With<NetworkIdentity>().With<EntityInfo>().Build())
+            {
+                long id = Repo.GetComponentRO<NetworkIdentity>(e).Value;
+                units[id.ToString(System.Globalization.CultureInfo.InvariantCulture)] = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["name"] = Repo.GetComponentRO<EntityInfo>(e).Name.ToString(),
+                    ["x"] = Repo.GetComponentRO<SimTransform>(e).Position.X,
+                    ["hp"] = RecorderCarriesHealth && Verifier != null && Verifier.Health.TryGetValue(id, out var hp) ? hp : 100d,
+                };
+            }
+            _recorded.Add(new System.Text.Json.Nodes.JsonObject { ["f"] = (long)Math.Round(SimTime * 60d), ["units"] = units });
+        }
+
+        private void CloseRecording()
+        {
+            _recording = false;
+            IsOperatingLive = false;
+            IsIdle = true;
+            File.WriteAllText(_recordingFile!, new System.Text.Json.Nodes.JsonObject { ["frames"] = _recorded.DeepClone() }.ToJsonString());
+            var manifest = new Dictionary<int, Fdp.Core.FlightRecorder.ComponentSchemaInfo>();
+            foreach (var (i, name) in new[] { "SimTransform", "NetworkIdentity", "EntityInfo", "Health" }.Select((n, i) => (i, n)))
+                manifest[i] = new Fdp.Core.FlightRecorder.ComponentSchemaInfo { Name = "Fdp.Some." + name };
+            File.WriteAllText(_recordingFile + ".meta.json", Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Serialize(
+                new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { SchemaManifest = manifest }));
+        }
+
         /// <summary>The rest of the frame after the director's tick: the kernel takes the step, a load progresses, the map draws.</summary>
         public void EndFrame()
         {
@@ -97,6 +172,13 @@ public sealed class DirectorRunnerTests : IDisposable
                 retired++;
             }
             RetiredPerFrame.Add(retired);
+            if (_snapTo is { } snap)
+            {
+                SimTime = snap;
+                _snapTo = null;
+                if (Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
+                    Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
+            }
             if (retired > 0 && Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
                 Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
             _frame++;
@@ -115,11 +197,22 @@ public sealed class DirectorRunnerTests : IDisposable
                     Repo.AddComponent(e, new NetworkIdentity { Value = id });
                     Repo.AddComponent(e, new EntityInfo { Name = name });
                 }
-                IsOperatingEdit = true;
+                if (_liveLoad)
+                {
+                    _liveLoad = false;
+                    IsOperatingLive = true;
+                    IsIdle = false;
+                    _recording = true;
+                    _recordingFile = Path.Combine(RecordDir!, $"run{LiveLoads}.fdp");
+                    _recorded.Clear();
+                }
+                else IsOperatingEdit = true;
                 SimTime = 0d;
                 _pending = null;
                 _loadFrames = -1;
             }
+            if (_recording) Record();
+            if (_stopFrames > 0 && --_stopFrames == 0) CloseRecording();
             Wall += FrameSeconds;
         }
     }
@@ -347,9 +440,12 @@ public sealed class DirectorRunnerTests : IDisposable
         public string? BehaviourName(int hash) => null;
 
         private int _loads;
+        /// <summary>⭐ H1a — a component that changes every read and that no recorder keeps (a debug counter): never the verdict's.</summary>
+        public bool WithScratch;
+        private int _scratch;
 
         /// <summary>A load rebuilds the world: the edited health goes with the old one (⛔ a fake that kept it would leak like CE-3294).</summary>
-        private void Fresh()
+        public void Fresh()
         {
             if (_h.Loads.Count == _loads) return;
             _loads = _h.Loads.Count;
@@ -363,11 +459,13 @@ public sealed class DirectorRunnerTests : IDisposable
             {
                 if (_h.Repo.GetComponentRO<NetworkIdentity>(e).Value != id) continue;
                 var p = _h.Repo.GetComponentRO<SimTransform>(e).Position;
-                return new System.Text.Json.Nodes.JsonObject
+                var comps = new System.Text.Json.Nodes.JsonObject
                 {
                     ["SimTransform"] = new System.Text.Json.Nodes.JsonObject { ["Position"] = new System.Text.Json.Nodes.JsonObject { ["X"] = p.X, ["Y"] = p.Y, ["Z"] = p.Z } },
                     ["Health"] = new System.Text.Json.Nodes.JsonObject { ["Current"] = Health.TryGetValue(id, out var hp) ? hp : 100d },
                 };
+                if (WithScratch) comps["Scratch"] = new System.Text.Json.Nodes.JsonObject { ["Seen"] = ++_scratch };
+                return comps;
             }
             return null;
         }
@@ -380,6 +478,8 @@ public sealed class DirectorRunnerTests : IDisposable
             return list;
         }
 
+        public string? NameOfEntityIndex(int index) => null;
+
         public System.Text.Json.Nodes.JsonArray Shots() => new();
         public System.Text.Json.Nodes.JsonArray Blasts() => new();
 
@@ -391,6 +491,174 @@ public sealed class DirectorRunnerTests : IDisposable
             Edits.Add((_h.SimTime, id, component));
             return null;
         }
+    }
+
+    /// <summary>⭐ CE-4045 H1a — the fake's recording, played: the first recorded frame of each sim frame, read as the verify world reads.</summary>
+    private sealed class FakeRecordedRun : IRecordedRun, IVerifyWorld
+    {
+        private readonly System.Text.Json.Nodes.JsonArray _frames;
+        private int _i = -1;
+        public bool Disposed;
+
+        public FakeRecordedRun(string path) => _frames = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!["frames"]!.AsArray();
+
+        public long SimFrame => _i < 0 ? -1 : _frames[_i]!["f"]!.GetValue<long>();
+
+        public bool AdvanceToSimFrame(long simFrame)
+        {
+            if (_i < 0) _i = 0;
+            while (SimFrame < simFrame) { if (_i + 1 >= _frames.Count) return false; _i++; }
+            return SimFrame == simFrame;
+        }
+
+        public IVerifyWorld World => this;
+        public void Dispose() => Disposed = true;
+
+        private System.Text.Json.Nodes.JsonObject Units => _frames[_i]!["units"]!.AsObject();
+        EntityRepository? IVerifyWorld.World => null;
+        IShotWorld IVerifyWorld.Units => throw new NotSupportedException();
+        public string? BehaviourName(int hash) => null;
+        public IReadOnlyList<(long Id, string Name)> Named() =>
+            Units.Select(kv => (long.Parse(kv.Key, System.Globalization.CultureInfo.InvariantCulture), kv.Value!["name"]!.GetValue<string>())).ToList();
+        public string? NameOfEntityIndex(int index) => null;
+        public System.Text.Json.Nodes.JsonObject? Components(long id)
+        {
+            if (Units[id.ToString(System.Globalization.CultureInfo.InvariantCulture)] is not { } u) return null;
+            return new System.Text.Json.Nodes.JsonObject
+            {
+                ["SimTransform"] = new System.Text.Json.Nodes.JsonObject { ["Position"] = new System.Text.Json.Nodes.JsonObject { ["X"] = u["x"]!.GetValue<float>(), ["Y"] = 0f, ["Z"] = 0f } },
+                ["Health"] = new System.Text.Json.Nodes.JsonObject { ["Current"] = u["hp"]!.GetValue<double>() },
+            };
+        }
+        public System.Text.Json.Nodes.JsonArray Shots() => new();
+        public System.Text.Json.Nodes.JsonArray Blasts() => new();
+        public string? SetComponent(long id, string component, System.Text.Json.Nodes.JsonObject patch) => "read only";
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4045</c> H1a (docs/DESIGN_Scenario_Regression.md §10-1, R-4085) — a replay check: the scenario is loaded LIVE (no preview —
+    /// a live run records), stepped once per frame with the master a frame behind, its checks judged and its world snapshotted every
+    /// second; then the run is STOPPED, and once the recorder has closed the file every snapshot is matched to the FIRST recorded frame of
+    /// its sim frame (the recording keeps paused frames too) and compared. ① a faithful recording: SAME, and the item passes; ② a recorder
+    /// that loses the health: DIFFERENT, from the first snapshot after the action, naming the unit and the component — and it fails;
+    /// ③ a component the recording's manifest does not carry is listed apart, never the verdict. A replay check with capture is refused.
+    /// 🔴 Red-proof: map a snapshot to the sim frame AFTER its own (<c>SimFrameAt</c> + 1) ⇒ ① is DIFFERENT at t=1 s (the runner a step east).
+    /// </summary>
+    [Fact]
+    public void CE4045_H1a_TheLiveRun_IsComparedWithItsOwnRecording_FrameBySimFrame()
+    {
+        var store = Store();
+        System.IO.File.WriteAllText(System.IO.Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
+        var rec = Path.Combine(_root, "rec");
+        Directory.CreateDirectory(rec);
+        (DirectorRunner Runner, FakeEditor Host) Fresh()
+        {
+            var h = new FakeEditor(store) { Lag = 1, RecordDir = rec };
+            return (new DirectorRunner(h, new Cinema(), new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+        }
+        var replay = new VerifyOptions(Replay: true);
+
+        // ① a faithful recording
+        var (runner, host) = Fresh();
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Run(runner, host);
+        var r = runner.Reports.Single();
+        Assert.Equal((1, 0, 1, 1), (host.LiveLoads, host.Enters, host.LiveStops, host.RecordingsOpened));   // ⭐ live, never a preview
+        Assert.All(host.StepsPerFrame, n => Assert.Equal(1, n));
+        Assert.Equal("same", r.Verify!.Replay);
+        Assert.Equal(4, r.Verify.ReplaySnapshots);                                    // t = 0, 1, 2, 3
+        Assert.Empty(r.Verify.ReplayDiff);
+        Assert.Equal("none", r.Verify.Golden);                                         // a live run is not compared with the preview's golden
+        Assert.Equal("pass", r.Status);
+        Assert.True(host.Opened!.Disposed);
+        Assert.True(host.IsIdle);
+
+        // ② a recorder that loses the health
+        var (lossy, lossyHost) = Fresh();
+        lossyHost.RecorderCarriesHealth = false;
+        Assert.Empty(lossy.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Run(lossy, lossyHost);
+        var l = lossy.Reports.Single();
+        Assert.Equal(("different", "fail"), (l.Verify!.Replay, l.Status));
+        Assert.StartsWith("FIRST differing snapshot at t=2 s", l.Verify.ReplayDiff[0]);   // the action is at 1.5 s
+        Assert.Contains("Runner", l.Verify.ReplayDiff[0]);
+        Assert.Contains(l.Verify.ReplayDiff, d => d.Contains("Health"));
+        Assert.All(l.Verify.Verdicts, v => Assert.True(v.Ok));                          // ⭐ the live run itself was right
+
+        // ③ what the manifest does not carry is listed apart
+        var (scratch, scratchHost) = Fresh();
+        Assert.Empty(scratch.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        scratch.Tick(); scratchHost.EndFrame();
+        scratchHost.Verifier!.WithScratch = true;
+        Run(scratch, scratchHost);
+        var sc = scratch.Reports.Single();
+        Assert.Equal(("same", "pass"), (sc.Verify!.Replay, sc.Status));
+        Assert.Contains(sc.Verify.ReplayNotCarried, d => d.Contains("Scratch"));
+
+        // ⛔ a replay check records no golden
+        Assert.Contains(Fresh().Runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Capture: true, Replay: true))),
+                        p => p.Contains("records no golden"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3299</c> B5 — R1's two halves (restore design §1k): A runs straight and writes the checkpoint at T1 (after that moment's
+    /// snapshot, before its actions); B puts it back at the start and runs on from T1 — its snapshots on A's grid, an action A applied
+    /// before T1 NOT applied again, one after T1 applied on its exact step — and the two runs compare SAME from T1. A checkpoint that does
+    /// not carry a value is DIFFERENT, naming the unit and the component. 🔴 Red-proof: drop <c>MarkDone</c> ⇒ the T1 = 2 s half applies
+    /// the 1.5 s action again (one edit, not zero).
+    /// </summary>
+    [Fact]
+    public void CE3299_B5_R1_ARestoredRun_GoesOnFromTheCheckpoint_AndMatchesTheStraightRun()
+    {
+        var store = Store();
+        System.IO.File.WriteAllText(System.IO.Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
+        var cinema = new Cinema();
+        (DirectorRunner Runner, FakeEditor Host) Fresh()
+        {
+            var h = new FakeEditor(store);
+            return (new DirectorRunner(h, cinema, new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+        }
+        System.Text.Json.Nodes.JsonObject RunOf(string path) => System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(path))!.AsObject();
+        (string Straight, string Restored) Halves(double at, bool lose)
+        {
+            string cp = System.IO.Path.Combine(_root, $"r1-{at}.fdp"), a = cp + ".a.json", b = cp + ".b.json";
+            var (straight, sh) = Fresh();
+            Assert.Empty(straight.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(R1: new RestoreCheck(at, cp, false, a)))));
+            Run(straight, sh);
+            Assert.Equal(at, sh.CheckpointWrittenAt!.Value, 6);                  // on its moment, once
+            var (restored, rh) = Fresh();
+            rh.LoseHealthOnRestore = lose;
+            Assert.Empty(restored.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(R1: new RestoreCheck(at, cp, true, b)))));
+            Run(restored, rh);
+            Assert.Equal(1, rh.Restores);
+            Assert.Null(rh.CheckpointWrittenAt);                                  // the restored half writes none
+            Assert.All(rh.StepsPerFrame, n => Assert.Equal(1, n));                // the stepping rule holds after a restore
+            Assert.Equal(at < 1.5 ? 1 : 0, rh.Verifier!.Edits.Count);             // ⭐ the 1.5 s action: applied once, in one half or the other
+            if (at < 1.5) Assert.Equal(1.5, rh.Verifier.Edits.Single().SimTime, 6);
+            Assert.Equal(at, ConditionBook.Num(RunOf(b)["snapshots"]![0]!["t"])!.Value, 6);   // B's snapshots begin at the checkpoint
+            return (a, b);
+        }
+
+        foreach (var at in new[] { 1d, 2d })   // before the action, and after it
+        {
+            var (a, b) = Halves(at, lose: false);
+            Assert.Empty(ScenarioGolden.CompareFrom(RunOf(a), RunOf(b), at));
+        }
+
+        var (la, lb) = Halves(2d, lose: true);   // ⛔ a checkpoint that does not carry the health
+        var diff = ScenarioGolden.CompareFrom(RunOf(la), RunOf(lb), 2d);
+        Assert.StartsWith("FIRST differing snapshot at t=2 s", diff[0]);
+        Assert.Contains("Runner", diff[0]);
+        Assert.Contains(diff, d => d.Contains("Health"));
+
+        // ⭐ a component the checkpoint does not carry BY DESIGN is not the verdict's — it is listed apart
+        Func<string, bool> carried = name => name != "Health";
+        var straightRun = RunOf(la);
+        var restoredRun = RunOf(lb);
+        foreach (var unit in new[] { straightRun, restoredRun }.SelectMany(r => r["snapshots"]!.AsArray()).SelectMany(sn => sn!["units"]!.AsObject()))
+            unit.Value!.AsObject()["health"] = null;   // the unit-level health field mirrors the component; drop it for this half
+        Assert.Empty(ScenarioGolden.CompareFrom(straightRun, restoredRun, 2d, carried));
+        Assert.Contains(ScenarioGolden.CompareNotCarried(straightRun, restoredRun, 2d, carried), d => d.Contains("Health"));
     }
 
     private const string RunnerChecks = """

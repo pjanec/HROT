@@ -107,6 +107,20 @@ namespace Fdp.Toolkit.Behavior.Runners
             else new Span<byte>(brain, brainBytes).Clear();
         }
 
+        /// <summary>⭐ <c>CE-1261</c> (BV-33) — one <see cref="BrainJournalKind.StateChanged"/> per region whose active leaf moved this tick:
+        /// Origin = the region, A = from | to &lt;&lt; 16 (state indices), B = the running behaviour (its metadata names the states).</summary>
+        private static void JournalRegionChanges(EntityRepository repo, Entity entity, byte* instance, int instanceSize, ushort* before, int count)
+        {
+            ushort* after = HsmKernel.GetActiveLeafIds(instance, instanceSize, out int now);
+            if (after == null) return;
+            int behavior = repo.HasComponent<BehaviorState>(entity) ? repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash : 0;
+            for (int r = 0; r < count && r < now; r++)
+            {
+                if (before[r] == after[r]) continue;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.StateChanged, a: before[r] | (after[r] << 16), b: behavior, origin: (byte)r);
+            }
+        }
+
         public NodeStatus Tick(ref BehaviorRunContext ctx, byte* instance, int instanceSize, ref byte block)
         {
             var repo = ctx.World;
@@ -185,8 +199,24 @@ namespace Fdp.Toolkit.Behavior.Runners
 
             // ⭐⭐⭐ THE SIZE COMES FROM THE SLOT, NEVER FROM A TYPE (§9.4): a sizeof(TInstance) larger than the slot
             //   would read into the NEXT OCCURRENCE'S bytes.
+            // ⭐ CE-1261 (BV-33) — each region's active leaf BEFORE the update, for the brain journal (the root machine only; a hosted
+            //   child would name the same unit with its own regions). A stack copy, no allocation.
+            const int JournalRegions = 8;
+            ushort* leavesBefore = stackalloc ushort[JournalRegions];
+            int regionCount = 0;
+            bool journal = repo.IsComponentTypeRegistered<BrainJournal>() && repo.HasComponent<BrainJournal>(entity)
+                           && RootHsmAccess.TryGetInstance(repo, entity, out byte* rootInstance, out _) && rootInstance == instance;
+            if (journal)
+            {
+                ushort* leaves = HsmKernel.GetActiveLeafIds(instance, instanceSize, out regionCount);
+                if (leaves == null) journal = false;
+                else for (int r = 0; r < regionCount && r < JournalRegions; r++) leavesBefore[r] = leaves[r];
+            }
+
             var dummyPage = new CommandPage();
             HsmKernel.Update(def.HsmDefinition!, instance, instanceSize, &bridge, ctx.DeltaTime, &dummyPage, traceCtxPtr);
+
+            if (journal) JournalRegionChanges(repo, entity, instance, instanceSize, leavesBefore, Math.Min(regionCount, JournalRegions));
 
             // ⭐⭐⭐ E5 — the hosted children, ticked HERE (DESIGN_Occurrence_Scoped_Storage.md §32.3, "go with b").
             //   ⛔ AFTER Update, deliberately: the active-leaf set must be THIS frame's.

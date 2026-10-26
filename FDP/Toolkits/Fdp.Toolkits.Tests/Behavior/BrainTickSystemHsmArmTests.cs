@@ -487,6 +487,38 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1261</c> (BV-33) — a region's leaf moving writes ONE <see cref="Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.StateChanged"/>
+        /// (region, from | to &lt;&lt; 16, the behaviour); ticks with no move write nothing. 🔴 Red-proof: compare <c>before[r] != after[r]</c>
+        /// the other way round in <c>JournalRegionChanges</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1261_ARegionsMove_IsJournaledOnce_ASteadyTickIsNot()
+        {
+            Assert.True(Fdp.Toolkit.Behavior.Shared.BuiltInHsmEvents.TryGetId("Sensor.Hit", out ushort hit));
+            var (world, sys, e) = ArrangeSensorMachine(hit, 0x12610001);
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>();
+            world.AddComponent(e, new Fdp.Toolkit.Behavior.Diagnostics.BrainJournal());
+            sys.Execute(world, 0.016f);                                            // enter state 0
+            sys.Execute(world, 0.016f);
+            uint settled = world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(e).Seq;
+            sys.Execute(world, 0.016f);
+            Assert.Equal(settled, world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(e).Seq);   // steady: nothing
+
+            Sense(world, e, Fdp.Toolkit.Perception.Events.SensorChange.Hit);
+            for (int i = 0; i < 4; i++) sys.Execute(world, 0.016f);
+
+            var j = world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(e);
+            Assert.Equal(settled + 1, j.Seq);
+            var entry = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.StateChanged, entry.Kind);
+            Assert.Equal(0, entry.Origin);                                          // region 0
+            Assert.Equal(0, entry.A & 0xFFFF);                                      // from state 0
+            Assert.Equal(1, (int)((uint)entry.A >> 16));                            // to state 1
+            Assert.Equal(0x12610001, entry.B);
+            world.Dispose();
+        }
+
         [Fact]
         public void CE3040_TheBuiltInNames_MatchTheRuntimeEnum()
         {

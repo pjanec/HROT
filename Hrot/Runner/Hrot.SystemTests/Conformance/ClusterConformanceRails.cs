@@ -178,7 +178,7 @@ public sealed class ClusterConformanceRails
     private static readonly HashSet<string> ClusterOnlyKinds = new(StringComparer.Ordinal)
     {
         "excon-data-monitor", "excon-der-entity-inspector", "excon-diagnostics", "excon-orbat",
-        "ig-debug", "ig-entity-properties", "ig-mini-excon", "ig-waypoint-editor",
+        "ig-debug", "ig-mini-excon", "ig-waypoint-editor",
 
         // ⭐⭐⭐ CE-357 (`2026-09-26`) — `ExConObserver` DECLARED, and it is a genuine cluster-only kind.
         // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.27.

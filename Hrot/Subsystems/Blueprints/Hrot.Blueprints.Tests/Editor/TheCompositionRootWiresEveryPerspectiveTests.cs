@@ -3,6 +3,7 @@ using Fdp.Presentation.WindowManager;
 using Hrot.Editor;
 using Hrot.Editor.AiShared.Variables;
 using Hrot.Editor.AiShared.Windows;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
@@ -153,7 +154,7 @@ public sealed class TheCompositionRootWiresEveryPerspectiveTests
         public void StepOver() { }
         public void StepInto() { }
         public void StepOut() { }
-        public void BeginObservingAsset(Guid assetId, Hrot.Editor.AiShared.Debug.TraceLevel level) { }
+        public void BeginObservingAsset(Guid assetId, Fdp.Toolkit.ReplayBrowser.Timeline.TraceLevel level) { }
         public void EndObservingAsset(Guid assetId) { }
         public IReadOnlyList<Fdp.Core.Entity> GetActiveEntities(Guid assetId)
             => Array.Empty<Fdp.Core.Entity>();

@@ -138,7 +138,9 @@ public sealed class ThereIsOneNetworkIdResolverTests
         // ⭐⭐ NOT a lookup at all, and this is BP-512's whole point: the predicate asks "is THIS entity
         //    id N?" of the entity it was HANDED, in O(1). ⛔ A resolver call here would be the wrong fix —
         //    it runs once per active entity per tracker per tick.
-        ["Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints/DataBreakpointManager.cs"] =
+        // ⭐ RB-5 (2026-10-26) — the rule moved out of DataBreakpointManager into ONE place the replay search shares (it had its own
+        //   copy comparing the entity's INDEX); the breakpoint calls it, so its entry is gone and this one replaces it.
+        ["FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Search/LifecycleIdentity.cs"] =
             "BP-512: an is-this-entity test on the entity it was handed, not a lookup",
 
         // ⭐ CE-487 (2026-10-01): the two "find the child sensor whose parent is N" copies that sat here —

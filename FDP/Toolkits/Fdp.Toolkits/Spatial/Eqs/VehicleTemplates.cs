@@ -3,7 +3,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// <summary>
     /// ⭐ <c>CE-2165</c> V3 (docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §3) — where a VEHICLE hides: cover points sized
     /// by its hull (<see cref="CoverPointsGenerator.VehicleFootprint"/>) that the target in slot 1 cannot see, hidden from every known threat
-    /// above all, near and reachable.
+    /// above all, then one with a firing point in reach (<see cref="FiringReachTest"/>, CE-2232), near and reachable.
     /// </summary>
     [EqsTemplate(AssetId)]
     public static class FindVehicleHide
@@ -17,7 +17,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
             Generator      = new CoverPointsGenerator { VehicleFootprint = true },
             FilterCheap    = new IEqsTest[] { new CheapLineOfSightTest { ContextSlotIndex = 1, Viewer = EqsLosViewer.Slot, Require = EqsLosRequire.Hidden } },
             ScoreCheap     = new IEqsTest[] { new DistanceScoreTest() },
-            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest { Weight = ThreatExposureTest.HideFromAllWeight }, new PathCostScoreTest() },
+            // ⭐ CE-2232 (§4a) — and one it can FIGHT from: a firing point within the firing query's ring sees the target
+            ScoreExpensive = new IEqsTest[] { new ThreatExposureTest { Weight = ThreatExposureTest.HideFromAllWeight }, new FiringReachTest(), new PathCostScoreTest() },
             MaxCandidates  = 32,
         };
     }

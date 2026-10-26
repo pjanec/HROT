@@ -1265,7 +1265,7 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// C013 SC6: When a scenario-load request (PreAllocatedNetworkId != 0) has a
+        /// C013 SC6: When a scenario-load request (⭐ CE-3324: <c>IsScenarioLoad</c>, no longer inferred from the id) has a
         /// ChildComponentOverrides dict that does NOT contain an entry for a child's InstanceId,
         /// that child is intentionally SKIPPED (ORBAT-dedup path — subordinate was extracted as a
         /// root entity). Only the parent SpawnEntityCommand is published; AllocateId() is not called.
@@ -1287,6 +1287,7 @@ namespace Hrot.SimHost.Tests
                 TkbType            = ValidTkbType,
                 DisType            = ValidDisType,
                 PreAllocatedNetworkId = 5555L,
+                IsScenarioLoad        = true,   // ⭐ CE-3324 — what StagingEntityExtractor says
                 ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
                 {
                     { 99, (9999L, new List<object>()) },  // no entry for InstanceId 2
@@ -1302,11 +1303,42 @@ namespace Hrot.SimHost.Tests
 
             var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
 
-            // On scenario load (PreAllocatedNetworkId != 0), a child with no override entry
+            // On scenario load, a child with no override entry
             // is SKIPPED — only the parent is spawned. AllocateId() is not called.
             Assert.Single(cmds);
             Assert.Equal(5555L, cmds[0].NetworkId);
             Assert.Equal(0L, idAlloc.LastAllocatedId);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3324 — a RUNTIME request that fixes its own id (a traffic conversion, terrain objects, a test hook — and since CE-4024
+        /// that id crosses the wire) is NOT a scenario load: the template's children are spawned as on any request. ⛔ It used to be
+        /// read as one (<c>PreAllocatedNetworkId != 0</c>) and the children were silently skipped.
+        /// </summary>
+        [Fact]
+        public void CE3324_ARuntimeRequestWithAFixedId_StillGetsItsChildren()
+        {
+            var repo   = CreateWorld();
+            var tkb    = CreateTkbWithChild(childInstanceId: 2);
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId             = Guid.NewGuid(),
+                OwnerAppInstanceId    = LocalNodeId,
+                TkbType               = ValidTkbType,
+                DisType               = ValidDisType,
+                PreAllocatedNetworkId = 5555L,   // fixed by its author — and nothing says "scenario load"
+            });
+
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var system  = new CreateEntityRequestSystem(source, new StubAckSink(), tkb, idAlloc, LocalNodeId);
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            Assert.Equal(2, cmds.Count);                                   // the parent AND its child
+            Assert.Contains(cmds, c => c.NetworkId == 5555L);
+            Assert.Contains(cmds, c => c.NetworkId == 100L);               // the child's id from the allocator
         }
     }
 

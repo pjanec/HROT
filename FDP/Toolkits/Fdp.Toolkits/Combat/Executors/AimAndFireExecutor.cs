@@ -237,7 +237,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 Magazine.StartIfEmpty(ref weapon);
                 channel.Status = NodeStatus.Running;
                 // ⭐ Q94 A-3 — every round left is ASKED and on its way (the muscle's answer has not come back yet): not a reload
-                if (ShotLedger.Pending(weapon) > 0 && !Magazine.Reloading(weapon)) Say(world, entity, ActionReason.Cooldown, p.Target, 0f);
+                if (BarrelHeat.IsOverheated(weapon)) Say(world, entity, ActionReason.Overheated, p.Target, weapon.Heat, BarrelHeat.ResumeFraction);   // ⭐ CE-1358
+                else if (ShotLedger.Pending(weapon) > 0 && !Magazine.Reloading(weapon)) Say(world, entity, ActionReason.Cooldown, p.Target, 0f);
                 else Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
@@ -394,7 +395,9 @@ namespace Fdp.Toolkit.Combat.Executors
                 SayAt(world, entity, ActionReason.Aiming, point);
                 return;
             }
-            var reason = FireAtPointExecutor.ShootAtPoint(world, platform, mountIndex, ref weapon, point, p.CooldownSeconds, dt, obeyRoe: false, obeyArc: false,
+            // ⭐ CE-1358 (§5k) — the operator asks 0 = the mount's own cyclic rate (CooldownFor); the barrel heat blocks the bursts
+            float gap = FirePacing.Gap(CooldownFor(p.CooldownSeconds, mountDto), platform, RoundsFired(ref channel), channel.ActionInstanceId);
+            var reason = FireAtPointExecutor.ShootAtPoint(world, platform, mountIndex, ref weapon, point, gap, dt, obeyRoe: false, obeyArc: false,
                                                           ammo: loadedAmmo);
             if (reason == ActionReason.Firing)
             {
@@ -451,7 +454,8 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!Magazine.Ready(weapon))
             {
                 Magazine.StartIfEmpty(ref weapon);
-                Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+                if (BarrelHeat.IsOverheated(weapon)) Say(world, entity, ActionReason.Overheated, p.Target, weapon.Heat, BarrelHeat.ResumeFraction);   // ⭐ CE-1358
+                else Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
             // ⭐ CE-3195 (W-14a) — blind rounds too wait for the body to face where they go
@@ -490,6 +494,28 @@ namespace Fdp.Toolkit.Combat.Executors
         /// (magazine, total, the action's count — W-4). The grant is what was fired under this epoch plus what the magazine holds
         /// now (capped by the rounds asked), so it stays constant while rounds are in flight and drops to Track for a reload.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-1307</c> (docs/DESIGN_Weapon_Layers.md W-8b) — the operator's point, moved inside the turret's reach: aimed below its
+        /// depression (a chase camera looks down past the hull) or outside its traverse, the turret goes to its limit and stays there,
+        /// instead of the muscle failing <c>OutOfArc</c> and the turret freezing. A brain's aim is never clamped (W-8).
+        /// </summary>
+        private static Vector3 OperatorPoint(EntityRepository world, Entity part, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, Vector3 point)
+        {
+            if (mountDto is not { TurretIndex: >= 0 } || part.IsNull || !world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(part)) return point;
+            var hull = world.GetComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(part).ParentEntity;
+            return world.IsAlive(hull) && CombatTkb.TurretOf(world, hull, mountDto.TurretIndex) is { } turret
+                ? BallisticAim.Reachable(world, hull, turret, mountDto, point) : point;
+        }
+
+        /// <summary>⭐ <c>CE-1359</c> (W-8c) — the operator's point is beyond the turret's limited traverse (<see cref="BallisticAim.BeyondTraverse"/>).</summary>
+        private static bool OperatorBeyondTraverse(EntityRepository world, Entity part, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, Vector3 point)
+        {
+            if (mountDto is not { TurretIndex: >= 0 } || part.IsNull || !world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(part)) return false;
+            var hull = world.GetComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(part).ParentEntity;
+            return world.IsAlive(hull) && CombatTkb.TurretOf(world, hull, mountDto.TurretIndex) is { } turret
+                && BallisticAim.BeyondTraverse(world, hull, turret, mountDto, point);
+        }
+
         private static void TurretPath(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
                                        int mountIndex, Entity part, ref WeaponState weapon,
                                        int roundsInFlight = 0, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto = null, float dt = 0f,
@@ -560,13 +586,16 @@ namespace Fdp.Toolkit.Combat.Executors
                 if (hold >= lockSeconds) { aimState.Ready = 1; hold = 0f; locking = false; }
             }
             bool otherHold = held is { } h && h != ActionReason.Reloading;   // ⭐ M4 too close · D-L moving
+            // ⭐ CE-1359 (W-8c) — the operator's crosshair beyond a door gun's traverse: the gun turns to its limit and holds its fire
+            bool beyond = atPoint && OperatorBeyondTraverse(world, part, mountDto, p.Point);
             int grant = accounted;
-            if (seen && roe && loaded && !locking && !otherHold)
+            if (seen && roe && loaded && !locking && !otherHold && !beyond)
             {
                 int inHand = weapon.MagazineSize > 0 ? weapon.MagazineRounds : weapon.Ammo;
                 if (p.Rounds > 0) inHand = System.Math.Min(inHand, p.Rounds - RoundsFired(ref channel));
                 // ⭐ W-12c — a guided weapon is granted its next round only once the last one's flight is over.
                 if (roundsInFlight > 0) inHand = hold > 0f ? 0 : System.Math.Min(inHand, roundsInFlight);
+                inHand = System.Math.Min(inHand, BarrelHeat.RoundsLeft(weapon));   // ⭐ CE-1358 (§5k) — the burst stops at the round that makes it too hot
                 grant += System.Math.Max(0, inHand);
             }
 
@@ -574,7 +603,7 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 Mode = grant > accounted ? WeaponTaskMode.Engage : WeaponTaskMode.Track,
                 Target = p.Target,
-                Point = atPoint ? p.Point : default,
+                Point = atPoint ? OperatorPoint(world, part, mountDto, p.Point) : default,
                 MountIndex = (byte)mountIndex,
                 RoundsGranted = (ushort)System.Math.Min(grant, ushort.MaxValue),
                 CooldownSeconds = CooldownFor(p.CooldownSeconds, mountDto),   // ⭐ CE-2199 — the muscle times the rounds by it
@@ -586,7 +615,9 @@ namespace Fdp.Toolkit.Combat.Executors
             channel.Status = NodeStatus.Running;
             if (op)
             {
-                SayAt(world, entity, !loaded ? ActionReason.Reloading : p.Trigger == 0 ? ActionReason.Aiming
+                SayAt(world, entity, beyond && p.Trigger != 0 ? ActionReason.OutOfArc   // ⭐ CE-1359
+                    : BarrelHeat.IsOverheated(weapon) ? ActionReason.Overheated   // ⭐ CE-1358
+                    : !loaded ? ActionReason.Reloading : p.Trigger == 0 ? ActionReason.Aiming
                     : mine && status.State == WeaponTaskState.Slewing ? ActionReason.Slewing : ActionReason.Firing, p.Point);
                 return;
             }
@@ -594,6 +625,7 @@ namespace Fdp.Toolkit.Combat.Executors
             else if (!roe) Say(world, entity, ActionReason.HoldRoe, p.Target);
             else if (otherHold) Say(world, entity, held!.Value, p.Target);
             else if (held == ActionReason.Reloading) Say(world, entity, ActionReason.Reloading, p.Target, 0f, weapon.ReloadSeconds);
+            else if (BarrelHeat.IsOverheated(weapon)) Say(world, entity, ActionReason.Overheated, p.Target, weapon.Heat, BarrelHeat.ResumeFraction);   // ⭐ CE-1358
             else if (!loaded) Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
             else if (locking) Say(world, entity, ActionReason.Aiming, p.Target, hold, lockSeconds);
             else if (mine && status.State == WeaponTaskState.Slewing) Say(world, entity, ActionReason.Slewing, p.Target);

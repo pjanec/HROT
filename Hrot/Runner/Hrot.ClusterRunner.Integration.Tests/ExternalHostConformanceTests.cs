@@ -196,7 +196,7 @@ public sealed class ExternalHostConformanceTests
                 if (map == null || !map.TryGetEntity(netId, out var e)) return false;
                 if (!cgf.World!.HasManagedComponent<NetworkAckPeerSet>(e)) return false;
                 var peers = cgf.World!.GetComponent<NetworkAckPeerSet>(e).ExpectedAckPeers;
-                return peers != null && Array.IndexOf(peers, FakeNodeId) >= 0;
+                return peers != null && System.Linq.Enumerable.Contains(peers, FakeNodeId);
             }, 6000);
             Assert.True(stamped, "AWARE-SILENT: the fake must have been stamped into the wait-set first.");
             bool active = cgf.PumpUntil(() => EntityActive(cgf, netId), 10000);

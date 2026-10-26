@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -14,21 +15,25 @@ namespace Fdp.Toolkit.Behavior.Components
     /// sets a new instance.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.SubordinateOrders)]
-    [DataPolicy(DataPolicy.Transient)]
-    public sealed class SubordinateOrders
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
+    // ⭐ CE-4046 — an immutable record: Record / Release build a new value and Set it, so the recorder sees every change
+    public sealed record SubordinateOrders
     {
         /// <summary>One member's latest order from this commander.</summary>
-        public readonly struct Entry
+        // ⭐ CE-3299 D1 — not `readonly`: the recorder writes public settable members (CE-3305), so readonly fields were unrecordable.
+        //   The members are still only set through the constructor.
+        public struct Entry
         {
-            public readonly Entity Member;
+            public Entity Member;
             /// <summary>The behaviour ordered ("" = unknown to the commander, e.g. an order NAME a unit member resolves itself:
             /// its release is an unnamed clear).</summary>
-            public readonly string Behavior;
-            public readonly BehaviorOrigin Origin;
+            public string Behavior;
+            public BehaviorOrigin Origin;
             /// <summary>The commander's run that gave it (<see cref="BehaviorState.InstanceId"/>, or the SOP's run).</summary>
-            public readonly uint Run;
+            public uint Run;
             /// <summary>⭐ <c>CE-2304</c> — the order's params as sent ("" = not kept): an unchanged re-send is recognised by them.</summary>
-            public readonly string Json;
+            public string Json;
 
             public Entry(Entity member, string behavior, BehaviorOrigin origin, uint run, string json = "")
             {
@@ -36,9 +41,12 @@ namespace Fdp.Toolkit.Behavior.Components
             }
         }
 
-        public readonly Entry[] Orders;
+        public IReadOnlyList<Entry> Orders { get; init; }   // ⭐ CE-4046 — read-only (same name and wire shape as the array it was)
 
         public SubordinateOrders(Entry[] orders) => Orders = orders;
+
+        /// <summary>⭐ <c>CE-3299</c> D1 — for the recorder, which builds a component before it writes its members.</summary>
+        public SubordinateOrders() => Orders = Array.Empty<Entry>();
 
         /// <summary>The commander's run that is ticking now gave <paramref name="member"/> <paramref name="behavior"/> with
         /// <paramref name="json"/> (replaces that member's previous record — a member runs one task).</summary>
@@ -48,7 +56,7 @@ namespace Fdp.Toolkit.Behavior.Components
             if (run == 0) return;
             if (!repo.TryGetTable(typeof(SubordinateOrders), out _)) repo.RegisterManagedComponent<SubordinateOrders>();
             var before = Of(repo, commander)?.Orders ?? Array.Empty<Entry>();
-            var after = new Entry[before.Length + 1];
+            var after = new Entry[before.Count + 1];
             int n = 0;
             foreach (var e in before) if (!e.Member.Equals(member)) after[n++] = e;
             after[n++] = new Entry(member, behavior, origin, run, json);
@@ -64,7 +72,7 @@ namespace Fdp.Toolkit.Behavior.Components
             var held = Of(repo, commander);
             if (held == null) return 0;
             int released = 0;
-            var keep = new Entry[held.Orders.Length];
+            var keep = new Entry[held.Orders.Count];
             int n = 0;
             foreach (var e in held.Orders)
             {
@@ -77,7 +85,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 EngagementAreas.WithdrawSuperior(repo, e.Member);   // ⭐ CE-2302 (DA-32) — the sector the run gave him ends with it
                 released++;
             }
-            if (released == 0 && n == held.Orders.Length) return 0;
+            if (released == 0 && n == held.Orders.Count) return 0;
             Array.Resize(ref keep, n);
             repo.SetManagedComponent(commander, n == 0 ? null! : new SubordinateOrders(keep));
             return released;

@@ -133,6 +133,24 @@ namespace Hrot.ClusterRunner.Tests
             Assert.Equal(0, mock.DrawUICount);
         }
 
+        /// <summary>⭐ CE-3327 — the headless loop runs the host's frame-boundary work (the debug API's job drain) BEFORE each frame's update,
+        /// as the windowed loop does. 🔴 Before, a headless node with no editor never answered a main-thread route.</summary>
+        [Fact]
+        public void HeadlessMode_Run_RunsTheFrameBoundaryWork_BeforeEachUpdate()
+        {
+            var mock = new MockSubsystem();
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, HeadlessOptions());
+            orchestrator.Initialize();
+            var seen = new List<int>();
+            orchestrator.Run(() =>
+            {
+                seen.Add(mock.UpdateCallCount);                   // the updates that ran BEFORE this boundary
+                if (seen.Count == 3) orchestrator.Stop();
+            });
+
+            Assert.Equal(new[] { 0, 1, 2 }, seen);
+        }
+
         // ── Shutdown order ────────────────────────────────────────────────────
 
         [Fact]

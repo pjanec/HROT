@@ -37,8 +37,9 @@ namespace Fdp.Toolkit.Perception.Components
     /// </summary>
     [ComponentId(GlobalComponentIds.SensorCapability)]
     // ⚠ NOT Transient: Transient includes NoPreview, which would keep it out of the background snapshot the solver reads.
-    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
-    public sealed class SensorCapability
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoScenario)]
+    public sealed record SensorCapability   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
         public required SensorEntryDto Default { get; init; }
         public required SensorEntryDto Current { get; init; }
@@ -50,8 +51,9 @@ namespace Fdp.Toolkit.Perception.Components
     /// removing it sends the sensor back to its TKB default. <see cref="Json"/> empty = override the fields only (e.g. switch it off).
     /// </summary>
     [ComponentId(GlobalComponentIds.SensorConfigPayload)]
-    [DataPolicy(DataPolicy.Transient)]
-    public sealed class SensorConfigPayload
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
+    public sealed record SensorConfigPayload   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
         /// <summary>The format tag of <see cref="Json"/> — <see cref="SensorConfigCodec.KindSensorEntry"/>.</summary>
         public string Kind { get; init; } = string.Empty;

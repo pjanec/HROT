@@ -7,6 +7,7 @@ using Hrot.Editor.AiShared.Debug;
 using Hrot.Hsm.Editor.Debug;
 using Hrot.Hsm.Editor.Inspector;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Hsm.Editor.Tests.Inspector;
 
@@ -50,7 +51,7 @@ public sealed class HsmRuntimeInspectorPaneTests
         public IReadOnlyList<Breakpoint> GetBreakpoints() => Array.Empty<Breakpoint>();
 
         // IAiTraceObserver
-        public void BeginObservingAsset(Guid assetId, Hrot.Editor.AiShared.Debug.TraceLevel level) { }
+        public void BeginObservingAsset(Guid assetId, Fdp.Toolkit.ReplayBrowser.Timeline.TraceLevel level) { }
         public void EndObservingAsset(Guid assetId) { }
         public IReadOnlyList<Entity> GetActiveEntities(Guid assetId) => Array.Empty<Entity>();
 

@@ -55,53 +55,12 @@ namespace Hrot.SimHost
         /// which is why <c>CreateDebugProvider</c> exists instead of the subsystem BEING a provider.</para>
         /// </summary>
         public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
-            => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
-                subsystemName: Name,
-                perspective:   "SimHost",
-                world:         () => _app?.WorldOrNull,
-                entityMap:     () => _app?.WorldOrNull is null ? null : _app!.TestHook_EntityMap,
-                drive:         () => _clusterTimeAdapter,
-                // ⭐⭐ BP-487 — SimHost's own map feed (SimHostVisualization.GizmoBuffer, line ~123).
-                // ⚠ Lazy, and doubly so here: the visualization is optional, so this is null on a
-                //   genuinely headless SimHost node and the manifest says panels.gizmo:false there.
-                gizmoBuffer:   () => _app?.Visualization?.GizmoBuffer,
-                // ⭐⭐ CE-110 — SimHost's own catalog (SimHostNodeBootstrapper:179 registers the singleton).
-                // ⚠⚠ Lazy is LOAD-BEARING here, not stylistic: TkbLoadClusterStateHandler CLEARS and
-                //    re-ingests this database on every PrepareLive/PrepareEdit, so a captured value would
-                //    report the boot catalog forever — the node's own scenario TKB would never show up.
-                tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .TkbFrom(() => _app?.WorldOrNull),
-                // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
-                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransitionsVia(() => _app?.OrchestrationBus),
-                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
-                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _app?.OrchestrationBus),
-                // ⭐⭐⭐ CE-163 — SimHost's OWN committed cluster state, from its OWN ClusterSlave, through
-                //    the SAME shared projection CGF and IG use. 🔒 "every ECS node must use the same shared
-                //    code" — ⛔ the identical line, deliberately, in all three composition roots.
-                // 📐 See ClusterStateFrom's remarks for why it was missing everywhere and what it means.
-                clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .ClusterStateFrom(() => _app?.ClusterSlave),
-                // ⭐⭐ MD-002 — this subsystem's OWN kernel snapshot. ⚠ Lazily, like every accessor here:
-                //    the kernel is created in Initialize, after the composition root builds the provider.
-                // ⭐⭐ MD-006 — the dump trigger, on the SAME bus and by the SAME argument as
-                //    requestTransition above: any node can ask, the pipeline is cluster-wide.
-                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .DumpsVia(() => _app?.OrchestrationBus),
-                // ⭐⭐ CE-277(c0, HTTP) — POST /scenario/save on THIS node triggers the cluster-wide JSON
-                //    save by publishing ExecuteStorageOpIntent{SaveScenarioJson} on the same control-plane
-                //    bus as requestTransition/DumpsVia. Any node may ask; the fan-out + merge is cluster-wide.
-                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                             .SavesScenarioJsonVia(() => _app?.OrchestrationBus),
-                // ⭐⭐⭐ CE-276 — SimHost's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) +
-                //    its OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns
-                //    the entity. Mirrors CgfSubsystem.CreateDebugProvider() exactly.
-                requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .TransfersOwnershipVia(() => _app?.WorldOrNull),
-                descriptorMap: () => _app?.NedReplication?.DescriptorOwnershipMap,
-                architecture:  () => _app?.Kernel is null
-                                     ? null
-                                     : new ArchitectureDiagnosticsService(() => _app?.Kernel));
+            // ⭐⭐⭐ the ONE ECS-node debug surface (EcsNodeDebugProvider) — only what SimHost genuinely adds is passed.
+            => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "SimHost", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
+            {
+                Drive       = () => _clusterTimeAdapter,
+                GizmoBuffer = () => _app?.Visualization?.GizmoBuffer,
+            });
 
         /// <inheritdoc/>
         /// <remarks>
@@ -337,6 +296,8 @@ namespace Hrot.SimHost
                         InspectorState: () => vis.FdpInspectorState,
                         EventBrowser:   vis.FdpEventBrowser,
                         TitleBarColor:  SimHostWindowColor.TitleBar,
+                        Host:           () => _app?.HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                        World:          () => vis.GetRepo(),
                         // ⭐ This host builds its own service, so its lazy `() => _app?.Kernel` binding
                         //   is untouched (design §5c.7 F2).
                         ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
@@ -345,6 +306,19 @@ namespace Hrot.SimHost
                         ExecutionStats: () => _app?.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS SimHostWindowColor.TitleBar.
                         PickBroker:     vis.GetMapPickBroker())),
+                    // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds:
+                    //   the Components view, and Properties… / View ▸ Details on this host's actions. 📐 Before: none on SimHost.
+                    //   ⭐ The world ticks from boot (no planning state, as on CGF); frozen = the clock is halted.
+                    new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                        WindowId:    "simhost_details",
+                        Perspective: "SimHost",
+                        World:       () => vis.GetRepo(),
+                        Inspector:   () => vis.FdpEntityInspector,
+                        Session:     () => vis.GetFdpRepoAdapter(),
+                        RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(
+                                         () => vis.GetRepo() != null,
+                                         () => Fdp.Toolkit.Time.SimClock.Of(vis.GetRepo()).IsHalted),
+                        Host:        () => _app?.HostActions)),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
@@ -355,6 +329,10 @@ namespace Hrot.SimHost
             //    was loaded. ⚠ It STATED SOMETHING FALSE, which is worse than being absent.
 
             vis.SetPanelsWindowManaged();
+            vis.RegisterMainMenu(windowManager.GlobalMenu, "SimHost");   // ⭐ CE-1243 MB-4 — the map's menus, in the one bar
+
+            // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+            Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => vis.Canvas, "SimHost");
 
             // ── Time transport controls in status bar ─────────────────────────
             var bus = _app?.OrchestrationEventBus;

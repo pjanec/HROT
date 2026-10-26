@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Physics.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.PhysicsCollider)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PhysicsCollider
     {
         /// <summary>Radius of the bounding circle (metres). Used by Intersection2D.RaycastCircle.</summary>

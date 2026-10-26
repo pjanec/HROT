@@ -75,6 +75,7 @@ namespace Fdp.Toolkit.Squad.Systems
 
                 for (int k = 0; k < mem.Count; k++)
                 {
+                    if (TargetMemory.IsBurst(in mem, k)) continue;   // ⭐ R-2071 E-1 — the pool holds enemies; a burst is none
                     if (TargetMemory.IsAnonymous(in mem, k))
                     {
                         MergeHeard(ref localPool, heardRadius, heardClass, mem.EntityIds[k],

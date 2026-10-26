@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Terrain
     /// </summary>
     [ComponentId(GlobalComponentIds.ObstacleShape)]
     [PerInstanceValue]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct ObstacleShape
     {
         public float Length;

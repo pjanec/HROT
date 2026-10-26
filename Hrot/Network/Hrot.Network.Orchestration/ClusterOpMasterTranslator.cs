@@ -92,6 +92,7 @@ public sealed class ClusterOpMasterTranslator
                     ExerciseId       = ev.ExerciseId,
                     SessionId        = ev.SessionId,          // ⭐ C2
                     TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
+                    ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
                 });
             }
         }
@@ -126,15 +127,7 @@ public sealed class ClusterOpMasterTranslator
                     WriteError(req.RequestId, (int)NedStatusCode.ValidationFailed);
                     break;
                 }
-                _bus.PublishManaged(new TransitionStateIntent
-                {
-                    TransactionId   = req.RequestId,
-                    TargetState     = (FdpClusterState)(int)dto.TargetState.Value,
-                    ScenarioId      = dto.ScenarioId,
-                    ExerciseId      = dto.ExerciseId,
-                    TimeMode        = dto.TimeMode,
-                    TargetWallTicks = 0,
-                });
+                _bus.PublishManaged(dto.ToIntent(req.RequestId));   // ⭐ R-3055 — the ONE decoding (TargetWallTicks included)
                 break;
             }
 
@@ -158,14 +151,13 @@ public sealed class ClusterOpMasterTranslator
 
             case NedClusterOpType.ReplaySeek:
             {
-                SeekReplayPayloadDto? seekDto = TryDeserialize<SeekReplayPayloadDto>(req.PayloadJson);
-                _bus.PublishManaged(new SeekReplayIntent
-                {
-                    RequestId       = req.RequestId,
-                    TargetWallTicks = seekDto?.TargetWallTicks ?? 0,
-                });
+                _bus.PublishManaged(SeekReplayPayloadDto.Decode(req.RequestId, req.PayloadJson));   // ⭐ CE-3329 — the one decoding
                 break;
             }
+
+            case NedClusterOpType.SetReplayAxis:   // ⭐ CE-3329 R-3058
+                _bus.PublishManaged(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
 
             case NedClusterOpType.CancelOperation:
             {
@@ -234,6 +226,27 @@ public sealed class ClusterOpMasterTranslator
                 _bus.PublishManaged(new TakeCheckpointIntent
                 {
                     RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),   // ⭐ CE-3299 B3
+                });
+                break;
+            }
+
+            case NedClusterOpType.CollectCheckpoint:   // ⭐ CE-3299 B3 (R-3044 "collect")
+            {
+                _bus.PublishManaged(new CollectCheckpointIntent
+                {
+                    RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),
+                });
+                break;
+            }
+
+            case NedClusterOpType.RestoreCheckpoint:   // ⭐ CE-3299 B4
+            {
+                _bus.PublishManaged(new RestoreCheckpointIntent
+                {
+                    RequestId = req.RequestId,
+                    Label     = ClusterMaster_LabelOf(req.PayloadJson),
                 });
                 break;
             }
@@ -320,6 +333,23 @@ public sealed class ClusterOpMasterTranslator
             default:
                 break;
         }
+    }
+
+    // ⭐ CE-3299 B3 — a checkpoint request's label: a JSON object's "label", else the payload text (the same rule as the master's).
+    private static string? ClusterMaster_LabelOf(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson)) return null;
+        var text = payloadJson.Trim();
+        if (!text.StartsWith("{")) return text.Trim('"');
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(text);
+            foreach (var p in doc.RootElement.EnumerateObject())
+                if (string.Equals(p.Name, "label", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                    return p.Value.GetString();
+        }
+        catch (System.Text.Json.JsonException) { }
+        return null;
     }
 
     private void WriteError(Guid requestId, int statusCode)

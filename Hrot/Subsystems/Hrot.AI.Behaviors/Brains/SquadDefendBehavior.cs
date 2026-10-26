@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
+using Fbt.Kernel;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
@@ -141,6 +142,25 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float FrameBY[Capacity];
         public fixed float OpeningX[Capacity];
         public fixed float OpeningY[Capacity];
+        /// <summary>⭐ <c>CE-2359</c> (AQ102 H) — the HUNTER's roster slot (<see cref="None"/> = no hunt), the contact he hunts (its id), when the
+        /// hunt began; and the last contact hunted (once per contact).</summary>
+        public byte Hunter;
+        public long Hunted, LastHunted;
+        public double HuntSince;
+        /// <summary>⭐ <c>CE-2373</c> (D-2m) — the coverage pass: 0 not started · 1 the fan asked · 2 done.</summary>
+        public byte CoverageStage;
+        /// <summary>⭐ D-2m — the candidates in coverage order (the first <see cref="RankCount"/>; the rest keep their ask order).</summary>
+        public fixed byte Rank[Capacity];
+        public byte RankCount;
+        /// <summary>⭐ D-2m — a bit per probe each candidate sees (<see cref="CoveragePosts"/>).</summary>
+        public fixed uint Sees[Capacity];
+        /// <summary>⭐ D-2m (DL-4) — a lone man's round: the first <see cref="RoundCount"/> ranked posts; when he reached his current one.</summary>
+        public byte RoundCount;
+        public double RoundAt, RoundSince;
+        /// <summary>⭐ D-2m — when each probe was last watched from a round post.</summary>
+        public fixed double WatchedAt[CoveragePosts.ProbeCount];
+        /// <summary>⭐ <c>CE-2359</c> — where the hunted contact was last known when the hunt began (the hunter's arc faces it).</summary>
+        public float HuntX, HuntY, HuntZ;
 
         public Vector3 Point(int k) => new(X[k], Y[k], Z[k]);
 
@@ -273,6 +293,16 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
+        private static readonly int DefendHash = BehaviorHash.FromName(BehaviorNames.SquadDefend);
+
+        /// <summary>⭐ <c>CE-2359</c> (AQ102 H; DA-55 at the squad level, as the platoon's <c>PlatoonDefendBehavior.NotDefending</c>) — the
+        /// squad's task is NOT a defence. <c>BasicSquadSop</c>'s contact rows ask it first: a defending squad's own play answers a contact
+        /// (its posts, displacement, flank turns, the hunter), and <c>ReactToContact</c> would pause it and assault out. 📐 Live
+        /// (<c>rf-wall-hugger</c>): a grenade, then a contact, and two posted defenders were sent 50–60 m out of the house.</summary>
+        [SharedAiCondition]
+        public static bool NotDefending(Entity self, EntityRepository world)
+            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != DefendHash;
+
         internal static SquadDefendParams Defaults(Vector3 position, float radius, float speed) => new()
         {
             Position     = position,
@@ -307,6 +337,11 @@ namespace Hrot.AI.Behaviors.Brains
         public const int FanRays = 9;
         /// <summary>⭐ D-2l (DA-78) — the BuildingSurvey that gives each window post its window's frame.</summary>
         public const int FrameSite  = 0x22750005;
+        public const int CoverageSite = 0x22750006;   // ⭐ CE-2373 (D-2m)
+        /// <summary>⭐ D-2m (DL-4) — a lone man's time on each round post once he reached it (s).</summary>
+        public const double RoundDwellSeconds = 30.0;
+        /// <summary>⭐ D-2m — a round move he has not finished in this long counts as arrived (s).</summary>
+        public const double RoundMoveSeconds = 60.0;
         public const float LongerViewMetres = 5f;
 
         /// <summary>Everyone within this of the position ⇒ the posts are asked for (m).</summary>
@@ -331,6 +366,13 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FlankedMetres = SquadSenseChanges.FlankedMetres;
         /// <summary>⭐ <c>CE-2283</c> — a flank change this old is still answered (the contact may take a merge to stand where the rule sees it, s).</summary>
         public const float FlankedFreshSeconds = 2f;
+        /// <summary>⭐ <c>CE-2359</c> (AQ102 H) — a known hostile this near the defended position (flat, m), seen by none of the squad for
+        /// <see cref="HuntUnseenSeconds"/>, is hunted by ONE man for <see cref="HuntSeconds"/>.</summary>
+        public const float HuntMetres = 30f;
+        /// <summary>⭐ <c>CE-2371</c> (AQ104 D) — the defended area a known enemy is kept alerted within: at least this (m), else the posts' search radius.</summary>
+        public const float AlertMinMetres = 15f;
+        public const float HuntUnseenSeconds = 2f;
+        public const float HuntSeconds = 20f;
 
         private static readonly SquadHsmShell s_shell = new(SquadDefendManeuver.BuildTransitionTable(), SquadDefendManeuver.PhaseAborted);
 
@@ -344,17 +386,21 @@ namespace Hrot.AI.Behaviors.Brains
         {
             for (int i = 0; i < ctx.Roster.Count; i++) partition[i] = new MemberPartitionInput(1f, 0f);
             unsafe { for (int i = 0; i < DefencePosts.Capacity; i++) { p.Posts.PostOf[i] = DefencePosts.None; p.Posts.MovedAt[i] = double.NegativeInfinity; } }
+            p.Posts.Hunter = DefencePosts.None;   // ⭐ CE-2359
             return SquadManeuverRunner.AnyLive(in ctx) ? PlayStart.Go : PlayStart.Fail;
         }
 
         public void Update(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            AreaAlert.KeepInArea(in ctx, p.Position, MathF.Max(p.SearchRadius, AlertMinMetres));   // ⭐ CE-2371 (AQ104 D) — an enemy in the area stays known until down
             LiftOwnHold(ref p, ref ws, in ctx);
             if (ctx.Squad.PhaseId != SquadDefendManeuver.PhasePosting) return;
             if (p.Posts.Ready == 0) { Plan(ref p, ref ws, in ctx); return; }
             Manned(ref p, in ctx);
             Displace(ref p, ref ws, in ctx);
             Flanked(ref p, ref ws, in ctx);
+            Hunt(ref p, ref ws, in ctx);
+            Round(ref p, ref ws, in ctx);
         }
 
         public NodeStatus Outcome(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
@@ -389,6 +435,14 @@ namespace Hrot.AI.Behaviors.Brains
                     Sector = hasEa && p.Posts.Ready != 0 ? MemberArc.Around(LookAt.BearingTo(at, ea), ArcHalfWidth) : default,
                 };
             var spot = p.Posts.Point(post);
+            if (member == p.Posts.Hunter)   // ⭐⭐ CE-2359 (AQ102 H) — the hunter fights from ANY opening of the building, facing the hunted
+                return new MemberOrder
+                {
+                    Kind = MemberOrderKind.Watch, Point = spot, Speed = p.Speed, RoleId = SquadDefendManeuver.RolePosted, Cover = 1,
+                    Sector = MemberArc.Around(LookAt.BearingTo(spot, new Vector3(p.Posts.HuntX, p.Posts.HuntY, p.Posts.HuntZ)), ArcHalfWidth),
+                    // his post widened to the squad's own window search: his window ask (which must SEE the threat) picks the opening
+                    Post = new MemberPost { Set = 1, Window = 1, Radius = p.SearchRadius },
+                };
             int alternate = AlternateOf(ref p, in ctx, member);
             return new MemberOrder
             {
@@ -491,8 +545,10 @@ namespace Hrot.AI.Behaviors.Brains
                 p.Posts.CoverStage = 2;
                 PickAll(ref p, in ctx);
             }
+            if (p.Posts.CoverageStage < 2 && !hasEa && !Coverage(ref p, in ctx)) return;   // ⭐ CE-2373 (D-2m, DL-1) — all-round only
             if (p.Posts.FanStage < 2 && !GunOnTheLongestView(ref p, in ctx, hasEa, ea)) return;
             p.Posts.Ready = 1;
+            p.Posts.RoundSince = ctx.Now;
             unsafe
             {
                 for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)   // only rounds from now on count (DA-38)
@@ -644,8 +700,22 @@ namespace Hrot.AI.Behaviors.Brains
         private static unsafe void PickAll(ref SquadDefendParams p, in SquadPlayContext ctx)
         {
             int n = Math.Min(ctx.Roster.Count, DefencePosts.Capacity);
+            int count = p.Posts.Count;
+            // ⭐ CE-2373 (D-2m) — once the coverage pass ranked them, the picker gets the candidates in THAT order (the views' greedy union),
+            //   the unranked rest after them in the ask's order; slot j of the picker is candidate order[j]
+            Span<int> order = stackalloc int[DefencePosts.Capacity];
+            Span<int> slotOf = stackalloc int[DefencePosts.Capacity];
+            int ranked = Math.Min(p.Posts.RankCount, count), next = 0;
+            for (int r = 0; r < ranked; r++) order[next++] = p.Posts.Rank[r];
+            for (int k = 0; k < count; k++)
+            {
+                bool inRank = false;
+                for (int r = 0; r < ranked; r++) inRank |= p.Posts.Rank[r] == k;
+                if (!inRank) order[next++] = k;
+            }
+            for (int j = 0; j < count; j++) slotOf[order[j]] = j;
             Span<Vector3> candidates = stackalloc Vector3[DefencePosts.Capacity];
-            for (int k = 0; k < p.Posts.Count; k++) candidates[k] = p.Posts.Point(k);
+            for (int j = 0; j < count; j++) candidates[j] = p.Posts.Point(order[j]);
             Span<Vector3> men = stackalloc Vector3[DefencePosts.Capacity];
             Span<bool> live = stackalloc bool[DefencePosts.Capacity];
             Span<int> postOf = stackalloc int[DefencePosts.Capacity];
@@ -653,14 +723,122 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 live[i] = ctx.Live(i, out var m);
                 men[i] = live[i] ? ctx.At(m) : default;
-                postOf[i] = p.Posts.PostOf[i] == DefencePosts.None ? -1 : p.Posts.PostOf[i];
+                postOf[i] = p.Posts.PostOf[i] == DefencePosts.None || p.Posts.PostOf[i] >= count ? -1 : slotOf[p.Posts.PostOf[i]];
             }
+            Span<bool> cover = stackalloc bool[DefencePosts.Capacity];
+            CoverPosts(ref p, cover);
             Span<bool> spread = stackalloc bool[DefencePosts.Capacity];
-            CoverPosts(ref p, spread);
+            for (int j = 0; j < count; j++) spread[j] = cover[order[j]];
             // ⭐ CE-2345 (R-2066 B) — cover posts 8 m apart; the men still without one then take them 5 m apart, never closer
-            DefencePostPicker.Pick(candidates[..p.Posts.Count], men[..n], live[..n], postOf[..n], spread[..p.Posts.Count], DefencePostPicker.CoverSpacingMetres);
-            DefencePostPicker.Pick(candidates[..p.Posts.Count], men[..n], live[..n], postOf[..n], spread[..p.Posts.Count], DefencePostPicker.CoverSpacingShortMetres);
-            for (int i = 0; i < n; i++) p.Posts.PostOf[i] = postOf[i] < 0 ? DefencePosts.None : (byte)postOf[i];
+            DefencePostPicker.Pick(candidates[..count], men[..n], live[..n], postOf[..n], spread[..count], DefencePostPicker.CoverSpacingMetres);
+            DefencePostPicker.Pick(candidates[..count], men[..n], live[..n], postOf[..n], spread[..count], DefencePostPicker.CoverSpacingShortMetres);
+            for (int i = 0; i < n; i++) p.Posts.PostOf[i] = postOf[i] < 0 ? DefencePosts.None : (byte)order[postOf[i]];
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2373</c> (AQ104 L, D-2m) — the all-round defence's posts for COVERAGE: one visibility fan from up to
+        /// <see cref="WorldSurveyRequest.MaxOrigins"/> candidates, each scored by the probes of the area it sees (<see cref="CoveragePosts"/>);
+        /// the candidates are ranked by the greedy union of their views, the posts given again in that order, and the first few that each add
+        /// enough are a lone man's round (DL-4). True once over — answered, nothing to rank, or timed out (DL-5: the ask's own order).
+        /// </summary>
+        private static unsafe bool Coverage(ref SquadDefendParams p, in SquadPlayContext ctx)
+        {
+            int m = Math.Min((int)p.Posts.Count, WorldSurveyRequest.MaxOrigins);
+            if (m < 2) { p.Posts.CoverageStage = 2; return true; }
+            if (p.Posts.CoverageStage == 0)
+            {
+                var origins = new List<SurveyOrigin>(m);
+                float farthest = 0f;
+                for (int k = 0; k < m; k++)
+                {
+                    var at = p.Posts.Point(k);
+                    farthest = MathF.Max(farthest, Flat(at - p.Position));
+                    origins.Add(new SurveyOrigin { X = at.X, Y = at.Y, Z = at.Z, Bearing = 0f, HalfArc = CoveragePosts.HalfArc });
+                }
+                WorldSurveyChildSensor.Ensure(ctx.World, ctx.Commander, CoverageSite,
+                    WorldSurveyRequest.Fan(origins, CoveragePosts.Rays, CoveragePosts.Range(p.Position, p.SearchRadius, farthest)));
+                p.Posts.CoverageStage = 1; p.Posts.StageSince = ctx.Now;
+                return false;
+            }
+            var child = EqsChildSensor.Find(ctx.World, ctx.Commander, CoverageSite);
+            var read = WorldSurveyChildSensor.Read(ctx.World, child, ctx.Now);
+            if (!read.Ready || read.Stale || read.Payload == null)
+            {
+                if (ctx.Now - p.Posts.StageSince < AskTimeoutSeconds) return false;
+                WorldSurveyChildSensor.Release(ctx.World, child);
+                p.Posts.CoverageStage = 2;
+                return true;
+            }
+            Span<Vector3> candidates = stackalloc Vector3[WorldSurveyRequest.MaxOrigins];
+            for (int k = 0; k < m; k++) candidates[k] = p.Posts.Point(k);
+            Span<Vector3> probes = stackalloc Vector3[CoveragePosts.ProbeCount];
+            CoveragePosts.Probes(p.Position, p.SearchRadius, probes);
+            Span<uint> sees = stackalloc uint[WorldSurveyRequest.MaxOrigins];
+            CoveragePosts.Seen(candidates[..m], read.Payload.Rays, probes, sees[..m]);
+            Span<int> order = stackalloc int[WorldSurveyRequest.MaxOrigins];
+            int round = CoveragePosts.Greedy(sees[..m], order[..m]);
+            for (int k = 0; k < m; k++) { p.Posts.Rank[k] = (byte)order[k]; p.Posts.Sees[k] = sees[k]; }
+            p.Posts.RankCount = (byte)m;
+            p.Posts.RoundCount = (byte)round;
+            for (int i = 0; i < DefencePosts.Capacity; i++) p.Posts.PostOf[i] = DefencePosts.None;   // given again, in coverage order
+            PickAll(ref p, in ctx);
+            WorldSurveyChildSensor.Release(ctx.World, child);
+            p.Posts.CoverageStage = 2;
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2373</c> (AQ104 L, DL-4) — a LONE man's guard round: <see cref="RoundDwellSeconds"/> on each round post once he is
+        /// there, then the round post whose probes were watched longest ago — never while the squad knows an enemy in the area or hunts one
+        /// (he fights from where he is). Marks the probes his post sees as watched while he is on it.
+        /// </summary>
+        private static unsafe void Round(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (p.Posts.RoundCount < 2 || p.Posts.Hunter != DefencePosts.None) return;
+            int man = -1, live = 0;
+            for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
+                if (ctx.Live(i, out _)) { live++; man = i; }
+            if (live != 1) return;
+            byte post = p.Posts.PostOf[man];
+            if (post == DefencePosts.None) return;
+            int current = -1;
+            for (int r = 0; r < p.Posts.RoundCount; r++) if (p.Posts.Rank[r] == post) current = r;
+            ctx.Live(man, out var who);
+            bool there = Vector3.Distance(ctx.At(who), p.Posts.Point(post)) <= PostRadius || ctx.Now - p.Posts.MovedAt[man] >= RoundMoveSeconds;
+            if (!there) return;
+            if (p.Posts.RoundAt < p.Posts.MovedAt[man] || p.Posts.RoundAt == 0) p.Posts.RoundAt = ctx.Now;   // arrived
+            if (current >= 0)
+                for (int q = 0; q < CoveragePosts.ProbeCount; q++)
+                    if ((p.Posts.Sees[post] & (1u << q)) != 0) p.Posts.WatchedAt[q] = ctx.Now;
+            if (ctx.Now - p.Posts.RoundAt < RoundDwellSeconds || EnemyInArea(ref p, in ctx)) return;
+            Span<uint> roundSees = stackalloc uint[CoveragePosts.MaxRound];
+            for (int r = 0; r < p.Posts.RoundCount; r++) roundSees[r] = p.Posts.Sees[p.Posts.Rank[r]];
+            Span<double> watched = stackalloc double[CoveragePosts.ProbeCount];
+            for (int q = 0; q < CoveragePosts.ProbeCount; q++) watched[q] = p.Posts.WatchedAt[q];
+            int next = CoveragePosts.NextRound(roundSees[..p.Posts.RoundCount], current, watched, ctx.Now, p.Posts.RoundSince);
+            if (next < 0) return;
+            p.Posts.PostOf[man] = p.Posts.Rank[next];
+            p.Posts.MovedAt[man] = ctx.Now;
+            p.Posts.Reached[man] = 0;
+            ws.Reissue = 1;
+        }
+
+        /// <summary>⭐ D-2m — the squad knows of someone in the area or its approaches (search radius + <see cref="CoveragePosts.ApproachMetres"/>):
+        /// a heard, unidentified contact, or an identified one still in the fight and not neutral.</summary>
+        private static bool EnemyInArea(ref SquadDefendParams p, in SquadPlayContext ctx)
+        {
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            float reach = MathF.Max(p.SearchRadius, 5f) + CoveragePosts.ApproachMetres;
+            for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
+            {
+                var where = new Vector3(pool[c].PositionX, pool[c].PositionY, pool[c].PositionZ);
+                if (Flat(where - p.Position) > reach) continue;
+                if ((pool[c].Flags & SquadContact.AnonymousFlag) != 0 || Fighting(ctx.World, pool[c].EntityId)) return true;
+            }
+            return false;
         }
 
         /// <summary>⭐ <c>CE-2345</c> — which posts are COVER posts (not a window, the roof, or authored): those are spread wider.</summary>
@@ -749,6 +927,88 @@ namespace Hrot.AI.Behaviors.Brains
                     break;
                 }
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2359</c> (AQ102 H, R-2072) — a hostile the squad KNOWS of near the defended position (within <see cref="HuntMetres"/>)
+        /// that none of its men has seen for <see cref="HuntUnseenSeconds"/> (under the wall, round the corner): ONE man — the posted man
+        /// nearest him — fights from ANY opening of the building for <see cref="HuntSeconds"/> (his post widened to the squad's window search,
+        /// so his own window ask, which must SEE the threat, picks the opening), then he goes back to his post. Everyone else keeps his
+        /// sector; nobody leaves the building. Once per contact; it ends early when the contact is gone or out of the fight.
+        /// </summary>
+        private static unsafe void Hunt(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (p.Posts.Hunter != DefencePosts.None)
+            {
+                if (ctx.Now - p.Posts.HuntSince < HuntSeconds && ctx.Live(p.Posts.Hunter, out _) && Pooled(in ctx, p.Posts.Hunted, out _)) return;
+                p.Posts.Hunter = DefencePosts.None;   // back to his post
+                ws.Reissue = 1;
+                return;
+            }
+            if (!Hunted(ref p, in ctx, out long id, out var at)) return;
+            int hunter = -1;
+            float best = float.MaxValue;
+            for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)
+            {
+                if (!ctx.Live(i, out var m) || p.Posts.PostOf[i] == DefencePosts.None) continue;
+                // ⭐ CE-2376 (AQ104 C, DS-2) — a man who HOLDS stays on his post and lets him come (no temperament ⇒ as before)
+                if (!Disposition.MaySearch(ctx.World, m, orderedAssault: false, Disposition.QuietSeconds(ctx.World, m, new Entity((ulong)id)))) continue;
+                float d = Flat(ctx.At(m) - at);
+                if (d < best) { best = d; hunter = i; }
+            }
+            if (hunter < 0) return;
+            p.Posts.Hunter = (byte)hunter;
+            p.Posts.Hunted = p.Posts.LastHunted = id;
+            p.Posts.HuntSince = ctx.Now;
+            p.Posts.HuntX = at.X; p.Posts.HuntY = at.Y; p.Posts.HuntZ = at.Z;
+            ws.Reissue = 1;
+            Report(in ctx, at, ProgressKind.Displacing);
+        }
+
+        /// <summary>⭐ <c>CE-2359</c> — the contact to hunt: identified, hostile, in the fight, within <see cref="HuntMetres"/> of the position,
+        /// unseen by the squad for <see cref="HuntUnseenSeconds"/>, and not the one last hunted.</summary>
+        private static bool Hunted(ref SquadDefendParams p, in SquadPlayContext ctx, out long id, out Vector3 at)
+        {
+            id = 0; at = default;
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(ctx.World);   // the clock LastSeenTick is stamped in (CE-3292)
+            uint unseen = (uint)(HuntUnseenSeconds * 60f);
+            for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
+            {
+                if ((pool[c].Flags & SquadContact.AnonymousFlag) != 0 || pool[c].EntityId == p.Posts.LastHunted) continue;
+                if (pool[c].LastSeenTick <= now && now - pool[c].LastSeenTick <= unseen) continue;   // somebody sees him: his sector's man fights him
+                var where = new Vector3(pool[c].PositionX, pool[c].PositionY, pool[c].PositionZ);
+                if (Flat(where - p.Position) > HuntMetres || !Fighting(ctx.World, pool[c].EntityId)) continue;
+                id = pool[c].EntityId; at = where;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2359</c> — <paramref name="id"/> is still in the squad's picture and still in the fight.</summary>
+        private static bool Pooled(in SquadPlayContext ctx, long id, out Vector3 at)
+        {
+            at = default;
+            ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
+                if (pool[c].EntityId == id)
+                {
+                    at = new Vector3(pool[c].PositionX, pool[c].PositionY, pool[c].PositionZ);
+                    return Fighting(ctx.World, id);
+                }
+            return false;
+        }
+
+        private static bool Fighting(EntityRepository world, long id)
+        {
+            var e = new Entity((ulong)id);
+            return world.IsAlive(e) && !Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(world, e) && !Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e);
         }
 
         private static unsafe int AlternateOf(ref SquadDefendParams p, in SquadPlayContext ctx, int man)

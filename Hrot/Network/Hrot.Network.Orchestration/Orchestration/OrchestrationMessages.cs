@@ -17,6 +17,11 @@ namespace Hrot.NED.Descriptors.Orchestration
         LoadingReplay = 40,
         OperatingReplay = 41,
         UnloadingReplay = 42,
+        // ⭐ CE-3329 P3 (R5) — During Action Review: a replay of the LIVE run in place, whose only exit is back to live.
+        //   ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-26 in BOTH enums. 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §3a.
+        LoadingReview = 50,
+        OperatingReview = 51,
+        UnloadingReview = 52,
         Degraded = 99,
     }
 
@@ -51,6 +56,14 @@ namespace Hrot.NED.Descriptors.Orchestration
         //   publish an author's tree to NAS / refresh an author's tree from NAS. Payload: AssetOpPayloadDto.
         PublishAssets = 19,
         RefreshAssets = 20,
+
+        // ⭐ CE-3299 B4 — restore checkpoint X on every node (mgmt-1 §9.3 named this request; no enum carried it).
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-22 — the next free value in BOTH enums.
+        RestoreCheckpoint = 21,
+
+        // ⭐ CE-3329 P1 (R-3058) — switch the replay's time axis (Sim | Wall) for the whole session, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayAxisPayloadDto.
+        SetReplayAxis = 22,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
@@ -87,6 +100,18 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⛔ The gaps at 6 / 17 / 18 / 19 are historical holes, not reservations — leave them empty.
         PrepareTerrainAsset = 29,
         CommitTerrainAsset = 30,
+
+        // ⭐ CE-3299 B3 (R-3044) — export a checkpoint keyframe as a one-frame recording. ⛔ PERMANENT WIRE VALUE (R-42).
+        ExportCheckpoint = 31,
+
+        // ⭐ CE-3299 B4 — phase 1 of a checkpoint restore: read keyframe X and stage it (nothing changes). Phase 2 is the dead
+        //   `RestoreSnapshot = 5` slot, REUSED for its documented meaning (restore the ECS from a recording keyframe).
+        //   ⛔ PERMANENT WIRE VALUE (R-42).
+        PrepareRestore = 32,
+
+        // ⭐ CE-3329 P3 — enter / leave a review on a node. ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-26 in BOTH enums.
+        PrepareReview = 33,
+        FinalizeReview = 34,
     }
 
     [DdsTopic("ClusterState")]
@@ -104,6 +129,9 @@ namespace Hrot.NED.Descriptors.Orchestration
         /// session; the master is not restartable). A node that sees a DIFFERENT session — or this writer gone — knows the
         /// world it belonged to has ended and drops to <c>Idle</c>.</summary>
         public Guid SessionId;
+        /// <summary>⭐ CE-3329 P1 (R-3058) — the replay session's time axis: 0 = Sim (the default), 1 = Wall. The same on every node
+        /// (what each host's timeline draws, what its seeks mean). Additive on the wire.</summary>
+        public int ReplayAxis;
     }
 
     /// <summary>

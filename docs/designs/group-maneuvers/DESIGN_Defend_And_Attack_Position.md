@@ -7,6 +7,7 @@ stale-below: ⛔ HISTORY at the end (the superseded synchronous §13b).
 known-rot: §3 / §4 / §15 name PlatoonPicture and the report kinds PostsManned · Displacing · SniperContact · PhaseLine · Foothold · ObjectiveTaken — now CommandPicture (CC-1) and the closed PROGRESS / SPOT set (CB-43; DESIGN_Platoon_Attack_Defend_Clear PC-2/PC-4); DA-7's ROE lift on a squad does not reach its men today (RoeOf is per entity) — PC-6 / CE-2289; DA-9's "AttackPositionPlay ISquadPlay" is an HSM asset (PC-1). §17 `tq-urban-ambush-counterattack` is set in test-town, whose 6 buildings are SOLID prisms (no interior) — it cannot clear there; the platoon demos move it, `tq-military-attack-defended` and `tq-police-arrest-surprise` to the new terrain cqb-village (DESIGN_Platoon_Attack_Defend_Clear §12, PC-12).
 known-conflict: none — the Building Clearing platoon play is RESOLVED as the ClearBuilding preset (§10, R-2035).
 related-designs:
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) H: ONE hunter inside a defended house, his bound widened to the building, against a known enemy under the windows (answers D-2b's dead ground for him)
   - docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md — backend's answer to §13b for ITS sites (CE-2287): the home of each (the fire gates into the muscle's fire pipeline, the danger-area sight into its sensor, door approach and spawn level on the muscle), leans for the user
   - docs/DESIGN_World_Survey_Sensor.md — (backend, CE-3249) OWNS how DA-25's WorldSurvey is built: the road, the answer, the room derivation, the slices
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the concrete platoon HSMs PlatoonAttack / PlatoonDefend and the six squad plays with roles and the report contract; revises §3/§4 report names (PC-2) and needs PC-6 for DA-7
@@ -1065,6 +1066,78 @@ transport, `dtLean`) — no new system is registered anywhere.
 the tier split (below Regular at the sill, DA-16) · the AR on the longest view (a VisibilityFan answer, DA-25) · an authored post in the
 scenario (DA-5) · `ContactOutsideSector` displacement (DA-21) · `sq-defend-house` live + its twin (needs D-2's roof check).
 
+#### D-2m — posts for COVERAGE, and a lone man's guard round *(`CE-2373`; behaviors — AQ104 L ✅ approved 2026-10-25, R-2079; build-state: BUILDING — L1 below; L2 the open-ground overview ask)*
+
+🔒 User, `2026-10-25`: *"defendenrs always need to have a good overview of the surroundings"* · *"in case there is a squad … the goys need to
+guard clevely not just randomly changing their observation posts"*. 📄 [AQ104](../../blueprints/Architect_Question_104_Area_And_Building_Combat.md) §4 L.
+
+| the lean rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| an all-round defence (no engagement area) asks ONLY the windows — roof and cover asks need an EA | ✅ `SquadDefendBehavior.cs` `Plan` (the roof and cover stages are gated on `hasEa`) | ✅ DA-36 all-round = the windows; ⛔ nothing on coverage (searched docs/, .dev/: `coverage`, `overview`, `guard round`) |
+| posts go out in the ask's rank — NEAREST first — each to the nearest man | ✅ `DefencePostPicker.Pick` | ✅ DA-34 "ranked points" — the rank is the ask's distance score |
+| a posted man with nothing known stays on his post forever | ✅ `Update`: no rotation anywhere | ⛔ AQ104 L asks for the round (new) |
+| a visibility fan answers how far one sees along each ray | ✅ `WorldSurveySolve.Fan` (≤ 12 origins × ≤ 24 rays, `Free` = the range when nothing stops it) | ✅ [World Survey Sensor](../../DESIGN_World_Survey_Sensor.md) VisibilityFan; D-2h already uses it (EA only) |
+
+```mermaid
+classDiagram
+  class SquadDefendPlay { <<EXTENDED>> CoverageSite 0x22750006 · Plan: Coverage() after the windows, all-round only · Update: Round() }
+  class DefencePosts { <<EXTENDED>> CoverageStage · Rank[16] · RankCount · Sees[16] · RoundCount · RoundAt · WatchedAt[32] }
+  class Coverage { <<NEW, pure>> Probes(centre, radius) · Seen(posts, rays, probes) · Greedy(sees, n) · NextRound(sees, round, current, watchedAt, now) }
+  class DefencePostPicker { <<existing>> Pick — now fed the candidates in coverage rank }
+  class WorldSurveyChildSensor { <<existing CE-3249>> Ensure Fan · Read · Release }
+  SquadDefendPlay --> Coverage
+  SquadDefendPlay --> DefencePostPicker
+  SquadDefendPlay --> WorldSurveyChildSensor : one fan from the candidates
+  SquadDefendPlay --> DefencePosts
+```
+*What the picture shows that prose hid:* coverage changes only the ORDER the existing picker hands posts out in — no new picker, no new
+member order. The round is the same post change `Displace` already makes (`PostOf` + re-issue), on a timer instead of a hit.
+
+```mermaid
+sequenceDiagram
+  participant SQ as SquadDefend (commander)
+  participant WS as VisibilityFan (CoverageSite)
+  participant M as the man (CombatPosture)
+  SQ->>SQ: windows settled · all-round · ≥ 2 candidates
+  SQ->>WS: Fan from up to 12 candidates, 16 rays all round, range = radius + 25 m
+  WS-->>SQ: rays (or nothing in 5 s ⇒ the old nearest-first order)
+  SQ->>SQ: probes = 16 bearings × {radius, radius + 25 m} round the centre · Seen per candidate
+  SQ->>SQ: Greedy: each next post the one that sees most still unseen · Rank · round = the first ≤ 3 that each add ≥ 3 probes
+  SQ->>M: Watch {post = rank 0 …}
+  loop lone man, nothing known in the area, no hunt
+    SQ->>SQ: 30 s on this post ⇒ next = the round post whose probes were watched longest ago
+    SQ->>M: Watch {post = next} (re-issue)
+  end
+  SQ->>SQ: an enemy known in the area ⇒ no round: he fights from where he is
+```
+*What the picture shows that prose hid:* the round STOPS the moment the squad knows an enemy in the area — it is a watch pattern, never a
+fight pattern, so it cannot cause the window-hopping the user saw under fire.
+
+```mermaid
+graph TD
+  CGF[CGF: BrainTickSystem] --> SQB[SquadDefend on the commander - Plan / Update]
+  SQB -->|WorldSurvey child sensor, solved on SimHost| SH[SimHost: WorldSurveySolve.Fan]
+  SQB -->|member order: Watch at post| MB[CombatPosture on the man]
+```
+*No new system:* the fan rides the survey sensor D-2h and D-2l already use.
+
+| id | decision (AQ104 L, refined by the measurement above) | rejected — one line each |
+|---|---|---|
+| **DL-1** | **coverage only for the ALL-ROUND defence** — a squad with an engagement area keeps its sector-facing posts (D-2a…D-2l) | for every defence: an EA defence already faces the threat; coverage would turn men away from it |
+| **DL-2** | **the area is 32 probes**: 16 bearings round the centre at the search radius and 25 m beyond it (the approaches); a candidate SEES a probe when the fan ray nearest its bearing is free past it (−1 m) | a grid over the area: more probes, the same answer for a ring of approaches |
+| **DL-3** | **greedy union**: rank 0 sees the most probes, each next the most still unseen; ties by the ask's own rank (nearest) | best single view per man: two men watching the same street |
+| **DL-4** | **the round, for a LONE live man only**: the first ≤ 3 ranked posts that each add ≥ 3 probes; ≥ 2 of them ⇒ 30 s on each, the next the one whose probes were watched longest ago; never while the squad knows an identified enemy in the area (radius + 25 m) or during a hunt (CE-2359) | a squad short of men rotating: L2 (gap-only reassignment) · a random next post: leaves a sector unwatched twice in a row · a round under fire: the user's "erratic window to window" |
+| **DL-5** | **no fan answer in 5 s** ⇒ the old nearest-first order, no round | waiting: a squad that never posts |
+
+📐 **As built — measured live (`ia-area-defend`, 2026-10-25):** the coverage pass picks an UPSTAIRS frame window when it sees most (the
+guard's was House A's south window, z 3) — so reaching a post on another storey is now load-bearing: the occupy move re-sends when it
+"arrives" or stands still (3 s, < 0.5 m) on the wrong storey (`PostureNodes.AdvanceAndAttack`, `Stay`; with backend's level-aware
+arrival `CE-3319`). ⛔ Before it, he stood under his window one floor down and never fired.
+
+**Slices.** **L1** (`CE-2373`, this build): DL-1…DL-5 over the candidates the existing asks give (the windows). **L2** (open, its own row):
+the open-ground OVERVIEW ask (a new all-round cover-points template + its golden capture) so a man defending ground with no building gets
+candidates too · a squad's gap-only reassignment when a man falls or is pulled to an interior post (AQ104 L, H).
+
 ### 8d. DA-E in detail — `PlatoonDefend`, the platoon holds a position over its squads *(`CE-2276`, behaviors, 2026-10-19 — slice E-1 designed and built here; E-2, E-3 below)*
 
 **INVENTORY** *(2026-10-19 — codebase-memory MCP `search_graph` `.*Platoon.*` (Class): 13 — `PlatoonBound`, `PlatoonHold`, `PlatoonHillAttack` + their DTOs and tests; `^(ElementsAt|PirMet|TimeInState|SetSquadRoe|SetSquadSector|SplitArea|PlanDefence|TaskOrganize|MarkNoFire|AnswerRequest|…)$`: 16 hits, ⛔ none of the platoon-play actions Platoon §3 names exists; `.*(EngagementArea|SquadSector|SectorPlanner|DefendArea|SquadDefend|NoFire).*` (Class): 22; grep `PirFlags`/`PirArea` readers; `check_index_coverage` run on the five files read — no recorded issue, best effort)*
@@ -1694,6 +1767,7 @@ work as a cover for the advancing men?"*
 | **C** `CE-2343` | after a crawl to cover, a move ending ≤ 10 m away and > 1.5 m past the cover on the side it faces is not resumed: he rises crouched and the move ends at the cover | `UnderFire.Step` · `UnderFire.Exposed` |
 | **D** `CE-2346` | a phase change re-sends no order the squad still runs unchanged from this run | `PlatoonAttackBehavior.KeepAttack` → `CommandOrders.StillRunning` |
 | **E** `CE-2344` | a man down still to care for and no round at the squad for 10 s ⇒ the squad's SOP pauses the task and runs `CasualtyCare`; a running `ReactToContact` re-decides to Rescue in the same lull; under fire the care waits | `SquadSopConditions.CasualtyInALull` · `BasicSquadSop` row · `ReactToContactBehavior.Run` |
+| **E′** `CE-2351` *(`2026-10-22`)* | ⚠ **deviation** — a lull is quiet counted from the FIGHT'S START: no round at the squad for 10 s **and no new `SquadContact` in that time** (`SquadSopConditions.InALull`). 📐 Live `ua-casualty-care-heavy`: the reaction chose 4 s after the contact, before the first enemy round at 5.5 s — "no round for 10 s" held trivially and it went for the man under fire. Rail `SquadManeuverTests.CE2351_ALull_IsCountedFromTheContact_*` | a lull from the reaction's own start time — the SOP's lull row runs with no reaction, so it has none |
 | **cars** | eight parked cars (TKB `Car` 8806, 4.5 × 1.8 × 1.5 m) on the two flank lanes of `pc-defend-house`, at x ≤ 101 and x ≥ 146 — the support's fire lane to OBJ (x 110–140) stays clear | `scenarios/pc-defend-house` |
 
 ```mermaid
@@ -2011,6 +2085,8 @@ hold no longer leaves the squads with nothing.
 | the order writer | `KeepConvoy`: a vehicle gets `FollowRoute` (CMove) or `Order.Hold`, re-sent only when the run's last order to it differs or no longer stands; a squad gets a concrete order only when it is not the run's last one (`CommandOrders.Gave`, new and shared) — a finished embark is never restarted; a recovery is retried only after the squad REPORTS it ended (Set / TaskFailed), at most 4 times; neither a vehicle nor a squad running its own reaction is ordered | the same file; `CommandOrders.Gave` in `CommandNodes.cs` |
 | a dead vehicle | at CRemount its squad takes the first vehicle that can move with free passenger seats (seats promised in the same pass counted; a dead man's seat is free), else follows on foot; a reassigned slot inherits the order its new vehicle already has | `EnterRemount`, `FreePassengerSeats` |
 | ⚠ what it does not do | a vehicle with nobody out drives on during contact, and while the platoon's hold pauses the task NO vehicle is held — an empty carrier may drive on before the task picks up (measure live) · a squad split over two vehicles rides as one (the embark drill boards one vehicle) | — |
+| ⭐ one "enemy near" for the platoon and the squad *(`CE-2353`, `2026-10-22`)* | DA-101's quiet (the platoon's picture, fed by the squads' SPOT) and the squad SOP's halted-carrier dismount row (`ContactWhileHalted`) must count the SAME men as the enemy, or a remounted squad gets straight out again and `ContactAgain` sends the task back to CContact. Both skip a man out of the fight AND a neutral (`ThreatDanger.IsOutOfTheFight \|\| IsNeutral`, the SPOT's test). 📌 Live on `uc-urban-battle`: two civilians and the covert (Neutral) trigger man 16–30 m off kept the task cycling CSecure → CRemount → CContact for ten minutes after the fire team was dead | `SquadSopConditions.ContactWhileHalted`; rail `CE2353_*` |
+| ⭐ a squad left on foot leaves its vehicle *(`CE-2354`, `2026-10-22`)* | a vehicle that can move is ordered whoever rides it (once per vehicle) — a squad set on foot at the 120 s remount timeout no longer strands it on `Order.Hold`; `Arrived` waits for every vehicle that can move | `KeepVehicle`, `Arrived`; rail `CE2354_*` |
 | rails | `SquadManeuverTests.CE2347_*` — the cycle; the dead vehicle (room / no room); the wounded first + the retry. Mutants: `CarriesDismounted` always true, seats ignoring occupants, `Casualty` → Null each turn a rail red; `Quiet` ignoring a fighting squad stays green — `ContactAgain` checks the same squad, so CSecure hands straight back to CContact before any order (a redundant guard) | `Hrot.SimHost.Tests` |
 
 ### 11b. `UrbanMovement` — DA-17 on foot *(behaviors, `CE-2284`, `2026-10-21`; build-state: BUILDING — slices U-1 and U-2 built, U-3 (the ambush demos) open; leans UM-1…UM-9 under DA-17 / DA-18 (approved R-2036), built under the user's "do as much as you can autonomously")*

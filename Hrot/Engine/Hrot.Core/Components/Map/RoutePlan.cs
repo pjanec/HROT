@@ -60,48 +60,40 @@ public struct RouteWaypoint
 /// </para>
 ///
 /// <para>
-/// <b>Mutation contract:</b> waypoints must only be modified via
-/// <see cref="Mutate"/>, which automatically increments <see cref="Version"/>
-/// so reactive systems (e.g. <c>RouteTrajectorySyncSystem</c>) always detect
-/// the change without manual bookkeeping.
+/// <b>Immutable record:</b> a change is a NEW value (<see cref="WithWaypoints"/>, which
+/// increments <see cref="Version"/>) written back with SetManagedComponent, so the
+/// flight recorder sees it.
 /// </para>
 /// </summary>
 [ComponentId(HrotComponentIds.RoutePlan)]
-public sealed class RoutePlan
+[DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+public sealed record RoutePlan
 {
-    // ⭐ CE-3305 — [RecordedMember]: the recorder sees public members only, so a recording (replay, checkpoint, a dry run's keyframe)
-    //   carried an EMPTY route (measured). Not readonly: a recording's read assigns it.
-    [Fdp.Core.RecordedMember]
-    private List<RouteWaypoint> _waypoints = new();
-
-    /// <summary>
-    /// Read-only view of the ordered waypoint list.
-    /// Use <see cref="Mutate"/> to add, remove, or replace waypoints.
-    /// </summary>
-    public IReadOnlyList<RouteWaypoint> Waypoints => _waypoints;
+    /// <summary>Ordered waypoints (immutable; build a new plan via <see cref="WithWaypoints"/>). Recorded as <c>Waypoints</c>
+    /// (CE-4046: it was the private <c>_waypoints</c> — old recordings lose the route).</summary>
+    public IReadOnlyList<RouteWaypoint> Waypoints { get; init; } = System.Array.Empty<RouteWaypoint>();
 
     /// <summary>
     /// When true, the vehicle loops back to waypoint 0 upon reaching the last waypoint.
     /// </summary>
-    public bool IsLoop { get; set; }
+    public bool IsLoop { get; init; }
 
     /// <summary>
     /// Monotonically-incremented version stamp. Reactive systems
     /// (e.g. <c>RouteTrajectorySyncSystem</c>) compare against their cached
-    /// version to detect mutations without polling every field.
-    /// Incremented automatically by <see cref="Mutate"/>.
+    /// version to detect changes without polling every field.
+    /// Incremented by <see cref="WithWaypoints"/>.
     /// </summary>
-    public int Version { get; private set; }
+    public int Version { get; init; }
 
     /// <summary>
-    /// Mutates the waypoint list and automatically increments <see cref="Version"/>.
-    /// All callers that wish to modify waypoints must go through this method so that
-    /// reactive systems always see a version bump.
+    /// Returns a NEW plan: this plan's waypoints after <paramref name="mutation"/> edited a copy,
+    /// <see cref="Version"/> + 1. This instance is unchanged - the caller must Set the result.
     /// </summary>
-    /// <param name="mutation">Delegate that receives the mutable backing list.</param>
-    public void Mutate(Action<List<RouteWaypoint>> mutation)
+    public RoutePlan WithWaypoints(Action<List<RouteWaypoint>> mutation)
     {
-        mutation(_waypoints);
-        Version++;
+        var list = new List<RouteWaypoint>(Waypoints);
+        mutation(list);
+        return this with { Waypoints = list, Version = Version + 1 };
     }
 }

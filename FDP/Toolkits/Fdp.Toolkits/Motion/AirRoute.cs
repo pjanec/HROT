@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Navigation;
@@ -31,42 +33,60 @@ namespace Fdp.Toolkit.Motion
     /// from the route entity the intent names (<see cref="NavigationIntent.RouteEntityId"/>). Muscle-local: never saved, never on the wire.
     /// </summary>
     [ComponentId(GlobalComponentIds.AirPath)]
-    [DataPolicy(DataPolicy.Transient)]
-    public sealed class AirPath
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
+    public sealed record AirPath
     {
+        // ⭐⭐ CE-4046 ② (coordinator handoff "Replay Recording Fixes"; Air Operations §5b as-built) — SPLIT: this record is the ROUTE
+        //   GEOMETRY, immutable and changed only when the route is (re)compiled (a new value + Set, so the recorder sees it); what changes
+        //   every step — the follower — is the unmanaged AirFollower beside it. ⛔ A managed object changed in place never reached a delta
+        //   frame (docs/DESIGN_Replay_Census_H0.md §2), and a record per step would allocate per aircraft per frame.
+
         // ── what it was compiled from ──
-        public long RouteEntityId;
-        public int RouteVersion;
-        public uint IntentId;
-        public bool Loop;
+        public long RouteEntityId { get; init; }
+        public int RouteVersion { get; init; }
+        public uint IntentId { get; init; }
+        public bool Loop { get; init; }
 
         // ── the path ──
-        public Vector3[] Points = Array.Empty<Vector3>();
+        public ImmutableArray<Vector3> Points { get; init; } = ImmutableArray<Vector3>.Empty;
         /// <summary>Metres along the path (XY) at each point.</summary>
-        public float[] S = Array.Empty<float>();
+        public ImmutableArray<float> S { get; init; } = ImmutableArray<float>.Empty;
         /// <summary>The route speed from each point on (0 = the intent's or the top speed).</summary>
-        public float[] Speed = Array.Empty<float>();
+        public ImmutableArray<float> Speed { get; init; } = ImmutableArray<float>.Empty;
         /// <summary>Signed curvature (1/m, + = turning left) at each point.</summary>
-        public float[] Curvature = Array.Empty<float>();
-        public AirStop[] Stops = Array.Empty<AirStop>();
+        public ImmutableArray<float> Curvature { get; init; } = ImmutableArray<float>.Empty;
+        public ImmutableArray<AirStop> Stops { get; init; } = ImmutableArray<AirStop>.Empty;
 
-        public float Length => S.Length == 0 ? 0f : S[S.Length - 1];
+        public float Length => S.IsDefaultOrEmpty ? 0f : S[S.Length - 1];
+    }
 
-        // ── the follower ──
+    /// <summary>
+    /// ⭐⭐ CE-4046 ② — the follower's state on its <see cref="AirPath"/>: where along it, how fast, the stage, the hold, the attitude, a
+    /// plane's orbit. Changes every step ⇒ an UNMANAGED struct (recorded as a raw copy, no allocation). Reset to <see cref="Start"/> each
+    /// time the path is (re)compiled. Muscle-local: never saved, never on the wire.
+    /// </summary>
+    [ComponentId(GlobalComponentIds.AirFollower)]
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
+    public struct AirFollower
+    {
         public AirStage Stage;
         public float Progress;
         public float SpeedNow;
         public int NextStop;
         public float HoldLeft;
-        public bool ReleaseArmed = true;
+        [MarshalAs(UnmanagedType.I1)] public bool ReleaseArmed;
         /// <summary>⭐ Airborne insertion B-3 — past a <see cref="RouteHold.Drop"/> waypoint and not released yet: the leg is flown
         /// reporting <see cref="NavigationPhase.Dropping"/>.</summary>
-        public bool Dropping;
+        [MarshalAs(UnmanagedType.I1)] public bool Dropping;
         public float Pitch;
         public float Roll;
         /// <summary>⭐ Air Ops slice 4 — a plane's circle after its route's end (<see cref="FixedWingModel"/>).</summary>
         public Vector2 OrbitCenter;
         public float OrbitAngle;
+
+        /// <summary>A fresh follower at the start of a newly compiled path (a held release is armed, as the managed path's default was).</summary>
+        public static AirFollower Start => new() { ReleaseArmed = true };
     }
 
     /// <summary>
@@ -101,9 +121,8 @@ namespace Fdp.Toolkit.Motion
                                       Func<float, float, float>? ground)
         {
             ground ??= static (_, _) => 0f;
-            var path = new AirPath { Loop = loop };
             int n = waypoints.Count;
-            if (n == 0) return path;
+            if (n == 0) return new AirPath { Loop = loop };
 
             // the polyline to round: [approach] + waypoints + [the first again, closing a loop]; idx maps each to its waypoint (−1 = approach)
             var pts = new List<Vector3>(n + 2);
@@ -156,23 +175,23 @@ namespace Fdp.Toolkit.Motion
                 for (int q = 1; q <= parts; q++) dense.Add(Vector2.Lerp(a, b, q / (float)parts));
             }
             int m = dense.Count;
-            path.Points = new Vector3[m];
-            path.S = new float[m];
-            path.Speed = new float[m];
-            path.Curvature = new float[m];
-            for (int j = 1; j < m; j++) path.S[j] = path.S[j - 1] + Vector2.Distance(dense[j - 1], dense[j]);
+            var points = new Vector3[m];
+            var sAlong = new float[m];
+            var speed = new float[m];
+            var curvature = new float[m];
+            for (int j = 1; j < m; j++) sAlong[j] = sAlong[j - 1] + Vector2.Distance(dense[j - 1], dense[j]);
             int leg = 0;
             for (int j = 0; j < m; j++)
             {
-                float s = path.S[j];
+                float s = sAlong[j];
                 while (leg < pts.Count - 2 && s > sAt[leg + 1]) leg++;
                 float span = sAt[leg + 1] - sAt[leg];
                 float t = span > 1e-4f ? Math.Clamp((s - sAt[leg]) / span, 0f, 1f) : 1f;
                 var p = dense[j];
                 float z = heightAt[leg](p.X, p.Y) + (heightAt[leg + 1](p.X, p.Y) - heightAt[leg](p.X, p.Y)) * t;
-                path.Points[j] = new Vector3(p, z);
+                points[j] = new Vector3(p, z);
                 int w = idx[leg] >= 0 ? idx[leg] : (idx[leg + 1] >= 0 ? idx[leg + 1] : 0);
-                path.Speed[j] = waypoints[w].TargetSpeed;
+                speed[j] = waypoints[w].TargetSpeed;
             }
             // the circle through each point and its neighbours: exact on an arc, gentler where an arc meets a straight leg
             for (int j = 1; j < m - 1; j++)
@@ -181,7 +200,7 @@ namespace Fdp.Toolkit.Motion
                 float l0 = d0.Length(), l1 = d1.Length(), l2 = d2.Length();
                 if (l0 < 1e-4f || l1 < 1e-4f || l2 < 1e-4f) continue;
                 float cross = d0.X * d1.Y - d0.Y * d1.X;   // twice the triangle's signed area
-                path.Curvature[j] = 2f * cross / (l0 * l1 * l2);
+                curvature[j] = 2f * cross / (l0 * l1 * l2);
             }
 
             // the stops, in order along the path (a loop's first waypoint is the closing point, never s = 0 of the next lap)
@@ -195,8 +214,16 @@ namespace Fdp.Toolkit.Motion
                 if (!IsStop(wp) && !last) continue;
                 stops.Add(new AirStop { S = sAt[k], Waypoint = idx[k], Kind = wp.Kind, Hold = wp.Hold, HoldSeconds = wp.HoldSeconds, HoldUnit = wp.HoldUnit, Last = last });
             }
-            path.Stops = stops.ToArray();
-            return path;
+            // ⭐ CE-4046 ② — built once, then frozen (the arrays are handed over, not copied)
+            return new AirPath
+            {
+                Loop = loop,
+                Points = ImmutableCollectionsMarshal.AsImmutableArray(points),
+                S = ImmutableCollectionsMarshal.AsImmutableArray(sAlong),
+                Speed = ImmutableCollectionsMarshal.AsImmutableArray(speed),
+                Curvature = ImmutableCollectionsMarshal.AsImmutableArray(curvature),
+                Stops = stops.ToImmutableArray(),
+            };
         }
 
         /// <summary>The path at <paramref name="s"/>: the point, the XY heading (unit), the signed curvature and the route speed.</summary>
@@ -206,7 +233,7 @@ namespace Fdp.Toolkit.Motion
             if (p.Length == 0) return (Vector3.Zero, Vector2.UnitX, 0f, 0f);
             if (p.Length == 1) return (p[0], Vector2.UnitX, 0f, path.Speed[0]);
             s = Math.Clamp(s, 0f, path.Length);
-            int hi = Array.BinarySearch(path.S, s);
+            int hi = ImmutableArray.BinarySearch(path.S, s);
             if (hi < 0) hi = ~hi;
             hi = Math.Clamp(hi, 1, p.Length - 1);
             int lo = hi - 1;
@@ -255,5 +282,16 @@ namespace Fdp.Toolkit.Motion
         }
 
         private static Vector2 Xy(Vector3 v) => new(v.X, v.Y);
+    }
+
+    /// <summary>⭐ CE-4046 ② — the body's <see cref="AirFollower"/>, added fresh when a path arrives without one (an old recording).</summary>
+    internal static class AirFollowers
+    {
+        public static ref AirFollower Of(ref MotionFrame f)
+        {
+            if (!f.World.IsComponentTypeRegistered<AirFollower>()) f.World.RegisterComponent<AirFollower>();
+            if (!f.World.HasComponent<AirFollower>(f.Self)) f.World.AddComponent(f.Self, AirFollower.Start);
+            return ref f.World.GetComponentRW<AirFollower>(f.Self);
+        }
     }
 }

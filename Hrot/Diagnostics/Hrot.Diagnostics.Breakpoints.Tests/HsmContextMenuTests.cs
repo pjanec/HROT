@@ -91,22 +91,28 @@ public sealed class HsmContextMenuTests
     [Fact]
     public void HsmContextMenu_AddBreakOnEnter_RegistersWithManager()
     {
-        var (_, state) = MakeAsset();
+        var (asset, state) = MakeAsset();
         var builder    = new HsmRecordingContextMenuBuilder();
 
-        HsmBreakpointMenuPopulator.PopulateStateMenu(state, builder, _manager);
+        HsmBreakpointMenuPopulator.PopulateStateMenu(asset, state, builder, _manager);
         builder.GetCallback("Break on Enter");
 
         Assert.Equal(1, _manager.AllBreakpoints.Count);
 
         var bp = _manager.AllBreakpoints[0];
-        Assert.IsType<TraceBufferScanPredicateDto>(bp.Condition);
-        var scan = (TraceBufferScanPredicateDto)bp.Condition!;
-        Assert.Equal(typeof(HsmTraceWorkingMemory1024), scan.ComponentType);
-        Assert.Equal((byte)TraceOpCode.StateEnter, scan.OpCode);
-        Assert.Equal((ushort)state.FlatIndex, scan.IndexField);
-        Assert.True(scan.MatchIndexField);
+        // ⭐ CE-1323 (DBG-13) — a behaviour step of THIS machine and state (it was a whole-ring scan of any HSM's state index)
+        var step = Assert.IsType<BehaviourStepPredicateDto>(bp.Condition);
+        Assert.Equal(BehaviourStepKind.StateEnter, step.Kind);
+        Assert.Equal("TestHsm", step.Behaviour);
+        Assert.Equal("TestState", step.State);
+        Assert.Equal(state.StableId, step.Element);
         Assert.Equal(state.StableId, bp.SourceElementId);
+
+        // the same item now removes it
+        builder = new HsmRecordingContextMenuBuilder();
+        HsmBreakpointMenuPopulator.PopulateStateMenu(asset, state, builder, _manager);
+        builder.GetCallback("Remove breakpoint: TestState entered (TestHsm)");
+        Assert.Empty(_manager.AllBreakpoints);
     }
 
     // -------------------------------------------------------------------------
@@ -116,7 +122,7 @@ public sealed class HsmContextMenuTests
     [Fact]
     public void HsmContextMenu_AddConditional_OpensDetailsInspectorWithReadOnlyA()
     {
-        var (_, state) = MakeAsset();
+        var (asset, state) = MakeAsset();
         var builder    = new HsmRecordingContextMenuBuilder();
 
         BreakpointId? inspectorId    = null;
@@ -127,14 +133,14 @@ public sealed class HsmContextMenuTests
             inspectorDto = dto;
         };
 
-        HsmBreakpointMenuPopulator.PopulateStateMenu(state, builder, _manager, onOpen);
+        HsmBreakpointMenuPopulator.PopulateStateMenu(asset, state, builder, _manager, onOpen);
         builder.GetCallback("Add Conditional Data Breakpoint...");
 
         Assert.NotNull(inspectorId);
         var compound = Assert.IsType<CompoundPredicateDto>(inspectorDto);
         Assert.Equal(LogicalOperator.And, compound.Operator);
         Assert.Equal(2, compound.Conditions.Count);
-        Assert.IsType<TraceBufferScanPredicateDto>(compound.Conditions[0]);
+        Assert.IsType<BehaviourStepPredicateDto>(compound.Conditions[0]);
         Assert.IsType<BehaviorParamPredicateDto>(compound.Conditions[1]);
         Assert.Single(compound.ReadOnlyChildIndices);
         Assert.Equal(0, compound.ReadOnlyChildIndices[0]);
@@ -153,7 +159,7 @@ public sealed class HsmContextMenuTests
         renderer.SetManager(_manager);
 
         var builder = new HsmRecordingContextMenuBuilder();
-        HsmBreakpointMenuPopulator.PopulateStateMenu(state, builder, _manager);
+        HsmBreakpointMenuPopulator.PopulateStateMenu(asset, state, builder, _manager);
         builder.GetCallback("Break on Enter");
 
         var (stateDots, _) = renderer.CountBreakpoints();

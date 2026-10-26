@@ -33,10 +33,9 @@ namespace Fdp.Toolkit.Lifecycle.Systems
         /// frame. ⭐ Gating in place delivers §8.10's intent on EVERY host instead.</para>
         ///
         /// <para>⭐ Shape borrowed from the seam that already does this well —
-        /// <c>CycloneNetworkIngressSystem.IsWorldStateFrozen</c>. ⚠ Unset (the default) means "never
-        /// replaying", so a host that does not wire it behaves exactly as before.</para>
+        /// <c>CycloneNetworkIngressSystem.IsWorldStateFrozen</c>. ⭐ CE-3329 P2 — the gate is the world's
+        /// <see cref="Fdp.Toolkit.Replay.ReplayState"/>; ⛔ SUPERSEDED: an injected <c>Func&lt;bool&gt;? IsReplayActive</c>.</para>
         /// </summary>
-        public System.Func<bool>? IsReplayActive { get; set; }
 
         private int _restoresSeen = -1;
 
@@ -49,7 +48,7 @@ namespace Fdp.Toolkit.Lifecycle.Systems
         {
             // ⛔ The log owns the world during playback: no acks, no drains, and — decisively — no
             // CheckTimeouts, whose unsigned frame subtraction wraps once a seek rewinds the counter.
-            if (IsReplayActive != null && IsReplayActive()) return;
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
 
             var cmd = view.GetCommandBuffer();
             uint currentFrame = view.Tick;
@@ -85,6 +84,9 @@ namespace Fdp.Toolkit.Lifecycle.Systems
 
             // Check for timeouts
             _manager.CheckTimeouts(currentFrame, cmd);
+
+            // ⭐ AQ107 (CE-3323) — announce what finished this tick, on every node (§3.4e)
+            _manager.PublishOutcomes(view, cmd);
         }
     }
 }

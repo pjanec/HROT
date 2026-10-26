@@ -93,6 +93,7 @@ namespace Fdp.Toolkit.Physics.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(RaycastSolverSystem)} requires direct EntityRepository access " +
@@ -163,7 +164,7 @@ namespace Fdp.Toolkit.Physics.Systems
                 //   body reaches PersonBody.MaxBoundRadius from its point). ⛔ Was a disc of ½ length + 5 m round the midpoint, capped at
                 //   64 silently: a 70 m segment visited ~16 × 16 cells, and in a crowd the man on the line could be dropped.
                 float pad = gridData.MaxRadius > 0f
-                    ? MathF.Max(MathF.Max(gridData.MaxRadius, Fdp.Toolkit.Physics.BodyParts.PersonBody.MaxBoundRadius + Fdp.Toolkit.Combat.Leans.Shift),   // ⭐ CE-3257 — a leaning man
+                    ? MathF.Max(MathF.Max(gridData.MaxRadius, Fdp.Toolkit.Physics.BodyParts.PersonBody.MaxBoundRadius + Fdp.Toolkit.Combat.Leans.MaxShift),   // ⭐ CE-3257 — a leaning man
                                 Fdp.Toolkit.Physics.BodyParts.VehicleBody.MaxBoundRadius)   // ⭐ CE-3211 (S2-9) — a turret swung past the circle
                     : PhysicsConstants.QueryExpansionRadius;   // a grid built by hand (no radius measured): the old pad
 

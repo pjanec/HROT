@@ -65,8 +65,10 @@ public sealed class EditorScenarioSession : IScenarioSession
         FdpEventBus            orchestrationBus,
         EntityRepository       world,
         Func<string>           scenariosRoot,
-        MigrationAlertManager? alertManager = null)
+        MigrationAlertManager? alertManager = null,
+        Action?                leaveRun     = null)
     {
+        _leaveRun         = leaveRun;
         _fileService      = fileService      ?? throw new ArgumentNullException(nameof(fileService));
         _orchestrationBus = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
         _world            = world            ?? throw new ArgumentNullException(nameof(world));
@@ -83,6 +85,11 @@ public sealed class EditorScenarioSession : IScenarioSession
                 _loadedScenarioName = load.ScenarioId;
             });
     }
+
+    // ⭐ CE-1025 (R-1031, load design §9.1) — leaves the host's own dry run WITHOUT a rewind, FIRST, at every load request (and New
+    //   Exercise): the editor's dry run never moves the cluster, so the Idle the load asks for would not end it, and Stop rewound the new
+    //   world to the old one. Null on a host with no dry run of its own (CGF).
+    private readonly Action? _leaveRun;
 
     /// <summary>The alert manager this session reports migration state through.</summary>
     public MigrationAlertManager AlertManager => _alertManager;
@@ -117,6 +124,7 @@ public sealed class EditorScenarioSession : IScenarioSession
     /// <inheritdoc/>
     public void NewExercise()
     {
+        _leaveRun?.Invoke();
         // ⭐⭐ The cluster-wide half: ask the master to finish whatever is running and return to Idle.
         //    ⛔ This is what distinguishes New Exercise from ClearWorld — on a single-process editor the
         //    two look almost identical, but on a cluster only this one reaches the other nodes.
@@ -137,6 +145,7 @@ public sealed class EditorScenarioSession : IScenarioSession
     public void OpenForEdit(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
+        _leaveRun?.Invoke();
         _loads.Request(new TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
@@ -150,6 +159,7 @@ public sealed class EditorScenarioSession : IScenarioSession
     public void LoadForLive(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
+        _leaveRun?.Invoke();
 
         // ⭐ A fresh ExerciseId per load, mirroring the orchestrator panel's "Load into Live" button and
         //   DebugApiService.LoadScenarioLive: a live load IS a new exercise run, and the id is what

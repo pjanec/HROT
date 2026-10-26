@@ -67,7 +67,10 @@ namespace Hrot.Editor.DebugApi
         private readonly ITimeTransportFacade?           _editorTime;
         private readonly IPreviewController?             _editorPreview;
         private readonly IEditorLogic?                   _editorLogic;
-        private readonly Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? _editorRequestTransition;
+        private readonly Hrot.Presentation.DebugApi.IClusterMasterControl? _editorMaster;   // ⭐ R-3052…R-3055 — the editor's own core, on its bus
+        private readonly Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? _editorExercises;
+        private readonly Func<float?>? _editorReplayDuration;
+        private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _editorReplayAxis;   // CE-3329
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
@@ -268,16 +271,21 @@ namespace Hrot.Editor.DebugApi
                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.EditorAuthoring);
 
         /// <summary>
-        /// ⭐⭐ <b>The host-agnostic cluster-transition publisher</b> — the editor's own bus, or the active
-        /// perspective's node bus in <c>--mode all</c>. 📄 <c>MCP_Integration.md</c> § Group U.
+        /// ⭐⭐⭐ <c>R-3052</c>…<c>R-3055</c> — <b>the cluster master</b>: the editor's own (it is a one-node cluster whose master reads its
+        /// bus), else whichever node's bus reaches it. <see langword="null"/> when no subsystem here has an orchestration bus.
+        /// 📄 <c>docs/DESIGN_Http_Control_Through_The_Cluster_Master.md</c> §3.
         /// </summary>
-        private Action<Fdp.Toolkit.Orchestration.TransitionStateIntent> _requestTransition
-            => _editorRequestTransition
-               ?? _dispatcher?.RequestTransition
-               ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad);
+        private Hrot.Presentation.DebugApi.IClusterMasterControl? MasterOrNull
+            => _editorMaster ?? _dispatcher?.MasterAnyNode;
+
+        /// <summary>⭐ <see cref="MasterOrNull"/>, or <c>NOT_SUPPORTED_HERE(scenario.load)</c>.</summary>
+        private Hrot.Presentation.DebugApi.IClusterMasterControl _master
+            => MasterOrNull ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad);
 
         private IDiagnosticEventHistoryService _eventHistory
             => _editorEventHistory
+               // ⭐ RB-5 — the active provider's history (the Replay Browser's: the shown frame's recorded events)
+               ?? _dispatcher?.EventHistory
                ?? throw NotSupportedHere("events.read");
 
         /// <summary>
@@ -348,13 +356,9 @@ namespace Hrot.Editor.DebugApi
         private readonly Dictionary<string, Dictionary<long, JsonNode?>> _diffBaselines = new();
         private int _nextBaselineId;
 
-        // Group I — Recording + Replay
+        // ⭐ The editor's ONE recorder (the shared host composition's): what /status reports as recording, and the replay file the
+        //   journal history and recording search scan on this host (R-3053 — a live run records; the API starts nothing).
         private readonly Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _rrController;
-        private bool _isRecording;
-        private Guid _activeRecordingExerciseId;
-        private string? _lastFdpPath;
-        private Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext? _replayContext;
-        private Fdp.Toolkit.Diagnostics.EntityStateExtractionService? _replayExtraction;
 
         // Group J — Log sinks (off-thread safe, lock-guarded)
         //
@@ -551,17 +555,24 @@ namespace Hrot.Editor.DebugApi
             Fdp.Toolkit.Behavior.BehaviorRegistry?        behaviorRegistry  = null,
             Hrot.UI.Common.Facades.IMissionEditorService? missionService    = null,
             Fdp.Toolkit.Blueprints.BlueprintRegistry?     blueprintRegistry = null,
-            Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? requestTransition = null,
+            // ⭐⭐⭐ R-3052…R-3055 — the editor's own cluster master, through its orchestration bus (OrchestrationBusMasterControl).
+            Hrot.Presentation.DebugApi.IClusterMasterControl? master = null,
             // ⭐ CE-515 — the editor's pack, the same seam every cluster node exposes (cgf==editor).
             Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? entityCreation = null,
             // ⭐⭐ CE-4002 — the editor's in-process master's roster and the cancel onto its bus. ⚠ Optional for the
             //    same reason as requestTransition; ⛔ the production caller HAS both and must pass them.
             Func<IReadOnlyList<Hrot.Presentation.DebugApi.ClusterRosterEntry>?>? clusterRoster = null,
-            Action<Fdp.Toolkit.Orchestration.CancelOperationIntent>? requestCancel = null)
+            // ⭐ R-3055 — the master's exercise inventory and the loaded replay's length (the core's ClusterUiCache).
+            Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? exercises = null,
+            Func<float?>? replayDuration = null,
+            // ⭐ CE-3329 R-3058 — the replay session's time axis (the core's ClusterUiCache)
+            Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? replayAxis = null)
         {
             _entityCreationGetter = entityCreation;
+            _editorReplayAxis     = replayAxis;
             _editorClusterRoster  = clusterRoster;
-            _editorRequestCancel  = requestCancel;
+            _editorExercises      = exercises;
+            _editorReplayDuration = replayDuration;
             // ⭐ The EDITOR shape still requires all nine — ⛔ this ctor has not become permissive. The
             //   cluster shape is a SEPARATE ctor below, so an editor wiring bug still fails loudly at boot.
             _editorWorld        = world            ?? throw new ArgumentNullException(nameof(world));
@@ -578,7 +589,7 @@ namespace Hrot.Editor.DebugApi
             //    publisher still loads in EDIT. ⛔ `load/live` then answers NOT_SUPPORTED_HERE(scenario.load)
             //    rather than pretending. ⚠ The production caller MUST pass it (CLAUDE.md's silent-default rule:
             //    a caller that HAS the dependency must pass it) — EditorSubsystem does.
-            _editorRequestTransition = requestTransition;
+            _editorMaster = master;
             _editorTkbDb       = tkbDb            ?? new TkbDatabase();   // ⭐ the editor DOES pass one; kept non-null so its shape is unchanged
             _geoTransform      = geoTransform;   // ⭐ CE-236: no origin-less default — see GeoTransform
             _bpManager         = bpManager;
@@ -600,6 +611,9 @@ namespace Hrot.Editor.DebugApi
                 _bpManager.OnBreakpointHit += (bp, entity) =>
                 {
                     _lastHitBreakpointId = bp.Id;
+                    _lastHitName = bp.DisplayName;
+                    _lastHitSummary = BreakpointConditionSummarizer.Summarize(bp.Condition);
+                    _lastHitWhat = _bpManager.LastHitDetail;   // ⭐ CE-1323 — "entered Withdrawing" for a behaviour step
                     _entityMap.TryGetNetworkId(entity, out _lastHitNetworkId);
                 };
             }
@@ -686,7 +700,8 @@ namespace Hrot.Editor.DebugApi
                 ["isPaused"]     = TryRead(() => (JsonNode?)_time.IsPaused),
                 ["inPreview"]    = TryRead(() => (JsonNode?)_preview.IsInPreviewMode),
                 ["entityCount"]  = TryRead(() => (JsonNode?)_world.EntityCount),
-                ["recording"]    = _isRecording,
+                // ⭐ R-3053 — a LIVE run records on every node; nothing else does (the API no longer starts a recording).
+                ["recording"]    = _rrController is { } rr ? (JsonNode?)(rr.ActiveRecordingModule is not null) : null,
                 // ⭐ Which context these numbers describe — ⛔ without it, a cluster status is ambiguous
                 //   about WHOSE world it counted.
                 ["perspective"]  = _dispatcher?.CurrentPerspective,
@@ -846,11 +861,12 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public JsonNode GetEvents(string? bus = "world", string? type = null, uint since = 0, int max = DefaultMaxEvents)
         {
-            string provider = string.Equals(bus, "orchestration", StringComparison.OrdinalIgnoreCase)
-                ? "Orchestration"
-                : "World";
+            // ⭐ RB-5 — a replayed world's events are captured as "Replay" (ReplayBrowserContext): the world bus of that world
+            string[] providers = string.Equals(bus, "orchestration", StringComparison.OrdinalIgnoreCase)
+                ? new[] { "Orchestration" }
+                : new[] { "World", "Replay" };
 
-            var history = _eventHistory.GetHistory(new[] { provider });
+            var history = _eventHistory.GetHistory(providers);
 
             IEnumerable<CapturedEventDto> filtered = history;
             if (!string.IsNullOrEmpty(type))
@@ -1112,22 +1128,6 @@ namespace Hrot.Editor.DebugApi
             return GetSimState();
         }
 
-        /// <summary><c>POST /preview/enter {startPaused?}</c> (main thread).</summary>
-        public JsonNode EnterPreview(bool startPaused = false)
-        {
-            if (!_preview.IsInPreviewMode)
-                _preview.EnterPreviewMode(startPaused);
-            return GetSimState();
-        }
-
-        /// <summary><c>POST /preview/exit</c> (main thread).</summary>
-        public JsonNode ExitPreview()
-        {
-            if (_preview.IsInPreviewMode)
-                _preview.ExitPreviewMode();
-            return GetSimState();
-        }
-
         // ── Group E — Scenario list / load / save ──────────────────────────────
 
         /// <summary><c>GET /scenarios</c> — available scenario names (thread-safe enough; main thread used).</summary>
@@ -1188,10 +1188,12 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
 
+            var stopped = LeaveRunForLoad();
             if (_editorLogic is not null)
             {
                 _editorLogic.LoadScenarioByName(name);
-                return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver" };
+                return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver",
+                                        ["stoppedRun"] = stopped };
             }
 
             ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
@@ -1204,7 +1206,7 @@ namespace Hrot.Editor.DebugApi
                 ExerciseId    = Guid.Empty,
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent",
-                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle };
+                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
         }
 
         /// <summary>
@@ -1223,6 +1225,7 @@ namespace Hrot.Editor.DebugApi
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
+            var stopped = LeaveRunForLoad();
 
             ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
             {
@@ -1236,7 +1239,20 @@ namespace Hrot.Editor.DebugApi
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
                                     ["startPaused"] = startPaused,
-                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle };
+                                    ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
+        }
+
+        /// <summary>⭐ <c>CE-1025</c> (R-1031, load design §9.1) — the HTTP load is non-interactive (ruling 53): no prompt; a running dry run
+        /// is left WITHOUT a rewind (its restore point forgotten) and a live run is stopped by the load's own unload to Idle. Returns the run
+        /// it stopped ("a live run" / "a dry run"), or null — the answer says so.</summary>
+        private string? LeaveRunForLoad()
+        {
+            // ⭐ a host with NO preview controller (a `--mode all` cluster node) is never in a dry run: degrade, as InPreviewOrNull does —
+            //   📌 behaviors, 2026-10-23: reading _preview directly made every live load answer NOT_SUPPORTED_HERE(preview.control) there
+            bool inPreview = InPreviewOrNull() == true;
+            var run = Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(inPreview, CurrentClusterState());
+            if (inPreview) _preview.ForgetPreview();
+            return run;
         }
 
         // ⭐⭐ CE-295 — loads go through the ONE shared sequence: from any state but Idle it asks for Idle (the unload),
@@ -1246,7 +1262,7 @@ namespace Hrot.Editor.DebugApi
         private Fdp.Toolkit.Orchestration.ScenarioLoadSequence? _scenarioLoads;
         private Fdp.Toolkit.Orchestration.ScenarioLoadSequence ScenarioLoads
             => _scenarioLoads ??= new Fdp.Toolkit.Orchestration.ScenarioLoadSequence(
-                   send:         intent => _requestTransition(intent),
+                   send:         intent => _master.Transition(intent),
                    currentState: () => CurrentClusterState());
 
         /// <summary>
@@ -1329,15 +1345,14 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
 
-            if (_editorLogic is not null)
+            // ⭐ R-3052 — the same intent on every host, the editor included (it is a one-node cluster): ⛔ no editor-driver arm.
+            var master = MasterOrNull ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.SaveScenarioJson);
+            master.Storage(new Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent
             {
-                _editorLogic.SaveScenarioAs(name);
-                return new JsonObject { ["saved"] = name, ["via"] = "editor-driver" };
-            }
-
-            var trigger = _dispatcher?.RequestSaveScenarioJsonAnyNode
-                ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.SaveScenarioJson);
-            trigger(name);
+                RequestId    = Guid.NewGuid(),
+                Operation    = Fdp.Toolkit.Orchestration.StorageOpType.SaveScenario,
+                ScenarioName = name,
+            });
             return new JsonObject { ["saved"] = name, ["via"] = "cluster-intent" };
         }
 
@@ -2002,7 +2017,7 @@ namespace Hrot.Editor.DebugApi
             return null;
         }
 
-        private static JsonNode DumpToJsonNode(EntityStateDumpDto dump)
+        internal static JsonNode DumpToJsonNode(EntityStateDumpDto dump)
         {
             // Serialize through the DebugApi-scoped NaN-safe options directly to a JsonNode
             // (avoids the string round-trip and the fragile JsonNode.Parse step that rejects
@@ -2271,6 +2286,10 @@ namespace Hrot.Editor.DebugApi
         public JsonNode ExplainLos(long observer, long target)
             => CombatReport.Los(_world, _editorEntityMap ?? _dispatcher?.EntityMap, observer, target);
 
+        /// <summary>GET /perception/hearing — ⭐ AQ106 L: what a unit could hear in the last seconds and why not, as this node's hearing decides it.</summary>
+        public JsonNode ExplainHearing(long listener, double seconds)
+            => CombatReport.Hearing(_world, _editorEntityMap ?? _dispatcher?.EntityMap, listener, seconds);
+
         /// <summary>GET /doors — ⭐ buildings Stage 1: the doors the terrain defines.</summary>
         public JsonNode GetDoors() => TerrainReport.Doors(_world);
 
@@ -2360,10 +2379,38 @@ namespace Hrot.Editor.DebugApi
             int occurrenceThreshold = body?["occurrenceThreshold"]?.GetValue<int>() ?? 1;
             string name = body?["name"]?.GetValue<string>() ?? "";
 
-            var id = _bpManager.AddBreakpoint(condition, filterEntity, occurrenceThreshold, name);
+            // ⭐ CE-1323 (DBG-9) — a behaviour step is checked against the behaviour NOW: a state / event / transition name that is not in it
+            //   is a 400 that lists what is (it would otherwise never fire, silently)
+            Guid? element = null;
+            if (StepIn(condition) is { } step)
+            {
+                if (string.IsNullOrWhiteSpace(step.Behaviour))
+                    throw new ArgumentException("a BehaviourStep condition needs 'behaviour' (the running behaviour's name, GET /entities/{id}/brain).");
+                if (_behaviorRegistry is { } registry
+                    && Hrot.Editor.Debugging.BehaviourStepResolver.Resolve(step, registry, Fdp.Toolkit.Behavior.BehaviorHash.FromName(step.Behaviour), out var why) is null)
+                    throw new ArgumentException($"BehaviourStep cannot match: {why}.");
+                if (string.IsNullOrEmpty(name)) name = BreakpointConditionSummarizer.Step(step);
+                if (step.Element != Guid.Empty) element = step.Element;
+                else if (step.Node != Guid.Empty) element = step.Node;
+            }
 
-            return new JsonObject { ["breakpointId"] = id.ToString() };
+            var id = _bpManager.AddBreakpoint(condition, filterEntity, occurrenceThreshold, name, element);
+
+            return new JsonObject
+            {
+                ["breakpointId"]     = id.ToString(),
+                ["conditionSummary"] = BreakpointConditionSummarizer.Summarize(condition),
+            };
         }
+
+        private string? _lastHitName, _lastHitSummary, _lastHitWhat;
+
+        private static BehaviourStepPredicateDto? StepIn(SearchPredicateDto c) => c switch
+        {
+            BehaviourStepPredicateDto st => st,
+            CompoundPredicateDto cp      => cp.Conditions.OfType<BehaviourStepPredicateDto>().FirstOrDefault(),
+            _                            => null,
+        };
 
         /// <summary>GET /breakpoints — list all registered breakpoints.</summary>
         public JsonNode ListBreakpoints()
@@ -2383,6 +2430,8 @@ namespace Hrot.Editor.DebugApi
                     ["occurrenceThreshold"] = bp.OccurrenceThreshold,
                     ["hitCount"]            = bp.HitCount,
                     ["name"]                = bp.DisplayName,
+                    ["kind"]                = BreakpointKind.Of(bp).ToString(),   // ⭐ CE-1323 — Node / Journal / Data
+                    ["filterNetworkId"]     = bp.FilterEntity is { } fe && _entityMap.TryGetNetworkId(fe, out var fnid) ? (JsonNode?)fnid : null,
                 });
             }
             return arr;
@@ -2411,10 +2460,18 @@ namespace Hrot.Editor.DebugApi
             {
                 lastHit = new JsonObject
                 {
-                    ["breakpointId"] = _lastHitBreakpointId.ToString(),
-                    ["networkId"]    = _lastHitNetworkId,
+                    ["breakpointId"]     = _lastHitBreakpointId.ToString(),
+                    ["networkId"]        = _lastHitNetworkId,
+                    ["name"]             = _lastHitName,
+                    ["conditionSummary"] = _lastHitSummary,
+                    ["what"]             = _lastHitWhat,   // ⭐ CE-1323 — what a behaviour step saw ("entered Withdrawing"); null for data breakpoints
                 };
             }
+
+            // ⭐ CE-1258 (BV-29) — what the hit tick wrote to the unit's brain journal (the world shown is the tick's START)
+            if (lastHit is JsonObject hit && _bpManager.IsPaused && _entityMap.TryGetEntity(_lastHitNetworkId, out var hitEntity)
+                && JournalWrittenByTheHitTick(hitEntity) is { } written)
+                hit["journalWrittenByTheTick"] = written;
 
             return new JsonObject
             {
@@ -2448,31 +2505,6 @@ namespace Hrot.Editor.DebugApi
         }
 
         // ── Group H — Checkpoint / Restore / Diff ─────────────────────────────────
-
-        /// <summary>POST /checkpoint — single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true).</summary>
-        public JsonNode Checkpoint()
-        {
-            // Reject if live run is active (mutually exclusive)
-            var state = CurrentClusterState();
-            if (state == ClusterState.OperatingLive)
-                throw new InvalidOperationException("Cannot checkpoint during a live run.");
-
-            // Single slot: reject if already in preview (entered via /preview/enter OR a prior /checkpoint)
-            if (_preview.IsInPreviewMode)
-                throw new InvalidOperationException("Already checkpointed or in preview. Exit preview or restore first.");
-
-            _preview.EnterPreviewMode(startPaused: true);
-            return GetStatus();
-        }
-
-        /// <summary>POST /checkpoint/restore — rewind to the checkpoint snapshot via IPreviewController.ExitPreviewMode().</summary>
-        public JsonNode RestoreCheckpoint()
-        {
-            if (!_preview.IsInPreviewMode)
-                throw new InvalidOperationException("No checkpoint to restore — not in preview mode.");
-            _preview.ExitPreviewMode();
-            return GetStatus();
-        }
 
         /// <summary>
         /// POST /diff/capture {entities?} — serialize current entity states and store as a named baseline.
@@ -2599,273 +2631,6 @@ namespace Hrot.Editor.DebugApi
                 };
             }
             return new JsonObject { ["name"] = node.Name, ["type"] = "unknown", ["modified"] = node.IsModified };
-        }
-
-        // ── Group I — Recording ──────────────────────────────────────────────────
-
-        /// <summary>Whether recording is currently active.</summary>
-        public bool IsRecording => _isRecording;
-
-        /// <summary>
-        /// Phase-1 (main-thread sync): validate, enter preview, set flags, return fdpPath.
-        /// Called via RunOnMainThread. Phase-2 is <see cref="CompleteRecordingStartAsync"/>.
-        /// </summary>
-        public string BeginRecordingStart(string mode)
-        {
-            if (_rrController is null)
-                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
-                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
-            if (_isRecording)
-                throw new InvalidOperationException("Recording already active. Stop it first.");
-            // ⭐ D15 — this is the editor's ONE recorder (the shared host composition's). A recording the cluster started
-            //   (a live run) is not this endpoint's to replace: replacing it would orphan that recording, never finalized.
-            if (_rrController.ActiveRecordingModule != null)
-                throw new InvalidOperationException(
-                    "The editor's recorder is already recording (a cluster run). Stop that run first.");
-
-            if (string.Equals(mode, "preview", StringComparison.OrdinalIgnoreCase))
-            {
-                if (_preview.IsInPreviewMode)
-                    throw new InvalidOperationException("Already in preview mode (checkpoint slot occupied). Cannot start preview recording.");
-
-                _activeRecordingExerciseId = Guid.NewGuid();
-                // ⭐ The path the recorder WRITES (its own node id) — ⛔ was rebuilt here with node 0, which reported a file that never
-                //   exists once the editor moved to node 1 (CE-3228), so /replay/load of the returned path failed.
-                _lastFdpPath = _rrController.GetRecordingFilePath(
-                    _activeRecordingExerciseId, Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot());
-
-                _preview.EnterPreviewMode(startPaused: true);
-                // _isRecording is set by CompleteRecordingStartAsync after PrepareRecordingAsync succeeds.
-                return _lastFdpPath;
-            }
-            else if (string.Equals(mode, "live", StringComparison.OrdinalIgnoreCase))
-            {
-                // DEBT: ADA-I-D01 — live mode requires full cluster setup.
-                throw new InvalidOperationException("Live mode recording is not supported in editor mode. Use mode:preview.");
-            }
-            else
-            {
-                throw new ArgumentException($"Unknown mode '{mode}'. Use 'preview' or 'live'.");
-            }
-        }
-
-        /// <summary>
-        /// Phase-2 (background-thread async): install the recording module.
-        /// Must NOT be called from inside RunOnMainThread — InstallModuleAsync awaits the main
-        /// thread's BeforeSync boundary (swapTcs) which would deadlock if the main thread is blocked.
-        /// </summary>
-        public async System.Threading.Tasks.Task CompleteRecordingStartAsync()
-        {
-            if (_rrController is null)
-                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
-                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
-            await _rrController.PrepareRecordingAsync(_activeRecordingExerciseId,
-                Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot())
-                .ConfigureAwait(false);
-            _isRecording = true;
-        }
-
-        /// <summary>
-        /// Phase-1 (background-thread async): finalize the recording module.
-        /// Must NOT be called from inside RunOnMainThread — UninstallModuleAsync awaits the main
-        /// thread's BeforeSync boundary which would deadlock if the main thread is blocked.
-        /// </summary>
-        public async System.Threading.Tasks.Task<string?> CompleteRecordingStopAsync()
-        {
-            if (_rrController is null)
-                throw new Hrot.Presentation.DebugApi.NotSupportedHereException(
-                    Hrot.Presentation.DebugApi.DebugCapabilities.RecordReplay);
-            if (!_isRecording)
-                throw new InvalidOperationException("No active recording.");
-
-            _isRecording = false;
-
-            // Finalize BEFORE the exit rewind (hard ordering rule).
-            await _rrController.FinalizeRecordingAsync(maxNetworkId: 0).ConfigureAwait(false);
-            return _lastFdpPath;
-        }
-
-        /// <summary>
-        /// Phase-2 (main-thread sync): exit preview (triggers rewind). Returns status JsonNode.
-        /// Called via RunOnMainThread AFTER CompleteRecordingStopAsync.
-        /// </summary>
-        public JsonNode FinishRecordingStop()
-        {
-            // For preview mode: now safe to exit (rewind happens here).
-            if (_preview.IsInPreviewMode)
-                _preview.ExitPreviewMode();
-
-            return new JsonObject
-            {
-                ["recording"] = false,
-                ["fdpPath"]   = _lastFdpPath,
-            };
-        }
-
-        /// <summary>
-        /// Convenience async method for tests that can await across kernel ticks.
-        /// DO NOT call this from inside RunOnMainThread — it deadlocks.
-        /// For tests: call directly from the test thread, then pump frames during the await.
-        /// </summary>
-        public async System.Threading.Tasks.Task<JsonNode> StartRecordingAsync(string mode)
-        {
-            // Phase 1: sync setup (validates + enters preview) — safe to call on any thread
-            // when the main loop is not blocked (tests call this directly).
-            var fdpPath = BeginRecordingStart(mode);
-
-            // Phase 2: async module install — must NOT block the main thread.
-            await CompleteRecordingStartAsync().ConfigureAwait(false);
-
-            return new JsonObject
-            {
-                ["recording"] = true,
-                ["mode"]      = mode,
-                ["fdpPath"]   = fdpPath,
-            };
-        }
-
-        /// <summary>
-        /// Convenience async method for tests that can await across kernel ticks.
-        /// DO NOT call this from inside RunOnMainThread — it deadlocks.
-        /// </summary>
-        public async System.Threading.Tasks.Task<JsonNode> StopRecordingAsync()
-        {
-            var fdpPath = await CompleteRecordingStopAsync().ConfigureAwait(false);
-            return FinishRecordingStop();
-        }
-
-        // ── Group I — Replay (isolated) ───────────────────────────────────────────
-
-        /// <summary>Whether replay is currently active (queries route to sandbox).</summary>
-        public bool IsReplayActive => _replayContext != null;
-
-        /// <summary>Current frame in the replay sandbox (-1 if not active).</summary>
-        public int ReplayCurrentFrame => _replayContext?.CurrentFrame ?? -1;
-
-        /// <summary>Total frames in the loaded replay (0 if not active).</summary>
-        public int ReplayTotalFrames => _replayContext?.Playback?.TotalFrames ?? 0;
-
-        /// <summary>POST /replay/load {fdpPath} — stand up isolated ReplayBrowserContext (main thread).</summary>
-        public JsonNode LoadReplay(string fdpPath)
-        {
-            if (string.IsNullOrWhiteSpace(fdpPath))
-                throw new ArgumentException("fdpPath is required.", nameof(fdpPath));
-            if (!System.IO.File.Exists(fdpPath))
-                throw new ArgumentException($"File not found: {fdpPath}");
-
-            // Dispose any existing replay context.
-            _replayContext?.Dispose();
-            _replayContext = null;
-            _replayExtraction = null;
-
-            var ctx = new Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext();
-            ctx.LoadRecording(fdpPath);
-
-            if (ctx.Playback == null)
-                throw new InvalidOperationException($"Failed to load recording from '{fdpPath}'.");
-
-            _replayContext = ctx;
-            _replayExtraction = BuildReplayExtractionService(ctx.SandboxRepo);
-
-            return new JsonObject
-            {
-                ["loaded"]       = true,
-                ["fdpPath"]      = fdpPath,
-                ["totalFrames"]  = ctx.Playback.TotalFrames,
-                ["currentFrame"] = ctx.CurrentFrame,
-            };
-        }
-
-        /// <summary>POST /replay/seek {frame} — seek to frame in sandbox (main thread).</summary>
-        public JsonNode SeekReplay(int frame)
-        {
-            if (_replayContext is null)
-                throw new InvalidOperationException("No replay loaded. Call /replay/load first.");
-            _replayContext.SeekToFrame(frame);
-            _replayExtraction = BuildReplayExtractionService(_replayContext.SandboxRepo);
-            return new JsonObject
-            {
-                ["frame"]       = _replayContext.CurrentFrame,
-                ["totalFrames"] = _replayContext.Playback?.TotalFrames ?? 0,
-            };
-        }
-
-        /// <summary>POST /replay/step {dir:"forward"|"back"} — step one frame in sandbox (main thread).</summary>
-        public JsonNode StepReplay(string dir)
-        {
-            if (_replayContext is null)
-                throw new InvalidOperationException("No replay loaded. Call /replay/load first.");
-
-            bool stepped;
-            if (!string.Equals(dir, "back", StringComparison.OrdinalIgnoreCase))
-                stepped = _replayContext.StepForward();
-            else
-                stepped = _replayContext.StepBackward();
-
-            if (stepped)
-                _replayExtraction = BuildReplayExtractionService(_replayContext.SandboxRepo);
-
-            return new JsonObject
-            {
-                ["stepped"]     = stepped,
-                ["frame"]       = _replayContext.CurrentFrame,
-                ["totalFrames"] = _replayContext.Playback?.TotalFrames ?? 0,
-            };
-        }
-
-        /// <summary>POST /replay/unload — dispose the replay context (main thread).</summary>
-        public JsonNode UnloadReplay()
-        {
-            _replayContext?.Dispose();
-            _replayContext = null;
-            _replayExtraction = null;
-            return new JsonObject { ["unloaded"] = true };
-        }
-
-        /// <summary>
-        /// In replay mode, list entities from the SandboxRepo instead of _world.
-        /// </summary>
-        public JsonNode ListReplayEntities()
-        {
-            if (_replayContext is null)
-                throw new InvalidOperationException("No replay loaded.");
-
-            var arr = new JsonArray();
-            if (_replayExtraction != null)
-            {
-                var dumps = _replayExtraction.ExtractEntities();
-                foreach (var d in dumps)
-                {
-                    var comps = new JsonArray();
-                    foreach (var name in d.Components.Keys)
-                        comps.Add(name);
-                    arr.Add(new JsonObject
-                    {
-                        ["networkId"]  = d.NetworkId,
-                        ["name"]       = ExtractEntityName(d),
-                        ["components"] = comps,
-                    });
-                }
-            }
-            return arr;
-        }
-
-        private static Fdp.Toolkit.Diagnostics.EntityStateExtractionService BuildReplayExtractionService(
-            EntityRepository sandboxRepo)
-        {
-            // Build a NetworkEntityMap populated from the current sandbox state.
-            var sandboxMap = new NetworkEntityMap();
-            var q = sandboxRepo.Query()
-                .With<NetworkIdentity>()
-                .WithLifecycle(EntityLifecycle.All)
-                .Build();
-            foreach (var e in q)
-            {
-                long netId = sandboxRepo.GetComponentRO<NetworkIdentity>(e).Value;
-                if (!sandboxMap.TryGetEntity(netId, out _))
-                    sandboxMap.Register(netId, e);
-            }
-            return new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(sandboxRepo, sandboxMap);
         }
 
         // ── Group K — AI Behavior Traces ──────────────────────────────────────────

@@ -36,31 +36,47 @@ namespace Fdp.Toolkit.Utility
         /// <summary>⭐ CE-3160 — the decision's asset id, for a C# tree that names it (CombatPostureBehavior).</summary>
         public const string DecisionAssetId = "3c6f9e42-5d10-6f3a-ac23-posture0000001";
 
+        // ⭐ AQ102 A — HurtOrUnderFire = max(1 − health, UnderFire): out of fire the old 1 − health, shot at 1 for anyone ·
+        //   UnderFireDamp = 1 − 0.7·UnderFire (inline: Build() must be pure, UT0130).
+        // ⭐ CE-2271 (TS-5, R-2075) — temperament and stress as MODIFIERS (Modify, never Consider): a cautious man advances less
+        //   (CautionDamp), a bold one takes cover, lies down and flees less (AggressionDamp), a stressed one advances and suppresses less
+        //   (StressDamp). Each reads 1.0 for a man with no temperament and no stress ⇒ every score below is bit-identical for him.
+        //   📄 docs/DESIGN_Temperament_And_Stress.md §4 TS-5, §7.3.
+
         /// <summary>Builds the decision definition via the fluent builder.</summary>
         public static void Build(IUtilityDecisionBuilder b) => b
             .Option((ushort)Posture.AdvanceAndAttack, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HealthFraction(),     0.7f, Curve.Linear)
                 .Consider(In.AmmoFraction(),       0.9f, Curve.Threshold)
-                .Consider(In.EnemyStrengthRatio(), 0.8f, Curve.InverseLinear))
+                .Consider(In.EnemyStrengthRatio(), 0.8f, Curve.InverseLinear)
+                .Modify(In.CautionDamp(),          1.0f, Curve.Linear)
+                .Modify(In.StressDamp(),           1.0f, Curve.Linear))
+            // ⭐ AQ102 A (CE-2356, R-2072) — under fire an UNHURT man takes cover too: hurt OR shot at (max), so out of fire it scores
+            //   as before; Suppress loses 70 % under fire (it is fired from cover by PeekAndFire)
             .Option((ushort)Posture.TakeCover, ScoringMode.WeightedProduct, o => o
-                .Consider(In.HealthFraction(),              0.8f, Curve.InverseLinear)
+                .Consider(In.HurtOrUnderFire(),             0.8f, Curve.Linear)
                 .Consider(In.EqsTopScore(FindCoverFromTarget.AssetId),  1.0f, Curve.Linear)
-                .Consider(In.EnemyStrengthRatio(),          0.6f, Curve.Logistic))
+                .Consider(In.EnemyStrengthRatio(),          0.6f, Curve.Logistic)
+                .Modify(In.AggressionDamp(),                1.0f, Curve.Linear))
             .Option((ushort)Posture.Suppress, ScoringMode.WeightedProduct, o => o
                 .Consider(In.AmmoFraction(),        0.9f, Curve.Linear)
                 .Consider(In.HaveLiveTarget(),      1.0f, Curve.Step)
                 .Consider(In.HealthFraction(),      1.0f, Curve.Linear)
-                .Consider(In.EnemyStrengthRatio(),  0.6f, Curve.Logistic))
+                .Consider(In.EnemyStrengthRatio(),  0.6f, Curve.Logistic)
+                .Consider(In.UnderFire(),           1.0f, Curve.WithSlope(CurveKind.InverseLinear, 0.7f))
+                .Modify(In.StressDamp(),            1.0f, Curve.Linear))
             .Option((ushort)Posture.Flee, ScoringMode.WeightedProduct, o => o
                 .Consider(In.HealthFraction(),               1.0f, Curve.Threshold)            // CE-3090: able to run (≥ half health)
                 .Consider(In.HealthFraction(),               1.0f, Curve.InverseQuadratic)
                 .Consider(In.EqsTopScore(FindSafeRetreatPoint.AssetId), 0.8f, Curve.Linear)
-                .Consider(In.EnemyStrengthRatio(),           0.7f, Curve.Logistic))
+                .Consider(In.EnemyStrengthRatio(),           0.7f, Curve.Logistic)
+                .Modify(In.AggressionDamp(),                 1.0f, Curve.Linear))
             .Option((ushort)Posture.HoldProne, ScoringMode.WeightedProduct, o => o
-                .Consider(In.HealthFraction(),              0.8f, Curve.InverseLinear)
+                .Consider(In.HurtOrUnderFire(),             0.8f, Curve.Linear)
                 .Consider(In.HaveLiveTarget(),              1.0f, Curve.Step)
                 .Consider(In.EqsTopScore(FindCoverFromTarget.AssetId),  1.0f, Curve.InverseLinear)   // no cover
-                .Consider(In.EnemyStrengthRatio(),          0.6f, Curve.Logistic))
+                .Consider(In.EnemyStrengthRatio(),          0.6f, Curve.Logistic)
+                .Modify(In.AggressionDamp(),                1.0f, Curve.Linear))
             .Option((ushort)Posture.Hold, ScoringMode.WeightedSum, o => o
                 .Consider(In.HealthFraction(), 0.3f, Curve.Linear)
                 .Consider(In.Constant(0.2f),   1.0f, Curve.Linear));

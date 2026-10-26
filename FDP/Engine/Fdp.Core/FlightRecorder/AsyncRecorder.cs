@@ -91,8 +91,20 @@ namespace Fdp.Core.FlightRecorder
 
         private bool _disposed;
         
+        /// <summary>A recorder that writes <paramref name="filePath"/>, replacing a file already there (tools, examples, tests).</summary>
         public AsyncRecorder(string filePath, RecordingMetadata? metadata = null)
+            : this(filePath, metadata, appendAfterFrames: -1) { }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — the cluster's exercise recorder (<c>RecordingModule</c>): it NEVER overwrites.
+        /// </summary>
+        /// <param name="appendAfterFrames">0: a NEW file — ⛔ <c>FileMode.CreateNew</c>, a loud failure on an existing one (the
+        /// truncation D18 found). N &gt; 0: <paramref name="filePath"/> already holds the global header and N frames (a branch's
+        /// copied history, <see cref="RecordingBranch"/>); this recorder appends after them and counts from N, so a checkpoint mark
+        /// names its frame in the whole file. (-1, the other constructor: replace a file already there.)</param>
+        public AsyncRecorder(string filePath, RecordingMetadata? metadata, int appendAfterFrames)
         {
+            if (appendAfterFrames < -1) throw new ArgumentOutOfRangeException(nameof(appendAfterFrames));
             _filePath = filePath;
             _metadata = metadata ?? new RecordingMetadata();
             if (_metadata.Timestamp == default) _metadata.Timestamp = DateTime.UtcNow;
@@ -114,14 +126,23 @@ namespace Fdp.Core.FlightRecorder
             // Open file for async I/O
             _outputStream = new FileStream(
                 filePath, 
-                FileMode.Create, 
+                // ⭐ D18 (R-3047) — a recording never overwrites one: CreateNew, or append after a branch's copied frames.
+                appendAfterFrames switch { > 0 => FileMode.Open, 0 => FileMode.CreateNew, _ => FileMode.Create }, 
                 FileAccess.Write, 
-                FileShare.None, 
+                FileShare.Read,   // ⭐ CE-3299 B3 — a checkpoint is exported from the recording while it is still written 
                 4096, 
                 useAsync: false);
             
-            // Write Global Header immediately (See DES-002)
-            WriteGlobalHeader();
+            if (appendAfterFrames > 0)
+            {
+                _outputStream.Seek(0, SeekOrigin.End);
+                RecordedFrames = appendAfterFrames;
+            }
+            else
+            {
+                // Write Global Header immediately (See DES-002)
+                WriteGlobalHeader();
+            }
         }
 
         private byte[] _compressedBuffer;
@@ -174,6 +195,7 @@ namespace Fdp.Core.FlightRecorder
             // Use the logic from FDP-DES-002
             _recorderSystem.RecordDeltaFrame(repo, prevTick, _frontWriter, wallClockTicks, eventBus);
             _frontWriter.Flush();
+            StampIndex(repo);   // ⭐ CE-3329 P0 — SimTime + Flags for the v7 frame index
             bytesWritten = (int)_frontStream.Position;
             
             // Clear the destruction log after recording
@@ -213,6 +235,7 @@ namespace Fdp.Core.FlightRecorder
             _frontStream.Position = 0;
             _recorderSystem.RecordKeyframe(repo, _frontWriter, wallClockTicks, eventBus);
             _frontWriter.Flush();
+            StampIndex(repo);   // ⭐ CE-3329 P0
             bytesWritten = (int)_frontStream.Position;
             
             // Clear the destruction log
@@ -257,6 +280,25 @@ namespace Fdp.Core.FlightRecorder
             task.Wait();
         }
 
+        // ⭐⭐ CE-3329 P0 (R1) — what the v7 frame index says about the frame being dispatched: its recorded sim time and flags.
+        //   Set on the main thread before the worker is dispatched; the worker reads them (a capture waits for, or drops instead of
+        //   overlapping, a busy worker, so they cannot change under it).
+        private double _pendingSimTime = double.NaN;
+        private byte _pendingFlags;
+
+        private void StampIndex(EntityRepository repo)
+        {
+            var flags = _recorderSystem.LastFrameChanged ? FrameFlags.Changed : FrameFlags.None;
+            if (repo.HasSingletonUnmanaged<GlobalTime>())
+            {
+                var time = repo.GetSingletonUnmanaged<GlobalTime>();
+                _pendingSimTime = time.TotalTime;
+                if (time.IsHalted) flags |= FrameFlags.Halted;
+            }
+            else _pendingSimTime = double.NaN;
+            _pendingFlags = (byte)flags;
+        }
+
         private void ProcessBuffer(byte[] rawData, int length)
         {
             try
@@ -282,7 +324,9 @@ namespace Fdp.Core.FlightRecorder
                         UncompressedSize = length,
                         Tick = tick,
                         FrameType = type,
-                        WallClockTicks = wallClockTicks
+                        WallClockTicks = wallClockTicks,
+                        SimTime = _pendingSimTime,
+                        Flags = _pendingFlags,
                     };
 
                     ReadOnlySpan<byte> headerSpan = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
@@ -320,11 +364,80 @@ namespace Fdp.Core.FlightRecorder
             _outputStream.Flush();
         }
         
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 — waits until every frame captured so far is on disk (and the latest manifest written), so the file
+        /// can be read up to its last frame — an export of a checkpoint just written.
+        /// </summary>
+        public void WaitForWrites()
+        {
+            WaitForWorker();
+            Task? meta;
+            lock (_metadataLock) meta = _metadataTask;
+            meta?.Wait();
+        }
+
+        /// <summary>The recording file this recorder writes.</summary>
+        public string FilePath => _filePath;
+
+        /// <summary>⭐ <c>CE-3299</c> B3 — true when <paramref name="label"/> already names a checkpoint in this recording.</summary>
+        public bool HasCheckpoint(string label) => _metadata.Checkpoints.Exists(m => m.Label == label);
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B3 (R-3044) — names the keyframe this recorder JUST captured (call right after <see cref="CaptureKeyframe"/>):
+        /// the mark goes into the metadata and <c>.meta.json</c> is rewritten at once, so a crash keeps every checkpoint taken
+        /// before it (a fresh process restores from it, D10). The manifests are built here (main thread, the registry); the
+        /// JSON is written off it. Returns the mark.
+        /// </summary>
+        public CheckpointMark MarkCheckpoint(string label, long wallClockTicks, GlobalTime time = default)
+        {
+            if (HasCheckpoint(label)) throw new InvalidOperationException($"the recording already has a checkpoint named '{label}'");
+            var mark = new CheckpointMark
+            {
+                Label = label, Frame = RecordedFrames - 1, WallTicks = wallClockTicks,
+                // ⭐ B4 (D5) — the clock a restore of this mark moves the cluster back to
+                TotalTime = time.TotalTime, UnscaledTotalTime = time.UnscaledTotalTime, FrameNumber = time.FrameNumber,
+            };
+            _metadata.Checkpoints.Add(mark);
+            WriteMetadataSoon();
+            return mark;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — writes <c>.meta.json</c> as it is NOW (main thread: the manifests read the registry). A
+        /// recording calls it on its first frame (CE-3313 — a branch's parent and inherited checkpoints, every recording's exercise, mode
+        /// and schema are on disk at once: a crash keeps them).
+        /// </summary>
+        public void WriteMetadata() => WriteMetadataSoon();
+
+        private Task? _metadataTask;
+        private readonly object _metadataLock = new();
+
+        // ⭐ CE-3299 B3 — the manifest as it is NOW, serialized here and written by a pool thread (one write at a time, in order).
+        private void WriteMetadataSoon()
+        {
+            _metadata.TotalFrames   = RecordedFrames;
+            _metadata.MaxNetworkId  = MaxNetworkId;
+            _metadata.SchemaManifest = BuildSchemaManifest();
+            _metadata.EventManifest  = BuildEventManifest();
+            string json = MetadataSerializer.Serialize(_metadata);
+            string path = _filePath + ".meta.json";
+            lock (_metadataLock)
+            {
+                var previous = _metadataTask ?? Task.CompletedTask;
+                _metadataTask = previous.ContinueWith(_ =>
+                {
+                    try { File.WriteAllText(path, json); }
+                    catch (Exception ex) { LastError = ex; }
+                }, TaskScheduler.Default);
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
             
             _workerTask?.Wait();
+            lock (_metadataLock) _metadataTask?.Wait();   // ⭐ CE-3299 B3 — a mark's manifest is never written over the final one
             _outputStream?.Dispose();
             _frontWriter.Dispose();
             _backWriter.Dispose();

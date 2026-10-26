@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-10-25 (§8.8 AQ104 E ② ③ / AQ105 D — walls and slabs halve a high sound, door sounds and the voice from replicated state) · 2026-10-22 (§8.3a CE-3315 — cursors and seeds are timeline PLACES; the world carries the count, so a restored world goes on hearing) · 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -9,6 +9,9 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - docs/blueprints/Architect_Question_106_Sound_Paths.md — sound round corners / through openings (v2 of §8.8), R-3050
+  - docs/DESIGN_Node_Roles_And_Policies.md §3.0a — who hears (Perception only), who makes sound (every 3-D-map node, from replicated state)
+  - DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS checkpoint restore and R1 (§1k), which found that a restored world stopped hearing; §8.3a here is the fix
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — step-only systems, step windows and the reload probe (§7e) that measured the ring's thread race (§8.3)
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — a sound signature per weapon (A), hearing bounded by distance not terrain (B), a lossless emission ring (C) — OPEN, leans await the user
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (R-3015, CE-1148): the shot / detonation ingress moves to every node with an own-sample skip, replacing §3a's Perception && !MuscleGround branch and its named limit.
@@ -28,6 +31,8 @@ related-designs:
   - docs/designs/packs-1/DESIGN.md §7.B — introduced TargetHeardEvent; retired here (§6 A).
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — OWNS TakeCover / FallBack; §8 here points their sensor at a heard contact's position.
   - docs/DESIGN_Decision_Layer.md §3.3b — OWNS CombatPosture, whose PostureSensors §8 points the same way.
+  - docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md — OWNS E (sound through walls / floors, door sounds); §8.8 here builds ② ③
+  - docs/blueprints/Architect_Question_105_Squad_Callouts.md — OWNS D (a shout is a voice the enemy hears); §8.8 here builds it
   - DESIGN_Terrain_Combat_Tuning.md §5a — the hearing debug layer: emitter rings and heard estimates (HeardTraces), recorded for replay (CE-3117).
 -->
 
@@ -250,9 +255,14 @@ sequenceDiagram
   H->>TS: heat += FiringHeatPerShot per shot this tick
   H->>TS: heat -= heat x CooldownPerSecond x dt, clamp 0..1
   E->>G: candidate passed range, FOV and sight
-  G->>TS: Signature = Base + Heat x (1 - Base)
+  G->>TS: Signature = Base + max(Heat, BarrelHeat) x (1 - Base)
   G-->>E: keep if Signature >= sensor MinSignature
 ```
+
+⭐ **`CE-1358` (`2026-10-25`) — the BARREL is a second heat source.** `ThermalHeatSystem` also writes `ThermalState.BarrelHeat`: the
+hottest barrel of the unit (`WeaponState.Heat`, its own mounts and the station weapons it carries), single-shot guns included. The
+rule that heats and cools a barrel is `BarrelHeat` — 📄 [`DESIGN_Weapon_Layers.md` §5k](DESIGN_Weapon_Layers.md).
+`FiringHeatPerShot` stays the BODY's share.
 
 ## 6. Decisions — why
 
@@ -625,7 +635,7 @@ classDiagram
   class SoundEmissionSystem { <<existing, SimHost main thread>> Execute() appends every shot / burst }
   class SoundEmissionRing { <<NEW managed singleton, id 438>> SoundEmission[] slots (4096) ; long Head ; double Now ; long Overflow ; Append() ; ReadAfter() }
   class SoundEmission { <<NEW struct>> long Serial ; ulong Source ; byte Force ; byte Kind ; byte Class ; Vector3 At ; float Carry ; double Time ; long Signature }
-  class AcousticCursor { <<NEW component on the sensor, id 439>> long LastSerial }
+  class AcousticCursor { <<NEW component on the sensor, id 439>> long LastPlace (CE-3315, was LastSerial) }
   class AcousticSensorGenerator { <<existing>> movement via the grid ; shots / bursts via the ring }
   class EntityRepository_SyncFrom { <<existing, FDP>> borrows allow-listed singletons BY REFERENCE }
   SoundEmissionSystem --> SoundEmissionRing : Append (single writer)
@@ -670,6 +680,35 @@ and with it the cursor, so a skipped or discarded solve re-reads instead of losi
 | a new sensor starts at the current Head | it does not "hear" the minutes before it existed | ⛔ from 0 |
 | ⭐ **a read is AS OF the reader's own time** *(`CE-3293`, `2026-10-21`)*: only sounds made before the snapshot's clock are read, and the cursor stops at the first that is not | 📐 the writer goes on appending the DISPATCHING step's sounds while the background solve runs, so whether those were heard depended on the threads — measured live, four loads of `ua-tank-ammo` 15 Hz stepped: one run heard a burst at 18.40 s, the other three at 18.53 s (one solve later). Every sound before the snapshot's own time was written before the snapshot was taken ⇒ fixed. Cost: a sound is heard by the solve AFTER the step that made it (≤ one step). A view with no clock reads everything, as before | ⛔ copying the ring into the snapshot — 256 KB per dispatch · ⛔ a head captured at sync time — Fdp.Core would have to know the ring's type |
 | N = 4096 entries, T = 30 s | 4096 / 10 s (the circuit's worst skip) ≈ 400 shots / s sustained; T stops a long-silent sensor hearing old news | — the overflow counter tells when N is too small |
+
+#### 8.3a `CE-3315` / `CE-3316` — a restored world goes on hearing *(backend, `2026-10-22`; build-state: BUILT)* — ⛔ SUPERSEDES "the cursor is a serial" above
+
+📐 **Found by R1** ([restore design §1k](DESIGN_Checkpoint_And_Dry_Run_Restore.md)): restored from a checkpoint in a FRESH process, `ua-civ-routine-alarm`'s
+near civilians never heard the 3.1 s shot. The ring is a node object no keyframe carries; the cursors are recorded components holding
+RING SERIALS, so the fresh ring's serials sat below every restored cursor. And the mishearing seed (place = serial − first + 1) restarted
+at the fresh ring's own count. (A restore in the SAME process was already safe from re-hearing: a clock going back starts a new timeline, CE-3292.)
+
+```mermaid
+classDiagram
+  class SoundEmissionRing { <<existing>> PlaceOf(serial) NEW ; Places NEW ; TailBefore(t) NEW ; Resume(places, tail, now) NEW ; ReadAfter(afterPlace) — PLACES in and out }
+  class SoundTimeline { <<NEW unmanaged singleton, id 455, recorded>> long Places ; double At ; SoundEmission Tail[64] (CE-3316) }
+  class SoundEmissionSystem { <<existing>> keeps SoundTimeline = count + newest 64 ; on WorldEpoch.RestoresOf moving — ring.Resume(carried, or the ring's own before now) }
+  class AcousticCursor { <<existing>> long LastPlace }
+  class AcousticPerception { <<existing>> cursor and seed are places }
+  SoundEmissionSystem --> SoundTimeline : writes when the count moves
+  SoundEmissionSystem --> SoundEmissionRing : Restart after a restore
+  AcousticPerception --> SoundEmissionRing : ReadAfter(LastPlace)
+  AcousticPerception --> AcousticCursor
+```
+*What the picture shows that prose hid:* the WORLD owns the count (a recorded singleton a checkpoint carries); the ring only maps its own
+serials onto the world's places — so a cursor and a seed mean the same in the straight run, a restore in this process and a fresh one.
+
+| decision | why | rejected — one line |
+|---|---|---|
+| readers see PLACES (`serial − first + 1 + offset`); the cursor and the seed are places | a place is the world's number; in a fresh process place = serial, so nothing recorded so far changes (goldens hold) | keep serials and remap cursors at a restore — every recorded cursor would still be a ring number |
+| the count is a recorded singleton, `SoundTimeline {Places, At}` | the ring cannot be carried cheaply (a managed singleton has no table version; 256 KB a frame in deltas) | carry the ring — size, and its unread sounds are in flight anyway |
+| on a restore the ring starts a new timeline at the carried count; if the carried count is NEWER than the restored clock (a dry run puts no singleton back) it uses its own count of the sounds before that clock | one rule for a checkpoint restore here, in a fresh process, and a dry-run exit | trust the singleton always — after a dry run it is the abandoned future's |
+| ⭐ **`CE-3316`: the world also carries the 64 NEWEST sounds**; a restore re-appends them at their own places (`Resume`) | 📐 R1 run down step by step: on the first step after 3 s the straight run's Policeman heard a sound made before the checkpoint that his sensor had not read yet; restored, he did not, and his threat freshness kept the gap (decaying). A sensor reads at least every solver slot, so an unread sound is among the last few; ~4 KB | ⛔ *(the first version, `CE-3315`)* accept it as in flight (R-3041) — R1 showed it changes behaviour · carry the whole ring — 256 KB |
 
 ### 8.4 `CE-3283` — a SIGNATURE per weapon, and what the ear can tell *(backend, `2026-10-20`; Q95 A, approved; build-state: BUILT)*
 
@@ -753,7 +792,7 @@ terrain) and the reason Q95 asked for it; a scenario that wanted a launch NOT he
 | `EqsModuleTests.BR14_…` / `CE3276_…` | an 81 mm launch heard at 1.2 km and not at 6 km (past its 5 km) — by a post and by a soldier |
 
 
-### 8.6a `CE-2348` ③ — a heard BURST is placed where it LANDS *(backend, `2026-10-21`; measured; build-state: DESIGN — a lean awaits the user)*
+### 8.6a `CE-2348` ③ — a heard BURST is placed where it LANDS *(backend, `2026-10-21`; measured; build-state: RULED (R-2071), design of the build next)*
 
 📐 **Measured live** (`uc-urban-battle`, `--mode all`, behaviors note ③ — *"own-side shots become enemy contacts 33 m off"*): ⛔ **no
 own-side sound was heard.** The ear's own-force filter (`e.Force == ourForce`, in the ring read and in the movement broadphase) dropped
@@ -766,7 +805,78 @@ enemy round bursting among us places an "enemy, about here" contact ON us, and i
 | ⭐ **lean** | a heard **burst** is a DANGER POINT, not an enemy position: memory keeps it (K2 *"hide from a point is OK"*), but the readers that ask *"is an enemy here?"* (contact in range, strength ratio, keep-in-contact) skip `Explosion`-class anonymous slots; the shooter is placed by his **shot's** report, which K3 already carries | a burst says where the round landed, never where the shooter is — the convoy's only true contact is the RPG's firing point | ⛔ dropping bursts from hearing — loses "hide from a burst" (§8 ③) · ⛔ dropping bursts near the listener — a burst 30 m off is just as much not-an-enemy |
 | ⚠ what would change it | a doctrine that wants "explosions near us" to keep a unit in contact on its own | | |
 
-⇒ ⏳ **awaits the user** — it changes what behaviors' readers count (their lane's half: which readers skip the class).
+⇒ ✅ **RULED `2026-10-22` (R-2071)** — the lean, and more. 🔒 **User, verbatim:** *"i think such an nearby explosion should somehow alert the soldiers if they were calm before, it could also make them beight freightened (under heavy bombardment -> some of them with lower discipline can panic or collapse psychically maybe) - but it should definitely not be an enemy position (this is still unknown and can not be told from a detonation). I think it does not need to create a new dangerous area unless the explosions are repeated there as that might be blocking them in movements"*
+
+| # | ruled | what it means here |
+|---|---|---|
+| E-1 | a heard burst is **never an enemy position** | the "is an enemy here?" readers skip `Explosion`-class anonymous slots (behaviors' half) |
+| E-2 | a burst nearby **alerts** a calm soldier | Calm → Alert, the way a heard shot does |
+| E-3 | it **frightens**; under heavy bombardment a man of low discipline can **panic or collapse** | fear rises with each near burst; past a threshold, discipline decides |
+| E-4 | **no danger area** from one burst — only where bursts **repeat** | a repeatedly shelled spot becomes an area movement avoids |
+
+⏭ E-3 and E-4 need machinery that does not exist (no soldier fear value; no area cost in navigation) ⇒ [Architect Question 101](blueprints/Architect_Question_101_Shelling_Fear_And_Shelled_Areas.md),
+leans awaiting the user. E-1 and E-2 are designed below and built.
+
+#### 8.6b E-1 / E-2 — the build (behaviors, `2026-10-22`; build-state: BUILT, live check pending)
+
+**INVENTORY** (`grep -rn "IsAnonymous"` and the readers of `ThreatDanger.OfSlot` and the squad pool, over `FDP/Toolkits/Fdp.Toolkits`
+and `Hrot/Subsystems/Hrot.AI.Behaviors`, tests excluded; ⚠ graph coverage not checkable through the CLI). 📐 What made a burst an enemy:
+`ThreatDanger.OfClass(Explosion) = 1` (a tank's danger) · `TargetMemory.HearContact` refreshes an IDENTIFIED contact within the burst's
+circle (a shell near a known enemy keeps him live) · `AbsorbBySighting` lets a seen unit inside the circle take the burst over (every
+emitter's `DetonationClass` defaults to Explosion) · the squad pool merges heard slots without their class · `EqsTacticsNodes.TopAim`
+makes the freshest heard slot "the threat" of PeekAndFire / VehicleFightFromCover · `PeekAndFireNodes.FreshestEvidence` puts the blind
+burst on it · `Condition_HasTarget` and `RoomKnowledge.Of` count it.
+
+```mermaid
+classDiagram
+  class TargetMemory { <<existing, grows>> +IsBurst(mem, slot) «anonymous AND class Explosion» · HearContact «a burst: no refresh of a known contact, fuses only with bursts» · AbsorbBySighting «never takes a burst» }
+  class ThreatDanger { <<existing>> OfSlot «a burst ⇒ 0: no enemy» }
+  class SquadPerceptionMergeSystem { <<existing>> a burst is not merged into the pool }
+  class EqsTacticsNodes { <<existing>> TopAim(…, bursts) «only TakeCover / Flee pass true: hide from a point» }
+  class PeekAndFireNodes { <<existing>> FreshestEvidence «skips bursts» }
+  class EqsCombatNodes { <<existing>> Condition_HasTarget «skips bursts» }
+  class RoomGrenade { <<existing>> RoomKnowledge.Of «skips bursts» }
+  class AlertReaders { <<existing, unchanged — E-2>> SopConditions.InContact · ThreatCount ⇒ FirstThreat · TacticalGait.Threatened · LookNodes · MissionDirector UnderAttack }
+  ThreatDanger ..> TargetMemory
+  SquadPerceptionMergeSystem ..> TargetMemory
+  EqsTacticsNodes ..> TargetMemory
+  PeekAndFireNodes ..> TargetMemory
+  EqsCombatNodes ..> TargetMemory
+  RoomGrenade ..> TargetMemory
+  AlertReaders ..> TargetMemory
+```
+
+*What the picture shows: one predicate, `IsBurst`, and every "is an enemy here?" reader asks it; the alert readers do not, so a burst still
+wakes a calm man (E-2). Hide-from-a-point (TakeCover, Flee) keeps it — K2.*
+
+```mermaid
+sequenceDiagram
+  participant S as Sound (burst at the impact)
+  participant M as TargetMemory (listener)
+  participant Q as Squad pool
+  participant R as readers
+  S->>M: HearContact(class Explosion)
+  M->>M: no known contact refreshed · fuse only with a burst · else a new burst slot
+  M-->>R: InContact / FirstThreat / threatened gait — alert (E-2)
+  M--xQ: not merged (no enemy for the squad)
+  R->>M: OfSlot / TopAim / FreshestEvidence / HasTarget
+  M-->>R: a burst is no enemy (danger 0, no target, no blind burst)
+  R->>M: TakeCover / Flee TopAim(bursts: true)
+  M-->>R: the burst's point — hide from it
+```
+
+| rule | why |
+|---|---|
+| a burst never refreshes an identified contact, and fuses only with another burst | a round landing near a known enemy says nothing new about him |
+| a sighting never absorbs a burst | the man seen there did not make the bang |
+| `OfSlot` = 0 for a burst | enemy strength, "N threats near", a danger area's rating count enemies |
+| the squad pool takes no burst | every squad reader (strength, contact in the engagement area, "nothing to fight") counts enemies; the pool keeps no class to tell |
+| TakeCover / Flee still hide from a burst | K2, and §8 ③: hiding from where rounds land is right |
+
+⭐ **As built `2026-10-22`, as drawn:** `TargetMemory.IsBurst` + `BurstClass` (the HearContact and AbsorbBySighting rules in the same file) · `ThreatDanger.OfSlot` · `SquadPerceptionMergeSystem` · `EqsTacticsNodes.TopAim(…, bursts)` (TakeCover / FallBack pass true) · `PeekAndFireNodes.FreshestEvidence` · `EqsCombatNodes.Condition_HasTarget`. `RoomKnowledge.Of` reads the pool, so the merge covers it. Rails, red-proved: `SquadPerceptionMergeSystemTests.CE2348_*` (memory, danger, pool — drop the merge skip ⇒ red) · `PeekAndFireNodesTests.CE2348_*` (a lone burst is nothing to fight — drop the TopAim skip ⇒ red). Fdp.Toolkits 4023/4024 (the one red, `GhostProtocolTests.Execute_RespectsTimeBudget`, came with CE-4044's count budget), SimHost 1853/1853.
+
+**Rejected:** dropping bursts from hearing (loses E-2's alert and the hide) · a class check in each of the ~10 readers without one
+predicate (ten copies of one rule) · `OfClass(Explosion) = 0` (it is also the class value a heard ENTITY can carry; the predicate is the slot's).
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
@@ -831,3 +941,70 @@ mount, the FPV drone's warhead, a static obstacle car) and SUMO traffic, kept si
 
 ⚠ **Behaviour changes in every scenario using these types**: BDC soldiers' shots, tanks' guns and aircraft are now heard — a soldier who hears a
 shot reacts (CE-2106). Told behaviors ([note](blueprints/batches/NOTE_Backend_To_Behaviors_Catalogue_Heard.md)).
+
+### 8.8 AQ104 E ② ③ / AQ105 D — through walls and floors, door sounds, the voice *(backend, `2026-10-25`; R-2079, R-2080; behaviors' handoff items 2–4; build-state: BUILT)*
+
+```mermaid
+classDiagram
+  class IWorldQuery { <<exists>> Trace(from, to, purpose, into) }
+  class TerrainWorldQuery { <<changed>> Trace(Sound): the fire trace's pieces less the ground, Loss = material soundDb }
+  class AcousticPerception { <<changed>> WallFactor(world, ear, source, class) · BandFactor · WallCapDb 6.02 · BodyHeight 1.2 · VoiceRange 40 }
+  class AcousticSensorGenerator { <<changed>> Generate: + the voice of a live shouted Utterance · Hear: + the wall share }
+  class SoundEmissionSystem { <<changed>> HearDoors: a DoorState change ⇒ one ring sound at the doorway }
+  class DoorHeard { <<NEW component 448>> Last : TerrainDoorState }
+  class DoorSounds { <<NEW>> Carry(from, to): lock 5 · swing 15 · breach 40 m }
+  class Utterances { <<changed>> IsShouted(kind): all but Talk }
+  class Utterance { <<exists, replicated dtUtterance>> }
+  class DoorState { <<exists, replicated dtDoorState>> }
+  IWorldQuery <|.. TerrainWorldQuery
+  AcousticSensorGenerator --> AcousticPerception : WallFactor
+  AcousticPerception --> IWorldQuery : Trace(Sound)
+  AcousticSensorGenerator ..> Utterance : reads the replica
+  AcousticSensorGenerator ..> Utterances : IsShouted
+  SoundEmissionSystem ..> DoorState : reads the replica
+  SoundEmissionSystem --> DoorHeard : remembers
+  SoundEmissionSystem --> DoorSounds
+```
+
+*What the picture shows that prose hid:* every new input is a REPLICATED component (`DoorState`, `Utterance`) read on the node that hears —
+never the actor's door command nor the brain's `Callouts.Say`, which live on other nodes (🔒 user, `2026-10-25`: *"sounds sensors are calculated
+on simhost (perception) node only, not on brain"*; *"every node with 3d map has a sound system"*, clarified: *"the sound output anywhere where 3d map is, sound calculation on percpetion
+node"* — Node Roles §3.0a). The brain gains no reader: it hears only the
+anonymous `SoundContact` as before, and never touches the terrain (*"brain should use map only for rendering, no direct access"*).
+
+```mermaid
+sequenceDiagram
+  participant B as Brain node
+  participant N as any node with a sound system
+  participant R as its SoundEmissionRing
+  participant G as AcousticSensorGenerator (Perception)
+  B-->>N: dtDoorState (Closed→Open) · dtUtterance (Challenge)
+  N->>N: SoundEmissionSystem.HearDoors — DoorHeard.Last ≠ state
+  N->>R: Append(Movement, Footsteps, 15 m, at the doorway, the force of the man at it)
+  G->>R: ReadAfter(cursor)
+  G->>G: Hear: d ≤ carry × WallFactor(Trace(Sound) ear↔source)
+  G->>G: a live shouted Utterance on a broadphase target ⇒ a 40 m voice, the same wall share
+```
+
+| decision | why | rejected |
+|---|---|---|
+| ⭐ **a wall or slab HALVES the carry of a high sound** — per crossing `min(material dB, 6.02 dB) × band` (Low ×0.2, Mid ×0.6, High ×1, Q95 B3), `carry × 10^(−Σ/20)` | AQ104 E ②'s approved v1 (R-2079). The cap keeps what the user approved while a material stopping less still stops less (chain-link 0, hedge 5) | ⛔ the full material dB (WQ-E's loudness model): concrete's 40 dB takes a 40 m voice to 0.4 m and every stand-in wall is concrete (M7) — the house would be deaf until v2's paths through open doors exist |
+| `Trace(Sound)` on the seam returns the material's TRUE dB | the seam's contract (`TracePurpose.Sound`: Loss in dB) stays true for v2; the v1 cap is the hearing's rule, not the world's | a seam that answers the capped number — it would lie to v2 |
+| ⛔ the ground is no sound crossing | Q95 B: over terrain hearing is distance only; bass bends round hills | — |
+| the line runs at **1.2 m** over both feet | two men on one floor cross its walls, never its slab; a man upstairs crosses the slab | feet to feet — it grazes the ground floor's own slab |
+| ⭐ a door sound is made by EVERY sound node from the replicated `DoorState` | the hearing node is not the actor's node | ⛔ from `DoorCommandEvent` — it exists on the actor's and the owner's nodes only |
+| its side: the man nearest the doorway within reach (DoorRules, one storey); nobody ⇒ the door's own, no side | the listener's "not my own side" rule needs a force, and the replicated state carries no actor | an actor field on `DoorState` — a wire change for a guess the geometry already makes |
+| `DoorHeard` component (448) holds the last heard state; the first sight only records | R-3039 (a system's memory is ECS state — a checkpoint carries it, no false bang on restore); a load / late join makes no sound | a dictionary on the system |
+| ⚠ a voice is heard as **kind Movement, class Footsteps** | the answer's kind (2 bits) and class (3 bits) are full — the same trade as jets heard as `Rotor` (§8.6, user: *"Jets ok"*); both say "a man there" | widening the flags — every reader and recording |
+| a shout = every kind but `Talk` (`Utterances.IsShouted`), heard 40 m while it lasts | AQ105 D; behaviors' squad calls (`CE-2372`) are shouted by default when appended | a per-kind table — nothing distinguishes them yet |
+
+| ⛔ not built | |
+|---|---|
+| v2 — round corners, through the open door (WQ-E) | the shortest open path room to room; the heard direction the last opening |
+| the TKB's per-signature band (`MovingBand` …) | still read by nothing: v1 takes the band from the class (`SoundBands.Of`) |
+| the hearing gizmo | draws no wall share, no door sound, no voice |
+
+✅ Rails: `AcousticHearingTests` (a wall halves 20 m steps 13 m off: heard in the open, not through it, a 30 m carry still heard · the slab · a low
+sound passes · a shout heard 30 m, talk not, 50 m not, own side not · the shouted kinds); `SoundEmissionSystemTests.AQ104E_ADoorOpened_ShutAndBroken_…`
+(first sight silent; open 15 m at the doorway of the hostile at it; shut, lock 5, breach 40). Red-proofs: each production line removed in turn
+(the wall share · the voice · the door call) ⇒ red.

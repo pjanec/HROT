@@ -93,29 +93,14 @@ namespace Fdp.Toolkit.Lifecycle
             _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
         
-        /// <summary>
-        /// ⭐⭐⭐ <b>The replay gate, set by the composition root.</b> While it returns <c>true</c>,
-        /// <see cref="Systems.LifecycleSystem"/> does nothing — 📄 <c>mgmt-1/DESIGN.md</c> §8.10: during
-        /// replay <i>"the ELM pipeline is never invoked"</i>.
-        ///
-        /// <para>⭐ The producer already existed: <c>IRecordReplayController.IsReplayActive</c>, implemented
-        /// by both <c>EcsRecordReplayController</c> and <c>CgfRecordReplayController</c>. ⛔ No new state
-        /// type was invented for this.</para>
-        ///
-        /// <para>⭐⭐ Read LATE, through a lambda, so a root may set it AFTER
-        /// <see cref="RegisterSystems"/> — the controller is frequently built after the module.
-        /// ⚠ Unset means "never replaying", so a host that does not wire it behaves exactly as before.</para>
-        /// </summary>
-        public Func<bool>? IsReplayActive { get; set; }
+        // ⭐⭐⭐ The replay gate — 📄 mgmt-1/DESIGN.md §8.10: during replay "the ELM pipeline is never invoked". ⭐ CE-3329 P2: the
+        //   LifecycleSystem reads the world's Fdp.Toolkit.Replay.ReplayState, set by whatever installs a replay. ⛔ SUPERSEDED: an
+        //   IsReplayActive predicate here, set by the composition root ("unset means never replaying").
 
         public void RegisterSystems(ISystemRegistry registry)
         {
             registry.RegisterSystem(new BlueprintApplicationSystem(_tkb, _translators));
-            registry.RegisterSystem(new LifecycleSystem(this)
-            {
-                // ⭐ late-bound on purpose — see IsReplayActive's remarks.
-                IsReplayActive = () => IsReplayActive?.Invoke() ?? false,
-            });
+            registry.RegisterSystem(new LifecycleSystem(this));   // ⭐ CE-3329 P2 — gated by the world's ReplayState
         }
 
         /// <summary>
@@ -334,6 +319,7 @@ namespace Fdp.Toolkit.Lifecycle
                 
                 _pendingConstruction.Remove(ack.Entity);
                 cmd.DestroyEntity(ack.Entity);
+                Constructed(pending, currentFrame, succeeded: false, ack.ErrorMessage);
                 return;
             }
             
@@ -349,6 +335,7 @@ namespace Fdp.Toolkit.Lifecycle
                     "[Node-{0}] ELM: Entity {1} promoted to Active", _localNodeId, ack.Entity.Index);
                 _pendingConstruction.Remove(ack.Entity);
                 _totalConstructed++;
+                Constructed(pending, currentFrame, succeeded: true, default);
             }
         }
         
@@ -367,6 +354,7 @@ namespace Fdp.Toolkit.Lifecycle
                 cmd.DestroyEntity(ack.Entity);
                 _pendingDestruction.Remove(ack.Entity);
                 _totalDestructed++;
+                Destructed(pending, currentFrame, forced: false);
             }
         }
         
@@ -391,6 +379,7 @@ namespace Fdp.Toolkit.Lifecycle
                 cmd.SetLifecycleState(entity, EntityLifecycle.Active);
                 FdpLog<EntityLifecycleModule>.Debug(
                     "[Node-{0}] ELM: Entity {1} promoted to Active", _localNodeId, entity.Index);
+                Constructed(_pendingConstruction[entity], currentFrame, succeeded: true, default);
                 _pendingConstruction.Remove(entity);
                 _totalConstructed++;
             }
@@ -404,6 +393,7 @@ namespace Fdp.Toolkit.Lifecycle
             foreach (var entity in readyDestruct)
             {
                 cmd.DestroyEntity(entity);
+                Destructed(_pendingDestruction[entity], currentFrame, forced: false);
                 _pendingDestruction.Remove(entity);
                 _totalDestructed++;
             }
@@ -429,6 +419,7 @@ namespace Fdp.Toolkit.Lifecycle
                 _pendingConstruction.Remove(entity);
                 cmd.DestroyEntity(entity);
                 _timeouts++;
+                Constructed(pending, currentFrame, succeeded: false, ConstructionTimeout);
             }
             
             var timedOutDestruction = new List<Entity>();
@@ -445,6 +436,7 @@ namespace Fdp.Toolkit.Lifecycle
                 Console.Error.WriteLine(
                     $"[ELM] Destruction timeout for {entity.Index}. Forcing deletion.");
                 
+                Destructed(_pendingDestruction[entity], currentFrame, forced: true);
                 _pendingDestruction.Remove(entity);
                 cmd.DestroyEntity(entity);
                 _timeouts++;
@@ -476,6 +468,7 @@ namespace Fdp.Toolkit.Lifecycle
         {
             _pendingConstruction.Clear();
             _pendingDestruction.Clear();
+            _outcomes.Clear();   // ⭐ AQ107 — an outcome decided against the replaced world names a handle that no longer means it
             _resumePending = false;
         }
 
@@ -549,6 +542,7 @@ namespace Fdp.Toolkit.Lifecycle
                 ref readonly var identity =
                     ref view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity);
                 BeginConstruction(entity, identity.TkbType, currentFrame, cmd);
+                _pendingConstruction[entity].Resumed = true;   // ⭐ AQ107 — its completion is a re-derive, not a new entity
                 reopenedConstructions++;
             }
 
@@ -570,6 +564,67 @@ namespace Fdp.Toolkit.Lifecycle
 
         private static readonly FixedString64 ResumeDestructionReason = new FixedString64("resume-from-restored-world");
 
+        // ── ⭐ AQ107 (CE-3323) — the generic notifications: what finished this frame ──────────────────────────
+        // 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4e. Recorded where the outcome is decided (no view there), published by
+        // LifecycleSystem at the end of its tick, while the command buffer has not yet destroyed anything (so the entity still reads).
+
+        private static readonly FixedString64 ConstructionTimeout = new FixedString64("construction timed out");
+
+        private readonly struct Outcome
+        {
+            public readonly Entity Entity; public readonly bool Construction, Ok, Forced, Resumed;
+            public readonly long TkbType; public readonly FixedString64 Text; public readonly uint Frame;
+            public Outcome(Entity e, bool construction, bool ok, bool forced, bool resumed, long tkbType, FixedString64 text, uint frame)
+            { Entity = e; Construction = construction; Ok = ok; Forced = forced; Resumed = resumed; TkbType = tkbType; Text = text; Frame = frame; }
+        }
+
+        private readonly List<Outcome> _outcomes = new();
+
+        private void Constructed(PendingConstruction p, uint frame, bool succeeded, FixedString64 failure)
+            => _outcomes.Add(new Outcome(p.Entity, true, succeeded, false, p.Resumed, p.BlueprintId, failure, frame));
+
+        private void Destructed(PendingDestruction p, uint frame, bool forced)
+            => _outcomes.Add(new Outcome(p.Entity, false, true, forced, false, 0, p.Reason, frame));
+
+        /// <summary>
+        /// ⭐ AQ107 (CE-3323) — publishes <see cref="EntityConstructionCompleted"/> / <see cref="EntityDestructionCompleted"/> for every
+        /// construction and teardown that finished since the last call, reading each entity's identity off <paramref name="view"/>.
+        /// Called by <see cref="Systems.LifecycleSystem"/> after the acks, drains and timeouts of its tick.
+        /// </summary>
+        internal void PublishOutcomes(ISimulationView view, IEntityCommandBuffer cmd)
+        {
+            // ⭐ CE-3047's idiom — published where the world registered them (every Hrot host does, HrotSharedComponentRegistry; a bare
+            //   test or example world that never asked for them is left alone: playback would throw on an unregistered event).
+            bool construction = view is not EntityRepository r || r.Bus.IsRegistered<EntityConstructionCompleted>();
+            bool destruction  = view is not EntityRepository d || d.Bus.IsRegistered<EntityDestructionCompleted>();
+            foreach (var o in _outcomes)
+            {
+                bool alive = view.IsAlive(o.Entity);
+                long networkId = alive && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity)
+                    ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity).Value : 0L;
+                long tkbType = o.TkbType != 0 || !alive || !view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity)
+                    ? o.TkbType : view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity).TkbType;
+                Guid requestId = alive && view.HasComponent<Components.CreationRequestId>(o.Entity)
+                    ? view.GetComponentRO<Components.CreationRequestId>(o.Entity).Value : Guid.Empty;
+                bool owned = !alive || !view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(o.Entity)
+                    || view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(o.Entity).HasAuthority;
+                if (o.Construction ? !construction : !destruction) continue;
+                if (o.Construction)
+                    cmd.PublishEvent(new EntityConstructionCompleted
+                    {
+                        Entity = o.Entity, NetworkId = networkId, TkbType = tkbType, RequestId = requestId, IsLocallyOwned = owned,
+                        Succeeded = o.Ok, Resumed = o.Resumed, Failure = o.Ok ? default : o.Text, FrameNumber = o.Frame,
+                    });
+                else
+                    cmd.PublishEvent(new EntityDestructionCompleted
+                    {
+                        Entity = o.Entity, NetworkId = networkId, TkbType = tkbType, RequestId = requestId, IsLocallyOwned = owned,
+                        Forced = o.Forced, Reason = o.Text, FrameNumber = o.Frame,
+                    });
+            }
+            _outcomes.Clear();
+        }
+
         public (int constructed, int destructed, int timeouts, int pending) GetStatistics()
         {
             return (_totalConstructed, _totalDestructed, _timeouts, 
@@ -583,6 +638,7 @@ namespace Fdp.Toolkit.Lifecycle
         public long BlueprintId;
         public uint StartFrame;
         public HashSet<int> RemainingAcks = new();
+        public bool Resumed;   // ⭐ AQ107 — re-opened by ResumeFromRestoredWorld
     }
     
     internal class PendingDestruction

@@ -441,6 +441,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (origin == BehaviorOrigin.Operator)
                 OperatorOrderOutcome.Record(repo, entity, behavior.ActiveBehaviorHash, behavior.InstanceId, finished.Outcome, fault);
             _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
+            // ⭐ CE-1249 (BV-10) — the task ended by itself: its result, and the fault that overrode it
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, entity, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskEnded,
+                a: behavior.ActiveBehaviorHash, b: (int)fault, origin: (byte)origin, urgency: (byte)result);
             BehaviorIngressSystem.Clear(repo, entity, _registry);
             // ⭐ CE-2078 (R-199 ②) — a reaction ended ⇒ the task it paused restarts, through the gate, next frame.
             if (BehaviorOriginRank.Pauses(origin)) BehaviorIngressSystem.ResumePausedTask(repo, entity);   // ⭐ CE-3172 — or a possession

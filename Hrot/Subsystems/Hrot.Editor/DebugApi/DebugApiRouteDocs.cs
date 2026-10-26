@@ -174,6 +174,23 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"assetId\":\"00000000-0000-0000-0000-000000000000\"}",
             ExampleGist: "hot-apply an edited graph to the running brain"),
 
+        [("POST", "/ai/reload")] = new RouteDoc(
+            Tool:    "reload_ai_behaviours",
+            Group:   "V — AI assets & graph tabs",
+            Summary: "⭐ CE-1321 — rebuild the C# behaviours (Hrot.AI.Behaviors) and HOT-SWAP them into the running editor: build, copy into the watched directory, wait for the swap; open graph documents are re-decompiled. The same path as the toolbar's Reload AI.",
+            Returns: "{ build: ok|failed|not-found|not-wired|busy, exitCode, errors[], reloaded, note, added[], removed[], behaviours, documentsReconciled, registrarFailures[], seconds }",
+            Hint:    "No parameters. Edit the C# behaviour source first, then reload_ai_behaviours({}). Takes a build (tens of seconds). Example: reload_ai_behaviours({})",
+            Params: Array.Empty<RouteParam>(),
+            Notes: new[]
+            {
+                "Running units KEEP their state: the registry merges in place and a running behaviour's slot memory is untouched; HSM instances are re-bound by slot. A changed params/state LAYOUT is yours to restart (assign it again).",
+                "A failed build is a 200 with build:failed and the compiler's error lines — the running assembly is unchanged.",
+                "Only Hrot.AI.Behaviors hot-reloads. C# anywhere else (engine, toolkits) needs a rebuild and a restart of the editor.",
+                "Cheaper first: a value (stage_entity_variable with owner) or a JSON asset (reload_ai_asset) needs no build at all — the skill's §J ladder.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "rebuild and hot-swap the C# behaviours after editing their source"),
+
         // ── Group W — AI-asset AUTHORING (AQ56 / DESIGN_Mcp_Authoring.md) ────────────────────
         //
         // ⭐⭐⭐ The read-then-edit-by-guid loop. ⛔ The ids in these payloads are the IN-MEMORY ones the
@@ -623,8 +640,8 @@ namespace Hrot.Editor.DebugApi
             Tool:    "director_verify",
             Group:   "Y — node diagnostics",
             Summary: "⭐ CE-4042 — verify scenarios: each loaded from its file, stepped once per frame for runFor, judged by its checks.json and compared with its golden.json (the first difference named). Read the verdicts in director_status's reports[].verify.",
-            Returns: "the director's status (phase, reports[{ status: pass|fail, verify{ passed, verdicts[{name, ok, t, kind}], golden: none|same|different|missing|captured|not-captured, goldenDiff[], written[], problems[] } }])",
-            Hint:    "{scenario} or {scenarios:[…]} or {all:true}; capture:true re-records the golden (refused for a failing run, and refused on a RELOAD). ⭐ fresh:true runs it in a FRESH child process per scenario — the regression verdict and the only safe re-record; it answers {job} at once, read the report with director_verify_job. Without fresh it plays in THIS editor (on screen; each run after the first is a reload, CE-3294). Example: director_verify({scenario:\"ua-tank-ammo\", fresh:true})",
+            Returns: "the director's status (phase, reports[{ status: pass|fail, verify{ passed, verdicts[{name, ok, t, kind}], golden: none|same|different|missing|captured|not-captured, goldenDiff[], written[], problems[], replay: null|same|different|failed, replaySnapshots, replayDiff[], replayNotCarried[] } }])",
+            Hint:    "{scenario} or {scenarios:[…]} or {all:true}; ⭐ replay:true runs it LIVE and compares it, snapshot by snapshot, with its OWN recording played back (CE-4045 H1a — no golden compared; components the recording's manifest does not carry are listed in replayNotCarried, never failed); capture:true re-records the golden (refused for a failing run, and refused on a RELOAD). ⭐ fresh:true runs it in a FRESH child process per scenario — the regression verdict and the only safe re-record; it answers {job} at once, read the report with director_verify_job. Without fresh it plays in THIS editor (on screen; each run after the first is a reload, CE-3294). Example: director_verify({scenario:\"ua-tank-ammo\", fresh:true})",
             Params: new RouteParam[]
             {
                 new("scenario", "string", false, "One scenario"),
@@ -632,15 +649,16 @@ namespace Hrot.Editor.DebugApi
                 new("all", "boolean", false, "Every scenario with a checks.json"),
                 new("capture", "boolean", false, "Re-record each golden (default false)"),
                 new("fresh", "boolean", false, "Run in a fresh child process per scenario (the regression verdict); answers a job id"),
+                new("replay", "boolean", false, "Run LIVE and compare with the run's own recording played back (CE-4045 H1a, R-4085); not with capture"),
             },
-            Notes: new[] { "docs/DESIGN_Scenario_Regression.md — R-4065 (conditions for all, a golden for a feature scenario, a fresh process each), R-4066 (the engine runs it; HTTP and the command line drive it)." },
+            Notes: new[] { "docs/DESIGN_Scenario_Regression.md — R-4085 (replay: the live run against its own recording, §10-1), R-4065 (conditions for all, a golden for a feature scenario, a fresh process each), R-4066 (the engine runs it; HTTP and the command line drive it)." },
             ExampleArgsJson: "{\"scenario\":\"ua-tank-ammo\"}",
             ExampleGist: "verify a scenario against its checks and golden"),
         [("GET", "/director/verify/jobs")] = new RouteDoc(
             Tool:    "director_verify_jobs",
             Group:   "Y — node diagnostics",
             Summary: "⭐ CE-4042 — the fresh-process verify jobs this editor started (POST /director/verify {fresh:true}): each one's state, exit code and output folder.",
-            Returns: "{ jobs[{ job, state: running|done, exitCode, passed, scenarios[], capture, out, junit, log, seconds }] }",
+            Returns: "{ jobs[{ job, state: running|done, exitCode, passed, scenarios[], capture, replay, out, junit, log, seconds }] }",
             Hint:    "Example: director_verify_jobs({})",
             ExampleArgsJson: "{}",
             ExampleGist: "list the fresh verify jobs"),
@@ -1210,39 +1228,41 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/preview/enter")] = new RouteDoc(
             Tool:    "enter_preview",
             Group:   "D — Sim / preview / time",
-            Summary: "Enter preview mode. Snapshots the world (revertible via stop_preview).",
-            Returns: "ok:true envelope.",
-            Hint:    "No required params. Optional: startPaused (bool). Example: enter_preview({startPaused:true})",
+            Summary: "Enter the cluster's dry run (OperatingPreview) from Edit, through the cluster master on every host (R-3052). Never recorded (R-3053).",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "No required params. Optional: startPaused (bool), waitForReady (bool). Example: enter_preview({startPaused:true, waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("startPaused", "boolean", false, "Start preview in paused state"),
+                new("startPaused", "boolean", false, "Start the dry run paused"),
+                new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingPreview"),
             },
             Notes: new[]
             {
-                "Snapshots the world; stop_preview rewinds to this snapshot.",
-                "Single preview slot — mutually exclusive with checkpoint and start_recording{preview}.",
+                "stop_preview rewinds every node to the moment the dry run began.",
+                "A dry run is never recorded: only a live run records (R-3053).",
             },
-            ExampleArgsJson: "{\"startPaused\":true}",
+            ExampleArgsJson: "{\"startPaused\":true,\"waitForReady\":true}",
             ExampleGist: "enter preview paused for deterministic step-based control"),
 
         [("POST", "/preview/exit")] = new RouteDoc(
             Tool:    "stop_preview",
             Group:   "D — Sim / preview / time",
-            Summary: "Exit preview mode; rewinds to the pre-preview snapshot.",
-            Returns: "ok:true envelope.",
-            Hint:    "No params. Example: stop_preview({})",
+            Summary: "Leave the dry run back to Edit through the cluster master; every node rewinds to the moment it began.",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "No required params. Optional: waitForReady (bool). Example: stop_preview({waitForReady:true})",
+            Params: new RouteParam[] { new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingEdit") },
             Notes: new[]
             {
-                "Rewinds all changes made during preview back to the snapshot taken at enter_preview.",
+                "Rewinds all changes made during the dry run.",
             },
-            ExampleArgsJson: "{}",
+            ExampleArgsJson: "{\"waitForReady\":true}",
             ExampleGist: "exit preview and revert all changes since entering preview"),
 
         [("POST", "/scenario/load/edit")] = new RouteDoc(
             Tool:    "load_scenario_edit",
             Group:   "E — Scenario",
             Summary: "Load a scenario for AUTHORING (Edit state), cluster-wide.",
-            Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.",
+            Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
             Hint:    "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
             Params: new RouteParam[]
             {
@@ -1252,6 +1272,7 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
+                "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
                 "Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).",
                 "Edit state freezes sim time — nothing ticks until enter_preview or play.",
                 "CE-102 (2026-08-28) gave CGF the shared edit-load handler, so an edit load is NO LONGER partial on that node. This note previously said CGF had none -- that is now stale. Still prefer load_scenario_live for a real run, and verify either load by reading state.",
@@ -1271,7 +1292,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "load_scenario_live",
             Group:   "E — Scenario",
             Summary: "Load a scenario for RUNNING (Live state), cluster-wide, on any host.",
-            Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.",
+            Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
             Hint:    "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_live({name:\"test-move\",waitForReady:true})",
             Params: new RouteParam[]
             {
@@ -1281,6 +1302,7 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
+                "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
                 "Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).",
                 "Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.",
                 "A live load starts a new exercise run (a fresh ExerciseId), which is what recording and replay key off.",
@@ -1367,7 +1389,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "set_breakpoint",
             Group:   "G — Breakpoints",
             Summary: "Register a run-until-condition breakpoint.",
-            Returns: "{ breakpointId } (e.g. \"BP#1\").",
+            Returns: "{ breakpointId, conditionSummary } (e.g. \"BP#1\", \"Withdrawing entered (PlatoonCommander)\").",
             Hint:    "Req: condition (SearchPredicateDto with $type). Optional: filterNetworkId, occurrenceThreshold, name. Example: set_breakpoint({condition:{\"$type\":\"Lifecycle\",...}})",
             Params: new RouteParam[]
             {
@@ -1381,6 +1403,9 @@ namespace Hrot.Editor.DebugApi
             {
                 "condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).",
                 "Poll get_breakpoint_status after play to detect when the breakpoint fires.",
+                "⭐ CE-1323 — BEHAVIOUR BREAKPOINTS: {\"$type\":\"BehaviourStep\",\"Behaviour\":\"<running behaviour name>\",\"Kind\":K,...} with K = StateEnter|StateExit {State} · InsideEnter {State, Region?: -1 = anything under it, n = region n of a parallel state} · TransitionFires {From?, To, Event?} (no From = a global transition) · EventHandled {Event} (dequeued, consumed or deferred, even when no transition uses it) · NodeRuns {Node: the BTree node's VisualId}. Names are the machine's own (GET /entities/{id}/brain names the running behaviour); a name not in it is a 400 that lists what is.",
+                "Per unit: filterNetworkId. Any other condition: {\"$type\":\"Compound\",\"Operator\":\"And\",\"Conditions\":[<BehaviourStep>, <PropertyMatch …>]} — the rest is checked on the unit at the step. A step scoped to a unit arms its traces; an unscoped step sees only armed units (a Brain tab open, Debug this unit, observe-all).",
+                "Only records written since the last look count, so continue_from_breakpoint never stops twice on one arrival. get_breakpoint_status names what fired (lastHit.what).",
             },
             ExampleArgsJson: "{\"condition\":{\"$type\":\"PropertyMatch\",\"ComponentType\":\"SimTransform\",\"PropertyPath\":\"Position.X\",\"Operator\":\"GreaterThan\",\"Predicate\":{\"$type\":\"Numeric\",\"MinValue\":100,\"MaxValue\":1000000000}},\"name\":\"moved-east\"}",
             ExampleGist: "pause when entity SimTransform.Position.X > 100"),
@@ -1530,6 +1555,11 @@ namespace Hrot.Editor.DebugApi
                 new("networkId", "number", true, "Network id of the entity"),
                 new("path", "string", true, "The variable's name, as list_entity_variables reports it"),
                 new("asset", "string", false, "Blueprint NAME or asset Guid; omit when the entity carries exactly one"),
+                new("owner", "string", false, "⭐ CE-1320 — task · sop · paused · blueprint: write ANY behaviour slot instead of a blueprint variable by name", EnumJson: "[\"task\",\"sop\",\"paused\",\"blueprint\"]"),
+                new("behaviour", "string", false, "With owner: the behaviour / blueprint name (needed when two slots match)"),
+                new("role", "string", false, "With owner: params · variables (default variables)", EnumJson: "[\"params\",\"variables\"]"),
+                new("part", "string", false, "With owner: a node's working-state or hosted-child slot, by its label (as get_entity_slots lists it)"),
+                new("paramsJson", "string", false, "With owner, instead of path/value: a whole parameter set applied through the behaviour's own parser (the start record takes it too)"),
             },
             Notes: new[]
             {
@@ -1541,9 +1571,9 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/entities/{networkId}/variable")] = new RouteDoc(
             Tool:    "stage_entity_variable",
             Group:   "O — Variables (the watch, over HTTP)",
-            Summary: "STAGE a write to one blueprint variable, through the same seam the editor's Details panel uses. The value lands on the next advancing tick — not on this response.",
-            Returns: "{ networkId, asset, assetId, path, staged: true, pending: true, note }",
-            Hint:    "Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:\"Health\", value:42})",
+            Summary: "STAGE a write to a running behaviour's value, through the same seam the editor's Details panel uses — a blueprint variable by name, or (with owner) ANY behaviour slot's params or working state: the task's, the SOP's, a paused task's, an attached blueprint's, a node's or a hosted child's. The value lands on the next advancing tick, IN PLACE — the behaviour is never restarted.",
+            Returns: "{ networkId, asset, assetId, path, staged: true, pending: true, note } — with owner: { networkId, owner, behaviour, part, role, path, component, offset, size, staged, pending, willDrain, startRecordUpdated, restarted:false, note }",
+            Hint:    "Required: networkId, path, value. Example: stage_entity_variable({networkId:1000, path:\"Health\", value:42}). Any slot: stage_entity_variable({networkId:1000, owner:\"task\", role:\"params\", path:\"CoverRadius\", value:40}) — discover owners, behaviours and parts with get_entity_slots.",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network id of the entity"),
@@ -1556,6 +1586,8 @@ namespace Hrot.Editor.DebugApi
                 "Running is not a reason to refuse — it is a reason to stage. There is no \"pause first\" step.",
                 "Until the world advances, get_entity_variable still reports the OLD value with pending: true. Step or play to make it land.",
                 "A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour.",
+                "⭐ With owner, path is dotted (St fields, In fields — e.g. Shots.Count) and [n] indexes an inline array (Shots.Items[1]). A task-params write also rewrites the start record's JSON, so a save and the \"same order again?\" checks stay true.",
+                "⭐ The what-if loop: checkpoint → stage_entity_variable(owner…) → step → read → restore_checkpoint (skill §J).",
             },
             ExampleArgsJson: "{\"networkId\":1000,\"path\":\"Health\",\"value\":42}",
             ExampleGist: "queue Health = 42; it applies on the next advancing tick"),
@@ -1758,7 +1790,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_breakpoint_status",
             Group:   "G — Breakpoints",
             Summary: "Current pause state and last breakpoint hit.",
-            Returns: "{ isPaused, pausedTick, lastHit: { breakpointId, networkId } | null }",
+            Returns: "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, name, conditionSummary, what, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }  — what (CE-1323) is what a behaviour step saw: \"entered Withdrawing\", \"Engaging -> Withdrawing fired on OrderReceived\", \"event Contact handled (consumed)\"; null for a data breakpoint",
             Hint:    "No params. Example: get_breakpoint_status({})",
             Notes: new[]
             {
@@ -1770,28 +1802,26 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/checkpoint")] = new RouteDoc(
             Tool:    "checkpoint",
             Group:   "H — Checkpoint / diff",
-            Summary: "Take a single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true).",
-            Returns: "ok:true with inPreview:true. Returns 409 if a live run is active; 400 if already in preview/checkpointed.",
-            Hint:    "No params. Must NOT be in preview. Example: checkpoint({})",
+            Summary: "Take a named checkpoint of the LIVE run — a keyframe of every node's live recording, through the cluster master (R-3044).",
+            Returns: "{ published, requestId, label }",
+            Hint:    "Optional: label (string). Requires a live run. Example: checkpoint({label:\"before-assault\"})",
+            Params: new RouteParam[] { new("label", "string", false, "The checkpoint's name (restore_checkpoint finds it by it); one is made when omitted, and returned") },
             Notes: new[]
             {
-                "Single slot: mutually exclusive with enter_preview and start_recording{preview}.",
-                "Restore with restore_checkpoint to rewind all changes.",
+                "A checkpoint is part of the live recording (it survives into the replay), not a preview snapshot.",
+                "restore_checkpoint continues the live run from it.",
             },
-            ExampleArgsJson: "{}",
+            ExampleArgsJson: "{\"label\":\"before-assault\"}",
             ExampleGist: "take a checkpoint before an experiment"),
 
         [("POST", "/checkpoint/restore")] = new RouteDoc(
             Tool:    "restore_checkpoint",
             Group:   "H — Checkpoint / diff",
-            Summary: "Rewind the simulation to the checkpointed state via IPreviewController.ExitPreviewMode().",
-            Returns: "ok:true with inPreview:false. Returns 400 if no checkpoint is active.",
-            Hint:    "No params. Requires an active checkpoint. Example: restore_checkpoint({})",
-            Notes: new[]
-            {
-                "Returns 400 if no checkpoint is active.",
-            },
-            ExampleArgsJson: "{}",
+            Summary: "Continue the live run from a named checkpoint, through the cluster master.",
+            Returns: "{ published, requestId, label }",
+            Hint:    "Req: label (string, as checkpoint returned it). Requires a live run. Example: restore_checkpoint({label:\"before-assault\"})",
+            Params: new RouteParam[] { new("label", "string", true, "The checkpoint to restore") },
+            ExampleArgsJson: "{\"label\":\"before-assault\"}",
             ExampleGist: "revert all changes since the last checkpoint"),
 
         [("POST", "/diff/capture")] = new RouteDoc(
@@ -1833,125 +1863,287 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"baselineId\":\"BL#1\",\"entities\":[1000]}",
             ExampleGist: "diff entity 1000 against baseline BL#1"),
 
-        [("POST", "/recording/start")] = new RouteDoc(
-            Tool:    "start_recording",
-            Group:   "I — Recording / replay",
-            Summary: "Start recording. Enters preview and begins writing a .fdp file.",
-            Returns: "{ recording:true, mode, fdpPath }",
-            Hint:    "No required params. Optional: mode (\"preview\"|\"live\", def \"preview\"). Example: start_recording({mode:\"preview\"})",
-            Params: new RouteParam[]
-            {
-                new("mode", "string", false, "Recording mode: \"preview\" (revertible) or \"live\" (not supported in editor mode). Default: \"preview\"",
-                    DefaultJson: "\"preview\"",
-                    EnumJson: "[\"preview\",\"live\"]"),
-            },
-            Notes: new[]
-            {
-                "mode=\"preview\" (default): revertible, uses EnterPreviewMode→PrepareRecordingAsync.",
-                "mode=\"live\": not supported in editor mode.",
-                "Mutually exclusive with checkpoint (both use the preview slot).",
-            },
-            ExampleArgsJson: "{\"mode\":\"preview\"}",
-            ExampleGist: "start a revertible preview recording"),
-
-        [("POST", "/recording/stop")] = new RouteDoc(
-            Tool:    "stop_recording",
-            Group:   "I — Recording / replay",
-            Summary: "Stop the active recording. Finalizes BEFORE the exit rewind.",
-            Returns: "{ recording:false, fdpPath }",
-            Hint:    "No params. Example: stop_recording({})",
-            Notes: new[]
-            {
-                "For preview mode: finalizes BEFORE the exit rewind (hard ordering rule).",
-            },
+        [("GET", "/exercises")] = new RouteDoc(
+            Tool:    "list_exercises",
+            Group:   "I — Replay",
+            Summary: "The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053).",
+            Returns: "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
+            Hint:    "No params. Example: list_exercises({})",
+            Notes: new[] { "Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus." },
             ExampleArgsJson: "{}",
-            ExampleGist: "stop recording and get the .fdp file path"),
+            ExampleGist: "what can be replayed"),
 
-        [("POST", "/replay/load")] = new RouteDoc(
-            Tool:    "load_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Load a .fdp recording into an ISOLATED ReplayBrowserContext.",
-            Returns: "{ loaded:true, fdpPath, totalFrames, currentFrame }",
-            Hint:    "Req: fdpPath (string, absolute path to .fdp file). Example: load_replay({fdpPath:\"/path/to/recording.fdp\"})",
+        [("POST", "/replay")] = new RouteDoc(
+            Tool:    "enter_replay",
+            Group:   "I — Replay",
+            Summary: "Replay an exercise on the whole cluster, from ANY state, in ONE request — the cluster master plans the way (unload, load, seek) (R-3055).",
+            Returns: "{ published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).",
+            Hint:    "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool); on the Replay Browser also path or paths (recording files). Example: enter_replay({atSeconds:30, waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("fdpPath", "string", true, "Absolute path to the .fdp recording file"),
+                new("exerciseId", "string", false, "The exercise (list_exercises); when omitted the master picks: the live run in progress, else the newest finished one"),
+                new("atSeconds", "number", false, "Where to enter, seconds after the exercise's start (default 0)"),
+                new("atSimSeconds", "number", false, "⭐ CE-3329 — or where to enter in the RECORDED sim time (the run's own clock; a pause lands at its end); needs a v7 recording"),
+                new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReplay"),
+                new("path", "string", false, "Replay Browser only (RB-2): one recording file (.fdp) to open, need not be in list_exercises"),
+                new("paths", "array", false, "Replay Browser only (RB-2): a node group — one .fdp per node of one exercise"),
             },
             Notes: new[]
             {
-                "While replay is active, /replay/entities returns entities from the sandbox (not the live world).",
-                "Use list_replay_entities (not list_entities) while replaying.",
+                "With no exerciseId the cluster master picks: the live run in progress, else the newest finished one — the same on every host.",
+                "Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.",
+                "play / pause / step drive the replay clock; seek_replay jumps.",
+                "The Replay Browser (-m replaybrowser, standalone) answers the same: its exercises are the recordings under the staging root; path / paths open any file or node group. A cluster host refuses a path.",
             },
-            ExampleArgsJson: "{\"fdpPath\":\"/path/to/recording.fdp\"}",
-            ExampleGist: "load a .fdp recording for inspection"),
+            ExampleArgsJson: "{\"atSeconds\":30,\"waitForReady\":true}",
+            ExampleGist: "replay the last exercise from 30 s in"),
 
         [("POST", "/replay/seek")] = new RouteDoc(
             Tool:    "seek_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Seek to a specific frame in the ISOLATED sandbox. Does NOT touch the live world.",
-            Returns: "{ frame, totalFrames }",
-            Hint:    "Req: frame (number, 0-based). Example: seek_replay({frame:0})",
+            Group:   "I — Replay",
+            Summary: "Seek the replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap. The moment is atSeconds, or a lookup over THIS node's recording: a frame, a step of frames, the frame after an event (cause), or the next / previous change of a unit (RB-2).",
+            Returns: "{ published, requestId, atSeconds } (+ frame, resolvedFrom for a lookup; next: found, or {found:false, note})",
+            Hint:    "One of: atSeconds (number) · atSimSeconds (number, the recorded sim time) · frame (integer) · frames (integer, ±) · cause ({frame, entity}) · next ({entity, component?}) with direction (1 | -1). Example: seek_replay({next:{entity:1042, component:\"Health\"}, direction:1})",
             Params: new RouteParam[]
             {
-                new("frame", "number", true, "Frame index to seek to (0-based)"),
+                new("atSeconds", "number", false, "Seconds after the exercise's start"),
+                new("atSimSeconds", "number", false, "⭐ CE-3329 — or the RECORDED sim time to land on (a paused instant lands at its end, so what changed during the pause shows); refused for a v6 recording"),
+                new("frame", "integer", false, "A frame of this node's recording"),
+                new("frames", "integer", false, "Frames forward (+) or back (-) from the one shown"),
+                new("cause", "object", false, "{frame, entity}: the frame after an event, where its effect shows (the Event browser's causality jump); select the entity with select_entity"),
+                new("next", "object", false, "{entity, component?}: the next frame where the unit changed (in that component, or any) · {lane}: the next event in a timeline lane (get_timeline_lanes)"),
+                new("direction", "integer", false, "With next: 1 forward (default), -1 backward"),
             },
             Notes: new[]
             {
-                "Isolation guarantee: does NOT touch the live world.",
+                "The cluster pauses for the seek; read get_replay_status, then the ordinary readers.",
+                "A lookup reads this node's own recording; next scans it off the main thread in a reader of its own (the replayed world is not touched) — a long file takes a moment.",
             },
-            ExampleArgsJson: "{\"frame\":0}",
-            ExampleGist: "seek replay to frame 0 (start)"),
+            ExampleArgsJson: "{\"atSeconds\":45}",
+            ExampleGist: "jump the replay to 45 s"),
 
-        [("POST", "/replay/step")] = new RouteDoc(
-            Tool:    "step_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Step one frame forward or backward in the ISOLATED sandbox. Does NOT touch the live world.",
-            Returns: "{ stepped:bool, frame, totalFrames }",
-            Hint:    "No required params. Optional: dir (\"forward\"|\"back\", def \"forward\"). Example: step_replay({dir:\"forward\"})",
+        [("POST", "/replay/stop")] = new RouteDoc(
+            Tool:    "stop_replay",
+            Group:   "I — Replay",
+            Summary: "Leave the replay: the cluster goes to Idle.",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "Optional: waitForReady (bool). Example: stop_replay({waitForReady:true})",
+            Params: new RouteParam[] { new("waitForReady", "boolean", false, "Wait until the cluster reports Idle") },
+            ExampleArgsJson: "{\"waitForReady\":true}",
+            ExampleGist: "end the replay"),
+
+        [("POST", "/review")] = new RouteDoc(
+            Tool:    "enter_review",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 — During Action Review: pause the LIVE run and review its own recording in place — every node keeps its exact live point (a full checkpoint in RAM, a labelled keyframe review-<n> in its recording), the past is shown on the wire, and POST /review/exit returns to exactly where it paused. Only from OperatingLive.",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "Optional: atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) — else the live point; waitForReady (bool). Example: enter_review({atSimSeconds:30, waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("dir", "string", false, "Step direction: \"forward\" or \"back\". Default: \"forward\"",
-                    DefaultJson: "\"forward\"",
-                    EnumJson: "[\"forward\",\"back\"]"),
+                new("atSeconds", "number", false, "Where the review opens, seconds after the recording's zero (default: the live point)"),
+                new("atSimSeconds", "number", false, "Or the recorded sim time to open at"),
+                new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReview"),
             },
-            Notes: new[]
+            Notes: new[] { "In a review: seek with POST /replay/seek (or /review/seek), play / pause / step with /sim/*, the axis with /replay/axis; it pauses itself at the live point.",
+                           "World-changing commands answer 409 until you return (spawn, orders, components, save, checkpoints …)." },
+            ExampleArgsJson: "{\"atSimSeconds\":30,\"waitForReady\":true}",
+            ExampleGist: "look back at the live run"),
+
+        [("POST", "/review/exit")] = new RouteDoc(
+            Tool:    "exit_review",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 — leave the review: every node puts its live point back (the checkpoint restore's semantics), the clock returns to it, the recording resumes — live, paused.",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "Optional: waitForReady (bool). Example: exit_review({waitForReady:true})",
+            Params: new RouteParam[] { new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingLive") },
+            ExampleArgsJson: "{\"waitForReady\":true}",
+            ExampleGist: "back to the live run"),
+
+        [("POST", "/review/seek")] = new RouteDoc(
+            Tool:    "seek_review",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 — the same seek as POST /replay/seek, named for a review (atSeconds, atSimSeconds, frame, frames, cause, next).",
+            Returns: "as seek_replay",
+            Hint:    "One of: atSeconds · atSimSeconds · frame · frames · cause · next. Example: seek_review({atSimSeconds:12})",
+            Params: new RouteParam[]
             {
-                "Isolation guarantee: does NOT touch the live world.",
+                new("atSeconds", "number", false, "Seconds after the recording's zero"),
+                new("atSimSeconds", "number", false, "The recorded sim time"),
             },
-            ExampleArgsJson: "{\"dir\":\"forward\"}",
-            ExampleGist: "step one frame forward in the replay"),
+            ExampleArgsJson: "{\"atSimSeconds\":12}",
+            ExampleGist: "move within the review"),
+
+        [("POST", "/replay/axis")] = new RouteDoc(
+            Tool:    "set_replay_axis",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 — switch the replay's time axis for the whole session (R-3058): Sim (the run's own clock — a play jumps over every paused stretch and its changes land at once) or Wall (pauses play out). No seek: the frame on screen stays.",
+            Returns: "{ published, requestId, axis }",
+            Hint:    "Req: axis (\"Sim\" | \"Wall\"). Example: set_replay_axis({axis:\"Wall\"})",
+            Params: new RouteParam[] { new("axis", "string", true, "\"Sim\" (default) or \"Wall\"") },
+            Notes: new[] { "The master holds it and every node hears it (the cluster-state broadcast); the Replay Browser keeps its own (the viewer's).",
+                           "get_replay_status reports it as axis; atSimSeconds seeks work on either axis." },
+            ExampleArgsJson: "{\"axis\":\"Wall\"}",
+            ExampleGist: "skip or play the pauses"),
 
         [("GET", "/replay/status")] = new RouteDoc(
             Tool:    "get_replay_status",
-            Group:   "I — Recording / replay",
-            Summary: "Replay sandbox status.",
-            Returns: "{ replayActive, currentFrame, totalFrames }",
+            Group:   "I — Replay",
+            Summary: "The cluster's state, the loaded replay's length, this node's replay recording, and its clock.",
+            Returns: "{ clusterState, replaying, durationSeconds, recording, simSeconds, axis, sim, browser } — axis: the session's time axis (Sim | Wall, CE-3329) — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
             Hint:    "No params. Example: get_replay_status({})",
             ExampleArgsJson: "{}",
-            ExampleGist: "check if replay is active and current frame"),
+            ExampleGist: "is the cluster replaying, and where"),
 
-        [("GET", "/replay/entities")] = new RouteDoc(
-            Tool:    "list_replay_entities",
-            Group:   "I — Recording / replay",
-            Summary: "List entities from the ISOLATED replay sandbox at the current frame.",
-            Returns: "Same schema as list_entities but from the sandbox repo, NOT the live world.",
-            Hint:    "No params. Requires load_replay first. Example: list_replay_entities({})",
+        [("POST", "/replay/view")] = new RouteDoc(
+            Tool:    "set_replay_view",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-3): show one node's replayed world or the merged world of all nodes — the Federation panel's switch.",
+            Returns: "the Replay Browser's status (get_replay_status's browser field)",
+            Hint:    "Req: view (\"merged\" or a loaded node id). Example: set_replay_view({view:\"merged\"})",
+            Params: new RouteParam[] { new("view", "string", true, "\"merged\", or the node id whose world to show") },
+            Notes: new[] { "The ordinary readers then read that world. Every other host answers NOT_SUPPORTED_HERE(replay.browser)." },
+            ExampleArgsJson: "{\"view\":\"merged\"}",
+            ExampleGist: "look at every node's units together"),
+
+        [("POST", "/replay/history")] = new RouteDoc(
+            Tool:    "step_replay_history",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-3): back / forward through the playback waypoints — the Timeline's back and forward buttons (every seek leaves one).",
+            Returns: "the Replay Browser's status",
+            Hint:    "Req: direction (\"back\" | \"forward\"). Example: step_replay_history({direction:\"back\"})",
+            Params: new RouteParam[] { new("direction", "string", true, "back | forward") },
+            ExampleArgsJson: "{\"direction\":\"back\"}",
+            ExampleGist: "go back to where the replay was before the last jump"),
+
+        [("POST", "/selection/history")] = new RouteDoc(
+            Tool:    "step_selection_history",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-3): back / forward through the units selected.",
+            Returns: "the Replay Browser's status",
+            Hint:    "Req: direction (\"back\" | \"forward\"). Example: step_selection_history({direction:\"back\"})",
+            Params: new RouteParam[] { new("direction", "string", true, "back | forward") },
+            ExampleArgsJson: "{\"direction\":\"back\"}",
+            ExampleGist: "select the unit selected before"),
+
+        [("POST", "/replay/export")] = new RouteDoc(
+            Tool:    "export_replay_json",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-4): export the shown node's recording to JSON, every option the Timeline panel has, as a job off the main thread.",
+            Returns: "{ job, state:'running', input, path } — poll get_replay_export",
+            Hint:    "All optional: window (full|frames|time), from, to, format (absolute|changelog|incremental), entities (network ids), entityIndex, includeEntities, includeEvents, minified, epsilon, output (file path; default a temp file). Example: export_replay_json({window:\"frames\", from:4000, to:4200, entities:[1042]})",
+            Params: new RouteParam[]
+            {
+                new("window", "string", false, "full (default) | frames | time"),
+                new("from", "number", false, "First frame (frames) or second (time)"),
+                new("to", "number", false, "Last frame (frames) or second (time)"),
+                new("format", "string", false, "absolute (default) | changelog | incremental"),
+                new("entities", "array", false, "Only these units (network ids, resolved in the shown world)"),
+                new("entityIndex", "integer", false, "Only the entity with this index"),
+                new("includeEntities", "boolean", false, "Default true"),
+                new("includeEvents", "boolean", false, "Default true"),
+                new("minified", "boolean", false, "Default false"),
+                new("epsilon", "number", false, "Float tolerance for changes (default 0.001)"),
+                new("output", "string", false, "Where to write (default: a temp file, named in the answer)"),
+            },
+            Notes: new[] { "The file is what the panel's 'Save to JSON' writes for the same options." },
+            ExampleArgsJson: "{\"window\":\"frames\",\"from\":0,\"to\":300,\"format\":\"changelog\"}",
+            ExampleGist: "dump the first 300 frames' changes to a JSON file"),
+
+        [("GET", "/replay/export/{job}")] = new RouteDoc(
+            Tool:    "get_replay_export",
+            Group:   "I — Replay",
+            Summary: "Replay Browser only (RB-4): an export job's state, file and size.",
+            Returns: "{ job, state: running | done | failed, input, path, bytes, error }",
+            Hint:    "Req: job (string, from export_replay_json). Example: get_replay_export({job:\"a1b2c3d4e5f6\"})",
+            Params: new RouteParam[] { new("job", "string", true, "The job id") },
+            ExampleArgsJson: "{\"job\":\"a1b2c3d4e5f6\"}",
+            ExampleGist: "is the export finished, and where is the file"),
+
+        [("GET", "/timeline/lanes")] = new RouteDoc(
+            Tool:    "get_timeline_lanes",
+            Group:   "I — Replay",
+            Summary: "The Event Timeline's lanes on this host (RB-6): each lane with its event count in the shown recording's index, and the index's progress (it builds in the background on first open).",
+            Returns: "{ recording, progress, complete, error, frames, lanes:[{id, name, group, priority, glyph, indexed, count, error}] }",
+            Hint:    "No params. Example: get_timeline_lanes({})",
+            Notes: new[] { "Only a host that keeps a timeline index answers (the Replay Browser today); others: NOT_SUPPORTED_HERE(timeline.read)." },
+            ExampleArgsJson: "{}",
+            ExampleGist: "what the timeline shows, and how far its index is"),
+
+        [("GET", "/timeline/events")] = new RouteDoc(
+            Tool:    "get_timeline_events",
+            Group:   "I — Replay",
+            Summary: "One timeline lane's events in a frame range, optionally only one unit's (RB-6) — what the index already holds, no scan of the file.",
+            Returns: "{ lane, count, truncated, events:[{frame, subject, other, x, y, value}] }",
+            Hint:    "Req: lane (query). Optional from, to (frames), entity (network id), limit (default 500). Example: get_timeline_events({lane:\"shots\", entity:1042})",
+            Params: new RouteParam[]
+            {
+                new("lane", "string", true, "The lane id (get_timeline_lanes)"),
+                new("from", "integer", false, "First frame"),
+                new("to", "integer", false, "Last frame"),
+                new("entity", "number", false, "Only events of this unit (subject or other)"),
+                new("limit", "integer", false, "How many events to return (default 500, at most 5000)"),
+            },
+            Notes: new[] { "seek_replay({next:{lane}}) jumps to the next event of a lane." },
+            ExampleArgsJson: "{\"lane\":\"shots\",\"limit\":20}",
+            ExampleGist: "list a lane's events"),
+
+        [("POST", "/timeline/lanes")] = new RouteDoc(
+            Tool:    "add_timeline_lane",
+            Group:   "I — Replay",
+            Summary: "Add a user's lane to the timeline (RB-6): a descriptor and the condition that makes an event — the lane catalogue's Register; the index scans it in the background.",
+            Returns: "{ registered, note }",
+            Hint:    "Req: Lane ({Id, DisplayName, Group?, Priority?, Glyph?}) and When (a condition, as search_replay takes). Optional Payload. Example: add_timeline_lane({Lane:{Id:\"dmg\", DisplayName:\"Damage\"}, When:{\"$type\":\"PropertyMatch\", ...}})",
+            Params: new RouteParam[]
+            {
+                new("Lane", "object", true, "{Id, DisplayName, Group?, Priority?, Color?, Glyph?}"),
+                new("When", "object", true, "The condition (SearchPredicateDto JSON)"),
+                new("Payload", "object", false, "Which fields of a match to keep (ResultProjectionDto)"),
+            },
+            ExampleArgsJson: "{\"Lane\":{\"Id\":\"dmg\",\"DisplayName\":\"Damage\"},\"When\":{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Health\",\"PropertyPath\":\"Current\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}}",
+            ExampleGist: "add a lane that marks every health change"),
+
+        [("GET", "/entities/{networkId}/journal/history")] = new RouteDoc(
+            Tool:    "get_journal_history",
+            Group:   "I — Replay",
+            Summary: "EVERY brain-journal entry of one unit across this node's replay recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a replayed exercise.",
+            Returns: "{ networkId, from, to, found, gap, count, entries:[{seq, at, kind, text, frame}] }",
+            Hint:    "Req: networkId (number); optional from, to (frames, query). In a replay. Example: get_journal_history({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("from", "number", false, "First frame (query, default 0)"),
+                new("to", "number", false, "Last frame (query, default the last)"),
+            },
             Notes: new[]
             {
-                "Requires an active replay (call load_replay first).",
-                "Does not touch or affect the live world.",
+                "Ask the node that runs the unit's brain (its journal is in that node's recording).",
+                "It reads the recording file frame by frame, read-only: the replayed world is not touched; a long file takes a moment.",
+                "gap:true means entries were lost between two recorded frames (should not happen: every change dirties the unit's record).",
             },
-            ExampleArgsJson: "{}",
-            ExampleGist: "inspect entities at current replay frame"),
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "list every decision unit 1000 made in the exercise, and why"),
 
-        [("POST", "/replay/unload")] = new RouteDoc(
-            Tool:    "unload_replay",
-            Group:   "I — Recording / replay",
-            Summary: "Dispose the replay sandbox and return to live world queries.",
-            Returns: "ok:true envelope.",
-            Hint:    "No params. Example: unload_replay({})",
-            ExampleArgsJson: "{}",
-            ExampleGist: "unload replay sandbox when done inspecting"),
+        [("POST", "/replay/search")] = new RouteDoc(
+            Tool:    "search_replay",
+            Group:   "I — Replay",
+            Summary: "Find the frames of this node's replay recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
+            Returns: "{ count, truncated, hits:[{frame, networkId, context}] }",
+            Hint:    "Req: condition (object, a SearchPredicateDto) or lifecycle (object: {IdentifierType: NetworkId|EcsHandle|NameSubstring, TargetValue, NameComponentType?}). Optional networkId (number), limit (number, default 200). Example: search_replay({condition:{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}, networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("condition", "object", false, "The condition (SearchPredicateDto JSON, as add_breakpoint takes)"),
+                new("lifecycle", "object", false, "RB-5 — the Search panel's lifecycle mode: each matching unit's first and last frame ({mode:'lifecycle', hits:[{startFrame, endFrame, networkId, context}]})"),
+                new("networkId", "number", false, "Only this unit"),
+                new("limit", "number", false, "How many hits to return (default 200)"),
+            },
+            Notes: new[]
+            {
+                "Changed compares each frame with the frame before it (a unit's first frame counts as changed) — e.g. every frame a unit's ActiveBehaviorHash switched.",
+                "ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result.",
+                "Then seek_replay to a hit to read the moment with the ordinary readers.",
+            },
+            ExampleArgsJson: "{\"condition\":{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Fdp.Toolkit.Behavior.Components.BehaviorState\",\"PropertyPath\":\"ActiveBehaviorHash\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}},\"networkId\":1000,\"limit\":10}",
+            ExampleGist: "find when something happened in the recording"),
 
         [("GET", "/logs")] = new RouteDoc(
             Tool:    "get_logs",
@@ -2026,21 +2218,225 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "read AI behavior trace for entity 1000 after arming"),
 
-        [("GET", "/entities/{networkId}/utility")] = new RouteDoc(
-            Tool:    "get_entity_utility",
+        [("GET", "/entities/{networkId}/brain")] = new RouteDoc(
+            Tool:    "get_entity_brain",
             Group:   "K — AI behavior traces",
-            Summary: "What an observed unit's utility decisions chose, and why (CE-3069).",
-            Returns: "{ observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.",
-            Hint:    "Req: networkId (number). Arm with observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster), let the sim tick, then read. Example: get_entity_utility({networkId:1000})",
+            Summary: "What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (every brain unit), contacts, and the brain journal's recent changes.",
+            Returns: "{ networkId, hasBrain, onBrainNode, doing, origin, urgency, sinceSeconds, paused, sop, roe, rightNow:[{channel, actionId, reason, hold, progress, needed}], regions:[{region, state, stateIndex}], squad, choices:[{decisionId, winner, previousWinner, margin, switches}], contacts, heardOnly, journal:{on, seq, changes:[{seq, at, kind, text}]} }",
+            Hint:    "Req: networkId (number). Read on the brain's perspective (Scenario on a cluster). Example: get_entity_brain({networkId:1000})",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network entity ID (long)"),
             },
             Notes: new[]
             {
-                "observe_trace arms the BTree/HSM trace AND the utility record — one switch.",
-                "One entry per decision the unit ran while observed (up to 4); a ranking's winner is a candidate entity {networkId, name}.",
-                "switchCount counts winner changes since arming — poll it to see a posture switch.",
+                "onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.",
+                "choices fill only while the unit is observed (observe_trace, set_debug_settings trace, or its Brain tab open); the journal is always on.",
+                "journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "see what unit 1000 is doing, who ordered it, and what changed lately"),
+
+        [("GET", "/entities/{networkId}/journal")] = new RouteDoc(
+            Tool:    "get_entity_journal",
+            Group:   "K — AI behavior traces",
+            Summary: "A unit's brain journal after a sequence number (CE-1249): every task start / pause / resume / end / clear / refusal (with its reason), SOP change, utility switch, move start and HSM region change, with its cause — the last 24, always on.",
+            Returns: "{ networkId, on, seq, gap, entries:[{seq, at, kind, text}] } — oldest first; gap:true means more than 24 were written since `since` and the oldest are gone.",
+            Hint:    "Req: networkId (number); optional since (number, query, default 0). Example: get_entity_journal({networkId:1000, since:12})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("since", "number", false, "Only entries with seq greater than this (query); pass the last seq you saw"),
+            },
+            Notes: new[]
+            {
+                "seq counts every entry ever written to the unit and never resets — use it to poll without repeats.",
+                "A refusal repeated every tick is ONE entry whose time is refreshed.",
+                "on:false — not a brain unit on this node, or the host was started with the journal switched off.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"since\":0}",
+            ExampleGist: "list what changed in unit 1000's mind and why"),
+
+        [("GET", "/view")] = new RouteDoc(
+            Tool:    "get_view",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, and the units in view nearest first with their screen point.",
+            Returns: "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
+            Hint:    "Optional limit (number, query, default 50). Example: get_view({limit:20})",
+            Params: new RouteParam[]
+            {
+                new("limit", "number", false, "How many in-view units to list, nearest first (query; default 50, max 500)"),
+            },
+            Notes: new[]
+            {
+                "The operator points by SELECTING (click; in first person the select key on the unit under the crosshair) — read primary / selection.",
+                "aimTarget is what the first-person crosshair rests on right now; it moves with the aim.",
+                "inView in 2D is the map's own culling; in 3D / FPS a frustum test (not occlusion) — check a line with explain_line_of_sight using possessed as observer.",
+                "For what the possessed unit itself perceives, read get_entity_sensors / get_entity_memory on possessed.",
+            },
+            ExampleArgsJson: "{\"limit\":20}",
+            ExampleGist: "see what the operator sees and which unit they mean"),
+
+        [("POST", "/view/follow")] = new RouteDoc(
+            Tool:    "follow_unit",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "The map's 3-D camera follows a unit (CE-1293): far away it orbits and looks at him, near it is over his shoulder, at distance 0 it is at his eyes looking where he looks. entity:null hands the camera back to the operator.",
+            Returns: "{ following, distance } — or { following:null } after entity:null. 409 where no map canvas draws the world, or while the station possesses a unit.",
+            Hint:    "Example: follow_unit({entity:4242, distance:20}); stop: follow_unit({entity:null})",
+            Params: new RouteParam[]
+            {
+                new("entity", "number", true, "The unit's networkId (body); null stops following"),
+                new("distance", "number", false, "Metres from him on the continuum (body; default 14; 0 = his eyes; max 400)"),
+            },
+            Notes: new[]
+            {
+                "The operator takes the camera back with W/A/S/D, Esc or a middle-button drag; get_view reports following / followDistance while it lasts.",
+                "Distances are a person's: a vehicle's orbit / shoulder band is 4x, a flyer's 8x.",
+            },
+            ExampleArgsJson: "{\"entity\":4242,\"distance\":20}",
+            ExampleGist: "watch a unit the agent is debugging"),
+
+        [("GET", "/selection")] = new RouteDoc(
+            Tool:    "get_selection",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "The units the operator has selected (CE-1263): the primary and all.",
+            Returns: "{ primary, selection:[networkId] }",
+            Hint:    "No params. Example: get_selection({})",
+            Notes: new[]
+            {
+                "To point the operator at a unit, select_entity (the panels follow the selection) and focus_entity (centres the camera).",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "which unit is the operator asking about"),
+
+        [("POST", "/selection")] = new RouteDoc(
+            Tool:    "select_entity",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "Select a unit for the operator (RB-7, R-4083) — the panels that follow the selection (the inspector, the Diff, seek-to-change) then show it. Through the UI's own request path: SelectEntityCommand, applied by the host's SelectionRequestSystem on the next frame.",
+            Returns: "{ requested, note } — read get_selection after a frame",
+            Hint:    "Req: entity (number, a network id). Example: select_entity({entity:1042})",
+            Params: new RouteParam[] { new("entity", "number", true, "The unit's network id") },
+            Notes: new[]
+            {
+                "Your own reads need no selection — every per-unit route takes the id. This is for pointing the OPERATOR at a unit.",
+                "On the Replay Browser the selection joins its selection history (step_selection_history).",
+            },
+            ExampleArgsJson: "{\"entity\":1042}",
+            ExampleGist: "show the operator unit 1042 in the panels"),
+
+        [("GET", "/entities/{networkId}/debug-settings")] = new RouteDoc(
+            Tool:    "get_debug_settings",
+            Group:   "K — AI behavior traces",
+            Summary: "A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario.",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
+            Hint:    "Req: networkId (number). Editor only. Example: get_debug_settings({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "number", true, "Network entity ID (long)") },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "what is switched on for unit 1000"),
+
+        [("POST", "/entities/{networkId}/debug-settings")] = new RouteDoc(
+            Tool:    "set_debug_settings",
+            Group:   "K — AI behavior traces",
+            Summary: "Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit.",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
+            Hint:    "Req: networkId (number); optional pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("pins", "array", false, "The gizmo families to pin (replaces the set); [] unpins all"),
+                new("trace", "boolean", false, "Record the unit's behaviour trace (remembered)"),
+                new("follow", "boolean", false, "The 3-D camera follows the unit (remembered); false lets go"),
+                new("reset", "boolean", false, "Forget everything remembered for this unit first"),
+            },
+            Notes: new[]
+            {
+                "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal.",
+                "A unit whose Brain tab is open is traced anyway (traceOn), without touching its trace switch.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"pins\":[\"Perception\"],\"trace\":true}",
+            ExampleGist: "watch unit 1000 closely: its vision cone on the map and its trace"),
+
+        [("POST", "/entities/{networkId}/journal/break")] = new RouteDoc(
+            Tool:    "break_on_journal",
+            Group:   "G — Breakpoints",
+            Summary: "Stop the simulation when THIS unit changes its mind (CE-1258): a data breakpoint on its brain journal's sequence number, filtered to the unit (a neighbour's change does not stop it); optionally only for some entry kinds.",
+            Returns: "{ breakpointId, networkId } — then poll get_breakpoint_status: its lastHit.journalWrittenByTheTick lists the entries the hit tick wrote.",
+            Hint:    "Req: networkId (number); optional kinds (string[]: TaskStarted, TaskPaused, TaskResumed, TaskEnded, TaskCleared, TaskRefused, SopStarted, SopEnded, DecisionSwitched, MoveStarted, PlayStarted, PlayPhase, PlayEnded, OrderIssued, StateChanged). Example: break_on_journal({networkId:1000, kinds:[\"TaskStarted\",\"TaskPaused\"]})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("kinds", "array", false, "Only stop for these journal entry kinds (default: any entry)", ItemsJson: "{\"type\":\"string\"}"),
+            },
+            Notes: new[]
+            {
+                "A stop shows the world at the START of the tick that changed it (the cause still in place); continue_from_breakpoint({step:true}) runs that tick.",
+                "It keeps firing on every later change until removed with remove_breakpoint.",
+                "Editor only, like every breakpoint.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "pause the next time unit 1000's brain changes"),
+
+        [("GET", "/utility/decisions")] = new RouteDoc(
+            Tool:    "list_utility_decisions",
+            Group:   "K — AI behavior traces",
+            Summary: "Every registered utility decision (CE-1325): name, asset id, kind, option count — the C# [UtilityDecision] classes.",
+            Returns: "[{ decisionId, name, assetId, kind, options }]",
+            Hint:    "No params. Example: list_utility_decisions({})",
+            ExampleArgsJson: "{}",
+            ExampleGist: "list the utility decisions"),
+
+        [("GET", "/utility/decisions/{key}")] = new RouteDoc(
+            Tool:    "get_utility_decision",
+            Group:   "K — AI behavior traces",
+            Summary: "What a utility decision IS (CE-1325): per option its aggregation and considerations (input, context, weight, curve kind + slope / exponent / shift, modifier); with networkId that unit's values (winner, margin, per-consideration raw -> curved -> weighted).",
+            Returns: "{ decisionId, name, assetId, kind, ranking, hysteresis, options:[{optionId, name, aggregation, considerations:[{input, context, weight, curve, slope, exponent, xShift, modifier, raw?, curved?, weighted?}], score?, winner?, zeroedBy?}], live?:{unit, traced, evaluations, switches, winner, runnerUp, margin, ranked} }",
+            Hint:    "Req: key (asset id, name or id). Optional networkId (query). Example: get_utility_decision({key:\"Combat posture\", networkId:1007})",
+            Params: new RouteParam[]
+            {
+                new("key", "string", true, "The decision's asset id, its name, or its numeric id"),
+                new("networkId", "number", false, "A unit: adds its values (query parameter)"),
+            },
+            Notes: new[]
+            {
+                "The settings come from the RUNNING definition — the same for a C#-built behaviour as for an authored one.",
+                "Live per-consideration values need the unit traced (observe_trace); without, live.traced is still true when the decision log exists and the rows have no raw values.",
+                "An option scored 0 names the consideration that zeroed it (zeroedBy).",
+            },
+            ExampleArgsJson: "{\"key\":\"Combat posture\"}",
+            ExampleGist: "read a utility decision's settings"),
+
+        [("GET", "/behaviours/{name}/decisions")] = new RouteDoc(
+            Tool:    "get_behaviour_decisions",
+            Group:   "K — AI behavior traces",
+            Summary: "Which node / state / transition of a behaviour binds which utility decision, and how (CE-1325): ChooseOption chooses, RankCandidates ranks, an IsOption guard reads one option, a custom action holds one in its params.",
+            Returns: "{ behaviour, bindings:[{kind: node|state|transition, element, label, role: Chooses|Ranks|Reads|Holds, via (the params field), decision, assetId, decisionId, option?}] }",
+            Hint:    "Req: name (the registered behaviour). Example: get_behaviour_decisions({name:\"CombatPosture\"})",
+            Params: new RouteParam[]
+            {
+                new("name", "string", true, "The registered behaviour name"),
+            },
+            Notes: new[]
+            {
+                "Read from the running blob: a node's method key carries its params offset, and the behaviour's default params hold the decision reference there.",
+            },
+            ExampleArgsJson: "{\"name\":\"CombatPosture\"}",
+            ExampleGist: "which nodes of a behaviour run which utility decision"),
+
+        [("GET", "/entities/{networkId}/utility")] = new RouteDoc(
+            Tool:    "get_entity_utility",
+            Group:   "K — AI behavior traces",
+            Summary: "What a unit's utility decisions chose, and why (CE-3069) — the decisions on EVERY brain unit, always (CE-1319); the per-consideration breakdown only while observed.",
+            Returns: "{ observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.",
+            Hint:    "Req: networkId (number). The decisions need no arming; for lastPass (the considerations) arm observe_trace({networkId,on:true}) on the Brain perspective (Scenario on a cluster) and let the sim tick. Example: get_entity_utility({networkId:1000})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+            },
+            Notes: new[]
+            {
+                "⭐ CE-1319 (BV-61): the decision log is on every brain unit, always — so it replays too; observe_trace arms only the BTree/HSM trace and the utility per-consideration trace (lastPass).",
+                "One entry per decision the unit ran (up to 4); a ranking's winner is a candidate entity {networkId, name}. observed:false = no brain log on this node (not a brain unit here).",
+                "switchCount counts winner changes since the unit's brain started — poll it to see a posture switch.",
                 "lastPass is the most recent option decision's per-consideration breakdown; rankings trace only their winner.",
             },
             ExampleArgsJson: "{\"networkId\":1000}",
@@ -2050,7 +2446,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_entity_weapons",
             Group:   "K — AI behavior traces",
             Summary: "A unit's weapon mounts (owner = mount 0, then mount children) — ammo, cooldown, TKB numbers; with ?target= the WeaponSelection inputs per mount and the chosen mount (CE-3089).",
-            Returns: "{ count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], choice? }",
+            Returns: "{ count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, turret?, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], turrets:[{index, part, azimuthDeg?, elevationDeg?, task?:{mode, mount, epoch, target, point, roundsGranted}, muscle?:{state, failure, epoch, roundsFired}}], choice? }",
             Hint:    "Req: networkId (number); optional target (number, query). Read on the Brain perspective. Example: get_entity_weapons({networkId:1000, target:1002})",
             Params: new RouteParam[]
             {
@@ -2610,6 +3006,26 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"from\":\"102,90,1.6\",\"to\":\"102,104,1.6\"}",
             ExampleGist: "check whether a window lets a soldier outside see into a room"),
+
+        [("GET", "/perception/hearing")] = new RouteDoc(
+            Tool:    "explain_hearing",
+            Group:   "K — AI behavior traces",
+            Summary: "What one unit could hear in the last seconds and why not, as this node's hearing sensor decides it — each sound's verdict (heard / beyond its carry / beyond his ear / walls or corners / his own side), the straight line's loss, the way round through doorways, windows, stairs and street corners, and where it seems to come from (AQ106 L).",
+            Returns: "{ listener, seconds, count, heard, sounds:[{source, kind, class, at, ageSeconds, carry, distance, effectiveCarry, verdict, via, heardFrom, straightDb, crossings, pathMetres, pathDb, openings, corners, route:[[x,y,z]]}], note }",
+            Hint:    "Req: listener (network id); seconds (default 10). Example: explain_hearing({listener:1001, seconds:5})",
+            Params: new RouteParam[]
+            {
+                new("listener", "number", true, "the hearing unit's network id"),
+                new("seconds", "number", false, "how far back the short sounds (shots, bursts, doors) are listed; default 10"),
+            },
+            Notes: new[]
+            {
+                "A dry run of the SAME sensor (its ears and its one verdict, AcousticSensorGenerator.Judge) — it cannot disagree with what was heard; it moves no cursor.",
+                "Answers where hearing runs (the Perception node: SimHost, the editor); 404 when the listener is not on this node or has no acoustic sensor here.",
+                "The moving and shouting bodies are those near him NOW; the short sounds are the ring's of the last `seconds`.",
+            },
+            ExampleArgsJson: "{\"listener\":1001,\"seconds\":5}",
+            ExampleGist: "find out why the defender did not hear the attacker on the stairs"),
 
         [("GET", "/perception/los")] = new RouteDoc(
             Tool:    "explain_line_of_sight",

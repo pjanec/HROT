@@ -41,51 +41,10 @@ public sealed class ClearingScenarioTests : IDisposable
         foreach (var id in _staged) NasScenarioStaging.Remove(id);
     }
 
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
-
-    private static Entity ByName(EntityRepository world, string name)
-    {
-        for (int i = 0; i <= world.MaxEntityIndex; i++)
-        {
-            var e = world.GetEntityByIndex(i);
-            if (!world.IsAlive(e) || !world.HasComponent<EntityInfo>(e)) continue;
-            if (world.GetComponent<EntityInfo>(e).Name.ToString() == name) return e;
-        }
-        return Entity.Null;
-    }
-
-    /// <summary>Stages <c>scenarios/&lt;name&gt;</c>, boots the four hosts and takes the cluster live.</summary>
-    private async Task<HrotRunnerHarness> Live(string scenario)
-    {
-        var id = scenario.Replace('-', '_') + "_" + Guid.NewGuid().ToString("N");
-        _staged.Add(id);
-        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(id));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", scenario, "scenario.json"),
-            Path.Combine(NasScenarioStaging.DirectoryOf(id), "scenario.json"), overwrite: true);
-
-        var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
-        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
-        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
-        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
-        {
-            harness.PumpFrames(1);
-            Thread.Sleep(10);
-        }
-        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
-        {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = id }),
-        }).ConfigureAwait(false);
-        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000),
-            $"cluster must reach OperatingLive; at {(int)master.CurrentClusterState}");
-        return harness;
-    }
+    private static string RepoRoot() => ScenarioTwin.RepoRoot();
+    private static Entity ByName(EntityRepository world, string name) => ScenarioTwin.ByName(world, name);
+    /// <summary>Stages <c>scenarios/&lt;name&gt;</c>, boots the four hosts and takes the cluster live (<see cref="ScenarioTwin.Live"/>).</summary>
+    private Task<HrotRunnerHarness> Live(string scenario) => ScenarioTwin.Live(scenario, _staged, NextDomainId());
 
     /// <summary>
     /// The PROGRESS reports a squad has made, in order: (subtype, where). ⚠ A squad with NO superior never SENDS (its reports wait in

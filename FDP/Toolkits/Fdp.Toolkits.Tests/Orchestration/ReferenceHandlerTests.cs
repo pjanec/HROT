@@ -222,14 +222,153 @@ public sealed class ReferenceHandlerTests
         Assert.Equal(90_000_000L, span.LastFrameWallTicks);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3329</c> PW — §12c W2: a replay seek holds this node's egress BEFORE the world swaps and keeps it held after the node
+    /// answers; only the master's next cluster-state broadcast (sent when every node answered) releases it — once.
+    /// </summary>
+    [Fact]
+    public async Task W2_A_replay_seek_holds_egress_until_the_masters_commit_broadcast()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 1_000_000L };
+        var handler    = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        handler.OnClusterStateUpdate(ClusterState.OperatingReplay, masterGone: false);   // a broadcast before any seek: nothing
+        Assert.Equal(0, controller.Releases);
+
+        await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 1,
+            Operation     = NodeOpType.NodeReplaySeek,
+            DomainPayload = new ReplaySeekPayload(5_000L),
+        }, CancellationToken.None);
+        Assert.Equal(new[] { "hold" }, controller.HoldLog);   // held before the seek, still held after the answer
+
+        handler.OnClusterStateUpdate(ClusterState.OperatingReplay, masterGone: false);   // the master's commit
+        handler.OnClusterStateUpdate(ClusterState.OperatingReplay, masterGone: false);
+        Assert.Equal(new[] { "hold", "release" }, controller.HoldLog);
+    }
+
+    // ── CE-3329 P3 — During Action Review on a node ─────────────────────────────
+
+    private sealed class CapturingRegistry : Fdp.ModuleHost.Abstractions.ISystemRegistry
+    {
+        public List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> Systems { get; } = new();
+        public void RegisterSystem<T>(T system) where T : Fdp.ModuleHost.Abstractions.IEcsModuleSystem => Systems.Add(system);
+        public Fdp.ModuleHost.Abstractions.IEcsModuleSystem RegisterManualSystem<T>(T system) where T : Fdp.ModuleHost.Abstractions.IEcsModuleSystem { Systems.Add(system); return system; }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-3329 P3 (§3c, F1, F11, D-B, D-C) — live → review → live leaves the world IDENTICAL, singletons included: the review
+    /// forces a labelled keyframe of the live point into the recording, suspends the recorder (nothing of the review is written),
+    /// keeps the FULL checkpoint in RAM, and the return puts it back with the checkpoint's semantics and resumes the SAME recording.
+    /// 🔴 The dry run's capture (NodeDryRun) would have dropped the singleton and come back with the replayed value.
+    /// </summary>
+    [Fact(Timeout = 20_000)]
+    public async Task CE3329_Live_review_live_leaves_the_world_identical_and_the_recording_resumable()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "ce3329-review-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new Fdp.Toolkits.Tests.Replay.KeyframeTestPos { X = 7f });
+            world.SetSingletonUnmanaged(new Fdp.Toolkits.Tests.Replay.KeyframeTestWorldState { Value = 42 });
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 12.0, DeltaTime = 0f, TimeScale = 1f, TotalWallTicks = 5_000 });   // paused
+
+            var recording = new Fdp.Toolkit.Replay.RecordingModule(new Fdp.Toolkit.Replay.RecordingConfiguration
+            {
+                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = Guid.NewGuid(), NodeId = 1, Blocking = true,
+            });
+            var registry = new CapturingRegistry();
+            recording.RegisterSystems(registry);
+            void Frame() { world.Tick(); foreach (var sys in registry.Systems) sys.Execute(world, 0f); }
+            Frame();   // the recording's first (key)frame
+
+            var controller = new SeekCapturingController();
+            var gates = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, dir);
+            var review = new ReferenceReviewHandler(controller, () => recording, gates, world, accumulator: null, worldReplaced: null,
+                                                    resumeSchedule: null, storageDirectory: dir);
+
+            // ── ENTER: the handler waits for its keyframe — the "frames" keep coming meanwhile ──
+            var enter = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareReview };
+            var prepare = review.PrepareAsync(enter, CancellationToken.None);
+            while (!prepare.IsCompleted) { Frame(); await Task.Delay(2); }
+            Assert.IsType<ReplayPrepareResult>(await prepare);
+            review.Commit(enter, null);
+            Assert.True(review.InReview);
+            Assert.Equal("review-1", review.LastReviewLabel);
+            Assert.NotNull(recording.FindCheckpoint("review-1"));                                   // D-C: the live point, recorded
+            Assert.True(Fdp.Toolkit.Replication.Services.EgressHold.IsHeld(world));                // W2
+
+            // ── THE REVIEW: the playback rewrites the world (a moved unit, a unit that did not exist at L, a past singleton) ──
+            world.GetComponentRW<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X = -1f;
+            var ghost = world.CreateEntity();
+            world.AddComponent(ghost, new Fdp.Toolkits.Tests.Replay.KeyframeTestPos { X = 99f });
+            world.SetSingletonUnmanaged(new Fdp.Toolkits.Tests.Replay.KeyframeTestWorldState { Value = 3 });
+            long sizeBefore = new FileInfo(Path.Combine(dir, "node.fdp")).Length;
+            Frame(); Frame();
+            recording.WaitForWrites();
+            Assert.Equal(sizeBefore, new FileInfo(Path.Combine(dir, "node.fdp")).Length);          // R8: nothing of the review written
+
+            // ── RETURN ──
+            var exit = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.FinalizeReview };
+            await review.PrepareAsync(exit, CancellationToken.None);
+            review.Commit(exit, null);
+
+            Assert.False(review.InReview);
+            Assert.Equal(7f, world.GetComponentRO<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X);
+            Assert.False(world.IsAlive(ghost));
+            Assert.Equal(42, world.GetSingletonUnmanaged<Fdp.Toolkits.Tests.Replay.KeyframeTestWorldState>().Value);   // F1
+
+            // 📌 measured live: the kernel's clock push resumes before the MASTER snaps the clock back — the review's clock reaches the
+            //   world for a few frames (and the FIRST frame carries L from the restored singleton). Nothing may be recorded until the clock
+            //   STANDS at L.
+            Frame();                                                                                  // the restored singleton: L, once
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3.5, TotalWallTicks = 6_000 });
+            Frame(); Frame();
+            recording.WaitForWrites();
+            Assert.Equal(sizeBefore, new FileInfo(Path.Combine(dir, "node.fdp")).Length);
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 12.0, TotalWallTicks = 6_100 });   // the master's SnapTo(L) landed
+            for (int i = 0; i < Fdp.Toolkit.Replay.RecorderTickSystem.FramesAtLivePointToResume; i++) Frame();
+            recording.WaitForWrites();
+            Assert.True(new FileInfo(Path.Combine(dir, "node.fdp")).Length > sizeBefore);            // the SAME recording goes on
+            recording.Dispose();
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>⭐ CE-3329 D-C / F4 — a node that drops to Idle during a review abandons it: the RAM checkpoint dropped, the gates off,
+    /// the egress released; the way back is the recording's labelled keyframe.</summary>
+    [Fact]
+    public void CE3329_A_review_never_entered_ignores_idle_and_its_ops_are_its_own()
+    {
+        var controller = new SeekCapturingController();
+        using var world = new EntityRepository();
+        var review = new ReferenceReviewHandler(controller, () => null, new ReferenceReplayLoadHandler(controller, null, null, null, null, null, "."),
+                                                world, null, null, null, ".");
+        Assert.True(review.CanHandle(NodeOpType.PrepareReview));
+        Assert.True(review.CanHandle(NodeOpType.FinalizeReview));
+        Assert.False(review.CanHandle(NodeOpType.PrepareReplay));
+        review.OnEnteredIdle();
+        Assert.False(review.InReview);
+    }
+
     private sealed class SeekCapturingController : IRecordReplayController
     {
+        public System.Collections.Generic.List<string> HoldLog { get; } = new();
+        public int Releases => HoldLog.FindAll(x => x == "release").Count;
+        public void HoldEgress(string reason) => HoldLog.Add(LastSeekTarget == 0 ? "hold" : "hold-after-seek");
+        public void ReleaseEgress() => HoldLog.Add("release");
         public long LastSeekTarget { get; private set; }
         public long ActiveRecordingStartWallTicks { get; set; }
         public long ActiveRecordingEndWallTicks { get; set; }
         private long _anchor;
         /// <summary>Like the real controller: the cluster's anchor once set, else this recording's start.</summary>
         public long ReplayAnchorWallTicks { get => _anchor != 0 ? _anchor : ActiveRecordingStartWallTicks; set => _anchor = value; }
+        public string? ActiveReplayFilePath => null;
         public bool IsRestoringReplay { get; private set; }
         /// <summary>R-4012 — when false the fake's recording does not cover the moment: it restores nothing.</summary>
         public bool Covers { get; set; } = true;

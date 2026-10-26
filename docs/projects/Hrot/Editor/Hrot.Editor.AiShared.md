@@ -286,7 +286,7 @@ Editor-side blackboard variable management shared across BTree and HSM editors.
 | `ILiveSessionProvider.cs` | `interface ILiveSessionProvider` | Reports live entity count per asset. |
 | `LiveSessionRegistry.cs` | `sealed class LiveSessionRegistry` | Maps `assetId -> IAiDebugSession`; reports count 1 when attached. |
 | `IRuntimeInspectorPane.cs` | `interface IRuntimeInspectorPane` | Subsystem pane contract for `RuntimeInspectorWindow`. |
-| `ITraceLaneProvider.cs` | `interface ITraceLaneProvider` + `TraceLaneDescriptor` | Subsystem swim-lane definitions for `TraceTimelineWindow`. |
+| ~~`ITraceLaneProvider.cs`~~ | ⛔ moved `2026-10-26` (R-4078) | Now `Fdp.Toolkits/ReplayBrowser/Timeline/ITimelineLaneProvider.cs` — one lane seam shared with the Event Timeline (`DESIGN_Director_Timeline_Editor.md` §9d). |
 
 ### `Hrot.Editor.AiShared.Windows`
 
@@ -296,7 +296,7 @@ Editor-side blackboard variable management shared across BTree and HSM editors.
 | `BlackboardAuthoringWindow.cs` | `sealed class BlackboardAuthoringWindow` | Docked panel for editing the blackboard variable list of the active asset. Renders variable rows with type, byte size, alias badges, and inline rename. Shows inline/heavy byte budget gauges. Delegates to `VariablesPanelControl` and `BlackboardBinPacker`. Window ID: `ai_blackboard_variables`. |
 | `InspectorWindow.cs` | `sealed class InspectorWindow` | Active-asset property panel; context menu for Find References, Rename. |
 | `RuntimeInspectorWindow.cs` | `sealed class RuntimeInspectorWindow` | Shell that delegates to registered `IRuntimeInspectorPane` implementations. |
-| `TraceTimelineWindow.cs` | `sealed class TraceTimelineWindow` | Shell that delegates to registered `ITraceLaneProvider` implementations. |
+| `TraceTimelineWindow.cs` | `sealed class TraceTimelineWindow` | Shell that delegates to registered `ITimelineLaneProvider` implementations whose `Applies(context)` matches the asset kind. |
 | `FindResultsWindow.cs` | `sealed class FindResultsWindow` | Renders find-references results and rename preview diffs. |
 | `DiagnosticsWindow.cs` | `sealed class DiagnosticsWindow` | Runs all registered `IAssetValidator` instances against all catalog assets each frame; displays colored table. |
 | `ShellCommandCoreBundle.cs` | `sealed class ShellCommandCoreBundle` | `IUiBundle` wrapping `CgfEditorShellToolbar.RegisterCommonCore`; composed by **both** hosts (`CE-069`). |
@@ -785,12 +785,15 @@ public interface IRuntimeInspectorPane
     void Draw();
 }
 
-public sealed record TraceLaneDescriptor(string Id, string DisplayName, TraceLevel SupportedLevels);
+// ⭐ R-4078 (2026-10-26): the lane seam lives in Fdp.Toolkits (namespace Fdp.Toolkit.ReplayBrowser.Timeline), shared with the
+// Event Timeline — see docs/DESIGN_Director_Timeline_Editor.md §9d. TraceLevel moved with it.
+public sealed record TimelineLaneDescriptor(string Id, string DisplayName, TraceLevel SupportedLevels = TraceLevel.All,
+    string Group = "", int Priority = 0, uint Color = 0, TimelineGlyph Glyph = TimelineGlyph.Dot);
 
-public interface ITraceLaneProvider
+public interface ITimelineLaneProvider
 {
-    AssetKind Kind { get; }
-    IReadOnlyList<TraceLaneDescriptor> Lanes { get; }
+    IReadOnlyList<TimelineLaneDescriptor> Lanes { get; }
+    bool Applies(TimelineLaneContext context);     // editor providers: context.AssetKind == nameof(AssetKind.X)
 }
 ```
 
@@ -1195,7 +1198,7 @@ tree with zero live instances is always safe to apply silently.
 
 | Project | Relationship |
 |---------|-------------|
-| `Hrot.BTree.Editor` | Subsystem editor; implements `IAssetCatalogContributor`, `IAiDebugSession`, `IFluentCSharpEmitter`, `IAssetValidator`, `IRuntimeInspectorPane`, `ITraceLaneProvider` for behaviour trees. |
+| `Hrot.BTree.Editor` | Subsystem editor; implements `IAssetCatalogContributor`, `IAiDebugSession`, `IFluentCSharpEmitter`, `IAssetValidator`, `IRuntimeInspectorPane`, `ITimelineLaneProvider` for behaviour trees. |
 | `Hrot.Hsm.Editor` | Subsystem editor; same plug-in points for hierarchical state machines. |
 | `Hrot.Editor.AiShared.Tests` | Test project; exercises catalog, selection, references, refactor, layout, hot-reload, debug session, and window shells. Has `[InternalsVisibleTo]` access. |
 | `Fdp.Core` | Provides `Entity`, shared domain primitives. Required by debug session and selection bridge. |

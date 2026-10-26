@@ -36,7 +36,7 @@ public sealed class AuthoredRouteGizmoTests : IDisposable
     private static RoutePlan Plan(int count)
     {
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             for (int i = 0; i < count; i++)
                 wps.Add(new RouteWaypoint { Position = new Vector3(i * 10f, i * 20f, 0f) });   // ⭐ CE-2172 — Z-up, as the draw tool writes

@@ -109,6 +109,45 @@ namespace Fdp.Toolkit.Tests.Combat
         }
 
         /// <summary>
+        /// ⭐ AQ104 G (R-2079) — the lean's DEPTH by skill: a trained man leaning shallow (0.25 m, weapon first) moves his eye 0.25 m, a
+        /// militiaman 0.5 m, an unset depth the old 0.4 m; a round where a 0.4 m lean puts his head misses the shallow man and the head of
+        /// the deep man is where HIS depth puts it; the depth keeps his side, and survives straightening up. ✅ Red-proof: <c>Leans.ShiftOf</c>
+        /// returning the constant ⇒ every eye at 0.4 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ104G_TheLeansDepth_IsHisOwn_EyeBodyAndHitBoxesAgree()
+        {
+            var man = Man(Vector3.Zero);   // facing +x: his left is +y
+            var tf = _world.GetComponentRO<SimTransform>(man);
+            ISimulationView view = _world;
+            var standing = Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
+            Leans.Set(_world, man, LeanSide.LeanLeft);
+            Assert.Equal(Leans.Shift, TerrainWorldLosStrategy.EyeOf(view, man, standing).Y, 3);   // no depth: today's 0.4 m
+
+            Assert.True(Leans.SetDepth(_world, man, 0.25f));
+            Assert.Equal(LeanSide.LeanLeft, Leans.Of(view, man));
+            Assert.Equal(0.25f, TerrainWorldLosStrategy.EyeOf(view, man, standing).Y, 2);
+            float eye = TerrainWorldLosStrategy.DefaultMount.Standing;
+            var at40 = (A: new Vector3(-20f, 0.4f, eye - 0.05f), B: new Vector3(20f, 0.4f, eye - 0.05f));
+            var at25 = (A: new Vector3(-20f, 0.25f, eye - 0.05f), B: new Vector3(20f, 0.25f, eye - 0.05f));
+            Assert.NotEqual(BodyPartTest.Hit, BodyPartRay.Person(_world, man, tf, 0f, at40.A, at40.B, out _));   // shallow: his head is not out there
+            Assert.Equal(BodyPartTest.Hit, BodyPartRay.Person(_world, man, tf, 0f, at25.A, at25.B, out var head));
+            Assert.Equal(PersonPart.Head, head.Part);
+
+            Leans.SetDepth(_world, man, 0.5f);
+            Assert.Equal(0.5f, TerrainWorldLosStrategy.EyeOf(view, man, standing).Y, 2);
+            var at50 = (A: new Vector3(-20f, 0.5f, eye - 0.05f), B: new Vector3(20f, 0.5f, eye - 0.05f));
+            Assert.Equal(BodyPartTest.Hit, BodyPartRay.Person(_world, man, tf, 0f, at50.A, at50.B, out head));
+            Assert.Equal(PersonPart.Head, head.Part);
+
+            Leans.Set(_world, man, LeanSide.LeanNone);
+            Leans.Set(_world, man, LeanSide.LeanRight);
+            Assert.Equal(-0.5f, TerrainWorldLosStrategy.EyeOf(view, man, standing).Y, 2);   // the depth is his, not the lean's
+            Assert.Equal(Leans.MaxShift, Leans.ShiftOf(new Lean { Depth = 255 }), 4);
+            Assert.Equal(1, Leans.DepthOf(0f));   // never 0 (= default)
+        }
+
+        /// <summary>
         /// The frame's measured ratio — rounds aimed at his CENTRE with the same spread: fewer strike a leaning man than an upright one in the
         /// open (he shows half; measured 0.28), and aiming at the half he shows (<c>AimPoint.Middle</c>, LN-6) does better.
         /// ✅ Red-proof: the clip to the leaning half skipped ⇒ the ratio rises out of its band ⇒ red.

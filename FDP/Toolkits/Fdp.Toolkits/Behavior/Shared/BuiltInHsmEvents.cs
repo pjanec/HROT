@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Behavior.Shared
             "Sensor.ReportReceived",    // ⭐ CE-2293 — id 0xFF13, a subordinate's report reached this commander's picture
             "Sensor.SniperFire", "Sensor.ContactInEngagementArea", "Sensor.ContactOutsideSector", "Sensor.PositionUntenable",   // ⭐ CE-2283 — 0xFF14–0xFF17
             "Sensor.FiredOnFromStructure",   // ⭐ CE-2283 M-2 — 0xFF18
+            "Sensor.StressBreak", "Sensor.StressRecovered",   // ⭐ CE-2272 (TS-6) — 0xFF19–0xFF1A, on the man
         };
 
         /// <summary>The reserved id of a sensor change (its <c>SensorChange</c> value, 1-based).</summary>

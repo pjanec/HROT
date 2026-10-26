@@ -1,0 +1,17 @@
+# Authored JSON assets, wherever they live (Tests folders included -- they are assets too).
+# Kept out of dmp-HROT.Subsys.dumpfilter so no file reaches the notebook twice.
+- *
+
++ **/*.btree.json
++ **/*.btree.v1.json
++ **/*.hsm.json
++ **/*.hsm.v1.json
++ **/*.bp.json
++ **/*.params.json
+
+- **/.*
+- **/obj
+- **/bin
+- **/build
+- **/artifacts
+- TestResults

@@ -37,6 +37,79 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(7f, into[0].At.X);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3315</c> (restore design §1k) — a RESTORED world numbers on where it stood: in a FRESH process the ring is new, yet a
+        /// cursor the checkpoint carried (place 5) hears the next sound (place 6), not nothing; a cursor that had not read up to the count
+        /// starts at the new timeline (what it missed was in flight, R-3041); the place is the seed's input, so the same sound has the same
+        /// place in the straight run and the restored one. 🔴 Red-proof: <c>Restart</c> without the offset ⇒ the new sound is place 1 and the
+        /// place-5 cursor never hears it.
+        /// </summary>
+        [Fact]
+        public void CE3315_ARestoredWorld_NumbersOnWhereItStood_InAFreshRing()
+        {
+            var straight = new SoundEmissionRing();
+            straight.Tick(1.0);
+            for (int i = 1; i <= 6; i++) straight.Append(Shot(i, time: 1.0 + i * 0.1));
+            Span<SoundEmission> into = stackalloc SoundEmission[8];
+            Assert.Equal(6, straight.ReadAfter(0, into, out long straightLast, notBefore: double.MinValue));
+            Assert.Equal(6, into[5].Serial);                                 // the sixth sound is place 6 …
+
+            var fresh = new SoundEmissionRing();                             // … a fresh process: the ring knows nothing of them
+            fresh.Restart(places: 5, now: 1.55);                             // the checkpoint said 5 sounds had been made
+            Assert.Equal(5, fresh.Places);
+            fresh.Append(Shot(6, time: 1.6));
+            Assert.Equal(1, fresh.ReadAfter(5, into, out long last));        // the carried cursor hears it
+            Assert.Equal(6, into[0].Serial);                                 // … as place 6, as the straight run did
+            Assert.Equal(6, last);
+            Assert.Equal(1, fresh.ReadAfter(3, into, out _));                // a cursor behind the count starts at the new timeline
+            Assert.Equal(6f, into[0].At.X);
+            Assert.Equal(0, fresh.Overflow);                                 // a restore's loss is not an overflow
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3316</c> — the world CARRIES its newest sounds (<see cref="SoundTimeline"/>): restored into a fresh ring, a sensor whose
+        /// cursor had read only to place 4 still hears places 5 and 6 — the sounds made before the checkpoint it had not read — as the straight
+        /// run's sensor did, at the same places (the mishearing seed). 📌 Found by R1 on <c>ua-civ-melee</c>: the Policeman heard one sound on the
+        /// first step after 3 s in the straight run and none restored. 🔴 Red-proof: <c>Resume</c> without re-appending the tail ⇒ 0 heard.
+        /// </summary>
+        [Fact]
+        public void CE3316_ARestoredWorld_StillHearsTheSoundsItHadNotReadYet()
+        {
+            var straight = new SoundEmissionRing();
+            straight.Tick(1.0);
+            for (int i = 1; i <= 6; i++) straight.Append(Shot(i, time: 1.0 + i * 0.1));
+            var carried = new SoundTimeline();
+            carried.TailCount = straight.TailBefore(double.PositiveInfinity, carried.TailSpan(), out carried.Places);
+            Assert.Equal(6, carried.Places);
+            Assert.Equal(6, carried.TailCount);
+
+            var fresh = new SoundEmissionRing();
+            fresh.Resume(carried.Places, carried.TailRO(), now: 1.65);
+            Assert.Equal(6, fresh.Places);
+            Span<SoundEmission> into = stackalloc SoundEmission[8];
+            Assert.Equal(2, fresh.ReadAfter(4, into, out long last));
+            Assert.Equal(new[] { 5L, 6L }, new[] { into[0].Serial, into[1].Serial });   // the same places …
+            Assert.Equal(new[] { 5f, 6f }, new[] { into[0].At.X, into[1].At.X });       // … the same sounds
+            Assert.Equal(6, last);
+        }
+
+        /// <summary>⭐ <c>CE-3315</c> — in THIS process a world put back at t counts the sounds made before t (the abandoned future's are left
+        /// behind), so a restore here numbers exactly as a fresh process does.</summary>
+        [Fact]
+        public void CE3315_PlacesBefore_CountsOnlyTheSoundsBeforeTheRestoredClock()
+        {
+            var ring = new SoundEmissionRing();
+            ring.Tick(0.0);
+            for (int i = 1; i <= 4; i++) ring.Append(Shot(i, time: i));     // places 1..4 at 1, 2, 3, 4 s
+            Assert.Equal(2, ring.PlacesBefore(2.5));
+            ring.Restart(ring.PlacesBefore(2.5), 2.5);
+            ring.Append(Shot(9, time: 2.6));
+            Span<SoundEmission> into = stackalloc SoundEmission[8];
+            Assert.Equal(1, ring.ReadAfter(2, into, out _));                 // a cursor restored at place 2 hears only the new sound …
+            Assert.Equal(3, into[0].Serial);                                 // … as place 3 — the abandoned 3 and 4 are never heard
+            Assert.Equal(9f, into[0].At.X);
+        }
+
         [Fact]
         public void CE3282_AReader_GetsEverySoundAfterItsCursor_AndResumesWhereItStopped()
         {

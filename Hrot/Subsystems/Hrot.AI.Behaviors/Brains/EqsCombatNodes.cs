@@ -9,6 +9,7 @@ using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fbt.Kernel;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -47,7 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
             unsafe
             {
                 for (int i = 0; i < mem.Count; i++)
-                    if (mem.Freshness[i] > 0f) return NodeStatus.Success;
+                    if (mem.Freshness[i] > 0f && !TargetMemory.IsBurst(in mem, i)) return NodeStatus.Success;   // R-2071 E-1 — a burst is no target
             }
             return NodeStatus.Failure;
         }
@@ -94,7 +95,7 @@ namespace Hrot.AI.Behaviors.Brains
                                    channel.Status == NodeStatus.Failure;
 
             if (needsActivation)
-                LocomotionMoveTo.Issue(world, self, targetPos, p.Speed, p.ArrivalRadius);
+                LocomotionMoveTo.Issue(world, self, targetPos, p.Speed, p.ArrivalRadius, source: MoveSource.CoverSearch);
 
             return NodeStatus.Running;
         }

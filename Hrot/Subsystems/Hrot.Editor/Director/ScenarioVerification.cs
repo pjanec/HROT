@@ -26,6 +26,10 @@ namespace Hrot.Editor.Director
         /// <c>test-fire</c>'s two Bradleys) — a name in a check matches every unit that carries it.</summary>
         IReadOnlyList<(long Id, string Name)> Named();
 
+        /// <summary>The name of the unit at entity INDEX <paramref name="index"/> (the dump writes a held handle as <c>"[index, vGen]"</c>);
+        /// null when it has none.</summary>
+        string? NameOfEntityIndex(int index);
+
         /// <summary>A behaviour's name by its hash (the <c>task</c> cue).</summary>
         string? BehaviourName(int hash);
 
@@ -161,7 +165,9 @@ namespace Hrot.Editor.Director
                 {
                     if (a.Target == null) return null;
                     var hits = _shots.Values.Where(r => r["outcome"]?.ToString() == "Hit" && Is(r["hit"], a.Target)).Select(r => Rel(r["firedAt"]))
-                        .Concat(_blasts.Where(r => r["effects"] is JsonArray fx && fx.Any(x => Is(x?["entity"], a.Target) && Num(x?["totalDamage"]) > 0))
+                        // ⭐ a burst that STRUCK the unit (a drone's dive, a round's warhead on it) — as AnchorBook.Hit reads it — or hurt it
+                        .Concat(_blasts.Where(r => Is(r["struck"], a.Target)
+                                                   || r["effects"] is JsonArray fx && fx.Any(x => Is(x?["entity"], a.Target) && Num(x?["totalDamage"]) > 0))
                                        .Select(r => Num(r["seenAt"])!.Value))
                         .Where(t => from is null || t >= from - 1e-9).OrderBy(t => t).ToList();
                     return hits.Count >= a.N ? hits[a.N - 1] : null;
@@ -239,7 +245,8 @@ namespace Hrot.Editor.Director
                 if (seq <= _blastFloor || seq <= _blastSeen) continue;
                 var row = (JsonObject)r.DeepClone();
                 row.Remove("rays");
-                if (Num(row["shooter"]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row["shooter"] = n;
+                foreach (var k in new[] { "shooter", "struck" })
+                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row[k] = n;
                 if (row["effects"] is JsonArray fx)
                     foreach (var x in fx.OfType<JsonObject>())
                         if (Num(x["entity"]) is { } eid && _nameOf.TryGetValue((long)eid, out var en)) x["entity"] = en;
@@ -354,7 +361,10 @@ namespace Hrot.Editor.Director
                 if (_w.Components(id) is not { } comps) continue;
                 var hashes = new JsonObject();
                 foreach (var (type, value) in comps.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-                    hashes[type] = _full ? value?.DeepClone() : Hash(value);
+                {
+                    var meant = ByMeaning(value?.DeepClone());
+                    hashes[type] = _full ? meant : Hash(meant);
+                }
                 var p = ConditionBook.At(comps, "SimTransform.Position");
                 units[name] = new JsonObject
                 {
@@ -372,7 +382,44 @@ namespace Hrot.Editor.Director
             LastTime = rel;
         }
 
-        private static JsonNode? R(JsonNode? n) => ConditionBook.Num(n) is { } d ? JsonValue.Create(Math.Round(d, 3)) : n?.DeepClone();
+        private static readonly System.Text.RegularExpressions.Regex HandleShape = new(@"^\[(\d+), v\d+\]$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// ⭐ A held entity handle (<c>"[12, v1]"</c> — its INDEX, i.e. allocation order) becomes the unit it means (<c>"@Technical"</c>, or
+        /// <c>"@?"</c> unnamed): ⛔ otherwise one entity more or less renumbers every later handle and every holder's hash changes with no
+        /// change in meaning. 📌 Measured by backend on <c>ua-tank-ammo</c> (CE-2349 created one item fewer ⇒ <c>IsEmbarkedTag</c> and
+        /// <c>PassengerBuffer</c> differed). ⚠ A network id held as a NUMBER is not rewritten — it cannot be told from any other number.
+        /// </summary>
+        private JsonNode? ByMeaning(JsonNode? n) => Meant(n) ?? n;
+
+        /// <summary>The name a held handle means, or null when <paramref name="n"/> is not one — containers are rewritten in place, and only
+        /// a REPLACED child is assigned back (⛔ assigning a node to its own slot throws "The node already has a parent").</summary>
+        private JsonNode? Meant(JsonNode? n)
+        {
+            switch (n)
+            {
+                case JsonObject o:
+                    foreach (var k in o.Select(kv => kv.Key).ToList()) if (Meant(o[k]) is { } r) o[k] = r;
+                    return null;
+                case JsonArray a:
+                    for (int i = 0; i < a.Count; i++) if (Meant(a[i]) is { } r) a[i] = r;
+                    return null;
+                case JsonValue v when v.TryGetValue<string>(out var text) && HandleShape.Match(text) is { Success: true } m:
+                    return JsonValue.Create("@" + (_w.NameOfEntityIndex(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)) ?? "?"));
+                case JsonValue v when ConditionBook.Num(v) is { } d && !double.IsFinite(d):
+                    return Unwritable(d);
+                default:
+                    return null;
+            }
+        }
+
+        private static JsonNode? R(JsonNode? n) => ConditionBook.Num(n) is { } d
+            ? (double.IsFinite(d) ? JsonValue.Create(Math.Round(d, 3)) : Unwritable(d))
+            : n?.DeepClone();
+
+        /// <summary>⛔ JSON cannot write a non-finite number (it throws) — 📐 measured: a component held one and the whole verify failed at
+        /// step 256. Written as its name instead: deterministic, and still says what the value was.</summary>
+        private static JsonNode Unwritable(double d) => JsonValue.Create(double.IsNaN(d) ? "NaN" : d > 0 ? "Infinity" : "-Infinity");
 
         /// <summary>FNV-1a 64 of the value's JSON — the dump writes a component's fields in one fixed order, so equal values hash alike.</summary>
         public static string Hash(JsonNode? value)
@@ -380,6 +427,23 @@ namespace Hrot.Editor.Director
             ulong h = 14695981039346656037UL;
             foreach (byte b in Encoding.UTF8.GetBytes(value?.ToJsonString() ?? "null")) { h ^= b; h *= 1099511628211UL; }
             return h.ToString("x16", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>⭐ CE-4045 H1a — only the snapshots (what <see cref="CompareFrom"/> reads): a recorded run has no condition book.</summary>
+        public JsonObject SnapshotsJson() => new() { ["snapshots"] = _snapshots.DeepClone() };
+
+        /// <summary>
+        /// ⭐ The component names a recording carries — its OWN schema manifest (<c>&lt;file&gt;.meta.json</c>), as a snapshot names them (the
+        /// short type name). One reader for R1's checkpoint (CE-3299 B5) and H1a's live recording (CE-4045): a checkpoint IS a one-frame
+        /// recording. Null when the file has no manifest beside it.
+        /// </summary>
+        public static Func<string, bool>? CarriedBy(string recording)
+        {
+            var metaPath = recording + ".meta.json";
+            if (!System.IO.File.Exists(metaPath)) return null;
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(System.IO.File.ReadAllText(metaPath));
+            var names = new HashSet<string>((meta.SchemaManifest ?? new()).Values.Select(v => v.Name.Replace('+', '.').Split('.')[^1]), StringComparer.Ordinal);
+            return names.Contains;
         }
 
         public JsonObject ToJson(string scenario, long steps, ConditionBook book) => new()
@@ -432,6 +496,42 @@ namespace Hrot.Editor.Director
             return lines;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B5 (R1, restore design §1k) — two runs' snapshots from <paramref name="t1"/> on, compared as
+        /// <see cref="Compare"/> does: <paramref name="straight"/> ran from 0, <paramref name="restored"/> began from a checkpoint at
+        /// <paramref name="t1"/>. ⛔ The rows before t1 (times, shots, blasts) are not the restored run's to have, so only state is compared.
+        /// <para>⭐ <paramref name="carried"/> (a component's name ⇒ the checkpoint carries it; null = every one): with it, only the CARRIED
+        /// components (and the position and health) are compared here — a component a checkpoint does not carry by design (<c>NoReplay</c>)
+        /// is listed by <see cref="CompareNotCarried"/> instead, since what it changes shows up in the carried state.</para>
+        /// </summary>
+        public static IReadOnlyList<string> CompareFrom(JsonObject straight, JsonObject restored, double t1, Func<string, bool>? carried = null)
+            => Compare(From(straight, t1, carried, true), From(restored, t1, carried, true));
+
+        /// <summary>⭐ B5 — the differences from <paramref name="t1"/> on in the components the checkpoint does NOT carry (for information).</summary>
+        public static IReadOnlyList<string> CompareNotCarried(JsonObject straight, JsonObject restored, double t1, Func<string, bool> carried)
+            => Compare(From(straight, t1, carried, false), From(restored, t1, carried, false));
+
+        private static JsonObject From(JsonObject run, double t1, Func<string, bool>? carried, bool keepCarried)
+        {
+            var snapshots = new JsonArray();
+            foreach (var n in (run["snapshots"] as JsonArray) ?? new JsonArray())
+            {
+                if (ConditionBook.Num(n?["t"]) is not { } t || t < t1 - 1e-6) continue;
+                var snap = n!.DeepClone().AsObject();
+                if (carried != null && snap["units"] is JsonObject units)
+                    foreach (var (_, unit) in units)
+                    {
+                        if (unit is not JsonObject u) continue;
+                        if (!keepCarried) { u.Remove("position"); u.Remove("health"); }
+                        if (u["components"] is JsonObject comps)
+                            foreach (var name in comps.Select(kv => kv.Key).ToList())
+                                if (carried(name) != keepCarried) comps.Remove(name);
+                    }
+                snapshots.Add(snap);
+            }
+            return new JsonObject { ["snapshots"] = snapshots };
+        }
+
         private static IEnumerable<string> Modified(DiffNode? node, string path)
         {
             if (node is null || !node.IsModified) yield break;
@@ -465,7 +565,17 @@ namespace Hrot.Editor.Director
         /// <summary>The run was a RELOAD in a process that had loaded a scenario before (CE-3294: state that outlives a load).</summary>
         public bool Reload { get; private set; }
 
-        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is "none" or "same" or "captured";
+        /// <summary>⭐ <c>CE-4045</c> H1a — the live run against its own recording (Scenario Regression §10-1): null (not asked) · same ·
+        /// different · failed (it could not be compared — <see cref="ReplayDiff"/> says why).</summary>
+        public string? Replay { get; set; }
+        /// <summary>The first difference in what the recording carries (as <see cref="GoldenDiff"/>), or why the comparison failed.</summary>
+        public List<string> ReplayDiff { get; } = new();
+        /// <summary>⭐ For information, never a failure (RH-4): differences in components the recording does NOT carry by its manifest.</summary>
+        public List<string> ReplayNotCarried { get; } = new();
+        /// <summary>The live snapshots matched to a recorded frame.</summary>
+        public int ReplaySnapshots { get; set; }
+
+        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is ("none" or "same" or "captured") && Replay is (null or "same");
 
         /// <summary>
         /// ⭐ This run was a reload: a capture is REFUSED (a reload's golden bakes CE-3294 in — measured: <c>SopState</c> and the animation
@@ -488,6 +598,10 @@ namespace Hrot.Editor.Director
             ["goldenDiff"] = new JsonArray(GoldenDiff.Select(x => (JsonNode?)x).ToArray()),
             ["written"] = new JsonArray(Written.Select(x => (JsonNode?)x).ToArray()),
             ["problems"] = new JsonArray(Problems.Select(x => (JsonNode?)x).ToArray()),
+            ["replay"] = Replay,
+            ["replaySnapshots"] = Replay is null ? null : ReplaySnapshots,
+            ["replayDiff"] = Replay is null ? null : new JsonArray(ReplayDiff.Select(x => (JsonNode?)x).ToArray()),
+            ["replayNotCarried"] = Replay is null ? null : new JsonArray(ReplayNotCarried.Select(x => (JsonNode?)x).ToArray()),
         };
     }
 
@@ -504,17 +618,38 @@ namespace Hrot.Editor.Director
         private readonly ConditionBook _book;
         private readonly ScenarioGolden? _run;
         private readonly HashSet<CheckAction> _done = new();
+        private readonly double? _every;
         private double _nextSample, _nextSnapshot;
         public List<string> ActionProblems { get; } = new();
 
-        public ScenarioVerification(ScenarioChecks checks, JsonObject? golden, bool capture, IVerifyWorld world, double t0)
+        /// <param name="startAt">⭐ <c>CE-3299</c> B5 (R1) — the run begins at this relative time (a checkpoint restored at T1): samples and
+        /// snapshots fall on the same grid as a run from 0, so the two can be compared snapshot for snapshot.</param>
+        /// <param name="snapshotEvery">⭐ B5 — snapshot every this many seconds, every component in full, whatever the checks say (R1
+        /// compares full component state, and a red must name the component).</param>
+        public ScenarioVerification(ScenarioChecks checks, JsonObject? golden, bool capture, IVerifyWorld world, double t0,
+                                    double startAt = 0, double? snapshotEvery = null)
         {
             _checks = checks ?? throw new ArgumentNullException(nameof(checks));
             _golden = golden;
             _capture = capture;
             _w = world ?? throw new ArgumentNullException(nameof(world));
             _book = new ConditionBook(checks, world, t0);
-            _run = checks.GoldenEvery is null ? null : new ScenarioGolden(world, checks.GoldenFull);
+            _every = snapshotEvery ?? checks.GoldenEvery;
+            _run = _every is null ? null : new ScenarioGolden(world, checks.GoldenFull || snapshotEvery != null);
+            _nextSample = FirstAtOrAfter(startAt, checks.SampleEvery);
+            _nextSnapshot = _every is { } e ? FirstAtOrAfter(startAt, e) : 0;
+        }
+
+        private static double FirstAtOrAfter(double t, double step) => t <= 0 || !(step > 0) ? 0 : Math.Ceiling(t / step - 1e-4) * step;   // a run's time carries float dust
+
+        /// <summary>⭐ B5 — the indexes (in <see cref="ScenarioChecks.Do"/>) of the actions applied so far: a checkpoint carries them to the
+        /// process that restores it, which must not apply them again.</summary>
+        public IReadOnlyList<int> DoneActions => _checks.Do.Select((a, i) => (a, i)).Where(x => _done.Contains(x.a)).Select(x => x.i).ToList();
+
+        /// <summary>⭐ B5 — the actions the checkpoint's own run had already applied count as done here.</summary>
+        public void MarkDone(IEnumerable<int> indexes)
+        {
+            foreach (var i in indexes) if (i >= 0 && i < _checks.Do.Count) _done.Add(_checks.Do[i]);
         }
 
         public ScenarioChecks Checks => _checks;
@@ -528,7 +663,7 @@ namespace Hrot.Editor.Director
         public void Observe(double rel)
         {
             if (rel + 1e-9 >= _nextSample) { _book.Observe(rel); _nextSample += _checks.SampleEvery; }
-            if (_run != null && rel + 1e-9 >= _nextSnapshot) { _run.Snapshot(rel); _nextSnapshot += _checks.GoldenEvery!.Value; }
+            if (_run != null && rel + 1e-9 >= _nextSnapshot) { _run.Snapshot(rel); _nextSnapshot += _every!.Value; }
         }
 
         /// <summary>Each action due by <paramref name="rel"/> is applied now (before this frame's step).</summary>

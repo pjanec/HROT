@@ -12,6 +12,7 @@ using Fdp.Toolkit.Utility;
 using Fbt.Kernel;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Stance;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -162,6 +163,26 @@ namespace Hrot.AI.Behaviors.Brains
                    Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity);
 
         /// <summary>
+        /// ⭐ <c>CE-2357</c> (AQ102 E) — a FLANK on where the hidden top threat was LAST SEEN (its memory slot, L-5): the same
+        /// <see cref="FindFlankingPosition"/> as <see cref="Flank"/>, pointed at the remembered point, never the live entity. 📐 Measured
+        /// live (<c>rf-house-obstacle</c>): two men flanking each other's LIVE positions chased each other round House A and swapped sides
+        /// without a shot. Success on arrival.
+        /// </summary>
+        public static NodeStatus FlankRemembered(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindFlankingPosition.BlueprintId, FlankSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint);
+
+        /// <summary>
+        /// ⭐ <c>CE-2357</c> (AQ102 E) — CLOSES IN on where the hidden top threat was LAST SEEN: to within a throw of the remembered point
+        /// (<see cref="FindThrowingPosition"/>, as <see cref="CloseToThrow"/>), firing — and throwing, the weapon brain's choice — on the
+        /// way; unlike <see cref="CloseToThrow"/> it ends on arrival, so the fight from cover goes on from there. 📐 Live (<c>rf-car-duel</c>):
+        /// side-on flanks alone kept the two men 43 m apart for 90 s.
+        /// </summary>
+        public static NodeStatus CloseInRemembered(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindThrowingPosition.BlueprintId, CloseToThrowSite,
+                   Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity | Mode.AtLastKnownPoint | Mode.FireAlways);
+
+        /// <summary>
         /// ⭐ <c>CE-2108</c> — moves to a FIRING POSITION on the top identified threat (<see cref="FindOpenFiringPosition"/>: a
         /// nearby point that sees it, higher and less exposed scoring more), as <see cref="Flank"/> does. 📄 §9.
         /// </summary>
@@ -241,7 +262,7 @@ namespace Hrot.AI.Behaviors.Brains
                     return NodeStatus.Failure;
                 }
             }
-            else if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out threat))
+            else if (!TopAim(world, self, new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint), out threat, bursts: true))   // R-2071 — hide from where rounds land
             {
                 Release(ref ws, self, world);
                 return NodeStatus.Success;
@@ -257,7 +278,7 @@ namespace Hrot.AI.Behaviors.Brains
                         && (!onThreatMove || (hasThreatPos && Vector3.Distance(threatPos, ws.ThreatAtMove) >= p.MinRepositionMetres)))))
             {
                 // ⭐ AQ96 D (CE-2320) — every move here is made against a threat (to cover, back, round its flank): crouched, at least a rush
-                LocomotionMoveTo.Issue(world, self, best, System.MathF.Max(p.Speed, UnderFire.RushSpeed), p.ArrivalRadius, MoveGait.Crouched);
+                LocomotionMoveTo.Issue(world, self, best, System.MathF.Max(p.Speed, UnderFire.RushSpeed), p.ArrivalRadius, MoveGait.Crouched, source: MoveSource.CoverSearch);
                 ws.Goal = best;
                 ws.Moving = 1;
                 ws.ThreatAtMove = threatPos;
@@ -406,7 +427,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// one it already hides from while still remembered (so the sensor is not re-pointed between two shots), else the freshest
         /// heard slot. False = nothing remembered at all. ⚠ An identified threat always wins over a heard one.
         /// </summary>
-        internal static unsafe bool TopAim(EntityRepository world, Entity self, in ThreatAim current, out ThreatAim aim)
+        /// <remarks>⭐ R-2071 E-1 (Sensing §8.6b) — a heard BURST is the threat only with <paramref name="bursts"/> (TakeCover / Flee hide
+        /// from where rounds land); a fight never takes one for its enemy.</remarks>
+        internal static unsafe bool TopAim(EntityRepository world, Entity self, in ThreatAim current, out ThreatAim aim, bool bursts = false)
         {
             aim = default;
             if (TopThreat(world, self, current.Entity, out var threat)) { aim = new ThreatAim(threat, 0, default); return true; }
@@ -415,9 +438,9 @@ namespace Hrot.AI.Behaviors.Brains
 
             int slot = -1;
             for (int i = 0; current.HeardId != 0 && i < mem.Count; i++)
-                if (mem.EntityIds[i] == current.HeardId && TargetMemory.IsAnonymous(in mem, i)) { slot = i; break; }
+                if (mem.EntityIds[i] == current.HeardId && TargetMemory.IsAnonymous(in mem, i) && (bursts || !TargetMemory.IsBurst(in mem, i))) { slot = i; break; }
             for (int i = 0; slot < 0 && i < mem.Count; i++)
-                if (TargetMemory.IsAnonymous(in mem, i)) slot = i;   // slots are sorted by score: the first is the freshest
+                if (TargetMemory.IsAnonymous(in mem, i) && (bursts || !TargetMemory.IsBurst(in mem, i))) slot = i;   // slots are sorted by score: the first is the freshest
             if (slot < 0) return false;
 
             aim = new ThreatAim(Entity.Null, mem.EntityIds[slot], new Vector3(mem.PositionsX[slot], mem.PositionsY[slot], mem.PositionsZ[slot]));

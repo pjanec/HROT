@@ -255,7 +255,7 @@ namespace Hrot.SimHost.Tests
             var a = Networked(w, map, AId);
             w.AddComponent(apc, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             var ownership = new DescriptorOwnership();
-            ownership.Map[Embarkation.PassengerBufferKey] = 2;   // the brain group is on node 2
+            ownership = ownership.WithOwner(Embarkation.PassengerBufferKey, 2);   // the brain group is on node 2
             w.SetManagedComponent(apc, ownership);
             var b = new PassengerBuffer();
             b.Passengers[b.Count++] = a;
@@ -266,7 +266,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, egress.SentSampleCount);   // the primary owner is not the list's owner
             Assert.False(Embarkation.OwnsVehicle(w, apc));
 
-            ownership.Map[Embarkation.PassengerBufferKey] = 1;   // now it is ours
+            w.SetManagedComponent(apc, ownership.WithOwner(Embarkation.PassengerBufferKey, 1));   // now it is ours
             egress.ScanAndPublish(w);
             Assert.Equal(1, egress.SentSampleCount);
 

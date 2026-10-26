@@ -55,6 +55,17 @@ namespace Fdp.Toolkit.Utility
         public const ushort ThreatInSight            = 0x2D27;
         /// <summary>⭐ WL-4 W-12f — the unit carries a hand-thrown indirect round it can still throw (<see cref="StandardInputs.CarriesThrowable"/>).</summary>
         public const ushort CarriesThrowable         = 0x4054;
+        /// <summary>⭐ AQ102 A (CE-2356) — the unit was hit or near-missed lately: 1 within <see cref="StandardInputs.UnderFireFullSeconds"/>,
+        /// falling to 0 at <see cref="StandardInputs.UnderFireSeconds"/> (<see cref="StandardInputs.UnderFire"/>).</summary>
+        public const ushort UnderFire                = 0x2C71;
+        /// <summary>⭐ AQ102 A (CE-2356, as reworked) — max(1 − health, <see cref="UnderFire"/>) (<see cref="StandardInputs.HurtOrUnderFire"/>).</summary>
+        public const ushort HurtOrUnderFire          = 0x5EF1;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5, R-2075) — a cautious man's damping of an advance (<see cref="StandardInputs.CautionDamp"/>).</summary>
+        public const ushort CautionDamp              = 0xE658;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5) — a bold man's damping of taking cover, lying down and fleeing (<see cref="StandardInputs.AggressionDamp"/>).</summary>
+        public const ushort AggressionDamp           = 0x9CDB;
+        /// <summary>⭐ <c>CE-2271</c> (TS-5) — a stressed man's damping of advancing and suppressing (<see cref="StandardInputs.StressDamp"/>).</summary>
+        public const ushort StressDamp               = 0x2023;
     }
 
     /// <summary>
@@ -476,6 +487,64 @@ namespace Fdp.Toolkit.Utility
         /// Registers every standard input reader into <see cref="UtilityInputRegistrar"/>.
         /// Call once at application startup before any scoring pass.
         /// </summary>
+        /// <summary>⭐ AQ102 A — how long a hit or a near miss keeps the unit fully "under fire" (s), and when it has worn off (s).</summary>
+        public const double UnderFireFullSeconds = 1.5, UnderFireSeconds = 4.0;
+
+        /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 A, R-2072) — 1 when ctx.Self was hit or near-missed within <see cref="UnderFireFullSeconds"/>, falling
+        /// linearly to 0 at <see cref="UnderFireSeconds"/> (the newer of the two, <see cref="RecentSensesOf"/>). A self input: what makes an
+        /// UNHURT man duck — 📐 before it, TakeCover carried only health (0 at full health) and could never win for him.
+        /// </summary>
+        [UtilityInput("UnderFire")]
+        public static float UnderFire(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.RecentSenses>(ctx.Self)) return 0f;
+            ref readonly var rs = ref ctx.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.RecentSenses>(ctx.Self);
+            double last = double.NegativeInfinity;
+            if (rs.TryGetLast(Fdp.Toolkit.Perception.Events.SensorChange.Hit, out double hit)) last = hit;
+            if (rs.TryGetLast(Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, out double miss) && miss > last) last = miss;
+            if (double.IsNegativeInfinity(last)) return 0f;
+            double now = ctx.Repo.HasSingleton<GlobalTime>() ? ctx.Repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+            double age = now - last;
+            if (age <= UnderFireFullSeconds) return 1f;
+            if (age >= UnderFireSeconds) return 0f;
+            return (float)(1.0 - (age - UnderFireFullSeconds) / (UnderFireSeconds - UnderFireFullSeconds));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 A, reworked) — what makes a man want to get down: how hurt he is (1 − health) or how freshly he is shot
+        /// at (<see cref="UnderFire"/>), whichever is more. 📐 A product of a health floor and an under-fire boost (the first build) made
+        /// an UNHURT man with nobody shooting score HoldProne over Hold and AdvanceAndAttack (StarterPackIntegrationTests SC-SP-03 / -04):
+        /// out of fire this is exactly the old 1 − health (CE-3090: a wounded man holds prone), under fire it is 1 for anyone.
+        /// </summary>
+        [UtilityInput("HurtOrUnderFire")]
+        public static float HurtOrUnderFire(in UtilityInputCtx ctx) => Math.Max(1f - HealthFraction(in ctx), UnderFire(in ctx));
+
+        // ── ⭐ CE-2271 (TS-5, R-2075) — temperament and stress, as MODIFIERS: each only ever DAMPS an option and reads EXACTLY 1.0 for a man
+        //    with no temperament and no stress, so every existing score is bit-identical (a Modify, never a Consider — §7.3). ──
+
+        /// <summary>His bravery as a signed lean: <c>a = 2 × effective RiskAcceptance − 1</c> (−1 … +1, 0 for the ordinary man).</summary>
+        private static float Lean(in UtilityInputCtx ctx)
+            => 2f * Fdp.Toolkit.Behavior.Components.TemperamentOf.Effective(ctx.Repo, ctx.Self,
+                   Fdp.Toolkit.Behavior.Components.TemperamentTrait.RiskAcceptance) - 1f;
+
+        /// <summary>⭐ TS-5 — a CAUTIOUS man advances less: <c>1 − 0.5 × max(0, −a)</c>. 1.0 for the ordinary and the bold.</summary>
+        [UtilityInput("CautionDamp")]
+        public static float CautionDamp(in UtilityInputCtx ctx) => 1f - 0.5f * Math.Max(0f, -Lean(in ctx));
+
+        /// <summary>⭐ TS-5 — a BOLD man takes cover, lies down and flees less: <c>1 − 0.5 × max(0, a)</c>. 1.0 for the ordinary and the cautious.</summary>
+        [UtilityInput("AggressionDamp")]
+        public static float AggressionDamp(in UtilityInputCtx ctx) => 1f - 0.5f * Math.Max(0f, Lean(in ctx));
+
+        /// <summary>⭐ TS-5 — a STRESSED man advances and suppresses less: <c>1 − Stress</c>. 1.0 with no stress.</summary>
+        [UtilityInput("StressDamp")]
+        public static float StressDamp(in UtilityInputCtx ctx)
+        {
+            if (!ctx.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>()
+                || !ctx.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self)) return 1f;
+            return 1f - Math.Clamp(ctx.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Stress>(ctx.Self).Level, 0f, 1f);
+        }
+
         public static void RegisterAll()
         {
             UtilityInputReaderStore.Register(StandardInputIds.AmmoFraction,             &AmmoFraction);
@@ -500,6 +569,11 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.RoundsLeft,               &RoundsLeft);
             UtilityInputReaderStore.Register(StandardInputIds.ThreatInSight,            &ThreatInSight);
             UtilityInputReaderStore.Register(StandardInputIds.CarriesThrowable,         &CarriesThrowable);
+            UtilityInputReaderStore.Register(StandardInputIds.UnderFire,                &UnderFire);
+            UtilityInputReaderStore.Register(StandardInputIds.HurtOrUnderFire,          &HurtOrUnderFire);   // ⭐ CE-2356
+            UtilityInputReaderStore.Register(StandardInputIds.CautionDamp,              &CautionDamp);       // ⭐ CE-2271
+            UtilityInputReaderStore.Register(StandardInputIds.AggressionDamp,           &AggressionDamp);
+            UtilityInputReaderStore.Register(StandardInputIds.StressDamp,               &StressDamp);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

@@ -357,6 +357,44 @@ namespace Fdp.Core
             }
         }
         
+        private static readonly object _scanLock = new object();
+        private static Dictionary<int, Type>? _scanned;
+        private static int _scannedAssemblies;
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B5 (restore design D10) — <b>the type a RECORDED id names, even when this process has not touched it.</b> A
+        /// component registered on first use (25 sites do) is in a recording made by a process that used it; a fresh process applying that
+        /// frame has never heard of it, and <see cref="GetType"/> answers null. ⇒ falls back to the loaded assemblies' <c>[ComponentId]</c>
+        /// attributes — the same id, by construction (the attribute is mandatory, <see cref="GetOrRegisterManaged"/>). Cached; rescanned
+        /// when more assemblies are loaded.
+        /// </summary>
+        public static Type? FindType(int id)
+        {
+            if (GetType(id) is { } known) return known;
+            lock (_scanLock)
+            {
+                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                if (_scanned == null || _scannedAssemblies != assemblies.Length)
+                {
+                    var map = new Dictionary<int, Type>();
+                    foreach (var asm in assemblies)
+                    {
+                        if (asm.IsDynamic) continue;
+                        Type?[] types;
+                        try { types = asm.GetTypes(); }
+                        catch (System.Reflection.ReflectionTypeLoadException e) { types = e.Types; }
+                        catch (Exception) { continue; }
+                        foreach (var t in types)
+                            if (t != null && System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ComponentIdAttribute>(t, false) is { } attr)
+                                map.TryAdd(attr.Id, t);
+                    }
+                    _scanned = map;
+                    _scannedAssemblies = assemblies.Length;
+                }
+                return _scanned.TryGetValue(id, out var found) ? found : null;
+            }
+        }
+
         /// <summary>
         /// Gets all registered component type IDs.
         /// </summary>

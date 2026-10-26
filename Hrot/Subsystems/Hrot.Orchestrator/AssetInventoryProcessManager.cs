@@ -133,11 +133,19 @@ public sealed class AssetInventoryProcessManager
             var unarchived = localExercises
                 .ExceptBy(archivedExercises.Select(a => a.ExerciseId), e => e.ExerciseId)
                 .ToArray();
+            // ⭐ CE-4054 — the run in progress is replayable (ClusterMaster.ResolveReplayExercise picks it), so the inventory of "what can be
+            //   replayed" lists it too, its length so far. 🔴 Measured: GET /exercises answered {count: 0} through a whole live run while
+            //   POST /replay found "the run in progress". ⛔ Not among the UNARCHIVED: a run still recording is not offered for export.
+            var replayable = _currentRecording is { } live && live.ExerciseId != Guid.Empty
+                ? localExercises.Where(e => e.ExerciseId != live.ExerciseId)
+                      .Prepend(new ExerciseInventoryItem(live.ExerciseId, live.StartTimeUtc, DateTime.UtcNow - live.StartTimeUtc, live.ScenarioId))
+                      .ToArray()
+                : localExercises;
 
             _bus.PublishManaged(new AssetInventoryUpdateEvent
             {
                 LocalScenarios           = localScenarios.ToArray(),
-                LocalExercises           = localExercises,
+                LocalExercises           = replayable,
                 ArchivedExercises        = archivedExercises,
                 UnarchivedLocalExercises = unarchived,
             });

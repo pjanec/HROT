@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§7c — U8 the ExCon "Concealed" layer, CE-1169; the overnight items: U7 held items, U9 aim line, U11 police look, U12 toy, U13 band — CE-1169/1170/1172/1173/1174) · 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
+updated: 2026-10-24 (§7d — U19 the idle gestures, CE-1308, behaviors' CE-2368 handoff) · 2026-10-21 (§7c — U8 the ExCon "Concealed" layer, CE-1169; the overnight items: U7 held items, U9 aim line, U11 police look, U12 toy, U13 band — CE-1169/1170/1172/1173/1174) · 2026-10-21 (§5 U7a + §7b — every soldier's weapon drawn as what it is, the MortarTeam's mortar, CE-1236, R-1022; the hand-weapon half of U7, CE-1169, built as HeldWeapons / HeldLook)
 build-state: READY-TO-BUILD — the user approved every lean (§5) on `2026-10-18`; the parts that wait on a gap (§8) draw nothing until it lands (§7 marks each)
-current-answer: §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
+current-answer: §7f U21 the floating health bar (RECORDED, leans) · §7e U20 the mind-state bar (BUILT) · §7d U19 the idle gestures · §1 inventory · §2 classes · §3 sequences · §4 modules · §5 decisions (leans) · §6 claim table · §7 items · §8 gaps for backend / behaviors
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -12,6 +12,8 @@ related-designs:
   - docs/DESIGN_Visual_Effects.md — OWNS EffectLayer and ProjectileLayer (what lies on the ground, bursts, puffs).
   - docs/DESIGN_Entity_Control.md — OWNS the FPS station and its HUD (§8e, §8h).
   - docs/UX/UX_Feature_Entity_Symbology.md — OWNS the 2-D symbol, side colour and the entity card.
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS stress, nerve and the break (TS-4, TS-6, TS-8); §7e only draws them
+  - docs/blueprints/Architect_Question_103_Idle_Life.md — OWNS idle life (R-2074): who is idle and calm, and the four idle gesture kinds §7d draws
 -->
 
 # People display — what a person holds, does, says and feels, drawn *(ui, `2026-10-18`)*
@@ -219,7 +221,7 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 | `CE-1169` / `CE-1179` *(the pick-up weapons and the charge — part)* | three classes (`PickUpRifleWeaponSystem` 1.1.*.50.8 · `PickUpPistolWeaponSystem` .9 · `ExplosiveChargeWeaponSystem` .10, `EntityClassTable`) name their own kits (`WeaponKind.Rifle` / `Pistol` / `Charge`, `WeaponKits`): lying, they are a rifle, a pistol, a box with its detonator — no longer the generic HMG on its tripod. CARRIED (`DrawCarried`): a HIDDEN station is not drawn (U8); a hand weapon in his HANDS station is held level in front (`InHands`); a pistol in his back station is in its holster at the right hip (`OnHip`); the rest slung (`OnBack`). Rails `Map3DTests.CE1169_APickUpWeaponOrACharge_IsDrawnAsWhatItIs` (red-proved), frame `CE1169_V_ItemsOnTheGround_AreWhatTheyAre` ([`people-3-items-on-the-ground.png`](assets/map-3d/people-3-items-on-the-ground.png)) | ⭐ the user's *"classification in the TKB record or the DIS type"*: the DIS type, through the class table (the CE-1112 precedent) — the item's `Appearance.Look` would miss the rifle (its mount has none). ⚠ INTERIM: `InHands` is a level weapon at his hands, not yet U7's held-item poses (the aimed pistol, one hand), and the placed charge has no red blink yet (U18) — both stay in `CE-1169` / `CE-1179` |
 | `CE-1195` (the throw) | `BlockFigure.ThrowArms(parts, crouched, soldier, phase)`: the right arm sweeps over the shoulder from the wind-up (the `Throwing` gesture's pose) to the follow-through (forward and down), easing out, the left arm swinging back; drawn for `ThrowSeconds` = 0.6 s after a shot from his HANDS mount (`RecentShots`, `PersonHands.MountIndex`) by `EntityBodyLayer3D.Thrown`, standing or crouched, free, alive, not cowering. Rail `Map3DTests.CE1195_AThrow_SweepsTheArmFromTheWindUpToTheFollowThrough` | ⭐ no state and nothing on the wire: the throw is the fire event every node already has (CE-3248 kept it in `RecentShots` for exactly this) |
 | `CE-1171` (the blow, U10) | `StrikeTracker` (beside the world, as `RecentShots`): `EffectSpawnSystem` records every `StrikeNotification` (backend `CE-3266`, G3 — local or from the `MeleeStrike` topic) with its `MeleeWeapon` and sim time; `EntityBodyLayer3D.Struck` draws `BlockFigure.StrikeArms` for `StrikeSeconds` = 0.45 s, standing or crouched, free, alive, not cowering: a FIST punches straight out at the chin and back, a KNIFE stabs out at the belly with a 20 cm blade, a BATON swings from above the head over and down in front with a 60 cm stick; the left arm up as a guard, a soldier's rifle slung. Rails `Map3DTests.CE1171_*` (the poses, the window, a busy man) and `EffectTests.CE1171_*` (the spawner keeps a remote blow, no effect spawned) | ⭐ deviates from §2's `PostureBlend shape`: no blend state — the phase is the time since the strike, as the throw (`CE-1195`). ⭐ the blade / stick appear only DURING the swing; a man holding them at rest waits for G4's items. ⚠ empty in a replay (the spawner is off), as the throw |
-| `CE-1193` (lean) | `EntityBodyLayer3D.LeanShear(world, e)` = the sim's shear (`Leans`, Hit Location §13 LN-2): body-frame `y' = y + sign · 0.4 · z / eye` (eye 1.7 standing, 1.1 crouched — `EngineFallbacks`), multiplied into `kitToBody` for a FREE figure (not held, on a rope or jumping); identity when he does not lean or lies prone. ⭐ The eye and the muzzle tip read `kitToBody`, so the first-person view of a possessed leaning man and his muzzle flash move with him — backend's `PossessionStation.EyeOf` suggestion needs nothing more. Rails `CE1193_TheDrawnLean_IsTheSimsShear`, frame `CE1193_V_TheLeanIsDrawnAsTheSimLeans` ([`people-2-lean.png`](assets/map-3d/people-2-lean.png)) | ⚠ a shear, not behaviors' "upper body tilted, weapon leading" roll: the shear is what sight and the round use, so the head is drawn where he is seen and hit; a roll about the hip would put it elsewhere. ⚠ the eye height is the engine fallback, not the type's TKB eye (the sim's `EyeOf` resolves the type's); the same for the built-in figures |
+| `CE-1193` (lean) | `EntityBodyLayer3D.LeanShear(world, e)` = the sim's shear (`Leans`, Hit Location §13 LN-2): body-frame `y' = y + sign · shift · z / eye`, ⭐ `shift` = HIS depth `Leans.ShiftOf(world, e)` (`CE-2371` AQ104 G, R-2079, `2026-10-25`: 0.4 m when `Lean.Depth` is unset, up to 0.6 m — a trained man leans shallow, a militiaman shows half his body; ⛔ SUPERSEDED: the fixed `Leans.Shift` 0.4 m) (eye 1.7 standing, 1.1 crouched — `EngineFallbacks`), multiplied into `kitToBody` for a FREE figure (not held, on a rope or jumping); identity when he does not lean or lies prone. ⭐ The eye and the muzzle tip read `kitToBody`, so the first-person view of a possessed leaning man and his muzzle flash move with him — backend's `PossessionStation.EyeOf` suggestion needs nothing more. Rails `CE1193_TheDrawnLean_IsTheSimsShear`, frame `CE1193_V_TheLeanIsDrawnAsTheSimLeans` ([`people-2-lean.png`](assets/map-3d/people-2-lean.png)) | ⚠ a shear, not behaviors' "upper body tilted, weapon leading" roll: the shear is what sight and the round use, so the head is drawn where he is seen and hit; a roll about the hip would put it elsewhere. ⚠ the eye height is the engine fallback, not the type's TKB eye (the sim's `EyeOf` resolves the type's); the same for the built-in figures |
 
 ### 7b. As built — every soldier's weapon (`CE-1236`, `2026-10-21`, ui; U7a, R-1022)
 
@@ -291,6 +293,196 @@ sequenceDiagram
 | `CE-1177` U16 — mood | `Marks.MoodOf`: pain (`Injury` Wounded) > anger > fear (`Demeanour` from its 2nd quarter) > alarm (mode Alarmed / Panic). Far: the same card row as a 12 px dot `o` (pink / red / amber / white) when no speech shows — U15 wins. Close: the FACE — a new shader uniform `faceMood` (brow lift, mouth open, eye squint; `BodySurface.Expression`): afraid raised brows and an open mouth, angry knitted brows and a tight mouth, in pain squeezed eyes. ⚠ "hidden beyond 300 m" not built (a card row has no distance cut; the layer toggle stands). G2 LANDED (`CE-3265`), no writer yet (`CE-2250`) — live today: pain | same rail · frame `people-overnight-3-faces-calm-afraid-angry-pain.png` |
 | `CE-1179` U18 — the rest | a weapon LAID DOWN (his active own mount, `WeaponLaying.IsLaidDown`, replicated in `WeaponAmmo.LaidDown`) lies across his path a step in front of his feet (`BlockFigure.LaidAtFeet`, after the gestures — a hands-up gesture would sling it); a PLACED charge (no `IsEmbarkedTag`) blinks red a quarter second each second on sim time (`ChargeLightOn`), the same on every node | `Map3DTests.CE1179_*` · frame `people-overnight-4-laid-down-and-a-placed-charge.png` |
 | `CE-1170` U9 — the aim line | `AimLineGizmo` (Hrot.Common, `[GizmoProjector(WeaponPosture)]`, auto-discovered on every map host): `Aimed` at a living PERSON (`PhysicsColliderReaders.IsPerson`) ⇒ a thin red-orange line from `Muzzle.TryOf(ActiveMount)` — or, with no muzzle data (a rifleman), his shoulder (1.4 m) half a metre toward the target — to the target's chest (1.2 m); on `UnitDetails`. ⭐ A non-zero Z is drawn at its height in 3-D, never draped (`GizmoRenderer3D`); 2-D draws it flat. None when ready, at a vehicle, at a dead man | `Map3DTests.CE1170_*` (red-proof: the person check removed ⇒ the vehicle case draws) |
+
+### 7d. U19 — the IDLE gestures: a relaxed man smokes, shifts his weight, stretches, looks about *(`CE-1308`, ui, `2026-10-24`; behaviors' `CE-2368`, AQ103 I, R-2074 — [handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Idle_Gestures.md))* — build-state: BUILT
+
+🔒 User, `2026-10-24`: *"soldiers who are actually really idle or waiting in some boring job … Some of them could be smoking a cigarette,
+some of them just moving their bodies, stepping from one leg to the other … that of course applies to civilians as well."* · and *"follow
+their handoff regarding the idle gestures."*
+
+**INVENTORY** *(`scripts/cbm.sh search_graph` name_pattern `.*(Gesture|Idle(Smok|Shift|Stretch|Look)|Sway|Fidget|Cigarette|Smok).*`, Method:
+84 total — the relevant: `BlockFigure.GestureArms` (the six acts, animated on `t`), `EntityBodyLayer3D.Gestured` (the guard returning an idle kind
+unchanged — behaviors' cross-lane stop-gap), `EntityBodyLayer3D.GestureClock` (U14's per-man clock), `EffectStateGizmo.GestureWord` (no label
+for an idle kind), the `EntityGesture` translators; plus `MotionPose` (`KneeFlexL/R`, `HeadTurn`) and `EntityBodyLayer3D.FigureMotion`; ⚠
+`check_index_coverage` not reachable through the CLI.)* ⇒ ⭐ **no new class, no new state**: the idle kinds are two more stateless functions on
+the same clock.
+
+```mermaid
+classDiagram
+  class Gestures { <<exists, FDP>> Of(view, unit) · IsIdle(kind) }
+  class EntityBodyLayer3D { <<exists, changed>> Gestured — an idle kind now drawn · FigureMotion — IdleMotion added · GestureClock (U14) }
+  class BlockFigure { <<exists, changed>> GestureArms (the six acts) · IdleArms(parts, kind, crouched, soldier, t) NEW }
+  class IdleMotion { <<NEW static method on EntityBodyLayer3D>> knees for ShiftWeight · head sweep for LookAbout only with no LookState }
+  class RestlessSystem { <<behaviors>> writes IdleSmoking 7 · IdleShiftWeight 8 · IdleStretch 9 · IdleLookAbout 10 }
+  RestlessSystem ..> Gestures : Set
+  EntityBodyLayer3D ..> Gestures : Of
+  EntityBodyLayer3D ..> BlockFigure : IdleArms
+  EntityBodyLayer3D ..> IdleMotion
+```
+*What the picture shows that prose hid:* the idle kinds ride the SAME reader (`Gestures.Of`) and the SAME clock as the acts — nothing new
+reaches the wire or keeps state; the drawing splits only by WHAT moves (arms → parts, legs and head → the motion pose).
+
+```mermaid
+sequenceDiagram
+  participant B as RestlessSystem (brain)
+  participant W as dtGesture / EntityGesture
+  participant L as EntityBodyLayer3D (every node)
+  B->>W: Kind 7..10 while idle and calm
+  loop every drawn frame
+    L->>L: t = GestureClock(e, simTime)
+    L->>L: FigureMotion + IdleMotion (knees, head)
+    L->>L: Gestured: IdleArms(parts, kind, t)
+  end
+  B->>W: Kind 0 (a threat, a task)
+  L->>L: the plain figure at once — no state to unwind
+```
+
+```mermaid
+graph TD
+  BODY["EntityBodyLayer3D — composed by MapInteractionPack.AttachMapLayers on every map host (editor, CGF, SimHost, IG)"] -->|"each frame, per free standing / crouched man"| FM["FigureMotion → IdleMotion"]
+  BODY --> GE["Gestured → BlockFigure.IdleArms"]
+  EXT["an external IG"] -.->|"its own animation for bytes 7..10 (blend, never snap)"| WIRE["EntityGesture.Kind"]
+```
+*The dashed edge is outside this repo:* the external IG gets only the byte — it must play its own idle animation.
+
+| id | decision | ⭐ lean (taken, for the user to confirm) | rejected — one line each |
+|---|---|---|---|
+| **U19a** | smoking | the right hand to the lips and down on a 9 s cycle (up 1 s, at the lips 2.5 s, down 1 s, low 4.5 s), a cigarette (8 cm, pale) in the fingers; ⭐ a soldier keeps his rifle where his posture holds it, the left hand on it — only the right arm leaves | sling the rifle as the acts do — the handoff's fence: a mood, not an act |
+| **U19b** | shifting weight | legs — the free knee bends (≈20°) and the upper body sways ≈4 cm over the standing leg, side to side on a 6 s cycle; fades out while he walks (`Moving`) | arms only — the user's own words are "stepping from one leg to the other" |
+| **U19c** | stretch | a civilian: both arms up over his head, held 2 s in an 11 s cycle; a soldier: the right arm only (the left stays on the rifle) | both arms for a soldier — the rifle would float |
+| **U19d** | looking about | ⭐ **his REAL eyes look about** — behaviors' idle glance (`RestlessSystem.Glance`, AQ103 I: a slow scan ±60° about his facing, 3 s a fixation) moves `LookOf.HeadYaw`, and the drawn head follows it (Entity Control LK-5) — true by construction. The drawn ±30° / 12 s sweep stays **only for a man whose eyes are not modelled** (no `LookState`) | the sweep regardless — the drawing would lie about where he looks · ⛔ *"the sweep while `HeadYaw` is 0"* (as first built, SUPERSEDED `2026-10-24`) — the glance passes straight ahead, and the fake sweep cut in there |
+| **U19e** | where | standing and crouched, a free carriage, not destroyed, not cowering — the acts' own guard; nothing in 2-D (a mood has no label) | — |
+| **U19f** | the external IG | the wire comment and Civilians §7.7: **7–10 are idle ANIMATIONS to blend, not poses to snap to** | — |
+
+**As built** — `BlockFigure.IdleArms` (U19a, U19c) and `EntityBodyLayer3D.IdleMotion` (U19b, U19d), both stateless on `GestureClock`; `Gestured`
+draws an idle kind through `IdleArms` instead of returning the figure unchanged. Rails: `Map3DTests.CE1308_*` (red-proved: 5 mutations, each red). ⭐ After behaviors' glance (`NOTE_Behaviors_To_Ui_Idle_Glance`): the drawn sweep keys on *no `LookState`*, not on `HeadYaw == 0`.
+📌 **Live, `il-idle-life`, headless editor, `2026-10-24`:** over 45 s the ten men showed smoking, the weight shift and looking about, each
+starting and ending at his own time (never in step); a stretch came later. Followed in 3-D (`POST /view/follow`): the posted Watchman's
+hand went to his face and down again on the smoking cycle, the rifle staying in his other hand. ⚠ A threat stopping them was not staged —
+the drawing reads `Gesture` every frame, so it stops the frame `RestlessSystem` clears it (behaviors' live run covers that half).
+
+### 7e. U20 — the MIND-STATE bar: a soldier's stress (with his breaking point), a civilian's fear *(`CE-1309`, ui, `2026-10-24`)* — build-state: BUILT
+
+🔒 User, `2026-10-24`: *"The soldier now have their psychical state as fright or nerve and stress etc stored as component, i would like to show
+it on 3d map optionally, maybe as some bar chart floating above soldier's head or something, or just little colored percentage number if
+nothing better and simpler indicator exists. There are already some warning icons i guess so somewhere next to them?"*
+
+**INVENTORY** *(`scripts/cbm.sh search_graph` name_pattern `.*(Nervous|Stress|Fear|Morale|Suppress|Panic|Shaken|Pinned).*` label Class —
+36 hits, the mind-state ones: `CivilianFear`, `CivilianFearSystem`, `PanicState`; grep `Stress|Demeanour|CivilianState|\.Card\(`; ⚠ coverage
+not checkable through the CLI)*:
+
+| what | where | on which node |
+|---|---|---|
+| `Stress {Level 0–1, Broken, …}` — a combatant's live stress | `FDP/…/Behavior/Components/Stress.cs`; kept by `StressSystem` (behaviors) | ⛔ **brain node only** (TS-8) — the editor runs the brains in-process (`EditorSubsystem.cs:1714` builds `CgfLogicPack`), so its map has it; an IG does not |
+| his **breaking point** = effective nerve (`TemperamentOf.Effective(Nerve)`, never under 0.05) · **nervous** from 0.4 × it | `StressModel.BreakLevel` / `Nervousness` (`StressSystem.cs:155-176`, behaviors) | pure reads of `Stress` + `CombatTemperament` (FDP) |
+| `CivilianState.Fear / Anger` 0–1 | `FDP/…/Civilians/CivilianState.cs:44-76` | ⛔ brain node only |
+| `Demeanour {Mode, Fear, Anger}` in quarters — replicated | `Civilians/Demeanour.cs` (G2, `CE-3265`) | every node — ⚠ **no writer yet** (behaviors `CE-2250`) |
+| the CARD above the head — rows: 0 frame · 10 health bar · 20 name · 45 the mark (speech / mood dot) · 46 hidden item | `EntityCards.cs`, `HealthBarGizmo.cs:59`, `OverheadMarkGizmo.cs:131`, `ConcealedItemGizmo.cs:39` | every node |
+| layer toggles — the last toggled bit 27 (`Grid`), `FirstUntoggledLayer` 28 | `DebugTraceLayers.cs:66`, `LayerControlGizmo.cs:69, 118` | — |
+
+```mermaid
+classDiagram
+  direction LR
+  class Stress { <<FDP component, existing>> Level Broken }
+  class Stresses { <<NEW FDP static — moved from StressModel>> +LevelOf · +IsBroken · +BreakLevel · +Nervousness · BreakFloor · NervousFrom }
+  class StressModel { <<behaviors, existing>> BreakLevel / Nervousness / IsBroken / LevelOf forward to Stresses }
+  class TemperamentOf { <<FDP, existing>> +Effective(Nerve) }
+  class CivilianState { <<FDP, brain node>> Fear Anger }
+  class Demeanour { <<FDP, replicated, no writer yet>> Fear in quarters }
+  class MindStateGizmo { <<NEW, Hrot.Common, IStatelessGizmo>> card row 11 · layer MindState }
+  class MindStateBar { <<NEW, pure>> +Of(view, man) (Fill, Tick, Colour, Broken) }
+  class EntityCardRow { <<FDP contracts, grows>> Bar · Text · +Tick }
+  class HealthBarGizmo { <<existing>> card row 10 }
+  class LayerControlDto { <<existing, grows>> Units.MindState off by default · FirstUntoggledLayer 28 to 29 }
+  Stresses --> Stress
+  Stresses --> TemperamentOf
+  StressModel ..> Stresses : forwards
+  MindStateBar --> Stresses
+  MindStateBar --> CivilianState
+  MindStateBar ..> Demeanour : no CivilianState here
+  MindStateGizmo --> MindStateBar
+  MindStateGizmo --> EntityCardRow
+  LayerControlDto ..> MindStateGizmo : toggles its layer
+```
+*Caption:* what the picture shows that prose hid — the breaking point is behaviors' arithmetic, so the drawing would have been a SECOND copy
+of it; moving it beside `Stress` (FDP) gives one implementation that both the brain and the card read. The bar is one more card row, right
+under the health bar — no new surface.
+
+```mermaid
+sequenceDiagram
+  participant SS as StressSystem (behaviors, brain node)
+  participant W as world
+  participant G as MindStateGizmo (map host)
+  participant B as MindStateBar
+  participant C as entity card
+  SS->>W: Stress.Level, Broken (on a stimulus, then each frame)
+  G->>G: layer MindState on? a person, alive, with a network id?
+  G->>B: Of(view, man)
+  B->>W: Stress? then Stresses.BreakLevel (nerve) — else CivilianState.Fear — else Demeanour.Fear / 4
+  B-->>G: fill, tick, colour, broken
+  G->>C: Row(11).Bar(fill, colour) + Tick(break)   · Row(12).Text("BROKEN") when broken
+```
+*Caption:* the card reads the brain's own numbers every frame — nothing new is sent; where the brain is not (an IG), there is nothing to read
+and no row is drawn.
+
+```mermaid
+graph TD
+  REG[GizmoReflectionRegistrar — every map host] --> G[MindStateGizmo]
+  LP[Layer panel: Units / Mind state, off] --> M[LayerMask bit 28]
+  M --> G
+  ED[Editor — brains in-process] -->|has Stress| G
+  CGF[CGF node's own map] -->|has Stress| G
+  IG[IG / remote display]:::dead -.->|no Stress: brain-local TS-8| G
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33
+```
+*Caption:* the dead edge — a display node never has `Stress` (TS-8), so on an IG the layer draws nothing for soldiers; civilians there would
+show once behaviors writes `Demeanour` (`CE-2250`).
+
+✅ **U20a–f approved** — 🔒 User, `2026-10-24`, on the built bar: *"Approved"* (`R-1035`).
+
+| # | decision | ⭐ lean | rejected |
+|---|---|---|---|
+| **U20a** | the indicator | a thin BAR (the health bar's height) in the card, **right under the health bar** — filled to his stress, with a **white tick at his breaking point** (his nerve): the bar reaching the tick is him breaking | a percentage number — a number does not show how close he is to breaking · next to the mood dot (row 45) — a bar reads best beside the other bar |
+| **U20b** | the colour | calm (under 0.4 × his breaking point) slate blue · nervous amber · broken red, with **BROKEN** written under it | one colour — the band is the useful part |
+| **U20c** | civilians | the same row shows his FEAR (amber, no tick): `CivilianState.Fear` on the brain node, else the replicated `Demeanour` quarter | a separate civilian row — one row per man, as U15/U16 |
+| **U20d** | when | only a man with something to show: stress over 2 % or broken; fear over 5 %; never a man down or a vehicle | always — every calm man would carry an empty bar |
+| **U20e** | the switch | its own layer **"Mind state"** under Units, **off by default** (bit 28; `FirstUntoggledLayer` 28 → 29, the `CE-1288` precedent) | the Labels layer — it would be on for everyone |
+| **U20f** | where it can show | wherever the brain runs (the editor, a CGF node's own map); ⛔ not on an IG — `Stress` is brain-local by TS-8 | ask for a replicated quantised stress now — no reader on another node yet (TS-8's own reasoning); asked later if wanted |
+
+| claim the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the editor's world holds the brains | ✅ `EditorSubsystem.cs:1714` builds `CgfLogicPack`; live: `BehaviorState`, `Restless` on the editor's soldiers | ✅ TS-8 *"visible over HTTP … on the brain node"* |
+| `Stress` appears only after a stimulus | ✅ `StressSystem.cs:247-252` (`Ensure` from `Add`) | ✅ TS-4 |
+| breaking point = effective nerve | ✅ `StressSystem.cs:175` | ✅ Temperament & Stress TS-6 |
+| a card row is one call and stacks by order | ✅ `EntityCards.cs:39` | ✅ Map 3-D §3.6 M14 |
+
+**As built** — `MindStateBar.Of` + `MindStateGizmo` (`Hrot.Common/Diagnostics/Gizmos/MindStateGizmo.cs`; card rows 11 and 12), `Stresses` in
+`Stress.cs` (FDP; `StressModel` forwards), `EntityCardRow.Tick`, `DebugTraceLayers.MindState = 28`, `Units.MindState`. Matches the diagrams.
+⚠ **Found on the way:** behaviors' `StressSystem` was registered with no `[TickMode]` — R-3036's scheduler threw on the first frame of every
+host running `CgfLogicPack` (the editor died on load). Fixed (`WhenTimeAdvances`, as its siblings) and guarded: `BrainSystemsDeclareTickModeTests`.
+Rails: `Map3DTests.CE1309_*`, `GZH011_Tests.CE1309_*`.
+📌 **Live, `uf-squad-under-fire`, headless editor:** within a second of contact Hostile 2 rose to 0.24 and Riflemen 1 and 4 to 0.21; followed
+in 3-D with **Units → Mind state** on, Hostile 2's card showed the red bar past the white tick and **BROKEN** under it (his state line: `Break`).
+
+### 7f. U21 — RECORDED: a short HEALTH BAR floating over a person's or vehicle's head, its own switch *(`CE-1313`, ui, `2026-10-24` — build-state: DESIGN, leans for the user)*
+
+🔒 User, `2026-10-24`: *"I would like for a soldier to turn on a health bar on top of his head, not as part of the card, but just floating on
+top of his head, something similar which is now shown for the psychic state. But shorter … when low health it's red, when it is in the middle
+then it's yellow, and when it's close to full it's green. It should have its own separate checkbox for turning on and off, independently on
+the label card. It needs to be just short. Otherwise, it would overlap too much with the guys standing next to him."* · *"The health bar should be available also for vehicles, not just people. And when the cart is on, then the floating individual health bar is not shown, because it is already part of the cart."* *("cart" = the card)*
+
+| what exists | where |
+|---|---|
+| the card's health bar (row 10 of the card — on only with the whole card, the Labels layer) — its colours: green ≥ 66 %, yellow ≥ 33 %, red | `HealthBarGizmo.cs:52-56` |
+| a primitive can sit in the WORLD, on the SCREEN or in the CARD — ⛔ nothing "screen-sized, anchored over a head" outside the card | `CoordinateSpace.cs` (World, Screen, EntityLocal, EntityCard) |
+| the 3-D body layer knows the top of what is drawn for each man (`LabelTop`) and the camera | `EntityBodyLayer3D.cs` |
+
+| # | ⭐ lean | rejected |
+|---|---|---|
+| **U21a** | drawn by the 3-D body layer itself at his `LabelTop` + a few pixels: **28 × 4 px** (a third of the card's width), the card's colours and thresholds (one `HealthColour` shared with `HealthBarGizmo`, not a second copy) | a second card — a card is one per entity; a world-space bar — it shrinks to nothing at distance and grows huge close up |
+| **U21b** | its own layer row **Units → Health over head**, off by default, independent of Labels | riding on Labels — the user's point is to have it WITHOUT the card |
+| **U21c** | ✅ **people AND vehicles** (alive, a person not inside a vehicle); ✅ **hidden whenever the card is shown** — the card already carries the health bar (user, `2026-10-24`) | ⛔ people only, and ⛔ *"under the card when both show"* — SUPERSEDED by the user the same day |
+| **U21d** | 3-D only | 2-D — the symbol view already has the card; ask if wanted |
 
 ## 8. Gaps for the other lanes *(sent as [findings](blueprints/batches/HANDOFF_Ui_To_Backend_And_Behaviors_People_Display_Gaps.md))*
 

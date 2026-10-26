@@ -76,7 +76,7 @@ public class RouteContextSystemTests
         {
             var routeEntity = _repo.CreateEntity();
             var plan = new RoutePlan();
-            plan.Mutate(wps =>
+            plan = plan.WithWaypoints(wps =>
             {
                 wps.Add(new RouteWaypoint
                 {
@@ -228,7 +228,7 @@ public class RouteContextSystemTests
             CompiledVersion = 1,
         });
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint
             {
@@ -291,7 +291,7 @@ public class RouteContextSystemTests
             CompiledVersion = 1,
         });
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint
             {
@@ -365,7 +365,7 @@ public class RouteContextSystemTests
             CompiledVersion = 1,
         });
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint { Position = Vector3.Zero, ExtensionJson = @"{""dangerLevel"":99}" });
             wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 0f) });

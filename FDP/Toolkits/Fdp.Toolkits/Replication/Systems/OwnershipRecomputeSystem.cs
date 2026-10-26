@@ -93,6 +93,7 @@ namespace Fdp.Toolkit.Replication.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo) return;
 
             _touched.Clear();
@@ -293,12 +294,11 @@ namespace Fdp.Toolkit.Replication.Systems
                     if (repo.HasManagedComponent<DescriptorOwnership>(entity))
                         ownership = repo.GetComponent<DescriptorOwnership>(entity);
                     else
-                    {
                         ownership = new DescriptorOwnership();
-                        repo.SetManagedComponent(entity, ownership);
-                    }
                 }
-                ownership.Map[key] = _localNodeId;
+                // CE-4046: immutable record — a NEW value with the record following the claim, Set at once (later keys read it back).
+                ownership = ownership.WithOwner(key, _localNodeId);
+                repo.SetManagedComponent(entity, ownership);
             }
 
             if (pending != null && pending.Descriptors.Count == 0)

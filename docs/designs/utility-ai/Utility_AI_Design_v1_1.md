@@ -1,15 +1,17 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-05
+updated: 2026-10-24
 current-answer: the whole document (the scorer and its §7 integration surfaces) — EXCEPT §7.1–§7.2, superseded by docs/DESIGN_Decision_Layer.md §3.3 (CE-2069)
 stale-below: none
 known-rot: §7.1 UtilitySelectorNode and §7.2 UtilityTransitionArbiter are SUPERSEDED 2026-10-05 (CE-2069, R-202) by the shared UtilityNodes (ChooseOption / IsOption / RankCandidates) that a BTree and an HSM both bind, the winner held in the CALLER's working state; both classes are deleted. · §6.6's reader sketch keyed a template by its NAME hash — SUPERSEDED 2026-10-03 (CE-2046): by its AssetId, see the note in §6.6. The runtime bootstrap (input registration via UtilityAutoDiscovery) had no production caller until CE-454 W1 — see DESIGN_Squad_Wiring.md §1
 related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-2: an "Observe all" toggle fills UtilityDecisionLog on every unit; a unit with no utility reasoner says so
+  - docs/DESIGN_Entity_Brain_View.md — the Brain tab is §9.3's inspector panel ("Why this choice"); the journal records winner switches always
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS one demo scenario per utility feature (incl. WeaponSelection, LeaderAssignment, ManeuverSelect) and what is missing to run each live; its §2.2 F1/F2/F3 are defects in this design's inputs and trace.
   - docs/DESIGN_Decision_Layer.md — §3.3 OWNS how BTree / HSM / blueprint call the scorer now (UtilityNodes, ScoreDecision), superseding §7.1–§7.2 here.
   - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — owns the runtime bootstrap call site (CgfLogicPack ctor) and why no Utility tick system exists
   - docs/designs/group-maneuvers/Squad_Coordination_Design_v1_1.md — the commander-tier ManeuverSelect recursion (§8.0)
-  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; adds three damping inputs to the posture decision (neutral 1.0), nothing to the scorer
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (RiskAcceptance, Obedience, Nerve, Resolve) and live stress; its three damping inputs are the first MODIFIER considerations (§4.3a here, R-2075) — ⛔ SUPERSEDED: "nothing to the scorer"
 -->
 
 # Utility AI (Decision Scoring) — Design v1.2
@@ -254,6 +256,21 @@ finalScore         = rawProduct + (makeUpValue * rawProduct)
 Each consideration's contribution is `curve(input)` raised to its weight (weight as exponent in
 product mode — weight 0 → term is 1.0 / no effect; weight 1 → full effect), so weights remain
 meaningful under multiplication.
+
+### 4.3a ⭐ Modifier considerations *(`CE-2271`, R-2075, built 2026-10-24)*
+
+⛔ The compensation counts considerations, so a consideration that reads exactly 1.0 is **not** neutral: it raises `n`, and so the
+score (raw 0.5: `n` = 3 ⇒ 0.667, `n` = 4 ⇒ 0.688). ⭐ A **modifier** (`ConsiderationFlags.Modifier`, authored with `.Modify(input, weight,
+curve)` beside `.Consider(...)`) is applied AFTER the aggregate, in either mode, and is not one of the `n`:
+
+```
+finalScore = aggregate(ordinary considerations) × Π curve(modifierᵢ) ^ weightᵢ
+```
+
+⇒ a modifier reading 1.0 leaves the score BIT-identical. Use it for an input that may only ever DAMP an option (temperament, stress).
+It is traced like any consideration. The flag lives in the consideration's former padding byte (the struct stays 40 bytes); the
+analyzer's input / weight checks and the generator's manifest count treat `Modify` as a consideration. ⚠ The utility asset editor has no
+modifier toggle yet (its model is its own) — `NOTE_Behaviors_To_Ui_Utility_Modifiers`.
 
 ### 4.4 Aggregation — weighted sum (escape hatch)
 

@@ -30,6 +30,12 @@ public static class SquadStateProvisioning
     public static void EnsureForCommander(EntityRepository repo, Entity commander)
     {
         if (repo is null) return;
+        // ⭐ CE-1319 (BV-60) — the report and order histories ride the same fact: a commander has them. Only where the brain's registry
+        //   registered them (a node without a brain keeps none).
+        if (repo.IsComponentTypeRegistered<Command.CommandReportHistory>() && !repo.HasComponent<Command.CommandReportHistory>(commander))
+            repo.AddComponent(commander, default(Command.CommandReportHistory));
+        if (repo.IsComponentTypeRegistered<Command.CommandOrderHistory>() && !repo.HasComponent<Command.CommandOrderHistory>(commander))
+            repo.AddComponent(commander, default(Command.CommandOrderHistory));
         if (repo.HasComponent<SquadCognitiveState>(commander)) return;
         repo.AddComponent(commander, default(SquadCognitiveState));
     }

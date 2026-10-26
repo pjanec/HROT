@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
+updated: 2026-10-25 (§12.6 R-2078: a hot spot still peeked, no drop indoors, the duel's tasks) · 2026-10-25 (§12 the posted man's one cycle; a look is not a burst — R-2077, CE-2366) · 2026-10-20 (§11 look then shoot, aim at the chest — R-2064, CE-2325…CE-2329) · 2026-10-16 (§10.10 the muzzle line — CE-2218)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
-current-answer: ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
+current-answer: ⭐ §12 THE POSTED MAN'S ONE CYCLE + A LOOK IS NOT A BURST (R-2077) · ⭐ §11 LOOK THEN SHOOT + THE CHEST (R-2064 — supersedes D1's "middle" for a person) · §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
 stale-below: nothing
-known-rot: D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
+known-rot: §8 B4 "a burned one with nowhere to go waits to cool" — he now peeks from it at a third of the rhythm (§12.6, R-2078) · §4.2 and D13 (§6) — a blind burst now answers only FRESH evidence (≤ 5 s), else the exposure is a look (§12.4 B, R-2077) · D1 (§6) and §10.10's "the middle" for a PERSON — now the CHEST (§11.5 ②③, R-2064); §10.10's "before release" order — the muscle now aims first, then judges the masked line (§11.5 ④)
 known-conflict: DESIGN_Building_Interiors.md §3d P2 / R-217 — "the shot flies from the eye to the middle of the target's silhouette"; D1 here refines the AIM POINT for a partly hidden target (§6 D1, revised R-239)
 related-designs:
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) A, B, D: the posted window man fights through PeekAndFire; under fire ducks whatever his health; the next spot a seeded pick
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: D — the move to a hide is crouched at the rush speed
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — §6b: the next hide point must lie inside the man's sector and post set (PC-14); who switches windows by proficiency (PC-15); the watcher's counter-play (PC-16)
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
@@ -202,7 +203,7 @@ chosen on SimHost from geometry. The ~100–300 ms report latency is part of the
 | D11 | **street cover = STATIC OBSTACLE ENTITIES** (a parked car, a sandbag barrier, a crate) of an **obstacle TKB type** carrying a `PhysicsCollider` (radius, height), a `StaticObstacle` marker and a **MATERIAL from the wall library** (`TerrainMaterial`: sight transmittance, resistance mm RHA per metre, sound dB, blocks movement — §3c), placed by the scenario like any entity; the Editor's existing zone obstacle (`EditorZoneAuthoringSystem`, a bare circle collider) becomes one of these types, so it carries a material too. ① **bullets**: the round crosses the obstacle like a wall panel — resistance × the CHORD it travels through the collider (within its height) → `ArmorModel.PenetrationChance`, chances multiply with every other crossing, penetration reduced by what was crossed (§3d P2, one rule); ② **sight**: the obstacle's material transmittance, as a panel's (today a collider is opaque within its height); ③ **cover**: the cover database = terrain + obstacles — points around each static obstacle (stance by its height), rebuilt when one appears or goes, ONE `ICoverProvider` (R-132); ④ **the cover query's sight**: `EqsTerrainSight` sees STATIC obstacles too (moving vehicles stay "not cover", EQS §19.5); ⑤ **paths**: obstacles cut into the navmesh by the existing touched-tile rebuild (Nav v2 §14 P2) | 🔒 user: *"The covers on the street could be obstacle entities, simulating a static cars or something."* · *"the zone obstacles need to carry the material similar to walls (obstacle entity tkbtype derived) and the bullet penetration should count with it."* ⛔ SUPERSEDED: obstacles as terrain prisms in `bt-range`'s world file |
 | D12 | **suppress and bound** (B's shape, a `PeekAndFire` parameter): a suppressive burst at A's freshest known spot (`FireAtPoint`, no aim time), then a run to the next cover — `FindCoverFromTarget`'s answer, D8's burned positions skipped, never the current one; **under fire = stay down**: a unit near-missed or hit within `SuppressedSeconds` (default 3 s, `RecentSenses`) does not expose | 🔒 *"after using suppressive fire first"*; suppression must DO something or bounding is theatre — the near-miss sense already exists (`R-206`) |
 | D13 | **the freshest evidence wins** for a blind burst: the newest of the identified enemy's last sighting and any HEARD contact (`CE-3063` anonymous slots); an aimed shot still needs sight | measured: a heard shot >≈6 m from the remembered spot makes a NEW anonymous slot (`TargetMemory.HearContact`, radius 40 m × 0.15) and `TopAim` prefers the identified one ⇒ without D13 A shoots at where B WAS. ⭐ Hearing already works without walls (`AcousticPerception`) — 7b's wall attenuation is not needed for this |
-| D14 ✅ **BUILT `2026-10-09` (`CE-3144`, P-8)** | **the node's two sensors look from and for where the enemy is REMEMBERED** — the freshest evidence (D13) as a context POINT (`EqsContext.AnchorPosition` → `ContextPoint1`, the `CE-3063` heard-contact path), keyed by its memory slot; re-pointed when that spot moves ≥ `RepointMetres` (2 m) or another slot becomes freshest (`PeekAndFireNodes.SensorAim`, state `SensorId`/`SensorAt`). The fire decision is unchanged: an aimed shot still needs the enemy SEEN (D4) | 📐 **measured live, P-8's first run:** both sensors were pointed at the ENTITY, so the LOS filters tested its TRUE position — B behind van 1 is seen from no window and A inside the room from no street point ⇒ A's window sensor and B's peek sensor answered **0**, nobody exposed, nobody fired in 600 s. A soldier looks for where he last saw (or heard) the enemy — the user's *"because they remember seeing each other"*. ⛔ Rejected: the true position (omniscient, and deadlocks the moment both hide) · falling back to the point only when the sensor answers nothing (two behaviours, and still omniscient while one is visible) |
+| D14 ✅ **BUILT `2026-10-09` (`CE-3144`, P-8)** | **the node's two sensors look from and for where the enemy is REMEMBERED** — the freshest evidence (D13) as a context POINT (`EqsContext.AnchorPosition` → `ContextPoint1`, the `CE-3063` heard-contact path), keyed by its memory slot; re-pointed when that spot moves ≥ `RepointMetres` (2 m) or another slot becomes freshest (`PeekAndFireNodes.SensorAim`, state `SensorId`/`SensorAt`). ⭐ **`CE-2351` (`2026-10-22`): a heard slot is the threat's evidence only within `HeardMatchRadius` (15 m) of where he is remembered — G4's burst rule, now for the sensors too** (📐 live `ua-javelin-lock`: another fight's launch and impact 160 m off pulled a tank's queries away from its named target; [Exposure Cycle §4a](designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md); rail `VehicleFightFromCoverNodesTests.CE2351_*`). ⛔ SUPERSEDED: *any* newer heard slot. The fire decision is unchanged: an aimed shot still needs the enemy SEEN (D4) | 📐 **measured live, P-8's first run:** both sensors were pointed at the ENTITY, so the LOS filters tested its TRUE position — B behind van 1 is seen from no window and A inside the room from no street point ⇒ A's window sensor and B's peek sensor answered **0**, nobody exposed, nobody fired in 600 s. A soldier looks for where he last saw (or heard) the enemy — the user's *"because they remember seeing each other"*. ⛔ Rejected: the true position (omniscient, and deadlocks the moment both hide) · falling back to the point only when the sensor answers nothing (two behaviours, and still omniscient while one is visible) |
 | D15 ✅ **BUILT `2026-10-09` (`CE-3144`, P-8)** | **"can I shoot him from there" (`CheapLineOfSightTest`, `Viewer = Candidate`) looks at the target's BODY POINTS** for its logical stance (`BodyProfile.Fractions`, a vehicle by its hull) and is clear when ANY is — the rule perception already uses (`TerrainWorldLosStrategy.IsVisible`, Buildings §3f/§3i); a POINT target (D14) is a standing man's points. Moves the three `Visible` templates: `FindOpenFiringPosition`, `FindWindowFiringPosition`, `FindFlankingPosition` | 📐 **measured** (`bt-range`, street eye 1.7 m → each House A window point): the old single aim at half the standing eye = **0.85 m is below the 0.9 m sill — blocked at all five windows**, from every street point probed, while 1.1 m is clear at both upstairs south windows. So no peek point could ever see A at a window. ⚠ One line becomes up to three per candidate (early-out on the first clear) |
 | D16 ✅ **APPROVED + BUILT `2026-10-09` (R-246, `CE-3144`)** | **the eye is the top body point** — "if your eye sees out, your head shows": person fractions standing 0.12 / 0.53 / **1.0**, crouched 0.18 / 0.55 / **1.0**, prone 0.43 / **1.0** of the stance's eye height, in the ONE profile (`BodyProfile`, `LosStrategies.cs`) — so sight, the D2 bullet body band (`PersonTop`) and fragments all grow by the head. ⛔ SUPERSEDED (Buildings §3i): tops at 0.94 / 0.91 / 0.86 of the eye — below it | 📐 measured (`bt-range` probe, street eye 1.7 m → upstairs window point): 1.00 m blocked, 1.10 m clear — a man crouched there (eye 1.1) saw the street and none of his points (top 1.0) was seen from it. 🔒 User: *"yes sure like that, wasn't the body profile's top point (1.0 m) clearly wrong?"* — yes: a head reaches above the eyes. Rejected: window points nearer the wall (cm margins) · eye-to-eye sight only (seen but the hit band misses the head) |
 | D17 ✅ **BUILT `2026-10-09` (R-247, `CE-3145`)** | **a soldier turns on the spot, then walks** — pedestrians move by `HumanGait` (the mover's own design: [`FDP.Toolkit.CarKinem.md`](../FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md) "Human gait"), not the bicycle model | 📐 in-process `bt-window-duel` (frame 8508): A, at the upstairs window (107.1, 100.9) facing east, had to go west to the next window; the car model walked him 0.5 m forward while turning — into House A's open stairwell (x 107.5–108.5, y 101–106, 0.4 m away) — and he fell to the ground floor, so every later "window" exposure was downstairs. Navmesh path and `SurfaceZ` both stayed at z = 3 (probed): the fall was the mover's. Rejected: clamp each step to the navmesh (still swings in a circle) · face A west in the scenario (hides it) |
@@ -1080,3 +1081,95 @@ graph TD
 | `CE-2329` masked line | `FireProcessingSystem` — `AimPoint.For` before `MuzzleMasked` |
 | `CE-2330` stance peek / generic | `PeekAndFireNodes.ShootHigher` (Aimed and Blind, on the muscle's `Masked`), `PeekAndFireState.ShootTaller` (reset with the hide point), `StepToShoot`'s stance branch; `CheapLineOfSightTest.FireMarkOf` — the one reader; `EqsTacticsNodes.TryNewAnswer` skips look-only answers |
 | ⏭ not yet | the posture's Engage / Suppress (`PostureNodes.Fire` from where he stands) still holds on `Masked` (§10.10's ⏭) — measured next in `pc-defend-house` / `uc-urban-battle` before a rule is chosen |
+
+## 12. The posted man's ONE cycle, and a look is not a burst *(behaviors, `2026-10-25` · ✅ R-2077 · `CE-2366`)*
+
+🔒 **User, `2026-10-25`:** *"I would expect the guy behind the window to quickly lean out of the window and check if there is an enemy.
+And if not, then he should wait a while in his cover on the side of the window. Then he peeks again … he can use the place just for a
+few times before changing to the other cover … And when there is some enemy seen, then he should fire at him … peek, fire, back to
+cover. If the cover is too warm, then switch to the other one"* — then on the fixes: *"approved, go ahead with A, B and C"*.
+
+### 12.1 What was measured *(`bt-window-duel` on the standard behaviours, live over the debug HTTP API, 180 s)*
+
+| | |
+|---|---|
+| ✅ 1.4–9 s | the one cycle as designed: to the frame, ~3.8 s behind the wall, leans out, does not see him in the grace ⇒ a blind round, back behind the wall |
+| ⛔ 10–45 s | the posture decision switched ~10 times between TakeCover / Suppress / Advance / HoldProne; each switch ran PeekAndFire's deactivator ⇒ `ws = default` (§8.3: the state is scratch) — he started for a window, was reset, started for another |
+| ⛔ 41.7–180 s | the decision settled on **Advance**: for a posted man that is "walk to the post point and stand" — no peek, no round for 140 s |
+| | 2 rounds in 180 s. The squad's two re-sends were the designed hunt (AQ102 H, `CE-2359`) and displacement (D-2c) — each a real change of post, not an unchanged order (R-2066 D holds) |
+
+### 12.2 Where the posted branch sits in `CombatPosture` *(as built)*
+
+```mermaid
+graph TD
+  W[work: ObserverSelector] --> FB[FallBack - the retreat]
+  W --> OC[occupy - OffPost: walk to the post]
+  W --> PB["posted - PostedWithThreat: PeekAndFire (PeekState)"]
+  W --> AD[Advance - flank / firing position / throw / advance]
+  W --> TC[TakeCover - PeekAndFire]
+  W --> SU[Suppress - close to throw / suppress]
+  W --> HP[HoldProne]
+  W --> HW[Hold - HoldWatch: lean out at the frame]
+  style PB fill:#d9f2d9,stroke:#2e7d32
+```
+*What the picture shows that prose hid: the posted branch is ABOVE every option but the retreat and the walk to the post, and its guard
+reads no option — so a switch among the options below it cannot reach it. With nothing to fight its guard fails and Hold's frame watch runs.*
+
+### 12.3 The cycle a posted man runs *(the node unchanged but for B)*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Hidden: at the frame / window point
+  Hidden --> Expose: the wait (2-5 s) is over, not suppressed
+  Expose --> Aimed: he SEES him - fire
+  Expose --> Blind: not seen, evidence fresh (seen or heard within 5 s)
+  Expose --> Hidden: not seen, evidence older - a LOOK only
+  Aimed --> Hidden: rounds done / fired on / lost sight
+  Blind --> Hidden: burst done / fired on
+  Hidden --> MoveToHide: 3 exposures here, or the spot is hot
+  MoveToHide --> Hidden: the other frame side / window
+```
+*Every exposure — a look too — counts toward the three and heats the spot, so "peek, nothing, wait, peek, nothing, change side" falls out.*
+
+### 12.4 Decisions *(✅ R-2077)*
+
+| | as built | rejected |
+|---|---|---|
+| **A** | `PostureNodes.PostedWithThreat` (= `AtOpeningPost` ∧ `EqsTacticsNodes.TopAim`) guards a posted branch after `occupy`; the Suppress branch's own window sub-branch (AQ102 B, `CE-2356`) is gone — SUPERSEDED | keep the state across a deactivation — the state is scratch by design (§8.3) |
+| **B** | `PeekAndFireNodes.FreshEvidence`: the blind burst only while the freshest evidence (D13) is at most `BlindFreshSeconds` = 5 s old (`PerceptionClock` ticks × the run's seconds per frame) | no blind fire at all — a man who just heard the shot should answer it |
+| **C** | no change: the re-sends were designed changes (hunt, displacement) | the hunter keeps his frame — his frame point always wins, so he would never look from another opening (the hunt's point); no hunt inside a post's arc — "under the wall" is inside the arc and unseen, the hunt's own case (`CE2359_…` rail) |
+| — | `PostureNodes.OffPost` reads the effective match radius (1 m) for the alternate — it read the raw 0, so a man on his alternate counted as off his post | — |
+
+⚠ **known-rot it creates:** §4.2 (every unseen exposure fires blind) and D13 (§6) now apply only to FRESH evidence; AQ102 B's "from the
+Suppress branch" is superseded by §12.2.
+
+### 12.5 Live after A + B *(`bt-window-duel`, 135 s, debug HTTP API)* — what works, what is left
+
+| | measured |
+|---|---|
+| ✅ the cycle | at the window: hidden prone → up crouched → nothing ⇒ down (a look) every ~3 s; seen ⇒ 2 aimed rounds; unseen right after his shots were heard ⇒ a blind round. 6 rounds (was 2) |
+| ✅ A | the posture switched 3 times at 48–50 s with the cycle running — no reset |
+| ⛔ cooling | after 3 uses the window is hot, and his post (radius 4) holds no other usable spot (the frame point of that window failed as a move ⇒ the sill, DA-84; the other window is 4.2 m off) ⇒ he waits behind the sill **64 s without a peek** until it cools (B4: "a burned one with nowhere to go waits to cool") |
+| ⛔ the displacement walk | moved to his alternate while prone (under fire), crawling the long way round the stairwell: ~15 s for ~4 m of straight line |
+| ⚠ the hunt | H re-sent his order twice (start, end), each restarting the cycle (§12.4 C) |
+| ⚠ the street man | 3 rounds, then nothing: his reflex ends after 8 s of quiet and he has no task (`CE-2366` D) — after ~70 s the window man forgets him and stands at his frame watching |
+
+### 12.6 The three after the live run *(✅ R-2078, `2026-10-25`)*
+
+🔒 **User, `2026-10-25`:** *"the 3 approved. the street man's goal is to attack the house, i.e. to win over the window man, so his task/behavior
+should say so"* · *"and the task of the window man is to defend the house"*.
+
+| | as built | why |
+|---|---|---|
+| **hot spot, nowhere else** | `Hidden` / `FrameHidden` no longer return on a burned spot with nowhere to go; `EnterHidden` multiplies the hide wait by `HotWaitFactor` = 3 while the spot is burned | he keeps watching, slower — ⛔ SUPERSEDED B4's "a burned one with nowhere to go waits to cool" (§8) |
+| **no drop indoors** | `UnderFire.Step`'s drop (AQ96 C) also needs `!GrenadeRules.Indoors(at)` — inside a building the move stays the tactical one: crouched, at the rush pace | R-2061 says *"a near miss **in the open** drops him"*; the code dropped him anywhere |
+| **the tasks** | street man: `CombatPosture {"target": Window Rifleman, "assault": true}` — the Attack order (Entity Control C-5), **no squad needed**; window man: the one man of a `SquadDefend` squad | ⚠ a LONE soldier's DefendArea is `CombatPosture` at the area's centre (`DefendAreaMapper`) — **no window posts**: posting a house lives only in `SquadDefend`, so the window man needs his one-man squad |
+
+### 12.7 Live after R-2078 *(`bt-window-duel`, 200 s)* — the attacker gets in, and both stand one floor apart
+
+| | measured |
+|---|---|
+| ✅ no drop indoors | displaced to his alternate under fire: crouched, at the rush, no prone crawl (11–13 s) |
+| ✅ the Attack order | the street man fired 4 rounds, then flanked round the house (the approach decision) and came in by the back (13–42 s) |
+| ⛔ one floor apart | from 42 s the attacker stands on the GROUND floor at the window man's last-seen x/y (106, 101) — the attack's advance walks to the remembered spot's map position — and the defender, upstairs, has no window that sees an enemy INSIDE the house: his cycle finds no cover answer, fails after `NoCoverSeconds`, a decision branch steps him back to his post, and it starts again every ~3 s. Neither fires for 160 s |
+| ⏳ hot spot | not reached this run (§12.6's rail covers it) |

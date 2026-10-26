@@ -27,9 +27,13 @@ public sealed class ClusterMasterBranchTests
         TransactionHistoryCapacity = 10,
     };
 
+    private static readonly Guid FinishedExercise = Guid.NewGuid();
+
     private static int BootstrapToOperatingReplay(FdpEventBus bus, ClusterMaster master)
     {
         const int nodeId = 1;
+        // ⭐ R-3055 — a replay replays an EXERCISE: the request below names none, so the master resolves it (else it is rejected)
+        master.NewestExercise ??= () => FinishedExercise;
 
         bus.PublishManaged(new NodeHeartbeatEvent
         {
@@ -115,5 +119,97 @@ public sealed class ClusterMasterBranchTests
         var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(completed.Any(e => !e.StatusCode.IsError()),
             "ClusterMaster must publish ClusterOpCompletedEvent(Success) after all ACKs arrive.");
+    }
+
+    /// <summary>
+    /// ⭐⭐ D18 ① (R-3047, CE-3299 B4) — a branch from a replay records a NEW exercise whose id the MASTER mints: the request's id
+    /// (here the REPLAYED exercise's, the case that truncated a recording) never reaches the nodes, and the cluster reports the new one.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void D18_ABranchFromAReplay_RecordsAnExerciseTheMasterMints_NeverTheRequestedOne()
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        BootstrapToOperatingReplay(bus, master);
+
+        var replayed = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = $"{{\"TargetState\":\"OperatingLive\",\"ExerciseId\":\"{replayed}\"}}",
+        });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        var prepare = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareLive);
+        var minted  = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(prepare.DomainPayload).ExerciseId;
+        Assert.NotEqual(Guid.Empty, minted);
+        Assert.NotEqual(replayed, minted);
+        Assert.Equal(minted, master.ActiveExerciseId);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3310 (R-3049) — a live LOAD whose request names no exercise gets one the master mints (a node records nothing without
+    /// one); a request that names its exercise keeps it.
+    /// </summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE3310_ALiveLoadWithoutAnExerciseId_GetsOneTheMasterMints_ANamedOneIsKept(bool named)
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = 1, SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var requested = named ? Guid.NewGuid() : Guid.Empty;
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = named
+                ? $"{{\"TargetState\":\"OperatingLive\",\"ExerciseId\":\"{requested}\"}}"
+                : "{\"TargetState\":\"OperatingLive\"}",
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var prepare = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareLive);
+        var sent    = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(prepare.DomainPayload).ExerciseId;
+        Assert.NotEqual(Guid.Empty, sent);
+        if (named) Assert.Equal(requested, sent);
+        Assert.Equal(sent, master.ActiveExerciseId);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3299 D17 (R-3045) — the live load's recording mode reaches every node on the load it starts: the request's
+    /// <c>CheckpointingSeconds</c> rides the PrepareLive fan-out (0 / omitted = FULL).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void D17_TheLiveLoadsRecordingMode_RidesThePrepareLiveFanOut()
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = 1, SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = "{\"TargetState\":\"OperatingLive\",\"CheckpointingSeconds\":15}",
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var prepare = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareLive);
+        Assert.Equal(15.0, Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(prepare.DomainPayload).CheckpointingSeconds);
     }
 }

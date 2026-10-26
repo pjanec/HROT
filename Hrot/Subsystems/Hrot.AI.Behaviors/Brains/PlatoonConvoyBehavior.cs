@@ -257,8 +257,10 @@ namespace Hrot.AI.Behaviors.Brains
         private static unsafe void KeepVehicle(ref ConvoyPlan p, ref ConvoyKeep ws, int slot, int n, Entity self, EntityRepository world, JsonSerializerOptions json)
         {
             var v = p.VehicleOf(slot);
-            if (p.OnFoot[slot] != 0 || v.IsNull || !ConvoyConditions.CanMove(world, v) || PlatoonHoldBehavior.Fighting(world, v)) return;
-            for (int o = 0; o < slot; o++) if (p.OnFoot[o] == 0 && p.Vehicle[o] == p.Vehicle[slot]) return;   // a shared vehicle: ordered once
+            // ⭐ CE-2354 — a vehicle is ordered whoever rides it: a squad left on foot at the remount (DA-102) still has a vehicle that
+            //   carries on (DA-103). 📌 Live on uc-urban-battle both squads went on foot after the 120 s and the APC and IFV held for good.
+            if (v.IsNull || !ConvoyConditions.CanMove(world, v) || PlatoonHoldBehavior.Fighting(world, v)) return;
+            for (int o = 0; o < slot; o++) if (p.Vehicle[o] == p.Vehicle[slot]) return;   // a shared vehicle: ordered once
             byte want;
             switch (p.Phase)
             {
@@ -395,15 +397,11 @@ namespace Hrot.AI.Behaviors.Brains
             for (int s = 0; s < n; s++)
             {
                 var squad = CommandPictureOps.Subordinate(world, self, s);
-                if (!LiveSquad(world, squad)) continue;
-                if (p.OnFoot[s] != 0)
-                {
-                    if (CommandPictureOps.ProgressOf(world, self, s) != ProgressKind.Set
-                        && Flat(StaffComposerSystem.CentreOf(world, squad), p.RouteEnd) > FootArrivalMetres) return false;
-                    continue;
-                }
-                var v = p.VehicleOf(s);
-                if (!ConvoyConditions.CanMove(world, v)) continue;
+                if (p.OnFoot[s] != 0 && LiveSquad(world, squad)
+                    && CommandPictureOps.ProgressOf(world, self, s) != ProgressKind.Set
+                    && Flat(StaffComposerSystem.CentreOf(world, squad), p.RouteEnd) > FootArrivalMetres) return false;
+                var v = p.VehicleOf(s);   // ⭐ CE-2354 — every vehicle that can move, whoever rides it
+                if (v.IsNull || !ConvoyConditions.CanMove(world, v)) continue;
                 if (!world.HasComponent<SimTransform>(v) || Flat(world.GetComponentRO<SimTransform>(v).Position, p.RouteEnd) > ArrivalMetres) return false;
             }
             return true;

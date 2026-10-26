@@ -312,31 +312,27 @@ public sealed class CapabilitySmokeTests : SystemTestBase
 
     // ── ⑧ replay ───────────────────────────────────────────────────────────────
     //
-    // ⛔ The record→replay ROUND TRIP is pinned in PreviewLifecycleRails, not here: /recording/stop
-    // exits preview, and this suite's editor is shared — a case that leaves preview would rebuild
-    // the world under every other case. What belongs here — and is the surface an agent hits first —
-    // is that the replay group answers coherently and refuses a bad load with a usable error.
+    // ⭐ R-3052…R-3055 — the replay is the CLUSTER's, entered through the master; a round trip (load live → play → /replay →
+    // /replay/seek) changes the shared editor's world, so it is not run here. What belongs here is that the replay group answers
+    // coherently and refuses a bad request with a usable error.
 
     [SystemSmokeFact]
-    public async Task The_replay_surface_reports_no_replay_until_one_is_loaded()
+    public async Task The_replay_surface_reports_no_replay_until_one_is_entered()
     {
         var status = (await Mcp.GetReplayStatusAsync()).EnsureOk();
 
-        Assert.False(status.Bool("replayActive"));
-        Assert.Equal(0, status.Int("totalFrames"));
+        Assert.False(status.Bool("replaying"));
     }
 
     [SystemSmokeFact]
-    public async Task Loading_a_missing_recording_is_rejected_not_crashed()
+    public async Task A_seek_outside_a_replay_is_rejected_not_crashed()
     {
-        var missing = Path.Combine(Fixture.StagingRoot, "no-such-recording.fdp");
-
-        var result = await Mcp.LoadReplayAsync(missing);
+        var result = await Mcp.SeekReplayAsync(30);
 
         Assert.False(result.Ok);
-        Assert.Contains("not found", result.Error ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("POST /replay", result.Error ?? "", StringComparison.Ordinal);
 
-        // The editor must still be serving — a bad path is a rejected request, not a dead process.
+        // The editor must still be serving — a seek outside a replay is a rejected request, not a dead process.
         (await Mcp.GetStatusAsync()).EnsureOk();
     }
 

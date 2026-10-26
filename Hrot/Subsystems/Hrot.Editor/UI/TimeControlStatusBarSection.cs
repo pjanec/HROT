@@ -33,10 +33,11 @@ namespace Hrot.Editor.UI
             IPreviewController   preview,
             MasterSyncController timeCtrl,
             EntityRepository     world,
-            Fdp.Toolkit.Time.ITimeCommands? commands = null)
+            Fdp.Toolkit.Time.ITimeCommands? commands = null,
+            System.Func<bool>? isReplaying = null)
         {
             _inner = new ClusterTimeControlStatusBarSection(
-                new EditorTimeTransportFacade(preview, timeCtrl, world, commands));
+                new EditorTimeTransportFacade(preview, timeCtrl, world, commands, isReplaying));
         }
 
         /// <summary>

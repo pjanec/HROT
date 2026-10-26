@@ -21,9 +21,10 @@ namespace Hrot.AI.Behaviors
     /// </para>
     /// </summary>
     [ComponentId(190)] // Hrot application-level block (160-199); next free after 189 (BpCollectionDemo).
-    public sealed class BpManagedCollectionDemo
+    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+    public sealed record BpManagedCollectionDemo   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
         /// <summary>Managed collection member -- the editor projects a collection out-pin off this list (element type = <see cref="int"/>); no curated accessors needed.</summary>
-        public List<int> MemberIds { get; set; } = new();
+        public IReadOnlyList<int> MemberIds { get; init; } = new List<int>();
     }
 }

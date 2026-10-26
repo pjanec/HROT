@@ -202,6 +202,14 @@ public sealed class EditorHarness : IDisposable
             _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
             _inPreview = false;
         }
+
+        public void ForgetPreview()
+        {
+            if (!_inPreview) return;
+            _handler.TriggerForgetPreview();
+            _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
+            _inPreview = false;
+        }
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────

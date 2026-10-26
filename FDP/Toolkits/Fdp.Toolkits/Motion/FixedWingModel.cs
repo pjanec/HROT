@@ -104,53 +104,54 @@ namespace Fdp.Toolkit.Motion
 
         private static void FollowRoute(ref MotionFrame f, in NavigationIntent intent, in FlightParams p, AirPath path, float dt)
         {
-            float speed = Speed(in p, in intent, path.Stage == AirStage.Start ? HorizontalSpeed(f) : path.SpeedNow, dt, AirRoute.Sample(path, path.Progress).Speed);
-            path.SpeedNow = speed;
-            if (path.Stage == AirStage.Start) path.Stage = AirStage.Flying;
+            ref var fol = ref AirFollowers.Of(ref f);   // ⭐ CE-4046 ② — the follower beside the immutable path
+            float speed = Speed(in p, in intent, fol.Stage == AirStage.Start ? HorizontalSpeed(f) : fol.SpeedNow, dt, AirRoute.Sample(path, fol.Progress).Speed);
+            fol.SpeedNow = speed;
+            if (fol.Stage == AirStage.Start) fol.Stage = AirStage.Flying;
 
-            if (path.Stage == AirStage.Done) { Orbit(ref f, in p, path, speed, dt); Report(ref f, intent, NavigationResult.Arrived, NavigationPhase.Completed, path.Progress); return; }
+            if (fol.Stage == AirStage.Done) { Orbit(ref f, in p, ref fol, speed, dt); Report(ref f, intent, NavigationResult.Arrived, NavigationPhase.Completed, fol.Progress); return; }
 
-            path.Progress += speed * dt;
-            if (path.Progress >= path.Length)
+            fol.Progress += speed * dt;
+            if (fol.Progress >= path.Length)
             {
-                if (path.Loop && path.Length > 0f) path.Progress -= path.Length;
+                if (path.Loop && path.Length > 0f) fol.Progress -= path.Length;
                 else
                 {
                     // the end: a left-hand circle beside the last point, entered with this frame's leftover travel (no short step)
-                    float leftover = path.Progress - path.Length;
-                    path.Progress = path.Length;
+                    float leftover = fol.Progress - path.Length;
+                    fol.Progress = path.Length;
                     var end = AirRoute.Sample(path, path.Length);
                     var left = new Vector2(-end.Heading.Y, end.Heading.X);
                     float r = MathF.Max(1f, p.TurnRadius);
-                    path.OrbitCenter = new Vector2(end.Point.X, end.Point.Y) + left * r;
-                    path.OrbitAngle = MathF.Atan2(end.Point.Y - path.OrbitCenter.Y, end.Point.X - path.OrbitCenter.X);
-                    path.Stage = AirStage.Done;
-                    Orbit(ref f, in p, path, leftover / MathF.Max(dt, 1e-4f), dt);
-                    Report(ref f, intent, NavigationResult.Arrived, NavigationPhase.Completed, path.Progress);
+                    fol.OrbitCenter = new Vector2(end.Point.X, end.Point.Y) + left * r;
+                    fol.OrbitAngle = MathF.Atan2(end.Point.Y - fol.OrbitCenter.Y, end.Point.X - fol.OrbitCenter.X);
+                    fol.Stage = AirStage.Done;
+                    Orbit(ref f, in p, ref fol, leftover / MathF.Max(dt, 1e-4f), dt);
+                    Report(ref f, intent, NavigationResult.Arrived, NavigationPhase.Completed, fol.Progress);
                     return;
                 }
             }
 
-            var at = AirRoute.Sample(path, path.Progress);
+            var at = AirRoute.Sample(path, fol.Progress);
             var pos = f.Transform.Position;
             float dz = Math.Clamp(at.Point.Z - pos.Z, -p.ClimbMps * dt, p.ClimbMps * dt);
             var next = new Vector3(at.Point.X, at.Point.Y, pos.Z + dz);
             float yaw = MathF.Atan2(at.Heading.Y, at.Heading.X);
-            Bank(path, in p, -MathF.Atan(speed * speed * at.Curvature / RotorcraftModel.Gravity), dt);
-            Pose(ref f, next, yaw, MathF.Atan2(dz / MathF.Max(dt, 1e-4f), MathF.Max(speed, 1f)), path.Roll, dt);
-            Report(ref f, intent, path.Stage == AirStage.Done ? NavigationResult.Arrived : NavigationResult.InProgress,
-                   path.Stage == AirStage.Done ? NavigationPhase.Completed : NavigationPhase.Following, path.Progress);
+            Bank(ref fol, in p, -MathF.Atan(speed * speed * at.Curvature / RotorcraftModel.Gravity), dt);
+            Pose(ref f, next, yaw, MathF.Atan2(dz / MathF.Max(dt, 1e-4f), MathF.Max(speed, 1f)), fol.Roll, dt);
+            Report(ref f, intent, fol.Stage == AirStage.Done ? NavigationResult.Arrived : NavigationResult.InProgress,
+                   fol.Stage == AirStage.Done ? NavigationPhase.Completed : NavigationPhase.Following, fol.Progress);
         }
 
         /// <summary>After the route: a left-hand circle of the turn radius beside the last point, at its height.</summary>
-        private static void Orbit(ref MotionFrame f, in FlightParams p, AirPath path, float speed, float dt)
+        private static void Orbit(ref MotionFrame f, in FlightParams p, ref AirFollower fol, float speed, float dt)
         {
             float r = MathF.Max(1f, p.TurnRadius);
-            path.OrbitAngle += speed / r * dt;
-            var c = path.OrbitCenter;
-            var next = new Vector3(c.X + r * MathF.Cos(path.OrbitAngle), c.Y + r * MathF.Sin(path.OrbitAngle), f.Transform.Position.Z);
-            Bank(path, in p, -MathF.Atan(speed * speed / r / RotorcraftModel.Gravity), dt);
-            Pose(ref f, next, path.OrbitAngle + MathF.PI / 2f, 0f, path.Roll, dt);
+            fol.OrbitAngle += speed / r * dt;
+            var c = fol.OrbitCenter;
+            var next = new Vector3(c.X + r * MathF.Cos(fol.OrbitAngle), c.Y + r * MathF.Sin(fol.OrbitAngle), f.Transform.Position.Z);
+            Bank(ref fol, in p, -MathF.Atan(speed * speed / r / RotorcraftModel.Gravity), dt);
+            Pose(ref f, next, fol.OrbitAngle + MathF.PI / 2f, 0f, fol.Roll, dt);
         }
 
         // ── a point, or nothing ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -194,10 +195,10 @@ namespace Fdp.Toolkit.Motion
             return Math.Clamp(now + Math.Clamp(want - now, -Accel(in p) * dt, Accel(in p) * dt), Stall(in p), Top(in p));
         }
 
-        private static void Bank(AirPath path, in FlightParams p, float target, float dt)
+        private static void Bank(ref AirFollower fol, in FlightParams p, float target, float dt)
         {
             float max = MaxBank(in p), rate = RollRateDeg * MathF.PI / 180f * dt;
-            path.Roll += Math.Clamp(Math.Clamp(target, -max, max) - path.Roll, -rate, rate);
+            fol.Roll += Math.Clamp(Math.Clamp(target, -max, max) - fol.Roll, -rate, rate);
         }
 
         private static float EaseRoll(in MotionFrame f, float target, in FlightParams p, float dt)

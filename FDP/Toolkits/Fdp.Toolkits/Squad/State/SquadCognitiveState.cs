@@ -286,5 +286,6 @@ namespace Fdp.Toolkit.Squad
     /// </summary>
     [ComponentId(GlobalComponentIds.SquadStateMarker)]
     [StructLayout(LayoutKind.Sequential, Size = 1)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct SquadStateMarker { }
 }

@@ -48,8 +48,8 @@ multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + exco
 |-------|---------------|----------------|------------------|
 | **Edit** | Authoring; world is static | No | `load_scenario_edit` |
 | **Live** | A real run on every node | Yes — **once you `play`** | `load_scenario_live` |
-| **Preview** | A revertible run from a RAM snapshot | Only when **unpaused** | `enter_preview`, `play`, `checkpoint`, or `start_recording{preview}` |
-| **Replay** | Read-only playback of a `.fdp` in an isolated sandbox | N/A (you seek frames) | `load_replay` |
+| **Preview** | The cluster's dry run, rewound on exit; **never recorded** | Only when **unpaused** | `enter_preview` (from Edit) |
+| **Replay** | Every node replays its OWN recording of a past live run | `play`/`pause`/`step` drive the replay clock; `seek_replay` jumps | `enter_replay` (from ANY state) |
 
 **Two load modes, and they are not the same operation.** `load_scenario_edit` freezes time for authoring;
 `load_scenario_live` starts an exercise run. Both are cluster-wide two-phase-commit transitions — the editor
@@ -66,13 +66,16 @@ edit-load handler yet), so use **live** when every node must hold the world.
   also meant every `step` was silently refused. If you meet an old build whose `simTime` climbs on its own
   with `clusterState:Idle`, that is the old behaviour — and any pause/step measurement taken on it is
   unreliable.
-- **Preview is revertible.** Entering preview snapshots the world; exiting (`stop_preview` /
-  `restore_checkpoint`) rewinds to that snapshot. This is the basis of checkpoint/restore.
-- **Replay is isolated.** Seeking a replay never touches the live world — they are independent.
-
-**Single preview slot.** `checkpoint`, `enter_preview`, and `start_recording{preview}` all use the *same one*
-snapshot slot. You cannot nest them. Restore/stop/exit before starting another. Recording and checkpoint are
-mutually exclusive.
+- **Preview is revertible.** Entering preview snapshots the world; `stop_preview` rewinds to it. It is never
+  recorded — only a LIVE run records, on every node, by itself.
+- **Every route that changes the cluster goes through the cluster master, on every host** — the editor is a
+  one-node cluster. There is no editor shortcut and no `cluster/` prefix to remember: `enter_preview`,
+  `checkpoint`, `enter_replay`, `seek_replay`, `save_scenario` are each one master intent.
+- **A checkpoint is part of the LIVE recording** — a named keyframe on every node — not a preview snapshot.
+  `restore_checkpoint {label}` continues the live run from it.
+- **A replay is the cluster's, not a sandbox.** `enter_replay` (one request from any state — the master plans
+  the way) puts every node into its own recording; the ORDINARY readers (`list_entities`, `get_entity`,
+  `get_entity_brain`, `get_entity_journal`) then read the replayed world. `stop_replay` goes to Idle.
 
 **The envelope.** Every tool returns `{ ok, data, error, awaited }`. On success read `data`. On failure
 `ok:false` and `error` explains why (and the tool result is flagged as an MCP error). `awaited` relates to
@@ -149,6 +152,35 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 3. Poll `get_breakpoint_status` → when `isPaused:true`, the condition fired; `lastHit` names the entity.
 4. Inspect, then `remove_breakpoint {id}` and continue.
 
+#### C0. What a utility decision IS, and which node runs it (CE-1325)
+- `list_utility_decisions` → every decision (the C# `[UtilityDecision]` classes).
+- `get_utility_decision {key:"Combat posture", networkId?}` → per option its aggregation and considerations (input, context, weight, curve
+  kind + slope / exponent / shift, modifier); with `networkId` that unit's winner, margin and raw → curved → weighted per consideration
+  (traced units), and the consideration that zeroed an option.
+- `get_behaviour_decisions {name:"CombatPosture"}` → which node / state / transition binds which decision: `Chooses` (ChooseOption),
+  `Ranks` (RankCandidates), `Reads` + the option (an IsOption guard), `Holds` (a custom action's params). Works for C#-built behaviours
+  with no asset.
+
+#### C1. Stop on a BEHAVIOUR STEP (CE-1323) — "when he enters Withdrawing", "when that transition fires"
+Read the running behaviour's name first (`get_entity_brain` → the running behaviour), then:
+```json
+set_breakpoint {"condition":{"$type":"BehaviourStep","Behaviour":"<name>","Kind":"StateEnter","State":"Withdrawing"},
+                "filterNetworkId":<his id>}
+```
+| `Kind` | fields | stops when |
+|---|---|---|
+| `StateEnter` / `StateExit` | `State` | he arrives in / leaves the state |
+| `InsideEnter` | `State`, `Region` (-1 = anything under it; n = region n of a parallel state) | any state inside it is entered |
+| `TransitionFires` | `From`, `To`, `Event` (optional) — no `From` = a global transition | that transition fires |
+| `EventHandled` | `Event` | his machine takes the event off its queue (consumed or deferred — even when nothing reacts: "the order came, why didn't he move?") |
+| `NodeRuns` | `Node` (the BTree node's VisualId) | that tree node runs |
+
+- A name that is not in the behaviour is a **400 that lists what is** — no silent never-firing breakpoint.
+- `filterNetworkId` = only him (and it arms his traces). Without it the step watches every **armed** unit (a Brain tab open, `set_debug_settings` trace, observe-all).
+- With a condition: `{"$type":"Compound","Operator":"And","Conditions":[<BehaviourStep>, <PropertyMatch …>]}`.
+- `get_breakpoint_status` → `lastHit.what` says what fired: `"entered Withdrawing"`, `"Engaging -> Withdrawing fired on OrderReceived"`, `"event Contact handled (consumed)"`.
+- One arrival stops ONCE: `continue_from_breakpoint` does not stop again on the same step.
+
 ### D. Experiment and revert (try something, undo it)
 1. `checkpoint` (snapshots the world; enters preview, paused).
 2. Mutate / spawn / `step` to run your experiment.
@@ -162,12 +194,15 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 3. `diff_state {baselineId}` → a tree of only the changed components (plus entity births/deaths).
 
 ### F. Record and replay (post-mortem)
-1. `start_recording {mode:"preview"}` → enters preview + begins recording; returns `fdpPath`.
-2. `play` / `step` to record some frames.
-3. `stop_recording` → finalizes the `.fdp` (and rewinds, since it's preview); returns `fdpPath`.
-4. `load_replay {fdpPath}` → isolated sandbox; `get_replay_status` shows `totalFrames`.
-5. `seek_replay {frame}` / `step_replay {dir}` → move through it; `list_replay_entities` to inspect a frame.
-6. `unload_replay` when done. The live world was never touched.
+1. `load_scenario_live {name}` → a live run; every node records it by itself (nothing to start).
+2. `play` for a while (optionally `checkpoint {label}` at an interesting moment).
+3. `enter_replay {atSeconds:30, waitForReady:true}` → the newest exercise (or name one from `list_exercises`),
+   entered in ONE request from wherever the cluster is.
+4. Read the moment with the ordinary readers: `list_entities`, `get_entity`, `get_entity_brain`.
+5. `seek_replay {atSeconds:45}` → jump; `get_replay_status` shows the state and the replay's length.
+6. `get_journal_history {networkId}` / `search_replay {condition}` → scan this node's whole recording (ask the
+   node that runs the unit's brain).
+7. `stop_replay` when done (the cluster goes to Idle).
 
 ### G. Inspect AI behavior (BTree/HSM/blueprint)
 1. `observe_trace {networkId, on:true}` — **arms** tracing (allocates trace buffers). Without this, traces
@@ -175,6 +210,14 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 2. `play` / `step` a few frames so the buffer fills.
 3. `get_entity_trace {networkId}` → active node/state + recent history.
 4. `observe_trace {networkId, on:false}` to disarm.
+
+**A unit's debug settings — what the operator sees too (CE-1329).** `get_debug_settings {networkId}` /
+`set_debug_settings {networkId, pins?, trace?, follow?, reset?}` read and write the ONE per-unit store the Brain tab's
+*Show on map* ticks and the map's right-click *Pin gizmos* use: `pins` (REPLACES the set — Perception, Contacts, EQS,
+Utility, Squad, Actions, Command picture, My units' contacts, Path) draw on the map for that unit, selected or not
+(selecting a unit draws none of them); `trace` records its BTree / HSM / utility trace; `follow` puts the 3-D camera on
+it. Remembered per scenario (back on its next load). `observe_trace` stays a temporary arming that never touches the
+remembered `trace`. ⛔ `debug_unit` is gone.
 
 ### H. Mutate / fault-inject
 - Discoverable, safe path: `get_attributes_schema` → see patchable paths → `patch_attribute {networkId,
@@ -187,6 +230,37 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 2. `get_world_info` for the geo origin + placement extent; `geo_to_local`/`local_to_geo` to convert coords.
 3. `spawn_entity {tkbType, transform}` (step to process); `patch_attribute` to set Name/Affiliation/etc.
 4. `save_scenario {name}`.
+
+### J. Choose the CHEAPEST experiment — before you edit code and restart anything
+⛔ **The default failure: change C#, rebuild, reload the scenario, run to the moment again — minutes per try — for a
+question a live edit answers in seconds.** Climb this ladder from the top; stop at the first rung that answers the question.
+📄 `docs/DESIGN_Entity_Brain_View.md` §12g (BV-65) owns the edit path.
+
+| rung | the question | tools | cost | what it does NOT tell you |
+|---|---|---|---|---|
+| **0. Read** | *what is it doing, why, with what?* | `get_entity_brain`, `get_entity_journal`, `get_entity_slots` (every slot: task, SOP, paused, hosted children — params + working state decoded), `observe_trace` → `get_entity_trace` | ms | nothing about a different value |
+| **1. What-if a VALUE** | *would a different param / variable / trait change the outcome?* *is this value the cause?* | `checkpoint` → write (below) → `step {count}` / `play` + breakpoint → read → `restore_checkpoint`; repeat per value | seconds per try | whether the LOGIC is right — only whether this value matters |
+| **2. What-if the STRUCTURE (JSON assets)** | *would another node / transition / wiring fix it?* | `read_asset_graph` → `add_graph_node` / `add_graph_link` / `set_graph_param` / `apply_graph_command` → **`reload_ai_asset`** — hot-applies to the running brain | seconds | ⚠ a **SOFT** reload keeps live instances' state; a **HARD** (topology) reload bumps the generation and RESETS them — re-reach the moment (rung 1's checkpoint first) |
+| **3. Change C# in `Hrot.AI.Behaviors`** | the fix is a C# behaviour / node / action in THAT assembly | edit the source → ✅ **`reload_ai_behaviours({})`** (`POST /ai/reload`, CE-1321 — the same path as the toolbar's **Reload AI**): builds the AI Behaviors project in the editor's configuration, COPIES the dll into the directory the watcher watches, waits for the swap (`AiHotReloadCoordinator`: a fresh collectible ALC, every registrar re-run, the registry merged in place), the catalog re-projects the C#-built graphs and open documents are re-decompiled (`AiDocumentManager.ReconcileFromCatalog`). It answers `{build, errors[], reloaded, added[], removed[], documentsReconciled}` — a failed build is `build:failed` with the compiler's lines, the running assembly unchanged | a build (~tens of s), no restart | ⚠ running units KEEP their task and slot memory across the swap — a changed params / state LAYOUT is yours to restart (assign again); ⛔ C# outside `Hrot.AI.Behaviors` is rung 4 |
+| **4. Change C# anywhere else** | engine / toolkit / system code (`Fdp.Toolkits`, `Hrot.*` outside the AI Behaviors assembly) | edit → build → restart the editor → reload the scenario → re-reach the moment | minutes | — the hot-reload watcher covers ONE assembly |
+
+**Rung 1's writes**
+- **a blueprint variable:** `stage_entity_variable {networkId, path, value}` — staged, lands on the next advancing tick (✅ built).
+- **a trait / setting / any component field:** `edit_component {networkId, componentType, patch}` or `patch_attribute` (✅ built). For
+  `CombatTemperament` also set its `Set` bit, or the reader keeps the type's value.
+- ✅ **a behaviour's PARAMS or a BTree / HSM / C# behaviour's WORKING STATE, any slot (task, SOP, paused task, hosted child, attached
+  blueprint)** *(CE-1320)*: `stage_entity_variable {networkId, owner:"task"|"sop"|"paused"|"blueprint", behaviour?, part?, role:"params"|"variables",
+  path, value}` — `path` is dotted, `[n]` indexes an inline array (`Shots.Items[1]`); discover owners, behaviours and parts (node labels)
+  with `get_entity_slots`. Or `paramsJson` instead of `path`/`value`: a whole parameter set through the behaviour's own parser. It lands
+  IN PLACE on the next advancing tick, keeps the start record true, and NEVER restarts the behaviour (`restarted:false` in the reply).
+  ⚠ `order_entity {kind:'behavior', params}` RESTARTS the behaviour — use it only when a restart is the experiment.
+
+**Use rung 1 for:** sweeping a threshold / radius / timing (two or three values from one checkpoint) · confirming a bug hypothesis before
+touching code (*"force `Phase = Assault` — does the squad move? then the bug is whatever should have set it"*) · reaching a node path
+without staging the whole situation.
+⚠ **A forced value can create a state the behaviour never reaches on its own** — a rung-1 result is a HINT to confirm (a rail, or the
+real situation), never proof. ⭐ A value that should STAY changed belongs in the order's / asset's defaults or the unit's settings — not
+in a live edit (it lasts until the behaviour is replaced).
 
 ---
 
@@ -246,11 +320,11 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `list_scenarios({})` — discover loadable scenario names.
 
 ### Group E — Scenario
-- **`load_scenario_edit`** — Load a scenario for AUTHORING (Edit state), cluster-wide. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.
-  Notes: Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).; Edit state freezes sim time — nothing ticks until enter_preview or play.; CE-102 (2026-08-28) gave CGF the shared edit-load handler, so an edit load is NO LONGER partial on that node. This note previously said CGF had none -- that is now stale. Still prefer load_scenario_live for a real run, and verify either load by reading state.; AND THAT PARTIAL LOAD STILL ANSWERS ok:true — this is the single most misleading response in the API. Measured on --mode all from the Scenario perspective: ok:true with scenario:NULL, entityCount:0, an empty list_entities, and a gizmo frame of 603 primitives that were ALL grid lines. Every field says 'empty world' and the envelope says 'success'.; SO VERIFY A LOAD, NEVER TRUST IT: after any load read get_status.entityCount AND list_entities AND (if the map matters) the non-Line shape count from get_gizmo_frame. Three independent reads, because the envelope is not one of them. On the same host load_scenario_live gave 8 entities and Box2D 8 / Arrow 12 / Text 8..
+- **`load_scenario_edit`** — Load a scenario for AUTHORING (Edit state), cluster-wide. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: "a live run" / "a dry run" / null).
+  Notes: ⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run ("a live run" / "a dry run") or is null.; Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).; Edit state freezes sim time — nothing ticks until enter_preview or play.; CE-102 (2026-08-28) gave CGF the shared edit-load handler, so an edit load is NO LONGER partial on that node. This note previously said CGF had none -- that is now stale. Still prefer load_scenario_live for a real run, and verify either load by reading state.; AND THAT PARTIAL LOAD STILL ANSWERS ok:true — this is the single most misleading response in the API. Measured on --mode all from the Scenario perspective: ok:true with scenario:NULL, entityCount:0, an empty list_entities, and a gizmo frame of 603 primitives that were ALL grid lines. Every field says 'empty world' and the envelope says 'success'.; SO VERIFY A LOAD, NEVER TRUST IT: after any load read get_status.entityCount AND list_entities AND (if the map matters) the non-Line shape count from get_gizmo_frame. Three independent reads, because the envelope is not one of them. On the same host load_scenario_live gave 8 entities and Box2D 8 / Arrow 12 / Text 8..
   Example: `load_scenario_edit({"name":"test-move","waitForReady":true})` — load test-move for authoring and wait for ready.
-- **`load_scenario_live`** — Load a scenario for RUNNING (Live state), cluster-wide, on any host. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor.
-  Notes: Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).; Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.; A live load starts a new exercise run (a fresh ExerciseId), which is what recording and replay key off..
+- **`load_scenario_live`** — Load a scenario for RUNNING (Live state), cluster-wide, on any host. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: "a live run" / "a dry run" / null).
+  Notes: ⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run ("a live run" / "a dry run") or is null.; Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).; Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.; A live load starts a new exercise run (a fresh ExerciseId), which is what recording and replay key off..
   Example: `load_scenario_live({"name":"test-move","waitForReady":true})` — load test-move live across the cluster and wait for ready.
 - **`save_scenario`** — Save the current authored world as a scenario. Req `name` (string). Returns ok:true envelope.
   Example: `save_scenario({"name":"my-scenario"})` — save current world as my-scenario.
@@ -258,25 +332,27 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 ### Group G — Breakpoints
 - **`list_breakpoints`** — List all registered breakpoints. No params. Returns [{ id, conditionSummary, enabled, occurrenceThreshold, hitCount, name }]
   Example: `list_breakpoints({})` — list all active breakpoints and their hit counts.
-- **`set_breakpoint`** — Register a run-until-condition breakpoint. Req `condition` (object), `filterNetworkId?` (number), `occurrenceThreshold?` (number, def 1), `name?` (string). Returns { breakpointId } (e.g. "BP#1").
-  Notes: condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).; Poll get_breakpoint_status after play to detect when the breakpoint fires..
+- **`set_breakpoint`** — Register a run-until-condition breakpoint. Req `condition` (object), `filterNetworkId?` (number), `occurrenceThreshold?` (number, def 1), `name?` (string). Returns { breakpointId, conditionSummary } (e.g. "BP#1", "Withdrawing entered (PlatoonCommander)").
+  Notes: condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).; Poll get_breakpoint_status after play to detect when the breakpoint fires.; ⭐ CE-1323 — BEHAVIOUR BREAKPOINTS: {"$type":"BehaviourStep","Behaviour":"<running behaviour name>","Kind":K,...} with K = StateEnter|StateExit {State} · InsideEnter {State, Region?: -1 = anything under it, n = region n of a parallel state} · TransitionFires {From?, To, Event?} (no From = a global transition) · EventHandled {Event} (dequeued, consumed or deferred, even when no transition uses it) · NodeRuns {Node: the BTree node's VisualId}. Names are the machine's own (GET /entities/{id}/brain names the running behaviour); a name not in it is a 400 that lists what is.; Per unit: filterNetworkId. Any other condition: {"$type":"Compound","Operator":"And","Conditions":[<BehaviourStep>, <PropertyMatch …>]} — the rest is checked on the unit at the step. A step scoped to a unit arms its traces; an unscoped step sees only armed units (a Brain tab open, Debug this unit, observe-all).; Only records written since the last look count, so continue_from_breakpoint never stops twice on one arrival. get_breakpoint_status names what fired (lastHit.what)..
   Example: `set_breakpoint({"condition":{"$type":"PropertyMatch","ComponentType":"SimTransform","PropertyPath":"Position.X","Operator":"GreaterThan","Predicate":{"$type":"Numeric","MinValue":100,"MaxValue":1000000000}},"name":"moved-east"})` — pause when entity SimTransform.Position.X > 100.
 - **`remove_breakpoint`** — Remove a breakpoint by its ID string. Req `id` (string). Returns ok:true envelope.
   Example: `remove_breakpoint({"id":"BP#1"})` — remove breakpoint BP#1.
 - **`continue_from_breakpoint`** — Resume the debugger after a breakpoint hit. Also what applies any live variable writes staged while it was stopped. `step?` (boolean). Returns { wasPaused, action, isPaused, note }
   Notes: ⚠ Deleting a breakpoint does NOT resume: the debugger stays stopped, and while it is stopped every staged variable write is queued and never applied. Call this after a hit, not remove_breakpoint.; Harmless when nothing is stopped — it answers wasPaused:false.; The host also serves POST /breakpoints/step, which is exactly this call with step:true. Deliberately ONE tool, not two — use continue_from_breakpoint({step:true})..
   Example: `continue_from_breakpoint({})` — let the world run again after a breakpoint fired.
-- **`get_breakpoint_status`** — Current pause state and last breakpoint hit. No params. Returns { isPaused, pausedTick, lastHit: { breakpointId, networkId } | null }
+- **`get_breakpoint_status`** — Current pause state and last breakpoint hit. No params. Returns { isPaused, pausedTick, lastHit: { breakpointId, networkId, name, conditionSummary, what, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }  — what (CE-1323) is what a behaviour step saw: "entered Withdrawing", "Engaging -> Withdrawing fired on OrderReceived", "event Contact handled (consumed)"; null for a data breakpoint
   Notes: Poll this after play to detect when a breakpoint fires..
   Example: `get_breakpoint_status({})` — poll for breakpoint hit after calling play.
+- **`break_on_journal`** — Stop the simulation when THIS unit changes its mind (CE-1258): a data breakpoint on its brain journal's sequence number, filtered to the unit (a neighbour's change does not stop it); optionally only for some entry kinds. Req `networkId` (number), `kinds?` (array). Returns { breakpointId, networkId } — then poll get_breakpoint_status: its lastHit.journalWrittenByTheTick lists the entries the hit tick wrote.
+  Notes: A stop shows the world at the START of the tick that changed it (the cause still in place); continue_from_breakpoint({step:true}) runs that tick.; It keeps firing on every later change until removed with remove_breakpoint.; Editor only, like every breakpoint..
+  Example: `break_on_journal({"networkId":1000})` — pause the next time unit 1000's brain changes.
 
 ### Group H — Checkpoint / diff
-- **`checkpoint`** — Take a single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true). No params. Returns ok:true with inPreview:true. Returns 409 if a live run is active; 400 if already in preview/checkpointed.
-  Notes: Single slot: mutually exclusive with enter_preview and start_recording{preview}.; Restore with restore_checkpoint to rewind all changes..
-  Example: `checkpoint({})` — take a checkpoint before an experiment.
-- **`restore_checkpoint`** — Rewind the simulation to the checkpointed state via IPreviewController.ExitPreviewMode(). No params. Returns ok:true with inPreview:false. Returns 400 if no checkpoint is active.
-  Notes: Returns 400 if no checkpoint is active..
-  Example: `restore_checkpoint({})` — revert all changes since the last checkpoint.
+- **`checkpoint`** — Take a named checkpoint of the LIVE run — a keyframe of every node's live recording, through the cluster master (R-3044). `label?` (string). Returns { published, requestId, label }
+  Notes: A checkpoint is part of the live recording (it survives into the replay), not a preview snapshot.; restore_checkpoint continues the live run from it..
+  Example: `checkpoint({"label":"before-assault"})` — take a checkpoint before an experiment.
+- **`restore_checkpoint`** — Continue the live run from a named checkpoint, through the cluster master. Req `label` (string). Returns { published, requestId, label }
+  Example: `restore_checkpoint({"label":"before-assault"})` — revert all changes since the last checkpoint.
 - **`capture_diff_baseline`** — Serialize current entity states server-side and return a baselineId. `entities?` (array). Returns { baselineId } (e.g. "BL#1")
   Notes: Use before mutating the world, then call diff_state with the baselineId to see what changed.; Optional entities array (networkId list) scopes which entities to capture (default: all)..
   Example: `capture_diff_baseline({"entities":[1000]})` — capture baseline for entity 1000 before mutation.
@@ -295,12 +371,12 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `get_event_history({"bus":"world","type":"CenterOnEntityCommand","max":10})` — query world bus for recent CenterOnEntityCommand events.
 
 ### Group D — Sim / preview / time
-- **`enter_preview`** — Enter preview mode. Snapshots the world (revertible via stop_preview). `startPaused?` (boolean). Returns ok:true envelope.
-  Notes: Snapshots the world; stop_preview rewinds to this snapshot.; Single preview slot — mutually exclusive with checkpoint and start_recording{preview}..
-  Example: `enter_preview({"startPaused":true})` — enter preview paused for deterministic step-based control.
-- **`stop_preview`** — Exit preview mode; rewinds to the pre-preview snapshot. No params. Returns ok:true envelope.
-  Notes: Rewinds all changes made during preview back to the snapshot taken at enter_preview..
-  Example: `stop_preview({})` — exit preview and revert all changes since entering preview.
+- **`enter_preview`** — Enter the cluster's dry run (OperatingPreview) from Edit, through the cluster master on every host (R-3052). Never recorded (R-3053). `startPaused?` (boolean), `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Notes: stop_preview rewinds every node to the moment the dry run began.; A dry run is never recorded: only a live run records (R-3053)..
+  Example: `enter_preview({"startPaused":true,"waitForReady":true})` — enter preview paused for deterministic step-based control.
+- **`stop_preview`** — Leave the dry run back to Edit through the cluster master; every node rewinds to the moment it began. `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Notes: Rewinds all changes made during the dry run..
+  Example: `stop_preview({"waitForReady":true})` — exit preview and revert all changes since entering preview.
 - **`pause`** — Pause the simulation. Time freezes; commands queue until step/play. No params. Returns ok:true envelope.
   Notes: Commands and spawns while paused are queued and take effect on the next step/play.; THE ACK MEANS APPLIED as of CE-104: the route waits until isPaused is actually true before returning, so the next read is safe. Measured before the fix on --mode all: ok:true while /status still read isPaused:false, with the clock running a further ~0.2s — because a cluster-wide pause is a FUTURE BARRIER so every node stops at the same simTime.; A 504 from this route means the pause barrier is stuck — a node never reached it. Check get_logs({level:"Warning"})..
   Example: `pause({})` — pause the running simulation.
@@ -310,7 +386,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`get_sim_state`** — Current sim state: isPaused, inPreview, totalTime, timeScale. No params. Returns { isPaused, inPreview, totalTime, timeScale }
   Notes: Check this before driving — most mistakes are run-state mistakes..
   Example: `get_sim_state({})` — check current paused/preview/time state.
-- **`step`** — Advance simulation by N discrete steps. Only meaningful in preview. `count?` (number, def 1). Returns ok:true envelope.
+- **`step`** — Advance simulation by N discrete steps. Only meaningful in preview. `count?` (number, def 1), `dt?` (number). Returns ok:true envelope.
   Notes: Only advances time when inPreview==true. In Edit state this is a no-op.; count IS honoured cluster-wide as of CE-105, and it is gated per step: the route issues ONE step, waits for it to land, and repeats — so N steps take N frames and the call returns when the last one is acknowledged. Measured: count:60 advances simTime by exactly 1.0000s. Before the fix the loop ran inside a single frame and the cluster dropped all but the first, answering ok:true with 0.0167s of progress.; STILL VERIFY BY READING simTime, NOT ok. The gate now makes the ack trustworthy, but a simTime delta is the cheap proof and it costs one call.; A STEP IS REFUSED OUTRIGHT UNLESS THE CLUSTER IS IN A STEPPING MODE, and the refusal is not visible in the envelope — it is a warning in the log (see get_logs, RefusedStepCount). A cluster that is free-running drops every step. If simTime does not move, check get_status.isPaused first: pause, then step.; This is the loop's weak link, so prove it once at the start of a session: pause, step, read simTime. A silently-refused step makes every later observation meaningless (it invalidated a root-cause in this repo once — a 'nothing moved' reading taken through a step that never ran)..
   Example: `step({"count":5})` — advance 5 simulation ticks.
 - **`set_time_scale`** — Set simulation time scale. Req `scale` (number). Returns ok:true envelope.
@@ -326,63 +402,129 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `send_entity_command({"eventType":"CenterOnEntityCommand","payload":{"networkId":1000},"wait":false})` — publish CenterOnEntityCommand event.
 - **`spawn_entity`** — Spawn an entity from a TKB type. Req `tkbType` (number), `transform?` (object), `components?` (array), `attributesJson?` (string), `ownerNodeId?` (number), `reliable?` (boolean), `reliableTimeoutSeconds?` (number). Returns { spawned, tkbType, reliable, requestId, ownerNodeId, awaited, reason }. Created through the node's creation pack (request → spawn + ownership grants) on the next ticks — step to realize it.
   Notes: Spawn is queued and processed on the next tick — call step to realize it.; CE-515 ③: goes through the node's EntityCreationPack (RequestEntityCreation), like every other author — the creator owns the entity and grants each role's group (Brain/MuscleGround/Perception) to a node serving that role. It no longer publishes a raw SpawnEntityCommand that nobody owned.; Use list_entity_types to discover valid tkbType values.; CE-292 — reliable:true engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor)..
-  Example: `spawn_entity({"tkbType":1001,"transform":{"position":{"x":100,"y":0,"z":50},"rotation":{"x":0,"y":0,"z":0,"w":1}}})` — spawn entity type 1001 at position (100,0,50).
+  Example: `spawn_entity({"tkbType":1101,"transform":{"position":{"x":100,"y":0,"z":50},"rotation":{"x":0,"y":0,"z":0,"w":1}}})` — spawn entity type 1101 at position (100,0,50).
 
-### Group I — Recording / replay
-- **`start_recording`** — Start recording. Enters preview and begins writing a .fdp file. `mode?` (string, "preview"|"live", def "preview"). Returns { recording:true, mode, fdpPath }
-  Notes: mode="preview" (default): revertible, uses EnterPreviewMode→PrepareRecordingAsync.; mode="live": not supported in editor mode.; Mutually exclusive with checkpoint (both use the preview slot)..
-  Example: `start_recording({"mode":"preview"})` — start a revertible preview recording.
-- **`stop_recording`** — Stop the active recording. Finalizes BEFORE the exit rewind. No params. Returns { recording:false, fdpPath }
-  Notes: For preview mode: finalizes BEFORE the exit rewind (hard ordering rule)..
-  Example: `stop_recording({})` — stop recording and get the .fdp file path.
-- **`list_replay_entities`** — List entities from the ISOLATED replay sandbox at the current frame. No params. Returns Same schema as list_entities but from the sandbox repo, NOT the live world.
-  Notes: Requires an active replay (call load_replay first).; Does not touch or affect the live world..
-  Example: `list_replay_entities({})` — inspect entities at current replay frame.
-- **`load_replay`** — Load a .fdp recording into an ISOLATED ReplayBrowserContext. Req `fdpPath` (string). Returns { loaded:true, fdpPath, totalFrames, currentFrame }
-  Notes: While replay is active, /replay/entities returns entities from the sandbox (not the live world).; Use list_replay_entities (not list_entities) while replaying..
-  Example: `load_replay({"fdpPath":"/path/to/recording.fdp"})` — load a .fdp recording for inspection.
-- **`seek_replay`** — Seek to a specific frame in the ISOLATED sandbox. Does NOT touch the live world. Req `frame` (number). Returns { frame, totalFrames }
-  Notes: Isolation guarantee: does NOT touch the live world..
-  Example: `seek_replay({"frame":0})` — seek replay to frame 0 (start).
-- **`get_replay_status`** — Replay sandbox status. No params. Returns { replayActive, currentFrame, totalFrames }
-  Example: `get_replay_status({})` — check if replay is active and current frame.
-- **`step_replay`** — Step one frame forward or backward in the ISOLATED sandbox. Does NOT touch the live world. `dir?` (string, "forward"|"back", def "forward"). Returns { stepped:bool, frame, totalFrames }
-  Notes: Isolation guarantee: does NOT touch the live world..
-  Example: `step_replay({"dir":"forward"})` — step one frame forward in the replay.
-- **`unload_replay`** — Dispose the replay sandbox and return to live world queries. No params. Returns ok:true envelope.
-  Example: `unload_replay({})` — unload replay sandbox when done inspecting.
+### Group I — Replay
+- **`get_journal_history`** — EVERY brain-journal entry of one unit across this node's replay recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a replayed exercise. Req `networkId` (number), `from?` (number), `to?` (number). Returns { networkId, from, to, found, gap, count, entries:[{seq, at, kind, text, frame}] }
+  Notes: Ask the node that runs the unit's brain (its journal is in that node's recording).; It reads the recording file frame by frame, read-only: the replayed world is not touched; a long file takes a moment.; gap:true means entries were lost between two recorded frames (should not happen: every change dirties the unit's record)..
+  Example: `get_journal_history({"networkId":1000})` — list every decision unit 1000 made in the exercise, and why.
+- **`list_exercises`** — The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053). No params. Returns { count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.
+  Notes: Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus..
+  Example: `list_exercises({})` — what can be replayed.
+- **`enter_replay`** — Replay an exercise on the whole cluster, from ANY state, in ONE request — the cluster master plans the way (unload, load, seek) (R-3055). `exerciseId?` (string), `atSeconds?` (number), `atSimSeconds?` (number), `waitForReady?` (boolean), `path?` (string), `paths?` (array). Returns { published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).
+  Notes: With no exerciseId the cluster master picks: the live run in progress, else the newest finished one — the same on every host.; Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.; play / pause / step drive the replay clock; seek_replay jumps.; The Replay Browser (-m replaybrowser, standalone) answers the same: its exercises are the recordings under the staging root; path / paths open any file or node group. A cluster host refuses a path..
+  Example: `enter_replay({"atSeconds":30,"waitForReady":true})` — replay the last exercise from 30 s in.
+- **`set_replay_axis`** — ⭐ CE-3329 — switch the replay's time axis for the whole session (R-3058): Sim (the run's own clock — a play jumps over every paused stretch and its changes land at once) or Wall (pauses play out). No seek: the frame on screen stays. Req `axis` (string). Returns { published, requestId, axis }
+  Notes: The master holds it and every node hears it (the cluster-state broadcast); the Replay Browser keeps its own (the viewer's).; get_replay_status reports it as axis; atSimSeconds seeks work on either axis..
+  Example: `set_replay_axis({"axis":"Wall"})` — skip or play the pauses.
+- **`export_replay_json`** — Replay Browser only (RB-4): export the shown node's recording to JSON, every option the Timeline panel has, as a job off the main thread. `window?` (string), `from?` (number), `to?` (number), `format?` (string), `entities?` (array), `entityIndex?` (integer), `includeEntities?` (boolean), `includeEvents?` (boolean), `minified?` (boolean), `epsilon?` (number), `output?` (string). Returns { job, state:'running', input, path } — poll get_replay_export
+  Notes: The file is what the panel's 'Save to JSON' writes for the same options..
+  Example: `export_replay_json({"window":"frames","from":0,"to":300,"format":"changelog"})` — dump the first 300 frames' changes to a JSON file.
+- **`get_replay_export`** — Replay Browser only (RB-4): an export job's state, file and size. Req `job` (string). Returns { job, state: running | done | failed, input, path, bytes, error }
+  Example: `get_replay_export({"job":"a1b2c3d4e5f6"})` — is the export finished, and where is the file.
+- **`step_replay_history`** — Replay Browser only (RB-3): back / forward through the playback waypoints — the Timeline's back and forward buttons (every seek leaves one). Req `direction` (string). Returns the Replay Browser's status
+  Example: `step_replay_history({"direction":"back"})` — go back to where the replay was before the last jump.
+- **`search_replay`** — Find the frames of this node's replay recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound). `condition?` (object), `lifecycle?` (object), `networkId?` (number), `limit?` (number). Returns { count, truncated, hits:[{frame, networkId, context}] }
+  Notes: Changed compares each frame with the frame before it (a unit's first frame counts as changed) — e.g. every frame a unit's ActiveBehaviorHash switched.; ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result.; Then seek_replay to a hit to read the moment with the ordinary readers..
+  Example: `search_replay({"condition":{"$type":"PropertyMatch","ComponentType":"Fdp.Toolkit.Behavior.Components.BehaviorState","PropertyPath":"ActiveBehaviorHash","Operator":"Changed","Predicate":{"$type":"Numeric"}},"networkId":1000,"limit":10})` — find when something happened in the recording.
+- **`seek_replay`** — Seek the replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap. The moment is atSeconds, or a lookup over THIS node's recording: a frame, a step of frames, the frame after an event (cause), or the next / previous change of a unit (RB-2). `atSeconds?` (number), `atSimSeconds?` (number), `frame?` (integer), `frames?` (integer), `cause?` (object), `next?` (object), `direction?` (integer). Returns { published, requestId, atSeconds } (+ frame, resolvedFrom for a lookup; next: found, or {found:false, note})
+  Notes: The cluster pauses for the seek; read get_replay_status, then the ordinary readers.; A lookup reads this node's own recording; next scans it off the main thread in a reader of its own (the replayed world is not touched) — a long file takes a moment..
+  Example: `seek_replay({"atSeconds":45})` — jump the replay to 45 s.
+- **`get_replay_status`** — The cluster's state, the loaded replay's length, this node's replay recording, and its clock. No params. Returns { clusterState, replaying, durationSeconds, recording, simSeconds, axis, sim, browser } — axis: the session's time axis (Sim | Wall, CE-3329) — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}
+  Example: `get_replay_status({})` — is the cluster replaying, and where.
+- **`stop_replay`** — Leave the replay: the cluster goes to Idle. `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Example: `stop_replay({"waitForReady":true})` — end the replay.
+- **`set_replay_view`** — Replay Browser only (RB-3): show one node's replayed world or the merged world of all nodes — the Federation panel's switch. Req `view` (string). Returns the Replay Browser's status (get_replay_status's browser field)
+  Notes: The ordinary readers then read that world. Every other host answers NOT_SUPPORTED_HERE(replay.browser)..
+  Example: `set_replay_view({"view":"merged"})` — look at every node's units together.
+- **`enter_review`** — ⭐ CE-3329 — During Action Review: pause the LIVE run and review its own recording in place — every node keeps its exact live point (a full checkpoint in RAM, a labelled keyframe review-<n> in its recording), the past is shown on the wire, and POST /review/exit returns to exactly where it paused. Only from OperatingLive. `atSeconds?` (number), `atSimSeconds?` (number), `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Notes: In a review: seek with POST /replay/seek (or /review/seek), play / pause / step with /sim/*, the axis with /replay/axis; it pauses itself at the live point.; World-changing commands answer 409 until you return (spawn, orders, components, save, checkpoints …)..
+  Example: `enter_review({"atSimSeconds":30,"waitForReady":true})` — look back at the live run.
+- **`exit_review`** — ⭐ CE-3329 — leave the review: every node puts its live point back (the checkpoint restore's semantics), the clock returns to it, the recording resumes — live, paused. `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Example: `exit_review({"waitForReady":true})` — back to the live run.
+- **`seek_review`** — ⭐ CE-3329 — the same seek as POST /replay/seek, named for a review (atSeconds, atSimSeconds, frame, frames, cause, next). `atSeconds?` (number), `atSimSeconds?` (number). Returns as seek_replay
+  Example: `seek_review({"atSimSeconds":12})` — move within the review.
+- **`step_selection_history`** — Replay Browser only (RB-3): back / forward through the units selected. Req `direction` (string). Returns the Replay Browser's status
+  Example: `step_selection_history({"direction":"back"})` — select the unit selected before.
+- **`get_timeline_events`** — One timeline lane's events in a frame range, optionally only one unit's (RB-6) — what the index already holds, no scan of the file. Req `lane` (string), `from?` (integer), `to?` (integer), `entity?` (number), `limit?` (integer). Returns { lane, count, truncated, events:[{frame, subject, other, x, y, value}] }
+  Notes: seek_replay({next:{lane}}) jumps to the next event of a lane..
+  Example: `get_timeline_events({"lane":"shots","limit":20})` — list a lane's events.
+- **`get_timeline_lanes`** — The Event Timeline's lanes on this host (RB-6): each lane with its event count in the shown recording's index, and the index's progress (it builds in the background on first open). No params. Returns { recording, progress, complete, error, frames, lanes:[{id, name, group, priority, glyph, indexed, count, error}] }
+  Notes: Only a host that keeps a timeline index answers (the Replay Browser today); others: NOT_SUPPORTED_HERE(timeline.read)..
+  Example: `get_timeline_lanes({})` — what the timeline shows, and how far its index is.
+- **`add_timeline_lane`** — Add a user's lane to the timeline (RB-6): a descriptor and the condition that makes an event — the lane catalogue's Register; the index scans it in the background. Req `Lane` (object), Req `When` (object), `Payload?` (object). Returns { registered, note }
+  Example: `add_timeline_lane({"Lane":{"Id":"dmg","DisplayName":"Damage"},"When":{"$type":"PropertyMatch","ComponentType":"Health","PropertyPath":"Current","Operator":"Changed","Predicate":{"$type":"Numeric"}}})` — add a lane that marks every health change.
 
 ### Group K — AI behavior traces
+- **`get_behaviour_decisions`** — Which node / state / transition of a behaviour binds which utility decision, and how (CE-1325): ChooseOption chooses, RankCandidates ranks, an IsOption guard reads one option, a custom action holds one in its params. Req `name` (string). Returns { behaviour, bindings:[{kind: node|state|transition, element, label, role: Chooses|Ranks|Reads|Holds, via (the params field), decision, assetId, decisionId, option?}] }
+  Notes: Read from the running blob: a node's method key carries its params offset, and the behaviour's default params hold the decision reference there..
+  Example: `get_behaviour_decisions({"name":"CombatPosture"})` — which nodes of a behaviour run which utility decision.
 - **`get_combat_detonations`** — The last warhead bursts on this node (grenades, mortars, HE) — the warhead and where its numbers came from, every entity in reach with its stance, fragment exposure and blast barrier/shadow, the damage each effect did, and the doors breached (buildings Stage 6). `last?` (number). Returns { count, returned, detonations:[{seq, tick, shooter, struck, burst, ammo, warhead, warheadSource, fragmentRadius, blastInjuryRadius, effects:[{entity, entityIndex, stance, bodyPoints, distance, fragmentExposure, fragmentFalloff, fragmentArmourChance, fragmentDamage, blastFalloff, blastBarrier, blastShadow, blastDamage, totalDamage, shieldedBy, at}], doorsBreached:[key], rays:[{to, transmission, stopAt}]}] } — newest first
   Notes: Written by AreaEffectSystem as it decides each burst — never recomputed. Only bursts of a munition WITH a warhead are recorded (a rifle round has none).; fragmentExposure = the mean over the target's body points (its stance) of the fragments through the terrain and past any body or vehicle; blastBarrier = what slabs/walls/shut doors let through; blastShadow = the diffraction factor behind an obstacle taller than the target.; The entity the round struck is listed too (it is at the burst); its direct hit is a separate damage event.; rays = every fragment line the map's blast layer draws (CE-3117): the body point, the fragment transmission 0..1, and the first obstacle on the way (a terrain piece where the fragments enter it, or the point nearest a blocking collider), null for a clear line..
   Example: `get_combat_detonations({"last":3})` — find out why the prone soldier behind the wall survived the grenade.
 - **`get_combat_shots`** — The last rounds fired on this node — the inputs each was fired with (penetration and its provenance, AQ85 sigma/deflection) and why it ended (hit, stopped by a wall, expired), with every terrain crossing (tuning T-4). `last?` (number), `shooter?` (number), `target?` (number). Returns { count, returned, shots:[{seq, tick, endTick, shooter, target, weaponIndex, muzzle, aim, ordinal, sigmaRad, deflectionRad, penetration, penetrationSource, damage, outcome:InFlight|Hit|StoppedByTerrain|Expired, end, hit, arrivingDamage, arrivingPenetration, raisedAt, firedAt, tripSeconds, caughtUpSeconds, crossings:[{kind, label, material, resistanceMmRha, roundPenetrationMm, chance, passed, at}]}] } — newest first; raisedAt/tripSeconds (CE-2180): the brain's synced sim time and the trip to this node (null when not stamped); caughtUpSeconds: how far a bomb was flown forward to start from its release
   Notes: Written by the systems that decide each round (FireProcessing, Ballistics, HitResolution) — never recomputed, so it cannot disagree with what happened.; Served where the fire chain runs (SimHost, Editor); elsewhere it says no round was fired on this node.; A round that hit a unit lists only the crossings before the unit; arrivingDamage is what the damage step received..
   Example: `get_combat_shots({"last":10})` — find out why a rifleman's rounds never hurt the target behind the wall.
+- **`get_entity_brain`** — What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (every brain unit), contacts, and the brain journal's recent changes. Req `networkId` (number). Returns { networkId, hasBrain, onBrainNode, doing, origin, urgency, sinceSeconds, paused, sop, roe, rightNow:[{channel, actionId, reason, hold, progress, needed}], regions:[{region, state, stateIndex}], squad, choices:[{decisionId, winner, previousWinner, margin, switches}], contacts, heardOnly, journal:{on, seq, changes:[{seq, at, kind, text}]} }
+  Notes: onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.; choices fill only while the unit is observed (observe_trace, set_debug_settings trace, or its Brain tab open); the journal is always on.; journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones..
+  Example: `get_entity_brain({"networkId":1000})` — see what unit 1000 is doing, who ordered it, and what changed lately.
+- **`get_debug_settings`** — A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario. Req `networkId` (number). Returns { networkId, pins:[family labels], trace, traceOn, follow }
+  Example: `get_debug_settings({"networkId":1000})` — what is switched on for unit 1000.
+- **`set_debug_settings`** — Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit. Req `networkId` (number), `pins?` (array), `trace?` (boolean), `follow?` (boolean), `reset?` (boolean). Returns { networkId, pins:[family labels], trace, traceOn, follow }
+  Notes: Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal.; A unit whose Brain tab is open is traced anyway (traceOn), without touching its trace switch..
+  Example: `set_debug_settings({"networkId":1000,"pins":["Perception"],"trace":true})` — watch unit 1000 closely: its vision cone on the map and its trace.
+- **`get_entity_journal`** — A unit's brain journal after a sequence number (CE-1249): every task start / pause / resume / end / clear / refusal (with its reason), SOP change, utility switch, move start and HSM region change, with its cause — the last 24, always on. Req `networkId` (number), `since?` (number). Returns { networkId, on, seq, gap, entries:[{seq, at, kind, text}] } — oldest first; gap:true means more than 24 were written since `since` and the oldest are gone.
+  Notes: seq counts every entry ever written to the unit and never resets — use it to poll without repeats.; A refusal repeated every tick is ONE entry whose time is refreshed.; on:false — not a brain unit on this node, or the host was started with the journal switched off..
+  Example: `get_entity_journal({"networkId":1000,"since":0})` — list what changed in unit 1000's mind and why.
 - **`get_entity_memory`** — A unit's raw target memory, every slot — heard (anonymous) contacts included (CE-3144). Req `networkId` (number). Returns { networkId, hasMemory, count, changeEpoch, anonymousSerial, slots:[{id, anonymous, position:[x,y,z], freshness, radius, lastSeenTick, modalities, sourceClass, alive?, networkId?}] }
   Notes: GET /entities/{id} shows memory through the scenario translator, which drops heard slots and entities it cannot map; this route shows them all.; Slots are sorted freshest first; a heard slot has a negative synthetic id and a radius..
   Example: `get_entity_memory({"networkId":1000})` — read what a unit remembers — seen and heard contacts, how fresh, and where.
+- **`get_entity_reports`** — Reports up the chain of command (CE-2295, CC-12): on a commander its picture — the elements its subordinates reported, each subordinate's last progress / colours / age / overdue, open requests; on any unit the extra requirements its superior set and its outbox (queued, posture, muted). Req `networkId` (number). Returns { networkId, now, onBrainNode?, picture?:{elements:[{from, size, count, activity, equipment, at, radius, observedAt, ageSeconds, receivedAt, seq, synthetic}], subordinates:[{networkId, name?, progress, strength, ammo, phase, lastSeq, lastReportAt, ageSeconds, overdue}], requests:[{from, kind, at, receivedAt, seq}]}, requirements?:{pir, ffir, sitrepEverySeconds, pirArea, setBy}, outbox?:{queued:[report + dueAt], nextSeq, posture, muted, mutedUntil} }
+  Notes: The INTERPRETED view; the raw components (CommandPicture, ReportingRequirements, ReportOutbox) are in get_entity, each buffer a plain array (CC-16).; A report ages from observedAt (when the sender saw it), not from its arrival; overdue = nothing heard for 60 s..
+  Example: `get_entity_reports({"networkId":5001})` — what has the platoon heard from its squads.
+- **`fake_entity_report`** — A report AS IF this unit's staff sent it to its superior (CE-2295, CC-13) — it enters before the wire, ages from observedAgoSeconds, and the superior's whole decision path runs as for a real one. Marked synthetic: always taken, replaced by the unit's next real report (CC-14). Req `networkId` (number), Req `kind` (string), `subtype?` (string), `count?` (number), `size?` (string), `at?` (array), `strength?` (string), `observedAgoSeconds?` (number). Returns { networkId, sent:true, synthetic:true, report }
+  Notes: Run on any node that holds the unit; BR-3 carries the report to the superior's brain node..
+  Example: `fake_entity_report({"networkId":5002,"kind":"Spot","size":"Team","count":3,"at":[200,320,0]})` — tell the platoon squad 5002 sees three enemies.
+- **`mute_entity_reports`** — Lost comms (CE-2295, CC-15): the unit's staff sends nothing for `seconds` — CONTACT included; its outbox keeps filling. 0 restores the radio. Req `networkId` (number), Req `seconds` (number). Returns { networkId, mutedSeconds }
+  Example: `mute_entity_reports({"networkId":5002,"seconds":60})` — squad 5002 goes silent for a minute.
+- **`set_entity_sector`** — Set a man's or a commander's sector — the arc he may choose to shoot into, where he watches, his NoFire areas (CE-2298, DA-26). Req `networkId` (number), `left?` (number), `right?` (number), `minRange?` (number), `maxRange?` (number), `watch?` (number), `allowArea?` (number), `noFire?` (array). Returns { networkId, arc:{left,right,minRange,maxRange}|null, watch|null, allowArea|null, noFire, setBy } — or { networkId, forwarded:true } when his brain is elsewhere
+  Notes: Origin Operator through the one writer (EngagementAreaSystem.Apply): it replaces the whole sector; a higher setter refuses it.; The arc's origin is where he stands now. On a node that does not run his brain the sector is forwarded to the one that does (kind 4) — the answer says forwarded.; His eyes follow it: a holding or fighting man looks at his sector when no threat or sound holds them (Look Direction §3.3a)..
+  Example: `set_entity_sector({"networkId":5301,"watch":0})` — point a sentry north, or give a man his arc of fire.
 - **`get_entity_sensors`** — Every sensor of a unit — kind, result family and last answer in its own shape (CE-3072). Req `networkId` (number). Returns { count, sensors:[{partId, kind, family:Ranked|Area, templateId, epoch, suspended, origin:tkb|behaviour|other, answer:{ready, count, lastUpdateTick, top:[{entityId, score, position}]} | {ready, count, lastUpdateTick, areas:[{featureId, kind, threat, distanceAlongRoute, center, nearHandle, farHandle}]}, settings? }] }
   Notes: A Ranked sensor lists its top 5 results; an Area sensor (the danger-area sensor) lists its areas, the next one ahead first.; answer.ready is false until the first answer — an Area answer with count 0 and ready true means a clear route.; settings appear for an Area sensor: which route it watches (OwnMove | Handle | ToPoint) and its corridor..
   Example: `get_entity_sensors({"networkId":1000})` — read which danger areas a unit sees ahead on its route, and how threatened each is.
+- **`get_entity_slots`** — Every behaviour occurrence slot a unit carries — the task's, the SOP's, a paused task's, hosted children's — named and decoded (CE-2288). Req `networkId` (number). Returns { networkId, count, slots:[{key, kind, payloadSize, structureHash, owner (Task|Sop|PausedTask|OwnerUnknown), behaviour, role (Params|State|Hsm|Working|HostedChild|RoleUnknown), label, layout, value}] }
+  Notes: GET /entities/{id} projects only the running task's params; this route lists every slot, including a hosted drill's own block and the SOP's.; A slot stores no owner: each is named by recomputing the keys of the task, the SOP and a paused task; an unmatched slot is listed with owner OwnerUnknown.; value is the slot decoded through its behaviour's layout (params, a hosted child's params, a stateful node's working state); null when no layout is known..
+  Example: `get_entity_slots({"networkId":1000})` — see a commander's whole brain — the play, the SOP, a paused task and the drill it hosts.
 - **`get_entity_squad`** — A squad as its commander sees it — members with their assigned fire targets, and the merged contact pool (CE-3087). Req `networkId` (number). Returns commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}], maneuver:{active, kind, kindName, phase, phaseName, phaseSince, members:[{slot, networkId, name, order:{kind, point, cover, issuedAt, target}|null}], history:[{t, phase, phaseName, event}], gates?:{covering, set}, care?:{casualty, medic, stage, coverPoint}}|null } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }
   Notes: The assignment is the leader's fire distribution (CE-3088): recomputed after each merge of the pool (≈ 10 Hz), at most 2 members per target.; An assignment is a consideration in the member's own threat ranking, not an order — a hurt member may still break off (its posture).; Heard contacts (no identity) appear in the pool with heard:true and are never assigned.; maneuver (CE-2157) is the squad drill the commander runs: its phase, the last 16 phase changes with the event that moved each (Start, BoundComplete, DefiladeReached, Timeout, End, ...), and the order each member last got. null when no drill ever ran..
   Example: `get_entity_squad({"networkId":1000})` — read which target each squad member is assigned, what the squad knows, and which drill phase it is in.
 - **`get_entity_trace`** — Extract AI behavior trace for an entity. Req `networkId` (number). Returns BTree active node path + history, HSM active leaves, or blueprint live state. Includes traceArmed flag.
   Notes: Arm the entity with observe_trace first to populate trace data.; Returns tier field indicating the AI tier type (BTree/HSM/blueprint)..
   Example: `get_entity_trace({"networkId":1000})` — read AI behavior trace for entity 1000 after arming.
-- **`get_entity_utility`** — What an observed unit's utility decisions chose, and why (CE-3069). Req `networkId` (number). Returns { observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.
-  Notes: observe_trace arms the BTree/HSM trace AND the utility record — one switch.; One entry per decision the unit ran while observed (up to 4); a ranking's winner is a candidate entity {networkId, name}.; switchCount counts winner changes since arming — poll it to see a posture switch.; lastPass is the most recent option decision's per-consideration breakdown; rankings trace only their winner..
+- **`get_entity_utility`** — What a unit's utility decisions chose, and why (CE-3069) — the decisions on EVERY brain unit, always (CE-1319); the per-consideration breakdown only while observed. Req `networkId` (number). Returns { observed, decisions:[{decision, kind, winner, previousWinner, switchCount, evalCount, margin, hysteresis, ranked:[{option|networkId,name, score}]}], lastPass:{winnerOptionId, winnerScore, margin, options:[{optionIndex, considerations:[{input, raw, curved, weight}]}]} } — scores are AFTER hysteresis.
+  Notes: ⭐ CE-1319 (BV-61): the decision log is on every brain unit, always — so it replays too; observe_trace arms only the BTree/HSM trace and the utility per-consideration trace (lastPass).; One entry per decision the unit ran (up to 4); a ranking's winner is a candidate entity {networkId, name}. observed:false = no brain log on this node (not a brain unit here).; switchCount counts winner changes since the unit's brain started — poll it to see a posture switch.; lastPass is the most recent option decision's per-consideration breakdown; rankings trace only their winner..
   Example: `get_entity_utility({"networkId":1000})` — read which posture a unit chose and the scores behind it.
-- **`get_entity_weapons`** — A unit's weapon mounts (owner = mount 0, then mount children) — ammo, cooldown, TKB numbers; with ?target= the WeaponSelection inputs per mount and the chosen mount (CE-3089). Req `networkId` (number), `target?` (number). Returns { count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], choice? }
+- **`get_entity_weapons`** — A unit's weapon mounts (owner = mount 0, then mount children) — ammo, cooldown, TKB numbers; with ?target= the WeaponSelection inputs per mount and the chosen mount (CE-3089). Req `networkId` (number), `target?` (number). Returns { count, mountChildrenEnabled, mounts:[{index, on:owner|child, ammo, maxAmmo, cooldown, turret?, tkb:{range, penetration, damage, muzzleVelocity}|null, inputs?:{hasAmmo, rangeFit, effectiveness, readiness, roundsLeft}}], turrets:[{index, part, azimuthDeg?, elevationDeg?, task?:{mode, mount, epoch, target, point, roundsGranted}, muscle?:{state, failure, epoch, roundsFired}}], choice? }
   Notes: choice is the mount the AimAndFire executor fires on Mount=Auto (the posture's fire step): 0 = the owner's primary.; rangeFit is distance / mount range (≈ 1 inside the range in the decision's curve); 10 = unknown..
   Example: `get_entity_weapons({"networkId":1000,"target":1002})` — see which weapon a unit would fire at a target, and why.
+- **`explain_hearing`** — What one unit could hear in the last seconds and why not, as this node's hearing sensor decides it — each sound's verdict (heard / beyond its carry / beyond his ear / walls or corners / his own side), the straight line's loss, the way round through doorways, windows, stairs and street corners, and where it seems to come from (AQ106 L). Req `listener` (number), `seconds?` (number). Returns { listener, seconds, count, heard, sounds:[{source, kind, class, at, ageSeconds, carry, distance, effectiveCarry, verdict, via, heardFrom, straightDb, crossings, pathMetres, pathDb, openings, corners, route:[[x,y,z]]}], note }
+  Notes: A dry run of the SAME sensor (its ears and its one verdict, AcousticSensorGenerator.Judge) — it cannot disagree with what was heard; it moves no cursor.; Answers where hearing runs (the Perception node: SimHost, the editor); 404 when the listener is not on this node or has no acoustic sensor here.; The moving and shouting bodies are those near him NOW; the short sounds are the ring's of the last `seconds`..
+  Example: `explain_hearing({"listener":1001,"seconds":5})` — find out why the defender did not hear the attacker on the stairs.
 - **`explain_line_of_sight`** — Why one unit does or does not see another, as this node's perception decides it — eye and aim heights, stances, every terrain crossing with its transmittance, and any entity in the way (tuning T-4). Req `observer` (number), Req `target` (number). Returns { observer, target, visible, verdict, eye, eyeHeight, observerStance, targetStance, threshold, points:[{height, aim, clear, verdict, terrainTransmittance, crossed:[{along, kind, label, material, transmittance, building, storey}], blockingEntity}], note }
   Notes: A dry run of the SAME strategy perception composes (TerrainWorldLosStrategy.ForLiveWorld) — it cannot disagree with it.; Answers where perception runs with the entities resident (SimHost, Editor); 404 when either unit is not on this node.; Stage 4: the target is SEEN when ANY body point (per its logical stance) has a clear line; every point is listed with its own verdict..
   Example: `explain_line_of_sight({"observer":1001,"target":1002})` — find out which wall hides the enemy from the rifleman.
+- **`get_squad_reports`** — The reports this node's inbox saw, newest first (CE-2295, PC-11) — folded, stale (a late older one dropped) or not addressed here; a ring of 256 per node. `last?` (number), `unit?` (number). Returns { count, returned, reports:[{serial, seenAt, from, to, originNode, verdict, kind, subtype, at, observedAt, ageSeconds, seq, synthetic, …}] }
+  Notes: ⛔ Not GET /events: that ring holds 500 events of every type and a fight's shots evict a report within seconds..
+  Example: `get_squad_reports({"last":20})` — the last reports up the chain.
 - **`observe_trace`** — Arm or disarm AI behavior trace buffer allocation for an entity. Req `networkId` (number), Req `on` (boolean). Returns { armed, networkId }
   Notes: Must arm before get_entity_trace will return populated trace data.; Without arming, get_entity_trace returns empty trace..
   Example: `observe_trace({"networkId":1000,"on":true})` — arm AI behavior tracing for entity 1000.
+- **`list_utility_decisions`** — Every registered utility decision (CE-1325): name, asset id, kind, option count — the C# [UtilityDecision] classes. No params. Returns [{ decisionId, name, assetId, kind, options }]
+  Example: `list_utility_decisions({})` — list the utility decisions.
+- **`get_utility_decision`** — What a utility decision IS (CE-1325): per option its aggregation and considerations (input, context, weight, curve kind + slope / exponent / shift, modifier); with networkId that unit's values (winner, margin, per-consideration raw -> curved -> weighted). Req `key` (string), `networkId?` (number). Returns { decisionId, name, assetId, kind, ranking, hysteresis, options:[{optionId, name, aggregation, considerations:[{input, context, weight, curve, slope, exponent, xShift, modifier, raw?, curved?, weighted?}], score?, winner?, zeroedBy?}], live?:{unit, traced, evaluations, switches, winner, runnerUp, margin, ranked} }
+  Notes: The settings come from the RUNNING definition — the same for a C#-built behaviour as for an authored one.; Live per-consideration values need the unit traced (observe_trace); without, live.traced is still true when the decision log exists and the rows have no raw values.; An option scored 0 names the consideration that zeroed it (zeroedBy)..
+  Example: `get_utility_decision({"key":"Combat posture"})` — read a utility decision's settings.
 
 ### Group L — Mutation / fault injection
 - **`get_attributes_schema`** — Return all patchable attribute paths and their JSON Schema. No params. Returns { registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, GeoPosition.*, Heading, …).
@@ -402,7 +544,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`list_entity_types`** — List entity types (TKB templates) with id, name, category, disType. `category?` (string). Returns [{tkbType, name, categoryPath, disType}]
   Example: `list_entity_types({"category":"Vehicle"})` — list all TKB types in the Vehicle category.
 - **`get_entity_type`** — Full TKB descriptor: mandatory components, child blueprints, DIS type, and descriptor DTOs. Req `tkbType` (number). Returns Full TKB descriptor including mandatory components, child blueprints, descriptors. No spawn.
-  Example: `get_entity_type({"tkbType":1001})` — inspect TKB descriptor for type 1001.
+  Example: `get_entity_type({"tkbType":1101})` — inspect TKB descriptor for type 1101.
 
 ### Group N — World / coordinates
 - **`list_doors`** — The doors the resident terrain defines, by terrain-object key, with their live state (what sight and fire see) and the door entity that stands for each (buildings Stage 5b). No params. Returns { terrain, count, doors:[{key, state:Open|Closed|Locked|Destroyed, initial, source, x, y, sillZ, building, storey, runtimeId, entityState}] }
@@ -431,13 +573,25 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`focus_entity`** — Pan and zoom the map canvas to an entity. MANUAL-VERIFY: camera move requires windowed session. Req `networkId` (number). Returns { focused: true } on success.
   Notes: Publishes CenterOnEntityCommand (headless-verifiable via event history).; The actual camera move only occurs in a windowed session (MANUAL-VERIFY)..
   Example: `focus_entity({"networkId":1000})` — center editor camera on entity 1000.
+- **`get_selection`** — The units the operator has selected (CE-1263): the primary and all. No params. Returns { primary, selection:[networkId] }
+  Notes: To point the operator at a unit, select_entity (the panels follow the selection) and focus_entity (centres the camera)..
+  Example: `get_selection({})` — which unit is the operator asking about.
+- **`select_entity`** — Select a unit for the operator (RB-7, R-4083) — the panels that follow the selection (the inspector, the Diff, seek-to-change) then show it. Through the UI's own request path: SelectEntityCommand, applied by the host's SelectionRequestSystem on the next frame. Req `entity` (number). Returns { requested, note } — read get_selection after a frame
+  Notes: Your own reads need no selection — every per-unit route takes the id. This is for pointing the OPERATOR at a unit.; On the Replay Browser the selection joins its selection history (step_selection_history)..
+  Example: `select_entity({"entity":1042})` — show the operator unit 1042 in the panels.
+- **`get_view`** — What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, and the units in view nearest first with their screen point. `limit?` (number). Returns { mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.
+  Notes: The operator points by SELECTING (click; in first person the select key on the unit under the crosshair) — read primary / selection.; aimTarget is what the first-person crosshair rests on right now; it moves with the aim.; inView in 2D is the map's own culling; in 3D / FPS a frustum test (not occlusion) — check a line with explain_line_of_sight using possessed as observer.; For what the possessed unit itself perceives, read get_entity_sensors / get_entity_memory on possessed..
+  Example: `get_view({"limit":20})` — see what the operator sees and which unit they mean.
+- **`follow_unit`** — The map's 3-D camera follows a unit (CE-1293): far away it orbits and looks at him, near it is over his shoulder, at distance 0 it is at his eyes looking where he looks. entity:null hands the camera back to the operator. Req `entity` (number), `distance?` (number). Returns { following, distance } — or { following:null } after entity:null. 409 where no map canvas draws the world, or while the station possesses a unit.
+  Notes: The operator takes the camera back with W/A/S/D, Esc or a middle-button drag; get_view reports following / followDistance while it lasts.; Distances are a person's: a vehicle's orbit / shoulder band is 4x, a flyer's 8x..
+  Example: `follow_unit({"entity":4242,"distance":20})` — watch a unit the agent is debugging.
 
 ### Group O — Variables (the watch, over HTTP)
-- **`get_entity_variable`** — Read one blueprint variable by name, with its live value and its pending (staged-but-not-yet-applied) value if a write is queued. Req `networkId` (number), Req `path` (string), `asset?` (string). Returns { networkId, asset, assetId, path, type, value, writable, pending, pendingValue? }
+- **`get_entity_variable`** — Read one blueprint variable by name, with its live value and its pending (staged-but-not-yet-applied) value if a write is queued. Req `networkId` (number), Req `path` (string), `asset?` (string), `owner?` (string, "task"|"sop"|"paused"|"blueprint"), `behaviour?` (string), `role?` (string, "params"|"variables"), `part?` (string), `paramsJson?` (string). Returns { networkId, asset, assetId, path, type, value, writable, pending, pendingValue? }
   Notes: An unknown variable name is a 400 pointing back at list_entity_variables — never an empty success..
   Example: `get_entity_variable({"networkId":1000,"path":"Health"})` — read entity 1000's Health variable and whether an edit is still queued.
-- **`stage_entity_variable`** — STAGE a write to one blueprint variable, through the same seam the editor's Details panel uses. The value lands on the next advancing tick — not on this response. Req `networkId` (number), Req `path` (string), Req `value` (any), `asset?` (string). Returns { networkId, asset, assetId, path, staged: true, pending: true, note }
-  Notes: Running is not a reason to refuse — it is a reason to stage. There is no "pause first" step.; Until the world advances, get_entity_variable still reports the OLD value with pending: true. Step or play to make it land.; A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour..
+- **`stage_entity_variable`** — STAGE a write to a running behaviour's value, through the same seam the editor's Details panel uses — a blueprint variable by name, or (with owner) ANY behaviour slot's params or working state: the task's, the SOP's, a paused task's, an attached blueprint's, a node's or a hosted child's. The value lands on the next advancing tick, IN PLACE — the behaviour is never restarted. Req `networkId` (number), Req `path` (string), Req `value` (any), `asset?` (string). Returns { networkId, asset, assetId, path, staged: true, pending: true, note } — with owner: { networkId, owner, behaviour, part, role, path, component, offset, size, staged, pending, willDrain, startRecordUpdated, restarted:false, note }
+  Notes: Running is not a reason to refuse — it is a reason to stage. There is no "pause first" step.; Until the world advances, get_entity_variable still reports the OLD value with pending: true. Step or play to make it land.; A value whose width does not match the field is refused rather than written: the blackboard is shared between subsystems, so an overrun would corrupt a neighbour.; ⭐ With owner, path is dotted (St fields, In fields — e.g. Shots.Count) and [n] indexes an inline array (Shots.Items[1]). A task-params write also rewrites the start record's JSON, so a save and the "same order again?" checks stay true.; ⭐ The what-if loop: checkpoint → stage_entity_variable(owner…) → step → read → restore_checkpoint (skill §J)..
   Example: `stage_entity_variable({"networkId":1000,"path":"Health","value":42})` — queue Health = 42; it applies on the next advancing tick.
 - **`list_entity_variables`** — List an entity's blueprint variables — the same (entity, asset, path) addressing a Details/watch row uses, with each variable's live value and whether a staged write is still pending on it. Req `networkId` (number), `asset?` (string). Returns { networkId, asset, assetId, dispatch, variables: [{ path, type, value, writable, pending, pendingValue? }] }
   Notes: pending: true means a staged write for that variable has not been applied yet, so value is still the OLD number — the machine half of the editor's yellow.; writable: false means the variable has no live address (its blueprint's dispatch kind has no staged-write layout), so it can be read but not staged.; A Library-dispatch blueprint legitimately has no working-state variables and returns an empty list, not an error..
@@ -477,8 +631,8 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `detach_blueprint({"networkId":1001,"blueprint":"ComponentCollectionDemo"})` — put the entity back how you found it.
 
 ### Group R — Entity state
-- **`get_entity_state`** — The well-known fields parsed out — position, rotation, velocity, speed, current behaviour — so an assertion reads state.position.x instead of digging through component JSON. Req `networkId` (number). Returns { networkId, alive, position:{x,y,z}, rotation:{yawDeg,pitchDeg,rollDeg}, velocity:{x,y,z}, speed, behavior:{hash,name,brainTier} }
-  Notes: A field whose component the entity does not carry is OMITTED, never defaulted — a zero position would be indistinguishable from the origin.; A convenience over get_entity, reading the same components: the two cannot disagree..
+- **`get_entity_state`** — The well-known fields parsed out — position, rotation, velocity, speed, current behaviour — so an assertion reads state.position.x instead of digging through component JSON. Req `networkId` (number). Returns { networkId, alive, position:{x,y,z}, rotation:{yawDeg,pitchDeg,rollDeg}, velocity:{x,y,z}, speed, behavior:{hash,name,brainTier}, roeEffective:{fire,reactions,forceLevel,returnFireWindowSeconds}, look:{bodyYawDeg,headYawDeg,eyeYawDeg,source,hasTarget,target,fovDegrees} }
+  Notes: A field whose component the entity does not carry is OMITTED, never defaulted — a zero position would be indistinguishable from the origin.; A convenience over get_entity, reading the same components: the two cannot disagree.; roeEffective (CE-2289) is the ROE the unit OBEYS: its own where an order set it, else its nearest commander's, else its type default — a squad's HoldFire shows on every man.; look (CE-3252, LD-D) is where a PERSON looks: eyeYawDeg = body + head, the cone vision uses; source order / aim / glance / free. Omitted for a body with no look (a vehicle's eyes are its body)..
   Example: `get_entity_state({"networkId":1000})` — where is entity 1000, how fast, doing what.
 
 ### Group S — Discovery with schema
@@ -498,6 +652,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `get_panel({"panelId":"editor_bp_manager"})` — read the breakpoint panel's model and assert what it lists.
 
 ### Group V — AI assets & graph tabs
+- **`reload_ai_behaviours`** — ⭐ CE-1321 — rebuild the C# behaviours (Hrot.AI.Behaviors) and HOT-SWAP them into the running editor: build, copy into the watched directory, wait for the swap; open graph documents are re-decompiled. The same path as the toolbar's Reload AI. No params. Returns { build: ok|failed|not-found|not-wired|busy, exitCode, errors[], reloaded, note, added[], removed[], behaviours, documentsReconciled, registrarFailures[], seconds }
+  Notes: Running units KEEP their state: the registry merges in place and a running behaviour's slot memory is untouched; HSM instances are re-bound by slot. A changed params/state LAYOUT is yours to restart (assign it again).; A failed build is a 200 with build:failed and the compiler's error lines — the running assembly is unchanged.; Only Hrot.AI.Behaviors hot-reloads. C# anywhere else (engine, toolkits) needs a rebuild and a restart of the editor.; Cheaper first: a value (stage_entity_variable with owner) or a JSON asset (reload_ai_asset) needs no build at all — the skill's §J ladder..
+  Example: `reload_ai_behaviours({})` — rebuild and hot-swap the C# behaviours after editing their source.
 - **`list_assets`** — Every AI asset (BTree/HSM/Blueprint) this host has indexed, with both of its addresses. No params. Returns { count, assets[{assetId,name,kind,sourceFilePath,isDirty}], note? }
   Notes: CALL THIS FIRST before opening anything — it is how you turn a human path into the assetId the open-by-id route wants.; sourceFilePath is the RELATIVE path including subfolders, normalised to forward slashes; paste it verbatim into open_asset_by_path.; name is NOT an address: two subfolders may hold the same file name. Address by assetId (stable) or sourceFilePath (human).; count:0 with a note means the catalog indexed nothing — on a deployed node the source asset tree is absent (asset roots must come from config)..
   Example: `list_assets({})` — discover which AI assets this host can open.
@@ -576,17 +733,72 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `invoke_editor_command({"commandId":"editor.select-all"})` — run an editor command headlessly.
 
 ### Group Y — node diagnostics
+- **`get_audio`** — ⭐ CE-4038 B11 (R-4059) — the Sound switch (the scene heard from the camera in 2-D and 3-D; FPS always sounds), a film take's own switch, the master volume and mute. No params. Returns { sound, takeSound, master, muted, note }
+  Example: `get_audio({})` — read the sound switch.
+- **`set_audio`** — ⭐ CE-4038 B11 (R-4059) — set the Sound switch, the master volume and mute, as the menu does (saved to the user's file). `sound?` (boolean), `master?` (number), `muted?` (boolean). Returns as get_audio
+  Example: `set_audio({"sound":true})` — turn the sound on.
 - **`trigger_cluster_diagnostic_dump`** — Collect diagnostics on the named cluster nodes and pull them to the NAS — the same operation the ExCon's Execute Diagnostic Dump button drives. Req `nodes` (array), `dumpEvents?` (boolean), `dumpEntities?` (boolean), `dumpArchitecture?` (boolean), `dumpLogs?` (boolean), `eventProviders?` (array), `useMarkdown?` (boolean), `maxAgeHours?` (number), `severityThreshold?` (number). Returns { transactionId, nodes[], queued:true, note }
   Notes: ASYNCHRONOUS and cluster-wide: the response confirms the request was PUBLISHED, not that files exist. Every selected node gathers, then the orchestrator pulls to the NAS over SMB.; Poll get_cluster_diagnostic_status until manifestPaths is non-empty — that is the completion signal.; An empty nodes[] is refused rather than read as 'every node': the editor's own panel disables its button on the same condition, and dumping the whole cluster is a different operation from dumping one node.; This adds no collection mechanism — it publishes the same CQRS intent the operator's button publishes, onto whichever node's orchestration bus is reachable.; The request is logged with its transaction id and target nodes: a headless origin never pre-flights a confirmation, so that log is the safety net (ruling 53)..
   Example: `trigger_cluster_diagnostic_dump({"nodes":[1]})` — collect diagnostics from node 1 to the NAS.
 - **`get_cluster_diagnostic_status`** — Whether a cluster transaction is in flight, and the file manifest of the last successful diagnostic dump. No params. Returns { inFlight, manifestPaths[], manifestCount, note }
   Notes: Reads the same read model the ExCon's Cluster Diagnostics panel renders, so it answers what a human at the console would see.; manifestPaths are relative to the NAS base directory and describe the LAST SUCCESSFUL dump. EMPTY means none has completed yet — not that one failed.; inFlight covers any cluster transaction, not only a dump.; Only a node that builds and pumps a ClusterUiCache can answer (in --mode all that is ExCon); a host without one can still TRIGGER a dump but cannot observe it, and says so..
   Example: `get_cluster_diagnostic_status({})` — check whether the diagnostic dump finished.
-- **`get_architecture_diagnostics`** — This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel. `subsystem?` (string). Returns { subsystems[{ subsystem, perspective, modules[], systems[], translators[], moduleCount, systemCount, translatorCount }], note }
+- **`get_architecture_diagnostics`** — This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel. `subsystem?` (string). Returns { subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors }], translators[], moduleCount, systemCount, translatorCount }], note }
   Notes: Per SUBSYSTEM, not per node: a --mode all node runs SimHost, IG, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.; Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.; A subsystem with no ECS kernel (ExCon, an orchestrator-only node) correctly reports nothing; check the 'diagnostics.architecture' cell in get_capabilities rather than reading the absence as a wiring bug.; modules carry lifecycleState and circuitState, so a module stuck open or failing shows up here without reading logs.; It allocates the whole snapshot on every call — fine for an operator query, wrong in a loop..
   Example: `get_architecture_diagnostics({})` — see what modules and translators this node is running.
 - **`get_render_diagnostics`** — ⭐ CE-1145 — the map view's frame rate (fps, frame-time mean / p95 / max over ~2 s) and its camera (mode 2D / 3D / FPS, eye, forward, yaw / pitch, distance, height above the ground, viewport). No params. Returns { fps, frameMsMean, frameMsP95, frameMsMax, frames, windowSeconds, mode, camera{ eye[3], forward[3], yawDeg, pitchDeg, distance, heightAboveGround, viewport[2] } }
   Example: `get_render_diagnostics({})` — read the map view's frame rate and camera.
+- **`director_get_checks`** — ⭐ CE-4042 — a scenario's machine-checkable conditions (scenarios/<s>/checks.json) as JSON, what is wrong with them, and its golden's size. Req `scenario` (string). Returns { scenario, path, json{…}, problems[], golden?{ path, steps, snapshots, shots } }
+  Notes: docs/DESIGN_Scenario_Regression.md §3 (the grammar), §4 (the golden)..
+  Example: `director_get_checks({"scenario":"ua-tank-ammo"})` — read a scenario's checks.
+- **`director_put_checks`** — ⭐ CE-4042 — write a scenario's checks (authoring by an agent): refused, with every problem, when a key, a cue or a time is wrong. Written to the working copy AND the source tree. Req `scenario` (string), Req `expect` (array), `runFor?` (number), `golden?`, `anchors?` (object), `do?` (array), `sampleEvery?` (number). Returns { saved[], expect, anchors, do, golden }
+  Example: `director_put_checks({"scenario":"ua-tank-ammo","runFor":60,"expect":[{"name":"fires","on":"shot","by":"Tank"}]})` — write a scenario's checks.
+- **`director_next`** — ⭐ CE-4038 — end this reel item (reported as stopped) and go on to the next. No params. Returns the director's status
+  Example: `director_next({})` — skip to the next take.
+- **`director_pause`** — ⭐ CE-4038 — pause the live show (⚠ a paused frame changes the run — the report says so). No params. Returns the director's status
+  Example: `director_pause({})` — pause the show.
+- **`director_play`** — ⭐ CE-4038 — play a reel or one take: each scenario opened from its file, the take's shots held on the 3-D camera, ONE fixed step per rendered frame (R-3038). Without capture it plays LIVE on screen and saves nothing; with capture it renders frame by frame and writes ONE movie of the reel. `reel?` (string), `scenario?` (string), `take?`, `speed?` (number), `loop?` (boolean), `capture?` (object). Returns the director's status (see director_status)
+  Notes: docs/DESIGN_Film_Director.md §0, §3a, §3b, §4a. Plays in the editor's PREVIEW (R-4061); every item loads again (R-3034). Capture needs a window (Xvfb) and ffmpeg..
+  Example: `director_play({"reel":"highlights"})` — play a reel live.
+- **`director_list_reels`** — ⭐ CE-4038 — the reels (films/<name>.reel.json): playlists of takes, each ONE movie on film. No params. Returns { root, reels[{ name, title, items, problems[] }] }
+  Example: `director_list_reels({})` — list the reels.
+- **`director_resume`** — ⭐ CE-4038 — resume the live show. No params. Returns the director's status
+  Example: `director_resume({})` — resume the show.
+- **`director_scout`** — ⭐ CE-4038 — scout a take or a reel: run each take once, stepped as the film will be, and BAKE its anchor times (with the step rate, the scenario's hash) into the take. The report names every beat that did not happen — a scenario health check. `reel?` (string), `scenario?` (string), `take?` (string), `bake?` (boolean). Returns the director's status; per item: found{anchor: time}, missing[], mismatches[] (a beat that moved since the last scout = a determinism finding)
+  Notes: docs/DESIGN_Film_Director.md §0 (R-3038): the filmed run IS the scouted run once CE-3293 S5 lands; until then re-scout after S5..
+  Example: `director_scout({"scenario":"ua-tank-ammo"})` — bake a take's anchor times.
+- **`director_status`** — ⭐ CE-4038 — what the director does: phase (Idle · Loading · Entering · Playing · Encoding · Done · Stopped), the reel item, the shot, sim time, the realtime factor, and a report per item. No params. Returns { phase, mode, reel, item, items, paused, speed, shot, simTime, realtimeFactor, tickHz, frames, movie, error, reports[{ scenario, take, status, problems[], missing[], mismatches[], skippedReplays[], unresolved[], found{}, tickHz, usedBake, realtimeFactor, steps, lateFrames, waitFrames, maxStepsInAFrame, maxRetiredInAFrame, frames, simEnd, wallSeconds, cuts[{ shot, t, rounds, units{ name: [x, y, z, health] } }] }], anchorsSeen?, mismatches? }
+  Example: `director_status({})` — read the director's status.
+- **`director_stop`** — ⭐ CE-4038 — stop the director (the preview is left, the camera released, the user's layers and sound back). No params. Returns the director's status
+  Example: `director_stop({})` — stop the director.
+- **`director_get_take`** — ⭐ CE-4038 — one take as JSON (its shots, anchors, baked anchor times) and what is wrong with it. Req `scenario` (string), Req `take` (string). Returns { scenario, take, path, json{…}, problems[] }
+  Example: `director_get_take({"scenario":"ua-tank-ammo","take":"main"})` — read a take.
+- **`director_put_take`** — ⭐ CE-4038 — write a take (authoring by an agent): the body is the take; refused, with every problem, when a key or a value is wrong. Req `scenario` (string), Req `take` (string), Req `shots` (array), `anchors?` (object), `title?` (string), `caption?` (string), `tickHz?` (number), `endAt?`. Returns { saved, shots, anchors }
+  Notes: docs/DESIGN_Film_Director.md §4. The shot keys are film.py's plan keys plus to, ease, speed, caption, layers, sound..
+  Example: `director_put_take({"scenario":"ua-tank-ammo","take":"short","shots":[{"at":1,"seconds":4,"follow":"Tank","distance":20}]})` — write a take.
+- **`director_list_takes`** — ⭐ CE-4038 — the film takes: every scenario with a takes/ folder and its takes (scenarios/<s>/takes/<t>.take.json). `scenario?` (string). Returns { root, count, scenarios[{ scenario, takes[] }] }
+  Notes: docs/DESIGN_Film_Director.md §4, D-2: a take lives beside its scenario; 'Save As' copies the takes..
+  Example: `director_list_takes({})` — list the film takes.
+- **`director_verify`** — ⭐ CE-4042 — verify scenarios: each loaded from its file, stepped once per frame for runFor, judged by its checks.json and compared with its golden.json (the first difference named). Read the verdicts in director_status's reports[].verify. `scenario?` (string), `scenarios?` (array), `all?` (boolean), `capture?` (boolean), `fresh?` (boolean), `replay?` (boolean). Returns the director's status (phase, reports[{ status: pass|fail, verify{ passed, verdicts[{name, ok, t, kind}], golden: none|same|different|missing|captured|not-captured, goldenDiff[], written[], problems[], replay: null|same|different|failed, replaySnapshots, replayDiff[], replayNotCarried[] } }])
+  Notes: docs/DESIGN_Scenario_Regression.md — R-4085 (replay: the live run against its own recording, §10-1), R-4065 (conditions for all, a golden for a feature scenario, a fresh process each), R-4066 (the engine runs it; HTTP and the command line drive it)..
+  Example: `director_verify({"scenario":"ua-tank-ammo"})` — verify a scenario against its checks and golden.
+- **`director_verify_jobs`** — ⭐ CE-4042 — the fresh-process verify jobs this editor started (POST /director/verify {fresh:true}): each one's state, exit code and output folder. No params. Returns { jobs[{ job, state: running|done, exitCode, passed, scenarios[], capture, replay, out, junit, log, seconds }] }
+  Example: `director_verify_jobs({})` — list the fresh verify jobs.
+- **`director_verify_job`** — ⭐ CE-4042 — one fresh-process verify job: running or done, and when done its full report (every scenario's verdicts, golden, first difference). Req `job` (string). Returns { job, state, exitCode, passed, scenarios[], out, junit, log, seconds, report?{ passed, failed[], scenarios[{ scenario, status, verdicts[], golden, goldenDiff[], written[] }] } }
+  Example: `director_verify_job({"job":"v1-101500"})` — read a fresh verify job's report.
+- **`film_capture`** — ⭐ CE-3289 — write the next drawn frame's 3-D SCENE (sky, terrain, bodies, effects, rounds — no panels, gizmos, cards or HUD) as a PNG, at any size. Req `path` (string), `width?` (number), `height?` (number), `supersample?` (number). Returns { path, width, height, simTime }
+  Notes: docs/DESIGN_Map_3D_Mode.md §6ab; scripts/film.py drives it..
+  Example: `film_capture({"path":"/tmp/film/0001.png"})` — capture the scene to a PNG.
+- **`film_release`** — ⭐ CE-3289 — give the 3-D map's camera back to the operator (it keeps the last pose). No params. Returns { released: true }
+  Example: `film_release({})` — release the film camera.
+- **`film_shot`** — ⭐ CE-3289 — hold the 3-D map's camera on a shot (a pose, an eye and a target, or a unit to follow) until released; switches the map to 3-D. The operator's and the scenario's camera are left alone. `follow?` (number), `eye?` (array), `target?` (array), `lookAt?` (array), `distance?` (number), `yawDeg?` (number), `pitchDeg?` (number), `lift?` (number), `fovDeg?` (number), `spec?` (object), `t?` (number). Returns { follow, lookAt[3], distance, yawDeg, pitchDeg, fovDeg } — the shot held
+  Notes: docs/DESIGN_Map_3D_Mode.md §6ab. The camera is a driver, like first person: never saved to the scenario..
+  Example: `film_shot({"follow":1000,"distance":25,"yawDeg":200,"pitchDeg":-15})` — follow unit 1000 from behind and above.
+- **`get_map_layers`** — ⭐ CE-4038 B10 (R-4060) — the tactical map's layers, by the names and hover text the Layers panel shows, per view (2-D and 3-D sets), and whether a film take's override is in force. `view?` (string). Returns { shown: "2d"|"3d", override, 2d[{ name, display, on, doc }], 3d[…] }
+  Example: `get_map_layers({"view":"3d"})` — list the map's layers.
+- **`set_map_layers`** — ⭐ CE-4038 B10 (R-4060) — turn map layers on and off EXACTLY as the user's click does (saved to the user's file like one). `view?` (string), `on?` (array), `off?` (array). Returns the view's layers (as get_map_layers)
+  Notes: A film take's layers are NOT this: they are a transient override, never saved (docs/DESIGN_Film_Director.md §4b)..
+  Example: `set_map_layers({"view":"3d","on":["Ai.VisionCones"]})` — show the vision cones.
 
 ### Group Z — Entity control (orders)
 - **`control_entity`** — One control frame for the unit this station possesses — a person: forward/back + strafe in its body frame, facing an absolute yaw; a vehicle: throttle (forward; negative brakes, then reverses) + steer. The newest seq wins; keep sending while the controls are held. Req `networkId` (integer), Req `seq` (integer), `forward?` (number), `lateral?` (number), `steer?` (number), `yaw?` (number), `gait?` (integer), `trigger?` (boolean), `aim?` (array), `use?` (integer), `useVerb?` (integer), `useTarget?` (integer). Returns { networkId, accepted:true, detail:'control' } — 409 when this station does not hold the unit.
@@ -594,7 +806,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `control_entity({"networkId":1000,"seq":1,"forward":1,"yaw":0})` — walk unit 1000 forward, facing east.
 - **`release_entity`** — Release a unit: the operator's order ends and the unit's own SOP decides again. Req `networkId` (integer). Returns { networkId, accepted:true, detail:'released' }
   Example: `release_entity({"networkId":1000})` — hand unit 1000 back to its AI.
-- **`get_entity_order`** — A unit's operator order: running · paused (a reaction interrupted it) · succeeded · failed · faulted · none — and what it runs now. Req `networkId` (integer). Returns { networkId, onBrainNode, state, behavior?, params?, since?, interruptedBy?, finishedAt?, fault?, current:{behavior, origin} }
+- **`get_entity_order`** — A unit's operator order: running · paused (a reaction interrupted it) · succeeded · failed · faulted · none — and what it runs now. Req `networkId` (integer). Returns { networkId, onBrainNode, state, behavior?, params?, since?, interruptedBy?, finishedAt?, fault?, current:{behavior, origin}, task?:{behavior, origin, since, params} }
   Example: `get_entity_order({"networkId":1000})` — has unit 1000 arrived?.
 - **`order_entity`** — Order a unit, as an operator: move to a point, attack an enemy, hold (stop), run any behaviour, or release it to its own SOP. The unit works out HOW (route, cover, weapon). The order outranks its SOP and mission and clears its mission plan; works from any node (forwarded to the unit's brain owner). Req `networkId` (integer), Req `kind` (string), `lat?` (number), `lon?` (number), `x?` (number), `y?` (number), `speed?` (number), `arrivalRadius?` (number), `roadUse?` (string), `targetId?` (integer), `behavior?` (string), `params?` (object). Returns { networkId, accepted:true, detail, behavior?, params?, note } — 404 unknown unit, 409 killed / other side (side lock), 400 malformed.
   Notes: An order is origin Operator: the unit's SOP and its mission cannot replace it; a reaction (under fire) may pause it unless its ROE says StayOnTask.; kind 'attack' runs CombatPosture with the target designated and assault: the unit closes in and fights THAT enemy (a nearer threat does not take over) and the order SUCCEEDS when it is down. ROE still applies — on HoldFire it closes in without firing.; The order is resolved on the unit's brain node a frame or two later; get_entity_order reads the result there..
@@ -630,10 +842,11 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 2. **Arm traces first.** `get_entity_trace` is empty unless you `observe_trace{on:true}` and then step.
 3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; pause-step
    to observe results instead of waiting.
-4. **One preview slot.** Don't `checkpoint` while in preview, or `start_recording` while checkpointed.
-   Restore/stop first.
-5. **Replay never affects the live world** — and the live world never affects replay. Use
-   `list_replay_entities` (not `list_entities`) while replaying.
+4. **A checkpoint needs a live run, a restore needs its label.** `checkpoint` answers the label it used; pass it
+   to `restore_checkpoint`. A preview is not a checkpoint and is never recorded.
+5. **A replay is the cluster's.** `enter_replay` puts every node into its recording; read it with the ordinary
+   readers (`list_entities`, `get_entity_brain`). The routes PUBLISH — pass `waitForReady:true` or poll
+   `get_replay_status` before reading.
 6. **`patch_attribute` keys must be registered** (see `get_attributes_schema`); unregistered keys are silently
    ignored. For arbitrary fields use `edit_component`.
 7. **Non-finite floats** appear as the strings `"NaN"`/`"Infinity"`/`"-Infinity"` in dumps — that's valid

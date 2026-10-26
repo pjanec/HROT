@@ -142,8 +142,7 @@ public sealed class ClusterScenarioPanel
 
             case FdpClusterOpType.ReplaySeek:
             {
-                long ticks = TryParseWallTicks(req.PayloadJson);
-                _bus!.PublishManaged(new SeekReplayIntent { RequestId = req.RequestId, TargetWallTicks = ticks });
+                _bus!.PublishManaged(SeekReplayPayloadDto.Decode(req.RequestId, req.PayloadJson));   // ⭐ CE-3329 — the one decoding
                 break;
             }
 
@@ -199,19 +198,6 @@ public sealed class ClusterScenarioPanel
         catch (JsonException) { return null; }
     }
 
-    private static long TryParseWallTicks(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return 0;
-        if (long.TryParse(json, out var v)) return v;
-        try
-        {
-            var dto = JsonSerializer.Deserialize<SeekReplayPayloadDto>(json, OrchestrationJsonOptions.Default);
-            return dto?.TargetWallTicks ?? 0;
-        }
-        catch { }
-        return 0;
-    }
-
     private static Guid ExtractGuidField(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return Guid.Empty;
@@ -229,14 +215,8 @@ public sealed class ClusterScenarioPanel
         try
         {
             var dto = JsonSerializer.Deserialize<TransitionPayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
-            return new TransitionStateIntent
-            {
-                TransactionId = req.RequestId,
-                TargetState   = dto?.TargetState.HasValue == true ? (FdpClusterState)(int)dto.TargetState.Value : default,
-                ScenarioId    = dto?.ScenarioId,
-                ExerciseId    = dto?.ExerciseId ?? Guid.Empty,
-                TimeMode      = dto?.TimeMode,
-            };
+            // ⭐ R-3055 — the ONE decoding (it dropped CheckpointingSeconds and TargetWallTicks here)
+            if (dto?.TargetState is not null) return dto.ToIntent(req.RequestId);
         }
         catch { }
         return new TransitionStateIntent { TransactionId = req.RequestId };
@@ -288,10 +268,7 @@ public sealed class ClusterScenarioPanel
                {
                    RequestId     = intent.TransactionId,
                    OperationType = ClusterOpType.TransitionState,
-                   PayloadJson   = JsonSerializer.Serialize(
-                       new TransitionPayloadDto(TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId,
-                                                ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode),
-                       OrchestrationJsonOptions.Default),
+                   PayloadJson   = JsonSerializer.Serialize(TransitionPayloadDto.From(intent), OrchestrationJsonOptions.Default),   // ⭐ R-3055 — the ONE encoding
                }),
                currentState: () => (FdpClusterState)(int)EffectiveState);
     private int _selectedEpisodeIdx        = -1;

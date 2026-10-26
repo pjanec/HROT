@@ -51,6 +51,8 @@ namespace Hrot.Editor.DebugApi
                 for (int b = 0; b < blocks.Count; b++)
                     BlueprintTierSummary.AppendSlots(blocks.Memory(b), _blueprintRegistry, slots);
             }
+            // ⭐ CE-1326 — only the BLUEPRINTS: a task's / SOP's own slot shares the store (it made "exactly one blueprint" false)
+            slots.RemoveAll(s => s.Kind != Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint);
             return slots;
         }
 

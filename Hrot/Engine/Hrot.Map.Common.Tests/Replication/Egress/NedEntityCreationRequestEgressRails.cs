@@ -178,6 +178,35 @@ public class NedEntityCreationRequestEgressRails
         Assert.Equal(isTransient, EntityCreationRequestFlags.IsTransient(sample.Flags));
     }
 
+    /// <summary>
+    /// ⭐ CE-3324 — the scenario-load claim survives the wire, independently of the transient one: a forwarded scenario load must
+    /// not spawn the template's children a second time on the node that services it, and an ordinary request must not be read
+    /// as one (the claim is no longer inferred from the pre-allocated id, which every author may now send).
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public void CE3324_TheScenarioLoadClaim_SurvivesTheWireRoundTrip(bool isScenarioLoad, bool isTransient)
+    {
+        var (egress, writer) = NewEgress();
+
+        egress.Send(new EntityCreationRequest
+        {
+            RequestId             = Guid.NewGuid(),
+            OwnerAppInstanceId    = 9,
+            TkbType               = 42L,
+            PreAllocatedNetworkId = 7001L,   // a fixed id says nothing about either claim
+            IsScenarioLoad        = isScenarioLoad,
+            IsTransient           = isTransient,
+        });
+
+        var sample = Assert.Single(writer.Publishes);
+        Assert.Equal(isScenarioLoad, EntityCreationRequestFlags.IsScenarioLoad(sample.Flags));
+        Assert.Equal(isTransient, EntityCreationRequestFlags.IsTransient(sample.Flags));
+    }
+
     /// <summary>The TKB type must survive — it is what the receiving node looks the template up by.</summary>
     [Fact]
     public void Send_CarriesTheTkbType()

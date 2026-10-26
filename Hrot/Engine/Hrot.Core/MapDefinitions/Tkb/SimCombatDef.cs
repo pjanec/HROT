@@ -103,72 +103,120 @@ namespace Hrot.Map.Definitions.Tkb
     /// NOTE: Stubbed for future combat module integration.
     /// </summary>
     [ComponentId(GlobalComponentIds.SimCombatDef)]
-    public class SimCombatDef
+    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+    public record SimCombatDef
     {
         /// <summary>
         /// Frontal armor thickness in mm RHA equivalent.
         /// </summary>
-        public float ArmorFront { get; set; } // mm RHA
+        public float ArmorFront { get; init; } // mm RHA
         
         /// <summary>
         /// Side armor thickness in mm RHA equivalent.
         /// </summary>
-        public float ArmorSide { get; set; }
+        public float ArmorSide { get; init; }
         
         /// <summary>
         /// Rear armor thickness in mm RHA equivalent.
         /// </summary>
-        public float ArmorRear { get; set; }
+        public float ArmorRear { get; init; }
 
         /// <summary>⭐ M6 (DESIGN_Armour_Hit_Model §2) — the roof, mm RHA; 0 ⇒ the rear value.</summary>
-        public float ArmorTop { get; set; }
+        public float ArmorTop { get; init; }
 
         /// <summary>⭐ M6 — each face against a SHAPED CHARGE (composite, ERA), mm RHA; 0 ⇒ that face's kinetic value.</summary>
-        public float ArmorFrontCe { get; set; }
+        public float ArmorFrontCe { get; init; }
         /// <inheritdoc cref="ArmorFrontCe"/>
-        public float ArmorSideCe { get; set; }
+        public float ArmorSideCe { get; init; }
         /// <inheritdoc cref="ArmorFrontCe"/>
-        public float ArmorRearCe { get; set; }
+        public float ArmorRearCe { get; init; }
         /// <inheritdoc cref="ArmorFrontCe"/>
-        public float ArmorTopCe { get; set; }
+        public float ArmorTopCe { get; init; }
 
         /// <summary>⭐ M6 (D-F) — the hit points, stated; 0 ⇒ the front × 5 fallback (<c>EngineFallbacks.HealthFromArmour</c>).</summary>
-        public float MaxHealth { get; set; }
+        public float MaxHealth { get; init; }
 
         /// <summary>⭐ M6 — light vehicles opt into a mobility kill below this fraction of health (0 = none). <c>CombatPlatformDefDto</c>.</summary>
-        public float MobilityKillBelowFraction { get; set; }
+        public float MobilityKillBelowFraction { get; init; }
 
         /// <summary>⭐ R-2019 D-M2 — the share of a burst's blast this hull takes (0..1; a soft skin ≈ 1, an MBT 0); −1 ⇒ derived from the side
         /// armour. <c>CombatPlatformDefDto.BlastSusceptibility</c>.</summary>
-        public float BlastSusceptibility { get; set; } = -1f;
+        public float BlastSusceptibility { get; init; } = -1f;
 
         /// <summary>⭐ CE-3203 — the area (m²) this type presents to fragments; stated ⇒ EQUIPMENT (a weapon). −1 ⇒ derived.
         /// <c>CombatPlatformDefDto.PresentedAreaM2</c>.</summary>
-        public float PresentedAreaM2 { get; set; } = -1f;
+        public float PresentedAreaM2 { get; init; } = -1f;
 
         /// <summary>⭐ M5 — where the crew sees from, m above the ground (the sight / the commander's hatch); 0 ⇒ a standing man's.</summary>
-        public float EyeHeight { get; set; }
+        public float EyeHeight { get; init; }
 
         /// <summary>
         /// Weapon systems mounted on vehicle.
         /// </summary>
-        public List<WeaponMount> Weapons { get; set; } = new();
+        public IReadOnlyList<WeaponMount> Weapons { get; init; } = System.Array.Empty<WeaponMount>();
         
         /// <summary>
         /// Sensor detection range in meters.
         /// </summary>
-        public float SensorRange { get; set; } // meters
+        public float SensorRange { get; init; } // meters
 
         /// <summary>
         /// ⭐ <c>CE-2349</c> — the range (m) of a THERMAL sight the vehicle carries; 0 = none. A vehicle with one lists its sensors
         /// explicitly — visual (<see cref="SensorRange"/>), acoustic (1.5 × it) and thermal — because a TKB that lists ANY sensor gets no
         /// implicit ones (CE-3038, CE-2106). 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md.
         /// </summary>
-        public float ThermalRange { get; set; }
+        public float ThermalRange { get; init; }
         
         /// <summary>
         /// Whether entity can engage threats autonomously.
         /// </summary>
+        public bool AutonomousEngagement { get; init; } = false;
+    }
+
+    /// <summary>
+    /// Mutable authoring surface for <see cref="SimCombatDef"/> (CE-4046: the component is an immutable record, so a
+    /// TKB builder's <c>configure</c> lambda fills this and the builder freezes it with <see cref="Build"/>).
+    /// </summary>
+    public sealed class SimCombatDefBuilder
+    {
+        public float ArmorFront { get; set; }
+        public float ArmorSide { get; set; }
+        public float ArmorRear { get; set; }
+        public float ArmorTop { get; set; }
+        public float ArmorFrontCe { get; set; }
+        public float ArmorSideCe { get; set; }
+        public float ArmorRearCe { get; set; }
+        public float ArmorTopCe { get; set; }
+        public float MaxHealth { get; set; }
+        public float MobilityKillBelowFraction { get; set; }
+        public float BlastSusceptibility { get; set; } = -1f;
+        public float PresentedAreaM2 { get; set; } = -1f;
+        public float EyeHeight { get; set; }
+        public List<WeaponMount> Weapons { get; } = new();
+        public float SensorRange { get; set; }
+        public float ThermalRange { get; set; }
         public bool AutonomousEngagement { get; set; } = false;
+
+        /// <summary>Freezes the authored values into the immutable component.</summary>
+        public SimCombatDef Build() => new SimCombatDef
+        {
+                ArmorFront = ArmorFront,
+                ArmorSide = ArmorSide,
+                ArmorRear = ArmorRear,
+                ArmorTop = ArmorTop,
+                ArmorFrontCe = ArmorFrontCe,
+                ArmorSideCe = ArmorSideCe,
+                ArmorRearCe = ArmorRearCe,
+                ArmorTopCe = ArmorTopCe,
+                MaxHealth = MaxHealth,
+                MobilityKillBelowFraction = MobilityKillBelowFraction,
+                BlastSusceptibility = BlastSusceptibility,
+                PresentedAreaM2 = PresentedAreaM2,
+                EyeHeight = EyeHeight,
+                Weapons = Weapons.ToArray(),
+                SensorRange = SensorRange,
+                ThermalRange = ThermalRange,
+                AutonomousEngagement = AutonomousEngagement,
+        };
     }
 }

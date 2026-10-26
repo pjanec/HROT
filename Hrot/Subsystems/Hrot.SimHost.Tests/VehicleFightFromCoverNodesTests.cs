@@ -387,6 +387,37 @@ namespace Hrot.SimHost.Tests
                 $"ended in the hide (x = {d.Repo.GetComponentRO<SimTransform>(d.Self).Position.X:0.0})");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2351</c> (Exposure Cycle §4a) — THE SENSORS KEEP TO THE NAMED FIGHT: a sound heard 120 m from where the threat is
+        /// remembered, newer than the sighting, is another fight — the hide sensor stays on the threat's spot; one heard 8 m from it is
+        /// the threat moving — the sensor follows it (D14). 📐 Live <c>ua-javelin-lock</c>: the other vignette's launch and impact pulled
+        /// the tank's hide and firing queries 160 m away from the Javelin team its attack order named. 🔴 Red-proof: pass no radius to
+        /// <c>SensorAim</c> in <c>KeepSensors</c> and the first half points the sensor at the far sound.
+        /// </summary>
+        [Fact]
+        public void CE2351_ASoundFromAnotherFight_DoesNotPullTheSensors_ASoundNearTheThreatDoes()
+        {
+            Vector3 HideAimAfterHearing(Vector3 heard)
+            {
+                var d = new Duel(Tank());
+                ref var mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
+                mem.LastSeenTick[0] = 10;
+                mem.EntityIds[1] = -7;
+                mem.Anonymous[1] = 1;
+                mem.Freshness[1] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+                mem.Modalities[1] = (byte)SensorModality.Acoustic;
+                mem.PositionsX[1] = heard.X; mem.PositionsY[1] = heard.Y; mem.PositionsZ[1] = heard.Z;
+                mem.LastSeenTick[1] = 50;
+                mem.Count = 2;
+                d.Step();
+                return d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.HideSite)).ContextPoint1;
+            }
+
+            Assert.Equal(EnemyAt, HideAimAfterHearing(EnemyAt + new Vector3(0f, 120f, 0f)));   // another fight
+            var near = EnemyAt + new Vector3(5f, 6f, 0f);
+            Assert.Equal(near, HideAimAfterHearing(near));                                     // the threat, moved
+        }
+
         private static VehicleFightFromCoverParams Technical() => new()
         {
             WithdrawMode = WithdrawMode.Scoot, HideSecondsMin = 2f, HideSecondsMax = 2f,
@@ -606,7 +637,8 @@ namespace Hrot.SimHost.Tests
         /// ⭐⭐ <c>CE-2215</c> — a dangerous threat I do NOT see still bounds my exposure when it can see me: the RPG man on my side, not in
         /// my tracks, with a clear line from where I remember him ⇒ 1.4 s; a wall between us ⇒ the full exposure. 📐 Live <c>ua-javelin-lock</c>:
         /// the tank did not see the Javelin gunner it knew of, exposed for 8 s, and gave him his 4 s lock.
-        /// 🔴 Red-proof (mutant): <c>CanSeeMe</c> = <c>SightNow.Sees</c> only ⇒ the open case is 6 s ⇒ red.
+        /// 🔴 Red-proof (mutant): <c>CanSeeMe</c> = <c>SightNow.Sees</c> only ⇒ the open case is 6 s ⇒ red. ⭐ <c>CE-2352</c>: beyond his own
+        /// sight range (<c>VisionRange</c>) he cannot see me ⇒ the full exposure (red-proof: drop the range test ⇒ 1.4 s ⇒ red).
         /// </summary>
         [Fact]
         public void CE2215_AnUnseenThreat_ThatCanSeeMe_BoundsTheExposure_AWallBetweenUsDoesNot()
@@ -627,6 +659,14 @@ namespace Hrot.SimHost.Tests
                                                                        Min = new Vector2(-10f, 40f), Max = new Vector2(10f, 41f) } },
             });
             Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+
+            // ⭐ CE-2352 — the open line again, but his eyes reach 60 m and he stands 80 m off: he cannot see me ⇒ the full exposure
+            d.Repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld { BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200) });
+            if (!d.Repo.IsComponentTypeRegistered<PerceptionReceptor>()) d.Repo.RegisterComponent<PerceptionReceptor>();
+            d.Repo.AddComponent(d.Enemy, new PerceptionReceptor { VisionRange = 60f });
+            Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+            d.Repo.GetComponentRW<PerceptionReceptor>(d.Enemy).VisionRange = 100f;   // 100 m: he can
+            Assert.InRange(VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self), 1.39f, 1.41f);
         }
 
         /// <summary>

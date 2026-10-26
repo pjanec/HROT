@@ -19,6 +19,12 @@ namespace Hrot.Diagnostics.Breakpoints;
 /// </summary>
 public interface IDataBreakpointManager
 {
+    /// <summary>⭐ <c>CE-1258</c> (BV-28) — the world a <c>Changed</c> condition compares against (the start-of-tick copy); null = none.</summary>
+    EntityRepository? ChangeBaseline => null;
+
+    /// <summary>⭐ <c>CE-1258</c> (BV-29) — the world as it was at the END of the tick that hit (a hit rewinds the live world to its start).</summary>
+    ISimulationView? PostTickView => null;
+
     // ---- Registry -------------------------------------------------------
 
     /// <summary>
@@ -214,6 +220,21 @@ public interface IDataBreakpointManager
     /// Full implementation in P7; no-op until then.
     /// </summary>
     void OnExternalHit(string tag, Entity entity);
+
+    // ---- Behaviour steps (CE-1323, DBG-9) --------------------------------
+
+    /// <summary>⭐ <c>CE-1323</c> — the mounted behaviour-step breakpoints (a <c>BehaviourStepPredicateDto</c>, alone or inside an AND
+    /// compound) the editor's evaluator watches the units' trace records for. Empty by default.</summary>
+    IReadOnlyList<(Breakpoint Breakpoint, BehaviourStepPredicateDto Step)> MountedBehaviourSteps
+        => Array.Empty<(Breakpoint, BehaviourStepPredicateDto)>();
+
+    /// <summary>⭐ <c>CE-1323</c> — the evaluator saw <paramref name="bp"/>'s step on <paramref name="unit"/>: fires it when it is enabled,
+    /// its unit filter is that unit and the rest of its compound holds; <paramref name="what"/> says what happened ("entered
+    /// Withdrawing") and is kept as <see cref="LastHitDetail"/>. No-op by default.</summary>
+    void OnBehaviourStepHit(Breakpoint bp, Entity unit, string what) { }
+
+    /// <summary>⭐ <c>CE-1323</c> — what the hit that paused the world was, when its source said (a behaviour step); else null.</summary>
+    string? LastHitDetail => null;
 
     // ---- Events ---------------------------------------------------------
 

@@ -271,7 +271,7 @@ namespace CarKinem.Systems
                     break;
                     
                 case KinematicsMode.CustomTrajectory:
-                    (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav, in @params, pos2D, fwd2D, state.Speed);
+                    (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav, in @params, pos2D, fwd2D, state.Speed, tf.Position.Z);
                     progressTangent = targetHeading;
                     // ⭐ CE-3115 — PURE PURSUIT ON THE PATH (📄 FDP.Toolkit.CarKinem.md "Pure Pursuit — geometric path-following
                     //   using lookahead points"): steer at the path point a lookahead ahead of the progress, so a sideways error —
@@ -383,7 +383,9 @@ namespace CarKinem.Systems
                         // Only mark as arrived when the entity was actively navigating (TargetSpeed > 0).
                         // Static entities (TargetSpeed == 0) must not receive HasArrived=1 on spawn —
                         // that would falsely trigger arrival signals for entities with zero velocity.
-                        if (nav.TargetSpeed > 0)
+                        // ⭐ AQ104 I (R-2079) — a person under the point, on another floor, has not arrived: he stands, and the
+                        //   move's owner sends him again (a re-plan takes the stairs)
+                        if (nav.TargetSpeed > 0 && (nav.HasArrived != 0 || OnLevelOf(in @params, tf.Position, nav.FinalDestination)))
                             nav.HasArrived = 1;
                     }
                     break;
@@ -733,8 +735,14 @@ namespace CarKinem.Systems
             return f.LengthSquared() < 0.0001f ? Vector2.UnitX : Vector2.Normalize(f);
         }
 
+        /// <summary>⭐ AQ104 I (R-2079) — a PERSON arrives only on the destination's level (<see cref="Fdp.Toolkit.World.Levels.Same"/>):
+        /// arrival is judged in 2-D, and a man standing under a point one floor up was "arrived" (Peek and Fire §12.7, 160 s). A vehicle
+        /// keeps the 2-D rule.</summary>
+        private bool OnLevelOf(in VehicleParams @params, Vector3 at, Vector3 destination)
+            => @params.Class != VehicleClass.Pedestrian || Fdp.Toolkit.World.Levels.Same(_terrain, at, destination);
+
         private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav, in VehicleParams @params, Vector2 pos2D,
-                                                                               Vector2 fwd2D, float speedNow)
+                                                                               Vector2 fwd2D, float speedNow, float posZ)
         {
             // Check if we reached the end of the trajectory
             bool haveTraj = _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var traj);
@@ -764,6 +772,9 @@ namespace CarKinem.Systems
                             return (pos2D + fwd2D, fwd2D, MathF.Min(nav.TargetSpeed > 0f ? nav.TargetSpeed : TurnClearanceSpeed, TurnClearanceSpeed));
                         return (pos2D + dir, dir, homing);
                     }
+                    // ⭐ AQ104 I — at the end's map position but on another floor: not arrived; he stands until the move is sent again
+                    if (nav.HasArrived == 0 && !OnLevelOf(in @params, new Vector3(pos2D, posZ), endWp.Position))
+                        return (pos2D, fwd2D, 0f);
 
                     nav.HasArrived = 1;
                     // Provide the last waypoint position/tangent but 0 speed

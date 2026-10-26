@@ -3,6 +3,8 @@ state: LIVE
 build-state: NOT-BUILT
 verified: 2026-08-28 (coordinator source scan)
 current-answer: NOT-BUILT (design only). No ModalManager/ConfirmationSpec/IProgressSink in source.
+related-designs:
+  - docs/DESIGN_Cluster_Load_Phase.md — §9.1 applies ruling 53 to a scenario load during a run (CE-1025): the editor warns, HTTP never prompts
 -->
 # Feature design — modal surfaces: confirmation + activity progress
 

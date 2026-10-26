@@ -1,10 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (created — M4 of the restore design, by a read-only subagent; spot-checked: BehaviorStartRecord, SensorCapability, ReplicatedBrainIntent)
+updated: 2026-10-22 (D1 — the nine SIM-STATE types are recorded now) · 2026-10-22 (created — M4 of the restore design, by a read-only subagent; spot-checked: BehaviorStartRecord, SensorCapability, ReplicatedBrainIntent)
 current-answer: the whole file — an APPENDIX of docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §6b
 stale-below: nothing
-known-rot: writer/reader lists are grep over FDP/Hrot/Stride (tests excluded); check_index_coverage is not available through the CLI, so not proven exhaustive
+known-rot: the "Policy" column of the nine SIM-STATE rows is the policy AS FOUND — D1 (2026-10-22) made all nine recorded. Writer/reader lists are grep over FDP/Hrot/Stride (tests excluded); check_index_coverage is not available through the CLI, so not proven exhaustive
 related-designs:
+  - docs/DESIGN_Replay_Census_H0.md — asks the REPLAY question of every type (this file asks the RESTORE one); its verdicts can differ for PROTOCOL / NET-SHADOW types
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the decisions this classification feeds (D1, D6, D7, D12)
 -->
 
@@ -161,6 +162,8 @@ Flags are read from `[DataPolicy(...)]` only; no production call passes a `DataP
 - Note: `SensorCapability` is deliberately `NoScenario|NoReplay` rather than `Transient` so the background snapshot still sees it (SensorComponents.cs:37-39); the other 16 `NoScenario|NoReplay` components share that property, while the 27 `Transient` ones are also hidden from background snapshots.
 
 ## Defects (every SIM-STATE type; these must become recordable)
+
+✅ **Fixed `2026-10-22` (D1):** all nine are recorded now — see the [restore design §6b](DESIGN_Checkpoint_And_Dry_Run_Restore.md); the list below is the defect as found.
 
 Each is a per-entity managed class on a Brain or Muscle entity, `Transient`/NoReplay, so the keyframe drops it and `Clear()` empties it. Ordered by how directly a restored run diverges.
 

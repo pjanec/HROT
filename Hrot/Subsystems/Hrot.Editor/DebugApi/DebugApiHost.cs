@@ -130,6 +130,23 @@ namespace Hrot.Editor.DebugApi
         /// must answer <b>before</b> it tears the process down, and a handler that shut down first would kill
         /// the process with the client still waiting for its 200.
         /// </param>
+        /// <summary>
+        /// ⭐ CE-3329 P3 (D-E) — the routes that change the WORLD (or save it): refused with 409 while the cluster shows a recording. A
+        /// rail asserts every one exists. ⚠ Not here: time, seek, selection, view, panels, assets, diagnostics — they change no world state.
+        /// </summary>
+        internal static readonly HashSet<(string Method, string Template)> WorldChangingRoutes = new()
+        {
+            ("POST", "/scenario/save"), ("POST", "/entities/command"), ("POST", "/entities/spawn"), ("POST", "/entities/create-request"),
+            ("POST", "/missions/{networkId}/task"), ("DELETE", "/missions/{networkId}/tasks"), ("POST", "/missions/{networkId}/run"),
+            ("POST", "/entities/{networkId}/order"), ("DELETE", "/entities/{networkId}/order"),
+            ("POST", "/entities/{networkId}/possess"), ("DELETE", "/entities/{networkId}/possess"), ("POST", "/entities/{networkId}/control"),
+            ("POST", "/orders"), ("POST", "/orders/side-lock"), ("POST", "/entities/{networkId}/sector"),
+            ("POST", "/entities/{networkId}/attribute"), ("POST", "/entities/{networkId}/component"),
+            ("POST", "/entities/{networkId}/ownership/transfer"), ("POST", "/entities/{networkId}/variable"),
+            ("POST", "/entities/{networkId}/attach-blueprint"), ("POST", "/entities/{networkId}/detach-blueprint"),
+            ("DELETE", "/entities/{networkId}"), ("POST", "/checkpoint"), ("POST", "/checkpoint/restore"),
+        };
+
         private sealed record RouteEntry(
             string Method,
             string Template,
@@ -591,12 +608,14 @@ namespace Hrot.Editor.DebugApi
                 var scale = ctx.Body?["scale"]?.GetValue<float>() ?? 1f;
                 return RunMain(s => s.SetTimeScale(scale));
             }));
+            // ⭐⭐⭐ R-3052…R-3055 — the cluster's dry run, through the master on every host (the editor is a one-node cluster).
             _routes.Add(new("POST", "/preview/enter", ctx =>
             {
                 bool startPaused = ctx.Body?["startPaused"]?.GetValue<bool>() ?? false;
-                return RunMain(s => s.EnterPreview(startPaused));
+                return PublishAndAwait(ctx, s => s.EnterPreview(startPaused), Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview);
             }));
-            _routes.Add(new("POST", "/preview/exit",  _ => RunMain(s => s.ExitPreview())));
+            _routes.Add(new("POST", "/preview/exit", ctx =>
+                PublishAndAwait(ctx, s => s.ExitPreview(), Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
 
             // Group E — scenarios
             _routes.Add(new("GET",  "/scenarios", _ => RunMain(s => s.ListScenarios())));
@@ -844,6 +863,17 @@ namespace Hrot.Editor.DebugApi
                 return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
             }));
 
+            // ⭐ AQ106 L (R-3050) — hearing with its evidence: every sound near a listener, heard or why not, and the way it took.
+            _routes.Add(new("GET", "/perception/hearing", ctx =>
+            {
+                if (!long.TryParse(ctx.Query("listener"), out var who))
+                    return Task.FromResult(Fail(400, "Query 'listener' (a network id) is required."));
+                double seconds = double.TryParse(ctx.Query("seconds"), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var sec) && sec > 0 ? sec : 10d;
+                var node = Service().ExplainHearing(who, seconds);
+                return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
+            }));
+
             // ⭐ Tuning T-4 — the shot records the fire chain writes (docs/DESIGN_Terrain_Combat_Tuning.md §4).
             _routes.Add(new("GET", "/combat/shots", ctx =>
             {
@@ -939,32 +969,12 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(404, error, DebugApiHints.Breakpoint) : Ok(new JsonObject { ["removed"] = idStr });
             }));
 
-            // Group H — Checkpoint / Restore / Diff (ADA-BATCH-08)
-            _routes.Add(new("POST", "/checkpoint", async ctx =>
-            {
-                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
-                {
-                    try { return (Service().Checkpoint(), null); }
-                    catch (InvalidOperationException ex) { return (null, ex.Message); }
-                }).ConfigureAwait(false);
-                if (error != null)
-                {
-                    // 409 for live-run conflict, 400 for already-in-preview
-                    int status = error.Contains("live run") ? 409 : 400;
-                    return Fail(status, error);
-                }
-                return Ok(node);
-            }));
-
-            _routes.Add(new("POST", "/checkpoint/restore", async ctx =>
-            {
-                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
-                {
-                    try { return (Service().RestoreCheckpoint(), null); }
-                    catch (InvalidOperationException ex) { return (null, ex.Message); }
-                }).ConfigureAwait(false);
-                return error != null ? Fail(400, error) : Ok(node);
-            }));
+            // Group H — Checkpoint / Restore / Diff. ⭐ R-3044/R-3052: a checkpoint is a named keyframe of the LIVE recording, through the
+            //   master; ⛔ no longer the preview snapshot under another name.
+            _routes.Add(new("POST", "/checkpoint", ctx =>
+                PublishAndAwait(ctx, s => s.TakeCheckpoint(ctx.Body?["label"]?.ToString()), waitFor: null)));
+            _routes.Add(new("POST", "/checkpoint/restore", ctx =>
+                PublishAndAwait(ctx, s => s.RestoreCheckpoint(ctx.Body?["label"]?.ToString()), waitFor: null)));
 
             _routes.Add(new("POST", "/diff/capture", async ctx =>
             {
@@ -1004,123 +1014,69 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(400, error, DebugApiHints.Baseline) : Ok(node);
             }));
 
-            // Group I — Recording + Replay (ADA-BATCH-10)
-            //
-            // IMPORTANT: PrepareRecordingAsync / FinalizeRecordingAsync internally call
-            // InstallModuleAsync / UninstallModuleAsync which await swapTcs.Task — a
-            // TaskCompletionSource that is only fulfilled when the main thread reaches its
-            // next BeforeSync boundary. Therefore these async calls MUST run from the
-            // background HTTP thread (i.e. from this async lambda) and MUST NOT be called
-            // from inside RunOnMainThread (which would block the main thread, preventing
-            // swapTcs from ever completing → permanent deadlock).
-            //
-            // Pattern: phase-1 sync (via RunOnMainThread) → phase-2 async (background thread).
-            _routes.Add(new("POST", "/recording/start", async ctx =>
+            // Group I — Replay. ⭐⭐⭐ R-3052…R-3055 — the CLUSTER's replay, through the master on every host: one request enters it from any
+            //   state (the planner plans the way), the seek is the operator timeline's round, and the ordinary readers (/entities,
+            //   /entities/{id}/brain, /journal, /selection) read the replayed world. ⛔ /recording/* is retired: a live run records on every
+            //   node and a preview never does (R-3053). ⛔ The debug service's own replay world (/replay/load, /step, /unload,
+            //   /replay/entities…) is retired. 📄 docs/DESIGN_Http_Control_Through_The_Cluster_Master.md §3.
+            _routes.Add(new("GET", "/exercises", _ => RunMainResult(s => ResultOf(s.ListExercises(), unavailable: 503))));
+            _routes.Add(new("POST", "/replay", ctx => PublishAndAwait(ctx, s => s.EnterReplay(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay)));
+            // ⭐ RB-2 — {atSeconds} | {frame} | {frames: ±n} | {cause: {frame, entity}} | {next: {entity, component?}, direction}: a
+            //   lookup resolves on the main thread (a "next" scan runs off it, in a reader of its own), then the ordinary seek.
+            RouteHandler seekRoute = async ctx =>
             {
-                var mode = ctx.Body?["mode"]?.GetValue<string>() ?? "preview";
+                var r = await _jobQueue.RunOnMainThread(() => Service().ResolveReplaySeek(ctx.Body)).ConfigureAwait(false);
+                if (r.Scan is not { } scan) return ResultOf((r.Result, r.Error, r.HintCategory), unavailable: 503);
+                int? frame = await Task.Run(() => DebugApiService.RunChangeScan(scan)).ConfigureAwait(false);
+                if (frame is null)
+                    return Ok(new JsonObject
+                    {
+                        ["found"] = false, ["published"] = false,
+                        ["note"] = $"Entity {scan.NetworkId} does not change {(scan.Direction > 0 ? "after" : "before")} frame {scan.StartFrame}"
+                                 + (scan.Component is null ? "." : $" in {scan.Component}."),
+                    });
+                var seek = await _jobQueue.RunOnMainThread(() => Service().SeekReplayToFrame(frame.Value, "next")).ConfigureAwait(false);
+                if (seek.Result is JsonObject o) o["found"] = true;
+                return ResultOf(seek, unavailable: 503);
+            };
+            _routes.Add(new("POST", "/replay/seek", seekRoute));
+            _routes.Add(new("POST", "/review/seek", seekRoute));   // ⭐ CE-3329 R11 — the same seek, named for a review
+            // ⭐ RB-3 / RB-4 — what only the standalone Replay Browser has (every other host: NOT_SUPPORTED_HERE(replay.browser)).
+            _routes.Add(new("POST", "/replay/view", ctx => RunMainResult(s => ResultOf(s.SetReplayView(ctx.Body), unavailable: 503))));
+            _routes.Add(new("POST", "/replay/history", ctx => RunMainResult(s => ResultOf(s.StepReplayHistory(ctx.Body), unavailable: 503))));
+            _routes.Add(new("POST", "/selection/history", ctx => RunMainResult(s => ResultOf(s.StepSelectionHistory(ctx.Body), unavailable: 503))));
+            _routes.Add(new("POST", "/replay/export", ctx => RunMainResult(s => ResultOf(s.StartReplayExport(ctx.Body), unavailable: 503))));
+            _routes.Add(new("GET", "/replay/export/{job}", ctx => RunMainResult(s =>
+            {
+                var (status, error) = s.GetReplayExport(ctx.RouteValue("job") ?? "");
+                return error is null ? Ok(status) : Fail(404, error);
+            })));
+            _routes.Add(new("POST", "/replay/stop", ctx => PublishAndAwait(ctx, s => s.StopReplay(), Fdp.Toolkit.Orchestration.ClusterState.Idle)));
+            // ⭐ CE-3329 P3 — During Action Review: enter / leave; a seek in a review is POST /replay/seek (or its alias /review/seek)
+            _routes.Add(new("POST", "/review", ctx => PublishAndAwait(ctx, s => s.EnterReview(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReview)));
+            _routes.Add(new("POST", "/review/exit", ctx => PublishAndAwait(ctx, s => s.ExitReview(), Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
+            // ⭐ CE-3329 R-3058 — the replay session's time axis, from any host
+            _routes.Add(new("POST", "/replay/axis", ctx => PublishAndAwait(ctx, s => s.SetReplayAxis(ctx.Body), waitFor: null)));
+            _routes.Add(new("GET", "/replay/status", _ => RunMain(s => s.GetReplayStatus())));
 
-                // Phase 1 (main thread): validate state, enter preview, set exercise ID + fdpPath.
-                var (fdpPath, phase1Error) = await _jobQueue.RunOnMainThread<(string?, string?)>(() =>
+            // ⭐ CE-1265 (AV-8) — every journal entry of one unit across this node's replay recording; CE-1266 (AV-9) — the frames where a
+            //   condition holds. Both scan the recording read-only; the replayed world is not touched.
+            _routes.Add(new("GET", "/entities/{networkId}/journal/history", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id)) return Task.FromResult(Fail(400, "Invalid networkId."));
+                int? from = int.TryParse(ctx.Query("from"), out var f) ? f : null;
+                int? to = int.TryParse(ctx.Query("to"), out var t) ? t : null;
+                return RunMainResult(s =>
                 {
-                    try   { return (Service().BeginRecordingStart(mode), null); }
-                    catch (InvalidOperationException ex) { return (null, ex.Message); }
-                    catch (ArgumentException ex)          { return (null, ex.Message); }
-                }).ConfigureAwait(false);
-
-                if (phase1Error != null)
-                    return Fail(409, phase1Error);
-
-                // Phase 2 (background thread): install recording kernel module — must NOT be
-                // inside RunOnMainThread to avoid deadlock with swapTcs.
-                try
-                {
-                    await Service().CompleteRecordingStartAsync().ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    return FailFault(500, $"Recording module install failed: {DebugApiFault.OneLine(ex)}", ex);
-                }
-
-                return Ok(new JsonObject
-                {
-                    ["recording"] = true,
-                    ["mode"]      = mode,
-                    ["fdpPath"]   = fdpPath,
+                    try { return Ok(s.GetJournalHistory(id, from, to)); }
+                    catch (InvalidOperationException ex) { return Fail(409, ex.Message, DebugApiHints.Scenario); }
                 });
             }));
-
-            _routes.Add(new("POST", "/recording/stop", async ctx =>
+            _routes.Add(new("POST", "/replay/search", async ctx =>
             {
-                // Phase 1 (background thread): finalize recording kernel module — must NOT be
-                // inside RunOnMainThread for same swapTcs deadlock reason as /recording/start.
-                string? fdpPath;
-                try
-                {
-                    fdpPath = await Service().CompleteRecordingStopAsync().ConfigureAwait(false);
-                }
-                catch (InvalidOperationException ex) { return Fail(400, ex.Message, DebugApiHints.Recording); }
-                catch (Exception ex) { return FailFault(500, DebugApiFault.OneLine(ex), ex); }
-
-                // Phase 2 (main thread): exit preview (triggers rewind), return status.
-                var node = await _jobQueue.RunOnMainThread(() => Service().FinishRecordingStop())
-                    .ConfigureAwait(false);
-                return Ok(node);
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().SearchReplay(ctx.Body)).ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.Condition) : Ok(node);
             }));
-
-            _routes.Add(new("POST", "/replay/load", async ctx =>
-            {
-                var fdpPath = ctx.Body?["fdpPath"]?.GetValue<string>();
-                if (string.IsNullOrWhiteSpace(fdpPath)) return Fail(400, "fdpPath is required.", DebugApiHints.Recording);
-                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
-                {
-                    try { return (Service().LoadReplay(fdpPath!), null); }
-                    catch (ArgumentException ex) { return (null, ex.Message); }
-                    catch (InvalidOperationException ex) { return (null, ex.Message); }
-                }).ConfigureAwait(false);
-                return error != null ? Fail(400, error) : Ok(node);
-            }));
-
-            _routes.Add(new("POST", "/replay/seek", async ctx =>
-            {
-                int frame = ctx.Body?["frame"]?.GetValue<int>() ?? 0;
-                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
-                {
-                    try { return (Service().SeekReplay(frame), null); }
-                    catch (InvalidOperationException ex) { return (null, ex.Message); }
-                }).ConfigureAwait(false);
-                return error != null ? Fail(400, error) : Ok(node);
-            }));
-
-            _routes.Add(new("POST", "/replay/step", async ctx =>
-            {
-                var dir = ctx.Body?["dir"]?.GetValue<string>() ?? "forward";
-                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
-                {
-                    try { return (Service().StepReplay(dir), null); }
-                    catch (InvalidOperationException ex) { return (null, ex.Message); }
-                }).ConfigureAwait(false);
-                return error != null ? Fail(400, error) : Ok(node);
-            }));
-
-            _routes.Add(new("GET", "/replay/status", _ =>
-                RunMain(s => new JsonObject
-                {
-                    ["replayActive"] = s.IsReplayActive,
-                    ["currentFrame"] = s.ReplayCurrentFrame,
-                    ["totalFrames"]  = s.ReplayTotalFrames,
-                })
-            ));
-
-            _routes.Add(new("GET", "/replay/entities", _ =>
-                RunMain(s =>
-                {
-                    if (!s.IsReplayActive)
-                        return (JsonNode)new JsonObject { ["error"] = "No replay loaded" };
-                    return s.ListReplayEntities();
-                })
-            ));
-
-            _routes.Add(new("POST", "/replay/unload", _ => RunMain(s => s.UnloadReplay())));
 
             // Group K — AI Behavior Traces (ADA-BATCH-12)
             _routes.Add(new("POST", "/trace/observe", async ctx =>
@@ -1146,12 +1102,122 @@ namespace Hrot.Editor.DebugApi
                 return Ok(node);
             }));
 
+            // ⭐ CE-1248 (BV-8) — the Brain tab's snapshot; ⭐ CE-1249 — the brain journal after a Seq.
+            _routes.Add(new("GET", "/entities/{networkId}/brain", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityBrain(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/entities/{networkId}/journal", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                uint since = uint.TryParse(ctx.Query("since"), out var s) ? s : 0u;
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityJournal(id, since)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-1262 / CE-1263 (AV-1…AV-4) — what the operator is looking at, and the selection.
+            _routes.Add(new("GET", "/view", async ctx =>
+            {
+                int limit = int.TryParse(ctx.Query("limit"), out var l) && l > 0 ? Math.Min(l, 500) : 50;
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetView(limit)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-1293 (UC-10) — the map camera follows a unit (entity: null hands it back).
+            _routes.Add(new("POST", "/view/follow", async ctx =>
+            {
+                long? id = ctx.Body?["entity"] is JsonValue v && v.TryGetValue<long>(out var n) ? n : null;
+                float? distance = ctx.Body?["distance"] is JsonValue dv && dv.TryGetValue<float>(out var dn) ? dn : null;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().FollowUnit(id, distance)).ConfigureAwait(false);
+                return error != null ? Fail(409, error) : Ok(node);
+            }));
+
+            // ⭐ RB-7 (R-4083) — point the operator's panels at a unit, on every host, through SelectEntityCommand → SelectionRequestSystem.
+            _routes.Add(new("POST", "/selection", ctx => RunMainResult(s =>
+            {
+                var (node, error) = s.SelectEntity(ctx.Body);
+                return error is null ? Ok(node) : Fail(error.StartsWith("Entity", StringComparison.Ordinal) ? 404 : 400, error);
+            })));
+
+            // ⭐ RB-6 — the timeline index's reads and a user's lane (every host that keeps an index).
+            _routes.Add(new("GET", "/timeline/lanes", _ => RunMain(s => s.GetTimelineLanes())));
+            _routes.Add(new("GET", "/timeline/events", ctx => RunMainResult(s =>
+            {
+                int? from = int.TryParse(ctx.Query("from"), out var f) ? f : null;
+                int? to = int.TryParse(ctx.Query("to"), out var t) ? t : null;
+                long? entity = long.TryParse(ctx.Query("entity"), out var e) ? e : null;
+                int limit = int.TryParse(ctx.Query("limit"), out var l) && l > 0 ? Math.Min(l, 5000) : 500;
+                var (node, error) = s.GetTimelineEvents(ctx.Query("lane"), from, to, entity, limit);
+                return error is null ? Ok(node) : Fail(400, error);
+            })));
+            _routes.Add(new("POST", "/timeline/lanes", ctx => RunMainResult(s =>
+            {
+                var (node, error) = s.AddTimelineLane(ctx.Body);
+                return error is null ? Ok(node) : Fail(400, error);
+            })));
+
+            _routes.Add(new("GET", "/selection", async _ =>
+            {
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetSelection()).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-1329 (Brain View §12r BV-72) — a unit's debug settings (pins, trace, follow) in the one store; ⛔ SUPERSEDED: POST /debug.
+            _routes.Add(new("GET", "/entities/{networkId}/debug-settings", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().GetDebugSettings(id)).ConfigureAwait(false);
+                return error != null ? Fail(404, error) : Ok(node);
+            }));
+            _routes.Add(new("POST", "/entities/{networkId}/debug-settings", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var body = ctx.Body;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().SetDebugSettings(id, body)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+            // ⭐ CE-1258 (BV-28) — stop when it changes its mind.
+
+            _routes.Add(new("POST", "/entities/{networkId}/journal/break", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                string[]? kinds = ctx.Body?["kinds"] is JsonArray arr
+                    ? System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(arr, k => k?.GetValue<string>() ?? ""))
+                    : null;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().ArmJournalBreak(id, kinds)).ConfigureAwait(false);
+                return error != null ? Fail(400, error, DebugApiHints.Breakpoint) : Ok(node);
+            }));
+
             // ⭐ CE-3069 G2 — the utility record of a unit armed by POST /trace/observe.
             _routes.Add(new("GET", "/entities/{networkId}/utility", async ctx =>
             {
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityUtility(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            // ⭐ CE-1325 (docs/DESIGN_Utility_Decision_View.md) — what a utility decision IS, and which node binds it
+            _routes.Add(new("GET", "/utility/decisions", _ => RunMain(s => s.ListUtilityDecisions())));
+            _routes.Add(new("GET", "/utility/decisions/{key}", async ctx =>
+            {
+                string key = Uri.UnescapeDataString(ctx.RouteValue("key") ?? "");
+                long? unit = long.TryParse(ctx.Query("networkId"), out var n) ? n : null;
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetUtilityDecision(key, unit)).ConfigureAwait(false);
+                return node is null ? Fail(404, $"No utility decision '{key}'. List them with GET /utility/decisions.") : Ok(node);
+            }));
+            _routes.Add(new("GET", "/behaviours/{name}/decisions", async ctx =>
+            {
+                string name = Uri.UnescapeDataString(ctx.RouteValue("name") ?? "");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetBehaviourDecisions(name)).ConfigureAwait(false);
                 return Ok(node);
             }));
 
@@ -1464,6 +1530,22 @@ namespace Hrot.Editor.DebugApi
                 var asset = ctx.Body?["asset"]?.GetValue<string>();
                 var path  = ctx.Body?["path"]?.GetValue<string>();
                 var value = ctx.Body?["value"];
+                // ⭐ CE-1320 — with `owner`, ANY behaviour slot's params or variables (task · sop · paused · blueprint), no restart
+                var owner = ctx.Body?["owner"]?.GetValue<string>();
+                if (owner is not null)
+                {
+                    var behaviour  = ctx.Body?["behaviour"]?.GetValue<string>() ?? ctx.Body?["behavior"]?.GetValue<string>();
+                    var part       = ctx.Body?["part"]?.GetValue<string>();
+                    var role       = ctx.Body?["role"]?.GetValue<string>();
+                    var paramsJson = ctx.Body?["paramsJson"] is { } pj ? (pj is System.Text.Json.Nodes.JsonValue jv && jv.TryGetValue<string>(out var str) ? str : pj.ToJsonString()) : null;
+                    return RunMainResult(s =>
+                    {
+                        var (result, error, hintCategory) = s.StageSlotField(id, owner, behaviour, part, role, path, value, paramsJson);
+                        return error != null
+                            ? Fail(hintCategory == DebugApiHints.Entity ? 404 : 400, error, hintCategory ?? DebugApiHints.Variable)
+                            : Ok(result);
+                    });
+                }
                 return RunMainResult(s =>
                 {
                     var (result, error, hintCategory) = s.StageEntityVariable(id, asset, path, value);
@@ -1683,6 +1765,14 @@ namespace Hrot.Editor.DebugApi
                 return Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 404,
                             error, hintCategory);
             })));
+
+            // ⭐⭐ CE-1321 (BV-68) — the C# behaviour rebuild + hot swap. The rebuild is STARTED on the main thread and awaited here, off
+            //   it: the swap itself is applied by the main loop's DrainPendingCallbacks, which a blocked main thread would never reach.
+            _routes.Add(new("POST", "/ai/reload", async ctx =>
+            {
+                var run = await _jobQueue.RunOnMainThread(() => Service().RebuildAndReloadAi()).ConfigureAwait(false);
+                return Ok(DebugApiService.AiReloadJson(await run.ConfigureAwait(false)));
+            }));
 
             _routes.Add(new("POST", "/assets/{assetId}/reload", ctx => RunMainResult(s =>
             {
@@ -1922,6 +2012,7 @@ namespace Hrot.Editor.DebugApi
                     ["awaited"] = false,
                     ["target"]  = target.ToString(),
                     ["via"]     = requested?["via"]?.GetValue<string>(),
+                    ["stoppedRun"] = requested?["stoppedRun"]?.DeepClone(),
                 });
 
             // ⭐⭐⭐ READINESS IS AN EDGE, NOT A LEVEL — the rule (state = target AND the world seen changing AND settled, with the
@@ -1949,6 +2040,8 @@ namespace Hrot.Editor.DebugApi
                         //   that only ever passed on grace is worth knowing about.
                         ["sawWorldChange"] = probe.SawWorldChange,
                         ["hadWorldAnchor"] = probe.HadWorldAnchor,
+                        // ⭐ CE-1025 — the run this load stopped ("a live run" / "a dry run"), or null (non-interactive: no prompt).
+                        ["stoppedRun"] = requested?["stoppedRun"]?.DeepClone(),
                     });
             }
             return Fail(504, $"Scenario '{name}' did not reach a settled {target} within "
@@ -1958,6 +2051,40 @@ namespace Hrot.Editor.DebugApi
 
         private DebugApiService Service()
             => _service ?? throw new InvalidOperationException("Debug API service not attached yet.");
+
+        /// <summary>A service answer as a route result: 503 when no node here reaches the master, else 400 for a bad request.</summary>
+        private static RouteResult ResultOf((JsonNode? Result, string? Error, string? HintCategory) r, int unavailable)
+        {
+            if (r.Error == null) return Ok(r.Result);
+            return Fail(r.Error.StartsWith("No subsystem", StringComparison.Ordinal) ? unavailable : 400, r.Error, r.HintCategory);
+        }
+
+        /// <summary>
+        /// ⭐ R-3052…R-3055 — publishes one master intent (main thread) and, with <c>waitForReady: true</c>, waits until the cluster
+        /// reports <paramref name="waitFor"/> (like the scenario loads). ⚠ The state is the cluster's — the planner's intermediate states
+        /// pass on the way.
+        /// </summary>
+        private async Task<RouteResult> PublishAndAwait(RequestContext ctx,
+            Func<DebugApiService, (JsonNode? Result, string? Error, string? HintCategory)> publish,
+            Fdp.Toolkit.Orchestration.ClusterState? waitFor)
+        {
+            var r = await _jobQueue.RunOnMainThread(() => publish(Service())).ConfigureAwait(false);
+            if (r.Error != null || waitFor is null) return ResultOf(r, unavailable: 503);
+            bool wait = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
+            if (!wait || r.Result?["published"]?.GetValue<bool>() != true) return Ok(r.Result);
+
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
+            {
+                if (await _jobQueue.RunOnMainThread(() => Service().PollClusterStateIs(waitFor.Value)).ConfigureAwait(false))
+                {
+                    if (r.Result is JsonObject o) { o["awaited"] = true; o["reached"] = waitFor.Value.ToString(); }
+                    return Ok(r.Result);
+                }
+                await Task.Delay(50).ConfigureAwait(false);
+            }
+            return Fail(504, $"The cluster did not reach {waitFor.Value} within {ScenarioReadyTimeoutSeconds}s.");
+        }
 
         /// <summary>⭐ How long the ack-gate waits before calling the cluster stuck. Generous: a lockstep tick
         /// over DDS is milliseconds, so anything near this is a real stall, not slowness.</summary>
@@ -2195,6 +2322,16 @@ namespace Hrot.Editor.DebugApi
                 if (_service is null && entry.NeedsService)
                 {
                     await WriteResponseAsync(ctx, 503, new ApiResponse(false, Error: "Debug API not ready")).ConfigureAwait(false);
+                    return;
+                }
+
+                // ⭐⭐ CE-3329 P3 (D-E, F7, row 41) — a review or a replay SHOWS THE PAST: a command that would change the world is refused,
+                //   on every host, before its handler runs. ⛔ Before: spawn / order / component / save … ran against the replayed world.
+                if (WorldChangingRoutes.Contains((method, entry.Template)) && _service?.ShowsRecording == true)
+                {
+                    await WriteResponseAsync(ctx, 409, new ApiResponse(false,
+                        Error: "The cluster shows a recording (a review or a replay): this would change the world. "
+                             + "Return to live first — POST /review/exit, or POST /replay/stop.")).ConfigureAwait(false);
                     return;
                 }
 

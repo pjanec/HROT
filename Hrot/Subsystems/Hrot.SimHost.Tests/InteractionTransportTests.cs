@@ -381,7 +381,7 @@ namespace Hrot.SimHost.Tests
                 w.AddComponent(m, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });
                 w.AddComponent(m, new NetworkAuthority(primaryOwnerId: 1, localNodeId: local));
                 var own = new DescriptorOwnership();
-                own.Map[Fdp.Toolkit.Behavior.Embarkation.PositionKey] = 2;   // the Muscle (node 2) owns his position
+                own = own.WithOwner(Fdp.Toolkit.Behavior.Embarkation.PositionKey, 2);   // the Muscle (node 2) owns his position
                 w.SetManagedComponent(m, own);
                 return m;
             }

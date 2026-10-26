@@ -64,6 +64,11 @@ namespace Hrot.Common.Constants
         /// <summary>⭐ CE-1201 — View › First Person: Over the Shoulder (docs/DESIGN_Entity_Control.md §8p OS-1), on every map host.
         /// ⚠ 256 measured free on backend, ui and behaviors 2026-10-21.</summary>
         public const int ToggleShoulderView = 256;
+        /// <summary>⭐ CE-1150 (canvas-context-menu-design §12 HA-7) — View › Details › Float current view: the current perspective's
+        /// Details panel opens its shown view in a floating window. ⚠ 257–258 measured free on backend, ui and behaviors 2026-10-22.</summary>
+        public const int FloatDetailsView   = 257;
+        /// <summary>⭐ CE-1150 (HA-7) — View › Details › Pin current view: the same, pinned to the context it shows now.</summary>
+        public const int PinDetailsView     = 258;
 
         // --- AI Diagnostics (behav-diag-1) ---
         /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>
@@ -82,6 +87,10 @@ namespace Hrot.Common.Constants
         public const int UnpinGizmosAll      = 267;
         /// <summary>⭐ <c>CE-3136</c> — pin the action-status family (Channels). 268 free on backend, behaviors and ui, <c>2026-10-09</c>.</summary>
         public const int PinGizmosActions    = 268;
+        /// <summary>⭐ <c>CE-1317</c> (BV-50) — pin the command-picture / units'-contacts families. 269, 270 measured free on ui, behaviors
+        /// and backend <c>2026-10-25</c>.</summary>
+        public const int PinGizmosCommandPicture = 269;
+        public const int PinGizmosSquadContacts  = 270;
 
         // --- Designations (CE-2149, docs/DESIGN_Orders_Params_Entity_Classes.md §13.3) — the unit menu's Designate submenu: one pick
         //     each, stored per unit for a later order's missing [Required] field. ⚠ 470–474 measured free 2026-10-13 (orders use 400–463).
@@ -90,6 +99,13 @@ namespace Hrot.Common.Constants
         public const int DesignateRoute  = 472;
         public const int DesignateArea   = 473;
         public const int DesignateClear  = 474;
+        /// <summary>⭐ <c>CE-1257</c> — "Debug this unit" on / off (the AI trace submenu; <c>UnitDebugController</c>). ⚠ 475 measured free on
+        /// backend, ui and behaviors 2026-10-23.</summary>
+        public const int DebugThisUnit   = 475;
+
+        /// <summary>⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-2) — "Follow with the camera": the 3-D camera follows the unit (watching,
+        /// not possessing). ⚠ 476 measured free on backend, behaviors and coordinator 2026-10-23.</summary>
+        public const int FollowUnit      = 476;
 
         // --- Order with options (CE-1059, §13.12 O5) — the unit menu's submenu opening the ORDER FORM for an order, prefilled:
         //     id = OrderWithOptionsBase + the order's index (OrderMenu.ActionBase + index ⇒ +80). ⚠ 480–543 measured free 2026-10-13.

@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-25
+current-answer: §2 "Lifecycle Events" lists every event the module exchanges, including the two notifications (9005/9006, AQ107).
+stale-below: the code listings are illustrative (e.g. ConsumeEvents) — the source is authoritative.
+known-rot: none recorded.
+known-conflict: none.
+related-designs:
+  - docs/DESIGN_Entity_Creation_Unification.md §3.4e — owns WHY the two notifications exist, what they carry, and the request id's path
+  - docs/DESIGN_Entity_Authoring_Surface.md §4c — owns the three things called an "ack" (module acks here, the peer wait, the wire double ack)
+-->
 # FDP.Toolkit.Lifecycle - Distributed Entity Lifecycle Coordination
 
 ## Overview
@@ -275,6 +286,21 @@ public struct DestructionAck
 
 **Published by:** Individual modules after cleanup  
 **Consumed by:** LifecycleSystem → ProcessDestructionAck()
+
+#### ⭐ EntityConstructionCompleted [EventId: 9005] · EntityDestructionCompleted [EventId: 9006] *(AQ107, `2026-10-25`)*
+
+The two **notifications**: 9001–9004 are the handshake between the lifecycle module and its participants; these two tell
+**anyone** that a construction or a teardown FINISHED — on every node the module runs on, owner and replicas.
+
+| | published | carries |
+|---|---|---|
+| `EntityConstructionCompleted` | the frame the last ack arrives (Active), or the construction is refused / times out (`Succeeded = false`) | entity, network id, TKB type, **request id** (`CreationRequestId`, `Guid.Empty` if none), `IsLocallyOwned`, `Succeeded`, `Resumed` (re-opened after a restore), `Failure`, frame |
+| `EntityDestructionCompleted` | the frame the last teardown ack arrives (or the teardown is forced by its timeout) | entity (dead by the time it is read), network id, TKB type, request id, `IsLocallyOwned`, `Forced`, `Reason`, frame |
+
+**Published by:** `LifecycleSystem` → `EntityLifecycleModule.PublishOutcomes`, after the acks, drains and timeouts of its tick
+(while the entity still reads). ⚠ **Lifecycle-managed entities only** — a plain `CreateEntity` raises neither, hence the names.
+⚠ Published only where the world registered them (every Hrot host does). ⛔ Never during replay — the lifecycle system is gated off.
+📄 Design: `docs/DESIGN_Entity_Creation_Unification.md` §3.4e.
 
 ### 3. Systems
 

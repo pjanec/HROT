@@ -177,6 +177,11 @@ namespace Fdp.Toolkit.Utility
             ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
             byte winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, TraceOf(repo, self), tick);
             LogDecision(repo, self, decisionId, in output, isOption: true);
+            // ⭐ CE-1249 (BV-10) — always on, only on a SWITCH (a steady winner writes nothing; the caller holds the memory)
+            if (lastWinner != 0 && winner != 0 && winner != lastWinner)
+                Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, self,
+                    Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.DecisionSwitched, a: decisionId, b: winner, cause: lastWinner,
+                    point: new System.Numerics.Vector3(output.Count > 0 ? output.GetSpanRO()[0].Score : 0f, 0f, 0f));
             return winner;
         }
 
@@ -244,13 +249,13 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
-        /// ⭐ <c>CE-3069</c> G2 — records the decision's FINAL ranking (after hysteresis) on an observed unit's
-        /// <see cref="UtilityDecisionLog"/>; nothing when the unit is not observed.
+        /// ⭐ <c>CE-3069</c> G2 — records the decision's FINAL ranking (after hysteresis) on the unit's <see cref="UtilityDecisionLog"/>.
+        /// ⭐ <c>CE-1319</c> (BV-61) — whenever the unit carries one (every brain unit, always), not only while it is observed: the
+        /// Brain tab's Why section then replays for every unit. Nothing when the unit has none (a test world, a non-brain host).
         /// </summary>
         private static void LogDecision(EntityRepository repo, Entity self, int decisionId, in UtilityResultBuffer output, bool isOption)
         {
-            if (!repo.HasComponent<UtilityDecisionLog>(self) || !repo.HasComponent<UtilityDebugFlags>(self)) return;
-            if (repo.GetComponentRO<UtilityDebugFlags>(self).TraceEnabled == 0) return;
+            if (!repo.IsComponentTypeRegistered<UtilityDecisionLog>() || !repo.HasComponent<UtilityDecisionLog>(self)) return;
             repo.GetComponentRW<UtilityDecisionLog>(self).Record(decisionId, in output, isOption);
         }
 
@@ -596,6 +601,8 @@ namespace Fdp.Toolkit.Utility
 
             float* curveOutputs = stackalloc float[consCount];
             float* weights      = stackalloc float[consCount];
+            int factors = 0;            // ⭐ CE-2271 (R-2075) — the ordinary considerations; a MODIFIER multiplies after the aggregate
+            float modifier = 1f;
 
             float runningAgg = (opt.Mode == ScoringMode.WeightedProduct) ? 1f : 0f;
 
@@ -620,8 +627,16 @@ namespace Fdp.Toolkit.Utility
                 float norm     = raw;  // Phase 1: normalisation is identity
                 float curveOut = cons.Curve.Evaluate(norm);
 
-                curveOutputs[c] = curveOut;
-                weights[c]      = cons.Weight;
+                if ((cons.Flags & ConsiderationFlags.Modifier) != 0)
+                {
+                    modifier *= System.MathF.Pow(curveOut, cons.Weight);
+                    if (trace != null)
+                        trace->WriteConsiderationRecord(tick, optionIndex, cons.InputId, raw, norm, curveOut, cons.Weight, runningAgg * modifier);
+                    continue;
+                }
+                curveOutputs[factors] = curveOut;
+                weights[factors]      = cons.Weight;
+                factors++;
 
                 // Update running aggregate for trace (approximation only — Aggregator sees all at once).
                 if (opt.Mode == ScoringMode.WeightedProduct)
@@ -636,10 +651,11 @@ namespace Fdp.Toolkit.Utility
                 }
             }
 
-            return Aggregator.Aggregate(
-                new System.ReadOnlySpan<float>(curveOutputs, consCount),
-                new System.ReadOnlySpan<float>(weights, consCount),
+            float score = Aggregator.Aggregate(
+                new System.ReadOnlySpan<float>(curveOutputs, factors),
+                new System.ReadOnlySpan<float>(weights, factors),
                 opt.Mode);
+            return modifier == 1f ? score : score * modifier;
         }
 
         /// <summary>

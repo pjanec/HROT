@@ -133,7 +133,7 @@ namespace Hrot.Network.Translators
             foreach (var grant in sample.Grants)
             {
                 if (grant.NodeId != _localNodeId) continue;
-                pending.Merge(grant.DescriptorTypeId, grant.NodeId);
+                pending = pending.WithGrant(grant.DescriptorTypeId, grant.NodeId);   // CE-4046: immutable record, Set/Add below
             }
 
             if (alreadyHas)

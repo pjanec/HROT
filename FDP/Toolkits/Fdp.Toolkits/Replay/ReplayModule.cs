@@ -173,6 +173,19 @@ namespace Fdp.Toolkit.Replay
         /// </summary>
         public int TotalFrames => _playback?.TotalFrames ?? 0;
 
+        /// <summary>⭐ <c>CE-3299</c> B4 / <c>D18</c> — the frame on screen (0-based, in file order); -1 before the first is applied.</summary>
+        public int CurrentFrame => _playback?.CurrentFrame ?? -1;
+
+        /// <summary>⭐ <c>D18</c> — the wall time of <see cref="CurrentFrame"/> (0 when none).</summary>
+        public long CurrentFrameWallTicks =>
+            _playback is { CurrentFrame: >= 0 } p ? p.GetFrameMetadata(p.CurrentFrame).WallClockTicks : 0;
+
+        /// <summary>⭐ <c>D18</c> — the recording this module replays.</summary>
+        public string FilePath => _filePath;
+
+        /// <summary>⭐ <c>D18</c> — the exercise the replayed recording belongs to (from its <c>.meta.json</c>; empty when none).</summary>
+        public Guid RecordedExerciseId => _playback?.Metadata.ExerciseId ?? Guid.Empty;
+
         /// <summary>
         /// Wall-clock duration of the recording, as stored in
         /// <see cref="Fdp.Core.FlightRecorder.Metadata.RecordingMetadata.Duration"/>.
@@ -180,6 +193,11 @@ namespace Fdp.Toolkit.Replay
         /// called yet or if the recording pre-dates duration support.
         /// </summary>
         public TimeSpan Duration => _playback?.Metadata.Duration ?? TimeSpan.Zero;
+
+        /// <summary>⭐ CE-3329 P1 (row 7) — the recording's wall ↔ sim map, built once from the frame index (no frame decoded);
+        /// <see cref="ReplayTimeMap.Empty"/> for a listener or a v6 recording.</summary>
+        public ReplayTimeMap TimeMap => _timeMap ??= _playback != null ? ReplayTimeMap.FromRecording(_playback) : ReplayTimeMap.Empty;
+        private ReplayTimeMap? _timeMap;
 
         /// <summary>
         /// The maximum network entity ID present in the recording, as reported by

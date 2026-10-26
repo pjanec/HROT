@@ -186,6 +186,65 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Equal(rows.Count, rows.Select(r => r.Metadata.DisplayName).Distinct().Count());
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1288</c> — the 2-D helper grid is a row of the layer panel ("Grid (2-D)", Map group): its own bit, ON by default, inside the
+        /// toggled range (the selection ring stays above it), and unticking it clears only its own bit — the terrain beside it stays.
+        /// ⛔ Red-proof: leave <c>FirstUntoggledLayer</c> at 27 and the bit is "always on" (the first assertion fails); drop the
+        /// <c>mask.SetBit</c> line and the default-on assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE1288_TheGridIsALayerPanelRow_OnByDefault_WithItsOwnBit()
+        {
+            var all = new LayerControlDto().ToMask();
+            Assert.True(all.IsSet(DebugTraceLayers.Grid), "the grid defaults on");
+            Assert.True(DebugTraceLayers.Grid < LayerControlDto.FirstUntoggledLayer, "the grid lies below the always-on range");
+            Assert.True(DebugTraceLayers.Selection >= LayerControlDto.FirstUntoggledLayer, "the selection ring stays above every toggle");
+
+            var off = new LayerControlDto { Map = { Grid = false } }.ToMask();
+            Assert.False(off.IsSet(DebugTraceLayers.Grid), "unticking the row clears the bit");
+            for (int other = 0; other < 256; other++)
+                if (other != DebugTraceLayers.Grid) Assert.Equal(all.IsSet(other), off.IsSet(other));   // and nothing else
+            Assert.True(new LayerControlDto { Map = { Terrain2D = false } }.ToMask().IsSet(DebugTraceLayers.Grid), "the terrain's box does not hide the grid");
+
+            // its bit is nobody else's
+            var bits = typeof(DebugTraceLayers).GetFields().Where(f => f.IsLiteral && f.FieldType == typeof(byte) && f.Name != nameof(DebugTraceLayers.Selection))
+                .Select(f => (byte)f.GetRawConstantValue()!).ToList();
+            Assert.Equal(bits.Count, bits.Distinct().Count());
+
+            // the panel shows it: a display name and a hover line, in the Map group
+            using var session = MakeEditService().Open(new LayerControlDto(), typeof(LayerControlDto));
+            var map = session.Document.Root.Children.Single(n => n.Metadata.DisplayName == "Map");
+            Assert.Contains(map.Children, n => n.Metadata.DisplayName == "Grid (2-D)");
+            // and the user's file remembers it per view like every other row
+            Assert.Contains(LayerControlSets.RowNames, r => r.Name == "Map.Grid" && r.Display == "Grid (2-D)" && r.Doc.Length > 0);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1309</c> (docs/DESIGN_People_Display.md §7e U20e) — the mind-state bar is a row of the layer panel ("Mind state", Units
+        /// group): its own bit, OFF by default, inside the toggled range (the selection ring stays above it); ticking it sets only its bit.
+        /// 🔴 Red-proof: drop the <c>mask.SetBit</c> line ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1309_MindStateIsALayerPanelRow_OffByDefault_WithItsOwnBit()
+        {
+            Assert.False(new LayerControlDto().ToMask().IsSet(DebugTraceLayers.MindState), "off by default");
+            Assert.True(DebugTraceLayers.MindState < LayerControlDto.FirstUntoggledLayer, "it lies below the always-on range");
+            Assert.True(DebugTraceLayers.Selection >= LayerControlDto.FirstUntoggledLayer, "the selection ring stays above every toggle");
+            var all = new LayerControlDto().ToMask();
+            var on = new LayerControlDto { Units = { MindState = true } }.ToMask();
+            Assert.True(on.IsSet(DebugTraceLayers.MindState), "ticking the row sets the bit");
+            for (int other = 0; other < 256; other++)
+                if (other != DebugTraceLayers.MindState) Assert.Equal(all.IsSet(other), on.IsSet(other));   // and nothing else
+            var bits = typeof(DebugTraceLayers).GetFields().Where(f => f.IsLiteral && f.FieldType == typeof(byte) && f.Name != nameof(DebugTraceLayers.Selection))
+                .Select(f => (byte)f.GetRawConstantValue()!).ToList();
+            Assert.Equal(bits.Count, bits.Distinct().Count());
+
+            using var session = MakeEditService().Open(new LayerControlDto(), typeof(LayerControlDto));
+            var units = session.Document.Root.Children.Single(n => n.Metadata.DisplayName == "Units");
+            Assert.Contains(units.Children, n => n.Metadata.DisplayName == "Mind state");
+            Assert.Contains(LayerControlSets.RowNames, r => r.Name == "Units.MindState" && r.Display == "Mind state" && r.Doc.Length > 0);
+        }
+
         private static string JsonOf(LayerControlDto dto)
         {
             using var s = MakeEditService().Open(dto, typeof(LayerControlDto));
@@ -235,12 +294,12 @@ namespace Hrot.SimHost.Tests.Gizmos
                 bool is3D = false;
                 var gizmo = new LayerControlGizmo(7, new FdpEventBus(), MakeEditService(), settings: settings,
                     saveSettings: () => { saves++; settings.SaveToDisk(file); }) { Is3D = () => is3D };
-                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View2D, Units = { Rounds = false }, Ai = { ContactsSelectedOnly = false } }));
+                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View2D, Units = { Rounds = false }, Command = { PathsSelectedOnly = false } }));
                 is3D = true;
                 gizmo.UpdateAndDraw(new EntityRepository(), 0f, new DebugPrimitiveBuffer());
                 // the panel sends the WHOLE shown set — the 3-D set, which re-read the scope the 2-D edit wrote
-                Assert.False(gizmo.SetOf(is3D: true).Ai.ContactsSelectedOnly, "the 3-D set shows the scope the 2-D edit wrote");
-                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View3D, Ai = { ContactsSelectedOnly = false }, Map = { Navmesh = true, NavmeshLayers = NavmeshDrawLayers.Vehicle } }));
+                Assert.False(gizmo.SetOf(is3D: true).Command.PathsSelectedOnly, "the 3-D set shows the scope the 2-D edit wrote");
+                gizmo.OnStructUpdate(JsonOf(new LayerControlDto { View = LayerControlSets.View3D, Command = { PathsSelectedOnly = false }, Map = { Navmesh = true, NavmeshLayers = NavmeshDrawLayers.Vehicle } }));
                 Assert.Equal(2, saves);
 
                 var loaded = new GizmoSettingsRegistry();
@@ -251,8 +310,8 @@ namespace Hrot.SimHost.Tests.Gizmos
                 Assert.True(next.SetOf(is3D: true).Units.Rounds);
                 Assert.True(next.SetOf(is3D: true).Map.Navmesh);
                 Assert.Equal(NavmeshDrawLayers.Vehicle, next.SetOf(is3D: true).Map.NavmeshLayers);
-                Assert.False(next.SetOf(is3D: false).Ai.ContactsSelectedOnly, "the family scope is one per family, for both views");
-                Assert.False(next.SetOf(is3D: true).Ai.ContactsSelectedOnly);
+                Assert.False(next.SetOf(is3D: false).Command.PathsSelectedOnly, "the family scope is one per family, for both views");
+                Assert.False(next.SetOf(is3D: true).Command.PathsSelectedOnly);
                 Assert.False(next.ActiveLayers.IsSet(DebugTraceLayers.Rounds), "it starts in 2-D with the remembered 2-D set");
                 Assert.True(LayerControlSets.RowCount >= 26, $"{LayerControlSets.RowCount} rows remembered per set");
             }
@@ -332,24 +391,22 @@ namespace Hrot.SimHost.Tests.Gizmos
             var gizmo = new LayerControlGizmo(7, new FdpEventBus(), edit, settings: settings);
             Assert.Equal(GizmoScope.SelectedOrPinned,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
-            Assert.Equal(GizmoScope.SelectedOrPinned,   // ⭐ CE-1065 — every family starts on the selection
+            Assert.Equal(GizmoScope.PinnedOnly,   // ⭐ CE-1329 — a brain family draws for pinned units only, and has no scope row
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
-            var edited = new LayerControlDto { Command = { PathsSelectedOnly = false }, Ai = { ContactsSelectedOnly = false } };
+            var edited = new LayerControlDto { Command = { PathsSelectedOnly = false } };
             string json;
             using (var s = edit.Open(edited, typeof(LayerControlDto))) json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
             gizmo.OnStructUpdate(json);
 
             Assert.Equal(GizmoScope.All,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
-            Assert.Equal(GizmoScope.All,
+            Assert.Equal(GizmoScope.PinnedOnly,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
             var reread = new LayerControlDto();
             reread.ReadScopes(settings);
             Assert.False(reread.Command.PathsSelectedOnly);
-            Assert.False(reread.Ai.ContactsSelectedOnly);
-            Assert.True(reread.Command.SquadCommandSelectedOnly);   // untouched family keeps its default
         }
 
         // ⭐ CE-3149 — Apply in the layer panel must REACH the gizmo through the arbiter that owns it. 🔒 User, 2026-10-10:

@@ -111,6 +111,36 @@ public sealed class LiveBranchProcessManagerTests
         Assert.Equal(42L, masterSync.GetCurrentState().TotalWallTicks);
     }
 
+    /// <summary>
+    /// ⭐ CE-3299 B4 (D5) — a checkpoint restore's result snaps the master clock back to the checkpoint and leaves it PAUSED, and
+    /// touches no replay freeze (there was none: the restore is from a live cluster).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3299_B4_ACheckpointRestore_SnapsTheClockToTheCheckpoint_WithoutAReplayFreeze()
+    {
+        var bus = new FdpEventBus();
+        var (replayModule, freeze, restore) = MakeTrackedModule();
+        var masterSyncBus = new FdpEventBus();
+        var masterSync    = MakeMasterSync(masterSyncBus);
+        masterSyncBus.SwapBuffers();
+        var mgr = new LiveBranchProcessManager(bus, replayModule, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
+
+        bus.PublishManaged(new ClusterOpCompletedEvent
+        {
+            RequestId     = Guid.NewGuid(),
+            StatusCode    = OrchestrationStatusCode.Success,
+            ResultPayload = new CheckpointRestoreResult(new Fdp.Core.GlobalTime { TotalWallTicks = 77L, TotalTime = 4.25, FrameNumber = 255 }, Guid.NewGuid()),
+        });
+        bus.SwapBuffers();
+        mgr.Tick();
+
+        Assert.Equal((0, 0), (freeze[0], restore[0]));
+        masterSyncBus.SwapBuffers(); masterSync.Update();
+        var now = masterSync.GetCurrentState();
+        Assert.Equal((77L, 255L), (now.TotalWallTicks, now.FrameNumber));
+        Assert.Equal(Fdp.ModuleHost.Time.TimeMode.Deterministic, masterSync.GetMode());   // paused
+    }
+
     // ── SC3: No FreezeTime for non-Replay branch ─────────────────────────
 
     /// <summary>

@@ -1,7 +1,13 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L7 (dry): the live check POSTs a faked SPOT IndirectFire from Blue Squad 1 — an injected report is NOT a component edit, so `do` cannot make it. Only Judge (1) 'nothing is sent without a report' is encoded (no report ever arrives in this run: the Apache never gets a task). Judge (2)-(4) (request, AirArmedSearch, flies 300 m closer, attacks) need a report-injection action the grammar does not have — PARTIAL, see the report. DEMO: no golden.",
-  "runFor": 30,
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L7 (dry). CE-4042 triage: in ONE stepped world the 'unreliable link' the live check faked works — the Spotter's mortar fires at 5.2 s, the launch is heard, the squad staff SPOTs it, the platoon REQUESTs and the HQ sends the Apache at 11.5 s (removing the Spotter ⇒ no shot, no order in 20 s, measured), so the report IS raised live and no injection is needed. Encodes Judge (1) nothing sent before the launch, (3) the HQ sends the Apache on AirArmedSearch and it closes 300 m+ on the tubes, (4) it attacks what it finds (a mortar man hurt — the live check's 'rounds OR casualties' is an OR, so the casualty half is read; rockets do not enter the shot log). NOT expressible: (2) the REQUEST FireSupport (an HTTP report log). DEMO: no golden.",
+  "runFor": 100,
   "golden": false,
+  "anchors": {
+    "the mortar's first launch": {
+      "on": "shot",
+      "by": "*Mortar"
+    }
+  },
   "expect": [
     {
       "name": "the HQ runs SupportCommand",
@@ -16,12 +22,38 @@
       "is": "PlatoonDefend"
     },
     {
-      "name": "nothing is sent without a report: the Apache never gets an armed search",
+      "name": "nothing is sent without a report: no armed search before the mortar's first launch",
       "never": {
         "on": "task",
         "who": "Apache",
         "is": "AirArmedSearch"
-      }
+      },
+      "before": "the mortar's first launch"
+    },
+    {
+      "name": "the HQ sends the Apache on an armed search after the launch",
+      "on": "task",
+      "who": "Apache",
+      "is": "AirArmedSearch",
+      "after": "the mortar's first launch"
+    },
+    {
+      "name": "the Apache flies to the point (300 m+ closer to the tubes)",
+      "on": "near",
+      "who": "Apache",
+      "point": [
+        735,
+        745
+      ],
+      "within": 718
+    },
+    {
+      "name": "it attacks what it finds there (a mortar man is hurt)",
+      "on": "field",
+      "who": "*Mortar Man",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100
     }
   ]
 }

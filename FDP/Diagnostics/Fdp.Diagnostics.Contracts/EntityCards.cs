@@ -81,6 +81,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return this;
         }
 
+        /// <summary>⭐ <c>CE-1309</c> — a thin upright mark at <paramref name="fraction"/> of the card's width, over a <see cref="Bar"/>
+        /// (a threshold: a soldier's breaking point on his stress bar).</summary>
+        public EntityCardRow Tick(float fraction, Rgba32 colour, float heightPx = 4f)
+        {
+            Box(System.Math.Clamp(fraction, 0f, 1f), 0.006f, heightPx, colour);
+            return this;
+        }
+
         private void Box(float centreFraction, float halfFraction, float heightPx, Rgba32 colour)
         {
             var p = New(DebugPrimitiveShape.Box2D);

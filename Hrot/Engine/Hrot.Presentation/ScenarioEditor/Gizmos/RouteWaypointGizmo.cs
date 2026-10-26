@@ -225,11 +225,13 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (!_repo.HasManagedComponent<RoutePlan>(_entity)) return;
 
             var plan = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity);
-            plan.Mutate(wps =>
+            // CE-4046 — RoutePlan is an immutable record: build the new value and Set it (the recorder sees a changed version).
+            plan = plan.WithWaypoints(wps =>
             {
                 wps.Clear();
                 wps.AddRange(_waypoints);
             });
+            _repo.SetManagedComponent(_entity, plan);
 
             _repo.Bus.PublishManaged(new UpdateEntityCommand
             {

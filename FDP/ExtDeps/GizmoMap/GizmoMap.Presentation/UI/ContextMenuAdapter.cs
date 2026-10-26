@@ -141,8 +141,7 @@ namespace GizmoMap.Presentation
             if (item.TryGetProperty("children", out var children)
                 && children.ValueKind == JsonValueKind.Array)
             {
-                bool open = ImGui.BeginMenu(label, enabled);
-                MenuIconRenderer.DrawIcon(IconResolver, iconKey, p0, gutter);
+                bool open = MenuIconRenderer.BeginMenu(label, enabled, IconResolver, iconKey, p0, gutter);   // ⭐ CE-1027
                 if (open)
                 {
                     bool childReserve = IconResolver != null && LevelHasIcon(children);
@@ -156,7 +155,9 @@ namespace GizmoMap.Presentation
             // Leaf item
             if (!enabled) ImGui.BeginDisabled();
 
-            bool clicked = ImGui.MenuItem(label, shortcut);
+            // ⭐ CE-1347 — a checked item (a pinned gizmo family, the trace switch) draws its check mark; the menu READ "checked" and dropped it
+            bool isChecked = item.TryGetProperty("checked", out var ck) && ck.ValueKind == JsonValueKind.True;
+            bool clicked = ImGui.MenuItem(label, shortcut, isChecked);
             MenuIconRenderer.DrawIcon(IconResolver, iconKey, p0, gutter);
 
             if (!enabled) ImGui.EndDisabled();

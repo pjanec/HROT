@@ -16,6 +16,7 @@ namespace Hrot.AI.Behaviors
     [ComponentId(188)] // Hrot application-level block (160-199, HrotComponentIds); next free after 187 (InitialBlueprintsIntent).
     [BlueprintWritable]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct BpComponentDemo
     {
         public int Health;

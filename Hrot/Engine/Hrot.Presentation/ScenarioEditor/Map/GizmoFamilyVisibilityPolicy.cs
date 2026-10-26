@@ -32,10 +32,12 @@ namespace Hrot.ScenarioEditor.Map
 
         public bool IsEntityVisible(ISimulationView view, Entity entity)
         {
-            if (GizmoFamilies.ScopeOf(_settings, Family) == GizmoScope.All) return true;
+            var scope = GizmoFamilies.ScopeOf(_settings, Family);
+            if (scope == GizmoScope.All) return true;
             // ⭐ CE-3143 — a PART (a unit's sensor child, …) follows its unit: the user selects or pins the unit, never the part.
             var unit = UnitOf(view, entity);
-            if (IsRegistered<SelectionState>(view) && view.HasComponent<SelectionState>(unit)
+            // ⭐ CE-1329 — a BRAIN family draws for the units ticked on (pinned) only: selection does not draw it
+            if (scope != GizmoScope.PinnedOnly && IsRegistered<SelectionState>(view) && view.HasComponent<SelectionState>(unit)
                 && view.GetComponentRO<SelectionState>(unit).IsSelected) return true;
             return IsRegistered<DebugState>(view) && view.HasComponent<DebugState>(unit)
                    && (view.GetComponentRO<DebugState>(unit).Ai & Family) != 0;

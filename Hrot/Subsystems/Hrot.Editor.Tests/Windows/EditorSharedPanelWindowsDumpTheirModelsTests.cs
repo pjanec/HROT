@@ -72,6 +72,7 @@ public sealed class EditorSharedPanelWindowsDumpTheirModelsTests : IDisposable
         public bool IsInPreviewMode { get; set; }
         public void EnterPreviewMode(bool startPaused = false) => IsInPreviewMode = true;
         public void ExitPreviewMode() => IsInPreviewMode = false;
+        public void ForgetPreview() => IsInPreviewMode = false;
     }
 
     private sealed class FakeZoneAuthoringController : IZoneAuthoringController

@@ -5,7 +5,7 @@
   "Duration": 15.0,
   "Steps": [
     { "Time": 0.5, "Action": "clusterop",
-      "Args": { "TargetState": "OperatingLive" } },
+      "Args": { "TargetState": "OperatingLive", "ExerciseId": "3299b3b3-0000-4000-8000-0000000000b3" } },
     { "Time": 1.0, "Action": "spawn",
       "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
       "SaveResult": "entity_e" },

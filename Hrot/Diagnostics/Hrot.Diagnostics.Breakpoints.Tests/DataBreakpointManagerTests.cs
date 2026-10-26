@@ -979,3 +979,98 @@ public sealed class DataBreakpointSystemEventTests
         Assert.True(manager.IsPaused);
     }
 }
+
+// =========================================================================
+// ⭐ CE-1258 (BV-28, R-1029) — a Changed condition is exact per entity
+// =========================================================================
+
+/// <summary>
+/// ⭐⭐ <c>CE-1258</c> — <c>Changed</c> compares the entity with the start-of-tick copy. 📐 Before, it was <c>true</c> for every entity of a chunk
+/// that changed, so a breakpoint filtered to unit A fired when its NEIGHBOUR B (same chunk) wrote — which made "stop when this unit changes
+/// its mind" impossible. 📄 docs/DESIGN_Entity_Brain_View.md §10 BV-28.
+/// </summary>
+[Collection("ComponentRegistry")]
+public sealed class TheChangedConditionIsPerEntityTests
+{
+    /// <summary>🔴 Red-proof: return <c>true</c> at the top of <c>BuildChangedMatcher</c>'s delegate (the old answer) ⇒ red at the
+    /// neighbour step.</summary>
+    [Fact]
+    public void ANeighboursWrite_DoesNotHit_TheUnitsOwnWriteDoes()
+    {
+        ComponentTypeRegistry.Clear();
+        var live     = new EntityRepository();
+        var snapshot = new EntityRepository();
+        live.RegisterComponent<TestHealth>();
+        snapshot.RegisterComponent<TestHealth>();
+        var a = live.CreateEntity(); live.AddComponent(a, new TestHealth { Current = 10 });
+        var b = live.CreateEntity(); live.AddComponent(b, new TestHealth { Current = 10 });
+
+        var provider = new DebugSnapshotProvider(snapshot);
+        var manager  = new DataBreakpointManager(live, snapshot, provider, new MockDebugTimeController(),
+            new PredicateCompiler(new ComponentEditServiceBuilder().Build()),
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
+        manager.AddBreakpoint(new PropertyMatchDto
+        {
+            ComponentType = typeof(TestHealth), PropertyPath = nameof(TestHealth.Current), Operator = SearchOperator.Changed,
+            Predicate = new NumericPredicateDto(),
+        }, a);
+        var system = new DataBreakpointSystem(manager, null);
+
+        live.Tick();                                   // a frame: the version moves (the kernel does this every frame) …
+        provider.Execute(live, 0f);                    // … start-of-tick copy …
+        system.Execute(live, 0f);                      // … nothing changed
+        Assert.False(manager.IsPaused);
+
+        live.Tick();
+        provider.Execute(live, 0f);
+        live.GetComponentRW<TestHealth>(b).Current = 5;   // the NEIGHBOUR writes (same chunk)
+        system.Execute(live, 0f);
+        Assert.False(manager.IsPaused);
+
+        live.Tick();
+        provider.Execute(live, 0f);
+        live.GetComponentRW<TestHealth>(a).Current = 7;   // the unit itself writes
+        system.Execute(live, 0f);
+        Assert.True(manager.IsPaused);
+    }
+
+    /// <summary>⭐⭐ <c>CE-1284</c> (Behaviour Debugging DBG-8) — in the REAL phase order a write made in <b>Input</b> (where the ingress starts a
+    /// task and writes the brain journal) is a change: the baseline is taken in PreFrame, before it. 🔴 Measured before: the baseline was the
+    /// BeforeSync copy, AFTER Input ⇒ the change was already in it ⇒ "Break when it changes its mind" never broke.
+    /// ✅ Red-proof: drop the <see cref="ChangeBaselineSystem"/> (the manager falls back to the BeforeSync copy) ⇒ red.</summary>
+    [Fact]
+    public void CE1284_AWriteInInput_IsAChange_BecauseTheBaselineIsTakenInPreFrame()
+    {
+        ComponentTypeRegistry.Clear();
+        EntityRepository World() { var w = new EntityRepository(); w.RegisterComponent<TestHealth>(); return w; }
+        var live = World();
+        var snapshot = World();
+        var a = live.CreateEntity(); live.AddComponent(a, new TestHealth { Current = 10 });
+
+        var provider = new DebugSnapshotProvider(snapshot);
+        var manager  = new DataBreakpointManager(live, snapshot, provider, new MockDebugTimeController(),
+            new PredicateCompiler(new ComponentEditServiceBuilder().Build()),
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
+        manager.AddBreakpoint(new PropertyMatchDto
+        {
+            ComponentType = typeof(TestHealth), PropertyPath = nameof(TestHealth.Current), Operator = SearchOperator.Changed,
+            Predicate = new NumericPredicateDto(),
+        }, a);
+        var baseline = new ChangeBaselineSystem(manager, World());
+        var system = new DataBreakpointSystem(manager, null);
+
+        void Frame(System.Action? input)
+        {
+            live.Tick();
+            baseline.Execute(live, 0f);                   // PreFrame
+            input?.Invoke();                              // Input — the ingress writes here
+            provider.Execute(live, 0f);                   // BeforeSync — the rewind snapshot
+            system.Execute(live, 0f);                     // PostSimulation
+        }
+
+        Frame(null);
+        Assert.False(manager.IsPaused);
+        Frame(() => live.GetComponentRW<TestHealth>(a).Current = 7);
+        Assert.True(manager.IsPaused, "a change written in Input must hit");
+    }
+}

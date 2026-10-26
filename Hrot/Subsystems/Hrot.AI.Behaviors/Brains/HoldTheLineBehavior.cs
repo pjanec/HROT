@@ -10,6 +10,7 @@ using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Hrot.Map.Definitions.Behavior;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -82,7 +83,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             float hold = p.Hold > 0f ? p.Hold : DefaultHoldMetres;
             float away = Flat(me, ws.Post);
-            if (away > hold) { if (ws.Returning == 0 || LocomotionMoveTo.Status(world, self) != NodeStatus.Running) LocomotionMoveTo.Issue(world, self, ws.Post, ReturnSpeed, 0.5f, MoveGait.Upright); ws.Returning = 1; }
+            if (away > hold) { if (ws.Returning == 0 || LocomotionMoveTo.Status(world, self) != NodeStatus.Running) LocomotionMoveTo.Issue(world, self, ws.Post, ReturnSpeed, 0.5f, MoveGait.Upright, source: MoveSource.SquadPost); ws.Returning = 1; }
             else if (ws.Returning != 0 && away <= 0.75f) { LocomotionMoveTo.Stop(world, self); ws.Returning = 0; }
 
             // ⭐ CE-2239 part 3 (B2, §5k EL-3) — the ladder's warning: every identified-armed man in reach is warned first (a Neutral too)

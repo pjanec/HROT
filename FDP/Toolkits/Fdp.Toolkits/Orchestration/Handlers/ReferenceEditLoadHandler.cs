@@ -42,7 +42,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         bool IsWorldBoundary = false,
         // ⭐⭐ C7 (Q91 §4-M, R-4015) — a LATE JOINER's catch-up load: only the universal parts (knowledge base, terrain) run,
         //   whatever the node's roles; the scenario is never read and no entity is created — the world arrives by replication.
-        bool IsCatchUp = false);
+        bool IsCatchUp = false,
+        // ⭐ CE-3299 D17 (R-3045) — the session's recording mode: 0 = FULL, N > 0 = a keyframe every N s of sim time (a live load only).
+        double CheckpointingSeconds = 0);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

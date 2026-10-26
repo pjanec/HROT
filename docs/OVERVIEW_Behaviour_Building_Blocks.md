@@ -25,7 +25,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — owns embarkation (§7, §7.1 plan) — §10 here is its measured state
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — owns the urban tank tactics proposal (hide / expose / reverse, danger to me); §10b here is its measured ground
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — OWNS the building-clearing drill (Battle Drill 6: stack, breach, points of domination, sectors, controlling and searching civilians, room order) — the room-clearing drill, a new ISquadPlay (design stage)
-  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; the per-man character layer under the posture decision (design stage)
+  - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve and Resolve added to AQ89's CombatTemperament beside RiskAcceptance and Obedience) and live stress; the per-man character layer under the posture decision (TS-A…TS-D built 2026-10-24 — TS-C as modifiers, R-2075; §7 there)
 -->
 
 # Behaviour building blocks — an overview
@@ -80,7 +80,7 @@ graph LR
   end
   subgraph URG["Reaction urgency (only higher replaces)"]
     direction LR
-    U1["Alert"] --> U2["Contact"] --> U3["UnderFire"] --> U4["Hit"]
+    U1["Alert"] --> U2["Contact"] --> U3["UnderFire"] --> U4["Hit"] --> U5["Grenade"] --> U6["Break<br/>(StayOnTask cannot refuse)"]
   end
   T["Task running"] -- "reaction arrives" --> P["Task PAUSED"]
   P -- "reaction ends" --> RES["Task RESUMES<br/>(not restarts)"]
@@ -124,6 +124,7 @@ graph TD
     I3["EQS: top score · result count"]
     I4["weapon: range fit · effectiveness vs armour · rounds left"]
     I5["squad: knows contact · strength ratio · assigned role"]
+    I6["MODIFIERS (damp only): CautionDamp · AggressionDamp · StressDamp"]
   end
   IN --> DEC
   DEC --> BT["BTree: ChooseOption + IsOption(n)<br/>in Parallel + ObserverSelector"]
@@ -135,6 +136,9 @@ graph TD
 
 *Owner:* [DESIGN_Decision_Layer](DESIGN_Decision_Layer.md) §3 · R-201 (threat = danger × freshness), R-202.
 🟥 The utility editor is a placeholder — new decisions are written in C#.
+⭐ **`.Consider` vs `.Modify`** *(R-2075)*: a consideration is a factor of the option's aggregate and the product's compensation COUNTS it — even
+one that reads 1.0 moves the score. An input that may only ever damp an option is a `.Modify` (multiplied after the aggregate, not
+counted ⇒ 1.0 is bit-identical). 📄 [Utility AI §4.3a](designs/utility-ai/Utility_AI_Design_v1_1.md).
 
 ## 4. Sensors → memory
 
@@ -352,6 +356,21 @@ is kept by `UnderFireMoveSystem`. ⛔ So do not build a per-play "go prone when 
 
 📄 [`DESIGN_Peek_And_Fire.md`](DESIGN_Peek_And_Fire.md) §11 · demo `bt-window-duel`.
 
+## 7b. Stress, the break, idle life — what every person does by himself *(R-2034, R-2074, built 2026-10-24)*
+
+⭐ Like 7a, a behaviour does NOTHING to get these; ⛔ do not build a per-play "panic" or "fidget" — it would fight them.
+
+| | what happens | where |
+|---|---|---|
+| **temperament** | `CombatTemperament`: RiskAcceptance · Obedience · Nerve · Resolve, authored › the TKB type's (`TemperamentDto`, ± a seeded spread) › the default; `TemperamentOf.Effective` tempers a trait by obedience — toward a TRAINED standard (nerve 0.75 · resolve 0.6 · bravery 0.5, R-2076), so the ordinary man (raw 0.5, obedience 0.8) acts with nerve 0.70: discipline steadies, it does not just average | `Behavior/Components/CombatTemperament.cs` |
+| **stress** (combatants) | `Stress` 0–1 from near misses, hits, a friend down near him, outnumbered, alone; × his nerve; calms with time, cover, his leader | `StressModel` / `StressSystem` (CGF) |
+| **the break** | at his effective nerve: surrenders (low resolve, a rifle on him) or `Break` (no fire, run to cover away from the threat, prone) — a reaction even ROE StayOnTask allows; `Sensor.StressBreak` / `StressRecovered` on the bus | `StressModel.Judge` · `BreakBehavior` |
+| **idle life** (every person) | still 6 s and held by nothing ⇒ a small step now and then (≤ 3 m from where he settled), a crawl lying, R2-3's scoot lying under fire; nervous ⇒ sooner and further, even weapon up; in cover the step stays behind it. Relaxed ⇒ an idle gesture (smoke, shift weight, stretch, look about — the last moves his real eyes) | `Restlessness` / `RestlessHolds` · [AQ103](blueprints/Architect_Question_103_Idle_Life.md) §7 |
+| **a nervous head** | a scanning man's fixations shrink 2 s ⇒ 0.4 s, in no fixed order, the head snapping | `LookAt.Want` |
+| to keep a man still | an order to stay (an ordered `Idle` / `PersonHold` / `HoldStance` / `Sentry`, a posture with `stay` or a `post`), an ambush or a trigger man, possession | `RestlessHolds.Holds` |
+
+📄 [Temperament & Stress](DESIGN_Temperament_And_Stress.md) §7 · [AQ103](blueprints/Architect_Question_103_Idle_Life.md) · demo `il-idle-life`.
+
 ## 8a. Hurt, down, dead — what a behaviour can rely on *(CE-2155, measured and built 2026-10-13)*
 
 | question | ✅ answer | where |
@@ -449,3 +468,20 @@ it (only through utility inputs no shipped decision uses) ⇒ a soldier knows on
 | ⚠ weapons and numbers | tanks: main gun + APFSDS only; the RPG `Insurgent` has 1 rocket, no rifle; RPG 300 mm cannot hurt an M1's front (side ≈ 57 of 3000 HP) | `BdcTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs:81-89,214-229` |
 
 *Owner of the next step:* [DESIGN_Urban_Armour_Tactics](designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md) §4a — four READY-TO-BUILD designs (2026-10-14).
+
+## 11. Seeing what a unit does and why *(measured 2026-10-23)*
+
+| what you want | where it is today | planned |
+|---|---|---|
+| what it is doing now, per channel ("W hold: not seen", "L moving 12m") | `ActionStatus` (always on, recorded) — `Actions` gizmo, `GET /entities/{id}/weapons` | the Brain tab's "Right now" |
+| its task, SOP, ROE and who set each | `EntityAiEditModel.Read()` (AI tab, Editor only), `GET /entities/{id}/order` / `/slots` | the Brain tab's "Doing / Ordered by" |
+| why a utility decision picked what it did | `UtilityDecisionLog` — ⚠ only while the unit is observed (`POST /trace/observe`) | shown while the Brain tab is open on it |
+| a squad drill's phase history and orders | `SquadDrillTrace` (commander, 16 steps with cause, transient) — `GET /entities/{id}/squad` | the Brain tab's "Squad" |
+| BTree / HSM node-level history | trace rings — opt-in, ~63 records, BTree has no causes | linked from the Brain tab |
+| the running behaviour as a GRAPH | asset behaviours: open the asset, the live overlay lights the selected unit · C#-only BTrees (74): already in the BTree editor, auto-laid out (CE-3160) · ⛔ C#-only HSMs (12): not in the HSM editor; the HSM live highlight never draws | Brain tab → Open running behaviour, read-only, pinned (Brain View §9) |
+| a unit's history of task / decision / move changes WITH their causes | ✅ `BrainJournal` (`2026-10-23`, always on, recorded): starts, pauses, resumes, ends, clears, refusals with their reason, SOP changes, utility switches, move starts, HSM region changes — the Brain tab's Recent changes, `GET /entities/{id}/journal?since=`, and the whole file over a recording (`/replay/entities/{id}/journal/history`). ⚠ a reaction does not yet name its sense, a move point not its source | CE-1250 (behaviors) adds those two causes |
+
+| stopping when a unit changes its mind, stepping, and its platoon regions | data breakpoints exist (`DataBreakpointManager`, no per-unit "changed its mind" condition); the BTree / HSM step commands stay greyed (`RaiseBreakpointHit` has no production caller); the Trace Timeline draws nothing | "Debug this unit", the journal break (with `Changed` made exact per unit), one Doing line per region (Brain View §10, R-1029); ⛔ the BTree / HSM node steps cannot split a tick — use the frame Step |
+| all of the above for an AI agent, live and over one editor recording | the existing `/entities/{id}/…`, `/trace`, `/breakpoints`, `/replay/*` routes; ⛔ no `/view`, `/selection`, marks, brain or journal route | [DESIGN_Agent_Shared_View](DESIGN_Agent_Shared_View.md) §6 (R-1029) |
+
+*Owner:* [DESIGN_Entity_Brain_View](DESIGN_Entity_Brain_View.md) (R-1026, R-1029); the HTTP side [DESIGN_Agent_Shared_View](DESIGN_Agent_Shared_View.md).

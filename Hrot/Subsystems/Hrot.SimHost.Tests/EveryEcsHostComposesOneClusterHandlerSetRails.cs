@@ -37,7 +37,8 @@ namespace Hrot.SimHost.Tests
         private (ClusterSlave Slave, EcsHostClusterHandlers Built) ComposeOnARealSlave()
         {
             Directory.CreateDirectory(_staging);
-            var kernel = new ModuleHostKernel(_world, new EventAccumulator());
+            var accumulator = new EventAccumulator();
+            var kernel = new ModuleHostKernel(_world, accumulator);
             var slave  = new ClusterSlave(7, "D16", null, NodeRole.MuscleGround);
             var (providers, _) = HrotUniversalLoadParts.Build(null, _staging, new CarKinem.Road.RoadNetworkHolder(), null);
 
@@ -51,6 +52,7 @@ namespace Hrot.SimHost.Tests
                 HostLabel     = "D16",
                 StagingRoot   = _staging,
                 LoadProviders = providers,
+                EventAccumulator = accumulator,   // CE-3314 — required: the kernel's own step window
             });
             return (slave, built);
         }

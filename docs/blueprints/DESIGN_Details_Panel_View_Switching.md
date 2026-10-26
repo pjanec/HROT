@@ -1,14 +1,15 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-10-22 (§8 BP-515 — tabs or stacked headers, a request for a view, Properties… → Details on the Editor)
+updated: 2026-10-22 (§9 CE-1247 — the Summary view on every host, the IG's Entity Properties window retired; §8 BP-515 — tabs or stacked headers, a request for a view; DS-7 amended: Properties… opens Details on EVERY ECS host, canvas-context-menu-design §12)
 current-answer: sections 1-7. Section 1 is the PLACEMENT SPEC (where every type lives and
   who owns it); section 6 is the task breakdown; SECTION 7 IS THE TARGET STATE for the one shell
   (user ruling 2026-08-22) and re-stages BP-399 against it. L0-L5 are BUILT (L3 partial: 4 views
   migrated, its remaining rows are BP-399, re-staged in §7.6); L6 is RE-STAGED as-built (see §6 L6
   and its sequence). Everything from "## HISTORY" down is the record of how the answer was reached.
 stale-below: "## HISTORY" and everything under it. Do NOT quote it as the design.
-known-rot: §1's "Hrot.Presentation and Hrot.Editor.AiShared do not reference each other" is STALE — AiShared references
+known-rot: §8's three diagrams and its as-built paragraph describe DS-7's SUPERSEDED request/answer shape (ShowEntityPropertiesEvent, FrameStarted, Answer) — the live picture is canvas-context-menu-design §12.
+  §1's "Hrot.Presentation and Hrot.Editor.AiShared do not reference each other" is STALE — AiShared references
   Presentation (CE-046, `Hrot.Editor.AiShared.csproj:37`); found 2026-10-22 for §8. L6's original wording (entity already-in-context, brain-equipped predicate exists,
   L6.1 as one item) was corrected 2026-08-22 in §6 L6 against the as-built; the prior phrasing is in HISTORY.
   §6 L3's "Node properties" row is SUPERSEDED BY §7.6 (see §7.7): it named two sources and no order.
@@ -24,6 +25,9 @@ known-rot: ⭐ RESOLVED 2026-09-21 — §4's closed question Q-iii ("RuntimeInsp
   IRuntimeInspectorPane.Draw a DetailsContext — which is what lets a pinned runtime view honour
   its frozen entity. As-built in DESIGN_Editor_Entity_Selection_Source.md §12.
 related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — registers the per-node Runtime view and the Variables view (DBG-4, DBG-5)
+  - ../DESIGN_Entity_Brain_View.md — adds the details.brain view to every host's bundle
+  - ../designs/gizmos-1/canvas-context-menu-design.md — §12 (CE-1150): the Properties… action opens THIS shell on every ECS host (EntityDetailsBundle) — DS-7 below
   - docs/DESIGN_Orders_Params_Entity_Classes.md — a possible asset-level view for params DTO / classes
   - Architect_Question_90_Unit_Orders_Carry_Capacity.md — §2.3e (lean): a shared asset-level view details.behaviour (HasAsset) for the params type (own / an order DTO) and the asset's entity Classes, registered by the BTree, HSM and blueprint editors
   - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — names WHAT FILLS the Live arm of
@@ -998,7 +1002,8 @@ been tabs** …)"* · `2026-10-06` (the spec, tracker `BP-515`): *two modes chos
 **stacked** (every view in its own collapsing header). An event that asks for a view selects its tab, or expands its header AND scrolls it
 into view. **Float** and **pin** stay as icon buttons: right-aligned on each header (… allow-overlap), right-aligned in the tab bar in tabbed
 mode* · `2026-10-22`: *"when i select 'Properties…' from context on an entity, it should open the 'Details' panel (which already contains the
-entity component view), not the entity inspector panel."*
+entity component view), not the entity inspector panel."* · `2026-10-22`, on the first build: *"Properties activation feom menu is a
+global ui action, as any other manu actoon shoukd be, no direct calls please"* (`R-1024`).
 
 **INVENTORY** (`2026-10-22`; a read-only corpus + code sweep): the switch is ONE draw (`DetailsWindow.DrawToolbar`, radio buttons
 `DetailsWindow.cs:563-578`, float / pin `:585-591`); ⛔ no request / event asks the shell for a view (searched `ShowDetails`,
@@ -1023,50 +1028,53 @@ classDiagram
     class DetailsLayout { <<NEW enum>> Tabs · Stacked }
     class DetailsViewSelector { <<existing>> Resolve · Pick · ClearPick }
     class DetailsWindowPanelViewModel { <<existing, grows>> + Layout }
-    class GlobalActionRegistry { <<existing, grows>> + Replace(actionId, handler) }
-    class EditorSubsystem { <<existing, grows>> RegisterWindows: Properties → the Scenario Details }
-    class MapInteractionPack { <<existing>> Properties default: select + the inspector }
+    class ShowEntityPropertiesEvent { <<NEW event 8066>> Target }
+    class WindowManager { <<existing, grows>> + FrameStarted every frame }
+    class MapInteractionPack { <<existing>> Properties: publish select + ShowEntityPropertiesEvent }
+    class DiagnosticsWindowsBundle { <<existing, grows>> AnswerProperties - the inspector shows itself }
+    class EditorSubsystem { <<existing, grows>> ScenarioDetails.Answer(event, details.components) }
     class IconsFontAwesome6 { <<existing, grows>> Thumbtack · UpRightFromSquare · TableColumns · LayerGroup }
     DetailsWindow --> DetailsLayout
     DetailsWindow o-- DetailsViewSelector
     DetailsWindow ..> DetailsWindowPanelViewModel
     DetailsWindow ..> IconsFontAwesome6
-    EditorSubsystem ..> GlobalActionRegistry : Replace(Properties)
-    EditorSubsystem ..> DetailsWindow : RequestView(details.components)
-    MapInteractionPack ..> GlobalActionRegistry : Register default
+    MapInteractionPack ..> ShowEntityPropertiesEvent : publishes
+    DetailsWindow ..> WindowManager : answers on FrameStarted
+    DiagnosticsWindowsBundle ..> WindowManager : answers on FrameStarted
+    EditorSubsystem ..> DetailsWindow : Answer(...)
 ```
 
 ```mermaid
 sequenceDiagram
     participant U as the user
-    participant A as GlobalActionRegistry
-    participant E as Editor Properties handler
-    participant B as bus
+    participant A as Properties handler - every map host
+    participant B as the map interaction bus
     participant M as WindowManager
-    participant D as scenario_details
+    participant D as scenario_details - Editor
     U->>A: Properties… on an entity
-    A->>E: handler(view, entity)
-    E->>B: SelectionChangeRequest.ReplaceWith(entity)
-    E->>M: FocusWindow(scenario_details)
-    E->>D: RequestView(details.components) - pending
+    A->>A: SelectionChangeRequest on the world bus
+    A->>B: publish ShowEntityPropertiesEvent - no window is called
+    M->>D: FrameStarted - every frame, open or closed
+    D->>B: is a request there?
+    D->>M: yes - FocusWindow(itself)
+    D->>D: RequestView(details.components) - pending
     Note over D: next frames - the selection lands, Components joins the offer
-    D->>D: Pick(context, details.components) and reveal it
     D->>U: Tabs - its tab selected · Stacked - its header open and scrolled into view
 ```
 
 ```mermaid
 graph TD
-    P[MapInteractionPack.Build - every map host] -->|Register default| R[GlobalActionRegistry]
-    ED[Editor RegisterWindows] -->|Replace Properties| R
-    ED --> SD[scenario_details - Components view]
-    CG[CGF / SimHost / IG] -.->|no Components view - keep the default| I[entity inspector via InspectorMapLink]
-    R -->|default| I
-    style CG stroke-dasharray: 4 4
+    P[MapInteractionPack.Build - every map host] -->|Properties publishes| E[ShowEntityPropertiesEvent on the map bus]
+    E -->|Editor - answers| SD[scenario_details - Components view]
+    E -->|CGF / SimHost / IG - answers| I[entity inspector - DiagnosticsWindowsBundle]
+    ED[Editor's inspector] -.->|AnswersProperties false| E
+    style ED stroke-dasharray: 4 4
 ```
 
-*What the pictures show that prose hid: the request has to WAIT — the selection reaches the shell a frame later, and until it does the
-Components view is not offered, so a plain `Pick` would be dropped by the selector; and only ONE host replaces the action, because only the
-Editor's Scenario shell has the Components view — every other host keeps the inspector by construction, not by a flag.*
+*What the pictures show that prose hid: the action calls NO window — it publishes a request, like every other map menu action
+(`OpenLayerControl`, `ToggleMap3D`, `ToggleShoulderView`), and the window that answers it drains the request on a per-frame hook, because a
+CLOSED window is never rendered and would otherwise never hear it; the shell's view request then WAITS — the selection lands a frame later.
+On the Editor two windows could answer, so its inspector is told not to (`AnswersProperties: false`).*
 
 | decision | rule |
 |---|---|
@@ -1076,7 +1084,7 @@ Editor's Scenario shell has the Components view — every other host keeps the i
 | **DS-4 instances** | one per DRAWN view — tabs: one, switching disposes as before; stacked: one per open header; a view no longer offered is disposed; an empty offer still disposes nothing (unchanged). §2's `0..1` becomes `0..N` in stacked mode |
 | **DS-5 float / pin** | glyph buttons — tabs: trailing in the tab bar, acting on the selected tab; stacked: right-aligned on EACH header (`SetNextItemAllowOverlap`), acting on THAT header's view. `OpenFloat` / `Pin` gain a descriptor overload |
 | **DS-6 the request** | `RequestView(viewId)` is PENDING until the view is offered (at most `RequestFrames` = 120 frames), then `Pick` + reveal: tabs select it, stacked opens its header and scrolls it into view. ⭐ A method on the window the host already holds — ⏳ a bus event only once a caller cannot reach the window |
-| **DS-7 Properties… on the Editor** | the host that holds the window manager and the Scenario shell REPLACES the pack's default (`GlobalActionRegistry.Replace`, still local-only): select, focus `scenario_details`, `RequestView("details.components")`. Other hosts keep select + the inspector. ⭐ CE-1150 ② for the one host that has the view; ① (host actions off the map) and ④ (delete `InspectorMapLink`) stay CE-1150 |
+| **DS-7 Properties… opens THIS panel, on every ECS host** ⭐ *(R-1024, amended `2026-10-22`)* | ⭐ the Properties… handler is registered by the composition that builds the shell — `EntityDetailsBundle`, on every ECS host ([canvas-context-menu-design §12](../designs/gizmos-1/canvas-context-menu-design.md) HA-3 / HA-4): the selection request, `WindowManager.FocusWindow(detailsId)`, `RequestView("details.components")`. ⛔ The shell knows nothing of actions or menus. ⛔ SUPERSEDED twice the same day: ① the Editor REPLACED the pack's handler with one calling the window (`GlobalActionRegistry.Replace`) — 🔒 *"no direct calls"*; ② a `ShowEntityPropertiesEvent` the window ANSWERED on `WindowManager.FrameStarted` (the inspector on CGF / SimHost / IG) — 🔒 *"Windows themselves should not answer … the global action handler should open the detail panel"* · *"the details panel … should show it on every ECS host"* |
 | **DS-8 the model** | `DetailsWindowPanelViewModel` gains `Layout` — an additive dump field, a deliberate change, ⛔ not a regenerated golden; `ChosenViewId` / `OfferedViewIds` / `ShowsViewSwitch` keep their meaning |
 
 **Rejected — one line each:** *a second static link like `InspectorMapLink`* — CE-1150 is deleting that pattern; *`Pick` straight from the
@@ -1089,18 +1097,88 @@ tab bar's row (many wide tabs could run under them — four views fit). ⚠ **Im
 which adds a close button** ⇒ the shell calls `igBeginTabItem` with a null `p_open`. `GetContentRegionMax` is gone in this ImGui ⇒ the right
 edge is the cursor plus the available width. `DetailsWindow`: `DetailsLayout`, `Layout`, `RequestView` / `PendingViewRequest` /
 `RevealViewId` / `FrameForDraw`, `InstantiatedViewIds`, `OpenFloat(wm, d)` / `Pin(wm, d)`, `DrawTabs` / `DrawStacked` (the radio buttons
-are gone); `GlobalActionRegistry.Replace`; `EditorSubsystem.WirePropertiesToDetails` / `PropertiesToDetails`; glyphs `Thumbtack`,
-`UpRightFromSquare`, `TableColumns` in `IconsFontAwesome6`. Rails: `TheDetailsPanelHonoursARequestForAViewTests` ×4 (the request waits
+are gone), `Answer(requested, viewId)`; `WindowManager.FrameStarted`; `ShowEntityPropertiesEvent` (8066); the pack's Properties handler
+publishes it; `DiagnosticsWindowsBundle.AnswerProperties` + `DiagnosticsHostServices.AnswersProperties`; `InspectorMapLink`'s window list
+and `ShowWindowFor` deleted (the map lookup stays for CE-1150); glyphs `Thumbtack`, `UpRightFromSquare`, `TableColumns`. ⛔ The first build's
+`GlobalActionRegistry.Replace` / `EditorSubsystem.PropertiesToDetails` are removed (R-1024). Rails: `TheDetailsPanelHonoursARequestForAViewTests` ×4 (the request waits
 then picks and reveals · expires · the dump's `layout` · pin / float a given view) and the frame rail
 `TheDetailsPanelDrawsTabsAndStackedHeadersTests` (real ImGui frames: tabs, a request switching the tab, stacked with two headers open, back
 to tabs with one instance) — ✅ red-proved (the request ignored · the stacked reveal ignored); `Hrot.Editor.Tests`
-`PropertiesOpensTheDetailsPanelTests` ×2 (select + show + ask for Components · `Replace` keeps local-only) — ✅ red-proved (no request).
+`MapEntityMenuHandlerTests.BP515_Properties_IsARequest_AndTheInspectorAnswersIt` (the action opens nothing; the event carries the entity;
+the inspector shows itself on the next frame) and `TheDetailsPanelHonoursARequestForAViewTests.BP515_TheShell_AnswersARequest…`.
 The existing Details suites stay green unchanged (`DetailsWindowDumpsItsChoiceTests`, `TheFloatAndPinEntryPointsAreReachableTests`,
 `TheOneShellIsOnEveryPerspectiveTests`, …). ⚠ Not yet seen on the Windows GL.
 
 | tabbed (the layout glyph right-aligned on the bar) | stacked (both headers open after a request) |
 |---|---|
 | ![](../assets/details/details-tabs.png) | ![](../assets/details/details-stacked.png) |
+
+## 9. ⭐⭐ `CE-1247` — **the Summary view: IG's "Entity Properties" card, on every host** — DESIGN + AS-BUILT `2026-10-22` (ui)
+
+🔒 User, `2026-10-22`: *"CE-1247: agreed, convert to summary card"* — on the lean *"fold it into the Details panel as a small 'Summary'
+view every host gets, and retire the IG window."*
+
+**INVENTORY** (`search_graph` `.*(Summary|EntityInspector|EntityCard).*` Class → 40, and `.*ViewDescriptor$` → 16): no entity-summary
+view exists; the IG's `Hrot.IG.UI.EntityInspectorPanel` + `EntityInspectorState` (one host, one window `ig_entity_properties`) is the only
+summary; the map's `EntityCards` (`Fdp.Diagnostics.Contracts`) is a *draw* API, not a model — ⛔ not reusable as a view. Entity views on the
+shell today: Components 30 (every host, CE-1150), Mission 40 / AI 45 / Runtime 50 (Editor Scenario only).
+
+| the build rests on | code — how it is | design basis |
+|---|---|---|
+| the IG card shows id, TKB type, position, affiliation, damage | ✅ `EntityInspectorPanel.DrawContent` | ✅ tracker `CE-1247` |
+| each value has a source on EVERY host | ✅ `NetworkIdentity`, `TkbIdentity`, `SimTransform`, `EntityInfo.ForceId`, `Health` — `ResolvedStyle` is DERIVED from `EntityInfo` + `Health` + IG overrides (`StyleResolutionSystem.cs:113-176`) and only IG / Editor run it | ✅ the user's *"no precalculated percentages"* (`2026-09-05`, quoted at `StyleResolutionSystem.cs:165`) |
+| the IG's selection is the panel's selection | ✅ both read `SelectionState` from the World (`IgApplication.GetSelectedEntity`, `WorldEntitySelectionSource.Selected`) | ✅ `UX_Feature_Selection.md` §2.7.4, ruling ① *one selection per host* |
+| every ECS host composes the shell | ✅ `EntityDetailsBundle` on Editor, CGF, SimHost, IG, RB, Stride | ✅ §8 / `canvas-context-menu-design.md` §12 |
+| the default view is the highest rank that applies | ✅ `DetailsViewRegistry` `OrderByDescending(Rank)` | ✅ §3 |
+| the IG's standalone draw path is unreached | ✅ `IgSubsystem.RegisterWindows` always calls `SetPanelsWindowManaged` (the one production `new IgApplication`) | ⛔ searched, none |
+
+```mermaid
+classDiagram
+    class EntityDetailsBundle { +Workspace +Window }
+    class DetailsViewDescriptor { Id Title Rank AppliesTo Create }
+    class EntitySummaryViewDescriptor { <<new>> ViewId = details.summary  Rank = 35  For(world) }
+    class EntitySummaryView { <<new>> Draw(ctx, scope) }
+    class EntitySummary { <<new>> Read(view, entity)  Name NetworkId TkbType Position Side ShownAs Health }
+    class ScenarioComponentsViewDescriptor { details.components  Rank 30 }
+    class IgEntityPropertiesWindow { <<deleted>> }
+    class EntityInspectorState { <<deleted>> }
+    EntityDetailsBundle --> EntitySummaryViewDescriptor : registers
+    EntityDetailsBundle --> ScenarioComponentsViewDescriptor : registers
+    EntitySummaryViewDescriptor ..> DetailsViewDescriptor : builds
+    EntitySummaryView --> EntitySummary : reads the World through
+    IgEntityPropertiesWindow --> EntityInspectorState
+```
+*What the picture shows that prose hid:* the card is ONE more descriptor on the bundle every host already composes — no host learns of it,
+and the IG pair is deleted rather than re-hosted.
+
+```mermaid
+sequenceDiagram
+    participant Sel as SelectionState (World)
+    participant DW as DetailsWindow (any host)
+    participant V as EntitySummaryView
+    participant S as EntitySummary
+    Sel->>DW: one entity selected (WorldEntitySelectionSource)
+    DW->>DW: offered = Summary 35, Components 30 (+ Editor's 40/45/50)
+    DW->>V: Draw(ctx) — highest rank, or the remembered pick
+    V->>S: Read(world, entity)
+    S-->>V: rows present only for components the entity has
+    V->>V: publish the panel model, draw the rows
+```
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐ **Rank 35** — above Components, below the Editor's Mission / AI / Runtime | on IG / CGF / SimHost / RB the card is what a selection shows (the IG operator's view, kept); on the Editor's Scenario a brain-equipped entity still opens on its AI views. ⚠ An Editor entity with no brain now opens on Summary, not Components — one tab away; Properties… still asks for Components (§8) |
+| ⭐⭐ **read the SOURCES, not `ResolvedStyle`** | the card works where no style runs; where `ResolvedStyle` exists and its affiliation differs (an IG symbol override, *Force Hostile*), a **Shown as** row says so — the IG's information is kept, not lost |
+| ⭐ **a row per component the entity HAS** | ⛔ no zero-filled lines for absent data (the IG card showed `0` for a missing TKB type) |
+
+Rejected: **keep the IG window** — a second summary surface on one host, and the user approved the fold · **put the card inside
+`EntityInspectorPanel`** — that is the Components view's body; a header there would show on every Components draw and not stand as its own
+tab · **read `ResolvedStyle` for side / damage** — blank on SimHost / CGF / RB, which never run `StyleResolutionSystem`.
+
+**AS-BUILT** — `Hrot.Editor.AiShared/Shell/EntitySummaryView.cs` (`EntitySummary`, `EntitySummaryView`, `EntitySummaryViewDescriptor`,
+`EntitySummaryViewPanelViewModel`), registered in `EntityDetailsBundle`'s constructor. Deleted: `IgEntityPropertiesWindow`,
+`Hrot.IG.UI.EntityInspectorPanel`, `EntityInspectorState` (+ its tests, re-homed onto `EntitySummary`), the IG standalone draw of it, the
+`ig_entity_properties` golden id and the `ig-entity-properties` cluster-only kind.
 
 ## ⛔ HISTORY — **how the answer was reached. ⛔ Not the design; do not quote it.**
 

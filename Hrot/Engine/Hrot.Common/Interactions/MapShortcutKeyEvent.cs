@@ -6,6 +6,7 @@ namespace Hrot.Common.Interactions
     /// ⭐ CE-1076 (docs/DESIGN_Entity_Control.md §13.6) — a key typed on the map (not in a panel, not in first person), handed by the
     /// canvas' key layer to the map's <c>MenuShortcuts</c>, which runs the menu item of the selected unit that shows this key.
     /// </summary>
+    [DataPolicy(DataPolicy.NoReplay)]   // ⭐ the coordinator's replay-UI-state handoff ② (CE-4049) — a UI command: never recorded, never re-fired by a player
     [EventId(8064)]   // after the gizmo interaction events (8061-8063); free on every lane, checked 2026-10-14
     public struct MapShortcutKeyEvent
     {

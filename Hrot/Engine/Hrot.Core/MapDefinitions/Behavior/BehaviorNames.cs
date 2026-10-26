@@ -62,6 +62,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string ClearRoom = "ClearRoom";
         /// <summary>⭐ <c>CE-2259</c> BC-3 (CB-57) — a squad clears a building room by room (Building Clearing §7.2).</summary>
         public const string ClearBuilding = "ClearBuilding";
+        /// <summary>⭐ <c>CE-2374</c> (AQ104 B, R-2079) — a squad clears an AREA: its buildings one after another (Building Clearing §7.4).</summary>
+        public const string ClearArea = "ClearArea";
         /// <summary>⭐ <c>CE-2257</c> BC-1 (CB-53) — a man opens a door, and breaches it when it is locked.</summary>
         public const string BreachDoor = "BreachDoor";
 
@@ -226,6 +228,13 @@ namespace Hrot.Map.Definitions.Behavior
         public const string StationWeapon = "StationWeapon";
         /// <summary>⭐ <c>CE-2238</c> part 5 (AW-12, §5l BM-1) — he sets off the charge he carries.</summary>
         public const string DetonateCharge = "DetonateCharge";
+
+        /// <summary>⭐ <c>CE-2360</c> (AQ102 I) — the grenade reflex <c>GrenadeDangerSystem</c> starts as a reaction: run clear, drop flat, or
+        /// throw it back.</summary>
+        public const string EvadeGrenade = "EvadeGrenade";
+        /// <summary>⭐ <c>CE-2272</c> (TS-6, R-2034) — a man who broke under stress: away to a retreat point if he has one, else to ground —
+        /// no fire — until he recovers. Started by <c>StressSystem</c> as a reaction (urgency Break).</summary>
+        public const string Break = "Break";
         /// <summary>⭐ <c>CE-2241</c> ② (CV-14, §5m PV-4) — a police order: go at the point and strike the protesters within reach of it.</summary>
         public const string BatonCharge = "BatonCharge";
         /// <summary>⭐ <c>CE-2306</c> (DA-93, Defend &amp; Attack §8e) — the trigger man sets off a placed charge by phone when a hostile vehicle he

@@ -23,6 +23,10 @@ internal sealed class HsmCommandSink : IGraphCommandSink
 
     public GraphCommandResult Apply(GraphCommand command)
     {
+        // ⭐ CE-1252 (BV-19) — a code-built graph is read-only; a breakpoint is debugging, not an edit, so it still goes through.
+        if (Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset)
+            && command is not GraphCommand.SetNodeProperty { Key: "isBreakpoint" })
+            return new GraphCommandResult(false, Hrot.Editor.AiShared.Documents.AiDocument.ReadOnlyReason(_asset));
         switch (command)
         {
             case GraphCommand.MoveNodes cmd:

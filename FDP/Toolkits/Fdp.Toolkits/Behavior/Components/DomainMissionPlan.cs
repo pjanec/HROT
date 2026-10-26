@@ -43,13 +43,14 @@ namespace Fdp.Toolkit.Behavior.Components
     /// Replaces the DDS-aware <c>EntityMissionHolder</c> and <c>IgMissionHolder</c> components.
     /// </summary>
     [ComponentId(BehaviorApplicationComponentIds.ActiveMissionPlan)]
-    public class ActiveMissionPlan
+    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+    public sealed record ActiveMissionPlan   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
-        public DomainMissionPlan Plan { get; set; } = new();
+        public DomainMissionPlan Plan { get; init; } = new();
 
         /// <summary>⭐ <c>R-3039</c> S1 — the plan's task ids in phase order, what <c>CMD_JUMP_TO_TASK</c> resolves against. Was a field of
         /// <c>MissionControlExecutionSystem</c>: a checkpoint restored into a fresh system jumped every request to phase 0.
         /// 📄 docs/DESIGN_System_State_Inventory.md §6 #7.</summary>
-        public List<Guid> TaskOrder { get; set; } = new();
+        public IReadOnlyList<Guid> TaskOrder { get; init; } = System.Array.Empty<Guid>();
     }
 }

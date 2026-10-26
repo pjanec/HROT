@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
@@ -127,5 +128,38 @@ public sealed class AiBreakpointsWindowDumpsItsCountsTests : IDisposable
         Assert.Contains(id, PanelSnapshot.RegisteredPanels);
         Assert.NotNull(vm);
         Assert.Equal(1, vm.ActiveCount);
+    }
+
+    /// <summary>📷 <c>CE-1285</c> (DBG-6, Q44) — THE one breakpoint list photographed: a node, a journal and a data breakpoint in one grid
+    /// with the Kind column, readable names and the unit's scope (<c>breakpoints-one-list.png</c>).</summary>
+    [SkippableFact]
+    public void CE1285_TheOneList_Draws()
+    {
+        Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-brain");
+        System.IO.Directory.CreateDirectory(shots);
+        var manager = new StubBreakpointManager();
+        manager.Bps.Add(new DpBreakpoint { Id = DpBpId.Invalid, Enabled = true, DisplayName = "Node Reload in FightFromCover",
+            Condition = new ExternalHitTagPredicateDto { Tag = "btree:1:abc" }, HitCount = 2 });
+        manager.Bps.Add(new DpBreakpoint { Id = DpBpId.Invalid, Enabled = true, DisplayName = "journal (Brain tab)", FilterEntity = new Entity(7, 1),
+            Condition = new PropertyMatchDto { ComponentType = typeof(Fdp.Toolkit.Behavior.Diagnostics.BrainJournal), PropertyPath = "Seq",
+                Operator = SearchOperator.Changed, Predicate = new NumericPredicateDto() } });
+        manager.Bps.Add(new DpBreakpoint { Id = DpBpId.Invalid, Enabled = false, FilterEntity = new Entity(9, 1),
+            Condition = new PropertyMatchDto { ComponentType = typeof(Fdp.Toolkit.Behavior.Diagnostics.BrainJournal), PropertyPath = "Count",
+                Predicate = new NumericPredicateDto { MaxValue = 20 } } });
+        var panel = new Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel(manager, new TemporalStatusBannerState(),
+            entityLabel: e => $"#{1000 + e.Index}");
+
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(760, 260);
+        frame.StepN(3, () =>
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(new System.Numerics.Vector2(8, 8));
+            ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(740, 240));
+            ImGuiNET.ImGui.Begin("Breakpoints##ce1285");
+            panel.DrawContent();
+            ImGuiNET.ImGui.End();
+        });
+        frame.Screenshot(System.IO.Path.Combine(shots, "breakpoints-one-list.png"));
+        Assert.Equal(new[] { "Node", "Journal", "Journal" }, panel.BuildViewModel("p", "k").Breakpoints.Select(r => r.Kind));
     }
 }

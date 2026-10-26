@@ -42,7 +42,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
     private static RoutePlan MakePlan(int waypointCount, bool isLoop = false)
     {
         var plan = new RoutePlan { IsLoop = isLoop };
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             for (int i = 0; i < waypointCount; i++)
                 wps.Add(new RouteWaypoint { Position = new Vector3(i * 10f, i * 10f, 0f), TargetSpeed = 5f });
@@ -82,7 +82,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
     public void Sync_KeepsZUpWaypointsUnchanged_CE3013()
     {
         var plan = new RoutePlan { IsLoop = false };
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint { Position = new Vector3(10f, 300f, 2f), TargetSpeed = 5f });
             wps.Add(new RouteWaypoint { Position = new Vector3(40f, 320f, 5f), TargetSpeed = 5f });
@@ -165,7 +165,8 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var firstId = _repo.GetComponent<RouteTrajectoryCache>(entity).TrajectoryId;
 
         // Mutate: adds a waypoint and bumps version.
-        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = new Vector3(100f, 100f, 0f), TargetSpeed = 5f }));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint { Position = new Vector3(100f, 100f, 0f), TargetSpeed = 5f }));
+        _repo.SetManagedComponent(entity, plan);   // CE-4046 — the new value must be Set (a change is a new value, not an in-place edit)
 
         _system.Execute(_repo, 0.016f);
         var newCache = _repo.GetComponent<RouteTrajectoryCache>(entity);
@@ -218,7 +219,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
     public void RouteWith1Waypoint_DoesNotThrow_TrajectoryIdIsZero()
     {
         var plan = new RoutePlan { IsLoop = false };
-        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = Vector3.Zero, TargetSpeed = 5f }));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint { Position = Vector3.Zero, TargetSpeed = 5f }));
         var entity = CreateRouteEntity(plan);
 
         var ex = Record.Exception(() => _system.Execute(_repo, 0.016f));

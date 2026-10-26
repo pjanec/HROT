@@ -9,7 +9,8 @@ namespace Fdp.Toolkit.Perception.Signatures
     /// <summary>⭐ <c>CE-3282</c> (Q95 C; docs/DESIGN_Thermal_And_Acoustic_Sensing.md §8.3) — one short sound: a shot or a burst, as it was made.</summary>
     public struct SoundEmission
     {
-        /// <summary>Its number in the ring (1, 2, 3 …); 0 = a slot being written (or never written).</summary>
+        /// <summary>Its number in the ring (1, 2, 3 …); 0 = a slot being written (or never written). ⭐ <c>CE-3315</c> — in a copy
+        /// <see cref="SoundEmissionRing.ReadAfter"/> hands out, its PLACE in the timeline instead (the world's number, not the ring's).</summary>
         public long Serial;
         /// <summary>Who made it (the packed entity) — the error's seed and the "not my own sound" test; never answered (anonymous).</summary>
         public ulong Source;
@@ -44,6 +45,7 @@ namespace Fdp.Toolkit.Perception.Signatures
     /// silently misread.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.SoundEmissionRing)]
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public sealed class SoundEmissionRing
     {
         /// <summary>How many sounds the ring holds: 4096 / 10 s (the solver circuit's worst skip) ≈ 400 sounds a second, sustained.</summary>
@@ -60,6 +62,10 @@ namespace Fdp.Toolkit.Perception.Signatures
         //   Stop; 📐 measured: after a reload every fresh sensor heard the previous runs' shots (the ring kept them, a cursorless sensor reads
         //   "everything recent"), and each reload heard more. A sound from before the clock went back belongs to a world that no longer exists.
         private long _firstOfTimeline = 1;
+        // ⭐ CE-3315 — the places this timeline began after: 0 for a timeline started by a load or a clock going back, the restored world's
+        //   count after a RESTORE (Restart). A reader sees PLACES (serial − first + 1 + offset), never serials: a place is the world's, so a
+        //   checkpoint carries it (SoundTimeline) and a restored world — in this process or a fresh one — goes on numbering where it stood.
+        private long _placeOffset;
 
         /// <summary>The serial of the newest sound (0 = none yet).</summary>
         public long Head => Volatile.Read(ref _head);
@@ -75,8 +81,70 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// timeline: every sound made before it is never heard again.</summary>
         public void Tick(double now)
         {
-            if (now < Volatile.Read(ref _now) - 1e-6) Volatile.Write(ref _firstOfTimeline, Head + 1);
+            if (now < Volatile.Read(ref _now) - 1e-6)
+            {
+                Volatile.Write(ref _placeOffset, 0L);
+                Volatile.Write(ref _firstOfTimeline, Head + 1);
+            }
             Volatile.Write(ref _now, now);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3315</c> (restore design §1k) — the world was put back (a checkpoint restore, a dry-run exit) at <paramref name="now"/>, and had
+        /// made <paramref name="places"/> sounds by then: a new timeline begins whose next sound is place <c>places + 1</c>. Every sound in the
+        /// ring is left behind — the abandoned future's, and the restored past's that a sensor had not read yet (lost, as a message in flight
+        /// is, R-3041 — a fresh process never had them). Main thread (the writer).
+        /// </summary>
+        public void Restart(long places, double now)
+        {
+            Volatile.Write(ref _placeOffset, Math.Max(0L, places));
+            Volatile.Write(ref _firstOfTimeline, Head + 1);
+            Volatile.Write(ref _now, now);
+        }
+
+        /// <summary>⭐ <c>CE-3315</c> — the place in this timeline of the sound with serial <paramref name="serial"/>.</summary>
+        public long PlaceOf(long serial) => serial - FirstOfTimeline + 1 + Volatile.Read(ref _placeOffset);
+
+        /// <summary>⭐ <c>CE-3315</c> — how many sounds this timeline has made (the place of the newest).</summary>
+        public long Places => Head < FirstOfTimeline ? Volatile.Read(ref _placeOffset) : PlaceOf(Head);
+
+        /// <summary>⭐ <c>CE-3315</c> — how many sounds this timeline had made BEFORE <paramref name="now"/> (main thread): what a world put back
+        /// at <paramref name="now"/> in THIS process had heard of, when no carried count says so.</summary>
+        public long PlacesBefore(double now) { TailBefore(now, Span<SoundEmission>.Empty, out long places); return places; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> — the newest sounds of this timeline made before <paramref name="before"/> (at most <paramref name="into"/>'s length,
+        /// oldest first, each carrying its PLACE), and in <paramref name="places"/> how many the timeline had made by then. What the world
+        /// carries (<see cref="SoundTimeline"/>), so a sound made before a checkpoint that a sensor had not read yet is still heard after the
+        /// restore. Main thread (the writer).
+        /// </summary>
+        public int TailBefore(double before, Span<SoundEmission> into, out long places)
+        {
+            long first = FirstOfTimeline, head = Head, oldest = Math.Max(first, head - Capacity + 1);
+            long s = head;
+            while (s >= oldest && _slots[s % Capacity].Time >= before - 1e-9) s--;
+            if (s < oldest) { places = s < first ? Volatile.Read(ref _placeOffset) : PlaceOf(s); return 0; }
+            places = PlaceOf(s);
+            int n = (int)Math.Min(into.Length, s - oldest + 1);
+            for (int i = 0; i < n; i++)
+            {
+                long serial = s - n + 1 + i;
+                var e = _slots[serial % Capacity];
+                e.Serial = PlaceOf(serial);
+                into[i] = e;
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> — the world was put back with <paramref name="places"/> sounds made, the newest of them <paramref name="tail"/>
+        /// (oldest first): a new timeline begins whose last sounds ARE that tail, at their own places — so a sensor whose cursor had not
+        /// reached them reads them, as it would have. Main thread (the writer).
+        /// </summary>
+        public void Resume(long places, ReadOnlySpan<SoundEmission> tail, double now)
+        {
+            Restart(places - tail.Length, now);
+            foreach (var e in tail) Append(e);
         }
 
         /// <summary>⭐ CE-3292 — the first serial a reader may hear: sounds before it belong to an earlier timeline.</summary>
@@ -97,7 +165,10 @@ namespace Fdp.Toolkit.Perception.Signatures
         }
 
         /// <summary>
-        /// Every sound after <paramref name="after"/> up to <see cref="Head"/> into <paramref name="into"/> (oldest first), skipping sounds older
+        /// ⭐ <c>CE-3315</c> — <paramref name="afterPlace"/> and <paramref name="last"/> are PLACES in this timeline (what a sensor's
+        /// <see cref="AcousticCursor"/> holds), and each sound read carries its place in <see cref="SoundEmission.Serial"/>; a place before
+        /// this timeline began (a restore left it behind) starts at the timeline's first sound.
+        /// Every sound after <paramref name="afterPlace"/> up to <see cref="Head"/> into <paramref name="into"/> (oldest first), skipping sounds older
         /// than <see cref="MaxAgeSeconds"/>; returns how many, and the serial to remember (<paramref name="last"/>). A sensor more than
         /// <see cref="Capacity"/> behind, or a slot overwritten under the copy, adds to <see cref="Overflow"/>. Safe beside the writer.
         /// </summary>
@@ -108,8 +179,18 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// the step that dispatched it; whether those were seen depended on the threads (live, four loads of ua-tank-ammo: one run heard a
         /// burst a solve earlier than the others). Every sound before the snapshot's own time was written before the snapshot was taken.
         /// Also what "too old" is measured against (default: the writer's clock).</param>
-        public int ReadAfter(long after, Span<SoundEmission> into, out long last, double notBefore = double.MinValue,
+        public int ReadAfter(long afterPlace, Span<SoundEmission> into, out long last, double notBefore = double.MinValue,
                              double before = double.PositiveInfinity)
+        {
+            long firstOfTimeline = FirstOfTimeline, offset = Volatile.Read(ref _placeOffset);
+            long after = afterPlace <= 0 ? 0 : Math.Max(afterPlace - 1 - offset + firstOfTimeline, firstOfTimeline - 1);   // the serial read last
+            int n = ReadSerials(after, into, out long lastSerial, notBefore, before);
+            last = lastSerial == after ? afterPlace : lastSerial - firstOfTimeline + 1 + offset;
+            for (int i = 0; i < n; i++) into[i].Serial = into[i].Serial - firstOfTimeline + 1 + offset;
+            return n;
+        }
+
+        private int ReadSerials(long after, Span<SoundEmission> into, out long last, double notBefore, double before)
         {
             long head = Head;
             last = after;
@@ -176,12 +257,57 @@ namespace Fdp.Toolkit.Perception.Signatures
             => view is EntityRepository repo && repo.HasSingletonManaged<SoundEmissionRing>() ? repo.GetSingletonManaged<SoundEmissionRing>() : null;
     }
 
-    /// <summary>⭐ <c>CE-3282</c> (Sensing §8.3) — the last <see cref="SoundEmissionRing"/> serial a hearing sensor consumed. Written through the
-    /// solver's command buffer, so a discarded solve discards it too and the next run reads the same sounds again.</summary>
+    /// <summary>⭐ <c>CE-3282</c> (Sensing §8.3) — the last sound a hearing sensor consumed, as its PLACE in the timeline (⭐ <c>CE-3315</c>:
+    /// not the ring's serial — a place is the world's, so it means the same after a restore). Written through the solver's command buffer,
+    /// so a discarded solve discards it too and the next run reads the same sounds again.</summary>
     [ComponentId(GlobalComponentIds.AcousticCursor)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct AcousticCursor
     {
-        public long LastSerial;
+        public long LastPlace;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3315</c> (restore design §1k) — <b>how many sounds this world's timeline has made</b>, kept by <see cref="SoundEmissionSystem"/>
+    /// beside the ring. The ring is a node object no keyframe carries; this count is world state, so a checkpoint carries it and a restore
+    /// — in this process or a fresh one — numbers the next sound where the restored world stood (the cursors and the mishearing seed are
+    /// places). <see cref="At"/> says which moment the count belongs to: a dry run does not put singletons back, so a count newer than the
+    /// restored clock is the abandoned future's and the ring's own count is used instead.
+    /// </summary>
+    [ComponentId(GlobalComponentIds.SoundTimeline)]
+    [DataPolicy(DataPolicy.NoScenario)]   // recorded (a checkpoint carries it); a scenario starts its own timeline
+    public struct SoundTimeline
+    {
+        /// <summary>⭐ <c>CE-3316</c> — how many of the newest sounds the world carries: a sensor reads at least every solver slot, so a sound
+        /// it had not read at a checkpoint is among the last few (~4 KB).</summary>
+        public const int TailCapacity = 64;
+
+        /// <summary>The place of the newest sound (0 = none yet).</summary>
+        public long Places;
+
+        /// <summary>The sim time it was counted at.</summary>
+        public double At;
+
+        /// <summary>⭐ <c>CE-3316</c> — how many of <see cref="Tail"/> hold a sound.</summary>
+        public int TailCount;
+
+        /// <summary>⭐ <c>CE-3316</c> — the newest sounds, oldest first, each with its place in <see cref="SoundEmission.Serial"/>: a sound made
+        /// before a checkpoint that a sensor had not read yet is heard after the restore (<see cref="SoundEmissionRing.Resume"/>).</summary>
+        public SoundTailSlots Tail;
+
+        public readonly ReadOnlySpan<SoundEmission> TailRO() =>
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SoundTailSlots, SoundEmission>(ref System.Runtime.CompilerServices.Unsafe.AsRef(in Tail)), TailCount);
+
+        public Span<SoundEmission> TailSpan() =>
+            System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SoundTailSlots, SoundEmission>(ref Tail), TailCapacity);
+    }
+
+    /// <summary>⭐ <c>CE-3316</c> — <see cref="SoundTimeline.Tail"/>'s storage.</summary>
+    [System.Runtime.CompilerServices.InlineArray(SoundTimeline.TailCapacity)]
+    public struct SoundTailSlots
+    {
+        private SoundEmission _element;
     }
 }

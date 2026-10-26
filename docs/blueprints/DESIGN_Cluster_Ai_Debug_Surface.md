@@ -21,6 +21,7 @@ related-designs:
     makes the session symbolicate per tree, which that overlay already assumed.
   - docs/blueprints/batches/HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md — the frame this designs (part B, CE-476).
   - docs/blueprints/batches/REPORT_AreaQuery_Retirement_And_Cluster_Ai_Debug.md — the batch report.
+  - docs/DESIGN_Agent_Shared_View.md — OWNS the new brain / journal / view routes; on a --mode all host they resolve through the perspective rule here (AV-12)
 -->
 
 # DESIGN — the AI debug surface on a cluster (`CE-476`)

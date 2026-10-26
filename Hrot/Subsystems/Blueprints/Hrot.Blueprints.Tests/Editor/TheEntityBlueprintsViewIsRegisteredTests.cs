@@ -31,14 +31,22 @@ public sealed class TheEntityBlueprintsViewIsRegisteredTests
         return editor;
     }
 
-    /// <summary>⭐ The catalogue the designer actually reaches offers it.</summary>
+    /// <summary>⭐ The catalogue the designer actually reaches offers it. ⭐⭐ <c>CE-1316</c> (BV-46): as a SECTION of the Brain tab — on the
+    /// Blueprint perspective and on the Scenario one — and ⛔ no longer as its own tab. 🔴 Red-proof: drop the section's registration in
+    /// <c>EditorSubsystem</c> ⇒ red.</summary>
     [Fact]
-    public void TheBlueprintCatalogue_OffersTheEntityBlueprintsView()
+    public void CE1316_TheBrainTab_OffersTheEntityBlueprintsPanel_AsASection_OnBothPerspectives()
     {
-        var registrar = RealEditor().RegistrarFor("Blueprint");
+        var editor = RealEditor();
+        var registrar = editor.RegistrarFor("Blueprint");
         Assert.NotNull(registrar);
-        Assert.Contains(EntityBlueprintsDetailsViewDescriptor.ViewId,
-                        registrar!.DetailsViews.All.Select(d => d.Id));
+        foreach (var views in new[] { registrar!.DetailsViews.All, editor.ScenarioWorkspace!.DetailsViews.All })
+        {
+            Assert.DoesNotContain(EntityBlueprintsDetailsViewDescriptor.ViewId, views.Select(d => d.Id));
+            var brain = (Hrot.Editor.AiShared.Shell.EntityBrainView)views
+                .Single(d => d.Id == Hrot.Editor.AiShared.Shell.EntityBrainViewDescriptor.ViewId).Create();
+            Assert.Contains(EntityBlueprintsDetailsViewDescriptor.ViewId, brain.Embeds.Select(d => d.Id));
+        }
     }
 
     /// <summary>

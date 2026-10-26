@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Hrot.Editor.DebugApi;
 using Xunit;
 
@@ -125,5 +127,41 @@ public sealed class EveryRouteIsDocumentedTests
 
         Assert.True(dupes.Length == 0,
             $"{dupes.Length} tool name(s) are claimed by more than one route:\n  " + string.Join("\n  ", dupes));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>CE-1268 / R-1030 — every tool a RouteDoc names is IN THE GENERATED CATALOG.</b> 🔒 User,
+    /// <c>2026-10-23</c>: <i>"regenerating of the docs must be part of every ai debug http change, no way as some
+    /// time later"</i>. 📐 Measured that day: the ten <c>/director/*</c> routes had RouteDocs and no catalog entry —
+    /// the rails above pass while the MCP server still cannot call them, because nothing ran
+    /// <c>npm run gen:catalog</c>. ⭐ Hermetic: reads the committed <c>tool-catalog.mjs</c> as text, no node.
+    /// 📄 <c>docs/DESIGN_Agent_Shared_View.md</c> AV-11.
+    /// </summary>
+    [Fact]
+    public void EveryToolIsInTheGeneratedCatalog()
+    {
+        var catalog = Path.Combine(RepoRoot(), "tools", "ai-debug-mcp", "tool-catalog.mjs");
+        var names = Regex.Matches(File.ReadAllText(catalog), "^    \"name\": \"([^\"]+)\"", RegexOptions.Multiline)
+                         .Select(m => m.Groups[1].Value)
+                         .ToHashSet(StringComparer.Ordinal);
+
+        var missing = DebugApiRouteDocs.ByRoute
+            .Where(kv => !kv.Value.NotATool && !names.Contains(kv.Value.Tool))
+            .Select(kv => $"{kv.Value.Tool} <- {kv.Key.Method} {kv.Key.Path}")
+            .OrderBy(s => s, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(missing.Length == 0,
+            $"{missing.Length} tool(s) have a RouteDoc but are missing from tools/ai-debug-mcp/tool-catalog.mjs, "
+          + "so no agent can call them:\n  " + string.Join("\n  ", missing)
+          + "\n⭐ Regenerate IN THE SAME COMMIT (R-1030): build Hrot.ClusterRunner, then in tools/ai-debug-mcp run "
+          + "`npm run gen:catalog && npm run gen:skill`.");
+    }
+
+    private static string RepoRoot()
+    {
+        for (var dir = AppContext.BaseDirectory; dir != null; dir = Path.GetDirectoryName(dir))
+            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
+        throw new InvalidOperationException("HROT.sln not found above " + AppContext.BaseDirectory);
     }
 }

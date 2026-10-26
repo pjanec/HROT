@@ -9,6 +9,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Hrot.Map.Definitions.Behavior;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -75,7 +76,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 ws.Since = now;
                 ws.To = Ahead(world, self, p.Metres);
-                if (!LocomotionMoveTo.Issue(world, self, ws.To, p.Speed, ArrivalRadius, MoveGait.Keep, onSurface: true)) return NodeStatus.Failure;
+                if (!LocomotionMoveTo.Issue(world, self, ws.To, p.Speed, ArrivalRadius, MoveGait.Keep, onSurface: true, source: MoveSource.Route)) return NodeStatus.Failure;
                 return NodeStatus.Running;
             }
             var at = world.GetComponentRO<SimTransform>(self).Position;

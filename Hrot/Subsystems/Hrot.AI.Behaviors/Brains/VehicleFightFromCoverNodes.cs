@@ -322,7 +322,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             ws.HidePoint = hide;
             ws.ExposuresHere = 0;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, hide, p.Speed, ArrivalRadius, onSurface: p.UseGivenHide == 1) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, hide, p.Speed, ArrivalRadius, onSurface: p.UseGivenHide == 1, source: MoveSource.CoverSearch) ? 1 : 0);
             ws.Phase = VehiclePhase.MoveToHide;
         }
 
@@ -366,7 +366,7 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐ CE-2230 — the lane: out to its start at the approach speed; Exposing creeps on from there until it SEES its target
                 ws.FiringPoint = new Vector3(p.LaneStart.X, p.LaneStart.Y, 0f);
                 ws.Creeping = 0;
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.FiringPoint, p.ApproachSpeed, ArrivalRadius, onSurface: true) ? 1 : 0);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.FiringPoint, p.ApproachSpeed, ArrivalRadius, onSurface: true, source: MoveSource.CoverSearch) ? 1 : 0);
                 ws.SeenSince = 0;
                 ws.Phase = VehiclePhase.Exposing;
                 return;
@@ -387,7 +387,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             ws.Waiting = 0;
             ws.FiringPoint = firing;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius) ? 1 : 0);   // T3 — front first
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius, source: MoveSource.CoverSearch) ? 1 : 0);   // T3 — front first
             ws.SeenSince = 0;   // CE-2216 — this exposure's clock starts on the way out
             ws.Phase = VehiclePhase.Exposing;
         }
@@ -468,7 +468,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Creeping = 1;   // the creep: a point on the lane well past the cap, so the cap — or a sight — ends it, never an arrival
                 var ahead = p.LaneStart + dir * (Math.Max(past, 0f) + p.MaxOvershootMetres + LaneCreepFromMetres + 10f);
                 ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, new Vector3(ahead.X, ahead.Y, 0f), p.CreepSpeed, ArrivalRadius,
-                                                          onSurface: true) ? 1 : 0);
+                                                          onSurface: true, source: MoveSource.CoverSearch) ? 1 : 0);
                 return ws.Moving == 1 ? NodeStatus.Running : NodeStatus.Failure;
             }
             return status == NodeStatus.Running ? NodeStatus.Running : NodeStatus.Failure;
@@ -525,13 +525,13 @@ namespace Hrot.AI.Behaviors.Brains
                     return;
                 }
                 PostureNodes.StopFiring(world, self, ref ws.Fire);
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.Speed, ArrivalRadius) ? 1 : 0);   // nowhere new: back to the old one
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.Speed, ArrivalRadius, source: MoveSource.CoverSearch) ? 1 : 0);   // nowhere new: back to the old one
                 ws.Phase = VehiclePhase.Withdrawing;
                 return;
             }
             PostureNodes.StopFiring(world, self, ref ws.Fire);
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.Speed, ArrivalRadius, reverseAllowed: true,
-                                                      onSurface: p.UseGivenHide == 1) ? 1 : 0);
+                                                      onSurface: p.UseGivenHide == 1, source: MoveSource.CoverSearch) ? 1 : 0);
             ws.Phase = VehiclePhase.Withdrawing;
         }
 
@@ -648,7 +648,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// me) — or, when I do not, the line from where I remember him (his eye, 1.6 m up) to my hull's top is clear of the terrain. Sight is
         /// not symmetric: a Javelin gunner at a window with a thermal sight sees a hull it does not show itself to. 📐 Live
         /// <c>ua-javelin-lock</c>: the tank, not seeing the gunner it knew of, exposed for its full 8 s and gave him his 4 s lock.
-        /// No terrain ⇒ only the R-246 half (as before).
+        /// No terrain ⇒ only the R-246 half (as before). ⭐ <c>CE-2352</c> — and never beyond HIS sight range (his receptor's
+        /// <c>VisionRange</c>): 📐 the editor's <c>hill-attack-close</c> (flat, every line clear) started the clock the moment a tank left its
+        /// hide 140 m from targets that see 100 m (CE-174: the range stands in for the hill), so no tank ever reached its firing point. The
+        /// cluster hid it — its brain node holds no terrain.
         /// </summary>
         internal static unsafe bool CanSeeMe(EntityRepository world, Entity self, in TargetMemory mem, int i, Entity threat)
         {
@@ -656,6 +659,12 @@ namespace Hrot.AI.Behaviors.Brains
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
             if (terrain == null || !world.HasComponent<SimTransform>(self)) return false;
             var me = world.GetComponentRO<SimTransform>(self).Position;
+            if (world.IsAlive(threat) && world.HasComponent<PerceptionReceptor>(threat))
+            {
+                float range = world.GetComponentRO<PerceptionReceptor>(threat).VisionRange;
+                float dx = mem.PositionsX[i] - me.X, dy = mem.PositionsY[i] - me.Y;
+                if (range > 0f && dx * dx + dy * dy > range * range) return false;   // beyond his eyes
+            }
             float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, self);
             var top = me + new Vector3(0f, 0f, hull > 0f ? hull : 2f);
             var him = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i] + ThreatEyeHeightM);
@@ -734,7 +743,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void KeepSensors(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self, EntityRepository world,
                                         in ThreatAim was, in ThreatAim threat)
         {
-            var aim = PeekAndFireNodes.SensorAim(world, self, in threat);
+            var aim = PeekAndFireNodes.SensorAim(world, self, in threat, PeekAndFireNodes.DefaultHeardMatchRadius);   // CE-2351 — G4's radius
             bool retarget = ws.SensorId == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorId, ws.SensorAt), in aim);
             var hide = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = p.ScoreDeltaThreshold, FactionFilter = p.FactionFilter };
             // ⭐ CE-2230 — a given hide asks no hide query, a lane no firing-point query

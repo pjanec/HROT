@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§5.7 acquisition time by exposure, CE-3260)
+updated: 2026-10-25 (§5.4 the alerted exception to forgetting, CE-2371) · 2026-10-19 (§5.7 acquisition time by exposure, CE-3260)
 build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; §7.6b (CE-1023) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §5.7 acquisition time by exposure (CE-3260, BR-7) · §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
@@ -9,6 +9,10 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Entity_Brain_View.md — §12g (R-1041) OWNS the live params / working-state write (no restart, the start record kept true) that revises §7.5's "changing them = re-assigning"
+  - docs/DESIGN_Entity_Brain_View.md — §12a (R-1036) RETIRES the AI tab: §7.6's editing moves into the Brain tab's expanders, full only on the node running the brain
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-9 reads (opens) the unit's SOP as its running BTree; editing stays §7.6
+  - docs/DESIGN_Entity_Brain_View.md — the read-only Brain tab (what / why / recent changes) beside §7.6's AI edit tab, and the brain journal
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — DA-3 OWNS the requirement (acquisition time by exposure, R-2035); §5.7 here is its engine (CE-3260); DA-1/DA-2 own the proficiency it reads
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §2 builds §11.2's G1: ThreatDanger.ToMe (the threat's weapon vs MY armour) for a vehicle self
@@ -41,6 +45,7 @@ related-designs:
   - docs/DESIGN_Terrain_Zones_And_Assets.md — §11 (R-4042): zones are fidelity areas; observer sensors need not see entities outside a zone. HOW sensors honour it is this doc's to design (not yet).
   - docs/DESIGN_Civilians_And_Crowd_Control.md — §5h AW-1 (R-2025): §7.8a's "armed" becomes ONE Armament rule (a visible usable lethal weapon; non-lethal and Hidden arm nobody); binoculars lengthen vision while held. ⭐ BUILT there §7.8 (CE-3229): status for combatants, per-observer identification for civilians.
   - docs/DESIGN_Temperament_And_Stress.md — OWNS combatants' temperament (Nerve, Aggression, Resolve, Discipline) and live stress; its near-miss / hit edges feed stress; the doctrine swap stays the coarse lever above it
+  - docs/DESIGN_Agent_Shared_View.md — OWNS GET /view, which points an agent at the possessed unit's existing /sensors and /memory routes (AV-3)
 -->
 
 # Sensors and Doctrine — one sensor form, and who decides what a unit does
@@ -320,6 +325,7 @@ sensor losing a target another sensor sees changes nothing on the wire.
 | ⚠ until S5: the visual chain debounces on its own | a radar keeps a target the eyes lost? the eyes' own Lost still reaches the Brain. S5 removes the second producer |
 | ⏳ modality on the wire (`SensorTrackState`) | an IDL change — S5, where `TargetMemory` is fed with the sensor's modality |
 | ⭐ `CE-3046`: forget = target dead · OR faded below `ForgetScore` while no sensor tracks it | the score already IS a function of unseen time (10 %/s decay) — a second "unseen N s" clock would restate it. A new contact always enters, evicting the lowest score (ties: the oldest sighting) |
+| ⭐ `CE-2371` (AQ104 D, R-2079): **…unless he is ALERTED on it** — a lease his task renews (`Alerted` / `Alerts.Pin`, 2 s) holds the slot at the forget line | 🔒 *"they should stay alerted until the enemy is incapacitated"*. The task decides (an attack's target; an enemy in a defended or cleared area), with evidence from the last 10 min (`AreaAlert`); the hunt reads a pinned slot as live (`HiddenTargetThrow.LastKnown`) |
 
 ### 5.5 Vision moves onto the sensor form (S5, `CE-3038` / `CE-3050`)
 
@@ -934,7 +940,7 @@ started exactly as if the author had just assigned it, so nothing restored can s
 | ⭐ `CE-3225` (`2026-10-17`, backend) — **in the debug dump a translator's key wins over a component of the same name**: with the snapshot mask the snapshot's `Roe` (an ordered ROE) met the `Roe` component itself and `SerializeEntity` threw *"same key already added: Roe"*, so the unit's dump — and `GET /entities` with it — failed. The auto-serializer now skips a component whose name a translator already wrote | 📐 measured live on `ua-civ-neutral-gate` (its rifleman's ROE is authored); the scenario save never hit it (`Roe` is `NoScenario`, outside the save mask). Rail: the same `CE3207_…` test, ordered ROE added — red without the skip |
 | ⭐ saved only when it DIFFERS from the TKB default | TKB edits still reach every entity that did not override them — the same "≠ default" rule as params |
 | ⭐ the ORIGIN is saved | a behaviour the doctrine chose reloads as `Doctrine` (the doctrine may replace it again); one assigned in the editor reloads at the editor's rank (§10 O1) |
-| ⭐ params JSON = the start record's JSON for a behaviour / doctrine; `FormatParams` of the live region for an instance | a behaviour's params are fixed for its run (changing them = re-assigning); an instance's region can be edited in place |
+| ⭐ params JSON = the start record's JSON for a behaviour / doctrine; `FormatParams` of the live region for an instance | a behaviour's params are fixed for its run (changing them = re-assigning); an instance's region can be edited in place ⛔ *revised `2026-10-25` ([Brain View §12g](DESIGN_Entity_Brain_View.md) BV-65, R-1041): a running behaviour's params are a struct read in place — a live edit writes them AND the start record, with NO restart; re-assigning is an explicit separate act* |
 | ⛔ **derived entities are never saved** | sensor children (TKB-derived and behaviour-owned) carry `ScenarioIgnoreTag` — today they are saved and duplicate on reload: `CE-3045` |
 | ⭐ an instance attach is FIND-OR-CREATE per (asset, owner) | a doctrine that attached one at runtime saves it (the snapshot is the truth); on reload the doctrine must not attach a second |
 | ✅ **instance blueprints:** keep their save TRANSLATOR (`BlueprintStateTranslator`) but switch its params to JSON (next row); ADD the missing editor: each attached instance gets the same params form as the doctrine row, committed in edit mode through `WriteParamsRegion` (paused) or `AttachToEntity(paramsJson)` | measured: `EntityBlueprintsPanel.cs:276-296` attaches / detaches only — no params editing anywhere in the editor; MCP attach is the only per-entity params source today |
@@ -981,6 +987,8 @@ behaviour progress (needs a stable on-disk format for internal state) · a per-e
 authoring place).
 
 ### 7.6 The editor's AI section — `CE-3043` *(build-state: BUILT `2026-10-05` for task / SOP / ROE — as-built below the table; instance-blueprint params rows → `CE-2086`)*
+
+> ⛔ **`2026-10-24` — the AI TAB is RETIRED, its content MOVES** (`R-1036`, [Brain View §12a](DESIGN_Entity_Brain_View.md) BV-38): task / SOP / ROE editing and the instance-blueprint params rows become expanders of the Brain tab (`CE-1314`). The editing MODEL and THE one params form below stay as they are — only the tab that hosts them changes.
 
 **INVENTORY** *(grep + an Explore sweep, `2026-10-05`; the code graph was not indexed this session)*: Details views are
 `IDetailsViewInstance` + `DetailsViewDescriptor` registered per perspective (`ScenarioMissionView` rank 40 is the template);
@@ -1047,6 +1055,7 @@ refusal (`CE-2084`) reads too.*
 | as built | where / why |
 |---|---|
 | the section | `Hrot.Editor/Scenario/EntityAiDetailsView.cs` — `EntityAiDetailsView` (ImGui, thin) + `EntityAiEditModel` (no ImGui: `Read`, `TaskChoices`, `SopChoices`, `Apply*` / `Clear*`); registered on the Scenario catalogue (`details.ai`, rank 45, applies to one entity with a `BehaviorState`) |
+| ⚠ **AS-BUILT `2026-10-25` (CE-1314, [Brain View §12n](DESIGN_Entity_Brain_View.md))** | ⛔ SUPERSEDED: "registered on the Scenario catalogue (`details.ai`)". The view is now a SECTION of the Brain tab (`EntityDetailsBundle.BrainSections`, titled *Assign: task, SOP, ROE*), drawn unchanged; the separate AI tab is gone |
 | the apply-now pipeline | `BehaviorIngressSystem.AssignNow` / `ClearNow` / `AssignSopNow` / `ClearSopNow` (public; the event handlers' own admit + start), `RoeSystem.Apply` (static; `Execute` now calls it) |
 | the channel set | `BehaviorDefinition.WritesChannels` — 📐 measured on the shipped corpus: **17 of 26 BTrees are known-empty** (incl. `BasicInfantrySop`), 9 unknown; ⚠ **every blueprint behaviour in the corpus is UNKNOWN** — the derivation treats a pure call (a `Delay` is one) as opaque, so it never emits a set for them (no blueprint golden moved). ⇒ today the SOP row offers BTrees only; widening the derivation is a separate question |
 | `CE-2084` | the SOP slot refuses a behaviour KNOWN to drive a channel (`BehaviorIngressSystem.DrivesAChannel`), logged as a warning; unknown is allowed (the runtime guard stays the backstop) |

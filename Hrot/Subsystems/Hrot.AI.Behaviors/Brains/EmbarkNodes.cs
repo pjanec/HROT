@@ -8,6 +8,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -122,7 +123,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (p.Walks >= MaxWalks) { p.Walks = 0; return NodeStatus.Failure; }   // walked MaxWalks times, still out of reach
                     // ⭐ WS-6 — the walk ended (arrived short, or failed) and the unit is out of reach: walk again (below)
                 }
-                if (!LocomotionMoveTo.Issue(world, self, point, p.Speed > 0f ? p.Speed : DefaultSpeed, 0.5f))
+                if (!LocomotionMoveTo.Issue(world, self, point, p.Speed > 0f ? p.Speed : DefaultSpeed, 0.5f, source: MoveSource.Embark))
                 {
                     Fdp.Core.Logging.FdpLog<EmbarkNodesLog>.Warn($"Embark: the entity has no LocomotionChannel. (entity {self.Index})");
                     return NodeStatus.Failure;

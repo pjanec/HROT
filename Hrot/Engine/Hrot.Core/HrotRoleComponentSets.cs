@@ -151,6 +151,9 @@ public static class HrotRoleComponentSets
         brainOnly.SetBit(ComponentType<HsmTraceWorkingMemory1024>.ID);
         brainOnly.SetBit(ComponentType<Fdp.Toolkit.Utility.UtilityDecisionLog>.ID);   // CE-3069 G2 — same writer
         brainOnly.SetBit(ComponentType<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>.ID);   // ⭐ CE-3136 — written by the brain's executors
+        brainOnly.SetBit(ComponentType<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>.ID);   // ⭐ CE-1249 — written where the brain decides
+        brainOnly.SetBit(ComponentType<Fdp.Toolkit.Squad.Command.CommandReportHistory>.ID);   // ⭐ CE-1319 — written by the brain's inbox
+        brainOnly.SetBit(ComponentType<Fdp.Toolkit.Squad.Command.CommandOrderHistory>.ID);    // ⭐ CE-1319 — written by the brain's command orders
         brainOnly.SetBit(ComponentType<Fdp.Toolkit.Utility.UtilityDebugFlags>.ID);
         brainOnly.SetBit(ComponentType<Fdp.Toolkit.Utility.UtilityTraceWorkingMemory1024>.ID);
 

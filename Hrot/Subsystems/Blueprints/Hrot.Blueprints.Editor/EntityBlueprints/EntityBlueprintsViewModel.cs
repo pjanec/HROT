@@ -26,6 +26,9 @@ namespace Hrot.Blueprints.Editor.EntityBlueprints;
 /// </summary>
 public sealed record EntityBlueprintsViewModel : IPanelViewModel
 {
+    /// <summary>⭐ CE-1326 — the store's slots that belong to the running behaviours (not blueprints; counted, not listed).</summary>
+    public int BehaviourSlots { get; init; }
+
     /// <inheritdoc/>
     /// <remarks>⚠ A SINGLETON panel, so its address and its kind are the same string. ⛔ Do not copy that
     /// shortcut to a multi-instance panel *(the watch)* — there the address must be the window's own id.</remarks>
@@ -43,14 +46,16 @@ public sealed record EntityBlueprintsViewModel : IPanelViewModel
     /// <summary>⭐ The disabled line shown when there is no entity. ⚠ Non-null exactly when <see cref="HasEntity"/> is false.</summary>
     public string? EmptyMessage { get; init; }
 
-    /// <summary>⭐ <c>"Running"</c> or <c>"Paused"</c> — drawn as <c>Sim: {SimState}</c>.</summary>
-    public string SimState { get; init; } = "";
-
-    /// <summary>⭐ The entity's current blackboard tier, as drawn.</summary>
-    public string Tier { get; init; } = "";
+    // ⛔ CE-1327 — "Sim: Paused" and "Current tier: B1024" are no longer drawn (and so no longer here): the user, 2026-10-25, "very
+    //   technical … there is nothing like current storage component tier for whole entity, every blueprint has its own slot". A row
+    //   carries its own slot's size (Memory); the store's capacity is said only when an add would not fit (ShowProjection).
 
     /// <summary>⭐ The projection bar's whole line — ⛔ composed HERE, so the dump carries what the eye reads.</summary>
     public string ProjectionLabel { get; init; } = "";
+
+    /// <summary>⭐ <c>CE-1327</c> — whether the projection line is drawn: only when the staged set is over the store's ceiling (an
+    /// "OK: 3/488 in B1024" line told the user nothing they could act on, and a bigger store is appended on its own — R-236).</summary>
+    public bool ShowProjection { get; init; }
 
     /// <summary>⭐⭐ The machine-readable half of the same fact — an assertion should not have to parse the label.</summary>
     public string ProjectionStatus { get; init; } = "";
@@ -80,13 +85,15 @@ public sealed record EntityBlueprintsViewModel : IPanelViewModel
 /// <param name="ActionLabel">The row button's caption — <c>Remove</c> · <c>Restore</c> · <c>Cancel</c>.</param>
 /// <param name="AssetId">⭐ The identity the action acts on. ⚠ Not a callback — the model must serialise.</param>
 /// <param name="ActionScope">⚠ ImGui id-scope suffix, so two rows' buttons stay distinct. Not user-visible.</param>
+/// <param name="Memory">⭐ <c>CE-1327</c> — the blueprint's own slot in the unit's store, as drawn (<c>312 B</c>); <c>-</c> while only staged.</param>
 public sealed record EntityBlueprintRow(
     string Name,
     string Status,
     string Emphasis,
     string ActionLabel,
     Guid   AssetId,
-    string ActionScope);
+    string ActionScope,
+    string Memory = "-");
 
 /// <summary>⭐ One entry in the add-blueprint popup.</summary>
 /// <param name="Label">The visible text — the name, plus <c>(attached)</c>/<c>(staged)</c> when it cannot be picked.</param>

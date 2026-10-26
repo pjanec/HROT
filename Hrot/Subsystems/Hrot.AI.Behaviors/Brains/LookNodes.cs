@@ -84,7 +84,11 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (p.Mode == LookMode.ThreatThenSector && EqsTacticsNodes.TopThreat(world, self, ws.Threat, out var threat) && world.IsAlive(threat))
             {
-                LookRequest.AtEntity(world, self, threat, behaviorInstance: run);
+                // ⭐ AQ102 C (CE-2356; Peek & Fire D14) — one in sight now is followed; one out of sight is looked for where he is REMEMBERED,
+                //   at the eyes of the stance he was seen in (📌 user, 2026-10-23: a defender's head tracked a player under the wall)
+                if (InSightNow(world, self, threat)) LookRequest.AtEntity(world, self, threat, behaviorInstance: run);
+                else if (Remembered(world, self, threat, out var where)) LookRequest.AtPoint(world, self, where, behaviorInstance: run);
+                else LookRequest.AtEntity(world, self, threat, behaviorInstance: run);
                 ws.Threat = threat;
                 return ws.Source = LookChoice.Threat;
             }
@@ -105,10 +109,13 @@ namespace Hrot.AI.Behaviors.Brains
                     LookRequest.Release(world, self, run);
                 return ws.Source = LookChoice.Released;
             }
-            float step = p.StepSeconds > 0f ? p.StepSeconds : DefaultStepSeconds;
-            ws.Bearing = half > 0f ? ScanBearing(bearing, half, step, now) : bearing;
+            // ⭐ CE-2365 (AQ103 H) — a NERVOUS man's eyes: quicker fixations in no fixed order, and the head snaps between them
+            float nervous = StressModel.Nervousness(world, self);
+            float step = ScanStepSeconds(p.StepSeconds > 0f ? p.StepSeconds : DefaultStepSeconds, nervous);
+            ws.Bearing = half <= 0f ? bearing : nervous > 0f ? NervousScanBearing(self, bearing, half, step, now) : ScanBearing(bearing, half, step, now);
             var origin = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
-            LookRequest.AtPoint(world, self, PointAt(origin, ws.Bearing, p.Metres > 0f ? p.Metres : DefaultMetres), behaviorInstance: run);
+            LookRequest.AtPoint(world, self, PointAt(origin, ws.Bearing, p.Metres > 0f ? p.Metres : DefaultMetres), behaviorInstance: run,
+                                blendSeconds: BlendSeconds(nervous));
             return ws.Source = source;
         }
 
@@ -133,6 +140,31 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ <c>CE-2365</c> (AQ103 H) — a fixation's hold at full nervousness (s) · the head's blend calm and at full nervousness (s).</summary>
+        public const float NervousStepSeconds = 0.4f, CalmBlendSeconds = 0.2f, NervousBlendSeconds = 0.06f;
+
+        /// <summary>⭐ AQ103 H — the hold per fixation: the authored one calm, shrinking to <see cref="NervousStepSeconds"/> at full
+        /// nervousness (2 s ⇒ 0.4 s), never longer than authored.</summary>
+        public static float ScanStepSeconds(float authored, float nervous)
+            => nervous <= 0f ? authored : MathF.Min(authored, authored + nervous * (NervousStepSeconds - authored));
+
+        /// <summary>⭐ AQ103 H — the head's blend to a new look: a snap when nervous.</summary>
+        public static float BlendSeconds(float nervous)
+            => nervous <= 0f ? CalmBlendSeconds : CalmBlendSeconds + nervous * (NervousBlendSeconds - CalmBlendSeconds);
+
+        /// <summary>⭐ AQ103 H — a nervous scan: the same five fixations, each held <paramref name="step"/>, in a seeded order that seldom
+        /// holds the same point twice running — a jerk from point to point, not the calm sweep.</summary>
+        public static float NervousScanBearing(Entity self, float centre, float half, float step, double now)
+        {
+            long k = (long)(Math.Max(0.0, now) / step);
+            int index = Fixation(self, k);
+            if (k > 0 && index == Fixation(self, k - 1)) index = (index + 1 + (int)(k % (ScanPoints - 1))) % ScanPoints;
+            return Norm(centre - half + 2f * half * index / (ScanPoints - 1));
+        }
+
+        private static int Fixation(Entity self, long k)
+            => (int)(Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, 0x2365 + (int)(k & 0xFFFF), 0f).NextSingle() * ScanPoints) % ScanPoints;
+
         /// <summary>The scan's bearing at <paramref name="now"/>: <see cref="ScanPoints"/> fixations across ±half, each held
         /// <paramref name="step"/> seconds, ping-pong.</summary>
         public static float ScanBearing(float centre, float half, float step, double now)
@@ -150,13 +182,56 @@ namespace Hrot.AI.Behaviors.Brains
             return new Vector3(origin.X + MathF.Sin(r) * metres, origin.Y + MathF.Cos(r) * metres, origin.Z);
         }
 
+        /// <summary>⭐ <c>CE-2356</c> — how recently a threat must have been stamped for the eyes to follow him (perception ticks, ≈ 0.5 s).</summary>
+        public const uint InSightTicks = 30;
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 C) — <paramref name="threat"/> is in his eyes now: a memory slot he has SEEN (the Visual bit), stamped
+        /// within <see cref="InSightTicks"/>. ⚠ A sound of him also stamps the slot, so a seen man who is heard nearby counts as in sight.</summary>
+        public static unsafe bool InSightNow(EntityRepository world, Entity self, Entity threat)
+        {
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(world);
+            long id = (long)threat.PackedValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != id || TargetMemory.IsAnonymous(in mem, i)) continue;
+                if ((mem.Modalities[i] & (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual) == 0) return false;
+                return mem.LastSeenTick[i] > now || now - mem.LastSeenTick[i] <= InSightTicks;
+            }
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-2356</c> (AQ102 C) — where <paramref name="threat"/> is remembered, raised to the eyes of the stance he was last
+        /// seen in (standing 1.6 m · crouched 1.0 · prone 0.3 — the body points of Building Interiors §3f).</summary>
+        public static unsafe bool Remembered(EntityRepository world, Entity self, Entity threat, out Vector3 at)
+        {
+            at = default;
+            if (!world.HasComponent<TargetMemory>(self)) return false;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            long id = (long)threat.PackedValue;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] != id || TargetMemory.IsAnonymous(in mem, i)) continue;
+                float eyes = mem.SeenStance[i] switch
+                {
+                    (byte)Fdp.Toolkit.Tkb.Domain.StanceId.Crouched + 1 => 1.0f,
+                    (byte)Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1 => 0.3f,
+                    _ => 1.6f,
+                };
+                at = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i] + eyes);
+                return true;
+            }
+            return false;
+        }
+
         /// <summary>Hit or near-missed within <see cref="UnderFireSeconds"/> (<c>RecentSensesOf</c>, the self-defence clock).</summary>
         public static bool UnderFire(EntityRepository world, Entity self)
             => RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.Hit, UnderFireSeconds)
             || RecentSensesOf.Within(world, self, Fdp.Toolkit.Perception.Events.SensorChange.NearMiss, UnderFireSeconds);
 
         /// <summary>The freshest HEARD contact (an anonymous memory slot — <c>TopThreat</c> ranks entities only) stamped within
-        /// <see cref="HeardWindowTicks"/> of now (<c>SimulationTick</c>, the clock perception stamps it with).</summary>
+        /// <see cref="HeardWindowTicks"/> of now (<c>PerceptionClock.Now</c>, the clock perception stamps it with — CE-3292).</summary>
         public static unsafe bool FreshHeard(EntityRepository world, Entity self, out Vector3 at)
         {
             at = default;

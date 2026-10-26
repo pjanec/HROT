@@ -27,14 +27,33 @@ namespace Hrot.Editor.Director
         private readonly Action _pause;
         private readonly Action<float> _stepBy;
         private readonly Func<int, string?> _behaviourName;
+        private readonly Action<string, string> _writeCheckpoint;
+        private readonly Func<string, double> _restoreCheckpoint;
+        private readonly Func<bool> _slotRunInFlight;
+        private readonly Action<string> _loadLive;
+        private readonly Action _stopLive;
+        private readonly Func<Fdp.Toolkit.Orchestration.ClusterState> _state;
+        private readonly Func<string?> _recordingPath;
+        private readonly Func<string, IRecordedRun> _openRecording;
         private readonly System.Diagnostics.Stopwatch _wall = System.Diagnostics.Stopwatch.StartNew();
 
         public EditorDirectorHost(Func<EntityRepository?> world, Action<string> load, Func<bool> operatingEdit, Func<bool> inPreview,
                                   Action<bool> enterPreview, Action exitPreview, Func<bool> paused, Action pause, Action<float> stepBy,
-                                  Func<int, string?> behaviourName, TakeStore takes)
+                                  Func<int, string?> behaviourName, TakeStore takes, Func<bool> slotRunInFlight,
+                                  Action<string, string> writeCheckpoint, Func<string, double> restoreCheckpoint,
+                                  Action<string> loadLive, Action stopLive, Func<Fdp.Toolkit.Orchestration.ClusterState> state,
+                                  Func<string?> recordingPath, Func<string, IRecordedRun> openRecording)
         {
+            _loadLive = loadLive ?? throw new ArgumentNullException(nameof(loadLive));
+            _stopLive = stopLive ?? throw new ArgumentNullException(nameof(stopLive));
+            _state = state ?? throw new ArgumentNullException(nameof(state));
+            _recordingPath = recordingPath ?? throw new ArgumentNullException(nameof(recordingPath));
+            _openRecording = openRecording ?? throw new ArgumentNullException(nameof(openRecording));
             _world = world; _load = load; _operatingEdit = operatingEdit; _inPreview = inPreview; _enterPreview = enterPreview;
             _exitPreview = exitPreview; _paused = paused; _pause = pause; _stepBy = stepBy; _behaviourName = behaviourName;
+            _writeCheckpoint = writeCheckpoint ?? throw new ArgumentNullException(nameof(writeCheckpoint));
+            _restoreCheckpoint = restoreCheckpoint ?? throw new ArgumentNullException(nameof(restoreCheckpoint));
+            _slotRunInFlight = slotRunInFlight ?? throw new ArgumentNullException(nameof(slotRunInFlight));
             Takes = takes;
         }
 
@@ -56,6 +75,17 @@ namespace Hrot.Editor.Director
         public double WallNow => _wall.Elapsed.TotalSeconds;
         public string? BehaviourName(int hash) => _behaviourName(hash);
         public TakeStore Takes { get; }
+        public void WriteCheckpoint(string path, string label) => _writeCheckpoint(path, label);
+        public double RestoreCheckpoint(string path) => _restoreCheckpoint(path);
+        public bool SlotRunInFlight => _slotRunInFlight();
+
+        // ⭐ CE-4045 H1a — a live run and its recording (Scenario Regression §10-1)
+        public void LoadLive(string scenario) { _loaded = true; _loadLive(scenario); }
+        public bool IsOperatingLive => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive;
+        public void StopLive() => _stopLive();
+        public bool IsIdle => _state() == Fdp.Toolkit.Orchestration.ClusterState.Idle;
+        public string? LiveRecordingPath => _recordingPath();
+        public IRecordedRun OpenRecording(string path) => _openRecording(path);
 
         /// <summary>⭐ Holding the frame: the main thread sleeps until the step is due (a ms or two of it spun, so it is not overslept).</summary>
         public void Hold(double seconds)

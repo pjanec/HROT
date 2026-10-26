@@ -14,8 +14,9 @@ namespace Fdp.Toolkit.Behavior.Components
     /// snapshot taken during one restores the reaction alone (the AI snapshot, <c>CE-3042</c>, saves the task).</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.PausedTask)]
-    [DataPolicy(DataPolicy.Transient)]
-    public sealed class PausedTask
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
+    public sealed record PausedTask   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
         /// <summary>The paused behaviour's registered name.</summary>
         public string BehaviorName { get; init; } = "";
@@ -38,10 +39,10 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>⭐ <c>CE-2081</c> — every storage slot key the task held at the pause (the SOP's excluded): no sweep detaches
         /// them while paused; a DROP detaches them.</summary>
-        public int[] HeldKeys { get; set; } = System.Array.Empty<int>();
+        public System.Collections.Generic.IReadOnlyList<int> HeldKeys { get; init; } = System.Array.Empty<int>();
 
         /// <summary>⭐ <c>CE-2081</c> — true when this pause could not keep the task (the reaction's storage overlaps it):
         /// the task restarts through the gate instead of resuming.</summary>
-        public bool Restart { get; set; }
+        public bool Restart { get; init; }
     }
 }

@@ -31,6 +31,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [DataPolicy(DataPolicy.NoReplay)]
     public struct ToggleShoulderViewEvent { }
 
+    /// <summary>⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — a unit's menu "Follow with the camera": the map's view-mode layer drains it
+    /// and puts the 3-D camera on the unit. ⚠ 8066 measured free on every lane 2026-10-23.</summary>
+    [EventId(8066)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct FollowUnitEvent { public Entity Target; }
+
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     // ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — 🔒 user, 2026-10-14: "overwhelmed with the amount of gizmos shown on the
@@ -60,19 +66,13 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 27;
+        public const int FirstUntoggledLayer = 29;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
         {
             GizmoFamilies.Register(settings);
             Command.PathsSelectedOnly        = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path);
-            Ai.VisionConesSelectedOnly       = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception);
-            Ai.ContactsSelectedOnly          = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory);
-            Ai.EqsSelectedOnly               = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs);
-            Ai.UtilitySelectedOnly           = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision);
-            Command.SquadCommandSelectedOnly = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment);
-            Ai.ActionsSelectedOnly           = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels);
             NavmeshLayerSetting.Register(settings);
             Map.NavmeshLayers                = NavmeshLayerSetting.Of(settings);   // ⭐ CE-3133
         }
@@ -82,12 +82,6 @@ namespace Hrot.Common.Diagnostics.Gizmos
         {
             GizmoFamilies.Register(settings);
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path,            Command.PathsSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception,      Ai.VisionConesSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory,    Ai.ContactsSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs,             Ai.EqsSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.UtilityDecision, Ai.UtilitySelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.SquadAssignment, Command.SquadCommandSelectedOnly);
-            Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Channels,        Ai.ActionsSelectedOnly);
             NavmeshLayerSetting.Register(settings);
             if (NavmeshLayerSetting.Of(settings) != Map.NavmeshLayers) NavmeshLayerSetting.Set(settings, Map.NavmeshLayers);   // ⭐ CE-3133
         }
@@ -110,6 +104,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Units.UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
             if (Units.Rounds) mask.SetBit(DebugTraceLayers.Rounds);
             if (Units.Concealed) mask.SetBit(DebugTraceLayers.Concealed);
+            if (Units.MindState) mask.SetBit(DebugTraceLayers.MindState);
             if (Command.SquadCommand) mask.SetBit(DebugTraceLayers.SquadCommand);
             if (Command.Sectors) mask.SetBit(DebugTraceLayers.Sectors);
             if (Command.Paths) mask.SetBit(DebugTraceLayers.Paths);
@@ -124,6 +119,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Fire.Blast) mask.SetBit(DebugTraceLayers.Blast);
             if (Fire.Hearing) mask.SetBit(DebugTraceLayers.Hearing);
             if (Map.Terrain2D) mask.SetBit(DebugTraceLayers.Terrain2D);
+            if (Map.Grid) mask.SetBit(DebugTraceLayers.Grid);
             if (Map.TerrainZones) mask.SetBit(DebugTraceLayers.TerrainZones);
             if (Map.Roads) mask.SetBit(DebugTraceLayers.Roads);
             if (Map.Traffic) mask.SetBit(DebugTraceLayers.Traffic);
@@ -137,6 +133,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
         }
     }
 
+    // ⭐⭐ CE-1329 (docs/DESIGN_Entity_Brain_View.md §12r BV-67) — the panel holds GLOBAL switches only: a brain family's row (Vision cones,
+    //   Contacts, Actions, Utility, EQS, Squad & command) turns it on / off for every unit, and it draws for the units ticked on their Brain
+    //   tab or by the right-click Pin gizmos. ⛔ Their six "selected only" rows are gone (the per-unit switch is the tick).
     // ⭐ CE-1203 FL-4 — the five groups. A family's scope ("selected only": draw for the selected and pinned units only, unticked = for
     //   every unit; CE-3120, written to the registry as map.scope.<Family>) sits under its row. Defaults are GizmoFamilies.DefaultScope's.
 
@@ -153,6 +152,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool Rounds { get; set; } = true;
         [EditDisplayName("Concealed (ExCon)"), EditDoc("Exercise control: outline what each person carries HIDDEN (a worn charge, a concealed pistol) and name it on his card. Off by default (CE-1169).")]
         public bool Concealed { get; set; }
+        [EditDisplayName("Mind state"), EditDoc("A bar under each stressed soldier's health bar: his stress, a white tick at his breaking point (his nerve), red and BROKEN when he breaks; a frightened civilian's fear. Where the brains run (the editor). Off by default (CE-1309).")]
+        public bool MindState { get; set; }
     }
 
     /// <summary>⭐ CE-1203 — the Command group.</summary>
@@ -160,8 +161,6 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         [EditDisplayName("Squad & command"), EditDoc("Leader-to-member lines, the squad's phase and shared contacts; a commander's reported picture.")]
         public bool SquadCommand { get; set; } = true;
-        [EditDisplayName("Squad & command: selected only"), EditDoc("Squad & command for the selected and pinned units only; unticked = every unit.")]
-        public bool SquadCommandSelectedOnly { get; set; } = true;
         [EditDisplayName("Sectors"), EditDoc("Units' sector areas, NoFire areas and the commanders' arcs (CE-1225).")]
         public bool Sectors { get; set; }
         [EditDisplayName("Paths"), EditDoc("The planned path and look-ahead, and the lines to a unit's mission tasks.")]
@@ -177,24 +176,14 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         [EditDisplayName("Vision cones"), EditDoc("What each unit can see: its view cone.")]
         public bool VisionCones { get; set; } = true;
-        [EditDisplayName("Vision cones: selected only"), EditDoc("Vision cones for the selected and pinned units only; unticked = every unit.")]
-        public bool VisionConesSelectedOnly { get; set; } = true;
         [EditDisplayName("Contacts"), EditDoc("Lines to the enemies a unit remembers; a heard one is dashed, with its uncertainty ring.")]
         public bool Contacts { get; set; } = true;
-        [EditDisplayName("Contacts: selected only"), EditDoc("Contacts for the selected and pinned units only; unticked = every unit.")]
-        public bool ContactsSelectedOnly { get; set; } = true;
         [EditDisplayName("Actions"), EditDoc("What a unit is busy doing (e.g. 'W aiming 0.4/0.8s'), and its peek-and-fire slots and phase.")]
         public bool Actions { get; set; } = true;
-        [EditDisplayName("Actions: selected only"), EditDoc("Actions for the selected and pinned units only; unticked = every unit.")]
-        public bool ActionsSelectedOnly { get; set; } = true;
         [EditDisplayName("Utility"), EditDoc("Each utility decision's winner and its margin over the runner-up.")]
         public bool Utility { get; set; } = true;
-        [EditDisplayName("Utility: selected only"), EditDoc("Utility for the selected and pinned units only; unticked = every unit.")]
-        public bool UtilitySelectedOnly { get; set; } = true;
         [EditDisplayName("EQS"), EditDoc("Position queries: the search radius, the scored candidates, green kept / red rejected.")]
         public bool Eqs { get; set; } = true;
-        [EditDisplayName("EQS: selected only"), EditDoc("EQS for the selected and pinned units only; unticked = every unit.")]
-        public bool EqsSelectedOnly { get; set; } = true;
         [EditDisplayName("AI helpers"), EditDoc("The navigation arrow of each moving unit and the danger areas.")]
         public bool AiHelpers { get; set; }
     }
@@ -215,6 +204,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         [EditDisplayName("Terrain (2-D)"), EditDoc("The 2-D map's ground cover, buildings, walls and their labels (CE-1227).")]
         public bool Terrain2D { get; set; } = true;
+        [EditDisplayName("Grid (2-D)"), EditDoc("The 2-D map's helper grid: thin grey lines for the fine step, thicker for the coarse one, the step chosen by the zoom (CE-1288).")]
+        public bool Grid { get; set; } = true;
         [EditDisplayName("Terrain zones"), EditDoc("The terrain zones and whether each is loaded.")]
         public bool TerrainZones { get; set; } = true;
         [EditDisplayName("Roads"), EditDoc("The loaded terrain's road network.")]

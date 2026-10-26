@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// instance of TWO descriptor types (config and result), so no single ordinal could name it.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.PartMetadata)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PartMetadata
     {
         public Entity ParentEntity;

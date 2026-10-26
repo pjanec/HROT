@@ -1,0 +1,252 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: AQ102 S1 (CE-2355) - on open basic-desert, 'Blue' (Friend grenadier, TKB 2004) behind 'Blue Car 2' at (277,360) and 'Red' (Hostile grenadier) behind 'Red Car 2' at (283,400), ~43 m apart; three parked cars each side, nothing else. No orders: each runs his type's default SOP (all immortal, so the fight lasts). Judge (90 s): (1) neither stays hidden doing nothing (no move > 1 m, no shot) for more than 12 s while the other is alive; (2) each fires from at least two distinct spots, never the same spot twice running; (3) at least one flank or firing-position move (a car he did not start behind); (4) a grenade over cover once they are within 25 m. Check: python3 scripts/utility-demo-check.py --launch rf-car-duel. \ud83d\udcc4 docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75"
+  },
+  "entities": {
+    "a1020001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          262,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10210
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          277,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10211
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020001-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          292,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10212
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Blue Car 3"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020001-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          268,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10220
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020001-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          283,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10221
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020001-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          298,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 10222
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Red Car 3"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.8,
+        "Height": 1.5
+      }
+    },
+    "a1020001-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          277,
+          357,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10201
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1020001-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          283,
+          403,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NetworkIdentity": {
+        "Value": 10202
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Red",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

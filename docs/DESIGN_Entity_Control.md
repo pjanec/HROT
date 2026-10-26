@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — §8k.5 the map key: M in first person flashes the map and returns to 3-D (CE-2316, candidates there); and M should switch 2-D ↔ 3-D from the plain map too. · ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
 related-designs:
+  - docs/DESIGN_Unit_Camera.md — OWNS the camera continuum (CE-1293): §8p's fixed shoulder / chase offsets become points on one zoom, the shoulder view as the person's default, driver and gunner cameras, Follow on any unit
   - docs/DESIGN_Building_Interiors.md — OWNS the door verbs and DoorActionExecutor that §8h's use key starts (§3j)
   - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS PersonBody / VehicleBody, the parts a round meets; §8g's crosshair meets the same parts through one function (BodyPartRay)
   - docs/DESIGN_Visual_Effects.md — §10 OWNS the impacts (entry, exit, stop; wall marks) asked in the same exchange as §8g
@@ -33,6 +34,7 @@ related-designs:
   - docs/designs/gizmos-1/gizmo-input-focus-design.md §6.2d — OWNS the raw-input route to backend gizmos (the key queue's one reader, CE-3175)
   - docs/DESIGN_Peek_And_Fire.md §10.9 G4 — OWNS SquadAssignment.TargetOf, the ONE reader of "the target this unit was told to fight"; the attack order's DesignatedTarget (CE-3170) answers first there
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — R-4023 hands a vehicle to SUMO by a follow mode (KinematicsMode.Traffic), following M-6's rejection of an ownership move and M-1's Manual-mode shape.
+  - docs/DESIGN_Agent_Shared_View.md — OWNS GET /view, which reports the possessed unit, the FPS eye and the zoom FOV this design owns (AV-1)
 -->
 
 # DESIGN — **entity control** *(orders over HTTP, RTS clicks, the menu, and FPS possession — one path)*
@@ -782,6 +784,7 @@ on which the latch or the ammo switch could silently not tick.
 | **D-1 click semantics** | a PRESS locks one shot on what is under the crosshair (a unit is followed as it moves; else the ground point) and fires once the weapon bears; then the turret follows the look again. A new press replaces it; RMB cancels it. Held trigger: automatic weapons (small arms, MG, autocannon, untagged) keep firing at the crosshair; single-shot weapons (tank gun, ATGM, mortar, grenade) fire once per press |
 | **D-2 keys** | wheel or `1`–`4` = weapon (mount 0 = the main one, the default) · `F` = the next round of the selected weapon · RMB = cancel the locked shot |
 | **D-3 switch cost** | one reload — the AI's rule (D-I); the HUD says `LOADING` |
+| ⭐ **barrel heat** *(`CE-1358`, [Weapon Layers §5k](DESIGN_Weapon_Layers.md))* | the weapon line adds `HEAT n%` from 25 %, `OVERHEATED n%` while the gun is held cooling to half |
 | **D-4 crosshair** | picks units too (never the own body); the aim point is where the ray meets the unit's box |
 
 **Rejected — one line each:**
@@ -1983,6 +1986,10 @@ which already crosses nodes (`EntityOrders.Possess`).
 
 ### 8n.5 AS-BUILT (`2026-10-21`, ui) — build-state: BUILT
 
+> ⭐ **`2026-10-23` (CE-1307) — a man who takes a seat that works a weapon starts ON that weapon** (the first controlled index `32+k`, once per
+> seat; 1 still picks his own). 📌 Measured live on the MilitaryAPC's gunner: his frames said `Mount 0`, his rifle, so the roof M2 never got an order
+> and "the turret doesn't follow". `FpsCameraDriver` `_seatedGun`; rail `CE1158_AMannedWeapon_JoinsTheKeys_AfterHisOwn_AsMount32`.
+
 | design said | built | why / note |
 |---|---|---|
 | MS-1 possess the man | ✅ `SeatSwitch.Seats` (the vehicle, then the man at each station's operating seat, in seat order) / `Next`; G → `PossessionStation.SwitchTo` (the one Tab path) | `FpsCameraDriver.Aboard`: W/A/S/D send 0 |
@@ -2083,6 +2090,11 @@ the frame, the brain and the round are untouched, because the crosshair ray alre
 | **OS-4** | a vehicle | a chase camera: 9 m behind its crew eye (§8o) along the level look and 2.5 m up (a flyer 18 m and 4.5 m); the turret follows the look as now; steering unchanged | an orbit camera with a free mouse — the look IS the turret's order · lengths from the type — a constant reads the same for every vehicle and needs no lookup |
 | **OS-5** | his own body | drawn whole (the head too); the pickers still skip it | hidden — the point of the view is to see him |
 | **OS-6** | the seated crewman's view (a gun's seat) | the same: behind his eye, his gun in view | — |
+
+> ⭐ **`2026-10-23` — OS-2's fixed offset and OS-4's fixed chase camera are now points on [Unit Camera](DESIGN_Unit_Camera.md) §4's
+> distance continuum (CE-1293, `UnitCameraRig`), and the shoulder view is ON by default (UC-3).** The wheel moves the camera and 1–4 pick the weapon (R-1034), Q / E swap
+> the shoulder, a man in a seat rides the vehicle's chase camera, a car's look re-centres (not an armed turret's). ⇒ Unit Camera §8 is the
+> current as-built; the table below is the CE-1201 state it grew from.
 
 ### 8p.5 AS-BUILT
 
@@ -2263,7 +2275,7 @@ its padding) and `Point` (fills the 32 bytes). No second weapon executor.
 | a turreted mount goes through the existing turret path with `WeaponTask.Point` (Target null) | the muscle already aims and fires at `Point` when there is no target entity (`WeaponTaskDispatcherSystem.cs:55`, `:98`); a moved point re-aims WITHOUT a new epoch, so rounds in flight keep counting |
 | kept for the operator: ammunition, magazine, cooldown, no DIRECT round through a friend; skipped: seen-now, aim time, ROE | C-2 lists exactly the three skipped; the friendly line is a rule, not a decision |
 | `OperatorControl` starts the weapon action once and steers its params in place each frame; stamped with the run's id | ⭐ `ChannelArbitrationSystem` cancels a channel action whose run ended — so a release (or death, or fault) stops the weapon by construction, no extra teardown |
-| ⚠ cooldown is a constant, `OperatorControlBehavior.OperatorCooldownSeconds` = 0.25 s | the TKB carries no cyclic rate (`WeaponMountDto` has aim time, magazine and reload only) |
+| ⭐ `CE-1358` (supersedes the 0.25 s constant): the operator asks the mount's own cyclic rate (`OperatorCooldownFor` → 0 ⇒ `CooldownFor` = 60 / `RateOfFire`); `OperatorCooldownSeconds` = 0.25 s is kept only for a mount stating no rate | ⛔ before: always 0.25 s — an M134 fired 9 rounds in 2 s. The bursts are now stopped by the barrel heat ([Weapon Layers §5k](DESIGN_Weapon_Layers.md)) |
 | 🔴→⭐ found by the rail: a unit with no `ActorCapabilityState{CanShoot}` is never dispatched | the dispatcher's existing gate; production soldiers carry it — the rail's fixture did not |
 
 📐 **Rails:** `AimAndFireExecutorTests` CE3172 ×3 (per-shot fires at the point under HoldFire only while held, 3 rounds in 0.5 s at a
@@ -2360,6 +2372,24 @@ sequenceDiagram
 *What the picture shows that prose hid:* the stance rides the SAME frame as the stick — no new event, no new route — and reaches the body
 through the brain's one stance writer (`StanceRequest`, CE-2121), so the hit model, the fire chain and perception read it the tick it
 is asked for (Buildings §3f).
+
+⭐ **AS-BUILT `2026-10-25` (ui, `CE-1348`) — the DRAWN body follows smoothly.** The logical stance changes the tick it is asked for, but the
+muscle reports its blend (`StanceStatus`) a tick later — first Idle in the OLD stance, then Transitioning from 0 — and the figure drew the
+new stance for that tick, then snapped back to the old one: the head, and the first-person camera at its eyes, jumped down and up.
+`StanceBlend` (beside `PostureBlend`) now owns the drawn stance: it moves to the logical stance over 0.35 s (crouch) / 0.8 s (prone) of sim
+time, follows the muscle's progress when the muscle runs the same change and is ahead, never steps back, and turns round from where the
+figure is on a change of mind. The hips (`MotionPose.HipZ`) follow the same blend. Rail `Map3DTests.CE1348_*` (red-proved).
+
+⭐ **AS-BUILT `2026-10-25` (ui, `CE-1351`) — V locks the VIEW, never the steering; flyers fly on the keys.** A ground vehicle steers on A/D
+whether hull-locked or not (⛔ SUPERSEDED: hull-locked, the mouse X steered); V turns the view with the hull, looking forward, and the
+mouse looks off it from there. A helicopter or plane turns on A/D (the heading sent is the nose led `FlyerTurnLead` 0.8 rad to that side —
+the helicopter turns at its rate, the plane banks into it; released, it holds its heading), never strafes, climbs on Q (or Space) and
+descends on Z (or C), and its mouse is a free look (⛔ SUPERSEDED: it flew where the camera looked, a plane climbing on the look's pitch);
+V locks its view forward too. 🔒 User, 2026-10-25. Rail `PossessionStationTests.CE1351_*` (red-proved); `CE1095_*` updated.
+⭐ **`CE-1354` — the released heading is HELD, never re-read from the airframe.** 🔴 A frame reaches the motion two ticks after it is sent
+(`OperatorInput`, then `ManualDrive`), and a helicopter closes a small heading gap in one tick: re-reading "the heading you have now"
+each frame made H(n+1) = H(n−1), a one-turn-step swing every frame after the first turn (measured live). Captured once on release, the
+loop has nothing to chase. Rail `PossessionStationTests.CE1354_*` (the closed loop, red-proved).
 
 | as-built detail | why |
 |---|---|

@@ -96,4 +96,25 @@ public sealed class EditorScenarioSessionLoadTests
         ClusterIs(bus, session, ClusterState.Idle);
         Assert.Empty(Drain(bus));
     }
+
+    /// <summary>⭐ <c>CE-1025</c> (R-1031) — every load request (and New Exercise) leaves the host's dry run FIRST, before anything is asked
+    /// of the cluster. 🔴 Red-proof: drop the <c>_leaveRun</c> call in <c>LoadForLive</c> ⇒ red.</summary>
+    [Fact]
+    public void CE1025_EveryLoad_LeavesTheDryRunFirst()
+    {
+        var bus = new FdpEventBus();
+        int left = 0;
+        var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
+        var session = new EditorScenarioSession(fileService, bus, new EntityRepository(),
+            () => Path.Combine(Path.GetTempPath(), "hrot-scnroot-should-not-be-written"), leaveRun: () => left++);
+
+        session.LoadForLive("b");
+        Assert.Equal(1, left);
+        session.OpenForEdit("c");
+        Assert.Equal(2, left);
+        session.NewExercise();
+        Assert.Equal(3, left);
+        session.LoadForLive(" ");                                              // no scenario, no load: the run is not touched
+        Assert.Equal(3, left);
+    }
 }

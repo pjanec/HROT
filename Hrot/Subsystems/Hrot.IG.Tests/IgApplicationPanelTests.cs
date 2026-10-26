@@ -51,19 +51,6 @@ public class IgApplicationPanelTests
     }
 
     /// <summary>
-    /// SC2-b: <see cref="EntityInspectorPanel"/> must be constructable from an
-    /// <see cref="EntityInspectorState"/>.
-    /// </summary>
-    [Fact]
-    public void EntityInspectorPanel_Constructed_IsNotNull()
-    {
-        var state = new EntityInspectorState();
-        var panel = new EntityInspectorPanel(state);
-
-        Assert.NotNull(panel);
-    }
-
-    /// <summary>
     /// SC2-c: <see cref="MiniExConPanel"/> must be constructable from a
     /// <see cref="MiniExConPanelState"/> and a <see cref="FdpEventBus"/>.
     /// </summary>

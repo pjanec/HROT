@@ -326,6 +326,36 @@ namespace Fdp.Core
         /// MUST be called at the end of each frame (PostSimulation phase).
         /// Rebuilds the _activeEventIds set for fast lookups in the next frame.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (restore design D2, §1l) — publishes into THIS bus's PENDING buffers every event <paramref name="source"/>'s CURRENT
+        /// buffers hold: a checkpoint's unconsumed events (the keyframe recorded the pending buffer; a restore read it into a holding bus)
+        /// delivered as if published on the frame before — so the next swap and capture hand them to every reader exactly once. A type this
+        /// bus has no stream for is skipped (nothing here reads it).
+        /// </summary>
+        public unsafe void PublishCurrentOf(FdpEventBus source)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+            var natives = Volatile.Read(ref source._nativeList);
+            int nativeCount = Volatile.Read(ref source._nativeCount);
+            for (int i = 0; i < nativeCount; i++)
+            {
+                var from = natives[i];
+                var bytes = from.GetRawBytes();
+                if (bytes.IsEmpty || from.ElementSize <= 0 || !_nativeStreams.TryGetValue(from.EventTypeId, out var to)) continue;
+                fixed (byte* p = bytes)
+                    for (int offset = 0; offset + from.ElementSize <= bytes.Length; offset += from.ElementSize)
+                        to.WriteRaw(p + offset);
+            }
+            var manageds = Volatile.Read(ref source._managedList);
+            int managedCount = Volatile.Read(ref source._managedCount);
+            for (int i = 0; i < managedCount; i++)
+            {
+                if (manageds[i] is not IManagedEventStreamInfo info || info.CurrentEvents.Count == 0) continue;
+                if (!_managedStreams.TryGetValue(info.TypeId, out var target) || target is not IManagedEventStream to) continue;
+                foreach (var evt in info.CurrentEvents) if (evt != null) to.WriteRaw(evt);
+            }
+        }
+
         public void SwapBuffers()
         {
             _activeEventIds.Clear();

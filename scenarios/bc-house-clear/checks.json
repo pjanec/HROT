@@ -1,6 +1,6 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — BC-3 (CE-2259): a squad clears the CQB house room by room. The header has no Judge text: conditions are its 'Ends with' line and the twin CE2259_* (entry, insurgents down, civilians unhurt, no friend hit by a friend). 'Every room cleared once' and the BuildingClear report are squad reports, not components: left out.",
-  "runFor": 120,
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 BC-3 (CE-2259): a squad clears the CQB house room by room. The header has no Judge text: conditions are its 'Ends with' line and the twin CE2259_* (entry, insurgents down, civilians unhurt, no friend hit by a friend). 'Every room cleared once' and the BuildingClear report are squad reports, not components: left out. runFor 300: the second insurgent (room E, through D) goes down at 268.25 s, the first at 148 s (probed to 480 s); 120 was too short (the twin allows 480 s).",
+  "runFor": 300,
   "golden": {
     "every": 10
   },

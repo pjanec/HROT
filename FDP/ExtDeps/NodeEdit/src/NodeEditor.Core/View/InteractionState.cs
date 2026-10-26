@@ -24,6 +24,9 @@ public sealed class InteractionState
     /// <summary>True once the cursor has moved past the drag threshold since LMB-down.</summary>
     public bool DragThresholdCrossed { get; set; }
 
+    /// <summary>⭐ CE-1343 — the pan was started by the MIDDLE button (it ends on that button's release and never opens a menu).</summary>
+    public bool PanByMiddle { get; set; }
+
     /// <summary>Marquee rect in graph space (only valid while Mode == MarqueeSelecting).</summary>
     public RectF MarqueeGraph { get; set; }
 
@@ -123,6 +126,7 @@ public sealed class InteractionState
     {
         Mode = InteractionMode.Idle;
         DragThresholdCrossed = false;
+        PanByMiddle = false;
         DragOverridePositions.Clear();
         PinDragOverrides.Clear();
         CommentDragContents.Clear();

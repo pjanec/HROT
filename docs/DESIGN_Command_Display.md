@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Entity_Brain_View.md — the Brain tab's squad section reads the commander's picture and reports per unit
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — OWNS CommandPicture, the reports, SquadReportLog and the staff (§6, §7c); this design only DRAWS them
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS sectors and NoFire areas (§13, §13a DA-24) and EngagementArea
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — §13 the lane split (UI-5, UI-6), §12.4 PC-11 the report log

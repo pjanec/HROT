@@ -82,12 +82,10 @@ namespace Hrot.ScenarioEditor.Map
         /// </summary>
         public Hrot.Common.Interactions.GlobalActionRegistry Actions { get; }
 
-        /// <summary>⭐ CE-1134 — the world this map was built for (the inspector's map menu reads its entities here).</summary>
-        public EntityRepository World { get; init; } = null!;
-
-        /// <summary>⭐ CE-1134 — the host's inspector state (<c>MapInteractionContext.Inspector</c>): the key that joins this map to its
-        /// inspector window (<c>Hrot.UI.Common.Menus.InspectorMapLink</c>).</summary>
-        public Func<Fdp.Presentation.Abstractions.IInspectorContext?>? Inspector { get; init; }
+        /// <summary>⭐ CE-1150 (§12 HA-1) — the host's actions this map registered on: <see cref="Actions"/>, <see cref="InteractionBus"/> and
+        /// <see cref="ActionDispatch"/> are its. ⛔ SUPERSEDED: <c>World</c> / <c>Inspector</c> here (CE-1134), the key the inspector used to
+        /// find this map — the inspector gets the host's actions and its world directly now.</summary>
+        public Hrot.Common.Interactions.HostActions Host { get; init; } = null!;
 
         /// <summary>The system that runs <see cref="Actions"/>; ⚠ the HOST schedules it (the pack only constructs).</summary>
         public Hrot.Common.Systems.GlobalActionDispatchSystem ActionDispatch { get; }
@@ -262,16 +260,8 @@ namespace Hrot.ScenarioEditor.Map
         /// passes its <see cref="Fdp.Toolkit.Time.Lifespan"/> (it replaced the effects' own <c>EffectLifetimeSystem</c>).</summary>
         public Fdp.Toolkit.Time.LifespanSystem Lifespan { get; } = new();
 
-        /// <summary>
-        /// ⭐ W1 (VE-R) — true while this host's world is driven by a REPLAY: the effect spawner and the lifespan collector then stand
-        /// down, because the recording already holds every effect and when it went. Set once from
-        /// <see cref="MapInteractionContext.IsReplayActive"/>; read late, so a host may build its replay controller after the map.
-        /// </summary>
-        public Func<bool>? IsReplayActive
-        {
-            get => EffectSpawn.IsReplayActive;
-            set { EffectSpawn.IsReplayActive = value; WreckSpawn.IsReplayActive = value; Lifespan.IsReplayActive = value; }
-        }
+        // ⭐ W1 (VE-R) — in a REPLAY the effect spawner and the lifespan collector stand down (the recording already holds every effect
+        //   and when it went). ⭐ CE-3329 P2: they read the world's ReplayState. ⛔ SUPERSEDED: an IsReplayActive predicate set here.
 
         /// <summary>
         /// ⭐ <c>CE-3169</c> — the unit menu's Move Here · Engage · Stop and their follow-up picks (registered on <see cref="Actions"/>

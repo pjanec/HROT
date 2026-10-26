@@ -47,6 +47,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     private LoadPhaseContext?  _loadContext;
     private TaskCompletionSource<object?>? _holdTcs;
     private Guid _pendingExerciseId;
+    private double _pendingCheckpointingSeconds;   // ⭐ CE-3299 D17 (R-3045) — the recording mode the load's session asked for
 
     private LoadPhaseChain(
         IReadOnlyList<ILoadPartProvider> steps,
@@ -179,11 +180,17 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             // ⭐ The recording starts once the world is provably whole — the same point the former
             //   scenario handlers used, and the job ReferenceLiveLoadHandler used to do on hosts that had
             //   no scenario handler. Keeping it here means it happens on EVERY host, exactly once.
-            if (_recordingController != null && _pendingExerciseId != Guid.Empty
+            // ⭐⭐ CE-3299 B4 / D18 — the id is CONSUMED here: one load, one recording. ⛔ It used to stay set, so a later
+            //   OperatingLive that this chain did not load (a branch from a replay, which the replay handler records as a NEW
+            //   exercise) started a SECOND recording under the ORIGINAL id — truncating the very recording being replayed
+            //   (found when the exercise recorder became CreateNew: e2e_live_from_replay_branch failed loudly instead).
+            var exercise = _pendingExerciseId;
+            _pendingExerciseId = Guid.Empty;
+            if (_recordingController != null && exercise != Guid.Empty
              && context.TargetState == ClusterState.OperatingLive)
             {
                 await _recordingController
-                    .PrepareRecordingAsync(_pendingExerciseId, _storageDirectory ?? string.Empty)
+                    .PrepareRecordingAsync(exercise, _storageDirectory ?? string.Empty, branch: null, _pendingCheckpointingSeconds)
                     .ConfigureAwait(false);
             }
             return null;
@@ -192,6 +199,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         if (!context.IsLoadingPhase) return null;
 
         _pendingExerciseId = context.ExerciseId;
+        _pendingCheckpointingSeconds = context.CheckpointingSeconds;
         _loadTransactionId = intent.TransactionId;   // ⭐ P8 — the load an abort may name
         _loadContext       = context;
 

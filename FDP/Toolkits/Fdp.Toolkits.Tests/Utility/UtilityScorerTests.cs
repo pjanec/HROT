@@ -308,6 +308,58 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal(7, lastRec.Tick);
         }
 
+        // ── ⭐ CE-2271 (R-2075) — a MODIFIER multiplies after the aggregate and is not counted by the compensation ──
+
+        private static unsafe float Stub10(in UtilityInputCtx ctx) => 1.0f;
+        private static unsafe float Stub05(in UtilityInputCtx ctx) => 0.5f;
+
+        private static unsafe float ScoreOf(ScoringMode mode, params UtilityConsideration[] considerations)
+        {
+            var def = new UtilityDecisionDef
+            {
+                DebugName = "Modifier", Kind = DecisionKind.PostureSelect,
+                Options = new[] { new UtilityOption { OptionId = 0, Mode = mode, Considerations = considerations } },
+            };
+            var output = default(UtilityResultBuffer);
+            UtilityScorer.Evaluate(null, default, in def, default, ref output, null);
+            return output.GetSpanRO()[0].Score;
+        }
+
+        /// <summary>⭐ <c>CE-2271</c> — a modifier at 1.0 leaves a product's score BIT-identical (an ordinary consideration at 1.0 does not —
+        /// the compensation counts it: the whole reason the modifier exists); at 0.5 it halves the score, in either mode.</summary>
+        [Fact]
+        public unsafe void CE2271_AModifierAt1_LeavesTheScoreBitIdentical_AConsiderAt1_DoesNot_AndAt05_HalvesIt()
+        {
+            UtilityInputReaderStore.Register(60, &Stub09);
+            UtilityInputReaderStore.Register(61, &Stub06);
+            UtilityInputReaderStore.Register(62, &Stub10);
+            UtilityInputReaderStore.Register(63, &Stub05);
+            var curve = new ResponseCurve(CurveKind.Linear, slope: 1f);
+            UtilityConsideration C(ushort id) => new(id, InputContext.Self, weight: 1f, curve: curve);
+            UtilityConsideration M(ushort id) => new(id, InputContext.Self, weight: 1f, curve: curve, flags: ConsiderationFlags.Modifier);
+
+            float plain = ScoreOf(ScoringMode.WeightedProduct, C(60), C(61));
+            Assert.Equal(BitConverter.SingleToInt32Bits(plain), BitConverter.SingleToInt32Bits(ScoreOf(ScoringMode.WeightedProduct, C(60), C(61), M(62))));
+            Assert.NotEqual(plain, ScoreOf(ScoringMode.WeightedProduct, C(60), C(61), C(62)));          // the count moved the compensation
+            Assert.Equal(plain * 0.5f, ScoreOf(ScoringMode.WeightedProduct, C(60), C(61), M(63)), 6);
+            Assert.Equal(plain * 0.5f, ScoreOf(ScoringMode.WeightedProduct, M(63), C(60), C(61)), 6);   // order does not matter
+
+            float sum = ScoreOf(ScoringMode.WeightedSum, C(60), C(61));
+            Assert.Equal(sum * 0.5f, ScoreOf(ScoringMode.WeightedSum, C(60), C(61), M(63)), 6);
+            Assert.Equal(BitConverter.SingleToInt32Bits(sum), BitConverter.SingleToInt32Bits(ScoreOf(ScoringMode.WeightedSum, C(60), M(62), C(61))));
+        }
+
+        /// <summary>⭐ <c>CE-2271</c> — the builder's <c>Modify</c> writes a modifier row; <c>Consider</c> an ordinary one.</summary>
+        [Fact]
+        public void CE2271_TheBuilder_ModifyMarksTheRow()
+        {
+            var b = new UtilityDecisionBuilder();
+            b.Option(0, ScoringMode.WeightedProduct, o => o.Consider(In.Constant(0.5f), 1f, Curve.Linear).Modify(In.Constant(1f), 1f, Curve.Linear));
+            var def = b.Build(new UtilityDecisionAttribute("ce2271-modify", "Modify", DecisionKind.PostureSelect));
+            Assert.Equal(ConsiderationFlags.None, def.Options[0].Considerations[0].Flags);
+            Assert.Equal(ConsiderationFlags.Modifier, def.Options[0].Considerations[1].Flags);
+        }
+
         // ── SC-P1-05-6: Empty option list produces Count == 0 ──
 
         [Fact]
@@ -636,8 +688,11 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((long)b.PackedValue, slots[1].Winner);
         }
 
+        /// <summary>⭐ <c>CE-1319</c> (BV-61; ⛔ SUPERSEDES CE-3069's "an unobserved unit is not logged") — the decision is logged whenever
+        /// the unit carries the log, trace switch off or no flags at all: the Why replays for every unit. ✅ Red-proof: the old
+        /// <c>TraceEnabled</c> gate back in <c>LogDecision</c> ⇒ the slot stays empty.</summary>
         [Fact]
-        public unsafe void CE3069_AnUnobservedUnit_IsNotLogged()
+        public unsafe void CE1319_AnUnobservedUnit_IsLoggedToo()
         {
             UtilityInputReaderStore.Register(60, &Stub07);
             UtilityInputReaderStore.Register(61, &Stub075);
@@ -647,7 +702,7 @@ namespace Fdp.Toolkit.Tests
             world.GetComponentRW<UtilityDebugFlags>(unit).TraceEnabled = 0;
 
             scorer.ChooseOption(world, unit, id, lastWinner: 0);
-            Assert.Equal(0, world.GetComponentRO<UtilityDecisionLog>(unit).SlotsRO()[0].DecisionId);
+            Assert.Equal(id, world.GetComponentRO<UtilityDecisionLog>(unit).SlotsRO()[0].DecisionId);
         }
 
         private static UtilityOption BuildSingleLinearOption(ushort optionId, ushort inputId)

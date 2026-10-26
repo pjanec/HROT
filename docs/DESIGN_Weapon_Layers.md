@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (§5f CE-3296 — a short throw is tossed, a throw nothing clears is refused) · 2026-10-20 (§5j fire pacing — CE-2323, R-2063)
+updated: 2026-10-25 (§5k barrel heat — CE-1358) · 2026-10-22 (§5f CE-3296 — a short throw is tossed, a throw nothing clears is refused) · 2026-10-20 (§5j fire pacing — CE-2323, R-2063)
 build-state: BUILDING (WL-7 §5i the body turns to the shot BUILT 2026-10-14 — backend, W-14 / R-3003; WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend; WL-6 §5h the weapon posture BUILT 2026-10-11 by the ui lane, W-13 / R-272) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
+current-answer: §5k barrel heat (CE-1358) · W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -186,6 +186,8 @@ executor runs its `AimSeconds` timer and publishes `WeaponFireIntent` per shot �
 | **W-6** | ammo per target type | the profile picks the ammo with the SAME `ArmorModel` it uses for the mount (R-212); v1 keeps one `AmmoGuid` per mount but the task already carries it, so switching rounds later changes no wire | R-217 *"switching later"* · `WeaponSuiteDto.cs:74` | a second effectiveness model for ammo — two models for one fact |
 | **W-7** | the gates | ROE + seen-now on the Brain decide Engage vs Track (a lost sighting downgrades to Track); the **friendly-on-the-line** check runs at the moment of the shot, wherever that moment is decided — one shared function called by the executor (simple path) and the muscle (task path) | `AimAndFireExecutor` gate order · R-200 (ROE once), Peek D4 | the muscle reading `TargetMemory` — perception memory is Brain state |
 | **W-8** | elevation | the muscle's `BallisticAim`: direct fire = the line to the aim point (`AimPoint.For`, as today — no gravity on direct rounds yet); indirect = `ArcLaunch`; limits clamp; a target outside the limits → `Failed(OutOfArc)` so the profile can try another mount or the behaviour can move | `FireProcessingSystem.cs:128-133, 249-260` · R-252 (no terrain assumption on the Brain) | elevation from the Brain — it has no ballistics |
+| **W-8b** *(`CE-1307`, ui, `2026-10-23` — from the user's report; ⏳ for the user to confirm)* | the OPERATOR's aim outside the limits | ⭐ the operator's point (task `Point`, no target) is moved to the nearest reachable line at the same range before it becomes the task (`BallisticAim.Reachable` → `TurretSlew.ClampToArc`; `AimAndFireExecutor.OperatorPoint`): the turret traverses and stops at its limit, the muscle never fails, a shot leaves along the limit. ⛔ A BRAIN's aim is untouched — W-8 stands (it must fail so the profile can try another mount or the behaviour can move). Indirect mounts unchanged (their angles are a lob). 🔒 User, `2026-10-23`: *"the big gun mounted to the turret, it doesn't move at all. Doesn't matter where I'm aiming."* 📐 measured: the chase camera (CE-1293) looks down past the hull, the crosshair lands below the −8° depression ⇒ `Failed(OutOfArc)` every frame ⇒ the turret froze, traverse included | `TurretSlew.Step` already clamps elevation; `InArc` failed the task before it | W-8 for the operator too — a frozen gun; a new `WeaponTask` field — a wire change for a rule the brain side can apply |
+| **W-8c** *(`CE-1359`, ui, `2026-10-25` — partly SUPERSEDES W-8b's "a shot leaves along the limit" for TRAVERSE)* | the OPERATOR's crosshair beyond a LIMITED traverse (a door gun's arc, CE-1356) | ⭐ the gun still turns to its limit (W-8b's `Reachable`), but while the crosshair is more than `BallisticAim.OperatorTraverseToleranceDeg` (3°) past the traverse edge the brain grants NO round (`BallisticAim.BeyondTraverse` → `AimAndFireExecutor` TurretPath: Track) and says `OutOfArc`; the station HUD asks the SAME rule and writes *"OUT OF ARC - the gun cannot turn there, fire held"* under the crosshair. ⛔ Unchanged: a full-circle turret (a tank turns to the point and fires when it bears), an elevation beyond the limits (the round leaves along the limit — W-8b's chase-camera case), a locked shot on a unit (the muscle's `OutOfArc` failure), indirect mounts. 🔒 User, `2026-10-25`: *"wepon should fire only if its barrel aiming point is close to the mouse driven aim point, otherwise refuses to fire (and writes some message on the HUD so user is not confused)"* · *"tank turret should keep working as now - it turns to the aiming cross/lock point and fires when it is reached"* | one rule, read by the brain and the HUD, so the message cannot disagree with the hold | the yellow-ring-to-crosshair screen distance — a presentation measure the brain node does not have; elevation too — would re-freeze W-8b's tank |
 | **W-9** | the turret and its pose | a turret part child per `TurretDto` on EVERY node (created by a TKB translator, derived — not saved), `TurretPose` Muscle-owned, replicated keyed (parent, turret index), BestEffort + KeepLast 1, sent when it changes; mounts name their turret (`TurretIndex`); with no task the turret holds its pose | M23, M25, M26 · ⚠ mount children exist on CGF only today (`CgfComponentRegistry.cs:38`) | the turret pose on the mount child — two mounts share one turret (Bradley: 25 mm + TOW) |
 | **W-10** | turret moves without flooding the network *(U-W5: "the turret moves might need simple dead reckoning to avoid flooding the network. No implementation yet.")* | ⭐ the **same dead-reckoning model positions use** (`DESIGN_Dead_Reckoning.md`), applied to two angles: the `TurretPose` sample carries azimuth, elevation, their RATES and the cluster-synced **sim stamp**; receivers keep the sample read-only (R2) and project it FRESH every frame — `angle + rate × (simNow − stamp)`, clamped to the turret's limits (R3, R4); a pause freezes it with no guard (R5). The owner sends only when the projection would be off by more than a small threshold (a fraction of a degree), when a rate changes (start, stop, reversal), and on a slow heartbeat — so a steady slew or an ambient scan sweep costs one sample per change of motion, not one per frame | `DeadReckoningSyncSystem.cs` (the position model) · `DESIGN_Dead_Reckoning.md` R2–R6 | a separate turret smoothing scheme — two dead-reckoning models for one idea; sending every frame — the flood U-W5 names |
 
@@ -1113,6 +1115,108 @@ needs to know.*
 
 **Rejected:** jitter in each play — every play must remember, and an order that skips a play fires in unison; staggering the order
 dispatch by entity index — it offsets the first shot only, identical gaps keep them locked.
+
+### 5k. Barrel heat — a gun fires at its cyclic rate until it is too hot *(ui, `2026-10-25`; `CE-1358`; cross-lane: `Fdp.Toolkits` Combat + Perception, `Hrot.Network.NED`; build-state: BUILT — as drawn)*
+
+> 🔒 **User, `2026-10-25`:** *"automatic gun also needs to cool down after it gets too hot … gun fires at its fast automatic rate
+> untit it gets too hot and that cooldown blocks netx bursts"* · *"barrel heat needs to be modelled also for single shot guns, because
+> of thermal view simulation"*
+
+**INVENTORY** *(2026-10-25)*: `search_graph name_pattern=".*(Heat|Overheat|Barrel).*" label=Class` → **total 6**, none a barrel model
+(`FiringPositionMemory.HeatRules`/`PositionHeat` = a firing position's exposure, `ThermalHeatSystem` = the body's heat CE-3061, two
+heat-map renderers). grep `Magazine.Spend|Magazine.Ready` → every fire path asks `Ready` and every round leaves through `Spend`
+(AimAndFire ×3, FireAtPoint, the turret grant, HiddenTargetThrow, Countermeasures, ShotLedger.Answer, StandardInputs).
+⇒ nothing to reuse but `Magazine`'s shape, which this rule mirrors.
+
+```mermaid
+classDiagram
+  class BarrelHeat {
+    <<static, Fdp.Toolkit.Combat — NEW: the ONE heat rule>>
+    +ResumeFraction = 0.5
+    +For(mount) (perRound, coolSeconds)
+    +Load(ref WeaponState, mount)
+    +Fire(ref WeaponState)
+    +Tick(ref WeaponState, dt)
+    +IsOverheated(WeaponState) bool
+    +RoundsLeft(WeaponState) int
+  }
+  class Magazine {
+    <<existing, CE-3136 P-5>>
+    +Spend() one round leaves ⇒ BarrelHeat.Fire
+    +Ready() ⇒ and not overheated
+  }
+  class WeaponState {
+    <<existing, per mount — appended>>
+    +Heat 0..1 (1 = too hot)
+    +HeatPerRound
+    +HeatCoolPerSecond
+    +Overheated latch
+  }
+  class WeaponMountDto {
+    <<existing TKB — appended>>
+    +HeatPerRound (0 = by category)
+    +BarrelCoolSeconds (0 = by category)
+  }
+  class WeaponDispatcherSystem {
+    <<existing — drains cooldown, reload>>
+    +BarrelHeat.Tick every mount, every frame
+  }
+  class ThermalHeatSystem {
+    <<existing, CE-3061>>
+    ThermalState.BarrelHeat = hottest barrel of the unit
+  }
+  class WeaponAmmo {
+    <<existing, replicated (EntityWeaponAmmo)>>
+    +Hot bitmask, Heat0..3 percent
+  }
+  WeaponMountDto ..> BarrelHeat : For (spawn, CombatTkbTranslator)
+  Magazine ..> BarrelHeat
+  BarrelHeat ..> WeaponState
+  WeaponDispatcherSystem ..> BarrelHeat
+  ThermalHeatSystem ..> WeaponState : reads Heat
+  WeaponAmmo ..> WeaponState : mirrored for the station HUD
+```
+*What the picture shows that prose hid: every round in the sim leaves through `Magazine.Spend` and every fire path asks
+`Magazine.Ready` first — the per-shot path, the at-point path, the turret grant, the thrown and dispensed rounds. ⇒ ONE rule beside
+the magazine heats and blocks EVERY weapon, AI and operator alike, with no executor knowing.*
+
+```mermaid
+sequenceDiagram
+  participant Op as OperatorControlBehavior
+  participant X as AimAndFireExecutor (brain)
+  participant M as WeaponTaskDispatcherSystem (muscle)
+  participant W as WeaponState (BarrelHeat)
+  participant D as WeaponDispatcherSystem
+  Op->>X: trigger held, CooldownSeconds 0 = the mount's cyclic rate
+  X->>W: Ready? (magazine and not overheated)
+  X->>M: WeaponTask Engage, RoundsGranted capped by RoundsLeft
+  M-->>X: rounds fired (status)
+  X->>W: Magazine.Spend per round ⇒ Heat += HeatPerRound
+  Note over W: Heat reaches 1 ⇒ Overheated latched
+  X->>X: say Overheated, grant nothing (Track)
+  D->>W: every frame Heat -= HeatCoolPerSecond x dt
+  Note over W: Heat at or below 0.5 ⇒ the latch opens, the next burst may fire
+```
+*What the picture shows: the muscle never needs to know the barrel — the brain's grant stops at the round that makes it too hot, so a
+burst cannot overshoot by the rounds already granted.*
+
+| the rule | value | why |
+|---|---|---|
+| ⭐ one round heats the barrel by `HeatPerRound` (1 = too hot); it cools linearly to cold in `BarrelCoolSeconds` from too hot | — | a level, not a round counter: the thermal sensor reads the same number |
+| too hot (`Heat ≥ 1`) **latches**: no round until it cools to `ResumeFraction` (0.5) | latch | 🔒 *"that cooldown blocks next bursts"* — without the latch it would trickle one round per cooled tick |
+| default for an AUTOMATIC weapon (MachineGun, Autocannon, SmallArms) | per round = 1 ÷ (cyclic rounds/s × 4 s); cools in 12 s | at the cyclic rate ~6 s of fire from cold, then ~6 s silent; an AI firing at its deliberate gaps never reaches it |
+| default for a SINGLE-SHOT gun (TankGun, Howitzer, Mortar, Rocket, Atgm, Sam, Unknown) | per round 0.15; cools in 60 s | 🔒 *"also for single shot guns … thermal view"* — the barrel is warm for ~9 s after a round and stacks over a fight; at a catalogue 6/min it never locks |
+| no barrel | Grenade, Bomb, Countermeasure, a person's Hands | as `ThermalHeatSystem` already says: a dispenser and a hand heat no barrel |
+| the operator | `CooldownSeconds` 0 = the mount's own cyclic rate (`CooldownFor`); 0.25 s only for a mount stating no rate | ⛔ before: a fixed 0.25 s — an M134 fired 9 rounds in 2 s against its 3000/min (measured live) |
+| thermal | `ThermalState.BarrelHeat` = the hottest barrel of the unit (its own mounts and the station weapons it carries); `Signature` uses `max(Heat, BarrelHeat)` | the body's heat and the gun's are two sources; the sensor sees the hotter |
+| the station HUD | `WeaponAmmo.Hot` bit + `Heat0..3` percent (appended to `EntityWeaponAmmo`, like `LaidDown`) | the gunner sees *"HOT 72%"* / *"OVERHEATED"* on the weapon line |
+
+⚠ **One round per tick at most:** the muscle's clock resets to the next gap, it does not carry a remainder, so a cyclic rate above the
+tick rate fires at the tick rate (an M134 at 60 Hz: 50/s fits). Not changed here.
+
+**Rejected:** heat on the muscle's `WeaponMuscleState` — only the turret path has it, the per-shot path and the thermal sensor would
+need a second copy; a rounds-in-a-burst counter — it cannot cool partially and gives the thermal sensor nothing; a separate
+`Overheated` refusal from the muscle — every round of an overheated burst would round-trip a refusal, where `Ready` holds at the ask.
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

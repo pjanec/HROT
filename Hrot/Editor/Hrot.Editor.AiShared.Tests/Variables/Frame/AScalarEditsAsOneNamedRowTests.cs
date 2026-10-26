@@ -24,6 +24,9 @@ namespace Hrot.Editor.AiShared.Tests.Variables.Frame;
 /// and cannot flake; the frame rail then proves the real modal still lays out with a scalar session —
 /// 📌 <c>M-29</c>: the pure rail fakes nothing, the frame rail fakes only the mouse.</para>
 /// </summary>
+// ⭐ Real ImGui frames: never in parallel with another test that touches the ImGui context (a swapped context mid-frame made
+//   the frame rails order-dependent — measured 2026-10-22, 1 red in 3 full runs).
+[Collection(Hrot.Editor.AiShared.Tests.PanelSnapshotTestCollection.Name)]
 public sealed class AScalarEditsAsOneNamedRowTests
 {
     private const string VariableName = "Count";

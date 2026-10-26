@@ -40,5 +40,18 @@ namespace Fdp.Toolkit.Orchestration
         // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §6.
         PrepareTerrainAsset = 29,
         CommitTerrainAsset = 30,
+
+        // ⭐ CE-3299 B3 (R-3044) — export a checkpoint keyframe as a one-frame recording. ⛔ PERMANENT WIRE VALUE (R-42).
+        ExportCheckpoint = 31,
+
+        // ⭐ CE-3299 B4 — phase 1 of a checkpoint restore: read keyframe X and stage it (nothing changes). Phase 2 is the dead
+        //   `RestoreSnapshot = 5` slot, REUSED for its documented meaning (restore the ECS from a recording keyframe).
+        //   ⛔ PERMANENT WIRE VALUE (R-42).
+        PrepareRestore = 32,
+
+        // ⭐ CE-3329 P3 (§3a) — enter / leave a review on a node (the full checkpoint of the live point, the replay over the OPEN
+        //   recording; the return). ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-26 in BOTH enums.
+        PrepareReview = 33,
+        FinalizeReview = 34,
     }
 }

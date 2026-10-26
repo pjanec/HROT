@@ -68,6 +68,8 @@ public sealed class DataBreakpointSystem : IEcsModuleSystem
                 $"DataBreakpointSystem requires EntityRepository, got {view?.GetType().Name ?? "null"}.");
 
         // ---- Component-data path ----------------------------------------
+        // ⭐ CE-1258 (BV-28) — a Changed condition compares each entity with the start-of-tick copy, so it is exact per entity.
+        using var baseline = Fdp.Toolkit.ReplayBrowser.Search.PredicateChangeBaseline.Use(_manager.ChangeBaseline);
 
         foreach (var (bp, compiled) in _manager.MountedComponentPredicates)
         {

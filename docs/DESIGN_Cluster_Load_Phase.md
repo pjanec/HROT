@@ -8,6 +8,7 @@ current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance)
   ⭐ §7 (L8 — the deterministic staging WAIT, BUILT; §7.7 is its AS-BUILT).
   ⭐ §8 (CE-2101 — the world boundary clears every host before the load, BUILT; §8.1 CE-3076 completed its WorldEpoch list).
   ⭐ §9 (CE-295 — a load over a loaded cluster asks for Idle first, through ONE caller-side sequence, BUILT).
+  ⭐ §9.1 (CE-1025 — a load during a live run or a dry run warns (interactive), forgets the dry run's restore point, loads from Idle; R-1031).
   §2 is the measured as-is that the build removed.
   ⭐ §4.1 splits the two DERIVATIONS — the knowledge base is required by every ECS node (not role-derived),
   terrain and scenario entities are role-derived. §4.1a is RULED (load nothing where nothing reads it).
@@ -22,6 +23,8 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
+  - docs/DESIGN_Cgf_Scenario_Session_Slice.md — OWNS the shared scenario session and the File menu's items (§3a) that §9.1 guards
+  - docs/UX/UX_Feature_Modal_Surfaces.md — OWNS ruling 53 (the confirm sits at the origin; headless never pre-flights)
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — a checkpoint restore is a load: CheckpointLoadPart applies the keyframe in place of the scenario step (CE-3299).
   - docs/DESIGN_Film_Director.md — a CONSUMER of ScenarioLoadSequence (§9) for its playlist
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — a Player that joins LATE runs this same per-role load chain,
@@ -1014,6 +1017,120 @@ classDiagram
 
 Rails: `ScenarioLoadSequenceTests` (6) · `EditorScenarioSessionLoadTests` (4, red-proved on the old session) — live:
 `scripts/utility-demo-check.py` loads scenarios one after another in ONE `--mode all` process.
+
+### 9.1 ⭐⭐⭐ `CE-1025` — **A LOAD DURING A LIVE RUN OR A DRY RUN: warn (interactive only), stop it, FORGET its restore point, load from Idle** *(design `2026-10-23`, ui; `build-state: BUILT 2026-10-23` — as-built at the end of this section; R-1031)*
+
+🔒 **User, `2026-10-23`:** *"scenario load should warn about it breaks existing live or dryrun and once approved it stop it first
+forgetting the dry run restoration point then performs the load from standby state. Of course the warn dialog only if not tasked
+from ai debug http which is non interactive by design."* ("standby" = `Idle`; ruling 53: the confirm sits where the operator sits,
+a headless or HTTP origin never pre-flights.)
+
+📐 **The defect (CE-1025, measured `2026-10-06`, re-measured `2026-10-23`).** In the editor every Play is a DRY RUN — the editor's
+`EditorPreviewController` captures a RAM keyframe on `ReferencePreviewHandler` and runs; the cluster stays where it was (a live load
+plays inside it too). A load asks the cluster for `Idle` first (§9) — ⛔ but **nothing leaves the editor's dry run**: `_inPreview`
+stays true, the keyframe stays held, the next Play keeps the OLD capture (*"already captured — kept"*) and the next **Stop rewinds the
+newly loaded world to the one before the load**. No interactive load warns.
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| every editor load is one of two calls | `EditorScenarioSession.OpenForEdit` / `LoadForLive` (menu `ScenarioMenuCommands.cs:130,141`; HTTP edit + film director via `EditorApplication.LoadScenarioByName`) · `DebugApiService.LoadScenarioLive:1222` (`ScenarioLoadSequence` directly) | §9 (one caller-side sequence) |
+| a "forget" exists but has no local entry | `ReferencePreviewHandler.Abort:154` drops the keyframe and discards the id/map bracket WITHOUT rewinding; the local entries are only `TriggerLoadingPreview` / `TriggerUnloadingPreview` | restore design §1f: *"a dry run ended any other way (a load, an abort) forgets it"* (the clock half) |
+| the confirm seam to copy | `confirmNewExercise` + `ConfirmPromptController` (`EditorSubsystem.cs:568, 4335`) | ruling 53 (`UX_Feature_Modal_Surfaces`) |
+| the HTTP path must not prompt | `/scenario/load/live|edit` are non-interactive | ruling 53: headless never pre-flights, the origin logs what it did |
+| a CLUSTER dry run (`OperatingPreview`, master-driven) leaves by its own rewind | `HrotStateGraph`: `OperatingPreview → UnloadingPreview → OperatingEdit → UnloadingEdit → Idle`, which the Idle request plans (`TransitionPlannerTests.CE1025_ClusterDryRunToIdle_GoesThroughTheRewind`) | 🔒 user, `2026-10-23`: *"we might follow this path (via rewind to pre-preview state) into the standby cluster state before loading, no problem with that if that makes things more regular"* ⇒ no forget edge is built |
+
+```mermaid
+classDiagram
+  class IPreviewController { <<existing, changed>> IsInPreviewMode · Enter · Exit (rewind) · +ForgetPreview() (no rewind) }
+  class EditorPreviewController { <<existing, changed>> ForgetPreview: handler forget, clock paused, no SnapTo, not in preview }
+  class ReferencePreviewHandler { <<existing, changed>> +TriggerForgetPreview() = Abort's body: keyframe dropped, bracket discarded }
+  class ScenarioLoadGuard { <<NEW, AiShared, pure>> RunningRun(inPreview, clusterState) string? · Prompt(run) message }
+  class EditorScenarioSession { <<existing, changed>> ctor +leaveRun · OpenForEdit / LoadForLive / NewExercise call it FIRST }
+  class ScenarioMenuCommands { <<existing, changed>> +runningRun · +confirmLoad · Live… / Edit… confirm AFTER the pick }
+  class DebugApiService { <<existing, changed>> LoadScenarioLive / Edit forget a dry run first, no prompt; answer says so }
+  class ConfirmPromptController { <<existing>> Request(title, message, label, run) }
+  class ScenarioLoadSequence { <<existing, unchanged>> asks Idle first, then loads }
+  IPreviewController <|.. EditorPreviewController
+  EditorPreviewController --> ReferencePreviewHandler
+  ScenarioMenuCommands ..> ScenarioLoadGuard
+  ScenarioMenuCommands ..> ConfirmPromptController : via confirmLoad
+  ScenarioMenuCommands --> EditorScenarioSession
+  EditorScenarioSession ..> IPreviewController : leaveRun (editor host)
+  EditorScenarioSession --> ScenarioLoadSequence
+  DebugApiService ..> IPreviewController : ForgetPreview
+  DebugApiService --> ScenarioLoadSequence
+```
+*What the picture shows that prose hid:* no new path to `Idle` is built — §9's sequence already stops a live run (`Live → Idle`); the
+new parts are one local FORGET on the existing handler and one guard in front of the two interactive menu items.
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant M as ScenarioMenuCommands
+  participant G as ConfirmPromptController
+  participant S as EditorScenarioSession
+  participant P as EditorPreviewController
+  participant Q as ScenarioLoadSequence
+  U->>M: File ▸ Live… / Edit… → picks "b"
+  alt a live run or a dry run is running
+    M->>G: Request("Load Scenario", "Loading b stops the dry run and forgets its restore point", "Stop & Load")
+    U->>G: Stop & Load (Cancel ⇒ nothing happens)
+  end
+  M->>S: LoadForLive("b") / OpenForEdit("b")
+  S->>P: leaveRun → ForgetPreview() (keyframe + bracket dropped, clock paused, NOT rewound)
+  S->>Q: Request(load "b") → Idle first (stops a live run), then the load (§9)
+  Note over U,Q: POST /scenario/load/(live or edit) takes the same path minus the prompt, and its answer names the run it stopped
+```
+
+```mermaid
+graph TD
+  ES["EditorSubsystem (composes)"] --> EA["EditorApplication → EditorScenarioSession(leaveRun)"]
+  ES --> MENU["ScenarioMenuCommands.Register(runningRun, confirmLoad)"]
+  ES --> PC["EditorPreviewController"]
+  ES --> DBG["DebugApiService (_preview)"]
+  MENU -->|"File ▸ Live… / Edit…, on click"| GUARD["ScenarioLoadGuard (pure)"]
+  MENU --> EA
+  EA -.->|"leaveRun, at each load request"| PC
+  DBG -.->|"ForgetPreview, at each HTTP load"| PC
+  CGF["CgfSubsystem — passes no leaveRun / confirmLoad"] -.->|"no editor dry run; a cluster dry run leaves by its rewind"| EA
+  classDef dead stroke-dasharray: 5 5
+  class CGF dead
+```
+*Who calls it:* nobody per frame — only a load request (menu click, HTTP route, the film director's load). CGF composes the same
+session and menu with neither seam: it has no editor dry run.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| leave the dry run | **forget** (drop keyframe + bracket, keep the world as it is, pause) — the world is replaced by the load anyway | ExitPreviewMode (rewind) — wasted work, and on the film director's path it would flash the old world |
+| where | **the session, at the request** (every load passes it: menu, HTTP edit, director) + `LoadScenarioLive` (its own sequence) | in `ScenarioLoadSequence.beforeLoad` — fires only once `Idle` is reached, after the unload already ran with the dry run held |
+| when to warn | **after the pick**, only if a run is running | before opening the picker — warns about a load the operator may cancel anyway |
+| what counts as "running" | the editor's dry run (`IsInPreviewMode`, which wins the name) or the cluster `OperatingLive` / `OperatingPreview` | the clock running — a paused dry run still holds a restore point |
+| the clock | not snapped back: every load resets it to 0 (AQ86 §4-G) | SnapTo(entered) — the load resets it a frame later |
+
+Acceptance: ① a load during a dry run, then Stop ⇒ the NEW scenario stays (no rewind); the next Play captures afresh. ② the menu warns
+only while a run is running; Cancel does nothing. ③ `POST /scenario/load/live` during a dry run forgets it without a prompt and says
+so. Rails beside `EditorScenarioSessionLoadTests` and `ScenarioMenuCommands`' tests; a live check over HTTP.
+
+**As-built (`2026-10-23`)** — the diagrams above hold as drawn. Where the build differs from the plan, or adds to it:
+- `ScenarioMenuCommands.Guarded` is the one confirm-then-load helper. `ScenarioLoadGuard.Prompt` names a restore point only for a dry
+  run; a live run has none ("Loading 'b' stops the live run.").
+- The editor draws both confirm prompts (new exercise, load) through one `DrawConfirmModal(controller, popupId, ref opened)`.
+- ⚠ **Measured live, then fixed:** the editor's dry run plays INSIDE a live-loaded cluster — the state reads `OperatingLive` while
+  `IsInPreviewMode` is true, and `/sim/play` itself enters the dry run. The first build checked the state first and named an editor
+  dry run "a live run". ⇒ `RunningRun` asks `inPreview` FIRST.
+- The HTTP answer carries `stoppedRun` in both shapes: the service's immediate one, and the awaited one that `DebugApiHost` builds
+  (`waitForReady`).
+- Rails: `ReferencePreviewHandlerTests.CE1025_*` · `EditorScenarioSessionLoadTests.CE1025_*` ·
+  `ScenarioLoadGuardTests` (2). Each was red-proved by a compiling mutation: the session skips `leaveRun`, the guard skips the prompt,
+  the forget rewinds.
+- Live (headless editor, HTTP, `2026-10-23`):
+  - acceptance ① and ③ hold: live-load `df-lone-soldier-reflex`, a dry run of 120 steps, then `POST /scenario/load/live bt-doors` ⇒
+    out of preview, 26 entities (Locksmith, Visitor), and Stop keeps them;
+  - a fresh dry run on bt-doors and Stop ⇒ simTime back to 0 on the next frame;
+  - a load over a playing run ⇒ the new scenario, simTime 0.
+  - from a CLUSTER dry run (`POST /cluster/transition OperatingPreview`, played 1 s), `POST /scenario/load/live bt-doors` ⇒
+    `stoppedRun: "a dry run"`, `OperatingLive`, 26 entities (Locksmith, Visitor) — the master walked the rewind → Edit → Idle path.
+  - ② (the menu prompt) is rail-only; a Windows look is owed.
 
 ## 10. ⭐⭐ `CE-3075` — **A SCENARIO NAMING NO TERRAIN UNLOADS THE RESIDENT ONE** *(AS-BUILT `2026-10-05`, backend)*
 

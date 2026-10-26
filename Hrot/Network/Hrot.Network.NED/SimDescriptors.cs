@@ -357,6 +357,12 @@ namespace Hrot.NED.Descriptors
         public byte Busy;
         // ⭐ CE-3232 (B-10, appended) — bit i: mount i is LAID DOWN (cannot fire, arms nobody)
         public byte LaidDown;
+        // ⭐ CE-1358 (appended; DESIGN_Weapon_Layers §5k) — bit i: mount i's barrel is too hot; each barrel's heat, percent
+        public byte Hot;
+        public byte Heat0;
+        public byte Heat1;
+        public byte Heat2;
+        public byte Heat3;
     }
 
     // ⭐ CE-1153 (docs/DESIGN_Entity_Control.md §8h.6) — the brain's verdict on the operator's last use press, Brain → every node, keyed by
@@ -389,6 +395,9 @@ namespace Hrot.NED.Descriptors
 
     // ⭐ CE-3224 (civilians B-6, CV-13) — a person's gesture, the brain owner → every node. Reliable + TransientLocal + KeepLast 1,
     //   like EntityEffectState: a late joiner must see who has his hands up.
+    //   ⭐ CE-2368 / CE-1308 (AQ103 I, People Display §7d) — Kind 1..6 are ACTS (poses: hands up, a fist, a sign, a wave, a throw, a
+    //   warning); 7..10 are IDLE MOODS (smoking, shifting weight, a stretch, looking about) — for an IG, idle ANIMATIONS to blend in and
+    //   out on the man's own clock, never poses to snap to; 0 ends either at once.
     [DdsTopic("EntityGesture")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
@@ -426,6 +435,8 @@ namespace Hrot.NED.Descriptors
         [DdsKey] public long EntityId;
         /// <summary><c>Fdp.Toolkit.Combat.LeanSide</c>.</summary>
         public byte Side;
+        /// <summary>⭐ AQ104 G — <c>Lean.Depth</c> (0 = the default 0.4 m).</summary>
+        public byte Depth;
     }
 
     // ⭐ CE-3259 (BR-6/BR-7) — a soldier's combat proficiency (behaviors' CombatProficiency, CE-2273), his brain's owner → every node, all

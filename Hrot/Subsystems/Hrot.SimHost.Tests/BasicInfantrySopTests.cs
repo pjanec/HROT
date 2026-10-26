@@ -40,6 +40,9 @@ namespace Hrot.SimHost.Tests
                 SimHostComponentRegistry.RegisterAll(Repo);
                 CognitiveComponentRegistry.RegisterAll(Repo);
                 BlueprintTierTable.RegisterAll(Repo);
+                // ⭐ SimulationTick runs AHEAD of perception's clock (GlobalTime.FrameNumber, CE-3292), as measured in the cluster harness
+                //   (3272 vs 3028): a reader comparing LastSeenTick with SimulationTick reads every sighting as stale ⇒ red.
+                for (int i = 0; i < 5000; i++) Repo.Tick();
                 if (!Repo.Bus.IsRegistered<SensorChangedEvent>()) Repo.Bus.Register<SensorChangedEvent>();
                 var geo = new WGS84Transform();
                 geo.SetOrigin(0.0, 0.0, 0.0);
@@ -99,7 +102,7 @@ namespace Hrot.SimHost.Tests
                 ref var mem = ref Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit);
                 mem.EntityIds[0] = (long)enemy.PackedValue;
                 mem.Freshness[0] = 10f;
-                mem.LastSeenTick[0] = Repo.SimulationTick;
+                mem.LastSeenTick[0] = Fdp.Toolkit.Perception.PerceptionClock.Now(Repo);   // as perception stamps it (CE-3292)
                 mem.Modalities[0] = seen ? (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual : (byte)0;
                 mem.Count = 1;
                 return enemy;
@@ -109,7 +112,7 @@ namespace Hrot.SimHost.Tests
             public unsafe void KeepSeeing()
             {
                 ref var mem = ref Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(Unit);
-                mem.LastSeenTick[0] = Repo.SimulationTick;
+                mem.LastSeenTick[0] = Fdp.Toolkit.Perception.PerceptionClock.Now(Repo);   // as perception stamps it (CE-3292)
             }
 
             public void Order(string behaviour)
@@ -329,6 +332,63 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(Fbt.NodeStatus.Success, FightFromCoverBehavior.Run(ref p, ref shotAt, w.Unit, w.Repo));
         }
 
+        /// <summary>⭐ <c>CE-2357</c> (AQ102 E, R-2072) — in cover, the enemy he SAW out of sight for <c>FlankAfterSeconds</c>: a trained man
+        /// FLANKS (the fight releases PeekAndFire and runs the flank) instead of peeking at the same spot for ever. Not too soon, not before he
+        /// is in cover, not on a post, not past his flank budget, not a militiaman. ✅ Red-proof: drop any one guard ⇒ its case flanks ⇒ red.</summary>
+        [Fact]
+        public void CE2357_TheEnemyOutOfSightTooLong_ATrainedManInCoverFlanks()
+        {
+            var w = new World();
+            w.RememberEnemy(seen: true);
+            var p = new FightFromCoverParams
+            {
+                QuietSeconds = 8f, Open = FightFromCoverBehavior.OpenDefaults,
+                Flank = FightFromCoverBehavior.FlankDefaults, FlankAfterSeconds = FightFromCoverBehavior.DefaultFlankAfterSeconds,
+            };
+            var hidden = new FightFromCoverState();
+            hidden.Peek.Phase = Fdp.Toolkit.Combat.PeekPhase.Hidden;
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));        // seen just now
+
+            w.Run(FightFromCoverBehavior.DefaultFlankAfterSeconds + 1);
+            Assert.True(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));
+
+            var choosing = new FightFromCoverState();
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in choosing, w.Unit, w.Repo));      // not in cover yet
+            var posted = p;
+            posted.Peek.AnchorRadius = 1.5f;
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in posted, in hidden, w.Unit, w.Repo));   // a post is held (DA-44)
+            var spent = hidden;
+            spent.FlanksTried = FightFromCoverBehavior.MaxFlanks;
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in spent, w.Unit, w.Repo));         // the run's flanks are used up
+
+            var run = hidden;
+            Assert.Equal(Fbt.NodeStatus.Running, FightFromCoverBehavior.Run(ref p, ref run, w.Unit, w.Repo));
+            Assert.Equal(1, run.Flanking);                                                             // the fight flanks, it does not end quiet
+            Assert.Equal(1, run.FlanksTried);
+            FightFromCoverBehavior.Deactivate_Run(ref p, ref run, w.Unit, w.Repo);
+            var second = hidden;
+            second.FlanksTried = 1;                                                                    // the run's second escalation …
+            Assert.Equal(Fbt.NodeStatus.Running, FightFromCoverBehavior.Run(ref p, ref second, w.Unit, w.Repo));
+            Assert.Equal(2, second.Flanking);                                                          // … closes in on the remembered point
+            FightFromCoverBehavior.Deactivate_Run(ref p, ref second, w.Unit, w.Repo);
+
+            var justMoved = hidden;
+            justMoved.EscalatedAt = w.Repo.SimulationTime - 1.0;
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in justMoved, w.Unit, w.Repo));     // the last escalation was a second ago
+
+            Assert.True(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));         // nothing paused: he may
+            w.Order("HoldStance");                                                                     // an ORDERED task …
+            w.Run(0.1);
+            w.Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = w.Unit, BehaviorName = "FightFromCover", JsonParams = "{}",
+                                                                  Origin = BehaviorOrigin.Reaction, Urgency = ReactionUrgency.Hit });
+            w.Run(0.1);
+            Assert.Equal("HoldStance", BehaviorIngressSystem.PausedTaskOf(w.Repo, w.Unit)!.BehaviorName);   // … the fight paused it
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));        // it waits for him: no flank away from it
+
+            w.Repo.AddComponent(w.Unit, new CombatProficiency { Authored = ProficiencyOf.Militia, Set = CombatProficiency.AuthoredSet });
+            Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));        // militia only duck and fire blind (J)
+        }
+
         /// <summary>⭐ AQ98 C — a man with no task who SEES an enemy engages from where he is (React FightFromCover, Contact) instead of
         /// standing idle — and, with no task to resume, a quiet lapse does not end it (no restart churn). ✅ Red-proofs: the row removed from
         /// the asset ⇒ he stays Idle ⇒ red; <c>WouldReturn</c> always false ⇒ a new run after 8 s ⇒ red.</summary>
@@ -352,6 +412,50 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 700; i++) { w.KeepSeeing(); w.Tick(); }     // > QuietSeconds, nothing landing near him
             Assert.Equal("FightFromCover", w.TaskName);
             Assert.Equal(run, w.Task.InstanceId);
+        }
+
+        /// <summary>⭐ <c>CE-1269</c> — the same, once he HIDES and stops seeing the enemy (the eye stamps nothing while he is down in cover):
+        /// the enemy is still remembered, so the quiet lapse still does not end it — ending would only let the row restart him the moment he
+        /// looks out (📐 measured live: a restart every 1–3 s). ✅ Red-proof: <c>WouldReturn</c> reading <c>EnemyInSight</c> again ⇒ it ends
+        /// after the quiet lapse ⇒ red.</summary>
+        [Fact]
+        public void CE1269_HiddenAndNoLongerSeeing_TheRememberedEnemy_StillKeepsTheReaction()
+        {
+            var w = new World();
+            w.StartSop();
+            w.Run(0.3);
+            w.RememberEnemy(seen: true);
+            w.Tick();
+            w.KeepSeeing();
+            w.Run(0.5);
+            Assert.Equal("FightFromCover", w.TaskName);
+
+            uint run = w.Task.InstanceId;
+            w.Run(FightFromCoverBehavior.DefaultQuietSeconds + 3);             // hidden: nothing seen, nothing landing near him
+            Assert.Equal("FightFromCover", w.TaskName);
+            Assert.Equal(run, w.Task.InstanceId);
+        }
+
+        /// <summary>⭐ <c>CE-3306</c> — under HOLD FIRE the enemy-in-sight row stands aside: a man with no task who sees an enemy, the
+        /// first-threat edge not yet read, does NOT start fighting from cover — and once the edge arrives the withdraw row takes him
+        /// (FallBack, D5). 📐 Live (the in-process cluster): row C took him a frame before the edge. ✅ Red-proof: the <c>MayFire</c>
+        /// condition removed from the asset ⇒ FightFromCover ⇒ red.</summary>
+        [Fact]
+        public void CE3306_UnderHoldFire_AnEnemyInSight_DoesNotStartTheFight_TheWithdrawRowDecides()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new Roe { Fire = RoeFire.HoldFire, SetBy = BehaviorOrigin.Superior });
+            w.StartSop();
+            w.Run(0.3);
+            w.RememberEnemy(seen: true);
+            w.Tick();
+            w.KeepSeeing();
+            w.Run(0.5);
+            Assert.Equal("Idle", w.TaskName);                                  // seen, but no fight under Hold Fire
+            w.Sense(SensorChange.FirstThreat);
+            w.KeepSeeing();
+            w.Run(0.3);
+            Assert.Equal("FallBack", w.TaskName);                              // row 2 (ROE ≤ HoldFire)
         }
 
         /// <summary>⭐ AQ98 C — the row's limits: a man WITH a task keeps it (the task decides the fight); only HEARD (not seen) ⇒ nothing;

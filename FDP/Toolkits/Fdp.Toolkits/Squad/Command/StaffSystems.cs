@@ -132,12 +132,7 @@ namespace Fdp.Toolkit.Squad.Command
             int n = 0;
             for (int i = 0; i < squad.Contacts.Count && n < live.Length; i++)
             {
-                long id = pool[i].EntityId;
-                if (id > 0)
-                {
-                    var e = new Entity((ulong)id);
-                    if (ThreatDanger.IsOutOfTheFight(repo, e) || ThreatDanger.IsNeutral(repo, e)) continue;
-                }
+                if (!SquadContacts.IsEnemy(repo, in pool[i])) continue;   // ⭐ CE-2353 — the one squad "enemy"
                 live[n++] = i;
             }
             var sum = Vector3.Zero;
@@ -435,11 +430,16 @@ namespace Fdp.Toolkit.Squad.Command
                     Verdict = "not-owned-here",
                 };
                 log.Add(entry);
-                if (!canFold || n.ToUnit.IsNull || !repo.IsAlive(n.ToUnit) || n.FromUnit.IsNull) continue;
-                if (_requireOwnedBrain && !(brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && repo.HasAuthority<BehaviorState>(n.ToUnit))) continue;
-                if (_gateOnAuthority && brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && !repo.HasAuthority<BehaviorState>(n.ToUnit)) continue;
-                if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now, n.Subject)) { FoldedCount++; entry.Verdict = "folded"; }
-                else { DroppedCount++; entry.Verdict = "stale"; }
+                var fate = ReportFate.NotOwnedHere;
+                if (canFold && !n.ToUnit.IsNull && repo.IsAlive(n.ToUnit) && !n.FromUnit.IsNull
+                    && !(_requireOwnedBrain && !(brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && repo.HasAuthority<BehaviorState>(n.ToUnit)))
+                    && !(_gateOnAuthority && brainHere && repo.HasComponent<BehaviorState>(n.ToUnit) && !repo.HasAuthority<BehaviorState>(n.ToUnit)))
+                {
+                    if (Fold(repo, n.FromUnit, n.ToUnit, n.Report, now, n.Subject)) { FoldedCount++; entry.Verdict = "folded"; fate = ReportFate.Folded; }
+                    else { DroppedCount++; entry.Verdict = "stale"; fate = ReportFate.Stale; }
+                }
+                // ⭐ CE-1319 (BV-57) — beside the node-wide log, the commander's OWN history: to him and from him (a no-op on a soldier)
+                CommandHistoryOf.Report(repo, n.FromUnit, n.ToUnit, n.Report, now, fate);
             }
         }
 

@@ -87,6 +87,33 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             finally { TryDelete(fdpPath); }
         }
 
+        // ── CE-1266: Changed over a recording = differs from the frame before ──
+
+        /// <summary>⭐ <c>CE-1266</c> — over a recording, <see cref="SearchOperator.Changed"/> compares each frame with the one before (a second
+        /// playback one frame behind), so it finds the frames where the value moved — not every frame it was written (measured live: 8581
+        /// hits for nine changes). 🔴 Red-proof: pass <c>null</c> instead of the lagging repository to <c>PredicateChangeBaseline.Use</c> ⇒
+        /// red (every frame matches).</summary>
+        [Fact]
+        public void CE1266_Changed_FindsTheFramesWhereTheValueMoved()
+        {
+            float[] values = { 5f, 5f, 7f, 7f, 7f, 9f, 9f };
+            string fdpPath = BuildSingleEntityRecording(values);
+            try
+            {
+                var predicate = new PropertyMatchDto
+                {
+                    ComponentType = typeof(HarnessPosition),
+                    PropertyPath  = "X",
+                    Operator      = SearchOperator.Changed,
+                    Predicate     = new NumericPredicateDto(),
+                };
+                var results = _service.ExecuteSearch(fdpPath, predicate);
+                // the first frame (the value appears) and the two moves 5→7, 7→9
+                Assert.Equal(3, results.Count);
+            }
+            finally { TryDelete(fdpPath); }
+        }
+
         // ── SR-T10: Spatial Entry -- entity enters zone ───────────────────────
 
         [Fact]
@@ -747,6 +774,59 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
+
+        // ── CE-1302 / R-4077 extension (DESIGN_Director_Timeline_Editor.md §9c ③): rings and the shared structural scan ─────────────
+
+        /// <summary>A recorded order history: one result per NEW entry — two orders in one frame are two, a repeat is one more, the
+        /// entries already there on the first frame are the baseline (none).</summary>
+        [Fact]
+        public void CE1302_RingEntry_OneResultPerNewEntry_TheFirstFrameIsTheBaseline()
+        {
+            using var h = new FdpRecordingHarness();
+            var repo = h.Repository;
+            repo.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();
+            var commander = repo.CreateEntity();
+            var member = repo.CreateEntity();
+            repo.AddComponent(commander, default(Fdp.Toolkit.Squad.Command.CommandOrderHistory));
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x1111, 0f);   // before the recording
+            h.Tick(); h.RecordKeyframe();                                                            // frame 0
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x5A11, 1f);
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x7777, 1f);
+            h.Tick(); h.RecordDelta();                                                               // frame 1: two
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x7777, 2f);   // repeated
+            h.Tick(); h.RecordDelta();                                                               // frame 2: one
+            string path = h.BuildToTempFile();
+
+            var results = _service.ExecuteSearch(path, new RingEntryPredicateDto
+            {
+                ComponentType = typeof(Fdp.Toolkit.Squad.Command.CommandOrderHistory),
+                ItemsPath = "Items", CountPath = "Count",
+                KeyPaths = { "At", "Traffic", "CounterpartNetId", "Behaviour", "Repeats" },
+            });
+
+            Assert.Equal(new[] { 1, 1, 2 }, results.Select(r => r.FrameIndex));
+            Assert.All(results, r => Assert.Equal(commander.Index, r.Entity.Index));
+        }
+
+        /// <summary>⚠ CE-1302 as-built (StructuralScanner): an ADDED-only search no longer reports a destroyed entity as "Lost".</summary>
+        [Fact]
+        public void CE1302_StructuralAdded_DoesNotReportADestroyedEntity_RemovedDoes()
+        {
+            using var h = new FdpRecordingHarness();
+            h.SpawnEntity().WithComponent(new HarnessVelocity { Vx = 1f });
+            var e = h.LastSpawned;
+            h.Tick(); h.RecordKeyframe();
+            h.DestroyEntity(e);
+            h.Tick(); h.RecordDelta();
+            string path = h.BuildToTempFile();
+
+            var added = _service.ExecuteSearch(path, new StructuralPredicateDto { ComponentType = typeof(HarnessVelocity), ModificationType = StructuralModification.Added });
+            var removed = _service.ExecuteSearch(path, new StructuralPredicateDto { ComponentType = typeof(HarnessVelocity), ModificationType = StructuralModification.Removed });
+
+            Assert.Equal(new[] { 0 }, added.Select(r => r.FrameIndex));
+            Assert.Equal(new[] { 1 }, removed.Select(r => r.FrameIndex));
+            Assert.Contains("Destroyed", removed[0].ContextMessage);
+        }
 
         private static string BuildSingleEntityRecording(float[] xValues)
         {

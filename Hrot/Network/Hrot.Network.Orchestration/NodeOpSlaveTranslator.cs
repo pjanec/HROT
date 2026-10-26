@@ -35,6 +35,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// <summary>⭐ P6 N5 — tokens describing how this node can be REACHED (the share it advertises); added to whatever the host advertises.</summary>
     private readonly string[] _transportCapabilities;
     private readonly DdsReader<ClusterStateTopic>?     _clusterStateReader;   // ⭐ C2: null in tests / offline.
+    private readonly DdsReader<AssetInventoryTopic>?   _inventoryReader;      // ⭐ R-3055: what the cluster can replay, on every node
     private readonly FdpEventBus                _bus;
     private readonly int                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
@@ -52,9 +53,11 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         JsonSerializerOptions?     jsonOptions = null,
         DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null,
         DdsReader<ClusterStateTopic>?     clusterStateReader = null,
+        DdsReader<AssetInventoryTopic>?   inventoryReader = null,
         string[]?                         transportCapabilities = null)
     {
         _clusterStateReader = clusterStateReader;
+        _inventoryReader    = inventoryReader;
         _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
@@ -70,6 +73,15 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// </summary>
     public void Tick()
     {
+        // ⭐ R-3055 — the master's exercise inventory, on every node's bus (its ClusterSlave keeps the last one): the same answer to
+        //   GET /exercises on CGF, SimHost, IG as on the editor and the orchestrator.
+        if (_inventoryReader != null)
+        {
+            using var inventoryScope = _inventoryReader.Take();
+            foreach (var s in inventoryScope)
+                if (s.IsValid) _bus.PublishManaged(OrchestrationObserverTranslator.InventoryOf(s.Data));
+        }
+
         // ── ⭐⭐ C2 (Q91 §4-I I5, R-4006) — Cluster-state ingress: DDS ClusterStateTopic → bus ClusterStateUpdateEvent, so the
         //   node's ClusterSlave knows which SESSION it follows. A not-alive instance means the master's writer is gone.
         if (_clusterStateReader != null)
@@ -78,12 +90,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             foreach (var s in stateScope)
             {
                 if (s.IsValid)
-                    _bus.PublishManaged(new ClusterStateUpdateEvent
-                    {
-                        CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)s.Data.CurrentState,
-                        ExerciseId   = s.Data.ExerciseId,
-                        SessionId    = s.Data.SessionId,
-                    });
+                    _bus.PublishManaged(OrchestrationObserverTranslator.StateOf(s.Data));   // ⭐ CE-3329 — the one decoding
                 else if (s.Info.InstanceState != DdsInstanceState.Alive)
                     _bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
             }
@@ -170,6 +177,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _statusWriter.Dispose();
         _heartbeatWriter.Dispose();
         _capabilitiesWriter?.Dispose();
+        _inventoryReader?.Dispose();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -202,7 +210,8 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                     //   The load steps treat a null name as "this scenario names none", which is legal.
                     TerrainName:   dto?.TerrainName,
                     IsWorldBoundary: dto?.IsWorldBoundary ?? false,    // CE-2101
-                    IsCatchUp:       dto?.IsCatchUp ?? false);         // C7
+                    IsCatchUp:       dto?.IsCatchUp ?? false,          // C7
+                    CheckpointingSeconds: dto?.CheckpointingSeconds ?? 0);   // D17
             }
 
             case NedNodeOpType.StartEpisode:
@@ -273,6 +282,30 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 {
                     return JsonSerializer.Deserialize<DiagnosticDumpPayloadDto>(payloadJson!, DefaultOptions);
                 }
+                catch { return null; }
+            }
+
+            // ⭐ CE-3299 B3 (R-3044) — a checkpoint: its label and the wall time every node writes it at; an export names it.
+            case NedNodeOpType.TakeSnapshot:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<CheckpointPayload>(payloadJson!, DefaultOptions); }
+                catch { return null; }
+            }
+
+            case NedNodeOpType.ExportCheckpoint:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<ExportCheckpointPayload>(payloadJson!, DefaultOptions); }
+                catch { return null; }
+            }
+
+            // ⭐ CE-3299 B4 — both phases of a checkpoint restore carry the label and the exercise the node records on as.
+            case NedNodeOpType.PrepareRestore:
+            case NedNodeOpType.RestoreSnapshot:
+            {
+                if (!hasPayload) return null;
+                try { return JsonSerializer.Deserialize<RestoreCheckpointPayload>(payloadJson!, DefaultOptions); }
                 catch { return null; }
             }
 

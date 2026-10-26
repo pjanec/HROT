@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.SensorEvalState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct SensorEvalState
     {
         // Current phase of this sensor's evaluation.
@@ -69,6 +70,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     public struct TopKScoreCache { private float _e; }
 
     [ComponentId(GlobalComponentIds.EqsSolverGlobalState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct EqsSolverGlobalState
     {
         // Maximum RaycastRequestEvents the EQS system is allowed to submit per EqsModule tick.

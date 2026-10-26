@@ -4,6 +4,7 @@ using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Editor.Debug;
 using Hrot.Editor.AiShared.Debug;
 using NodeEditor.Core.Action;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Blueprints.Tests.Debug;
 

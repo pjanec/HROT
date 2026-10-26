@@ -75,8 +75,11 @@ namespace Hrot.CGF;
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider,
     Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
-    Hrot.Common.EntityCreation.IEntityCreationHost
+    Hrot.Common.EntityCreation.IEntityCreationHost, Fdp.Toolkit.Runner.IWindowTitleSource
 {
+    /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
+    public string? WindowTitleDetail => _scenarioSession?.LoadedScenarioName;
+
     /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised).</summary>
     public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
 
@@ -210,6 +213,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>⭐ One shared entity selection behind every perspective's store, exactly as the editor
     /// does *(<c>EditorSubsystem</c> <c>:304</c>/<c>:834</c>)</summary>
     private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
+
+    /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+    /// actions on them, the inspector menu and the Details bundle request through them.</summary>
+    internal readonly Hrot.Common.Interactions.HostActions HostActions = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
 
     /// <summary>
     /// ⭐⭐ <c>C8</c> — THIS node's road-graph holder, mirroring <c>NodeBootstrapper.RoadNetworkHolder</c>.
@@ -456,72 +463,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// DDS → the master. ⛔ Nothing new is introduced here.</para>
     /// </summary>
     public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
-        => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
-            subsystemName: Name,
-            perspective:   "Scenario",
-            world:         () => _context?.World,
-            entityMap:     () => _entityMap,
-            // ⭐⭐⭐ CE-171 — CGF's OWN extraction service, the one built WITH the scenario serializer
-            //    (line ~1057) and already handed to the entity-inspector panel. ⛔ Until this line the
-            //    debug API built its own from the world alone, which has no translator pipeline, so
-            //    `BrainBlackboard.BehaviorParameters` came back as `{"FixedElementField": 1}` instead of
-            //    the decoded params DTO — on the very node that holds the Brain's behaviour state.
-            // ⚠ Lazy for the same measured reason as gizmoBuffer and missionEditor below: it is created
-            //   during window registration, well after the composition root builds this provider.
-            extraction:    () => _fdpEntityInspector.ExtractionService,
-            drive:         () => _clusterTimeAdapter,
-            // ⭐⭐⭐ BP-487 — CGF's OWN map feed: the very buffer its DebugGizmoLayer draws (line ~1096) and
-            //    its canvas takes as DrawBuffer (line ~1098), fed by GlobalGizmoManager + StatelessGizmoSystem.
-            //    ⇒ GET /panels/_gizmo now reports what CGF's map is actually submitting, which is the ONE
-            //    channel that can answer "does the cluster's map draw the scenario's entities?" — the user's
-            //    `2026-08-27` symptom. 📄 DESIGN_Subsystem_Composition_Unification.md §5.6.
-            // ⚠ Lazy for the measured reason in SubsystemDebugProvider's ctor remarks: the buffer is created
-            //   in Initialize (line ~851), AFTER the composition root builds this provider.
-            gizmoBuffer:   () => _cgfGizmoBuffer,
-            // ⭐⭐⭐ CE-066 — CGF's OWN mission editor: the very ScenarioMissionService its Mission panel
-            //    commits through (built at line ~1095, the SAME shared adapter EditorSubsystem:1962 builds).
-            //    ⛔ Until this line, all four `/missions/*` routes answered "no mission service" on
-            //    `--mode all` while this host had one the whole time — and that omission is also why the
-            //    routes sat UNCLASSIFIED in CapabilityFor, which kept the manifest rail red.
-            // ⚠ Lazy: the service is created during window registration, well after this provider is built.
-            missionEditor: () => _missionService,
-            // ⭐⭐⭐ CE-110 — CGF's OWN catalog. ⭐ Read off the world singleton (registered by CE-111 in
-            //    RegisterDomainComponents) rather than from `_context.TkbDb` directly, so that what /tkb/*
-            //    reports is provably the instance CGF's CreateEntityRequestSystem and NetworkSpawningSystem
-            //    resolve against — 📌 see TkbFrom's remarks on why a private handle is the subtler lie.
-            tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                               .TkbFrom(() => _context?.World),
-            // ⭐⭐ HN-029: the node's own orchestration bus — the same one its ClusterSlave and
-            //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
-            //    path the operator's own "Load into Live" button takes.
-            requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .TransitionsVia(() => _context?.EventBus),
-            // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
-            requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _context?.EventBus),
-            // ⭐⭐⭐ CE-163 — CGF's OWN committed cluster state, from its OWN ClusterSlave, through the SAME
-            //    shared projection SimHost and IG use. 🔒 "every ECS node must use the same shared code".
-            // ⚠ Lazy for a LOAD-BEARING reason, not style: Initialize REPLACES the context's slave with the
-            //   one it builds itself (`_context = _context with { ClusterSlave = newClusterSlave }`, so it
-            //   can control handler registration order). A captured value would read the pre-Initialize
-            //   slave forever — the one that never commits anything.
-            clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                               .ClusterStateFrom(() => _context?.ClusterSlave),
-            // ⭐⭐ MD-002 — CGF's own kernel snapshot, the same one its Architecture Diagnostics window
-            //    already renders (line ~1038). ⚠ Lazy: _context is null until Initialize.
-            // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
-            requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .DumpsVia(() => _context?.EventBus),
-            requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .SavesScenarioJsonVia(() => _context?.EventBus),
-            // ⭐⭐⭐ CE-276 — CGF's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) + its
-            //    OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns the entity.
-            requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransfersOwnershipVia(() => _context?.World),
-            descriptorMap: () => _context?.NedReplication?.DescriptorOwnershipMap,
-            architecture:  () => _context?.Kernel is null
-                                 ? null
-                                 : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(
-                                       () => _context?.Kernel));
+        // ⭐⭐⭐ the ONE ECS-node debug surface (EcsNodeDebugProvider): everything from the node's context is derived there, the same on
+        //    every node; only what CGF genuinely adds is passed. ⭐ The drive is the operator toolbar's ClusterTimeTransportAdapter.
+        => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "Scenario", () => _context, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
+        {
+            Drive         = () => _clusterTimeAdapter,
+            GizmoBuffer   = () => _cgfGizmoBuffer,
+            Extraction    = () => _fdpEntityInspector.ExtractionService,
+            MissionEditor = () => _missionService,
+        });
 
     /// <inheritdoc/>
     public System.Numerics.Vector4 TitleBarColor => new(0.57f, 0.47f, 0.04f, 1f);
@@ -1131,7 +1081,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    extractor and THE SUBSYSTEM wires it — ⛔ the extractor never learns about a bus, which is
         //    what keeps Hrot.CGF separately deployable (R-79).
         // ⭐ `_context.EventBus` is the node's own orchestration bus — the same one its ClusterSlave
-        //   drains (HN-029's TransitionsVia reads it too), ⛔ not the CGF interaction bus.
+        //   drains (the debug surface's OrchestrationBusMasterControl reads it too), ⛔ not the CGF interaction bus.
         extractor.OnRemap = map =>
         {
             // ⭐⭐ Slice 1 — this node's OWN Watch needs the same table it publishes to the cluster.
@@ -1215,6 +1165,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 SimGroup            = _toggleSim,
                 IdAllocator         = _context.IdAllocator,
                 EntityMap           = _context.EntityMap,   // CE-2101 — the world boundary clears it
+                EventAccumulator    = _context.EventAccumulator,   // CE-3314 — a restore restarts the step window (D4)
                 LoadProviders       = cgfLoadProviders,
                 ScenarioHandlers    = new[] { cgfEpisodeHandler },
                 ScenarioSaveHandler = cgfScenarioSaveHandler,
@@ -1263,6 +1214,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Hrot.ScenarioEditor.Map.MapInteractionContext
             {
                 World = _context.World,
+                Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                 // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                 Services = Hrot.ScenarioEditor.Map.MapServices.Of(_context.GeoTransform, _behaviorRegistry),
                 // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
@@ -1285,8 +1237,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 {
                     HostPickers = () => _shellPickers,
                 },
-                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — effects are recorded; in a replay the effect systems stand down.
-                //   The SAME source the ELM's gate reads (rrController, above).
+                // ⭐ W1 (VE-R) — in a replay the effect systems stand down through the world's ReplayState (CE-3329 P2). This
+                //   predicate only decides, at build, whether the map offers orders.
                 IsReplayActive = () => rrController.IsReplayActive,
             });
 
@@ -1613,7 +1565,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _configPanel       = new ConfigPanel();
             _sharedOrbatPanel  = new SharedOrbatPanel
             {
-                RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => _fdpInspectorState),   // ⭐ CE-1230 — the map's entity menu
+                RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _context?.World),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
             };
 
             // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring), arbiter passed.
@@ -1625,7 +1577,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐ CE-060 made this ctor host-agnostic: its one `IEditorLogic.ActivateTool` call is now the
             //   shared ActivateEditorToolEvent + SelectEntityCommand that E3's systems drain on BOTH hosts.
             _orbatAdapter      = new Hrot.UI.Common.Adapters.ScenarioOrbatAdapter(
-                _context.World, _context.World.Bus, _spawnAdapter);
+                _context.World, _context.World.Bus, _spawnAdapter)
+            {
+                PickOffer = e => _cgfMapPick?.TryOfferEntity(e) == true,   // ⭐ CE-1346 — an ORBAT row answers a map entity pick (built later)
+            };
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
             // 🔴🔴🔴 THE CAMERA IS NOT OPTIONAL HERE, and omitting it made the whole 2-D map DEAD.
@@ -1854,6 +1809,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     InspectorState: () => _fdpInspectorState,
                     EventBrowser:   _fdpEventBrowser,
                     TitleBarColor:  TitleBarColor,
+                    Host:           () => HostActions,   // ⭐ CE-1150 — the inspector's map menu requests on the host's actions
+                    World:          () => _context?.World,
                     // ⭐ This host builds its own service, so its lazy `() => _context?.Kernel` binding
                     //   is untouched (design §5c.7 F2).
                     ArchitecturePanel: new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
@@ -1869,6 +1826,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    of it, and folding it in would hand them a capability they do not have — the very trap
         //    `IUiBundle`'s doc warns about. ⭐ One implementation, exactly two callers (§5c.7 F5 / G3).
         Hrot.Presentation.Windows.BlackboardReflection.Apply(_fdpEntityInspector, _behaviorRegistry);
+
+        // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
+        Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _canvas, "Scenario");
 
         // ── Time transport controls in status bar ─────────────────────────
         var bus = _context?.EventBus;
@@ -2122,6 +2082,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _btreeRegistrar.RegisterWindows(windowManager);
         _hsmRegistrar.RegisterWindows(windowManager);
         _blueprintRegistrar.RegisterWindows(windowManager);
+
+        // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar. 📐 Before: NOTHING consumed CGF's gizmo main-menu bindings,
+        //   so View ▸ Tactical Map Layers… and 2-D / 3-D Map never reached CGF's bar.
+        Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "cgf/map-menus", "Scenario",
+            () => _cgfGizmoLayer?.ConsumeMainMenu(), () => _cgfInteractionBus);
+
+        // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel on CGF's Scenario perspective (the map's and the
+        //   inspector's), the same shared one every ECS host builds: the Components view, and Properties… / View ▸ Details on this host's
+        //   actions. 📐 Before: CGF had Details only on its three AI perspectives. ⭐ The SAME two clock signals as the AI perspectives.
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(
+            new Fdp.Toolkit.Runner.IUiBundle[]
+            {
+                new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
+                    WindowId:    "cgf_details",
+                    Perspective: "Scenario",
+                    World:       () => _context?.World,
+                    Inspector:   () => _fdpEntityInspector,
+                    Session:     () => _fdpRepoAdapter,
+                    RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
+                    Host:        () => HostActions)),
+            },
+            new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
         // ── The document manager + the graph canvases (§2 :2948) ───────────────
         _aiDocumentManager = new Hrot.Editor.AiShared.Documents.AiDocumentManager(_perspectiveSwitcher);
@@ -3087,6 +3069,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 // ⭐ CE-345 — symbolication is wired now; this used to be `null` on the strength of
                 //   a slice-1 statement that CE-059 had already overtaken.
                 BTreeDebugSession = _btreeDebugSession,
+                HsmDebugSession   = _hsmDebugSession,   // ⭐ CE-1253
                 Info = m => FdpLog<CgfSubsystem>.Info("[CGF] {0}", m),
                 Warn = m => FdpLog<CgfSubsystem>.Warn("[CGF] {0}", m),
             });

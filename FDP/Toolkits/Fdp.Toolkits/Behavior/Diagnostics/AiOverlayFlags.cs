@@ -20,5 +20,11 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         Channels        = 1 << 5,   // active locomotion/weapon/interaction action
         /// <summary>⭐ <c>CE-3120</c> — the planned path and its look-ahead (<c>PlannedPathGizmo</c>).</summary>
         Path            = 1 << 6,
+        /// <summary>⭐ <c>CE-1317</c> (Brain View §12c BV-50) — a commander's reported picture and the engagement areas (split out of
+        /// <see cref="SquadAssignment"/>, which drew it with the member lines and the contacts under one checkbox).</summary>
+        CommandPicture  = 1 << 7,
+        /// <summary>⭐ <c>CE-1317</c> (BV-50, BV-56) — a commander's units' merged contacts ("My units' contacts"), each with a line from
+        /// the commander.</summary>
+        SquadContacts   = 1 << 8,
     }
 }

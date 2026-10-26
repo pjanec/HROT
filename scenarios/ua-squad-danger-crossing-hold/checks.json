@@ -1,15 +1,35 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — S10 (CE-2159 D3): the crossing under a threat while low on ammo; the header asserts no pass condition. Only the Fail point is encoded: the squad must not stand frozen in the open (old CE-2164 freeze) — proxy: the Leader (start x 150) gets past x 170 (the measured live run resumes the march at ~38.6 s). The 170 is a loose proxy, not from the Judge. The measured BreakContact pick is a maneuver/drill, not a readable task, so it is left out. DEMO (13 units, no winner asserted): no golden.",
-  "runFor": 90,
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3. Behaviors' ruling (reply note §1, 2026-10-22): the stop at the crossing is the DESIGNED D3 Hold (threatened area + low ammo ⇒ Hold, re-decided every 10 s; the Hostiles never leave, so it is Hold again), not the CE-2164 freeze. Measured in the editor: break contact 3.25 s, the march 47 s, the Leader at x 168 by ~70 s, the drill SquadHold from 75 s. NOT expressed: 'no task and no drill for longer than ~30 s' (a duration of an absence — no cue says it).",
+  "runFor": 150,
   "golden": false,
   "expect": [
     {
-      "name": "the squad does not sit frozen: the Leader gets past x 170",
+      "name": "the squad holds at the crossing (drill SquadHold)",
       "on": "field",
-      "who": "Leader",
-      "path": "SimTransform.Position.0",
-      "op": ">",
-      "value": 170
+      "who": "Squad",
+      "path": "SquadDrillTrace.Kind",
+      "op": "==",
+      "value": 7,
+      "after": 40
+    },
+    {
+      "name": "the Leader stays on the near side (x < 170) while the Hostiles hold the far side",
+      "never": {
+        "on": "field",
+        "who": "Leader",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 170
+      }
+    },
+    {
+      "name": "the squad is still holding at the end (drill SquadHold)",
+      "on": "field",
+      "who": "Squad",
+      "path": "SquadDrillTrace.Kind",
+      "op": "==",
+      "value": 7,
+      "atEnd": true
     }
   ]
 }

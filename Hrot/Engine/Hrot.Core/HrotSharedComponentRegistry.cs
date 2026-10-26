@@ -55,6 +55,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<NetworkIdentity>();
         world.RegisterComponent<NetworkAuthority>();   // CE-281: NetworkOwnership retired (merged into NetworkAuthority)
         world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>();   // ⭐ AQ107 — the request that made it (§3.4e)
         world.RegisterComponent<GhostStateTracker>();
         world.RegisterComponent<PendingNetworkAck>();
         world.RegisterComponent<ReportLifecycleOnActive>();   // CE-283: reliable-init barrier peer tag
@@ -195,6 +196,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<ConstructionAck>();
         world.RegisterEvent<DestructionOrder>();
         world.RegisterEvent<DestructionAck>();
+        world.RegisterEvent<EntityConstructionCompleted>();   // ⭐ AQ107 — the generic lifecycle notifications (§3.4e)
+        world.RegisterEvent<EntityDestructionCompleted>();
 
         // ── Combat ────────────────────────────────────────────────────────────
         // Health is shared so Brain, Muscle, and IG all materialise the same
@@ -216,6 +219,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<FrameStepCompletedEvent>();
         world.RegisterManagedEvent<PauseTimeIntent>();
         world.RegisterManagedEvent<SnapTimeIntent>();
+        world.RegisterManagedEvent<JumpTimeIntent>();   // ⭐ CE-3329 R4
         world.RegisterManagedEvent<ResumeTimeIntent>();
         world.RegisterManagedEvent<StepTimeIntent>();
         world.RegisterManagedEvent<SetTimeScaleIntent>();

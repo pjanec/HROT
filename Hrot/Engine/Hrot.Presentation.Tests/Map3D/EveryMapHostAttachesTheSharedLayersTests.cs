@@ -62,6 +62,23 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
                                         + string.Join(", ", missing));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1289</c> (+ <c>CE-3151</c>) — every host that attaches the shared map layers (and so gets the cursor's reading on its canvas)
+    /// also shows it: it registers the status-bar section. ⛔ Red-proof: delete one host's <c>MapCursorStatusBarSection.Register(</c> and
+    /// this names that host.
+    /// </summary>
+    [Fact]
+    public void EveryHostThatAttachesTheSharedLayers_ShowsTheCursorInItsStatusBar()
+    {
+        var files = ProductionFiles().ToList();
+        var attachers = files.Where(f => f.Text.Contains("MapInteractionPack.AttachMapLayers(")).Select(f => HostOf(f.Rel)).Distinct().ToList();
+        var showers = files.Where(f => f.Text.Contains("MapCursorStatusBarSection.Register(")).Select(f => HostOf(f.Rel)).ToHashSet();
+
+        Assert.True(attachers.Count >= 5, "anti-vacuity: expected the five map hosts, found " + string.Join(", ", attachers));
+        var missing = attachers.Where(h => !showers.Contains(h)).ToList();
+        Assert.True(missing.Count == 0, "map hosts with no cursor readout in the status bar: " + string.Join(", ", missing));
+    }
+
     [Theory]
     [InlineData(@"MapInteractionPack\.BuildRenderLayer\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?TerrainLayer3D\(")]
@@ -71,6 +88,8 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [InlineData(@"new\s+([\w.]+\.)?MapViewModeLayer\(")]
     [InlineData(@"new\s+([\w.]+\.)?MapCameraLayer\(")]
     [InlineData(@"new\s+([\w.]+\.)?FilmCaptureLayer\(")]   // ⭐ CE-3289 — the film is every map's, by construction
+    [InlineData(@"new\s+([\w.]+\.)?GridMapLayer\(")]       // ⭐ CE-1288 — the 2-D helper grid is the shared attach's (the editor used to add its own, above the entities)
+    [InlineData(@"new\s+([\w.]+\.)?MapCursorLayer\(")]     // ⭐ CE-1289 — the cursor's reading is measured once, the same on every host
     public void NoHostBuildsAMapLayerOfItsOwn(string pattern)
     {
         var re = new Regex(pattern);

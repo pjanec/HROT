@@ -16,6 +16,7 @@ public sealed class EverySystemForgetsTheLastWorldTests
     /// <summary>Fields that need no reset — each REBUILT before use in every Execute (scratch), or holding no handle across frames.</summary>
     public static readonly IReadOnlyDictionary<string, string> Exempt = new Dictionary<string, string>
     {
+        ["Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem._doorsSeen"] = "scratch — cleared at the top of each door pass and filled from this frame's world (AQ104 E ③)",
         ["Fdp.Toolkit.Vis2D.Systems.HierarchyOrderSystem._visited"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["CarKinem.Systems.PathTraceSystem._writes"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["CarKinem.Systems.SpatialHashSystem._warned"] = "a warn-once log set (cleared on a new terrain fit); changes no behaviour",

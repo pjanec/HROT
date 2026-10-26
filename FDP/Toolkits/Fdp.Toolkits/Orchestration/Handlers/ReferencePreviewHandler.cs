@@ -108,6 +108,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <c>UnloadingPreview</c> commits.</summary>
         public void TriggerUnloadingPreview() => UnloadingPreviewCommit();
 
+        /// <summary>⭐ <c>CE-1025</c> (R-1031, load design §9.1) — the local entry point for a dry run left WITHOUT a rewind (a load replaces
+        /// the world): the keyframe is dropped and the id / entity-map bracket discarded, exactly as <see cref="Abort"/> does.</summary>
+        public void TriggerForgetPreview()
+        {
+            _keyframe = null;
+            _bracket?.Discard();
+        }
+
         /// <summary>True between a capture and its rewind.</summary>
         public bool HasSnapshot => _keyframe != null;
 

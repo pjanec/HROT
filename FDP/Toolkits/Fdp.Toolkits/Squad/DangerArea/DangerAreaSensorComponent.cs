@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.DangerAreaSensor)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct DangerAreaSensor
     {
         /// <summary>FNV-1a-32 hash of the query template blueprint id.</summary>

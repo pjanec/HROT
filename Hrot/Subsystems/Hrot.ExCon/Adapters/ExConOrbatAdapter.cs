@@ -98,7 +98,8 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
                     Depth:           depth,
                     HasChildren:     hasChildren,
                     IsPendingDelete: _logic.IsEntityPendingDelete(entityId),
-                    CanAcceptSubordinates: IsCompositeType(entity.TkbType)));
+                    CanAcceptSubordinates: IsCompositeType(entity.TkbType),
+                    NetworkId:       entityId));
             }
 
             // Recurse into children when filter is active (scan full subtree) or node is expanded.

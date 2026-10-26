@@ -31,5 +31,8 @@ namespace Fdp.Toolkit.Behavior.Events
         public Fdp.Toolkit.Behavior.Components.BehaviorOrigin Origin;
         /// <summary>⭐ <c>CE-2078</c> — for <c>Origin = Reaction</c>: how urgent (R-199 ③).</summary>
         public Fdp.Toolkit.Behavior.Components.ReactionUrgency Urgency;
+        /// <summary>⭐ <c>CE-1250</c> (BV-12) — for a reaction: the change in the unit's senses it answers (0 = not given). Only recorded —
+        /// the brain journal's start entry carries it ("started TakeCover after NearMiss"); nothing decides on it.</summary>
+        public Fdp.Toolkit.Perception.Events.SensorChange Cause;
     }
 }

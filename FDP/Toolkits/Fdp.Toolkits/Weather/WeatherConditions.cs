@@ -56,6 +56,7 @@ namespace Fdp.Toolkit.Weather
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeatherConditions)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public unsafe struct WeatherConditions
     {
         public const int MaxWindLevels = 8;

@@ -133,8 +133,8 @@ namespace Fdp.Toolkit.Replication.Tests
             var root = _world.CreateEntity();
             _world.AddComponent(root, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // root owned by node 2
             var record = new DescriptorOwnership();
-            record.SetOwner(OwnershipExtensions.PackKey(d, 0), 1);                                // group (d) granted to us
-            record.SetOwner(OwnershipExtensions.PackKey(d, 3), 2);                                // instance 3 moved back alone
+            record = record.WithOwner(OwnershipExtensions.PackKey(d, 0), 1);                                // group (d) granted to us
+            record = record.WithOwner(OwnershipExtensions.PackKey(d, 3), 2);                                // instance 3 moved back alone
             _world.SetManagedComponent(root, record);
             var part = _world.CreateEntity();
             _world.AddComponent(part, new PartMetadata { ParentEntity = root, InstanceId = 2 });

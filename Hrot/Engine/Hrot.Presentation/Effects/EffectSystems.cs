@@ -31,7 +31,7 @@ namespace Hrot.UI.Common.Effects;
 /// The events reach every node (local fire, or the NED ingress), so every host makes its own — effects are never replicated.
 /// <para>⭐ W1 (§7 VE-Q, VE-R): each effect carries the generic <see cref="Lifespan"/> (made at sim now, lives the type's
 /// <c>Duration</c>) — <see cref="LifespanSystem"/> removes it. Effects ARE RECORDED (never saved); ⛔ so during a replay this system is
-/// OFF (<see cref="IsReplayActive"/>): the recording already holds every effect, and spawning from the replayed events would draw each
+/// OFF (the world's <see cref="Fdp.Toolkit.Replay.ReplayState"/>): the recording already holds every effect, and spawning from the replayed events would draw each
 /// one twice.</para>
 /// <para>It also keeps its own population honest, which no generic timer can: an attached effect whose shooter is gone ends at once
 /// (VE-J), and decals over <see cref="DecalCap"/> are removed oldest first (VE-H).</para>
@@ -53,14 +53,11 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
     public int Spawned { get; private set; }
 
-    /// <summary>True while this node's world is driven by a replay ⇒ the system does nothing (VE-R); null ⇒ never.</summary>
-    public Func<bool>? IsReplayActive { get; set; }
-
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
-        if (IsReplayActive?.Invoke() == true) return;
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) return;   // ⭐ CE-3329 P2 — the world says it is a replay
         var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
         var cmd = view.GetCommandBuffer();
         double now = SimClock.Of(world).TotalTime;
@@ -84,7 +81,8 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                     ? view.GetComponentRO<SimTransform>(fire.Target).Position : Vector3.Zero;
                 var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
                 // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream)
-                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now, toward != Vector3.Zero ? toward : AimPointOf(view, fire.Shooter));
+                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now,
+                    StreamToward(toward, AimPointOf(view, fire.Shooter), fire.Origin != Vector3.Zero ? fire.Origin : at, fire.Velocity, mount?.Range ?? 0f));   // ⭐ CE-1357
                 // ⭐ CE-3248 (Civilians §7.17a TC-6) — a THROW is recorded (the body's pose reads RecentShots) and is otherwise no gunshot: no
                 //   flash at a hand, no shot sound, no blast. 📐 Before: a stone has no effects of its own, so it drew the default small flash.
                 if (Fdp.Toolkit.Combat.PersonHands.Threw(view, in fire)) continue;
@@ -284,6 +282,22 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     private EntityQuery? _flights;
 
     /// <summary>Where <paramref name="shooter"/>'s weapon posture aims (its target, else its point); zero when it aims at nothing.</summary>
+    /// <summary>
+    /// ⭐ <c>CE-1357</c> — where a shot's burst stream points: its target unit; else the shooter's aim posture; else ALONG THE ROUND'S OWN
+    /// LAUNCH (<paramref name="origin"/> + its velocity's direction × the weapon's range, 50…1000 m, 300 when unstated); else nowhere.
+    /// 🔴 A weapon SYSTEM (a door M134, a pintle gun) fired at a POINT has no target and no posture of its own, so the stream was drawn to
+    /// (0,0,0): the bright stream from the door ran to the map's corner while only its real tracers flew to the aim. 🔒 User, 2026-10-25:
+    /// "the majority of the stream of tracers is rendered to the corner of the terrain (maybe 0,0,0 or something) and just few are flying to
+    /// where the aim point is". Pure.
+    /// </summary>
+    public static Vector3 StreamToward(Vector3 target, Vector3 posture, Vector3 origin, Vector3 velocity, float range)
+    {
+        if (target != Vector3.Zero) return target;
+        if (posture != Vector3.Zero) return posture;
+        if (velocity.LengthSquared() < 1e-4f) return Vector3.Zero;   // nothing known: no stream (FireStreams draws none toward zero)
+        return origin + Vector3.Normalize(velocity) * (range > 0f ? Math.Clamp(range, 50f, 1000f) : 300f);
+    }
+
     private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
         => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;
 
@@ -337,7 +351,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 ///   <item>Only a CROSSING burns: an entity first seen already destroyed (a scenario saved with a wreck, a late-joining host) does
 ///   not (VE-P: "a wreck loaded already dead does not burn").</item>
 ///   <item>Soldiers do not burn — only a type whose drawn body is a vehicle family (<see cref="EntityBodyLayer3D.Resolve"/>).</item>
-///   <item>⛔ OFF during a replay (<see cref="IsReplayActive"/>, VE-R): the recording holds the flames; and its memory is dropped, so
+///   <item>⛔ OFF during a replay (the world's <see cref="Fdp.Toolkit.Replay.ReplayState"/>, VE-R): the recording holds the flames; and its memory is dropped, so
 ///   coming back live cannot mistake the replayed wrecks for fresh kills.</item>
 /// </list>
 /// </summary>
@@ -356,15 +370,12 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
     /// <summary>Effect entities made in the last tick — the rail's counter.</summary>
     public int Spawned { get; private set; }
 
-    /// <summary>True while this node's world is driven by a replay ⇒ the system does nothing and forgets (VE-R); null ⇒ never.</summary>
-    public Func<bool>? IsReplayActive { get; set; }
-
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()
             || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return;
-        if (IsReplayActive?.Invoke() == true) { _wasDestroyed.Clear(); return; }
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) { _wasDestroyed.Clear(); return; }   // ⭐ CE-3329 P2
         // ⭐ CE-3294 — a reload is a new world in the same repository (its units under the same handles): forget like a new instance
         if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch) | !ReferenceEquals(world, _queryWorld))
         {

@@ -1054,6 +1054,26 @@ namespace Fdp.Core
         /// <c>UnitEntity</c>; NoScenario, never sent. Behaviors' block 418–433 (R-2056). 📄 docs/DESIGN_Entity_Interactions.md §7.2c.</summary>
         public const int MapGraphic = 419;
 
+        /// <summary>⭐ <c>CE-2368</c> (behaviors, AQ103, R-2074) — <c>Restless</c>: a stationary person's idle life (where he settled, when he
+        /// next shifts, the move it wrote); brain-local, NoScenario. Behaviors' block 418–433 (R-2056), measured free on backend, ui and
+        /// coordinator 2026-10-24. 📄 docs/blueprints/Architect_Question_103_Idle_Life.md.</summary>
+        public const int Restless = 420;
+        /// <summary><c>Stress</c> — <c>CE-2270</c> TS-B (R-2034, behaviors): a combatant's live stress 0–1 and his break, kept by
+        /// <c>StressSystem</c> on the brain node; brain-local (NoScenario, never sent).</summary>
+        public const int Stress = 421;
+        /// <summary>⭐ <c>CE-2371</c> (behaviors, AQ104 D, R-2079) — <c>Alerted</c>: the enemies a man must not forget until they are down
+        /// (short leases his task renews); brain-local, NoScenario. Behaviors' block 418–433 (R-2056), measured free on backend, ui and
+        /// coordinator 2026-10-25. 📄 docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md §4 D.</summary>
+        public const int Alerted = 422;
+
+        /// <summary>⭐ <c>CE-2375</c> (behaviors, AQ104 A-1, R-2081) — <c>PendingUnitCommand</c>: a lone man waiting for the squad his area order
+        /// asked to be created; brain-local, managed, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
+        public const int PendingUnitCommand = 423;
+
+        /// <summary>⭐ <c>CE-2372</c> (behaviors, AQ105 E) — <c>CalloutState</c>: a man's last call and the edges his calls watch (reload,
+        /// grenades, contacts); brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
+        public const int CalloutState = 424;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>
@@ -1079,6 +1099,14 @@ namespace Fdp.Core
         /// <summary>⭐ <c>CE-3282</c> — <c>AcousticCursor</c>: the last ring serial a hearing sensor consumed. Sensing §8.3.</summary>
         public const int AcousticCursor = 439;
 
+        /// <summary>⭐ <c>CE-3315</c> (backend) — <c>SoundTimeline</c>: how many sounds the world's timeline has made, so a restore numbers on
+        /// where it stood (restore design §1k).</summary>
+        public const int SoundTimeline = 455;
+
+        /// <summary>⭐ <c>CE-3318</c> (backend) — <c>NavigationHandleMark</c>: the world's copy of the navigation handle counter, so a restore
+        /// numbers its next path where the straight run did (restore design §1m).</summary>
+        public const int NavigationHandleMark = 456;
+
         /// <summary>⭐ <c>CE-3288</c> (backend) — <c>ScenarioDescriptionResident</c>: the loaded scenario's header description, a managed world
         /// singleton a save writes back. 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4d. Backend's block; measured free on every lane 2026-10-20.</summary>
         public const int ScenarioDescriptionResident = 440;
@@ -1099,6 +1127,24 @@ namespace Fdp.Core
         /// <summary><c>TrafficShadowFollow</c> — a handed-over body's follow of its SUMO shadow (was <c>TrafficShadowFollowSystem._follow</c>).
         /// Backend's block, not traffic's 450–459: the traffic owner allocates there, and a backend id can never collide with it.</summary>
         public const int TrafficShadowFollow = 447;
+        /// <summary>⭐ AQ104 E ③ (backend) — <c>DoorHeard</c>: the door state this node's sound system last heard, so a change makes a
+        /// sound once (R-3039: a system's memory is a component). Local, recorded. 448 free on every lane by a census, 2026-10-25.</summary>
+        public const int DoorHeard = 448;
+        /// <summary>⭐ AQ107 (backend, CE-3323) — <c>CreationRequestId</c>: the creation request that made this entity, on every node that
+        /// holds it (Creation Unification §3.4e). 449 free on every lane by a census, 2026-10-25.</summary>
+        public const int CreationRequestId = 449;
+        // ── coordinator / a new lane: 476–495 (R-2056) ──
+        /// <summary>⭐ CE-4046 ② (backend, for the COORDINATOR's handoff "Replay Recording Fixes"; backend's 434–449 is full) —
+        /// <c>AirFollower</c>: an aircraft's follower state on its <c>AirPath</c>, unmanaged, recorded. 476 free on every lane, 2026-10-26.</summary>
+        public const int AirFollower = 476;
+        /// <summary>⭐ CE-3329 PW (backend, DAR's wire step; backend's 434–449 is full, as for <c>AirFollower</c>) — <c>EgressHold</c>: a world
+        /// singleton that holds this node's egress from a world swap (a replay seek, a checkpoint restore) until the master commits it
+        /// (DESIGN_Replay_Time_Axis_And_Review §12c W2). Transient. 477 free on every lane by a census, 2026-10-26.</summary>
+        public const int EgressHold = 477;
+        /// <summary>⭐ CE-3329 P2 (backend) — <c>ReplayState</c>: a world singleton saying the world shows a recording; every system
+        /// that writes world state returns early while it is set (DESIGN_Replay_Time_Axis_And_Review §12l). Transient. 478 free on every
+        /// lane by a census, 2026-10-26.</summary>
+        public const int ReplayState = 478;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;
@@ -1110,5 +1156,22 @@ namespace Fdp.Core
         public const int ReplicationRoute = 453;
         /// <summary><c>TrafficFrame</c> — this frame's SUMO cars + traffic-light states, a managed world singleton the map layers read (Hrot.Traffic).</summary>
         public const int TrafficFrame = 454;
+        // ── ⭐ ui's block 460–475 (R-2056) ──
+        /// <summary><c>BrainJournal</c> — a brain unit's last 24 changes with their causes (CE-1249, R-1027); NoScenario, brain-only.</summary>
+        public const int BrainJournal = 460;
+        // 461 — taken by a test-local struct (TheBrainViewTests); left free in production to keep the census unambiguous.
+        /// <summary><c>CommandReportHistory</c> — a commander's last 32 reports to and from him (CE-1319, BV-57); NoScenario, brain-only.</summary>
+        public const int CommandReportHistory = 462;
+        /// <summary><c>CommandOrderHistory</c> — a commander's last 32 orders given and received, each with its cause (CE-1319, BV-58); NoScenario, brain-only.</summary>
+        public const int CommandOrderHistory = 463;
+        /// <summary><c>UnitDebugSettings</c> — the ONE store of per-unit debug switches (gizmo pins, trace, the followed unit), a managed world
+        /// singleton (CE-1329, Brain View §12r); Transient.</summary>
+        public const int UnitDebugSettings = 464;
+        /// <summary><c>SelectionStore</c> — THE selection keyed by network id, a managed world singleton (CE-4049, the coordinator's replay-UI-state
+        /// handoff ①); Transient — UI state, never recorded.</summary>
+        public const int SelectionStore = 465;
+        /// <summary><c>SquadDrillState</c> — the recorded headline of a commander's squad drill (active, kind, phase, since), written beside the
+        /// transient SquadDrillTrace (CE-4047, the coordinator's replay-UI-state handoff ③); NoScenario — recorded, never saved.</summary>
+        public const int SquadDrillState = 466;
     }
 }

@@ -81,6 +81,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // This allows OnExit to identify what it is cleaning up.
                     _executors[oldAction]?.OnExit(entity, ref channel, repo);
                     _executors[channel.ActiveAction]?.OnEnter(entity, ref channel, repo);
+                    // ⭐ CE-1249 (BV-10) — a NEW move command, once (not per tick), with the point its executor just set
+                    if (channel.ActiveAction != 0)
+                        Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, entity,
+                            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.MoveStarted, a: channel.ActiveAction,
+                            cause: (byte)Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.MoveSourceOf(repo, entity, channel.ActionInstanceId),
+                            point: repo.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity)
+                                ? repo.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(entity).FinalDestination
+                                : default);
 
                     channel.DispatchedInstanceId = channel.ActionInstanceId;
                     channel.DispatchedAction = channel.ActiveAction;

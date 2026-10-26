@@ -68,12 +68,16 @@ public sealed class TheWorldBoundaryResetsTheIdAuthorityTests
         bus.SwapBuffers();
     }
 
+    private static readonly Guid FinishedExercise = Guid.NewGuid();
+
     private static (FdpEventBus Bus, ClusterMaster Master, RecordingAuthority Authority) Cluster()
     {
         var bus       = new FdpEventBus();
         var master    = new ClusterMaster(bus, NoMandatoryConfig());
         var authority = new RecordingAuthority();
         master.IdAuthority = authority;
+        // ⭐ R-3055 — a replay replays an EXERCISE: the master resolves a request that names none (else it is rejected)
+        master.NewestExercise = () => FinishedExercise;
         RegisterNode(bus, master);
         return (bus, master, authority);
     }

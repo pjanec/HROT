@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle §1 flagship demo: judged by what must hold whatever happens. Encoded: beat (1) the charge goes off with a vehicle within 15 m and damages it, (2) squads dismount and fight the fire team, (3) mortar rounds land, invariants: no Blue round at a civilian (five shooter groups), both sides fire, the charge never fires with no vehicle near, CE-2347 secure/remount/move-on chain. NOT expressible: 'nothing sent without a report' and (4) 'an aircraft is sent after a REQUEST' (reports are an HTTP log; the A-10's task name is unknown), the spotter's call before the mortar. runFor 200 is a guess (the live check ran up to 900 s real at 2x). DEMO: no golden.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle §1 flagship demo: judged by what must hold whatever happens. Encoded: beat (1) the charge goes off with a vehicle within 15 m and damages it, (2) squads dismount and fight the fire team, (3) mortar rounds land, invariants: no Blue round at a civilian (five shooter groups), both sides fire, the charge never fires with no vehicle near, CE-2347 secure/remount/move-on chain. NOT expressible: 'nothing sent without a report' and (4) 'an aircraft is sent after a REQUEST' (reports are an HTTP log; the A-10's task name is unknown), the spotter's call before the mortar. runFor 200 is a guess (the live check ran up to 900 s real at 2x). DEMO: no golden. CE-4042 triage: REMOVED 'Squad B dismounts' — a misread premise: only the carrier that is HIT halts and unloads (Squad A, 14.75 s); the IFV carrying Squad B is never hit (health untouched, task FollowRoute, Squad B stays SquadRide aboard for 45 s, measured), so its squad has no reason to dismount. Known red CE-2351 (behaviors): 'then a squad remounts' / 'the convoy moves on' — no remount after securing.",
   "runFor": 200,
   "golden": false,
   "expect": [
@@ -53,13 +53,6 @@
       "name": "Squad A dismounts",
       "on": "embark",
       "who": "*Squad A Rifleman",
-      "is": false,
-      "after": "the charge goes off (the Trigger man's burst)"
-    },
-    {
-      "name": "Squad B dismounts",
-      "on": "embark",
-      "who": "*Squad B Rifleman",
       "is": false,
       "after": "the charge goes off (the Trigger man's burst)"
     },

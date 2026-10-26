@@ -8,6 +8,7 @@ namespace Hrot.Map.Common.Components;
 /// lookup from vehicle → its personal child route entity.
 /// </summary>
 [ComponentId(HrotComponentIds.PersonalRouteRef)]
+[DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct PersonalRouteRef
 {
     /// <summary>

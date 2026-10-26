@@ -52,7 +52,9 @@ namespace Hrot.ScenarioEditor.Map
         Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null,
         Hrot.UI.Common.Map3D.PossessionStation? Possession = null,
         Hrot.UI.Common.Audio.AudioLayer? Audio = null,
-        Hrot.UI.Common.Map2D.TerrainLayer2D? Terrain2D = null);
+        Hrot.UI.Common.Map2D.TerrainLayer2D? Terrain2D = null,
+        Fdp.Toolkit.Vis2D.Layers.GridMapLayer? Grid = null,
+        MapCursorReadout? Cursor = null);
 
     public static class MapInteractionPack
     {
@@ -103,14 +105,10 @@ namespace Hrot.ScenarioEditor.Map
 
             var buffer = new DebugPrimitiveBuffer(ctx.BufferCapacity ?? MapInteractionContext.DefaultBufferCapacity);
 
-            // Every host either creates a bus and registers the interaction events over it, or already has
-            // one. Doing it here means a host cannot forget the RegisterAll half.
-            var bus = ctx.InteractionBus;
-            if (bus is null)
-            {
-                bus = new FdpEventBus();
-                Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
-            }
+            // ⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — the HOST's actions: its registry, its interaction bus (the events
+            //   registered over it) and its dispatch. The host made them at its start and passes them; a test gets fresh ones.
+            var host = ctx.Host ?? SharedHostActions.Create();
+            var bus = host.InteractionBus;
 
             // ⭐ CE-3123 (R-228) — the debug view state the pin and AI-trace actions patch, on every map host.
             Hrot.Map.Common.PresentationComponentRegistry.RegisterDebugViewState(ctx.World);
@@ -259,7 +257,9 @@ namespace Hrot.ScenarioEditor.Map
             //    and the three gizmo systems this pack was written for, and the same cure.
             // ⛔ The pack still CONSTRUCTS ONLY. Scheduling stays the host's, per the 2026-08-28 ruling
             //   and enforced structurally: MapInteractionContext carries no kernel.
-            var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+            var selection = ctx.SelectionWorld is { } selectionWorld
+                ? new Hrot.ScenarioEditor.Selection.EcsSelectionState(selectionWorld)   // ⭐ CE-3327 RB-7 — a host that switches its shown world
+                : new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
 
             // ⭐⭐⭐ THE MARQUEE, BUILT AND DRAWN HERE SO ALL FIVE HOSTS HAVE ONE.
             // 🔒 User ruling, 2026-09-20: "any perspective showing 2d map should support marquee and
@@ -300,14 +300,11 @@ namespace Hrot.ScenarioEditor.Map
             var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
                 ctx.Inspector ?? (static () => null), tools, selection, ctx.AiEntitySelection);
 
-            // ⭐⭐ MAP ACTIONS + THE LAYER CONTROL, built here so ALL map hosts get them (user, 2026-10-07:
-            //    "the layer on/off control is built today only on Editor, SimHost and the replay browser —
-            //    pls unify and share, as usual"). 📐 Measured: Editor, SimHost and ReplayBrowser each built a
-            //    GlobalActionRegistry + GlobalActionDispatchSystem + LayerControlGizmo by hand (three copies);
-            //    CGF and IG built none, so a map-menu action did nothing on them. ⛔ Construct only — the
-            //    host schedules ActionDispatch, as it schedules the selection systems.
-            var actions        = new Hrot.Common.Interactions.GlobalActionRegistry();
-            var actionDispatch = new Hrot.Common.Systems.GlobalActionDispatchSystem(actions, bus);
+            // ⭐⭐ MAP ACTIONS + THE LAYER CONTROL, on every map host (user, 2026-10-07: "pls unify and share, as usual"). ⭐ CE-1150 (§12
+            //    HA-2) — registered on the HOST's registry (ctx.Host), which the map no longer owns; the actions that need no map (Select,
+            //    Center View, pins, AI trace) are SharedHostActions'. ⛔ Construct only — the host schedules ActionDispatch.
+            var actions        = host.Actions;
+            var actionDispatch = host.Dispatch;
             long layerControlId = GlobalGizmoManager.NewId();
             // ⭐ CE-1203 FL-9 — the operator's remembered layers into the shared settings BEFORE the gizmo reads them; saved on every change
             var layerSettingsPath = ctx.LayerSettingsPath ?? MapLayerPreferences.DefaultPath();
@@ -338,10 +335,9 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1201 (DESIGN_Entity_Control §8p OS-1) — View › First Person: Over the Shoulder; the view-mode layer drains it
             actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent()));
-            // ⭐ CE-3120 (R-227) — the Pin gizmos submenu's actions, on every map host (one registration, not one per host).
-            Hrot.Common.Diagnostics.Gizmos.GizmoPins.RegisterActions(actions);
-            // ⭐ CE-3123 (R-228) — the AI-trace toggles, once for every map host (SimHost and the Editor each had a copy; the rest none).
-            Hrot.Common.Diagnostics.Gizmos.AiTraceActions.RegisterActions(actions);
+            // ⭐ CE-1293 (DESIGN_Unit_Camera UC-2) — a unit's "Follow with the camera"; the view-mode layer drains it
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.FollowUnit, (_, target) =>
+                bus.Publish(new Hrot.Common.Diagnostics.Gizmos.FollowUnitEvent { Target = target }));
             // ⭐ CE-3169 (DESIGN_Entity_Control §4.2) — Move Here · Engage · Stop, once for every LIVE map host. ⛔ Not in a replay
             //   (no live brain to order): there the menu does not offer them (OrdersOffered unset) and nothing is registered.
             var menuOrders = new MenuOrders(ctx.World) { Selected = () => selection.SelectedEntities };   // ⭐ CE-1059 — O6
@@ -394,58 +390,43 @@ namespace Hrot.ScenarioEditor.Map
             }
             var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
 
-            // ⭐ CE-1134 / CE-1135 (canvas-context-menu-design §9) — the map menu's view items, on EVERY map host. 📐 Before, only the
-            //   Editor and the ReplayBrowser registered Center View and only the Editor Select, so both were dead in the menu on CGF,
-            //   SimHost and the IG — and Properties… (an id since the first menu) had no handler anywhere.
-            RegisterViewActions(actions, ctx.Inspector);
-
             var map = new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
                 rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu)
             {
-                IsReplayActive = ctx.IsReplayActive,   // ⭐ W1 (VE-R) — the effect systems stand down in a replay
                 MenuOrders     = menuOrders,
                 MenuShortcuts  = new MenuShortcuts(ctx.World, bus, selection, tools),   // ⭐ CE-1076
                 OrderForm      = orderForm,
-                World          = ctx.World,      // ⭐ CE-1134
-                Inspector      = ctx.Inspector,  // ⭐ CE-1134 — joins the inspector window (InspectorMapLink)
+                Host           = host,   // ⭐ CE-1150
             };
-            Hrot.UI.Common.Menus.InspectorMapLink.RegisterMap(map);
             return map;
-        }
-
-        /// <summary>
-        /// ⭐ CE-1134 / CE-1135 — Center View (the map's camera, 2-D or 3-D, on the entity — this node only), Select (the one selection
-        /// request) and Properties… (select it, then show the inspector window). One registration for every map host.
-        /// </summary>
-        public static void RegisterViewActions(Hrot.Common.Interactions.GlobalActionRegistry actions,
-            Func<Fdp.Presentation.Abstractions.IInspectorContext?>? inspector)
-        {
-            actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>
-            {
-                if (view is EntityRepository w && MapUiStates.CanvasOf(w)?.Camera is { } camera)
-                    Hrot.ScenarioEditor.Systems.CenterOnEntitySystem.CenterOn(camera, w, target);
-            });
-            actions.Register(Hrot.Common.Constants.GlobalActionIds.Select, (view, target) =>
-            {
-                // ⭐ UXI-11 S-2 — an action handler REQUESTS; the inspector follows the notification (S-3).
-                if (target.IsNull || view is not EntityRepository w) return;
-                w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
-            });
-            actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.Properties, (view, target) =>
-            {
-                if (target.IsNull || view is not EntityRepository w) return;
-                w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Properties"));
-                Hrot.UI.Common.Menus.InspectorMapLink.ShowWindowFor(inspector?.Invoke());
-            });
         }
 
         /// <summary>
         /// ⭐ Registers the schemas of the panels the pack's gizmos open (today: the layer control) with a
         /// host renderer's schema registry — one call instead of a hand-written block per host.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-1243</c> MB-4 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — a host's map menus (the gizmos' main-menu bindings:
+        /// <i>View ▸ Tactical Map Layers…, 2-D / 3-D Map …</i>) become a CONTRIBUTOR of the one menu bar, bound to the host's perspective
+        /// (UXI-05: they follow focus); a click is the same <c>GizmoMenuActionEvent</c> on the host's interaction bus as before. ⛔ SUPERSEDED:
+        /// each host's own <c>BeginMainMenuBar</c> block (UXI-13). One registration for every map host.
+        /// </summary>
+        public static void RegisterMainMenu(Fdp.Presentation.WindowManager.GlobalMenuRegistry menu, string id, string perspective,
+            Func<System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>?> consume,
+            Func<FdpEventBus?> interactionBus)
+        {
+            ArgumentNullException.ThrowIfNull(menu);
+            ArgumentNullException.ThrowIfNull(consume);
+            ArgumentNullException.ThrowIfNull(interactionBus);
+            menu.RegisterContributor(id,
+                () => consume() ?? Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>(),
+                actionId => interactionBus()?.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId }),
+                perspective);
+        }
+
         /// <summary>
         /// ⭐⭐ THE map renderer layer, built the same way on every host (user, 2026-10-07: "unify and share, as
         /// usual"). 📐 Five hosts built it by hand with different arguments: SimHost and CGF passed no panel
@@ -486,7 +467,8 @@ namespace Hrot.ScenarioEditor.Map
             FdpEventBus bus,
             Func<EntityRepository?> worldProvider,
             Func<Fdp.Interfaces.ITkbDatabase?>? tkbProvider = null,
-            int layerBitIndex = 31)
+            int layerBitIndex = 31,
+            Func<bool>? gridAlsoWhen = null)
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
             // ⭐⭐ CE-1227 (docs/DESIGN_Terrain_World.md §10) — the 2-D terrain FIRST, under every gizmo, as a retained layer: it takes no
@@ -495,11 +477,22 @@ namespace Hrot.ScenarioEditor.Map
             var terrain2D = new Hrot.UI.Common.Map2D.TerrainLayer2D(worldProvider,
                 () => buffer.IsLayerActive(DebugTraceLayers.Terrain2D), () => canvas.Camera);
             canvas.AddLayer(terrain2D);
+            // ⭐ CE-1288 (DESIGN_Map_3D_Mode.md §6ac) — the 2-D helper grid: above the terrain's fills (they would hide it),
+            //   below every gizmo (the entities draw over it). Its checkbox is the buffer's Grid bit (the "Grid (2-D)" row of the layer
+            //   panel, on by default); a host's own switch (the editor's Config window "Grid" tick) may also force it on.
+            var grid = new Fdp.Toolkit.Vis2D.Layers.GridMapLayer(
+                () => buffer.IsLayerActive(DebugTraceLayers.Grid) || (gridAlsoWhen?.Invoke() ?? false), () => canvas.Camera);
+            canvas.AddLayer(grid);
             var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
             if (UiStatesOf.TryGetValue(buffer, out var uiStates)) gizmoLayer.UiStates = uiStates;   // ⭐ CE-1234 — the panel follows its gizmo
             gizmoLayer.CurrentCamera = () => canvas.Camera;   // ⭐ CE-1033 S2 — gizmo input picks in 3-D too
             canvas.AddLayer(gizmoLayer);
             canvas.DrawBuffer = buffer;
+            // ⭐ CE-1289 — the cursor's reading, measured every frame in both views and shown by MapCursorStatusBarSection; it lives on the
+            //   canvas, so a host finds it with `canvas.Get<MapCursorReadout>()`. The ground height is the 3-D camera's (one terrain
+            //   resolution per tick, CE-1054), so the 2-D reading's altitude is the terrain's at that spot.
+            var cursor = new MapCursorReadout();
+            canvas.AddResource(cursor);
 
             var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                           ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
@@ -524,6 +517,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1126 (DESIGN_Entity_Control §8g F-4) — the FPS crosshair's: the parts a round meets (PickFilter.EntityParts)
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityPartPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
+            canvas.AddLayer(new MapCursorLayer(canvas, cursor, worldProvider, viewSwitch.Camera3D.GroundHeight));   // ⭐ CE-1289
             // ⭐ AQ93 R-4024 / V7 — the SUMO roads and lights, TerrainLayer3D's sibling (idle when the terrain has no SUMO net); its far
             //   people and cars are bodies (CE-4031).
             canvas.AddLayer(new Hrot.UI.Common.Map3D.TrafficLayer3D(worldProvider));
@@ -545,13 +539,27 @@ namespace Hrot.ScenarioEditor.Map
             canvas.AddLayer(new MapCanvasLink(canvas, worldProvider));   // ⭐ CE-1134 — Center View finds this canvas by the world
             canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider));   // ⭐ CE-1146 — the weather's sky: the free camera at what it looks at, first person at the eye
             canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee
-            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider));   // ⭐ CE-1145 / CE-1132 — FPS, RTS legend
+            var stats = new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider, canvas.Camera);   // ⭐ CE-1262 — + the 2-D camera
+            canvas.AddLayer(stats);   // ⭐ CE-1145 / CE-1132 — FPS, RTS legend
             // ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d) — this map host as a first-person station: it follows the replicated
             //   PossessedBy, so a unit held by this node puts the map into its eyes (camera driver, cursor lock, HUD) and losing it
             //   leaves. Here, so no map host can lack it.
             var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies);   // ⭐ CE-1073 — the drawn heads
+            stats.Possession = possession;   // ⭐ CE-1262 (AV-1) — the view snapshot names the possessed unit and its crosshair target
             canvas.AddLayer(possession);
             viewMode.ToggleShoulder = () => possession.OverShoulder = !possession.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
+            // ⭐ CE-1293 (UC-2, UC-10) — watching a unit: the 3-D camera follows it (menu and POST /view/follow; not while possessing)
+            viewMode.World = worldProvider;
+            viewMode.Bodies = bodies;
+            // ⭐ CE-1342 — Ctrl+M centres the switch on the primary selection (a view over the world's selection, rebuilt per world)
+            Hrot.ScenarioEditor.Selection.EcsSelectionState? viewSelection = null;
+            EntityRepository? viewSelectionWorld = null;
+            viewMode.SelectedUnit = () =>
+            {
+                if (worldProvider() is not { } sw) return null;
+                if (!ReferenceEquals(viewSelectionWorld, sw)) { viewSelection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(sw); viewSelectionWorld = sw; }
+                return viewSelection!.PrimarySelected;
+            };
             // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-3) — the scene's sound, only while the station holds a unit
             var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);
             canvas.AddLayer(audio);
@@ -560,7 +568,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-3289 (§6ab, R-3032) — the film: a director camera and a clean capture of the scene, on every map host; LAST, so its
             //   update runs after every other layer's (the frame it captures is complete) and its director wins the camera.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.FilmCaptureLayer(canvas, viewSwitch, worldProvider));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D, grid, cursor);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

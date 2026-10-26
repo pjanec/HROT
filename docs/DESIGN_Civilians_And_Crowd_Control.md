@@ -14,6 +14,7 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) I-3: a soldier throws a landed frag back through RoundPickUp (AW-8, B-13)
   - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — ASKED 2026-10-20 (D): fear created by CivilianFearSystem for every civilian; a CivilianSop reacts when his task is not CivilianHsm (measured: an ordered civilian has no fear at all today)
   - docs/DESIGN_People_Display.md — (ui) OWNS how a person is DRAWN — what he holds, his gestures, marks above the head; its §8 gaps G1–G8 are answered by §5o here
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
@@ -3039,6 +3040,10 @@ classDiagram
 *The frame's fences hold:* not in `EffectState` (that is what was done TO a man), not a stance (locomotion), no prop entity. Brain group
 (the behaviour that chooses it owns it); recorded like `EffectState` (`NoScenario` only — it reaches the replay, never a scenario
 file). Absent ⇒ None, so a unit that never gestures costs nothing. `None` after a gesture is a change and is published.
+
+> ⭐ **`2026-10-24` — the IG contract for the byte (behaviors' `CE-2368`, ui's `CE-1308`):** `Kind` 1–6 are ACTS (poses); **7–10 are IDLE
+> MOODS** — `IdleSmoking` 7 · `IdleShiftWeight` 8 · `IdleStretch` 9 · `IdleLookAbout` 10 (AQ103 I, R-2074) — **animations for an IG to blend
+> in and out on the man's own clock, never poses to snap to**; 0 ends either at once. How this repo draws them: [People Display](DESIGN_People_Display.md) §7d.
 
 ### 7.9 B-8 — the HANDS mount, and stones and stun grenades on the arc *(AW-7, AW-24 — R-2025, R-2029; `CE-3230`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.9a)*
 

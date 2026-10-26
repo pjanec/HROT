@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: R-226 / DESIGN_Terrain_Combat_Tuning.md §5a precedent — UtilityDecisionLog exists only while a unit is OBSERVED (trace armed); T2 here leans ALWAYS present, argued in §2
 related-designs:
+  - docs/DESIGN_Entity_Brain_View.md — the Brain tab shows ActionStatus as "Right now"; its brain journal copies ActionStatus's always-on recorded shape
   - DESIGN_Terrain_Combat_Tuning.md — OWNS §5a (R-226: debug gizmos draw RECORDED state, NoScenario components) and §5b (R-227: gizmo families, scope, pins)
   - DESIGN_Uniform_Gizmo_Membership.md — OWNS §10 (R-228: gizmo membership is uniform across the five map hosts — "has data = can draw") and §9.7 (where a behaviour's gizmo goes: its data outside the hot-reload assembly, the gizmo in Hrot.Presentation)
   - DESIGN_Peek_And_Fire.md — OWNS the first consumer: the aim timer / sight gate (P-3) whose holds this makes visible, and PeekAndFire's phases (§8.2)

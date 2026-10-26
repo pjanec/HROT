@@ -98,8 +98,8 @@ public sealed class ReplayTimelinePanel
         _inspectorState = inspectorState;
     }
 
-    /// <summary>Binds a new manager after a successful group load.</summary>
-    public void SetManager(FederatedReplayManager manager) { _manager = manager; }
+    /// <summary>Binds a new manager after a successful group load; <see langword="null"/> when the replay is closed (RB-1, <c>POST /replay/stop</c>).</summary>
+    public void SetManager(FederatedReplayManager? manager) { _manager = manager; }
 
     // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
     /// <summary>⭐⭐⭐ BUILD — a pure projection of frame/timing state. No ImGui. ⭐ Reuses the SAME

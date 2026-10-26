@@ -57,6 +57,8 @@ namespace Hrot.UI.Common.Audio
         private byte[]? _doors;
         private TerrainWorld? _doorWorld;
         private readonly HashSet<Entity> _aboard = new();
+        private readonly Dictionary<Entity, (Fdp.Toolkit.Civilians.UtteranceKind Kind, double Until)> _said = new();
+        private bool _saidKnown;
         private bool _aboardKnown;
         private TerrainWorld? _townWorld;
         private Vector3 _townAt = new(float.NaN);
@@ -75,6 +77,8 @@ namespace Hrot.UI.Common.Audio
         public float RumbleLevel => _rumble;
         public int DoorsHeard { get; private set; }
         public int BoardingsHeard { get; private set; }
+        /// <summary>⭐ CE-2372 — voice lines played (a call, a command, a chant).</summary>
+        public int VoicesHeard { get; private set; }
 
         /// <summary>How built-up it is around the ear, 0…1 — the town bed's level (re-measured when the ear moves 25 m).</summary>
         public float TownLevel { get; private set; }
@@ -96,6 +100,7 @@ namespace Hrot.UI.Common.Audio
             Rounds(world, own, ear, now);
             Own(world, own, now, dt, output);
             Doors(world, ear, now);
+            Voices(world, own, ear, now);
             Boarding(world, own, ear, now);
             Town(world, ear);
             Beds(ear, dt, output);
@@ -105,6 +110,7 @@ namespace Hrot.UI.Common.Audio
         public void Reset()
         {
             _lastBurst.Clear(); _lastPos.Clear(); _passes.Clear();
+            _said.Clear(); _saidKnown = false;
             _ownMagazines = -1; _rumble = 0f; _recentNear = 0f;
             _doors = null; _doorWorld = null; _aboard.Clear(); _aboardKnown = false; _townWorld = null; _townAt = new(float.NaN); TownLevel = 0f;
         }
@@ -362,6 +368,59 @@ namespace Hrot.UI.Common.Audio
             if (g <= 1e-3f) return;
             _mixer.Request(SoundTkbCatalog.Door, at, !mine, g, Jitter(s), mine ? SoundTkbCatalog.PriorityOwn : s.Priority, now, mine ? 0.0 : Spatializer.Delay(d));
             BoardingsHeard++;
+        }
+
+        /// <summary>A man's mouth above his feet (m) — where his voice comes from.</summary>
+        public const float MouthHeight = 1.6f;
+
+        /// <summary>
+        /// ⭐ CE-2372 (AQ105 F, R-2080; DESIGN_FPS_Audio §9) — what people SAY, from the replicated <see cref="Fdp.Toolkit.Civilians.Utterance"/>
+        /// as <c>OverheadMarkGizmo</c> reads it: a NEW utterance (its kind or its end changed, and it is not over) plays its line ONCE at the
+        /// speaker's mouth, in his side's voice (<see cref="VoiceTkbCatalog.VoiceOf"/>); a contact call names the side the contact is on,
+        /// relative to the speaker's facing. The possessed unit's own voice plays centred. The first frame only learns what is being said.
+        /// </summary>
+        private void Voices(EntityRepository w, Entity own, in Ear ear, double now)
+        {
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.Utterance>()) { _said.Clear(); _saidKnown = false; return; }
+            double sim = w.HasSingletonUnmanaged<GlobalTime>() ? w.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0.0;
+            var tkb = _tkb();
+            var seen = new HashSet<Entity>();
+            foreach (var e in w.Query().With<Fdp.Toolkit.Civilians.Utterance>().Build())
+            {
+                ref readonly var u = ref w.GetComponentRO<Fdp.Toolkit.Civilians.Utterance>(e);
+                seen.Add(e);
+                bool fresh = !_said.TryGetValue(e, out var was) || was.Kind != u.Kind || was.Until != u.Until;
+                _said[e] = (u.Kind, u.Until);
+                if (!_saidKnown || !fresh || sim >= u.Until || !w.HasComponent<SimTransform>(e)) continue;
+                ref readonly var tf = ref w.GetComponentRO<SimTransform>(e);
+                var force = w.HasComponent<EntityInfo>(e) ? w.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
+                int voice = VoiceTkbCatalog.VoiceOf(force);
+                VoiceTkbCatalog.ContactSide? side = VoiceTkbCatalog.IsContact(u.Kind) && w.IsAlive(u.Target) && w.HasComponent<SimTransform>(u.Target)
+                    ? SideOf(tf, w.GetComponentRO<SimTransform>(u.Target).Position) : null;
+                long clip = VoiceTkbCatalog.ClipFor(voice, u.Kind, side);
+                if (clip == 0 || VoiceTkbCatalog.SoundOf(tkb, clip) is not { } s) continue;
+                bool mine = e == own;
+                var at = tf.Position + new Vector3(0f, 0f, MouthHeight);
+                float d = mine ? 0f : Vector3.Distance(at, ear.Position);
+                float g = Spatializer.Gain(d, s.ReferenceM, s.RangeM > 0f ? s.RangeM : Fdp.Toolkit.Perception.Sensors.AcousticPerception.VoiceRange) * Volume(s);
+                if (g <= 1e-3f) continue;
+                _mixer.Request(clip, at, !mine, g, Jitter(s), mine ? SoundTkbCatalog.PriorityOwn : s.Priority, now, mine ? 0.0 : Spatializer.Delay(d));
+                VoicesHeard++;
+            }
+            if (_said.Count != seen.Count) foreach (var e in new List<Entity>(_said.Keys)) if (!seen.Contains(e)) _said.Remove(e);
+            _saidKnown = true;
+        }
+
+        /// <summary>Which side of a man facing <paramref name="tf"/>'s heading <paramref name="at"/> lies: front / left / right / rear by
+        /// quadrant (his forward is his body's +x, his left +y).</summary>
+        public static VoiceTkbCatalog.ContactSide SideOf(in SimTransform tf, Vector3 at)
+        {
+            var fwd = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+            var left = Vector3.Transform(Vector3.UnitY, tf.Rotation);
+            var to = at - tf.Position;
+            float f = Vector3.Dot(to, fwd), l = Vector3.Dot(to, left);
+            if (MathF.Abs(f) >= MathF.Abs(l)) return f >= 0f ? VoiceTkbCatalog.ContactSide.Front : VoiceTkbCatalog.ContactSide.Rear;
+            return l >= 0f ? VoiceTkbCatalog.ContactSide.Left : VoiceTkbCatalog.ContactSide.Right;
         }
 
         /// <summary>How built-up it is: the buildings (placed buildings and building prisms) within <see cref="TownRadius"/> of the ear.</summary>

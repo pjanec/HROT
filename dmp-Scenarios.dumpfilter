@@ -1,0 +1,17 @@
+# The scenario WORLD: the scenarios themselves, the films, and the terrain + building definitions they stand on
+# (terrain.json, world geojson, premises, roads, building templates). The height grids (*.asc) are long and
+# say nothing a reader can use, so they stay out. Kept out of dmp-HROT.Subsys.dumpfilter so no file is sent twice.
+- *
+
++ scenarios
++ films
++ Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Terrain
++ Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Buildings
+
+- **/*.asc
+- **/.*
+- **/obj
+- **/bin
+- **/build
+- **/artifacts
+- TestResults

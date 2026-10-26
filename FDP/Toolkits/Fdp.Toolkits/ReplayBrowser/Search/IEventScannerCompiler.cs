@@ -29,5 +29,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// The delegate is stateless and can be reused across frames and threads.
         /// </summary>
         EventScannerDelegate CompileScanner(TransientEventPredicateDto predicate);
+
+        /// <summary>
+        /// ⭐ R-4077 extension (docs/DESIGN_Director_Timeline_Editor.md §9c ③) — the same scan, ONE result per matching event (an
+        /// <c>AnyOccurrence</c> predicate included), each carrying what <paramref name="projection"/> keeps. Without a projection it is
+        /// <see cref="CompileScanner(TransientEventPredicateDto)"/>.
+        /// </summary>
+        EventScannerDelegate CompileScanner(TransientEventPredicateDto predicate, ResultProjectionDto? projection)
+            => projection == null ? CompileScanner(predicate) : throw new NotSupportedException($"{GetType().Name} cannot project results.");
     }
 }

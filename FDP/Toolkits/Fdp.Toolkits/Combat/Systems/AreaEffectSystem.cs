@@ -46,6 +46,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo) return;
             var events = repo.ReadEvents<DetonationNotification>();
             if (events.Length == 0) return;

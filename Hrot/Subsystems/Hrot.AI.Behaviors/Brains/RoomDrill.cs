@@ -155,6 +155,7 @@ namespace Hrot.AI.Behaviors.Brains
                 d.Reported = 1;
                 d.Outcome = Cleared;
                 Report(in ctx, d.RoomAt, ProgressKind.RoomClear);
+                CallClear(in ctx, d.RoomAt);   // ⭐ CE-2372 (AQ105 B) — "clear!" from the man nearest the room's centre
             }
         }
 
@@ -569,6 +570,20 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The live members' centre.</summary>
+        /// <summary>⭐ <c>CE-2372</c> (AQ105 B, CB-27) — the live man nearest <paramref name="room"/> calls "clear".</summary>
+        private static void CallClear(in SquadPlayContext ctx, Vector3 room)
+        {
+            Entity best = Entity.Null;
+            float bestD = float.MaxValue;
+            for (int i = 0; i < ctx.Roster.Count; i++)
+            {
+                if (!ctx.Live(i, out var m)) continue;
+                float d = Vector3.Distance(ctx.At(m), room);
+                if (d < bestD) { bestD = d; best = m; }
+            }
+            if (!best.IsNull) Callouts.Say(ctx.World, best, Fdp.Toolkit.Civilians.UtteranceKind.CallClear);
+        }
+
         public static Vector3 SquadCentre(in SquadPlayContext ctx)
         {
             var sum = Vector3.Zero;

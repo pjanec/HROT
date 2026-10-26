@@ -434,6 +434,15 @@ at the REQUEST TIER — the same place a template's child blueprints are spawned
 | ⭐ **404 door stations — BUILT `2026-10-14`** (Air Ops 6a F4) | 🔒 user: *"extend the wire capacity … No problem extending"* ⇒ the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404 keeps its 8 riders (seats 0–7) and gains, per side, a door-gunner seat (`StartWith` rifleman 200) and a `Door` station operated by it (`StartWith` M134 602, `NeedsGunner`, arc 20…160° on its side) at seats 8–11. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree` | §5 |
 | ⛔ not built | ~~**404's door stations** — the type already has 8 seats (the wire's cap), so two stations + two door-gunner seats need 4 of its 8 passenger seats;~~ (built above) **2006 / 2007 as a soldier CARRYING a Javelin / NLAW** — their launcher is mount 0 of the soldier type today, and moving it to a carried entity re-orders the soldier's mounts under the behaviour lane's trees. Both are user decisions; the batch report carries the leans | §5 |
 
+⭐ **AS-BUILT `2026-10-25` (ui, `CE-1356`, a cross-lane edit) — the station's arc NARROWS the weapon's own turret.** ⛔ SUPERSEDES WS-3's
+*"the arc check is the station's limits (`InStationArc`) — the weapon's own turret limits stay the muscle's `OutOfArc`"* for the TURRET:
+`CombatTkb.TurretOf` returns, for a weapon standing in a station that declares an arc, its own `TurretDto` narrowed by that arc turned
+into the weapon's frame (arc − the station's `Facing`; `CombatTkb.WithinStation`, pure). ⇒ the slew, `TurretSlew.InArc` and its `OutOfArc`,
+the operator's aim clamp (`BallisticAim.Reachable`) and the drawn gun ring all keep a door gun out of the cabin. 🔴 Before, the M134's
+turret was full circle and only the AI read the station arc; the operator's gun turned inside the UH-60 (🔒 user, 2026-10-25). An arc
+that would cross straight behind the gun leaves its traverse (one interval cannot hold it). `InStationArc` stays for the AI's
+target checks. Rails `AimAndFireExecutorTests.CE1356_*` (red-proved).
+
 ## 10. WS-6 — the weapon behaviours (behaviors, `2026-10-16`; build-state: BUILT — as-built at the end of this section)
 
 ⭐ **Measured before drawing** — INVENTORY: `search_graph(name_pattern=".*WeaponSystem.*", label=Class)` → **11** (the DTO, params/state, translators, `WeaponSystems`, the replication rails — no behaviour); `.*WeaponDeploy.*` → **3** (`WeaponDeploySystem`, `WeaponDeployment`, its rail); `.*(SetUp|PackUp|Carry)Weapon.*\|.*WeaponSystem(Attack\|Hold).*` (Method) → **0** (codebase-memory CLI; `check_index_coverage` is not available through the CLI, so the zero is corroborated by `grep`, not by a coverage check). Then reads:

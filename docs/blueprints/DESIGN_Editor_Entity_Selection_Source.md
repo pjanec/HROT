@@ -27,6 +27,8 @@ design-basis: UX_Feature_Selection.md §2.7.8 (the announcement) and §2.7.17 (t
   §5.1.1 ("SelectedEntity stays global") · DESIGN_Staged_Live_Write.md (the one write path) ·
   UXI-11 ruling ① (selection is global; ChainToMap retired) · user rulings 2026-09-21, quoted in §1.
 related-designs:
+  - ../DESIGN_Entity_Brain_View.md — §12b BV-46 moves the Entity Blueprints panel (§5, CE-302) into the Brain tab and RETIRES details.entityblueprints
+  - ../DESIGN_Entity_Brain_View.md — §9 BV-22 uses §3.2 pinning: the debug overlay stays on the unit the Brain tab opened
   - docs/blueprints/Architect_Question_73_Canvas_Interaction_Scope.md — the WIRE half of the same
     story: CE-306 fixed the in-process Stride 3-D empty-space clear, and Q73 asks how an EXTERNAL
     gizmo terminal's one would cross. OPEN; nothing built.
@@ -42,6 +44,7 @@ related-designs:
     yellow pending display. §6 here measures that it is ONE implementation, not two.
   - docs/blueprints/DESIGN_Variable_Details_And_Editing.md — owns the Details/Watch table, the
     colours and the optimistic display that the pinned-write question (§5.4) lands in.
+  - docs/DESIGN_Agent_Shared_View.md — OWNS GET / POST /selection (AV-4), which reads SelectionState and writes through SelectEntityCommand
 -->
 
 # DESIGN — **where an AI-editor view gets its entity**: follow when docked, frozen when pinned
@@ -444,6 +447,8 @@ same-named symbol. ⭐ Roslyn is the right instrument and is not available insid
 the text until it can**, and say in the rail which layer is still text.
 
 ## 10. ☑ AS-BUILT — **`CE-302`, `2026-09-21`**
+
+> ⚠ **AS-BUILT `2026-10-25` (CE-1316, [Brain View §12n](../DESIGN_Entity_Brain_View.md)):** ⛔ the view is no longer registered as its own tab. It is a SECTION of the Brain tab (*Blueprints*) on the Scenario and the Blueprint perspectives, drawn unchanged; the Brain tab applies to every single entity, so a unit with no brain keeps it. What follows is the view as built in CE-302.
 
 ⭐ `EntityBlueprintsDetailsView` + `EntityBlueprintsDetailsViewDescriptor` *(`details.entityblueprints`,
 rank **15** — above Variables (10), below Node Properties (20), and `details.runtime.*` stays at 50)*,

@@ -229,6 +229,7 @@ public sealed class TheLayoutIsOneUnitTests
         public Fdp.Presentation.Fonts.EditorFontService FontService { get; } = new();
 
         public void InitWindow(int w, int h, string t, int fps) { }
+        public void SetWindowTitle(string t) { }
         /// <summary>⚠⚠ Records the FIRST call only. 📐 Found by the revert probe: recording the LAST
         /// one let a second <c>SetupImGui</c> overwrite the observation, ⛔ so the rail passed while the
         /// reset ran late. ⭐ ImGui reads the ini at the FIRST setup — that is the moment that matters,

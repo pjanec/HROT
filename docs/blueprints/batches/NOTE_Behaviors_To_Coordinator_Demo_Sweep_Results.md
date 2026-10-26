@@ -27,3 +27,11 @@ failure that survived re-run on a clean worktree at `129aea0bb` (behaviors befor
 Four runs, three different outcomes, so it is not tonight's: at `129aea0bb` the APC **pushed** and its squad stayed aboard, but it stopped
 short of 100 m past the charge (④); at HEAD once it pushed while its squad **dismounted** (`ReactToContact`, ③); twice it **dismounted**
 the squad, which never fired (④: 0 rounds, every man `CombatPosture`). The push/dismount choice itself varies between runs.
+
+## Follow-ups, same day
+
+| demo | finding | state |
+|---|---|---|
+| `ua-casualty-care` (+ `-leader`) | bisected to `4e8ac7075` (CE-2344): in a lull the squad's reaction takes Rescue directly, so no utility decision is recorded — the squad DOES rescue, coverers first. The check reads the drill too | ✅ PASS live |
+| `ua-casualty-care-heavy` | the hostiles never fired (`InertSop`, AQ97); with fire, the squad broke contact taking the man, and its lull was counted from before the fight | ✅ user option 1: the squad HOLDS (a held squad does not break contact; a lull counts from the fight's start; the hostiles fire — no `InertSop`) — PASS live |
+| `ua-civ-routine-alarm` | the calm civilians gather at the fallen man (CIV-3 as designed); the check accepts Gather | ✅ PASS live |

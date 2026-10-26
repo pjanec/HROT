@@ -67,6 +67,20 @@ namespace Fdp.Toolkit.Behavior
             List<(string Key, NodeLogicDelegate<byte, BTreeContext>? Thunk, NodeDeactivatorDelegate<byte, BTreeContext>? Deactivator)>>
             RuntimeThunks = new();
 
+        // ⭐ CE-1360 (docs/blueprints/BTree_Editor_NodeEditor_Host_Design.md §3.4) — the PARAMETER FIELD each key was bound at
+        //   (bb => bb.IsAdvance ⇒ "IsAdvance"): the key carries only its byte offset, and the editor names a node by it
+        //   ("Is option: Advance") where five IsOption nodes otherwise read the same. Display only — nothing binds by it.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> ParamFields = new();
+
+        /// <summary>⭐ <c>CE-1360</c> — the parameter field <paramref name="key"/> was bound at (its selector's member name), or null.</summary>
+        public static string? ParamFieldOf(string key) => ParamFields.TryGetValue(key, out var field) ? field : null;
+
+        private static void RecordParam<TBB, TParams>(string key, Expression<Func<TBB, TParams>> selector)
+        {
+            var member = selector.Body as MemberExpression ?? (selector.Body as UnaryExpression)?.Operand as MemberExpression;
+            if (member != null) ParamFields[key] = member.Member.Name;
+        }
+
         private static void AddRuntime(object builderRegistry, string key, NodeLogicDelegate<byte, BTreeContext> thunk)
         {
             var list = RuntimeThunks.GetOrCreateValue(builderRegistry);
@@ -107,6 +121,7 @@ namespace Fdp.Toolkit.Behavior
             Require(registry, logic);
             nint offset = FieldOffset(paramSelector);
             string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), offset);   // ⭐ CE-2032
+            RecordParam(key, paramSelector);   // ⭐ CE-1360
             registry.Register(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World));
             AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
@@ -124,6 +139,7 @@ namespace Fdp.Toolkit.Behavior
             Require(registry, logic);
             nint offset = FieldOffset(paramSelector);
             string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), offset);   // ⭐ CE-2032
+            RecordParam(key, paramSelector);   // ⭐ CE-1360
             registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World)
                     ? NodeStatus.Success : NodeStatus.Failure);
@@ -144,6 +160,7 @@ namespace Fdp.Toolkit.Behavior
             Require(registry, logic);
             nint po = FieldOffset(paramSelector), so = FieldOffset(stateSelector);
             string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), po, so);   // ⭐ CE-2032
+            RecordParam(key, paramSelector);   // ⭐ CE-1360
             registry.Register(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, po)),
                       ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, so)),
@@ -167,6 +184,7 @@ namespace Fdp.Toolkit.Behavior
             Require(registry, logic);
             nint po = FieldOffset(paramSelector), so = FieldOffset(stateSelector);
             string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), po, so);
+            RecordParam(key, paramSelector);   // ⭐ CE-1360
             registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, po)),
                       ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, so)),

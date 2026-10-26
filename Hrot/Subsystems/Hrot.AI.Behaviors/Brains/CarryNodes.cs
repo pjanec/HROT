@@ -8,6 +8,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -127,7 +128,7 @@ namespace Hrot.AI.Behaviors.Brains
                     //   nudged as he came) and the node gave up for good. Close, and not walked too often ⇒ walk to him again.
                     if (p.Walks >= MaxWalks || Vector3.Distance(at, him) > RewalkMetres) return NodeStatus.Failure;   // still out of reach
                 }
-                if (!LocomotionMoveTo.Issue(world, self, him, p.Speed > 0f ? p.Speed : DefaultSpeed, WalkArrival)) return NodeStatus.Failure;
+                if (!LocomotionMoveTo.Issue(world, self, him, p.Speed > 0f ? p.Speed : DefaultSpeed, WalkArrival, source: MoveSource.Casualty)) return NodeStatus.Failure;
                 p.Walking = 1;
                 p.Walks++;
                 return NodeStatus.Running;
@@ -220,7 +221,7 @@ namespace Hrot.AI.Behaviors.Brains
                     p.Walking = 0;
                     return NodeStatus.Failure;   // the walk ended and the vehicle is still out of reach
                 }
-                if (!LocomotionMoveTo.Issue(world, self, point, p.Speed > 0f ? p.Speed : EmbarkNodes.DefaultSpeed, 0.5f)) return NodeStatus.Failure;
+                if (!LocomotionMoveTo.Issue(world, self, point, p.Speed > 0f ? p.Speed : EmbarkNodes.DefaultSpeed, 0.5f, source: MoveSource.Casualty)) return NodeStatus.Failure;
                 p.Walking = 1;
                 p.WalkTo = point;
                 return NodeStatus.Running;

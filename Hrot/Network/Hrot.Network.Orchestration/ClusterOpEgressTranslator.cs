@@ -140,7 +140,23 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = intent.RequestId,
                 OperationType = NedClusterOpType.TakeCheckpoint,
-                PayloadJson   = string.Empty,
+                PayloadJson   = LabelJson(intent.Label),   // ⭐ CE-3299 B3
+            });
+
+        foreach (var intent in _bus.ReadManaged<CollectCheckpointIntent>())   // ⭐ CE-3299 B3
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.CollectCheckpoint,
+                PayloadJson   = LabelJson(intent.Label),
+            });
+
+        foreach (var intent in _bus.ReadManaged<RestoreCheckpointIntent>())   // ⭐ CE-3299 B4
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.RestoreCheckpoint,
+                PayloadJson   = LabelJson(intent.Label),
             });
 
         foreach (var intent in _bus.ReadManaged<SeekReplayIntent>())
@@ -148,7 +164,15 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = intent.RequestId,
                 OperationType = NedClusterOpType.ReplaySeek,
-                PayloadJson   = JsonSerializer.Serialize(new SeekReplayPayloadDto(TargetWallTicks: intent.TargetWallTicks), OrchestrationJsonOptions.Default),
+                PayloadJson   = JsonSerializer.Serialize(SeekReplayPayloadDto.From(intent), OrchestrationJsonOptions.Default),
+            });
+
+        foreach (var intent in _bus.ReadManaged<SetReplayAxisIntent>())   // ⭐ CE-3329 R-3058
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.SetReplayAxis,
+                PayloadJson   = JsonSerializer.Serialize(SetReplayAxisPayloadDto.From(intent), OrchestrationJsonOptions.Default),
             });
 
         foreach (var intent in _bus.ReadManaged<CancelOperationIntent>())
@@ -205,12 +229,13 @@ public sealed class ClusterOpEgressTranslator : IDisposable
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    // ⭐ CE-3299 B3 — a checkpoint's label as the request payload ({"label": …}); empty when none.
+    private static string LabelJson(string? label)
+        => string.IsNullOrWhiteSpace(label) ? string.Empty : System.Text.Json.JsonSerializer.Serialize(new { label }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
     private static string SerializeTransitionPayload(TransitionStateIntent intent)
     {
-        var nedState = (Hrot.NED.Descriptors.Orchestration.ClusterState)(int)intent.TargetState;
-        return JsonSerializer.Serialize(
-            new TransitionPayloadDto(TargetState: nedState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode),
-            OrchestrationJsonOptions.Default);
+        return JsonSerializer.Serialize(TransitionPayloadDto.From(intent), OrchestrationJsonOptions.Default);
     }
 
     private static string SerializeManageEpisodePayload(ManageEpisodeIntent intent)

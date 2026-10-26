@@ -22,6 +22,8 @@ namespace Hrot.AI.Behaviors.Brains
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct ClearBuildingParams
     {
+        /// <summary>⭐ <c>CE-2371</c> (AQ104 D) — a known enemy within this of the building's point (m) is kept alerted while the clearing runs.</summary>
+        public const float AlertMetres = 15f;
         public const int MaxRooms = 32;
 
         public Vector3 Point;
@@ -149,6 +151,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Update(ref ClearBuildingParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            AreaAlert.KeepInArea(in ctx, p.Point, ClearBuildingParams.AlertMetres);   // ⭐ CE-2371 (AQ104 D) — an enemy in the building stays known until down
             if (p.Planned == 0 && p.Failed == 0) { Survey(ref p, ref ws, in ctx); return; }
             if (p.Planned == 0 || p.Done != 0) return;
             byte before = p.Drill.Reported;

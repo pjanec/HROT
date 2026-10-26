@@ -16,19 +16,21 @@ namespace Hrot.Editor.Director
     /// </summary>
     public sealed class FreshVerifyJobs
     {
-        private sealed record Job(string Id, IReadOnlyList<string> Scenarios, bool Capture, string Out, Process Process, DateTime Started);
+        private sealed record Job(string Id, IReadOnlyList<string> Scenarios, bool Capture, string Out, Process Process, DateTime Started, bool Replay = false);
 
         private readonly ConcurrentDictionary<string, Job> _jobs = new(StringComparer.Ordinal);
         private int _next;
 
         /// <summary>Starts the child; the report lands in <c>&lt;out&gt;/summary.json</c> (read it with <see cref="Status"/>).</summary>
-        public JsonObject Start(IReadOnlyList<string> scenarios, bool capture)
+        /// <param name="replay">⭐ CE-4045 H1a — <c>--verify-replay</c>: each run LIVE, compared with its own recording.</param>
+        public JsonObject Start(IReadOnlyList<string> scenarios, bool capture, bool replay = false)
         {
             var id = $"v{System.Threading.Interlocked.Increment(ref _next)}-{DateTime.UtcNow:HHmmss}";
             var dir = Path.Combine(Path.GetTempPath(), "hrot-verify", "http-" + id);
             Directory.CreateDirectory(dir);
             var args = new List<string> { "--mode", "editor", "--headless", "--verify", string.Join(",", scenarios), "--verify-out", dir };
             if (capture) args.Add("--verify-capture");
+            if (replay) args.Add("--verify-replay");
             var psi = CommandLineVerify.SelfStartInfo(args);
             var log = new StreamWriter(Path.Combine(dir, "run.log")) { AutoFlush = true };
             var p = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -38,7 +40,7 @@ namespace Hrot.Editor.Director
             p.Start();
             p.BeginOutputReadLine();
             p.BeginErrorReadLine();
-            _jobs[id] = new Job(id, scenarios, capture, dir, p, DateTime.UtcNow);
+            _jobs[id] = new Job(id, scenarios, capture, dir, p, DateTime.UtcNow, replay);
             return Describe(_jobs[id]);
         }
 
@@ -53,7 +55,7 @@ namespace Hrot.Editor.Director
             {
                 ["job"] = j.Id, ["state"] = done ? "done" : "running", ["exitCode"] = done ? j.Process.ExitCode : null,
                 ["passed"] = done ? j.Process.ExitCode == 0 : null,
-                ["scenarios"] = new JsonArray(j.Scenarios.Select(s => (JsonNode?)s).ToArray()), ["capture"] = j.Capture,
+                ["scenarios"] = new JsonArray(j.Scenarios.Select(s => (JsonNode?)s).ToArray()), ["capture"] = j.Capture, ["replay"] = j.Replay,
                 ["out"] = j.Out, ["junit"] = Path.Combine(j.Out, "junit.xml"), ["log"] = Path.Combine(j.Out, "run.log"),
                 ["seconds"] = Math.Round((DateTime.UtcNow - j.Started).TotalSeconds, 1),
             };

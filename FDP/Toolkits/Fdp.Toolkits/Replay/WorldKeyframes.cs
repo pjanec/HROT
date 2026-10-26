@@ -21,6 +21,17 @@ namespace Fdp.Toolkit.Replay
         public uint Tick { get; }
 
         public int SizeBytes => Bytes.Length;
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 — a keyframe READ FROM A RECORDING (<see cref="RecordingSlice.ReadFrame"/>, decompressed): the recorder
+        /// wrote exactly this format, its tick in the first 8 bytes.
+        /// </summary>
+        public static WorldKeyframe FromRecordedFrame(byte[] frame)
+        {
+            if (frame is null) throw new ArgumentNullException(nameof(frame));
+            if (frame.Length < 8) throw new ArgumentException("a recorded frame starts with its 8-byte tick", nameof(frame));
+            return new WorldKeyframe(frame, (uint)BinaryPrimitives.ReadUInt64LittleEndian(frame));
+        }
     }
 
     /// <summary>⭐ B2 — which component types a keyframe carries.</summary>
@@ -102,6 +113,22 @@ namespace Fdp.Toolkit.Replay
         /// apply works on a copy with that header rewritten — the keyframe itself is never changed.</para>
         /// </summary>
         public static void Apply(EntityRepository repo, WorldKeyframe keyframe, RestoreOptions? options = null)
+            => ApplyCore(repo, keyframe, options ?? RestoreOptions.DryRunExit, holding: null);
+
+        /// <summary>
+        /// ⭐ <c>CE-3316</c> (D2's checkpoint half, restore design §1l) — <see cref="Apply"/>, keeping the keyframe's UNCONSUMED events: the
+        /// recorder wrote the bus's PENDING buffer (published in the checkpoint's frame, read by nobody yet). They come back in a holding bus,
+        /// for the kernel to publish at the restore's clock snap (<c>ModuleHostKernel.ResumeAfterRestore</c>) — ⛔ never into the live bus
+        /// now: the snap's history restart would erase them, and into its READ buffer they would be processed twice (F2).
+        /// </summary>
+        public static FdpEventBus ApplyKeepingUnconsumedEvents(EntityRepository repo, WorldKeyframe keyframe)
+        {
+            var holding = new FdpEventBus();
+            ApplyCore(repo, keyframe, RestoreOptions.DryRunExit, holding);
+            return holding;
+        }
+
+        private static void ApplyCore(EntityRepository repo, WorldKeyframe keyframe, RestoreOptions? options, FdpEventBus? holding)
         {
             if (repo is null) throw new ArgumentNullException(nameof(repo));
             if (keyframe is null) throw new ArgumentNullException(nameof(keyframe));
@@ -113,8 +140,8 @@ namespace Fdp.Toolkit.Replay
 
             using var reader = new BinaryReader(new MemoryStream(bytes, writable: false));
             new PlaybackSystem().ApplyFrame(repo, reader,
-                eventBus: options.RestoreEvents ? repo.Bus : null,
-                processEvents: options.RestoreEvents);
+                eventBus: holding ?? (options.RestoreEvents ? repo.Bus : null),
+                processEvents: holding != null || options.RestoreEvents);
         }
     }
 
@@ -127,8 +154,9 @@ namespace Fdp.Toolkit.Replay
         /// <summary>
         /// ① the entity map is rebuilt from the restored world (it indexes entities the apply just replaced) ·
         /// ② <see cref="WorldEpoch.Restored"/> — every per-id cache keyed on <see cref="WorldEpoch.Moved"/> clears
-        /// (class A/B), while <see cref="WorldEpoch.Ended"/> does NOT move, so nothing is deleted on the wire ·
-        /// ③ the step window restarts (<see cref="EventAccumulator.Restart"/>) — a window must not span two worlds.
+        /// (class A/B), while <see cref="WorldEpoch.Ended"/> does NOT move (the survivors stay this node's; what did not survive is
+        /// retracted by the cleanup's sweep — CE-3329 W1) · ③ the step window restarts (<see cref="EventAccumulator.Restart"/>) —
+        /// a window must not span two worlds · ④ every descriptor is marked dirty, so the restored world is republished (W4).
         /// </summary>
         public static void Run(EntityRepository repo, EventAccumulator? accumulator = null)
         {
@@ -139,6 +167,12 @@ namespace Fdp.Toolkit.Replay
 
             WorldEpoch.Restored(repo);
             accumulator?.Restart();
+
+            // ⭐⭐ CE-3329 PW — §12c W4 (CE-3331): a FULL republish of the restored world. ⛔ Before, only a replay seek forced it
+            //   (PlaybackTickSystem), so after a checkpoint restore / a dry-run exit the wire kept the ABANDONED future's samples for
+            //   every survivor — and the run comes back paused, so nothing changed to repair it. What did not survive is retracted by
+            //   CycloneNetworkCleanupSystem's sweep (W1).
+            Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(repo);
         }
     }
 }

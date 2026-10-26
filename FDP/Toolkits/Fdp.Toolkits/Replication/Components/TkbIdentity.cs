@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Replication.Components
     // path READS TkbType back out of the scenario DOM to build the EntityCreationRequest, so this
     // component MUST be written to the scenario file. BuildStaticMask strips it from InitialComponents
     // AFTER its TkbType is consumed. Marking it NoScenario broke the extractor's TkbType rail.
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct TkbIdentity
     {
         /// <summary>

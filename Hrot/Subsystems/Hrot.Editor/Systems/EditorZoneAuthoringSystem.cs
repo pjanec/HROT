@@ -54,6 +54,7 @@ public sealed class EditorZoneAuthoringSystem : IEcsModuleSystem
     /// </remarks>
     public void Execute(ISimulationView view, float deltaTime)
     {
+        if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
         foreach (var cmd in view.ReadManagedEvents<SpawnZoneObstacleCommand>())
         {
             var creation = _creation();

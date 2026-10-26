@@ -142,6 +142,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
             }
 
+            if (prop.Operator == SearchOperator.Changed) return BuildChangedMatcher<T>(typeId, param, fieldAccess, prop.PropertyPath);
+
             Expression condition = BuildConditionExpression(fieldAccess, prop.Operator, prop.Predicate);
             var matcher = Expression.Lambda<ComponentMatcherDelegate<T>>(condition, param).Compile();
 
@@ -151,6 +153,43 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 ref readonly T comp = ref repo.GetComponentRO<T>(entity);
                 return matcher(ref Unsafe.AsRef(in comp));
+            };
+        }
+
+        private delegate bool SameFieldDelegate<T>(ref T now, ref T before);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1258</c> (BV-28, R-1029) — <see cref="SearchOperator.Changed"/> EXACT per entity: true when THIS entity's field differs
+        /// from the same entity in <see cref="PredicateChangeBaseline.Current"/> (the breakpoint manager's pre-tick copy). 📐 It used to be
+        /// <c>true</c> for every entity of a chunk that changed (the caller's <c>QueryDelta</c>), so a breakpoint filtered to one unit fired
+        /// when a NEIGHBOUR in the chunk wrote. ⚠ With no baseline (the recording search) it keeps that chunk-granular answer; an entity
+        /// absent from the baseline (created this tick) counts as changed.
+        /// </summary>
+        private static Func<EntityRepository, Entity, bool> BuildChangedMatcher<T>(int typeId, ParameterExpression now, Expression nowField,
+            string? path) where T : unmanaged
+        {
+            var before = Expression.Parameter(typeof(T).MakeByRefType(), "before");
+            Expression beforeField = before;
+            if (!string.IsNullOrEmpty(path))
+                foreach (string seg in path.Split('.')) beforeField = Expression.PropertyOrField(beforeField, seg);
+            Expression same;
+            try { same = Expression.Equal(nowField, beforeField); }
+            catch (InvalidOperationException)   // a struct field with no == : compare by Equals
+            {
+                same = Expression.Call(typeof(object).GetMethod(nameof(object.Equals), new[] { typeof(object), typeof(object) })!,
+                    Expression.Convert(nowField, typeof(object)), Expression.Convert(beforeField, typeof(object)));
+            }
+            var sameField = Expression.Lambda<SameFieldDelegate<T>>(same, now, before).Compile();
+
+            return (repo, entity) =>
+            {
+                if (!repo.HasComponentByTypeId(entity, typeId)) return false;
+                var baseline = PredicateChangeBaseline.Current;
+                if (baseline is null || ReferenceEquals(baseline, repo)) return true;
+                if (!baseline.IsAlive(entity) || !baseline.HasComponentByTypeId(entity, typeId)) return true;
+                ref readonly T a = ref repo.GetComponentRO<T>(entity);
+                ref readonly T b = ref baseline.GetComponentRO<T>(entity);
+                return !sameField(ref Unsafe.AsRef(in a), ref Unsafe.AsRef(in b));
             };
         }
 

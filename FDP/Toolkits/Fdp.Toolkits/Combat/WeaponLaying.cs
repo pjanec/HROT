@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     [ComponentId(GlobalComponentIds.LaidDownWeapons)]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct LaidDownWeapons
     {
         /// <summary>Bit i set: mount i is laid down.</summary>

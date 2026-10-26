@@ -52,5 +52,31 @@ namespace Hrot.SimHost.Tests
             Assert.False(_repo.HasComponent<CombatTemperament>(b));
             Assert.Equal(TemperamentOf.DefaultRiskAcceptance, TemperamentOf.RiskAcceptance(_repo, a));
         }
+
+        /// <summary>⭐ <c>CE-2269</c> TS-1/TS-3 — <c>nerve</c> / <c>resolve</c> round-trip; an inject keeps the TYPE layer the TKB stamped
+        /// and replaces only the authored one; the type's values are never saved.</summary>
+        [Fact]
+        public void CE2269_NerveAndResolve_RoundTrip_TheTypeLayerSurvivesTheInject_AndIsNeverSaved()
+        {
+            var e = _repo.CreateEntity();
+            _repo.AddComponent(e, new CombatTemperament
+            {
+                Obedience = 0.9f, Set = CombatTemperament.ObedienceSet,                              // a stale authored value
+                TypeObedience = 0.3f, TypeSet = CombatTemperament.ObedienceSet,                      // the insurgent type's
+            });
+            _t.Inject(_repo, e, new Dictionary<string, object> { ["Temperament"] = new JsonObject { ["nerve"] = 0.1f, ["resolve"] = 1f } }, new NoResolver());
+            Assert.Equal(0.1f, TemperamentOf.Nerve(_repo, e));
+            Assert.Equal(1f, TemperamentOf.Resolve(_repo, e));
+            Assert.Equal(0.3f, TemperamentOf.Obedience(_repo, e));                                  // the authored layer replaced, the type's kept
+
+            var saved = (JsonObject)_t.Extract(_repo, e, new NoResolver())["Temperament"];
+            Assert.Equal(0.1f, saved["nerve"]!.GetValue<float>());
+            Assert.Equal(1f, saved["resolve"]!.GetValue<float>());
+            Assert.False(saved.ContainsKey("obedience"));                                          // ⛔ never the type's
+
+            var typedOnly = _repo.CreateEntity();
+            _repo.AddComponent(typedOnly, new CombatTemperament { TypeObedience = 0.3f, TypeSet = CombatTemperament.ObedienceSet });
+            Assert.False(_t.CanTranslate(_repo, typedOnly));                                       // nothing authored ⇒ nothing saved
+        }
     }
 }

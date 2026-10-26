@@ -5,7 +5,6 @@ using Fdp.Core;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Panels;
-using Fdp.Presentation.Windows.ReplayBrowser;
 using Xunit;
 
 namespace Fdp.Presentation.Tests.ImGui.Panels;
@@ -15,6 +14,9 @@ namespace Fdp.Presentation.Tests.ImGui.Panels;
 /// <c>PanelSnapshot</c> contract.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example ·
 /// <c>docs/blueprints/batches/QUEUE_Panel_Observability_Sweep.md</c> group 4 ("the HOST registers" gotcha
 /// — <c>EntityInspectorPanel</c> is the plain panel, <c>FdpEntityInspectorWindow</c> the host).
+/// <para>⭐ <c>CE-1244</c> (DESIGN_Subsystem_Composition_Unification §5c.7.8) — the ReplayBrowser's copy of the window is gone (it
+/// composes the shared diagnostics bundle). The window rails (instrumented at construction, capture off) live with the one window in
+/// <c>Hrot.Presentation.Tests/Windows/FdpPanelWindowsDumpTheirModelsTests</c>; these keep the PANEL's dump content.</para>
 /// </summary>
 [Collection(PanelSnapshotTestCollection.Name)]
 public sealed class EntityInspectorPanelDumpsItsSelectionTests : IDisposable
@@ -63,23 +65,6 @@ public sealed class EntityInspectorPanelDumpsItsSelectionTests : IDisposable
         return repo.CreateEntity();
     }
 
-    // ── Rail 1 — instrumented at construction, on the PRODUCTION object ─────────────────────────
-
-    /// <summary>⭐⭐⭐ The window is instrumented the moment it is CONSTRUCTED — before it has ever drawn.
-    /// ⛔ Would go red if <c>DeclareInstrumented</c> drifted into the draw.</summary>
-    [Fact]
-    public void ConstructingTheWindow_DeclaresItInstrumented_BeforeItHasEverDrawn()
-    {
-        Assert.DoesNotContain("fdp_entity_inspector_test", PanelSnapshot.RegisteredPanels);   // ⛔ anti-vacuity
-
-        var window = MakeWindow(new FakeSession(new List<Entity>()), new InspectorState());
-
-        Assert.Contains("fdp_entity_inspector_test", PanelSnapshot.RegisteredPanels);
-        Assert.DoesNotContain("fdp_entity_inspector_test", PanelSnapshot.CapturedPanels);
-        Assert.Null(PanelSnapshot.TryGet("fdp_entity_inspector_test"));
-        Assert.NotNull(window);
-    }
-
     // ── Rail 2 — the dump carries a real field ───────────────────────────────────────────────────
 
     [Fact]
@@ -90,14 +75,10 @@ public sealed class EntityInspectorPanelDumpsItsSelectionTests : IDisposable
         var e1 = MakeEntity(1);
         var session = new FakeSession(new List<Entity> { e0, e1 }, tagged: new[] { e1 });
         var state = new InspectorState { SelectedEntity = e1 };
-        var window = MakeWindow(session, state);
-
-        window.SimulateDrawClientArea();
-
-        var vm = PanelSnapshot.TryGet("fdp_entity_inspector_test");
+        var vm = new EntityInspectorPanel().BuildViewModel(session, state, "fdp_entity_inspector_test", PanelIds.EntityInspector);
         Assert.NotNull(vm);
         Assert.Equal("fdp_entity_inspector_test", vm!.PanelId);
-        Assert.Equal(FdpEntityInspectorWindow.Kind, vm.PanelKind);
+        Assert.Equal(PanelIds.EntityInspector, vm.PanelKind);
 
         var dump = vm.Dump();
         Assert.Equal(2, dump["totalEntityCount"]!.GetValue<int>());
@@ -108,24 +89,4 @@ public sealed class EntityInspectorPanelDumpsItsSelectionTests : IDisposable
         Assert.Equal(nameof(FakeTag), comps[0]!.GetValue<string>());
     }
 
-    // ── Rail 3 — the flag gates the DUMP, not the BUILD ──────────────────────────────────────────
-
-    [Fact]
-    public void WithCaptureOff_TheProductionPathPublishesNothing()
-    {
-        var session = new FakeSession(new List<Entity> { MakeEntity(0) });
-        var window = MakeWindow(session, new InspectorState());   // CaptureEnabled stays false
-
-        var vm = window.SimulateDrawClientArea();
-
-        Assert.Empty(PanelSnapshot.CapturedPanels);
-        Assert.Contains("fdp_entity_inspector_test", PanelSnapshot.RegisteredPanels);
-        Assert.NotNull(vm);   // ⭐ the BUILD is unaffected by the flag
-        Assert.Equal(1, vm!.TotalEntityCount);
-    }
-
-    private static FdpEntityInspectorWindow MakeWindow(IInspectableSession session, InspectorState state) =>
-        new FdpEntityInspectorWindow(
-            "fdp_entity_inspector_test", "Entity Inspector", "test-perspective",
-            new EntityInspectorPanel(), () => session, () => state, new Vector4(1, 1, 1, 1));
 }

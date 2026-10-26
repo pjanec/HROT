@@ -3,6 +3,7 @@ state: LIVE
 updated: 2026-09-20 (STATUS block added; selection content re-measured with the graph)
 current-answer: the body below.
 related-designs:
+  - docs/DESIGN_Director_Timeline_Editor.md — TE-21 (APPROVED, R-4075): §15's Trace Timeline and the exercise timeline become ONE shared panel; ITraceLaneProvider is its row seam, generalised
   - HSM_Editor_NodeEditor_Host_Design.md — §11.1a owns the HSM state's hosted-subtree field, its
     walker and its validator rule; this doc owns the picker and the heal RULE they share.
   - BTree_Editor_NodeEditor_Host_Design.md — §S1 owns BTree's subtree node, including the resolver
@@ -61,6 +62,7 @@ related-designs:
     §5.3 (the DDS bridge as ingress) and §5.4 (the per-window ChainToMap toggle).
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store, the
     request/notification protocol and the egress. It does NOT own this file's SharedEntitySelection.
+  - docs/DESIGN_Entity_Brain_View.md — §10 BV-30 draws the Trace Timeline's first lane (Brain, from the journal) in the window §15 owns
 -->
 # AI Editor — Shared Infrastructure Detailed Design
 
@@ -1906,6 +1908,12 @@ Registered as `ai_trace_timeline`. Docked at the bottom by default. Visualizes t
 ```
 
 ### 15.2 Swim-lane category registration
+
+> ⛔ **SUPERSEDED `2026-10-26` — `R-4078` (one lane seam, no adapter).** The seam moved to the shared toolkit and was generalised:
+> `Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineLaneProvider` (`Lanes`, `Applies(TimelineLaneContext)`, optional `Indexed`/`Marks`)
+> with `TimelineLaneDescriptor(Id, DisplayName, SupportedLevels, Group, Priority, Color, Glyph)`; `TraceLevel` moved with it.
+> The editor providers answer `Applies(ctx) => ctx.AssetKind == nameof(AssetKind.X)`. ⭐ Current answer:
+> [`DESIGN_Director_Timeline_Editor.md`](../DESIGN_Director_Timeline_Editor.md) §9d. The block below is the original shape.
 
 The window does not know what swim lanes mean per subsystem. Subsystems register their categories:
 

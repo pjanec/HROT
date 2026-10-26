@@ -22,11 +22,18 @@ public sealed class MapStatsOverlay : IMapLayer
     private readonly MapViewSwitch _view;
     private readonly Func<EntityRepository?> _world;
 
-    public MapStatsOverlay(MapViewSwitch view, Func<EntityRepository?> world)
+    public MapStatsOverlay(MapViewSwitch view, Func<EntityRepository?> world, Fdp.Toolkit.Vis2D.Components.MapCamera? camera2D = null)
     {
         _view = view ?? throw new ArgumentNullException(nameof(view));
         _world = world ?? throw new ArgumentNullException(nameof(world));
+        _camera2D = camera2D;
     }
+
+    private readonly Fdp.Toolkit.Vis2D.Components.MapCamera? _camera2D;
+
+    /// <summary>⭐ <c>CE-1262</c> — the canvas's possession station (its unit, crosshair target and zoom go into the view snapshot); set by the
+    /// pack after it builds the station.</summary>
+    public PossessionStation? Possession { get; set; }
 
     public string Name => "MapStats";
     public int LayerBitIndex => -1;
@@ -40,6 +47,25 @@ public sealed class MapStatsOverlay : IMapLayer
         var cam = _view.Camera3D;
         string mode = !_view.Is3D ? "2D" : cam.Driver != null ? "FPS" : "3D";
         RenderTelemetry.Camera(mode, cam.Eye, cam.Forward, cam.Yaw, cam.Pitch, cam.Distance, cam.EyeHeightAboveGround(), cam.Viewport);
+
+        // ⭐ CE-1262 (AV-1) — the view snapshot for GET /view, keyed by the world this canvas draws
+        if (_world() is not { } world) return;
+        Vector2? rectMin = null, rectMax = null;
+        if (!_view.Is3D && _camera2D is { Zoom: > 0f } c2)
+        {
+            var a = (Vector2.Zero - c2.Offset) / c2.Zoom + c2.Target;
+            var b = (cam.Viewport - c2.Offset) / c2.Zoom + c2.Target;
+            rectMin = Vector2.Min(a, b);
+            rectMax = Vector2.Max(a, b);
+        }
+        var p = Possession;
+        bool fps = p is { InFps: true };
+        ViewTelemetry.Publish(world, new ViewSnapshot(
+            mode, rectMin is { } m && rectMax is { } x && !_view.Is3D ? new Vector3((m + x) * 0.5f, 0f) : cam.Eye, cam.Forward,
+            cam.Yaw * 180f / MathF.PI, cam.Pitch * 180f / MathF.PI, cam.Distance,
+            fps && p!.ZoomFovDegrees is { } zoom ? zoom : cam.FovyDegrees, cam.Viewport, rectMin, rectMax,
+            fps ? p!.Unit : Entity.Null, fps ? p!.AimTarget : 0L, fps ? p!.ZoomFovDegrees : null,
+            world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d));
     }
 
     /// <summary>The counter's text.</summary>

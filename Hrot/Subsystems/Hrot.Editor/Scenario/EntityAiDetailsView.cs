@@ -372,7 +372,7 @@ public static class EntityAiDetailsViewDescriptor
         var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry, blueprints), editService, picks);
         return new DetailsViewDescriptor(
             Id:        ViewId,
-            Title:     "AI",
+            Title:     "Assign: task, SOP, ROE",   // ⭐ CE-1314 — a section of the Brain tab now
             Rank:      Rank,
             AppliesTo: DetailsViewPredicates.OneEntityWithBrain(
                            e => world() is { } w && w.IsAlive(e) && w.HasComponent<BehaviorState>(e)),

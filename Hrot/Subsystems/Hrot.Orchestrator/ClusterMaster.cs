@@ -77,6 +77,10 @@ public sealed partial class ClusterMaster : IDisposable
         /// <c>_pendingBusTransitionAcks</c> (TransitionState, TakeCheckpoint, ReplaySeek).
         /// </summary>
         public bool BroadcastClusterStateOnComplete;
+        /// <summary>⭐ CE-3299 B3 — what a SUCCESSFUL round reports to its requester when the master already knows it (a checkpoint's label and time).</summary>
+        public object? SuccessResult;
+        /// <summary>⭐ CE-3299 B3 — report each node's answer (node id → its result) on success: a checkpoint export's file per node.</summary>
+        public bool ResultFromResponses;
         /// <summary>
         /// ⭐ When non-null this tracker is a <b>NON-TERMINAL PHASE</b> of a multi-phase round
         /// (today: <c>PrepareZone</c> → <c>CommitZone</c>). On all-ACK success the continuation runs
@@ -496,26 +500,22 @@ public sealed partial class ClusterMaster : IDisposable
                 break;
 
             case ClusterOpType.TakeCheckpoint:
-            {
-                var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
-                if (nodeIds.Count == 0)
-                {
-                    PublishOpStatus(req.RequestId, OrchestrationStatusCode.Success);
-                    break;
-                }
-                var txId = Guid.NewGuid();
-                FanOutNodeOp(NodeOpType.TakeSnapshot, txId, null, nodeIds);
-                _pendingTransactions[txId] = new GenericTransactionTracker
-                {
-                    RequestId                       = req.RequestId,
-                    Expected                        = nodeIds.Count,
-                    BroadcastClusterStateOnComplete = true,
-                };
+                StartCheckpoint(req.RequestId, LabelOf(req.PayloadJson));
                 break;
-            }
+
+            case ClusterOpType.CollectCheckpoint:
+                CollectCheckpoint(req.RequestId, LabelOf(req.PayloadJson));
+                break;
+            case ClusterOpType.RestoreCheckpoint:   // ⭐ CE-3299 B4
+                StartRestore(req.RequestId, LabelOf(req.PayloadJson));
+                break;
 
             case ClusterOpType.ReplaySeek:
                 ProcessSeekReplayIntent(ClusterOpRequestAdapter.ToSeekReplayIntent(req));
+                break;
+
+            case ClusterOpType.SetReplayAxis:   // ⭐ CE-3329 R-3058
+                ProcessSetReplayAxisIntent(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
 
             case ClusterOpType.CancelOperation:
@@ -788,22 +788,182 @@ public sealed partial class ClusterMaster : IDisposable
     private void ProcessTakeCheckpointIntents()
     {
         foreach (var intent in _eventBus.ReadManaged<TakeCheckpointIntent>())
+            StartCheckpoint(intent.RequestId, intent.Label);
+        foreach (var intent in _eventBus.ReadManaged<CollectCheckpointIntent>())
+            CollectCheckpoint(intent.RequestId, intent.Label);
+        foreach (var intent in _eventBus.ReadManaged<RestoreCheckpointIntent>())
+            StartRestore(intent.RequestId, intent.Label);
+    }
+
+    // ── ⭐ CE-3299 B3 (R-3044) — a checkpoint is a named keyframe every node's recording writes at ONE wall time ──
+
+    /// <summary>
+    /// ⭐ CE-3299 B3 (D3) — how far ahead of NOW the master names a checkpoint's wall time: long enough for the request to reach
+    /// every node first, so each writes it on its first frame at or past that time — within one frame of each other.
+    /// </summary>
+    public static readonly long CheckpointLeadTicks = TimeSpan.FromMilliseconds(500).Ticks;
+
+    /// <summary>
+    /// ⭐ CE-3299 B3 — the cluster's frame-locked wall clock (<c>GlobalTime.TotalWallTicks</c>, which the slaves follow), set by the
+    /// host that owns the time controller (<c>OrchestratorCore</c>). ⚠ Null ⇒ a checkpoint is written at each node's NEXT frame
+    /// (logged): correct, but the nodes then differ by the message latency.
+    /// </summary>
+    public Func<long>? WallTicks { get; set; }
+
+    /// <summary>⭐ R-3055 — the newest FINISHED exercise the master can replay (its asset inventory), set by the host that owns the
+    /// inventory (<c>OrchestratorCore</c>); <see langword="null"/> ⇒ none known.</summary>
+    public Func<Guid?>? NewestExercise { get; set; }
+
+    /// <summary>⭐ R-3055 — the exercise a replay with no named exercise replays: the live run in progress, else the newest finished one.</summary>
+    internal Guid ResolveReplayExercise()
+        => _currentDsmState == ClusterState.OperatingLive && _currentExerciseId != Guid.Empty
+            ? _currentExerciseId
+            : NewestExercise?.Invoke() ?? Guid.Empty;
+
+    private int _checkpointSeq;
+
+    private void StartCheckpoint(Guid requestId, string? label)
+    {
+        var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
+        long now = WallTicks?.Invoke() ?? 0;
+        if (WallTicks == null)
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] TakeCheckpoint: no wall clock — each node writes the checkpoint at its next frame.");
+        long at = now == 0 ? 0 : now + CheckpointLeadTicks;
+        // an unnamed checkpoint is numbered as well as timed: two in one second must not share a name (the recording refuses it)
+        var payload = new CheckpointPayload(
+            string.IsNullOrWhiteSpace(label)
+                ? $"cp{++_checkpointSeq}-{new DateTime(at == 0 ? DateTime.UtcNow.Ticks : at, DateTimeKind.Utc):HHmmss}"
+                : label!,
+            at);
+        if (nodeIds.Count == 0)
         {
-            var ckNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
-            if (ckNodeIds.Count == 0)
-            {
-                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
-                continue;
-            }
-            var ckTxId = Guid.NewGuid();
-            FanOutNodeOp(NodeOpType.TakeSnapshot, ckTxId, null, ckNodeIds);
-            _pendingTransactions[ckTxId] = new GenericTransactionTracker
-            {
-                RequestId                       = intent.RequestId,
-                Expected                        = ckNodeIds.Count,
-                BroadcastClusterStateOnComplete = true,
-            };
+            PublishOpStatus(requestId, OrchestrationStatusCode.Success, payload);
+            return;
         }
+        var txId = Guid.NewGuid();
+        FanOutNodeOp(NodeOpType.TakeSnapshot, txId, payload, nodeIds);
+        _pendingTransactions[txId] = new GenericTransactionTracker
+        {
+            RequestId                       = requestId,
+            Expected                        = nodeIds.Count,
+            BroadcastClusterStateOnComplete = true,
+            SuccessResult                   = payload,
+        };
+    }
+
+    private void CollectCheckpoint(Guid requestId, string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] CollectCheckpoint: no label — nothing to collect.");
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
+        var nodeIds = Participants();
+        if (nodeIds.Count == 0)
+        {
+            PublishOpStatus(requestId, OrchestrationStatusCode.Success);
+            return;
+        }
+        var txId = Guid.NewGuid();
+        FanOutNodeOp(NodeOpType.ExportCheckpoint, txId, new ExportCheckpointPayload(label!), nodeIds);
+        _pendingTransactions[txId] = new GenericTransactionTracker
+        {
+            RequestId           = requestId,
+            Expected            = nodeIds.Count,
+            ResultFromResponses = true,
+        };
+    }
+
+    // ── ⭐ CE-3299 B4 — restore a checkpoint: every node goes back to its keyframe X and records on as a NEW exercise ──
+
+    /// <summary>
+    /// ⭐ CE-3299 B4 (§1h) — phase 1 of a restore. Only from <c>OperatingLive</c> (a replay already has seek + go-live). The cluster
+    /// pauses first; every node then reads and STAGES its keyframe X (nothing changes yet). Only when ALL staged does phase 2
+    /// restore — a node that cannot (not recording, no mark X) fails the round and the others drop what they staged
+    /// (<c>AbortTransaction</c>), so no node is left restored alone. The exercise the cluster records on is minted HERE (D18).
+    /// </summary>
+    private void StartRestore(Guid requestId, string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] RestoreCheckpoint: no label — nothing to restore.");
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
+        if (_currentDsmState != ClusterState.OperatingLive)
+        {
+            FdpLog<ClusterMaster>.Warn(
+                "[Orchestrator] RestoreCheckpoint '{0}' refused in {1}: a restore is from a live cluster (in a replay, seek and go live).",
+                label, _currentDsmState);
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
+        var targets = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
+        if (targets.Count == 0)
+        {
+            PublishOpStatus(requestId, OrchestrationStatusCode.Success);
+            return;
+        }
+
+        PublishClusterPause();   // a restore replaces the world: nothing may run under it
+        var payload = new RestoreCheckpointPayload(label!, Guid.NewGuid());
+        var roundTx = Guid.NewGuid();   // ONE id for both phases — the nodes stage under it (the zone round's rule)
+        FanOutNodeOp(NodeOpType.PrepareRestore, roundTx, payload, targets);
+        _pendingTransactions[roundTx] = new GenericTransactionTracker
+        {
+            RequestId      = requestId,
+            Expected       = targets.Count,
+            Targets        = targets,
+            OnPhaseSuccess = () => CommitRestore(requestId, payload, roundTx, targets),
+        };
+        PublishOpStatus(requestId, OrchestrationStatusCode.InProgress);
+        FdpLog<ClusterMaster>.Info("[Orchestrator] RestoreCheckpoint '{0}' {1}: PrepareRestore to {2} node(s).", label, requestId, targets.Count);
+    }
+
+    /// <summary>⭐ CE-3299 B4 — phase 2: every node staged keyframe X, so all restore it and record on as the new exercise.</summary>
+    private void CommitRestore(Guid requestId, RestoreCheckpointPayload payload, Guid roundTx, List<int> targets)
+    {
+        _activeExerciseId  = payload.NewExerciseId;   // D18 — the cluster records a new exercise from here
+        _currentExerciseId = payload.NewExerciseId;
+        FanOutNodeOp(NodeOpType.RestoreSnapshot, roundTx, payload, targets);
+        _pendingTransactions[roundTx] = new GenericTransactionTracker
+        {
+            RequestId                       = requestId,
+            Expected                        = targets.Count,
+            BroadcastClusterStateOnComplete = true,   // carries the new exercise id
+            // ⭐ terminal: CheckpointRestoreAggregator reports the earliest restored time; LiveBranchProcessManager snaps to it (D5)
+        };
+        FdpLog<ClusterMaster>.Info("[Orchestrator] RestoreCheckpoint '{0}' {1}: every node staged — RestoreSnapshot, exercise {2}.",
+            payload.Label, requestId, payload.NewExerciseId);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3299 B3 — a checkpoint request's label: the payload's <c>label</c> field when it is a JSON object, else the payload
+    /// text itself; null when there is none.
+    /// </summary>
+    internal static string? LabelOf(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson)) return null;
+        var text = payloadJson.Trim();
+        if (!text.StartsWith("{")) return text.Trim('"');
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            foreach (var p in doc.RootElement.EnumerateObject())
+                if (string.Equals(p.Name, "label", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
+                    return p.Value.GetString();
+        }
+        catch (JsonException) { }
+        return null;
+    }
+
+    private static Dictionary<int, string> ResponsesByNode(Dictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>> responses)
+    {
+        var byNode = new Dictionary<int, string>();
+        foreach (var (node, ops) in responses)
+            foreach (var answer in ops.Values) byNode[node] = answer;
+        return byNode;
     }
 
     private void ProcessSeekReplayIntents()
@@ -812,6 +972,8 @@ public sealed partial class ClusterMaster : IDisposable
         {
             ProcessSeekReplayIntent(intent);
         }
+        foreach (var intent in _eventBus.ReadManaged<SetReplayAxisIntent>())
+            ProcessSetReplayAxisIntent(intent);   // ⭐ CE-3329 R-3058
     }
 
     private void ProcessCancelOperationIntents()
@@ -1099,6 +1261,51 @@ public sealed partial class ClusterMaster : IDisposable
     {
         var requestId = intent.TransactionId;
 
+        // ⭐⭐ R-3055 (the R-3049 rule, for a replay) — a replay whose request names no exercise gets one from the MASTER: the run in
+        //    progress when the cluster is live (the planner ends it on the way in), else the newest finished one. ⛔ It used to be chosen
+        //    by the asker from a cached inventory, so the same request worked on the editor and was refused on CGF.
+        if (intent.TargetState == FdpClusterState.OperatingReplay && intent.ExerciseId == Guid.Empty)
+        {
+            var resolved = ResolveReplayExercise();
+            if (resolved == Guid.Empty)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] replay {0} REJECTED — it names no exercise and none has run.", requestId);
+                PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+                return;
+            }
+            FdpLog<ClusterMaster>.Info("[Orchestrator] R-3055: the replay names no exercise — the master picks {0}.", resolved);
+            intent.ExerciseId = resolved;
+        }
+
+        // ⭐ CE-3329 R11 — a replay entered at a RECORDED sim time: resolved when the prepare round brings the nodes' maps
+        if (intent.TargetState == FdpClusterState.OperatingReplay) _replayEntrySimSeconds = intent.TargetSimSeconds;
+
+        // ⭐⭐ CE-3329 P3 (R5, §3a) — a REVIEW of the live run: only from OperatingLive (the planner would otherwise LOAD a live run from
+        //   Idle to reach it); a review requested during a review is a seek. Where it enters: the request's moment, else the live point.
+        if (intent.TargetState == FdpClusterState.OperatingReview)
+        {
+            var current = (FdpClusterState)(int)_currentDsmState;
+            if (current == FdpClusterState.OperatingReview)
+            {
+                ProcessSeekReplayIntent(new SeekReplayIntent
+                {
+                    RequestId = requestId, TargetSimSeconds = intent.TargetSimSeconds,
+                    TargetWallTicks = intent.TargetWallTicks != 0 || intent.TargetSimSeconds != null ? intent.TargetWallTicks : long.MaxValue,
+                });
+                return;
+            }
+            if (current != FdpClusterState.OperatingLive)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] review {0} REJECTED — a review starts only from a live run (the cluster is {1}).",
+                    requestId, current);
+                PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+                return;
+            }
+            _replayEntrySimSeconds = intent.TargetSimSeconds;
+            _reviewEntryWallTicks  = intent.TargetWallTicks != 0 || intent.TargetSimSeconds != null ? intent.TargetWallTicks : long.MaxValue;
+            if (intent.ExerciseId == Guid.Empty) intent.ExerciseId = _currentExerciseId;   // the run being reviewed
+        }
+
         // ⭐⭐ L8 §7.2c — AT MOST ONE parked transition. ⛔ Rejected, not queued: the master tracks a single
         //    in-flight transition and queueing would be a new property nobody asked for.
         if (_parked != null)
@@ -1247,6 +1454,37 @@ public sealed partial class ClusterMaster : IDisposable
         _inflightTransitionTx = tx;
         AppendToHistory(tx);
 
+        // ⭐⭐ D18 ① (R-3047, CE-3299 B4) — a branch from a replay records a NEW exercise, and the MASTER mints its id. ⛔ The
+        //   request's id was forwarded unchanged, so a client sending the REPLAYED exercise's id truncated that recording, and an
+        //   empty one sent every branch to one folder. The node copies its history up to the branch point into it.
+        var exerciseId = intent.ExerciseId;
+        if (capturedSourceState == ClusterState.OperatingReplay
+            && trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.LoadingLive))
+        {
+            exerciseId = Guid.NewGuid();
+            if (intent.ExerciseId != Guid.Empty)
+                FdpLog<ClusterMaster>.Info(
+                    "[Orchestrator] D18: the branch records exercise {0}; the request's id {1} is ignored (the master mints a branch's id).",
+                    exerciseId, intent.ExerciseId);
+            _activeExerciseId  = exerciseId;
+            _currentExerciseId = exerciseId;
+        }
+        // ⭐⭐ CE-3310 (R-3049, user 2026-10-22: "master mints the id when missing") — a LIVE LOAD whose request names no exercise
+        //   gets one from the master (mgmt-1 step 5: "Master → Master: Generate ExerciseId"). ⛔ It used to go live with an empty id,
+        //   and a node records nothing without one — so no checkpoint either. A request that names its id keeps it (a script replays
+        //   the exercise it named).
+        else if (exerciseId == Guid.Empty && LoadsLiveFromIdle(capturedSourceState, trajectory))
+        {
+            exerciseId = Guid.NewGuid();
+            FdpLog<ClusterMaster>.Info("[Orchestrator] CE-3310: the live load names no exercise — the master mints {0}.", exerciseId);
+            _activeExerciseId  = exerciseId;
+            _currentExerciseId = exerciseId;
+        }
+
+        // ⭐ CE-3299 D17 (R-3045) — a live LOAD sets the session's recording mode; a branch keeps the session's (the nodes inherit the
+        //   parent recording's), and a late joiner's catch-up is told the current one.
+        if (LoadsLiveFromIdle(capturedSourceState, trajectory)) _currentCheckpointingSeconds = Math.Max(0, intent.CheckpointingSeconds);
+
         // ── HN-037: the world boundary resets the ONE id authority ───────────────────────
         // ⭐ BEFORE the fan-out, because PrepareLive is what makes CGF allocate the authored ids.
         ResetIdAuthorityIfWorldBoundary(trajectory, capturedSourceState);
@@ -1277,6 +1515,8 @@ public sealed partial class ClusterMaster : IDisposable
                             ClusterState.UnloadingLive   => NodeOpType.FinalizeLive,
                             ClusterState.LoadingReplay   => NodeOpType.PrepareReplay,
                             ClusterState.UnloadingReplay => NodeOpType.FinalizeReplay,
+                            ClusterState.LoadingReview   => NodeOpType.PrepareReview,    // ⭐ CE-3329 P3
+                            ClusterState.UnloadingReview => NodeOpType.FinalizeReview,
                             ClusterState.LoadingEdit     => NodeOpType.PrepareEdit,
                             ClusterState.UnloadingEdit   => NodeOpType.FinalizeEdit,
                             _                            => NodeOpType.PrepareState,
@@ -1307,10 +1547,11 @@ public sealed partial class ClusterMaster : IDisposable
                             isLoadStep ? intent.ScenarioId : null,
                             false,
                             (FdpClusterState)(int)tStep.TargetState,
-                            ExerciseId:  intent.ExerciseId,
+                            ExerciseId:  exerciseId,
                             TerrainName: contentNames.TerrainName,
                             // ⭐ CE-2101 — every node clears its world before this load (the world boundary).
-                            IsWorldBoundary: worldBoundary);
+                            IsWorldBoundary: worldBoundary,
+                            CheckpointingSeconds: _currentCheckpointingSeconds);   // D17 — the session's recording mode
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
@@ -1443,6 +1684,19 @@ public sealed partial class ClusterMaster : IDisposable
     /// (<c>OperatingReplay → LoadingLive</c> continues the replayed world). ⭐ ONE rule for both consumers: the id
     /// authority reset (HN-037) and the node world clear (CE-2101).
     /// </summary>
+    // ⭐ CE-3310 — does this trajectory LOAD a live session (a LoadingLive step entered from Idle)?
+    private static bool LoadsLiveFromIdle(ClusterState source, IEnumerable<ISysOpStep> trajectory)
+    {
+        var from = source;
+        foreach (var step in trajectory)
+        {
+            if (step is not TransitionStep t) continue;
+            if (from == ClusterState.Idle && t.TargetState == ClusterState.LoadingLive) return true;
+            from = t.TargetState;
+        }
+        return false;
+    }
+
     internal static bool IsWorldBoundaryLoad(ClusterState enteredFrom, ClusterState target)
         => enteredFrom == ClusterState.Idle
         && (target == ClusterState.LoadingLive || target == ClusterState.LoadingEdit);
@@ -1537,6 +1791,14 @@ public sealed partial class ClusterMaster : IDisposable
 
     private void ProcessStorageOpIntent(ExecuteStorageOpIntent intent)
     {
+        // ⭐ CE-3329 P3 (D-E, F7) — a scenario save while the cluster shows a RECORDING would save the replayed world as the scenario
+        if (intent.Operation == StorageOpType.SaveScenario && ClusterStates.IsReplaying((FdpClusterState)(int)_currentDsmState))
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] save {0} REJECTED — the cluster shows a recording ({1}); return to live first.",
+                intent.RequestId, _currentDsmState);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
         switch (intent.Operation)
         {
             // CE-278: StorageOpType.SaveScenario (=2) retired — the half-built .fdp-archive stub whose only
@@ -1641,6 +1903,18 @@ public sealed partial class ClusterMaster : IDisposable
 
     private void ProcessSeekReplayIntent(SeekReplayIntent intent)
     {
+        // ⭐ CE-3329 P1 (R11) — a target in RECORDED sim time becomes wall ticks here, with the cluster's map; nodes are unchanged
+        if (intent.TargetSimSeconds is { } sim)
+        {
+            if (RelativeTicksForSim(sim) is not { } rel)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] seek {0} REJECTED — atSimSeconds {1}, but this replay has no sim axis (a v6 recording).",
+                    intent.RequestId, sim);
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+                return;
+            }
+            intent.TargetWallTicks = rel;
+        }
         // RT-008: fan-out with ACK tracker; immediate Success when roster is empty.
         // SlaveNodeSetUpdatedEvent and PauseTimeIntent are published by ReplaySeekProcessManager (TASK-T002).
         var seekNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
@@ -1805,12 +2079,14 @@ public sealed partial class ClusterMaster : IDisposable
             ExerciseId       = _activeExerciseId,
             SessionId        = SessionId,          // ⭐ C2
             TransactionEpoch = _transactionEpoch,  // ⭐ C4 — telemetry
+            ReplayAxis       = _replayAxis,        // ⭐ CE-3329 R-3058
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
             CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
             ExerciseId   = _activeExerciseId,
             SessionId    = SessionId,
+            ReplayAxis   = _replayAxis,
         });
     }
 
@@ -1990,7 +2266,8 @@ public sealed partial class ClusterMaster : IDisposable
                 foreach (var id in tracker.Targets)
                     if (_roster.ActiveNodes.ContainsKey(id)) _inSync.Add(id);
             }
-            var aggregated = TryAggregate(txId, tracker.NodeResponses);
+            var aggregated = tracker.SuccessResult
+                ?? (tracker.ResultFromResponses ? ResponsesByNode(tracker.NodeResponses) : TryAggregate(txId, tracker.NodeResponses));
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
             OnRoundSucceededForReplay(txId, aggregated);   // ⭐ C9 — the replay zero, and the seek that enters a replay
         }

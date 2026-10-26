@@ -19,6 +19,7 @@ using Fhsm.Compiler.Graph;
 using Fhsm.Kernel.Attributes;
 using Hrot.Map.Definitions.Behavior;
 using Hrot.MuscleCharacter.Animation.Stance;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -353,7 +354,7 @@ namespace Hrot.AI.Behaviors.Brains
             PutAway(world, self, HeldItemKind.Phone);   // he walks on
             ws.Target = WanderPoint(mind.Home, p.WanderRadius, (int)self.Index, ws.Legs, now);
             ws.Legs++;
-            if (LocomotionMoveTo.Issue(world, self, ws.Target, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true)) ws.Walking = 1;
+            if (LocomotionMoveTo.Issue(world, self, ws.Target, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Walking = 1;
             else ws.PauseUntil = now + p.PauseMaxSeconds;   // nothing to walk with: look again later
             return NodeStatus.Running;
         }
@@ -471,7 +472,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (IsIndoors(world, self)) { ws.Arrived = 1; LocomotionMoveTo.Stop(world, self); return NodeStatus.Running; }
             if (ws.Moving == 0)
             {
-                if (LocomotionMoveTo.Issue(world, self, ws.Shelter, p.PanicSpeed, 1f, MoveGait.Upright, onSurface: true)) ws.Moving = 1;
+                if (LocomotionMoveTo.Issue(world, self, ws.Shelter, p.PanicSpeed, 1f, MoveGait.Upright, onSurface: true, source: MoveSource.Flee)) ws.Moving = 1;
                 else ws.Failed = 1;
                 return NodeStatus.Running;
             }
@@ -556,7 +557,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             ws.FocusAt = mind.Focus;
             ws.Target = RingPoint(mind.Focus, world.GetComponentRO<SimTransform>(self).Position, (int)self.Index);
-            if (LocomotionMoveTo.Issue(world, self, ws.Target, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true)) ws.Moving = 1;
+            if (LocomotionMoveTo.Issue(world, self, ws.Target, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Moving = 1;
             else ws.Arrived = 1;   // nothing to walk with: he looks on from where he is
             return NodeStatus.Running;
         }
@@ -586,7 +587,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var rng = SimRng.FromSim((int)self.Index, 0x22400, 0f);
                 ws.Sign = rng.NextSingle() < SignShare ? (byte)1 : (byte)0;
                 ws.Spot = RingPoint(p.ProtestAt, world.GetComponentRO<SimTransform>(self).Position, (int)self.Index, ProtestRingMetres, ProtestRingJitterMetres);
-                ws.Moving = LocomotionMoveTo.Issue(world, self, ws.Spot, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true) ? (byte)1 : (byte)0;
+                ws.Moving = LocomotionMoveTo.Issue(world, self, ws.Spot, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true, source: MoveSource.Wander) ? (byte)1 : (byte)0;
                 Gestures.Set(world, self, ws.Sign != 0 ? GestureKind.HoldSign : GestureKind.None);
             }
             if (ws.Moving != 0)
@@ -602,7 +603,7 @@ namespace Hrot.AI.Behaviors.Brains
                 float a = rng.NextSingle() * MathF.PI * 2f, r = MillMetres * MathF.Sqrt(rng.NextSingle());
                 var step = new Vector3(ws.Spot.X + r * MathF.Cos(a), ws.Spot.Y + r * MathF.Sin(a), ws.Spot.Z);
                 ws.Steps++;
-                if (LocomotionMoveTo.Issue(world, self, step, MillSpeed, 0.5f, MoveGait.Upright, onSurface: true)) ws.Moving = 1;
+                if (LocomotionMoveTo.Issue(world, self, step, MillSpeed, 0.5f, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Moving = 1;
                 else ws.NextMillAt = now + MillMaxSeconds;
             }
             return Gesture(ref ws, self, world, now);
@@ -695,7 +696,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!Stones.InHand(world, self) && Scavenge(world, self, ref ws, now)) return NodeStatus.Running;
             var at = world.GetComponentRO<SimTransform>(ws.Target).Position;
             if (ws.Moving == 0 || Vector2.Distance(new Vector2(ws.Goal.X, ws.Goal.Y), new Vector2(at.X, at.Y)) > 1f)
-                if (LocomotionMoveTo.Issue(world, self, at, RiotSpeed, 0.8f, MoveGait.Upright, onSurface: true)) { ws.Moving = 1; ws.Goal = at; }
+                if (LocomotionMoveTo.Issue(world, self, at, RiotSpeed, 0.8f, MoveGait.Upright, onSurface: true, source: MoveSource.Attack)) { ws.Moving = 1; ws.Goal = at; }
             return NodeStatus.Running;
         }
 
@@ -717,7 +718,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             var at = world.GetComponentRO<SimTransform>(ws.Pickup).Position;
             if (ws.Moving == 0 || Vector2.Distance(new Vector2(ws.Goal.X, ws.Goal.Y), new Vector2(at.X, at.Y)) > 0.5f)
-                if (LocomotionMoveTo.Issue(world, self, at, RiotSpeed, 0.5f, MoveGait.Upright, onSurface: true)) { ws.Moving = 1; ws.Goal = at; }
+                if (LocomotionMoveTo.Issue(world, self, at, RiotSpeed, 0.5f, MoveGait.Upright, onSurface: true, source: MoveSource.Attack)) { ws.Moving = 1; ws.Goal = at; }
             return true;
         }
 
@@ -823,7 +824,7 @@ namespace Hrot.AI.Behaviors.Brains
             var away = new Vector2(me.X - mind.FrightFrom.X, me.Y - mind.FrightFrom.Y);
             if (away.LengthSquared() < 1e-4f) return;
             away = Vector2.Normalize(away) * p.FleeMetres;
-            LocomotionMoveTo.Issue(world, self, new Vector3(me.X + away.X, me.Y + away.Y, me.Z), p.PanicSpeed, 2f, MoveGait.Upright, onSurface: true);
+            LocomotionMoveTo.Issue(world, self, new Vector3(me.X + away.X, me.Y + away.Y, me.Z), p.PanicSpeed, 2f, MoveGait.Upright, onSurface: true, source: MoveSource.Flee);
         }
 
         /// <summary>He stands inside a building he could hide in (the shelter query's <see cref="InsideTest"/> question).</summary>

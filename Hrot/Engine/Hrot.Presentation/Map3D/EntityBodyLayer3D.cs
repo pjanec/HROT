@@ -125,6 +125,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
         // ⭐ CE-1033 S4 — the moving parts run on SIMULATION time (R-143); a host with no sim clock falls back to the frame time.
         _wallFallback += ctx.DeltaTime > 0f && float.IsFinite(ctx.DeltaTime) ? ctx.DeltaTime : 0f;
+        _frameClock += ctx.DeltaTime > 0f && float.IsFinite(ctx.DeltaTime) ? ctx.DeltaTime : 0.0;   // ⭐ CE-1353 — the rotors' smooth clock
         double simTime = world.HasSingletonUnmanaged<GlobalTime>() ? world.GetSingletonUnmanaged<GlobalTime>().TotalTime : _wallFallback;
         _drawn.Clear();
         bool hasSelection = world.IsComponentTypeRegistered<Hrot.IG.Components.SelectionState>();
@@ -171,7 +172,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
                                            || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry));
-            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
+            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock);   // ⭐ CE-1353
 
             KitPart[] parts;
             KitPivots pivots = default;
@@ -199,6 +200,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 // ⭐ WL-6c — the posture first (how AIMED he is), then the gait and the upper body from it
                 (parts, float aimed, float crouchRun) = FigurePose(world, e, look.Soldier, simTime, motion);
                 motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed, crouchRun);
+                motion = IdleMotion(world, e, motion, simTime);   // ⭐ CE-1308 (U19b, U19d) — the knees of a weight shift, a look about
                 (parts, motion) = Burdened(world, e, carriage, look.Soldier, parts, motion);
                 // ⭐ CE-1236 (People Display U7a, R-1022) — his weapon drawn as what it is, in every posture: the pistol, a machine gun, a
                 //   scoped rifle, a launcher's tube (⭐ CE-1090 N-4: on the shoulder when aimed), a mortar on the ground in front of him
@@ -345,6 +347,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         foreach (var k in _eyes.Keys) if (!_drawn.Contains(k)) _tipsGone.Add(k);
         foreach (var k in _tipsGone) _eyes.Remove(k);
         _postures.EndFrame(_drawn);
+        _stances.EndFrame(_drawn);
     }
 
     /// <summary>⭐ AQ93 §15.8 (CE-4031) — the bodies with NO entity (<see cref="AmbientBody"/>): a person is a civilian walking upright (no
@@ -496,6 +499,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             return motion with { Lean = 0f, Twist = 0f, KneeFlexL = 0f, KneeFlexR = 0f };
         }
         motion = Stepping(motion, stance);
+        var (hipFrom, hipTo, hipT) = DrawnStance(world, e, stance, simTime);   // ⭐ CE-1348 — the hips go down with the blend, not ahead of it
+        if (hipT < 1f && hipFrom != hipTo)
+            motion = motion with { HipZ = BlockFigure.HipFraction(hipFrom) + (BlockFigure.HipFraction(hipTo) - BlockFigure.HipFraction(hipFrom)) * hipT };
         if (stance == StanceId.Crouched && crouchRun > 0f)
             motion = motion with
             {
@@ -563,7 +569,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>
     /// ⭐ <c>CE-1193</c> (backend's <c>Lean</c>, <c>CE-3257</c> §13 LN-2; behaviors' poses note CB-21) — a man LEANING round a corner is drawn
     /// exactly as the sim leans him: a SHEAR about his feet across his own left axis (body frame +Y), a point <c>h</c> above his feet moving
-    /// <see cref="Fdp.Toolkit.Combat.Leans.Shift"/>·h / eye sideways, eye = the sim's eye height for his stance — so the head is drawn where
+    /// <see cref="Fdp.Toolkit.Combat.Leans.ShiftOf(Fdp.ModuleHost.Abstractions.ISimulationView, Entity)"/>·h / eye sideways (⭐ CE-2371: his own
+    /// depth, 0.4 m when unset), eye = the sim's eye height for his stance — so the head is drawn where
     /// he sees round the corner, is seen and is hit. Identity when he does not lean or lies prone (the sim ignores it then).
     /// ⛔ <c>MotionPose.Lean</c> is a FORWARD pitch; a sideways lean is this shear, applied after the pose (in body space).
     /// </summary>
@@ -575,7 +582,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         float eye = stance == StanceId.Crouched ? Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightCrouched
                                                 : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding;
         var m = Matrix4x4.Identity;
-        m.M32 = sign * Fdp.Toolkit.Combat.Leans.Shift / eye;   // row vectors: y' = y + k·z
+        // ⭐ CE-2371 (AQ104 G, R-2079; backend CE-3321) — HIS depth (a trained man leans further), the sim's own reader: 0.4 m when unset
+        m.M32 = sign * Fdp.Toolkit.Combat.Leans.ShiftOf(world, e) / eye;   // row vectors: y' = y + k·z
         return m;
     }
 
@@ -663,13 +671,55 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// his seed's offset, so a crowd does not pump its fists in step.</remarks>
     public static KitPart[] Gestured(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts, double simTime = 0)
     {
-        var gesture = (BlockFigure.ArmGesture)(byte)Fdp.Toolkit.Combat.Gestures.Of(world, e);   // U6-b: the same six, byte for byte
-        if (gesture == BlockFigure.ArmGesture.None || carriage.Kind != CarriageKind.Free) return parts;
+        var kind = Fdp.Toolkit.Combat.Gestures.Of(world, e);
+        if (kind == Fdp.Toolkit.Combat.GestureKind.None || carriage.Kind != CarriageKind.Free) return parts;
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
         var stance = LogicalStance.Of(world, e);
         if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
-        return BlockFigure.GestureArms(parts, gesture, crouched: stance == StanceId.Crouched, soldier, GestureClock(world, e, simTime));
+        float t = GestureClock(world, e, simTime);
+        // ⭐ CE-1308 (People Display §7d U19; behaviors' CE-2368) — an IDLE mood (smoking, shifting weight, a stretch, looking about) is
+        //   drawn by its own stateless function on the same clock; ⛔ cast to an arm pose it fell to the wind-up (behaviors' guard, replaced)
+        if (Fdp.Toolkit.Combat.Gestures.IsIdle(kind)) return BlockFigure.IdleArms(parts, kind, crouched: stance == StanceId.Crouched, soldier, t);
+        var gesture = (BlockFigure.ArmGesture)(byte)kind;   // U6-b: the same six, byte for byte
+        return BlockFigure.GestureArms(parts, gesture, crouched: stance == StanceId.Crouched, soldier, t);
     }
+
+    /// <summary>⭐ <c>CE-1308</c> (U19b) — how far the free knee bends while he shifts his weight (rad).</summary>
+    public const float ShiftKnee = 0.35f;
+
+    /// <summary>⭐ <c>CE-1308</c> (U19d) — how far and how slowly the head sweeps while he looks about (rad, s).</summary>
+    public const float LookAboutSweep = 0.52f, LookAboutCycle = 12f;
+
+    /// <summary>
+    /// ⭐ <c>CE-1308</c> (docs/DESIGN_People_Display.md §7d U19b, U19d) — the motion half of an IDLE mood, on his gesture clock: SHIFTING
+    /// WEIGHT bends the free knee (the leg the upper body sways away from — <see cref="BlockFigure.ShiftOf"/>), fading while he walks;
+    /// LOOKING ABOUT sweeps the head ±30° on a slow cycle — ⚠ only for a man whose eyes are not modelled at all (no <c>LookState</c>): since
+    /// behaviors' idle glance (<c>RestlessSystem.Glance</c>, AQ103 I) his real eyes look about, and the drawn head shows where he really
+    /// looks (Entity Control LK-5). ⛔ Not "while <c>HeadYaw</c> is 0" (U19d as first built): the glance passes straight ahead, and a drawn
+    /// sweep would cut in there and disagree with his eyes.
+    /// </summary>
+    public static MotionPose IdleMotion(EntityRepository world, Entity e, MotionPose motion, double simTime)
+    {
+        var kind = Fdp.Toolkit.Combat.Gestures.Of(world, e);
+        if (!Fdp.Toolkit.Combat.Gestures.IsIdle(kind) || Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) return motion;
+        float t = GestureClock(world, e, simTime);
+        if (kind == Fdp.Toolkit.Combat.GestureKind.IdleShiftWeight)
+        {
+            float sway = BlockFigure.ShiftOf(t) / BlockFigure.ShiftSway, still = 1f - Math.Clamp(motion.Moving, 0f, 1f);
+            return motion with
+            {
+                KneeFlexR = MathF.Max(motion.KneeFlexR, ShiftKnee * still * MathF.Max(0f, sway)),    // the weight on his left: the right knee rests
+                KneeFlexL = MathF.Max(motion.KneeFlexL, ShiftKnee * still * MathF.Max(0f, -sway)),
+            };
+        }
+        if (kind == Fdp.Toolkit.Combat.GestureKind.IdleLookAbout && !HasEyes(world, e))
+            return motion with { HeadTurn = motion.HeadTurn + LookAboutSweep * MathF.Sin(2f * MathF.PI * t / LookAboutCycle) };
+        return motion;
+    }
+
+    /// <summary>⭐ U19d — his eyes are modelled: a look was written for him once (<c>LookState</c> is added on the first look and kept, replicated).</summary>
+    private static bool HasEyes(EntityRepository world, Entity e)
+        => world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Look.LookState>() && world.HasComponent<Fdp.Toolkit.Perception.Look.LookState>(e);
 
     /// <summary>⭐ CE-1175 (U14) — a man's gesture clock in seconds: sim time plus up to 10 s from his seed (the same on every node).
     /// Wrapped to an hour so the float keeps its precision.</summary>
@@ -691,6 +741,15 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <returns>The parts, how AIMED he is standing (0..1, the posture blend) — the athletic stance and the glide follow it — and
     /// ⭐ CE-1064 how much a CROUCHED figure is running (0..1, its stride).</returns>
+    /// <summary>⭐ <c>CE-1348</c> — the figure's drawn stance this frame (<see cref="StanceBlend"/>): idempotent within a frame, so the pose
+    /// and the hip height read the same blend.</summary>
+    private (StanceId From, StanceId To, float T) DrawnStance(EntityRepository world, Entity e, StanceId target, double simTime)
+    {
+        StanceStatus? muscle = world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e)
+            ? world.GetComponentRO<StanceStatus>(e) : null;
+        return _stances.Of(e, target, simTime, muscle);
+    }
+
     private (KitPart[] Parts, float Aimed, float CrouchRun) FigurePose(EntityRepository world, Entity e, bool soldier, double simTime, in MotionPose motion)
     {
         float stride = motion.Stride;
@@ -710,12 +769,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         }
         _fall.Alive(e, target, simTime);
         if (Cowers(world, e, soldier)) return (BlockFigure.Cower, 0f, 0f);
-        if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
-        {
-            ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
-            if (status.Phase == StanceTransitionPhase.Transitioning && status.CurrentStance != target)
-                return (BlockFigure.Blend(status.CurrentStance, target, status.TransitionProgress, soldier, postureFrom, postureTo, postureT), 0f, 0f);
-        }
+        // ⭐ CE-1348 — the drawn stance moves smoothly to the logical one (StanceBlend), following the muscle's blend where it runs one
+        var (stanceFrom, stanceTo, stanceT) = DrawnStance(world, e, target, simTime);
+        if (stanceT < 1f && stanceFrom != stanceTo)
+            return (BlockFigure.Blend(stanceFrom, stanceTo, stanceT, soldier, postureFrom, postureTo, postureT), 0f, 0f);
         var parts = BlockFigure.Parts(target, soldier, postureFrom, postureTo, postureT);
         // ⭐ WL-6d — prone and moving: the crawl (never aimed), blended in by how much he moves
         if (target == StanceId.Prone && motion.Moving > 0f) return (BlockFigure.Crawl(parts, soldier, motion.CrawlPhase, motion.Moving), 0f, 0f);
@@ -1375,6 +1432,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         }
     }
     private readonly PostureBlend _postures = new();
+    private readonly StanceBlend _stances = new();   // ⭐ CE-1348 — the drawn stance moves smoothly to the logical one
 
     /// <summary>⭐ WL-6b — the posture changes' timing (the rail's seam).</summary>
     public PostureBlend Postures => _postures;
@@ -1383,6 +1441,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public DeathFall Falls => _fall;
     private readonly HashSet<Entity> _drawn = new();
     private float _wallFallback;
+    private double _frameClock;
 
     /// <summary>The moving-parts tracker (S4) — read by rails.</summary>
     public MotionTracker Motion => _motion;

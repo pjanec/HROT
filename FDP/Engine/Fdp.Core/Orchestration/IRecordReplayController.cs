@@ -26,6 +26,24 @@ namespace Fdp.Core.Orchestration
         Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory);
 
         /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — opens a recording that BRANCHES: its first frames are a copy of
+        /// <paramref name="branch"/>'s parent up to the branch point, then every frame is captured after them. Null = an empty start
+        /// (<see cref="PrepareRecordingAsync(Guid, string)"/>). ⚠ The default supports only null — a controller that records implements it.
+        /// <para>⭐ CE-3299 D17 (R-3045) — <paramref name="checkpointingSeconds"/> &gt; 0 records in CHECKPOINTING mode (a keyframe every N s of sim
+        /// time, nothing else); 0 = FULL. A branch records in its PARENT's mode (one session, one mode) and ignores it.</para>
+        /// </summary>
+        Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, FlightRecorder.RecordingBranch? branch, double checkpointingSeconds = 0)
+            => branch == null && checkpointingSeconds <= 0
+                ? PrepareRecordingAsync(exerciseId, storageDirectory)
+                : throw new NotSupportedException($"{GetType().Name} cannot record a branch or a checkpointing session");
+
+        /// <summary>
+        /// ⭐ <c>D18</c> — where a branch from the replay on screen would start: this node's recording up to the frame it shows.
+        /// Null when no replay is open, or this node has no recording of it (a listener — its branch starts empty).
+        /// </summary>
+        FlightRecorder.RecordingBranch? CurrentReplayBranch => null;
+
+        /// <summary>
         /// Finalizes and closes the active recording.  Blocks until all LZ4
         /// buffers are flushed and the <c>.meta.json</c> manifest is written.
         /// </summary>
@@ -52,6 +70,26 @@ namespace Fdp.Core.Orchestration
         /// <returns>The <see cref="GlobalTime"/> the recording landed on after the seek.
         /// Listener/CGF implementations that do not record return <see langword="default"/>.</returns>
         Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks);
+
+        /// <summary>
+        /// ⭐ CE-3329 PW (§12c W2) — hold this node's egress from a world swap until the master's commit: no sample is published in
+        /// between (the cleanup's disposes still go out). Released by <see cref="ReleaseEgress"/>, or it lapses (bounded).
+        /// A controller with no network world ignores it.
+        /// </summary>
+        void HoldEgress(string reason) { }
+
+        /// <summary>
+        /// ⭐ CE-3329 P0 (row 6) — the RECORDED sim time of the frame on screen (<c>GlobalTime.TotalTime</c> as the live run had it), or
+        /// <see langword="null"/> outside a replay. ⚠ Not <see cref="GetCurrentReplayTime"/>, which is the replay clock (wall after the zero).
+        /// </summary>
+        double? CurrentReplaySimSeconds => null;
+
+        /// <summary>⭐ CE-3329 P1 (R3, row 8) — the open replay's wall ↔ sim map (from its v7 frame index); <see langword="null"/> outside a
+        /// replay. Read once per replay — the node's prepare result carries it to the master.</summary>
+        FlightRecorder.ReplayTimeMap? ActiveReplayTimeMap => null;
+
+        /// <summary>⭐ CE-3329 PW — releases <see cref="HoldEgress"/>: the next egress frame republishes the world.</summary>
+        void ReleaseEgress() { }
 
         /// <summary>
         /// Advances playback by one frame.  Called by the application loop
@@ -108,6 +146,10 @@ namespace Fdp.Core.Orchestration
         /// delivered it, else this node's own first frame. Set by the seek handler.
         /// </summary>
         long ReplayAnchorWallTicks { get; set; }
+
+        /// <summary>⭐ R-3055 — the recording this node replays now, or <see langword="null"/> outside a replay: what the debug
+        /// surface's journal history and recording search scan, read-only.</summary>
+        string? ActiveReplayFilePath { get; }
 
         /// <summary>⭐⭐ R-4012 — true while this node restores the current replay moment from its own recording.</summary>
         bool IsRestoringReplay { get; }

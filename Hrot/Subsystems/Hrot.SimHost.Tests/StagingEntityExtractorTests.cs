@@ -571,7 +571,10 @@ namespace Hrot.SimHost.Tests
             var requests = new StagingEntityExtractor()
                 .Extract(serializer, json, new StubIdAllocator(100));
 
-            Assert.Equal(0L, Assert.Single(requests).PreAllocatedNetworkId);
+            var req = Assert.Single(requests);
+            Assert.Equal(0L, req.PreAllocatedNetworkId);
+            // ⭐ CE-3324 — a scenario load SAYS so, even with no id to infer it from (its subordinates are roots in the file too)
+            Assert.True(req.IsScenarioLoad);
         }
 
         // ── Test 10: ChildComponentOverrides populated from PartMetadata children ─
@@ -831,7 +834,7 @@ namespace Hrot.SimHost.Tests
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var unit = ((JsonObject)raw)["HoldUnit"]!.GetValue<long>();
                 var plan = new Hrot.Map.Common.Components.RoutePlan();
-                plan.Mutate(l =>
+                plan = plan.WithWaypoints(l =>
                 {
                     l.Add(new Hrot.Map.Common.Components.RouteWaypoint { Hold = Fdp.Toolkit.Navigation.RouteHold.Unload });
                     l.Add(new Hrot.Map.Common.Components.RouteWaypoint { Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup, HoldUnit = unit });

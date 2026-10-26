@@ -13,6 +13,7 @@ using Fdp.Toolkit.Spatial.Eqs;
 using Fbt.Kernel;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Stance;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -155,6 +156,11 @@ namespace Hrot.AI.Behaviors.Brains
         public EngageState Fire;
         /// <summary>⭐ <c>CE-3170</c> — where the move was issued to (a hunted target that moves further re-issues it).</summary>
         public Vector3 IssuedTo;
+        /// <summary>⭐ <c>CE-2371</c> (AQ104 I) — when an arrival on the wrong storey last re-issued the move (sim s).</summary>
+        public double RetriedAt;
+        /// <summary>⭐ <c>CE-2373</c> — when, and from where, the move was last issued (the "not arrived, not moving" check).</summary>
+        public double IssuedAt;
+        public Vector3 IssuedFrom;
     }
 
     /// <summary>
@@ -286,20 +292,56 @@ namespace Hrot.AI.Behaviors.Brains
             //   last placed it, and arriving does not end the posture — the target going down does (UntilTargetDown).
             bool hunting = DesignatedTarget.Of(world, self, out var hunted) && Injury.IsInTheFight(world, hunted);
             var objective = hunting && HiddenTargetThrow.LastKnown(world, self, hunted, out var seenAt) ? seenAt : p.Objective;
+            // ⭐ CE-2376 (AQ104 C, DS-2) — a man who HOLDS (his character, or his nerves) does not go after a target he cannot see: he keeps his
+            //   place and fights what shows (a Veteran+ goes looking after Disposition.LongQuietSeconds). No temperament ⇒ as before.
+            if (hunting && !Fdp.Toolkit.Perception.SightNow.Sees(world, self, hunted)
+                && !Disposition.MaySearch(world, self, orderedAssault: true, Disposition.QuietSeconds(world, self, hunted)))
+            {
+                if (ws.Moving == 1) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                return NodeStatus.Running;
+            }
             if (ws.Moving == 1 && hunting && Vector3.Distance(objective, ws.IssuedTo) > p.ArrivalRadius) ws.Moving = 0;   // it moved
             if (ws.Moving == 1)
             {
                 var status = LocomotionMoveTo.Status(world, self);
-                if (status == NodeStatus.Success && (hunting || p.Stay != 0)) return NodeStatus.Running;   // there: the fight goes on
-                if (status == NodeStatus.Success) { StopFiring(world, self, ref ws.Fire); return NodeStatus.Success; }
-                if (status == NodeStatus.Running) return NodeStatus.Running;
-                ws.Moving = 0;   // failed or taken over: issue it again
+                // ⭐ CE-2371 (AQ104 I, R-2079) — HUNTING, "arrived" on ANOTHER storey than the target is no arrival (📐 Peek and Fire §12.7: the
+                //   person mover arrives in 2-D, so a man stood under his target one floor down for 160 s — the mover's own fix is backend's,
+                //   HANDOFF_Behaviors_To_Backend_Area_Combat_And_Callouts item 1): re-issue the move, at most every StoreyRetrySeconds
+                //   ⭐ CE-2373 — also a POSTED man (Stay: his post upstairs, D-2m's coverage picks one) — and, since backend's storey-aware
+                //   arrival (CE-3319), "not arrived, not moving" under it: the mover stands still and a re-sent move plans the stairs
+                double t = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+                bool storeyBound = (hunting || p.Stay != 0) && OtherStorey(world, self, objective);
+                bool stuck = status == NodeStatus.Running && t - ws.IssuedAt >= StoreyRetrySeconds && world.HasComponent<SimTransform>(self)
+                             && Vector3.Distance(world.GetComponentRO<SimTransform>(self).Position, ws.IssuedFrom) < StuckMetres;
+                if (storeyBound && (status == NodeStatus.Success || stuck))
+                {
+                    if (ws.RetriedAt > 0 && t - ws.RetriedAt < StoreyRetrySeconds) return NodeStatus.Running;   // the first at once, then throttled
+                    ws.RetriedAt = t;
+                    ws.Moving = 0;
+                }
+                else if (status == NodeStatus.Success && (hunting || p.Stay != 0)) return NodeStatus.Running;   // there: the fight goes on
+                else if (status == NodeStatus.Success) { StopFiring(world, self, ref ws.Fire); return NodeStatus.Success; }
+                else if (status == NodeStatus.Running) return NodeStatus.Running;
+                else ws.Moving = 0;   // failed or taken over: issue it again
             }
-            if (!LocomotionMoveTo.Issue(world, self, objective, p.Speed, p.ArrivalRadius)) return NodeStatus.Failure;
+            if (!LocomotionMoveTo.Issue(world, self, objective, p.Speed, p.ArrivalRadius, source: hunting ? MoveSource.Attack : LocomotionMoveTo.OrderSource(world, self))) return NodeStatus.Failure;
             ws.Moving = 1;
             ws.IssuedTo = objective;
+            ws.IssuedAt = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+            ws.IssuedFrom = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : default;
             return NodeStatus.Running;
         }
+
+        /// <summary>⭐ <c>CE-2371</c> (AQ104 I) — a storey is this tall (m): a target this much above or below him is on another floor.</summary>
+        public const float StoreyMetres = 2.0f;
+        /// <summary>⭐ <c>CE-2371</c> — an arrival on the wrong storey re-issues the hunt's move at most this often (s).</summary>
+        public const double StoreyRetrySeconds = 3.0;
+        /// <summary>⭐ <c>CE-2373</c> — moved less than this since the move was issued (m), for <see cref="StoreyRetrySeconds"/>: not moving.</summary>
+        public const float StuckMetres = 0.5f;
+
+        /// <summary>⭐ <c>CE-2371</c> (AQ104 I) — <paramref name="objective"/> is on another floor than <paramref name="self"/> stands on.</summary>
+        internal static bool OtherStorey(EntityRepository world, Entity self, Vector3 objective)
+            => world.HasComponent<SimTransform>(self) && MathF.Abs(world.GetComponentRO<SimTransform>(self).Position.Z - objective.Z) > StoreyMetres;
 
         /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — sits after a branch that can FINISH (the winner, the attack's target): Running when
         /// he stays, so its Success does not end the posture; else Success, which ends it as before. A failed branch never reaches it.</summary>
@@ -340,7 +382,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (Vector3.Distance(at, p.Anchor) > FrameWatchMetres)
             {
                 Straighten(ref ws, self, world);
-                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, p.Anchor, FrameWatchSpeed, PeekAndFireNodes.ArrivalRadius) ? 1 : 0);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, p.Anchor, FrameWatchSpeed, PeekAndFireNodes.ArrivalRadius, source: MoveSource.SquadPost) ? 1 : 0);
                 if (ws.Moving == 0) ws.Failed = 1;
                 return NodeStatus.Running;
             }
@@ -399,6 +441,8 @@ namespace Hrot.AI.Behaviors.Brains
             var target = new Entity((ulong)p.TargetPacked);
             if (!Injury.IsInTheFight(world, target)) return NodeStatus.Success;
             Designate(world, self, target, ref ws.Told);
+            // ⭐ CE-2371 (AQ104 D, R-2079) — the attack's target stays KNOWN until he is down (memory with evidence from the last 10 min)
+            AreaAlert.Keep(world, self, target, world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d);
             return NodeStatus.Running;
         }
 
@@ -441,7 +485,9 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.AnchorRadius <= 0f || !world.HasComponent<SimTransform>(self)) return false;
             var at = world.GetComponentRO<SimTransform>(self).Position;
-            bool onAlternate = p.AnchorHasAlternate != 0 && Vector3.Distance(at, p.AnchorAlternate) <= p.MatchRadius;
+            // ⭐ CE-2366 — the blackboard's raw MatchRadius is 0 ("the default") — the effective 1 m, as PeekAndFire's own OnPost reads it
+            float match = p.MatchRadius > 0f ? p.MatchRadius : PeekAndFireNodes.Defaults.MatchRadius;
+            bool onAlternate = p.AnchorHasAlternate != 0 && Vector3.Distance(at, p.AnchorAlternate) <= match;
             float d = Vector3.Distance(at, p.Anchor);
             if (ws.Occupied == 0)
             {
@@ -453,6 +499,29 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Occupied = 0;   // carried out of his room: back to it
             return true;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2356</c> (AQ102 B, R-2072) — the man is POSTED (<see cref="PeekAndFireParams.AnchorRadius"/> &gt; 0) at an OPENING: his
+        /// post set a window, set-back, roof or frame shape (<see cref="CombatPostureBehavior.Post(in Hrot.Map.Definitions.Behavior.CombatPosturePostJsonDto, ref PeekAndFireParams)"/>
+        /// leaves a plain cover post on the defaults, template 0). There he fights through PeekAndFire whatever the decision says — 📌 user,
+        /// 2026-10-23: <i>"They are standing in the windows … without trying to take cover when the player starts firing at them."</i>
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus AtOpeningPost(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => p.AnchorRadius > 0f && (p.Frame != 0 || (p.HideTemplate != 0 && p.HideTemplate != Fdp.Toolkit.Spatial.Eqs.FindCoverFromTarget.BlueprintId))
+                ? NodeStatus.Success : NodeStatus.Failure;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2366</c> A (approved 2026-10-25) — <see cref="AtOpeningPost"/> AND something to fight (the threat ranking's top aim, the one
+        /// <see cref="PeekAndFireNodes.PeekAndFire"/> fights). The guard of <c>CombatPosture</c>'s POSTED branch: a man posted at a window, frame
+        /// or roof runs ONE peek cycle whatever the decision says (TakeCover, Suppress, Advance, HoldProne, Hold) — only a retreat or a new
+        /// order ends it. 📐 Live <c>bt-window-duel</c>: every switch between those options tore the cycle down (its state is scratch), so he
+        /// hopped between windows and fired 2 rounds in 180 s. Nothing to fight ⇒ the decision's branches run (Hold leans out to watch).
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus PostedWithThreat(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => AtOpeningPost(ref p, self, world) == NodeStatus.Success && EqsTacticsNodes.TopAim(world, self, default, out _)
+                ? NodeStatus.Success : NodeStatus.Failure;
 
         /// <summary>⭐ D-2e — this close to his post he has occupied it (m): the advance's own arrival (1 m) plus a step.</summary>
         public const float OccupiedMetres = 1.5f;

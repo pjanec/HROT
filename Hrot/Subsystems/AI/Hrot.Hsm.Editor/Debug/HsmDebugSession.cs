@@ -44,7 +44,43 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     public event Action<HsmGuardEvaluated>? OnGuardEvaluated;
     public event Action<HsmTimerEvent>?     OnTimerEvent;
 
-    public HsmDebugSession(AiTracerCoordinator? coordinator = null) : base(coordinator) { }
+    public HsmDebugSession(AiTracerCoordinator? coordinator = null, BehaviorRegistry? behaviors = null) : base(coordinator)
+    {
+        _behaviors = behaviors;
+    }
+
+    // ⭐ CE-1253 (BV-20) — the running machine's metadata, found from the unit's behaviour: the catalog's compile when the catalog
+    //   registered one (a C#-built machine draws new stable ids at every compile, so only the catalog's match the canvas), else the
+    //   registry definition's. ⛔ SetMetadata had no production caller, so the live highlight and the history named nothing.
+    private readonly BehaviorRegistry? _behaviors;
+    private readonly Dictionary<string, (Guid AssetId, MachineMetadata? Metadata)> _machines = new(StringComparer.Ordinal);
+    private int _resolvedBehavior;
+
+    /// <summary>The catalog registers each machine it projected, by machine name, with the metadata of the graph it shows.</summary>
+    public void RegisterMachine(string machineName, Guid assetId, MachineMetadata? metadata)
+    {
+        _machines[machineName] = (assetId, metadata);
+        _resolvedBehavior = 0;
+    }
+
+    private void ResolveMetadata(EntityRepository repo, Entity entity)
+    {
+        if (_behaviors is null || !repo.HasComponent<BehaviorState>(entity)) return;
+        int hash = repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash;
+        if (hash == 0 || hash == _resolvedBehavior) return;
+        if (!_behaviors.TryGetName(hash, out var name)) return;
+        if (_machines.TryGetValue(name, out var m)) SetMetadata(m.AssetId, m.Metadata);
+        else if (_behaviors.TryGetDefinition(hash, out var def) && def.HsmMetadata is { } md) SetMetadata(_metadataAssetId, md);
+        else return;
+        _resolvedBehavior = hash;
+    }
+
+    /// <summary>The asset whose metadata names the states now (tests).</summary>
+    internal Guid MetadataAssetId => _metadataAssetId;
+
+    /// <summary>A state index as the canvas's stable id (empty when unknown).</summary>
+    private Guid StateId(ushort index)
+        => _metadata != null && _metadata.StateStableIds.TryGetValue(index, out var sid) ? sid : Guid.Empty;
 
     // BPF-023: store metadata so Update() can symbolicate ActiveLeafIds.
     public void SetMetadata(Guid assetId, MachineMetadata? metadata)
@@ -88,6 +124,7 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     {
         // === Snapshot ===
         HsmInstanceSnapshot? snap = null;
+        ResolveMetadata(repo, entity);
 
         // ⭐⭐⭐ O7c-④d (2026-09-23): THE DECODE IS SIZE-DRIVEN, AND THE SIZE COMES FROM THE SLOT.
         //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
@@ -154,20 +191,22 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
             var hdr = (TraceRecordHeader*)(bufBase + pos);
             switch (hdr->OpCode)
             {
+                // ⭐ CE-1251 — the records carry state indices; name them through the metadata (they were stored as Guid.Empty, so the
+                //   200-entry history resolved to nothing).
                 case TraceOpCode.StateEnter:
                     _nodeProcessedSinceStep = true;
                     RecordTrace(new HsmStateEntered(
-                        entity, Guid.Empty, Guid.Empty, (float)hdr->Timestamp));
+                        entity, _metadataAssetId, StateId(((TraceStateChange*)(bufBase + pos))->StateIndex), (float)hdr->Timestamp));
                     break;
                 case TraceOpCode.StateExit:
                     RecordTrace(new HsmStateExited(
-                        entity, Guid.Empty, Guid.Empty, (float)hdr->Timestamp));
+                        entity, _metadataAssetId, StateId(((TraceStateChange*)(bufBase + pos))->StateIndex), (float)hdr->Timestamp));
                     break;
                 case TraceOpCode.Transition:
                     _nodeProcessedSinceStep = true;
                     var trans = (TraceTransition*)(bufBase + pos);
                     RecordTrace(new HsmTransitionFired(
-                        entity, Guid.Empty, Guid.Empty, Guid.Empty, Guid.Empty,
+                        entity, _metadataAssetId, Guid.Empty, StateId(trans->FromState), StateId(trans->ToState),
                         trans->TriggerEventId, false, 0, (float)hdr->Timestamp));
                     break;
             }

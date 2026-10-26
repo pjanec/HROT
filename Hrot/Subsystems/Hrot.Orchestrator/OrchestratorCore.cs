@@ -59,6 +59,8 @@ public sealed class OrchestratorCore : IDisposable
     private readonly GlobalContextProcessManager   _globalContext;
     private readonly AssetPrefetchProcessManager   _prefetch;
     private readonly ReplayProcessManager          _replay;
+    private readonly ReplayClockProcessManager     _replayClock;   // ⭐ CE-3329 P1 — the sim axis jumps the paused stretches
+    private readonly ReviewProcessManager          _review;        // ⭐ CE-3329 P3 — the review's clock: pause, L, the return
     private readonly StorageProcessManager         _storage;
     private readonly AssetInventoryProcessManager  _inventory;
     private readonly EpisodeProcessManager         _episodes;
@@ -66,6 +68,8 @@ public sealed class OrchestratorCore : IDisposable
     private readonly DiagnosticLogMergeWorker      _mergeWorker;
 
     public ClusterMaster           Master           => _master;
+    /// <summary>⭐ CE-3329 P3 — the review's clock (the live point L, whether a review is open).</summary>
+    public ReviewProcessManager    Review           => _review;
     public ClusterUiCache          UiCache          { get; }
     public ClusterScenarioPanel    ScenarioPanel    { get; }
     public ClusterDiagnosticsPanel DiagnosticsPanel { get; }
@@ -79,17 +83,26 @@ public sealed class OrchestratorCore : IDisposable
 
         _master = new ClusterMaster(bus, config);
         _master.LocalNodeId = o.StagingNodeId;   // ⭐ P3 — the master never waits for the node it runs in
+        // ⭐ CE-3299 B3 (D3) — a checkpoint is named for ONE wall time on the clock every slave follows (silent-default rule:
+        //   every host builds its master here, with its time reads, so none can forget it).
+        _master.WallTicks = () => o.TimeReads.GetCurrentState().TotalWallTicks;
         // ⭐⭐⭐ HN-037 — the world's ONE id authority, so a scenario load resets it to 1000.
         //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11.
         _master.IdAuthority = o.IdAuthority;
 
         UiCache       = new ClusterUiCache(bus, o.TimeReads);
+        // ⭐ R-3055 — the master resolves a replay that names no exercise; the newest finished one is in the core's inventory read model
+        _master.NewestExercise = () => UiCache.AvailableExercises.Length == 0
+            ? null
+            : UiCache.AvailableExercises.MaxBy(x => x.StartTimeUtc).ExerciseId;
         ScenarioPanel = new ClusterScenarioPanel(bus, UiCache);
 
         // Aggregators — one per node-op whose ACKs carry a result.
         _master.RegisterAggregator(new ReplaySeekAggregator());                                   // TASK-T002
+        _master.RegisterAggregator(new CheckpointRestoreAggregator());                            // CE-3299 B4 (D5)
         _replay = new ReplayProcessManager(bus, o.TimeReads);
         _master.RegisterAggregator(_replay.CreateAggregator());
+        _master.RegisterAggregator(_replay.CreateReviewAggregator());                             // ⭐ CE-3329 P3
         _master.RegisterAggregator(new StorageConsensusAggregator());                             // TASK-S001
         _master.RegisterAggregator(new EpisodeConsensusAggregator(NodeOpType.StartEpisode));      // TASK-S003
         _master.RegisterAggregator(new EpisodeConsensusAggregator(NodeOpType.StopEpisode));
@@ -107,12 +120,7 @@ public sealed class OrchestratorCore : IDisposable
             // ⭐ CE-122 / CE-3093 — a scenario load JUMPS the clock to the loaded time and holds it while the world
             //   is rebuilt. Whether it then runs is the load's property — GlobalContextProcessManager resumes at
             //   OperatingLive unless it asked to start paused (Q86 §4-G).
-            time.SnapTo(new GlobalTime
-            {
-                TotalWallTicks    = startTicks,
-                TotalTime         = simTimeSeconds,
-                UnscaledTotalTime = simTimeSeconds,
-            });
+            time.SnapTo(LoadedClock(startTicks, simTimeSeconds, DateTime.UtcNow.Ticks));
             FdpLog<OrchestratorCore>.Info(
                 "[Orchestrator] Scenario loaded: clock reset to SimTime={1:F1}s (WallTicks={0})",
                 startTicks, simTimeSeconds);
@@ -145,6 +153,17 @@ public sealed class OrchestratorCore : IDisposable
         // TASK-T002 — the seek. Must tick BEFORE ClusterMaster so its precondition events precede the fan-out.
         _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule
 
+        // ⭐ CE-3329 P3 — a review's clock. Must tick BEFORE ClusterMaster so its barrier pause precedes the PrepareReview fan-out.
+        _review = new ReviewProcessManager(bus, timeReads, time,
+            () => (Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState);
+
+        // ⭐ CE-3329 P1 (R4) — on the Sim axis a running replay jumps every paused stretch (non-pausing: no epoch move)
+        _replayClock = new ReplayClockProcessManager(timeReads, time,
+            replaying:       () => Fdp.Toolkit.Orchestration.ClusterStates.IsReplaying((Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState),
+            axis:            () => _master.ReplayAxis,
+            map:             () => _master.ReplayTimeMap,
+            anchorWallTicks: () => _master.ReplayAnchorWallTicks);
+
         // ⭐ CE-3299 B2 / D5 — a cluster dry run puts the clock back with the world (the editor's own Play/Stop already does, CE-3156).
         _previewClock = new PreviewClockProcessManager(bus, timeReads, time);
 
@@ -169,11 +188,13 @@ public sealed class OrchestratorCore : IDisposable
     {
         _liveBranch.Tick();
         _seek.Tick();
+        _review.Tick();   // CE-3329 — before the master (the entry pause precedes the fan-out)
         _previewClock.Tick();
         _globalContext.Tick();
         _prefetch.Tick();
         _master.Tick();
         _replay.Tick();
+        _replayClock.Tick();   // CE-3329
         _storage.Tick();
         _inventory.Tick();
         _episodes.Tick();
@@ -194,4 +215,17 @@ public sealed class OrchestratorCore : IDisposable
         _master.Dispose();
         _mergeWorker.Dispose();
     }
+
+    /// <summary>
+    /// ⭐ backend `2026-10-26` (run C) — where a scenario load puts the clock: the loaded sim time, and the wall clock on the REAL
+    /// clock's basis (<paramref name="nowTicks"/>) unless the context names its own start. ⛔ Never wall 0: every resume re-anchors the
+    /// wall to the real clock (MasterSyncController), so a load at 0 gave a recording TWO bases — 📌 measured on the editor (its own
+    /// clock is the master): frames from 1.7e8 to 6.39e17 ticks, a replay "63 928 598 528 s" long.
+    /// </summary>
+    public static GlobalTime LoadedClock(long startTicks, double simTimeSeconds, long nowTicks) => new()
+    {
+        TotalWallTicks    = startTicks != 0 ? startTicks : nowTicks,
+        TotalTime         = simTimeSeconds,
+        UnscaledTotalTime = simTimeSeconds,
+    };
 }

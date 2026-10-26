@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1 = phases 1–3, CE-4038, ui lane, 2026-10-21 — §8) · was READY-TO-BUILD (approved 2026-10-21, R-4062) · ⭐ RE-DISPATCHED 2026-10-21 to the UI lane (R-3038): docs/blueprints/batches/HANDOFF_Backend_To_Ui_Film_Director.md — the backend dispatch (HANDOFF_Coordinator_To_Backend_Film_Director.md) is superseded
-updated: 2026-10-21 (filmed = scouted ACCEPTED after CE-3293 S5 — the identity gate, §8.4; the takes re-scouted) · 2026-10-21 (AS BUILT §8 — CE-4038 slice 1 by the ui lane: the runner, its five seams, the routes, the panel, the take store, the seeded takes, the 2-D ear and the sound track; eight deviations from §2) · 2026-10-21 (sixth pass — R-3038: a take is scripted in TIME on a stepped run that repeats; one stepping cadence — exactly one step per rendered frame — for the scout, the live show and the capture; built by the ui lane; 'filmed = scouted' waits for CE-3293 S5) · 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
+updated: 2026-10-26 (§3c — an instant replay IS a During Action Review; the bookmark fallback dropped — R-4088) · 2026-10-21 (filmed = scouted ACCEPTED after CE-3293 S5 — the identity gate, §8.4; the takes re-scouted) · 2026-10-21 (AS BUILT §8 — CE-4038 slice 1 by the ui lane: the runner, its five seams, the routes, the panel, the take store, the seeded takes, the 2-D ear and the sound track; eight deviations from §2) · 2026-10-21 (sixth pass — R-3038: a take is scripted in TIME on a stepped run that repeats; one stepping cadence — exactly one step per rendered frame — for the scout, the live show and the capture; built by the ui lane; 'filmed = scouted' waits for CE-3293 S5) · 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
 current-answer: §8 AS BUILT (CE-4038 slice 1 — what was built and where it deviates) · §0 FIRST (R-3038 overrides §3d and D-3 for stepped runs) · §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
 stale-below: none
-known-rot: §2's Scout, CaptureSink, CinemaMode, LayerOverride and SoundTrack.Log boxes are SUPERSEDED by §8.3 (as built). §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
+known-rot: §3c "Kept as the fallback: an in-memory bookmark" and its "basis … a full LIVE run" questions — SUPERSEDED by §3c's R-4088 block (an instant replay is a review) · §2's Scout, CaptureSink, CinemaMode, LayerOverride and SoundTrack.Log boxes are SUPERSEDED by §8.3 (as built). §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
 known-conflict: none — the determinism question ("I still believe we could make this deterministic") is RULED by R-3038; the mechanism is DESIGN_Paused_And_Stepped_Execution.md (CE-3293).
 related-designs:
+  - DESIGN_Replay_Time_Axis_And_Review.md — answers §3c's instant-replay question: review the live run in place and return to it untouched
+  - DESIGN_Director_Timeline_Editor.md — OWNS the EDITOR over takes (timeline panel, camera keys, tracks), the RECORDING source, promote and the recording scout; it builds §3e / D-18 here (R-4067, R-4068)
   - DESIGN_Scenario_Regression.md — REUSES the take anchor grammar for a scenario's machine-checkable conditions (checks.json) and, in its phase 2, AnchorBook and a DirectorRunner verify mode
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS stepped-run event delivery (CE-3293): the determinism this director's stepped takes rely on
   - DESIGN_Map_3D_Mode.md §6ab — OWNS the film camera this drives (FilmStudio, FilmDirector as an ICameraDriver, FilmCaptureLayer, the /film routes); this design adds WHO holds the script and WHEN the shot changes
@@ -408,6 +410,8 @@ behaviour starts, a vehicle closes on a point), and a shot is held UNTIL the nex
 
 ### 3e. Later — shoot, then edit, from a RECORDING (the user's path)
 
+⭐ **Designed `2026-10-23`:** [`DESIGN_Director_Timeline_Editor.md`](DESIGN_Director_Timeline_Editor.md) — the editor, the recording source and promote (R-4067…R-4070).
+
 🔒 *"which might lead to the replay from recording path."* ⭐ The final films come from a recorded run: **shoot** (a live, recorded run;
 retake until the beats happen) → **scout the recording** (its events are fixed now) → **edit**: play the recording back with the take's
 cuts, where leads (`fire-0.5`), slow motion and instant replays are seeks into a run that no longer changes. The live, event-driven slice
@@ -417,6 +421,16 @@ cuts, where leads (`fire-0.5`), slow motion and instant replays are seeks into a
 `DESIGN_Map_3D_Mode.md` §6b). ⇒ that slice starts by measuring both — the same questions §3c lists for replays, which it now also serves.
 
 ### 3c. Instant replays — LATER, from the live run's recording (R-4061)
+
+⭐ **R-4088 (`2026-10-26`) — an instant replay IS a During Action Review.** 🔒 *"yes write the addendum note, and approved"* — after backend's
+[DAR design](DESIGN_Replay_Time_Axis_And_Review.md) answered this section's open question ("can the recording be shown while the live run is
+paused, then the live world come back untouched?" — yes: `OperatingLive → LoadingReview → OperatingReview → UnloadingReview → OperatingLive`,
+the full checkpoint returns live exactly, paused at L, R-3063). ⇒ a take's `replay` shot = the director enters a review at the window's start
+on the Sim axis, plays `[t0, t1]` from the replay camera at the shot's speed, returns to live and steps on. ⛔ No second mechanism: the
+in-memory bookmark fallback below is dropped. ⚠ It waits for DAR **P3**, and for a film it inherits the review's rules: on the wire
+(R-3062 — an external IG shows the replay too), world-changing commands refused, the recorder suspended (the review is not filmed twice
+into the exercise). The faithfulness the questions below ask is measured by the replay harness's H5
+([Scenario Regression §10-2](DESIGN_Scenario_Regression.md)). *Below: the section as it stood — kept for its questions; the fallback is history.*
 
 🔒 *"In the first slice no such instant replays, but later, yes."* ⇒ ⭐ **slice 1 skips a take's replay shots** (the format keeps
 `replay`, and the report names each one skipped).
@@ -482,6 +496,7 @@ reel is.** `films/<reel>.reel.json`:
 | **to film** | `POST /director/play {reel, capture}` writes **ONE movie**: the frames are numbered across all items, a fade or a title card between items, a chapter mark per item (ffmpeg metadata), one sound track |
 | **mixing** | any scenario, any take, the same scenario twice with different takes, part of a take (`from` / `to`, anchors or shot numbers) |
 | **many movies** | a reel per film: `features.reel.json` (everything, in CAPABILITIES order), one per chapter, one per audience — they share the takes |
+| **parked clips** | *(as built `2026-10-23`, ui)* `"waiting": [{"clip": "F-03", "why": "not ready …"}]` lists clips kept OFF the reel until they are ready (PLAN_Feature_Films §5) — read into `Reel.Waiting`, written back, never played; any other key in an entry is refused like every reel key |
 
 **Several versions of one scenario** (🔒 *"multiple version of different scenarios"*): a variant is its own scenario folder
 (`ua-eject` · `ua-shootdown-eject`), so it carries its own `takes/`. One scenario can hold several takes (`main`, `short`, `wide`). A reel

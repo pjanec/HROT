@@ -108,6 +108,43 @@ public sealed class AssetInventoryProcessManagerTests
     /// goes live, filed under <c>exercises/&lt;id&gt;/scenario/</c> on export. A Save Scenario over the same folder after
     /// the start does not leak into the archive, and the local snapshot goes with the ledger entry.
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-4054 — the run in progress is in the inventory of what can be replayed (the master replays it when none is named), its
+    /// length so far; ⛔ not among the unarchived, so nothing offers to export a run that is still recording.
+    /// </summary>
+    [Fact]
+    public void CE4054_TheRunInProgress_IsReplayable_ButNotOfferedForExport()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce4054_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce4054_stg_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var bus     = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400);
+
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = exerciseId });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exerciseId });
+            bus.SwapBuffers();
+            manager.Tick();                                                    // the first scan publishes at once
+            bus.SwapBuffers();
+
+            AssetInventoryUpdateEvent? inventory = null;
+            foreach (var ev in bus.ReadManaged<AssetInventoryUpdateEvent>()) inventory = ev;
+            Assert.NotNull(inventory);
+            var published = inventory!.Value;
+            var live = Assert.Single(published.LocalExercises!);
+            Assert.Equal(exerciseId, live.ExerciseId);
+            Assert.Equal("town-raid", live.ScenarioId);
+            Assert.Empty(published.UnarchivedLocalExercises!);
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
     [Fact]
     public void CE3119_TheArchive_CarriesTheScenarioAsItWasWhenTheExerciseStarted()
     {

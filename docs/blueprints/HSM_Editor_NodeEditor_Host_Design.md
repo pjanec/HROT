@@ -16,6 +16,8 @@ known-rot: ⛔ §10.3 step 5's reason ("the kernel computes it at compile time")
   says so explicitly and SUPERSEDES the substrate assumptions here, while leaving this the
   feature/UX spec. ⛔ Do not quote this doc for persistence shape.
 related-designs:
+  - docs/DESIGN_Behaviour_Debugging.md — DBG-4 demotes §13.5's kernel panels to a collapsed Kernel section under a per-node Runtime view; DBG-3 the layout of a code-built machine; DBG-7 makes §13.3's breakpoints break
+  - ../DESIGN_Entity_Brain_View.md — §9 brings the 12 C#-built HSMs to this editor (in memory, read-only), wires the live overlay's metadata, and may build §3.4's statechart layout (BV-23)
   - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — owns the BLUEPRINT-hosted action/guard binding and
     the POLLED transition. ⚠ It supersedes this doc's §10.1/§10.2 on WHERE the pickers get their
     items (a catalog, not the asset's own strings), and §10.4's claim that `Lane` does not exist.
@@ -342,6 +344,10 @@ For newly authored states (no layout method entry), the editor runs a hierarchy-
 Auto-layout runs only when opening an asset with missing layout entries. A "Reset layout" toolbar action re-runs across the whole machine.
 
 For typical HSMs (15–80 states, 3–5 levels of nesting), the result is readable but not optimal. Users will manually arrange to taste; the layout method preserves those arrangements.
+
+> ⚠ **As measured `2026-10-23`** ([Brain View §9](../DESIGN_Entity_Brain_View.md), BV-23): `HsmAutoLayout` (73 lines) implements steps 1–2 only (top level in a row, children in a 3-wide grid); parallel-region strips and container resizing are not there. ⚠ A C#-built HSM shown read-only cannot be arranged by hand, so for it this layout is the only one — checked with a frame before improving. *(⛔ superseded by CE-1255, then by the as-built note below.)*
+
+> ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1274](Blueprint_Issues_Tracker.md))** — 🔒 the user: *"nodes are close to each other in a grid … (see platoon commander HSM) all is unreadable"*. Each group of siblings (a composite's children, or one band of a parallel state) is now laid out as a **flow, left to right**: column 0 holds the initial state, each next column the states first reached by a transition from the previous one (breadth first; a transition into a nested state counts for the sibling that holds it); a column longer than **6** wraps; inside a column states are ordered by the mean row of their predecessors (fewer crossings). Gaps 140 × 60 px (were 60 × 50) leave room for the arrows. Composites still size bottom-up to their contents, and bands stack. Rail: `CodeBuiltMachinesTests.CE1274_EveryCodeBuiltMachine_FlowsLeftToRight_InShortColumns` (every forward transition points right on the canvas; red-proved) beside the existing no-overlap rail. ⛔ SUPERSEDED: steps 1–3's grid wording above.
 
 ---
 
@@ -1471,6 +1477,8 @@ Same per-user, session-local pattern as BTree. Breakpoints can be set on:
 UI: click the gutter to the left of a state's title bar to toggle. Transitions get a small dot affordance on their label (custom renderer support).
 
 ### 13.4 Live overlay renderer
+
+> ⛔ **As measured `2026-10-23`** ([Brain View §9](../DESIGN_Entity_Brain_View.md), BV-20, `CE-1253`): `HsmDebugSession.SetMetadata` has no production caller, so the session's metadata stays null, `DecodeLeaves` returns nothing and the active-state glow below never draws — for asset HSMs as well. Fix: feed it from the registry's `HsmDefinition` / `HsmMetadata`.
 
 `hsm.runtime_overlay`, `AfterNodes` pass:
 

@@ -41,6 +41,7 @@ namespace Hrot.Editor.DebugApi
                     // ⭐ CE-3136 P-5 — the magazine beside the total (0 = no magazine)
                     ["magazineRounds"] = ws.MagazineRounds, ["magazineSize"] = ws.MagazineSize,
                     ["reloadRemaining"] = Math.Round(ws.ReloadSecondsRemaining, 3),
+                    ["turret"] = dto is { TurretIndex: >= 0 } ? dto.TurretIndex : null,   // ⭐ CE-1307 — the turret it rides, or none
                     ["tkb"] = dto == null ? null : new JsonObject
                     {
                         ["range"] = dto.Range, ["penetration"] = dto.Penetration, ["damage"] = dto.DamagePerHit, ["muzzleVelocity"] = dto.MuzzleVelocity,
@@ -68,6 +69,7 @@ namespace Hrot.Editor.DebugApi
                 ["count"] = n,
                 ["mounts"] = list,
             };
+            result["turrets"] = TurretsOf(unit);   // ⭐ CE-1307 — where each turret points and what its muscle was told
             if (!target.IsNull) result["choice"] = WeaponChoice.Choose(_world, unit, target, out _);
             // ⭐ CE-3136 (T3) — the weapon row of the unit's ActionStatus, the words the map's Actions gizmo draws
             if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()
@@ -83,6 +85,46 @@ namespace Hrot.Editor.DebugApi
                 };
             }
             return result;
+        }
+
+        /// <summary>⭐ <c>CE-1307</c> — each turret of <paramref name="unit"/>'s type: its pose (degrees off the hull), the
+        /// <see cref="WeaponTask"/> its muscle runs and the muscle's last report. A turret with no part yet reads <c>part:false</c>.</summary>
+        private JsonArray TurretsOf(Entity unit)
+        {
+            var list = new JsonArray();
+            if (!_world.IsComponentTypeRegistered<TurretPose>()) return list;
+            for (int i = 0; i < 8 && CombatTkb.TurretOf(_world, unit, i) != null; i++)
+            {
+                var part = TurretParts.Find(_world, unit, i);
+                var node = new JsonObject { ["index"] = i, ["part"] = !part.IsNull };
+                if (!part.IsNull)
+                {
+                    var pose = _world.GetComponentRO<TurretPose>(part);
+                    node["azimuthDeg"] = Math.Round(pose.Azimuth * 180.0 / Math.PI, 1);
+                    node["elevationDeg"] = Math.Round(pose.Elevation * 180.0 / Math.PI, 1);
+                    if (_world.IsComponentTypeRegistered<WeaponTask>() && _world.HasComponent<WeaponTask>(part))
+                    {
+                        var task = _world.GetComponentRO<WeaponTask>(part);
+                        node["task"] = new JsonObject
+                        {
+                            ["mode"] = task.Mode.ToString(), ["mount"] = task.MountIndex, ["epoch"] = task.Epoch,
+                            ["target"] = task.Target.IsNull ? null : (_entityMap.TryGetNetworkId(task.Target, out long tn) ? tn : (long?)null),
+                            ["point"] = task.Target.IsNull ? new JsonArray(Math.Round(task.Point.X, 2), Math.Round(task.Point.Y, 2), Math.Round(task.Point.Z, 2)) : null,
+                            ["roundsGranted"] = task.RoundsGranted,
+                        };
+                    }
+                    if (_world.IsComponentTypeRegistered<WeaponTaskStatus>() && _world.HasComponent<WeaponTaskStatus>(part))
+                    {
+                        var st = _world.GetComponentRO<WeaponTaskStatus>(part);
+                        node["muscle"] = new JsonObject
+                        {
+                            ["state"] = st.State.ToString(), ["failure"] = st.Reason.ToString(), ["epoch"] = st.Epoch, ["roundsFired"] = st.RoundsFired,
+                        };
+                    }
+                }
+                list.Add(node);
+            }
+            return list;
         }
     }
 }

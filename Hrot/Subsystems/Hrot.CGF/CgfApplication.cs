@@ -214,7 +214,6 @@ namespace Hrot.CGF
             // claims FinalizeLive (and cold PrepareLive when no scenario handler
             // was registered).  controller is shared with ReferenceReplayLoadHandler.
             _clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
-                checkpointWorker: null,
                 controller:       rrController,
                 storageDirectory: localTempRoot));
 

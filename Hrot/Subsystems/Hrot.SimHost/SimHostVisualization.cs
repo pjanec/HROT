@@ -60,6 +60,8 @@ namespace Hrot.SimHost
 
         // ── Visualization ─────────────────────────────────────────────────────
         private MapCanvas?              _map;
+        /// <summary>⭐ CE-1289 — the map canvas (the status bar's cursor section reads its reading); null until the map is built.</summary>
+        public MapCanvas?               Canvas => _map;
         // ⭐⭐⭐ UXI-11 S-3b — SimHost is NOT SPECIAL (user ruling, 2026-09-20). It holds the SAME view
         //    over the SAME ECS truth as the editor, CGF, IG and ReplayBrowser.
         // 🔴 It used to hold TWO extra stores: SimHostSelectionManager (a HashSet) reached through
@@ -139,6 +141,11 @@ namespace Hrot.SimHost
         /// After this call <see cref="DrawUI"/> only renders popups.
         /// </summary>
         public void SetPanelsWindowManaged() => _panelsWindowManaged = true;
+
+        /// <summary>⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor bound to <paramref name="perspective"/>.</summary>
+        public void RegisterMainMenu(Fdp.Presentation.WindowManager.GlobalMenuRegistry menu, string perspective)
+            => Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(menu, "simhost/map-menus", perspective,
+                   () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -471,22 +478,7 @@ namespace Hrot.SimHost
             _gizmoLayer?.DrawContextMenu();
             _gizmoLayer?.DrawStructInspector();
 
-            var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
-            if (gizmoMenus != null && gizmoMenus.Count > 0)
-            {
-                if (ImGuiNET.ImGui.BeginMainMenuBar())
-                {
-                    GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
-                    {
-                        _interactionBus?.Publish(new GizmoMenuActionEvent
-                        {
-                            AnchorId = 0,
-                            ActionId = actionId
-                        });
-                    });
-                    ImGuiNET.ImGui.EndMainMenuBar();
-                }
-            }
+            // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterMainMenu).
 
             // When panels are Window Manager managed, skip rendering them here.
             if (!_panelsWindowManaged && _ui != null)

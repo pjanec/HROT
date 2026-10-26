@@ -96,6 +96,10 @@ class Program
             return 1;
         }
 
+        // ⭐ CE-1249 (BV-16) — the brain journal switch, before any unit is attached
+        Fdp.Toolkit.Behavior.Diagnostics.BrainJournalSettings.Enabled =
+            !string.Equals(config.BrainJournal, "off", StringComparison.OrdinalIgnoreCase);
+
         // ── Dump-api mode: print the debug-API manifest and exit ────────────────────────────────
         //
         // ⭐⭐⭐ HN-030: this is what `tools/ai-debug-mcp` generates its tool catalog from, so the catalog
@@ -127,9 +131,12 @@ class Program
                 Console.Error.WriteLine($"[Runner] --verify {config.Verify}: no scenario to verify (none named, or none with a checks.json).");
                 return 1;
             }
+            // ⭐ CE-3299 B5 — R1: this process is the parent of two children per scenario (a child carries its half in the environment)
+            if (config.VerifyRestoreAt > 0 && Hrot.Editor.Director.CommandLineVerify.RestoreCheckFromEnvironment() == null)
+                return Hrot.ClusterRunner.VerifyCommand.RunRestoreChecks(args, verify, config.VerifyRestoreAt, config.VerifyReport, config.VerifyOut, config.VerifyRestoreEvery, config.VerifyTimeout);
             if (verify.Count > 1 || !string.IsNullOrWhiteSpace(config.VerifyOut))
-                return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut);
-            Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport);
+                return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut, config.VerifyTimeout);
+            Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport, config.VerifyReplay);
         }
 
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
@@ -151,7 +158,10 @@ class Program
             bool asks = config.RequestedSubsystems.Count == 1
                      && !config.RequestedSubsystems.Contains("orchestrator", StringComparer.OrdinalIgnoreCase)
                      && !config.RequestedSubsystems.Contains("all", StringComparer.OrdinalIgnoreCase)
-                     && !config.RequestedSubsystems.Contains("editor", StringComparer.OrdinalIgnoreCase);
+                     && !config.RequestedSubsystems.Contains("editor", StringComparer.OrdinalIgnoreCase)
+                     // ⭐ CE-3327 (R-4080) — the Replay Browser is a standalone OFFLINE host: no cluster, no master to ask. 🔴 Measured live: it
+                     //   waited for a grant forever and never opened its debug API.
+                     && !config.RequestedSubsystems.Contains("replaybrowser", StringComparer.OrdinalIgnoreCase);
             if (asks)
             {
                 var grant = Hrot.Network.NED.Factory.NodeIdBroker.AwaitGrant(
@@ -682,6 +692,8 @@ class Program
                     orchestrator.Update(dt);
                     frameStats?.EndUpdate();
 
+                    windowCtrl.UpdateWindowTitle();   // ⭐ CE-1290 — the loaded scenario's name in the title
+
                     // Apply any queued font/DPI rebake at the frame boundary (atlas rebuild
                     // must happen outside rlImGui.Begin/End).
                     shell.FontService.ApplyPendingRebuild();
@@ -752,8 +764,14 @@ class Program
             }
             else
             {
-                // Fallback to the internal headless simulation loop for CI/background tasks
-                orchestrator.Run();
+                // Fallback to the internal headless simulation loop for CI/background tasks.
+                // ⭐ CE-3327 — the frame boundary ③ + ④ above, headless too: 🔴 before, nothing drained the API's jobs here, so a headless
+                //   node with no editor (-m cgf --headless, -m replaybrowser --headless) answered no main-thread route, ever.
+                orchestrator.Run(clusterApiQueue is null ? null : () =>
+                {
+                    clusterApiQueue.DrainAll();
+                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
+                });
             }
         }
         finally

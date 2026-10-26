@@ -271,6 +271,13 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     public string SourceFilePath { get; }
     public bool IsDirty => _isDirty;
     public bool IsEditorOwned { get; }
+    /// <summary>⭐ <c>CE-1252</c> — set by the catalog when it compiled this from a C# builder (read-only).</summary>
+    public bool IsCodeBuilt { get; set; }
+    /// <summary>⭐ <c>CE-1360</c> — the positions came from <c>BTreeAutoLayout</c> (no saved layout), so they may be laid out again — with the
+    /// canvas's REAL font once a document opens it (<see cref="LaidOutWithFont"/>).</summary>
+    public bool IsAutoLaidOut { get; set; }
+    /// <summary>⭐ <c>CE-1360</c> — the auto layout has been redone with the canvas font's measured title widths.</summary>
+    public bool LaidOutWithFont { get; set; }
     public event Action? Changed;
 
     // ---- Kernel data ----

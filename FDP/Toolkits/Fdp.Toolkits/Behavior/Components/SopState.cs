@@ -64,8 +64,9 @@ namespace Fdp.Toolkit.Behavior.Components
 
     /// <summary>⭐ <c>CE-3035</c> — what the SOP slot was started with (the twin of <see cref="BehaviorStartRecord"/>).</summary>
     [ComponentId(GlobalComponentIds.SopStartRecord)]
-    [DataPolicy(DataPolicy.Transient)]
-    public sealed class SopStartRecord
+    // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
+    public sealed record SopStartRecord   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
         /// <summary>The SOP behaviour's name.</summary>
         public required string BehaviorName { get; init; }
@@ -82,7 +83,7 @@ namespace Fdp.Toolkit.Behavior.Components
         /// </summary>
         // ⭐ CE-3305 — `private set`, not get-only: the recorder writes public settable members, so a get-only list was LOST from every
         //   recording, checkpoint and dry-run keyframe.
-        public System.Collections.Generic.List<int> HostedKeys { get; private set; } = new();
+        public System.Collections.Generic.IReadOnlyList<int> HostedKeys { get; init; } = System.Array.Empty<int>();
 
         /// <summary>Notes <paramref name="key"/> as attached by the SOP run currently in scope for <paramref name="self"/>.</summary>
         internal static void NoteHosted(Fdp.Core.EntityRepository world, Fdp.Core.Entity self, int key)
@@ -91,7 +92,8 @@ namespace Fdp.Toolkit.Behavior.Components
             if (!world.TryGetTable(typeof(SopStartRecord), out _) || !world.HasManagedComponent<SopStartRecord>(self)) return;
             var record = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<SopStartRecord>(self);
             if (record == null || record.InstanceId != run || record.HostedKeys.Contains(key)) return;
-            record.HostedKeys.Add(key);
+            // ⭐ CE-4046 — was `record.HostedKeys.Add(key)` on the object GetManagedComponentRO returned: an in-place change the recorder never saw.
+            world.SetManagedComponent(self, record with { HostedKeys = new List<int>(record.HostedKeys) { key } });
         }
     }
 }

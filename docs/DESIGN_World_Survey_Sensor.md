@@ -7,6 +7,8 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: docs/DESIGN_World_Query_Seam.md row "rooms derived from walls — inside the stand-in's sound solver only; never in the interface" (written before R-2038). Reconciled here (WS-3): the IWorldQuery interface still carries no rooms; the rooms reach the brain only as a SURVEY ANSWER, derived on the muscle by the one BuildingLayout that sound v2 (WQ-E) and blast confinement (W-7v2) will reuse.
 related-designs:
+  - docs/blueprints/Architect_Question_106_Sound_Paths.md — routes sound over §6's BuildingLayout (R-3050)
+  - docs/DESIGN_Node_Roles_And_Policies.md — §3.0a: the brain reads no terrain, by role (user, 2026-10-25)
   - docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §13b OWNS the requirement: R-2037 (the brain never reads world geometry), DA-25 (the WorldSurvey sensor, standing, three shapes) and the inventory of brain-side geometry reads (CE-2286 / CE-2287)
   - docs/designs/group-maneuvers/DESIGN_Building_Clearing.md — the main consumer: §3's RoomGraph box (BR-1) is THIS sensor's BuildingSurvey answer now; §5b reports carry a building id + a point in the room
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — §6a sensors, sectors and the roof (the roof is a room, reached by the stair house)

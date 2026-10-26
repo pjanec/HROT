@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Replay
     /// to exclude these ghost entities from live simulation logic.
     /// </summary>
     [ComponentId(ReplayComponentIds.EpisodeReplayTag)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct EpisodeReplayTag
     {
         /// <summary>Identifier of the episode being replayed.</summary>

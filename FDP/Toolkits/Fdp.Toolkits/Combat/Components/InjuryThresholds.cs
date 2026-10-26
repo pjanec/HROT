@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Combat.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.InjuryThresholds)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct InjuryThresholds
     {
         /// <summary>Health fraction below which the person is wounded.</summary>

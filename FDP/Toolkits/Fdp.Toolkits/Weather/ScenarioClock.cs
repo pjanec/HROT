@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Weather
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.ScenarioClock)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct ScenarioClock
     {
         /// <summary>The scenario start time: UTC <see cref="DateTime.Ticks"/> at sim time 0.</summary>

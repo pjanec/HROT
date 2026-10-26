@@ -8,6 +8,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
 using Fdp.Core;
 using Fdp.Core.Orchestration;
+using Fdp.Core.FlightRecorder;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replay;
 using Fdp.Toolkit.Replication.Components;
@@ -69,10 +70,8 @@ namespace Hrot.SimHost.Modules.Orchestration
                 afterSeek = () => { lifecycle.OnWorldReplaced(resumingToLive: false); chained?.Invoke(); };
             }
 
-            var controller = new EcsRecordReplayController(kernel, nodeId, world, afterSeek);
-            if (lifecycle != null)
-                lifecycle.IsReplayActive = () => controller.IsReplayActive;
-            return controller;
+            // ⭐ CE-3329 P2 — the ELM's LifecycleSystem reads the world's ReplayState; ⛔ SUPERSEDED: lifecycle.IsReplayActive wired here.
+            return new EcsRecordReplayController(kernel, nodeId, world, afterSeek);
         }
 
         private readonly ModuleHostKernel _kernel;
@@ -102,6 +101,10 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// <inheritdoc />
         public long ActiveRecordingEndWallTicks => _activeReplayModule?.RecordingEndWallTicks ?? 0;
 
+        /// <summary>⭐ R-3052…R-3055 — the recording this node replays now (its own, of the exercise the cluster replays), or
+        /// <see langword="null"/> outside a replay: what the debug API's journal history and recording search scan, read-only.</summary>
+        public string? ActiveReplayFilePath { get; private set; }
+
         /// <inheritdoc />
         public long ReplayAnchorWallTicks
         {
@@ -125,6 +128,21 @@ namespace Hrot.SimHost.Modules.Orchestration
             }
         }
 
+        /// <inheritdoc />
+        /// <remarks>During a replay the kernel does not push the clock singleton (<c>SuspendGlobalTimePush</c>), so the world's
+        /// <c>GlobalTime</c> is the one the playback restored — the frame's recorded clock.</remarks>
+        public double? CurrentReplaySimSeconds
+            => _activeReplayModule != null && _repo.HasSingletonUnmanaged<GlobalTime>() ? _repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : null;
+
+        /// <inheritdoc />
+        public ReplayTimeMap? ActiveReplayTimeMap => _activeReplayModule?.TimeMap;
+
+        /// <inheritdoc />
+        public void HoldEgress(string reason) => Fdp.Toolkit.Replication.Services.EgressHold.Hold(_repo, reason);
+
+        /// <inheritdoc />
+        public void ReleaseEgress() => Fdp.Toolkit.Replication.Services.EgressHold.Release(_repo);
+
         /// <param name="kernel">Kernel that manages module topology.</param>
         /// <param name="nodeId">Local node identifier embedded in recording file names.</param>
         /// <param name="repo">
@@ -136,6 +154,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             _kernel    = kernel ?? throw new ArgumentNullException(nameof(kernel));
             _repo      = repo   ?? throw new ArgumentNullException(nameof(repo));
             _nodeId    = nodeId;
+            Fdp.Toolkit.Replay.ReplayState.Ensure(_repo);   // ⭐ CE-3329 P2 — created here, on the composing thread; prepare only flips it
 
             // Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)
             // Wrap the downstream afterSeek callback with NetworkEntityMap rebuild logic.
@@ -163,8 +182,19 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// after this call the <see cref="RecorderTickSystem"/> is live in the
         /// topological graph and every frame is captured.
         /// </summary>
-        public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory)
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory)
+            => PrepareRecordingAsync(exerciseId, storageDirectory, branch: null);
+
+        /// <summary>⭐ CE-3299 D17 (R-3045) — the mode the session's FIRST recording was opened in; a branch of it (a checkpoint restore) keeps it.</summary>
+        public double SessionCheckpointingSeconds { get; private set; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> (R-3047) — a recording that branches: <paramref name="branch"/>'s frames up to the branch
+        /// point are copied in first, then every frame is captured after them. ⛔ Never over an existing recording (a loud failure).
+        /// </summary>
+        public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch, double checkpointingSeconds = 0)
         {
+            if (branch == null) SessionCheckpointingSeconds = Math.Max(0, checkpointingSeconds);   // D17 — a branch inherits its parent's mode
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             var config = new RecordingConfiguration
@@ -173,6 +203,9 @@ namespace Hrot.SimHost.Modules.Orchestration
                 EntityFilter = null,   // record all entities above MinRecordableId
                 ExerciseId      = exerciseId,
                 NodeId = _nodeId,
+                Branch = branch,
+                CheckpointingSeconds = branch == null ? SessionCheckpointingSeconds : 0,   // D17 — a branch reads its parent's (StartBranch)
+                SlotRunInFlight = () => _kernel.SlotRunInFlight,   // ⭐ CE-3316 — a checkpoint waits for a step with no slot run in flight
             };
             _activeRecordingModule = new RecordingModule(config);
             await _kernel.InstallModuleAsync(_activeRecordingModule);
@@ -251,8 +284,12 @@ namespace Hrot.SimHost.Modules.Orchestration
         public async Task PrepareReplayAsync(Guid exerciseId, string storageDirectory)
         {
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
+            ActiveReplayFilePath = filePath;
             _activeReplayModule = new ReplayModule(filePath, _repo, _kernel.GetTimeController(), _afterSeek);
             await _kernel.InstallModuleAsync(_activeReplayModule);
+            // ⭐⭐ CE-3329 P2 (DESIGN_Replay_Time_Axis_And_Review §12l) — the world says it is a replay: every system that writes world
+            //   state reads it and stands down. Set HERE, by the controller every ECS host builds, so no host has to wire it.
+            Fdp.Toolkit.Replay.ReplayState.Enter(_repo);
 
             // ⭐⭐ R-4012 (Q91 §4-P P6) — while this node restores its own recording it takes in no world state (the
             //   recording holds everything). Wired HERE, by the controller every ECS host builds, so no host can miss it;
@@ -279,6 +316,8 @@ namespace Hrot.SimHost.Modules.Orchestration
             if (_activeReplayModule == null) return;
             await _kernel.UninstallModuleAsync(_activeReplayModule);
             _activeReplayModule = null;
+            ActiveReplayFilePath = null;
+            Fdp.Toolkit.Replay.ReplayState.Leave(_repo);   // ⭐ CE-3329 P2
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
@@ -342,6 +381,12 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// by <see cref="ReplayModule"/> into the kernel scheduler.
         /// </summary>
         public void ProcessPlaybackTick(GlobalTime currentTime) { }
+
+        /// <inheritdoc />
+        public RecordingBranch? CurrentReplayBranch =>
+            _activeReplayModule is { HasRecording: true, CurrentFrame: >= 0 } replay
+                ? new RecordingBranch(replay.FilePath, replay.CurrentFrame + 1, replay.RecordedExerciseId, replay.CurrentFrameWallTicks)
+                : null;
 
         /// <inheritdoc />
         public GlobalTime GetCurrentReplayTime() =>

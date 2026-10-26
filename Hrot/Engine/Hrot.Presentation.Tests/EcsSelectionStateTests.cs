@@ -316,4 +316,143 @@ public sealed class EcsSelectionStateTests
         view.Clear();
         Assert.Empty(view.SelectedEntities);
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4049</c> (the coordinator's replay-UI-state handoff ①) — SELECTION IS UI STATE, NOT SIMULATION STATE: a recording carries
+    /// no selection, and what the viewer selects during playback SURVIVES a seek (a keyframe clears the component tables; the store, a world
+    /// singleton keyed by network id, refills the copy on the next frame). 🔒 User, 2026-10-25: <i>"selection is not the simulation state of an
+    /// entity, it is a UI state having nothing to do with simulation and recording"</i>.
+    /// 🔴 Red-proofs: <c>SelectionState</c> back to <c>NoScenario</c> only ⇒ the recorded A shows selected in playback; <c>Sync</c> not
+    /// rewriting from the store ⇒ B's selection is lost at the seek.
+    /// </summary>
+    [Fact]
+    public void CE4049_ARecordingCarriesNoSelection_AndTheViewersSelectionSurvivesASeek()
+    {
+        string path = System.IO.Path.GetTempFileName() + ".fdp";
+        try
+        {
+            var a = NewEntity();
+            var b = NewEntity();
+            long netA = _world.GetComponentRO<NetworkIdentity>(a).Value, netB = _world.GetComponentRO<NetworkIdentity>(b).Value;
+            _view.PrimarySelected = a;                                                                  // selected while recording
+            Assert.Equal(netA, SelectionStore.Peek(_world)!.Primary);
+            using (var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+            {
+                _world.Tick();
+                recorder.CaptureKeyframe(_world, 100_000L, blocking: true, eventBus: _world.Bus);
+                uint prev = _world.GlobalVersion - 1;
+                _world.Bus.SwapBuffers();
+                _world.Tick();
+                recorder.CaptureFrame(_world, prev, 200_000L, blocking: true, eventBus: _world.Bus);
+            }
+
+            using var sandbox = new EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(sandbox);
+            sandbox.RegisterComponent<SelectionState>();
+            var viewer = new EcsSelectionState(sandbox);
+            using var playback = new Fdp.Core.FlightRecorder.PlaybackController(path);
+            Assert.True(playback.StepForward(sandbox));                                                // frame 0 (a keyframe)
+            EcsSelectionState.Sync(sandbox);
+            Assert.Empty(viewer.SelectedEntities);                                                     // the recording holds no selection
+
+            var bInPlayback = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(sandbox, netB);
+            viewer.PrimarySelected = bInPlayback;                                                      // the viewer selects B
+            Assert.True(playback.StepForward(sandbox));                                                // frame 1
+            playback.SeekToFrame(sandbox, 0);                                                          // a seek: a keyframe clears the tables
+            EcsSelectionState.Sync(sandbox);                                                           // the next frame (SelectionRequestSystem)
+            var afterSeek = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(sandbox, netB);
+            Assert.Equal(afterSeek, viewer.PrimarySelected);
+            Assert.True(sandbox.GetComponentRO<SelectionState>(afterSeek).IsPrimarySelection);
+            var aInPlayback = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(sandbox, netA);
+            Assert.False(viewer.IsSelected(aInPlayback));                                              // and never the recorded A
+        }
+        finally
+        {
+            try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
+        }
+    }
+
+    /// <summary>⭐ <c>CE-4049</c> — no selection or menu type is recorded: the per-entity copy is <c>NoReplay</c>, the store and the IG's
+    /// right-click menu are <c>Transient</c>.</summary>
+    [Fact]
+    public void CE4049_NoSelectionOrMenuType_IsRecorded()
+    {
+        static Fdp.Core.DataPolicy PolicyOf(System.Type t) => ((Fdp.Core.DataPolicyAttribute)System.Attribute.GetCustomAttribute(t, typeof(Fdp.Core.DataPolicyAttribute))!).Policy;
+        Assert.True((PolicyOf(typeof(SelectionState)) & Fdp.Core.DataPolicy.NoReplay) != 0);
+        Assert.Equal(Fdp.Core.DataPolicy.Transient, PolicyOf(typeof(SelectionStore)));
+    }
+
+    /// <summary>
+    /// ⭐ The coordinator's replay-UI-state handoff ② — the UI COMMANDS are not in a recording: select, centre, rename, tool, shortcut and
+    /// world reset, recorded in a frame and played back WITH an event bus (the worst case: every player that passes one would re-fire them),
+    /// arrive as nothing. 📐 Measured before the change (this rail, red): all six were recorded and re-injected. In production none re-fired
+    /// yet — the cluster replay passes no bus (<c>ReplayModule</c>), the Replay Browser injects into its context's own bus, not the world's
+    /// (<c>ReplayBrowserContext.SandboxBus</c>), a dry-run exit restores no events (<c>RestoreOptions.DryRunExit</c>) — but every recording carried them.
+    /// </summary>
+    [Fact]
+    public void ReplayUiState2_TheUiCommands_AreNotInARecording()
+    {
+        string path = System.IO.Path.GetTempFileName() + ".fdp";
+        try
+        {
+            var a = NewEntity();
+            using (var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+            {
+                _world.Tick();
+                recorder.CaptureKeyframe(_world, 100_000L, blocking: true, eventBus: _world.Bus);
+                uint prev = _world.GlobalVersion - 1;
+                _world.Bus.SwapBuffers();
+                _world.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = 9_100L });
+                _world.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = 9_100L });
+                _world.Bus.Publish(new Hrot.Common.Events.OpenRenameDialogCommand { NetworkId = 9_100L });
+                _world.Bus.Publish(new Hrot.Common.Events.ActivateEditorToolEvent(default));
+                _world.Bus.Publish(default(Hrot.Common.Events.WorldResetEvent));
+                _world.Bus.Publish(default(Hrot.Common.Interactions.MapShortcutKeyEvent));
+                _world.Tick();
+                recorder.CaptureFrame(_world, prev, 200_000L, blocking: true, eventBus: _world.Bus);
+            }
+            using var sandbox = new EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(sandbox);
+            var bus = new FdpEventBus();
+            using var playback = new Fdp.Core.FlightRecorder.PlaybackController(path) { EventBus = bus };
+            Assert.True(playback.StepForward(sandbox));
+            Assert.True(playback.StepForward(sandbox));
+            Assert.Equal((0, 0, 0, 0, 0, 0),
+                (bus.Read<Hrot.Common.Events.SelectEntityCommand>().Length, bus.Read<Hrot.Common.Events.CenterOnEntityCommand>().Length,
+                 bus.Read<Hrot.Common.Events.OpenRenameDialogCommand>().Length, bus.Read<Hrot.Common.Events.ActivateEditorToolEvent>().Length,
+                 bus.Read<Hrot.Common.Events.WorldResetEvent>().Length, bus.Read<Hrot.Common.Interactions.MapShortcutKeyEvent>().Length));
+        }
+        finally
+        {
+            try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
+        }
+    }
+
+    /// <summary>⭐ CE-3327 RB-7 — a view over the world a host SHOWS (the Replay Browser switches it under one map): it reads and writes
+    /// whichever world the provider names now, never the one it was built over.</summary>
+    [Fact]
+    public void RB7_AViewOverAWorldProvider_FollowsTheShownWorld()
+    {
+        using var other = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(other);
+        other.RegisterComponent<SelectionState>();
+        EntityRepository shown = _world;
+        var view = new EcsSelectionState(() => shown);
+
+        var inFirst = NewEntity();
+        view.PrimarySelected = inFirst;
+        Assert.True(ComponentOf(inFirst).IsPrimarySelection);
+
+        shown = other;
+        Assert.Null(view.PrimarySelected);                                    // the shown world has no selection yet
+        var inOther = other.CreateEntity();
+        other.AddComponent(inOther, new NetworkIdentity { Value = 9_900L });
+        other.AddComponent(inOther, new SelectionState());
+        view.PrimarySelected = inOther;
+        Assert.True(other.GetComponentRO<SelectionState>(inOther).IsPrimarySelection);
+        Assert.Equal(inOther, view.PrimarySelected);
+
+        shown = _world;
+        Assert.Equal(inFirst, view.PrimarySelected);                          // and back
+    }
 }

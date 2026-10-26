@@ -11,6 +11,7 @@ using Fdp.Toolkit.Motion;
 using Hrot.AI.Behaviors.Logging;
 using Hrot.AI.Behaviors.Orders;
 using Hrot.Map.Definitions.Behavior;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -541,7 +542,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (now < ws.NextSteer) return NodeStatus.Running;
                 ws.NextSteer = now + DiveSteerPeriod;
                 float ground = Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f;
-                return LocomotionMoveTo.Issue(world, self, new Vector3(at.X, at.Y, ground), speed, 0f) ? NodeStatus.Running : NodeStatus.Failure;
+                return LocomotionMoveTo.Issue(world, self, new Vector3(at.X, at.Y, ground), speed, 0f, source: MoveSource.Attack) ? NodeStatus.Running : NodeStatus.Failure;
             }
 
             if (ws.Stage == StageSearch)
@@ -567,7 +568,7 @@ namespace Hrot.AI.Behaviors.Brains
                     float bearing = MathF.Atan2(off.Y, off.X) + OrbitLeadRad;
                     to = p.Point + new Vector3(MathF.Cos(bearing) * radius, MathF.Sin(bearing) * radius, 0f);
                 }
-                return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), speed, AirOrderNodes.DefaultArrivalRadius)
+                return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack)
                     ? NodeStatus.Running : NodeStatus.Failure;
             }
 
@@ -592,14 +593,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Stage == StagePursue)
             {
                 ws.NextSteer = now + SteerPeriod;
-                return LocomotionMoveTo.Issue(world, self, new Vector3(aim.X, aim.Y, p.Point.Z + height), speed, AirOrderNodes.DefaultArrivalRadius)
+                return LocomotionMoveTo.Issue(world, self, new Vector3(aim.X, aim.Y, p.Point.Z + height), speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack)
                     ? NodeStatus.Running : NodeStatus.Failure;
             }
             ws.NextSteer = now + DiveSteerPeriod;
             // D-3 — down the DIVE LINE: the point above the (led) target at flat · tan(angle), never above the cruise height — so the drone
             //   stays over the target until it is above it and comes down on its roof, never skimming the ground behind it
             float over = MathF.Min(height, MathF.Max(0f, flat - DiveHitRadiusM) * MathF.Tan(angle));
-            return LocomotionMoveTo.Issue(world, self, aim + new Vector3(0f, 0f, over), speed, 0f) ? NodeStatus.Running : NodeStatus.Failure;
+            return LocomotionMoveTo.Issue(world, self, aim + new Vector3(0f, 0f, over), speed, 0f, source: MoveSource.Attack) ? NodeStatus.Running : NodeStatus.Failure;
         }
 
         /// <summary>⭐ <c>CE-2191</c> — a warning this attack has not answered yet, about a missile still in the air (a warning older than its
@@ -645,7 +646,7 @@ namespace Hrot.AI.Behaviors.Brains
             bool rotor = Locomotions.Of(world, self) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
             float height = rotor ? EvadeHeightAglRotor : at.Z - p.Point.Z;
             var to = at + new Vector3(dir * BreakAwayM, 0f);
-            LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius);
+            LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack);
         }
 
         /// <summary>
@@ -975,7 +976,7 @@ namespace Hrot.AI.Behaviors.Brains
                 AirAttackProfile.DoorGunOrbit => DefaultOrbitHeightAgl,
                 _ => DefaultAttackHeightAgl,
             };
-            return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius);
+            return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack);
         }
     }
 

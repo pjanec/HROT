@@ -151,9 +151,6 @@ namespace Hrot.SimHost
         private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
         // HEXAG2-S012: factory-managed slave translator (was NodeOpSlaveTranslator directly).
         private Hrot.Core.Network.ISlaveOrchestrationTranslator? _slaveTranslator;
-        // CheckpointIOWorker owns the background I/O thread; created in OnLoad,
-        // passed to BuildOrchestration, and disposed in Shutdown (CGF1-S0303 A.1).
-        private CheckpointIOWorker? _checkpointWorker;
         // Bootstrapper for SM-009: delegates 7-phase initialization to SharedApplicationBootstrapper.
         private SimHostNodeBootstrapper? _bootstrapper;
 
@@ -220,6 +217,9 @@ namespace Hrot.SimHost
         /// ⚠ <see langword="null"/> before <c>Initialize</c> and after <c>Shutdown</c>; read it, never latch it.</para>
         /// </summary>
         internal FdpEventBus? OrchestrationBus => _context?.EventBus;
+
+        /// <summary>⭐ The node's context — what the ONE ECS-node debug surface (<c>EcsNodeDebugProvider</c>) derives from.</summary>
+        internal Hrot.Common.Infrastructure.HrotNodeContext? NodeContext => _context;
 
         /// <summary>
         /// ⭐⭐ <b>This node's <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/></b> — the control-plane
@@ -292,6 +292,10 @@ namespace Hrot.SimHost
         /// <param name="nodeConfig">
         /// Optional <see cref="NodeConfiguration"/>; defaults are used when <c>null</c>.
         /// </param>
+        /// <summary>⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1) — THIS host's actions, made with the host: the map registers its
+        /// actions on them, the inspector menu and the Details bundle request through them.</summary>
+        public Hrot.Common.Interactions.HostActions HostActions { get; } = Hrot.ScenarioEditor.Map.SharedHostActions.Create();
+
         public SimHostApp(
             int?              domainOverride = null,
             NodeRole          role           = DefaultRole,
@@ -368,7 +372,7 @@ namespace Hrot.SimHost
 
             // -- 6. Bootstrapper setup (SM-009) -----------------------------------------------
             // Create SimHostNodeBootstrapper and delegate 7-phase initialization.
-            // The bootstrapper creates: CoreLogicPack, ClusterSlave, CheckpointWorker,
+            // The bootstrapper creates: CoreLogicPack, ClusterSlave,
             // PhysicsModule, PerceptionModule, and wires all network translators.
             _bootstrapper = new SimHostNodeBootstrapper(
                 _networkFactory,
@@ -395,6 +399,7 @@ namespace Hrot.SimHost
                     new Hrot.ScenarioEditor.Map.MapInteractionContext
                     {
                         World = ctx.World,
+                        Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                         // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                         Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, _behaviorRegistry),
                         GizmoUiPublisher = _gizmoUiHub,
@@ -414,11 +419,7 @@ namespace Hrot.SimHost
                                                 ? w.GetSingletonManaged<ITkbDatabase>() : null,
                             Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
                             GeoTransform: () => _geoTransform),
-                        // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — effects are recorded; in a replay the effect systems stand down.
-                        //   The SAME gate the ELM reads (NodeBootstrapper wires it to the record/replay controller), read late.
-                        IsReplayActive = () => ctx.BaseModules.Count > 0
-                                               && ctx.BaseModules[0] is Fdp.Toolkit.Lifecycle.EntityLifecycleModule elm
-                                               && elm.IsReplayActive?.Invoke() == true,
+                        // ⭐ W1 (VE-R) — in a replay the effect systems stand down through the world's ReplayState (CE-3329 P2).
                         ContributeExtras = static regs =>
                             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
                             regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(
@@ -540,7 +541,6 @@ namespace Hrot.SimHost
             _idAllocator    = _context.IdAllocator;
             _clusterSlave   = _context.ClusterSlave;
             _slaveTranslator = _bootstrapper.SlaveTranslator;
-            _checkpointWorker = _bootstrapper.CheckpointWorker;
             _simCorePack    = _bootstrapper.CoreLogicPack;
             _physicsModule  = _bootstrapper.PhysicsModule;
             _behaviorRegistry = _bootstrapper.BehaviorRegistry;
@@ -683,9 +683,6 @@ namespace Hrot.SimHost
             _clusterSlave?.Dispose();
             _clusterSlave = null;
 
-            // ── Dispose CheckpointIOWorker (lets background I/O finish before kernel teardown)
-            _checkpointWorker?.Dispose();
-            _checkpointWorker = null;
 
             // ── Dispose simulation resources ──────────────────────────────────
             // ⭐⭐⭐ CE-197 — free the node's RESOURCE PROVIDERS (B4b step 3).
@@ -825,8 +822,8 @@ namespace Hrot.SimHost
             //   computes and publishes the role-group grants (push-only, R-164) exactly as production does. It used
             //   to publish a raw SpawnEntityCommand, which bypasses CreateEntityRequestSystem and so granted
             //   NOTHING: every test built on this hook was blind to CE-500.
-            //   ⚠ The id is pre-allocated so the hook can return it synchronously; on the request path that is the
-            //   scenario-load form, whose only extra effect is not auto-spawning a composite's children.
+            //   ⚠ The id is pre-allocated so the hook can return it synchronously. ⭐ CE-3324: a fixed id is no longer read as a
+            //   scenario load, so an auto-spawning composite gets its children here as on any runtime request.
             //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S3, §5.7.
             var creation = EntityCreation
                 ?? throw new InvalidOperationException("SimHostApp has no entity-creation pack yet.");

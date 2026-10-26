@@ -954,6 +954,41 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(7.7f, t[0].PositionY, 3);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2232</c> (Exposure Cycle §4a) — a hide that can be FOUGHT from outranks a nearer blind one. A 30 m block stands between
+        /// the threat (north-west) and two hides on its east face: A at its middle (every point within the firing ring is behind the block, or
+        /// inside it — dropped), B near its north end (a few metres north of B the line clears the block's corner). Only B gains, and the
+        /// hide template carries the test between hidden-from-all and the path. 📐 Live <c>ua-javelin-lock</c>: the M1 took five blind
+        /// hides in the L-Block's corner in turn and never exposed. 🔴 Red-proof: drop the <c>FiringReachTest</c> from
+        /// <c>FindVehicleHide</c> and the template half fails; skip the inside-wall drop (<c>TryPlace</c>) and A gains too.
+        /// </summary>
+        [Fact]
+        public void CE2232_AHideWithAFiringPointInReach_OutranksABlindOne_AndTheHideQueryCarriesIt()
+        {
+            _repo.SetSingletonManaged(new TerrainWorld
+            {
+                BoundsMin = new Vector2(-100, -100), BoundsMax = new Vector2(100, 100),
+                Prisms = new[] { Prism(new Vector2(-30, -30), new Vector2(0, 30), 10f) },
+            });
+            var sensor = new EqsSensor { ContextSlot0 = At(5, -5), ContextSlot1 = At(-60, 40) };
+            var c = new[] { Point(5, 0), Point(5, 26) };   // A: mid-face, blind · B: by the corner, a firing point ~7.5 m north
+
+            new FiringReachTest().ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+
+            Assert.Equal(0f, c[0].Score);
+            Assert.True(c[1].Score > 1.5f, $"B reaches a firing point on the inner ring (score {c[1].Score:0.00})");
+
+            var hide = FindVehicleHide.Build(null!).ScoreExpensive!;
+            Assert.Contains(hide, t => t is FiringReachTest);
+            Assert.True(Array.FindIndex(hide, t => t is ThreatExposureTest) < Array.FindIndex(hide, t => t is FiringReachTest),
+                "hidden from every threat is scored first — reach ranks hides that are already hidden");
+
+            var none = new[] { Point(5, 26) };
+            using var bare = new EntityRepository();
+            new FiringReachTest().ExecuteBatch(Entity.Null, ref sensor, bare, none);
+            Assert.Equal(0f, none[0].Score);   // no terrain ⇒ nothing
+        }
+
         // ── scoring tests ────────────────────────────────────────────────────────────────────
 
         [Fact]

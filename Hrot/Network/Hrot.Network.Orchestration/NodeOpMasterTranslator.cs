@@ -129,7 +129,8 @@ public sealed class NodeOpMasterTranslator
                     ExerciseId:  p.ExerciseId,
                     TerrainName: p.TerrainName,
                     IsWorldBoundary: p.IsWorldBoundary,    // CE-2101
-                    IsCatchUp:       p.IsCatchUp),         // C7
+                    IsCatchUp:       p.IsCatchUp,          // C7
+                    CheckpointingSeconds: p.CheckpointingSeconds),   // D17
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(
@@ -217,6 +218,21 @@ public sealed class NodeOpMasterTranslator
                 {
                     return resultJson;
                 }
+            }
+
+            // ⭐ CE-3299 B4 — a node's restore answer: the clock its checkpoint was written at (the master snaps to the earliest).
+            //   ⛔ Without this case it fell to `default: null` and the cluster never moved its clock back.
+            case FdpNodeOpType.RestoreSnapshot:
+            {
+                try { return JsonSerializer.Deserialize<CheckpointRestoreResult>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
+            }
+
+            // ⭐ CE-3299 B3 — a node's export answer is the path it wrote (a JSON string).
+            case FdpNodeOpType.ExportCheckpoint:
+            {
+                try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
             }
 
             case FdpNodeOpType.NodeReplaySeek:
