@@ -229,14 +229,8 @@ public sealed class ClusterScenarioPanel
         try
         {
             var dto = JsonSerializer.Deserialize<TransitionPayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
-            return new TransitionStateIntent
-            {
-                TransactionId = req.RequestId,
-                TargetState   = dto?.TargetState.HasValue == true ? (FdpClusterState)(int)dto.TargetState.Value : default,
-                ScenarioId    = dto?.ScenarioId,
-                ExerciseId    = dto?.ExerciseId ?? Guid.Empty,
-                TimeMode      = dto?.TimeMode,
-            };
+            // ⭐ R-3055 — the ONE decoding (it dropped CheckpointingSeconds and TargetWallTicks here)
+            if (dto?.TargetState is not null) return dto.ToIntent(req.RequestId);
         }
         catch { }
         return new TransitionStateIntent { TransactionId = req.RequestId };
@@ -288,10 +282,7 @@ public sealed class ClusterScenarioPanel
                {
                    RequestId     = intent.TransactionId,
                    OperationType = ClusterOpType.TransitionState,
-                   PayloadJson   = JsonSerializer.Serialize(
-                       new TransitionPayloadDto(TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId,
-                                                ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode),
-                       OrchestrationJsonOptions.Default),
+                   PayloadJson   = JsonSerializer.Serialize(TransitionPayloadDto.From(intent), OrchestrationJsonOptions.Default),   // ⭐ R-3055 — the ONE encoding
                }),
                currentState: () => (FdpClusterState)(int)EffectiveState);
     private int _selectedEpisodeIdx        = -1;

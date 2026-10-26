@@ -51,6 +51,24 @@ public sealed class TranslatorDtoTests
         Assert.DoesNotContain("\"TimeMode\"", json);
     }
 
+    /// <summary>⭐ R-3055 — a transition crosses the wire WHOLE: the one encoding and the one decoding keep every field an intent carries.
+    /// 📌 Measured on the five-process cluster: POST /replay {atSeconds:30} sent from CGF entered at 0 — TargetWallTicks was not on the
+    /// wire and three hand-written decoders each dropped some fields (two lost CheckpointingSeconds too).</summary>
+    [Fact]
+    public void ATransition_CrossesTheWireWhole()
+    {
+        var sent = new Fdp.Toolkit.Orchestration.TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay, ScenarioId = "s",
+            ExerciseId = Guid.NewGuid(), TimeMode = "Deterministic", CheckpointingSeconds = 5, TargetWallTicks = TimeSpan.FromSeconds(30).Ticks,
+        };
+
+        var json = JsonSerializer.Serialize(TransitionPayloadDto.From(sent), Options);
+        var got  = JsonSerializer.Deserialize<TransitionPayloadDto>(json, Options)!.ToIntent(sent.TransactionId);
+
+        Assert.Equal(sent, got);
+    }
+
     // ── Test 4: Unknown enum string should throw ──────────────────────────────
 
     [Fact]

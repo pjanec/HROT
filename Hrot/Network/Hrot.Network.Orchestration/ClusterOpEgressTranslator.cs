@@ -227,11 +227,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
 
     private static string SerializeTransitionPayload(TransitionStateIntent intent)
     {
-        var nedState = (Hrot.NED.Descriptors.Orchestration.ClusterState)(int)intent.TargetState;
-        return JsonSerializer.Serialize(
-            new TransitionPayloadDto(TargetState: nedState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode,
-                                     CheckpointingSeconds: intent.CheckpointingSeconds),   // D17
-            OrchestrationJsonOptions.Default);
+        return JsonSerializer.Serialize(TransitionPayloadDto.From(intent), OrchestrationJsonOptions.Default);
     }
 
     private static string SerializeManageEpisodePayload(ManageEpisodeIntent intent)

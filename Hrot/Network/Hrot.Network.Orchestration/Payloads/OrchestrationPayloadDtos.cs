@@ -53,8 +53,31 @@ public record TransitionPayloadDto(
     // ⭐ CE-3299 D17 (R-3045) — the recording mode of the live session this request starts: 0 / omitted = FULL (every frame), N > 0 =
     //   CHECKPOINTING (a keyframe every N s of sim time, nothing else). Additive on the wire.
     [property: JsonPropertyName("CheckpointingSeconds")]
-    double         CheckpointingSeconds = 0
-);
+    double         CheckpointingSeconds = 0,
+
+    // ⭐ R-3055 — where a replay enters, in ticks after the replay's zero (C9). Additive on the wire. 📌 Measured on the five-process
+    //   cluster: a POST /replay {atSeconds:30} sent from CGF entered at 0 — this field did not exist, and the master side wrote 0.
+    [property: JsonPropertyName("TargetWallTicks")]
+    long           TargetWallTicks = 0
+)
+{
+    /// <summary>⭐ R-3055 — the ONE encoding of a transition on the wire (every node's egress).</summary>
+    public static TransitionPayloadDto From(Fdp.Toolkit.Orchestration.TransitionStateIntent intent) => new(
+        TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId,
+        TimeMode: intent.TimeMode, CheckpointingSeconds: intent.CheckpointingSeconds, TargetWallTicks: intent.TargetWallTicks);
+
+    /// <summary>⭐ R-3055 — the ONE decoding (the master's translator and its request adapter): nothing on the wire is dropped.</summary>
+    public Fdp.Toolkit.Orchestration.TransitionStateIntent ToIntent(Guid requestId) => new()
+    {
+        TransactionId        = requestId,
+        TargetState          = (Fdp.Toolkit.Orchestration.ClusterState)(int)TargetState!.Value,
+        ScenarioId           = ScenarioId,
+        ExerciseId           = ExerciseId,
+        TimeMode             = TimeMode,
+        CheckpointingSeconds = CheckpointingSeconds,   // D17
+        TargetWallTicks      = TargetWallTicks,
+    };
+}
 
 /// <summary>Payload DTO for <c>ClusterOpType.ManageEpisode</c> DDS requests.</summary>
 public record ManageEpisodePayloadDto(

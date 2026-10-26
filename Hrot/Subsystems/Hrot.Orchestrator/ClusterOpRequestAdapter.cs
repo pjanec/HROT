@@ -65,16 +65,7 @@ internal static class ClusterOpRequestAdapter
             throw new InvalidOperationException(
                 "[ClusterOpRequestAdapter] TransitionState JSON missing required 'TargetState'.");
 
-        return new TransitionStateIntent
-        {
-            TransactionId   = req.RequestId,
-            TargetState     = (FdpClusterState)(int)dto.TargetState.Value,
-            TargetWallTicks = 0,
-            ScenarioId      = dto.ScenarioId,
-            ExerciseId      = dto.ExerciseId,
-            TimeMode        = dto.TimeMode,
-            CheckpointingSeconds = dto.CheckpointingSeconds,   // D17
-        };
+        return dto.ToIntent(req.RequestId);   // ⭐ R-3055 — the ONE decoding (TargetWallTicks included)
     }
 
     /// <summary>
