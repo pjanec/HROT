@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
-current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building)
+updated: 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
 stale-below: none
-known-rot: none
+known-rot: §10 RH-3 (replay seconds = sim seconds) — SUPERSEDED by R-3056 / R-4086 (the replay clock stays wall; a sim seek is atSimSeconds) · §10-1 "H1b after CE-4051…4053" — those are fixed / ruled; H1b now waits for DAR P1 (§10-2) · §10 RH-1's "EnterReplay through Idle" is no longer the only product path — a REVIEW replays the run in place (H5, §10-2)
 known-conflict: blueprints/DESIGN_Smoke_Suite.md says "do not build a DSL" — written for a different shape (one entity, one behaviour, panel checks; the JSON TestScript kept for cluster/DDS/replay). checks.json EXTENDS the film takes' anchor grammar, which is already built and read by the engine (AnchorBook); it is not a new language. Not reconciled with the Smoke Suite's author — named here so a reader sees both.
 related-designs:
-  - DESIGN_Replay_Time_Axis_And_Review.md — the sim-time seek (atSimSeconds, ReplayTimeMap) H1b needs
+  - DESIGN_Replay_Time_Axis_And_Review.md — OWNS the sim axis (atSimSeconds, ReplayTimeMap) H1b needs, the review (DAR) H5 tests, and §12 the wire H2 checks
   - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS replay through the master (R-3053…R-3055: previews never record; the ordinary world replays; the sandbox retired from HTTP) — the path §10's harness tests
   - DESIGN_Replay_Census_H0.md — H0 of the replay harness (CE-4045): which types a recording must / must not hold; the replay mode this verifier grows (H1–H4) reads its verdicts
   - DESIGN_Director_Timeline_Editor.md — OWNS still keys (TE-10): a take's key captured as a PNG artefact by the Verify run; and the anchor kinds cross / enter / leave this design's checks.json may reuse
@@ -565,6 +565,50 @@ product's player — the half of the replay question CE-4051…4053 cannot reach
 the SAME verdict times as the preview (`ua-tank-ammo`: 8.93 · 28.5 · 39.12 · 51.07 s in both). ⚠ What this does NOT cover yet: the product's
 replay CONTROL (H1b, after CE-4051…4053), seek (H2), branch (H3), and shots / blasts (RH-5 — the recording's Combat lanes).
 ⚠ The not-carried lines print the live side as "golden" and the recorded side as "run" (the comparator's words, shared with R1).
+
+### 10-2. ⭐ The harness after During Action Review *(R-4086, `2026-10-26`)*
+
+🔒 **User, `2026-10-26`:** *"yes write the addendum note, and approved"* — on the re-cut below, after backend's
+[DAR design](DESIGN_Replay_Time_Axis_And_Review.md) (R-3056…R-3063). Backend: [NOTE_Coordinator_To_Backend_Review_Harness](blueprints/batches/NOTE_Coordinator_To_Backend_Review_Harness.md).
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (Verify, review)
+  participant H as EditorDirectorHost → ClusterMaster
+  participant G as ScenarioGolden
+  R->>H: LoadLive(s) — paused, recording
+  loop one step per frame until T
+    R->>G: LIVE snapshot every second
+    R->>H: StepBy(1/60)
+  end
+  R->>G: LIVE[T] full (the world the review must give back)
+  R->>H: EnterReview(atSimSeconds t < T) — LoadingReview → OperatingReview (DAR §3c)
+  loop sim-axis steps from t to T
+    R->>G: REVIEW snapshot, then Compare with LIVE at the same sim time
+    R->>H: step on the Sim axis
+  end
+  R->>H: ExitReview — UnloadingReview → OperatingLive, paused at L = T
+  R->>G: AFTER[T], then CompareFrom(LIVE[T], AFTER[T]) — the return is exact
+  loop until runFor
+    R->>G: LIVE2 snapshot every second
+    R->>H: StepBy(1/60)
+  end
+  R->>R: CompareFrom(straight run, LIVE2, T, carried) — R1's comparator, the next N steps = the straight run
+```
+*What the picture shows that prose hid: ONE run answers both of DAR's acceptance questions — does the review show what live was, and does
+live come back exact — and the second half is R1's comparator unchanged, so the review is judged by the same rule as a checkpoint restore.*
+
+| # | ⭐ ruled | was | why |
+|---|---|---|---|
+| ① | **RH-3 SUPERSEDED** — replay seconds are wall seconds for good (R-3056); a sim address is `atSimSeconds` through DAR's `ReplayTimeMap` | RH-3: a stepped run's replay seconds = sim seconds | step 0 measured wall gaps of 2–19 ms per step (CE-4053) |
+| ② | **H1b waits for DAR P1** (`atSimSeconds`, the Sim-axis step — DAR §8 rows 9, 10, 12), not for CE-4051…4053 (fixed / ruled) | §10-1: H1b after CE-4051…4053 | `/sim/step` in a replay advances wall time, which lands between a stepped run's sim frames |
+| ③ | ⭐ **H5 — the review phase** (the picture): live to T, review back to t, compare, return, compare, run on, compare with a straight run. Built by the coordinator once DAR **P3** lands; ⭐ it IS DAR P3's scenario-scale acceptance — backend keeps its unit rails and points P3's report at H5 (one oracle) | — | DAR P3's acceptance is *"R1's oracle reused"* — the verifier already owns that oracle |
+| ④ | **H2 gains a WIRE check** once DAR **PW** lands: after each seek the DDS instances alive on a test reader equal the world's owned ids (DAR §12e at scenario scale; CE-3331) | H2: world only | R-3062: every world swap disposes its potential zombies on the wire |
+| ⑤ | **H1a unchanged**; once v7 lands its `RecordedRun` reads the sim frame from the frame index instead of decoding each frame's `GlobalTime` | — | DAR P0 rows 1–3 |
+| ⑥ | **H1 also asserts live lanes = recorded lanes** once ui builds `LiveTimelineSource`: the run's live index equals the index rebuilt from its recording, lane by lane | — | the timeline addendum's item 6 (R-4087) |
+
+Rejected: a review-only harness — cluster replay (H1b) and the branch (H3) are different product paths and keep their phases · waiting for
+P3 before re-cutting — ①, ② and ④ do not depend on it · a second scenario oracle in backend — two oracles drift apart (R-4078: unify).
 
 ### 10a. Claim table — what the leans rest on
 
