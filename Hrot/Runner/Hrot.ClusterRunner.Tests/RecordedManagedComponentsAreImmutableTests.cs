@@ -26,13 +26,6 @@ public sealed class RecordedManagedComponentsAreImmutableTests
     /// (an immutable record, or its per-frame state moved to an unmanaged struct) under CE-4046.</summary>
     private static readonly HashSet<string> Existing = new()
     {
-        "Fdp.Toolkit.Behavior.Components.ActiveMissionPlan",
-        "Fdp.Toolkit.Behavior.Components.PausedTask",
-        "Fdp.Toolkit.Behavior.Components.PendingUnitCommand",
-        "Fdp.Toolkit.Behavior.Components.SopStartRecord",
-        "Fdp.Toolkit.Perception.Components.SensorCapability",
-        "Fdp.Toolkit.Perception.Survey.WorldSurveyRequest",
-        "Hrot.AI.Behaviors.BpManagedCollectionDemo",
         "Hrot.IG.Components.EditablePolyline",
         "Hrot.Map.Common.Components.RoutePlan",
         "Hrot.Map.Definitions.Tkb.SimCombatDef",

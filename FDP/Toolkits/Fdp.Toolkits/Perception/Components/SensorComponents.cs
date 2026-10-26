@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Perception.Components
     // ⚠ NOT Transient: Transient includes NoPreview, which would keep it out of the background snapshot the solver reads.
     // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
     [DataPolicy(DataPolicy.NoScenario)]
-    public sealed class SensorCapability
+    public sealed record SensorCapability   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
         public required SensorEntryDto Default { get; init; }
         public required SensorEntryDto Current { get; init; }
