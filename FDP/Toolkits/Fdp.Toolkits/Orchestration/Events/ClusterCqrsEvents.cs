@@ -121,6 +121,8 @@ namespace Fdp.Toolkit.Orchestration
         public Guid SessionId;
         /// <summary>⭐ C4 (R-4006 I4) — telemetry: completed rounds so far.</summary>
         public int TransactionEpoch;
+        /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis (rides every cluster-state publication).</summary>
+        public ReplayAxis ReplayAxis;
     }
 
     /// <summary>
@@ -189,6 +191,8 @@ namespace Fdp.Toolkit.Orchestration
         public Guid SessionId;
         /// <summary>⭐ C2 — the master's cluster-state writer is GONE (its instance went not-alive): the session has ended.</summary>
         public bool MasterGone;
+        /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master last said.</summary>
+        public ReplayAxis ReplayAxis;
     }
 
     /// <summary>

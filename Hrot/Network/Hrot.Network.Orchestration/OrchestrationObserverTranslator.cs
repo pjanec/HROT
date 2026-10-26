@@ -64,12 +64,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         using (var l = _stateReader.Take())
             foreach (var s in l)
                 if (s.IsValid)
-                    _bus.PublishManaged(new ClusterStateUpdateEvent
-                    {
-                        CurrentState = (FdpClusterState)(int)s.Data.CurrentState,
-                        ExerciseId   = s.Data.ExerciseId,
-                        SessionId    = s.Data.SessionId,   // ⭐ C2
-                    });
+                    _bus.PublishManaged(StateOf(s.Data));
 
         // AssetInventoryTopic → AssetInventoryUpdateEvent
         using (var l = _inventoryReader.Take())
@@ -182,6 +177,16 @@ public sealed class OrchestrationObserverTranslator : IDisposable
 
     /// <summary>⭐ R-3055 — the ONE decoding of the master's inventory sample (this observer and every node's
     /// <see cref="NodeOpSlaveTranslator"/> use it).</summary>
+    /// <summary>⭐ CE-3329 — the ONE decoding of the master's cluster-state broadcast (this translator and every node's
+    /// <c>NodeOpSlaveTranslator</c>): a field added on the wire reaches every reader.</summary>
+    internal static ClusterStateUpdateEvent StateOf(in ClusterStateTopic topic) => new()
+    {
+        CurrentState = (FdpClusterState)(int)topic.CurrentState,
+        ExerciseId   = topic.ExerciseId,
+        SessionId    = topic.SessionId,   // ⭐ C2
+        ReplayAxis   = (Fdp.Toolkit.Orchestration.ReplayAxis)topic.ReplayAxis,   // ⭐ CE-3329 R-3058
+    };
+
     internal static AssetInventoryUpdateEvent InventoryOf(in AssetInventoryTopic data) => new()
     {
         LocalScenarios           = DeserializeStringArray(data.LocalScenariosJson),

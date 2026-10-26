@@ -84,6 +84,10 @@ namespace Fdp.Core.Orchestration
         /// </summary>
         double? CurrentReplaySimSeconds => null;
 
+        /// <summary>⭐ CE-3329 P1 (R3, row 8) — the open replay's wall ↔ sim map (from its v7 frame index); <see langword="null"/> outside a
+        /// replay. Read once per replay — the node's prepare result carries it to the master.</summary>
+        FlightRecorder.ReplayTimeMap? ActiveReplayTimeMap => null;
+
         /// <summary>⭐ CE-3329 PW — releases <see cref="HoldEgress"/>: the next egress frame republishes the world.</summary>
         void ReleaseEgress() { }
 

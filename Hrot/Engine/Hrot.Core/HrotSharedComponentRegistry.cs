@@ -219,6 +219,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<FrameStepCompletedEvent>();
         world.RegisterManagedEvent<PauseTimeIntent>();
         world.RegisterManagedEvent<SnapTimeIntent>();
+        world.RegisterManagedEvent<JumpTimeIntent>();   // ⭐ CE-3329 R4
         world.RegisterManagedEvent<ResumeTimeIntent>();
         world.RegisterManagedEvent<StepTimeIntent>();
         world.RegisterManagedEvent<SetTimeScaleIntent>();

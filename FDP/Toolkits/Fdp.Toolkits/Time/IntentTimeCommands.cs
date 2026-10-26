@@ -46,6 +46,8 @@ namespace Fdp.Toolkit.Time
 
         public void SnapTo(Fdp.Core.GlobalTime position) => _bus.PublishManaged(new SnapTimeIntent { Position = position });
 
+        public void JumpTo(double totalTime) => _bus.PublishManaged(new JumpTimeIntent { TotalTime = totalTime });   // ⭐ CE-3329 R4
+
         /// <inheritdoc />
         public void StepOneTick() => StepBy(_fixedStepSeconds);
 

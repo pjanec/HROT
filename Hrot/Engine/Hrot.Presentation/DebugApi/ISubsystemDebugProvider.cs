@@ -221,6 +221,10 @@ public interface ISubsystemDebugProvider
     /// node keeps no cluster read model.</summary>
     float? ReplayDurationSeconds { get; }
 
+    /// <summary>⭐ <c>CE-3329</c> R-3058 — the replay session's time axis as this node's cluster read model has it (its
+    /// <c>ClusterSlave</c> or <c>ClusterUiCache</c>; the Replay Browser's is the viewer's); <see langword="null"/> when it keeps none.</summary>
+    Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxis { get; }
+
 
     /// <summary>⭐ <c>CE-1265</c>/<c>CE-1266</c> on <c>R-3052</c>…<c>R-3055</c> — the recording THIS node replays now (its own), which the
     /// journal history and the recording search scan read-only; <see langword="null"/> outside a replay or on a node that keeps none.
@@ -339,6 +343,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<IClusterMasterControl?>? _master;
     private readonly Func<IReadOnlyList<ExerciseInventoryItem>?>? _exercises;
     private readonly Func<float?>? _replayDuration;
+    private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _replayAxis;   // CE-3329
     private readonly Func<string?>? _replayRecording;
     private readonly Func<IReplayBrowserControl?>? _replayBrowser;   // RB-3
     private readonly Func<ReplayPosition?>? _replayPosition;          // RB-2
@@ -398,6 +403,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⭐ R-3055 — the master's exercise inventory and the loaded replay's length, from a cluster read model (ClusterUiCache).
         Func<IReadOnlyList<ExerciseInventoryItem>?>? exercises = null,
         Func<float?>? replayDuration = null,
+        // ⭐ CE-3329 R-3058 — the replay session's time axis (the same read model as the cluster state)
+        Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? replayAxis = null,
         // ⭐ CE-1265/CE-1266 — this node's replay recording (EcsRecordReplayController.ActiveReplayFilePath).
         Func<string?>? replayRecording = null,
         // ⭐ RB-3 — the standalone Replay Browser's own seam (DESIGN_Replay_Browser_Debug_Http.md); null on every other host.
@@ -420,6 +427,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _master = master;
         _exercises = exercises;
         _replayDuration = replayDuration;
+        _replayAxis = replayAxis;
         _replayRecording = replayRecording;
         _replayBrowser = replayBrowser;
         _replayPosition = replayPosition;
@@ -566,6 +574,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public IClusterMasterControl? Master => _master?.Invoke();
     public IReadOnlyList<ExerciseInventoryItem>? Exercises => _exercises?.Invoke();
     public float? ReplayDurationSeconds => _replayDuration?.Invoke();
+    public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxis => _replayAxis?.Invoke();
     public string? ReplayRecordingPath => _replayRecording?.Invoke();
     public IReplayBrowserControl? ReplayBrowser => _replayBrowser?.Invoke();
     public ReplayPosition? ReplayPosition => _replayPosition?.Invoke();

@@ -168,21 +168,7 @@ internal static class ClusterOpRequestAdapter
     /// </summary>
     public static SeekReplayIntent ToSeekReplayIntent(ClusterOpRequest req)
     {
-        long ticks = 0;
-        if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-        {
-            if (!long.TryParse(req.PayloadJson, out ticks))
-            {
-                try
-                {
-                    var dto = JsonSerializer.Deserialize<SeekReplayPayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
-                    ticks = dto?.TargetWallTicks ?? 0;
-                }
-                catch { }
-            }
-        }
-
-        return new SeekReplayIntent { RequestId = req.RequestId, TargetWallTicks = ticks };
+        return SeekReplayPayloadDto.Decode(req.RequestId, req.PayloadJson);   // ⭐ CE-3329 — the one decoding (atSimSeconds kept)
     }
 
     /// <summary>

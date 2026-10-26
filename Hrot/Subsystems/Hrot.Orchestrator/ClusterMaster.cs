@@ -514,6 +514,10 @@ public sealed partial class ClusterMaster : IDisposable
                 ProcessSeekReplayIntent(ClusterOpRequestAdapter.ToSeekReplayIntent(req));
                 break;
 
+            case ClusterOpType.SetReplayAxis:   // ⭐ CE-3329 R-3058
+                ProcessSetReplayAxisIntent(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
             case ClusterOpType.CancelOperation:
                 ProcessCancelOperationIntent(ClusterOpRequestAdapter.ToCancelOperationIntent(req));
                 break;
@@ -968,6 +972,8 @@ public sealed partial class ClusterMaster : IDisposable
         {
             ProcessSeekReplayIntent(intent);
         }
+        foreach (var intent in _eventBus.ReadManaged<SetReplayAxisIntent>())
+            ProcessSetReplayAxisIntent(intent);   // ⭐ CE-3329 R-3058
     }
 
     private void ProcessCancelOperationIntents()
@@ -1270,6 +1276,9 @@ public sealed partial class ClusterMaster : IDisposable
             FdpLog<ClusterMaster>.Info("[Orchestrator] R-3055: the replay names no exercise — the master picks {0}.", resolved);
             intent.ExerciseId = resolved;
         }
+
+        // ⭐ CE-3329 R11 — a replay entered at a RECORDED sim time: resolved when the prepare round brings the nodes' maps
+        if (intent.TargetState == FdpClusterState.OperatingReplay) _replayEntrySimSeconds = intent.TargetSimSeconds;
 
         // ⭐⭐ L8 §7.2c — AT MOST ONE parked transition. ⛔ Rejected, not queued: the master tracks a single
         //    in-flight transition and queueing would be a new property nobody asked for.
@@ -1858,6 +1867,18 @@ public sealed partial class ClusterMaster : IDisposable
 
     private void ProcessSeekReplayIntent(SeekReplayIntent intent)
     {
+        // ⭐ CE-3329 P1 (R11) — a target in RECORDED sim time becomes wall ticks here, with the cluster's map; nodes are unchanged
+        if (intent.TargetSimSeconds is { } sim)
+        {
+            if (RelativeTicksForSim(sim) is not { } rel)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] seek {0} REJECTED — atSimSeconds {1}, but this replay has no sim axis (a v6 recording).",
+                    intent.RequestId, sim);
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+                return;
+            }
+            intent.TargetWallTicks = rel;
+        }
         // RT-008: fan-out with ACK tracker; immediate Success when roster is empty.
         // SlaveNodeSetUpdatedEvent and PauseTimeIntent are published by ReplaySeekProcessManager (TASK-T002).
         var seekNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
@@ -2022,12 +2043,14 @@ public sealed partial class ClusterMaster : IDisposable
             ExerciseId       = _activeExerciseId,
             SessionId        = SessionId,          // ⭐ C2
             TransactionEpoch = _transactionEpoch,  // ⭐ C4 — telemetry
+            ReplayAxis       = _replayAxis,        // ⭐ CE-3329 R-3058
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
             CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
             ExerciseId   = _activeExerciseId,
             SessionId    = SessionId,
+            ReplayAxis   = _replayAxis,
         });
     }
 

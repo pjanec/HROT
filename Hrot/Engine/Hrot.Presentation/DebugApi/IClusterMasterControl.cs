@@ -23,6 +23,9 @@ public interface IClusterMasterControl
     /// <summary>A replay seek round (<c>TargetWallTicks</c> after the replay's zero, <c>C9</c>).</summary>
     void SeekReplay(SeekReplayIntent intent);
 
+    /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis (Sim | Wall), for every host.</summary>
+    void SetReplayAxis(SetReplayAxisIntent intent);
+
     /// <summary>A storage operation (a scenario save, an export, …).</summary>
     void Storage(ExecuteStorageOpIntent intent);
 
@@ -49,6 +52,7 @@ public sealed class OrchestrationBusMasterControl : IClusterMasterControl
 
     public void Transition(TransitionStateIntent intent) => Bus.PublishManaged(intent);
     public void SeekReplay(SeekReplayIntent intent) => Bus.PublishManaged(intent);
+    public void SetReplayAxis(SetReplayAxisIntent intent) => Bus.PublishManaged(intent);   // CE-3329
     public void Storage(ExecuteStorageOpIntent intent) => Bus.PublishManaged(intent);
     public void TakeCheckpoint(TakeCheckpointIntent intent) => Bus.PublishManaged(intent);
     public void RestoreCheckpoint(RestoreCheckpointIntent intent) => Bus.PublishManaged(intent);

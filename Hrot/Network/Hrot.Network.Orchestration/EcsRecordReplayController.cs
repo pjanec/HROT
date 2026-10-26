@@ -137,6 +137,9 @@ namespace Hrot.SimHost.Modules.Orchestration
             => _activeReplayModule != null && _repo.HasSingletonUnmanaged<GlobalTime>() ? _repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : null;
 
         /// <inheritdoc />
+        public ReplayTimeMap? ActiveReplayTimeMap => _activeReplayModule?.TimeMap;
+
+        /// <inheritdoc />
         public void HoldEgress(string reason) => Fdp.Toolkit.Replication.Services.EgressHold.Hold(_repo, reason);
 
         /// <inheritdoc />

@@ -55,6 +55,10 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⭐ CE-3299 B4 — restore checkpoint X on every node (mgmt-1 §9.3 named this request; no enum carried it).
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-22 — the next free value in BOTH enums.
         RestoreCheckpoint = 21,
+
+        // ⭐ CE-3329 P1 (R-3058) — switch the replay's time axis (Sim | Wall) for the whole session, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayAxisPayloadDto.
+        SetReplayAxis = 22,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
@@ -116,6 +120,9 @@ namespace Hrot.NED.Descriptors.Orchestration
         /// session; the master is not restartable). A node that sees a DIFFERENT session — or this writer gone — knows the
         /// world it belonged to has ended and drops to <c>Idle</c>.</summary>
         public Guid SessionId;
+        /// <summary>⭐ CE-3329 P1 (R-3058) — the replay session's time axis: 0 = Sim (the default), 1 = Wall. The same on every node
+        /// (what each host's timeline draws, what its seeks mean). Additive on the wire.</summary>
+        public int ReplayAxis;
     }
 
     /// <summary>

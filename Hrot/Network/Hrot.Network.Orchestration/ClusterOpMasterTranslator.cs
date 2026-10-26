@@ -92,6 +92,7 @@ public sealed class ClusterOpMasterTranslator
                     ExerciseId       = ev.ExerciseId,
                     SessionId        = ev.SessionId,          // ⭐ C2
                     TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
+                    ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
                 });
             }
         }
@@ -150,14 +151,13 @@ public sealed class ClusterOpMasterTranslator
 
             case NedClusterOpType.ReplaySeek:
             {
-                SeekReplayPayloadDto? seekDto = TryDeserialize<SeekReplayPayloadDto>(req.PayloadJson);
-                _bus.PublishManaged(new SeekReplayIntent
-                {
-                    RequestId       = req.RequestId,
-                    TargetWallTicks = seekDto?.TargetWallTicks ?? 0,
-                });
+                _bus.PublishManaged(SeekReplayPayloadDto.Decode(req.RequestId, req.PayloadJson));   // ⭐ CE-3329 — the one decoding
                 break;
             }
+
+            case NedClusterOpType.SetReplayAxis:   // ⭐ CE-3329 R-3058
+                _bus.PublishManaged(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
 
             case NedClusterOpType.CancelOperation:
             {

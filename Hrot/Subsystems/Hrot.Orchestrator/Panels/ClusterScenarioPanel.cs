@@ -142,8 +142,7 @@ public sealed class ClusterScenarioPanel
 
             case FdpClusterOpType.ReplaySeek:
             {
-                long ticks = TryParseWallTicks(req.PayloadJson);
-                _bus!.PublishManaged(new SeekReplayIntent { RequestId = req.RequestId, TargetWallTicks = ticks });
+                _bus!.PublishManaged(SeekReplayPayloadDto.Decode(req.RequestId, req.PayloadJson));   // ⭐ CE-3329 — the one decoding
                 break;
             }
 
@@ -197,19 +196,6 @@ public sealed class ClusterScenarioPanel
             return dto?.Kinds;
         }
         catch (JsonException) { return null; }
-    }
-
-    private static long TryParseWallTicks(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return 0;
-        if (long.TryParse(json, out var v)) return v;
-        try
-        {
-            var dto = JsonSerializer.Deserialize<SeekReplayPayloadDto>(json, OrchestrationJsonOptions.Default);
-            return dto?.TargetWallTicks ?? 0;
-        }
-        catch { }
-        return 0;
     }
 
     private static Guid ExtractGuidField(string? json)

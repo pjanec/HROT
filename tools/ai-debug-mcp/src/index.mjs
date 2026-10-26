@@ -1416,6 +1416,9 @@ const TOOLS = [
         const body = {};
         if (toolArgs.exerciseId != null) body.exerciseId = toolArgs.exerciseId;
         if (toolArgs.atSeconds != null) body.atSeconds = toolArgs.atSeconds;
+        if (toolArgs.atSimSeconds != null) body.atSimSeconds = toolArgs.atSimSeconds;   // CE-3329
+        if (toolArgs.path != null) body.path = toolArgs.path;                           // RB-1 (Replay Browser)
+        if (toolArgs.paths != null) body.paths = toolArgs.paths;
         if (toolArgs.waitForReady != null) body.waitForReady = toolArgs.waitForReady;
         return toolSuccess(await callApi('POST', '/replay', body));
       } catch (err) { return toolError(err.message, err.envelope, 'enter_replay'); }
@@ -1427,8 +1430,19 @@ const TOOLS = [
     description: TOOL_DEFS['seek_replay'].description,
     inputSchema: TOOL_DEFS['seek_replay'].inputSchema,
     async handler(toolArgs) {
-      try { return toolSuccess(await callApi('POST', '/replay/seek', { atSeconds: toolArgs.atSeconds })); }
+      // every seek form passes through: atSeconds, atSimSeconds (CE-3329), frame, frames, cause, next + direction (RB-2)
+      try { return toolSuccess(await callApi('POST', '/replay/seek', toolArgs)); }
       catch (err) { return toolError(err.message, err.envelope, 'seek_replay'); }
+    },
+  },
+
+  {
+    name: 'set_replay_axis',
+    description: TOOL_DEFS['set_replay_axis'].description,
+    inputSchema: TOOL_DEFS['set_replay_axis'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/replay/axis', { axis: toolArgs.axis })); }
+      catch (err) { return toolError(err.message, err.envelope, 'set_replay_axis'); }
     },
   },
 

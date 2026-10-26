@@ -170,6 +170,8 @@ namespace Fdp.Toolkit.Time.Controllers
             // ⭐ Q86 §4-C — the snap first, so a same-frame resume (a load that runs) applies after it.
             foreach (var ev in _eventBus.ReadManaged<SnapTimeIntent>())
                 SnapAndPause(ev.Position);
+            foreach (var ev in _eventBus.ReadManaged<JumpTimeIntent>())
+                JumpWhileRunning(ev.TotalTime);   // ⭐ CE-3329 R4 — never a pause, never an epoch move
             foreach (var _ in _eventBus.ReadManaged<PauseTimeIntent>())
                 SwitchToDeterministic(updatedSlaves ?? new HashSet<int>(_expectedSlaves));
             foreach (var _ in _eventBus.ReadManaged<ResumeTimeIntent>())
@@ -542,6 +544,30 @@ namespace Fdp.Toolkit.Time.Controllers
             });
 
             _lastTickSample = _getTick();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3329</c> P1 (R4 as amended, F14) — a RUNNING clock moves its sim time to <paramref name="totalTime"/> and keeps running:
+        /// the mode, the rate and the <see cref="TimelineEpoch"/> are untouched (⛔ <see cref="SnapAndPause"/> moves the epoch, and the
+        /// kernel then resets every slot). Slaves follow through the ordinary resume path (a Continuous <see cref="SwitchTimeModeEvent"/>
+        /// carrying the new sim time), so every node's playhead lands on the same instant. Wall ticks move by the same amount.
+        /// A paused / stepping clock ignores it: a seek is the way to move one.
+        /// </summary>
+        public void JumpWhileRunning(double totalTime)
+        {
+            if (_mode != MasterMode.Continuous) return;
+            double delta = totalTime - _totalTime;
+            _totalTime         = totalTime;
+            _unscaledTotalTime += delta;
+            _totalWallTicks    += (long)(delta * TimeSpan.TicksPerSecond);
+            _eventBus.Publish(new SwitchTimeModeEvent
+            {
+                TargetMode       = TimeMode.Continuous,
+                BarrierWallTicks = _getTick(),
+                SimTimeSnapshot  = _totalTime,
+                TimeScale        = _timeScale,
+                FixedDelta       = _config.FixedDeltaSeconds,
+            });
         }
 
         // ── Private helpers ──────────────────────────────────────────────────

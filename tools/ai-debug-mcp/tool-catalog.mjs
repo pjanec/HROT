@@ -1586,6 +1586,12 @@ export const TOOLS_CATALOG = [
         "description": "Where to enter, seconds after the exercise's start (default 0)"
       },
       {
+        "name": "atSimSeconds",
+        "type": "number",
+        "required": false,
+        "description": "⭐ CE-3329 — or where to enter in the RECORDED sim time (the run's own clock; a pause lands at its end); needs a v7 recording"
+      },
+      {
         "name": "waitForReady",
         "type": "boolean",
         "required": false,
@@ -1619,6 +1625,37 @@ export const TOOLS_CATALOG = [
       "gist": "replay the last exercise from 30 s in"
     },
     "hint": "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool); on the Replay Browser also path or paths (recording files). Example: enter_replay({atSeconds:30, waitForReady:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_replay_axis",
+    "group": "I — Replay",
+    "summary": "⭐ CE-3329 — switch the replay's time axis for the whole session (R-3058): Sim (the run's own clock — a play jumps over every paused stretch and its changes land at once) or Wall (pauses play out). No seek: the frame on screen stays.",
+    "http": {
+      "method": "POST",
+      "path": "/replay/axis"
+    },
+    "params": [
+      {
+        "name": "axis",
+        "type": "string",
+        "required": true,
+        "description": "\"Sim\" (default) or \"Wall\""
+      }
+    ],
+    "returns": "{ published, requestId, axis }",
+    "notes": [
+      "The master holds it and every node hears it (the cluster-state broadcast); the Replay Browser keeps its own (the viewer's).",
+      "get_replay_status reports it as axis; atSimSeconds seeks work on either axis."
+    ],
+    "example": {
+      "args": {
+        "axis": "Wall"
+      },
+      "gist": "skip or play the pauses"
+    },
+    "hint": "Req: axis (\"Sim\" | \"Wall\"). Example: set_replay_axis({axis:\"Wall\"})",
     "manualVerify": false
   },
 
@@ -1845,6 +1882,12 @@ export const TOOLS_CATALOG = [
         "description": "Seconds after the exercise's start"
       },
       {
+        "name": "atSimSeconds",
+        "type": "number",
+        "required": false,
+        "description": "⭐ CE-3329 — or the RECORDED sim time to land on (a paused instant lands at its end, so what changed during the pause shows); refused for a v6 recording"
+      },
+      {
         "name": "frame",
         "type": "integer",
         "required": false,
@@ -1886,7 +1929,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "jump the replay to 45 s"
     },
-    "hint": "One of: atSeconds (number) · frame (integer) · frames (integer, ±) · cause ({frame, entity}) · next ({entity, component?}) with direction (1 | -1). Example: seek_replay({next:{entity:1042, component:\"Health\"}, direction:1})",
+    "hint": "One of: atSeconds (number) · atSimSeconds (number, the recorded sim time) · frame (integer) · frames (integer, ±) · cause ({frame, entity}) · next ({entity, component?}) with direction (1 | -1). Example: seek_replay({next:{entity:1042, component:\"Health\"}, direction:1})",
     "manualVerify": false
   },
 
@@ -1899,7 +1942,7 @@ export const TOOLS_CATALOG = [
       "path": "/replay/status"
     },
     "params": [],
-    "returns": "{ clusterState, replaying, durationSeconds, recording, sim, browser } — browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
+    "returns": "{ clusterState, replaying, durationSeconds, recording, simSeconds, axis, sim, browser } — axis: the session's time axis (Sim | Wall, CE-3329) — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
     "example": {
       "args": {},
       "gist": "is the cluster replaying, and where"

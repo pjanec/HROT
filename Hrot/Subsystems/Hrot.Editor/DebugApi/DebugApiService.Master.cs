@@ -105,6 +105,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ R-3055 (the R-3049 rule) — none named ⇒ Guid.Empty: the MASTER picks the run in progress, else the newest finished one
             //   (ClusterMaster.ResolveReplayExercise) — the same request means the same thing on every host.
             if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
+            if (!TryReadSimSeconds(body, out double? atSim, out error)) return (null, error, DebugApiHints.Scenario);
 
             var published = PublishTransition(new TransitionStateIntent
             {
@@ -113,6 +114,8 @@ namespace Hrot.Editor.DebugApi
                 ExerciseId      = exerciseId,
                 // ⭐ C9 — ticks AFTER the replay's zero (the earliest first frame across the nodes); 0 = the start
                 TargetWallTicks = SecondsToTicks(at),
+                // ⭐ CE-3329 R11 — or a RECORDED sim time, resolved by the master once the nodes' maps are in
+                TargetSimSeconds = atSim,
             });
             if (published.Result is JsonObject o)
             {
@@ -153,16 +156,41 @@ namespace Hrot.Editor.DebugApi
         /// <summary><c>POST /replay/seek {atSeconds}</c> — the operator timeline's seek round (TE-19), seconds after the replay's start.</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) SeekReplayTo(JsonNode? body)
         {
-            if (body?["atSeconds"] is null) return (null, "atSeconds is required: {\"atSeconds\": 30}.", DebugApiHints.Scenario);
+            if (body?["atSeconds"] is null && body?["atSimSeconds"] is null)
+                return (null, "atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) is required: {\"atSeconds\": 30}.", DebugApiHints.Scenario);
             if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
+            if (!TryReadSimSeconds(body, out double? atSim, out error)) return (null, error, DebugApiHints.Scenario);
             if (CurrentClusterStateOrNull() is { } s && s != ClusterState.OperatingReplay)
                 return (null, $"The cluster is in {s}, not a replay: POST /replay first.", DebugApiHints.Scenario);
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
-            var intent = new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = SecondsToTicks(at) };
+            // ⭐ CE-3329 R11 — atSimSeconds wins; the master (or the Replay Browser) resolves it through the replay's time map
+            var intent = new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = SecondsToTicks(at), TargetSimSeconds = atSim };
             try { master.SeekReplay(intent); }
             catch (InvalidOperationException ex) { return (null, ex.Message, DebugApiHints.Scenario); }
-            return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["atSeconds"] = at }, null, null);
+            var result = new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString() };
+            if (atSim is { } simTarget) result["atSimSeconds"] = simTarget; else result["atSeconds"] = at;
+            return (result, null, null);
+        }
+
+        private Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxisOrNull => _editorReplayAxis?.Invoke() ?? _dispatcher?.ReplayAxisAnyNode;
+
+        /// <summary>
+        /// ⭐ CE-3329 <c>POST /replay/axis {axis: "Sim" | "Wall"}</c> (R-3058) — switch the replay's time axis for the whole session, from
+        /// any host: the master holds it and every node hears it. No seek — the frame on screen stays; what comes next follows the axis.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) SetReplayAxis(JsonNode? body)
+        {
+            var text = body?["axis"]?.ToString();
+            if (string.IsNullOrWhiteSpace(text) || !Enum.TryParse<Fdp.Toolkit.Orchestration.ReplayAxis>(text, ignoreCase: true, out var axis)
+                || !Enum.IsDefined(axis))
+                return (null, "axis is required: \"Sim\" (the run's own clock, pauses collapsed) or \"Wall\".", DebugApiHints.Scenario);
+            var master = MasterOrNull;
+            if (master is null) return (null, NoMaster, DebugApiHints.Panel);
+            var intent = new SetReplayAxisIntent { RequestId = Guid.NewGuid(), Axis = axis };
+            try { master.SetReplayAxis(intent); }
+            catch (InvalidOperationException ex) { return (null, ex.Message, DebugApiHints.Scenario); }
+            return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["axis"] = axis.ToString() }, null, null);
         }
 
         /// <summary><c>POST /replay/stop</c> — leave the replay (to <c>Idle</c>).</summary>
@@ -181,6 +209,8 @@ namespace Hrot.Editor.DebugApi
                 ["recording"]       = ReplayRecordingPathOrNull,
                 // ⭐ CE-3329 P0 (R-3057 R11, row 6) — the RECORDED sim time of the frame on screen; `sim` below is the replay clock (wall)
                 ["simSeconds"]      = ReplayPositionOrNull?.SimSeconds is { } simSeconds ? Math.Round(simSeconds, 6) : null,
+                // ⭐ CE-3329 R-3058 — the session's axis: Sim (a play jumps the paused stretches) or Wall
+                ["axis"]            = ReplayAxisOrNull?.ToString(),
                 ["sim"]             = TryRead(() => GetSimState()),
                 // ⭐ RB-2 — the Replay Browser adds its frame, frames, span, nodes, view and rate; null on every other host
                 ["browser"]         = TryRead(() => _dispatcher?.ReplayBrowser?.Status()),
@@ -209,6 +239,18 @@ namespace Hrot.Editor.DebugApi
         }
 
         private static long SecondsToTicks(double seconds) => (long)Math.Round(seconds * TimeSpan.TicksPerSecond);
+
+        /// <summary>⭐ CE-3329 R11 — <c>atSimSeconds</c>: absent ⇒ null; else a non-negative number of the recording's own sim seconds.</summary>
+        private static bool TryReadSimSeconds(JsonNode? body, out double? seconds, out string? error)
+        {
+            seconds = null; error = null;
+            var text = body?["atSimSeconds"]?.ToString();
+            if (string.IsNullOrWhiteSpace(text)) return true;
+            if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
+                && v >= 0 && double.IsFinite(v)) { seconds = v; return true; }
+            error = $"atSimSeconds '{text}' is not a non-negative number of seconds.";
+            return false;
+        }
 
         private static bool TryReadSeconds(JsonNode? body, out double seconds, out string? error)
         {

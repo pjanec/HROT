@@ -19,6 +19,9 @@ namespace Fdp.Toolkit.Orchestration
         public string? TimeMode;
         /// <summary>⭐ CE-3299 D17 (R-3045) — the live session's recording mode: 0 = FULL, N &gt; 0 = a keyframe every N s of sim time.</summary>
         public double CheckpointingSeconds;
+        /// <summary>⭐ CE-3329 P1 (R-3057 R11) — a replay's entry point in the RECORDED sim time (<c>atSimSeconds</c>); the master turns it
+        /// into wall ticks with the cluster's time map. Wins over <see cref="TargetWallTicks"/> when set.</summary>
+        public double? TargetSimSeconds;
     }
 
     /// <summary>
@@ -45,6 +48,33 @@ namespace Fdp.Toolkit.Orchestration
     {
         public Guid RequestId;
         public long TargetWallTicks;
+        /// <summary>⭐ CE-3329 P1 (R-3057 R11) — the target in the RECORDED sim time (<c>atSimSeconds</c>): the master resolves it to wall
+        /// ticks with the cluster's time map (a paused instant lands at its end — the pause's changes shown). Nodes are unchanged.</summary>
+        public double? TargetSimSeconds;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3329</c> P1 (R-3058) — the replay's time AXIS, a property of the cluster's replay session: it decides what the
+    /// timeline draws, what a seek means and how playback runs — on <see cref="ReplayAxis.Sim"/> a paused stretch is jumped over, on
+    /// <see cref="ReplayAxis.Wall"/> it plays out. Any host asks; the master's <c>ReplayClockProcessManager</c> holds it.
+    /// 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §5 R2.
+    /// </summary>
+    [EventId(9069)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct SetReplayAxisIntent
+    {
+        public Guid RequestId;
+        public ReplayAxis Axis;
+    }
+
+    /// <summary>⭐ CE-3329 R-3058 — the two views of the ONE replay clock (wall). <see cref="Sim"/> is the default (R2).</summary>
+    public enum ReplayAxis
+    {
+        /// <summary>The run's own clock: every paused stretch collapsed to the instant it ended.</summary>
+        Sim = 0,
+
+        /// <summary>The wall clock the nodes align on (R-4012): pauses play out.</summary>
+        Wall = 1,
     }
 
     /// <summary>

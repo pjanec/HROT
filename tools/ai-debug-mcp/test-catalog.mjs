@@ -25,7 +25,7 @@ const EXPECTED_TOOLS = [
   'get_world_info', 'geo_to_local', 'local_to_geo',
   'set_breakpoint', 'list_breakpoints', 'remove_breakpoint', 'get_breakpoint_status',
   'checkpoint', 'restore_checkpoint', 'capture_diff_baseline', 'diff_state',
-  'list_exercises', 'enter_replay', 'seek_replay', 'stop_replay',
+  'list_exercises', 'enter_replay', 'seek_replay', 'stop_replay', 'set_replay_axis',
   'get_replay_status', 'get_journal_history', 'search_replay',
   'get_logs',
   'observe_trace', 'get_entity_trace',

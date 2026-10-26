@@ -204,7 +204,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}, Duration={2}s, span {3}).",
                     exerciseId, maxNetworkId, durationSeconds, $"{first}..{last}");
 
-                return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last);
+                // ⭐ CE-3329 P1 (R3) — this node's wall ↔ sim map: the master intersects them into the cluster's sim axis
+                return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last, _controller.ActiveReplayTimeMap);
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {
