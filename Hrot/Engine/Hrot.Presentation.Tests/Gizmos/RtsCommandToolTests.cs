@@ -270,7 +270,9 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.Equal(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand, mi.Tools.ActiveModal?.Id);
 
         using var replayWorld = new EntityRepository();
-        var replay = MapInteractionPack.Build(new MapInteractionContext { World = replayWorld, IsReplayActive = static () => true });
-        Assert.False(replay.Actions.TryGetHandler(GlobalActionIds.ToggleRtsCommand, out _));
+        var replay = MapInteractionPack.Build(new MapInteractionContext { World = replayWorld });
+        replay.MenuOrders.PickService = () => _pick;
+        Fdp.Toolkit.Replay.ReplayState.Enter(replayWorld);   // ⭐ DAR F7 — a recording is shown: the tool does not arm
+        Assert.False(replay.Tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand), "a recording takes no orders");
     }
 }

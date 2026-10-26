@@ -276,8 +276,9 @@ namespace Hrot.ScenarioEditor.Map
             MapUiStates.Set(ctx.World, rubberBand);   // ⭐ CE-1136 — the 3-D view lends it its projection (RubberBandOverlay3D)
             statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBand));
 
+            // ⭐ CE-3328 — the click resolves in the world the map SHOWS (the Replay Browser's node / merged view), as the selection does.
             var selectionInteraction = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(
-                ctx.World, bus, rubberBand, selection);
+                ctx.SelectionWorld ?? (() => ctx.World), bus, rubberBand, selection);
             if (ctx.OnMapSelectionChanged != null)
                 selectionInteraction.OnSelectionChanged += ctx.OnMapSelectionChanged;
 
@@ -345,7 +346,9 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.Presentation.Orders.OrderForm? orderForm = null;
             // ⭐ §6x (DESIGN_Map_3D_Mode FX-1..FX-3) — the fire mission's aim points: drawn from what each gun publishes, so a replay too
             globalManager.Register(GlobalGizmoManager.NewId(), new Hrot.Presentation.Orders.FireMissionOverlayGizmo(() => selection.SelectedEntities));
-            if (ctx.IsReplayActive?.Invoke() != true)
+            // ⭐ DAR F7 (D-E) — built on every map: whether they are OFFERED is decided each frame from the world's ReplayState (the menu
+            //   projector, the RTS tool's activation, Add Entity's suspension). ⛔ SUPERSEDED (R-3064): a build-time IsReplayActive
+            //   predicate — a host that entered a review after its map was built (the editor, CGF) kept offering orders.
             {
                 menuOrders.RegisterOn(actions);
                 ctx.World.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
@@ -369,6 +372,8 @@ namespace Hrot.ScenarioEditor.Map
                     {
                         if (menuOrders.PickService?.Invoke() is null)   // a headless host: nobody to click
                             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
+                        if (Fdp.Toolkit.Replay.ReplayState.IsActive(ctx.World))   // ⭐ DAR F7 — a recording takes no orders
+                            return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
                         var id = GlobalGizmoManager.NewId();
                         globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id), rtsMode));
                         return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
@@ -381,8 +386,14 @@ namespace Hrot.ScenarioEditor.Map
             //   CGF, SimHost, IG): spawn adapter, picker, Add Entity action and the canvas menu. The host only
             //   schedules mi.CanvasMenu and draws mi.EntityAuthoring.DrawFrame().
             Hrot.UI.Common.AddEntity.EntityAuthoring? authoring = null;
-            if (ctx.EntityAuthoring is { } inputs)
+            if (ctx.EntityAuthoring is { } hostInputs)
             {
+                // ⭐ DAR F7 — Add Entity greys out while the map shows a recording, whatever else the host suspends it for.
+                var hostReason = hostInputs.SuspendedReason;
+                var inputs = hostInputs with
+                {
+                    SuspendedReason = () => Fdp.Toolkit.Replay.ReplayState.IsActive(ctx.World) ? "a recording is shown" : hostReason?.Invoke(),
+                };
                 authoring = new Hrot.UI.Common.AddEntity.EntityAuthoring(inputs, ctx.World.Bus, globalManager, tools);
                 authoring.AddEntity.RegisterOn(actions);
                 authoringRef = authoring;

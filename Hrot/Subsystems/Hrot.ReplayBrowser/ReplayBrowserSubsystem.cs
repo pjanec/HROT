@@ -291,9 +291,6 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 RubberBand = rubberBandState,
                 // The replay browser is an interactive window: it has a viewer from startup.
                 StartEnabled = true,
-                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — this host only ever shows a recording (no order menu). The effect systems
-                //   stand down through the world's ReplayState (PrepareRepo), not through this.
-                IsReplayActive = static () => true,
                 ContributeExtras = regs =>
                 {
                     // ⭐ CE-3123 — the label gizmo is reflected now (BehaviorRegistry via Services); the retired

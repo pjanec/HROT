@@ -236,12 +236,15 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 }
                 bool brain = AiTraceActions.HasBrain(view, entity);   // ⭐ CE-3123 — has a brain = can be traced
                 var repo = view as EntityRepository;
-                bool orders = repo != null && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>();   // ⭐ CE-3169
+                // ⭐ CE-3169 — a map that offers orders; ⭐ DAR F7 (D-E) — and never while it shows a recording (a review or a replay), read
+                //   each frame from the world's flag (R-3064), so a host that enters a review AFTER its map was built hides them too.
+                bool showsRecording = Fdp.Toolkit.Replay.ReplayState.IsActive(view);
+                bool orders = repo != null && !showsRecording && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>();
                 var dis = repo != null ? repo.GetDisType(entity) : default;                                 // ⭐ CE-2143 — its class
                 bool isUnit = view.HasComponent<Fdp.Core.CommandHierarchy.UnitEntity>(entity);
                 bool form = orders && repo!.HasSingletonManaged<Hrot.Common.Orders.IOrderForm>();             // ⭐ CE-1059
                 bool manned = Fdp.Toolkit.Behavior.Possession.Possessability.Refusal(view, entity) != null;   // ⭐ CE-1205
-                var embark = repo == null || isUnit ? EmbarkItem.None                                                  // ⭐ CE-1230
+                var embark = repo == null || isUnit || showsRecording ? EmbarkItem.None                                // ⭐ CE-1230
                     : Hrot.Common.Orders.EmbarkOrders.IsAboard(repo, entity) ? EmbarkItem.Disembark
                     : Hrot.Common.Orders.EmbarkOrders.CanOffer(repo, entity) ? EmbarkItem.Embark : EmbarkItem.None;
                 var pins = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.None;   // ⭐ CE-1329 — the same store the Brain tab reads

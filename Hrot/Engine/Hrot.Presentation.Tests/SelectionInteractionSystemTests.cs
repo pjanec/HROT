@@ -681,4 +681,54 @@ public class SelectionInteractionSystemTests
         public void Dispose() { Disposed = true; }
     }
 
+    /// <summary>⭐ DAR F7 — the Delete key edits no recording: while the world shows a review or a replay it destroys nothing.</summary>
+    [Fact]
+    public void DARF7_TheDeleteKey_DestroysNothing_WhileTheWorldShowsARecording()
+    {
+        var entity = CreateSelectableEntity();
+        _world.SetComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
+        Fdp.Toolkit.Replay.ReplayState.Enter(_world);
+
+        PublishKeyEvent(MapKeyboardKey.Delete, isPressed: false);
+        _system.Tick(0f);
+        _world.Bus.SwapBuffers();
+
+        Assert.Empty(_world.Bus.ReadManaged<DestroyEntityCommand>());
+    }
+
+    /// <summary>⭐ <c>CE-3328</c> (Replay Browser HTTP §7.4) — a host that SWITCHES the world it shows (the Replay Browser's node / merged
+    /// view) hands the gesture system a provider: a click resolves its pick in the shown world, and asks THAT world's request system.
+    /// ⛔ Built over the boot world, the click found no unit there and started a rubber band instead.</summary>
+    [Fact]
+    public void CE3328_AClick_ResolvesInTheWorldTheHostShows()
+    {
+        using var shown = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(shown);
+        shown.RegisterComponent<SelectionState>();
+        var unit = shown.CreateEntity();
+        shown.AddComponent(unit, default(SimTransform));
+        shown.AddComponent(unit, new NetworkIdentity { Value = 9001L });
+        shown.AddComponent(unit, new SelectionState());
+
+        EntityRepository current = _world;   // the boot world first, as on the Replay Browser before a recording opens
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext
+        {
+            World = _world, SelectionWorld = () => current,   // ⭐ the Replay Browser's wiring (ReplayBrowserSubsystem)
+        });
+        var interaction = mi.InteractionBus;
+        var system = mi.SelectionInteraction;
+        current = shown;                     // a recording opens: the host shows its world
+
+        interaction.Publish(new GizmoInteractionStartedEvent
+        {
+            Token  = new PickToken { AnchorId = Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(shown, unit) },
+            Button = MapMouseButton.Left,
+        });
+        interaction.SwapBuffers();
+        system.Tick(0f);
+        shown.Bus.SwapBuffers();
+
+        var request = Assert.Single(shown.Bus.ReadManaged<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest>());
+        Assert.Equal(unit, Assert.Single(request.Entities));
+    }
 }

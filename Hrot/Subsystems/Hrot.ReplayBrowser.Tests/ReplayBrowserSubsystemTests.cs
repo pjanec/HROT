@@ -62,7 +62,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
         string root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
-        foreach (var file in new[] { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs", "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs" })
+        // ⭐ CE-3330 (629adc0db) — the editor's live timeline is its node context's: the catalogue is composed by HrotNodeContext, one owner.
+        foreach (var file in new[] { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs", "Hrot/Engine/Hrot.Core/Infrastructure/HrotNodeContext.cs" })
         {
             string text = File.ReadAllText(Path.Combine(root, file));
             Assert.Contains("ShippedTimelineLanes.Catalog()", text);
