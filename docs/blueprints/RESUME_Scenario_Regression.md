@@ -2,6 +2,7 @@
 state: LIVE
 updated: 2026-10-22
 current-answer: §1 (in flight) then §2 (what to do next)
+known-rot: ⚠ §1 is STALE — the post-R-3039 re-record landed 2026-10-23 (8e84265f…39aab237); §2 rows 1–6 remain the open list. Coordinator replay work continues in RESUME_Coordinator_Replay.md
 stale-below: nothing yet
 related-designs:
   - ../DESIGN_Scenario_Regression.md — THE design (UML, grammar, the golden, measured, build steps, grammar gaps); this file is state only
