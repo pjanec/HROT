@@ -691,7 +691,7 @@ parts of R4, R6 and §3c — marked; the user decides D-A…D-H.
 | F18 | `ReplaySessionTopic` matched by exercise / session id cannot tell a review from live (same exercise, same session) | `+ ReviewId` (the master mints one per review) |
 | F19 | the review's playback rate carries into live | the return restores the live rate |
 | F20 | 25 checks of `ClusterState.OperatingReplay` in 14 files and 42 `IsReplayActive` readers need a decision each (the toolbar is DISABLED in a review by `ClusterTimeTransportAdapter.cs:76-80`; the editor's Stop does nothing outside a preview, `EditorTimeTransportFacade.cs:173`; …) | one predicate `ClusterStates.IsReplaying(s)` (replay or review) for the shared behaviour, explicit review cases where they differ; a rail lists every check |
-| F21 | the `Changed` flag may be set on EVERY paused frame (singletons, ghost writes) | measure on the CE-4053 recording before relying on ◯ / ● |
+| F21 | the `Changed` flag may be set on EVERY paused frame (singletons, ghost writes) | measure on the CE-4053 recording before relying on ◯ / ● · ✅ **MEASURED `2026-10-26` (M2): yes — every frame** (a v7 editor run of demo-city: 417 / 417 changed, all 64 frames of an operator pause included; the CE-4053 recording is v6 and carries no flags). ⇒ ◯ / ● cannot be drawn from it yet — CE-3332 |
 
 ### 11d. Decisions for the user *(leans)*
 
@@ -926,7 +926,7 @@ module classes, 30 registered, 10 dead; `RegisterGlobalSystem(` → **79** produ
 |---|---|---|
 | 15 | `LoadingReview = 50`, `OperatingReview = 51`, `UnloadingReview = 52` and `NodeOpType.PrepareReview = 33`, `FinalizeReview = 34` in BOTH enums (R-42); `HrotStateGraph` edges `OperatingLive → LoadingReview → OperatingReview → UnloadingReview → OperatingLive`; the prepare-op mapping; the master refuses a review unless live (⛔ the planner would LOAD a live run from Idle to reach it), a review asked during a review is a seek | — |
 | 16 | `ReferenceReviewHandler` (every ECS host — `EcsHostClusterHandlers.Compose`): `PrepareReview` = wait for the barrier pause (F5) → the forced `review-<n>` keyframe (D-C) → `SuspendForReview` → the FULL checkpoint (`CaptureOptions.Recording`, F1 — red-proved: `NodeDryRun` brings the singleton back replayed) → egress hold → the replay through the SAME `IRecordReplayController.PrepareReplayAsync`; Commit = `ReferenceReplayLoadHandler.EnterReplayGates` (the ONE gate set, extracted, F9). `FinalizeReview` = teardown awaited (F8) → Commit: hold, `ReferenceCheckpointHandler.PutBack` (the checkpoint's return: `AfterRestore` + republish, the ELM, `ResumeAfterRestore`), `LeaveReplayGates`, `ResumeAfterReview`. Idle during a review ⇒ abandon (D-C, F4) | ⚠ ⏭ not built: the quiesce round (F6), W3 acks, W5 the readers' state discard, F10 "every ECS node must participate" (every ECS host composes the handler, so it does), F15's ■ confirm (UI) |
-| 17 | `RecorderTickSystem.Suspend / Resume` (resume: the destruction log cleared, a keyframe forced — F11, W6); `RecordingModule.SuspendForReview / ResumeAfterReview / PendingCheckpoints` | ⚠ `.meta.json` `Reviews[]` and the episode recorders' suspension not built |
+| 17 | `RecorderTickSystem.Suspend / Resume(atSimSeconds)` (resume: waits until the clock stands at L — §12k —, then the destruction log cleared, a keyframe forced — F11, W6); `RecordingModule.SuspendForReview / ResumeAfterReview / PendingCheckpoints` | ⚠ `.meta.json` `Reviews[]` and the episode recorders' suspension not built |
 | 18 | ⚠ **no `BeginReview / EndReview`**: the review uses the controller's ordinary `PrepareReplayAsync` / `TeardownReplayAsync` — the live exercise's file IS the recording to replay | one path, not two |
 | 19 | `ReviewProcessManager` (master, before `ClusterMaster`): the barrier `Pause` at entry (never a snap, F3), L + the rate remembered when the pause lands, on `OperatingLive` after a review: `SnapTo(L)` + `SetTimeScale(rate)` (F19) | ⚠ F8's "refuse new seeks, drain pending ones" and F12's wall restore not built |
 | 20 | `POST /review {atSeconds? | atSimSeconds?}` (default: the live point), `POST /review/exit`, `POST /review/seek` (= `/replay/seek`); `/replay/status` `review`; MCP `enter_review` / `exit_review` / `seek_review` | the live point is `/replay/status.durationSeconds` in a review (the review's aggregate ends at the EARLIEST last frame, F13) |
@@ -935,3 +935,17 @@ module classes, 30 registered, 10 dead; `RegisterGlobalSystem(` → **79** produ
 | 43 | `PlaybackController` opens `FileShare.ReadWrite` (M1) | ⚠ the Windows rail is not written — this container is Linux, where the flag is advisory |
 
 **Rails**: `ReferenceHandlerTests.CE3329_Live_review_live_leaves_the_world_identical_and_the_recording_resumable` (a real `RecordingModule`: the labelled keyframe written, nothing written during the review, world + singleton + destroyed review-only entity back, the same file grows after) — red-proved; `…_A_review_never_entered_ignores_idle_…`; `ClusterMasterReviewTests` ×4 (only from live, the prepare + the live-point seek, the save refused, the review clock: pause / L / snap / rate); `TheClusterControlRoutesTests` ×2 (`/review` and exit, every guarded route exists). ⭐ The scenario-scale oracle (live → review → live = the straight run) is the coordinator's H5 (`NOTE_Coordinator_To_Backend_Review_Harness` §1).
+
+### 12k. 📐 Measured live `2026-10-26` — the editor, demo-city (`scratchpad/run-dar.sh`)
+
+| step | measured |
+|---|---|
+| live 30 s with a 6 s operator pause | the v7 index: the pause is ONE flat run (62 frames at sim 15.57 s); M2 — `Changed` on every frame (CE-3332) |
+| `POST /review` (no moment) | `OperatingReview`, `simSeconds` 31.366 = the live point, `durationSeconds` 38.28 (the live point after the zero) |
+| `POST /entities/spawn` in the review | **409** "the cluster shows a recording" |
+| `POST /review/seek {atSimSeconds: 10}` | `simSeconds` 9.895 (the frame on or before; the map's wall → nearest frame) |
+| `POST /replay/axis {Wall}` | `axis: Wall` in every status |
+| `POST /review/exit` | `OperatingLive`, paused, `simTime` 31.365524 (= L to the frame), 549 entities (as at L); play goes on |
+| the live recording afterwards | 🔴 **runs 1–2: three review-era frames (sim 10.43 s) written after the return** — the kernel's clock push resumes at the node's commit, the master's snap to L lands a frame later, and the first frame carries L in the RESTORED singleton (so "the clock is at L once" proved nothing). ✅ **Fixed** (`RecorderTickSystem.Resume(atSimSeconds)`: the resumed recorder writes only after the clock STANDS at L for 3 frames — the return snaps and pauses there; rail extended, red-proved). Run 3: no review frame; the pause before the review and the paused return are ONE flat run at 31.366 s |
+
+⏭ Not measured: M3 (the capture + apply time of a `Recording` keyframe on `uc-urban-battle`) and a five-process review (the coordinator's H5 runs live → review → live at scenario scale).

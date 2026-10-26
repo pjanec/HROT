@@ -322,7 +322,17 @@ public sealed class ReferenceHandlerTests
             Assert.Equal(7f, world.GetComponentRO<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X);
             Assert.False(world.IsAlive(ghost));
             Assert.Equal(42, world.GetSingletonUnmanaged<Fdp.Toolkits.Tests.Replay.KeyframeTestWorldState>().Value);   // F1
-            Frame();
+
+            // 📌 measured live: the kernel's clock push resumes before the MASTER snaps the clock back — the review's clock reaches the
+            //   world for a few frames (and the FIRST frame carries L from the restored singleton). Nothing may be recorded until the clock
+            //   STANDS at L.
+            Frame();                                                                                  // the restored singleton: L, once
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3.5, TotalWallTicks = 6_000 });
+            Frame(); Frame();
+            recording.WaitForWrites();
+            Assert.Equal(sizeBefore, new FileInfo(Path.Combine(dir, "node.fdp")).Length);
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 12.0, TotalWallTicks = 6_100 });   // the master's SnapTo(L) landed
+            for (int i = 0; i < Fdp.Toolkit.Replay.RecorderTickSystem.FramesAtLivePointToResume; i++) Frame();
             recording.WaitForWrites();
             Assert.True(new FileInfo(Path.Combine(dir, "node.fdp")).Length > sizeBefore);            // the SAME recording goes on
             recording.Dispose();

@@ -77,6 +77,20 @@ namespace Fdp.Toolkit.Replay
             if (_suspended) return;   // ⭐ CE-3329 P3 (R8) — a review shows the past: nothing of it enters the live history
             if (_resumePending && view is EntityRepository resumed)
             {
+                // ⭐ CE-3329 — 📌 measured live (editor, 2026-10-26): the node puts its world back at its commit, but the MASTER moves the
+                //   clock back to L a tick later, so the first frames after a review carried the review's clock (3 frames at sim 10.4 s
+                //   written into a run paused at 32.1 s). ⇒ resume only once the CLOCK stands at the live point. ⚠ Measured again: the
+                //   first frame after the return carries L in the restored singleton and the review's clock after it — so one frame at L
+                //   proves nothing; the master's return SNAPS AND PAUSES at L, so the clock stands there frame after frame (bounded).
+                if (_resumeAtSimSeconds is { } live && resumed.HasSingletonUnmanaged<GlobalTime>())
+                {
+                    bool atLive = Math.Abs(resumed.GetSingletonUnmanaged<GlobalTime>().TotalTime - live) <= 1e-6;
+                    _framesAtLivePoint = atLive ? _framesAtLivePoint + 1 : 0;
+                    if (_framesAtLivePoint < FramesAtLivePointToResume && ++_framesWaitingForLivePoint <= MaxFramesWaitingForLivePoint)
+                        return;
+                }
+                _framesWaitingForLivePoint = 0;
+                _framesAtLivePoint = 0;
                 // ⭐ CE-3329 F11 / W6 — what the review's swaps destroyed is not a live destruction; the first frame after a review is a
                 //   keyframe of the restored world (no delta against a frame of the past).
                 resumed.ClearDestructionLog();
@@ -149,13 +163,25 @@ namespace Fdp.Toolkit.Replay
         /// </summary>
         public void Suspend() => _suspended = true;
 
-        /// <summary>⭐ CE-3329 P3 (F11, W6) — the review is over: record on in the same file; the next frame clears the destruction log
-        /// and is a keyframe.</summary>
-        public void Resume()
+        /// <summary>⭐ CE-3329 P3 (F11, W6) — the review is over: record on in the same file; the first frame recorded clears the destruction log
+        /// and is a keyframe. <paramref name="atSimSeconds"/>: wait until the world's clock is back there (the live point L) — the master
+        /// moves the clock after the node has put its world back.</summary>
+        public void Resume(double? atSimSeconds = null)
         {
+            _resumeAtSimSeconds = atSimSeconds;
             _resumePending = true;
             _suspended = false;
         }
+
+        private double? _resumeAtSimSeconds;
+        private int _framesWaitingForLivePoint;
+        private int _framesAtLivePoint;
+
+        /// <summary>⭐ CE-3329 — consecutive frames the clock must stand at the live point before a resumed recording writes again.</summary>
+        public const int FramesAtLivePointToResume = 3;
+
+        /// <summary>⭐ CE-3329 — how many frames a resume waits for the clock to reach the live point before it records anyway.</summary>
+        public const int MaxFramesWaitingForLivePoint = 600;
 
         /// <summary>⭐ CE-3329 — true while a review holds the recording.</summary>
         public bool IsSuspended => _suspended;

@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
         private WorldKeyframe? _livePoint;           // the FULL checkpoint of L — in RAM for the review's duration
         private int _reviews;                        // review-<n>
+        private double _liveSimSeconds;              // L's sim time — the recorder resumes when the clock is back there
         private volatile bool _awaitingCommit;
 
         /// <summary>How long a node waits for the master's pause / its forced keyframe before it gives up the review.</summary>
@@ -102,6 +103,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
             // F1 / D-B — the FULL checkpoint: every recorded type and the singletons (⛔ not the dry run's NodeDryRun)
             _livePoint = WorldKeyframes.Capture(_world, CaptureOptions.Recording);
+            _liveSimSeconds = _world.GetSingletonUnmanaged<GlobalTime>().TotalTime;
 
             EgressHold.Hold(_world, "review entry");   // W2 — published again after the master's commit
             _awaitingCommit = true;
@@ -126,7 +128,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             _awaitingCommit = true;
             ReferenceCheckpointHandler.PutBack(_world, live, _accumulator, _worldReplaced, _resumeSchedule);   // D-B: the checkpoint's return
             _gates.LeaveReplayGates();
-            _recording()?.ResumeAfterReview();
+            _recording()?.ResumeAfterReview(_liveSimSeconds);   // records again once the master's clock is back at L
             _livePoint = null;
             FdpLog<ReferenceReviewHandler>.Info("[Review] returned to the live point '{0}'.", LastReviewLabel ?? "?");
         }

@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.Replay
         }
 
         /// <summary>⭐ CE-3329 P3 — resume the SAME recording after a review (a keyframe first, the review's destructions dropped).</summary>
-        public void ResumeAfterReview() => _tick?.Resume();
+        public void ResumeAfterReview(double? atSimSeconds = null) => _tick?.Resume(atSimSeconds);
 
         /// <summary>⭐ CE-3329 — labelled checkpoints this recording still owes (a forced <c>review-&lt;n&gt;</c> waits for its frame).</summary>
         public int PendingCheckpoints => _tick?.PendingCheckpoints ?? 0;
