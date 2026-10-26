@@ -1241,3 +1241,75 @@ Rails (each red-proved by a compiling mutation): `ClusterMasterSeekTests` — ho
 `TheClusterControlRoutesTests` — one intent per request, refused inputs publish nothing, status `loop`.
 ⏭ Not exercised: the Replay Browser's local wrap (compile-checked only) and a wrap on a live multi-node cluster.
 
+
+### 12o. ✅ BUILT `2026-10-26` — the destruction log: ONE log, a mark per reader (CE-3335; NOTE_Coordinator_To_Backend_After_DAR item 11)
+
+🔒 User: *"item 11 approved, go ahead autonomously"* (on the lean: one log, one owner, a mark per reader, the frame start trims). Found by ui
+(their timeline missed every death on a live world). Design basis: [FDP-FlightRecorder](../FDP/Engine/docs/FDP-FlightRecorder.md) §8 meant
+*"ClearDestructionLog at the END of the frame (post-recorder)"* — ⛔ SUPERSEDED here: a frame-end clear drops the deaths that come after the
+recorder in the frame (its PostSimulation neighbours, Export, the host between frames), so the recording would lose them.
+
+```mermaid
+classDiagram
+  class EntityRepository {
+    <<exists, grown>>
+    DestroyEntity() appends to the log
+    DestructionMark
+    ReadDestructions(ref mark) deaths since the mark, moves it
+    Tick() frame start: keeps the last frame and this one
+    ClearDestructionLog() for a world ONE owner steps (sandbox)
+  }
+  class RecorderSystem {
+    <<exists>>
+    a mark per recorder
+    a keyframe moves it to the end
+  }
+  class DataBreakpointManager {
+    <<exists>>
+    a mark, read once per evaluation
+  }
+  class StructuralScanner {
+    <<exists, ui>>
+    a mark per scanner
+  }
+  class PlaybackSandboxes {
+    <<exists>>
+    RecordingSearchService, RecordingExportService, TimelineIndexBuilder
+    step, read, ClearDestructionLog (they never Tick)
+  }
+  RecorderSystem --> EntityRepository : ReadDestructions
+  DataBreakpointManager --> EntityRepository : ReadDestructions
+  StructuralScanner --> EntityRepository : ReadDestructions
+  PlaybackSandboxes --> EntityRepository : GetDestructionLog + Clear
+```
+*What the picture shows that the prose hid:* no live reader empties the log any more. The only owner of its size is the world's own frame
+start (`Tick()`, called once a frame by the kernel); the clear survives only for worlds that never tick.
+
+```mermaid
+sequenceDiagram
+  participant K as kernel
+  participant W as EntityRepository
+  participant R as recorder (PostSimulation)
+  participant B as breakpoints (PostSimulation)
+  K->>W: Tick() — drop deaths before the LAST frame
+  K->>W: systems destroy e1
+  R->>W: ReadDestructions(ref recMark) = [e1]
+  B->>W: ReadDestructions(ref bpMark) = [e1] (the recorder no longer took it)
+  K->>W: Export / between frames destroys e2
+  K->>W: Tick() — e1 and e2 kept (last frame)
+  R->>W: ReadDestructions(ref recMark) = [e2] (once, next frame)
+```
+*What the picture shows that the prose hid:* keeping TWO frames is what lets a reader that runs once a frame, anywhere in it, see a death
+that came after it in the previous frame.
+
+| rule | why |
+|---|---|
+| a live reader reads ONCE a frame by its own mark; a mark from another world resets | a reader that skips frames loses only what the two-frame window dropped |
+| the recorder's keyframe moves its mark to the end | the deaths before a keyframe are in it (as absences); this also skips a review's swaps (F11 / W6) — the resume's clear is gone |
+| bounded: at most two frames of deaths with nothing recording | 📌 before: only the recorder emptied the log, and it exists only while recording — the editor's log grew for the whole session |
+
+Measured before choosing (claim table): ✅ no Export-phase system destroys directly (grep over `[UpdateInPhase(SystemPhase.Export)]` files);
+⚠ deaths after the recorder still happen in PostSimulation (order inside a phase is not fixed) and between frames (host / HTTP edits) — the
+two-frame window covers both. ✅ the playback sandboxes never `Tick()` (grep over FlightRecorder / Replay / ReplayBrowser), so their clear
+behaves as before. Rails: `FlightRecorderTests.CE3335_*` (two readers · a death after the reader · bounded · the recorder writes once and
+leaves it), each red-proved.

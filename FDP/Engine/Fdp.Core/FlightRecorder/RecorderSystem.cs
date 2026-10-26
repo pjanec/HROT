@@ -74,6 +74,9 @@ namespace Fdp.Core.FlightRecorder
 
         private bool Records(int typeId) => ComponentTypeFilter?.Invoke(typeId) ?? ComponentTypeRegistry.IsRecordable(typeId);
 
+        private EntityRepository? _destructionRepo;   // ⭐ CE-3335 — the world this recorder's destruction mark belongs to
+        private long _destructionMark;
+
         /// <summary>
         /// Records a delta frame containing only changed data since prevTick.
         /// Writes to the provided BinaryWriter.
@@ -96,10 +99,13 @@ namespace Fdp.Core.FlightRecorder
             // ---------------------------------------------------------
             // 2. WRITE DESTRUCTIONS
             // ---------------------------------------------------------
-            var destroyed = repo.GetDestructionLog();
-            writer.Write(destroyed.Count);
+            // ⭐ CE-3335 — the deaths since THIS recorder's mark: the recorder no longer empties the world's log (another reader shares it)
+            if (!ReferenceEquals(repo, _destructionRepo)) { _destructionRepo = repo; _destructionMark = 0; }
+            var destroyed = repo.ReadDestructions(ref _destructionMark);
+            int destroyedCount = destroyed.Length;
+            writer.Write(destroyedCount);
             
-            for (int i = 0; i < destroyed.Count; i++)   // ⭐ CE-2045 — index, not foreach: an IReadOnlyList enumerator is boxed
+            for (int i = 0; i < destroyed.Length; i++)
             {
                 var e = destroyed[i];
                 writer.Write(e.Index);
@@ -347,7 +353,7 @@ namespace Fdp.Core.FlightRecorder
             writer.BaseStream.Position = endPos;
 
             // ⭐ CE-3329 P0 — the frame index's Changed flag: anything besides the singletons (the clock) moved
-            LastFrameChanged = destroyed.Count > 0 || eventStreams > 0 || actualChunkCount > 0;
+            LastFrameChanged = destroyedCount > 0 || eventStreams > 0 || actualChunkCount > 0;
         }
 
         /// <summary>
@@ -368,6 +374,10 @@ namespace Fdp.Core.FlightRecorder
         public void RecordKeyframe(EntityRepository repo, BinaryWriter writer,
             long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
+            // ⭐ CE-3335 — a keyframe holds the whole world: the deaths before it are in it (as absences)
+            _destructionRepo = repo;
+            _destructionMark = repo.DestructionMark;
+
             // Write frame metadata
             writer.Write((ulong)repo.SimulationTick); // Current Tick (frame clock) - Explicit Cast!
             writer.Write((byte)1);            // Type: Keyframe (1)

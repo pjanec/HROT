@@ -1154,11 +1154,20 @@ public sealed class DataBreakpointManager
 
     // ---- Stateful tracker evaluation ------------------------------------
 
+    private EntityRepository? _destructionRepo;   // ⭐ CE-3335 — the world this manager's destruction mark belongs to
+    private long _destructionMark;
+    private readonly List<Entity> _destroyedThisFrame = new();
+
     /// <inheritdoc/>
     public void EvaluateStatefulBreakpoints(EntityRepository repo)
     {
         _statefulHitsBuffer.Clear();
         var hits = _statefulHitsBuffer;
+
+        // ⭐ CE-3335 — this frame's deaths, ONCE, by this manager's own mark (the recorder no longer empties the log under it)
+        if (!ReferenceEquals(repo, _destructionRepo)) { _destructionRepo = repo; _destructionMark = repo.DestructionMark; }
+        _destroyedThisFrame.Clear();
+        foreach (var dead in repo.ReadDestructions(ref _destructionMark)) _destroyedThisFrame.Add(dead);
 
         EvaluateStructuralTrackers(repo, hits);
         EvaluateSpatialTrackers(repo, hits);
@@ -1211,7 +1220,7 @@ public sealed class DataBreakpointManager
             }
 
             // Remove destroyed entities from the known set.
-            var destroyed = repo.GetDestructionLog();
+            var destroyed = _destroyedThisFrame;
             for (int i = 0; i < destroyed.Count; i++)
                 knownSet.Remove(destroyed[i]);
         }
@@ -1258,7 +1267,7 @@ public sealed class DataBreakpointManager
             }
 
             // Remove destroyed entities from inside-set.
-            var destroyed = repo.GetDestructionLog();
+            var destroyed = _destroyedThisFrame;
             for (int i = 0; i < destroyed.Count; i++)
                 insideSet.Remove(destroyed[i]);
         }
@@ -1292,7 +1301,7 @@ public sealed class DataBreakpointManager
             }
 
             // Death detection via destruction log.
-            var destroyed = repo.GetDestructionLog();
+            var destroyed = _destroyedThisFrame;
             for (int i = 0; i < destroyed.Count; i++)
             {
                 Entity dead = destroyed[i];
