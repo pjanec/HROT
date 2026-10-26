@@ -97,6 +97,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             return source;
         }
 
+        /// <summary>True once <see cref="Dispose"/> ran (a build still running has been told to stop).</summary>
+        public bool IsDisposed => _cts.IsCancellationRequested;
+
         public void Dispose()
         {
             _cts.Cancel();   // ⚠ not disposed: a running build still polls the token

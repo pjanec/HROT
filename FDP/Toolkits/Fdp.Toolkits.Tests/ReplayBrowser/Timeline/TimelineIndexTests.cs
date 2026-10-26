@@ -477,6 +477,61 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> E6 — the ONE reopen rule (<see cref="RecordingTimelineSlot"/>, shared by the Replay Browser and every ECS node in a
+        /// cluster replay): a new path reopens and disposes the old source; the same path and catalogue version keeps the SAME source; a catalogue
+        /// change (a lane registered) reopens; <c>Sync(null)</c> leaves no source and disposes the old one.
+        /// 🔴 Red-proofs (each compiles): the keep-check ANDed with <c>DateTime.UtcNow.Ticks &lt; 0</c> (always reopen) ⇒ <c>Assert.Same</c> fails; the version
+        /// compare ORed with <c>DateTime.UtcNow.Ticks &gt; 0</c> (ignored) ⇒ the catalogue <c>Assert.NotSame</c> fails; <c>_source?.Dispose()</c> behind
+        /// <c>DateTime.UtcNow.Ticks &lt; 0</c> ⇒ the <c>IsDisposed</c> assert fails.
+        /// </summary>
+        [Fact]
+        public void CE3330_E6_TheRecordingSlot_ReopensOnANewPathOrCatalogue_KeepsOtherwise_AndDisposesTheOld()
+        {
+            using var harnessA = new FdpRecordingHarness();
+            using var harnessB = new FdpRecordingHarness();
+            string a = Record(harnessA), b = Record(harnessB);
+            try
+            {
+                var catalog = Shipped();
+                using var slot = new RecordingTimelineSlot(catalog, Recording, Compiler, background: false);
+                Assert.Null(slot.Source);
+
+                slot.Sync(a);
+                var first = slot.Source!;
+                Assert.Equal(a, first.Path);
+                Assert.True(first.IsComplete);
+
+                slot.Sync(a);                                                       // same path, same catalogue version
+                Assert.Same(first, slot.Source);
+                Assert.False(first.IsDisposed);
+
+                slot.Sync(b);                                                       // a new path
+                var second = slot.Source!;
+                Assert.NotSame(first, second);
+                Assert.Equal(b, second.Path);
+                Assert.True(first.IsDisposed);
+                Assert.False(second.IsDisposed);
+
+                catalog.Register(new IndexedLaneDefinition(new TimelineLaneDescriptor("user.e6", "E6", Group: "Mine"),
+                    new TransientEventPredicateDto { EventType = typeof(HitEvent), AnyOccurrence = true },
+                    new ResultProjectionDto { SubjectPath = nameof(HitEvent.HitEntity) }));
+                slot.Sync(b);                                                       // the catalogue changed
+                var third = slot.Source!;
+                Assert.NotSame(second, third);
+                Assert.True(second.IsDisposed);
+                Assert.Equal(new[] { "user.e6" }, third.ScannedLanes);              // the new lane is the only one scanned
+
+                slot.Sync(null);
+                Assert.Null(slot.Source);
+                Assert.True(third.IsDisposed);
+            }
+            finally
+            {
+                foreach (var p in new[] { a, b }) { try { File.Delete(TimelineSidecar.PathFor(p)); } catch { /* best effort */ } }
+            }
+        }
+
         [Fact]
         public void CE1302_ABackgroundBuild_PublishesTheFinalIndex()
         {

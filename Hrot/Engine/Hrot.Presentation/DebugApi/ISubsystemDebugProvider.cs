@@ -70,7 +70,16 @@ public readonly record struct ReplayPosition(long ZeroWallTicks, long NowWallTic
 public sealed record TimelineAccess(
     Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> Source,
     Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog Catalog,
-    Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext Context);
+    Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext> ContextOf)
+{
+    /// <summary>A host whose context never changes (the Replay Browser, the tests).</summary>
+    public TimelineAccess(Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> source,
+        Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog catalog,
+        Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext context) : this(source, catalog, () => context) { }
+
+    /// <summary>⭐ CE-3330 E6 — the context the lanes apply in NOW (a node's changes with live / recording).</summary>
+    public Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext Context => ContextOf();
+}
 
 public sealed record ClusterRosterEntry(
     int NodeId, string Subsystem, string ReportedState, string Roles, double SecondsSinceHeartbeat);

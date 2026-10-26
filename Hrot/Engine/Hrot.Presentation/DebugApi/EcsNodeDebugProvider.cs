@@ -42,7 +42,7 @@ public static class EcsNodeDebugProvider
             clusterState:  SubsystemDebugProvider.ClusterStateFrom(() => node()?.ClusterSlave),
             exercises:     SubsystemDebugProvider.ExercisesFrom(() => node()?.ClusterSlave),
             replayAxis:    () => node()?.ClusterSlave.ReplayAxis,   // ⭐ CE-3329 R-3058 — the master's broadcast, on every node
-            replayRecording: () => node()?.ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault()?.ReplayFilePath,
+            replayRecording: () => node()?.ReplayRecordingPath,   // ⭐ CE-3330 E6 — the one lookup (HrotNodeContext), also what the shown timeline opens
             // ⭐ RB-2 — the replay's zero and now, from the same handler (frame-based seeks resolve against them)
             replayPosition: () => node()?.ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault() is { } h
                                   && h.ReplayPosition is { } p ? new ReplayPosition(p.ZeroWallTicks, p.NowWallTicks, h.ReplaySimSeconds) : null,
@@ -63,7 +63,8 @@ public static class EcsNodeDebugProvider
     /// <summary>⭐ CE-3330 — the one <see cref="TimelineAccess"/> of a node context (cached per context): the ECS nodes' provider and the editor's
     /// <c>/timeline</c> attach both serve THIS.</summary>
     public static TimelineAccess TimelineOf(HrotNodeContext n)
-        => Accesses.GetValue(n, c => new TimelineAccess(() => c.Timeline, c.TimelineLanes, HrotNodeContext.TimelineContext));
+        // ⭐ CE-3330 E6 — it serves what the node SHOWS (live, or its own recording in a cluster replay); both are Funcs, so the cached access follows the mode
+        => Accesses.GetValue(n, c => new TimelineAccess(() => c.ShownTimeline, c.TimelineLanes, () => c.ShownTimelineContext));
 }
 
 /// <summary>⭐ What an ECS node genuinely has or lacks beyond its <see cref="HrotNodeContext"/> — each a <see cref="Func{T}"/> because

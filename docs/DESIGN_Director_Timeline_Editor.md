@@ -435,12 +435,28 @@ graph TD
   TB["MainToolbarTimeControlSection (editor, CGF — ShellTimeControlToolbar)"] --> FAC["ITimeTransportFacade = ClusterTimeTransportAdapter"]
   PAN --> FAC
   FAC --> BUS["orchestration bus → ClusterOpEgressTranslator → master"]
-  RS["the cluster replay's own recording → RecordingTimelineSource"]:::dead -.->|"not yet: in Replay the panel shows the session layer only"| PAN
-  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33
+  ST --> RSL["RecordingTimelineSlot.Sync(ReplayRecordingPath) — only in Loading / Operating / UnloadingReplay"]
+  RSL --> RS["RecordingTimelineSource over the node's OWN recording"]
+  LTS --> SH["HrotNodeContext.ShownTimeline / ShownTimelineContext: replay ⇒ the recording (Recording ctx) · else live (Live ctx, a review's frozen)"]
+  RS --> SH
+  SH --> PAN
+  SH --> TA["EcsNodeDebugProvider.TimelineOf ⇒ GET /timeline/*"]
 ```
 *What the picture shows that prose hid:* the freeze is in the node frame, so EVERY host's index survives a review (a review rewinds the world:
-the frame counter going back would otherwise reset it); and a cluster REPLAY has no lane source on these hosts yet — its index would be the
-live run's, which is a different exercise, so the panel shows only the session layer there (red edge).
+the frame counter going back would otherwise reset it); and a cluster REPLAY's index is NOT the live one (the previous run's, a different
+exercise) — the node's own recording takes its place at `ShownTimeline`, ONE seam for the panel and the debug API. ✅ **The red edge of the
+earlier picture ("not yet") is live — E6, below.**
+
+#### 2e-E6 as built *(ui, `2026-10-26` — a cluster replay shows the node's OWN recorded lanes)*
+
+| built | where | deviation from the design, and why |
+|---|---|---|
+| `RecordingTimelineSlot` — the ONE "reopen when the path or the catalogue `Version` changed" holder (`Sync(path)`, `Source`, `Dispose`) | `Fdp.Toolkits/ReplayBrowser/Timeline/RecordingTimelineSlot.cs` | the Replay Browser's `SyncTimelineSource` rule was **extracted**, not copied: the browser now holds a slot too (behaviour unchanged). `RecordingTimelineSource.IsDisposed` added so a dispose is observable |
+| `HrotNodeContext.ShownTimeline` / `ShownTimelineContext` / `ReplayRecordingPath`; `StepTimeline` syncs the slot **before** its replay early-return (replay states open it, every other state `Sync(null)` — the index is rebuilt cheaply from the sidecar next replay) | `HrotNodeContext.cs` | replay = `Loading` / `Operating` / `UnloadingReplay`; a **review is NOT** (DAR §9e: the frozen live source). In a replay with no file yet `ShownTimeline` is **null** (nothing to show), not the live index of a world that is not running |
+| `EcsNodeDebugProvider.TimelineOf` serves `ShownTimeline`; `TimelineAccess.Context` became a `Func` behind the same `Context` property (a fixed-context constructor remains for the browser / tests) | `EcsNodeDebugProvider.cs`, `ISubsystemDebugProvider.cs` | the per-context cache stays sound: both the source and the context are Funcs, so the ONE cached access follows the mode |
+| the editor's window source = `_node.ShownTimeline`, lanes = `Lanes(_node.ShownTimelineContext)` | `EditorSubsystem.cs` | the `null`-in-Replay hack and the transport-mode test are gone |
+| `ClusterTimelineCursor` **unchanged**: in Replay its extent / now / seek / loop / map come from the SESSION (`ZeroWallTicks`, `LengthSeconds`, `TimeMap`); the index only supplies the lane events | — | ✅ verified: the recording's frame ticks are `GlobalTime.TotalWallTicks` (`RecorderTickSystem.cs:112`), the same clock as the session's zero (`ReplayAnchorWallTicks` = the earliest first frame across the cluster, `ReplaySessionProcessManager.Build`) |
+| rails | `TimelineIndexTests.CE3330_E6_TheRecordingSlot_*` · `HrotNodeBuilderTests.CE3330_E6_Node_ShownTimeline_*` ×2 | |
 
 | ⭐ decision | why — the one fact |
 |---|---|
@@ -448,7 +464,7 @@ live run's, which is a different exercise, so the panel shows only the session l
 | **entering a review from LIVE goes by SIM** (`EnterReviewAtSim`, NEW on the facade — a backend file, a two-line cross-lane edit, said in the commit) | in live the host has no session: no map, no wall zero; the master takes a sim target on either axis |
 | **the live index stamps frames with `GlobalTime.TotalWallTicks`** (was `DateTime.UtcNow`) and records `GlobalTime.TotalTime` | `GlobalTime.cs:56`: *"the single source of truth for wall-clock time within a frame … including the flight recorder"* — the live index then shares the recording's and the session's clock exactly |
 | **`StepTimeline` freezes in a review / replay and starts afresh on entering live** (the node's `LocalClusterState`) | DAR §9e: *"review — the SAME live source, frozen at the live point"*; afresh at live ⇒ index frame 0 = the run's first frame (the wall zero in live) |
-| **in REPLAY the panel draws the session layer only** | the live index is the previous run's; the replay's own `RecordingTimelineSource` is a separate slice (DAR §9e row "cluster replay") |
+| ~~**in REPLAY the panel draws the session layer only**~~ ⛔ **SUPERSEDED by E6 (below)** — the replay shows the node's own `RecordingTimelineSource` | the live index is the previous run's; the replay's own recording is the right source (DAR §9e row "cluster replay") |
 | **F15: for 3 s after a return to live, ■ is ignored, and its tooltip says why** | the design's own fix; no modal |
 | ⛔ rejected: a seek path in the panel beside the facade | R-3059 one path |
 | ⛔ rejected: converting live wall → wall-after-zero for the entry | the host has no zero in live; a guessed zero seeks the wrong frame |

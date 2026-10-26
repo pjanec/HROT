@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using Fdp.Toolkit.Orchestration.Handlers;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -75,6 +77,7 @@ public sealed record HrotNodeContext : IDisposable
         if (_disposed) return;
         _disposed = true;
 
+        _recordingTimeline?.Dispose();   // ⭐ CE-3330 E6 — cancels a running index build over the replay recording
         Kernel.Dispose();
         World.Dispose();
     }
@@ -184,6 +187,9 @@ public sealed record HrotNodeContext : IDisposable
     public void StepTimeline()
     {
         var state = ClusterSlave.LocalClusterState;
+        // ⭐ CE-3330 E6 — in a cluster replay the shown index is the node's OWN recording's: keep it open (cheap no-op per frame)
+        if (IsRecordingShown(state)) RecordingTimeline.Sync(ReplayRecordingPath);
+        else _recordingTimeline?.Sync(null);
         if (Fdp.Toolkit.Orchestration.ClusterStates.IsReview(state)) _timelineAfterReview = true;
         else if (state == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)
         {
@@ -218,7 +224,42 @@ public sealed record HrotNodeContext : IDisposable
     /// <c>LiveTimelineSource</c>, not a second one). Built on first use, one per node.
     /// </summary>
     public Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource Timeline
-        => _timeline ??= new Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource(TimelineLanes, TimelineContext,
-            new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
-                new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(new StructEdit.Reflection.ComponentEditServiceBuilder().Build())));
+        => _timeline ??= new Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource(TimelineLanes, TimelineContext, TimelineCompiler);
+
+    private Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler? _timelineCompiler;
+
+    /// <summary>One lane compiler per node, shared by the live source and the recording slot.</summary>
+    private Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler TimelineCompiler
+        => _timelineCompiler ??= new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
+            new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(new StructEdit.Reflection.ComponentEditServiceBuilder().Build()));
+
+    // ───────────────────────── ⭐ CE-3330 E6 — what the node's timeline panel SHOWS ─────────────────────────
+
+    /// <summary>The context the lanes apply in over a node's own recording (a cluster replay).</summary>
+    public static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext RecordingTimelineContext { get; } = new(Recording: true);
+
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot? _recordingTimeline;
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot RecordingTimeline
+        => _recordingTimeline ??= new Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot(TimelineLanes, RecordingTimelineContext, () => TimelineCompiler);
+
+    /// <summary>The recording this node's replay handler plays, else null.</summary>
+    public string? ReplayRecordingPath
+        => ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault()?.ReplayFilePath;
+
+    // A replay shows its own recording; a REVIEW shows the frozen live source (DAR §9e), so it is not in this set.
+    private static bool IsRecordingShown(Fdp.Toolkit.Orchestration.ClusterState s)
+        => s is Fdp.Toolkit.Orchestration.ClusterState.LoadingReplay or Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay
+            or Fdp.Toolkit.Orchestration.ClusterState.UnloadingReplay;
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E6 — the index the node's timeline panel and <c>GET /timeline/*</c> read: in a cluster replay the node's OWN recording's
+    /// (<see cref="Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot"/>, null while no recording is loaded yet); otherwise — live, edit, review (frozen) — the live
+    /// <see cref="Timeline"/>. The slot is synced by <see cref="StepTimeline"/>.
+    /// </summary>
+    public Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource? ShownTimeline
+        => IsRecordingShown(ClusterSlave.LocalClusterState) ? _recordingTimeline?.Source : Timeline;
+
+    /// <summary>The lane context matching <see cref="ShownTimeline"/>.</summary>
+    public Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext ShownTimelineContext
+        => IsRecordingShown(ClusterSlave.LocalClusterState) ? RecordingTimelineContext : TimelineContext;
 }
