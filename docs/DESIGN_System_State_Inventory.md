@@ -6,6 +6,7 @@ stale-below: none
 known-rot: none
 known-conflict: docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §7g.1 lists ~25 fields "SO FAR" — this replaces that list (it names ThreatEvaluationSystem as class A whole; measured here: _lastThreats is A, _lastHealth is C)
 related-designs:
+  - DESIGN_Replay_Time_Axis_And_Review.md — During Action Review: which classes survive a review (C in the keyframe, A/B re-derived, S/X frozen and deaf by the ReviewGate)
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §7f / §7g — owns R-3039 (the rule, the A/B/C test, stages S1–S4); this file is its R2 inventory
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the keyframe restore that makes every C row here a lost value; its oracle R1 stays red until §2 is empty
   - docs/designs/replay-and-modules/DESIGN.md §2.1d — owns "restore the world, re-derive the protocol" (the B rows' S3 step)

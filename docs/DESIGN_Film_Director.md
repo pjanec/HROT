@@ -7,6 +7,7 @@ stale-below: none
 known-rot: §2's Scout, CaptureSink, CinemaMode, LayerOverride and SoundTrack.Log boxes are SUPERSEDED by §8.3 (as built). §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
 known-conflict: none — the determinism question ("I still believe we could make this deterministic") is RULED by R-3038; the mechanism is DESIGN_Paused_And_Stepped_Execution.md (CE-3293).
 related-designs:
+  - DESIGN_Replay_Time_Axis_And_Review.md — answers §3c's instant-replay question: review the live run in place and return to it untouched
   - DESIGN_Director_Timeline_Editor.md — OWNS the EDITOR over takes (timeline panel, camera keys, tracks), the RECORDING source, promote and the recording scout; it builds §3e / D-18 here (R-4067, R-4068)
   - DESIGN_Scenario_Regression.md — REUSES the take anchor grammar for a scenario's machine-checkable conditions (checks.json) and, in its phase 2, AnchorBook and a DirectorRunner verify mode
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS stepped-run event delivery (CE-3293): the determinism this director's stepped takes rely on

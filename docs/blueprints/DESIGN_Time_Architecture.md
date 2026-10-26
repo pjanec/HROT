@@ -24,6 +24,7 @@ supersedes: DESIGN_Time_Control_And_Reporting.md and DESIGN_Time_And_Write_Archi
 roadmap: PLAN_Time_System_Refactor.md -- the ORDER. T0 (make the integration net work) blocks
   every task derived from this document.
 related-designs:
+  - ../DESIGN_Replay_Time_Axis_And_Review.md — the replay clock's SIM view (rate per segment, SnapTo over paused stretches) and the review's SnapTo back to the live clock
   - docs/DESIGN_Director_Timeline_Editor.md — TE-19: the shared Timeline panel seeks through ITimeTransportFacade (grown: CanSeek / Seek); in a cluster replay that is this design's ReplaySeek round
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — D5: a dry-run Stop never restores the clock (§12a), a checkpoint restore does (CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS which systems run on a paused frame (an explicit TickMode on every

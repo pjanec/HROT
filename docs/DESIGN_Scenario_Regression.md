@@ -7,6 +7,7 @@ stale-below: none
 known-rot: none
 known-conflict: blueprints/DESIGN_Smoke_Suite.md says "do not build a DSL" — written for a different shape (one entity, one behaviour, panel checks; the JSON TestScript kept for cluster/DDS/replay). checks.json EXTENDS the film takes' anchor grammar, which is already built and read by the engine (AnchorBook); it is not a new language. Not reconciled with the Smoke Suite's author — named here so a reader sees both.
 related-designs:
+  - DESIGN_Replay_Time_Axis_And_Review.md — the sim-time seek (atSimSeconds, ReplayTimeMap) H1b needs
   - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS replay through the master (R-3053…R-3055: previews never record; the ordinary world replays; the sandbox retired from HTTP) — the path §10's harness tests
   - DESIGN_Replay_Census_H0.md — H0 of the replay harness (CE-4045): which types a recording must / must not hold; the replay mode this verifier grows (H1–H4) reads its verdicts
   - DESIGN_Director_Timeline_Editor.md — OWNS still keys (TE-10): a take's key captured as a PNG artefact by the Verify run; and the anchor kinds cross / enter / leave this design's checks.json may reuse

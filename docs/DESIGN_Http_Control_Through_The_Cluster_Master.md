@@ -10,6 +10,7 @@ known-conflict: CE-259an (tracker) leaned "do NOT rewire /replay/load — improv
   docs/blueprints/Architect_Question_86_Editor_Runs_The_Orchestrator_Core.md:68 says the editor lacks ReplayMasterModule /
   LiveBranchProcessManager — measured FALSE: OrchestratorCore.cs:144-151 builds both and the editor runs that core (EditorSubsystem.cs:2387).
 related-designs:
+  - DESIGN_Replay_Time_Axis_And_Review.md — the SIM axis and the review (DAR) that extend §1a's deferred sim-time seek/step (R-3056)
   - docs/DESIGN_Replay_Browser_Debug_Http.md — the standalone Replay Browser answers THIS route table through the same provider seam (R-4080, R-4081), plus seek forms resolved for every host and a few Replay Browser-only routes
   - docs/DESIGN_Scenario_Regression.md — §10 the replay harness (CE-4045): checks THIS replay path scenario by scenario — live vs playback, seek, branch (RH-1)
   - docs/MCP_Integration.md — owns the ai-debug HTTP surface and its Group U rule ("publish the host-agnostic intent to whichever ClusterMaster

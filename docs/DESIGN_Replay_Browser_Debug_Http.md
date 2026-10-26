@@ -7,6 +7,7 @@ stale-below: none
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Replay_Time_Axis_And_Review.md — the Replay Browser's timeline and seek on the SIM axis (one ReplayTimeMap for the browser and the cluster)
   - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS the route table every host answers (R-3053…R-3055); this design makes the Replay Browser answer the SAME routes and adds only what no other host has. Built by the same lane, backend (R-4082)
   - designs/replay-browser-2/DESIGN.md — OWNS the Replay Browser itself (its sandbox, federation, search, diff, export, histories) — the features this design exposes
   - DESIGN_Agent_Shared_View.md — OWNS the readers of one unit (brain, journal, view, selection) and R-1029's value review that withdrew POST /selection (RB-7)
