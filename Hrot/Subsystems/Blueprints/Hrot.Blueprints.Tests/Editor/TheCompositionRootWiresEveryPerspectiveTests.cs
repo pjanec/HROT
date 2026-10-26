@@ -3,6 +3,7 @@ using Fdp.Presentation.WindowManager;
 using Hrot.Editor;
 using Hrot.Editor.AiShared.Variables;
 using Hrot.Editor.AiShared.Windows;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Blueprints.Tests.Editor;
 

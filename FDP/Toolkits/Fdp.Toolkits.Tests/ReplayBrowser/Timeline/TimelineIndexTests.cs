@@ -8,10 +8,13 @@ using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.ReplayBrowser.Support;
 using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Utility;
+using StructEdit.Reflection;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -20,6 +23,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     /// <summary>
     /// ⭐ <c>CE-1302</c> R1-a (docs/DESIGN_Director_Timeline_Editor.md §9) — the acceptance: a recorded run's shots, hits, blasts, spawns,
     /// deaths and a commander's orders come out of ONE pass in frame order; the second open reads the sidecar; a changed recording rebuilds.
+    /// ⭐ <c>R-4079</c> (§9c): every lane here is a REGISTERED definition (the toolkits' providers) — what the R1-a extractors knew (a refused
+    /// shot is not a shot; one event per new ring entry, a repeat included; a unit's first frame is its baseline) is now asserted against
+    /// those definitions; a new or changed lane is the only one a later open scans; a user's lane indexes like a shipped one.
     /// </summary>
     public sealed class TimelineIndexTests
     {
@@ -27,6 +33,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         private readonly ITestOutputHelper _out;
 
         public TimelineIndexTests(ITestOutputHelper output) { _out = output; }
+
+        private static readonly TimelineLaneContext Recording = new(Recording: true);
+
+        private static TimelineLaneCatalog Shipped() => new TimelineLaneCatalog()
+            .Register(new ReplicationTimelineLanes()).Register(new CombatTimelineLanes()).Register(new BehaviourTimelineLanes());
+
+        private static IReadOnlyList<IndexedLaneDefinition> Lanes => Shipped().Indexed(Recording);
+
+        private static TimelineLaneCompiler Compiler() => new(new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
 
         /// <summary>
         /// Four frames: 0 both units present · 1 a shot (and a REFUSED one), a hit on the commander, an order · 2 a blast, a decision
@@ -74,8 +89,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             return harness.BuildToTempFile();
         }
 
-        private static (int Frame, long Subject, long Other)[] Of(TimelineIndex index, TimelineLane lane)
-            => index.Lane(lane).Select(e => (e.Frame, e.Subject, e.Other)).ToArray();
+        private static (int Frame, long Subject, long Other)[] Of(TimelineIndex index, TimelineLaneDescriptor lane)
+            => index.Lane(lane.Id).Select(e => (e.Frame, e.Subject, e.Other)).ToArray();
 
         [Fact]
         public void CE1302_OnePass_YieldsEveryLane_InFrameOrder()
@@ -84,26 +99,28 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             string path = Record(harness);
             var chunks = new List<TimelineIndex>();
 
-            var index = TimelineIndexBuilder.Build(path, chunks.Add, chunkFrames: 1);
+            var index = TimelineIndexBuilder.Build(path, Lanes, Compiler(), chunks.Add, chunkFrames: 1);
+
+            Assert.Empty(index.LaneErrors);
 
             Assert.True(index.IsComplete);
             Assert.Equal(new long[] { 100_000, 200_000, 300_000, 400_000 }, index.FrameTicks);
             Assert.Equal(1, index.FrameAt(250_000));
-            Assert.Equal(new[] { (0, Commander, 0L), (0, Soldier, 0L), (3, Late, 0L) }, Of(index, TimelineLane.Spawned).OrderBy(e => e.Frame).ThenBy(e => e.Subject));
-            var died = Assert.Single(index.Lane(TimelineLane.Destroyed));
+            Assert.Equal(new[] { (0, Commander, 0L), (0, Soldier, 0L), (3, Late, 0L) }, Of(index, ReplicationTimelineLanes.Spawned).OrderBy(e => e.Frame).ThenBy(e => e.Subject));
+            var died = Assert.Single(index.Lane(ReplicationTimelineLanes.Left.Id));
             Assert.Equal((3, Soldier, 30f, 40f), (died.Frame, died.Subject, died.X, died.Y));        // where it was last seen
-            var shot = Assert.Single(index.Lane(TimelineLane.Shot));                                    // ⛔ the refused one is not a shot
+            var shot = Assert.Single(index.Lane(CombatTimelineLanes.Shot.Id));                                    // ⛔ the refused one is not a shot
             Assert.Equal((1, Soldier, Commander, 30f, 3f), (shot.Frame, shot.Subject, shot.Other, shot.X, shot.Value));
-            Assert.Equal(new[] { (1, Commander, 0L) }, Of(index, TimelineLane.Hit));
-            var blast = Assert.Single(index.Lane(TimelineLane.Blast));
+            Assert.Equal(new[] { (1, Commander, 0L) }, Of(index, CombatTimelineLanes.Hit));
+            var blast = Assert.Single(index.Lane(CombatTimelineLanes.Blast.Id));
             Assert.Equal((2, Soldier, 5f, 6f, 0.5f), (blast.Frame, blast.Subject, blast.X, blast.Y, blast.Value));
-            Assert.Equal(new[] { (1, Commander, Soldier), (1, Commander, Soldier), (2, Commander, Soldier) }, Of(index, TimelineLane.Order));   // to whom; the repeat too, not the baseline
-            var decision = Assert.Single(index.Lane(TimelineLane.Decision));
+            Assert.Equal(new[] { (1, Commander, Soldier), (1, Commander, Soldier), (2, Commander, Soldier) }, Of(index, BehaviourTimelineLanes.Orders));   // to whom; the repeat too, not the baseline
+            var decision = Assert.Single(index.Lane(BehaviourTimelineLanes.Decisions.Id));
             Assert.Equal((2, Soldier, 7L, (float)0x2067), (decision.Frame, decision.Subject, decision.Other, decision.Value));
-            var change = Assert.Single(index.Lane(TimelineLane.Change));
+            var change = Assert.Single(index.Lane(BehaviourTimelineLanes.Changes.Id));
             Assert.Equal((2, Commander, (float)BrainJournalKind.TaskStarted), (change.Frame, change.Subject, change.Value));
-            Assert.Equal(1, index.Count(TimelineLane.Shot, 0, 2));
-            Assert.Equal(0, index.Count(TimelineLane.Shot, 2, 4));
+            Assert.Equal(1, index.Count(CombatTimelineLanes.Shot.Id, 0, 2));
+            Assert.Equal(0, index.Count(CombatTimelineLanes.Shot.Id, 2, 4));
 
             Assert.Equal(new[] { 1, 2, 3, 4 }, chunks.Select(c => c.ScannedFrames));                    // progressive, the last complete
             Assert.True(chunks[^1].IsComplete && !chunks[0].IsComplete);
@@ -116,21 +133,21 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             string path = Record(harness);
             try
             {
-                using var first = RecordingTimelineSource.Open(path, background: false);
+                using var first = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
                 Assert.False(first.FromSidecar);
                 Assert.True(first.IsComplete);
                 Assert.True(File.Exists(TimelineSidecar.PathFor(path)));
 
-                using var second = RecordingTimelineSource.Open(path, background: false);
+                using var second = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
                 Assert.True(second.FromSidecar);
-                foreach (TimelineLane lane in Enum.GetValues<TimelineLane>())
-                    Assert.Equal(first.Index.Lane(lane), second.Index.Lane(lane));
+                foreach (var lane in Lanes)
+                    Assert.Equal(first.Index.Lane(lane.Lane.Id), second.Index.Lane(lane.Lane.Id));
                 Assert.Equal(first.Index.FrameTicks, second.Index.FrameTicks);
 
                 File.SetLastWriteTimeUtc(path, File.GetLastWriteTimeUtc(path).AddSeconds(5));          // the recording changed
-                using var third = RecordingTimelineSource.Open(path, background: false);
+                using var third = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
                 Assert.False(third.FromSidecar);
-                Assert.Single(third.Index.Lane(TimelineLane.Shot));
+                Assert.Single(third.Index.Lane(CombatTimelineLanes.Shot.Id));
             }
             finally
             {
@@ -165,9 +182,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             try
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var index = TimelineIndexBuilder.Build(copy);
+                var index = TimelineIndexBuilder.Build(copy, Lanes, Compiler());
                 double scan = sw.Elapsed.TotalSeconds;
-                Assert.True(TimelineSidecar.Write(copy, index));
+                Assert.True(TimelineSidecar.Write(copy, index, Lanes.ToDictionary(l => l.Lane.Id, TimelineSidecar.HashOf)));
                 long sidecar = new FileInfo(TimelineSidecar.PathFor(copy)).Length;
                 sw.Restart();
                 var reread = TimelineSidecar.TryRead(copy);
@@ -187,7 +204,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                 _out.WriteLine($"recording {new FileInfo(path).Length / 1e6:0.0} MB · {index.TotalFrames} frames · {recorded:0} s recorded");
                 _out.WriteLine($"scan {scan:0.0} s = {index.TotalFrames / Math.Max(scan, 1e-6):0} frames/s ({recorded / Math.Max(scan, 1e-6):0.0}× real time)");
                 _out.WriteLine($"sidecar {sidecar / 1e3:0.0} kB · reopen {open:0.0} ms");
-                foreach (TimelineLane lane in Enum.GetValues<TimelineLane>()) _out.WriteLine($"  {lane}: {index.Lane(lane).Count}");
+                foreach (var lane in Lanes) _out.WriteLine($"  {lane.Lane.Id}: {index.Lane(lane.Lane.Id).Count}");
+                foreach (var (lane, why) in index.LaneErrors) _out.WriteLine($"  ⚠ {lane}: {why}");
             }
             finally
             {
@@ -202,7 +220,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             File.WriteAllBytes(bad, new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 });
             try
             {
-                using var source = RecordingTimelineSource.Open(bad);
+                using var source = RecordingTimelineSource.Open(bad, Lanes, Compiler());
                 Assert.True(source.Completion.Wait(TimeSpan.FromSeconds(30)));
                 Assert.False(source.Completion.IsFaulted);
                 Assert.False(source.IsComplete && source.Index.TotalFrames > 0);
@@ -215,6 +233,48 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             }
         }
 
+        /// <summary>
+        /// ⭐ <c>R-4079</c> (§9c ④ ⑤) — the cache is per lane: opening with MORE lanes scans only the new ones (the rest come from the sidecar
+        /// unchanged), and a lane whose DEFINITION changed is rescanned on its own. The new lane here is a user's (a predicate built in the
+        /// existing editor, registered like a shipped one): "who was hit", keyed by the hit entity.
+        /// </summary>
+        [Fact]
+        public void CE1302_ANewOrChangedLane_IsTheOnlyOneScanned_AndAUsersLaneIndexesLikeAShippedOne()
+        {
+            using var harness = new FdpRecordingHarness();
+            string path = Record(harness);
+            try
+            {
+                var combatOnly = new TimelineLaneCatalog().Register(new CombatTimelineLanes()).Indexed(Recording);
+                using var first = RecordingTimelineSource.Open(path, combatOnly, Compiler(), background: false);
+                Assert.Equal(combatOnly.Select(l => l.Lane.Id), first.ScannedLanes);
+
+                using var all = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
+                Assert.Equal(Lanes.Select(l => l.Lane.Id).Except(combatOnly.Select(l => l.Lane.Id)), all.ScannedLanes);
+                Assert.Equal(first.Index.Lane(CombatTimelineLanes.Shot.Id), all.Index.Lane(CombatTimelineLanes.Shot.Id));   // reused, unchanged
+                Assert.Single(all.Index.Lane(ReplicationTimelineLanes.Left.Id));
+
+                var mine = new TimelineLaneDescriptor("user.who-was-hit", "Who was hit", Group: "Mine");
+                var catalog = Shipped().Register(new IndexedLaneDefinition(mine,
+                    new TransientEventPredicateDto { EventType = typeof(HitEvent), AnyOccurrence = true },
+                    new ResultProjectionDto { SubjectPath = nameof(HitEvent.HitEntity) }));
+                using var withMine = RecordingTimelineSource.Open(path, catalog.Indexed(Recording), Compiler(), background: false);
+                Assert.Equal(new[] { mine.Id }, withMine.ScannedLanes);
+                Assert.Equal(new[] { (1, Commander, 0L) }, Of(withMine.Index, mine));
+                Assert.Contains(mine, catalog.Lanes(Recording));
+
+                var changed = Shipped().Register(new IndexedLaneDefinition(mine,
+                    new TransientEventPredicateDto { EventType = typeof(HitEvent), AnyOccurrence = true },
+                    new ResultProjectionDto { SubjectPath = nameof(HitEvent.BulletEntity) }));                  // same id, another definition
+                using var afterChange = RecordingTimelineSource.Open(path, changed.Indexed(Recording), Compiler(), background: false);
+                Assert.Equal(new[] { mine.Id }, afterChange.ScannedLanes);
+            }
+            finally
+            {
+                try { File.Delete(TimelineSidecar.PathFor(path)); } catch { /* best effort */ }
+            }
+        }
+
         [Fact]
         public void CE1302_ABackgroundBuild_PublishesTheFinalIndex()
         {
@@ -222,11 +282,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             string path = Record(harness);
             try
             {
-                using var source = RecordingTimelineSource.Open(path);
+                using var source = RecordingTimelineSource.Open(path, Lanes, Compiler());
                 Assert.True(source.Completion.Wait(TimeSpan.FromSeconds(30)));
                 Assert.True(source.IsComplete);
                 Assert.Equal(1f, source.Progress);
-                Assert.Single(source.Index.Lane(TimelineLane.Blast));
+                Assert.Single(source.Index.Lane(CombatTimelineLanes.Blast.Id));
             }
             finally
             {

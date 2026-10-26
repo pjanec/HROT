@@ -7,6 +7,7 @@ using Hrot.Editor.AiShared.Debug;
 using Hrot.Hsm.Editor.Debug;
 using Hrot.Hsm.Editor.Inspector;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Hsm.Editor.Tests.Inspector;
 

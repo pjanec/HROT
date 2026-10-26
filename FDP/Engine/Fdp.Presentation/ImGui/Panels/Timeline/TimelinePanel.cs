@@ -8,8 +8,9 @@ namespace Fdp.Presentation.Panels.Timeline;
 
 /// <summary>
 /// ⭐ <c>CE-1302</c> R1-b (docs/DESIGN_Director_Timeline_Editor.md §2b, §9) — the shared event timeline: the overview strip with the
-/// zoomed window as a bracket, an adaptive ruler, the lane groups (Life / Combat / Behaviour; collapsed, a group is one row), the
-/// "now" line and the unscanned part shaded. Ctrl+wheel zooms about the mouse, a drag pans, a click seeks through the host's
+/// zoomed window as a bracket, an adaptive ruler, the lane groups (collapsed, a group is one row), the "now" line and the unscanned part
+/// shaded. ⭐ <c>R-4079</c> (§9c): the lanes, their groups, names, colours and priorities come from the REGISTERED descriptors the host hands
+/// it — nothing here names a lane. Ctrl+wheel zooms about the mouse, a drag pans, a click seeks through the host's
 /// <see cref="ITimelineCursor"/>, hovering a mark lists what it stands for. ⭐ Every rule is <see cref="TimelineLayout"/>'s; this class only
 /// draws its marks and turns mouse input into its calls.
 /// </summary>
@@ -17,16 +18,13 @@ public sealed class TimelinePanel
 {
     private const float LabelWidth = 84f, RowHeight = 16f, OverviewHeight = 14f, RulerHeight = 16f;
 
-    private static readonly TimelineLane[][] GroupLanes =
-    {
-        new[] { TimelineLane.Spawned, TimelineLane.Destroyed },
-        new[] { TimelineLane.Shot, TimelineLane.Hit, TimelineLane.Blast },
-        new[] { TimelineLane.Change, TimelineLane.Order, TimelineLane.Report, TimelineLane.Decision },
-    };
-    private static readonly string[] GroupNames = { "Life", "Combat", "Behaviour" };
-    private static readonly TimelineLane[] AllLanes = (TimelineLane[])Enum.GetValues(typeof(TimelineLane));
+    /// <summary>Colours for a lane registered without one (ABGR), picked by its id so it stays the same across runs.</summary>
+    private static readonly uint[] Palette = { 0xFFE0B070, 0xFF70C0E0, 0xFF90E070, 0xFFE070D0, 0xFF70E0C0, 0xFFC0C0C0 };
 
-    private readonly bool[] _groupOpen = { true, true, true };
+    private readonly Dictionary<string, bool> _groupOpen = new();
+    private readonly Dictionary<string, TimelineLaneDescriptor> _byId = new();
+    private readonly Func<string, int> _priorityOf;
+    private readonly Func<string, string> _nameOf;
     private readonly List<TimelineMark> _marks = new();
     private TimelineWindow _window;
     private long _extentFrom, _extentTo;
@@ -39,21 +37,28 @@ public sealed class TimelinePanel
     /// <summary>Shows <paramref name="window"/> (clamped to the extent on the next draw) — a host zooming to an event, a rail, R1-d's jump.</summary>
     public void Show(TimelineWindow window) => (_window, _shown) = (window, true);
 
-    public static uint ColorOf(TimelineLane lane) => lane switch
+    public TimelinePanel()
     {
-        TimelineLane.Spawned => 0xFF66CC66,    // ABGR
-        TimelineLane.Destroyed => 0xFF3030C0,
-        TimelineLane.Shot => 0xFF40D0E0,
-        TimelineLane.Hit => 0xFF3090F0,
-        TimelineLane.Blast => 0xFF2040FF,
-        TimelineLane.Change => 0xFFE0B070,
-        TimelineLane.Order => 0xFFD070B0,
-        TimelineLane.Report => 0xFFB0B040,
-        _ => 0xFFE0E070,
-    };
+        _priorityOf = id => _byId.TryGetValue(id, out var d) ? d.Priority : 0;
+        _nameOf = id => _byId.TryGetValue(id, out var d) ? d.DisplayName : id;
+    }
 
-    public void Draw(ITimelineSource? source, ITimelineCursor? cursor)
+    /// <summary>A lane's colour: its descriptor's, else a stable pick from the palette (ABGR).</summary>
+    public static uint ColorOf(TimelineLaneDescriptor lane) =>
+        lane.Color != 0 ? lane.Color : Palette[(int)((uint)StableHash(lane.Id) % (uint)Palette.Length)];
+
+    private uint ColorOf(string laneId) => _byId.TryGetValue(laneId, out var d) ? ColorOf(d) : Palette[0];
+
+    private static int StableHash(string s)
     {
+        unchecked { int h = 23; foreach (char c in s) h = h * 31 + c; return h; }
+    }
+
+    /// <param name="lanes">The registered lanes to show (<c>TimelineLaneCatalog.Lanes</c>), in order; their <c>Group</c> makes the sections.</param>
+    public void Draw(ITimelineSource? source, ITimelineCursor? cursor, IReadOnlyList<TimelineLaneDescriptor> lanes)
+    {
+        _byId.Clear();
+        foreach (var lane in lanes) _byId[lane.Id] = lane;
         var index = source?.Index ?? TimelineIndex.Empty;
         long from = cursor?.ExtentFrom ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[0] : 0);
         long to = cursor?.ExtentTo ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[^1] : 0);
@@ -76,21 +81,24 @@ public sealed class TimelinePanel
         float width = Math.Max(10f, ImGui.GetContentRegionAvail().X - LabelWidth);
         long now = cursor?.Now ?? from;
 
-        DrawOverview(dl, index, width, now, cursor);
+        var all = new string[lanes.Count];
+        for (int i = 0; i < all.Length; i++) all[i] = lanes[i].Id;
+        DrawOverview(dl, index, all, width, now, cursor);
         DrawRuler(dl, width);
 
         float lanesTop = ImGui.GetCursorScreenPos().Y;
         float x0 = ImGui.GetCursorScreenPos().X + LabelWidth;
-        for (int g = 0; g < GroupLanes.Length; g++)
+        foreach (var (group, members) in Groups(lanes))
         {
-            if (ImGui.SmallButton((_groupOpen[g] ? "v " : "> ") + GroupNames[g] + "##tlg" + g)) _groupOpen[g] = !_groupOpen[g];
-            if (!_groupOpen[g])
+            bool open = !_groupOpen.TryGetValue(group, out var o) || o;
+            if (ImGui.SmallButton((open ? "v " : "> ") + (group.Length == 0 ? "Other" : group) + "##tlg" + group)) _groupOpen[group] = !open;
+            if (!open)
             {
                 ImGui.SameLine();
-                DrawRow(dl, index, GroupLanes[g], "", width, cursor);
+                DrawRow(dl, index, members, "", width, cursor);
                 continue;
             }
-            foreach (var lane in GroupLanes[g]) DrawRow(dl, index, new[] { lane }, lane.ToString(), width, cursor);
+            foreach (var lane in members) DrawRow(dl, index, new[] { lane }, _nameOf(lane), width, cursor);
         }
         float lanesBottom = ImGui.GetCursorScreenPos().Y;
 
@@ -104,7 +112,22 @@ public sealed class TimelinePanel
         if (xn >= x0 && xn <= x0 + width) dl.AddLine(new Vector2(xn, lanesTop), new Vector2(xn, lanesBottom), 0xFF4040FF, 1.5f);
     }
 
-    private void DrawOverview(ImDrawListPtr dl, TimelineIndex index, float width, long now, ITimelineCursor? cursor)
+    /// <summary>The lanes grouped by their descriptor's <c>Group</c>, groups in order of first appearance.</summary>
+    private static List<(string Group, string[] Lanes)> Groups(IReadOnlyList<TimelineLaneDescriptor> lanes)
+    {
+        var order = new List<string>();
+        var members = new Dictionary<string, List<string>>();
+        foreach (var lane in lanes)
+        {
+            if (!members.TryGetValue(lane.Group, out var list)) { members[lane.Group] = list = new List<string>(); order.Add(lane.Group); }
+            list.Add(lane.Id);
+        }
+        var groups = new List<(string, string[])>(order.Count);
+        foreach (var g in order) groups.Add((g, members[g].ToArray()));
+        return groups;
+    }
+
+    private void DrawOverview(ImDrawListPtr dl, TimelineIndex index, string[] allLanes, float width, long now, ITimelineCursor? cursor)
     {
         ImGui.Dummy(new Vector2(LabelWidth, OverviewHeight));
         ImGui.SameLine(0, 0);
@@ -112,7 +135,7 @@ public sealed class TimelinePanel
         ImGui.InvisibleButton("##tl-overview", new Vector2(width, OverviewHeight));
         var all = new TimelineWindow(_extentFrom, _extentTo);
         dl.AddRectFilled(p, p + new Vector2(width, OverviewHeight), 0x30FFFFFF);
-        foreach (var m in TimelineLayout.Marks(index, AllLanes, all, width, into: _marks))
+        foreach (var m in TimelineLayout.Marks(index, allLanes, all, width, _priorityOf, into: _marks))
             DrawMark(dl, m, p, OverviewHeight, labelRoom: 0);   // the overview shows marks, never counts
         var (b0, b1) = TimelineLayout.Bracket(_window, _extentFrom, _extentTo, width);
         dl.AddRect(p + new Vector2(b0, 0), p + new Vector2(Math.Max(b1, b0 + 2), OverviewHeight), 0xFFFFFFFF);
@@ -144,7 +167,7 @@ public sealed class TimelinePanel
         }
     }
 
-    private void DrawRow(ImDrawListPtr dl, TimelineIndex index, TimelineLane[] lanes, string label, float width, ITimelineCursor? cursor)
+    private void DrawRow(ImDrawListPtr dl, TimelineIndex index, string[] lanes, string label, float width, ITimelineCursor? cursor)
     {
         if (label.Length > 0)
         {
@@ -156,7 +179,7 @@ public sealed class TimelinePanel
         ImGui.InvisibleButton("##tl-row" + string.Join("-", lanes), new Vector2(width, RowHeight));
         bool hovered = ImGui.IsItemHovered();
         dl.AddRectFilled(p, p + new Vector2(width, RowHeight), 0x18FFFFFF);
-        TimelineLayout.Marks(index, lanes, _window, width, into: _marks);
+        TimelineLayout.Marks(index, lanes, _window, width, _priorityOf, into: _marks);
         for (int i = 0; i < _marks.Count; i++)   // a count label only where it fits before the next mark
             DrawMark(dl, _marks[i], p, RowHeight, (i + 1 < _marks.Count ? _marks[i + 1].X0 : width) - _marks[i].X0 - 6f);
         if (!hovered) return;
@@ -179,7 +202,7 @@ public sealed class TimelinePanel
         if (hit >= 0)
         {
             ImGui.BeginTooltip();
-            ImGui.TextUnformatted(TimelineLayout.Describe(index, lanes, _marks[hit], _extentFrom));
+            ImGui.TextUnformatted(TimelineLayout.Describe(index, lanes, _marks[hit], _extentFrom, _nameOf));
             ImGui.EndTooltip();
         }
     }
@@ -195,7 +218,7 @@ public sealed class TimelinePanel
         ImGui.PopStyleColor();
     }
 
-    private static void DrawMark(ImDrawListPtr dl, in TimelineMark m, Vector2 p, float h, float labelRoom)
+    private void DrawMark(ImDrawListPtr dl, in TimelineMark m, Vector2 p, float h, float labelRoom)
     {
         uint c = ColorOf(m.Top);
         if (m.Kind == TimelineMarkKind.Density)

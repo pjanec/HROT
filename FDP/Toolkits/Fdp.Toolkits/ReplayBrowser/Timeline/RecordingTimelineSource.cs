@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,8 +22,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     }
 
     /// <summary>
-    /// ⭐ <c>CE-1302</c> (§9 TL-6 / TL-7) — opens a recording's index: the sidecar when it matches, else a <see cref="TimelineIndexBuilder"/>
-    /// pass on a background task that publishes a snapshot every chunk and writes the sidecar when it completes. Dispose cancels a build.
+    /// ⭐ <c>CE-1302</c> (§9 TL-6 / TL-7, §9c ④) — opens a recording's index for the given lanes: every lane the sidecar holds with the SAME
+    /// definition hash is reused; only the rest — a lane added or changed since — is scanned, on a background task that publishes a snapshot
+    /// every chunk and rewrites the sidecar when it completes. Dispose cancels a build.
     /// </summary>
     public sealed class RecordingTimelineSource : ITimelineSource, IDisposable
     {
@@ -35,31 +38,52 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public float Progress { get { var i = _index; return i.TotalFrames == 0 ? (Completion.IsCompleted ? 1f : 0f) : (float)i.ScannedFrames / i.TotalFrames; } }
         public bool IsComplete => Completion.IsCompleted && _index.IsComplete;
         public string? Error { get; private set; }
-        /// <summary>True when the index came from the sidecar (no pass ran).</summary>
-        public bool FromSidecar { get; private set; }
+        /// <summary>True when every lane came from the sidecar (no pass ran).</summary>
+        public bool FromSidecar => ScannedLanes.Count == 0;
+        /// <summary>The lanes this open had to scan (new or changed definitions); empty when the sidecar held them all.</summary>
+        public IReadOnlyList<string> ScannedLanes { get; private set; } = Array.Empty<string>();
         /// <summary>Completes when the index is final (at once for a sidecar).</summary>
         public Task Completion { get; private set; } = Task.CompletedTask;
 
         /// <param name="background">false builds on the caller's thread (tests, the command line).</param>
-        public static RecordingTimelineSource Open(string fdpPath, bool background = true, int chunkFrames = TimelineIndexBuilder.DefaultChunkFrames)
+        public static RecordingTimelineSource Open(string fdpPath, IReadOnlyList<IndexedLaneDefinition> lanes, TimelineLaneCompiler compiler,
+            bool background = true, int chunkFrames = TimelineIndexBuilder.DefaultChunkFrames)
         {
             if (fdpPath == null) throw new ArgumentNullException(nameof(fdpPath));
+            if (lanes == null) throw new ArgumentNullException(nameof(lanes));
             var source = new RecordingTimelineSource(fdpPath);
+            var hashes = lanes.ToDictionary(l => l.Lane.Id, TimelineSidecar.HashOf, StringComparer.Ordinal);
+
             var cached = TimelineSidecar.TryRead(fdpPath);
-            if (cached != null)
+            var reused = new Dictionary<string, TimelineEvent[]>(StringComparer.Ordinal);
+            var missing = new List<IndexedLaneDefinition>();
+            foreach (var lane in lanes)
             {
-                source._index = cached;
-                source.FromSidecar = true;
+                string id = lane.Lane.Id;
+                if (cached is { } c && c.Hashes.TryGetValue(id, out var h) && h == hashes[id]) reused[id] = c.Index.Raw(id);
+                else missing.Add(lane);
+            }
+            TimelineIndex? kept = cached is { } k
+                ? new TimelineIndex(reused, k.Index.FrameTicks.ToArray(), k.Index.ScannedFrames, k.Index.TotalFrames)
+                : null;
+            source.ScannedLanes = missing.Select(l => l.Lane.Id).ToArray();
+            if (missing.Count == 0 && kept != null)
+            {
+                source._index = kept;
                 return source;
             }
+            if (kept != null) source._index = kept;   // the reused lanes draw at once; the new ones fill in as the pass runs
+
             var ct = source._cts.Token;
             void Run()
             {
                 try
                 {
-                    var index = TimelineIndexBuilder.Build(fdpPath, snap => source._index = snap, chunkFrames, ct);
+                    var built = TimelineIndexBuilder.Build(fdpPath, missing, compiler,
+                        snap => source._index = kept == null ? snap : TimelineIndexBuilder.Merge(kept, snap), chunkFrames, ct);
+                    var index = kept == null ? built : TimelineIndexBuilder.Merge(kept, built);
                     source._index = index;
-                    if (!ct.IsCancellationRequested) TimelineSidecar.Write(fdpPath, index);
+                    if (!ct.IsCancellationRequested) TimelineSidecar.Write(fdpPath, index, hashes);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)   // a background task: the error is SHOWN, never lost in a faulted task
                 {

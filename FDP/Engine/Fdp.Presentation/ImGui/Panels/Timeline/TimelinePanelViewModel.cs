@@ -25,22 +25,26 @@ public sealed record TimelinePanelViewModel(
     bool CanSeek,
     IReadOnlyDictionary<string, int> InWindow,
     IReadOnlyDictionary<string, int> Total,
-    string? Error) : IPanelViewModel
+    string? Error,
+    IReadOnlyDictionary<string, string> LaneErrors) : IPanelViewModel
 {
     public JsonNode Dump() => PanelDump.Of(this);
 
-    public static TimelinePanelViewModel Build(string id, string kind, ITimelineSource? source, ITimelineCursor? cursor, TimelineWindow window)
+    /// <param name="lanes">The registered lanes the panel shows (R-4079) — the dump counts each by its id.</param>
+    public static TimelinePanelViewModel Build(string id, string kind, ITimelineSource? source, ITimelineCursor? cursor, TimelineWindow window,
+        IReadOnlyList<TimelineLaneDescriptor> lanes)
     {
         var index = source?.Index ?? TimelineIndex.Empty;
         var inWindow = new Dictionary<string, int>();
         var total = new Dictionary<string, int>();
         var (f0, f1) = TimelineLayout.FramesIn(index, window);
-        foreach (TimelineLane lane in Enum.GetValues<TimelineLane>())
+        foreach (var lane in lanes)
         {
-            total[lane.ToString()] = index.Lane(lane).Count;
-            inWindow[lane.ToString()] = f1 > f0 ? index.Count(lane, f0, f1) : 0;
+            total[lane.Id] = index.Lane(lane.Id).Count;
+            inWindow[lane.Id] = f1 > f0 ? index.Count(lane.Id, f0, f1) : 0;
         }
         return new TimelinePanelViewModel(id, kind, source != null, source?.IsComplete ?? false, index.ScannedFrames, index.TotalFrames,
-            cursor?.ExtentFrom ?? 0, cursor?.ExtentTo ?? 0, window.From, window.To, cursor?.Now ?? 0, cursor?.CanSeek ?? false, inWindow, total, source?.Error);
+            cursor?.ExtentFrom ?? 0, cursor?.ExtentTo ?? 0, window.From, window.To, cursor?.Now ?? 0, cursor?.CanSeek ?? false, inWindow, total, source?.Error,
+            new Dictionary<string, string>(index.LaneErrors));
     }
 }

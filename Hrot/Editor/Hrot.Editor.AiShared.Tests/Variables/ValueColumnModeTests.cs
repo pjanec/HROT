@@ -6,6 +6,7 @@ using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Variables;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Editor.AiShared.Tests.Variables;
 

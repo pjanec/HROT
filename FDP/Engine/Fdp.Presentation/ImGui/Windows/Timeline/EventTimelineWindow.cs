@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Panels.Timeline;
@@ -20,14 +21,17 @@ public sealed class EventTimelineWindow : ManagedWindow
     private readonly TimelinePanel _panel;
     private readonly Func<ITimelineSource?> _source;
     private readonly ITimelineCursor _cursor;
+    private readonly Func<IReadOnlyList<TimelineLaneDescriptor>> _lanes;
 
+    /// <param name="lanes">The registered lanes to show — the host's <c>TimelineLaneCatalog.Lanes(context)</c> (R-4079).</param>
     public EventTimelineWindow(string id, string title, string owningPerspective, TimelinePanel panel, Func<ITimelineSource?> source,
-        ITimelineCursor cursor, Vector4 titleBarColor)
+        ITimelineCursor cursor, Func<IReadOnlyList<TimelineLaneDescriptor>> lanes, Vector4 titleBarColor)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _panel = panel;
         _source = source;
         _cursor = cursor;
+        _lanes = lanes;
         TitleBarColor = titleBarColor;
         IsOpen = true;
         PanelSnapshot.DeclareInstrumented(Id);
@@ -35,7 +39,7 @@ public sealed class EventTimelineWindow : ManagedWindow
 
     private TimelinePanelViewModel BuildAndPublish()
     {
-        var vm = TimelinePanelViewModel.Build(Id, Kind, _source(), _cursor, _panel.Window);
+        var vm = TimelinePanelViewModel.Build(Id, Kind, _source(), _cursor, _panel.Window, _lanes());
         if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
         return vm;
     }
@@ -46,6 +50,6 @@ public sealed class EventTimelineWindow : ManagedWindow
     protected override void DrawClientArea()
     {
         BuildAndPublish();
-        _panel.Draw(_source(), _cursor);
+        _panel.Draw(_source(), _cursor, _lanes());
     }
 }

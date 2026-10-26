@@ -11,6 +11,7 @@ using Hrot.Blueprints.Editor.Debug;
 using BPCompilerMode = Hrot.Blueprints.Core.Compiler.CompilerMode;
 using EventEntryNode = Hrot.Blueprints.Core.Assets.EventEntryNode;
 using Graph = Hrot.Blueprints.Core.Assets.Graph;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Blueprints.Core.Debug;
 

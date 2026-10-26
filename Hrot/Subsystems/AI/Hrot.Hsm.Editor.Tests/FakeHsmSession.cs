@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fhsm.Kernel.Data;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Hsm.Editor.Debug;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Hsm.Editor.Tests;
 

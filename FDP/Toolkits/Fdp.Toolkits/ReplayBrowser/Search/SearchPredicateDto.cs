@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(BlueprintVariablePredicateDto),  "BlueprintVariable")]
     [JsonDerivedType(typeof(ExternalHitTagPredicateDto),     "ExternalHitTag")]
     [JsonDerivedType(typeof(BehaviourStepPredicateDto),      "BehaviourStep")]
+    [JsonDerivedType(typeof(RingEntryPredicateDto),          "RingEntry")]
     public abstract class SearchPredicateDto { }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -341,11 +342,39 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     // ──────────────────────────────────────────────────────────────────────────    // Result types
     // ──────────────────────────────────────────────────────────────────────────
 
+    /// <param name="Payload">⭐ R-4077 extension (§9c ③) — what a <see cref="ResultProjectionDto"/> kept; null without one.</param>
     public sealed record SearchResultDto(
         int FrameIndex,
         long WallClockTicks,
         Entity Entity,
-        string ContextMessage);
+        string ContextMessage,
+        SearchResultPayload? Payload = null);
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Ring entries — R-4077 extension (docs/DESIGN_Director_Timeline_Editor.md §9c ③, TE-22 ② / R-4076)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ One result per NEW entry of a recorded ring or history (a fixed <c>[InlineArray]</c> list on a component): an entry is new when its
+    /// key was not among the entity's entries on the previous frame — so two entries in one frame are two results, a ring's eviction never
+    /// loses one, and an entry whose counted field ticks (an order repeated) is new again. ⛔ The first frame an entity is seen is its
+    /// BASELINE: its ring holds the past, and nothing is reported for it.
+    /// </summary>
+    public sealed class RingEntryPredicateDto : SearchPredicateDto
+    {
+        [JsonConverter(typeof(TypeNameJsonConverter))]
+        public Type ComponentType { get; set; } = null!;
+        /// <summary>The component's <c>[InlineArray]</c> field holding the entries.</summary>
+        public string ItemsPath { get; set; } = "Items";
+        /// <summary>An int field: the valid entries are <c>[0, Count)</c>. Empty = every slot.</summary>
+        public string? CountPath { get; set; }
+        /// <summary>The entry fields that identify it (its own counter, or time + counterpart).</summary>
+        public List<string> KeyPaths { get; set; } = new();
+        /// <summary>Optional: only entries whose field compares true (e.g. a switch count above 0).</summary>
+        public string? FilterPath { get; set; }
+        public SearchOperator FilterOperator { get; set; } = SearchOperator.Equals;
+        public string FilterValue { get; set; } = string.Empty;
+    }
 
     public sealed record LifecycleSearchResultDto(
         Entity Entity,

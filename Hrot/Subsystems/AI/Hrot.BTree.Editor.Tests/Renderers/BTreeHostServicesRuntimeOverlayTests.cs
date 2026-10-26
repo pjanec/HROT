@@ -11,6 +11,7 @@ using Hrot.Editor.AiShared.Adapters;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.BTree.Editor.Tests.Renderers;
 

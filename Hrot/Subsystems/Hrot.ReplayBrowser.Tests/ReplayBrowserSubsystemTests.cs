@@ -462,7 +462,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Assert.Equal(1, _subsystem.PrimaryNodeCurrentFrame());
             Assert.Equal(2_000_000L, cursor.Now);
             var vm = Fdp.Presentation.Panels.Timeline.TimelinePanelViewModel.Build("rb_event_timeline", "event-timeline", source, cursor,
-                new Fdp.Presentation.Panels.Timeline.TimelineWindow(cursor.ExtentFrom, cursor.ExtentTo));
+                new Fdp.Presentation.Panels.Timeline.TimelineWindow(cursor.ExtentFrom, cursor.ExtentTo),
+                _subsystem.TimelineLanes.Lanes(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Recording: true)));
+            Assert.Equal(9, vm.Total.Count);                                  // ⭐ R-4079: the registered lanes — the three toolkits' nine
             Assert.True(vm.IsComplete && vm.CanSeek);
             Assert.Equal(2_000_000L, vm.Now);
 

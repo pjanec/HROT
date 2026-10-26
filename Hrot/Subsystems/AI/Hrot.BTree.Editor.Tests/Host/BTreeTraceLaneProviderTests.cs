@@ -3,6 +3,7 @@ using Hrot.BTree.Editor.Host;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Debug;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.BTree.Editor.Tests.Host;
 

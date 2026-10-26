@@ -10,6 +10,7 @@ using Hrot.Hsm.Editor.Host;
 using Hrot.Hsm.Editor.Model;
 using NodeEditor.Primitives;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Hsm.Editor.Tests.Renderers;
 

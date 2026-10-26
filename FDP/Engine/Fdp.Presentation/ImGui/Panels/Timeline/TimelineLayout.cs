@@ -19,7 +19,7 @@ public enum TimelineMarkKind : byte { Density, Glyph }
 /// <see cref="Count"/> events (a cluster when &gt; 1). <see cref="Top"/> is the highest-priority lane in it (§2b "priority on top");
 /// <see cref="FromFrame"/>…<see cref="ToFrame"/> (exclusive) are the frames it covers, so a tooltip asks the index for its events.
 /// </summary>
-public readonly record struct TimelineMark(TimelineMarkKind Kind, float X0, float X1, int Count, TimelineLane Top, float Intensity, int FromFrame, int ToFrame);
+public readonly record struct TimelineMark(TimelineMarkKind Kind, float X0, float X1, int Count, string Top, float Intensity, int FromFrame, int ToFrame);
 
 /// <summary>
 /// ⭐ <c>CE-1302</c> R1-b (docs/DESIGN_Director_Timeline_Editor.md §2b, §9) — §2b's drawing rules as pure maths, tested without ImGui:
@@ -50,9 +50,11 @@ public static class TimelineLayout
     }
 
     /// <summary>The marks for one row — a single lane, or a collapsed group of lanes.</summary>
-    public static List<TimelineMark> Marks(TimelineIndex index, IReadOnlyList<TimelineLane> lanes, TimelineWindow window, float width,
-        float glyphPx = DefaultGlyphPx, float binPx = DefaultBinPx, List<TimelineMark>? into = null)
+    /// <param name="priorityOf">A lane's priority in a cluster (§2b "priority on top") — the descriptor's, R-4079; null = all equal.</param>
+    public static List<TimelineMark> Marks(TimelineIndex index, IReadOnlyList<string> lanes, TimelineWindow window, float width,
+        Func<string, int>? priorityOf = null, float glyphPx = DefaultGlyphPx, float binPx = DefaultBinPx, List<TimelineMark>? into = null)
     {
+        priorityOf ??= _ => 0;
         var marks = into ?? new List<TimelineMark>();
         marks.Clear();
         if (width <= 0 || lanes.Count == 0 || index.FrameTicks.Count == 0) return marks;
@@ -62,13 +64,13 @@ public static class TimelineLayout
         int total = 0;
         for (int i = 0; i < lanes.Count; i++) total += index.Count(lanes[i], f0, f1);
         if (total == 0) return marks;
-        if (total > width) Density(index, lanes, window, width, binPx, f0, f1, marks);
-        else Glyphs(index, lanes, window, width, glyphPx, f0, f1, marks);
+        if (total > width) Density(index, lanes, window, width, binPx, f0, f1, priorityOf, marks);
+        else Glyphs(index, lanes, window, width, glyphPx, f0, f1, priorityOf, marks);
         return marks;
     }
 
-    private static void Density(TimelineIndex index, IReadOnlyList<TimelineLane> lanes, TimelineWindow window, float width, float binPx,
-        int f0, int f1, List<TimelineMark> marks)
+    private static void Density(TimelineIndex index, IReadOnlyList<string> lanes, TimelineWindow window, float width, float binPx,
+        int f0, int f1, Func<string, int> priorityOf, List<TimelineMark> marks)
     {
         // Contiguous bins by frame edges: edge[b] is the first frame at or after the bin's left pixel, edge[bins] the window's end — so no
         // event falls between two bins, and a lane's position at each edge is ONE binary search (bins + 1 per lane, not 2 × bins).
@@ -79,7 +81,7 @@ public static class TimelineLayout
         Array.Fill(tops, -1);
         foreach (var lane in lanes)
         {
-            int p = TimelineLanes.PriorityOf(lane);
+            int p = priorityOf(lane);
             int prev = index.Before(lane, edges[0]);
             for (int b = 0; b < bins; b++)
             {
@@ -98,7 +100,7 @@ public static class TimelineLayout
         {
             if (counts[b] == 0) continue;
             var top = lanes[0];
-            foreach (var lane in lanes) if (TimelineLanes.PriorityOf(lane) == tops[b]) { top = lane; break; }
+            foreach (var lane in lanes) if (priorityOf(lane) == tops[b]) { top = lane; break; }
             float intensity = scale <= 0 ? 1f : (float)(Math.Log(1 + counts[b]) / scale);
             marks.Add(new TimelineMark(TimelineMarkKind.Density, b * width / bins, (b + 1) * width / bins, counts[b], top, intensity, edges[b], edges[b + 1]));
         }
@@ -126,8 +128,8 @@ public static class TimelineLayout
         return edges;
     }
 
-    private static void Glyphs(TimelineIndex index, IReadOnlyList<TimelineLane> lanes, TimelineWindow window, float width, float glyphPx,
-        int f0, int f1, List<TimelineMark> marks)
+    private static void Glyphs(TimelineIndex index, IReadOnlyList<string> lanes, TimelineWindow window, float width, float glyphPx,
+        int f0, int f1, Func<string, int> priorityOf, List<TimelineMark> marks)
     {
         // A k-way merge of the lanes' frame-sorted spans, so a collapsed group clusters across its lanes in time order.
         var spans = new TimelineEvent[lanes.Count][];
@@ -151,7 +153,7 @@ public static class TimelineLayout
             if (pick < 0) break;
             var e = spans[pick][offs[pick]++];
             float x = window.XOf(index.FrameTicks[e.Frame], width);
-            int p = TimelineLanes.PriorityOf(e.Lane);
+            int p = priorityOf(e.Lane);
             if (open && x - cur.X0 < glyphPx)
             {
                 cur = cur with { X1 = x, Count = cur.Count + 1, ToFrame = e.Frame + 1 };
@@ -179,7 +181,8 @@ public static class TimelineLayout
     }
 
     /// <summary>§2b "its tooltip lists them grouped by kind": the mark's time and its events counted per lane.</summary>
-    public static string Describe(TimelineIndex index, IReadOnlyList<TimelineLane> lanes, in TimelineMark mark, long extentFrom)
+    /// <param name="nameOf">A lane's display name (the descriptor's); null = its id.</param>
+    public static string Describe(TimelineIndex index, IReadOnlyList<string> lanes, in TimelineMark mark, long extentFrom, Func<string, string>? nameOf = null)
     {
         var sb = new System.Text.StringBuilder();
         var t = index.FrameTicks;
@@ -192,7 +195,7 @@ public static class TimelineLayout
         {
             int n = index.Count(lane, mark.FromFrame, mark.ToFrame);
             if (n == 0) continue;
-            sb.Append('\n').Append(lane).Append(" ×").Append(n);
+            sb.Append('\n').Append(nameOf?.Invoke(lane) ?? lane).Append(" ×").Append(n);
             if (n == 1)
             {
                 var e = index.Events(lane, mark.FromFrame, mark.ToFrame)[0];

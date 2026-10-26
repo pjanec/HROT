@@ -3,6 +3,7 @@ using Hrot.BTree.Editor.Host;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Debug;
 using Xunit;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.BTree.Editor.Tests.Host;
 
@@ -69,7 +70,7 @@ public sealed class Aie032BTreeTraceTimelineTests
     [Fact]
     public void TraceTimeline_BTree_Kind_IsBTree()
     {
-        _provider.Kind.Should().Be(AssetKind.BTree);
+        _provider.Applies(new TimelineLaneContext(nameof(AssetKind.BTree))).Should().BeTrue();
     }
 
     // ── uniqueness and completeness ───────────────────────────────────────────

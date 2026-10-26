@@ -156,6 +156,24 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── SR-T01h: StructuralPredicateDto with RequireGhost ────────────────
 
+        /// <summary>⭐ CE-1302 (§9c ⑤) — a ring-entry predicate saves and loads like every other (a user's timeline lane is one).</summary>
+        [Fact]
+        public void CE1302_RingEntryPredicate_RoundTrip()
+        {
+            using (var r = new EntityRepository()) r.RegisterComponent<Fdp.Toolkit.Squad.Command.CommandOrderHistory>();
+            var dto = new RingEntryPredicateDto
+            {
+                ComponentType = typeof(Fdp.Toolkit.Squad.Command.CommandOrderHistory), ItemsPath = "Items", CountPath = "Count",
+                KeyPaths = { "At", "CounterpartNetId" }, FilterPath = "Repeats", FilterOperator = SearchOperator.GreaterThan, FilterValue = "0",
+            };
+            string json = JsonSerializer.Serialize((SearchPredicateDto)dto, _options);
+            var back = JsonSerializer.Deserialize<SearchPredicateDto>(json, _options) as RingEntryPredicateDto;
+            Assert.NotNull(back);
+            Assert.Equal(typeof(Fdp.Toolkit.Squad.Command.CommandOrderHistory), back!.ComponentType);
+            Assert.Equal(new[] { "At", "CounterpartNetId" }, back.KeyPaths);
+            Assert.Equal(("Items", "Count", "Repeats", SearchOperator.GreaterThan, "0"), (back.ItemsPath, back.CountPath, back.FilterPath, back.FilterOperator, back.FilterValue));
+        }
+
         [Fact]
         public void SR_T01h_StructuralPredicate_RequireGhost_RoundTrip()
         {
