@@ -184,3 +184,17 @@ first live frame reconciles the rebuilt index with the wire.
 A five-process cluster (orchestrator · CGF · SimHost · IG · traffic) and the editor, the SAME script against both: load `Recipes/demo-city`
 live → play 60 s → `POST /replay` at 30 s → read a car replica and a unit → `POST /replay/seek` 10 s → read again → `POST /replay/stop`.
 ⛔ No `/cluster/…` call and no editor-only route in the script.
+
+⭐ **MEASURED `2026-10-26` — the five-process cluster** *(orchestrator · CGF · SimHost · IG · traffic, domain 47; script
+`run-c.sh`, no `/cluster/…` call)*:
+
+| step | answer |
+|---|---|
+| `POST /scenario/load/live Recipes/demo-city` → `/sim/play`, 60 s | Live; CGF 546 entities (27 SUMO replicas), SimHost 535 |
+| `POST /checkpoint {label:"run-c"}` | published, label returned |
+| `POST /replay {atSeconds:30}` on **CGF** (no read model) | ⚠ refused: *"Name the exercise"* — as designed (§3 as-built) |
+| 1st run: `POST /replay {atSeconds:30}` on the orchestrator | ⛔ **found a defect**: the default picked an OLDER exercise — the master lists one only when the run ENDS. ⭐ Fixed: from Live the default is the running exercise (`ActiveExerciseId`) |
+| 2nd run: the same request | ⭐ ONE request Live → `OperatingReplay` of the run just played; CGF's clock at **30.0 s**, paused, its recording `node-400/…/node_400.fdp`; orchestrator `durationSeconds` 80.6 |
+| replayed world | CGF 545 entities with **26 `TrafficCar`-tagged** replicas (B2: before, the replayed bodies carried no tag); no duplicate network id (id 0 = local parts, as in live) |
+| `POST /replay/seek {atSeconds:45}` | clock **45.0 s**; 30 replicas (the recording's own set at 45 s) |
+| `POST /replay/stop` | Idle |
