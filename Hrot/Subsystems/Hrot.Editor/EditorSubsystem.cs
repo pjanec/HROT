@@ -2564,6 +2564,7 @@ namespace Hrot.Editor
                         // ⭐ R-3055 — the core's cluster read model: what can be replayed, and the loaded replay's length.
                         exercises:         () => _orchestratorCore?.UiCache.AvailableExercises,
                         replayDuration:    () => _orchestratorCore?.UiCache.ReplayDuration,
+                        activeExercise:    () => _orchestratorCore?.UiCache.ActiveExerciseId is { } x && x != Guid.Empty ? x : null,
                         // ⭐⭐⭐ MD-001 — the sinks GET /logs reads. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
                         // ⛔⛔ Measured: NEITHER composition root passed this, so `_logSinks` fell to
                         //    Array.Empty and get_logs answered [] on EVERY host — while the SAME records

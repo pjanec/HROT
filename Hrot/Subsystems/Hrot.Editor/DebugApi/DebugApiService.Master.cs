@@ -87,7 +87,8 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
-        /// ⭐ <c>POST /replay {exerciseId?, atSeconds?}</c> — enter a replay of the exercise (the newest one when none is named), at
+        /// ⭐ <c>POST /replay {exerciseId?, atSeconds?}</c> — enter a replay of the exercise (when none is named: the live run in progress,
+        /// else the newest finished one), at
         /// <c>atSeconds</c> after its start (else the start), from ANY state: ONE request — the planner unloads first when it must.
         /// </summary>
         public (JsonNode? Result, string? Error, string? HintCategory) EnterReplay(JsonNode? body)
@@ -96,6 +97,11 @@ namespace Hrot.Editor.DebugApi
             var exText = body?["exerciseId"]?.ToString();
             if (!string.IsNullOrWhiteSpace(exText) && !Guid.TryParse(exText, out exerciseId))
                 return (null, $"exerciseId '{exText}' is not a GUID. GET /exercises lists them.", DebugApiHints.Scenario);
+            // ⭐ none named, and the cluster is in a live run: THAT run — the master lists an exercise only once it ended, and the
+            //   planner ends this one on the way into its replay (R-3055).
+            if (exerciseId == Guid.Empty && CurrentClusterStateOrNull() == ClusterState.OperatingLive
+                && (_editorActiveExercise?.Invoke() ?? _dispatcher?.ActiveExerciseAnyNode) is { } running)
+                exerciseId = running;
             if (exerciseId == Guid.Empty)
             {
                 var items = _editorExercises?.Invoke() ?? _dispatcher?.ExercisesAnyNode;

@@ -1880,12 +1880,13 @@ namespace Hrot.Editor.DebugApi
             Hint:    "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool). Example: enter_replay({atSeconds:30, waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("exerciseId", "string", false, "The exercise (list_exercises); the newest when omitted"),
+                new("exerciseId", "string", false, "The exercise (list_exercises); when omitted: the live run in progress, else the newest finished one"),
                 new("atSeconds", "number", false, "Where to enter, seconds after the exercise's start (default 0)"),
                 new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReplay"),
             },
             Notes: new[]
             {
+                "With no exerciseId it needs a host that keeps the cluster read model (the editor, the orchestrator, ExCon); a CGF / SimHost / IG process needs the exerciseId.",
                 "Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.",
                 "play / pause / step drive the replay clock; seek_replay jumps.",
             },

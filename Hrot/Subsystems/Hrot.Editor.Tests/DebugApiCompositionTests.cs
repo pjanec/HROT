@@ -46,6 +46,7 @@ public sealed class DebugApiCompositionTests
     // R-3055: the core's ClusterUiCache holds what can be replayed and the replay's length.
     [InlineData("exercises:", "GET /exercises and POST /replay with no exerciseId refuse in the editor, which hosts the master")]
     [InlineData("replayDuration:", "GET /replay/status cannot say how long the replay is in the editor")]
+    [InlineData("activeExercise:", "POST /replay from a live run cannot replay that run in the editor")]
     public void TheDebugApiServiceIsHandedItsDependencies(string argument, string consequence)
     {
         var call = DebugApiServiceConstruction();

@@ -204,6 +204,11 @@ public interface ISubsystemDebugProvider
     /// node keeps no cluster read model.</summary>
     float? ReplayDurationSeconds { get; }
 
+    /// <summary>⭐ <c>R-3055</c> — the exercise the cluster runs now (a live run), from the cluster read model; <see langword="null"/>
+    /// when none or no read model. ⚠ The master adds an exercise to its inventory only when the run ENDS, so "replay what just ran"
+    /// from Live is this one.</summary>
+    Guid? ActiveExerciseId { get; }
+
     /// <summary>⭐ <c>CE-1265</c>/<c>CE-1266</c> on <c>R-3052</c>…<c>R-3055</c> — the recording THIS node replays now (its own), which the
     /// journal history and the recording search scan read-only; <see langword="null"/> outside a replay or on a node that keeps none.
     /// ⛔ Per node, never "any node": a journal lives in the recording of the node that runs the brain.</summary>
@@ -307,6 +312,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<IReadOnlyList<ExerciseInventoryItem>?>? _exercises;
     private readonly Func<float?>? _replayDuration;
     private readonly Func<string?>? _replayRecording;
+    private readonly Func<Guid?>? _activeExercise;
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
     private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
@@ -362,7 +368,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<IReadOnlyList<ExerciseInventoryItem>?>? exercises = null,
         Func<float?>? replayDuration = null,
         // ⭐ CE-1265/CE-1266 — this node's replay recording (EcsRecordReplayController.ActiveReplayFilePath).
-        Func<string?>? replayRecording = null)
+        Func<string?>? replayRecording = null,
+        // ⭐ R-3055 — the exercise running now (ClusterUiCache.ActiveExerciseId).
+        Func<Guid?>? activeExercise = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -377,6 +385,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _exercises = exercises;
         _replayDuration = replayDuration;
         _replayRecording = replayRecording;
+        _activeExercise = activeExercise;
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
         _architecture = architecture;
@@ -511,6 +520,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public IReadOnlyList<ExerciseInventoryItem>? Exercises => _exercises?.Invoke();
     public float? ReplayDurationSeconds => _replayDuration?.Invoke();
     public string? ReplayRecordingPath => _replayRecording?.Invoke();
+    public Guid? ActiveExerciseId => _activeExercise?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();

@@ -125,7 +125,8 @@ namespace Hrot.ExCon
                                                         .Select(e => e.RelativeDest).ToList()),
                 // ⭐ R-3055 — the exercise inventory and the replay's length, from the same pumped ClusterUiCache.
                 exercises:          () => _uiCache?.AvailableExercises,
-                replayDuration:     () => _uiCache?.ReplayDuration);
+                replayDuration:     () => _uiCache?.ReplayDuration,
+                activeExercise:     () => _uiCache?.ActiveExerciseId is { } x && x != Guid.Empty ? x : null);
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>

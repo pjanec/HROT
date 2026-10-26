@@ -16,6 +16,7 @@ public sealed class TheClusterControlRoutesTests
 {
     private readonly RecordingMasterControl _master = new();
     private ClusterState _state = ClusterState.Idle;
+    private Guid? _running;
 
     private static readonly ExerciseInventoryItem Older = new(Guid.NewGuid(), new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(5), "a");
     private static readonly ExerciseInventoryItem Newer = new(Guid.NewGuid(), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "b");
@@ -26,7 +27,8 @@ public sealed class TheClusterControlRoutesTests
                    {
                        new SubsystemDebugProvider("CGF", "CGF",
                            master:    withMaster ? () => _master : null,
-                           exercises: () => new[] { Older, Newer }),
+                           exercises: () => new[] { Older, Newer },
+                           activeExercise: () => _running),
                    },
                    currentPerspective: () => "CGF",
                    acksPending: null),
@@ -87,6 +89,19 @@ public sealed class TheClusterControlRoutesTests
         Assert.Equal(Newer.ExerciseId, t.ExerciseId);
         Assert.Equal(TimeSpan.FromSeconds(30).Ticks, t.TargetWallTicks);   // C9: ticks after the replay's zero
         Assert.Equal(Newer.ExerciseId.ToString(), result!["exerciseId"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void From_a_live_run_the_replay_with_no_exercise_named_is_THAT_run()
+    {
+        // ⭐ the master lists an exercise only once it ENDED (AssetInventoryProcessManager), so "replay what I just ran" from Live is
+        //   the running one — measured on the five-process cluster: the newest listed exercise was an older run.
+        _state = ClusterState.OperatingLive;
+        _running = Guid.NewGuid();
+
+        Assert.Null(Host().EnterReplay(new JsonObject { ["atSeconds"] = 30 }).Error);
+
+        Assert.Equal(_running, Assert.Single(_master.Transitions).ExerciseId);
     }
 
     [Fact]
