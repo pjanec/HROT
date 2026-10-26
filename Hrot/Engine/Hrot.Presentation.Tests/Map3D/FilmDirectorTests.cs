@@ -352,6 +352,207 @@ public sealed class FilmDirectorTests
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
+    // ── TE-2 / T1 — take format v2: keys, segments, shots read as keys, ProgramAt ─────────────────────────────
+
+    private const string V2Take = """
+        {"anchors":{"fire":{"on":"shot","who":"Tank 1","n":1}},
+         "segments":[{"from":0,"to":"fire-5"},{"from":"fire-1","to":"fire+3","speed":0.25,"gap":"dip"}],
+         "keys":[{"at":"fire-5","lookAt":[105,75,1],"distance":60,"pitch":-30,"in":"cut"},
+                 {"at":"fire-0.5","over":"Tank 1","toward":"Enemy","back":16,"in":{"fly":2,"ease":"in"},"still":"crossing"},
+                 {"at":"fire+1","follow":"Enemy","distance":12,"fov":50,"in":{"dip":[0.4,0.6]}}]}
+        """;
+
+    /// <summary>T1 (§5, TE-2, TE-8) — a v2 take (a cut, an eased fly and a dip key, two segments) reads, and parse → write → parse is equal.
+    /// 🔴 Red-proof: write the dip's two durations swapped ⇒ the equality fails.</summary>
+    [Fact]
+    public void TE2_AV2Take_ReadsKeysAndSegments_AndRoundTrips()
+    {
+        var problems = new List<string>();
+        var take = TakeJson.ParseTake(JsonNode.Parse(V2Take)!.AsObject(), "s", "main", problems);
+        Assert.Empty(problems);
+        Assert.Empty(take.Shots);
+        Assert.Equal(3, take.Keys.Count);
+        Assert.Equal(KeyTransition.Cut, take.Keys[0].In);
+        Assert.Equal(new AtExpr(-5, "fire"), take.Keys[0].At);
+        Assert.Equal(new Vector3(105, 75, 1), take.Keys[0].Camera.LookAt);
+        Assert.Equal(KeyTransition.Fly(2, Ease.In), take.Keys[1].In);
+        Assert.Equal("crossing", take.Keys[1].Still);
+        Assert.Equal("Tank 1", take.Keys[1].Camera.Over);
+        Assert.Equal(KeyTransition.Dip(0.4, 0.6), take.Keys[2].In);
+        Assert.Equal(50f, take.Keys[2].Fov);
+        Assert.Equal(2, take.Segments.Count);
+        Assert.Equal(new TimeSegment { From = new AtExpr(0), To = new AtExpr(-5, "fire") }, take.Segments[0]);
+        Assert.Equal(new TimeSegment { From = new AtExpr(-1, "fire"), To = new AtExpr(3, "fire"), Speed = 0.25, Gap = SegmentGap.Dip }, take.Segments[1]);
+
+        var written = TakeJson.WriteTake(take);
+        var again = TakeJson.ParseTake(written, "s", "main", problems);
+        Assert.Empty(problems);
+        Assert.Equal(take.Keys, again.Keys);
+        Assert.Equal(take.Segments, again.Segments);
+        Assert.Equal(written.ToJsonString(), TakeJson.WriteTake(again).ToJsonString());
+    }
+
+    /// <summary>T1 — an unknown field in a key, in a segment or in a key's <c>in</c> is a problem naming it, never silently dropped.
+    /// 🔴 Red-proof: drop the unknown-key check of <c>ParseSegment</c> ⇒ the segment assertion goes red.</summary>
+    [Fact]
+    public void TE2_AnUnknownField_InAKeyOrASegment_IsReported()
+    {
+        var bad = JsonNode.Parse("""
+            {"keys":[{"at":1,"follow":"A"},{"at":2,"follow":"A","fly":3},{"at":3,"follow":"A","in":{"fly":1,"spin":2}}],
+             "segments":[{"from":0,"to":5},{"from":1,"to":2,"rate":3}]}
+            """)!.AsObject();
+        var problems = new List<string>();
+        TakeJson.ParseTake(bad, "s", "x", problems);
+        Assert.Contains("key 2: unknown key 'fly'", problems);
+        Assert.Contains("key 3: in has unknown key 'spin'", problems);
+        Assert.Contains("segment 2: unknown key 'rate'", problems);
+        Assert.DoesNotContain(problems, p => p.StartsWith("key 1") || p.StartsWith("segment 1"));
+    }
+
+    /// <summary>T1 (TE-2) — a take with only <c>shots[]</c> reads as keys: a plain shot a CUT key at its <c>at</c>; a shot with <c>to</c> also a
+    /// FLY key at its end carrying the <c>to</c> values; a replay shot none. 🔴 Red-proof: place the fly key at <c>At</c> instead of
+    /// <c>At + Seconds</c> ⇒ red.</summary>
+    [Fact]
+    public void TE2_ShotsRead_AsKeys_AShotACutKey_ItsToAFlyKey_AReplayNone()
+    {
+        var take = new Take
+        {
+            Shots = new[]
+            {
+                Shot("""{"at":2,"seconds":3,"follow":"A","distance":40,"fov":50}"""),
+                Shot("""{"at":"fire-1","seconds":4,"lookAt":[1,2,3],"distance":100,"yaw":10,"to":{"distance":60,"fov":30},"ease":"linear"}"""),
+                Shot("""{"at":20,"seconds":5,"follow":"A","replay":{"from":1}}"""),
+                Shot("""{"at":30,"seconds":1,"follow":"B"}"""),
+            },
+        };
+        var keys = CameraKeys.Of(take);
+        Assert.Equal(4, keys.Count);
+
+        Assert.Equal(new AtExpr(2), keys[0].At);
+        Assert.Equal(KeyTransition.Cut, keys[0].In);
+        Assert.Equal("A", keys[0].Camera.Follow);
+        Assert.Equal(40f, keys[0].Camera.Distance);
+        Assert.Equal(50f, keys[0].Fov);
+
+        Assert.Equal(new AtExpr(-1, "fire"), keys[1].At);
+        Assert.Equal(KeyTransition.Cut, keys[1].In);
+        Assert.Equal(100f, keys[1].Camera.Distance);
+
+        Assert.Equal(new AtExpr(3, "fire"), keys[2].At);                    // the shot's end: at -1 + 4 seconds, same anchor
+        Assert.Equal(KeyTransition.Fly(4, Ease.Linear), keys[2].In);
+        Assert.Equal(60f, keys[2].Camera.Distance);                          // `to` applied
+        Assert.Equal(10f, keys[2].Camera.Yaw);                               // what `to` does not name is the shot's
+        Assert.Equal(new Vector3(1, 2, 3), keys[2].Camera.LookAt);
+        Assert.Equal(30f, keys[2].Fov);
+
+        Assert.Equal("B", keys[3].Camera.Follow);                            // the replay shot (at 20) left no key
+        Assert.DoesNotContain(keys, k => k.At.Equals(new AtExpr(20)));
+    }
+
+    /// <summary>T1 (TE-2) — when a take has keys of its own they are THE keys (its shots are not also read).</summary>
+    [Fact]
+    public void TE2_ATakesOwnKeys_WinOverItsShots()
+    {
+        var own = new CameraKey { At = new AtExpr(7), Camera = new CameraSpec { Follow = "K" } };
+        var take = new Take { Keys = new[] { own }, Shots = new[] { Shot("""{"at":2,"seconds":3,"follow":"A"}""") } };
+        Assert.Same(take.Keys, CameraKeys.Of(take));
+    }
+
+    /// <summary>
+    /// T1 (R2's acceptance: "every seeded take loads and lays out as before") — all 55 seeded takes still read with no problem, give at least one
+    /// key per non-replay shot (a fly key more for each <c>to</c>), and write back WITHOUT <c>keys</c> / <c>segments</c> (they stay v1 until
+    /// edited, T-L4). 🔴 Red-proof: have <c>WriteTake</c> always write <c>keys</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void TE2_TheSeededTakes_StillRead_GiveKeys_AndWriteBackAsV1()
+    {
+        var repo = RepoRoot();
+        var roots = new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") };
+        int count = 0, withTo = 0;
+        foreach (var root in roots)
+        {
+            var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
+            foreach (var (scenario, takes) in store.AllTakes())
+                foreach (var t in takes)
+                {
+                    var loaded = store.Load(scenario, t);
+                    Assert.True(loaded.Ok, $"{scenario}/{t}: {string.Join("; ", loaded.Problems)}");
+                    var take = loaded.Value!;
+                    var keys = CameraKeys.Of(take);
+                    int plain = take.Shots.Count(s => s.Replay == null), flies = take.Shots.Count(s => s.Replay == null && s.To is { Count: > 0 });
+                    withTo += flies;
+                    Assert.True(keys.Count >= plain, $"{scenario}/{t}: {keys.Count} keys for {plain} shots");
+                    Assert.Equal(plain + flies, keys.Count);
+                    Assert.Equal(flies, keys.Count(k => k.In.Kind == KeyTransitionKind.Fly));
+                    Assert.Empty(take.Keys);
+                    Assert.Empty(take.Segments);
+                    var back = TakeJson.WriteTake(take);
+                    Assert.False(back.ContainsKey("keys"), $"{scenario}/{t} wrote keys");
+                    Assert.False(back.ContainsKey("segments"), $"{scenario}/{t} wrote segments");
+                    count++;
+                }
+        }
+        Assert.True(count >= 55, $"{count} seeded takes");
+        Assert.True(withTo > 0, "no seeded take has a `to` — the fly derivation went unexercised");
+    }
+
+    private static CameraKey Key(AtExpr at, string follow, KeyTransition? @in = null) =>
+        new() { At = at, Camera = new CameraSpec { Follow = follow }, In = @in ?? KeyTransition.Cut };
+
+    /// <summary>
+    /// T1 (TE-8) — <c>ProgramAt</c>: null before the first key; on a cut key that key, whole; part-way through a fly the key before it and the
+    /// eased blend; inside a dip's out-window the PREVIOUS key still, with the black rising; and a key whose anchor has no time is ignored.
+    /// 🔴 Red-proof: ignore the key's own <c>OutSeconds</c> window (fade only after the key) ⇒ the out-window row goes red.
+    /// </summary>
+    [Fact]
+    public void T1_ProgramAt_CutFlyDip_AndAnUnresolvedKeyIsSkipped()
+    {
+        var k0 = Key(new AtExpr(0), "A");
+        var ghost = Key(new AtExpr(0, "never"), "G");                                  // its anchor has no time
+        var k1 = Key(new AtExpr(10), "B", KeyTransition.Fly(4, Ease.Linear));
+        var k2 = Key(new AtExpr(20), "C", KeyTransition.Dip(2, 3));
+        var k3 = Key(new AtExpr(1, "fire"), "D", KeyTransition.Fly(2, Ease.In));        // fire = 30 ⇒ at 31
+        var keys = new[] { k0, ghost, k1, k2, k3 };
+        double? Anchors(string a) => a == "fire" ? 30d : null;
+
+        Assert.Null(TakeTimeline.ProgramAt(keys, Anchors, -1));                         // before the first key
+        Assert.Null(TakeTimeline.ProgramAt(Array.Empty<CameraKey>(), Anchors, 5));
+
+        var onCut = TakeTimeline.ProgramAt(keys, Anchors, 0)!;                          // exactly on a cut key
+        Assert.Same(k0, onCut.Key);
+        Assert.Null(onCut.From);
+        Assert.Equal(1f, onCut.Blend);
+        Assert.Equal(0f, onCut.Fade);
+        Assert.Same(k0, TakeTimeline.ProgramAt(keys, Anchors, 6)!.Key);                 // the ghost never takes the screen
+
+        var half = TakeTimeline.ProgramAt(keys, Anchors, 12)!;                          // halfway through a linear fly
+        Assert.Same(k1, half.Key);
+        Assert.Same(k0, half.From);                                                     // the previous RESOLVED key, not the ghost
+        Assert.Equal(0.5f, half.Blend, 1e-5f);
+        Assert.Equal(0f, half.Fade);
+        var after = TakeTimeline.ProgramAt(keys, Anchors, 15)!;
+        Assert.Same(k1, after.Key);
+        Assert.Null(after.From);
+        Assert.Equal(1f, after.Blend);
+
+        var outWindow = TakeTimeline.ProgramAt(keys, Anchors, 19)!;                     // 1 s into the dip's 2 s out-window
+        Assert.Same(k1, outWindow.Key);                                                 // the previous key is still on screen
+        Assert.InRange(outWindow.Fade, 0.0001f, 0.9999f);
+        Assert.Equal(0.5f, outWindow.Fade, 1e-5f);
+        Assert.Equal(0f, TakeTimeline.ProgramAt(keys, Anchors, 17.5)!.Fade);            // before the window: no black
+
+        var onDip = TakeTimeline.ProgramAt(keys, Anchors, 20)!;                         // black at the key, then it clears over 3 s
+        Assert.Same(k2, onDip.Key);
+        Assert.Equal(1f, onDip.Fade);
+        Assert.Equal(0.5f, TakeTimeline.ProgramAt(keys, Anchors, 21.5)!.Fade, 1e-5f);
+        Assert.Equal(0f, TakeTimeline.ProgramAt(keys, Anchors, 23)!.Fade);
+
+        var anchored = TakeTimeline.ProgramAt(keys, Anchors, 32)!;                      // an anchored key, eased In: u = 0.5 ⇒ 0.25
+        Assert.Same(k3, anchored.Key);
+        Assert.Same(k2, anchored.From);
+        Assert.Equal(0.25f, anchored.Blend, 1e-5f);
+    }
+
     private static string RepoRoot()
     {
         var dir = AppContext.BaseDirectory;
