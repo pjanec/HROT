@@ -41,9 +41,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             {
                 if (ct.IsCancellationRequested) break;
                 int frame = playback.CurrentFrame;
-                long t = playback.GetFrameMetadata(frame).WallClockTicks;
+                var meta = playback.GetFrameMetadata(frame);
+                long t = meta.WallClockTicks;
                 if (frame < total) ticks[frame] = t;
-                scanner.Step(repo, frame, t, clearDestructionLog: true);   // the structural scans read it; one frame's deaths belong to that frame
+                // ⭐ CE-3330 E1 — the frame's recorded sim time; a v6 recording has none (FrameFlags.Unknown, NaN)
+                double? sim = (meta.Flags & FrameFlags.Unknown) != 0 || double.IsNaN(meta.SimTime) ? null : meta.SimTime;
+                scanner.Step(repo, frame, t, clearDestructionLog: true, simSeconds: sim);   // the structural scans read it; one frame's deaths belong to that frame
                 scanned = frame + 1;
                 if (onChunk != null && scanned % chunkFrames == 0 && scanned < total)
                     onChunk(scanner.Snapshot(scanned, total, ticks[..scanned]));
@@ -64,7 +67,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             foreach (var (k, v) in fresh.LaneErrors) errors[k] = v;
             var ticks = new long[fresh.FrameTicks.Count];
             for (int i = 0; i < ticks.Length; i++) ticks[i] = fresh.FrameTicks[i];
-            return new TimelineIndex(lanes, new SharedList<long>(ticks), fresh.ScannedFrames, fresh.TotalFrames, errors);
+            return new TimelineIndex(lanes, new SharedList<long>(ticks), fresh.ScannedFrames, fresh.TotalFrames, errors, fresh.FrameSim);
         }
     }
 }

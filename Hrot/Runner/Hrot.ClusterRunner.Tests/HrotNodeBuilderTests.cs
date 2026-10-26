@@ -369,4 +369,89 @@ public sealed class HrotNodeBuilderTests
         Assert.Same(ctx.Timeline, access.Source());
         Assert.Same(ctx.TimelineLanes, access.Catalog);
     }
+    // -- CE-3330 E1 (docs/DESIGN_Director_Timeline_Editor.md 2e) - StepTimeline by the node's cluster state --------------------------------
+
+    private static void CommitState(HrotNodeContext ctx, Fdp.Toolkit.Orchestration.ClusterState to)
+        => ctx.ClusterSlave.EnqueueIntentForTest(new Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = ctx.NodeId, Operation = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
+            DomainPayload = new Fdp.Toolkit.Orchestration.CommitStatePayload(to),
+        });
+
+    private static void SimFrame(HrotNodeContext ctx, int n)
+    {
+        ctx.World.SetSingleton(new GlobalTime { FrameNumber = n, TotalTime = n * 0.1 });
+        ctx.StepTimeline();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E1 — in a REVIEW (loading, operating, unloading) or a replay the node's timeline is FROZEN: <c>StepTimeline</c> adds no frame,
+    /// though the world's sim frame advances. 🔴 Red-proof: the freeze return behind a runtime-false guard (<c>DateTime.UtcNow.Ticks &lt; 0</c>) ⇒ the
+    /// review adds frames.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_StepTimeline_AddsNoFrame_InAReviewOrAReplay()
+    {
+        using var ctx = InitialisedNode(94);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 1); SimFrame(ctx, 2);
+        Assert.Equal(2, ctx.Timeline.Frames);
+
+        foreach (var state in new[]
+        {
+            Fdp.Toolkit.Orchestration.ClusterState.LoadingReview, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview,
+            Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview, Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+        })
+        {
+            CommitState(ctx, state);
+            Assert.Equal(state, ctx.ClusterSlave.LocalClusterState);
+            SimFrame(ctx, 10 + (int)state);
+            Assert.Equal(2, ctx.Timeline.Frames);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E1 — Live → Review → Live keeps the frames from before the review (no reset: the index continues from the live point, even
+    /// through the unloading state between) and steps on. 🔴 Red-proof: the "came from a review" test ignored (behind a runtime condition)
+    /// ⇒ the return to live resets.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_StepTimeline_ALiveReviewLiveRoundTrip_KeepsTheIndex()
+    {
+        using var ctx = InitialisedNode(93);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 1); SimFrame(ctx, 2); SimFrame(ctx, 3);
+        Assert.Equal(3, ctx.Timeline.Frames);
+
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);                                                             // the review rewound the world's frame counter
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 4);
+
+        Assert.Equal(4, ctx.Timeline.Frames);                                         // 3 before the review + the first one after it
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);      // publish now
+        Assert.Equal(4, ctx.Timeline.Index.FrameSim.Count);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // still the run's first frame
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E1 — entering <c>OperatingLive</c> from anything but a review (here an edit session that indexed frames) starts the index
+    /// AFRESH: frame 0 is the run's first frame. 🔴 Red-proof: the reset skipped (behind a runtime condition) ⇒ the edit's frames stay.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_StepTimeline_EnteringLiveFromEdit_StartsAFreshIndex()
+    {
+        using var ctx = InitialisedNode(92);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit);
+        SimFrame(ctx, 1); SimFrame(ctx, 2); SimFrame(ctx, 3);
+        Assert.Equal(3, ctx.Timeline.Frames);                                         // an edit session indexes (not frozen)
+
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 4);                                                             // the live run's first frame (the counter did NOT go back)
+
+        Assert.Equal(1, ctx.Timeline.Frames);
+        Assert.Equal(0.4, ctx.Timeline.Index.FrameSim[0], 6);
+    }
 }

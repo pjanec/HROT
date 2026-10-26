@@ -50,15 +50,26 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// One host frame: when <paramref name="world"/>'s sim frame advanced, its lanes are evaluated as the next index frame at
         /// <paramref name="wallTicks"/>. Call it on the frame thread, after the world ticked.
         /// </summary>
+        /// <param name="wallTicks">⭐ CE-3330 E1 — the FALLBACK wall clock: a world with a <see cref="GlobalTime"/> whose
+        /// <see cref="GlobalTime.TotalWallTicks"/> is set is stamped with THAT (the frame-locked wall the flight recorder writes, so the live index
+        /// shares a recording's and a session's clock exactly); a world without one (a rail, a bare host) uses this.</param>
         /// <param name="force">Publish the snapshot now (a rail; the host's last frame).</param>
         public void Step(EntityRepository world, long wallTicks, bool force = false)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
-            long frame = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().FrameNumber : _lastFrame + 1;
+            long frame = _lastFrame + 1;
+            double sim = double.NaN;
+            if (world.HasSingleton<GlobalTime>())
+            {
+                var time = world.GetSingleton<GlobalTime>();
+                frame = time.FrameNumber;
+                sim = time.TotalTime;
+                if (time.TotalWallTicks != 0) wallTicks = time.TotalWallTicks;
+            }
             if (!ReferenceEquals(world, _world) || frame < _lastFrame || _catalog.Version != _catalogVersion) Reset(world);
             if (frame == _lastFrame) { if (force) Publish(wallTicks); return; }
             _lastFrame = frame;
-            _scanner!.Step(world, _scanner.Frames, wallTicks, clearDestructionLog: false);
+            _scanner!.Step(world, _scanner.Frames, wallTicks, clearDestructionLog: false, simSeconds: sim);
             // ⚠ the first publish is unconditional — `wallTicks - long.MinValue` would overflow negative (measured: a live editor's index
             //   stayed empty for a whole run until this)
             if (force || _lastPublish == long.MinValue || wallTicks - _lastPublish >= PublishTicks) Publish(wallTicks);
