@@ -2010,7 +2010,7 @@ namespace Hrot.Editor.DebugApi
             return null;
         }
 
-        private static JsonNode DumpToJsonNode(EntityStateDumpDto dump)
+        internal static JsonNode DumpToJsonNode(EntityStateDumpDto dump)
         {
             // Serialize through the DebugApi-scoped NaN-safe options directly to a JsonNode
             // (avoids the string round-trip and the fragile JsonNode.Parse step that rejects

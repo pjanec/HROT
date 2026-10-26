@@ -32,14 +32,15 @@ internal static class VerifyCommand
 
     /// <summary>This process verifies <paramref name="scenario"/>: the editor reads the request, and a debug port is set when none is (the
     /// verifier reads the world through the debug service — <see cref="EditorVerifyWorld"/>).</summary>
-    public static void PrepareThisProcess(string scenario, bool capture, string report)
+    public static void PrepareThisProcess(string scenario, bool capture, string report, bool replay = false)
     {
+        Environment.SetEnvironmentVariable(CommandLineVerify.ReplayVariable, replay ? "1" : null);
         Environment.SetEnvironmentVariable(CommandLineVerify.ScenariosVariable, scenario);
         Environment.SetEnvironmentVariable(CommandLineVerify.CaptureVariable, capture ? "1" : null);
         Environment.SetEnvironmentVariable(CommandLineVerify.ReportVariable, string.IsNullOrWhiteSpace(report) ? null : Path.GetFullPath(report));
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")))
             Environment.SetEnvironmentVariable("HROT_DEBUG_API_PORT", FreePort().ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Console.WriteLine($"[Verify] {scenario}{(capture ? " (capturing the golden)" : "")} — the debug API on port {Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")}");
+        Console.WriteLine($"[Verify] {scenario}{(capture ? " (capturing the golden)" : "")}{(replay ? " (live, against its own recording)" : "")} — the debug API on port {Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")}");
     }
 
     /// <param name="outDir">⭐ the nightly's folder (<c>--verify-out</c>): a log and a report per scenario, <c>summary.json</c>, <c>junit.xml</c>;
@@ -124,6 +125,8 @@ internal static class VerifyCommand
                     lines.Add($"FAIL {v["name"]}{(v["heldOutsideItsWindowAt"] is { } o ? $" (held at {o} s, outside its window)" : "")}");
                 if (c.Item?["golden"]?.ToString() is { } g && g is not ("same" or "none" or "captured")) lines.Add($"golden {g}");
                 foreach (var d in (c.Item?["goldenDiff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
+                if (c.Item?["replay"]?.ToString() is { } rp && rp != "same") lines.Add($"replay {rp}");
+                foreach (var d in (c.Item?["replayDiff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
                 foreach (var p in (c.Item?["problems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {p}");
                 foreach (var p in (c.Item?["runProblems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {p}");
                 if (lines.Count == 0) lines.Add($"exit {c.Code} — {c.Item?["status"]}");
@@ -174,7 +177,7 @@ internal static class VerifyCommand
             else
             {
                 JsonObject a = JsonNode.Parse(File.ReadAllText(runA))!.AsObject(), b = JsonNode.Parse(File.ReadAllText(runB))!.AsObject();
-                var carried = Carried(cp);   // ⭐ what the checkpoint carries is what its own schema manifest lists
+                var carried = ScenarioGolden.CarriedBy(cp) ?? (_ => true);   // ⭐ what the checkpoint carries is what its own schema manifest lists
                 // ⭐ CE-3316 — from where A really wrote the checkpoint (a quiet step, at most a few after T1)
                 double from = DirectorRunner.ReadSidecar(new RestoreCheck(t1, cp, false, runA, every)).At ?? t1;
                 item["checkpointWrittenAt"] = Math.Round(from, 4);
@@ -206,14 +209,6 @@ internal static class VerifyCommand
         if (!string.IsNullOrWhiteSpace(report)) File.WriteAllText(Path.GetFullPath(report), text);
         Console.WriteLine($"[Verify R1] {scenarios.Count - failed.Count} of {scenarios.Count} restore to the same run" + (failed.Count > 0 ? $"; differing: {string.Join(", ", failed)}" : ""));
         return failed.Count == 0 ? 0 : 1;
-    }
-
-    // ⭐ B5 — the component names a checkpoint carries: its schema manifest's types (their short names, as a snapshot names them)
-    private static Func<string, bool> Carried(string checkpoint)
-    {
-        var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(checkpoint + ".meta.json"));
-        var names = new HashSet<string>((meta.SchemaManifest ?? new()).Values.Select(v => v.Name.Replace('+', '.').Split('.')[^1]), StringComparer.Ordinal);
-        return names.Contains;
     }
 
     // ⭐ B5 — one child: this binary again, verifying one scenario as one half of R1 (the half rides in the environment)

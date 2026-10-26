@@ -130,6 +130,13 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("verify-capture", Required = false, Default = false, HelpText = "With --verify: re-record each scenario's golden.json")]
         public bool VerifyCapture { get; set; }
 
+        /// <summary>⭐ CE-4045 H1a (docs/DESIGN_Scenario_Regression.md §10-1, R-4085) — run each scenario LIVE (it records) and require its own
+        /// recording, played back by the product's player, to hold the same world at every snapshot.</summary>
+        [Option("verify-replay", Required = false, Default = false,
+                HelpText = "With --verify: run each scenario LIVE and compare it, snapshot by snapshot, with its own recording played back "
+                         + "(components the recording's manifest does not carry are listed apart, never failed)")]
+        public bool VerifyReplay { get; set; }
+
         /// <summary>⭐ CE-4042 — the nightly's output folder: a log and a report per scenario, <c>summary.json</c> and <c>junit.xml</c>.</summary>
         [Option("verify-out", Required = false,
                 HelpText = "With --verify: write each scenario's log and report, summary.json and junit.xml (for CI) to this folder")]

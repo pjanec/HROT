@@ -19,6 +19,8 @@ namespace Hrot.Editor.Director
         public const string ReportVariable = "HROT_VERIFY_REPORT";
         /// <summary>⭐ <c>CE-3299</c> B5 — this child is one half of R1: a <see cref="RestoreCheck"/> as JSON (restore design §1k).</summary>
         public const string RestoreCheckVariable = "HROT_VERIFY_R1";
+        /// <summary>⭐ <c>CE-4045</c> H1a — "1": the run is LIVE and compared with its own recording (Scenario Regression §10-1).</summary>
+        public const string ReplayVariable = "HROT_VERIFY_REPLAY";
         /// <summary>Frames to wait in Idle before the first load (the editor's own start-up settles first).</summary>
         private const int SettleFrames = 30;
         /// <summary>The editor never reaching Idle is a failure, not a wait forever.</summary>
@@ -28,11 +30,13 @@ namespace Hrot.Editor.Director
         private readonly bool _capture;
         private readonly string? _report;
         private readonly RestoreCheck? _r1;
+        private readonly bool _replay;
         private int _frames, _idleFrames;
         private bool _started, _done;
 
-        private CommandLineVerify(string[] scenarios, bool capture, string? report, RestoreCheck? r1)
+        private CommandLineVerify(string[] scenarios, bool capture, string? report, RestoreCheck? r1, bool replay)
         {
+            _replay = replay;
             _scenarios = scenarios;
             _capture = capture;
             _report = report;
@@ -52,7 +56,7 @@ namespace Hrot.Editor.Director
             if (string.IsNullOrWhiteSpace(s)) return null;
             return new CommandLineVerify(s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                 Environment.GetEnvironmentVariable(CaptureVariable) == "1", Environment.GetEnvironmentVariable(ReportVariable),
-                RestoreCheckFromEnvironment());
+                RestoreCheckFromEnvironment(), Environment.GetEnvironmentVariable(ReplayVariable) == "1");
         }
 
         /// <param name="ready">The editor can load a scenario now (its cluster is Idle).</param>
@@ -74,7 +78,7 @@ namespace Hrot.Editor.Director
                     Name = "verify",
                     Items = _scenarios.Select(s => new ReelItem { Scenario = s, Take = "_verify" }).ToList(),
                 };
-                var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(_capture, _r1)));
+                var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(_capture, _r1, _replay)));
                 if (refused.Count > 0) { Finish(2, "not started: " + string.Join("; ", refused), null, exit); return; }
                 _started = true;
                 return;
@@ -129,6 +133,7 @@ namespace Hrot.Editor.Director
             psi.Environment.Remove("HROT_DEBUG_API_PORT");   // a child takes a free port of its own
             psi.Environment.Remove(ScenariosVariable);
             psi.Environment.Remove(RestoreCheckVariable);   // ⭐ B5 — set per child by the parent that wants one
+            psi.Environment.Remove(ReplayVariable);   // ⭐ H1a — a child's own --verify-replay sets it
             return psi;
         }
 
@@ -141,6 +146,9 @@ namespace Hrot.Editor.Director
                 w.WriteLine($"{indent}  {((bool?)v["ok"] == true ? "PASS" : "FAIL")}  {v["name"]}{(v["t"] is { } t ? $"  (t {t} s)" : "")}{(v["kind"]?.ToString() == "never" && (bool?)v["ok"] != true ? "  ← broken" : "")}{(v["heldOutsideItsWindowAt"] is { } o ? $"  ← held at {o} s, outside its window" : "")}");
             if (item["golden"] is { } g) w.WriteLine($"{indent}  GOLDEN {g}");
             foreach (var d in (item["goldenDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
+            if (item["replay"] is { } rp) w.WriteLine($"{indent}  REPLAY {rp} ({item["replaySnapshots"]} snapshots matched to the recording)");
+            foreach (var d in (item["replayDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
+            foreach (var d in (item["replayNotCarried"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    (not recorded, by the manifest) {d}");
             foreach (var p in (item["written"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  wrote {p}");
             foreach (var p in (item["problems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");
             foreach (var p in (item["runProblems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");

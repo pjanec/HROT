@@ -532,6 +532,23 @@ sequenceDiagram
 *What it shows: H1a needs NOTHING from the master after the live run — no replay transition, no replay seek, no replay step — so CE-4051…4053
 cannot mask a data defect, and a data defect cannot be blamed on them.*
 
+#### 10-1a. As built (`2026-10-26`, coordinator) — where it deviates from the two diagrams above
+
+| diagram says | built | why |
+|---|---|---|
+| `OpenRecording(path) RecordedRun` | returns **`IRecordedRun`** (`AdvanceToSimFrame`, `SimFrame`, `World`, `Dispose`); `RecordedRun` is its one implementation | the rails compare with no recording file — the same reason `IDirectorHost` and `IVerifyWorld` are interfaces |
+| `EditorDirectorHost` grows members | five REQUIRED constructor arguments (`loadLive`, `stopLive`, `state`, `recordingPath`, `openRecording`), wired in `EditorSubsystem` §8a | the silent-default rule: one production caller, and it holds every one |
+| `LoadLive` through the master | `DebugApiService.LoadScenarioLive(name, startPaused: true)` — the SAME load as `POST /scenario/load/live` (late-bound, as the verify world is); `StopLive` = an `Idle` transition on `OrchestrationBusMasterControl`; the file = `RecordReplayController.ActiveRecordingModule.FilePath` (read while it records — the recorder forgets it on close) | no second load path |
+| `DirectorRunner` Verify(Replay) | a new phase **`Checking`** (after `Playing`): waits for `Idle` and the file to close, then matches ONE live snapshot per frame (the editor stays responsive), then compares | a whole recording in one frame would freeze a windowed editor |
+| — | a replay check compares NO `golden.json` (`golden: none`): its reference is the run itself, every component in full, every `golden.every` s (default 1) | RH-2 — a live run is not the preview a golden was recorded from |
+| — | the result: `VerifyResult.Replay` (`same` · `different` · `failed`), `ReplayDiff` (the first difference, or why it failed), `ReplayNotCarried` (by the manifest — never the verdict), `ReplaySnapshots`; `Passed` needs `Replay` null or `same` | the report's replay section (RH-10) |
+| — | entry points: `--verify-replay` (a switch — H1a is one phase; RH-10's phase list comes with H1b), `POST /director/verify {replay: true}` (also with `fresh`) | RH-10 |
+| `ScenarioGolden.CarriedBy` | moved from `VerifyCommand.Carried`, returns null when the file has no manifest (then every component is compared, and the report says so) | one reader for R1's checkpoint and H1a's recording — a checkpoint IS a one-frame recording |
+| `VerifyWorldNames` | extracted from `EditorVerifyWorld`; `RecordedRunWorld` dumps through `EntityStateExtractionService(repo, null, serializer)` + `DebugApiService.DumpToJsonNode` (now `internal`) | the recorded snapshot is written exactly as `GET /entities/{id}` writes the live one |
+
+Rail: `DirectorRunnerTests.CE4045_H1a_TheLiveRun_IsComparedWithItsOwnRecording_FrameBySimFrame` (a faithful recording ⇒ same; a recorder
+that loses `Health` ⇒ different from t=2 s, naming the unit and the component; a component outside the manifest ⇒ listed apart).
+
 ### 10a. Claim table — what the leans rest on
 
 | claim | code — how it IS | design — how it was MEANT |
