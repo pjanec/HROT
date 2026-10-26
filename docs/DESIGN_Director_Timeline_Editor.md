@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
 updated: 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+current-answer: ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -361,8 +361,103 @@ sequenceDiagram
 | ⭐ **the cluster nodes' live timeline** (the module diagram's former dead edge) | `HrotNodeContext.Timeline` (a `LiveTimelineSource` over `ShippedTimelineLanes.Catalog()`, built on first use) stepped inside `HrotNodeContext.Tick` after the host's post-kernel work and before the swap ⇒ CGF, SimHost, IG, Traffic and Stride all index by construction; `EcsNodeDebugProvider.For` serves it (`timeline.read`). The editor and the Replay Browser compose the same catalogue. ⚠ **cost, measured (1000 units, Release):** 1.7 → **≈ 1.0 ms / frame busy, ≈ 0.5 ms idle** after CE-1361 (ring lanes skip a byte-identical ring and read it in place; the structural lanes track by index + generation, no `IsAlive` sweep); the rest is the per-unit walk; a publish is O(1) — the snapshot SHARES the scanner's grow-only buffers up to its count (`SharedList`), never a copy (CE-1361 ②). ⭐ ALWAYS ON by user decision (`2026-10-26`); filling a node's index on first use from its recording is CE-1362 | `HrotNodeBuilderTests.CE3330_Node_*` ×2, `TimelineIndexTests.CE3330_Node_TheShippedCatalog_*`, RB `CE3330_Node_*` |
 | ⚠ **one frame late** | the live step runs after the kernel tick, when the bus holds the PREVIOUS tick's events: a live event is one frame (≈ 16 ms) later than the recording files it | — |
 | ⭐ **T13 / R10 — the Sim axis** (backend P0/P1: `ReplayTimeMap`, `FrameMetadata.SimTime` / `Flags`) | `TimelineAxis` (pure): Wall = the identity; `Sim(map)` projects the index's frame ticks, the extent, "now" and every seek through the map (`AxisCursor` — the host keeps seeking by wall ticks, TL-2); a pause collapses to one instant (its events cluster there — row 11) and a seek to it lands on its LAST frame (`Edge.AfterStretch` — what changed is shown); `Sim` of a v6 recording is Wall. The panel draws a pause as a shaded span on Wall and a zigzag + ◯ / ● (● = changed) on the ruler on Sim; an axis switch maps the window and range through wall time (`TimelineView.Remap`) so the same FRAMES stay in view. The Replay Browser's transport row has the **S / W** toggle (its `Axis`, disabled without sim time) | `CE3330_T13_OnTheSimAxis_APauseCollapses_ASeekLandsAtItsEnd`, `CE3330_T13_TheCursorOnTheSimAxis_AndASwitchKeepsTheFramesInView` |
-| ⏳ **waits on backend's data D** | the session layer + live point marker (`ReplaySessionTopic`), "Review from here", "Seek to the live point", "Loop range" (addendum 8) — the menu offers none of them until the facade's `EnterReview` / `Seek` exist; the S / W icon on the LIVE hosts' toolbar (C) | — |
+| ⭐ **was "waits on backend's data D" — UNBLOCKED `2026-10-26`** (backend `5aa14d2b0` one facade, `0784f356c` `ReplaySessionTopic`) | the session layer, the review menu items, the toolbar's mode / axis icons, the slider on the axis — designed in **§2e**; Loop range still waits on backend §12n | — |
 | ⏳ not in this slice | addendum 1 / 9 (director tracks — R2 has none yet), K / J / L (no rate in the cursor) | — |
+
+## 2e. The panel and the toolbar on a cluster host — live, review, replay *(ui, `2026-10-26`; build-state: READY-TO-BUILD — coordinator note B6–B9 on backend's facade `5aa14d2b0` + `ReplaySessionTopic` `0784f356c`)*
+
+⭐ Spec: [DAR §9a / §9b / §9e](DESIGN_Replay_Time_Axis_And_Review.md) (the toolbar, the menu, the two layers) and §12m (the ONE facade,
+as built). This section is HOW the ui half is built on it. INVENTORY (graph + grep, `2026-10-26`): `MainToolbarTimeControlSection`
+(the toolbar's time section, one per host) · `ClusterTimeTransportAdapter` (THE facade, every host) + `ClusterReplayControls` /
+`ReplaySessionIntents` (the one construction of the intents) · `ReplaySession` (the session layer, `ReplaySessionUpdateEvent`) ·
+`CheckpointMark` (`Fdp.Core`) · `TimelinePanel` / `ITimelineCursor` / `AxisCursor` / `TimelineAxis` (§2d) · `LiveTimelineCursor` (§2d —
+REPLACED here) · `HrotNodeContext.StepTimeline` (§2d) · `ClusterStates.IsReplaying` / `IsReview` · `ClusterScenarioPanel` (the slider) ·
+`GlobalTime.TotalWallTicks` (the frame-locked wall clock). ⚠ The graph was indexed before the backend merge (`ReplaySession` absent there,
+present in grep).
+
+```mermaid
+classDiagram
+  class ITimelineCursor { <<exists, grown>> +Mode TimelineMode +LivePoint long? +Checkpoints IReadOnlyList~CheckpointMark~ +CanReview bool +EnterReview(wallTicks) }
+  class TimelineMode { <<NEW enum>> None Live Review Replay }
+  class ClusterTimelineCursor { <<NEW, Hrot.Presentation>> facade, session, live source · wall ticks in, the facade's axis out }
+  class LiveTimelineCursor { <<DELETED>> its live behaviour is ClusterTimelineCursor's Live mode }
+  class ITimeTransportFacade { <<exists, backend's; +2 members, said>> +Session ReplaySession? +EnterReviewAtSim(simSeconds) }
+  class ClusterReplayControls { <<exists>> +EnterReviewAtSim — ReplaySessionIntents.EnterReview(simSeconds) }
+  class TimelinePanel { <<exists, grown>> menu by Mode · draws checkpoints and the live point }
+  class MainToolbarTimeControlSection { <<exists, grown>> +ModeGlyph +ModeMenu (pure) +StopFace +stop guard F15 +axis icon }
+  class LiveTimelineSource { <<exists, fixed>> frame wall = GlobalTime.TotalWallTicks · frame sim = GlobalTime.TotalTime }
+  class TimelineIndex { <<exists, grown>> +FrameSim SharedList~double~ }
+  class HrotNodeContext { <<exists, grown>> StepTimeline: frozen in a review / replay, afresh on entering live }
+  ClusterTimelineCursor ..|> ITimelineCursor
+  ClusterTimelineCursor --> ITimeTransportFacade : Mode, Axis, Seek, EnterReviewAtSim, LivePoint, Session
+  ClusterTimelineCursor --> LiveTimelineSource : extent, frame wall and sim (live)
+  ITimeTransportFacade <|.. ClusterTimeTransportAdapter
+  ClusterTimeTransportAdapter --> ClusterReplayControls
+  TimelinePanel --> ITimelineCursor
+  MainToolbarTimeControlSection --> ITimeTransportFacade
+  HrotNodeContext --> LiveTimelineSource
+```
+*What the picture shows that prose hid:* the panel and the toolbar reach the cluster through the ONE facade — no second seek or review path
+(R-3059 "one path"); the only new type is a cursor, and it REPLACES one. Fdp.Presentation never sees the facade: the cursor is the seam.
+
+```mermaid
+sequenceDiagram
+  actor U as Operator
+  participant P as TimelinePanel
+  participant C as ClusterTimelineCursor
+  participant F as ITimeTransportFacade
+  participant M as ClusterMaster
+  participant N as HrotNodeContext (each node)
+  Note over P,N: LIVE — the index grows, the ruler on the session axis (Sim from the live index's own frame sim)
+  U->>P: right-click a past event, "Review from this event"
+  P->>C: EnterReview(event wall ticks)
+  C->>F: EnterReviewAtSim(the frame's sim seconds)
+  F->>M: TransitionStateIntent(OperatingReview, sim target)
+  M-->>N: OperatingReview — StepTimeline freezes the index (its history IS the run's up to the live point)
+  M-->>C: ReplaySessionTopic (map, checkpoints, live point)
+  Note over P,C: REVIEW — Mode Review and CanSeek, so the menu seeks, the live point and checkpoints drawn
+  U->>P: "Seek to the live point"
+  P->>C: Seek(live point wall ticks)
+  C->>F: Seek(t on the session axis)
+  U->>P: toolbar ⏏ Back to live
+  P->>F: Stop() = ExitReview (R-3060), then for 3 s a second ■ is ignored (F15)
+  M-->>N: OperatingLive — the index steps on from the live point (same run, no reset)
+```
+*What the picture shows that prose hid:* entering a review from LIVE has no session yet (no map, no wall zero on the host) — so the entry
+goes by SIM seconds, which the master accepts on either axis ("the sim target wins", `ReplaySessionIntents`); inside the review every seek
+goes by the session axis with the session's own zero and map.
+
+```mermaid
+graph TD
+  NT["HrotNodeContext.Tick / the editor's frame"] --> ST["StepTimeline: OperatingReview / OperatingReplay ⇒ no step · entering OperatingLive from edit / preview ⇒ Reset"]
+  ST --> LTS["LiveTimelineSource (wall = GlobalTime.TotalWallTicks, sim = GlobalTime.TotalTime)"]
+  ED["EditorSubsystem: editor_event_timeline"] --> PAN["TimelinePanel + ClusterTimelineCursor"]
+  TB["MainToolbarTimeControlSection (editor, CGF — ShellTimeControlToolbar)"] --> FAC["ITimeTransportFacade = ClusterTimeTransportAdapter"]
+  PAN --> FAC
+  FAC --> BUS["orchestration bus → ClusterOpEgressTranslator → master"]
+  RS["the cluster replay's own recording → RecordingTimelineSource"]:::dead -.->|"not yet: in Replay the panel shows the session layer only"| PAN
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33
+```
+*What the picture shows that prose hid:* the freeze is in the node frame, so EVERY host's index survives a review (a review rewinds the world:
+the frame counter going back would otherwise reset it); and a cluster REPLAY has no lane source on these hosts yet — its index would be the
+live run's, which is a different exercise, so the panel shows only the session layer there (red edge).
+
+| ⭐ decision | why — the one fact |
+|---|---|
+| **the host cursor keeps WALL ticks** (`AxisCursor` converts the Sim axis back first, TL-2) and converts to the facade's axis itself | one conversion point; the panel and its rails are unchanged |
+| **entering a review from LIVE goes by SIM** (`EnterReviewAtSim`, NEW on the facade — a backend file, a two-line cross-lane edit, said in the commit) | in live the host has no session: no map, no wall zero; the master takes a sim target on either axis |
+| **the live index stamps frames with `GlobalTime.TotalWallTicks`** (was `DateTime.UtcNow`) and records `GlobalTime.TotalTime` | `GlobalTime.cs:56`: *"the single source of truth for wall-clock time within a frame … including the flight recorder"* — the live index then shares the recording's and the session's clock exactly |
+| **`StepTimeline` freezes in a review / replay and starts afresh on entering live** (the node's `LocalClusterState`) | DAR §9e: *"review — the SAME live source, frozen at the live point"*; afresh at live ⇒ index frame 0 = the run's first frame (the wall zero in live) |
+| **in REPLAY the panel draws the session layer only** | the live index is the previous run's; the replay's own `RecordingTimelineSource` is a separate slice (DAR §9e row "cluster replay") |
+| **F15: for 3 s after a return to live, ■ is ignored, and its tooltip says why** | the design's own fix; no modal |
+| ⛔ rejected: a seek path in the panel beside the facade | R-3059 one path |
+| ⛔ rejected: converting live wall → wall-after-zero for the entry | the host has no zero in live; a guessed zero seeks the wrong frame |
+| ⏭ deferred, one line each: "Review from here **and play**" (needs a play once the review lands — no seam yet) · "Seek to before / after the pause's edits" (needs an `Edge` on the facade seek) · ⚑ "Mark this moment" (no checkpoint intent found) · replay "⑂ Go live from here" (D18, behind its own confirmation) · "Loop range" (backend §12n, building) | |
+
+**Build slices (each with its rails, red-proved):** **E1** — the live source's clock (`TotalWallTicks`, frame sim, `TimelineIndex.FrameSim`)
++ `StepTimeline` freeze / reset · **E2** — `TimelineMode` + the cursor members, `ClusterTimelineCursor`, the panel's menu by mode and the
+session marks, the editor wired (`LiveTimelineCursor` deleted), the facade's `Session` + `EnterReviewAtSim` · **E3** — the toolbar: mode
+glyph + menu, ⏏ + F15, the axis icon · **E4** — `ClusterScenarioPanel`'s slider on the active axis (row 24).
 
 
 ```mermaid
