@@ -60,6 +60,7 @@ public sealed class OrchestratorCore : IDisposable
     private readonly AssetPrefetchProcessManager   _prefetch;
     private readonly ReplayProcessManager          _replay;
     private readonly ReplayClockProcessManager     _replayClock;   // ⭐ CE-3329 P1 — the sim axis jumps the paused stretches
+    private readonly ReviewProcessManager          _review;        // ⭐ CE-3329 P3 — the review's clock: pause, L, the return
     private readonly StorageProcessManager         _storage;
     private readonly AssetInventoryProcessManager  _inventory;
     private readonly EpisodeProcessManager         _episodes;
@@ -67,6 +68,8 @@ public sealed class OrchestratorCore : IDisposable
     private readonly DiagnosticLogMergeWorker      _mergeWorker;
 
     public ClusterMaster           Master           => _master;
+    /// <summary>⭐ CE-3329 P3 — the review's clock (the live point L, whether a review is open).</summary>
+    public ReviewProcessManager    Review           => _review;
     public ClusterUiCache          UiCache          { get; }
     public ClusterScenarioPanel    ScenarioPanel    { get; }
     public ClusterDiagnosticsPanel DiagnosticsPanel { get; }
@@ -99,6 +102,7 @@ public sealed class OrchestratorCore : IDisposable
         _master.RegisterAggregator(new CheckpointRestoreAggregator());                            // CE-3299 B4 (D5)
         _replay = new ReplayProcessManager(bus, o.TimeReads);
         _master.RegisterAggregator(_replay.CreateAggregator());
+        _master.RegisterAggregator(_replay.CreateReviewAggregator());                             // ⭐ CE-3329 P3
         _master.RegisterAggregator(new StorageConsensusAggregator());                             // TASK-S001
         _master.RegisterAggregator(new EpisodeConsensusAggregator(NodeOpType.StartEpisode));      // TASK-S003
         _master.RegisterAggregator(new EpisodeConsensusAggregator(NodeOpType.StopEpisode));
@@ -149,9 +153,13 @@ public sealed class OrchestratorCore : IDisposable
         // TASK-T002 — the seek. Must tick BEFORE ClusterMaster so its precondition events precede the fan-out.
         _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule
 
+        // ⭐ CE-3329 P3 — a review's clock. Must tick BEFORE ClusterMaster so its barrier pause precedes the PrepareReview fan-out.
+        _review = new ReviewProcessManager(bus, timeReads, time,
+            () => (Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState);
+
         // ⭐ CE-3329 P1 (R4) — on the Sim axis a running replay jumps every paused stretch (non-pausing: no epoch move)
         _replayClock = new ReplayClockProcessManager(timeReads, time,
-            replaying:       () => (int)_master.CurrentClusterState == (int)Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+            replaying:       () => Fdp.Toolkit.Orchestration.ClusterStates.IsReplaying((Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState),
             axis:            () => _master.ReplayAxis,
             map:             () => _master.ReplayTimeMap,
             anchorWallTicks: () => _master.ReplayAnchorWallTicks);
@@ -180,6 +188,7 @@ public sealed class OrchestratorCore : IDisposable
     {
         _liveBranch.Tick();
         _seek.Tick();
+        _review.Tick();   // CE-3329 — before the master (the entry pause precedes the fan-out)
         _previewClock.Tick();
         _globalContext.Tick();
         _prefetch.Tick();

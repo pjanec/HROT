@@ -437,6 +437,13 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`set_replay_view`** — Replay Browser only (RB-3): show one node's replayed world or the merged world of all nodes — the Federation panel's switch. Req `view` (string). Returns the Replay Browser's status (get_replay_status's browser field)
   Notes: The ordinary readers then read that world. Every other host answers NOT_SUPPORTED_HERE(replay.browser)..
   Example: `set_replay_view({"view":"merged"})` — look at every node's units together.
+- **`enter_review`** — ⭐ CE-3329 — During Action Review: pause the LIVE run and review its own recording in place — every node keeps its exact live point (a full checkpoint in RAM, a labelled keyframe review-<n> in its recording), the past is shown on the wire, and POST /review/exit returns to exactly where it paused. Only from OperatingLive. `atSeconds?` (number), `atSimSeconds?` (number), `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Notes: In a review: seek with POST /replay/seek (or /review/seek), play / pause / step with /sim/*, the axis with /replay/axis; it pauses itself at the live point.; World-changing commands answer 409 until you return (spawn, orders, components, save, checkpoints …)..
+  Example: `enter_review({"atSimSeconds":30,"waitForReady":true})` — look back at the live run.
+- **`exit_review`** — ⭐ CE-3329 — leave the review: every node puts its live point back (the checkpoint restore's semantics), the clock returns to it, the recording resumes — live, paused. `waitForReady?` (boolean). Returns { published, transactionId, target } (+ awaited, reached with waitForReady).
+  Example: `exit_review({"waitForReady":true})` — back to the live run.
+- **`seek_review`** — ⭐ CE-3329 — the same seek as POST /replay/seek, named for a review (atSeconds, atSimSeconds, frame, frames, cause, next). `atSeconds?` (number), `atSimSeconds?` (number). Returns as seek_replay
+  Example: `seek_review({"atSimSeconds":12})` — move within the review.
 - **`step_selection_history`** — Replay Browser only (RB-3): back / forward through the units selected. Req `direction` (string). Returns the Replay Browser's status
   Example: `step_selection_history({"direction":"back"})` — select the unit selected before.
 - **`get_timeline_events`** — One timeline lane's events in a frame range, optionally only one unit's (RB-6) — what the index already holds, no scan of the file. Req `lane` (string), `from?` (integer), `to?` (integer), `entity?` (number), `limit?` (integer). Returns { lane, count, truncated, events:[{frame, subject, other, x, y, value}] }

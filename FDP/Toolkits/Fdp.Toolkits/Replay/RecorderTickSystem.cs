@@ -74,6 +74,16 @@ namespace Fdp.Toolkit.Replay
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (_suspended) return;   // ⭐ CE-3329 P3 (R8) — a review shows the past: nothing of it enters the live history
+            if (_resumePending && view is EntityRepository resumed)
+            {
+                // ⭐ CE-3329 F11 / W6 — what the review's swaps destroyed is not a live destruction; the first frame after a review is a
+                //   keyframe of the restored world (no delta against a frame of the past).
+                resumed.ClearDestructionLog();
+                _framesSinceKeyframe = KeyframeInterval - 1;
+                _lastKeyframeSimTime = null;
+                _resumePending = false;
+            }
             // For synchronous (main-thread) modules, view IS the live EntityRepository.
             var repo = (EntityRepository)view;
 
@@ -129,6 +139,26 @@ namespace Fdp.Toolkit.Replay
 
             _prevTick = repo.GlobalVersion;
         }
+
+        private volatile bool _suspended;
+        private bool _resumePending;
+
+        /// <summary>
+        /// ⭐ CE-3329 P3 (R8, row 17) — a review is open: write NOTHING (the world is the replayed one) and keep the file open, so the same
+        /// recording resumes after the review. ⚠ Call <see cref="RecordingModule.WaitForWrites"/> after it to flush the last live frame.
+        /// </summary>
+        public void Suspend() => _suspended = true;
+
+        /// <summary>⭐ CE-3329 P3 (F11, W6) — the review is over: record on in the same file; the next frame clears the destruction log
+        /// and is a keyframe.</summary>
+        public void Resume()
+        {
+            _resumePending = true;
+            _suspended = false;
+        }
+
+        /// <summary>⭐ CE-3329 — true while a review holds the recording.</summary>
+        public bool IsSuspended => _suspended;
 
         private readonly System.Collections.Generic.List<string> _due = new();
         private readonly Func<bool>? _slotRunInFlight;   // CE-3316

@@ -2009,6 +2009,110 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "enter_review",
+    "group": "I — Replay",
+    "summary": "⭐ CE-3329 — During Action Review: pause the LIVE run and review its own recording in place — every node keeps its exact live point (a full checkpoint in RAM, a labelled keyframe review-<n> in its recording), the past is shown on the wire, and POST /review/exit returns to exactly where it paused. Only from OperatingLive.",
+    "http": {
+      "method": "POST",
+      "path": "/review"
+    },
+    "params": [
+      {
+        "name": "atSeconds",
+        "type": "number",
+        "required": false,
+        "description": "Where the review opens, seconds after the recording's zero (default: the live point)"
+      },
+      {
+        "name": "atSimSeconds",
+        "type": "number",
+        "required": false,
+        "description": "Or the recorded sim time to open at"
+      },
+      {
+        "name": "waitForReady",
+        "type": "boolean",
+        "required": false,
+        "description": "Wait until the cluster reports OperatingReview"
+      }
+    ],
+    "returns": "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+    "notes": [
+      "In a review: seek with POST /replay/seek (or /review/seek), play / pause / step with /sim/*, the axis with /replay/axis; it pauses itself at the live point.",
+      "World-changing commands answer 409 until you return (spawn, orders, components, save, checkpoints …)."
+    ],
+    "example": {
+      "args": {
+        "atSimSeconds": 30,
+        "waitForReady": true
+      },
+      "gist": "look back at the live run"
+    },
+    "hint": "Optional: atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) — else the live point; waitForReady (bool). Example: enter_review({atSimSeconds:30, waitForReady:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "exit_review",
+    "group": "I — Replay",
+    "summary": "⭐ CE-3329 — leave the review: every node puts its live point back (the checkpoint restore's semantics), the clock returns to it, the recording resumes — live, paused.",
+    "http": {
+      "method": "POST",
+      "path": "/review/exit"
+    },
+    "params": [
+      {
+        "name": "waitForReady",
+        "type": "boolean",
+        "required": false,
+        "description": "Wait until the cluster reports OperatingLive"
+      }
+    ],
+    "returns": "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+    "example": {
+      "args": {
+        "waitForReady": true
+      },
+      "gist": "back to the live run"
+    },
+    "hint": "Optional: waitForReady (bool). Example: exit_review({waitForReady:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "seek_review",
+    "group": "I — Replay",
+    "summary": "⭐ CE-3329 — the same seek as POST /replay/seek, named for a review (atSeconds, atSimSeconds, frame, frames, cause, next).",
+    "http": {
+      "method": "POST",
+      "path": "/review/seek"
+    },
+    "params": [
+      {
+        "name": "atSeconds",
+        "type": "number",
+        "required": false,
+        "description": "Seconds after the recording's zero"
+      },
+      {
+        "name": "atSimSeconds",
+        "type": "number",
+        "required": false,
+        "description": "The recorded sim time"
+      }
+    ],
+    "returns": "as seek_replay",
+    "example": {
+      "args": {
+        "atSimSeconds": 12
+      },
+      "gist": "move within the review"
+    },
+    "hint": "One of: atSeconds · atSimSeconds · frame · frames · cause · next. Example: seek_review({atSimSeconds:12})",
+    "manualVerify": false
+  },
+
+  {
     "name": "step_selection_history",
     "group": "I — Replay",
     "summary": "Replay Browser only (RB-3): back / forward through the units selected.",
