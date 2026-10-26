@@ -13,7 +13,7 @@ namespace Hrot.UI.Common.Panels;
 public static class TransportIcons
 {
     /// <summary>Icon shapes understood by the transport drawing helpers.</summary>
-    public enum BtnShape { Play, Pause, Step, Stop }
+    public enum BtnShape { Play, Pause, Step, Stop, Eject }
 
     /// <summary>Ordered list of choosable time-rate values shown in rate-selector popups.</summary>
     public static readonly float[] TimeRates = { 0.1f, 0.5f, 1.0f, 1.5f, 2.0f, 5.0f, 10.0f };
@@ -118,6 +118,22 @@ public static class TransportIcons
                 dl.AddRectFilled(
                     new Vector2(lineX,         pos.Y + pad),
                     new Vector2(lineX + lineW, pos.Y + size - pad), col);
+                break;
+            }
+
+            case BtnShape.Eject:
+            {
+                // ⏏ green: an up-pointing triangle over a bar — "Back to live" (DAR §9a).
+                uint col = ImGui.GetColorU32(new Vector4(0.20f, 0.78f, 0.20f, alpha));
+                float barH = MathF.Round(size * 0.14f);
+                float baseY = size * 0.58f - pad * 0.3f;
+                dl.AddTriangleFilled(
+                    pos + new Vector2(pad, baseY),
+                    pos + new Vector2(size - pad, baseY),
+                    pos + new Vector2(size * 0.5f, pad), col);
+                dl.AddRectFilled(
+                    pos + new Vector2(pad, size - pad - barH),
+                    pos + new Vector2(size - pad, size - pad), col);
                 break;
             }
 

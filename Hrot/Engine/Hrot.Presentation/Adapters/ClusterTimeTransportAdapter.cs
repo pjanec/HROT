@@ -182,6 +182,9 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     public void EnterReview(double? at = null) => _replay.EnterReview(at);
 
     /// <inheritdoc/>
+    public void EnterReviewAtSim(double simSeconds) => _replay.EnterReviewAtSim(simSeconds);
+
+    /// <inheritdoc/>
     public void ExitReview() => _replay.ExitReview();
 
     /// <inheritdoc/>

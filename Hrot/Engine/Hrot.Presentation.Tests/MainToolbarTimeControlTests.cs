@@ -1,3 +1,7 @@
+using System;
+using System.Linq;
+using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 
@@ -139,6 +143,198 @@ public class MainToolbarTimeControlTests
 
         section.Render();
 
+        ImGuiNET.ImGui.End();
+        fixture.Render();
+    }
+
+    // ── ⭐ CE-3330 E3 — mode indicator, menu, ■ → ⏏, F15, the axis icon (DAR §9a) ─────────────────────────────
+
+    private static FakeTimeTransportFacade In(TransportMode mode, ReplayAxis axis = ReplayAxis.Sim, double total = 0, double? livePoint = null,
+                                              ReplaySession? session = null)
+        => new() { Mode = mode, Axis = axis, TotalTime = total, LivePoint = livePoint, Session = session };
+
+    [Theory]
+    [InlineData(TransportMode.Edit,    "✎", 0.60f, 0.60f, 0.60f)]
+    [InlineData(TransportMode.Preview, "◐", 0.66f, 0.45f, 0.92f)]
+    [InlineData(TransportMode.Live,    "●", 0.25f, 0.80f, 0.30f)]
+    [InlineData(TransportMode.Review,  "⟲", 1.00f, 0.70f, 0.20f)]
+    [InlineData(TransportMode.Replay,  "▶", 0.30f, 0.60f, 1.00f)]
+    public void ModeGlyph_IsTheSpecGlyphAndColourPerMode(TransportMode mode, string glyph, float r, float g, float b)
+    {
+        var ind = MainToolbarTimeControlSection.ModeGlyph(mode)!;
+        Assert.Equal(glyph, ind.Glyph);
+        Assert.Equal(new System.Numerics.Vector4(r, g, b, 1f), ind.Color);
+    }
+
+    [Fact]
+    public void ModeGlyph_IdleHasNone()
+        => Assert.Null(MainToolbarTimeControlSection.ModeGlyph(TransportMode.Idle));
+
+    [Theory]
+    [InlineData(TransportMode.Edit)]
+    [InlineData(TransportMode.Preview)]
+    [InlineData(TransportMode.Replay)]
+    [InlineData(TransportMode.Idle)]
+    public void ModeMenu_HasNoMenuOutsideLiveAndReview(TransportMode mode)
+        => Assert.Null(new MainToolbarTimeControlSection(In(mode)).ModeMenu());
+
+    [Fact]
+    public void LiveMenu_OffersTheReviewWindowsAndTheStart()
+    {
+        var menu = new MainToolbarTimeControlSection(In(TransportMode.Live, total: 754)).ModeMenu()!;
+        Assert.Equal(new[] { "Review the last 30 s", "Review the last 2 min", "Review the last 10 min", "Review from the start" },
+                     menu.Items.Select(i => i.Label).ToArray());
+        Assert.StartsWith("Live", menu.Header);
+    }
+
+    [Fact]
+    public void LiveMenu_Review2Min_EntersBySimMinus120_ClampedAtZero()
+    {
+        var fake = In(TransportMode.Live, total: 754);
+        new MainToolbarTimeControlSection(fake).ModeMenu()!.Items[1].Invoke!();
+        Assert.Equal(754 - 120, fake.LastEnterReviewAtSim);
+
+        var young = In(TransportMode.Live, total: 50);
+        new MainToolbarTimeControlSection(young).ModeMenu()!.Items[1].Invoke!();
+        Assert.Equal(0d, young.LastEnterReviewAtSim);
+
+        var start = In(TransportMode.Live, total: 754);
+        new MainToolbarTimeControlSection(start).ModeMenu()!.Items[3].Invoke!();
+        Assert.Equal(0d, start.LastEnterReviewAtSim);
+    }
+
+    private static ReplaySession SessionWithCheckpoint() => new()
+    {
+        Active = true, IsReview = true, ZeroWallTicks = 100 * TimeSpan.TicksPerSecond, LivePointSimSeconds = 600,
+        Checkpoints = new[] { new CheckpointMark { Label = "cp-1", TotalTime = 42.5, WallTicks = 160 * TimeSpan.TicksPerSecond } },
+    };
+
+    [Fact]
+    public void ReviewMenu_Items_HeaderAndBackToLive()
+    {
+        var fake = In(TransportMode.Review, total: 273, livePoint: 600, session: SessionWithCheckpoint());
+        var menu = new MainToolbarTimeControlSection(fake).ModeMenu()!;
+        Assert.Equal("Review · 5:27 behind live", menu.Header);
+        Assert.Equal(new[] { "Restart from 30 s before live", "Restart from 2 min before live", "Restart from a checkpoint", "⏏ Back to live" },
+                     menu.Items.Select(i => i.Label).ToArray());
+
+        menu.Items[3].Invoke!();
+        Assert.Equal(1, fake.ExitReviewCallCount);
+
+        menu.Items[1].Invoke!();
+        Assert.Equal(600 - 120, fake.LastSeek);
+    }
+
+    [Fact]
+    public void ReviewMenu_WithoutALivePoint_OffersNoRestartFromLive()
+    {
+        var menu = new MainToolbarTimeControlSection(In(TransportMode.Review, livePoint: null)).ModeMenu()!;
+        Assert.DoesNotContain(menu.Items, i => i.Label.StartsWith("Restart from 30"));
+        Assert.False(menu.Items.Single(i => i.Label == "Restart from a checkpoint").Enabled);   // no checkpoints either
+    }
+
+    [Theory]
+    [InlineData(ReplayAxis.Sim, 42.5)]    // Sim: the checkpoint's sim time
+    [InlineData(ReplayAxis.Wall, 60.0)]   // Wall: seconds after the session's zero ((160 - 100) s)
+    public void ReviewMenu_CheckpointSeeksToTheValueOnTheActiveAxis(ReplayAxis axis, double expected)
+    {
+        var fake = In(TransportMode.Review, axis, total: 10, livePoint: 600, session: SessionWithCheckpoint());
+        var sub = new MainToolbarTimeControlSection(fake).ModeMenu()!.Items.Single(i => i.Label == "Restart from a checkpoint");
+        Assert.True(sub.Enabled);
+        var item = Assert.Single(sub.Children!);
+        Assert.Equal("cp-1", item.Label);
+        item.Invoke!();
+        Assert.Equal(expected, fake.LastSeek);
+    }
+
+    [Fact]
+    public void StopFace_InAReviewIsBackToLive_ElsewhereStop()
+    {
+        Assert.Equal(MainToolbarTimeControlSection.StopFaceKind.BackToLive, MainToolbarTimeControlSection.StopFace(TransportMode.Review));
+        foreach (var m in new[] { TransportMode.Live, TransportMode.Replay, TransportMode.Preview, TransportMode.Edit, TransportMode.Idle })
+            Assert.Equal(MainToolbarTimeControlSection.StopFaceKind.Stop, MainToolbarTimeControlSection.StopFace(m));
+    }
+
+    [Fact]
+    public void StopTooltip_PerMode()
+    {
+        Assert.Equal("Stop the exercise", new MainToolbarTimeControlSection(In(TransportMode.Live)).StopTooltip());
+        Assert.Equal("Leave the replay", new MainToolbarTimeControlSection(In(TransportMode.Replay)).StopTooltip());
+        Assert.Equal("Back to edit", new MainToolbarTimeControlSection(In(TransportMode.Preview)).StopTooltip());
+        Assert.Equal("Back to live — 5:27 ahead",
+            new MainToolbarTimeControlSection(In(TransportMode.Review, total: 273, livePoint: 600)).StopTooltip());
+    }
+
+    [Fact]
+    public void F15_StopIsIgnoredFor3SecondsAfterAReviewReturnsToLive_ThenStops()
+    {
+        var clock = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+        var fake = In(TransportMode.Review);
+        var section = new MainToolbarTimeControlSection(fake, () => clock);
+        section.Observe();                 // a frame in the review
+
+        fake.Mode = TransportMode.Live;    // the return landed
+        section.Observe();                 // the next frame sees it
+        clock = clock.AddSeconds(2.9);
+        Assert.Contains("Just returned", section.StopTooltip());
+        section.OnStop();
+        Assert.Equal(0, fake.StopCallCount);   // the second press of a double press: ignored
+
+        clock = clock.AddSeconds(0.2);     // 3.1 s after the return
+        Assert.Equal("Stop the exercise", section.StopTooltip());
+        section.OnStop();
+        Assert.Equal(1, fake.StopCallCount);
+    }
+
+    [Fact]
+    public void F15_AStopInLiveThatFollowsNoReview_IsNeverGuarded()
+    {
+        var fake = In(TransportMode.Live);
+        var section = new MainToolbarTimeControlSection(fake, () => DateTime.UnixEpoch);
+        section.Observe();
+        section.OnStop();
+        Assert.Equal(1, fake.StopCallCount);
+    }
+
+    [Fact]
+    public void AxisToggle_CallsSetAxisWithTheOtherAxis_AndIsDisabledInEdit()
+    {
+        var live = In(TransportMode.Live, ReplayAxis.Sim);
+        var s = new MainToolbarTimeControlSection(live);
+        Assert.Equal("S", MainToolbarTimeControlSection.AxisFace(ReplayAxis.Sim));
+        Assert.Equal("W", MainToolbarTimeControlSection.AxisFace(ReplayAxis.Wall));
+        Assert.Equal("Sim time — pauses skipped", MainToolbarTimeControlSection.AxisTooltip(ReplayAxis.Sim));
+        Assert.Equal("Wall time — pauses shown", MainToolbarTimeControlSection.AxisTooltip(ReplayAxis.Wall));
+        Assert.True(s.IsAxisEnabled);
+        s.OnToggleAxis();
+        Assert.Equal(ReplayAxis.Wall, live.Axis);
+        s.OnToggleAxis();
+        Assert.Equal(ReplayAxis.Sim, live.Axis);
+
+        foreach (var m in new[] { TransportMode.Edit, TransportMode.Preview, TransportMode.Idle })
+        {
+            var f = In(m, ReplayAxis.Sim);
+            var sec = new MainToolbarTimeControlSection(f);
+            Assert.False(sec.IsAxisEnabled);
+            sec.OnToggleAxis();
+            Assert.Equal(ReplayAxis.Sim, f.Axis);
+        }
+    }
+
+    [Theory]
+    [InlineData(TransportMode.Edit)]
+    [InlineData(TransportMode.Live)]
+    [InlineData(TransportMode.Review)]
+    [InlineData(TransportMode.Replay)]
+    public void Render_EachMode_NoThrow(TransportMode mode)
+    {
+        using var fixture = new ImGuiTestFixture();
+        fixture.NewFrame();
+        var fake = In(mode, total: 12, livePoint: 600, session: SessionWithCheckpoint());
+        var section = new MainToolbarTimeControlSection(fake);
+        ImGuiNET.ImGui.Begin("test_toolbar_modes", ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
+        ImGuiNET.ImGui.SetWindowSize(new System.Numerics.Vector2(700, 80));
+        section.Render();
         ImGuiNET.ImGui.End();
         fixture.Render();
     }
