@@ -43,6 +43,7 @@ public sealed class ActionStatusGizmo : IStatelessGizmo
         {
             ActionReason.Aiming or ActionReason.Reloading => $"{channel} {label} {row.Progress:0.0}/{row.Needed:0.0}s",
             ActionReason.Cooldown                         => $"{channel} {label} {row.Progress:0.0}s",
+            ActionReason.Overheated                       => $"{channel} {label} {row.Progress * 100f:0}%",   // ⭐ CE-1358
             ActionReason.Moving when row.Progress > 0f    => $"{channel} {label} {row.Progress:0}m",
             _                                             => $"{channel} {label}",
         };

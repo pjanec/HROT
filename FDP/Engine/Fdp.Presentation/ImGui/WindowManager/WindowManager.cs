@@ -925,7 +925,9 @@ public class WindowManager
         };
     }
 
-    /// <summary>⭐ CE-1243 — the Help menu: Debug (the global windows) and About (win-mgr-1 §4.4.4).</summary>
+    /// <summary>⭐ CE-1243 — the Help menu: About. ⭐ CE-1332 (🔒 user, 2026-10-25: <i>"leaving just the About in the Help menu … if the
+    /// Window → Global is same as the debug windows then lets remove the debug field from the View also"</i>) — the global (debug) windows are
+    /// listed once, under Windows → Global. ⛔ SUPERSEDED: Help → Debug, and the View → Debug it briefly moved to.</summary>
     private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto HelpMenuDto()
         => new()
         {
@@ -934,15 +936,6 @@ public class WindowManager
             Icon = "status/info",
             Children = new[]
             {
-                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-                {
-                    Label = "Debug",
-                    Children = _windows.Values.Where(w => w.Scope == WindowScope.Global && w.ShowInMenu)
-                        .Select(w => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-                        {
-                            Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen
-                        }).ToArray()
-                },
                 new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info" }
             }
         };

@@ -27,6 +27,12 @@ public sealed record BrainRegion(int Region, int StateIndex, string State);
 /// <summary>One journal entry, decoded.</summary>
 public sealed record BrainChange(uint Seq, float At, string Kind, string Text);
 
+/// <summary>⭐ <c>CE-1327</c> — one contact in the unit's memory (<see cref="TargetMemory"/>): who (an identified unit, or a heard "something"),
+/// how it was sensed, where (sim metres), how far, how fresh, and how long since it was last perceived (null when the host has no tick
+/// length).</summary>
+public sealed record BrainContact(long Id, bool Heard, string How, Vector3 Position, float Distance, float Freshness, float? AgeSeconds,
+    float Radius, Entity? Unit);
+
 /// <summary>
 /// ⭐⭐ <c>CE-1248</c> (R-1026, BV-1…BV-8) — what a unit is doing and why, from what the brain already records. ONE reader for the
 /// Brain tab, its panel dump and <c>GET /entities/{id}/brain</c> (BV-8); it reads a world, so the replay sandbox works the same
@@ -50,8 +56,12 @@ public sealed record BrainSnapshot(
     uint JournalSeq,
     bool JournalOn,
     IReadOnlyList<BrainChange> Changes,
-    bool Traced = false)
+    bool Traced = false,
+    IReadOnlyList<BrainContact>? ContactList = null)
 {
+    /// <summary>⭐ <c>CE-1327</c> — every contact in the unit's memory, freshest first (empty without a memory).</summary>
+    public IReadOnlyList<BrainContact> ContactRows => ContactList ?? Array.Empty<BrainContact>();
+
     /// <summary>The unit's brain, or <c>null</c> when it has none (no <see cref="BehaviorState"/>).</summary>
     public static BrainSnapshot? Read(ISimulationView view, Entity unit, Func<int, string?>? behaviorName = null,
         Func<int, BehaviorDefinition?>? definition = null)
@@ -103,6 +113,7 @@ public sealed record BrainSnapshot(
         }
 
         int contacts = 0, heard = 0;
+        var contactList = new List<BrainContact>();
         if (Has<TargetMemory>(view, unit))
         {
             ref readonly var m = ref view.GetComponentRO<TargetMemory>(unit);
@@ -111,6 +122,7 @@ public sealed record BrainSnapshot(
                 if (TargetMemory.IsAnonymous(in m, i)) heard++;
                 else contacts++;
             }
+            ContactsOf(view, unit, in m, contactList);
         }
 
         string? squad = null;
@@ -143,7 +155,44 @@ public sealed record BrainSnapshot(
             journalOn, changes,
             // ⭐ CE-1319 (BV-61) — the graph's trace rings are observe-only; the tab says whether this unit's are on (in replay: were)
             Has<BTreeTraceWorkingMemory1024>(view, unit) || Has<HsmTraceWorkingMemory1024>(view, unit)
-            || Has<Fdp.Toolkit.Utility.UtilityTraceWorkingMemory1024>(view, unit));
+            || Has<Fdp.Toolkit.Utility.UtilityTraceWorkingMemory1024>(view, unit),
+            contactList);
+    }
+
+    /// <summary>⭐ <c>CE-1327</c> — the memory's contacts as rows, freshest first.</summary>
+    private static unsafe void ContactsOf(ISimulationView view, Entity unit, in TargetMemory m, List<BrainContact> into)
+    {
+        var self = Has<SimTransform>(view, unit) ? view.GetComponentRO<SimTransform>(unit).Position : Vector3.Zero;
+        float dt = view is EntityRepository r && r.HasSingleton<GlobalTime>() ? r.GetSingleton<GlobalTime>().DeltaTime : 0f;
+        uint tick = view.Tick;
+        for (int i = 0; i < m.Count; i++)
+        {
+            bool heard = TargetMemory.IsAnonymous(in m, i);
+            var pos = new Vector3(m.PositionsX[i], m.PositionsY[i], m.PositionsZ[i]);
+            Entity? who = null;
+            if (!heard)
+            {
+                var e = new Entity((ulong)m.EntityIds[i]);
+                if (view.IsAlive(e)) who = e;
+            }
+            float? age = dt > 0f && tick >= m.LastSeenTick[i] ? (tick - m.LastSeenTick[i]) * dt : null;
+            into.Add(new BrainContact(m.EntityIds[i], heard, HowOf(m.Modalities[i], heard, m.SourceClass[i]), pos, Vector3.Distance(self, pos),
+                m.Freshness[i], age, m.Radius[i], who));
+        }
+        into.Sort((a, b) => b.Freshness.CompareTo(a.Freshness));
+    }
+
+    /// <summary>How a contact was sensed, in words ("seen", "heard: gunfire", "seen, thermal").</summary>
+    public static string HowOf(byte modalities, bool heard, byte sourceClass)
+    {
+        var parts = new List<string>(3);
+        var mod = (SensorModality)modalities;
+        if (mod.HasFlag(SensorModality.Visual)) parts.Add("seen");
+        if (mod.HasFlag(SensorModality.Thermal)) parts.Add("thermal");
+        if (mod.HasFlag(SensorModality.Radar)) parts.Add("radar");
+        if (heard || mod.HasFlag(SensorModality.Acoustic))
+            parts.Add(sourceClass != 0 ? $"heard: {((Fdp.Toolkit.Tkb.Domain.SoundSourceClass)sourceClass).ToString().ToLowerInvariant()}" : "heard");
+        return parts.Count == 0 ? "reported" : string.Join(", ", parts);
     }
 
     private static void AddRow(List<BrainActionRow> rows, string channel, in ActionStatusRow row)
@@ -176,10 +225,24 @@ public sealed record BrainSnapshot(
         {
             ["onBrainNode"] = OnBrainNode, ["doing"] = Doing, ["origin"] = Origin, ["urgency"] = Urgency, ["sinceSeconds"] = SinceSeconds,
             ["paused"] = Paused, ["sop"] = Sop, ["roe"] = Roe, ["rightNow"] = rows, ["regions"] = regions, ["squad"] = Squad,
-            ["choices"] = choices, ["contacts"] = Contacts, ["heardOnly"] = HeardOnly,
+            ["choices"] = choices, ["contacts"] = Contacts, ["heardOnly"] = HeardOnly, ["contactList"] = ContactsJson(),
             ["journal"] = new JsonObject { ["on"] = JournalOn, ["seq"] = JournalSeq, ["changes"] = changes },
             ["traced"] = Traced,
         };
+    }
+
+    private JsonArray ContactsJson()
+    {
+        var list = new JsonArray();
+        foreach (var c in ContactRows)
+            list.Add(new JsonObject
+            {
+                ["id"] = c.Id, ["heard"] = c.Heard, ["how"] = c.How,
+                ["position"] = new JsonArray(Math.Round(c.Position.X, 1), Math.Round(c.Position.Y, 1), Math.Round(c.Position.Z, 1)),
+                ["distance"] = Math.Round(c.Distance, 1), ["freshness"] = Math.Round(c.Freshness, 3),
+                ["ageSeconds"] = c.AgeSeconds is { } a ? Math.Round(a, 1) : null, ["radius"] = Math.Round(c.Radius, 1),
+            });
+        return list;
     }
 
     public static JsonObject ChangeJson(BrainChange c)
@@ -380,25 +443,34 @@ public sealed class EntityBrainView : IDetailsViewInstance
 
         // ⭐⭐ CE-1310 (BV-34, BV-64) — every section is a collapsing header with a STABLE id (the label may carry a count); which are
         //   open is ImGui's own memory, nothing forced
-        if (Section("Doing", "doing"))
+        // ⭐ CE-1327 — every list is a table: sizable columns, a line grid, alternating row background (the user's ask, 2026-10-25)
+        if (Section("Doing", "doing") && BeginGrid("doing", ("", 0.25f), ("", 0.75f)))
         {
-            Row("Task", b.Doing + (b.SinceSeconds is { } s ? $"  ({s:0} s)" : ""));
-            if (b.Origin is { } o) Row("Ordered by", o + (b.Urgency is { } u ? $"  · {u}" : ""));
-            if (b.Paused is { } p) Row("Paused", p);
-            if (b.Sop is { } sop) Row("SOP", sop);
-            foreach (var g in b.Regions) Row($"Region {g.Region}", g.State);
-            if (b.Roe is { } roe) Row("ROE", roe);
+            GridRow("Task", b.Doing + (b.SinceSeconds is { } s ? $"  ({s:0} s)" : ""));
+            if (b.Origin is { } o) GridRow("Ordered by", o + (b.Urgency is { } u ? $"  · {u}" : ""));
+            if (b.Paused is { } p) GridRow("Paused", p);
+            if (b.Sop is { } sop)
+            {
+                GridRow("SOP", sop);
+                // ⭐ CE-1326 — jump to the SOP's graph, live on this unit
+                if (world is not null && SopName(world, unit) is { } sopName) OpenGraphButton(world, unit, sopName, idScope, "sop");
+            }
+            foreach (var g in b.Regions) GridRow($"Region {g.Region}", g.State);
+            if (b.Roe is { } roe) GridRow("ROE", roe);
+            ImGui.EndTable();
         }
 
-        if (b.RightNow.Count > 0 && Section("Right now", "now"))
+        if (b.RightNow.Count > 0 && Section("Right now", "now") && BeginGrid("now", ("Channel", 0.22f), ("Doing", 0.58f), ("Progress", 0.2f)))
         {
             foreach (var r in b.RightNow)
             {
-                var text = r.Reason + (r.Needed > 0 ? $"  {r.Progress:0.0}/{r.Needed:0.0}" : r.Progress > 0 ? $"  {r.Progress:0.0}" : "");
-                ImGui.TextUnformatted(r.Channel);
-                ImGui.SameLine(LabelWidth);
-                if (r.IsHold) ImGui.TextColored(Amber, text); else ImGui.TextUnformatted(text);
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(r.Channel);
+                ImGui.TableNextColumn(); if (r.IsHold) ImGui.TextColored(Amber, r.Reason); else ImGui.TextWrapped(r.Reason);
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(r.Needed > 0 ? $"{r.Progress:0.0} / {r.Needed:0.0}" : r.Progress > 0 ? $"{r.Progress:0.0}" : "");
             }
+            ImGui.EndTable();
         }
 
         if (b.Squad is { } squad && Section("Squad", "squad")) ImGui.TextWrapped(squad);
@@ -406,14 +478,30 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (Section("Why", "why"))
         {
             if (b.Choices.Count == 0) ImGui.TextDisabled("No utility decision has run on this unit.");
+            // ⭐ CE-1325 (docs/DESIGN_Utility_Decision_View.md W5) — each decision by NAME, its winner in words; opened, the decision's settings
+            //   and this unit's values (the same drawing as the graph's Decision tab). ⛔ SUPERSEDED: "Decision <id>: winner <number>".
             foreach (var c in b.Choices)
-                Row($"Decision {c.DecisionId}", $"winner {c.Winner} (was {c.PreviousWinner}), margin {c.Margin:0.00}, {c.Switches} switches");
+            {
+                var sheet = Hrot.Editor.AiShared.Utility.UtilityDecisionSheet.Build(c.DecisionId);
+                var live = sheet != null && world is not null ? sheet.WithLive(world, unit) : null;
+                string winner = live == null ? $"{c.Winner}" : live.IsRanking
+                    ? (live.Ranked.Count > 0 ? $"{PinLabelOf(world!, live.Ranked[0].Entity)}  {live.Ranked[0].Score:0.00}" : "-")
+                    : live.WinnerName ?? "-";
+                string label = $"{sheet?.Name ?? $"Decision {c.DecisionId}"}  ->  {winner}   margin {c.Margin:0.00}   {c.Switches} switches";
+                if (live == null) { ImGui.TextWrapped(label); continue; }
+                if (ImGui.TreeNodeEx($"{label}###why{c.DecisionId}", ImGuiTreeNodeFlags.SpanAvailWidth))
+                {
+                    Hrot.Editor.AiShared.Utility.UtilityDecisionWidget.Draw(live, idScope + "/why", header: false,
+                        unitLabel: e => PinLabelOf(world!, e));
+                    ImGui.TreePop();
+                }
+            }
             // ⭐ CE-1319 (BV-61) — the graph's step-by-step trace is kept only for an observed unit; say which, honestly, in replay too
             if (!b.Traced) ImGui.TextDisabled(TraceLine(context.Mode));
         }
 
-        if (Section("Knows", "knows"))
-            Row("Contacts", $"{b.Contacts} seen" + (b.HeardOnly > 0 ? $", {b.HeardOnly} heard only" : ""));
+        if (Section($"Knows ({b.Contacts} identified" + (b.HeardOnly > 0 ? $", {b.HeardOnly} heard only)" : ")"), "knows"))
+            DrawContacts(world, b.ContactRows);
 
         // ⭐⭐ CE-1312 (BV-56…BV-58) — a COMMANDER's picture, his units' contacts, and his report / order histories (recorded: they replay)
         if (world is not null && BrainCommandView.Read(world, unit, _behaviorName, (float)NowOf(world)) is { } cmd)
@@ -422,11 +510,16 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (Section($"Recent changes ({b.Changes.Count})", "changes"))
         {
             if (!b.JournalOn) ImGui.TextDisabled("Journal off on this host (or no brain here).");
-            foreach (var c in b.Changes)
+            else if (b.Changes.Count > 0 && BeginGrid("changes", ("Time", 0.14f), ("Kind", 0.2f), ("Change", 0.66f)))
             {
-                ImGui.TextDisabled($"{c.At,7:0.0}s");
-                ImGui.SameLine();
-                ImGui.TextWrapped(c.Text);
+                foreach (var c in b.Changes)
+                {
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn(); ImGui.TextDisabled($"{c.At:0.0} s");
+                    ImGui.TableNextColumn(); ImGui.TextUnformatted(c.Kind);
+                    ImGui.TableNextColumn(); ImGui.TextWrapped(c.Text);
+                }
+                ImGui.EndTable();
             }
         }
 
@@ -434,7 +527,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
             DrawSettings(world, unit, groups, editable: !replay);
 
         if (world is not null && Running(world, unit) is { Count: > 0 } running && Section($"Running behaviours ({running.Count})", "running"))
-            DrawRunning(running);
+            DrawRunning(running, name => OpenGraphButton(world, unit, name, idScope, "rb_" + name));
 
         DrawEmbeds(context, idScope, replay);
 
@@ -512,32 +605,40 @@ public sealed class EntityBrainView : IDetailsViewInstance
     private static void DrawSettings(EntityRepository world, Entity unit,
         IReadOnlyList<(string Group, IReadOnlyList<(IBrainSettingProvider Provider, BrainSetting Setting)> Settings)> groups, bool editable)
     {
+        // ⭐ CE-1327 — a table, so a long label can never run under its slider (the user saw them overlap): label · slider · type · reset
+        if (!BeginGrid("settings", ("Setting", 0.3f), ("Value", 0.42f), ("Type", 0.14f), ("", 0.14f))) return;
         foreach (var (group, settings) in groups)
         {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
             ImGui.TextDisabled(group);
             foreach (var (provider, s) in settings)
             {
                 ImGui.PushID(provider.Group + "/" + s.Key);
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
                 ImGui.TextUnformatted("  " + s.Label);
-                ImGui.SameLine(LabelWidth);
+                if (s.Tooltip is { } labelTip && ImGui.IsItemHovered()) ImGui.SetTooltip(labelTip);
+                ImGui.TableNextColumn();
                 float v = s.Value;
-                ImGui.SetNextItemWidth(160f);
+                ImGui.SetNextItemWidth(-1f);
                 if (!editable) ImGui.BeginDisabled();
                 string format = s.Presets is { Count: > 0 } presets ? $"%.2f  {Nearest(presets, v)}" : "%.2f";
                 if (ImGui.SliderFloat("##v", ref v, s.Min, s.Max, format)) provider.Write(world, unit, s.Key, v);
                 if (!editable) ImGui.EndDisabled();
                 if (s.Tooltip is { } tip && ImGui.IsItemHovered()) ImGui.SetTooltip(tip);
-                ImGui.SameLine();
+                ImGui.TableNextColumn();
                 ImGui.TextDisabled($"type {s.TypeValue:0.00}");
+                ImGui.TableNextColumn();
                 if (s.IsAuthored && editable)
                 {
-                    ImGui.SameLine();
                     if (ImGui.SmallButton("reset")) provider.Reset(world, unit, s.Key);
                     if (ImGui.IsItemHovered()) ImGui.SetTooltip("Back to the type's value (clears the authored value).");
                 }
                 ImGui.PopID();
             }
         }
+        ImGui.EndTable();
     }
 
     private static string Nearest(IReadOnlyList<(string Name, float Value)> presets, float v)
@@ -571,14 +672,16 @@ public sealed class EntityBrainView : IDetailsViewInstance
     /// <summary>⭐ <c>CE-1315</c> (BV-42, BV-43) — one tree node per running behaviour; its parameters and variables are the inspector's
     /// own read-only dump (<see cref="Fdp.Presentation.Utils.ImGuiPropertyTree"/>: the registered renderers, fixed lists at their Count).
     /// ImGui remembers what is open (BV-64).</summary>
-    private static void DrawRunning(IReadOnlyList<RunningBehaviourView> running)
+    private static void DrawRunning(IReadOnlyList<RunningBehaviourView> running, Action<string>? openGraph = null)
     {
         for (int i = 0; i < running.Count; i++)
         {
             var r = running[i];
             ImGui.PushID(i);
             if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
-            if (ImGui.TreeNodeEx($"{r.OwnerLabel} · {r.Name}##rb", ImGuiTreeNodeFlags.SpanAvailWidth))
+            bool open = ImGui.TreeNodeEx($"{r.OwnerLabel} · {r.Name}##rb", ImGuiTreeNodeFlags.AllowOverlap);
+            openGraph?.Invoke(r.Name);   // ⭐ CE-1326 / CE-1327 — its graph, live on this unit, on the node's own line (open or closed)
+            if (open)
             {
                 DrawValues(r.Parameters, r.Variables, r.HiddenVariableMembers);
                 for (int p = 0; p < r.Parts.Count; p++)
@@ -630,6 +733,19 @@ public sealed class EntityBrainView : IDetailsViewInstance
             return;
         }
         var unit = context.Entities[0];
+        // ⭐ CE-1329 (Brain View §12r BV-71) — forget what is remembered for this unit (its Show on map ticks, its trace, the camera following
+        //   it); the Settings menu resets the whole scenario
+        if (Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(w, unit) is var resetId and not 0
+            && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(w) is { } settings && (settings.Remembered.ContainsKey(resetId) || settings.Followed == resetId))
+        {
+            if (ImGui.Button("Reset this unit's debug settings"))
+            {
+                if (settings.Followed == resetId) Hrot.UI.Common.Map3D.ViewControl.Of(w)?.StopFollowing();
+                settings.ResetUnit(resetId);
+                _breakNote = "this unit's debug settings are forgotten";
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Unpins its map gizmos, turns off its remembered trace and stops the camera following it (remembered per scenario).");
+        }
         // ⛔ CE-1317 (BV-48) — the "Debug this unit" checkbox is gone: viewing the tab arms the traces, and the map families are
         //   pinned one by one in "Show on map"
         // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — watch him: the map's 3-D camera follows this unit (wheel: in to his eyes)
@@ -639,24 +755,9 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 _breakNote = view.FollowUnit(unit) ?? "the map camera follows it (W/A/S/D or Esc lets go)";
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("The map's 3-D camera follows this unit: the wheel goes in to his eyes, RMB orbits.");
         }
-        // ⭐⭐ CE-1318 (BV-55, R-1039) — open THE RUNNING behaviour's graph: from a PINNED tab the graph is pinned to this unit (its own
-        //   document, the tab header names him); from the docked tab it follows the selection, as this tab does.
-        //   ⛔ SUPERSEDED (CE-1254 BV-22): it set the ONE global debug pin, so every graph followed the last unit opened.
-        if (c.OpenGraph is { } open && RunningBehaviourLocator.Resolve(w, unit, _behaviorName, _definition) is { } running)
-        {
-            bool pinned = IsPinnedScope(idScope);
-            if (ImGui.Button("Open running behaviour"))
-            {
-                bool ok = pinned && c.OpenGraphPinned is { } openPinned
-                    ? openPinned(running.Name, unit, PinLabelOf(w, unit))
-                    : open(running.Name);
-                _breakNote = ok ? $"opened {running.Name}{(pinned ? $" pinned to {PinLabelOf(w, unit)}" : "")}" : $"{running.Name} has no graph in this editor";
-            }
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip(pinned
-                    ? $"Opens {running.Name} ({running.Tier}) PINNED to this unit: its own tab, its overlay stays on him."
-                    : $"Opens {running.Name} ({running.Tier}); its live overlay follows the selection, as this tab does.");
-        }
+        // ⛔ CE-1327 — the "Open running behaviour" button is gone: every running behaviour (and the SOP) has its own "Open graph" in
+        //   its section (CE-1326), with the same pinned / docked rule (CE-1318 BV-55). The user, 2026-10-25: "If we allow opening the
+        //   behavior … we do not need any special open Running behavior button."
         if (c.ArmJournalBreak is { } arm)
         {
             if (ImGui.Button("Break when it changes its mind"))
@@ -675,12 +776,32 @@ public sealed class EntityBrainView : IDetailsViewInstance
         }
     }
 
+    /// <summary>⭐ <c>CE-1326</c> — "Open graph" beside a behaviour (the SOP, a running behaviour): its graph, live on this unit — PINNED to him
+    /// from a pinned tab, following the selection from the docked one (the "Open running behaviour" rule, CE-1318).</summary>
+    private void OpenGraphButton(EntityRepository w, Entity unit, string behaviour, string idScope, string id)
+    {
+        if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is not { OpenGraph: { } open } c) return;
+        ImGui.SameLine();
+        if (ImGui.SmallButton($"Open graph##{id}"))
+        {
+            bool pinned = IsPinnedScope(idScope);
+            bool ok = pinned && c.OpenGraphPinned is { } openPinned ? openPinned(behaviour, unit, PinLabelOf(w, unit)) : open(behaviour);
+            _breakNote = ok ? $"opened {behaviour}" : $"{behaviour} has no graph in this editor";
+        }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Opens {behaviour}'s graph with this unit's live values.");
+    }
+
+    /// <summary>The SOP the unit runs, by its registered name; null when none.</summary>
+    private string? SopName(EntityRepository w, Entity unit)
+        => w.IsComponentTypeRegistered<SopState>() && w.HasComponent<SopState>(unit) && w.GetComponentRO<SopState>(unit).SopHash is int h and not 0
+            ? _behaviorName(h) : null;
+
     /// <summary>⭐ <c>CE-1318</c> — this tab is a PIN (its window id is <see cref="Hrot.Editor.AiShared.Windows.DetailsWindow.PinIdFor"/>'s), not the
     /// docked tab that follows the selection.</summary>
     internal static bool IsPinnedScope(string idScope) => idScope.StartsWith("details_pin_", StringComparison.Ordinal);
 
     /// <summary>How a pinned graph's tab names the unit: its network id, else its local handle.</summary>
-    internal static string PinLabelOf(EntityRepository world, Entity unit)
+    public static string PinLabelOf(EntityRepository world, Entity unit)
     {
         long net = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
             ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, unit) : 0;
@@ -688,13 +809,67 @@ public sealed class EntityBrainView : IDetailsViewInstance
     }
 
     private static readonly Vector4 Amber = new(1f, 0.75f, 0.2f, 1f);
-    private const float LabelWidth = 110f;
 
-    private static void Row(string label, string value)
+    /// <summary>⭐ <c>CE-1327</c> — the tab's ONE list shape: sizable columns (their starting share of the width), a line grid, alternating row
+    /// backgrounds. A column with an empty name draws no header row. Returns false when ImGui clips it (then no <c>EndTable</c>).</summary>
+    internal static bool BeginGrid(string id, params (string Name, float Weight)[] columns)
     {
+        const ImGuiTableFlags flags = ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp;
+        if (!ImGui.BeginTable("##grid." + id, columns.Length, flags)) return false;
+        foreach (var (name, weight) in columns) ImGui.TableSetupColumn(name, ImGuiTableColumnFlags.WidthStretch, weight);
+        if (columns.Any(c => c.Name.Length > 0)) ImGui.TableHeadersRow();
+        return true;
+    }
+
+    /// <summary>A label · value row of a two-column grid (the value wraps).</summary>
+    private static void GridRow(string label, string value)
+    {
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
         ImGui.TextUnformatted(label);
-        ImGui.SameLine(LabelWidth);
+        ImGui.TableNextColumn();
         ImGui.TextWrapped(value);
+    }
+
+    /// <summary>⭐ <c>CE-1327</c> — the host's camera jump: centre the map (2-D or 3-D) on a sim position. Null on a host with no map.</summary>
+    public static Func<EntityRepository, Vector3, bool>? JumpCamera { get; set; }
+
+    /// <summary>⭐ <c>CE-1327</c> — the unit's contacts, one row each: who, how it was sensed, how far, how long ago, how fresh, and a button
+    /// that brings the map's camera to where he believes it is.</summary>
+    private static void DrawContacts(EntityRepository? world, IReadOnlyList<BrainContact> contacts)
+    {
+        if (contacts.Count == 0) { ImGui.TextDisabled("No contacts in his memory."); return; }
+        if (!BeginGrid("contacts", ("Contact", 0.26f), ("How", 0.24f), ("Dist", 0.12f), ("Ago", 0.12f), ("Fresh", 0.12f), ("", 0.14f))) return;
+        for (int i = 0; i < contacts.Count; i++)
+        {
+            var c = contacts[i];
+            ImGui.PushID(i);
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            string who = c.Unit is { } u && world is not null ? NameOf(world, u) : c.Heard ? $"something (±{c.Radius:0} m)" : "unknown";
+            if (c.Heard) ImGui.TextColored(Amber, who); else ImGui.TextUnformatted(who);
+            ImGui.TableNextColumn(); ImGui.TextUnformatted(c.How);
+            ImGui.TableNextColumn(); ImGui.TextUnformatted($"{c.Distance:0} m");
+            ImGui.TableNextColumn(); ImGui.TextUnformatted(c.AgeSeconds is { } a ? $"{a:0.0} s" : "-");
+            ImGui.TableNextColumn(); ImGui.TextUnformatted($"{c.Freshness:0.00}");
+            ImGui.TableNextColumn();
+            if (JumpCamera is { } jump && world is not null)
+            {
+                if (ImGui.SmallButton("Camera")) jump(world, c.Position);
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip($"Bring the map's camera to where he believes it is ({c.Position.X:0}, {c.Position.Y:0}).");
+            }
+            ImGui.PopID();
+        }
+        ImGui.EndTable();
+    }
+
+    /// <summary>A unit as the tab names it: its name and network id ("Rifleman #1004"), else the id.</summary>
+    private static string NameOf(EntityRepository world, Entity unit)
+    {
+        string id = PinLabelOf(world, unit);
+        return world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(unit)
+               && world.GetComponentRO<EntityInfo>(unit).Name is { IsEmpty: false } n ? $"{n} {id}" : id;
     }
 }
 

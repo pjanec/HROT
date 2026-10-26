@@ -142,8 +142,9 @@ public sealed class NodeToNodeWireTests
         public bool Released { get; set; }
         public bool Pressed { get; set; }
         public bool IsMouseDown(MouseButton b) => false;
-        public bool IsMousePressed(MouseButton b) => b == MouseButton.Left && Pressed;
-        public bool IsMouseReleased(MouseButton b) => b == MouseButton.Left && Released;
+        public MouseButton Button { get; set; } = MouseButton.Left;   // the button Pressed / Released mean
+        public bool IsMousePressed(MouseButton b) => b == Button && Pressed;
+        public bool IsMouseReleased(MouseButton b) => b == Button && Released;
         public bool IsMouseDoubleClicked(MouseButton b) => false;
         public bool IsKeyDown(EditorKey k) => false;
         public bool IsKeyPressed(EditorKey k, bool r = false) => false;
@@ -338,5 +339,23 @@ public sealed class NodeToNodeWireTests
         Assert.Equal("one", doc1.Get<NodeCatalogEntry>("nodes.all")!.Query("", null)[0].Kind.Id);
         Assert.Equal("two", doc2.Get<NodeCatalogEntry>("nodes.all")!.Query("", null)[0].Kind.Id);
         Assert.NotNull(doc1.Get<NodeCatalogEntry>("assets.any"));
+    }
+
+    /// <summary>⭐ CE-1343 — a pan the MIDDLE button started ends on its release and opens no menu (the right button's release would).
+    /// ✅ Red-proof: the middle-pan branch dropped ⇒ the middle release never ends the pan.</summary>
+    [Fact]
+    public void CE1343_AMiddleButtonPan_EndsOnItsRelease_WithNoMenu()
+    {
+        var (_, _, view) = Make();
+        view.Interaction.Mode = InteractionMode.Panning;
+        view.Interaction.PanByMiddle = true;
+        var input = new Input { Button = MouseButton.Middle };
+        CanvasInput.HandlePanning(view, input);
+        Assert.Equal(InteractionMode.Panning, view.Interaction.Mode);
+        input.Released = true;
+        CanvasInput.HandlePanning(view, input);
+        Assert.Equal(InteractionMode.Idle, view.Interaction.Mode);
+        Assert.False(view.Interaction.PanByMiddle);
+        Assert.Null(view.Interaction.ContextMenuScreen);
     }
 }

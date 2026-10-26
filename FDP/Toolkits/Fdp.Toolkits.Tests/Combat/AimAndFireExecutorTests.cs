@@ -1075,6 +1075,88 @@ namespace Fdp.Toolkit.Combat.Tests
             Step(shooter, ref channel, 0.1f);
             Assert.Equal(NodeStatus.Failure, channel.Status);   // out of ammunition altogether
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1358</c> (DESIGN_Weapon_Layers §5k) — the PER-SHOT path fires at its rate until the barrel is too hot (0.25 a round:
+        /// the 5th round, with the cooling between), then holds — Running, nothing spent, saying <c>Overheated</c> — until it has cooled to
+        /// half (1 s at 0.5/s), and fires again. The dispatcher cools the barrel; here <see cref="BarrelHeat.Tick"/> stands in for it.
+        /// 🔴 Red-proof: drop <c>!BarrelHeat.IsOverheated</c> from <c>Magazine.Ready</c> ⇒ the 6th round flies at once.
+        /// </summary>
+        [Fact]
+        public void CE1358_ThePerShotPath_FiresUntilTheBarrelIsTooHot_ThenWaitsForItToCool()
+        {
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 200, 0f, target, cooldownSeconds: 0f);
+            ref var w = ref _world.GetComponentRW<WeaponState>(shooter);
+            w.HeatPerRound = 0.25f;
+            w.HeatCoolPerSecond = 0.5f;
+            EnterAimed(shooter, ref channel);
+
+            int StepCooling(float dt)
+            {
+                BarrelHeat.Tick(ref _world.GetComponentRW<WeaponState>(shooter), dt);
+                return Step(shooter, ref channel, dt);
+            }
+
+            int fired = 0;
+            for (int i = 0; i < 5; i++) fired += StepCooling(0.1f);
+            Assert.Equal(5, fired);
+            Assert.True(BarrelHeat.IsOverheated(_world.GetComponent<WeaponState>(shooter)));
+            Assert.Equal(195, _world.GetComponent<WeaponState>(shooter).Ammo);
+
+            int steps = 0;
+            while (fired == 5 && steps < 40) { fired += StepCooling(0.1f); steps++; }
+            Assert.Equal(6, fired);
+            Assert.InRange(steps, 10, 12);   // 1.0 → 0.5 at 0.5/s: ~1 s held (±1 step)
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1358</c> — the TURRET path: the brain's grant stops at the round that makes the barrel too hot, so the muscle fires
+        /// exactly that many and the task drops to Track (the gun keeps following); cooled to half, the grant opens again under the same
+        /// epoch. 🔴 Red-proof: drop the <c>RoundsLeft</c> cap ⇒ the grant is the whole belt (100), not the 10 the barrel takes.
+        /// </summary>
+        [Fact]
+        public void CE1358_TheTurretPath_StopsTheBurstAtTheHotRound_ThenResumes()
+        {
+            var (shooter, turret, channel, _) = TurretedTank(rounds: 0, cooldown: 0.05f, ammo: 100,
+                                                             category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun);
+            ref var w = ref _world.GetComponentRW<WeaponState>(shooter);
+            w.HeatPerRound = 0.1f;   // ten rounds to too hot, no cooling while it fires
+            w.HeatCoolPerSecond = 0f;
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+
+            const float dt = 1f / 60f;
+            int shots = 0, maxGrant = 0;
+            void Run(int frames)
+            {
+                for (int f = 0; f < frames; f++)
+                {
+                    Tick(shooter, ref channel, dt);
+                    maxGrant = Math.Max(maxGrant, _world.GetComponent<WeaponTask>(turret).RoundsGranted);
+                    muscle.Execute(_world, dt);
+                    _world.Bus.SwapBuffers();
+                    shots += _world.Bus.Read<WeaponFireIntent>().Length;
+                }
+            }
+            Run(60 * 8);
+            Assert.Equal(10, shots);
+            // ⭐ the GRANT never passes the hot round — on one node the brain also accounts before the muscle fires again, but a muscle on
+            //   another node reports late, and a grant of the whole belt would fire on past it
+            Assert.Equal(10, maxGrant);
+            Assert.True(BarrelHeat.IsOverheated(_world.GetComponent<WeaponState>(shooter)));
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(turret).Mode);
+            Assert.Equal(90, _world.GetComponent<WeaponState>(shooter).Ammo);
+
+            ref var hot = ref _world.GetComponentRW<WeaponState>(shooter);
+            hot.HeatCoolPerSecond = 1f;
+            BarrelHeat.Tick(ref hot, 0.6f);   // → 0.4: open
+            hot.HeatCoolPerSecond = 0f;
+            Run(60 * 2);
+            Assert.Equal(16, shots);   // 0.4 + 6 × 0.1 = too hot again
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(turret).Mode);
+        }
             /// <summary>
         /// ⭐ <c>CE-3136</c> (T1) — the executor SAYS why it is not firing, on the unit's <see cref="Fdp.Toolkit.Behavior.Diagnostics.ActionStatus"/>
         /// weapon row: hidden ⇒ "hold: not seen"; seen ⇒ "aiming 0.x of 0.8 s"; then "firing"; an empty magazine ⇒ "reloading".
@@ -2894,7 +2976,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>The TKB of the WS-3 rails: an M2 (its own pintle turret and mount 0), a bare pickup (driver, gunner, a bed station the
         /// gunner operates, NeedsGunner), and a sentry gun (automatic, or manual when <paramref name="sentryAutomatic"/> is false).</summary>
-        private void WeaponSystemTypes(bool sentryAutomatic = true)
+        private void WeaponSystemTypes(bool sentryAutomatic = true, bool stationArc = false)
         {
             RegisterWeaponSystems();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -2915,12 +2997,13 @@ namespace Fdp.Toolkit.Combat.Tests
                 db.Register(t);
             }
             var pickup = new Fdp.Interfaces.TkbTemplate("Pickup", WsPickupType);
-            pickup.AddDescriptor(PickupSeats());
+            pickup.AddDescriptor(PickupSeats(stationArc));
             db.Register(pickup);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
         }
 
-        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto PickupSeats() => new()
+        /// <param name="stationArc">⭐ CE-1356 — the bed station declares an arc: ±45° of the pickup's nose (a door-gun-like limit).</param>
+        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto PickupSeats(bool stationArc = false) => new()
         {
             Exposure = PassengerExposure.Open,
             Seats =
@@ -2931,6 +3014,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 {
                     Role = SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle, OperatedBy = 1, NeedsGunner = true,
                     X = -1.5f, Z = 1.4f,
+                    TraverseMinDeg = stationArc ? -45f : null, TraverseMaxDeg = stationArc ? 45f : null,
                 },
             },
         };
@@ -2970,14 +3054,15 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>The technical: a bare pickup at the origin facing east, an M2 in its bed station, a gunner (when <paramref name="gunner"/>)
         /// in its Gunner seat, a target 100 m to its left; the pickup's channel aims at it.</summary>
-        private (Entity Pickup, Entity M2, Entity Gunner, WeaponChannel Channel, Entity Target) Technical(int rounds, bool gunner = true)
+        private (Entity Pickup, Entity M2, Entity Gunner, WeaponChannel Channel, Entity Target) Technical(int rounds, bool gunner = true,
+                                                                                                         bool stationArc = false)
         {
-            WeaponSystemTypes();
+            WeaponSystemTypes(stationArc: stationArc);
             var pickup = _world.CreateEntity();
             _world.AddComponent(pickup, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             _world.AddComponent(pickup, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = WsPickupType });
             var pt = new Fdp.Interfaces.TkbTemplate("Pickup", WsPickupType);
-            pt.AddDescriptor(PickupSeats());
+            pt.AddDescriptor(PickupSeats(stationArc));
             new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_world, pickup, pt);
             var m2 = WeaponSystemOf(WsM2Type, new Vector3(-1.5f, 0f, 1.4f));
             Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, m2, pickup));
@@ -3013,6 +3098,87 @@ namespace Fdp.Toolkit.Combat.Tests
                 }
             }
             return shots;
+        }
+
+        /// <summary>⭐ <c>CE-1356</c> — a weapon in a station that declares an arc gets its own turret NARROWED by it (in its own frame): the one
+        /// lookup every reader of the turret's limits uses (the slew, the in-arc test, the operator's aim clamp, the gun ring), so a gun ordered
+        /// at a point outside the arc stops at its edge instead of turning round inside the vehicle. Without an arc the turret is its own.
+        /// 🔒 User, 2026-10-25: "the minigun mounted on side is not restricted where it can fire, it can turn inside the helicopter".
+        /// ✅ Red-proof: TurretOf without the station narrowing ⇒ full circle, and the turret slews to 90° ⇒ red.</summary>
+        [Fact]
+        public void CE1356_AStationsArc_LimitsItsWeaponsTurret()
+        {
+            var (_, m2, _, _, _) = Technical(rounds: 0, stationArc: true);
+            var turret = CombatTkb.TurretOf(_world, m2, 0)!;
+            Assert.Equal(-45f, turret.TraverseMinDeg, 3);
+            Assert.Equal(45f, turret.TraverseMaxDeg, 3);
+            Assert.Equal(-10f, turret.ElevationMinDeg, 3);   // the station states no elevation: the gun's own
+            Assert.Equal(60f, turret.ElevationMaxDeg, 3);
+
+            // the muscle, ordered at a point square to the left (azimuth 90°, outside the arc): the turret never passes 45°
+            var part = TurretParts.Find(_world, m2, 0);
+            var reach = TurretSlew.ClampToArc(turret, MathF.PI / 2f, 0f);
+            Assert.Equal(MathF.PI / 4f, reach.Azimuth, 3);
+            var pose = default(TurretPose);
+            for (int i = 0; i < 120; i++) pose = TurretSlew.Step(pose, reach.Azimuth, 0f, turret, 1f / 60f);
+            Assert.InRange(pose.Azimuth, 0f, MathF.PI / 4f + 1e-3f);
+            Assert.False(TurretSlew.InArc(turret, MathF.PI / 2f, 0f));   // an AI order out there fails OutOfArc, as before
+
+            Assert.False(part.IsNull);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1359</c> (DESIGN_Weapon_Layers W-8c) — an OPERATOR aiming a station gun beyond its arc: the gun turns to its limit and
+        /// holds its fire (Track, no grant), saying OutOfArc — its rounds would go where he is not aiming. Inside the arc, or within
+        /// <see cref="BallisticAim.OperatorTraverseToleranceDeg"/> of its edge, it fires. A full-circle turret never holds (a tank turns to
+        /// the point and fires — W-8b unchanged). 🔒 User, 2026-10-25: "wepon should fire only if its barrel aiming point is close to the
+        /// mouse driven aim point" · "tank turret should keep working as now". 🔴 Red-proof: drop <c>!beyond</c> from the grant ⇒ the
+        /// rounds fly along the 45° limit at a crosshair square to the left.
+        /// </summary>
+        [Fact]
+        public void CE1359_AStationGun_AimedBeyondItsArc_TurnsToTheLimit_AndHoldsItsFire()
+        {
+            var (pickup, m2, _, channel, _) = Technical(rounds: 0, stationArc: true);
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            var part = TurretParts.Find(_world, m2, 0);
+            float D = MathF.PI / 180f;
+            Vector3 At(float deg) => new(MathF.Cos(deg * D) * 40f, MathF.Sin(deg * D) * 40f, 1.4f);
+
+            AskOperator(ref channel, At(90f), trigger: 1, cooldown: 0.1f);   // square to the left: 45° past the edge
+            _executor.OnEnter(pickup, ref channel, _world);
+            int shots = WsRun(pickup, ref channel, 4f, expectShooter: m2);
+            Assert.Equal(0, shots);
+            Assert.InRange(_world.GetComponent<TurretPose>(part).Azimuth, 44f * D, 45.1f * D);   // turned to the limit
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(part).Mode);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc, LastWeaponReason(pickup));
+
+            AskOperator(ref channel, At(46.5f), trigger: 1, cooldown: 0.1f);   // within the tolerance of the edge: it fires
+            Assert.True(WsRun(pickup, ref channel, 1f, expectShooter: m2) > 0);
+            AskOperator(ref channel, At(10f), trigger: 1, cooldown: 0.1f);     // inside the arc
+            Assert.True(WsRun(pickup, ref channel, 2f, expectShooter: m2) > 0);
+
+            var tank = new Fdp.Toolkit.Tkb.Domain.TurretDto { TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -8f, ElevationMaxDeg = 20f };
+            Assert.False(BallisticAim.BeyondTraverse(_world, pickup, tank, null, At(170f)));   // all round: never held
+            Assert.False(BallisticAim.BeyondTraverse(_world, pickup, tank, null, new Vector3(3f, 0f, -20f)));   // below the depression: W-8b
+        }
+
+        /// <summary>⭐ <c>CE-1356</c> — the conversion, pure: a UH-60's doors (left 20°…160° facing 90°, right −160°…−20° facing −90°) are each
+        /// −70°…70° off the gun's own forward; elevation is the overlap; an arc that would cross straight behind the gun leaves its traverse.</summary>
+        [Fact]
+        public void CE1356_TheStationArc_InTheGunsOwnFrame()
+        {
+            const float D = MathF.PI / 180f;
+            var own = new Fdp.Toolkit.Tkb.Domain.TurretDto { TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -60f, ElevationMaxDeg = 30f };
+            StationSeat Door(float min, float max, float facing) => new()
+                { HasArc = 1, TraverseMin = min * D, TraverseMax = max * D, ElevationMin = -90f * D, ElevationMax = 90f * D, Facing = facing * D };
+            var left = CombatTkb.WithinStation(own, Door(20f, 160f, 90f));
+            Assert.Equal((-70f, 70f), (MathF.Round(left.TraverseMinDeg, 3), MathF.Round(left.TraverseMaxDeg, 3)));
+            var right = CombatTkb.WithinStation(own, Door(-160f, -20f, -90f));
+            Assert.Equal((-70f, 70f), (MathF.Round(right.TraverseMinDeg, 3), MathF.Round(right.TraverseMaxDeg, 3)));
+            Assert.Equal((-60f, 30f), (left.ElevationMinDeg, left.ElevationMaxDeg));
+            var behind = CombatTkb.WithinStation(own, Door(90f, 270f, 0f));   // would cross straight behind the gun
+            Assert.Equal((-180f, 180f), (behind.TraverseMinDeg, behind.TraverseMaxDeg));
         }
 
         /// <summary>

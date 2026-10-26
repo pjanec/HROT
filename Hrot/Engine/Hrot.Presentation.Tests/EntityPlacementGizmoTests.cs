@@ -49,7 +49,7 @@ public class EntityPlacementGizmoTests
         float radius = -1f;
         foreach (var p in buffer.GetFrame())
             if (p.Shape == DebugPrimitiveShape.Sphere) radius = p.SphereRadius;
-        Assert.Equal(7.5f, radius);
+        Assert.Equal(3f, radius);   // CE-1337
     }
 
     // -- EPG-001: left-click publishes exactly one command ----------------

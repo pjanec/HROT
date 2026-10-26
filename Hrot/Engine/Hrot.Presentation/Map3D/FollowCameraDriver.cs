@@ -33,6 +33,12 @@ public sealed class FollowCameraDriver : ICameraDriver
     /// <summary>The unit followed.</summary>
     public Entity Unit { get; }
 
+    /// <summary>⭐ <c>CE-1329</c> — the operator let go (Esc, W/A/S/D, a map click): the remembered follow is forgotten.</summary>
+    public Action? Released { get; init; }
+
+    /// <summary>⭐ <c>CE-1329</c> — the unit is gone (a preview's rewind, a respawn): the remembered follow waits for it to return.</summary>
+    public Action? Lost { get; init; }
+
     /// <summary>Where on the continuum the camera is (m; 0 = his eyes).</summary>
     public float Distance { get; private set; }
 
@@ -62,7 +68,7 @@ public sealed class FollowCameraDriver : ICameraDriver
 
     public void Update(MapCamera3D camera, float dt)
     {
-        if (!Alive) { camera.Driver = null; return; }
+        if (!Alive) { camera.Driver = null; Lost?.Invoke(); return; }   // ⭐ CE-1329 — gone (a rewind, a respawn): the layer waits for it
         var w = _world()!;
         var tf = w.GetComponentRO<SimTransform>(Unit);
         var scheme = SchemeOf(w);
@@ -91,9 +97,16 @@ public sealed class FollowCameraDriver : ICameraDriver
         var free = UnitCameraRig.SpringArm(pivot, wanted, FirstHit);
         _arm = UnitCameraRig.EaseArm(_arm == 0f ? Vector3.Distance(pivot, free) : _arm, Vector3.Distance(pivot, free), dt, UnitCameraRig.ScaleOf(scheme));
         var at = pivot + Vector3.Normalize(wanted - pivot) * _arm;
+        at = UnitCameraRig.AboveHeadWhenSqueezed(at, eye, _arm, Vector3.Distance(pivot, wanted));   // ⭐ CE-1338 — a wall: over his head, not his belly
         if (camera.GroundHeight is { } ground) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + FpsCameraDriver.CameraAboveGround);
         camera.Distance = camera.MinDistance;
         camera.LookAt = at + forward * camera.Distance;
+    }
+
+    /// <summary>⭐ <c>CE-1352</c> — just before drawing: placed again on the unit as the sim moved it this frame (no easing).</summary>
+    public void BeforeDraw(MapCamera3D camera)
+    {
+        if (Alive) Update(camera, 0f);
     }
 
     public bool HandleInput(MapCamera3D camera, IInputProvider input)
@@ -104,6 +117,7 @@ public sealed class FollowCameraDriver : ICameraDriver
             || input.IsMouseButtonDown(MapMouseButton.Middle))   // a map drag (UC-2)
         {
             camera.Driver = null;   // the operator takes the camera back
+            Released?.Invoke();     // ⭐ CE-1329 — and the remembered follow is forgotten
             return false;
         }
         bool used = false;

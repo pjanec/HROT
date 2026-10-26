@@ -195,11 +195,34 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>⭐ WL-2 — turret <paramref name="turretIndex"/> of <paramref name="owner"/>'s type (DESIGN_Weapon_Layers W-9), or null.</summary>
+        /// <remarks>⭐ <c>CE-1356</c> — a weapon standing in a STATION that declares an arc (a door gun) gets its own turret NARROWED by that arc,
+        /// so everything that reads the turret's limits — the slew, the in-arc test and its OutOfArc refusal, the operator's aim clamp, the
+        /// drawn gun ring — keeps it out of the cabin. 🔴 The M134's turret is full circle (the same gun stands on pintles elsewhere: the arc
+        /// is the mount's, not the gun's) and only the station carried the door's 20°…160°, which the operator's fire never read.
+        /// 🔒 User, 2026-10-25: "the minigun mounted on side is not restricted where it can fire, it can turn inside the helicopter".</remarks>
         public static TurretDto? TurretOf(EntityRepository world, Entity owner, int turretIndex)
         {
             if (!TryGetTemplate(world, owner, out var t)) return null;
             var suite = t.GetDescriptor<TurretSuiteDto>();
-            return suite != null && turretIndex >= 0 && turretIndex < suite.Turrets.Count ? suite.Turrets[turretIndex] : null;
+            var own = suite != null && turretIndex >= 0 && turretIndex < suite.Turrets.Count ? suite.Turrets[turretIndex] : null;
+            return own != null && WeaponSystems.TryStationArc(world, owner, out var station) ? WithinStation(own, station) : own;
+        }
+
+        /// <summary>⭐ <c>CE-1356</c> — <paramref name="own"/> narrowed by <paramref name="station"/>'s arc, turned into the weapon's frame (it faces
+        /// the station's Facing): its traverse is the overlap of both, its elevation too. An arc that cannot be one interval in the weapon's
+        /// frame (it would cross straight behind it) leaves the turret as it is. Pure.</summary>
+        public static TurretDto WithinStation(TurretDto own, in Fdp.Toolkit.Behavior.Components.StationSeat station)
+        {
+            const float Deg = 180f / MathF.PI;
+            float lo = (station.TraverseMin - station.Facing) * Deg, hi = (station.TraverseMax - station.Facing) * Deg;
+            while (lo < -180f) { lo += 360f; hi += 360f; }
+            while (lo >= 180f) { lo -= 360f; hi -= 360f; }
+            float elLo = MathF.Max(own.ElevationMinDeg, station.ElevationMin * Deg), elHi = MathF.Min(own.ElevationMaxDeg, station.ElevationMax * Deg);
+            if (elLo > elHi) (elLo, elHi) = (own.ElevationMinDeg, own.ElevationMaxDeg);
+            if (hi - lo >= 359.9f || hi > 180.001f) return own with { ElevationMinDeg = elLo, ElevationMaxDeg = elHi };
+            float tLo = MathF.Max(own.TraverseMinDeg, lo), tHi = MathF.Min(own.TraverseMaxDeg, hi);
+            if (tLo > tHi) (tLo, tHi) = (lo, hi);   // no overlap: the station's (where it physically stands) wins
+            return own with { TraverseMinDeg = tLo, TraverseMaxDeg = tHi, ElevationMinDeg = elLo, ElevationMaxDeg = elHi };
         }
 
         /// <summary>⭐ <c>CE-3158</c> G3 — the warhead of the round <paramref name="mount"/> fires (its loaded ammo), or null: a kinetic

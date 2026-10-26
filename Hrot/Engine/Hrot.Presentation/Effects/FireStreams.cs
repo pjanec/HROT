@@ -26,7 +26,7 @@ public static class FireStreams
     {
         into.Clear();
         if (since < 0 || since > Window) return 0f;
-        var line = toward - muzzle;
+        var line = toward == Vector3.Zero ? Vector3.Zero : toward - muzzle;   // ⭐ CE-1357 — no aim known: along the gun, never to (0,0,0)
         float reach = line.Length();
         var dir = reach > 0.5f ? line / reach : (forward.LengthSquared() > 1e-6f ? Vector3.Normalize(forward) : Vector3.UnitX);
         reach = reach > 0.5f ? MathF.Min(reach, MaxLength) : MaxLength;

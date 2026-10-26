@@ -292,7 +292,8 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!Magazine.Ready(weapon))
             {
                 Magazine.StartIfEmpty(ref weapon);
-                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading;
+                return BarrelHeat.IsOverheated(weapon) ? Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Overheated   // ⭐ CE-1358 (§5k)
+                                                       : Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading;
             }
             world.Bus.Publish(new WeaponFireIntent
             {
@@ -318,6 +319,8 @@ namespace Fdp.Toolkit.Combat.Executors
                     Say(world, unit, point, reason, weapon.CooldownSecondsRemaining); break;
                 case Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading:
                     Say(world, unit, point, reason, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds); break;
+                case Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Overheated:   // ⭐ CE-1358 — the heat, and the share it fires again at
+                    Say(world, unit, point, reason, weapon.Heat, BarrelHeat.ResumeFraction); break;
                 default:
                     Say(world, unit, point, reason); break;
             }

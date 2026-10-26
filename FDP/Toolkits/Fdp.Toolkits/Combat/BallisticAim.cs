@@ -78,6 +78,30 @@ namespace Fdp.Toolkit.Combat
             return pivot + Vector3.Transform(local, hull.Rotation) * Vector3.Distance(pivot, aimPoint);
         }
 
+        /// <summary>⭐ <c>CE-1359</c> (docs/DESIGN_Weapon_Layers.md W-8c) — how far past a LIMITED traverse the operator's crosshair may be and
+        /// the gun still fire (the yellow barrel ring then sits next to the crosshair).</summary>
+        public const float OperatorTraverseToleranceDeg = 3f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1359</c> (W-8c) — the operator's point lies beyond turret <paramref name="turret"/>'s TRAVERSE (a door gun's arc) by more
+        /// than <see cref="OperatorTraverseToleranceDeg"/>: the gun turns to its limit (<see cref="Reachable"/>) but must not fire — its
+        /// rounds would go somewhere the operator is not aiming. ⛔ Never true for a full-circle turret (a tank turns to the point and
+        /// fires), nor for an elevation beyond the limits (W-8b: the round leaves along the limit), nor for an indirect mount.
+        /// 🔒 User, 2026-10-25: <i>"wepon should fire only if its barrel aiming point is close to the mouse driven aim point"</i> ·
+        /// <i>"tank turret should keep working as now"</i>.
+        /// </summary>
+        public static bool BeyondTraverse(EntityRepository world, Entity hullEntity, TurretDto turret, WeaponMountDto? mount, Vector3 aimPoint)
+        {
+            if (TurretSlew.IsFullCircle(turret) || !world.HasComponent<SimTransform>(hullEntity) || (mount != null && IsIndirect(world, mount)))
+                return false;
+            var (azimuth, _) = Solve(world, hullEntity, turret, mount, aimPoint);
+            const float deg = MathF.PI / 180f;
+            float az = TurretSlew.Wrap(azimuth), lo = turret.TraverseMinDeg * deg, hi = turret.TraverseMaxDeg * deg;
+            if (az >= lo && az <= hi) return false;
+            float off = MathF.Min(MathF.Abs(TurretSlew.Wrap(az - lo)), MathF.Abs(TurretSlew.Wrap(az - hi)));
+            return off > OperatorTraverseToleranceDeg * deg;
+        }
+
         /// <summary>True when the mount's round is an indirect (arcing) warhead — <see cref="CombatTkb.WarheadOf"/>, the one lookup
         /// <see cref="FireProcessingSystem"/> reads too.</summary>
         public static bool IsIndirect(EntityRepository world, WeaponMountDto mount) => CombatTkb.WarheadOf(world, mount) is { Indirect: true };

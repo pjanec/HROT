@@ -18,16 +18,74 @@ namespace Hrot.Editor.DebugApi
 
         public JsonNode GetEntityJournal(long networkId, uint since) => JournalOf(_world, _entityMap, networkId, since);
 
-        /// <summary>⭐ <c>CE-1257</c> (BV-26) — <c>POST /entities/{networkId}/debug {on}</c>: the same switch as the Brain tab and the map menu.</summary>
-        public (JsonNode? Result, string? Error) DebugUnit(long networkId, bool on)
+        /// <summary>⭐ <c>CE-1329</c> (Brain View §12r BV-72) — <c>GET /entities/{networkId}/debug-settings</c>: the unit's switches in the ONE store
+        /// the Brain tab and the map's right-click menu use — its pinned gizmo families, its trace (the user's switch; <c>traceOn</c> also counts
+        /// a Brain tab showing it and an observe / breakpoint arming), and whether the camera follows it. ⛔ SUPERSEDED: <c>POST /entities/{id}/debug</c>.</summary>
+        public (JsonNode? Result, string? Error) GetDebugSettings(long networkId)
         {
-            if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is not { } c)
-                return (null, "\"Debug this unit\" is not composed on this host (the editor composes it).");
             if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
                 return (null, $"Entity {networkId} not found.");
-            c.Set(_world, entity, on);
-            long? debugged = c.Debugged is { } d && _entityMap.TryGetNetworkId(d, out var nid) ? nid : null;
-            return (new JsonObject { ["networkId"] = networkId, ["debugging"] = c.IsDebugged(entity), ["debugged"] = debugged }, null);
+            return (DebugSettingsJson(networkId), null);
+        }
+
+        /// <summary>⭐ <c>CE-1329</c> — <c>POST /entities/{networkId}/debug-settings {pins?, trace?, follow?, reset?}</c>: sets what is given
+        /// (<c>pins</c> replaces the pinned families; <c>reset</c> forgets everything remembered for the unit first) and answers as the GET does.
+        /// Remembered per scenario, like the Brain tab's ticks.</summary>
+        public (JsonNode? Result, string? Error) SetDebugSettings(long networkId, JsonNode? body)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
+                return (null, $"Entity {networkId} not found.");
+            var store = UnitDebugSettings.Of(_world);
+            if (body?["reset"]?.GetValue<bool>() == true)
+            {
+                store.ResetUnit(networkId);
+                if (Hrot.UI.Common.Map3D.ViewControl.Of(_world) is { Following: { } f } v && f.Unit == entity) v.StopFollowing();
+            }
+            if (body?["pins"] is JsonArray pins)
+            {
+                var wanted = AiOverlayFlags.None;
+                foreach (var p in pins)
+                {
+                    string name = p?.GetValue<string>() ?? "";
+                    var family = Array.Find(Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All, f =>
+                        string.Equals(f.ToString(), name, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.Label(f), name, StringComparison.OrdinalIgnoreCase));
+                    if (family == AiOverlayFlags.None)
+                        return (null, $"Unknown gizmo family '{name}'. One of: {string.Join(", ", Array.ConvertAll(Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All, Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.Label))}.");
+                    wanted |= family;
+                }
+                foreach (var f in Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All) store.SetPin(networkId, f, (wanted & f) != 0);
+            }
+            if (body?["trace"] is JsonValue trace && trace.TryGetValue<bool>(out var traceOn))
+                Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(_world, entity, BehaviorDebugFlags.EnableTraceBuffer, traceOn);
+            if (body?["follow"] is JsonValue follow && follow.TryGetValue<bool>(out var followOn))
+            {
+                var view = Hrot.UI.Common.Map3D.ViewControl.Of(_world);
+                if (followOn)
+                {
+                    if (view?.FollowUnit(entity) is { } refusal) return (null, refusal);
+                    if (view == null) store.SetFollowed(networkId);   // headless: remembered, followed when a map draws
+                }
+                else if (store.Followed == networkId)
+                {
+                    if (view != null) view.StopFollowing();
+                    store.SetFollowed(null);
+                }
+            }
+            return (DebugSettingsJson(networkId), null);
+        }
+
+        private JsonObject DebugSettingsJson(long networkId)
+        {
+            var store = UnitDebugSettings.Peek(_world);
+            var pins = new JsonArray();
+            foreach (var f in Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All)
+                if (store?.IsPinned(networkId, f) == true) pins.Add(Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.Label(f));
+            return new JsonObject
+            {
+                ["networkId"] = networkId, ["pins"] = pins, ["trace"] = store?.IsTraceSet(networkId) == true,
+                ["traceOn"] = store?.TraceOn(networkId) == true, ["follow"] = store?.Followed == networkId,
+            };
         }
 
         /// <summary>⭐ <c>CE-1258</c> (BV-28) — <c>POST /entities/{networkId}/journal/break {kinds?}</c>: stop the sim when THIS unit's journal

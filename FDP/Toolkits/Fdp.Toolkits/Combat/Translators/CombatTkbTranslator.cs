@@ -153,6 +153,7 @@ namespace Fdp.Toolkit.Combat.Translators
                 MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(mount.MuzzleVelocity)
             };
             Magazine.Load(ref w, mount.MagazineSize, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ReloadSecondsOrFallback(mount.ReloadSeconds));
+            BarrelHeat.Load(ref w, mount);   // ⭐ CE-1358 (§5k) — a cold barrel with the mount's heat rule
             return w;
         }
 }

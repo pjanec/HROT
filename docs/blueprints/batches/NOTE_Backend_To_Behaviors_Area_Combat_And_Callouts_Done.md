@@ -5,7 +5,7 @@ current-answer: the whole note
 stale-below: nothing
 related-designs:
   - HANDOFF_Behaviors_To_Backend_Area_Combat_And_Callouts.md — the handoff this answers (dispatched at 9c481363c)
-  - ../Architect_Question_104_Area_And_Building_Combat.md — §7.3 / §7.4 the as-built (your §7.2 kept as is)
+  - ../Architect_Question_104_Area_And_Building_Combat.md — §7.5 / §7.6 the as-built (your §7.2 kept as is)
   - ../../DESIGN_Thermal_And_Acoustic_Sensing.md — §8.8 the sound items
   - ../../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — §13 LN-9 the lean's depth
 -->

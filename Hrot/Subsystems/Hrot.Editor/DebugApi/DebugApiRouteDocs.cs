@@ -2144,7 +2144,7 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.",
-                "choices fill only while the unit is observed (observe_trace or debug_unit); the journal is always on.",
+                "choices fill only while the unit is observed (observe_trace, set_debug_settings trace, or its Brain tab open); the journal is always on.",
                 "journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones.",
             },
             ExampleArgsJson: "{\"networkId\":1000}",
@@ -2173,8 +2173,8 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/view")] = new RouteDoc(
             Tool:    "get_view",
             Group:   "O — Manual-assist (focus / annotations)",
-            Summary: "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, the debugged unit, and the units in view nearest first with their screen point.",
-            Returns: "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
+            Summary: "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, and the units in view nearest first with their screen point.",
+            Returns: "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
             Hint:    "Optional limit (number, query, default 50). Example: get_view({limit:20})",
             Params: new RouteParam[]
             {
@@ -2222,24 +2222,37 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "which unit is the operator asking about"),
 
-        [("POST", "/entities/{networkId}/debug")] = new RouteDoc(
-            Tool:    "debug_unit",
+        [("GET", "/entities/{networkId}/debug-settings")] = new RouteDoc(
+            Tool:    "get_debug_settings",
             Group:   "K — AI behavior traces",
-            Summary: "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on) and keeps the AI graph's live overlay on it instead of the selection. ⛔ CE-1317: it no longer pins every map gizmo family — pin_gizmos one family at a time; a unit whose Brain tab is open is traced anyway. One unit at a time.",
-            Returns: "{ networkId, debugging, debugged }",
-            Hint:    "Req: networkId (number); optional on (bool, default true). Editor only. Example: debug_unit({networkId:1000, on:true})",
+            Summary: "A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario.",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
+            Hint:    "Req: networkId (number). Editor only. Example: get_debug_settings({networkId:1000})",
+            Params: new RouteParam[] { new("networkId", "number", true, "Network entity ID (long)") },
+            ExampleArgsJson: "{\"networkId\":1000}",
+            ExampleGist: "what is switched on for unit 1000"),
+
+        [("POST", "/entities/{networkId}/debug-settings")] = new RouteDoc(
+            Tool:    "set_debug_settings",
+            Group:   "K — AI behavior traces",
+            Summary: "Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit.",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
+            Hint:    "Req: networkId (number); optional pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network entity ID (long)"),
-                new("on", "boolean", false, "true = start debugging this unit (moves it from any other), false = stop", DefaultJson: "true"),
+                new("pins", "array", false, "The gizmo families to pin (replaces the set); [] unpins all"),
+                new("trace", "boolean", false, "Record the unit's behaviour trace (remembered)"),
+                new("follow", "boolean", false, "The 3-D camera follows the unit (remembered); false lets go"),
+                new("reset", "boolean", false, "Forget everything remembered for this unit first"),
             },
             Notes: new[]
             {
-                "The operator sees it too: the gizmos pin on the map and the graph's highlight follows this unit.",
                 "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal.",
+                "A unit whose Brain tab is open is traced anyway (traceOn), without touching its trace switch.",
             },
-            ExampleArgsJson: "{\"networkId\":1000,\"on\":true}",
-            ExampleGist: "watch unit 1000 closely, live"),
+            ExampleArgsJson: "{\"networkId\":1000,\"pins\":[\"Perception\"],\"trace\":true}",
+            ExampleGist: "watch unit 1000 closely: its vision cone on the map and its trace"),
 
         [("POST", "/entities/{networkId}/journal/break")] = new RouteDoc(
             Tool:    "break_on_journal",
@@ -2260,6 +2273,52 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"networkId\":1000}",
             ExampleGist: "pause the next time unit 1000's brain changes"),
+
+        [("GET", "/utility/decisions")] = new RouteDoc(
+            Tool:    "list_utility_decisions",
+            Group:   "K — AI behavior traces",
+            Summary: "Every registered utility decision (CE-1325): name, asset id, kind, option count — the C# [UtilityDecision] classes.",
+            Returns: "[{ decisionId, name, assetId, kind, options }]",
+            Hint:    "No params. Example: list_utility_decisions({})",
+            ExampleArgsJson: "{}",
+            ExampleGist: "list the utility decisions"),
+
+        [("GET", "/utility/decisions/{key}")] = new RouteDoc(
+            Tool:    "get_utility_decision",
+            Group:   "K — AI behavior traces",
+            Summary: "What a utility decision IS (CE-1325): per option its aggregation and considerations (input, context, weight, curve kind + slope / exponent / shift, modifier); with networkId that unit's values (winner, margin, per-consideration raw -> curved -> weighted).",
+            Returns: "{ decisionId, name, assetId, kind, ranking, hysteresis, options:[{optionId, name, aggregation, considerations:[{input, context, weight, curve, slope, exponent, xShift, modifier, raw?, curved?, weighted?}], score?, winner?, zeroedBy?}], live?:{unit, traced, evaluations, switches, winner, runnerUp, margin, ranked} }",
+            Hint:    "Req: key (asset id, name or id). Optional networkId (query). Example: get_utility_decision({key:\"Combat posture\", networkId:1007})",
+            Params: new RouteParam[]
+            {
+                new("key", "string", true, "The decision's asset id, its name, or its numeric id"),
+                new("networkId", "number", false, "A unit: adds its values (query parameter)"),
+            },
+            Notes: new[]
+            {
+                "The settings come from the RUNNING definition — the same for a C#-built behaviour as for an authored one.",
+                "Live per-consideration values need the unit traced (observe_trace); without, live.traced is still true when the decision log exists and the rows have no raw values.",
+                "An option scored 0 names the consideration that zeroed it (zeroedBy).",
+            },
+            ExampleArgsJson: "{\"key\":\"Combat posture\"}",
+            ExampleGist: "read a utility decision's settings"),
+
+        [("GET", "/behaviours/{name}/decisions")] = new RouteDoc(
+            Tool:    "get_behaviour_decisions",
+            Group:   "K — AI behavior traces",
+            Summary: "Which node / state / transition of a behaviour binds which utility decision, and how (CE-1325): ChooseOption chooses, RankCandidates ranks, an IsOption guard reads one option, a custom action holds one in its params.",
+            Returns: "{ behaviour, bindings:[{kind: node|state|transition, element, label, role: Chooses|Ranks|Reads|Holds, via (the params field), decision, assetId, decisionId, option?}] }",
+            Hint:    "Req: name (the registered behaviour). Example: get_behaviour_decisions({name:\"CombatPosture\"})",
+            Params: new RouteParam[]
+            {
+                new("name", "string", true, "The registered behaviour name"),
+            },
+            Notes: new[]
+            {
+                "Read from the running blob: a node's method key carries its params offset, and the behaviour's default params hold the decision reference there.",
+            },
+            ExampleArgsJson: "{\"name\":\"CombatPosture\"}",
+            ExampleGist: "which nodes of a behaviour run which utility decision"),
 
         [("GET", "/entities/{networkId}/utility")] = new RouteDoc(
             Tool:    "get_entity_utility",

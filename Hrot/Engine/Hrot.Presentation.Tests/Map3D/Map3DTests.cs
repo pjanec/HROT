@@ -173,13 +173,17 @@ public sealed class Map3DTests
     [Fact]
     public void CE1142_TheFlySpeed_FollowsTheEyeHeight_StartsSlow_Accelerates_AndTheModifiersAreDistinct()
     {
-        Assert.Equal(4f, MapCamera3D.FlySpeed(10f, 1f, false, false), 3);            // 10 m up: 4 m/s once ramped
-        Assert.Equal(1f, MapCamera3D.FlySpeed(10f, 0f, false, false), 3);            // the press: a quarter
-        Assert.Equal(20f, MapCamera3D.FlySpeed(10f, 5f, false, false), 3);           // held 5 s: 5×
+        // ⭐ CE-1340 — high up (40 m, past the ground boost) as before; the acceleration reaches its 5× in 3 s (was 5)
+        Assert.Equal(16f, MapCamera3D.FlySpeed(40f, 1f, false, false), 3);           // 40 m up: 16 m/s once ramped
+        Assert.Equal(4f, MapCamera3D.FlySpeed(40f, 0f, false, false), 3);            // the press: a quarter
+        Assert.Equal(80f, MapCamera3D.FlySpeed(40f, 3f, false, false), 3);           // held 3 s: 5×
+        Assert.Equal(80f, MapCamera3D.FlySpeed(40f, 5f, false, false), 3);           // and no more after
         Assert.Equal(MapCamera3D.FlyMinSpeed, MapCamera3D.FlySpeed(0.5f, 1f, false, false), 3);   // on the ground: the floor
-        Assert.Equal(16f, MapCamera3D.FlySpeed(10f, 1f, true, false), 3);
-        Assert.Equal(80f, MapCamera3D.FlySpeed(10f, 1f, false, true), 3);
-        Assert.Equal(400f, MapCamera3D.FlySpeed(10f, 1f, true, true), 3);
+        Assert.Equal(1.2f, MapCamera3D.FlyMinSpeed, 3);                              // twice the old 0.6
+        Assert.Equal(2f * 2f * 0.4f * 5f, MapCamera3D.FlySpeed(2f, 3f, false, false), 3);   // a standing eye (2 m): twice the old full speed
+        Assert.Equal(64f, MapCamera3D.FlySpeed(40f, 1f, true, false), 3);
+        Assert.Equal(320f, MapCamera3D.FlySpeed(40f, 1f, false, true), 3);
+        Assert.Equal(1600f, MapCamera3D.FlySpeed(40f, 1f, true, true), 3);
     }
 
     /// <summary>⭐ CE-1142 — a metre above a soldier with the pivot far ahead, a short tap moves centimetres, not the 30 m/s the old
@@ -1243,6 +1247,40 @@ public sealed class Map3DTests
             Assert.InRange(Vector3.Distance(still, Vector3.Transform(Vector3.Zero, blade.BodyTransform(size, default, ArticulationPose.Neutral, spun))), 0f, 1e-3f);
             Assert.NotEqual(Vector3.Transform(new Vector3(0.5f, 0f, 0f), blade.BodyTransform(size)),
                             Vector3.Transform(new Vector3(0.5f, 0f, 0f), blade.BodyTransform(size, default, ArticulationPose.Neutral, spun)));
+        }
+    }
+
+    /// <summary>⭐ <c>CE-1353</c> — a flying helicopter's rotor turns EVENLY frame to frame although the sim advances in uneven fixed steps
+    /// (0, 2, 1, … steps a frame): the angle follows the frame clock × the sim's smoothed pace, so four blades no longer seem to flick back
+    /// and forth; a paused sim still stops it. ✅ Red-proof: the frame clock not passed (the old per-frame sim dt) ⇒ steps of 0 and 52°.</summary>
+    [Fact]
+    public void CE1353_TheRotorSpinsEvenly_OverUnevenSimSteps_AndStopsWhenPaused()
+    {
+        var t = new MotionTracker();
+        var heli = new Entity(9, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.AttackHelicopter);
+        const double frame = 1.0 / 60.0, simStep = 1.0 / 60.0;
+        int[] steps = { 0, 2, 1, 1, 0, 2, 1, 2, 0, 1 };
+        double sim = 0, wall = 0;
+        float prev = t.Advance(heli, new Vector3(0, 0, 40), Quaternion.Identity, VisualFamily.AttackHelicopter, size, sim, true, wall).Rotor;
+        var turns = new List<float>();
+        for (int i = 1; i <= 240; i++)
+        {
+            wall += frame; sim += steps[i % steps.Length] * simStep;
+            float now = t.Advance(heli, new Vector3(0, 0, 40), Quaternion.Identity, VisualFamily.AttackHelicopter, size, sim, true, wall).Rotor;
+            float turn = MathF.IEEERemainder(now - prev, 2f * MathF.PI);
+            if (i > 120) turns.Add(turn);   // after the pace has settled
+            prev = now;
+        }
+        float full = MotionTracker.RotorRevsPerSecond * 2f * MathF.PI * (float)frame;   // the turn a frame at the sim's average pace (≈ 1 × real time)
+        Assert.All(turns, x => Assert.InRange(x, full * 0.75f, full * 1.25f));     // even: every frame within 25 % of the mean, never 0, never double
+
+        for (int i = 0; i < 60; i++)   // paused: the sim clock stands
+        {
+            wall += frame;
+            float now = t.Advance(heli, new Vector3(0, 0, 40), Quaternion.Identity, VisualFamily.AttackHelicopter, size, sim, true, wall).Rotor;
+            if (i == 59) Assert.InRange(MathF.Abs(MathF.IEEERemainder(now - prev, 2f * MathF.PI)), 0f, full * 0.05f);   // stopped within a second
+            prev = now;
         }
     }
 
@@ -3071,7 +3109,11 @@ public sealed class Map3DTests
         Assert.Equal(TerrainLayer3D.WaterColor, colours[3 * water]);
         Assert.True(normals[3 * water].Y > 0.9f, "the water faces up");
         int forest = Array.IndexOf(materials, "forest");
-        Assert.Equal(TerrainLayer3D.ForestColor, colours[3 * forest]);
+        Assert.Equal(TerrainLayer3D.ForestColor with { A = 249 }, colours[3 * forest]);   // ⭐ CE-1333 — the alpha is the material code
+        int wall = Enumerable.Range(0, kinds.Length).First(i => kinds[i] == TerrainSurfaceKind.Wall && materials[i] == "concrete");
+        Assert.Equal(247, colours[3 * wall].A);                                                   // a concrete wall: panels
+        int roof = Enumerable.Range(0, kinds.Length).First(i => kinds[i] == TerrainSurfaceKind.Roof);
+        Assert.Contains(colours[3 * roof].A, new byte[] { 241, 245 });                            // a roof: tiles (241: a brick one)
         Assert.Equal(new Raylib_cs.Color(172, 96, 72, 255), TerrainLayer3D.ColourOf(TerrainSurfaceKind.Wall, "brick"));
         Assert.Equal(TerrainLayer3D.RoofColor, TerrainLayer3D.ColourOf(TerrainSurfaceKind.Roof, "concrete"));
     }
@@ -3273,6 +3315,58 @@ public sealed class Map3DTests
         var halfway = BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.AtEase, WeaponPostureKind.Aimed, 0.5f);
         Assert.Equal(PartRole.LegLeft, halfway[0].Role);
         Assert.Equal(PartRole.LegRight, halfway[2].Role);
+    }
+
+    /// <summary>⭐ <c>CE-1348</c> — C (crouch) or Z (prone): the drawn figure — and so the eye the first-person camera sits at — goes
+    /// SMOOTHLY to the new height. The logical stance changes in the tick it is ordered and the muscle reports its blend a tick later
+    /// (first Idle in the OLD stance, then Transitioning from 0): the head never drops to the new height and back up, a muscle blend that
+    /// runs ahead is followed, and a change of mind mid-way turns round from where the head is.
+    /// ✅ Red-proof: StanceBlend bypassed (the logical stance drawn at once, the old muscle-only blend) ⇒ the head drops and rises.</summary>
+    [Fact]
+    public void CE1348_CrouchAndProne_MoveTheHeadSmoothly_NeverDownAndBackUp()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        float Head(StanceId from, StanceId to, float t)
+            => Vector3.Transform(Vector3.Zero, BlockFigure.Blend(from, to, t, true)[BlockFigure.HeadIndex].BodyTransform(size)).Z;
+        var blend = new StanceBlend();
+        var man = new Entity(9, 1);
+        Hrot.MuscleCharacter.Animation.Components.StanceStatus Muscle(StanceId current, bool moving, float progress = 0f)
+            => new() { CurrentStance = current, Phase = moving ? Hrot.MuscleCharacter.Animation.Components.StanceTransitionPhase.Transitioning : Hrot.MuscleCharacter.Animation.Components.StanceTransitionPhase.Idle, TransitionProgress = progress };
+
+        blend.Of(man, StanceId.Standing, 10.0, Muscle(StanceId.Standing, false));
+        float standing = Head(StanceId.Standing, StanceId.Standing, 1f), crouched = Head(StanceId.Crouched, StanceId.Crouched, 1f);
+        float last = standing;
+        var frames = new (double At, Hrot.MuscleCharacter.Animation.Components.StanceStatus Muscle)[]
+        {
+            (10.016, Muscle(StanceId.Standing, false)),          // C pressed: the logical stance is crouched, the muscle has not started
+            (10.033, Muscle(StanceId.Standing, true, 0f)),       // its blend starts at 0
+            (10.10, Muscle(StanceId.Standing, true, 0.5f)),      // and runs ahead of ours: followed
+            (10.12, Muscle(StanceId.Standing, true, 0.1f)),      // a stale sample behind: never stepped back
+            (10.30, Muscle(StanceId.Standing, true, 0.9f)),
+            (10.50, Muscle(StanceId.Crouched, false)),
+        };
+        foreach (var (at, muscle) in frames)
+        {
+            var (f, to, t) = blend.Of(man, StanceId.Crouched, at, muscle);
+            float head = Head(f, to, t);
+            Assert.True(head <= last + 1e-4f, $"at {at}: the head rose from {last} to {head}");
+            Assert.True(head >= crouched - 1e-4f, $"at {at}: the head went below the crouch ({head} < {crouched})");
+            last = head;
+        }
+        Assert.Equal(crouched, last, 3);
+
+        // the first frame after the order shows the OLD height, not the new one (the jump this fixes)
+        var other = new Entity(10, 1);
+        blend.Of(other, StanceId.Standing, 20.0);
+        var first = blend.Of(other, StanceId.Prone, 20.0, Muscle(StanceId.Standing, false));
+        Assert.Equal(standing, Head(first.From, first.To, first.T), 3);
+        var mid = blend.Of(other, StanceId.Prone, 20.0 + StanceBlend.ProneSeconds / 2);
+        float midHead = Head(mid.From, mid.To, mid.T);
+        var back = blend.Of(other, StanceId.Standing, 20.0 + StanceBlend.ProneSeconds / 2);   // a change of mind halfway down
+        Assert.Equal(midHead, Head(back.From, back.To, back.T), 2);                           // turns round from where the head is
+        Assert.Equal(standing, Head(StanceId.Standing, StanceId.Standing, 1f), 3);
+        var up = blend.Of(other, StanceId.Standing, 20.0 + StanceBlend.ProneSeconds * 2);
+        Assert.Equal(standing, Head(up.From, up.To, up.T), 3);
     }
 
     /// <summary>⭐ WL-6b — the aimed body TURNS toward its target over a fraction of a second instead of jumping, and turns back when
@@ -4480,7 +4574,7 @@ public sealed class Map3DTests
         {
             if (kinds[t] == TerrainSurfaceKind.Wall) continue;
             Assert.True(normals[3 * t].Y > 0.5f, $"ground/roof triangle {t} faces {normals[3 * t]} (Raylib +Y is up)");
-            Assert.Equal(TerrainLayer3D.ColourOf(kinds[t]), colours[3 * t]);
+            Assert.Equal(TerrainLayer3D.ColourOf(kinds[t]) with { A = TerrainLayer3D.MaterialCode(kinds[t], null) }, colours[3 * t]);   // CE-1333
         }
     }
 

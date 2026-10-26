@@ -724,10 +724,13 @@ export const TOOLS_CATALOG = [
         "description": "Human-readable label for the breakpoint"
       }
     ],
-    "returns": "{ breakpointId } (e.g. \"BP#1\").",
+    "returns": "{ breakpointId, conditionSummary } (e.g. \"BP#1\", \"Withdrawing entered (PlatoonCommander)\").",
     "notes": [
       "condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).",
-      "Poll get_breakpoint_status after play to detect when the breakpoint fires."
+      "Poll get_breakpoint_status after play to detect when the breakpoint fires.",
+      "⭐ CE-1323 — BEHAVIOUR BREAKPOINTS: {\"$type\":\"BehaviourStep\",\"Behaviour\":\"<running behaviour name>\",\"Kind\":K,...} with K = StateEnter|StateExit {State} · InsideEnter {State, Region?: -1 = anything under it, n = region n of a parallel state} · TransitionFires {From?, To, Event?} (no From = a global transition) · EventHandled {Event} (dequeued, consumed or deferred, even when no transition uses it) · NodeRuns {Node: the BTree node's VisualId}. Names are the machine's own (GET /entities/{id}/brain names the running behaviour); a name not in it is a 400 that lists what is.",
+      "Per unit: filterNetworkId. Any other condition: {\"$type\":\"Compound\",\"Operator\":\"And\",\"Conditions\":[<BehaviourStep>, <PropertyMatch …>]} — the rest is checked on the unit at the step. A step scoped to a unit arms its traces; an unscoped step sees only armed units (a Brain tab open, Debug this unit, observe-all).",
+      "Only records written since the last look count, so continue_from_breakpoint never stops twice on one arrival. get_breakpoint_status names what fired (lastHit.what)."
     ],
     "example": {
       "args": {
@@ -816,7 +819,7 @@ export const TOOLS_CATALOG = [
       "path": "/breakpoints/hits"
     },
     "params": [],
-    "returns": "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }",
+    "returns": "{ isPaused, pausedTick, lastHit: { breakpointId, networkId, name, conditionSummary, what, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }  — what (CE-1323) is what a behaviour step saw: \"entered Withdrawing\", \"Engaging -> Withdrawing fired on OrderReceived\", \"event Contact handled (consumed)\"; null for a data breakpoint",
     "notes": [
       "Poll this after play to detect when a breakpoint fires."
     ],
@@ -1861,6 +1864,36 @@ export const TOOLS_CATALOG = [
   // ── Group K — AI behavior traces ────────────────────────────────────────────
 
   {
+    "name": "get_behaviour_decisions",
+    "group": "K — AI behavior traces",
+    "summary": "Which node / state / transition of a behaviour binds which utility decision, and how (CE-1325): ChooseOption chooses, RankCandidates ranks, an IsOption guard reads one option, a custom action holds one in its params.",
+    "http": {
+      "method": "GET",
+      "path": "/behaviours/{name}/decisions"
+    },
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "The registered behaviour name"
+      }
+    ],
+    "returns": "{ behaviour, bindings:[{kind: node|state|transition, element, label, role: Chooses|Ranks|Reads|Holds, via (the params field), decision, assetId, decisionId, option?}] }",
+    "notes": [
+      "Read from the running blob: a node's method key carries its params offset, and the behaviour's default params hold the decision reference there."
+    ],
+    "example": {
+      "args": {
+        "name": "CombatPosture"
+      },
+      "gist": "which nodes of a behaviour run which utility decision"
+    },
+    "hint": "Req: name (the registered behaviour). Example: get_behaviour_decisions({name:\"CombatPosture\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_combat_detonations",
     "group": "K — AI behavior traces",
     "summary": "The last warhead bursts on this node (grenades, mortars, HE) — the warhead and where its numbers came from, every entity in reach with its stance, fragment exposure and blast barrier/shadow, the damage each effect did, and the doors breached (buildings Stage 6).",
@@ -1956,7 +1989,7 @@ export const TOOLS_CATALOG = [
     "returns": "{ networkId, hasBrain, onBrainNode, doing, origin, urgency, sinceSeconds, paused, sop, roe, rightNow:[{channel, actionId, reason, hold, progress, needed}], regions:[{region, state, stateIndex}], squad, choices:[{decisionId, winner, previousWinner, margin, switches}], contacts, heardOnly, journal:{on, seq, changes:[{seq, at, kind, text}]} }",
     "notes": [
       "onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.",
-      "choices fill only while the unit is observed (observe_trace or debug_unit); the journal is always on.",
+      "choices fill only while the unit is observed (observe_trace, set_debug_settings trace, or its Brain tab open); the journal is always on.",
       "journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones."
     ],
     "example": {
@@ -1970,12 +2003,39 @@ export const TOOLS_CATALOG = [
   },
 
   {
-    "name": "debug_unit",
+    "name": "get_debug_settings",
     "group": "K — AI behavior traces",
-    "summary": "\"Debug this unit\" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time.",
+    "summary": "A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario.",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/debug-settings"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      }
+    ],
+    "returns": "{ networkId, pins:[family labels], trace, traceOn, follow }",
+    "example": {
+      "args": {
+        "networkId": 1000
+      },
+      "gist": "what is switched on for unit 1000"
+    },
+    "hint": "Req: networkId (number). Editor only. Example: get_debug_settings({networkId:1000})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_debug_settings",
+    "group": "K — AI behavior traces",
+    "summary": "Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit.",
     "http": {
       "method": "POST",
-      "path": "/entities/{networkId}/debug"
+      "path": "/entities/{networkId}/debug-settings"
     },
     "params": [
       {
@@ -1985,26 +2045,46 @@ export const TOOLS_CATALOG = [
         "description": "Network entity ID (long)"
       },
       {
-        "name": "on",
+        "name": "pins",
+        "type": "array",
+        "required": false,
+        "description": "The gizmo families to pin (replaces the set); [] unpins all"
+      },
+      {
+        "name": "trace",
         "type": "boolean",
         "required": false,
-        "description": "true = start debugging this unit (moves it from any other), false = stop",
-        "default": true
+        "description": "Record the unit's behaviour trace (remembered)"
+      },
+      {
+        "name": "follow",
+        "type": "boolean",
+        "required": false,
+        "description": "The 3-D camera follows the unit (remembered); false lets go"
+      },
+      {
+        "name": "reset",
+        "type": "boolean",
+        "required": false,
+        "description": "Forget everything remembered for this unit first"
       }
     ],
-    "returns": "{ networkId, debugging, debugged }",
+    "returns": "{ networkId, pins:[family labels], trace, traceOn, follow }",
     "notes": [
-      "The operator sees it too: the gizmos pin on the map and the graph's highlight follows this unit.",
-      "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal."
+      "Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal.",
+      "A unit whose Brain tab is open is traced anyway (traceOn), without touching its trace switch."
     ],
     "example": {
       "args": {
         "networkId": 1000,
-        "on": true
+        "pins": [
+          "Perception"
+        ],
+        "trace": true
       },
-      "gist": "watch unit 1000 closely, live"
+      "gist": "watch unit 1000 closely: its vision cone on the map and its trace"
     },
-    "hint": "Req: networkId (number); optional on (bool, default true). Editor only. Example: debug_unit({networkId:1000, on:true})",
+    "hint": "Req: networkId (number); optional pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
     "manualVerify": false
   },
 
@@ -2646,6 +2726,62 @@ export const TOOLS_CATALOG = [
       "gist": "arm AI behavior tracing for entity 1000"
     },
     "hint": "Req: networkId (number), on (bool). Example: observe_trace({networkId:1000,on:true})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_utility_decisions",
+    "group": "K — AI behavior traces",
+    "summary": "Every registered utility decision (CE-1325): name, asset id, kind, option count — the C# [UtilityDecision] classes.",
+    "http": {
+      "method": "GET",
+      "path": "/utility/decisions"
+    },
+    "params": [],
+    "returns": "[{ decisionId, name, assetId, kind, options }]",
+    "example": {
+      "args": {},
+      "gist": "list the utility decisions"
+    },
+    "hint": "No params. Example: list_utility_decisions({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_utility_decision",
+    "group": "K — AI behavior traces",
+    "summary": "What a utility decision IS (CE-1325): per option its aggregation and considerations (input, context, weight, curve kind + slope / exponent / shift, modifier); with networkId that unit's values (winner, margin, per-consideration raw -> curved -> weighted).",
+    "http": {
+      "method": "GET",
+      "path": "/utility/decisions/{key}"
+    },
+    "params": [
+      {
+        "name": "key",
+        "type": "string",
+        "required": true,
+        "description": "The decision's asset id, its name, or its numeric id"
+      },
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": false,
+        "description": "A unit: adds its values (query parameter)"
+      }
+    ],
+    "returns": "{ decisionId, name, assetId, kind, ranking, hysteresis, options:[{optionId, name, aggregation, considerations:[{input, context, weight, curve, slope, exponent, xShift, modifier, raw?, curved?, weighted?}], score?, winner?, zeroedBy?}], live?:{unit, traced, evaluations, switches, winner, runnerUp, margin, ranked} }",
+    "notes": [
+      "The settings come from the RUNNING definition — the same for a C#-built behaviour as for an authored one.",
+      "Live per-consideration values need the unit traced (observe_trace); without, live.traced is still true when the decision log exists and the rows have no raw values.",
+      "An option scored 0 names the consideration that zeroed it (zeroedBy)."
+    ],
+    "example": {
+      "args": {
+        "key": "Combat posture"
+      },
+      "gist": "read a utility decision's settings"
+    },
+    "hint": "Req: key (asset id, name or id). Optional networkId (query). Example: get_utility_decision({key:\"Combat posture\", networkId:1007})",
     "manualVerify": false
   },
 
@@ -3306,7 +3442,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "get_view",
     "group": "O — Manual-assist (focus / annotations)",
-    "summary": "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, the debugged unit, and the units in view nearest first with their screen point.",
+    "summary": "What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, and the units in view nearest first with their screen point.",
     "http": {
       "method": "GET",
       "path": "/view"
@@ -3319,7 +3455,7 @@ export const TOOLS_CATALOG = [
         "description": "How many in-view units to list, nearest first (query; default 50, max 500)"
       }
     ],
-    "returns": "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
+    "returns": "{ mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.",
     "notes": [
       "The operator points by SELECTING (click; in first person the select key on the unit under the crosshair) — read primary / selection.",
       "aimTarget is what the first-person crosshair rests on right now; it moves with the aim.",

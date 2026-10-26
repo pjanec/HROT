@@ -84,7 +84,8 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                     ? view.GetComponentRO<SimTransform>(fire.Target).Position : Vector3.Zero;
                 var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
                 // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream)
-                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now, toward != Vector3.Zero ? toward : AimPointOf(view, fire.Shooter));
+                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now,
+                    StreamToward(toward, AimPointOf(view, fire.Shooter), fire.Origin != Vector3.Zero ? fire.Origin : at, fire.Velocity, mount?.Range ?? 0f));   // ⭐ CE-1357
                 // ⭐ CE-3248 (Civilians §7.17a TC-6) — a THROW is recorded (the body's pose reads RecentShots) and is otherwise no gunshot: no
                 //   flash at a hand, no shot sound, no blast. 📐 Before: a stone has no effects of its own, so it drew the default small flash.
                 if (Fdp.Toolkit.Combat.PersonHands.Threw(view, in fire)) continue;
@@ -284,6 +285,22 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     private EntityQuery? _flights;
 
     /// <summary>Where <paramref name="shooter"/>'s weapon posture aims (its target, else its point); zero when it aims at nothing.</summary>
+    /// <summary>
+    /// ⭐ <c>CE-1357</c> — where a shot's burst stream points: its target unit; else the shooter's aim posture; else ALONG THE ROUND'S OWN
+    /// LAUNCH (<paramref name="origin"/> + its velocity's direction × the weapon's range, 50…1000 m, 300 when unstated); else nowhere.
+    /// 🔴 A weapon SYSTEM (a door M134, a pintle gun) fired at a POINT has no target and no posture of its own, so the stream was drawn to
+    /// (0,0,0): the bright stream from the door ran to the map's corner while only its real tracers flew to the aim. 🔒 User, 2026-10-25:
+    /// "the majority of the stream of tracers is rendered to the corner of the terrain (maybe 0,0,0 or something) and just few are flying to
+    /// where the aim point is". Pure.
+    /// </summary>
+    public static Vector3 StreamToward(Vector3 target, Vector3 posture, Vector3 origin, Vector3 velocity, float range)
+    {
+        if (target != Vector3.Zero) return target;
+        if (posture != Vector3.Zero) return posture;
+        if (velocity.LengthSquared() < 1e-4f) return Vector3.Zero;   // nothing known: no stream (FireStreams draws none toward zero)
+        return origin + Vector3.Normalize(velocity) * (range > 0f ? Math.Clamp(range, 50f, 1000f) : 300f);
+    }
+
     private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
         => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;
 

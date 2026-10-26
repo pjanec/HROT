@@ -126,8 +126,9 @@ public sealed class TheAiOfferSetsAreUnchangedTests
         //    was established first (R-99 is SATISFIED, not waived — Q49 + Q50 made the bindings reach the
         //    runtime), so this is a designed addition, not an expectation relaxed to hide a red.
         //    📐 Position MEASURED, as always in this table.
-        { "BTree",     new[] { "details.blackboard", "details.nodeproperties", "details.utility", "details.parametersync", "details.variables" } },
-        { "HSM",       new[] { "details.blackboard", "details.nodeproperties", "details.utility", "details.parametersync", "details.variables" } },
+        // ⭐ CE-1325 — the Decision tab (a node that binds a utility decision), registered beside the consideration stub
+        { "BTree",     new[] { "details.blackboard", "details.nodeproperties", "details.utility", "details.utility.decision", "details.parametersync", "details.variables" } },
+        { "HSM",       new[] { "details.blackboard", "details.nodeproperties", "details.utility", "details.utility.decision", "details.parametersync", "details.variables" } },
         // ⛔⛔ BLUEPRINT HAS NO `details.nodeproperties` HERE, and that is NOT the pre-S1 state
         //    returning — it is §7.4's TWO-CLASS picture. 📐 Blueprint's nodes are described by
         //    IBlueprintNodeDrawer, not by an AI facet dispatcher, so its node view is
@@ -139,7 +140,7 @@ public sealed class TheAiOfferSetsAreUnchangedTests
         //    for every perspective collided with Blueprint's own under the shared id (BP-433).
         // ⛔ The Blueprint row was RE-EXPRESSED by S1 (§7.3 ①): it was { "details.blackboard" } while
         //   Blueprint had no shell at all.
-        { "Blueprint", new[] { "details.blackboard", "details.utility", "details.parametersync", "details.variables" } },
+        { "Blueprint", new[] { "details.blackboard", "details.utility", "details.utility.decision", "details.parametersync", "details.variables" } },
     };
 
     /// <summary>

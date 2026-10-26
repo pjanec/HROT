@@ -199,9 +199,15 @@ namespace Hrot.AI.Behaviors.Brains
             else world.AddComponent(self, status);
         }
 
-        /// <summary>⭐ <c>CE-3172</c> S4d — seconds between an operator's rounds. ⚠ A constant: the TKB carries no rate of fire yet
-        /// (<c>WeaponMountDto</c> has aim time, magazine and reload, not a cyclic rate).</summary>
+        /// <summary>⭐ <c>CE-3172</c> S4d — seconds between an operator's rounds for a mount that states NO rate of fire. ⭐ <c>CE-1358</c>
+        /// (DESIGN_Weapon_Layers §5k) — a mount with a <c>RateOfFire</c> fires at it (<see cref="OperatorCooldownFor"/>); its barrel heat
+        /// stops the bursts. ⛔ Before: always this constant — an M134 fired 9 rounds in 2 s against its 3000/min.</summary>
         public const float OperatorCooldownSeconds = 0.25f;
+
+        /// <summary>⭐ <c>CE-1358</c> — the gap the operator asks: 0 ("the mount's own", <c>AimAndFireExecutor.CooldownFor</c>) when the
+        /// mount states a rate of fire, else <see cref="OperatorCooldownSeconds"/>.</summary>
+        public static float OperatorCooldownFor(Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount)
+            => mount is { RateOfFire: > 0f } ? 0f : OperatorCooldownSeconds;
 
         /// <summary>⭐ CE-1074 — how long the operator's stance change blends (s).</summary>
         public const float OperatorStanceBlendSeconds = 0.4f;
@@ -285,12 +291,12 @@ namespace Hrot.AI.Behaviors.Brains
                     Operator = 1, Trigger = 1, Mount = input.Mount, Target = ws.PendingTarget, Rounds = ws.Cap,
                     Point = ws.Pending == 2 ? input.AimPoint   // ⭐ CE-1127 — SIGHT: this tick's crosshair
                           : ws.PendingTarget.IsNull ? ws.PendingPoint : AimPoint.FromUnitFrame(world, ws.PendingTarget, ws.PendingPoint),
-                    CooldownSeconds = OperatorCooldownSeconds,
+                    CooldownSeconds = OperatorCooldownFor(mountDto),
                 }
                 : new AimAndFireParams
                 {
                     Operator = 1, Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = input.AimPoint,
-                    CooldownSeconds = OperatorCooldownSeconds,
+                    CooldownSeconds = OperatorCooldownFor(mountDto),
                 };
         }
 

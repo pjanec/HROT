@@ -50,6 +50,10 @@ namespace Hrot.ScenarioEditor.Tools
         /// </summary>
         private ToolController? _registeredOn;
 
+        /// <summary>⭐ <c>CE-1346</c> — the entity picker this host has armed and not yet removed, and the tool id it armed under.</summary>
+        private Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo? _livePicker;
+        private string? _livePickerTool;
+
         /// <summary>
         /// The arm body for each picker tool, replaced per invocation. ⚠⚠ It exists because
         /// <c>ToolActivation</c> takes only an <c>Entity</c> — the gizmo a pick needs is built from the
@@ -156,15 +160,19 @@ namespace Hrot.ScenarioEditor.Tools
             //    GOES AWAY, not on a task continuation — measured 2026-09-09, see the rail note below.
             IDisposable? scopeRef = null;
 
+            IEntityStatefulGizmo? gizmo = null;
+
             void Remove()
             {
+                if (ReferenceEquals(_livePicker, gizmo)) { _livePicker = null; _livePickerTool = null; }   // ⭐ CE-1346
                 _global()?.Unregister(id);
                 // ⭐ Idempotent (ModalScope.Dispose guards, and PopModalAt re-checks depth), so it is safe
                 //   that Unregister→Dispose→onRemove can re-enter this.
                 scopeRef?.Dispose();
             }
 
-            var gizmo = createGizmo(tcs, Remove);
+            gizmo = createGizmo(tcs, Remove);
+            Track(toolId, gizmo);
 
             _pendingArm[toolId] = () =>
             {
@@ -257,13 +265,17 @@ namespace Hrot.ScenarioEditor.Tools
             long id = GlobalGizmoManager.NewId();
             IDisposable? scopeRef = null;
 
+            IEntityStatefulGizmo? gizmo = null;
+
             void Remove()
             {
+                if (ReferenceEquals(_livePicker, gizmo)) { _livePicker = null; _livePickerTool = null; }   // ⭐ CE-1346
                 _global()?.Unregister(id);
                 scopeRef?.Dispose();   // ⭐ idempotent — see RunPickAsync
             }
 
-            var gizmo = createGizmo(Remove);
+            gizmo = createGizmo(Remove);
+            Track(toolId, gizmo);
 
             _pendingArm[toolId] = () =>
             {
@@ -284,6 +296,25 @@ namespace Hrot.ScenarioEditor.Tools
 
             scopeRef = tools.PushModal(toolId);
             return tools.ActiveModal?.Id == toolId;
+        }
+
+        private void Track(string toolId, IEntityStatefulGizmo gizmo)
+        {
+            if (gizmo is Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo picker) { _livePicker = picker; _livePickerTool = toolId; }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1346</c> (docs/UX/UX_Feature_Tool_Model.md §4.16) — offers <paramref name="entity"/> to the entity pick in progress, as
+        /// if it had been clicked on the map: the picker's own filter decides, and a taken offer ends the pick the click's way (the
+        /// await completes, the tool underneath resumes). False when no entity pick is up, when it is suspended under another tool,
+        /// or when its filter refuses the entity. 🔒 User, 2026-10-25: "when such an entity picking mode is used it would work also by
+        /// clicking the entity in the Orbat tree".
+        /// </summary>
+        public bool TryOfferEntity(Fdp.Core.Entity entity)
+        {
+            if (_livePicker is not { } picker) return false;
+            if (_tools() is { } tools && tools.ActiveModal is { } active && active.Id != _livePickerTool) return false;   // suspended
+            return picker.TryPick(entity);
         }
 
         /// <summary>Returned when no arbiter was wired — disposing it must be safe and do nothing.</summary>

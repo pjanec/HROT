@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12s AS-BUILT the one debug-settings store (CE-1329) · §12r DECISIONS BV-65…BV-73 · §12q AS-BUILT tables, contacts, pickers search, layouts (CE-1327, CE-1273, CE-1274; Show on map measured — CE-1329) · §12p AS-BUILT names + Open graph on the blueprint list, SOP, running behaviours (CE-1326) · §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -1391,3 +1391,183 @@ documents, and each overlay stays on its own unit, which one global debug pin co
 
 ![B7 — a commander](assets/brain-view/b7-commander.png)
 
+
+### 12p. AS-BUILT — names and *Open graph* on the blueprint list, the SOP and every running behaviour *(CE-1326, `2026-10-25`)*
+
+🔒 User: *"the blueprint list shown on the brain tab is containing just some hexa id, I expect to see the name of a blueprint and
+possibility to open its live graph. in the "Doing" section (and Running behaviors) i would also like to be able to jump to the graph of
+the SOP"*.
+
+```mermaid
+graph TD
+  S[OccurrenceStore slots of one unit] -->|kind Blueprint| L[Blueprints list: name + Open graph + Remove]
+  S -->|kind BTree / Hsm / BlueprintBehavior / UnitMemory| N["note: + N slot(s) of the running behaviours"]
+  S -->|kind ≠ Blueprint| X[API exactly-one-blueprint variable lookup: skipped]
+  D[Doing: SOP row] --> O[OpenGraphButton]
+  R[Running behaviours: each node] --> O
+  L --> P[EntityBlueprintsPanel.OpenGraph]
+  O -->|pinned tab| OP[UnitDebugController.OpenGraphPinned]
+  O -->|docked tab| OG[UnitDebugController.OpenGraph]
+  P --> OP
+```
+
+*What the picture shows that prose hid:* the hex rows were not blueprints. One store holds every occurrence slot of the unit, and the
+list showed them all. The task's and the SOP's own memory slots (kind BTree / HSM, ids like `0x7C4ED832` that no asset carries) came out
+as nameless rows with a working **Remove**, which would tear the running task's memory. The slot's kind (`BlueprintBlackboardPartitions.GetSlotKind`)
+was already in the store; `BlueprintTierSummary.SlotSummary` now carries it.
+
+| piece | where | matches §12b / deviates |
+|---|---|---|
+| `SlotSummary.Kind` (the slot's `OccurrenceKind`), filled by `AppendSlots` | `FDP/Toolkits/Fdp.Toolkits/Blueprints/BlueprintTierSummary.cs` | ✅ BV-44 (the one reader) |
+| the list shows only kind-Blueprint slots, by name, each with **Open graph**; the others are a count (*"+ N slot(s) of the running behaviours"*) | `EntityBlueprintsPanel.cs`, `EntityBlueprintsViewModel.BehaviourSlots` | ✅ BV-46 (blueprints managed here) |
+| **Open graph** on a blueprint row: the pinned graph of that blueprint on this unit, and the Blueprint session filtered to it | `EditorSubsystem.cs` (`EntityBlueprintsPanel.OpenGraph`) | ✅ BV-55 |
+| **Open graph** on the *Doing* SOP row and inside every *Running behaviours* node (pinned tab → its own document; docked tab → follows the selection) | `EntityBrainView.cs` (`OpenGraphButton`, `SopName`) | ✅ BV-55, as §12o's *Open running behaviour* |
+| the API's *"the unit's one blueprint"* variable lookup skips behaviour slots (it said "several blueprints" for a unit with one blueprint and a task) | `DebugApiService.Variables.cs` (`AttachedBlueprints`) | ✅ the same fault, fixed at its second reader |
+
+📐 Rail: `ThePilotPanelDumpsWhatItDrawsTests.CE1326_ATasksOwnSlot_IsCountedNotListedAsABlueprint` (a blueprint and a BTree slot on one unit
+⇒ one row, `behaviourSlots` 1).
+
+### 12q. AS-BUILT — the tab's lists as tables, the contacts, the pickers' search, the open layout faults *(CE-1327, CE-1273, CE-1274, `2026-10-25`)*
+
+🔒 User, `2026-10-25` (one message, abridged): pickers need *"an incremental search box"* · *"remove the HP line"* · *"Doing … a table with sizable
+columns and alternating gray row background. Same the Right now"* · Knows: *"a table with the contacts and how (seen, heard) … a button to
+jump the camera to each"* · *"the sliders are all overlapping with the label"* · the blueprint section's *"sim: paused / current tier /
+OK: 3/488 … do not make sense"* · *"we do not need any special open Running behavior button"* · *"Show on map … Clicking the checkbox does
+nothing"* · Recent changes *"the nice table"* · *"The why section … text written in one line on top of each other"* · *"The running behavior
+graph window is still showing weird layouts"*.
+
+```mermaid
+classDiagram
+  class EntityBrainView {
+    BeginGrid(id, columns) the ONE list shape
+    DrawContacts(world, rows)
+    JumpCamera  host hook
+  }
+  class BrainSnapshot {
+    ContactRows  BrainContact list
+    HowOf(modalities, heard, class)
+  }
+  class BrainContact {
+    Heard, How, Position, Distance
+    Freshness, AgeSeconds, Radius, Unit
+  }
+  class BehaviorPickerTree {
+    <<EXISTS, the one picker>>
+    Combo(...) search box on open
+    Matches(choices, search)
+  }
+  class EntityBlueprintsPanel {
+    FilterAddOptions(options, search)
+  }
+  EntityBrainView --> BrainSnapshot : reads
+  BrainSnapshot --> BrainContact : one per memory slot
+  EntityBrainView ..> BehaviorPickerTree : the AI section's task / SOP rows
+  EntityBrainView ..> EntityBlueprintsPanel : the Blueprints section
+```
+*What the picture shows that prose hid:* the contact rows come from the snapshot (the same reader as the panel dump and `GET /entities/{id}/brain`,
+which now carries `contactList`), and the search lives in the ONE picker — the mission panel's task rows get it too.
+
+| ask | as built | where |
+|---|---|---|
+| tables | Doing, Right now, Knows, Recent changes, Settings: `BeginGrid` — resizable columns, line grid, alternating rows | `EntityBrainView.cs` |
+| contacts | one row each: who (name + id, or *"something (±15 m)"* in amber for a heard one), how (*seen · thermal · radar · heard: small arms*), distance, age, freshness, **Camera** (centres the 2-D or 3-D map on the believed position; lets go of a follow camera) | `BrainSnapshot.ContactRows`, `DrawContacts`, `EditorSubsystem` (`JumpCamera`) |
+| sliders overlap | the settings are a 4-column table (label · slider at the column's full width · type · reset) — no fixed offset left | `DrawSettings` |
+| Why overlap | the decision drawing put each option's bar at a FIXED 300 px; a long name, a bigger font or the tab's deeper indent ran the label under it. The bar column now starts after the widest label (options and a ranking's candidates) | `UtilityDecisionWidget.cs` |
+| "Open running behaviour" | removed from Debug; every running behaviour carries **Open graph** on its own line (open or closed), the SOP on its Doing row | `DrawRunning`, `DrawDebugControls` |
+| blueprint lines | *Sim / Current tier / OK* no longer drawn; each row has **Memory** (its own slot's size); the capacity line only when an add is over the ceiling (a bigger store is appended on its own — R-236) | `EntityBlueprintsPanel.cs`, `EntityBlueprintsViewModel` |
+| search | the behaviour picker opens with a focused search box (every word in the name, technology or folder; a name starting with the first word first; Enter picks the first); the **+ Add Blueprint** popup the same | `BehaviorPickerTree.Combo/Matches`, `EntityBlueprintsPanel.FilterAddOptions` |
+| HP line | the card's `HP 50/100` row (30) is gone — the health bar (row 10) shows it | `EntityEditorLabelGizmo.cs` |
+| ROE pickers | ⚠ not searched: two fixed combos of 3–4 entries | — |
+| graph layouts | **CE-1273** a C#-built tree has no Root node ⇒ the tidy-tree gave up (every node at 0,0); and its sibling spacing ignored subtree widths (PersonAttack: 48 nodes in 42 places) — now subtree-width placement. **CE-1274** the HSM grid ⇒ a left-to-right flow along the transitions, columns ≤ 6, wider gaps | [BTree host §3.4](blueprints/BTree_Editor_NodeEditor_Host_Design.md), [HSM host §3.4](blueprints/HSM_Editor_NodeEditor_Host_Design.md) |
+
+**⚠ Show on map — measured, NOT changed (CE-1329, a decision for the user).** A brain family draws for a unit when its scope is *All*, or
+the unit is **selected**, or the family is **pinned** on it (`GizmoFamilyVisibilityPolicy.IsEntityVisible`, every brain family's default
+scope is *selected or pinned* — `GizmoFamilies.DefaultScope`). The Brain tab shows the SELECTED unit, so every family already draws for
+it and the checkbox (a pin) can add nothing — on the docked tab it is a no-op by construction. It matters only for a unit that is not
+selected (a pinned tab). A family also draws nothing when the unit has no data for it (no contacts in the last 60 ticks, no EQS query).
+
+📐 Rails: `TheBrainViewTests.CE1327_TheKnowsRows_AreEachContact_HowAndWhere` · `AdapterTests.CE1327_PickerSearch_EveryWord_NameFolderOrTechnology`
+· `ThePilotPanelDumpsWhatItDrawsTests.CE1327_TheAddSearch_KeepsEveryWordMatch` (+ the CE-1326 rail asserts the row's memory) ·
+`HostOnlyWiringTests.CE1327_TheLabel_DrawsNoHitPointsLine_TheBarAtTheTopShowsThem` · `CodeBuiltTreeLayoutTests.CE1273_*` ·
+`CodeBuiltMachinesTests.CE1274_*`.
+
+📷 `TheBrainViewTests.CE1310_*` (open):
+
+![the tab's tables and contacts](assets/brain-view/b8-tables.png)
+
+### 12r. DECISIONS `2026-10-25` — ONE store for every per-unit debug switch, remembered per scenario *(CE-1329; build-state: BUILT `2026-10-25` — as-built §12s)*
+
+🔒 User, `2026-10-25` (abridged): *"the unit's Brain-tab ticks become the only switch — yes from UI point of view, internally this needs to
+be controllable from similar data model as before"* · *"clicking a unit no longer shows its vision cone until you tick Perception — this
+is exactly what I want"* · *"I like better one model for all debug switches"* · *"save those on exit / scenario unload per scenario …
+restore automatically on scenario load … would need a way to reset it in the UI"* · *"replace debug_unit with that route"* ·
+*"Reset all debug settings for this scenario in the Settings menu"*.
+
+```mermaid
+graph TD
+  BT[Brain tab: Show on map ticks] --> S
+  MM[map right-click: Pin gizmos, with check marks] --> S
+  API["HTTP: GET/POST /entities/{id}/debug-settings"] --> S
+  FD["film take: pins (handoff to backend, temporary)"] -.-> S
+  S["DebugSettings — ONE world singleton, keyed by network id:\n gizmo pins · trace switches · the followed unit"]
+  S --> P[map: GizmoFamilyVisibilityPolicy]
+  S --> R[BTreeRunner / HsmRunner / TraceBufferLifecycleSystem]
+  S --> F[follow camera]
+  S <-->|save on change, unload, exit; load with the scenario| U["per-scenario user file"]
+  V[Brain tab showing a unit] -->|temporary, not stored| R
+```
+*What the picture shows that prose hid:* one store with many writers and three readers; the Brain tab's own arming while it shows a unit
+is a separate, temporary input (tracing = stored switch OR viewed), so closing a tab never turns off what an agent switched on.
+
+| # | decision | why |
+|---|---|---|
+| BV-65 | per-unit debug switches — gizmo pins AND trace switches AND the followed unit — live in ONE world singleton keyed by network id; `DebugState` stops carrying them | the user: one model; a singleton is outside the preview's capture (`WorldKeyframes.EditorDryRun`, `Singletons: false`), so a tick set during a preview survives its Stop — today it is rewound away (`DebugState` is captured and restored) |
+| BV-66 | a BRAIN gizmo family draws for a unit only when ticked on it (Brain tab or the right-click menu); selection draws none | the user: *"exactly what I want"*; selection drew every family at once, so the tick could add nothing |
+| BV-67 | the Layers panel keeps only GLOBAL switches: each brain family's row stays as a global on / off (off hides it for every unit); the six "selected only" rows go | the user: the tactical layer shows global-scope checkboxes; per-unit ticks are on the Brain tab and the right-click menu |
+| BV-68 | the right-click "Pin gizmos" menu stays, with check marks read from the same store | the user |
+| BV-69 | behaviour-bound gizmos (the hill attack's) — no change: their layer, the selected unit running the behaviour | the user. ⏭ a "behaviour-specific" layer switch to hide them all is an idea, not scheduled |
+| BV-70 | saved per scenario in a user file (on change, on unload, on exit), restored on scenario load; network ids of PLACED units are stored in the scenario (`NetworkIdentity.Value`), so they key it. ⚠ runtime-SPAWNED units repeat their ids across previews (`DESIGN_Deterministic_Network_Ids.md` §4d, built) but across a reload only if its §11 (reset to 1000 on load) is built — **not verified** | the user: survives crashes and restarts |
+| BV-71 | resets: "Reset this unit's debug settings" on the Brain tab's Debug section; "Reset all debug settings for this scenario" in the **Settings** menu | the user |
+| BV-72 | `POST /entities/{id}/debug` (`debug_unit`) is REPLACED by `GET` / `POST /entities/{id}/debug-settings {trace, pins, follow}` (its help text also claimed it pins gizmos; it does not — `UnitDebugController.Apply:67`) | the user: *"replace debug_unit with that route"* |
+| BV-73 | the film director gets a take-level `pins` override (temporary, like its layers) — a handoff to the backend lane, not built here | a take's `"layers": {"on": ["Ai.VisionCones"]}` would otherwise draw nothing (`DESIGN_Film_Director.md` §4b) |
+
+⚠ A draft built before these decisions (rows removed, pins left on `DebugState`) was in a local git stash and was **not** used — §12s is built from this table.
+
+### 12s. AS-BUILT — the one debug-settings store *(CE-1329, `2026-10-25`)*
+
+```mermaid
+sequenceDiagram
+  participant UI as Brain tab / right-click / HTTP
+  participant S as UnitDebugSettings (world singleton)
+  participant P as DebugStatePatchSystem (Input, each frame)
+  participant D as DebugState (per unit)
+  participant R as runners and map policy
+  participant M as UnitDebugSettingsMemory (editor)
+  UI->>S: SetPin / SetTrace (user) · SetViewed (tab) · SetArmed (observe, breakpoint) · SetFollowed
+  P->>S: Apply(world)
+  S->>D: Ai = pins · EnableTraceBuffer = user OR viewed OR armed
+  R->>D: read each tick (unchanged)
+  M->>S: a new scenario loads its file, a change or exit saves it
+  Note over P,D: a preview Stop puts the captured copy back, the next frame rewrites it
+```
+*What the picture shows that prose hid:* the runners and the map policy kept their per-tick read of `DebugState`; the store owns the
+truth and REWRITES the copy every frame, so no writer goes around it and a rewind cannot keep a stale bit for long.
+
+| piece | where | matches §12r / deviates |
+|---|---|---|
+| `UnitDebugSettings` — remembered `Entry(Pins, Trace)` by network id, the followed id, temporary `viewed` / `armed` sets, `Version`, `Apply`, `ToJson` / `Load` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Diagnostics/UnitDebugSettings.cs` | ✅ BV-65 — ⚠ **deviation**: `DebugState` still carries the bits, as the store's per-frame COPY (`Apply`, called by `DebugStatePatchSystem`). Why: the behaviour runners (behaviors lane) and every test world read `DebugState` per tick, and an entity with no network id (a test, a local-only entity) still needs a trace; the copy keeps them unchanged while the store is the only thing anyone sets or the UI reads |
+| writers: `GizmoPins.Set` / `IsPinned`, `AiTraceActions.Set(…, Requester)` (User · Viewed · Armed), `BrainObservation`, the breakpoint arming, `EditorAiTracerCoordinator` (observe) | `Hrot.Common/Diagnostics/Gizmos/*`, `EditorSubsystem`, `DebugApi/EditorAiTracerCoordinator.cs` | ✅ — a unit without a network id keeps the old `PatchDebugStateCommand` path |
+| brain families `GizmoScope.PinnedOnly` (selection draws none); `Path` unchanged; stored scope values of brain families ignored | `GizmoFamilies.DefaultScope / ScopeOf / IsBrainFamily`, `GizmoFamilyVisibilityPolicy` | ✅ BV-66 |
+| the Layers panel: the six "selected only" rows removed; the global rows stay | `LayerControlGizmo.cs` | ✅ BV-67 |
+| right-click: *Pin gizmos* checked from the store, *AI trace → Trace (remembered)* checked; ⛔ *Debug this unit* removed (and `UnitDebugController`'s one-debugged-unit switch) | `ContextMenuProjectorGizmo.MenuJsonFor`, `GizmoPins.Submenu(pins)`, `AiTraceActions.Submenu(traceOn)` | ✅ BV-68, BV-72 |
+| hill-attack gizmo | — | ✅ BV-69, untouched |
+| per-scenario file `debug-settings/<scenario>.json` in the user folder: loaded when the loaded scenario changes, saved on every change and on exit | `Hrot.Presentation/ScenarioEditor/Map/UnitDebugSettingsMemory.cs`, `EditorSubsystem` (`Update`, `Shutdown`) | ✅ BV-70 — ⚠ runtime-spawned units' ids across a reload are still unverified (§12r BV-70) |
+| resets: Brain tab Debug → *Reset this unit's debug settings*; **Settings → Reset all debug settings for this scenario** | `EntityBrainView.DrawDebugControls`, `EditorSubsystem` | ✅ BV-71 |
+| follow memory: `FollowUnit` stores the id; the driver's `Released` (Esc, W/A/S/D, a map drag) forgets it, `Lost` (the unit gone — a rewind, a respawn) waits; the layer follows it again when it is back or after a load names it, never while the film or the station holds the camera | `MapViewModeLayer.Refollow`, `FollowCameraDriver.Released / Lost` | ✅ BV-65 |
+| `GET` / `POST /entities/{id}/debug-settings {pins, trace, follow, reset}` (`get_debug_settings`, `set_debug_settings`); ⛔ `POST /entities/{id}/debug` (`debug_unit`) and `GET /view`'s `debugged` removed | `DebugApiService.Brain.cs`, `DebugApiHost.cs`, route docs, skill §G, `McpClient` | ✅ BV-72 |
+| the film director's take-level `pins` | ⏭ handoff to backend: `docs/blueprints/batches/HANDOFF_Ui_To_Backend_Film_Take_Pins.md` | BV-73 |
+
+📐 Rails: `UnitDebugSettingsTests` (5: the copy follows the store and survives a rewind · any requester, a tab never clears the user's
+switch · the menu's checks, no Debug this unit · pinned-only brain families · per-scenario memory and reset) ·
+`TheBrainAndViewRoutesAnswerTests.CE1329_DebugSettings_AreTheBrainTabsSwitches` · updated: `DebugTraceGizmoTests` (CE-3136, CE-3143),
+`LayerControlGizmoTests` (scopes now on Path). ⛔ SUPERSEDED: `UnitDebugControllerTests`.

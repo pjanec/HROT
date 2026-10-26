@@ -113,4 +113,15 @@ public sealed class HsmTransitionLabelRendererTests
         var ba = HsmTransitionLabelRenderer.LabelAnchor(NodeEditor.Core.Canvas.LinkPathBuilder.NodeToNode(b, a), size);
         Assert.True(MathF.Abs(ab.Y - ba.Y) > size.Y, "the two labels of A→B and B→A must not overlap");
     }
+
+    /// <summary>⭐ CE-1335 — a polled transition reads just its guard ("Planned"): no "Event_65533", no "@offset", no default priority.
+    /// ✅ Red-proof: the polled branch dropped ⇒ red.</summary>
+    [Fact]
+    public void CE1335_APolledTransition_ReadsItsGuard()
+    {
+        var t = MakeTransition(eventName: "Event_65533", guardFqn: "Hrot.AI.Behaviors.Brains.PlatoonDefendBehavior.Planned@0", priority: 0);
+        t.EventId = Fhsm.Kernel.Data.ReservedEventIds.Polled;
+        HsmTransitionLabelRenderer.FormatLabel(t).Should().Be("Planned");
+        new Fhsm.Kernel.Data.MachineMetadata().GetEventName(Fhsm.Kernel.Data.ReservedEventIds.Polled).Should().Be("(every tick)");
+    }
 }

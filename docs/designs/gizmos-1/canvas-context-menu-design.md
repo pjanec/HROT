@@ -437,6 +437,12 @@ logged no-op).
 📐 **Rails:** `MenuOrdersTests.CE1230_*`, `TheScenarioWindowsAreSharedTests.EveryMapHostGivesTheOrbatRowTheMapsMenu`.
 
 
+⭐ **`2026-10-25` (ui, `CE-1350`, `CE-1346`) — the ORBAT rows beyond the menu.** A destroyed unit (`CombatLife.IsDestroyed`) carries
+`OrbatNodeViewModel.IsDestroyed` and its name is drawn dark red (tooltip "Destroyed"); a double-click runs the map's Center View on it
+(`IOrbatController.CenterOn` → `CenterOnEntitySystem.CenterOn` on the world's canvas — the menu action's own function; a host with no map
+ignores it); a click while the map waits for an entity pick answers the pick (Tool Model §4.16). ⚠ ExCon's ORBAT builds its rows from
+the wire and does not mark the destroyed yet. Rail `EditorOrbatAdapterTests.CE1350_*`.
+
 ## 12. DESIGN — HOST ACTIONS are the host's, not the map's; "Properties…" opens the Details panel on every ECS host (`CE-1150`, `2026-10-22`, ui) — build-state: BUILT (steps ①–⑤ ✅ approved by the user `2026-10-22`; HA-4 and HA-8 ✅ approved the same day; as-built §12.1)
 
 🔒 User, `2026-10-16` (CE-1150): *"'Properties...' should be just an UI action that is handled in action handler, it should not need any
@@ -543,6 +549,7 @@ a map-less host would schedule `Host.Dispatch` itself.*
 | **HA-5 the inspector without the map** | `MapEntityMenuHandler(host, world)`; `DiagnosticsHostServices` gains `Host` and `World`; the ORBAT row menu likewise. Deleted: `InspectorMapLink`, `MapInteraction.World` / `.Inspector`, `ShowEntityPropertiesEvent`, `WindowManager.FrameStarted`, `DetailsWindow.Answer`, `DiagnosticsWindowsBundle.AnswerProperties`, `DiagnosticsHostServices.AnswersProperties` |
 | **HA-6 the IG's relayed menu** | `IgApplication` REQUESTS (`Host.Request`) an id the registry has — the dispatch system runs it, as every other click (`GlobalActionRegistry.Has`) |
 | **HA-7 View ▸ Details** | the two items (Float / Pin current view) are registered by `EntityDetailsBundle` and REQUEST `FloatDetailsView` / `PinDetailsView`; the handlers act on the current perspective's Details. `DetailsWindow.RegisterViewMenu` deleted; the labels and enabled state stay (computed by the bundle from the shell's public `CurrentDescriptor`) |
+| ⛔ **HA-7 SUPERSEDED `2026-10-25` (CE-1334)** | 🔒 user: *"View → Details is useless if this is nothing better than the icon, so pls remove"* — the two items and their two actions are deleted; float and pin are the Details panel's tab-bar icons only |
 | **HA-8 shell items stay** ⚠ *narrows step ⑤* | the window manager's *Settings ▸ UI Scale & Fonts…* and the runner's *Settings ▸ Layout* items are the SHELL's, not a window's, and live in FDP / the runner, which cannot see Hrot's action ids ⇒ unchanged |
 
 **Rejected — one line each:** *the request event a window answers (`R-1024` as first built)* — the user: windows must not know of actions;

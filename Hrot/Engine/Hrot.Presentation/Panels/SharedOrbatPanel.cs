@@ -49,6 +49,9 @@ public sealed class SharedOrbatPanel
     // ── State ─────────────────────────────────────────────────────────────────
 
     private string _filterText = string.Empty;
+
+    /// <summary>⭐ <c>CE-1350</c> — a destroyed unit's row text (dark red, still readable on the dark theme).</summary>
+    public static readonly System.Numerics.Vector4 DestroyedColour = new(0.72f, 0.16f, 0.14f, 1f);
     private readonly HashSet<int> _expandedNodes = new();
 
     // ── Public accessors (test helpers) ───────────────────────────────────────
@@ -110,9 +113,18 @@ public sealed class SharedOrbatPanel
                 ImGui.SameLine();
             }
 
-            // Selectable row
-            if (ImGui.Selectable($"{node.Name}##{node.EntityId}", false))
-                ctrl.SelectEntity(node.EntityId);
+            // Selectable row — ⭐ CE-1350: a destroyed unit's name in dark red; a double-click centres the map on it (Center View)
+            if (node.IsDestroyed) ImGui.PushStyleColor(ImGuiCol.Text, DestroyedColour);
+            if (ImGui.Selectable($"{node.Name}##{node.EntityId}", false, ImGuiSelectableFlags.AllowDoubleClick))
+            {
+                if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) ctrl.CenterOn(node.EntityId);
+                else ctrl.SelectEntity(node.EntityId);
+            }
+            if (node.IsDestroyed)
+            {
+                ImGui.PopStyleColor();
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Destroyed");
+            }
 
             // Drag source — unsafe pointer operations confined here
             unsafe

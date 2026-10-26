@@ -357,6 +357,12 @@ namespace Hrot.NED.Descriptors
         public byte Busy;
         // ⭐ CE-3232 (B-10, appended) — bit i: mount i is LAID DOWN (cannot fire, arms nobody)
         public byte LaidDown;
+        // ⭐ CE-1358 (appended; DESIGN_Weapon_Layers §5k) — bit i: mount i's barrel is too hot; each barrel's heat, percent
+        public byte Hot;
+        public byte Heat0;
+        public byte Heat1;
+        public byte Heat2;
+        public byte Heat3;
     }
 
     // ⭐ CE-1153 (docs/DESIGN_Entity_Control.md §8h.6) — the brain's verdict on the operator's last use press, Brain → every node, keyed by

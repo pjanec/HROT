@@ -149,6 +149,15 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 3. Poll `get_breakpoint_status` → when `isPaused:true`, the condition fired; `lastHit` names the entity.
 4. Inspect, then `remove_breakpoint {id}` and continue.
 
+#### C0. What a utility decision IS, and which node runs it (CE-1325)
+- `list_utility_decisions` → every decision (the C# `[UtilityDecision]` classes).
+- `get_utility_decision {key:"Combat posture", networkId?}` → per option its aggregation and considerations (input, context, weight, curve
+  kind + slope / exponent / shift, modifier); with `networkId` that unit's winner, margin and raw → curved → weighted per consideration
+  (traced units), and the consideration that zeroed an option.
+- `get_behaviour_decisions {name:"CombatPosture"}` → which node / state / transition binds which decision: `Chooses` (ChooseOption),
+  `Ranks` (RankCandidates), `Reads` + the option (an IsOption guard), `Holds` (a custom action's params). Works for C#-built behaviours
+  with no asset.
+
 #### C1. Stop on a BEHAVIOUR STEP (CE-1323) — "when he enters Withdrawing", "when that transition fires"
 Read the running behaviour's name first (`get_entity_brain` → the running behaviour), then:
 ```json
@@ -164,7 +173,7 @@ set_breakpoint {"condition":{"$type":"BehaviourStep","Behaviour":"<name>","Kind"
 | `NodeRuns` | `Node` (the BTree node's VisualId) | that tree node runs |
 
 - A name that is not in the behaviour is a **400 that lists what is** — no silent never-firing breakpoint.
-- `filterNetworkId` = only him (and it arms his traces). Without it the step watches every **armed** unit (a Brain tab open, Debug this unit, observe-all).
+- `filterNetworkId` = only him (and it arms his traces). Without it the step watches every **armed** unit (a Brain tab open, `set_debug_settings` trace, observe-all).
 - With a condition: `{"$type":"Compound","Operator":"And","Conditions":[<BehaviourStep>, <PropertyMatch …>]}`.
 - `get_breakpoint_status` → `lastHit.what` says what fired: `"entered Withdrawing"`, `"Engaging -> Withdrawing fired on OrderReceived"`, `"event Contact handled (consumed)"`.
 - One arrival stops ONCE: `continue_from_breakpoint` does not stop again on the same step.
@@ -195,6 +204,14 @@ set_breakpoint {"condition":{"$type":"BehaviourStep","Behaviour":"<name>","Kind"
 2. `play` / `step` a few frames so the buffer fills.
 3. `get_entity_trace {networkId}` → active node/state + recent history.
 4. `observe_trace {networkId, on:false}` to disarm.
+
+**A unit's debug settings — what the operator sees too (CE-1329).** `get_debug_settings {networkId}` /
+`set_debug_settings {networkId, pins?, trace?, follow?, reset?}` read and write the ONE per-unit store the Brain tab's
+*Show on map* ticks and the map's right-click *Pin gizmos* use: `pins` (REPLACES the set — Perception, Contacts, EQS,
+Utility, Squad, Actions, Command picture, My units' contacts, Path) draw on the map for that unit, selected or not
+(selecting a unit draws none of them); `trace` records its BTree / HSM / utility trace; `follow` puts the 3-D camera on
+it. Remembered per scenario (back on its next load). `observe_trace` stays a temporary arming that never touches the
+remembered `trace`. ⛔ `debug_unit` is gone.
 
 ### H. Mutate / fault-inject
 - Discoverable, safe path: `get_attributes_schema` → see patchable paths → `patch_attribute {networkId,
@@ -309,15 +326,15 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 ### Group G — Breakpoints
 - **`list_breakpoints`** — List all registered breakpoints. No params. Returns [{ id, conditionSummary, enabled, occurrenceThreshold, hitCount, name }]
   Example: `list_breakpoints({})` — list all active breakpoints and their hit counts.
-- **`set_breakpoint`** — Register a run-until-condition breakpoint. Req `condition` (object), `filterNetworkId?` (number), `occurrenceThreshold?` (number, def 1), `name?` (string). Returns { breakpointId } (e.g. "BP#1").
-  Notes: condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).; Poll get_breakpoint_status after play to detect when the breakpoint fires..
+- **`set_breakpoint`** — Register a run-until-condition breakpoint. Req `condition` (object), `filterNetworkId?` (number), `occurrenceThreshold?` (number, def 1), `name?` (string). Returns { breakpointId, conditionSummary } (e.g. "BP#1", "Withdrawing entered (PlatoonCommander)").
+  Notes: condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).; Poll get_breakpoint_status after play to detect when the breakpoint fires.; ⭐ CE-1323 — BEHAVIOUR BREAKPOINTS: {"$type":"BehaviourStep","Behaviour":"<running behaviour name>","Kind":K,...} with K = StateEnter|StateExit {State} · InsideEnter {State, Region?: -1 = anything under it, n = region n of a parallel state} · TransitionFires {From?, To, Event?} (no From = a global transition) · EventHandled {Event} (dequeued, consumed or deferred, even when no transition uses it) · NodeRuns {Node: the BTree node's VisualId}. Names are the machine's own (GET /entities/{id}/brain names the running behaviour); a name not in it is a 400 that lists what is.; Per unit: filterNetworkId. Any other condition: {"$type":"Compound","Operator":"And","Conditions":[<BehaviourStep>, <PropertyMatch …>]} — the rest is checked on the unit at the step. A step scoped to a unit arms its traces; an unscoped step sees only armed units (a Brain tab open, Debug this unit, observe-all).; Only records written since the last look count, so continue_from_breakpoint never stops twice on one arrival. get_breakpoint_status names what fired (lastHit.what)..
   Example: `set_breakpoint({"condition":{"$type":"PropertyMatch","ComponentType":"SimTransform","PropertyPath":"Position.X","Operator":"GreaterThan","Predicate":{"$type":"Numeric","MinValue":100,"MaxValue":1000000000}},"name":"moved-east"})` — pause when entity SimTransform.Position.X > 100.
 - **`remove_breakpoint`** — Remove a breakpoint by its ID string. Req `id` (string). Returns ok:true envelope.
   Example: `remove_breakpoint({"id":"BP#1"})` — remove breakpoint BP#1.
 - **`continue_from_breakpoint`** — Resume the debugger after a breakpoint hit. Also what applies any live variable writes staged while it was stopped. `step?` (boolean). Returns { wasPaused, action, isPaused, note }
   Notes: ⚠ Deleting a breakpoint does NOT resume: the debugger stays stopped, and while it is stopped every staged variable write is queued and never applied. Call this after a hit, not remove_breakpoint.; Harmless when nothing is stopped — it answers wasPaused:false.; The host also serves POST /breakpoints/step, which is exactly this call with step:true. Deliberately ONE tool, not two — use continue_from_breakpoint({step:true})..
   Example: `continue_from_breakpoint({})` — let the world run again after a breakpoint fired.
-- **`get_breakpoint_status`** — Current pause state and last breakpoint hit. No params. Returns { isPaused, pausedTick, lastHit: { breakpointId, networkId, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }
+- **`get_breakpoint_status`** — Current pause state and last breakpoint hit. No params. Returns { isPaused, pausedTick, lastHit: { breakpointId, networkId, name, conditionSummary, what, journalWrittenByTheTick?:[{seq, at, kind, text}] } | null }  — what (CE-1323) is what a behaviour step saw: "entered Withdrawing", "Engaging -> Withdrawing fired on OrderReceived", "event Contact handled (consumed)"; null for a data breakpoint
   Notes: Poll this after play to detect when a breakpoint fires..
   Example: `get_breakpoint_status({})` — poll for breakpoint hit after calling play.
 - **`break_on_journal`** — Stop the simulation when THIS unit changes its mind (CE-1258): a data breakpoint on its brain journal's sequence number, filtered to the unit (a neighbour's change does not stop it); optionally only for some entry kinds. Req `networkId` (number), `kinds?` (array). Returns { breakpointId, networkId } — then poll get_breakpoint_status: its lastHit.journalWrittenByTheTick lists the entries the hit tick wrote.
@@ -421,6 +438,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `unload_replay({})` — unload replay sandbox when done inspecting.
 
 ### Group K — AI behavior traces
+- **`get_behaviour_decisions`** — Which node / state / transition of a behaviour binds which utility decision, and how (CE-1325): ChooseOption chooses, RankCandidates ranks, an IsOption guard reads one option, a custom action holds one in its params. Req `name` (string). Returns { behaviour, bindings:[{kind: node|state|transition, element, label, role: Chooses|Ranks|Reads|Holds, via (the params field), decision, assetId, decisionId, option?}] }
+  Notes: Read from the running blob: a node's method key carries its params offset, and the behaviour's default params hold the decision reference there..
+  Example: `get_behaviour_decisions({"name":"CombatPosture"})` — which nodes of a behaviour run which utility decision.
 - **`get_combat_detonations`** — The last warhead bursts on this node (grenades, mortars, HE) — the warhead and where its numbers came from, every entity in reach with its stance, fragment exposure and blast barrier/shadow, the damage each effect did, and the doors breached (buildings Stage 6). `last?` (number). Returns { count, returned, detonations:[{seq, tick, shooter, struck, burst, ammo, warhead, warheadSource, fragmentRadius, blastInjuryRadius, effects:[{entity, entityIndex, stance, bodyPoints, distance, fragmentExposure, fragmentFalloff, fragmentArmourChance, fragmentDamage, blastFalloff, blastBarrier, blastShadow, blastDamage, totalDamage, shieldedBy, at}], doorsBreached:[key], rays:[{to, transmission, stopAt}]}] } — newest first
   Notes: Written by AreaEffectSystem as it decides each burst — never recomputed. Only bursts of a munition WITH a warhead are recorded (a rifle round has none).; fragmentExposure = the mean over the target's body points (its stance) of the fragments through the terrain and past any body or vehicle; blastBarrier = what slabs/walls/shut doors let through; blastShadow = the diffraction factor behind an obstacle taller than the target.; The entity the round struck is listed too (it is at the burst); its direct hit is a separate damage event.; rays = every fragment line the map's blast layer draws (CE-3117): the body point, the fragment transmission 0..1, and the first obstacle on the way (a terrain piece where the fragments enter it, or the point nearest a blocking collider), null for a clear line..
   Example: `get_combat_detonations({"last":3})` — find out why the prone soldier behind the wall survived the grenade.
@@ -428,11 +448,13 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: Written by the systems that decide each round (FireProcessing, Ballistics, HitResolution) — never recomputed, so it cannot disagree with what happened.; Served where the fire chain runs (SimHost, Editor); elsewhere it says no round was fired on this node.; A round that hit a unit lists only the crossings before the unit; arrivingDamage is what the damage step received..
   Example: `get_combat_shots({"last":10})` — find out why a rifleman's rounds never hurt the target behind the wall.
 - **`get_entity_brain`** — What a unit is doing and why — the Brain tab as JSON (CE-1248): task, who ordered it, paused task, SOP, ROE, each channel's right-now, HSM regions, squad play, utility choices (every brain unit), contacts, and the brain journal's recent changes. Req `networkId` (number). Returns { networkId, hasBrain, onBrainNode, doing, origin, urgency, sinceSeconds, paused, sop, roe, rightNow:[{channel, actionId, reason, hold, progress, needed}], regions:[{region, state, stateIndex}], squad, choices:[{decisionId, winner, previousWinner, margin, switches}], contacts, heardOnly, journal:{on, seq, changes:[{seq, at, kind, text}]} }
-  Notes: onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.; choices fill only while the unit is observed (observe_trace or debug_unit); the journal is always on.; journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones..
+  Notes: onBrainNode:false means this node does not run the unit's brain — only task / SOP / ROE are replicated here.; choices fill only while the unit is observed (observe_trace, set_debug_settings trace, or its Brain tab open); the journal is always on.; journal.changes are newest first; poll get_entity_journal with ?since=<seq> for only the new ones..
   Example: `get_entity_brain({"networkId":1000})` — see what unit 1000 is doing, who ordered it, and what changed lately.
-- **`debug_unit`** — "Debug this unit" on / off (CE-1257) — the same switch as the Brain tab and the map's AI trace menu: arms the unit's traces (BTree / HSM rings and the utility per-consideration trace; the decision log is always on), pins its map gizmos, and keeps the AI graph's live overlay on it instead of the selection. One unit at a time. Req `networkId` (number), `on?` (boolean, def true). Returns { networkId, debugging, debugged }
-  Notes: The operator sees it too: the gizmos pin on the map and the graph's highlight follows this unit.; Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal..
-  Example: `debug_unit({"networkId":1000,"on":true})` — watch unit 1000 closely, live.
+- **`get_debug_settings`** — A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario. Req `networkId` (number). Returns { networkId, pins:[family labels], trace, traceOn, follow }
+  Example: `get_debug_settings({"networkId":1000})` — what is switched on for unit 1000.
+- **`set_debug_settings`** — Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit. Req `networkId` (number), `pins?` (array), `trace?` (boolean), `follow?` (boolean), `reset?` (boolean). Returns { networkId, pins:[family labels], trace, traceOn, follow }
+  Notes: Then read get_entity_brain (choices fill), get_entity_trace, and arm break_on_journal.; A unit whose Brain tab is open is traced anyway (traceOn), without touching its trace switch..
+  Example: `set_debug_settings({"networkId":1000,"pins":["Perception"],"trace":true})` — watch unit 1000 closely: its vision cone on the map and its trace.
 - **`get_entity_journal`** — A unit's brain journal after a sequence number (CE-1249): every task start / pause / resume / end / clear / refusal (with its reason), SOP change, utility switch, move start and HSM region change, with its cause — the last 24, always on. Req `networkId` (number), `since?` (number). Returns { networkId, on, seq, gap, entries:[{seq, at, kind, text}] } — oldest first; gap:true means more than 24 were written since `since` and the oldest are gone.
   Notes: seq counts every entry ever written to the unit and never resets — use it to poll without repeats.; A refusal repeated every tick is ONE entry whose time is refreshed.; on:false — not a brain unit on this node, or the host was started with the journal switched off..
   Example: `get_entity_journal({"networkId":1000,"since":0})` — list what changed in unit 1000's mind and why.
@@ -480,6 +502,11 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`observe_trace`** — Arm or disarm AI behavior trace buffer allocation for an entity. Req `networkId` (number), Req `on` (boolean). Returns { armed, networkId }
   Notes: Must arm before get_entity_trace will return populated trace data.; Without arming, get_entity_trace returns empty trace..
   Example: `observe_trace({"networkId":1000,"on":true})` — arm AI behavior tracing for entity 1000.
+- **`list_utility_decisions`** — Every registered utility decision (CE-1325): name, asset id, kind, option count — the C# [UtilityDecision] classes. No params. Returns [{ decisionId, name, assetId, kind, options }]
+  Example: `list_utility_decisions({})` — list the utility decisions.
+- **`get_utility_decision`** — What a utility decision IS (CE-1325): per option its aggregation and considerations (input, context, weight, curve kind + slope / exponent / shift, modifier); with networkId that unit's values (winner, margin, per-consideration raw -> curved -> weighted). Req `key` (string), `networkId?` (number). Returns { decisionId, name, assetId, kind, ranking, hysteresis, options:[{optionId, name, aggregation, considerations:[{input, context, weight, curve, slope, exponent, xShift, modifier, raw?, curved?, weighted?}], score?, winner?, zeroedBy?}], live?:{unit, traced, evaluations, switches, winner, runnerUp, margin, ranked} }
+  Notes: The settings come from the RUNNING definition — the same for a C#-built behaviour as for an authored one.; Live per-consideration values need the unit traced (observe_trace); without, live.traced is still true when the decision log exists and the rows have no raw values.; An option scored 0 names the consideration that zeroed it (zeroedBy)..
+  Example: `get_utility_decision({"key":"Combat posture"})` — read a utility decision's settings.
 
 ### Group L — Mutation / fault injection
 - **`get_attributes_schema`** — Return all patchable attribute paths and their JSON Schema. No params. Returns { registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, GeoPosition.*, Heading, …).
@@ -531,7 +558,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`get_selection`** — The units the operator has selected (CE-1263): the primary and all. No params. Returns { primary, selection:[networkId] }
   Notes: To point the operator at a unit, use focus_entity (centres the camera) or add_annotation — not a selection write..
   Example: `get_selection({})` — which unit is the operator asking about.
-- **`get_view`** — What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, the debugged unit, and the units in view nearest first with their screen point. `limit?` (number). Returns { mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, debugged, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.
+- **`get_view`** — What the operator is looking at (CE-1262): the view mode (2D / 3D / FPS), the camera (eye, forward, yaw, pitch, distance, vertical field of view, viewport, the 2-D rectangle), the possessed unit and the unit its crosshair rests on, the selection, and the units in view nearest first with their screen point. `limit?` (number). Returns { mode, camera:{eye, forward, yawDeg, pitchDeg, distance, fovyDeg, viewport, rect2D?}, possessed, aimTarget, zoomFovDeg?, inView:[{networkId, name, distance, screen}], selection:[ids], primary, following?, followDistance? } — camera:null (with a note) where no map canvas draws the world.
   Notes: The operator points by SELECTING (click; in first person the select key on the unit under the crosshair) — read primary / selection.; aimTarget is what the first-person crosshair rests on right now; it moves with the aim.; inView in 2D is the map's own culling; in 3D / FPS a frustum test (not occlusion) — check a line with explain_line_of_sight using possessed as observer.; For what the possessed unit itself perceives, read get_entity_sensors / get_entity_memory on possessed..
   Example: `get_view({"limit":20})` — see what the operator sees and which unit they mean.
 - **`follow_unit`** — The map's 3-D camera follows a unit (CE-1293): far away it orbits and looks at him, near it is over his shoulder, at distance 0 it is at his eyes looking where he looks. entity:null hands the camera back to the operator. Req `entity` (number), `distance?` (number). Returns { following, distance } — or { following:null } after entity:null. 409 where no map canvas draws the world, or while the station possesses a unit.

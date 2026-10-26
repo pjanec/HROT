@@ -528,6 +528,8 @@ public class PerspectiveWorkspaceRegistrar
         //      view never claims the panel today. It is DORMANT, not dead — the utility-AI editor is
         //      designed (docs/designs/utility-ai/) and unbuilt. See the view's own remarks.
         DetailsViews.Add(Shell.UtilityConsiderationDetailsViewDescriptor.For());
+        // ⭐ CE-1325 (docs/DESIGN_Utility_Decision_View.md) — the Decision tab: a node / state / transition that binds a utility decision
+        DetailsViews.Add(Utility.UtilityDecisionDetailsViewDescriptor.For());
 
         // ⭐⭐⭐ S4 (§7.6 ④) — PARAMETER SYNCHRONIZATION, the last of BP-399's five rows.
         //    ⛔ UNGATED for the same reason as S3: the predicate asks whether the SELECTION is a subtree

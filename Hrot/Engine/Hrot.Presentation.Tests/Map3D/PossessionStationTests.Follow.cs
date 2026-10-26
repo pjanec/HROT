@@ -71,6 +71,73 @@ public sealed partial class PossessionStationTests
         }
     }
 
+    /// <summary>⭐ CE-1342 — Ctrl+M switches 2-D ↔ 3-D centred on the selected unit; plain M is not it (the unit menu's Move).
+    /// ✅ Red-proof: the centring dropped ⇒ the 3-D view looks where the 2-D map did, not at him.</summary>
+    [Fact]
+    public void CE1342_CtrlM_SwitchesTheView_CentredOnTheSelectedUnit()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            var (_, sw, _) = Map();
+            bool ctrl = false;
+            var layer = new MapViewModeLayer(sw, w.Bus) { World = () => w, SelectedUnit = () => unit, CtrlHeld = () => ctrl };
+            var m = (MapKeyboardKey)Raylib_cs.KeyboardKey.M;
+            Assert.False(layer.HandleKeyInput(m));                                                  // plain M: not the switch
+            Assert.False(sw.Is3D);
+            ctrl = true;
+            Assert.True(layer.HandleKeyInput(m));
+            Assert.True(sw.Is3D);
+            sw.Camera3D.Update(1f);
+            Assert.True(Vector2.Distance(new Vector2(sw.Camera3D.LookAt.X, sw.Camera3D.LookAt.Y), new Vector2(100f, 50f)) < 0.5f,
+                $"3-D looks at him ({sw.Camera3D.LookAt})");
+            sw.Camera3D.Update(1f);
+            Assert.True(layer.HandleKeyInput(m));                                                   // and back to 2-D
+            sw.Camera3D.Update(1f);
+            Assert.False(sw.Is3D);
+        }
+    }
+
+    /// <summary>⭐ CE-1339 — Esc from a follow leaves the free camera where the follow was: the eye does not drop to the ground.
+    /// ✅ Red-proof: the driver setter's look-at match dropped ⇒ the eye falls to ~1 m (the relief re-pin).</summary>
+    [Fact]
+    public void CE1339_EscFromAFollow_KeepsTheCameraWhereItWas()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            var cam = new MapCamera3D { ViewportOverride = Viewport, GroundHeight = (_, _) => 0f };
+            cam.Update(0.016f);                                                                   // the free camera matched its look-at to the ground
+            cam.Driver = new FollowCameraDriver(() => w, unit, bodies: null);
+            cam.Update(0.016f);
+            var eye = cam.Eye;
+            Assert.True(eye.Z > 3f, $"following from 14 m: the eye is up ({eye})");
+            var esc = new Input();
+            esc.Pressed.Add((int)MapKeyboardKey.Escape);
+            cam.HandleInput(esc);
+            Assert.Null(cam.Driver);
+            cam.Update(0.016f);
+            cam.Update(0.016f);
+            Assert.True(Vector3.Distance(eye, cam.Eye) < 1e-2f, $"the eye stays where the follow ended ({eye} → {cam.Eye})");
+        }
+    }
+
+    /// <summary>⭐ CE-1338 — a wall pulling the arm in lifts the camera over his head instead of bringing it to his belly; no wall ⇒ unchanged.
+    /// ✅ Red-proof: the lift dropped ⇒ the squeezed camera stays at belly height.</summary>
+    [Fact]
+    public void CE1338_AWallPullingTheArmIn_LiftsTheCameraOverHisHead()
+    {
+        var eye = new Vector3(0f, 0f, 1.6f);
+        var belly = new Vector3(-0.3f, 0f, 0.8f);
+        Assert.Equal(belly, UnitCameraRig.AboveHeadWhenSqueezed(belly, eye, arm: 14f, fullArm: 14f));                // free: unchanged
+        var squeezed = UnitCameraRig.AboveHeadWhenSqueezed(belly, eye, arm: 0.3f, fullArm: 14f);
+        Assert.True(squeezed.Z > eye.Z, $"pulled right in: above his eyes ({squeezed})");
+        var half = UnitCameraRig.AboveHeadWhenSqueezed(belly, eye, arm: 7f, fullArm: 14f);
+        Assert.InRange(half.Z, belly.Z + 0.1f, squeezed.Z - 0.1f);                                                       // in between: part way
+        var high = new Vector3(-5f, 0f, 9f);
+        Assert.Equal(high, UnitCameraRig.AboveHeadWhenSqueezed(high, eye, arm: 2f, fullArm: 14f));                     // never lowered
+    }
+
     /// <summary>
     /// ⭐ CE-1293 (UC-2) — "Follow with the camera" is on every unit's map menu, its action publishes the event, and the view-mode layer
     /// has the 3-D camera follow him (not while the station possesses one); the map registers itself for <c>POST /view/follow</c>.

@@ -10,6 +10,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         All = 0,
         /// <summary>Only the selected units and the units that have this family pinned.</summary>
         SelectedOrPinned = 1,
+        /// <summary>⭐ <c>CE-1329</c> — only the units that have this family pinned (the Brain tab's <i>Show on map</i> ticks, the right-click
+        /// <i>Pin gizmos</i>); selecting a unit draws none of it.</summary>
+        PinnedOnly = 2,
     }
 
     /// <summary>
@@ -37,7 +40,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>The scope a family starts with. ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — EVERY family now starts on the
         /// selected and pinned units: Perception (a vision cone per unit) and Contacts (a line per remembered contact) drew for every
         /// unit and, with the rest, buried the scene (🔒 user, 2026-10-14). ⛔ SUPERSEDED: §5b B's "Perception, Contacts = All".</summary>
-        public static GizmoScope DefaultScope(AiOverlayFlags family) => GizmoScope.SelectedOrPinned;
+        /// <remarks>⭐⭐ <c>CE-1329</c> (docs/DESIGN_Entity_Brain_View.md §12r BV-66; 🔒 user, 2026-10-25: <i>"clicking a unit no longer shows its
+        /// vision cone until you tick Perception — this is exactly what I want"</i>) — every BRAIN family is <see cref="GizmoScope.PinnedOnly"/>:
+        /// the unit's own tick is the one switch (selection drew all of them at once, so the tick could add nothing). Only
+        /// <see cref="AiOverlayFlags.Path"/> (routes and mission lines, not on the Brain tab — R-1038) keeps "selected or pinned" and its
+        /// layer-panel scope.</remarks>
+        public static GizmoScope DefaultScope(AiOverlayFlags family) => IsBrainFamily(family) ? GizmoScope.PinnedOnly : GizmoScope.SelectedOrPinned;
+
+        /// <summary>⭐ <c>CE-1329</c> — a family the Brain tab's <i>Show on map</i> owns (every family but <see cref="AiOverlayFlags.Path"/>).</summary>
+        public static bool IsBrainFamily(AiOverlayFlags family) => family != AiOverlayFlags.None && family != AiOverlayFlags.Path;
 
         /// <summary>What the menu and the layer panel call a family.</summary>
         public static string Label(AiOverlayFlags family) => family switch
@@ -63,7 +74,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>A family's current scope (its default when the registry has no value).</summary>
         public static GizmoScope ScopeOf(GizmoSettingsRegistry? settings, AiOverlayFlags family)
         {
-            if (settings == null) return DefaultScope(family);
+            // ⭐ CE-1329 — a brain family has no scope setting any more (its "selected only" row is gone): a value saved before is ignored
+            if (settings == null || IsBrainFamily(family)) return DefaultScope(family);
             var v = settings.Read(SettingHash(family));
             return v.Type == SettingType.CsInt32 ? (GizmoScope)v.IntValue : DefaultScope(family);
         }
