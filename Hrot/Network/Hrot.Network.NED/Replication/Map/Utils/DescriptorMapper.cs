@@ -160,8 +160,7 @@ namespace Hrot.Map.Common.Replication.Utils
                         // Silently skip if geoTransform is null or Points is null/empty.
                         if (geoTransform != null && d.MapRoute.Points != null)
                         {
-                            var routePlan = new RoutePlan { IsLoop = d.MapRoute.IsLoop };
-                            routePlan.Mutate(wps =>
+                            var routePlan = new RoutePlan { IsLoop = d.MapRoute.IsLoop }.WithWaypoints(wps =>
                             {
                                 foreach (var wp in d.MapRoute.Points)
                                 {
@@ -187,7 +186,7 @@ namespace Hrot.Map.Common.Replication.Utils
                         break;
 
                     case EDescriptorType.dtMapVisualOverlay:
-                        var polyline = new EditablePolyline();
+                        var polylinePoints = new List<Vector2>();   // CE-4046 — EditablePolyline is an immutable record
                         if (d.MapVisualOverlay.Points != null)
                         {
                             // Points on the wire are RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt)
@@ -195,7 +194,7 @@ namespace Hrot.Map.Common.Replication.Utils
                             // Convert to relative Cartesian:
                             //   absCart = ToCartesian(centLat + dLat, centLon + dLon, centAlt + dAlt)
                             //   relCart = absCart - centroidCart
-                            polyline.Points = new List<Vector2>(d.MapVisualOverlay.Points.Count);
+                            polylinePoints.Capacity = d.MapVisualOverlay.Points.Count;
 
                             if (geoTransform != null && geoCentroid.HasValue)
                             {
@@ -208,7 +207,7 @@ namespace Hrot.Map.Common.Replication.Utils
                                         refLon + geoPt.Longitude,
                                         refAlt + geoPt.Altitude);
                                     var relCart = absCart - geoCentroid.Value;
-                                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
+                                    polylinePoints.Add(new Vector2(relCart.X, relCart.Y));
                                 }
                             }
                             else if (geoTransform != null)
@@ -220,17 +219,17 @@ namespace Hrot.Map.Common.Replication.Utils
                                 {
                                     var absCart = geoTransform.ToCartesian(geoPt.Latitude, geoPt.Longitude, geoPt.Altitude);
                                     var relCart = absCart - origin;
-                                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
+                                    polylinePoints.Add(new Vector2(relCart.X, relCart.Y));
                                 }
                             }
                             else
                             {
                                 foreach (var geoPt in d.MapVisualOverlay.Points)
-                                    polyline.Points.Add(new Vector2((float)geoPt.Longitude, (float)geoPt.Latitude));
+                                    polylinePoints.Add(new Vector2((float)geoPt.Longitude, (float)geoPt.Latitude));
                             }
                         }
 
-                        result.Add(polyline);
+                        result.Add(new EditablePolyline { Points = polylinePoints });
                         break;
 
                     default:

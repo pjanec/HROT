@@ -71,7 +71,7 @@ namespace Hrot.IG.Tests.Gizmos
             });
 
             var plan = new RoutePlan();
-            plan.Mutate(list =>
+            plan = plan.WithWaypoints(list =>
             {
                 list.Add(new RouteWaypoint { Position = new Vector3(0f, 0f, 0f) });
                 list.Add(new RouteWaypoint { Position = new Vector3(10f, 0f, 20f) });
@@ -154,10 +154,12 @@ namespace Hrot.IG.Tests.Gizmos
                 IsClosed      = false,
             });
 
-            var polyline = new EditablePolyline();
-            polyline.Points.Add(new Vector2(0f, 0f));
-            polyline.Points.Add(new Vector2(5f, 0f));
-            polyline.Points.Add(new Vector2(5f, 5f));
+            var polyline = new EditablePolyline { Points = new[]
+            {
+                new Vector2(0f, 0f),
+                new Vector2(5f, 0f),
+                new Vector2(5f, 5f),
+            } };
 
             var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
             ecb.AddManagedComponent(entity, polyline);
@@ -296,10 +298,12 @@ namespace Hrot.IG.Tests.Gizmos
             });
             _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
 
-            var poly = new EditablePolyline();
-            poly.Points.Add(new Vector2(0f, 0f));
-            poly.Points.Add(new Vector2(100f, 0f));
-            poly.Points.Add(new Vector2(100f, 100f));
+            var poly = new EditablePolyline { Points = new[]
+            {
+                new Vector2(0f, 0f),
+                new Vector2(100f, 0f),
+                new Vector2(100f, 100f),
+            } };
 
             var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
             ecb.AddManagedComponent(entity, poly);
@@ -443,10 +447,12 @@ namespace Hrot.IG.Tests.Gizmos
             });
             _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
 
-            var poly = new EditablePolyline();
-            poly.Points.Add(new Vector2(-53f, -88.5f));   // the real relative offsets
-            poly.Points.Add(new Vector2(47f, -88.5f));
-            poly.Points.Add(new Vector2(47f, 11.5f));
+            var poly = new EditablePolyline { Points = new[]
+            {
+                new Vector2(-53f, -88.5f),   // the real relative offsets
+                new Vector2(47f, -88.5f),
+                new Vector2(47f, 11.5f),
+            } };
 
             var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
             ecb.AddManagedComponent(entity, poly);
@@ -542,10 +548,12 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
             _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
 
-            var poly = new EditablePolyline();
-            poly.Points.Add(new Vector2(-53f, -88.5f));
-            poly.Points.Add(new Vector2(47f, -88.5f));
-            poly.Points.Add(new Vector2(47f, 11.5f));
+            var poly = new EditablePolyline { Points = new[]
+            {
+                new Vector2(-53f, -88.5f),
+                new Vector2(47f, -88.5f),
+                new Vector2(47f, 11.5f),
+            } };
 
             var ecb = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetCommandBuffer();
             ecb.AddManagedComponent(entity, poly);
@@ -588,7 +596,9 @@ namespace Hrot.IG.Tests.Gizmos
             // ⭐ RESHAPE ONLY — no marker write, no reload, nothing told the gizmo anything changed.
             var poly = ((Fdp.ModuleHost.Abstractions.ISimulationView)_repo)
                 .GetManagedComponentRO<EditablePolyline>(zone)!;
-            poly.Points[2] = new Vector2(99f, 60f);
+            var reshaped = poly.Points.ToList();   // CE-4046 — EditablePolyline is an immutable record: reshape = a NEW value, Set
+            reshaped[2] = new Vector2(99f, 60f);
+            _repo.SetManagedComponent(zone, poly with { Points = reshaped });
 
             var stale = new FullCapturingDrawBuilder();
             new TerrainZoneGizmo().Draw(_repo, zone, stale);

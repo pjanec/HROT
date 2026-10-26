@@ -32,7 +32,7 @@ public class RouteWaypointGizmoTests : IDisposable
         _repo.AddComponent(_entity, new NetworkIdentity { Value = NetworkId });
 
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             // ⭐ CE-2172 — Z-up (X east, Y north), as the draw tool writes them; the third is a flyer's, 120 m up
             wps.Add(new RouteWaypoint { Position = new Vector3(10f, 10f, 0f), TargetSpeed = 5f });

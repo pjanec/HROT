@@ -834,7 +834,7 @@ namespace Hrot.SimHost.Tests
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var unit = ((JsonObject)raw)["HoldUnit"]!.GetValue<long>();
                 var plan = new Hrot.Map.Common.Components.RoutePlan();
-                plan.Mutate(l =>
+                plan = plan.WithWaypoints(l =>
                 {
                     l.Add(new Hrot.Map.Common.Components.RouteWaypoint { Hold = Fdp.Toolkit.Navigation.RouteHold.Unload });
                     l.Add(new Hrot.Map.Common.Components.RouteWaypoint { Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup, HoldUnit = unit });

@@ -5968,7 +5968,7 @@ namespace Hrot.SimHost.Tests
             var route = s.Repo.CreateEntity();
             s.Repo.AddComponent(route, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 2179 });
             var plan = new Hrot.Map.Common.Components.RoutePlan();
-            plan.Mutate(w =>
+            plan = plan.WithWaypoints(w =>
             {
                 w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(500f, 0f, 0f), Kind = RouteWaypointKind.Ground, Hold = RouteHold.Unload });
                 w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = Vector3.Zero, Kind = RouteWaypointKind.Ground, Hold = RouteHold.Pickup, HoldUnit = 2180 });
@@ -7551,7 +7551,7 @@ namespace Hrot.SimHost.Tests
             var route = s.Repo.CreateEntity();
             s.Repo.AddComponent(route, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
             var plan = new Hrot.Map.Common.Components.RoutePlan { IsLoop = false };
-            plan.Mutate(w => { foreach (var at in points) w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = at, TargetSpeed = 8f }); });
+            plan = plan.WithWaypoints(w => { foreach (var at in points) w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = at, TargetSpeed = 8f }); });
             s.Repo.SetManagedComponent(route, plan);
         }
 

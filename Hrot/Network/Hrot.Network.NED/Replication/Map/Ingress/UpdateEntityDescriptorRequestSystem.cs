@@ -203,18 +203,19 @@ namespace Hrot.Map.Common.Replication.Ingress
             // For a flat-earth linear projection this equals the true Cartesian displacement.
             Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);
 
-            var polyline = new EditablePolyline();
+            var polylinePoints = new List<Vector2>(overlay.Points?.Count ?? 0);   // CE-4046 — EditablePolyline is an immutable record
             if (overlay.Points != null && overlay.Points.Count > 0)
             {
-                polyline.Points = new List<Vector2>(overlay.Points.Count);
                 for (int i = 0; i < overlay.Points.Count; i++)
                 {
                     var p       = overlay.Points[i];
                     var absCart = _geoTransform.ToCartesian(p.Latitude, p.Longitude, p.Altitude);
                     var relCart = absCart - origin;
-                    polyline.Points.Add(new Vector2((float)relCart.X, (float)relCart.Y));
+                    polylinePoints.Add(new Vector2((float)relCart.X, (float)relCart.Y));
                 }
             }
+
+            var polyline = new EditablePolyline { Points = polylinePoints };
 
             ((EntityRepository)view).SetManagedComponent(entity, polyline);
 

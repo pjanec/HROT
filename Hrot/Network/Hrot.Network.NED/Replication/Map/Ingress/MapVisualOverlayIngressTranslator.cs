@@ -179,7 +179,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (overlay.Points == null || overlay.Points.Count == 0)
                 return polyline;
 
-            polyline.Points = new List<Vector2>(overlay.Points.Count);
+            var points = new List<Vector2>(overlay.Points.Count);
             for (int i = 0; i < overlay.Points.Count; i++)
             {
                 var geo = overlay.Points[i];
@@ -195,7 +195,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                         refGeo.lon + geo.Longitude,
                         refGeo.alt + geo.Altitude);
                     var relCart = absCart - entityCartesianPos.Value;
-                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
+                    points.Add(new Vector2(relCart.X, relCart.Y));
                 }
                 else if (_geoTransform != null)
                 {
@@ -205,16 +205,16 @@ namespace Hrot.Map.Common.Replication.Ingress
                     Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);
                     var absCart = _geoTransform.ToCartesian(geo.Latitude, geo.Longitude, geo.Altitude);
                     var relCart = absCart - origin;
-                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
+                    points.Add(new Vector2(relCart.X, relCart.Y));
                 }
                 else
                 {
                     // No geo transform: treat lat/lon as Y/X directly.
-                    polyline.Points.Add(new Vector2((float)geo.Longitude, (float)geo.Latitude));
+                    points.Add(new Vector2((float)geo.Longitude, (float)geo.Latitude));
                 }
             }
 
-            return polyline;
+            return polyline with { Points = points };   // CE-4046 — immutable record
         }
     }
 }

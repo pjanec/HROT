@@ -26,10 +26,6 @@ public sealed class RecordedManagedComponentsAreImmutableTests
     /// (an immutable record, or its per-frame state moved to an unmanaged struct) under CE-4046.</summary>
     private static readonly HashSet<string> Existing = new()
     {
-        "Hrot.IG.Components.EditablePolyline",
-        "Hrot.Map.Common.Components.RoutePlan",
-        "Hrot.Map.Definitions.Tkb.SimCombatDef",
-        "Hrot.Map.Definitions.Tkb.TkbCompositionDef",
     };
 
     private readonly ITestOutputHelper _out;

@@ -91,7 +91,7 @@ namespace Hrot.SimHost.Systems
         /// allocations — reads the list by index.
         /// </summary>
         /// <remarks>Moved verbatim from <c>AreaQuerySolverSystem</c> when that pipeline was retired.</remarks>
-        internal static bool PointInPolygon(Vector2 point, IList<Vector2> polygon, int nVerts)
+        internal static bool PointInPolygon(Vector2 point, IReadOnlyList<Vector2> polygon, int nVerts)
         {
             bool inside = false;
             int j = nVerts - 1;
