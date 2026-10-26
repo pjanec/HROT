@@ -429,6 +429,23 @@ namespace Hrot.Editor.Director
             return h.ToString("x16", CultureInfo.InvariantCulture);
         }
 
+        /// <summary>⭐ CE-4045 H1a — only the snapshots (what <see cref="CompareFrom"/> reads): a recorded run has no condition book.</summary>
+        public JsonObject SnapshotsJson() => new() { ["snapshots"] = _snapshots.DeepClone() };
+
+        /// <summary>
+        /// ⭐ The component names a recording carries — its OWN schema manifest (<c>&lt;file&gt;.meta.json</c>), as a snapshot names them (the
+        /// short type name). One reader for R1's checkpoint (CE-3299 B5) and H1a's live recording (CE-4045): a checkpoint IS a one-frame
+        /// recording. Null when the file has no manifest beside it.
+        /// </summary>
+        public static Func<string, bool>? CarriedBy(string recording)
+        {
+            var metaPath = recording + ".meta.json";
+            if (!System.IO.File.Exists(metaPath)) return null;
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(System.IO.File.ReadAllText(metaPath));
+            var names = new HashSet<string>((meta.SchemaManifest ?? new()).Values.Select(v => v.Name.Replace('+', '.').Split('.')[^1]), StringComparer.Ordinal);
+            return names.Contains;
+        }
+
         public JsonObject ToJson(string scenario, long steps, ConditionBook book) => new()
         {
             ["$doc"] = "scenario golden — docs/DESIGN_Scenario_Regression.md §4; re-record: Hrot.ClusterRunner --mode editor --headless --verify "
@@ -548,7 +565,17 @@ namespace Hrot.Editor.Director
         /// <summary>The run was a RELOAD in a process that had loaded a scenario before (CE-3294: state that outlives a load).</summary>
         public bool Reload { get; private set; }
 
-        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is "none" or "same" or "captured";
+        /// <summary>⭐ <c>CE-4045</c> H1a — the live run against its own recording (Scenario Regression §10-1): null (not asked) · same ·
+        /// different · failed (it could not be compared — <see cref="ReplayDiff"/> says why).</summary>
+        public string? Replay { get; set; }
+        /// <summary>The first difference in what the recording carries (as <see cref="GoldenDiff"/>), or why the comparison failed.</summary>
+        public List<string> ReplayDiff { get; } = new();
+        /// <summary>⭐ For information, never a failure (RH-4): differences in components the recording does NOT carry by its manifest.</summary>
+        public List<string> ReplayNotCarried { get; } = new();
+        /// <summary>The live snapshots matched to a recorded frame.</summary>
+        public int ReplaySnapshots { get; set; }
+
+        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is ("none" or "same" or "captured") && Replay is (null or "same");
 
         /// <summary>
         /// ⭐ This run was a reload: a capture is REFUSED (a reload's golden bakes CE-3294 in — measured: <c>SopState</c> and the animation
@@ -571,6 +598,10 @@ namespace Hrot.Editor.Director
             ["goldenDiff"] = new JsonArray(GoldenDiff.Select(x => (JsonNode?)x).ToArray()),
             ["written"] = new JsonArray(Written.Select(x => (JsonNode?)x).ToArray()),
             ["problems"] = new JsonArray(Problems.Select(x => (JsonNode?)x).ToArray()),
+            ["replay"] = Replay,
+            ["replaySnapshots"] = Replay is null ? null : ReplaySnapshots,
+            ["replayDiff"] = Replay is null ? null : new JsonArray(ReplayDiff.Select(x => (JsonNode?)x).ToArray()),
+            ["replayNotCarried"] = Replay is null ? null : new JsonArray(ReplayNotCarried.Select(x => (JsonNode?)x).ToArray()),
         };
     }
 

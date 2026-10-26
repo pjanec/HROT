@@ -2466,7 +2466,18 @@ namespace Hrot.Editor
                             _kernel!.ResumeAfterRestore);   // ⭐ CE-3316
                         _timeCommands!.SnapTo(mark.ToGlobalTime());
                         return mark.TotalTime;
-                    });
+                    },
+                    // ⭐ CE-4045 H1a (Scenario Regression §10-1, R-4085) — a LIVE run and its recording: loaded by the SAME load as
+                    //   POST /scenario/load/live (the debug service, late-bound as the verify world is), stopped through the editor's master,
+                    //   its file named by the ONE recorder, and played back in this process by the product's player
+                    loadLive: name => (_debugApiService ?? throw new InvalidOperationException(
+                        "a live verify run loads through the debug service — set HROT_DEBUG_API_PORT (--verify sets one)")).LoadScenarioLive(name, startPaused: true),
+                    stopLive: () => new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus).Transition(
+                        new Fdp.Toolkit.Orchestration.TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle }),
+                    state: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                    recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,
+                    openRecording: path => new Hrot.Editor.Director.RecordedRun(path, scenarioSerializer,
+                        hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null));
                 var cinema = new Hrot.Editor.Director.EditorCinema(() => _wm);
                 _directorLayers = new Hrot.Editor.Director.EditorLayerOverride(
                     () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null);

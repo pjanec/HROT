@@ -59,6 +59,25 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ <c>CE-3316</c> — a slot-paced background run is in flight (the kernel's <c>SlotRunInFlight</c>): R1 writes its checkpoint
         /// on a step where this is false, as the recorder does.</summary>
         bool SlotRunInFlight => false;
+
+        // ── ⭐ CE-4045 H1a (docs/DESIGN_Scenario_Regression.md §10-1, R-4085) — a LIVE run and its recording ──────────────────────
+
+        /// <summary>Loads <paramref name="scenario"/> LIVE through the cluster master, paused at 0 (the <c>POST /scenario/load/live</c>
+        /// load) — a live run records (R-3053, R-4000); a preview never does.</summary>
+        void LoadLive(string scenario) => throw new NotSupportedException("this host cannot load a live run");
+
+        bool IsOperatingLive => false;
+
+        /// <summary>Ends the live run (the master: Idle) — the recorder finalises and closes its file.</summary>
+        void StopLive() => throw new NotSupportedException("this host cannot stop a live run");
+
+        bool IsIdle => false;
+
+        /// <summary>The file the live run records into while it records; null when nothing records (before, or once it is closed).</summary>
+        string? LiveRecordingPath => null;
+
+        /// <summary>Opens a finished recording for playback (the product's player, in this process).</summary>
+        IRecordedRun OpenRecording(string path) => throw new NotSupportedException("this host cannot play a recording");
     }
 
     /// <summary>
