@@ -38,6 +38,9 @@ public sealed class TimelinePanel
     private readonly List<TimelineMenuItem> _menu = new();
     private readonly TimelineView _view = new();
 
+    /// <summary>One drawn track item's centre in screen pixels (<see cref="TimelinePanel.LastTrackHits"/>).</summary>
+    public readonly record struct TrackItemHit(string TrackId, string ItemId, float X, float Y);
+
     private enum Drag : byte { None, Pan, Range, Bracket, BracketFrom, BracketTo, Scrub }
     private Drag _drag;
     private long _dragAnchor;     // a range's first edge / the bracket's grab offset
@@ -69,6 +72,18 @@ public sealed class TimelinePanel
     /// <summary>⭐ <c>CE-3330</c> (addendum 4) — the items the row under the mouse contributes (the host's <c>TimelineLaneCatalog.MenuItems</c>).</summary>
     public Func<TimelineMenuContext, IReadOnlyList<TimelineMenuItem>>? RowMenu { get; set; }
 
+    /// <summary>⭐ <c>CE-1364</c> T2 (docs/DESIGN_Director_Timeline_Editor.md §10) — the editable tracks the host shows ABOVE the lanes (the director's Time /
+    /// Camera); null or empty = none, every existing host unchanged. The panel draws, hit-tests, selects and drags; it knows nothing about takes.</summary>
+    public Func<IReadOnlyList<ITimelineTrack>>? Tracks { get; set; }
+
+    /// <summary>Where each track item was drawn last frame (screen pixels) — for a frame rail that must press on one.</summary>
+    public IReadOnlyList<TrackItemHit> LastTrackHits => _trackHits;
+
+    private readonly TrackGesture _gesture = new();
+    private readonly List<TrackItemHit> _trackHits = new();
+    private readonly List<TimelineMenuItem> _trackMenu = new();
+    private IReadOnlyList<ITimelineTrack>? _tracksNow;
+
     /// <summary>The event the user selected last (drawn ringed), or null.</summary>
     public TimelineEvent? Selected => _selected;
 
@@ -97,6 +112,9 @@ public sealed class TimelinePanel
     {
         _byId.Clear();
         foreach (var lane in lanes) _byId[lane.Id] = lane;
+        if (_gesture.Active && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) _gesture.Release();   // ⭐ CE-1364 T2 — commits once, wherever it is released (T10's lesson)
+        _trackHits.Clear();
+        _tracksNow = Tracks?.Invoke();
         // ⭐ CE-3330 T13 — everything below is on the ACTIVE axis: the index's frame times, the extent, "now" and every seek go through it
         var axis = cursor?.Axis ?? TimelineAxis.Wall;
         if (_axis != null && !ReferenceEquals(axis, _axis) && axis.IsSim != _axis.IsSim) Remap(_axis, axis);   // §10b: the same FRAMES stay in view
@@ -139,6 +157,8 @@ public sealed class TimelinePanel
         ImGui.BeginChild("##tl-lanes", new Vector2(0, lanesHeight), ImGuiChildFlags.None, ImGuiWindowFlags.None);
         var cdl = ImGui.GetWindowDrawList();
         float lanesTop = ImGui.GetCursorScreenPos().Y;
+        if (_tracksNow != null)   // ⭐ CE-1364 T2 — the editable tracks, ABOVE the lanes
+            foreach (var track in _tracksNow) DrawTrack(cdl, track, index, width, cursor);
         foreach (var (group, members) in Groups(lanes))
         {
             bool open = !_groupOpen.TryGetValue(group, out var o) || o;
@@ -363,6 +383,76 @@ public sealed class TimelinePanel
         OnSelect?.Invoke(e);
     }
 
+    // ── an editable track row (CE-1364 T2) ───────────────────────────────────────────────────────────────────
+
+    private const uint TrackKeyColour = 0xFF50B0F0, TrackSegmentColour = 0xB0C09050;
+
+    private void DrawTrack(ImDrawListPtr dl, ITimelineTrack track, TimelineIndex index, float width, ITimelineCursor? cursor)
+    {
+        Plain(track.Label, Dim);
+        ImGui.SameLine(LabelWidth);
+        var p = ImGui.GetCursorScreenPos();
+        ImGui.InvisibleButton("##tl-track" + track.Id, new Vector2(width, RowHeight), ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight);
+        bool hovered = ImGui.IsItemHovered();
+        dl.AddRectFilled(p, p + new Vector2(width, RowHeight), 0x28FFB060);
+        var w = _view.Window;
+        var axis = _axis ?? TimelineAxis.Wall;
+        var map = axis.Map ?? _timeMap;
+        bool drawable = TrackLayout.Drawable(axis, map);
+        var items = track.Items;
+        for (int i = 0; i < items.Count; i++)
+        {
+            var it = items[i];
+            if (TrackLayout.SpanOf(it, w, width, axis, map) is not { } s) continue;
+            float cy = p.Y + RowHeight / 2;
+            uint col = it.Selected ? 0xFFFFFFFF : TrackKeyColour;
+            if (it.Kind == TimelineTrackItemKind.Segment)
+            {
+                var a = new Vector2(p.X + s.X0, p.Y + 2);
+                var b = new Vector2(p.X + Math.Max(s.X1, s.X0 + 2f), p.Y + RowHeight - 2);
+                dl.AddRectFilled(a, b, TrackSegmentColour);
+                dl.AddRect(a, b, it.Selected ? 0xFFFFFFFF : 0xFFC09050);
+            }
+            else
+            {
+                var c = new Vector2(p.X + s.X0, cy);
+                dl.AddQuadFilled(c + new Vector2(0, -5), c + new Vector2(5, 0), c + new Vector2(0, 5), c + new Vector2(-5, 0), col);
+            }
+            _trackHits.Add(new TrackItemHit(track.Id, it.Id, p.X + s.X0 + (it.Kind == TimelineTrackItemKind.Segment ? 2f : 0f), cy));
+        }
+
+        var io = ImGui.GetIO();
+        float mx = io.MousePos.X - p.X;
+        if (_gesture.Active && ReferenceEquals(_gesture.Track, track) && ImGui.IsMouseDown(ImGuiMouseButton.Left))   // a held drag follows the mouse out of the row too
+            _gesture.Update(mx, x => TrackLayout.SimAtX(x, w, width, axis, map, index));
+        if (!hovered) return;
+        _hoverX = mx;
+        int hit = drawable ? TrackLayout.HitTest(items, w, width, axis, map, mx) : -1;
+        if (!drawable)
+        {
+            ImGui.BeginTooltip();
+            ImGui.TextUnformatted("These items are in sim time — this host's wall axis has no time map to place them on.");
+            ImGui.EndTooltip();
+        }
+        else if (hit >= 0)
+        {
+            ImGui.BeginTooltip();
+            ImGui.TextUnformatted(items[hit].Label);
+            ImGui.EndTooltip();
+        }
+        if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))   // §2c row 2: a click SELECTS, a drag moves, empty space does nothing — ⛔ never a seek
+        {
+            _gesture.Press(track, hit >= 0 ? items[hit] : null, mx, hit >= 0 && TrackLayout.SpanOf(items[hit], w, width, axis, map) is { } sp ? sp.X0 : mx);
+        }
+        if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+        {
+            if (hit >= 0) track.Select(items[hit].Id);
+            _trackMenu.Clear();
+            _trackMenu.AddRange(track.MenuItems(hit >= 0 ? items[hit].Id : null));
+            OpenMenu(index, cursor, null, w.TicksAt(mx, width), null, _trackMenu);
+        }
+    }
+
     // ── what is drawn over the lanes ─────────────────────────────────────────────────────────────────────────
 
     private void DrawOverlays(ImDrawListPtr dl, TimelineIndex index, float x0, float width, float top, float bottom, long now)
@@ -429,6 +519,13 @@ public sealed class TimelinePanel
     private void Keys(ImGuiIOPtr io, TimelineIndex index, string[] lanes, float width, long now, ITimelineCursor? cursor)
     {
         bool seek = cursor is { CanSeek: true };
+        if (_tracksNow is { Count: > 0 } tracks && _axis != null && !io.KeyCtrl && !io.KeyAlt &&   // ⭐ CE-1364 T2 — K / J / L go to the selected item's track first
+            TrackLayout.SimSeconds(now, _axis, _timeMap) is { } playheadSim)
+        {
+            if (ImGui.IsKeyPressed(ImGuiKey.K, false)) TrackLayout.OfferKey(tracks, 'K', playheadSim);
+            if (ImGui.IsKeyPressed(ImGuiKey.J, false)) TrackLayout.OfferKey(tracks, 'J', playheadSim);
+            if (ImGui.IsKeyPressed(ImGuiKey.L, false)) TrackLayout.OfferKey(tracks, 'L', playheadSim);
+        }
         if (ImGui.IsKeyPressed(ImGuiKey.Space, false) && cursor is { CanPlay: true }) cursor.TogglePlay();
         if (ImGui.IsKeyPressed(ImGuiKey.F, false)) _view.Fit();
         for (int i = 0; i < Presets.Length; i++)
@@ -467,7 +564,7 @@ public sealed class TimelinePanel
 
     // ── the right-click menu ─────────────────────────────────────────────────────────────────────────────────
 
-    private void OpenMenu(TimelineIndex index, ITimelineCursor? cursor, string? lane, long ticks, TimelineEvent? ev)
+    private void OpenMenu(TimelineIndex index, ITimelineCursor? cursor, string? lane, long ticks, TimelineEvent? ev, IEnumerable<TimelineMenuItem>? extra = null)
     {
         _menu.Clear();
         long at = TimelineLayout.SnapToFrame(index, ticks);
@@ -475,6 +572,7 @@ public sealed class TimelinePanel
         string time = TimelineRuler.Label(at - _view.ExtentFrom, TimeSpan.TicksPerSecond / 10, _view.ExtentTo - _view.ExtentFrom);
         _menu.AddRange(MenuItems(index, cursor, lane, at, frame, ev, time, _view, _nameOf));
         if (RowMenu != null) _menu.AddRange(RowMenu(new TimelineMenuContext(lane, at, frame, ev)));
+        if (extra != null) _menu.InsertRange(0, extra);   // ⭐ CE-1364 T2 — a track's own items lead its menu
         ImGui.OpenPopup("##tl-menu");
     }
 

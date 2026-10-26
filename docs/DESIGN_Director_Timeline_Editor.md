@@ -1058,8 +1058,10 @@ edit), its GizmoMap twin, NodeEditor's `UndoStack` (graph commands only) and Blu
 ```mermaid
 classDiagram
   direction LR
-  class TimelinePanel { <<exists, grows>> Draw(source, cursor, lanes, tracks) · tracks above the lanes · hit · drag · keys }
-  class ITimelineTrack { <<NEW, Fdp.Presentation>> Id · Label · Items(axis) · Select(item) · Move(item, toSeconds) · Key(k, atSeconds) bool · MenuItems(ctx) }
+  class TimelinePanel { <<exists, grows>> Tracks : Func~IReadOnlyList~ITimelineTrack~~ · Draw(source, cursor, lanes) unchanged · tracks above the lanes }
+  class TrackLayout { <<NEW, static, pure>> AxisTicks / SimSeconds · SpanOf · HitTest · SimAtX · OfferKey }
+  class TrackGesture { <<NEW, pure>> Press · Update · Release — select / preview / commit once }
+  class ITimelineTrack { <<NEW, Fdp.Presentation>> Id · Label · Items · Select(id) · Move(id, toSimSeconds, commit) · Key(char, atSimSeconds) bool · MenuItems(id?) }
   class TimelineTrackItem { <<NEW, record>> Id · From · To? (sim s) · Label · Kind (key / segment) · Selected }
   class DirectorTracks { <<NEW, Hrot.Presentation/Map3D/Director>> Time + Camera tracks over the edited take }
   class TakeEditor { <<NEW>> Take (current) · Apply(edit) · Undo / Redo via GizmoUndoStack · Dirty · Save → TakeStore }
@@ -1071,6 +1073,9 @@ classDiagram
   class TakeTimeline { <<exists, grows>> + ProgramAt(simTime) → key, blend, fade }
   class GizmoUndoStack { <<exists, Fdp.Toolkits>> }
   TimelinePanel --> ITimelineTrack : draws, hit-tests, drags
+  TimelinePanel --> TrackLayout : places items on the active axis
+  TimelinePanel --> TrackGesture : one per panel
+  TrackGesture ..> ITimelineTrack : Select / Move(preview) / Move(commit)
   DirectorTracks ..|> ITimelineTrack
   DirectorTracks --> TakeEditor
   TakeEditor --> Take
@@ -1092,9 +1097,9 @@ sequenceDiagram
   participant S as GizmoUndoStack
   participant R as DirectorRunner
   U->>P: press on a Camera key, drag
-  P->>D: Select(item) then Move(item, simSeconds) each frame (preview only)
+  P->>D: Select(item) then Move(item, simSeconds, commit:false) each frame (preview only)
   U->>P: release
-  P->>D: Move(item, final) commit
+  P->>D: Move(item, final, commit:true) once
   D->>E: Apply(MoveKey(id, at))
   E->>S: Push(TakeEditRecord(before, after))
   E-->>R: the runner reads the edited take on its next ProgramAt
@@ -1107,9 +1112,24 @@ sequenceDiagram
 | # | slice | builds | accepted when |
 |---|---|---|---|
 | **T1** ✅ BUILT `2026-10-26` | format v2 | `CameraKey`, `TimeSegment`, `Take.Keys` / `Segments`; `TakeJson` reads `keys[]` / `segments[]`, reads `shots[]` AS keys (a shot → a cut key at `at`; a shot with `to` → a fly key at its end), writes v2; `TakeTimeline.ProgramAt` | every seeded take loads and lays out as before (55 takes); a v2 file round-trips |
-| **T2** | the track seam | `ITimelineTrack` + `TimelineTrackItem`; the panel draws tracks above the lanes, hit-tests, selects on a click, drags (preview each frame, commit on release); keys on the active axis through the time map | a frame rail: a drag moves the item, a click only selects, empty space still does nothing |
+| **T2** ✅ BUILT `2026-10-26` | the track seam | `ITimelineTrack` + `TimelineTrackItem`; the panel draws tracks above the lanes, hit-tests, selects on a click, drags (preview each frame, commit on release); keys on the active axis through the time map | a frame rail: a drag moves the item, a click only selects, empty space still does nothing |
 | **T3** | the director's tracks | `DirectorTracks` (Time = segments, Camera = keys), `TakeEditor` + `TakeEditRecord` on `GizmoUndoStack`, save through `TakeStore`; **K** adds a key from the pilot camera (relative to a selected unit, TE-2); **J** / **L** the rate | a key moved on the panel is where the saved file says; undo puts it back; K adds one at the playhead |
 | **T4** | playing keys | `DirectorRunner` plays `ProgramAt`: cut, fly (eased), dip (TE-8) | a take plays from the panel with its keys where the take's file says (note A1's acceptance) |
+
+**T2 as built** — `ITimelineTrack` + `TimelineTrackItem` (`Id`, `From`, `To?` in SIM seconds, `Label`, `Kind` key / segment, `Selected`) in
+`Fdp.Presentation/ImGui/Panels/Timeline/`; the panel takes `Tracks` (a `Func<IReadOnlyList<ITimelineTrack>>?` PROPERTY — `Draw`'s signature is
+unchanged, every existing host untouched) and draws them as rows at the top of the lanes child, so the "now" line, range and pause shading cover them.
+The rules are two pure classes: `TrackLayout` (sim seconds ⇄ axis ticks ⇄ x on BOTH axes — Sim: seconds × ticks; Wall: `ReplayTimeMap.WallAt` / `SimAt`,
+so a key inside a collapsed pause draws at the pause's wall END and a drop there reads back as the pause's instant; no map ⇒ not drawable, the row's
+tooltip says so) and `TrackGesture` (press on an item selects, a drag past 3 px previews `Move(commit:false)` each frame with the grab offset kept, the
+release — wherever — commits ONCE; a press on empty space starts nothing). A drop snaps to the nearest frame of the axis-projected index. Right-click
+adds `MenuItems(itemId)` (null on empty space) in front of the mode's items. **K / J / L** are offered through `TrackLayout.OfferKey` to the track holding
+the selected item, before the panel's keymap (which has no K/J/L; every existing key unchanged). **Deviations from the diagram above (corrected):**
+`Items` takes no axis argument (the panel converts, §2c row 10); `Move` carries `commit`; `MenuItems` takes the item id, not a context; `Tracks` is a
+property, not a `Draw` parameter; two helper classes were added. Rails: `TimelineInteractionTests.CE1364_T2_*` ×6 (placement on both axes through a
+pause, frame snap, click-only-selects, drag preview + one commit, empty space, K to the selected track) and the frame rail
+`CE1364_T2_ATrackWithTwoKeys_*` (injected `AddMousePosEvent` / `AddMouseButtonEvent`; precedent `tools/ui-probe/synthetic-input`). ⚠ Not built:
+event-snapping within 7 px on a drop (frame snap only).
 
 **T1 as built** — `KeyTransition` (Cut / Fly(s, ease) / Dip(out, in)), `CameraKey`, `TimeSegment`, `Take.Keys` / `Segments`; `CameraKeys.Of(take)`
 is the ONE place a take's keys come from (its own `keys[]`, else its `shots[]` per TE-2); `TakeJson` reads / writes v2 and the camera read /

@@ -395,4 +395,139 @@ public sealed class TimelineInteractionTests
 
         Assert.Null(new AxisCursor(new SessionCursor(), sim).LivePoint);        // no live point stays none
     }
+
+    // ── CE-1364 T2 — the track seam (docs/DESIGN_Director_Timeline_Editor.md §10) ──────────────────────────────
+
+    private sealed class FakeTrack : ITimelineTrack
+    {
+        public string Id => "camera";
+        public string Label => "Camera";
+        public List<TimelineTrackItem> List { get; } = new();
+        public IReadOnlyList<TimelineTrackItem> Items => List;
+        public List<string> Calls { get; } = new();
+        public bool TakesKeys { get; init; } = true;
+        public void Select(string itemId)
+        {
+            Calls.Add("select " + itemId);
+            for (int i = 0; i < List.Count; i++) List[i] = List[i] with { Selected = List[i].Id == itemId };
+        }
+        public void Move(string itemId, double toSimSeconds, bool commit) => Calls.Add($"move {itemId} {toSimSeconds:0.###} {(commit ? "commit" : "preview")}");
+        public bool Key(char key, double atSimSeconds) { Calls.Add($"key {key} {atSimSeconds:0.###}"); return TakesKeys; }
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => new[] { new TimelineMenuItem("Delete key", () => Calls.Add("delete " + itemId)) };
+    }
+
+    private static TimelineTrackItem TrackKey(string id, double at, bool selected = false) => new(id, at, null, id, TimelineTrackItemKind.Key, selected);
+
+    /// <summary>⭐ T2 — an item's SIM seconds ⇄ x on BOTH axes. Sim: seconds × ticks. Wall: through the session's map — a key inside the collapsed pause
+    /// (sim 3, wall 3…6 s) draws at the pause's wall position (its end, 6 s) and a drop inside the pause converts back to sim 3; no map ⇒ not drawable.
+    /// 🔴 Red-proof: <c>AxisTicks</c> returning <c>sim·TPS</c> on Wall ⇒ the pause key lands at 300, not 600.</summary>
+    [Fact]
+    public void CE1364_T2_AnItem_IsPlacedAndDropped_OnBothAxes_ThroughTheMap()
+    {
+        var (_, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var key3 = TrackKey("k3", 3.0);
+        var key4 = TrackKey("k4", 4.0);
+
+        var simWindow = new TimelineWindow(0, 6 * S);
+        Assert.Equal(300f, TrackLayout.SpanOf(key3, simWindow, 600f, sim, map)!.Value.X0);
+        Assert.Equal(400f, TrackLayout.SpanOf(key4, simWindow, 600f, sim, map)!.Value.X0);
+        Assert.Equal(4.0, TrackLayout.SimAtX(400f, simWindow, 600f, sim, map)!.Value, 6);
+
+        var wallWindow = new TimelineWindow(0, 9 * S);
+        Assert.Equal(600f, TrackLayout.SpanOf(key3, wallWindow, 900f, TimelineAxis.Wall, map)!.Value.X0);   // the pause's wall position (its end)
+        Assert.Equal(700f, TrackLayout.SpanOf(key4, wallWindow, 900f, TimelineAxis.Wall, map)!.Value.X0);
+        Assert.Equal(3.0, TrackLayout.SimAtX(500f, wallWindow, 900f, TimelineAxis.Wall, map)!.Value, 6);   // a drop inside the pause = the pause's instant
+        Assert.Equal(4.0, TrackLayout.SimAtX(700f, wallWindow, 900f, TimelineAxis.Wall, map)!.Value, 6);
+
+        var seg = new TimelineTrackItem("s", 1.0, 3.0, "slow", TimelineTrackItemKind.Segment, false);
+        var span = TrackLayout.SpanOf(seg, wallWindow, 900f, TimelineAxis.Wall, map)!.Value;
+        Assert.Equal((100f, 600f), (span.X0, span.X1));
+
+        Assert.False(TrackLayout.Drawable(TimelineAxis.Wall, null));   // no map: not placeable
+        Assert.Null(TrackLayout.SpanOf(key3, wallWindow, 900f, TimelineAxis.Wall, null));
+        Assert.Null(TrackLayout.SimAtX(10f, wallWindow, 900f, TimelineAxis.Wall, null));
+
+        // hit-test: a key within 5 px, else a segment's body, else empty space
+        var items = new[] { key4, seg };
+        Assert.Equal(0, TrackLayout.HitTest(items, wallWindow, 900f, TimelineAxis.Wall, map, 703f));
+        Assert.Equal(1, TrackLayout.HitTest(items, wallWindow, 900f, TimelineAxis.Wall, map, 300f));
+        Assert.Equal(-1, TrackLayout.HitTest(items, wallWindow, 900f, TimelineAxis.Wall, map, 800f));
+    }
+
+    /// <summary>⭐ T2 — a drop snaps to the nearest recorded FRAME like every seek (the index is the axis's projection). 🔴 Red-proof: <c>snapTo</c> ignored ⇒ 2.4 s.</summary>
+    [Fact]
+    public void CE1364_T2_ADrop_SnapsToTheNearestFrame()
+    {
+        var (index, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var window = new TimelineWindow(0, 6 * S);
+        Assert.Equal(2.4, TrackLayout.SimAtX(240f, window, 600f, sim, map)!.Value, 6);
+        Assert.Equal(2.0, TrackLayout.SimAtX(240f, window, 600f, sim, map, sim.Project(index))!.Value, 6);
+    }
+
+    /// <summary>⭐ T2 (§2c row 2) — a left CLICK on an item only selects it: no Move at all, and the cursor never seeks. Jitter below the threshold is still a click.
+    /// 🔴 Red-proof: <c>Press</c> also previewing a Move ⇒ "move" in the calls.</summary>
+    [Fact]
+    public void CE1364_T2_AClickOnAnItem_OnlySelects_NoMove_NoSeek()
+    {
+        var track = new FakeTrack();
+        track.List.Add(TrackKey("k1", 2.0));
+        var cursor = new Cursor { CanSeek = true };
+        var g = new TrackGesture();
+        g.Press(track, track.Items[0], x: 200f, itemX: 200f);
+        g.Update(201.5f, x => x / 100.0);   // jitter
+        Assert.False(g.Release());
+        Assert.Equal(new[] { "select k1" }, track.Calls);
+        Assert.Empty(cursor.Seeks);
+        Assert.True(track.Items[0].Selected);
+    }
+
+    /// <summary>⭐ T2 — a drag previews Move(commit:false) each update, then EXACTLY ONE Move(commit:true) on release, at the last preview; the grab offset keeps the item
+    /// from jumping under the mouse. 🔴 Red-proof: <c>Release</c> committing twice / not at all.</summary>
+    [Fact]
+    public void CE1364_T2_ADrag_PreviewsEachFrame_ThenCommitsOnce()
+    {
+        var track = new FakeTrack();
+        track.List.Add(TrackKey("k1", 2.0));
+        var g = new TrackGesture();
+        g.Press(track, track.Items[0], x: 203f, itemX: 200f);        // grabbed 3 px right of the key's centre
+        g.Update(253f, x => x / 100.0);                              // x − grab = 250
+        g.Update(303f, x => x / 100.0);
+        Assert.True(g.Release());                                    // wherever the mouse is
+        Assert.Equal(new[] { "select k1", "move k1 2.5 preview", "move k1 3 preview", "move k1 3 commit" }, track.Calls);
+        Assert.False(g.Active);
+        Assert.False(g.Release());                                   // a second release commits nothing
+        Assert.Equal(4, track.Calls.Count);
+    }
+
+    /// <summary>⭐ T2 — a press on EMPTY track space starts nothing: no select, no move, no commit. 🔴 Red-proof: <c>Press</c> starting a gesture without an item.</summary>
+    [Fact]
+    public void CE1364_T2_ADragOnEmptyTrackSpace_CallsNothing()
+    {
+        var track = new FakeTrack();
+        track.List.Add(TrackKey("k1", 2.0));
+        var g = new TrackGesture();
+        g.Press(track, null, 50f, 50f);
+        g.Update(300f, x => x / 100.0);
+        Assert.False(g.Release());
+        Assert.Empty(track.Calls);
+    }
+
+    /// <summary>⭐ T2 — K / J / L are offered to the track holding the SELECTED item (with the playhead's sim seconds), and to no other; nothing selected ⇒ nobody is
+    /// asked. 🔴 Red-proof: <c>OfferKey</c> asking every track.</summary>
+    [Fact]
+    public void CE1364_T2_K_IsOfferedToTheSelectedItemsTrack_Only()
+    {
+        var a = new FakeTrack(); a.List.Add(TrackKey("a1", 1.0));
+        var b = new FakeTrack(); b.List.Add(TrackKey("b1", 2.0, selected: true));
+        Assert.True(TrackLayout.OfferKey(new ITimelineTrack[] { a, b }, 'K', 3.5));
+        Assert.Empty(a.Calls);
+        Assert.Equal(new[] { "key K 3.5" }, b.Calls);
+
+        b.List[0] = b.List[0] with { Selected = false };   // nothing selected any more
+        b.Calls.Clear();
+        Assert.False(TrackLayout.OfferKey(new ITimelineTrack[] { a, b }, 'K', 1.0));
+        Assert.Empty(a.Calls); Assert.Empty(b.Calls);
+    }
 }

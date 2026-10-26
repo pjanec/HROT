@@ -159,6 +159,130 @@ public sealed class TimelinePanelFrameRail
         Assert.True(halfShots > 10 && halfShots < shotPixels, $"a half-scanned index draws only its scanned half ({halfShots} vs {shotPixels} px)");
     }
 
+    /// <summary>A cursor on the SIM axis over a straight-run map (sim = frame / 60, no pauses), counting its seeks.</summary>
+    private sealed class SimCursor : ITimelineCursor
+    {
+        public long ExtentFrom { get; init; }
+        public long ExtentTo { get; init; }
+        public long Now { get; set; }
+        public bool CanSeek => true;
+        public List<long> Seeks { get; } = new();
+        public void Seek(long ticks) { Seeks.Add(ticks); Now = ticks; }
+        public TimelineAxis Axis { get; init; } = TimelineAxis.Wall;
+        public Fdp.Core.FlightRecorder.ReplayTimeMap? TimeMap { get; init; }
+    }
+
+    /// <summary>Moves the pointer for the NEXT frame: ImGui's event AND the window's real pointer — rlImGui feeds Raylib's pointer into ImGui every frame and
+    /// would otherwise overwrite the injected position with wherever the X pointer sits (measured: the window centre).</summary>
+    private static void Pos(ImGuiIOPtr io, float x, float y)
+    {
+        io.AddMousePosEvent(x, y);
+        Raylib.SetMousePosition((int)Math.Round(x), (int)Math.Round(y));
+    }
+
+    private sealed class RailTrack : ITimelineTrack
+    {
+        public string Id => "camera";
+        public string Label => "Camera";
+        public List<TimelineTrackItem> List { get; } = new();
+        public IReadOnlyList<TimelineTrackItem> Items => List;
+        public List<string> Calls { get; } = new();
+        public List<double> Commits { get; } = new();
+        public void Select(string itemId)
+        {
+            Calls.Add("select " + itemId);
+            for (int i = 0; i < List.Count; i++) List[i] = List[i] with { Selected = List[i].Id == itemId };
+        }
+        public void Move(string itemId, double toSimSeconds, bool commit)
+        {
+            Calls.Add(commit ? "commit" : "preview");
+            int i = List.FindIndex(x => x.Id == itemId);
+            List[i] = List[i] with { From = toSimSeconds };   // the track applies the edit; the panel redraws it there
+            if (commit) Commits.Add(toSimSeconds);
+        }
+        public bool Key(char key, double atSimSeconds) => false;
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => Array.Empty<TimelineMenuItem>();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1364</c> T2 (docs/DESIGN_Director_Timeline_Editor.md §10) — a track with two keys in a REAL ImGui frame, driven by injected input
+    /// (<c>ImGuiIO.AddMousePosEvent</c> / <c>AddMouseButtonEvent</c> after <c>rlImGui.Begin</c> — precedent: <c>tools/ui-probe/synthetic-input</c>): the keys draw
+    /// (key-coloured pixels on screen), a CLICK selects and never seeks, a DRAG previews and then commits ONCE, and the key ends where it was dropped.
+    /// 🔴 Red-proof: the row's press gated on a runtime-false condition ⇒ nothing selected, nothing moved.
+    /// </summary>
+    [SkippableFact]
+    public void CE1364_T2_ATrackWithTwoKeys_Draws_AClickSelects_ADragMovesTheKey()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        const int frames = 10 * 60 * Hz;
+        var wall = Enumerable.Range(0, frames).Select(f => T0 + f * Tick).ToArray();
+        var simT = Enumerable.Range(0, frames).Select(f => f / (double)Hz).ToArray();
+        var map = Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(wall, simT, new Fdp.Core.FlightRecorder.FrameFlags[frames]);
+        var cursor = new SimCursor { ExtentFrom = T0, ExtentTo = wall[^1], Now = T0, Axis = TimelineAxis.Sim(map), TimeMap = map };
+        var source = new Source { Index = Firefight() };
+
+        var track = new RailTrack();
+        track.List.Add(new TimelineTrackItem("a", 100.0, null, "key a", TimelineTrackItemKind.Key, false));
+        track.List.Add(new TimelineTrackItem("b", 300.0, null, "key b", TimelineTrackItemKind.Key, false));
+        var panel = new TimelinePanel { Tracks = () => new ITimelineTrack[] { track } };
+
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        int step = 0;
+        Vector2 target = default;
+        double before = 0;
+        void Step(Action<ImGuiIOPtr>? inject)
+        {
+            frame.Step(() =>
+            {
+                if (inject != null) inject(ImGui.GetIO());
+                ImGui.SetNextWindowPos(new Vector2(0, 0));
+                ImGui.SetNextWindowSize(new Vector2(1280, 300));
+                ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                panel.Draw(source, cursor, Lanes);
+                ImGui.End();
+            });
+            step++;
+        }
+        for (int i = 0; i < 5; i++) Step(null);   // settle
+
+        Assert.Equal(2, panel.LastTrackHits.Count);
+        var a = panel.LastTrackHits.Single(h => h.ItemId == "a");
+        var b = panel.LastTrackHits.Single(h => h.ItemId == "b");
+        Assert.True(b.X > a.X + 100f, "the two keys (100 s and 300 s) did not draw apart");
+        frame.Screenshot(ShotPath("timeline-6-track-keys.png"));
+
+        // ── a click on key a: selects, never seeks ──
+        target = new Vector2(a.X, a.Y);
+        Step(io => Pos(io, target.X, target.Y));
+        Step(io => Pos(io, target.X, target.Y));
+        Step(io => { Pos(io, target.X, target.Y); io.AddMouseButtonEvent(0, true); });
+        Step(io => Pos(io, target.X, target.Y));
+        Step(io => { Pos(io, target.X, target.Y); io.AddMouseButtonEvent(0, false); });
+        Step(null); Step(null);
+        Assert.Equal(new[] { "select a" }, track.Calls);
+        Assert.Empty(cursor.Seeks);
+        Assert.Equal(0, track.Commits.Count);
+        before = track.List[0].From;
+
+        // ── a drag of key a by +80 px: previews, then ONE commit, and it moved ──
+        a = panel.LastTrackHits.Single(h => h.ItemId == "a");
+        target = new Vector2(a.X, a.Y);
+        Step(io => Pos(io, target.X, target.Y));
+        Step(io => { Pos(io, target.X, target.Y); io.AddMouseButtonEvent(0, true); });
+        Step(io => Pos(io, target.X, target.Y));
+        for (int k = 1; k <= 4; k++) { float dx = 20f * k; Step(io => Pos(io, target.X + dx, target.Y)); }
+        Step(io => { Pos(io, target.X + 80f, target.Y); io.AddMouseButtonEvent(0, false); });
+        Step(null); Step(null);
+        frame.Screenshot(ShotPath("timeline-7-track-dragged.png"));
+
+        Assert.Equal(1, track.Commits.Count);
+        Assert.True(track.Calls.Count(c => c == "preview") >= 2, $"expected previews while dragging: {string.Join(",", track.Calls)}");
+        Assert.True(track.Commits[0] > before + 20 && track.Commits[0] < before + 60, $"the key should move ~+40 s (80 px of a 600 s / ~1196 px window): {before} → {track.Commits[0]}");
+        Assert.Empty(cursor.Seeks);
+        Assert.Equal(300.0, track.List[1].From);   // the other key stayed
+    }
+
     private sealed class SessionCursor : ITimelineCursor
     {
         public long ExtentFrom { get; init; }
