@@ -78,3 +78,33 @@ public sealed class FederatedReplayCursor : ITimelineCursor
         m.SetBaseWallTicks(ticks - offset);
     }
 }
+
+/// <summary>
+/// ⭐ <c>CE-3330</c> (DAR row 28; docs/DESIGN_Director_Timeline_Editor.md §2d) — a LIVE host's cursor over its <c>LiveTimelineSource</c>:
+/// the extent is the index's first → last frame, "now" its last (the live edge), and it never seeks — ⭐ a live host seeks by ENTERING A
+/// REVIEW (R-3059), which waits on backend's <c>EnterReview</c>; until then the panel offers no seek on a live host and its arrows move the
+/// selection. Play / pause go through the host's own transport (Space).
+/// </summary>
+public sealed class LiveTimelineCursor : ITimelineCursor
+{
+    private readonly Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> _source;
+    private readonly Func<bool>? _isPlaying;
+    private readonly Action? _togglePlay;
+
+    public LiveTimelineCursor(Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> source, Func<bool>? isPlaying = null, Action? togglePlay = null)
+    {
+        _source = source;
+        _isPlaying = isPlaying;
+        _togglePlay = togglePlay;
+    }
+
+    private System.Collections.Generic.IReadOnlyList<long> Ticks => _source()?.Index.FrameTicks ?? Array.Empty<long>();
+    public long ExtentFrom => Ticks.Count > 0 ? Ticks[0] : 0;
+    public long ExtentTo => Ticks.Count > 0 ? Ticks[^1] : 0;
+    public long Now => ExtentTo;
+    public bool CanSeek => false;
+    public void Seek(long ticks) { }
+    public bool IsPlaying => _isPlaying?.Invoke() ?? false;
+    public bool CanPlay => _togglePlay != null;
+    public void TogglePlay() => _togglePlay?.Invoke();
+}

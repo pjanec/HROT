@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             private readonly IndexedLaneDefinition _lane;
             public SingleLane(IndexedLaneDefinition lane) => _lane = lane ?? throw new ArgumentNullException(nameof(lane));
             public IReadOnlyList<TimelineLaneDescriptor> Lanes => new[] { _lane.Lane };
-            public bool Applies(TimelineLaneContext context) => context.Recording;
+            public bool Applies(TimelineLaneContext context) => context.Indexing;
             public IReadOnlyList<IndexedLaneDefinition> Indexed => new[] { _lane };
         }
     }

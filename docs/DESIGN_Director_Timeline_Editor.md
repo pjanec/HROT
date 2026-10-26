@@ -302,6 +302,21 @@ classDiagram
   EventTimelineWindow --> TimelinePanel
   ReplayBrowserSubsystem --> EventTimelineWindow
 ```
+```mermaid
+graph TD
+  EDU["EditorSubsystem.Update, after the kernel tick (each frame)"] --> LTS["LiveTimelineSource.Step(world, wall ticks)"]
+  LTS --> FS["TimelineFrameScanner.Step (the lanes the catalogue registers)"]
+  BLD["TimelineIndexBuilder (background, a recording)"] --> FS
+  RBU["ReplayBrowserSubsystem.SyncTimelineSource"] --> BLD
+  WIN["EventTimelineWindow.DrawClientArea (editor_event_timeline / rb_event_timeline)"] --> PAN["TimelinePanel.Draw"]
+  API["GET /timeline/lanes, /timeline/events"] --> LTS
+  CGF["CGF / SimHost / IG — EcsNodeDebugProvider"]:::dead -.->|"no live source yet: their lanes need the same Step after their kernel"| LTS
+  SC["the end-of-run sidecar (row 33)"]:::dead -.->|"backend's, after FinalizeLive"| BLD
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33
+```
+*What the picture shows that prose hid: ONE per-frame step under both sources — so "live lanes = recorded lanes" holds by construction — and
+the dead edges: the cluster nodes do not run a live source yet, and the sidecar at the end of a live run is backend's.*
+
 *What the picture shows that prose hid: every rule of DAR §10 that is not drawing — follow, fit, presets, history, the zoom limits, the ruler's
 steps and labels, snapping — is in two PURE classes (`TimelineView`, `TimelineRuler`), so the panel only maps input to their calls and
 they are tested without ImGui; and the menu is one list the mode and the row under the mouse both add to, so no lane kind is named in the panel.*
@@ -339,6 +354,10 @@ sequenceDiagram
 | §10b fit · presets · range · history · hover · snapping · keys | F / double-click the ruler = fit; 0–3 = 30 s / 2 min / 10 min / all; Shift+drag = a range (duration shown; I / O set it; Esc clears); Backspace = back; a hover line with its time; seeks snap to an event within 7 px, else a frame; Space / ←→ / Shift+←→ / Home / End / + − — ⭐ arrows move the SELECTION where the cursor cannot seek (live) | `CE3330_FitPresetsRangeAndHistory`, `CE3330_Snapping_*` |
 | §9b menu + addendum 4 | `TimelinePanel.MenuItems` (pure): Seek here / Play from here / Seek to this event / previous · next in the lane where `CanSeek`; zoom / clear the range; Copy the time — then `TimelineLaneCatalog.MenuItems` (the row's provider, `ITimelineLaneProvider.MenuItems`) | `CE3330_TheMenu_*`, `CE3330_TheRowUnderTheMouse_*` |
 | addendum 5 selection | `EventTimelineWindow(onSelect, rowMenu)`; the Replay Browser binds `SelectTimelineEvent` → `SelectionChangeRequest` (RB-7) and play / pause to its transport | RB `CE3330_*` |
+| ⭐ **addendum 6 / DAR row 28 — the live source** | `TimelineFrameScanner` = the builder's per-frame step, extracted; `TimelineIndexBuilder` runs it per played frame, `LiveTimelineSource` per live sim frame (`GlobalTime.FrameNumber` advancing; a paused world adds nothing; a new world / a rewind / a changed catalogue starts afresh; a snapshot at most every 0.25 s). `TimelineLaneContext.Live` (row 30) — the shipped indexed lanes apply when `Indexing` | `TimelineIndexTests.CE3330_ALiveIndex_EqualsTheIndexRebuiltFromItsRecording_LaneByLane`, `CE3330_TheLiveSource_*` |
+| 🔴→⭐ **found by the parity rail** | on a LIVE world the recorder clears the destruction log INSIDE the tick, before the live step reads it ⇒ the Left lane missed every death. `StructuralScanner` now also reports a tracked entity that is no longer alive (once; playback unchanged — its log removed it first) | the parity rail (red-proved: without the sweep the death is missing) |
+| ⭐ **R1-e — the editor hosts the panel** | `editor_event_timeline` (closed by default; Window menu) over `LiveTimelineSource` with a `LiveTimelineCursor` (extent = the index, never seeks, Space through the editor's transport); a clicked event → `SetSelection2D` (the one selection); `GET /timeline/lanes \| events` read the live index (`DebugApiService.AttachTimeline`) | the live run below |
+| ⚠ **one frame late** | the live step runs after the kernel tick, when the bus holds the PREVIOUS tick's events: a live event is one frame (≈ 16 ms) later than the recording files it | — |
 | ⏳ **waits on backend's data D** | T13 / R10 the Sim axis, the ◯ / ● pause ticks and break marks (addendum 10), the session layer, the live point marker, "Review from here", "Seek to the live point", "Loop range" (addendum 8) — the menu offers none of them until the facade's `EnterReview` / `ReplaySessionTopic` exist | — |
 | ⏳ not in this slice | addendum 1 / 9 (director tracks — R2 has none yet), K / J / L (no rate in the cursor) | — |
 

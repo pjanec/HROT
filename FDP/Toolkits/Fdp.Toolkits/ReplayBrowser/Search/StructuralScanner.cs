@@ -76,7 +76,21 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (ReportsRemoved) results.Add(Result(repo, dead, frame, ticks, _lost + " (Destroyed)", refresh: false));
                 _last.Remove(dead);
             }
+
+            // ⭐ CE-3330 (live timeline) — an entity that is GONE although the log never showed it: on a LIVE world the recorder clears the
+            //   log inside the tick, before a timeline's live step reads it. Same report, once (the log pass above removed what it saw).
+            if (_has.Count == 0) return;
+            _gone.Clear();
+            foreach (var e in _has) if (!repo.IsAlive(e)) _gone.Add(e);
+            foreach (var dead in _gone)
+            {
+                _has.Remove(dead);
+                if (ReportsRemoved) results.Add(Result(repo, dead, frame, ticks, _lost + " (Destroyed)", refresh: false));
+                _last.Remove(dead);
+            }
         }
+
+        private readonly List<Entity> _gone = new();
 
         private SearchResultDto Result(EntityRepository repo, Entity entity, int frame, long ticks, string message, bool refresh)
         {

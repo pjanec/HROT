@@ -25,7 +25,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     /// ⭐ Where a timeline is being shown, for <see cref="ITimelineLaneProvider.Applies"/>: the asset being edited (a trace lane's key —
     /// it replaced the provider's <c>AssetKind Kind</c>), and whether a recording is open (an indexed lane's).
     /// </summary>
-    public readonly record struct TimelineLaneContext(string? AssetKind = null, bool Recording = false);
+    /// <param name="Live">⭐ <c>CE-3330</c> — DAR row 30: the timeline is fed by the LIVE world (<see cref="LiveTimelineSource"/>), beside a
+    /// recording. An indexed lane applies to either (the same per-frame step evaluates it).</param>
+    public readonly record struct TimelineLaneContext(string? AssetKind = null, bool Recording = false, bool Live = false)
+    {
+        /// <summary>A world's lanes are being indexed — from a recording or live.</summary>
+        public bool Indexing => Recording || Live;
+    }
 
     /// <summary>
     /// ⭐ An INDEXED lane (R-4079): a descriptor, the condition that makes an event (any <see cref="SearchPredicateDto"/> — the one condition

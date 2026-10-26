@@ -236,6 +236,31 @@ namespace Hrot.Editor
         private HrotNodeContext?        _node;
 
         private EntityRepository?       _world;
+
+        // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR: the lanes the toolkits
+        //   register (the Replay Browser composes the same three), indexed live by LiveTimelineSource, drawn by the shared TimelinePanel.
+        private static readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext LiveTimelineContext = new(Live: true);
+        private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog()
+            .Register(new Fdp.Toolkit.Replication.ReplicationTimelineLanes())
+            .Register(new Fdp.Toolkit.Combat.CombatTimelineLanes())
+            .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
+        private Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? _liveTimeline;
+        private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
+
+        /// <summary>⭐ CE-3330 — the live event timeline's index (built on first use).</summary>
+        internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource LiveTimeline => _liveTimeline ??= new(_timelineLanes, LiveTimelineContext,
+            new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
+                new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(new StructEdit.Reflection.ComponentEditServiceBuilder().Build())));
+
+        /// <summary>⭐ CE-3330 (R-4087 addendum 5) — a timeline event clicked selects its unit through the ONE selection; ⛔ never a seek.</summary>
+        internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e)
+        {
+            if (e.Subject <= 0 || _world is not { } world || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return false;
+            if (world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() is not { } map
+                || !map.TryGetEntity(e.Subject, out var entity) || !world.IsAlive(entity)) return false;
+            SetSelection2D(entity);
+            return true;
+        }
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
         private Fdp.Toolkit.Time.ITimeCommands? _timeCommands;
@@ -2603,6 +2628,9 @@ namespace Hrot.Editor
                               ? null
                               : new ArchitectureDiagnosticsService(() => _kernel));
 
+                    // ⭐ CE-3330 — GET /timeline/* reads the editor's LIVE event timeline (the Replay Browser hands its recording's over its provider)
+                    debugService.AttachTimeline(() => new Hrot.Presentation.DebugApi.TimelineAccess(() => LiveTimeline, _timelineLanes, LiveTimelineContext));
+
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
                     // ⭐ CE-4038 B5/B10 — /director/* and /map/layers reach the same runner and layer control the panel does
@@ -2953,6 +2981,9 @@ namespace Hrot.Editor
             if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
             // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
             if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
+            // ⭐ CE-3330 (DAR row 28, R-4087 addendum 6) — the event timeline's LIVE index: the registered lanes evaluated on this world each
+            //   sim frame by the recording's own per-frame step (nothing while the world does not advance)
+            if (_world != null) LiveTimeline.Step(_world, DateTime.UtcNow.Ticks);
 
             // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves
             // (BTree/HSM emit-on-dirty).  Safe in headless mode; no-op when nothing is pending.
@@ -5247,6 +5278,19 @@ namespace Hrot.Editor
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(
                 new Hrot.UI.Common.Panels.WaypointEditorPanel(() => Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo.Current),
                 Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorWaypoint, "Scenario", EditorWindowColor.TitleBar));
+
+            // ⭐ CE-3330 (DAR row 28; Director Timeline §2d) — the shared event timeline, LIVE: it never seeks (a live host seeks by entering a
+            //   review — backend's EnterReview); Space plays / pauses through the editor's own transport
+            var timelineTransport = _previewController != null && _timeController != null && _world != null
+                ? new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController, _timeController, _world, isReplaying: IsReplaying) : null;
+            windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
+                "editor_event_timeline", "Event Timeline", "Scenario", _eventTimeline, () => LiveTimeline,
+                new Fdp.Presentation.Panels.Timeline.LiveTimelineCursor(() => LiveTimeline,
+                    isPlaying: () => timelineTransport is { IsPaused: false },
+                    togglePlay: timelineTransport == null ? null : () => { if (timelineTransport.IsPlayPauseEnabled) timelineTransport.TogglePlayPause(); }),
+                () => _timelineLanes.Lanes(LiveTimelineContext), EditorWindowColor.TitleBar,
+                onSelect: e => SelectTimelineEvent(e), rowMenu: _timelineLanes.MenuItems)
+            { IsOpen = false });
 
             // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window over this node's SquadReportLog (filled where the staff runs)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(
