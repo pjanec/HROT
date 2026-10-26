@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — R-4080, R-4081 ruled; RB-1…RB-8 leans for approval; ⚠ RB-7 (POST /selection) reopens a route R-1029's value review withdrew — needs the user's word
-updated: 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
+build-state: DESIGN — handed to BACKEND (R-4082); R-4080, R-4081 ruled; RB-1…RB-8 leans for approval; ⚠ RB-7 (POST /selection) reopens a route R-1029's value review withdrew — needs the user's word
+updated: 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
 current-answer: §0 rulings and leans · §1 before / now / needed · §2 the feature map · §3 UML · §4 claim table · §5 INVENTORY · §6 build
 stale-below: none
 known-rot: none
 known-conflict: none
 related-designs:
-  - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS the route table every host answers (R-3053…R-3055); this design makes the Replay Browser answer the SAME routes and adds only what no other host has
+  - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS the route table every host answers (R-3053…R-3055); this design makes the Replay Browser answer the SAME routes and adds only what no other host has. Built by the same lane, backend (R-4082)
   - designs/replay-browser-2/DESIGN.md — OWNS the Replay Browser itself (its sandbox, federation, search, diff, export, histories) — the features this design exposes
   - DESIGN_Agent_Shared_View.md — OWNS the readers of one unit (brain, journal, view, selection) and R-1029's value review that withdrew POST /selection (RB-7)
   - DESIGN_Director_Timeline_Editor.md — OWNS the timeline index and its lanes (R-4073, R-4079) that GET /timeline/* reads
@@ -170,7 +170,10 @@ grep: IClusterMasterControl + OrchestrationBusMasterControl (the one implementat
 check_index_coverage is not available through the CLI ⇒ these lists are not proof of completeness
 ```
 
-## 6. Build — the ui lane
+## 6. Build — ONE lane, the BACKEND lane (R-4082)
+
+🔒 **User, `2026-10-26`:** *"Ui id not building anything niw. Better if all http stuff handle by a single lane."* · *"Wait it is nit visual so lets give it to backend"* — ⭐ every step below, the map and selection routes included; handed over as [HANDOFF_Coordinator_To_Backend_Replay_Browser_Http](blueprints/batches/HANDOFF_Coordinator_To_Backend_Replay_Browser_Http.md). ⛔ The ui handoff of the same work is WITHDRAWN (it was never started).
+
 
 | step | builds | accepted when |
 |---|---|---|

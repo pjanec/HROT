@@ -1,14 +1,17 @@
 <!--STATUS
-state: LIVE — DISPATCHED at `c7bcb4319` (2026-10-26); scope frozen there
+state: WITHDRAWN 2026-10-26 — never started by ui (c7bcb4319 not in origin/ui, no started marker); the SAME work is handed to backend (R-4082)
+superseded-by: docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_Replay_Browser_Http.md
 updated: 2026-10-26
 current-answer: the whole file
 stale-below: nothing
 known-rot: none
-known-conflict: none
+known-conflict: WITHDRAWN AND REPLACED — 🔒 user: "Wait it is nit visual so lets give it to backend" (R-4082). ⛔ ui: do not build this
 related-designs:
   - docs/DESIGN_Replay_Browser_Debug_Http.md — THE design this hands over (R-4080, R-4081 ruled; RB-1…RB-8 leans; RB-7 needs the user)
   - docs/DESIGN_Http_Control_Through_The_Cluster_Master.md — backend's route table the Replay Browser now answers too
 -->
+
+# ⛔ WITHDRAWN — handed to backend instead: [HANDOFF_Coordinator_To_Backend_Replay_Browser_Http](HANDOFF_Coordinator_To_Backend_Replay_Browser_Http.md)
 
 # HANDOFF — ui: the Replay Browser over the AI debug HTTP API, every feature
 
