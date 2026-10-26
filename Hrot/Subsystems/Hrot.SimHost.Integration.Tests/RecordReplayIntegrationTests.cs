@@ -82,15 +82,16 @@ namespace Hrot.SimHost.Integration.Tests
         }
 
         [Fact(Timeout = 10_000)]
-        public void NodeBootstrapper_ImageGeneratorRole_NoControllerRegistered()
+        public void NodeBootstrapper_EveryEcsRole_RegistersTheReplayHandler()
         {
-            // ImageGenerator role does not participate in orchestration — null participant allowed.
+            // ⭐ CE-3311 — R-4011 / D16: ONE recording controller and ONE cluster-handler composition on EVERY ECS host, no role gate
+            //   (EcsHostClusterHandlers.Compose). ⛔ SUPERSEDED: "ImageGenerator role must NOT register a ReferenceReplayLoadHandler".
             var bootstrapper = new NodeBootstrapper();
             var clusterSlave   = bootstrapper.BuildOrchestration(
                 NodeRole.Map2D, _kernel, _world, nodeId: 2);
 
-            Assert.False(clusterSlave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
-                "ImageGenerator role must NOT register a ReferenceReplayLoadHandler.");
+            Assert.True(clusterSlave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
+                "Every ECS host — a Map2D / image-generator node too — registers the replay handler (R-4011, D16).");
         }
 
         // ── MOD1-P8T5 success condition 3 ────────────────────────────────────────

@@ -252,6 +252,37 @@ namespace Fdp.Tests
             Assert.Equal(1, DestroyedCount(recorder, repo));   // e2 in the next frame; e1 is not written twice
         }
 
+        /// <summary>⭐ CE-3332 — the frame index's Changed flag means "a recorded byte moved": a system that WRITES a component with the
+        /// value it already had (measured on a paused editor frame: SimTransform and four presentation tables) does not mark the frame.</summary>
+        [Fact]
+        public void CE3332_A_write_of_the_same_value_does_not_mark_the_frame_changed()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Position { X = 1, Y = 2, Z = 3 });
+            var recorder = new RecorderSystem();
+            using (var w = new BinaryWriter(new MemoryStream())) recorder.RecordKeyframe(repo, w, 0L);
+
+            Delta(() => repo.SetComponent(e, new Position { X = 1, Y = 2, Z = 3 }));
+            Assert.True(recorder.LastFrameChanged);    // the first delta after a keyframe has nothing to compare with
+
+            Delta(() => repo.SetComponent(e, new Position { X = 1, Y = 2, Z = 3 }));
+            Assert.False(recorder.LastFrameChanged);   // written again, the same bytes: a quiet frame
+
+            Delta(() => repo.SetComponent(e, new Position { X = 9, Y = 2, Z = 3 }));
+            Assert.True(recorder.LastFrameChanged);    // a real change
+
+            void Delta(Action write)
+            {
+                uint before = repo.GlobalVersion;
+                repo.Tick();
+                write();
+                using var w = new BinaryWriter(new MemoryStream());
+                recorder.RecordDeltaFrame(repo, before, w, 0);
+            }
+        }
+
         private static int DestroyedCount(RecorderSystem recorder, EntityRepository repo)
         {
             using var stream = new MemoryStream();
