@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+updated: 2026-10-26 (§10-3a H5 built and measured live — the review shows the live run; CE-4056, CE-4057 found) · 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
 current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
 stale-below: none
 known-rot: §10 RH-3 (replay seconds = sim seconds) — SUPERSEDED by R-3056 / R-4086 (the replay clock stays wall; a sim seek is atSimSeconds) · §10-1 "H1b after CE-4051…4053" — those are fixed / ruled; H1b now waits for DAR P1 (§10-2) · §10 RH-1's "EnterReplay through Idle" is no longer the only product path — a REVIEW replays the run in place (H5, §10-2)
@@ -611,7 +611,7 @@ live come back exact — and the second half is R1's comparator unchanged, so th
 Rejected: a review-only harness — cluster replay (H1b) and the branch (H3) are different product paths and keep their phases · waiting for
 P3 before re-cutting — ①, ② and ④ do not depend on it · a second scenario oracle in backend — two oracles drift apart (R-4078: unify).
 
-### 10-3. ⭐ H5 as designed for the build *(coordinator, `2026-10-26`; build-state: BUILDING — R-4086 ③)*
+### 10-3. ⭐ H5 — the review check *(coordinator, `2026-10-26`; build-state: BUILT — R-4086 ③; as built §10-3a)*
 
 ```mermaid
 sequenceDiagram
@@ -664,6 +664,27 @@ facade), and the oracle is the existing `ScenarioGolden.CompareFrom`.*
 | a seek "lands" when the world's clock stands at the target (±½ step) for 3 frames; a miss past the timeout is reported with the landed time, never compared silently | backend measured a review seek landing at 9.895 s for 10 s (§12k of DAR) — the harness says how far it missed |
 | REVIEW vs LIVE uses the recording's manifest as `carried`; AFTER vs LIVE[T] compares EVERY component | the review shows the recording; the return is the FULL checkpoint (R-3063) — anything it drops is a finding |
 | the runner's checks keep judging the whole live run; the review's frames are not observed | the review is a look back, not part of the run |
+
+#### 10-3a. ✅ As built and MEASURED (`2026-10-26`, `coordinator@cabbffe0a`)
+
+| deviation from the two diagrams | why |
+|---|---|
+| the review's outcome is kept in the runner and copied into the result at the end of the run | the result exists only at `FinishItem` |
+| the review is compared only with the live snapshots at the times it actually STOOD at | ⚠ the comparator pairs snapshots by index — 📐 measured: a review that missed 0 s shifted every later pair by one second |
+| the review's entry waits for the step in flight (`retired >= issued`) and snapshots the world it leaves (`atLive`) itself | with the master a frame behind, the live point is one step past the review time |
+| `EditorDirectorHost` takes one `IClusterMasterControl` for `StopLive` and the review (the `stopLive` argument is gone) | one master path |
+
+Rail: `DirectorRunnerTests.CE4045_H5_*` (fake editor: review 0/1/2 s, return, run on = straight; a return that drops the health caught
+twice) — red-proved (the return compared against the review's last snapshot ⇒ red).
+
+📐 **Live, `ua-civ-melee`, `--verify-review-at 10`** (two fresh processes, 168 s):
+
+| question | measured | verdict |
+|---|---|---|
+| does the review show the live run? | at 1 … 10 s: **every recorded component equal** (no difference); `PendingNetworkAck` listed apart (not in the manifest) | ✅ |
+| does a review enter at 0 s? | ⛔ it never stands at 0: the clock read 4.92, 4.6 and 4.0 s in three runs, though the entry lands on recorded frame 4 (sim 0) | ⛔ **CE-4056** (backend) |
+| does live come back exact? | every component equal at L = 10.017 s **except `PendingNetworkAck`** (present at L, gone after the return) | ⛔ **CE-4057** (backend) |
+| does live run on as if straight? | first difference at 11 s: `PendingNetworkAck` only (the straight run keeps it) | ⛔ CE-4057 |
 
 ### 10a. Claim table — what the leans rest on
 
