@@ -1010,14 +1010,72 @@ host cannot forget a gate; and a background (snapshot) module reads the SAME fla
 | Transient, created once on the composing thread; prepare only flips a volatile field | a keyframe never carries it (a seek, a review's return keep it); no singleton is written off the frame thread |
 | borrowed into snapshots (`EntityRepository.Sync.cs`, beside `WorldEpoch`) | 📐 the census: `EqsModule`, `NavigationSolverModule` run on a snapshot — without it their check read "live" forever |
 | a writer stands down, a reader / publisher does not | the review is ON the wire (R-3062): egress, cleanup, presentation, recorder, playback, diagnostics keep running |
+| a LISTENING replay (the moment is outside this node's recording, R-4012 — `PlaybackTickSystem` sets the bit on every span change) still smooths ghosts: `DeadReckoningSyncSystem` and `GeodeticSmoothingSystem` read `IsRestoring`, every other writer `IsActive` | a listening node's world IS the owners' flood from the wire — without the smoothers its ghosts would stop moving; on a RESTORING node they would overwrite the recorded poses |
 | the Stride pre-kernel bracket: Bullet does not step, motors and the reverse sync do not run | they write Bullet's poses over the recorded `SimTransform` (`StridePhysicsBracket.RunPreKernelStep`) |
 
-⭐ **The gated writers** — one line at the top of `Execute`. ⚠ The table is a RAIL: `EveryReplayWriterIsGatedTests` reads it and fails when a
+⭐ **The gated writers** (57 — R-3064) — one line at the top of `Execute`. ⚠ The table is a RAIL: `EveryReplayWriterIsGatedTests` reads it and fails when a
 listed file no longer calls `ReplayState.IsActive`.
 
 <!--REPLAY-WRITERS-->
 | system | file |
 |---|---|
+| `AnimationCapabilityChangeReactorSystem` | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationCapabilityChangeReactorSystem.cs` |
+| `AnimationDispatcherSystem` | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationDispatcherSystem.cs` |
+| `AnimationStateReporterSystem` | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/AnimationStateReporterSystem.cs` |
+| `AreaEffectSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/AreaEffectSystem.cs` |
+| `BallisticsSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/BallisticsSystem.cs` |
+| `BlueprintApplicationSystem` | `FDP/Toolkits/Fdp.Toolkits/Lifecycle/Systems/BlueprintApplicationSystem.cs` |
+| `BlueprintEventIngressSystem` | `FDP/Toolkits/Fdp.Toolkits/Blueprints/Systems/BlueprintEventIngressSystem.cs` |
+| `BlueprintMaterializationSystem` | `Hrot/Subsystems/Hrot.SimHost/Systems/BlueprintMaterializationSystem.cs` |
+| `BrainHandOverSystem` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainHandOverSystem.cs` |
+| `CombatTraceSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/CombatTraceSystem.cs` |
+| `CountermeasureSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/CountermeasureSystem.cs` |
+| `CreateEntityRequestSystem` | `Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs` |
+| `CrowdAgentUpdateSystem` | `FDP/Toolkits/Fdp.Toolkits/Navigation/Systems/CrowdAgentUpdateSystem.cs` |
+| `DamageCalculationSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/DamageCalculationSystem.cs` |
+| `DeadReckoningSyncSystem` | `Hrot/Engine/Hrot.Core/Systems/Common/DeadReckoningSyncSystem.cs` |
+| `DeleteEntityRequestSystem` | `Hrot/Engine/Hrot.Common/Systems/DeleteEntityRequestSystem.cs` |
+| `EditorPerceptionSetupSystem` | `Hrot/Subsystems/Hrot.Editor/Systems/EditorPerceptionSetupSystem.cs` |
+| `EditorZoneAuthoringSystem` | `Hrot/Subsystems/Hrot.Editor/Systems/EditorZoneAuthoringSystem.cs` |
+| `EffectSpawnSystem` | `Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs` |
+| `EngineBackedPathResponseSystem` | `FDP/Toolkits/Fdp.Toolkits/Navigation/EngineBacked/EngineBackedPathResponseSystem.cs` |
+| `EqsSolverSystem` | `Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs` |
+| `FireProcessingSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/FireProcessingSystem.cs` |
+| `FormationTargetSystem` | `FDP/Toolkits/Fdp.Toolkits/CarKinem/Systems/FormationTargetSystem.cs` |
+| `GenesisMaterializationSystem` | `Hrot/Engine/Hrot.EcsNode/Systems/GenesisMaterializationSystem.cs` |
+| `GeodeticSmoothingSystem` | `FDP/Toolkits/Fdp.Toolkits/Geographic/Systems/GeodeticSmoothingSystem.cs` |
+| `GhostPromotionSystem` | `FDP/Toolkits/Fdp.Toolkits/Replication/Systems/GhostPromotionSystem.cs` |
+| `GuidedRoundSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/GuidedRoundSystem.cs` |
+| `HitResolutionSystem` | `FDP/Toolkits/Fdp.Toolkits/Physics/Systems/HitResolutionSystem.cs` |
+| `InitialBrainMaterializationSystem` | `Hrot/Engine/Hrot.EcsNode/Systems/InitialBrainMaterializationSystem.cs` |
+| `LifecycleSystem` | `FDP/Toolkits/Fdp.Toolkits/Lifecycle/Systems/LifecycleSystem.cs` |
+| `LifespanSystem` | `FDP/Toolkits/Fdp.Toolkits/Time/LifespanSystem.cs` |
+| `LightweightRoundIdentitySystem` | `FDP/Toolkits/Fdp.Toolkits/Replication/Systems/LightweightRoundIdentitySystem.cs` |
+| `LinearKinematicsSystem` | `FDP/Toolkits/Fdp.Toolkits/CarKinem/Systems/LinearKinematicsSystem.cs` |
+| `LocalAuthorityYieldSystem` | `Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs` |
+| `LookAtDispatcherSystem` | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/LookAtDispatcherSystem.cs` |
+| `MontageQueueAdvanceSystem` | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/MontageQueueAdvanceSystem.cs` |
+| `NavigationExecutionSystem` | `FDP/Toolkits/Fdp.Toolkits/CarKinem/Systems/NavigationExecutionSystem.cs` |
+| `NavigationIntentBridgeSystem` | `FDP/Toolkits/Fdp.Toolkits/Navigation/Systems/NavigationIntentBridgeSystem.cs` |
+| `NetworkSpawningSystem` | `FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/Systems/NetworkSpawningSystem.cs` |
+| `NotifyEventEmitterSystem` | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/NotifyEventEmitterSystem.cs` |
+| `OwnershipIngressSystem` | `FDP/Toolkits/Fdp.Toolkits/Replication/Systems/OwnershipIngressSystem.cs` |
+| `OwnershipRecomputeSystem` | `FDP/Toolkits/Fdp.Toolkits/Replication/Systems/OwnershipRecomputeSystem.cs` |
+| `OwnershipTransferInitiationSystem` | `Hrot/Network/Hrot.Network.NED/Systems/OwnershipTransferInitiationSystem.cs` |
+| `PartialOwnerReclaimSystem` | `FDP/Toolkits/Fdp.Toolkits/Replication/Systems/PartialOwnerReclaimSystem.cs` |
+| `PathfindingResultMaterializationSystem` | `FDP/Toolkits/Fdp.Toolkits/Navigation/Systems/PathfindingResultMaterializationSystem.cs` |
+| `PathfindingSolverSystem` | `FDP/Toolkits/Fdp.Toolkits/Navigation/Systems/PathfindingSolverSystem.cs` |
+| `PersonalRouteAuthoringSystem` | `Hrot/Subsystems/Hrot.SimHost/Systems/Routing/PersonalRouteAuthoringSystem.cs` |
+| `RaycastSolverSystem` | `FDP/Toolkits/Fdp.Toolkits/Physics/Systems/RaycastSolverSystem.cs` |
+| `RouteState` | `Stride/Hrot.Stride.Core/VehicleNavigationIntentSystem.cs` |
+| `RouteTrajectorySyncSystem` | `Hrot/Subsystems/Hrot.SimHost/Systems/Routing/RouteTrajectorySyncSystem.cs` |
+| `SeatPresetSystem` | `Hrot/Engine/Hrot.Common/EntityCreation/SeatPresets.cs` |
+| `SpawnLevelSystem` | `FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/Systems/SpawnLevelSystem.cs` |
+| `StanceTransitionSystem` | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/StanceTransitionSystem.cs` |
+| `StridePhysicsBracket` | `Stride/Hrot.Stride.Core/StridePhysicsBracket.cs` |
+| `VehicleCommandSystem` | `FDP/Toolkits/Fdp.Toolkits/CarKinem/Systems/VehicleCommandSystem.cs` |
+| `WeaponTaskDispatcherSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/WeaponTaskDispatcherSystem.cs` |
+| `WreckSpawnSystem` | `Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs` |
 <!--/REPLAY-WRITERS-->
 
 ⭐ **Kept running on purpose:** Cyclone ingress / egress / cleanup, `SmartEgressSystem`, `GhostCreationSystem` (no-op), `DisposalMonitoringSystem`,

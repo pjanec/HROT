@@ -117,7 +117,7 @@ namespace Fdp.Toolkit.Replay
                 Restore(repo, targetTicks);
                 return;
             }
-            State = ReplaySpanState.Restoring;
+            State = ReplaySpanState.Restoring; ReplayState.SetListening(repo, false);   // ⭐ CE-3329 P2
 
             if (_playback.IsAtEnd) return;
 
@@ -174,7 +174,7 @@ namespace Fdp.Toolkit.Replay
             _playback.SeekToFrame(repo, frameIndex);
             SmartEgressUtil.ForceMarkAllDirty(repo);
             _afterSeek?.Invoke();
-            State = ReplaySpanState.Restoring;
+            State = ReplaySpanState.Restoring; ReplayState.SetListening(repo, false);   // ⭐ CE-3329 P2
         }
 
         private void Restore(EntityRepository repo, long wallTicks)
@@ -185,7 +185,7 @@ namespace Fdp.Toolkit.Replay
             if (State != ReplaySpanState.Restoring)
                 Fdp.Core.Logging.FdpLog<PlaybackTickSystem>.Info(
                     "[Replay] R-4012: restoring from this node's recording at {0} (anchor {1}).", wallTicks, EffectiveAnchorWallTicks);
-            State = ReplaySpanState.Restoring;
+            State = ReplaySpanState.Restoring; ReplayState.SetListening(repo, false);   // ⭐ CE-3329 P2
         }
 
         /// <summary>
@@ -199,7 +199,7 @@ namespace Fdp.Toolkit.Replay
             if (State == ReplaySpanState.Listening) return;
             repo.SoftClear();
             _afterSeek?.Invoke();
-            State = ReplaySpanState.Listening;
+            State = ReplaySpanState.Listening; ReplayState.SetListening(repo, true);   // ⭐ CE-3329 P2
             Fdp.Core.Logging.FdpLog<PlaybackTickSystem>.Info(
                 "[Replay] R-4012: this moment is outside this node's recording — world cleared, listening (span {0}).",
                 _playback == null ? "none" : $"{_playback.FirstFrameWallTicks}..{_playback.LastFrameWallTicks}");

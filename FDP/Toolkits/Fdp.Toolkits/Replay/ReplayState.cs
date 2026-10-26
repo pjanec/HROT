@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Replay
     public sealed class ReplayState
     {
         private volatile bool _active;
+        private volatile bool _listening;
 
         /// <summary>Creates the world's flag (off) if it has none. Call where the world is built or the controller is composed.</summary>
         public static ReplayState Ensure(EntityRepository world)
@@ -38,8 +39,19 @@ namespace Fdp.Toolkit.Replay
         /// <summary>The world is live again (no-op when it never replayed).</summary>
         public static void Leave(EntityRepository world)
         {
-            if (world.HasSingletonManaged<ReplayState>() && world.GetSingletonManaged<ReplayState>() is { } s) s._active = false;
+            if (world.HasSingletonManaged<ReplayState>() && world.GetSingletonManaged<ReplayState>() is { } s) { s._active = false; s._listening = false; }
         }
+
+        /// <summary>⭐ R-4012 — the replay's moment is outside this node's recording: the world is the owners' flood from the wire
+        /// (ghosts only), not a restore. Set by <c>PlaybackTickSystem</c> whenever its span state changes.</summary>
+        public static void SetListening(EntityRepository world, bool listening) => Ensure(world)._listening = listening;
+
+        /// <summary>⭐ A replay that RESTORES this node's own recording: every pose is the recording's. A LISTENING replay builds its
+        /// world from the wire, so the ghost smoothers (dead reckoning, geodetic smoothing) still run there — they read this, not
+        /// <see cref="IsActive"/>.</summary>
+        public static bool IsRestoring(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonManaged<ReplayState>()
+               && repo.GetSingletonManaged<ReplayState>() is { _active: true, _listening: false };
 
         /// <summary>⭐ Is this world showing a recording? A world with no flag is live.</summary>
         public static bool IsActive(ISimulationView view)

@@ -77,6 +77,7 @@ public class DeadReckoningSyncSystem : IEcsModuleSystem
 
     public void Execute(ISimulationView view, float deltaTime)
     {
+        if (Fdp.Toolkit.Replay.ReplayState.IsRestoring(view)) return;   // ⭐ CE-3329 P2 — restoring this node's recording: it owns every pose; a LISTENING replay's ghosts are still smoothed (§12l)
         var queryBuilder = view.Query()
             .With<SimTransform>()
             .With<NetworkTransform>()

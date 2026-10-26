@@ -154,6 +154,7 @@ namespace Hrot.Common.Systems
         {
             // ⭐ R-3039 S3 — a world replacement (a load, a restore): a request accepted but not yet spawned was in flight; the restored world never asked for it (R-3041).
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pendingQueue.Clear();
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             // ── Phase 1: Drain all incoming requests this frame ───────────────
             // The callback fires synchronously for each valid network sample so no
             // per-sample heap allocation occurs on ingress (GC03).
