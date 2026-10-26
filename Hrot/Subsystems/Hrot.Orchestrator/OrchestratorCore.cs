@@ -61,6 +61,7 @@ public sealed class OrchestratorCore : IDisposable
     private readonly ReplayProcessManager          _replay;
     private readonly ReplayClockProcessManager     _replayClock;   // ⭐ CE-3329 P1 — the sim axis jumps the paused stretches
     private readonly ReviewProcessManager          _review;        // ⭐ CE-3329 P3 — the review's clock: pause, L, the return
+    private readonly ReplaySessionProcessManager   _session;       // ⭐ CE-3329 rows 32, 45 — the session layer, to every host
     private readonly StorageProcessManager         _storage;
     private readonly AssetInventoryProcessManager  _inventory;
     private readonly EpisodeProcessManager         _episodes;
@@ -70,6 +71,7 @@ public sealed class OrchestratorCore : IDisposable
     public ClusterMaster           Master           => _master;
     /// <summary>⭐ CE-3329 P3 — the review's clock (the live point L, whether a review is open).</summary>
     public ReviewProcessManager    Review           => _review;
+    public ReplaySessionProcessManager ReplaySession => _session;
     public ClusterUiCache          UiCache          { get; }
     public ClusterScenarioPanel    ScenarioPanel    { get; }
     public ClusterDiagnosticsPanel DiagnosticsPanel { get; }
@@ -157,6 +159,9 @@ public sealed class OrchestratorCore : IDisposable
         _review = new ReviewProcessManager(bus, timeReads, time,
             () => (Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState);
 
+        // ⭐ CE-3329 rows 32, 45 — the session layer (§9f): republished on every change, to the DDS topic and this host's own cache
+        _session = new ReplaySessionProcessManager(bus, _master, _review);
+
         // ⭐ CE-3329 P1 (R4) — on the Sim axis a running replay jumps every paused stretch (non-pausing: no epoch move)
         _replayClock = new ReplayClockProcessManager(timeReads, time,
             replaying:       () => Fdp.Toolkit.Orchestration.ClusterStates.IsReplaying((Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState),
@@ -195,6 +200,7 @@ public sealed class OrchestratorCore : IDisposable
         _master.Tick();
         _replay.Tick();
         _replayClock.Tick();   // CE-3329
+        _session.Tick();       // CE-3329 — after the master: a round that completed this frame has updated the zero, map and marks
         _storage.Tick();
         _inventory.Tick();
         _episodes.Tick();

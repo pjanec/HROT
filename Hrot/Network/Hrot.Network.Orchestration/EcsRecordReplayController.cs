@@ -138,6 +138,9 @@ namespace Hrot.SimHost.Modules.Orchestration
         public ReplayTimeMap? ActiveReplayTimeMap => _activeReplayModule?.TimeMap;
 
         /// <inheritdoc />
+        public Fdp.Core.FlightRecorder.Metadata.CheckpointMark[]? ActiveReplayCheckpoints => _activeReplayModule?.Checkpoints;
+
+        /// <inheritdoc />
         public void HoldEgress(string reason) => Fdp.Toolkit.Replication.Services.EgressHold.Hold(_repo, reason);
 
         /// <inheritdoc />

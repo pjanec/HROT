@@ -40,6 +40,12 @@ public sealed class ReviewProcessManager
     /// <summary>True from the entry request until the cluster is live again.</summary>
     public bool InReview => _inReview;
 
+    /// <summary>⭐ CE-3329 F18 (row 45) — the review open now, minted at its entry request; <see cref="Guid.Empty"/> outside one.</summary>
+    public Guid ReviewId { get; private set; }
+
+    /// <summary>⭐ The live point has been captured (the entry pause landed) — <see cref="LivePoint"/> is valid.</summary>
+    public bool HasLivePoint => _inReview && !_awaitingLivePoint;
+
     public ReviewProcessManager(FdpEventBus bus, ITimeController clock, ITimeCommands time, Func<ClusterState> state)
     {
         _bus = bus ?? throw new ArgumentNullException(nameof(bus));
@@ -54,6 +60,7 @@ public sealed class ReviewProcessManager
         {
             if (intent.TargetState != ClusterState.OperatingReview || _state() != ClusterState.OperatingLive || _inReview) continue;
             _inReview = true;
+            ReviewId = Guid.NewGuid();
             _awaitingLivePoint = true;
             _liveRate = _clock.GetTimeScale();
             _time.Pause();   // ⭐ the barrier pause — the PrepareReview fan-out follows in this tick (F3, F5)
@@ -72,6 +79,7 @@ public sealed class ReviewProcessManager
         {
             if (!_inReview || ev.NewStateId != ClusterState.OperatingLive) continue;
             _inReview = false;
+            ReviewId = Guid.Empty;
             _time.SnapTo(_livePoint);          // live, paused, at L — the checkpoint restore's clock (CE-3316)
             _time.SetTimeScale(_liveRate);     // F19 — the review's rate does not carry into live
             FdpLog<ReviewProcessManager>.Info("[Orchestrator] CE-3329: back to live at sim {0:F3}s, rate {1}.", _livePoint.TotalTime, _liveRate);

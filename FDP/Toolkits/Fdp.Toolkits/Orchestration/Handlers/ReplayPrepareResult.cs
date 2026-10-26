@@ -22,7 +22,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// <param name="LastFrameWallTicks">⭐ R-4012 — this node's last recorded frame; 0 when it holds none. Aggregated: the latest.</param>
     /// <param name="TimeMap">⭐ CE-3329 P1 (R3, row 8) — this node's wall ↔ sim map (from its v7 frame index); <see langword="null"/>
     /// without a recording. Aggregated: the cluster's map — the anchor node's sim times, the stretches every node paused in.</param>
+    /// <param name="Checkpoints">⭐ CE-3329 (§9f) — this node's recording's checkpoint marks; aggregated: the union by label (the
+    /// earliest), what every host's timeline marks.</param>
     public record struct ReplayPrepareResult(long MaxNetworkId, float DurationSeconds,
                                              long FirstFrameWallTicks = 0, long LastFrameWallTicks = 0,
-                                             Fdp.Core.FlightRecorder.ReplayTimeMap? TimeMap = null);
+                                             Fdp.Core.FlightRecorder.ReplayTimeMap? TimeMap = null,
+                                             Fdp.Core.FlightRecorder.Metadata.CheckpointMark[]? Checkpoints = null);
 }

@@ -45,6 +45,8 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
         long  lastFrame      = 0L;   //            the latest last frame: the replay's end
         // ⭐ CE-3329 P1 (R3) — every node's map; the anchor node's (the earliest first frame) leads the intersection
         var maps = new List<(long First, Fdp.Core.FlightRecorder.ReplayTimeMap Map)>();
+        // ⭐ CE-3329 §9f — the checkpoint marks: the union by label (a cluster checkpoint is one label on every node), the earliest
+        var marks = new Dictionary<string, Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
 
         foreach (var nodeDict in nodeResponses.Values)
         {
@@ -63,6 +65,8 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
                 }
                 else if (result.LastFrameWallTicks > lastFrame) lastFrame = result.LastFrameWallTicks;
                 if (result.TimeMap is { HasSimTime: true } map) maps.Add((result.FirstFrameWallTicks, map));
+                foreach (var mark in result.Checkpoints ?? System.Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>())
+                    if (!marks.TryGetValue(mark.Label, out var seen) || mark.WallTicks < seen.WallTicks) marks[mark.Label] = mark;
             }
             catch { /* non-ReplayPrepareResult JSON — skip */ }
         }
@@ -76,7 +80,8 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
             ? new ReplayPrepareResult(MaxNetworkId: maxNetworkId, DurationSeconds: maxDuration,
                                       FirstFrameWallTicks: firstFrame, LastFrameWallTicks: lastFrame,
                                       TimeMap: maps.Count == 0 ? null
-                                          : Fdp.Core.FlightRecorder.ReplayTimeMap.Intersect(maps.OrderBy(m => m.First).Select(m => m.Map)))
+                                          : Fdp.Core.FlightRecorder.ReplayTimeMap.Intersect(maps.OrderBy(m => m.First).Select(m => m.Map)),
+                                      Checkpoints: marks.Values.OrderBy(m => m.WallTicks).ToArray())
             : null;
     }
 }

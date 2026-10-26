@@ -199,6 +199,10 @@ namespace Fdp.Toolkit.Replay
         public ReplayTimeMap TimeMap => _timeMap ??= _playback != null ? ReplayTimeMap.FromRecording(_playback) : ReplayTimeMap.Empty;
         private ReplayTimeMap? _timeMap;
 
+        /// <summary>⭐ CE-3329 (§9f) — the recording's checkpoint marks (its <c>.meta.json</c>); empty for a listener.</summary>
+        public Fdp.Core.FlightRecorder.Metadata.CheckpointMark[] Checkpoints
+            => _playback?.Metadata.Checkpoints.ToArray() ?? System.Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+
         /// <summary>
         /// The maximum network entity ID present in the recording, as reported by
         /// the recording session's <c>AsyncRecorder</c>.

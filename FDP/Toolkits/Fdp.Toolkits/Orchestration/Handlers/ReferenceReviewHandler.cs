@@ -112,7 +112,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             FdpLog<ReferenceReviewHandler>.Info("[Review] entered: the live point is '{0}' in exercise {1}; the recording is suspended.",
                 LastReviewLabel, exercise);
             return new ReplayPrepareResult(_controller.ActiveMaxNetworkId, _controller.ActiveReplayDurationSeconds,
-                _controller.ActiveRecordingStartWallTicks, _controller.ActiveRecordingEndWallTicks, _controller.ActiveReplayTimeMap);
+                _controller.ActiveRecordingStartWallTicks, _controller.ActiveRecordingEndWallTicks, _controller.ActiveReplayTimeMap,
+                recording.Checkpoints);   // ⭐ CE-3329 §9f — the live recording's marks, in memory (review-<n> included)
         }
 
         public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)

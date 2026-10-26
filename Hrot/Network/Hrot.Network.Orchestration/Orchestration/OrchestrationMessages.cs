@@ -135,6 +135,23 @@ namespace Hrot.NED.Descriptors.Orchestration
     }
 
     /// <summary>
+    /// ⭐⭐ CE-3329 (rows 32, 45; DESIGN_Replay_Time_Axis_And_Review §9f) — THE REPLAY'S SESSION LAYER: the zero, the length, the axis,
+    /// the cluster's wall ↔ sim map, the checkpoint marks, the review's id and live point — what every host's timeline draws the same.
+    /// The master republishes it on every change; TransientLocal + KeepLast 1 hands the newest to a late joiner. A host matches it to
+    /// <see cref="ClusterStateTopic"/> by <see cref="SessionId"/> / <see cref="ExerciseId"/>, never by arrival order.
+    /// </summary>
+    [DdsTopic("ReplaySession")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct ReplaySessionTopic
+    {
+        public Guid SessionId;
+        public Guid ExerciseId;
+        /// <summary>The whole session, <c>Fdp.Toolkit.Orchestration.ReplaySession</c> as JSON (the map and the marks are variable-length).</summary>
+        [DdsManaged] public string SessionJson;
+    }
+
+    /// <summary>
     /// Published by the Orchestrator every 5 seconds. Carries the NAS/local asset lists
     /// so that any subscriber — including ExCon — can populate asset combo-boxes purely over DDS,
     /// with no direct reference to <see cref="Hrot.Orchestrator.ClusterMaster"/>

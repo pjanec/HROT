@@ -35,6 +35,12 @@ public sealed class ClusterUiCache : IDisposable
     /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master's last cluster-state broadcast said.</summary>
     public Fdp.Toolkit.Orchestration.ReplayAxis ReplayAxis { get; private set; } = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
     public Guid        ActiveExerciseId       { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐ CE-3329 (rows 32, 45; §9e–§9g) — the replay's SESSION LAYER as the master last published it: the zero, the length, the axis,
+    /// the cluster's time map, the checkpoint marks, the review's id and live point. The same on every host; inactive outside a replay.
+    /// </summary>
+    public Fdp.Toolkit.Orchestration.ReplaySession ReplaySession { get; private set; } = Fdp.Toolkit.Orchestration.ReplaySession.None(Guid.Empty);
     public bool        IsBootstrapped         { get; private set; }
     public bool        HasInFlightTransaction  { get; private set; }
 
@@ -127,6 +133,7 @@ public sealed class ClusterUiCache : IDisposable
     {
         DrainClusterState();
         DrainInventory();
+        DrainReplaySession();   // ⭐ CE-3329
         DrainHeartbeats();
         DrainTimeMode();
         Process2PcNetworkTraffic();
@@ -156,6 +163,12 @@ public sealed class ClusterUiCache : IDisposable
             if (CurrentState != prev)
                 ReachableTargets = _planner.GetReachableTargets(CurrentState);
         }
+    }
+
+    private void DrainReplaySession()
+    {
+        foreach (var ev in _bus.ReadManaged<Fdp.Toolkit.Orchestration.ReplaySessionUpdateEvent>())
+            if (ev.Session != null) ReplaySession = ev.Session;   // TransientLocal, KeepLast 1: the newest is the session
     }
 
     private void DrainInventory()

@@ -94,6 +94,9 @@ namespace Fdp.Toolkit.Replay
         /// <summary>⭐ B4 — the checkpoint <paramref name="label"/> of this recording, or null.</summary>
         public CheckpointMark? FindCheckpoint(string label) => _recorder?.Metadata.Checkpoints.Find(m => m.Label == label);
 
+        /// <summary>⭐ CE-3329 (§9f) — every checkpoint written so far (in memory — a review's marks, before any <c>.meta.json</c>).</summary>
+        public CheckpointMark[] Checkpoints => _recorder?.Metadata.Checkpoints.ToArray() ?? System.Array.Empty<CheckpointMark>();
+
         /// <summary>⭐ B4 — the exercise this module records.</summary>
         public Guid ExerciseId => _config.ExerciseId;
 
