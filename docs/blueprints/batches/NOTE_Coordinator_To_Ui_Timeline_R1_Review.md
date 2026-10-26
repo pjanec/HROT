@@ -2,7 +2,7 @@
 state: LIVE — coordinator → ui: review of Timeline R1-a…c (CE-1302)
 updated: 2026-10-26
 current-answer: the whole note
-stale-below: nothing
+stale-below: the Q-a / Q-b row — ANSWERED by the user 2026-10-26, see STEER_Coordinator_To_Ui_Timeline_Lanes_Unified.md
 related-designs:
   - docs/DESIGN_Director_Timeline_Editor.md — §9b holds the review; this note only points at it
 -->

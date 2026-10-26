@@ -4,7 +4,7 @@ updated: 2026-10-23
 current-answer: the whole file.
 stale-below: nothing.
 known-rot: none.
-known-conflict: none.
+known-conflict: 2026-10-26 — STEER_Coordinator_To_Ui_Timeline_Lanes_Unified.md (R-4078, R-4079): one lane seam moved to the shared toolkit; every lane a registered definition. Read it with this file.
 related-designs:
   - docs/DESIGN_Director_Timeline_Editor.md — THE design this hands over (approved, R-4071…R-4075)
   - docs/DESIGN_Behaviour_Debugging.md — the ui lane's own debugging design (CE-1270); §4 below says where the two meet

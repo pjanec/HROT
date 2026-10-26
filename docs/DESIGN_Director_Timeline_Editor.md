@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+updated: 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
 current-answer: ⭐ §9 R1 BUILD PLAN + §9a R1-a AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
-known-rot: §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
+known-rot: §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
 related-designs:
   - docs/DESIGN_Unit_Camera.md — the follow camera (orbit → shoulder → eyes) is a candidate shot type for the camera track
@@ -44,6 +44,8 @@ some tactical map graphics, composing reels from takes."*
 - *"Audio layer in replay browser would be nice (just not idea how to handle faster or slower that real time modes)."*
 - *"cool pls record it to a design document."*
 - On the five decisions: *"extend Take with a source: yes, but allow the take produced on a recording to be used with live scenario"* (with *"storing takes for replay on different place next to the recordings and promote to scenario-take only as explicit operation?"*) · *"sounds correct, you decide"* (camera keys) · *"One shared timeline panel.: for sure. also "unifying and sharing" is desired wherever to avoid duplications"* · *"sure film only; tactiocal graphics in scenario is different story"*
+
+🔒 **User, 2026-10-26:** *"we need to unify and share, not duplicate and fix with adapters. we can move the editor code to some shared place. what are built-in lanes, timeline should be extensible, not hardcoded."*
 
 🔒 **User, 2026-10-23:** *"TE-21 approved"*
 
@@ -661,10 +663,77 @@ a per-column count while under budget.
 | ③ | **the TKB in the Replay Browser (R-4069)** is in §6's R1 and the handoff's R1 row, but in no slice of §9 | the swimlane's names, types and sides (R1-d) and the 3-D bodies need it | **R1-d** |
 | ④ | the recording-replay defect found in R0 ⑧ had no tracker row | the browser itself cannot open such a recording | filed: **CE-4050** (replay harness) |
 
-| ❓ for the user | the facts | ⭐ lean |
+| ❓ answered by the user, `2026-10-26` | |
+|---|---|
+| **Q-a — TL-3 against R-4075** | 🔒 *"we need to unify and share, not duplicate and fix with adapters. we can move the editor code to some shared place."* ⇒ **R-4078**: ⛔ no `ITimelineRowProvider`, ⛔ no adapter — the editor's `ITraceLaneProvider` (+ `TraceLaneDescriptor`, `TraceLevel`) MOVES to the shared toolkit and becomes the ONE lane seam (§9c). TL-3 is SUPERSEDED |
+| **Q-b — the extractors against R-4077** | 🔒 *"what are built-in lanes, timeline should be extensible, not hardcoded."* ⇒ **R-4079**: there are no built-in lanes — every lane is a REGISTERED definition; the ones shipped are definitions like any other. The `TimelineLane` / `TimelineLaneGroup` enums and the three hand-written extractors are SUPERSEDED (§9c) |
+
+### 9c. Lanes are registered, never hard-coded *(R-4078, R-4079 — coordinator, `2026-10-26`)*
+
+```mermaid
+classDiagram
+  direction LR
+  class ITimelineLaneProvider { <<MOVED + generalised: today's ITraceLaneProvider>> +Lanes +Applies(context) +Marks(laneId, range) }
+  class TimelineLaneDescriptor { <<MOVED: today's TraceLaneDescriptor>> +string Id +DisplayName +string Group +int Priority +Glyph +TraceLevel Levels }
+  class TraceLevel { <<MOVED>> }
+  class IndexedLaneDefinition { <<NEW, data>> +TimelineLaneDescriptor Lane +SearchPredicateDto When +LaneProjection Payload }
+  class LaneProjection { <<NEW, data>> +OtherPath +PositionXPath +PositionYPath +ValuePath }
+  class TimelineLaneCatalog { <<NEW>> +Register(provider) +Indexed() +ForContext(context) }
+  class SearchPredicateDto { <<exists, EXTENDED — R-4077>> +RingEntryPredicateDto (one result per NEW entry of a recorded ring — TE-22 ②) }
+  class IEventScannerCompiler { <<exists, EXTENDED>> results carry the projected payload }
+  class PredicateCompiler { <<exists>> }
+  class TimelineIndexBuilder { <<exists, reworked>> compiles every indexed lane once, evaluates all in ONE pass }
+  class TimelineIndex { <<exists, reworked>> events by lane ID (string), not an enum }
+  class TimelineSidecar { <<exists, reworked>> per lane: id + definition hash ⇒ a new lane is an incremental pass }
+  class TimelinePanel { <<exists>> rows from the catalogue }
+  class BTreeTraceLaneProvider { <<exists>> }
+  class HsmTraceLaneProvider { <<exists>> }
+  class UtilityTraceLaneProvider { <<exists>> }
+  class CombatLanes { <<NEW: shipped DATA, registered by the combat toolkit>> Shot · Hit · Blast }
+  class BehaviourLanes { <<NEW: shipped DATA, registered by the behaviour toolkit>> Changes · Orders · Reports · Decisions }
+  class LifeLanes { <<NEW: shipped DATA>> Spawned · Left — LifecyclePredicateDto }
+  class DirectorTracks { <<R2>> Camera · Time · Subtitles … }
+  class UserLanes { <<NEW>> a predicate from the existing editor, saved like a search preset }
+  ITimelineLaneProvider *-- TimelineLaneDescriptor
+  TimelineLaneDescriptor --> TraceLevel
+  IndexedLaneDefinition --> TimelineLaneDescriptor
+  IndexedLaneDefinition --> SearchPredicateDto
+  IndexedLaneDefinition --> LaneProjection
+  TimelineLaneCatalog o-- ITimelineLaneProvider
+  TimelineLaneCatalog o-- IndexedLaneDefinition
+  TimelineIndexBuilder --> TimelineLaneCatalog
+  TimelineIndexBuilder --> IEventScannerCompiler
+  TimelineIndexBuilder --> PredicateCompiler
+  TimelineIndexBuilder --> TimelineIndex
+  TimelineIndex ..> TimelineSidecar
+  TimelinePanel --> TimelineLaneCatalog
+  TimelinePanel --> TimelineIndex
+  BTreeTraceLaneProvider ..|> ITimelineLaneProvider
+  HsmTraceLaneProvider ..|> ITimelineLaneProvider
+  UtilityTraceLaneProvider ..|> ITimelineLaneProvider
+  DirectorTracks ..|> ITimelineLaneProvider
+  CombatLanes ..> IndexedLaneDefinition
+  BehaviourLanes ..> IndexedLaneDefinition
+  LifeLanes ..> IndexedLaneDefinition
+  UserLanes ..> IndexedLaneDefinition
+```
+
+*What the picture shows that prose hid: ONE lane seam and ONE condition model. A lane either comes from the recording's index (a
+predicate + which fields to keep) or is drawn by its provider for a range (live trace rings, the director's tracks, search hits) — and
+both are registered the same way §15.2 already registers the trace lanes. Nothing in the index, the builder or the panel names a lane.*
+
+| | how | measured basis |
 |---|---|---|
-| **Q-a — TL-3 against R-4075** | R-4075 says the row seam is `ITraceLaneProvider`, generalised. TL-3 adds `ITimelineRowProvider` in `Fdp.Presentation` instead, because `ITraceLaneProvider` lives in an editor assembly the browser cannot reference and only DESCRIBES lanes (D2, D3) — and plans an ADAPTER for the three trace providers | accept TL-3's seam, but ⛔ no adapter: at R1-e the three trace providers (descriptor-only today) implement `ITimelineRowProvider` and `ITraceLaneProvider` is retired — one seam, as R-4075 meant. Amend R-4075's mechanism, keep its intent |
-| **Q-b — the extractors against R-4077** | R-4077: every "is this true at this frame" — *timeline queries* named — is a predicate. The index's Life / Combat / Behaviour extractors are hand-written per-frame code. But they are a CATALOGUE (what happened, with its payload: who, whom, where, how much); a predicate search returns frame + entity only (`SearchResultDto`, `SearchPredicateDto.cs:344`) | **the line:** the fixed lanes stay a catalogue; **every condition on the timeline is a predicate** — a custom lane, a filter, an anchor, the search lane — run by `PredicateCompiler` in the same builder pass. A new FIXED lane is a catalogue entry; ⛔ a new CONDITION is never extractor code |
+| **the move** | `ITraceLaneProvider`, `TraceLaneDescriptor`, `TraceLevel` go from `Hrot.Editor.AiShared` to `Fdp.Toolkits` (`ReplayBrowser/Timeline`), which the index, the panel (`Fdp.Presentation`), the Replay Browser and the editor all reference. `AssetKind Kind` becomes `Applies(context)` — the asset kind is one key of the context. A rename, if any, by Roslyn (CLAUDE.md ②) | 7 files use it (`ITraceLaneProvider.cs`, `TraceTimelineWindow.cs`, three providers, two test files); `Fdp.Presentation` and `Hrot.Editor.AiShared` both reference `Fdp.Toolkits` |
+| **an indexed lane** | a descriptor + a `SearchPredicateDto` (*when*) + a projection (*what to keep*: the counterpart, the point, the value) | R-4077; the scanner returns frame + entity + a message only today (`IEventScannerCompiler.cs:14-19`) ⇒ the projection is an EXTENSION of the model |
+| **the shipped lanes as data** | Spawned / Left = `LifecyclePredicateDto` (exists) · Shot / Hit / Blast = `TransientEventPredicateDto` on `WeaponFireNotification` (fired) / `HitEvent` / `DetonationNotification` + projections · Changes / Orders / Reports / Decisions (R-4076) = the NEW `RingEntryPredicateDto` (one result per new ring entry, keyed by the entry's own counter — TE-22 ②) | today's `LifeExtractor`, `CombatExtractor`, `BehaviourExtractor` say exactly what each lane is (`TimelineExtractors.cs:64-121`) — they become their definitions' tests |
+| **who registers them** | the module that owns the data — the combat toolkit its lanes, the behaviour toolkit its four, the trace editors theirs — as §15.2 already does | §15.2 *"Subsystems register their categories"* |
+| **a user's lane** | built in the existing predicate editor (R-4072), saved like a search preset; the next open indexes it | the presets' JSON round-trip (capabilities doc §5) |
+| **the cache** | events keyed by lane id; the sidecar keeps each lane's definition hash ⇒ a new or changed lane is ONE incremental pass for that lane, never a rebuild of the rest | — |
+| **groups, priority, glyph** | descriptor fields, not enums | `TimelineLaneGroup` (3 values) and the priority order were enums (`TimelineIndex.cs:10, 33`) |
+
+⛔ **Superseded by this section:** TL-3 (`ITimelineRowProvider` + an adapter); TL-5's lane list as code; `TimelineLane` /
+`TimelineLaneGroup` (29 production references) and the three extractors as the index's source of events.
 
 ## 8. INVENTORY
 
