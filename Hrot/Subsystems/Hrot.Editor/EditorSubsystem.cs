@@ -530,6 +530,9 @@ namespace Hrot.Editor
         /// CONSTRUCTED window which row commands this root opted into, ⛔ never the call site.</summary>
         internal AssetBrowserDockedWindow? AssetBrowserForTest => _aiAssetBrowser;
 
+        /// <summary>CE-4054 test hook: the preview controller <c>/status</c> reads <c>inPreview</c> from.</summary>
+        internal IPreviewController? PreviewControllerForTest => _previewController;
+
         /// <summary>Q86 test hook: this node's clock (the editor's own master — Q86 keeps it here).</summary>
         internal MasterSyncController? TimeControllerForTest => _timeController;
 
@@ -698,7 +701,7 @@ namespace Hrot.Editor
         /// ⛔ SUPERSEDED: the local shortcut that triggered the handler and drove the clock directly (CE-3156's own put-back) —
         /// DESIGN_Http_Control_Through_The_Cluster_Master §7 "no shortcuts". 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12m.
         /// </summary>
-        private sealed class EditorPreviewController : IPreviewController
+        internal sealed class EditorPreviewController : IPreviewController
         {
             private readonly Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler _handler;
             private readonly System.Func<FdpEventBus?> _bus;
