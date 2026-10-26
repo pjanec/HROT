@@ -50,6 +50,8 @@ public sealed class TimelinePanel
     private TimelineAxis? _axis;                                 // the axis last drawn on
     private Fdp.Core.FlightRecorder.ReplayTimeMap? _timeMap;     // its paused stretches
     private long? _livePoint;                                    // ⭐ CE-3330 E2 — the review's live point on the drawn axis (null = none)
+    private (long From, long To)? _loop;                         // ⭐ CE-3330 E5 — the master's loop on the drawn axis (null = none)
+    private const uint LoopColour = 0xFF60D860;                  // ABGR — a green no lane uses
 
     /// <summary>⭐ CE-3330 (§10b "an axis switch keeps the view") — the window and the range mapped through wall time onto the new axis.</summary>
     private void Remap(TimelineAxis from, TimelineAxis to)
@@ -122,6 +124,7 @@ public sealed class TimelinePanel
         _timeMap = cursor?.TimeMap;
         if (cursor != null && axis.IsSim) cursor = new AxisCursor(cursor, axis);
         _livePoint = cursor?.LivePoint;
+        _loop = cursor?.Loop;
         var index = axis.Project(source?.Index ?? TimelineIndex.Empty);
         long from = cursor?.ExtentFrom ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[0] : 0);
         long to = cursor?.ExtentTo ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[^1] : 0);
@@ -265,6 +268,15 @@ public sealed class TimelinePanel
                 dl.AddText(p + new Vector2(xc - 3, 0), 0xFF60C0F0, Fdp.Presentation.Fonts.IconsFontAwesome6.Flag);
                 if (hovered && Math.Abs(ImGui.GetIO().MousePos.X - p.X - xc) <= 5) ImGui.SetTooltip(cp.Label);
             }
+
+        // ⭐ CE-3330 E5 (DAR §12n) — the MASTER's loop as a bracket on the ruler: every host draws it, whoever set it
+        if (_loop is { } lp && lp.To > lp.From)
+        {
+            float la = Math.Clamp(w.XOf(lp.From, width), 0, width), lb = Math.Clamp(w.XOf(lp.To, width), 0, width);
+            dl.AddRectFilled(p + new Vector2(la, RulerHeight - 4), p + new Vector2(Math.Max(lb, la + 1), RulerHeight), LoopColour);
+            if (w.XOf(lp.From, width) >= 0) dl.AddLine(p + new Vector2(la, 2), p + new Vector2(la, RulerHeight), LoopColour, 2f);
+            if (w.XOf(lp.To, width) <= width) dl.AddLine(p + new Vector2(lb, 2), p + new Vector2(lb, RulerHeight), LoopColour, 2f);
+        }
 
         // the playhead ▼ (a handle where the cursor seeks), or an arrow at the edge it left by (§10b)
         float xn = w.XOf(_drag == Drag.Scrub ? _scrubTo : now, width);
@@ -476,6 +488,11 @@ public sealed class TimelinePanel
             string len = TimelineRuler.Label(r.To - r.From, TimeSpan.TicksPerSecond / 10, r.To - r.From);
             dl.AddText(new Vector2(x0 + a + 3, top + 1), 0xFFFFD080, len);
         }
+        if (_loop is { } lq && lq.To > lq.From)   // ⭐ CE-3330 E5 — the loop's tinted band over the lanes
+        {
+            float a = Math.Clamp(w.XOf(lq.From, width), 0, width), b = Math.Clamp(w.XOf(lq.To, width), 0, width);
+            dl.AddRectFilled(new Vector2(x0 + a, top), new Vector2(x0 + b, bottom), 0x2860D860);
+        }
         // ⭐ CE-3330 T13 (R10) — the paused stretches: shaded spans on the Wall axis (darker = with edits); on Sim each is one instant
         //   (its ◯ / ● tick sits on the ruler) and the events inside it cluster there by themselves (addendum 10)
         if (_axis is { IsSim: false } && _timeMap != null)
@@ -613,6 +630,11 @@ public sealed class TimelinePanel
         {
             items.Add(new TimelineMenuItem("Zoom to the range", view.ZoomToRange));
             items.Add(new TimelineMenuItem("Clear the range", () => view.Range = null));
+        }
+        if (cursor is { CanLoop: true, Mode: TimelineMode.Review or TimelineMode.Replay })   // ⭐ CE-3330 E5 — the MASTER's loop (never offered in Live / None)
+        {
+            if (view.Range is { } lr && lr.To > lr.From) items.Add(new TimelineMenuItem("Loop this range", () => cursor.SetLoop(lr.From, lr.To)));
+            if (cursor.Loop != null) items.Add(new TimelineMenuItem("Clear the loop", cursor.ClearLoop));
         }
         items.Add(new TimelineMenuItem($"Copy the time ({time})", () => ImGui.SetClipboardText(time)));
         return items;

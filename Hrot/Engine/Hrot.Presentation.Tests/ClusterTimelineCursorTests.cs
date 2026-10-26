@@ -221,4 +221,63 @@ public sealed class ClusterTimelineCursorTests
         c.TogglePlay();
         Assert.Equal(1, f.TogglePlayPauseCallCount);              // a disabled transport is not toggled
     }
+
+    // ── ⭐ CE-3330 E5 — the master's loop (DAR §12n) ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void CE3330_E5_CanLoop_OnlyInAReviewOrAReplay()
+    {
+        var f = new FakeTimeTransportFacade { Mode = TransportMode.Live, Session = Session(Map()) };
+        var c = Cursor(f, LiveIndex());
+        foreach (var (m, expected) in new[] { (TransportMode.Live, false), (TransportMode.Review, true), (TransportMode.Replay, true), (TransportMode.Edit, false), (TransportMode.Idle, false) })
+        {
+            f.Mode = m;
+            Assert.Equal(expected, c.CanLoop);
+        }
+        Assert.False(Cursor(null, LiveIndex()).CanLoop);
+
+        f.Mode = TransportMode.Live;                                // outside a review the intents go nowhere
+        c.SetLoop(Zero + S, Zero + 2 * S); c.ClearLoop();
+        Assert.Null(f.LastSetLoop);
+        Assert.Equal(0, f.ClearLoopCallCount);
+        f.Loop = (1, 2);
+        Assert.Null(c.Loop);                                        // and a stale loop is not drawn
+    }
+
+    [Fact]
+    public void CE3330_E5_TheLoop_IsConvertedToWallTicks_OnBothAxes()
+    {
+        var f = new FakeTimeTransportFacade { Mode = TransportMode.Review, Session = Session(Map()), Axis = ReplayAxis.Wall };
+        var c = Cursor(f, LiveIndex());
+        Assert.Null(c.Loop);                                        // none set
+
+        f.Loop = (2, 5);                                            // wall seconds after the zero
+        Assert.Equal((Zero + 2 * S, Zero + 5 * S), c.Loop);
+
+        f.Axis = ReplayAxis.Sim;                                    // sim seconds: sim 4 is wall 7 (the pause 3…6 collapsed), sim 5 is wall 8
+        f.Loop = (4, 5);
+        Assert.Equal((Zero + 7 * S, Zero + 8 * S), c.Loop);
+    }
+
+    [Fact]
+    public void CE3330_E5_SetLoop_GoesToTheFacade_OnTheFacadesAxis_AndClearLoopClears()
+    {
+        var f = new FakeTimeTransportFacade { Mode = TransportMode.Review, Session = Session(Map()), Axis = ReplayAxis.Wall };
+        var c = Cursor(f, LiveIndex());
+
+        c.SetLoop(Zero + 2 * S, Zero + 8 * S);                      // seconds AFTER THE ZERO (the zero is not 0)
+        Assert.Equal((2.0, 8.0), f.LastSetLoop);
+
+        f.Axis = ReplayAxis.Sim;                                    // sim seconds through the map (a pause in between)
+        c.SetLoop(Zero + 2 * S, Zero + 8 * S);
+        Assert.Equal((2.0, 5.0), f.LastSetLoop);
+
+        f.Mode = TransportMode.Replay; f.Session = Session(null, review: false);   // a v6 replay: no map ⇒ wall seconds even on "Sim"
+        c.SetLoop(Zero + S, Zero + 3 * S);
+        Assert.Equal((1.0, 3.0), f.LastSetLoop);
+
+        c.ClearLoop();
+        Assert.Equal(1, f.ClearLoopCallCount);
+        Assert.Null(c.Loop);
+    }
 }

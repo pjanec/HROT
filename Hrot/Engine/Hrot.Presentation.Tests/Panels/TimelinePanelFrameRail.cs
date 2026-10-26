@@ -293,6 +293,8 @@ public sealed class TimelinePanelFrameRail
         public TimelineMode Mode => TimelineMode.Review;
         public long? LivePoint { get; init; }
         public IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> Checkpoints { get; init; } = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+        public (long From, long To)? Loop { get; init; }   // ⭐ CE-3330 E5
+        public bool CanLoop => true;
     }
 
     /// <summary>
@@ -319,5 +321,31 @@ public sealed class TimelinePanelFrameRail
         int live = DrawAndShoot(frame, new TimelinePanel(), full, withLive, "timeline-4-review-session-layer.png", LiveColour);
         int none = DrawAndShoot(frame, new TimelinePanel(), full, without, "timeline-5-review-no-live-point.png", LiveColour);
         Assert.True(live > none + 10, $"the live point's line did not draw ({live} px with it, {none} without)");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E5 (§2e, DAR §12n) — the master's loop in a REAL ImGui frame: a bracket on the ruler and a tinted band over the lanes draw without error,
+    /// and the loop's green is on screen only when the cursor reports a loop. 🔴 Red-proof: the ruler bracket / lane band gated on a runtime-false condition
+    /// ⇒ no loop-coloured pixels.
+    /// </summary>
+    [SkippableFact]
+    public void CE3330_E5_TheMastersLoop_DrawsABracketAndABand()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        var full = new Source { Index = Firefight() };
+        long end = T0 + (10 * 60 * Hz - 1) * Tick;
+        var looped = new SessionCursor
+        {
+            ExtentFrom = T0, ExtentTo = end, Now = T0 + 100 * TimeSpan.TicksPerSecond,
+            Loop = (T0 + 200 * TimeSpan.TicksPerSecond, T0 + 400 * TimeSpan.TicksPerSecond),
+        };
+        var unlooped = new SessionCursor { ExtentFrom = T0, ExtentTo = end, Now = T0 + 100 * TimeSpan.TicksPerSecond };
+
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        const uint LoopColour = 0xFF60D860;   // the ruler bracket (ABGR) — a colour no lane uses
+        int with = DrawAndShoot(frame, new TimelinePanel(), full, looped, "timeline-8-loop.png", LoopColour);
+        int without = DrawAndShoot(frame, new TimelinePanel(), full, unlooped, "timeline-9-no-loop.png", LoopColour);
+        Assert.True(with > without + 10, $"the loop's bracket did not draw ({with} px with it, {without} without)");
     }
 }

@@ -323,6 +323,13 @@ public sealed class TimelineInteractionTests
         public List<long> Reviews { get; } = new();
         public void Seek(long ticks) { Seeks.Add(ticks); Now = ticks; }
         public void EnterReview(long wallTicks) => Reviews.Add(wallTicks);
+        // ⭐ CE-3330 E5 — the master's loop (WALL ticks)
+        public bool CanLoop { get; init; }
+        public (long From, long To)? Loop { get; set; }
+        public List<(long From, long To)> SetLoops { get; } = new();
+        public int Clears { get; private set; }
+        public void SetLoop(long fromWall, long toWall) { SetLoops.Add((fromWall, toWall)); Loop = (fromWall, toWall); }
+        public void ClearLoop() { Clears++; Loop = null; }
     }
 
     /// <summary>
@@ -394,6 +401,68 @@ public sealed class TimelineInteractionTests
         Assert.Equal(new[] { 6 * S }, inner.Reviews);
 
         Assert.Null(new AxisCursor(new SessionCursor(), sim).LivePoint);        // no live point stays none
+    }
+
+    /// <summary>
+    /// ⭐ CE-3330 E5 (§2e, DAR §12n) — the loop items by MODE: "Loop this range" only with a range selected, in a review / replay that CanLoop, and it hands the
+    /// range (wall) to <c>SetLoop</c>; "Clear the loop" only while a loop exists; neither in Live or on a cursor that cannot loop. Building the menu loops nothing.
+    /// 🔴 Red-proof: the mode gate dropped (offered in Live) ⇒ the Live assertion reddens; the range handed swapped/shifted ⇒ the SetLoop assertion reddens.
+    /// </summary>
+    [Fact]
+    public void CE3330_E5_TheLoopItems_AreOfferedOnlyInAReviewOrReplay_WithARange_OrALoop()
+    {
+        var index = Index(601, E(100, Shot), E(300, Shot), E(500, Shot));
+        var view = new TimelineView();
+        view.OnExtent(0, 600 * Tick);
+        List<TimelineMenuItem> Items(ITimelineCursor c) => TimelinePanel.MenuItems(index, c, Shot, 300 * Tick, 300, null, "0:05.0", view);
+        List<string> Labels(ITimelineCursor c) => Items(c).Select(i => i.Label).ToList();
+
+        var review = new SessionCursor { Mode = TimelineMode.Review, CanSeek = true, CanLoop = true };
+        Assert.DoesNotContain("Loop this range", Labels(review));            // no range selected
+        Assert.DoesNotContain("Clear the loop", Labels(review));             // no loop set
+
+        view.Range = (100 * Tick, 200 * Tick);
+        Assert.Contains("Loop this range", Labels(review));
+        Assert.Empty(review.SetLoops);                                        // building the menu loops nothing
+        Items(review).First(i => i.Label == "Loop this range").Run();
+        Assert.Equal(new[] { (100 * Tick, 200 * Tick) }, review.SetLoops);   // the range, in the cursor's ticks
+
+        Assert.Contains("Clear the loop", Labels(review));                    // the loop now exists
+        Items(review).First(i => i.Label == "Clear the loop").Run();
+        Assert.Equal(1, review.Clears);
+        Assert.DoesNotContain("Clear the loop", Labels(review));
+
+        var replay = new SessionCursor { Mode = TimelineMode.Replay, CanSeek = true, CanLoop = true };
+        Assert.Contains("Loop this range", Labels(replay));
+
+        var live = new SessionCursor { Mode = TimelineMode.Live, CanReview = true, CanLoop = true, Loop = (1, 2) };   // even a stray loop / flag
+        Assert.DoesNotContain(Labels(live), l => l.Contains("Loop") || l.Contains("loop"));
+        var none = new SessionCursor { Mode = TimelineMode.None, CanLoop = true, Loop = (1, 2) };
+        Assert.DoesNotContain(Labels(none), l => l.Contains("Loop") || l.Contains("loop"));
+        Assert.DoesNotContain(Labels(new SessionCursor { Mode = TimelineMode.Review, CanSeek = true, CanLoop = false }), l => l.Contains("oop"));   // the host cannot loop
+        view.Range = null;
+    }
+
+    /// <summary>⭐ CE-3330 E5 — the Sim-axis view of a cursor's loop: drawn on the axis, set from the axis (a paused instant → its END, like every conversion
+    /// back). 🔴 Red-proof: forwarding <c>Loop</c> unconverted ⇒ the bracket stays wall; <c>SetLoop</c> unconverted ⇒ the host receives sim ticks.</summary>
+    [Fact]
+    public void CE3330_E5_AxisCursor_ConvertsTheLoop_BothWays()
+    {
+        var (_, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var inner = new SessionCursor { Mode = TimelineMode.Review, CanLoop = true, Loop = (2 * S, 8 * S) };
+        var c = new AxisCursor(inner, sim);
+        Assert.True(c.CanLoop);
+        Assert.Equal((2 * S, 5 * S), c.Loop);                                  // wall 2 s is sim 2 s, wall 8 s is sim 5 s
+
+        c.SetLoop(3 * S, 5 * S);                                               // sim 3 s is the pause (→ its END, wall 6 s); sim 5 s is wall 8 s
+        Assert.Equal(new[] { (6 * S, 8 * S) }, inner.SetLoops);
+
+        c.ClearLoop();
+        Assert.Equal(1, inner.Clears);
+        Assert.Null(c.Loop);
+
+        Assert.False(new AxisCursor(new SessionCursor(), sim).CanLoop);        // the defaults pass through
     }
 
     // ── CE-1364 T2 — the track seam (docs/DESIGN_Director_Timeline_Editor.md §10) ──────────────────────────────

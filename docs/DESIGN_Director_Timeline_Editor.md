@@ -272,7 +272,7 @@ toolbar is its own, R-3060). This section owns only what this design adds to it.
 | 6 | **a selected event selects its unit through the ONE selection** (`SelectionRequestSystem`, as `POST /selection` — R-4083) | — |
 | 7 | **`LiveTimelineSource` runs `TimelineIndexBuilder`'s per-frame step** on the live world (the same `IndexedLaneDefinition`s) — a live index equals the index rebuilt from its recording, lane by lane | — |
 | 8 | **the end-of-run sidecar is written after the recorder closed the file**, by `TimelineSidecar` (TL-6's header holds the byte size) | — |
-| 9 | ⚠ **"Loop range" in a review / replay is the master's clock**, not the panel's — absent until backend's `ReplayClockProcessManager` carries it (the Replay Browser may loop locally) | — |
+| 9 | ⚠ **"Loop range" in a review / replay is the master's clock**, not the panel's — ✅ BUILT (E5, §2e: `ITimelineCursor.SetLoop` → the facade → the master; the Replay Browser keeps its own clock loop) | — |
 | 10 | **a take's keys stay in SIM seconds**; on the Wall axis drawn through the session's `ReplayTimeMap`; never inside a paused stretch | — |
 | 11 | **events inside one collapsed pause** (Sim axis) draw as one cluster with a count at the pause's tick | — |
 
@@ -361,10 +361,10 @@ sequenceDiagram
 | ⭐ **the cluster nodes' live timeline** (the module diagram's former dead edge) | `HrotNodeContext.Timeline` (a `LiveTimelineSource` over `ShippedTimelineLanes.Catalog()`, built on first use) stepped inside `HrotNodeContext.Tick` after the host's post-kernel work and before the swap ⇒ CGF, SimHost, IG, Traffic and Stride all index by construction; `EcsNodeDebugProvider.For` serves it (`timeline.read`). The editor and the Replay Browser compose the same catalogue. ⚠ **cost, measured (1000 units, Release):** 1.7 → **≈ 1.0 ms / frame busy, ≈ 0.5 ms idle** after CE-1361 (ring lanes skip a byte-identical ring and read it in place; the structural lanes track by index + generation, no `IsAlive` sweep); the rest is the per-unit walk; a publish is O(1) — the snapshot SHARES the scanner's grow-only buffers up to its count (`SharedList`), never a copy (CE-1361 ②). ⭐ ALWAYS ON by user decision (`2026-10-26`); filling a node's index on first use from its recording is CE-1362 | `HrotNodeBuilderTests.CE3330_Node_*` ×2, `TimelineIndexTests.CE3330_Node_TheShippedCatalog_*`, RB `CE3330_Node_*` |
 | ⚠ **one frame late** | the live step runs after the kernel tick, when the bus holds the PREVIOUS tick's events: a live event is one frame (≈ 16 ms) later than the recording files it | — |
 | ⭐ **T13 / R10 — the Sim axis** (backend P0/P1: `ReplayTimeMap`, `FrameMetadata.SimTime` / `Flags`) | `TimelineAxis` (pure): Wall = the identity; `Sim(map)` projects the index's frame ticks, the extent, "now" and every seek through the map (`AxisCursor` — the host keeps seeking by wall ticks, TL-2); a pause collapses to one instant (its events cluster there — row 11) and a seek to it lands on its LAST frame (`Edge.AfterStretch` — what changed is shown); `Sim` of a v6 recording is Wall. The panel draws a pause as a shaded span on Wall and a zigzag + ◯ / ● (● = changed) on the ruler on Sim; an axis switch maps the window and range through wall time (`TimelineView.Remap`) so the same FRAMES stay in view. The Replay Browser's transport row has the **S / W** toggle (its `Axis`, disabled without sim time) | `CE3330_T13_OnTheSimAxis_APauseCollapses_ASeekLandsAtItsEnd`, `CE3330_T13_TheCursorOnTheSimAxis_AndASwitchKeepsTheFramesInView` |
-| ⭐ **was "waits on backend's data D" — UNBLOCKED `2026-10-26`** (backend `5aa14d2b0` one facade, `0784f356c` `ReplaySessionTopic`) | the session layer, the review menu items, the toolbar's mode / axis icons, the slider on the axis — designed in **§2e**; Loop range still waits on backend §12n | — |
+| ⭐ **was "waits on backend's data D" — UNBLOCKED `2026-10-26`** (backend `5aa14d2b0` one facade, `0784f356c` `ReplaySessionTopic`) | the session layer, the review menu items, the toolbar's mode / axis icons, the slider on the axis — designed in **§2e** (Loop range: built, E5) | — |
 | ⏳ not in this slice | addendum 1 / 9 (director tracks — R2 has none yet), K / J / L (no rate in the cursor) | — |
 
-## 2e. The panel and the toolbar on a cluster host — live, review, replay *(ui, `2026-10-26`; build-state: BUILT (E1–E4, `2026-10-26`) — coordinator note B6–B9 on backend's facade `5aa14d2b0` + `ReplaySessionTopic` `0784f356c`)*
+## 2e. The panel and the toolbar on a cluster host — live, review, replay *(ui, `2026-10-26`; build-state: BUILT (E1–E5, `2026-10-26`) — coordinator note B6–B9 on backend's facade `5aa14d2b0` + `ReplaySessionTopic` `0784f356c`)*
 
 ⭐ Spec: [DAR §9a / §9b / §9e](DESIGN_Replay_Time_Axis_And_Review.md) (the toolbar, the menu, the two layers) and §12m (the ONE facade,
 as built). This section is HOW the ui half is built on it. INVENTORY (graph + grep, `2026-10-26`): `MainToolbarTimeControlSection`
@@ -452,12 +452,13 @@ live run's, which is a different exercise, so the panel shows only the session l
 | **F15: for 3 s after a return to live, ■ is ignored, and its tooltip says why** | the design's own fix; no modal |
 | ⛔ rejected: a seek path in the panel beside the facade | R-3059 one path |
 | ⛔ rejected: converting live wall → wall-after-zero for the entry | the host has no zero in live; a guessed zero seeks the wrong frame |
-| ⏭ deferred, one line each: "Review from here **and play**" (needs a play once the review lands — no seam yet) · "Seek to before / after the pause's edits" (needs an `Edge` on the facade seek) · ⚑ "Mark this moment" (no checkpoint intent found) · replay "⑂ Go live from here" (D18, behind its own confirmation) · "Loop range" (backend §12n, building) | |
+| ⏭ deferred, one line each: "Review from here **and play**" (needs a play once the review lands — no seam yet) · "Seek to before / after the pause's edits" (needs an `Edge` on the facade seek) · ⚑ "Mark this moment" (no checkpoint intent found) · replay "⑂ Go live from here" (D18, behind its own confirmation) | |
 
 **Build slices (each with its rails, red-proved):** **E1** — the live source's clock (`TotalWallTicks`, frame sim, `TimelineIndex.FrameSim`)
 + `StepTimeline` freeze / reset · **E2** — `TimelineMode` + the cursor members, `ClusterTimelineCursor`, the panel's menu by mode and the
 session marks, the editor wired (`LiveTimelineCursor` deleted), the facade's `Session` + `EnterReviewAtSim` · **E3** — the toolbar: mode
-glyph + menu, ⏏ + F15, the axis icon · **E4** — `ClusterScenarioPanel`'s slider on the active axis (row 24).
+glyph + menu, ⏏ + F15, the axis icon · **E4** — `ClusterScenarioPanel`'s slider on the active axis (row 24) · **E5** — the master's loop on the panel
+(below).
 
 #### 2e-E2 as built *(ui, `2026-10-26` — slice E2 BUILT; E1/E3 per their own commits; E4 open)*
 
@@ -471,6 +472,37 @@ glyph + menu, ⏏ + F15, the axis icon · **E4** — `ClusterScenarioPanel`'s sl
 | `LiveTimelineCursor` deleted; the editor window's source func and the cursor's are ONE func, `null` while the facade's Mode is Replay | `EditorSubsystem.cs` (`editor_event_timeline`) | none |
 | the live map is `ReplayTimeMap.FromFrames(FrameTicks, FrameSim, 0)` per index SNAPSHOT (cached by instance) | `ClusterTimelineCursor.TimeMap` | the snapshot is republished at the source's throttle (not per frame), so the O(n) rebuild is the same cost class as `TimelineAxis.Project`'s |
 | rails | `Hrot.Presentation.Tests/ClusterTimelineCursorTests.cs` (mode, extent per mode, seek on both axes, review entry, live point / checkpoints, axis, play) · `Fdp.Presentation.Tests/…/TimelineInteractionTests.cs` `CE3330_E2_*` (menu by mode, `AxisCursor` session layer) · `Hrot.Presentation.Tests/Panels/TimelinePanelFrameRail.cs` `CE3330_E2_TheSessionLayer_…` | |
+
+
+#### 2e-E5 as built *(ui, `2026-10-26` — Loop range: the MASTER's loop on the panel, review / replay only)*
+
+```mermaid
+sequenceDiagram
+  participant P as TimelinePanel
+  participant A as AxisCursor (Sim axis only)
+  participant C as ClusterTimelineCursor
+  participant F as ITimeTransportFacade
+  participant M as master (SetReplayLoopIntent)
+  P->>A: menu "Loop this range" (range in axis ticks)
+  A->>C: SetLoop(wall from, wall to) via Axis.ToWall
+  C->>F: SetLoop(ToFacadeAxis(from), ToFacadeAxis(to))
+  F->>M: the session's loop (every host hears it)
+  M-->>F: ReplaySession.LoopFromSeconds / LoopToSeconds
+  P->>A: each frame: Loop
+  A->>C: Loop (wall)
+  C->>F: Loop (facade axis) via FromFacadeAxis
+```
+
+*Caption: the panel never owns a loop — it reads the master's every frame, so a loop set by another host or the toolbar draws too.*
+
+| built | where | deviation from the design, and why |
+|---|---|---|
+| `ITimelineCursor.Loop / CanLoop / SetLoop / ClearLoop` (defaults: null / false / no-op; WALL ticks) | `ITimelineCursor.cs` | none. `FederatedReplayCursor` keeps the defaults (the Replay Browser's loop is its own clock, DAR §12n) |
+| `AxisCursor` forwards them: `Loop` to axis ticks, `SetLoop` back to wall (a paused instant resolves to its END, like every conversion back) | `TimelineAxis.cs` | none |
+| `ClusterTimelineCursor`: `CanLoop` in Review / Replay; `Loop` from `facade.Loop` to wall ticks; `SetLoop` / `ClearLoop` to the facade. ONE conversion pair (`ToFacadeAxis` / `FromFacadeAxis`) now serves `Seek` and the loop | `ClusterTimelineCursor.cs` | `Seek`'s inline conversion was extracted into the shared helper (one place, not a copy) |
+| menu: "Loop this range" when a range is selected, "Clear the loop" when a loop exists — both only in Review / Replay with `CanLoop`, never in Live / None (`MenuItems` still pure) | `TimelinePanel.MenuItems` | none |
+| drawing: a green bracket on the ruler (end bars + base strip) and a tinted band over the lanes, from `cursor.Loop` | `TimelinePanel.DrawRuler` / `DrawOverlays` | none |
+| rails | `ClusterTimelineCursorTests` `CE3330_E5_*` ×3 · `TimelineInteractionTests` `CE3330_E5_*` ×2 · `TimelinePanelFrameRail.CE3330_E5_TheMastersLoop_*` | |
 
 
 ```mermaid

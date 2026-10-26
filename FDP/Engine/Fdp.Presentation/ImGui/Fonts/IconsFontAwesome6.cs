@@ -47,6 +47,7 @@ public static class IconsFontAwesome6
     public const string CircleHalfStroke    = "\uf042"; // preview (dry run)
     public const string Circle              = "\uf111"; // live
     public const string ClockRotateLeft     = "\uf1da"; // review
+    public const string Repeat              = "\uf363"; // loop
     public const string Eject               = "\uf052"; // back to live
     public const string Pause               = "\uf04c";
     public const string Stop                = "\uf04d";

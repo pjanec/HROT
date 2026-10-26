@@ -110,7 +110,9 @@ internal sealed class FakeTimeTransportFacade : ITimeTransportFacade
     public double? LastEnterReviewAtSim { get; private set; }
     public double? LastSeek { get; private set; }
     public int ExitReviewCallCount { get; private set; }
-    public void SetLoop(double from, double to) { }   // CE-3329 §12n
-    public void ClearLoop() { }
-    public (double From, double To)? Loop => null;
+    public void SetLoop(double from, double to) { LastSetLoop = (from, to); Loop = (from, to); }   // CE-3329 §12n
+    public void ClearLoop() { ClearLoopCallCount++; Loop = null; }
+    public (double From, double To)? Loop { get; set; }
+    public (double From, double To)? LastSetLoop { get; private set; }
+    public int ClearLoopCallCount { get; private set; }
 }

@@ -93,6 +93,12 @@ public sealed class AxisCursor : ITimelineCursor
     public void EnterReview(long ticks) => _inner.EnterReview(Axis.ToWall(ticks));
     public long? LivePoint => _inner.LivePoint is { } l ? Axis.ToAxis(l) : null;
 
+    // ⭐ CE-3330 E5 — the master's loop: drawn on the axis, set from the axis's range (a paused instant resolves to its END, like every conversion back)
+    public (long From, long To)? Loop => _inner.Loop is { } l ? (Axis.ToAxis(l.From), Axis.ToAxis(l.To)) : null;
+    public bool CanLoop => _inner.CanLoop;
+    public void SetLoop(long from, long to) => _inner.SetLoop(Axis.ToWall(from), Axis.ToWall(to));
+    public void ClearLoop() => _inner.ClearLoop();
+
     private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>? _marksFor;
     private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> _marks = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
 
