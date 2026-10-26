@@ -1909,7 +1909,7 @@ namespace Hrot.Editor.DebugApi
                 new("frame", "integer", false, "A frame of this node's recording"),
                 new("frames", "integer", false, "Frames forward (+) or back (-) from the one shown"),
                 new("cause", "object", false, "{frame, entity}: the frame after an event, where its effect shows (the Event browser's causality jump); select the entity with select_entity"),
-                new("next", "object", false, "{entity, component?}: the next frame where the unit changed (in that component, or any)"),
+                new("next", "object", false, "{entity, component?}: the next frame where the unit changed (in that component, or any) · {lane}: the next event in a timeline lane (get_timeline_lanes)"),
                 new("direction", "integer", false, "With next: 1 forward (default), -1 backward"),
             },
             Notes: new[]
@@ -2003,6 +2003,49 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[] { new("job", "string", true, "The job id") },
             ExampleArgsJson: "{\"job\":\"a1b2c3d4e5f6\"}",
             ExampleGist: "is the export finished, and where is the file"),
+
+        [("GET", "/timeline/lanes")] = new RouteDoc(
+            Tool:    "get_timeline_lanes",
+            Group:   "I — Replay",
+            Summary: "The Event Timeline's lanes on this host (RB-6): each lane with its event count in the shown recording's index, and the index's progress (it builds in the background on first open).",
+            Returns: "{ recording, progress, complete, error, frames, lanes:[{id, name, group, priority, glyph, indexed, count, error}] }",
+            Hint:    "No params. Example: get_timeline_lanes({})",
+            Notes: new[] { "Only a host that keeps a timeline index answers (the Replay Browser today); others: NOT_SUPPORTED_HERE(timeline.read)." },
+            ExampleArgsJson: "{}",
+            ExampleGist: "what the timeline shows, and how far its index is"),
+
+        [("GET", "/timeline/events")] = new RouteDoc(
+            Tool:    "get_timeline_events",
+            Group:   "I — Replay",
+            Summary: "One timeline lane's events in a frame range, optionally only one unit's (RB-6) — what the index already holds, no scan of the file.",
+            Returns: "{ lane, count, truncated, events:[{frame, subject, other, x, y, value}] }",
+            Hint:    "Req: lane (query). Optional from, to (frames), entity (network id), limit (default 500). Example: get_timeline_events({lane:\"shots\", entity:1042})",
+            Params: new RouteParam[]
+            {
+                new("lane", "string", true, "The lane id (get_timeline_lanes)"),
+                new("from", "integer", false, "First frame"),
+                new("to", "integer", false, "Last frame"),
+                new("entity", "number", false, "Only events of this unit (subject or other)"),
+                new("limit", "integer", false, "How many events to return (default 500, at most 5000)"),
+            },
+            Notes: new[] { "seek_replay({next:{lane}}) jumps to the next event of a lane." },
+            ExampleArgsJson: "{\"lane\":\"shots\",\"limit\":20}",
+            ExampleGist: "list a lane's events"),
+
+        [("POST", "/timeline/lanes")] = new RouteDoc(
+            Tool:    "add_timeline_lane",
+            Group:   "I — Replay",
+            Summary: "Add a user's lane to the timeline (RB-6): a descriptor and the condition that makes an event — the lane catalogue's Register; the index scans it in the background.",
+            Returns: "{ registered, note }",
+            Hint:    "Req: Lane ({Id, DisplayName, Group?, Priority?, Glyph?}) and When (a condition, as search_replay takes). Optional Payload. Example: add_timeline_lane({Lane:{Id:\"dmg\", DisplayName:\"Damage\"}, When:{\"$type\":\"PropertyMatch\", ...}})",
+            Params: new RouteParam[]
+            {
+                new("Lane", "object", true, "{Id, DisplayName, Group?, Priority?, Color?, Glyph?}"),
+                new("When", "object", true, "The condition (SearchPredicateDto JSON)"),
+                new("Payload", "object", false, "Which fields of a match to keep (ResultProjectionDto)"),
+            },
+            ExampleArgsJson: "{\"Lane\":{\"Id\":\"dmg\",\"DisplayName\":\"Damage\"},\"When\":{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Health\",\"PropertyPath\":\"Current\",\"Operator\":\"Changed\",\"Predicate\":{\"$type\":\"Numeric\"}}}",
+            ExampleGist: "add a lane that marks every health change"),
 
         [("GET", "/entities/{networkId}/journal/history")] = new RouteDoc(
             Tool:    "get_journal_history",
@@ -2206,10 +2249,25 @@ namespace Hrot.Editor.DebugApi
             Hint:    "No params. Example: get_selection({})",
             Notes: new[]
             {
-                "To point the operator at a unit, use focus_entity (centres the camera) or add_annotation — not a selection write.",
+                "To point the operator at a unit, select_entity (the panels follow the selection) and focus_entity (centres the camera).",
             },
             ExampleArgsJson: "{}",
             ExampleGist: "which unit is the operator asking about"),
+
+        [("POST", "/selection")] = new RouteDoc(
+            Tool:    "select_entity",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "Select a unit for the operator (RB-7, R-4083) — the panels that follow the selection (the inspector, the Diff, seek-to-change) then show it. Through the UI's own request path: SelectEntityCommand, applied by the host's SelectionRequestSystem on the next frame.",
+            Returns: "{ requested, note } — read get_selection after a frame",
+            Hint:    "Req: entity (number, a network id). Example: select_entity({entity:1042})",
+            Params: new RouteParam[] { new("entity", "number", true, "The unit's network id") },
+            Notes: new[]
+            {
+                "Your own reads need no selection — every per-unit route takes the id. This is for pointing the OPERATOR at a unit.",
+                "On the Replay Browser the selection joins its selection history (step_selection_history).",
+            },
+            ExampleArgsJson: "{\"entity\":1042}",
+            ExampleGist: "show the operator unit 1042 in the panels"),
 
         [("GET", "/entities/{networkId}/debug-settings")] = new RouteDoc(
             Tool:    "get_debug_settings",

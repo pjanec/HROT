@@ -158,7 +158,10 @@ class Program
             bool asks = config.RequestedSubsystems.Count == 1
                      && !config.RequestedSubsystems.Contains("orchestrator", StringComparer.OrdinalIgnoreCase)
                      && !config.RequestedSubsystems.Contains("all", StringComparer.OrdinalIgnoreCase)
-                     && !config.RequestedSubsystems.Contains("editor", StringComparer.OrdinalIgnoreCase);
+                     && !config.RequestedSubsystems.Contains("editor", StringComparer.OrdinalIgnoreCase)
+                     // ⭐ CE-3327 (R-4080) — the Replay Browser is a standalone OFFLINE host: no cluster, no master to ask. 🔴 Measured live: it
+                     //   waited for a grant forever and never opened its debug API.
+                     && !config.RequestedSubsystems.Contains("replaybrowser", StringComparer.OrdinalIgnoreCase);
             if (asks)
             {
                 var grant = Hrot.Network.NED.Factory.NodeIdBroker.AwaitGrant(
@@ -761,8 +764,14 @@ class Program
             }
             else
             {
-                // Fallback to the internal headless simulation loop for CI/background tasks
-                orchestrator.Run();
+                // Fallback to the internal headless simulation loop for CI/background tasks.
+                // ⭐ CE-3327 — the frame boundary ③ + ④ above, headless too: 🔴 before, nothing drained the API's jobs here, so a headless
+                //   node with no editor (-m cgf --headless, -m replaybrowser --headless) answered no main-thread route, ever.
+                orchestrator.Run(clusterApiQueue is null ? null : () =>
+                {
+                    clusterApiQueue.DrainAll();
+                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
+                });
             }
         }
         finally

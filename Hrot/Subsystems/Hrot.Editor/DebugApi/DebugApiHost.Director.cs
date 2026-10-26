@@ -245,9 +245,18 @@ namespace Hrot.Editor.DebugApi
 
         // ── layers (R-4060) ───────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// The editor's layer control, else the ACTIVE provider's map (⭐ CE-3327 RB-8): every map host's pack builds one over its gizmo buffer
+        /// (<c>MapInteractionPack.LayerControlFor</c>), so the Replay Browser, CGF and IG answer <c>/map/layers</c> too. 🔴 Before, only the editor's
+        /// director attach supplied it and every other host answered 503.
+        /// </summary>
+        private Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo? LayerControl()
+            => _layerControl?.Invoke()
+               ?? (_dispatcher?.GizmoBuffer is { } buffer ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(buffer) : null);
+
         private RouteResult LayersRead(string? view)
         {
-            if (_layerControl?.Invoke() is not { } lc) return Fail(503, "This host has no map layer control.");
+            if (LayerControl() is not { } lc) return Fail(503, "This host has no map layer control.");
             bool? only3D = view switch { "3d" or "3D" => true, "2d" or "2D" => false, _ => null };
             var o = new JsonObject { ["shown"] = lc.Shows3D ? "3d" : "2d", ["override"] = lc.Override != null };
             foreach (var is3D in new[] { false, true })
@@ -267,7 +276,7 @@ namespace Hrot.Editor.DebugApi
 
         private RouteResult LayersWrite(JsonNode? body)
         {
-            if (_layerControl?.Invoke() is not { } lc) return Fail(503, "This host has no map layer control.");
+            if (LayerControl() is not { } lc) return Fail(503, "This host has no map layer control.");
             var view = body?["view"]?.ToString();
             bool is3D = view switch { "3d" or "3D" => true, "2d" or "2D" => false, _ => lc.Shows3D };
             static List<string> Names(JsonNode? n) => n is JsonArray a ? a.Select(x => x?.ToString() ?? "").Where(x => x.Length > 0).ToList() : new();

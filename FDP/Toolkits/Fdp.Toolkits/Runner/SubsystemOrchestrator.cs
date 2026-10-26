@@ -101,11 +101,16 @@ namespace Fdp.Toolkit.Runner
         /// <summary>
         /// Runs the frame loop, blocking until <see cref="Stop"/> is called.
         /// </summary>
-        public void Run()
+        /// <param name="beforeFrame">
+        /// ⭐ CE-3327 — the host's frame-boundary work, run first each frame (the windowed loop's order): the cluster debug API drains its
+        /// main-thread jobs here. 🔴 Measured live: without it a headless node with no editor never answered a main-thread route.
+        /// </param>
+        public void Run(Action? beforeFrame = null)
         {
             _frameTimer = Stopwatch.StartNew();
             while (_running)
             {
+                beforeFrame?.Invoke();
                 DrainConsoleActions();
                 float dt = GetDeltaTime();
                 Update(dt);

@@ -1110,6 +1110,14 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
         provider.Master.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = TimeSpan.FromSeconds(1).Ticks });
         Assert.Equal(1.0, provider.Drive.TotalTime, 3);
+
+        // ⭐ CE-3327 — the headless runner hands this host NO time (dt 0): it keeps its own clock, so play still moves (🔴 measured live: it did not)
+        provider.Drive.TogglePlayPause();
+        _subsystem.Update(0f);                                                // starts the host's own clock
+        System.Threading.Thread.Sleep(60);
+        _subsystem.Update(0f);
+        Assert.True(_subsystem.PrimaryNodeCurrentFrame() > 1, $"frame {_subsystem.PrimaryNodeCurrentFrame()}: play did not advance on dt 0");
+        if (!provider.Drive.IsPaused) provider.Drive.TogglePlayPause();
         provider.Drive.SetTimeScale(4f);
         Assert.Equal(4f, provider.Drive.TimeScale);
 
@@ -1262,5 +1270,51 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Contains("window", rb.Export(new Hrot.Presentation.DebugApi.ReplayExportRequest(Window: "sideways")).Error);
         Assert.Contains("not in the shown world", rb.Export(new Hrot.Presentation.DebugApi.ReplayExportRequest(Entities: new long[] { 999 })).Error);
         Assert.Null(rb.ExportStatus("no-such-job"));
+    }
+
+    /// <summary>
+    /// ⭐ RB-7 (R-4083) — on a HEADLESS Replay Browser a selection asked over HTTP (<c>SelectEntityCommand</c>) is applied by the same
+    /// <c>SelectionRequestSystem</c> a click goes through (the host builds the map pack on its first open), and joins the selection
+    /// history, which steps back. 🔴 Before: a headless host built no selection systems, so the command was a silent no-op.
+    /// </summary>
+    [Fact]
+    public void RB7_ASelection_IsAppliedByTheSelectionSystems_AndJoinsTheSelectionHistory_OnAHeadlessHost()
+    {
+        string path = Path.Combine(_tempDir, "select", "node_1.fdp");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using (var repo = new EntityRepository())
+        {
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
+            repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 101 });
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            rec.CaptureKeyframe(repo, TimeSpan.FromSeconds(1).Ticks, blocking: true, eventBus: repo.Bus);
+        }
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var p = _subsystem.CreateDebugProvider()!;
+        Assert.Null(p.ReplayBrowser!.Open(new[] { path }, 0));
+
+        long? Primary()
+        {
+            var w = p.World!;
+            foreach (var e in w.Query().With<Hrot.IG.Components.SelectionState>().Build())
+            {
+                ref readonly var st = ref w.GetComponentRO<Hrot.IG.Components.SelectionState>(e);
+                if (st.IsPrimarySelection) return w.GetComponentRO<NetworkIdentity>(e).Value;
+            }
+            return null;
+        }
+        void Select(long id) { p.World!.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = id }); Frames(2); }
+        void Frames(int n) { for (int i = 0; i < n; i++) _subsystem.Update(1f / 60f); }
+
+        Select(100);
+        Assert.Equal(100, Primary());
+        Select(101);
+        Assert.Equal(101, Primary());
+        Assert.Null(p.ReplayBrowser.SelectionHistory(back: true));
+        Frames(2);
+        Assert.Equal(100, Primary());
+        Assert.NotNull(p.ReplayBrowser.SelectionHistory(back: true));                  // nothing before the first
     }
 }

@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Panels.ReplayBrowser;
 using Fdp.Toolkit.Behavior;
 using Hrot.CGF.Configuration;
@@ -106,6 +107,12 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             _timelinePanel?.SetManager(_manager);
             _playbackHistory.Clear();
             IsPlaying = false;
+            // ⭐ RB-7 — a headless host builds the map pack on its first open (it has no world before), through the one construction
+            if (_headless && _selectionRequests == null && _activeRepo != null)
+            {
+                _inspectorState ??= new InspectorState();
+                BuildMapInteraction(_activeRepo, BehaviorRegistryLoaded());
+            }
             return null;
         }
         catch (LoadGroupException ex) { return ex.Message; }
@@ -172,6 +179,23 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         _playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), selected);
         _manager.SetBaseWallTicks(target);
         _playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), selected);
+    }
+
+    // ── The selection history follows the selection (RB-3 / RB-7) ─────────────────────────────────────────────────────
+
+    private Entity _historySelected = Entity.Null;
+
+    /// <summary>
+    /// ⭐ RB-7 — every selection joins the selection history, whatever made it: a click, a panel's entity link, <c>POST /selection</c>
+    /// (<c>SelectEntityCommand</c> through <c>SelectionRequestSystem</c>). ⭐ The history's own back / forward does not push (it is
+    /// navigating, and the entry it lands on is already there).
+    /// </summary>
+    private void FollowTheSelectionIntoItsHistory()
+    {
+        var selected = _selectionView?.PrimarySelected ?? Entity.Null;
+        if (selected == _historySelected) return;
+        _historySelected = selected;
+        if (!selected.IsNull) _entityHistory.PushSelection(selected);
     }
 
     // ── The event history at the shown frame (RB-5) ───────────────────────────────────────────────────────────────────
@@ -254,6 +278,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     private string? PrimaryRecordingPath
         => _manager != null && _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) ? ctx.CurrentFdpPath : null;
 
+    private TimelineAccess? _timelineAccess;
     private ReplayBrowserMasterControl? _masterControl;
     private ReplayBrowserTransport? _transport;
     private ReplayBrowserControl? _browserControl;
@@ -553,6 +578,18 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     private void WireHeadlessHistories()
     {
         _playbackHistory.OnWaypointRequested += wp => SeekFrameViaManager(wp.FrameIndex);
+        _entityHistory.OnSelectionChanged += e => RequestSelectionFromHistory(e);   // ⭐ RB-7 — the windowed host's handler, minus its panel
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ UXI-11 S-3b — a step through the selection history REQUESTS the selection (the map ring and the inspector follow it through
+    /// <c>SelectionRequestSystem</c>), on a windowed and a headless host alike. <see langword="false"/> when no world is shown.
+    /// </summary>
+    private bool RequestSelectionFromHistory(Entity e)
+    {
+        if (_activeRepo == null) return false;
+        _activeRepo.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(e, "Replay.History"));
+        return true;
     }
 
     /// <summary>
@@ -581,5 +618,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             replayPosition: () => ReplayZeroTicks is { } z && _manager is { } m ? new ReplayPosition(z, m.BaseWallTicks) : null,
             // ⭐ RB-5 — the shown frame's recorded events
             eventHistory:  () => PrimaryEventHistory,
+            // ⭐ RB-6 — the shown node's timeline index and this host's lane catalogue
+            timeline:      () => _timelineAccess ??= new TimelineAccess(() => _timelineSource, _timelineLanes, TimelineContext),
             replayBrowser: () => BrowserControl);
 }

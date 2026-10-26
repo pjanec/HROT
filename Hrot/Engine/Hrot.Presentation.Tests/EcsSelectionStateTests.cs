@@ -427,4 +427,32 @@ public sealed class EcsSelectionStateTests
             try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
         }
     }
+
+    /// <summary>⭐ CE-3327 RB-7 — a view over the world a host SHOWS (the Replay Browser switches it under one map): it reads and writes
+    /// whichever world the provider names now, never the one it was built over.</summary>
+    [Fact]
+    public void RB7_AViewOverAWorldProvider_FollowsTheShownWorld()
+    {
+        using var other = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(other);
+        other.RegisterComponent<SelectionState>();
+        EntityRepository shown = _world;
+        var view = new EcsSelectionState(() => shown);
+
+        var inFirst = NewEntity();
+        view.PrimarySelected = inFirst;
+        Assert.True(ComponentOf(inFirst).IsPrimarySelection);
+
+        shown = other;
+        Assert.Null(view.PrimarySelected);                                    // the shown world has no selection yet
+        var inOther = other.CreateEntity();
+        other.AddComponent(inOther, new NetworkIdentity { Value = 9_900L });
+        other.AddComponent(inOther, new SelectionState());
+        view.PrimarySelected = inOther;
+        Assert.True(other.GetComponentRO<SelectionState>(inOther).IsPrimarySelection);
+        Assert.Equal(inOther, view.PrimarySelected);
+
+        shown = _world;
+        Assert.Equal(inFirst, view.PrimarySelected);                          // and back
+    }
 }

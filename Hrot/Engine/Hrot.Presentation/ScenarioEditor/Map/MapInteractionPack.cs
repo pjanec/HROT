@@ -257,7 +257,9 @@ namespace Hrot.ScenarioEditor.Map
             //    and the three gizmo systems this pack was written for, and the same cure.
             // ⛔ The pack still CONSTRUCTS ONLY. Scheduling stays the host's, per the 2026-08-28 ruling
             //   and enforced structurally: MapInteractionContext carries no kernel.
-            var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+            var selection = ctx.SelectionWorld is { } selectionWorld
+                ? new Hrot.ScenarioEditor.Selection.EcsSelectionState(selectionWorld)   // ⭐ CE-3327 RB-7 — a host that switches its shown world
+                : new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
 
             // ⭐⭐⭐ THE MARQUEE, BUILT AND DRAWN HERE SO ALL FIVE HOSTS HAVE ONE.
             // 🔒 User ruling, 2026-09-20: "any perspective showing 2d map should support marquee and

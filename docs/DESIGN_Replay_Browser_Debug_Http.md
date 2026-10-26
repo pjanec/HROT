@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — steps 1–3 (RB-1…RB-5) BUILT 2026-10-26, as-built in §7; R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
-updated: 2026-10-26 (§7.3 step 3 as-built — view, histories, export jobs) · 2026-10-26 (§7.2 step 2 as-built — the seek forms on every host, lifecycle search, /events; the lifecycle search's network-id defect fixed) · 2026-10-26 (§7 step 1 as-built — backend) · 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
+build-state: BUILT — steps 1–4 (RB-1…RB-8) BUILT 2026-10-26, as-built in §7 (step 4 §7.4; the windowed map's boot-world binding left as CE-3328); R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
+updated: 2026-10-26 (§7.4 step 4 as-built — timeline reads, POST /selection, the map headless; the shown world's bus and the selection's world fixed) · 2026-10-26 (§7.3 step 3 as-built — view, histories, export jobs) · 2026-10-26 (§7.2 step 2 as-built — the seek forms on every host, lifecycle search, /events; the lifecycle search's network-id defect fixed) · 2026-10-26 (§7 step 1 as-built — backend) · 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
 current-answer: §0 rulings and leans · §1 before / now / needed · §2 the feature map · §3 UML · §4 claim table · §5 INVENTORY · §6 build · §7 as-built (where it deviates from §3)
 stale-below: none
 known-rot: none
@@ -252,3 +252,43 @@ Rails: `ReplayBrowserSubsystemTests.RB3_*` (node / merged view; the playback his
 byte-identical to the panel's export for the same options; bad window, unknown unit, unknown job), `TheClusterControlRoutesTests.RB3_*` (a cluster host
 refuses all four; a malformed direction is told so).
 
+
+### 7.4 Step 4 — RB-6 the timeline reads, RB-7 `POST /selection`, RB-8 the map
+
+| as built | where | why / deviation |
+|---|---|---|
+| `GET /timeline/lanes` (the lanes that apply, each with its count, error and the index's progress), `GET /timeline/events?lane=&from=&to=&entity=&limit=`, `POST /timeline/lanes {Lane, When, Payload?}` (a user's lane — the catalogue's own `Register`; the index scans it in the background) | `DebugApiService.Timeline.cs` | RB-6. ⭐ A new provider member `Timeline` (`TimelineAccess`: the source, the catalogue, the lane context) — the Replay Browser passes the index its Event Timeline panel draws (`SyncTimelineSource`, now run headless too); every other host answers `NOT_SUPPORTED_HERE(timeline.read)` |
+| `POST /replay/seek {next: {lane}, direction}` — the next / previous event in a lane, a lookup in the same index | `DebugApiService.ReplaySeek.cs` | RB-2's `next`, for lanes |
+| `POST /selection {entity}` on every host — a `SelectEntityCommand` on the shown world, applied by its `SelectionRequestSystem` on the next frame; refused where the world registers no selection | `DebugApiService.SelectEntity` | RB-7 (R-4083). ⛔ never a direct `SelectionState` write (AV-4) |
+| the map pack's systems run on a HEADLESS Replay Browser too — it builds the pack on its first open (`BuildMapInteraction`, extracted from `Initialize`); only the mouse gesture system needs a window | `ReplayBrowserSubsystem.Update`, `OpenGroup` | ⭐ so `POST /selection`, `/selection/history`, `/entities/{id}/focus` go through the systems a click does |
+| 🔴 **FOUND AND FIXED** — nothing swapped the SHOWN world's own bus: the Replay Browser swapped only the interaction bus, so everything published on the shown world (`SelectEntityCommand`, the inspector's `SelectionChangeRequest`, `CenterOnEntityCommand` from `/focus`) was never read. ⭐ Swapped once a frame before the systems, as a kernel does (`ModuleHostKernel.cs:657`) | `ReplayBrowserSubsystem.Update` | ⚠ safe: the playback injects the recorded events into the context's separate `SandboxBus` |
+| 🔴 **FOUND AND FIXED** — the pack's selection view was bound to the world it was BUILT over (`MapInteractionPack.cs:260`); on the Replay Browser that is the boot world (windowed) or the first opened one (headless), while the shown world switches per node / merged view. ⭐ `EcsSelectionState(Func<EntityRepository>)` + `MapInteractionContext.SelectionWorld`; the Replay Browser passes `() => _activeRepo` | `EcsSelectionState.cs`, `MapInteractionContext.cs`, `MapInteractionPack.cs` | ⚠ cross-lane (ui's files), additive: every other host passes nothing and keeps its fixed world. ⛔ **NOT fixed, filed as CE-3328:** the windowed gesture system (`SelectionInteractionSystem`) and the map's order / RTS / authoring pieces are still built over the boot world — a click on a loaded recording resolves its pick there |
+| 🔴 **FOUND LIVE AND FIXED** — `-m replaybrowser` with no `-n` asked a cluster master for a node id (C1, R-4009) and waited forever: the offline host never opened its debug API | `Hrot.ClusterRunner/Program.cs` (the C1 exemptions) | ⭐ the Replay Browser joins orchestrator / all / editor as a launch that never asks — R-4080: it is a standalone offline host |
+| 🔴 **FOUND LIVE AND FIXED** — on a HEADLESS host without the editor nothing drained the cluster debug API's main-thread jobs: `orchestrator.Run()` loops the updates, only the windowed loop drained the queue. ⇒ every main-thread route (`/status` included) hung on `-m replaybrowser --headless`, `-m cgf --headless`, … since the API was added (`3d5743a84`) | `SubsystemOrchestrator.Run(beforeFrame)`, `Program.cs` | ⭐ the headless loop runs the same frame boundary (drain, then clear the panel captures) before each update |
+| 🔴 **FOUND LIVE AND FIXED** — headless play never moved: a non-deterministic headless orchestrator hands its hosts `dt = 0` (`SubsystemOrchestrator.GetDeltaTime`); kernel hosts keep their own clocks, this one advanced playback by `dt`. ⭐ The Replay Browser keeps its own wall clock when handed none | `ReplayBrowserSubsystem.Update` | ⛔ not by changing the orchestrator's `dt` — every headless host would see it |
+| 🔴 **FOUND LIVE AND FIXED** — `GET/POST /map/layers` answered 503 on every host but the editor: only the editor's director attach supplied the layer control. ⭐ The route falls back to the ACTIVE provider's map — the pack builds a layer control over every host's gizmo buffer (`MapInteractionPack.LayerControlFor`) | `DebugApiHost.LayerControl()` | RB-8; CGF and IG gain it too |
+| ⚠ `EditorFileOpsIntegrationTests` cleared the process-global `ComponentTypeRegistry` while other classes ran: the recording rails (`RB2_*`, `RB5_*`) went red 2 of 3 full-suite runs, green alone | the suite's existing serial collection (`PanelSnapshotTestCollection`, "any process-global") | ⭐ adopted, not a new collection — green 4 / 4 full runs after |
+
+Rails: `TheClusterControlRoutesTests.RB6_*` ×2 (lanes and events from the index, a lane seek; a host with no index says so), `RB7_*` (a `SelectEntityCommand` on the
+shown world, never a state write); `ReplayBrowserSubsystemTests.RB7_*` (⭐ red-proved twice on the way: no bus swap ⇒ never applied; no headless history
+handler ⇒ back did not move it); `EcsSelectionStateTests.RB7_AViewOverAWorldProvider_FollowsTheShownWorld`; `SubsystemOrchestratorTests.HeadlessMode_Run_RunsTheFrameBoundaryWork_BeforeEachUpdate`.
+
+**The live check** *(`2026-10-26`, backend)*: ua-tank-ammo recorded by a headless editor (one node, 1193 frames), then a `-m replaybrowser` host driven
+over plain HTTP through every §2 row — once `--headless`, once windowed under Xvfb.
+
+| §2 row | headless | windowed |
+|---|---|---|
+| exercises · open newest at 1 s · open by path · status (`browser`: frame 9 of 1193, span 16.7 s) · stop → Idle | ✅ | ✅ |
+| play 1 s (60 frames) · pause · step · rate 2 | ✅ *(after the `dt = 0` fix)* | ✅ |
+| seek `atSeconds` · `frame` · `frames: -1` · rewind · `next` change ± (found, frames 9 / 0) · `cause` (frame 41) · `next` lane (none after 101: said so) | ✅ | ✅ |
+| entities (30) · typed entity dump · brain · journal · journal history (4 entries) | ✅ | ✅ |
+| lifecycle search (span 0–1192) · condition search (3 hits) · diff capture → seek → compare | ✅ | ✅ |
+| `POST /selection` · `GET /selection` · second unit · selection history back → the first | ✅ | ✅ |
+| export job (frames 0–60, changelog, one unit) · playback history back / forward · view merged / node | ✅ | ✅ |
+| timeline lanes (9, indexed) · lane events · a user lane | ✅ | ✅ |
+| `GET /view` · follow | ✅ says "no map canvas" (409 on follow) — truthful headless | ✅ camera, follow |
+| focus · debug-settings · `/map/layers` | ✅ | ✅ |
+| `GET /events` at frame 101 | `[]` — the frame carries none; ⚠ a non-empty read is proven by `RB5_*`, not live | same |
+
+⚠ `GET /capabilities` on a headless host before the first open reports `world.read: false` — the cells are measured from what is wired NOW, and no
+world exists until a recording opens. ⛔ Not a defect; an agent opens first.

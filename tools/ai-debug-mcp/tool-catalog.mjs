@@ -1866,7 +1866,7 @@ export const TOOLS_CATALOG = [
         "name": "next",
         "type": "object",
         "required": false,
-        "description": "{entity, component?}: the next frame where the unit changed (in that component, or any)"
+        "description": "{entity, component?}: the next frame where the unit changed (in that component, or any) · {lane}: the next event in a timeline lane (get_timeline_lanes)"
       },
       {
         "name": "direction",
@@ -1989,6 +1989,133 @@ export const TOOLS_CATALOG = [
       "gist": "select the unit selected before"
     },
     "hint": "Req: direction (\"back\" | \"forward\"). Example: step_selection_history({direction:\"back\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_timeline_events",
+    "group": "I — Replay",
+    "summary": "One timeline lane's events in a frame range, optionally only one unit's (RB-6) — what the index already holds, no scan of the file.",
+    "http": {
+      "method": "GET",
+      "path": "/timeline/events"
+    },
+    "params": [
+      {
+        "name": "lane",
+        "type": "string",
+        "required": true,
+        "description": "The lane id (get_timeline_lanes)"
+      },
+      {
+        "name": "from",
+        "type": "integer",
+        "required": false,
+        "description": "First frame"
+      },
+      {
+        "name": "to",
+        "type": "integer",
+        "required": false,
+        "description": "Last frame"
+      },
+      {
+        "name": "entity",
+        "type": "number",
+        "required": false,
+        "description": "Only events of this unit (subject or other)"
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false,
+        "description": "How many events to return (default 500, at most 5000)"
+      }
+    ],
+    "returns": "{ lane, count, truncated, events:[{frame, subject, other, x, y, value}] }",
+    "notes": [
+      "seek_replay({next:{lane}}) jumps to the next event of a lane."
+    ],
+    "example": {
+      "args": {
+        "lane": "shots",
+        "limit": 20
+      },
+      "gist": "list a lane's events"
+    },
+    "hint": "Req: lane (query). Optional from, to (frames), entity (network id), limit (default 500). Example: get_timeline_events({lane:\"shots\", entity:1042})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_timeline_lanes",
+    "group": "I — Replay",
+    "summary": "The Event Timeline's lanes on this host (RB-6): each lane with its event count in the shown recording's index, and the index's progress (it builds in the background on first open).",
+    "http": {
+      "method": "GET",
+      "path": "/timeline/lanes"
+    },
+    "params": [],
+    "returns": "{ recording, progress, complete, error, frames, lanes:[{id, name, group, priority, glyph, indexed, count, error}] }",
+    "notes": [
+      "Only a host that keeps a timeline index answers (the Replay Browser today); others: NOT_SUPPORTED_HERE(timeline.read)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "what the timeline shows, and how far its index is"
+    },
+    "hint": "No params. Example: get_timeline_lanes({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "add_timeline_lane",
+    "group": "I — Replay",
+    "summary": "Add a user's lane to the timeline (RB-6): a descriptor and the condition that makes an event — the lane catalogue's Register; the index scans it in the background.",
+    "http": {
+      "method": "POST",
+      "path": "/timeline/lanes"
+    },
+    "params": [
+      {
+        "name": "Lane",
+        "type": "object",
+        "required": true,
+        "description": "{Id, DisplayName, Group?, Priority?, Color?, Glyph?}"
+      },
+      {
+        "name": "When",
+        "type": "object",
+        "required": true,
+        "description": "The condition (SearchPredicateDto JSON)"
+      },
+      {
+        "name": "Payload",
+        "type": "object",
+        "required": false,
+        "description": "Which fields of a match to keep (ResultProjectionDto)"
+      }
+    ],
+    "returns": "{ registered, note }",
+    "example": {
+      "args": {
+        "Lane": {
+          "Id": "dmg",
+          "DisplayName": "Damage"
+        },
+        "When": {
+          "$type": "PropertyMatch",
+          "ComponentType": "Health",
+          "PropertyPath": "Current",
+          "Operator": "Changed",
+          "Predicate": {
+            "$type": "Numeric"
+          }
+        }
+      },
+      "gist": "add a lane that marks every health change"
+    },
+    "hint": "Req: Lane ({Id, DisplayName, Group?, Priority?, Glyph?}) and When (a condition, as search_replay takes). Optional Payload. Example: add_timeline_lane({Lane:{Id:\"dmg\", DisplayName:\"Damage\"}, When:{\"$type\":\"PropertyMatch\", ...}})",
     "manualVerify": false
   },
 
@@ -3560,13 +3687,44 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "{ primary, selection:[networkId] }",
     "notes": [
-      "To point the operator at a unit, use focus_entity (centres the camera) or add_annotation — not a selection write."
+      "To point the operator at a unit, select_entity (the panels follow the selection) and focus_entity (centres the camera)."
     ],
     "example": {
       "args": {},
       "gist": "which unit is the operator asking about"
     },
     "hint": "No params. Example: get_selection({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "select_entity",
+    "group": "O — Manual-assist (focus / annotations)",
+    "summary": "Select a unit for the operator (RB-7, R-4083) — the panels that follow the selection (the inspector, the Diff, seek-to-change) then show it. Through the UI's own request path: SelectEntityCommand, applied by the host's SelectionRequestSystem on the next frame.",
+    "http": {
+      "method": "POST",
+      "path": "/selection"
+    },
+    "params": [
+      {
+        "name": "entity",
+        "type": "number",
+        "required": true,
+        "description": "The unit's network id"
+      }
+    ],
+    "returns": "{ requested, note } — read get_selection after a frame",
+    "notes": [
+      "Your own reads need no selection — every per-unit route takes the id. This is for pointing the OPERATOR at a unit.",
+      "On the Replay Browser the selection joins its selection history (step_selection_history)."
+    ],
+    "example": {
+      "args": {
+        "entity": 1042
+      },
+      "gist": "show the operator unit 1042 in the panels"
+    },
+    "hint": "Req: entity (number, a network id). Example: select_entity({entity:1042})",
     "manualVerify": false
   },
 

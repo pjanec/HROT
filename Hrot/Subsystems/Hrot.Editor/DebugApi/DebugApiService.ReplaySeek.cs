@@ -74,8 +74,24 @@ namespace Hrot.Editor.DebugApi
                 }
                 if (body["next"] is JsonObject next)
                 {
+                    // ⭐ RB-2 — the next / previous event in a timeline lane: a lookup in the index the host keeps (RB-6)
+                    if (next["lane"]?.ToString() is { Length: > 0 } laneId)
+                    {
+                        var index = _dispatcher?.Timeline?.Source()?.Index;
+                        if (index is null || !index.Has(laneId))
+                            return (null, $"Lane '{laneId}' is not in this host's timeline index (GET /timeline/lanes).", DebugApiHints.Scenario, null);
+                        bool forward = !(body["direction"] is JsonNode dl && Int(dl) < 0);
+                        var events = forward ? index.Events(laneId, now + 1, int.MaxValue) : index.Events(laneId, 0, now - 1);
+                        if (events.Length == 0)
+                            return (new JsonObject { ["found"] = false, ["published"] = false,
+                                                     ["note"] = $"No '{laneId}' event {(forward ? "after" : "before")} frame {now}." }, null, null, null);
+                        var hit = forward ? events[0] : events[^1];
+                        var seekLane = SeekReplayToFrame(hit.Frame, "lane");
+                        if (seekLane.Result is JsonObject ol) { ol["found"] = true; ol["subject"] = hit.Subject; }
+                        return Done(seekLane);
+                    }
                     if (next["entity"] is null)
-                        return (null, "next.entity is required: {\"next\": {\"entity\": 1042, \"component\": \"Health\"}, \"direction\": 1}.", DebugApiHints.Scenario, null);
+                        return (null, "next.entity (or next.lane) is required: {\"next\": {\"entity\": 1042, \"component\": \"Health\"}, \"direction\": 1}.", DebugApiHints.Scenario, null);
                     int direction = body["direction"] is JsonNode d && Int(d) < 0 ? -1 : 1;
                     return (null, null, null, new ChangeScan(path, now, Long(next["entity"]!),
                         next["component"]?.ToString(), direction, LookupSerializer));

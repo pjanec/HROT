@@ -113,6 +113,7 @@ public static class CapabilityManifest
         if (path.StartsWith("/behaviors", StringComparison.Ordinal))   return DebugCapabilities.WorldRead;
         if (path.StartsWith("/annotations", StringComparison.Ordinal)) return DebugCapabilities.WorldRead;
         if (path.StartsWith("/view", StringComparison.Ordinal))        return DebugCapabilities.WorldRead;   // ⭐ CE-1262
+        if (path.StartsWith("/timeline", StringComparison.Ordinal)) return Hrot.Presentation.DebugApi.DebugCapabilities.TimelineRead;   // RB-6
         if (path.StartsWith("/selection/history", StringComparison.Ordinal)) return Hrot.Presentation.DebugApi.DebugCapabilities.ReplayBrowser;   // RB-3
         if (path.StartsWith("/selection", StringComparison.Ordinal))   return DebugCapabilities.WorldRead;   // ⭐ CE-1263
         if (path.StartsWith("/trace", StringComparison.Ordinal))       return DebugCapabilities.WorldRead;

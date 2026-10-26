@@ -68,6 +68,13 @@ namespace Hrot.ScenarioEditor.Map
         public required EntityRepository World { get; init; }
 
         /// <summary>
+        /// ⭐ CE-3327 RB-7 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c> §7.4) — the world the SELECTION is read and written in, when a
+        /// host switches the world it shows under one map (the Replay Browser: a node's sandbox, the merged world). Optional: null means
+        /// <see cref="World"/>. Must never return <see langword="null"/>.
+        /// </summary>
+        public Func<EntityRepository>? SelectionWorld { get; init; }
+
+        /// <summary>
         /// ⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-1 / HA-2) — THE HOST'S actions (registry, interaction bus, dispatch), made by
         /// the host at its start (<see cref="SharedHostActions.Create"/>). The pack registers only the MAP's actions on it. Optional for a
         /// test (the pack makes one); 🔒 every host HOLDS one and PASSES it (R-67). ⛔ SUPERSEDED: an optional <c>InteractionBus</c> here, and

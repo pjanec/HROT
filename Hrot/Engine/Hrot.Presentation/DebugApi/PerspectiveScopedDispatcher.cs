@@ -248,6 +248,9 @@ public sealed class PerspectiveScopedDispatcher
     /// <summary>⭐ RB-5 — the ACTIVE provider's event history. ⛔ No fallback: another node's events would answer about the wrong world.</summary>
     public Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory => Active()?.EventHistory;
 
+    /// <summary>⭐ RB-6 — the ACTIVE provider's timeline index. ⛔ No fallback: an index describes one node's recording.</summary>
+    public TimelineAccess? Timeline => Active()?.Timeline;
+
     /// <summary>⭐ <c>R-3055</c> — the loaded replay's length from whichever node caches it.</summary>
     public float? ReplayDurationAnyNode
         => Active()?.ReplayDurationSeconds

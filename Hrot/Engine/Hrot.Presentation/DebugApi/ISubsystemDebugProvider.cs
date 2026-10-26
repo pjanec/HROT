@@ -62,6 +62,15 @@ public sealed record DiagnosticDumpStatus(bool InFlight, IReadOnlyList<string> M
 /// </summary>
 public readonly record struct ReplayPosition(long ZeroWallTicks, long NowWallTicks);
 
+/// <summary>
+/// ⭐ RB-6 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — a host's timeline: the index of the shown recording (it may still be
+/// building), the lane catalogue it was built from (a user's lane is registered there) and the context the lanes apply in.
+/// </summary>
+public sealed record TimelineAccess(
+    Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> Source,
+    Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog Catalog,
+    Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext Context);
+
 public sealed record ClusterRosterEntry(
     int NodeId, string Subsystem, string ReportedState, string Roles, double SecondsSinceHeartbeat);
 
@@ -229,6 +238,9 @@ public interface ISubsystemDebugProvider
     /// <see langword="null"/> where none is kept.</summary>
     Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory { get; }
 
+    /// <summary>⭐ RB-6 — this host's timeline index (<c>GET /timeline/*</c>); <see langword="null"/> where none is kept.</summary>
+    TimelineAccess? Timeline { get; }
+
     ClusterState? ClusterState { get; }
 
     /// <summary>
@@ -330,6 +342,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<IReplayBrowserControl?>? _replayBrowser;   // RB-3
     private readonly Func<ReplayPosition?>? _replayPosition;          // RB-2
     private readonly Func<Fdp.Core.Diagnostics.IDiagnosticEventHistoryService?>? _eventHistory;   // RB-5
+    private readonly Func<TimelineAccess?>? _timeline;   // RB-6
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
     private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
@@ -390,7 +403,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<IReplayBrowserControl?>? replayBrowser = null,
         // ⭐ RB-2 — the replay's zero and now (frame-based seeks); RB-5 — the host's event history.
         Func<ReplayPosition?>? replayPosition = null,
-        Func<Fdp.Core.Diagnostics.IDiagnosticEventHistoryService?>? eventHistory = null)
+        Func<Fdp.Core.Diagnostics.IDiagnosticEventHistoryService?>? eventHistory = null,
+        // ⭐ RB-6 — the host's timeline index (only the Replay Browser keeps one today).
+        Func<TimelineAccess?>? timeline = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -408,6 +423,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _replayBrowser = replayBrowser;
         _replayPosition = replayPosition;
         _eventHistory = eventHistory;
+        _timeline = timeline;
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
         _architecture = architecture;
@@ -553,6 +569,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public IReplayBrowserControl? ReplayBrowser => _replayBrowser?.Invoke();
     public ReplayPosition? ReplayPosition => _replayPosition?.Invoke();
     public Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory => _eventHistory?.Invoke();
+    public TimelineAccess? Timeline => _timeline?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
@@ -611,6 +628,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         [DebugCapabilities.TkbRead] = TkbDb is not null,
         // ⭐ RB-3 — the standalone Replay Browser's own routes (view, histories, export); measured from the seam being wired.
         [DebugCapabilities.ReplayBrowser] = ReplayBrowser is not null,
+        // ⭐ RB-6 — a timeline index (only the Replay Browser keeps one today; the editor's live one is not built).
+        [DebugCapabilities.TimelineRead] = Timeline is not null,
     };
 }
 
@@ -679,4 +698,6 @@ public static class DebugCapabilities
     /// <summary>⭐ RB-3 — the Replay Browser's own routes (<c>/replay/view</c>, <c>/replay/history</c>, <c>/selection/history</c>,
     /// <c>/replay/export</c>): only the standalone Replay Browser answers them.</summary>
     public const string ReplayBrowser = "replay.browser";
+    /// <summary>⭐ RB-6 — the timeline index's routes (<c>/timeline/lanes</c>, <c>/timeline/events</c>).</summary>
+    public const string TimelineRead = "timeline.read";
 }

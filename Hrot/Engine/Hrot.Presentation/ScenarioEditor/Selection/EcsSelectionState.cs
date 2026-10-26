@@ -45,8 +45,9 @@ namespace Hrot.ScenarioEditor.Selection;
 /// </summary>
 public sealed class EcsSelectionState : ISelectionState
 {
-    private readonly EntityRepository _world;
-    private readonly EntityQuery      _withSelectionState;
+    private readonly System.Func<EntityRepository> _worldOf;
+    private EntityRepository? _queryWorld;
+    private EntityQuery?      _query;
 
     // The last observation, kept so that Version bumps on a real change and only on a real change.
     private readonly List<Entity> _observed     = new();
@@ -56,14 +57,34 @@ public sealed class EcsSelectionState : ISelectionState
 
     public EcsSelectionState(EntityRepository world)
     {
-        _world = world ?? throw new System.ArgumentNullException(nameof(world));
-        // ⭐ Built once. Safe across frames: EntityEnumerator snapshots MaxIssuedIndex in ITS OWN
-        //   constructor (EntityQuery.cs:120), i.e. per foreach -- not at Build() -- so entities
-        //   created later are still seen.
-        _withSelectionState = _world.Query()
-            .With<SelectionStateComponent>()
-            .WithLifecycle(EntityLifecycle.All)
-            .Build();
+        if (world is null) throw new System.ArgumentNullException(nameof(world));
+        _worldOf = () => world;
+    }
+
+    /// <summary>
+    /// ⭐ CE-3327 RB-7 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c> §7.4) — a view over the world a host SHOWS, resolved per call: the
+    /// Replay Browser switches its shown world (a node's sandbox, the merged world) under one map, and a view pinned to the world it was
+    /// built over selected in a world nobody looks at. <paramref name="world"/> must never return <see langword="null"/>.
+    /// </summary>
+    public EcsSelectionState(System.Func<EntityRepository> world)
+        => _worldOf = world ?? throw new System.ArgumentNullException(nameof(world));
+
+    private EntityRepository _world => _worldOf();
+
+    // ⭐ Built once per world. Safe across frames: EntityEnumerator snapshots MaxIssuedIndex in ITS OWN
+    //   constructor (EntityQuery.cs:120), i.e. per foreach -- not at Build() -- so entities created later are still seen.
+    private EntityQuery _withSelectionState
+    {
+        get
+        {
+            var world = _world;
+            if (_query is null || !ReferenceEquals(world, _queryWorld))
+            {
+                _query = world.Query().With<SelectionStateComponent>().WithLifecycle(EntityLifecycle.All).Build();
+                _queryWorld = world;
+            }
+            return _query;
+        }
     }
 
     /// <inheritdoc/>

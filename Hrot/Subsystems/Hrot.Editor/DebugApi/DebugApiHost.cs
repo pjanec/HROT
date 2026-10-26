@@ -1113,6 +1113,30 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(409, error) : Ok(node);
             }));
 
+            // ⭐ RB-7 (R-4083) — point the operator's panels at a unit, on every host, through SelectEntityCommand → SelectionRequestSystem.
+            _routes.Add(new("POST", "/selection", ctx => RunMainResult(s =>
+            {
+                var (node, error) = s.SelectEntity(ctx.Body);
+                return error is null ? Ok(node) : Fail(error.StartsWith("Entity", StringComparison.Ordinal) ? 404 : 400, error);
+            })));
+
+            // ⭐ RB-6 — the timeline index's reads and a user's lane (every host that keeps an index).
+            _routes.Add(new("GET", "/timeline/lanes", _ => RunMain(s => s.GetTimelineLanes())));
+            _routes.Add(new("GET", "/timeline/events", ctx => RunMainResult(s =>
+            {
+                int? from = int.TryParse(ctx.Query("from"), out var f) ? f : null;
+                int? to = int.TryParse(ctx.Query("to"), out var t) ? t : null;
+                long? entity = long.TryParse(ctx.Query("entity"), out var e) ? e : null;
+                int limit = int.TryParse(ctx.Query("limit"), out var l) && l > 0 ? Math.Min(l, 5000) : 500;
+                var (node, error) = s.GetTimelineEvents(ctx.Query("lane"), from, to, entity, limit);
+                return error is null ? Ok(node) : Fail(400, error);
+            })));
+            _routes.Add(new("POST", "/timeline/lanes", ctx => RunMainResult(s =>
+            {
+                var (node, error) = s.AddTimelineLane(ctx.Body);
+                return error is null ? Ok(node) : Fail(400, error);
+            })));
+
             _routes.Add(new("GET", "/selection", async _ =>
             {
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetSelection()).ConfigureAwait(false);

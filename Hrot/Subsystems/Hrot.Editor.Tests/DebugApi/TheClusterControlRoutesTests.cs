@@ -351,6 +351,97 @@ public sealed class TheClusterControlRoutesTests
         Assert.Contains("back", BrowserHost(new RecordingBrowserControl()).StepReplayHistory(new JsonObject { ["direction"] = "up" }).Error);
     }
 
+    // ── RB-6 — the timeline index's reads, a user's lane, and the lane form of seek ──────────────────────────────────────────────
+
+    private sealed class FixedTimeline : Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource
+    {
+        public Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex Index { get; init; } = Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex.Empty;
+        public float Progress => 1f;
+        public bool IsComplete => true;
+        public string? Error => null;
+    }
+
+    private static Fdp.Toolkit.ReplayBrowser.Timeline.IndexedLaneDefinition Lane(string id)
+        => new(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor(id, id.ToUpperInvariant()), new Fdp.Toolkit.ReplayBrowser.Search.PropertyMatchDto());
+
+    [Fact]
+    public void RB6_The_timeline_lanes_and_events_come_from_the_index_and_a_lane_seek_lands_on_its_next_event()
+    {
+        string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rb6_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string recording = RecordUnit(dir);
+            var index = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(
+                new System.Collections.Generic.Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[]>
+                {
+                    ["shots"] = new[] { new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(1, "shots", 1042, 7, 0, 0, 0),
+                                        new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(3, "shots", 1043, 0, 0, 0, 0) },
+                },
+                new long[5], scannedFrames: 5, totalFrames: 5);
+            var catalog = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog().Register(Lane("shots"));
+            int now = 1;
+            var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+                new ISubsystemDebugProvider[]
+                {
+                    new SubsystemDebugProvider("ReplayBrowser", "ReplayBrowser",
+                        master: () => _master, clusterState: () => ClusterState.OperatingReplay, replayRecording: () => recording,
+                        replayPosition: () => new ReplayPosition(Zero, Zero + TimeSpan.FromSeconds(now).Ticks),
+                        timeline: () => new TimelineAccess(() => new FixedTimeline { Index = index }, catalog,
+                                                           new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Recording: true))),
+                },
+                currentPerspective: () => "ReplayBrowser", acksPending: null));
+
+            var lanes = svc.GetTimelineLanes();
+            Assert.Equal(2, lanes["lanes"]![0]!["count"]!.GetValue<int>());
+
+            var (events, error) = svc.GetTimelineEvents("shots", from: null, to: null, entity: 1043, limit: 10);
+            Assert.Null(error);
+            Assert.Equal(3, Assert.Single(events!["events"]!.AsArray())!["frame"]!.GetValue<int>());   // only 1043's
+            Assert.NotNull(svc.GetTimelineEvents("nope", null, null, null, 10).Error);
+
+            var seek = svc.ResolveReplaySeek(new JsonObject { ["next"] = new JsonObject { ["lane"] = "shots" } });
+            Assert.Null(seek.Error);
+            Assert.Equal(TimeSpan.FromSeconds(3).Ticks, LastSeekTicks);                          // the next shot after frame 1
+            now = 3;
+            Assert.False(svc.ResolveReplaySeek(new JsonObject { ["next"] = new JsonObject { ["lane"] = "shots" } }).Result!["found"]!.GetValue<bool>());
+
+            var added = svc.AddTimelineLane(JsonNode.Parse("{\"Lane\":{\"Id\":\"dmg\",\"DisplayName\":\"Damage\"},\"When\":{\"$type\":\"PropertyMatch\"}}"));
+            Assert.Null(added.Error);
+            Assert.NotNull(catalog.Find("dmg"));                                                    // the catalogue's own Register
+            Assert.Contains("exists", svc.AddTimelineLane(JsonNode.Parse("{\"Lane\":{\"Id\":\"dmg\",\"DisplayName\":\"X\"},\"When\":{\"$type\":\"PropertyMatch\"}}")).Error);
+        }
+        finally { try { System.IO.Directory.Delete(dir, true); } catch { } }
+    }
+
+    [Fact]
+    public void RB6_A_host_with_no_timeline_index_says_so()
+        => Assert.Throws<NotSupportedHereException>(() => Host().GetTimelineLanes());
+
+    // ── RB-7 (R-4083) — POST /selection goes through the UI's own request path ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void RB7_A_selection_is_a_SelectEntityCommand_on_the_shown_world_never_a_state_write()
+    {
+        var world = new Fdp.Core.EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1042 });
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        map.Register(1042, unit);
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", world: () => world, entityMap: () => map) },
+            currentPerspective: () => "CGF", acksPending: null));
+
+        Assert.Contains("runs no selection", svc.SelectEntity(new JsonObject { ["entity"] = 1042 }).Error);   // ⛔ never a silent no-op
+        world.RegisterEvent<Hrot.Common.Events.SelectEntityCommand>();
+        Assert.Contains("not found", svc.SelectEntity(new JsonObject { ["entity"] = 9 }).Error);
+        Assert.Null(svc.SelectEntity(new JsonObject { ["entity"] = 1042 }).Error);
+
+        world.Bus.SwapBuffers();
+        var sent = Assert.Single(world.ReadEvents<Hrot.Common.Events.SelectEntityCommand>().ToArray());
+        Assert.Equal(1042, sent.NetworkId);
+    }
+
     [Fact]
     public void A_host_that_reaches_no_master_says_so()
     {

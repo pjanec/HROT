@@ -15,6 +15,12 @@ namespace Hrot.Editor.Tests.IntegrationTests;
 /// Integration tests for the Editor file operations via <see cref="IEditorLogic"/>:
 /// PACK2-F002 (New), PACK2-F003 (Save), PACK2-F004 (Load round-trip).
 /// </summary>
+/// <remarks>
+/// ⚠ Serial (CE-3327): it CLEARS the process-global <see cref="ComponentTypeRegistry"/>. 🔴 Measured: run in parallel, the clear landed
+/// between another class's recording and its reload (<c>TheClusterControlRoutesTests.RB2_*</c> / <c>RB5_*</c>, red 2 of 3 full-suite runs,
+/// green alone) — the recording no longer loaded.
+/// </remarks>
+[Collection(Hrot.Editor.Tests.Windows.PanelSnapshotTestCollection.Name)]
 public sealed class EditorFileOpsIntegrationTests : IDisposable
 {
     // ── Test component types ─────────────────────────────────────────────────
