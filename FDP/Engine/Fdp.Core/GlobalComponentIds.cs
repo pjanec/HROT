@@ -1159,5 +1159,8 @@ namespace Fdp.Core
         /// <summary><c>UnitDebugSettings</c> — the ONE store of per-unit debug switches (gizmo pins, trace, the followed unit), a managed world
         /// singleton (CE-1329, Brain View §12r); Transient.</summary>
         public const int UnitDebugSettings = 464;
+        /// <summary><c>SelectionStore</c> — THE selection keyed by network id, a managed world singleton (CE-4049, the coordinator's replay-UI-state
+        /// handoff ①); Transient — UI state, never recorded.</summary>
+        public const int SelectionStore = 465;
     }
 }

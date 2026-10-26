@@ -14,7 +14,7 @@ namespace Hrot.IG.Components;
 /// <c>repo.RegisterManagedComponent&lt;ContextMenuState&gt;()</c>.
 /// </summary>
 [ComponentId(GlobalComponentIds.ContextMenuState)]
-[DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state: recorded and saved, kept out of the background snapshot
+[DataPolicy(DataPolicy.Transient)]   // ⭐ CE-4049 — the IG's right-click MENU is UI state: never recorded or saved (its sibling CanvasContextMenuState is NoReplay); was NoPreview (CE-3299 D7)
 // ⭐ CE-4046 — an immutable record: a change is a new value (`with`) + Set, so the recorder sees it (docs/DESIGN_Replay_Census_H0.md §2)
 public sealed record ContextMenuState
 {

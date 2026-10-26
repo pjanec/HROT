@@ -71,6 +71,9 @@ public sealed class SelectionRequestSystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world) return;
 
+        // ⭐ CE-4049 — the components follow the store first: a replay keyframe or a seek refilled the tables since the last frame
+        Hrot.ScenarioEditor.Selection.EcsSelectionState.Sync(world);
+
         // ⚠ Resolved per execute — see InteractionDeps' remarks on the editor's build/teardown order.
         var selection = _selection();
         if (selection == null) return;

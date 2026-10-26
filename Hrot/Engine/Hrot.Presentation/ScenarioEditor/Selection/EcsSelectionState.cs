@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Abstractions;
+using Hrot.IG.Components;
 using SelectionStateComponent = Hrot.IG.Components.SelectionState;
 
 namespace Hrot.ScenarioEditor.Selection;
@@ -34,6 +37,11 @@ namespace Hrot.ScenarioEditor.Selection;
 /// deferral would put a one-frame lag inside <c>SyncSelection2D3D</c>'s read-back. 📌 <c>S-2</c>
 /// removes the question entirely: every caller publishes a request and
 /// <c>SelectionRequestSystem</c> writes during its own tick, which §2.5 already blesses.</para>
+///
+/// <para>⭐⭐ <b><c>CE-4049</c> (the coordinator's replay-UI-state handoff ①)</b> — the TRUTH is now <see cref="SelectionStore"/>, a
+/// world singleton keyed by network id and never recorded; the component is its per-entity copy for the readers. Every write here goes
+/// through <see cref="Write"/> (store + component together), and <see cref="Sync"/> rewrites the components from the store each frame, so
+/// a replay keyframe or a seek — which clear and refill the component tables — never changes what the operator selected.</para>
 /// </summary>
 public sealed class EcsSelectionState : ISelectionState
 {
@@ -105,11 +113,7 @@ public sealed class EcsSelectionState : ISelectionState
             if (e == entity || !_world.IsAlive(e)) continue;
             ref readonly var s = ref _world.GetComponentRO<SelectionStateComponent>(e);
             if (!s.IsPrimarySelection) continue;
-            _world.SetComponent(e, new SelectionStateComponent
-            {
-                IsSelected         = true,
-                IsPrimarySelection = false,
-            });
+            Write(_world, e, selected: true, primary: false);
         }
         SetSelectedCore(entity, isPrimary: true);
     }
@@ -121,11 +125,7 @@ public sealed class EcsSelectionState : ISelectionState
         if (!_world.HasComponent<SelectionStateComponent>(entity)) return;
 
         bool wasPrimary = _world.GetComponentRO<SelectionStateComponent>(entity).IsPrimarySelection;
-        _world.SetComponent(entity, new SelectionStateComponent
-        {
-            IsSelected         = false,
-            IsPrimarySelection = false,
-        });
+        Write(_world, entity, selected: false, primary: false);
         if (!wasPrimary) return;
 
         // ⚠ Removing the primary must leave a primary behind when anything is still selected --
@@ -136,11 +136,7 @@ public sealed class EcsSelectionState : ISelectionState
             if (!_world.IsAlive(e)) continue;
             ref readonly var s = ref _world.GetComponentRO<SelectionStateComponent>(e);
             if (!s.IsSelected) continue;
-            _world.SetComponent(e, new SelectionStateComponent
-            {
-                IsSelected         = true,
-                IsPrimarySelection = true,
-            });
+            Write(_world, e, selected: true, primary: true);
             return;
         }
     }
@@ -169,6 +165,7 @@ public sealed class EcsSelectionState : ISelectionState
     /// <summary>Clears every <c>SelectionState</c> component in the world.</summary>
     public void ClearCore()
     {
+        SelectionStore.Peek(_world)?.Clear();
         foreach (var e in _withSelectionState)
         {
             if (!_world.IsAlive(e)) continue;
@@ -181,16 +178,55 @@ public sealed class EcsSelectionState : ISelectionState
     }
 
     /// <summary>Marks one entity selected, adding the component when it is absent.</summary>
-    public void SetSelectedCore(Entity entity, bool isPrimary)
+    public void SetSelectedCore(Entity entity, bool isPrimary) => Write(_world, entity, selected: true, primary: isPrimary);
+
+    /// <summary>⭐ <c>CE-4049</c> — THE write: the store (when the entity has a network id) and its component copy, together.</summary>
+    public static void Write(EntityRepository world, Entity entity, bool selected, bool primary)
     {
-        if (!_world.HasComponent<SelectionStateComponent>(entity))
-            _world.AddComponent(entity, new SelectionStateComponent());
-        _world.SetComponent(entity, new SelectionStateComponent
+        long net = NetOf(world, entity);
+        if (net > 0) SelectionStore.Of(world).Set(net, selected, primary);
+        if (!world.HasComponent<SelectionStateComponent>(entity))
         {
-            IsSelected         = true,
-            IsPrimarySelection = isPrimary,
-        });
+            if (!selected && !primary) return;
+            world.AddComponent(entity, new SelectionStateComponent());
+        }
+        world.SetComponent(entity, new SelectionStateComponent { IsSelected = selected, IsPrimarySelection = primary });
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4049</c> — rewrites every entity's component from the <see cref="SelectionStore"/>: the selected ones (re)marked, any
+    /// other entity WITH a network id unmarked. Run each frame (<c>SelectionRequestSystem</c>), so a replay keyframe, a seek or a
+    /// respawn is followed on the next frame. An entity with no network id is left as its direct write put it.
+    /// </summary>
+    public static void Sync(EntityRepository world)
+    {
+        if (SelectionStore.Peek(world) is not { } store) return;
+        if (!world.IsComponentTypeRegistered<SelectionStateComponent>() || !world.IsComponentTypeRegistered<NetworkIdentity>()) return;
+        foreach (long net in store.Selected)
+        {
+            var e = NetworkIdResolver.ResolveNetworkId(world, net);
+            if (e.IsNull || !world.IsAlive(e)) continue;   // not in this frame (a seek before he existed): kept, marked when he is
+            bool primary = store.Primary == net;
+            if (world.HasComponent<SelectionStateComponent>(e))
+            {
+                ref readonly var c = ref world.GetComponentRO<SelectionStateComponent>(e);
+                if (c.IsSelected && c.IsPrimarySelection == primary) continue;
+            }
+            else world.AddComponent(e, new SelectionStateComponent());
+            world.SetComponent(e, new SelectionStateComponent { IsSelected = true, IsPrimarySelection = primary });
+        }
+        foreach (var e in world.Query().With<SelectionStateComponent>().Build())
+        {
+            ref readonly var c = ref world.GetComponentRO<SelectionStateComponent>(e);
+            if (!c.IsSelected && !c.IsPrimarySelection) continue;
+            long net = NetOf(world, e);
+            if (net > 0 && !store.Contains(net))
+                world.SetComponent(e, new SelectionStateComponent { IsSelected = false, IsPrimarySelection = false });
+        }
+    }
+
+    private static long NetOf(EntityRepository world, Entity e)
+        => world.IsComponentTypeRegistered<NetworkIdentity>() ? NetworkIdResolver.RuntimeNetworkIdOf(world, e) : 0;
 
     // ── observation ──────────────────────────────────────────────────────────────
 

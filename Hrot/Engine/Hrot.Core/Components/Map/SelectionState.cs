@@ -31,7 +31,10 @@ namespace Hrot.IG.Components;
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.SelectionState)]
-[DataPolicy(DataPolicy.NoScenario)]
+// ⭐ CE-4049 — UI state, never recorded: a seek must not overwrite what the operator selected. The truth is SelectionStore (a world singleton
+//   keyed by network id); this per-entity copy is rewritten from it every frame (EcsSelectionState.Sync). Was NoScenario only — recorded by
+//   default, never by decision (the coordinator's replay census, CE-4045 §2).
+[DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
 public struct SelectionState
 {
     /// <summary>
