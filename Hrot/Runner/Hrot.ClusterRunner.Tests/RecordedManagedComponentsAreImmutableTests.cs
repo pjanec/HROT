@@ -26,16 +26,11 @@ public sealed class RecordedManagedComponentsAreImmutableTests
     /// (an immutable record, or its per-frame state moved to an unmanaged struct) under CE-4046.</summary>
     private static readonly HashSet<string> Existing = new()
     {
-        "Fdp.Modules.Geographic.Components.PositionGeodetic",
         "Fdp.Toolkit.Behavior.Components.ActiveMissionPlan",
-        "Fdp.Toolkit.Behavior.Components.BehaviorStartRecord",
         "Fdp.Toolkit.Behavior.Components.PausedTask",
         "Fdp.Toolkit.Behavior.Components.PendingUnitCommand",
         "Fdp.Toolkit.Behavior.Components.SopStartRecord",
-        "Fdp.Toolkit.Behavior.Components.SubordinateOrders",
-        "Fdp.Toolkit.Motion.AirPath",
         "Fdp.Toolkit.Perception.Components.SensorCapability",
-        "Fdp.Toolkit.Perception.Components.SensorConfigPayload",
         "Fdp.Toolkit.Perception.Survey.WorldSurveyRequest",
         "Fdp.Toolkit.Replication.Components.BinaryGhostStore",
         "Fdp.Toolkit.Replication.Components.ChildMap",
@@ -43,9 +38,7 @@ public sealed class RecordedManagedComponentsAreImmutableTests
         "Fdp.Toolkit.Replication.Components.NetworkAckPeerSet",
         "Fdp.Toolkit.Replication.Components.PendingAuthorityGrants",
         "Hrot.AI.Behaviors.BpManagedCollectionDemo",
-        "Hrot.IG.Components.ContextMenuState",
         "Hrot.IG.Components.EditablePolyline",
-        "Hrot.IG.Components.IgSymbolOverride",
         "Hrot.Map.Common.Components.RoutePlan",
         "Hrot.Map.Definitions.Tkb.SimCombatDef",
         "Hrot.Map.Definitions.Tkb.TkbCompositionDef",

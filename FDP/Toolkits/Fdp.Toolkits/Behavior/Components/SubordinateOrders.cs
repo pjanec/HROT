@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -16,7 +17,8 @@ namespace Fdp.Toolkit.Behavior.Components
     [ComponentId(GlobalComponentIds.SubordinateOrders)]
     // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
     [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
-    public sealed class SubordinateOrders
+    // ⭐ CE-4046 — an immutable record: Record / Release build a new value and Set it, so the recorder sees every change
+    public sealed record SubordinateOrders
     {
         /// <summary>One member's latest order from this commander.</summary>
         // ⭐ CE-3299 D1 — not `readonly`: the recorder writes public settable members (CE-3305), so readonly fields were unrecordable.
@@ -39,7 +41,7 @@ namespace Fdp.Toolkit.Behavior.Components
             }
         }
 
-        public Entry[] Orders;   // ⭐ D1 — settable, for the recorder (see Entry)
+        public IReadOnlyList<Entry> Orders { get; init; }   // ⭐ CE-4046 — read-only (same name and wire shape as the array it was)
 
         public SubordinateOrders(Entry[] orders) => Orders = orders;
 
@@ -54,7 +56,7 @@ namespace Fdp.Toolkit.Behavior.Components
             if (run == 0) return;
             if (!repo.TryGetTable(typeof(SubordinateOrders), out _)) repo.RegisterManagedComponent<SubordinateOrders>();
             var before = Of(repo, commander)?.Orders ?? Array.Empty<Entry>();
-            var after = new Entry[before.Length + 1];
+            var after = new Entry[before.Count + 1];
             int n = 0;
             foreach (var e in before) if (!e.Member.Equals(member)) after[n++] = e;
             after[n++] = new Entry(member, behavior, origin, run, json);
@@ -70,7 +72,7 @@ namespace Fdp.Toolkit.Behavior.Components
             var held = Of(repo, commander);
             if (held == null) return 0;
             int released = 0;
-            var keep = new Entry[held.Orders.Length];
+            var keep = new Entry[held.Orders.Count];
             int n = 0;
             foreach (var e in held.Orders)
             {
@@ -83,7 +85,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 EngagementAreas.WithdrawSuperior(repo, e.Member);   // ⭐ CE-2302 (DA-32) — the sector the run gave him ends with it
                 released++;
             }
-            if (released == 0 && n == held.Orders.Length) return 0;
+            if (released == 0 && n == held.Orders.Count) return 0;
             Array.Resize(ref keep, n);
             repo.SetManagedComponent(commander, n == 0 ? null! : new SubordinateOrders(keep));
             return released;

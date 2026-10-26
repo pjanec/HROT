@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Perception.Components
     [ComponentId(GlobalComponentIds.SensorConfigPayload)]
     // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
     [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
-    public sealed class SensorConfigPayload
+    public sealed record SensorConfigPayload   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
         /// <summary>The format tag of <see cref="Json"/> — <see cref="SensorConfigCodec.KindSensorEntry"/>.</summary>
         public string Kind { get; init; } = string.Empty;

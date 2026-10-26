@@ -17,7 +17,8 @@ namespace Hrot.IG.Components;
 /// </summary>
 [ComponentId(HrotComponentIds.IgSymbolOverride)]
 [DataPolicy(DataPolicy.NoScenario)]
-public class IgSymbolOverride
+// ⭐ CE-4046 — an immutable record: a change is a new value (`with`) + Set, so the recorder sees it (docs/DESIGN_Replay_Census_H0.md §2)
+public record IgSymbolOverride
 {
     // ── Known StyleSetId tokens ───────────────────────────────────────────────
     // StyleResolutionSystem.ResolveAffiliation compares StyleSetId against these
@@ -43,23 +44,23 @@ public class IgSymbolOverride
     /// <see cref="StyleSetNeutral"/>, <see cref="StyleSetUnknown"/>.
     /// <c>null</c> or unrecognised values leave the TKB default intact.
     /// </summary>
-    public string? StyleSetId { get; set; }
+    public string? StyleSetId { get; init; }
 
     /// <summary>
     /// Optional texture/symbol-code override.
     /// Overrides <c>VisualData.SymbolCode</c> when non-null and non-empty.
     /// </summary>
-    public string? TextureOverride { get; set; }
+    public string? TextureOverride { get; init; }
 
     /// <summary>
     /// Optional label-text override.
     /// Overrides the TKB default label when non-null and non-empty.
     /// </summary>
-    public string? LabelOverride { get; set; }
+    public string? LabelOverride { get; init; }
 
     /// <summary>
     /// When <c>true</c>, the history-trail renderer should draw this entity's movement trail.
     /// Sourced from ExCon map configuration.
     /// </summary>
-    public bool ShowHistory { get; set; }
+    public bool ShowHistory { get; init; }
 }

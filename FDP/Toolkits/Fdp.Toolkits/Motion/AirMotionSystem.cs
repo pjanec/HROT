@@ -101,11 +101,10 @@ namespace Fdp.Toolkit.Motion
             if (cls == LocomotionClass.Rotorcraft) AirborneHolds(repo, e, in intent, terrain, p.HoverHeightM);
             var path = AirRoute.Compile(repo.GetComponentRO<SimTransform>(e).Position, _waypoints, loop, p.TurnRadius, p.HoverHeightM,
                 terrain == null ? null : terrain.GroundHeightAt);
-            path.IntentId = intent.IntentId;
-            path.Dropping = false;
-            path.RouteEntityId = intent.RouteEntityId;
-            path.RouteVersion = version;
-            repo.SetManagedComponent(e, path);
+            repo.SetManagedComponent(e, path with { IntentId = intent.IntentId, RouteEntityId = intent.RouteEntityId, RouteVersion = version });
+            // ⭐ CE-4046 ② — a new path starts a fresh follower (the managed path carried it, and was new each compile)
+            if (!repo.IsComponentTypeRegistered<AirFollower>()) repo.RegisterComponent<AirFollower>();
+            repo.SetComponent(e, AirFollower.Start);
         }
 
         /// <summary>The height (m) a helicopter may hover at and still let men step down — CE-1084's drawn hop (D-8).</summary>

@@ -106,9 +106,7 @@ public class ContextMenuSystem : IEcsModuleSystem
                 if (view.HasManagedComponent<ContextMenuState>(entity))
                 {
                     var existing = view.GetManagedComponentRO<ContextMenuState>(entity);
-                    updated.IsOpen  = existing.IsOpen;
-                    updated.ScreenX = existing.ScreenX;
-                    updated.ScreenY = existing.ScreenY;
+                    updated = existing with { MenuJson = update.MenuJson };   // ⭐ CE-4046 — a new value, not an edit (read again below)
                     cmd.SetManagedComponent(entity, updated);
                 }
                 else
@@ -170,7 +168,7 @@ public class ContextMenuSystem : IEcsModuleSystem
                     // Preserve existing MenuJson so the popup can be shown immediately
                     // if the entity already has a cached definition.
                     var prev = view.GetManagedComponentRO<ContextMenuState>(target);
-                    state.MenuJson = prev.MenuJson;
+                    state = state with { MenuJson = prev.MenuJson };   // ⭐ CE-4046 — a new value, not an edit (read again below)
                     cmd.SetManagedComponent(target, state);
                 }
                 else

@@ -1133,6 +1133,10 @@ namespace Fdp.Core
         /// <summary>⭐ AQ107 (backend, CE-3323) — <c>CreationRequestId</c>: the creation request that made this entity, on every node that
         /// holds it (Creation Unification §3.4e). 449 free on every lane by a census, 2026-10-25.</summary>
         public const int CreationRequestId = 449;
+        // ── coordinator / a new lane: 476–495 (R-2056) ──
+        /// <summary>⭐ CE-4046 ② (backend, for the COORDINATOR's handoff "Replay Recording Fixes"; backend's 434–449 is full) —
+        /// <c>AirFollower</c>: an aircraft's follower state on its <c>AirPath</c>, unmanaged, recorded. 476 free on every lane, 2026-10-26.</summary>
+        public const int AirFollower = 476;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;
