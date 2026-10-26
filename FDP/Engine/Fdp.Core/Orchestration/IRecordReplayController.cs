@@ -72,6 +72,22 @@ namespace Fdp.Core.Orchestration
         Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks);
 
         /// <summary>
+        /// ⭐ CE-3329 PW (§12c W2) — hold this node's egress from a world swap until the master's commit: no sample is published in
+        /// between (the cleanup's disposes still go out). Released by <see cref="ReleaseEgress"/>, or it lapses (bounded).
+        /// A controller with no network world ignores it.
+        /// </summary>
+        void HoldEgress(string reason) { }
+
+        /// <summary>
+        /// ⭐ CE-3329 P0 (row 6) — the RECORDED sim time of the frame on screen (<c>GlobalTime.TotalTime</c> as the live run had it), or
+        /// <see langword="null"/> outside a replay. ⚠ Not <see cref="GetCurrentReplayTime"/>, which is the replay clock (wall after the zero).
+        /// </summary>
+        double? CurrentReplaySimSeconds => null;
+
+        /// <summary>⭐ CE-3329 PW — releases <see cref="HoldEgress"/>: the next egress frame republishes the world.</summary>
+        void ReleaseEgress() { }
+
+        /// <summary>
         /// Advances playback by one frame.  Called by the application loop
         /// on every tick when <c>RunningReplay</c> is the active Cluster state.
         /// </summary>

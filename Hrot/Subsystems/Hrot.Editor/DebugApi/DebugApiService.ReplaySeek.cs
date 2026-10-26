@@ -30,7 +30,8 @@ namespace Hrot.Editor.DebugApi
             => _rrController is { IsReplayActive: true } rr
                 ? new Hrot.Presentation.DebugApi.ReplayPosition(
                       rr.ReplayAnchorWallTicks > 0 ? rr.ReplayAnchorWallTicks : rr.ActiveRecordingStartWallTicks,
-                      rr.GetCurrentReplayTime().TotalWallTicks)
+                      rr.GetCurrentReplayTime().TotalWallTicks,
+                      rr.CurrentReplaySimSeconds)
                 : _dispatcher?.ReplayPosition;
 
         private Fdp.Toolkit.Scenario.ScenarioSerializer? _lookupSerializer;

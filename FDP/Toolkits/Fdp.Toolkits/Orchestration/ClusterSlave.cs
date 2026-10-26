@@ -636,6 +636,7 @@ namespace Fdp.Toolkit.Orchestration
             if (_eventBus == null) return;
             foreach (var ev in _eventBus.ReadManaged<ClusterStateUpdateEvent>())
             {
+                NotifyClusterStateUpdate(ev.CurrentState, ev.MasterGone);   // ⭐ CE-3329 W2 — the master's commit reached this node
                 if (ev.MasterGone)
                 {
                     if (_followingSessionId != Guid.Empty)
@@ -649,6 +650,21 @@ namespace Fdp.Toolkit.Orchestration
                 if (_followingSessionId != Guid.Empty && ev.SessionId != _followingSessionId)
                     DropToIdle($"a new cluster session {ev.SessionId} replaced {_followingSessionId}");
                 _followingSessionId = ev.SessionId;
+            }
+        }
+
+        /// <summary>⭐ CE-3329 W2 — every handler waiting for the master's commit (an egress hold) hears each broadcast.</summary>
+        private void NotifyClusterStateUpdate(ClusterState state, bool masterGone)
+        {
+            foreach (var handler in _handlers)
+            {
+                if (handler is not IClusterStateUpdateObserver observer) continue;
+                try { observer.OnClusterStateUpdate(state, masterGone); }
+                catch (Exception ex)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: {1}.OnClusterStateUpdate failed: {2}",
+                        _nodeId, handler.GetType().Name, ex.Message);
+                }
             }
         }
 

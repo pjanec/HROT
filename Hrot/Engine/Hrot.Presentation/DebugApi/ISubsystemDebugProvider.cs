@@ -60,7 +60,8 @@ public sealed record DiagnosticDumpStatus(bool InFlight, IReadOnlyList<string> M
 /// zero (the earliest first frame across the nodes, C9) and now. ⭐ What a frame-based seek resolves against: frame N's wall ticks
 /// minus the zero is the <c>atSeconds</c> every host's seek takes.
 /// </summary>
-public readonly record struct ReplayPosition(long ZeroWallTicks, long NowWallTicks);
+/// ⭐ <c>CE-3329</c> P0 — <see cref="SimSeconds"/>: the RECORDED sim time of the frame on screen (the live run's own clock), when known.
+public readonly record struct ReplayPosition(long ZeroWallTicks, long NowWallTicks, double? SimSeconds = null);
 
 /// <summary>
 /// ⭐ RB-6 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — a host's timeline: the index of the shown recording (it may still be

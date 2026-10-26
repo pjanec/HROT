@@ -539,11 +539,12 @@ namespace Fdp.Core.FlightRecorder
             // Read version
             FormatVersion = _reader.ReadUInt32();
             
-            if (FormatVersion != FdpConfig.FORMAT_VERSION)
+            // ⭐ CE-3329 P0 — v6 differs from v7 only in the outer header (FrameOuterHeader.SizeFor)
+            if (FormatVersion < FdpConfig.MIN_READABLE_FORMAT_VERSION || FormatVersion > FdpConfig.FORMAT_VERSION)
             {
                 throw new InvalidDataException(
                     $"Format version mismatch. File version: {FormatVersion}, " +
-                    $"Expected: {FdpConfig.FORMAT_VERSION}");
+                    $"Expected: {FdpConfig.MIN_READABLE_FORMAT_VERSION}–{FdpConfig.FORMAT_VERSION}");
             }
             
             // Read timestamp
@@ -567,22 +568,24 @@ namespace Fdp.Core.FlightRecorder
                 }
                 
                 // Read entire outer header in one bulk read via the typed struct
-                if (_fileStream.Position + FrameOuterHeader.Size > _fileStream.Length)
+                int outerSize = FrameOuterHeader.SizeFor(FormatVersion);
+                if (_fileStream.Position + outerSize > _fileStream.Length)
                 {
                     Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Not enough bytes for outer header at {_fileStream.Position}/{_fileStream.Length}");
                     return false;
                 }
 
                 Span<byte> outerHeaderBytes = stackalloc byte[FrameOuterHeader.Size];
+                outerHeaderBytes = outerHeaderBytes.Slice(0, outerSize);
                 _fileStream.Read(outerHeaderBytes);
-                FrameOuterHeader outerHeader = System.Runtime.InteropServices.MemoryMarshal.Read<FrameOuterHeader>(outerHeaderBytes);
+                FrameOuterHeader outerHeader = FrameOuterHeader.Read(outerHeaderBytes, FormatVersion);
 
                 int compSize = outerHeader.CompressedSize;
                 int uncompSize = outerHeader.UncompressedSize;
 
                 if (compSize <= 0)
                 {
-                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Invalid compSize {compSize} at {_fileStream.Position - FrameOuterHeader.Size}/{_fileStream.Length}");
+                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Invalid compSize {compSize} at {_fileStream.Position - outerSize}/{_fileStream.Length}");
                     return false;
                 }
                 

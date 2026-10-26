@@ -43,8 +43,8 @@ public static class EcsNodeDebugProvider
             exercises:     SubsystemDebugProvider.ExercisesFrom(() => node()?.ClusterSlave),
             replayRecording: () => node()?.ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault()?.ReplayFilePath,
             // ⭐ RB-2 — the replay's zero and now, from the same handler (frame-based seeks resolve against them)
-            replayPosition: () => node()?.ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault()?.ReplayPosition
-                                  is { } p ? new ReplayPosition(p.ZeroWallTicks, p.NowWallTicks) : null,
+            replayPosition: () => node()?.ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault() is { } h
+                                  && h.ReplayPosition is { } p ? new ReplayPosition(p.ZeroWallTicks, p.NowWallTicks, h.ReplaySimSeconds) : null,
             requestOwnershipTransfer: () => node() is { NedReplication: not null } n
                 ? req => n.World.Bus.PublishManaged(req)
                 : null,

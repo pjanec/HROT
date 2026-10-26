@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// application wiring layer.
     /// </para>
     /// </summary>
-    public sealed class ReferenceReplayLoadHandler : IClusterStateHandler
+    public sealed class ReferenceReplayLoadHandler : IClusterStateHandler, IClusterStateUpdateObserver
     {
         private readonly IRecordReplayController      _controller;
 
@@ -83,6 +83,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 ? (_controller.ReplayAnchorWallTicks > 0 ? _controller.ReplayAnchorWallTicks : _controller.ActiveRecordingStartWallTicks,
                    _controller.GetCurrentReplayTime().TotalWallTicks)
                 : null;
+
+        /// <summary>⭐ CE-3329 P0 (row 6) — the recorded sim time of the frame on screen; <see langword="null"/> outside a replay.</summary>
+        public double? ReplaySimSeconds => _controller.IsReplayActive ? _controller.CurrentReplaySimSeconds : null;
         private readonly TogglableInputGroup?         _inputGroup;
         private readonly TogglableSimulationGroup?    _simGroup;
         private readonly TogglablePostSimulationGroup? _postSimGroup;
@@ -232,8 +235,19 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     ? long.MaxValue
                     : startTicks + relativeTicks;
 
-                GlobalTime restoredTime = await _controller.SeekToTimeAsync(absoluteTargetTicks)
-                    .ConfigureAwait(false);
+                // ⭐⭐ CE-3329 PW — §12c W2: nothing is published from the swap until the master's commit (the broadcast it sends
+                //   when every node answered — OnClusterStateUpdate); the cleanup's sweep retracts what the seek removed meanwhile.
+                //   Held here, on the frame thread, before the seek goes off it.
+                _controller.HoldEgress("replay seek");
+                GlobalTime restoredTime;
+                try
+                {
+                    restoredTime = await _controller.SeekToTimeAsync(absoluteTargetTicks).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _awaitingCommit = true;   // ⭐ released by the master's next broadcast (it follows this node's answer)
+                }
 
                 // ⭐⭐ R-4012 — outside this node's recording: it restored nothing and listens. It reports no landed time, so
                 //   the master takes the time from a node that did restore (ReplaySeekAggregator skips an empty result).
@@ -336,6 +350,19 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
         /// <inheritdoc />
         public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+
+        // ⭐ CE-3329 W2 — a seek's egress hold waits for the master's commit broadcast.
+        private volatile bool _awaitingCommit;
+
+        /// <inheritdoc />
+        /// <remarks>⭐ CE-3329 W2 — the master's broadcast after a seek round releases this node's egress hold (a full republish follows:
+        /// the seek marked every descriptor dirty). A gone master releases it too.</remarks>
+        public void OnClusterStateUpdate(ClusterState state, bool masterGone)
+        {
+            if (!_awaitingCommit) return;
+            _awaitingCommit = false;
+            _controller.ReleaseEgress();
+        }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 

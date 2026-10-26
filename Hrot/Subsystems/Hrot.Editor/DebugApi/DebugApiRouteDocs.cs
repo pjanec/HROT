@@ -1934,7 +1934,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_replay_status",
             Group:   "I — Replay",
             Summary: "The cluster's state, the loaded replay's length, this node's replay recording, and its clock.",
-            Returns: "{ clusterState, replaying, durationSeconds, recording, sim, browser } — browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
+            Returns: "{ clusterState, replaying, durationSeconds, recording, simSeconds, sim, browser } — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
             Hint:    "No params. Example: get_replay_status({})",
             ExampleArgsJson: "{}",
             ExampleGist: "is the cluster replaying, and where"),

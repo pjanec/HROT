@@ -179,6 +179,8 @@ namespace Hrot.Editor.DebugApi
                 ["replaying"]       = state == ClusterState.OperatingReplay,
                 ["durationSeconds"] = (JsonNode?)(_editorReplayDuration?.Invoke() ?? _dispatcher?.ReplayDurationAnyNode),
                 ["recording"]       = ReplayRecordingPathOrNull,
+                // ⭐ CE-3329 P0 (R-3057 R11, row 6) — the RECORDED sim time of the frame on screen; `sim` below is the replay clock (wall)
+                ["simSeconds"]      = ReplayPositionOrNull?.SimSeconds is { } simSeconds ? Math.Round(simSeconds, 6) : null,
                 ["sim"]             = TryRead(() => GetSimState()),
                 // ⭐ RB-2 — the Replay Browser adds its frame, frames, span, nodes, view and rate; null on every other host
                 ["browser"]         = TryRead(() => _dispatcher?.ReplayBrowser?.Status()),

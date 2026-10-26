@@ -111,7 +111,7 @@ namespace Fdp.Core.FlightRecorder
             // ---------------------------------------------------------
             // Note: eventBus parameter is optional for backward compatibility
             // When null, this section writes 0 streams (no events)
-            WriteEvents(writer, eventBus, serializeReadBuffer);
+            int eventStreams = WriteEvents(writer, eventBus, serializeReadBuffer);
             
             // ---------------------------------------------------------
             // 4. RECORD SINGLETONS
@@ -345,7 +345,17 @@ namespace Fdp.Core.FlightRecorder
             writer.BaseStream.Position = chunkCountPos;
             writer.Write(actualChunkCount);
             writer.BaseStream.Position = endPos;
+
+            // ⭐ CE-3329 P0 — the frame index's Changed flag: anything besides the singletons (the clock) moved
+            LastFrameChanged = destroyed.Count > 0 || eventStreams > 0 || actualChunkCount > 0;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3329</c> P0 — did the last frame written carry a change besides the singletons (an entity chunk, a destruction, an
+        /// event)? A keyframe always does. The recorder writes it into the v7 frame index (<c>FrameFlags.Changed</c>), so a paused
+        /// stretch's timeline mark says whether anything happened in it without decoding (design §4).
+        /// </summary>
+        public bool LastFrameChanged { get; private set; }
         
         /// <summary>
         /// Records a full keyframe (all active data).
@@ -368,6 +378,7 @@ namespace Fdp.Core.FlightRecorder
             
             // Write events (same as delta frames)
             WriteEvents(writer, eventBus, serializeReadBuffer);
+            LastFrameChanged = true;   // ⭐ CE-3329 P0 — a keyframe holds the whole world
             
             // Record Singletons (force all dirty)
             RecordSingletons(repo, writer, 0);
@@ -724,14 +735,14 @@ namespace Fdp.Core.FlightRecorder
             return shouldRecord;
         }
 
-        private void WriteEvents(BinaryWriter writer, FdpEventBus? eventBus, bool serializeReadBuffer = false)
+        private int WriteEvents(BinaryWriter writer, FdpEventBus? eventBus, bool serializeReadBuffer = false)
         {
             if (eventBus == null)
             {
                 // No event bus provided - write empty event blocks
                 writer.Write(0); // unmanagedStreamCount = 0
                 writer.Write(0); // managedStreamCount = 0
-                return;
+                return 0;
             }
 
             // Get all streams with events (Zero-Alloc using population)
@@ -835,6 +846,7 @@ namespace Fdp.Core.FlightRecorder
                 // 7. Seek forward to continue
                 writer.BaseStream.Position = payloadEndPos;
             }
+            return validCount + validManagedCount;
         }
 
 

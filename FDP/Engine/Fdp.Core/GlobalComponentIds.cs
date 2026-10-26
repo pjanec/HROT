@@ -1137,6 +1137,10 @@ namespace Fdp.Core
         /// <summary>⭐ CE-4046 ② (backend, for the COORDINATOR's handoff "Replay Recording Fixes"; backend's 434–449 is full) —
         /// <c>AirFollower</c>: an aircraft's follower state on its <c>AirPath</c>, unmanaged, recorded. 476 free on every lane, 2026-10-26.</summary>
         public const int AirFollower = 476;
+        /// <summary>⭐ CE-3329 PW (backend, DAR's wire step; backend's 434–449 is full, as for <c>AirFollower</c>) — <c>EgressHold</c>: a world
+        /// singleton that holds this node's egress from a world swap (a replay seek, a checkpoint restore) until the master commits it
+        /// (DESIGN_Replay_Time_Axis_And_Review §12c W2). Transient. 477 free on every lane by a census, 2026-10-26.</summary>
+        public const int EgressHold = 477;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

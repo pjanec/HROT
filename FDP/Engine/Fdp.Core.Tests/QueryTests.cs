@@ -460,7 +460,9 @@ namespace Fdp.Tests
         [Fact]
         public void FdpConfig_FormatVersion_Is6()
         {
-            Assert.Equal(6u, FdpConfig.FORMAT_VERSION);
+            // ⭐ CE-3329 P0 — v7 grew the outer header only; the v6 break this rail records is still in. The exact version is pinned by
+            //   PlaybackControllerTests.V7_TheFrameIndexCarriesTheRecordedSimTimeAndTheFlags.
+            Assert.True(FdpConfig.FORMAT_VERSION >= 6u);
         }
 
         /// <summary>
