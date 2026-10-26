@@ -314,6 +314,138 @@ public sealed class TrafficRuntimeTests
         return new TrafficServeOptions(ids ?? (() => Interlocked.Increment(ref n)), Participant: null, Source: 1);
     }
 
+/// <summary>⭐ CE-4048 (coordinator handoff "Replay Recording Fixes" ④; AQ93 E5 / R-4027: the mirror is gated in replay LIKE INGRESS) —
+    /// while this node restores its own recording, the mirror writes nothing into the world: no new replicas from the live wire, the
+    /// recorded replicas are not moved, and the live car frame the map draws is withdrawn (it is NoReplay — a replay has none). When
+    /// the gate lifts it serves again.</summary>
+    [Fact]
+    public void CE4048_WhileTheNodeRestoresItsRecording_TheMirrorWritesNothing_AndServesAgainAfter()
+    {
+        LoadDemoCity(out var world);
+        using var _ = world;
+        RegisterReplicaComponents(world);
+        world.RegisterComponent<TrafficDemand>();
+        long next = 80000;
+        using var runtime = new TrafficRuntime(Options(() => Interlocked.Increment(ref next)));
+        var mirror = new TrafficMirrorSystem(runtime, participant: null, entityMap: null, localNodeId: 1);
+        var traffic = world.CreateEntity();
+        world.AddComponent(traffic, TrafficDemand.Default);
+        double t = 600.0;
+        for (int i = 0; i < 160; i++) Frame(world, mirror, runtime, t += 0.25);
+        Assert.NotEmpty(mirror.Cars);
+        var c = mirror.Cars[0];
+        Body(world, c.X, c.Y);
+        Frame(world, mirror, runtime, t += 0.25);
+        Assert.NotEmpty(mirror.Replicas!.Replicas);   // ⛔ otherwise the rail proves nothing
+
+        var gate = Assert.IsAssignableFrom<IReplayRestoreGated>(mirror);   // the controller gates every IReplayRestoreGated system it schedules
+        bool restoring = true;
+        gate.IsReplayRestoring = () => restoring;
+        var recorded = mirror.Replicas.Replicas.Values.ToDictionary(e => e, e => world.GetComponentRO<SimTransform>(e).Position);
+        int entities = world.EntityCount;
+        for (int i = 0; i < 40; i++) Frame(world, mirror, runtime, t += 0.25);   // 10 s of a replay
+
+        Assert.Equal(entities, world.EntityCount);
+        foreach (var (e, at) in recorded)
+            Assert.Equal(at, world.GetComponentRO<SimTransform>(e).Position);   // the recording owns them
+        Assert.Null(TrafficFrame.Of(world));                                     // no live cars drawn over the replay
+
+        restoring = false;
+        for (int i = 0; i < 8; i++) Frame(world, mirror, runtime, t += 0.25);
+        Assert.NotNull(TrafficFrame.Of(world));                                  // live again
+    }
+
+    /// <summary>⭐ R-3052 (B2) — the book is re-keyed from the world's recorded <see cref="TrafficCar"/> entities: after the world was put
+    /// back with OTHER entities for the same cars (what a restore does), the next frame poses those, makes no second replica, and the
+    /// network id still answers to one entity.</summary>
+    [Fact]
+    public void R3052_AfterTheWorldWasPutBack_TheBookIsRekeyedFromTheRecordedCars_AndNoCarGetsASecondReplica()
+    {
+        using var world = World();
+        Body(world, 0f, 0f);
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        var replicas = new TrafficReplicas(world, map, localNodeId: 3);
+        var car = new VehicleHandle(7, 1);
+        replicas.Update(new[] { Pose(car, 100f, owner: 9, netId: 4711) });
+        var before = replicas.Replicas[(9, car)];
+
+        var restored = PutBack(world, before);   // the restore replaced the entity with the recorded one
+        map.Unregister(4711, 0);
+        map.Register(4711, restored);            // (the controller's after-seek rebuilds the map from NetworkIdentity)
+        replicas.Rebuild();
+        Assert.Equal(restored, replicas.Replicas[(9, car)]);
+
+        replicas.Update(new[] { Pose(car, 120f, owner: 9, netId: 4711) });
+        Assert.Equal(restored, replicas.Replicas[(9, car)]);
+        Assert.Equal(120f, world.GetComponentRO<SimTransform>(restored).Position.X, 3);
+        Assert.Equal(1, TrafficEntitiesWithId(world, 4711));
+    }
+
+    /// <summary>⭐ R-3052 (B2) + CE-4048 — when the gate lifts after the recording was restored into the world, the mirror re-keys its book
+    /// ONCE (never per frame) and reconciles the restored replicas with the live wire: no car is doubled.</summary>
+    [Fact]
+    public void R3052_WhenTheReplayGateLifts_TheMirrorRekeysOnce_AndReconcilesTheRestoredReplicas()
+    {
+        LoadDemoCity(out var world);
+        using var _ = world;
+        RegisterReplicaComponents(world);
+        world.RegisterComponent<TrafficDemand>();
+        long next = 90000;
+        using var runtime = new TrafficRuntime(Options(() => Interlocked.Increment(ref next)));
+        var mirror = new TrafficMirrorSystem(runtime, participant: null, entityMap: null, localNodeId: 1);
+        var traffic = world.CreateEntity();
+        world.AddComponent(traffic, TrafficDemand.Default);
+        double t = 600.0;
+        for (int i = 0; i < 160; i++) Frame(world, mirror, runtime, t += 0.25);
+        var c = mirror.Cars[0];
+        Body(world, c.X, c.Y);
+        Frame(world, mirror, runtime, t += 0.25);
+        Assert.NotEmpty(mirror.Replicas!.Replicas);   // ⛔ otherwise the rail proves nothing
+        int rebuilds = mirror.Replicas.Rebuilds;
+        for (int i = 0; i < 20; i++) Frame(world, mirror, runtime, t += 0.25);
+        Assert.Equal(rebuilds, mirror.Replicas.Rebuilds);   // ⛔ never per frame
+
+        bool restoring = true;
+        mirror.IsReplayRestoring = () => restoring;
+        Frame(world, mirror, runtime, t += 0.25);
+        var ids = new List<long>();
+        foreach (var e in mirror.Replicas.Replicas.Values.ToArray())   // the recording replaces every replica entity
+        {
+            ids.Add(world.GetComponentRO<NetworkIdentity>(e).Value);
+            PutBack(world, e);
+        }
+        restoring = false;
+        Frame(world, mirror, runtime, t += 0.25);
+
+        Assert.Equal(rebuilds + 1, mirror.Replicas.Rebuilds);
+        foreach (long id in ids)
+            Assert.True(TrafficEntitiesWithId(world, id) <= 1, $"car {id} has a second replica");
+        foreach (var e in mirror.Replicas.Replicas.Values) Assert.True(world.IsAlive(e));
+        for (int i = 0; i < 8; i++) Frame(world, mirror, runtime, t += 0.25);
+        Assert.Equal(rebuilds + 1, mirror.Replicas.Rebuilds);
+    }
+
+    /// <summary>A restore's effect on one replica: the entity goes and an entity with its recorded components takes its place.</summary>
+    private static Entity PutBack(EntityRepository world, Entity e)
+    {
+        var copy = world.CreateEntity();
+        world.AddComponent(copy, world.GetComponentRO<NetworkIdentity>(e));
+        world.AddComponent(copy, world.GetComponentRO<NetworkAuthority>(e));
+        world.AddComponent(copy, world.GetComponentRO<TrafficCar>(e));
+        world.AddComponent(copy, world.GetComponentRO<SimTransform>(e));
+        world.AddComponent(copy, world.GetComponentRO<ReplicationRoute>(e));
+        world.DestroyEntity(e);
+        return copy;
+    }
+
+    private static int TrafficEntitiesWithId(EntityRepository world, long id)
+    {
+        int n = 0;
+        foreach (var e in world.Query().With<TrafficCar>().With<NetworkIdentity>().Build())
+            if (world.GetComponentRO<NetworkIdentity>(e).Value == id) n++;
+        return n;
+    }
+
     private static void Frame(EntityRepository world, TrafficMirrorSystem mirror, TrafficRuntime runtime, double now)
     {
         world.SetSingleton(new GlobalTime { TotalTime = now, DeltaTime = 0.25f, TimeScale = 1f });

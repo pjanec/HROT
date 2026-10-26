@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Replication;
 
@@ -42,14 +43,14 @@ namespace Fdp.Toolkit.Replication.Components
     /// </summary>
     [ComponentId(GlobalComponentIds.NetworkAckPeerSet)]
     [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
-    public class NetworkAckPeerSet
+    public record NetworkAckPeerSet
     {
         /// <summary>The peer node ids to wait for. Empty ⇒ no cross-node wait (immediate ack).</summary>
-        public int[] ExpectedAckPeers = Array.Empty<int>();
+        public IReadOnlyList<int> ExpectedAckPeers { get; init; } = Array.Empty<int>();
 
         /// <summary>CE-287 (C1): the creator's authoritative timeout for this wait, in seconds. 0 ⇒ the
         /// gateway's default. On expiry the creator ABORTS via <c>EntityMaster</c> dispose (§3b.3, C3).</summary>
-        public double TimeoutSeconds;
+        public double TimeoutSeconds { get; init; }
     }
 
     /// <summary>

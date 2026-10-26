@@ -12,12 +12,12 @@ namespace Fdp.Toolkit.Replication.Components
     // CE-277(e): per-descriptor network ownership, reconstructed from the live topology on load;
     // declarative replacement for StagingEntityExtractor's hardcoded static-exclusion bit.
     [DataPolicy(DataPolicy.NoScenario)]
-    public class DescriptorOwnership
+    public record DescriptorOwnership
     {
         /// <summary>
         /// Mapping from Descriptor PackedKey to Owner Node ID.
         /// </summary>
-        public Dictionary<long, int> Map { get; set; } = new Dictionary<long, int>();
+        public IReadOnlyDictionary<long, int> Map { get; init; } = new Dictionary<long, int>();
 
         /// <summary>
         /// Get the owner of a specific descriptor.
@@ -28,11 +28,12 @@ namespace Fdp.Toolkit.Replication.Components
         }
 
         /// <summary>
-        /// Set the owner for a specific descriptor.
+        /// A NEW value with the owner of a specific descriptor set; this instance is unchanged.
         /// </summary>
-        public void SetOwner(long packedKey, int ownerId)
+        public DescriptorOwnership WithOwner(long packedKey, int ownerId)
         {
-            Map[packedKey] = ownerId;
+            var map = new Dictionary<long, int>(Map) { [packedKey] = ownerId };
+            return this with { Map = map };
         }
     }
 }

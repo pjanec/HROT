@@ -107,7 +107,7 @@ namespace Hrot.Network.Systems
                 if (ownerNodeId != _localNodeId) continue;
 
                 long packedKey = OwnershipExtensions.PackKey(descriptorTypeId, 0);
-                ownership.SetOwner(packedKey, _localNodeId);
+                ownership = ownership.WithOwner(packedKey, _localNodeId);   // CE-4046: immutable record, Set below
                 ownershipDirty = true;
 
                 // 2a. Claim authority on each ECS component the translator maps to this descriptor.

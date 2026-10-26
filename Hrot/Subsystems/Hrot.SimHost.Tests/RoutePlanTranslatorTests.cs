@@ -67,7 +67,7 @@ namespace Hrot.SimHost.Tests
         public void B1_TheAirFields_RoundTrip_AndAPlainWaypointKeepsTheDefaults()
         {
             var plan = new RoutePlan();
-            plan.Mutate(w =>
+            plan = plan.WithWaypoints(w =>
             {
                 w.Add(new RouteWaypoint { Position = new Vector3(0f, 0f, 0f), TargetSpeed = 30f, Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground,
                                           Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup, HoldUnit = 7701 });
@@ -91,7 +91,7 @@ namespace Hrot.SimHost.Tests
         public void RoundTrip_PreservesWaypointsAndLoopFlag()
         {
             var plan = new RoutePlan { IsLoop = true };
-            plan.Mutate(w =>
+            plan = plan.WithWaypoints(w =>
             {
                 w.Add(new RouteWaypoint { Position = new Vector3(10f, 20f, 1.5f),   TargetSpeed = 8f });
                 w.Add(new RouteWaypoint { Position = new Vector3(30.5f, -4.25f, 0f), TargetSpeed = 0f });
@@ -124,7 +124,7 @@ namespace Hrot.SimHost.Tests
         public void RoundTrip_PreservesPerWaypointExtensionJson_AndKeepsNullNull()
         {
             var plan = new RoutePlan();
-            plan.Mutate(w =>
+            plan = plan.WithWaypoints(w =>
             {
                 w.Add(new RouteWaypoint
                 {
@@ -154,7 +154,7 @@ namespace Hrot.SimHost.Tests
             //   which is also the mutation contract that keeps Version meaningful for reactive systems
             //   such as RouteTrajectorySyncSystem.
             var plan = new RoutePlan();
-            plan.Mutate(w => w.Add(new RouteWaypoint { Position = Vector3.Zero }));
+            plan = plan.WithWaypoints(w => w.Add(new RouteWaypoint { Position = Vector3.Zero }));
 
             var (_, fresh) = RoundTrip(plan);
             using (fresh)

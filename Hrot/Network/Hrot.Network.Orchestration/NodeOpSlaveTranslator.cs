@@ -35,6 +35,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// <summary>⭐ P6 N5 — tokens describing how this node can be REACHED (the share it advertises); added to whatever the host advertises.</summary>
     private readonly string[] _transportCapabilities;
     private readonly DdsReader<ClusterStateTopic>?     _clusterStateReader;   // ⭐ C2: null in tests / offline.
+    private readonly DdsReader<AssetInventoryTopic>?   _inventoryReader;      // ⭐ R-3055: what the cluster can replay, on every node
     private readonly FdpEventBus                _bus;
     private readonly int                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
@@ -52,9 +53,11 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         JsonSerializerOptions?     jsonOptions = null,
         DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null,
         DdsReader<ClusterStateTopic>?     clusterStateReader = null,
+        DdsReader<AssetInventoryTopic>?   inventoryReader = null,
         string[]?                         transportCapabilities = null)
     {
         _clusterStateReader = clusterStateReader;
+        _inventoryReader    = inventoryReader;
         _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
@@ -70,6 +73,15 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// </summary>
     public void Tick()
     {
+        // ⭐ R-3055 — the master's exercise inventory, on every node's bus (its ClusterSlave keeps the last one): the same answer to
+        //   GET /exercises on CGF, SimHost, IG as on the editor and the orchestrator.
+        if (_inventoryReader != null)
+        {
+            using var inventoryScope = _inventoryReader.Take();
+            foreach (var s in inventoryScope)
+                if (s.IsValid) _bus.PublishManaged(OrchestrationObserverTranslator.InventoryOf(s.Data));
+        }
+
         // ── ⭐⭐ C2 (Q91 §4-I I5, R-4006) — Cluster-state ingress: DDS ClusterStateTopic → bus ClusterStateUpdateEvent, so the
         //   node's ClusterSlave knows which SESSION it follows. A not-alive instance means the master's writer is gone.
         if (_clusterStateReader != null)
@@ -170,6 +182,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _statusWriter.Dispose();
         _heartbeatWriter.Dispose();
         _capabilitiesWriter?.Dispose();
+        _inventoryReader?.Dispose();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

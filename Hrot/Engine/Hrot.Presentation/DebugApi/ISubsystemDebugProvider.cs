@@ -180,30 +180,6 @@ public interface ISubsystemDebugProvider
     Fdp.Interfaces.ITkbDatabase? TkbDb { get; }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>REQUEST A CLUSTER-WIDE STATE TRANSITION from this node</b> — the host-agnostic scenario-load
-    /// seam. 📄 <c>MCP_Integration.md</c> § Group U.
-    ///
-    /// <para>🔒 <b>User, `2026-08-24`:</b> <i>"both should be cluster wide. editor is not special, also uses
-    /// 2pc for its single process."</i></para>
-    ///
-    /// <para>⭐⭐ <b>This introduces NO new mechanism.</b> 📐 Measured: every host already publishes
-    /// <c>TransitionStateIntent</c> onto its own orchestration bus, and every one of those buses already
-    /// reaches a <c>ClusterMaster</c> — <b>directly</b> where the host owns one *(the orchestrator's
-    /// <c>_bus</c>; the editor's own ONE-NODE master on <c>_orchestrationBus</c>)*, or via
-    /// <c>ClusterOpEgressTranslator</c> → DDS → <c>ClusterOpMasterTranslator</c> on a slave
-    /// *(CGF · SimHost · IG · ExCon all wire one)*. ⇒ ⭐ this member SELECTS that existing seam per
-    /// perspective, exactly as <see cref="Drive"/> does for stepping.</para>
-    ///
-    /// <para>⭐ <b>Deliberately narrower than "the bus".</b> The endpoint needs to request a transition, not
-    /// to publish arbitrary events; handing out an <c>FdpEventBus</c> would let the debug host inject
-    /// anything into a node's control plane. 📌 The same reasoning that made <c>HN-028</c> expose one
-    /// <c>bool?</c> instead of the whole <c>MasterSyncController</c>.</para>
-    ///
-    /// <para>⛔ <see langword="null"/> when this node cannot request one ⇒ <c>NOT_SUPPORTED_HERE</c>.</para>
-    /// </summary>
-    Action<TransitionStateIntent>? RequestTransition { get; }
-
-    /// <summary>
     /// ⭐⭐ <b>This node's view of the CLUSTER's state</b> — what the scenario-load readiness gate waits on.
     /// <see langword="null"/> when this node tracks no such view.
     ///
@@ -213,6 +189,27 @@ public interface ISubsystemDebugProvider
     /// to render cluster UI. ⇒ see <c>PerspectiveScopedDispatcher.ClusterStateAnyNode</c> for why falling back
     /// to another provider is legitimate HERE and nowhere else.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-3052</c>…<c>R-3055</c> — <b>drive the cluster master</b>: every state, storage, checkpoint, seek, cancel and dump route
+    /// publishes through this, on every host (📄 <c>docs/DESIGN_Http_Control_Through_The_Cluster_Master.md</c> §3). It replaces the
+    /// per-intent delegates (transition, dump, save, cancel). <see langword="null"/> when this subsystem has no orchestration bus.
+    /// </summary>
+    IClusterMasterControl? Master { get; }
+
+    /// <summary>⭐ <c>R-3055</c> — the exercises the master can replay (its asset inventory), from this node's cluster read model;
+    /// <see langword="null"/> when it keeps none. ⚠ Cluster-wide inventory, cached per node, like <see cref="AvailableScenarios"/>.</summary>
+    IReadOnlyList<ExerciseInventoryItem>? Exercises { get; }
+
+    /// <summary>⭐ <c>R-3055</c> — the loaded replay's length (s) as the prepare round reported it; <see langword="null"/> when this
+    /// node keeps no cluster read model.</summary>
+    float? ReplayDurationSeconds { get; }
+
+
+    /// <summary>⭐ <c>CE-1265</c>/<c>CE-1266</c> on <c>R-3052</c>…<c>R-3055</c> — the recording THIS node replays now (its own), which the
+    /// journal history and the recording search scan read-only; <see langword="null"/> outside a replay or on a node that keeps none.
+    /// ⛔ Per node, never "any node": a journal lives in the recording of the node that runs the brain.</summary>
+    string? ReplayRecordingPath { get; }
+
     ClusterState? ClusterState { get; }
 
     /// <summary>
@@ -221,29 +218,6 @@ public interface ISubsystemDebugProvider
     /// <para>⚠ Same caveat as <see cref="ClusterState"/>: it is cluster-wide inventory, cached per node.</para>
     /// </summary>
     IReadOnlyList<string>? AvailableScenarios { get; }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>MD-006</c> — publish a CLUSTER-WIDE DIAGNOSTIC DUMP from this node.</b>
-    /// 📄 <c>DESIGN_Mcp_Diagnostics_Federation.md</c> §8.5.
-    ///
-    /// <para>⭐⭐ <b>Identical in shape and mechanism to <see cref="RequestTransition"/>, deliberately.</b>
-    /// 📐 <c>ClusterDiagnosticsPanel</c>'s Execute button publishes exactly this intent onto its own
-    /// orchestration bus, and every host's bus already reaches a <c>ClusterMaster</c> — directly where it
-    /// owns one, or via <c>ClusterOpEgressTranslator</c> → DDS on a slave. ⇒ ⛔ <b>this introduces NO new
-    /// collection mechanism</b>: the dump-diag pipeline already fans out and pulls to NAS. It selects the
-    /// existing trigger from a second surface.</para>
-    ///
-    /// <para>⚠ <see langword="null"/> when this subsystem has no orchestration bus.</para>
-    /// </summary>
-    Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDump { get; }
-
-    /// <summary>
-    /// ⭐ CE-277(c0, HTTP) — trigger a distributed JSON scenario save by publishing
-    /// <c>ExecuteStorageOpIntent{SaveScenarioJson, name}</c> on this node's orchestration bus.
-    /// <see langword="null"/> when this subsystem has no orchestration bus. The argument is the relative
-    /// scenario name (never a filesystem path).
-    /// </summary>
-    Action<string>? RequestSaveScenarioJson { get; }
 
     /// <summary>
     /// ⭐⭐⭐ CE-276 — hand an entity (or a chosen subset of its descriptors) to another node by publishing a
@@ -297,12 +271,6 @@ public interface ISubsystemDebugProvider
     IReadOnlyList<ClusterRosterEntry>? ClusterRoster { get; }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-4002</c> — the operator's cancel (<c>R-4004</c>), published onto this subsystem's orchestration bus — the
-    /// path the panel's own button takes. <see langword="null"/> when there is no bus.
-    /// </summary>
-    Action<CancelOperationIntent>? RequestCancel { get; }
-
-    /// <summary>
     /// ⭐⭐ <b>What this subsystem CAN do, measured from wired dependencies — never a hand-authored table.</b>
     /// 📄 Q54 § Manifest scope: <i>"each provider DERIVES its own cells from ground truth"</i>; a
     /// hand-written *"works here / not there"* table is `CLAUDE.md` §M's green-and-false rot.
@@ -336,17 +304,17 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer?>? _gizmoBuffer;
     private readonly Func<Hrot.UI.Common.Facades.IMissionEditorService?>? _missionEditor;
     private readonly Func<Fdp.Interfaces.ITkbDatabase?>? _tkbDb;
-    private readonly Func<Action<TransitionStateIntent>?>? _requestTransition;
+    private readonly Func<IClusterMasterControl?>? _master;
+    private readonly Func<IReadOnlyList<ExerciseInventoryItem>?>? _exercises;
+    private readonly Func<float?>? _replayDuration;
+    private readonly Func<string?>? _replayRecording;
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
     private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
-    private readonly Func<Action<ExecuteDiagnosticDumpIntent>?>? _requestDiagnosticDump;
     private readonly Func<DiagnosticDumpStatus?>? _dumpStatus;
-    private readonly Func<Action<string>?>? _requestSaveScenarioJson;   // CE-277(c0, HTTP)
     private readonly Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?>? _requestOwnershipTransfer;   // CE-276
     private readonly Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? _descriptorMap;   // CE-276
     private readonly Func<IReadOnlyList<ClusterRosterEntry>?>? _clusterRoster;   // CE-4002
-    private readonly Func<Action<CancelOperationIntent>?>? _requestCancel;      // CE-4002
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -380,19 +348,22 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         //    catalog's contents on every PrepareLive/PrepareEdit, so a value captured at provider
         //    construction would go stale on the first scenario load rather than merely start null.
         Func<Fdp.Interfaces.ITkbDatabase?>? tkbDb = null,
-        Func<Action<TransitionStateIntent>?>? requestTransition = null,
+        // ⭐⭐⭐ R-3052…R-3055 — the cluster master, through this host's orchestration bus (OrchestrationBusMasterControl.Via).
+        Func<IClusterMasterControl?>? master = null,
         Func<ClusterState?>? clusterState = null,
         Func<IReadOnlyList<string>?>? availableScenarios = null,
         Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? architecture = null,
-        Func<Action<ExecuteDiagnosticDumpIntent>?>? requestDiagnosticDump = null,
         Func<DiagnosticDumpStatus?>? dumpStatus = null,
-        Func<Action<string>?>? requestSaveScenarioJson = null,
         Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?>? requestOwnershipTransfer = null,
         Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? descriptorMap = null,
         // ⭐⭐ CE-4002 — the master's roster and the operator's cancel. ⚠ Funcs, for the same measured reason as the
         //    rest: the orchestration core and its bus are built in Initialize, after this provider.
         Func<IReadOnlyList<ClusterRosterEntry>?>? clusterRoster = null,
-        Func<Action<CancelOperationIntent>?>? requestCancel = null)
+        // ⭐ R-3055 — the master's exercise inventory and the loaded replay's length, from a cluster read model (ClusterUiCache).
+        Func<IReadOnlyList<ExerciseInventoryItem>?>? exercises = null,
+        Func<float?>? replayDuration = null,
+        // ⭐ CE-1265/CE-1266 — this node's replay recording (EcsRecordReplayController.ActiveReplayFilePath).
+        Func<string?>? replayRecording = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -403,93 +374,17 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _gizmoBuffer  = gizmoBuffer;
         _missionEditor = missionEditor;
         _tkbDb        = tkbDb;
-        _requestTransition = requestTransition;
+        _master = master;
+        _exercises = exercises;
+        _replayDuration = replayDuration;
+        _replayRecording = replayRecording;
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
         _architecture = architecture;
-        _requestDiagnosticDump = requestDiagnosticDump;
         _dumpStatus = dumpStatus;
-        _requestSaveScenarioJson = requestSaveScenarioJson;
         _requestOwnershipTransfer = requestOwnershipTransfer;
         _descriptorMap = descriptorMap;
         _clusterRoster = clusterRoster;
-        _requestCancel = requestCancel;
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>The ONE way a subsystem contributes <see cref="ISubsystemDebugProvider.RequestTransition"/>:
-    /// publish onto its own orchestration bus.</b> 📄 <c>MCP_Integration.md</c> § Group U.
-    ///
-    /// <para>⭐ Every host does exactly this and nothing else — 📐 measured: the orchestrator's <c>_bus</c> and
-    /// the editor's <c>_orchestrationBus</c> are read DIRECTLY by their own <c>ClusterMaster</c>; CGF · SimHost ·
-    /// IG *(all three via <c>NodeBootstrapper</c>)* and ExCon each wire a <c>ClusterOpEgressTranslator</c> onto
-    /// theirs, which carries the intent to the master over DDS. ⇒ ⛔ four hand-written copies of one lambda
-    /// would be four places for it to drift; this is the single implementation *(ruling 9)*.</para>
-    ///
-    /// <para>⚠ The bus is fetched through a <see cref="Func{T}"/> and re-read on every access — subsystem buses
-    /// are created in <c>Initialize</c> and NULLED in <c>Shutdown</c>. 📌 The same lesson as the lazy capability
-    /// accessors below, and as <c>HN-028</c>'s master read.</para>
-    /// </summary>
-    public static Func<Action<TransitionStateIntent>?> TransitionsVia(Func<FdpEventBus?> orchestrationBus)
-    {
-        if (orchestrationBus is null) throw new ArgumentNullException(nameof(orchestrationBus));
-        return () =>
-        {
-            var bus = orchestrationBus();
-            return bus is null ? null : intent => bus.PublishManaged(intent);
-        };
-    }
-
-    /// <summary>
-    /// ⭐⭐ <c>CE-4002</c> — the cancel analog of <see cref="TransitionsVia"/>: publish onto the subsystem's own
-    /// orchestration bus, which every host's bus carries to the <c>ClusterMaster</c>. ⛔ One implementation, not one
-    /// lambda per host. ⚠ The bus is re-read on every access — buses are created in Initialize and nulled in Shutdown.
-    /// </summary>
-    public static Func<Action<CancelOperationIntent>?> CancelsVia(Func<FdpEventBus?> orchestrationBus)
-    {
-        if (orchestrationBus is null) throw new ArgumentNullException(nameof(orchestrationBus));
-        return () =>
-        {
-            var bus = orchestrationBus();
-            return bus is null ? null : intent => bus.PublishManaged(intent);
-        };
-    }
-
-    /// <summary>
-    /// ⭐⭐ <b><c>MD-006</c> — the dump analog of <see cref="TransitionsVia"/>, and the same one-implementation
-    /// argument applies:</b> every host publishes onto its own orchestration bus and every one of those buses
-    /// reaches a <c>ClusterMaster</c>. ⛔ Four hand-written copies of one lambda would be four places to drift.
-    /// ⚠ The bus is fetched through a <see cref="Func{T}"/> and re-read on every access — subsystem buses are
-    /// created in <c>Initialize</c> and NULLED in <c>Shutdown</c>.
-    /// </summary>
-    public static Func<Action<ExecuteDiagnosticDumpIntent>?> DumpsVia(Func<FdpEventBus?> orchestrationBus)
-    {
-        if (orchestrationBus == null) throw new ArgumentNullException(nameof(orchestrationBus));
-        return () =>
-        {
-            var bus = orchestrationBus();
-            return bus is null ? null : intent => bus.PublishManaged(intent);
-        };
-    }
-
-    /// <summary>
-    /// ⭐ CE-277(c0, HTTP) — the ONE way a subsystem contributes <see cref="ISubsystemDebugProvider.RequestSaveScenarioJson"/>:
-    /// publishes <c>ExecuteStorageOpIntent{SaveScenarioJson, name}</c> on its orchestration bus (re-read each
-    /// access, like <see cref="DumpsVia"/>, because subsystem buses are nulled in <c>Shutdown</c>).
-    /// </summary>
-    public static Func<Action<string>?> SavesScenarioJsonVia(Func<FdpEventBus?> orchestrationBus)
-    {
-        if (orchestrationBus == null) throw new ArgumentNullException(nameof(orchestrationBus));
-        return () =>
-        {
-            var bus = orchestrationBus();
-            return bus is null ? null : name => bus.PublishManaged(new Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent
-            {
-                RequestId    = Guid.NewGuid(),
-                Operation    = Fdp.Toolkit.Orchestration.StorageOpType.SaveScenario,
-                ScenarioName = name,
-            });
-        };
     }
 
     /// <summary>
@@ -515,7 +410,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     /// <summary>
     /// ⭐⭐⭐ <b><c>CE-110</c> — the ONE way a subsystem contributes <see cref="ISubsystemDebugProvider.TkbDb"/>:
     /// read the singleton off its OWN world.</b> ⭐ The same one-implementation argument as
-    /// <see cref="TransitionsVia"/>: four hand-written <c>HasSingletonManaged</c> copies would be four places
+    /// <see cref="OrchestrationBusMasterControl.Via"/>: four hand-written <c>HasSingletonManaged</c> copies would be four places
     /// to drift.
     ///
     /// <para>⭐⭐ <b>Why the WORLD SINGLETON and not each subsystem's private handle</b> *(CGF holds
@@ -579,7 +474,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     /// <summary>
     /// ⭐⭐⭐ <b><c>CE-163</c> — the ONE way an ECS node contributes
     /// <see cref="ISubsystemDebugProvider.ClusterState"/>: read its OWN <see cref="ClusterSlave"/>.</b>
-    /// ⭐ Same one-implementation argument as <see cref="TransitionsVia"/> and <see cref="TkbFrom"/> —
+    /// ⭐ Same one-implementation argument as <see cref="OrchestrationBusMasterControl.Via"/> and <see cref="TkbFrom"/> —
     /// ⛔ three hand-written copies of one lambda would be three places to drift, and the defect this
     /// fixes was precisely that three nodes each independently passed nothing.
     ///
@@ -598,6 +493,14 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     /// <para>⚠ Re-read on every access, like every accessor here — a subsystem's slave is created during
     /// network init and nulled on shutdown.</para>
     /// </summary>
+    /// <summary>⭐ R-3055 — the ONE way an ECS node contributes <see cref="ISubsystemDebugProvider.Exercises"/>: its own
+    /// <see cref="ClusterSlave"/>'s copy of the master's inventory.</summary>
+    public static Func<IReadOnlyList<ExerciseInventoryItem>?> ExercisesFrom(Func<ClusterSlave?> clusterSlave)
+    {
+        if (clusterSlave is null) throw new ArgumentNullException(nameof(clusterSlave));
+        return () => clusterSlave()?.KnownExercises;
+    }
+
     public static Func<ClusterState?> ClusterStateFrom(Func<ClusterSlave?> clusterSlave)
     {
         if (clusterSlave is null) throw new ArgumentNullException(nameof(clusterSlave));
@@ -613,17 +516,17 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? GizmoBuffer => _gizmoBuffer?.Invoke();
     public Hrot.UI.Common.Facades.IMissionEditorService? MissionEditor => _missionEditor?.Invoke();
     public Fdp.Interfaces.ITkbDatabase? TkbDb => _tkbDb?.Invoke();
-    public Action<TransitionStateIntent>? RequestTransition => _requestTransition?.Invoke();
+    public IClusterMasterControl? Master => _master?.Invoke();
+    public IReadOnlyList<ExerciseInventoryItem>? Exercises => _exercises?.Invoke();
+    public float? ReplayDurationSeconds => _replayDuration?.Invoke();
+    public string? ReplayRecordingPath => _replayRecording?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
-    public Action<ExecuteDiagnosticDumpIntent>? RequestDiagnosticDump => _requestDiagnosticDump?.Invoke();
     public DiagnosticDumpStatus? DumpStatus => _dumpStatus?.Invoke();
-    public Action<string>? RequestSaveScenarioJson => _requestSaveScenarioJson?.Invoke();
     public Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer => _requestOwnershipTransfer?.Invoke();
     public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap => _descriptorMap?.Invoke();
     public IReadOnlyList<ClusterRosterEntry>? ClusterRoster => _clusterRoster?.Invoke();
-    public Action<CancelOperationIntent>? RequestCancel => _requestCancel?.Invoke();
 
     /// <summary>
     /// ⭐⭐⭐ <b>MEASURED from what is wired</b> — ⛔ never declared. 📌 Q54's one real risk: a hand-authored
@@ -634,18 +537,18 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         [DebugCapabilities.WorldRead]   = World is not null,
         [DebugCapabilities.EntityMap]   = EntityMap is not null,
         [DebugCapabilities.TimeDrive]   = Drive is not null,
-        [DebugCapabilities.ScenarioLoad] = RequestTransition is not null,
+        [DebugCapabilities.ScenarioLoad] = Master is not null,
         // ⭐ MD-002 — per subsystem, because each holds its OWN kernel. ⚠ False for ExCon and the
         //   Orchestrator, which genuinely have none, and that is the honest cell rather than an empty
         //   snapshot that would read as "this subsystem runs no modules".
         [DebugCapabilities.ArchitectureDiagnostics] = Architecture is not null,
         // ⭐ MD-006 — measured from the orchestration bus being reachable, exactly like ScenarioLoad.
-        [DebugCapabilities.ClusterDiagnosticsDump] = RequestDiagnosticDump is not null,
+        [DebugCapabilities.ClusterDiagnosticsDump] = Master is not null,
         // ⭐ CE-277(c0, HTTP) — measured from the orchestration bus being reachable, like ClusterDiagnosticsDump.
-        [DebugCapabilities.SaveScenarioJson] = RequestSaveScenarioJson is not null,
+        [DebugCapabilities.SaveScenarioJson] = Master is not null,
         // ⭐ CE-4002 — measured: a roster exists only where a ClusterMaster runs; a cancel needs only a bus.
         [DebugCapabilities.ClusterRoster] = _clusterRoster?.Invoke() is not null,
-        [DebugCapabilities.ClusterCancel] = RequestCancel is not null,
+        [DebugCapabilities.ClusterCancel] = Master is not null,
 
         // ⭐⭐⭐ BP-487 — the gizmo frame IS per-provider, and saying otherwise was a MANIFEST LIE.
         // ⚠⚠ THIS COMMENT USED TO READ: *"Panels and the gizmo frame are PROCESS-WIDE statics

@@ -64,18 +64,6 @@ public sealed class TrafficSubsystem : ISubsystem, IProvidesDebugSurface, Hrot.C
 
     /// <summary>The node's debug surface: its world, entity map, catalogue, cluster state, control bus and architecture.</summary>
     public ISubsystemDebugProvider? CreateDebugProvider()
-        => new SubsystemDebugProvider(
-            subsystemName: Name,
-            perspective:   Name,
-            world:         () => _bootstrapper?.Context?.World,
-            entityMap:     () => _bootstrapper?.Context?.EntityMap,
-            tkbDb:         SubsystemDebugProvider.TkbFrom(() => _bootstrapper?.Context?.World),
-            requestTransition: SubsystemDebugProvider.TransitionsVia(() => _bootstrapper?.Context?.EventBus),
-            requestCancel: SubsystemDebugProvider.CancelsVia(() => _bootstrapper?.Context?.EventBus),
-            clusterState:  SubsystemDebugProvider.ClusterStateFrom(() => _bootstrapper?.Context?.ClusterSlave),
-            requestDiagnosticDump: SubsystemDebugProvider.DumpsVia(() => _bootstrapper?.Context?.EventBus),
-            descriptorMap: () => _bootstrapper?.Context?.NedReplication?.DescriptorOwnershipMap,
-            architecture:  () => _bootstrapper?.Context?.Kernel is null
-                                 ? null
-                                 : new ArchitectureDiagnosticsService(() => _bootstrapper?.Context?.Kernel));
+        // ⭐⭐⭐ the ONE ECS-node debug surface (EcsNodeDebugProvider): the traffic node adds nothing of its own.
+        => EcsNodeDebugProvider.For(Name, Name, () => _bootstrapper?.Context);
 }

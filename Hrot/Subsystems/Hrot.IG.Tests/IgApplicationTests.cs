@@ -76,7 +76,7 @@ public class IgApplicationTests : System.IDisposable
         var routeEntity = _app.World.CreateEntity();
         _app.World.RegisterManagedComponent<RoutePlan>(); // idempotent if already registered
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint { Position = new Vector3(0f,  0f, 0f),   TargetSpeed = 5f });
             wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 100f), TargetSpeed = 5f });

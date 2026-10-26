@@ -215,6 +215,34 @@ public sealed class TrafficReplicas
         _peds.Remove(key);
     }
 
+    /// <summary>How many times the book was re-keyed from the world (<see cref="Rebuild"/>) — a rail reads it: never per frame.</summary>
+    public int Rebuilds { get; private set; }
+
+    /// <summary>
+    /// ⭐ R-3052 (B2) — re-keys the book from the world's <see cref="TrafficCar"/> entities, destroying nothing: called when the world was put
+    /// back (a load, a checkpoint restore, the end of a replay that restored the recording into it), never per frame. 📌 Without it the
+    /// book pointed at the entities the restore REPLACED: the next frame saw them dead, made a second replica for the same car, and the
+    /// restored one stayed in the world, posed by nobody.
+    /// </summary>
+    public void Rebuild()
+    {
+        _replicas.Clear();
+        _peds.Clear();
+        _released.Clear();
+        Rebuilds++;
+        if (!_world.IsComponentTypeRegistered<TrafficCar>() || !_world.IsComponentTypeRegistered<NetworkAuthority>()) return;
+        foreach (var e in _world.Query().With<TrafficCar>().With<NetworkAuthority>().Build())
+        {
+            var car = _world.GetComponentRO<TrafficCar>(e);
+            int owner = _world.GetComponentRO<NetworkAuthority>(e).PrimaryOwnerId;
+            if (car.Kind == TrafficCar.KindPedestrian)
+            {
+                if (_world.HasComponent<NetworkIdentity>(e)) _peds[(owner, _world.GetComponentRO<NetworkIdentity>(e).Value)] = e;
+            }
+            else _replicas[(owner, new VehicleHandle(car.VehicleIndex, car.Generation))] = e;
+        }
+    }
+
     /// <summary>Destroys every replica (the wire went away, the net or the demand changed).</summary>
     public void Clear()
     {

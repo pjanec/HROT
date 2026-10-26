@@ -120,6 +120,11 @@ namespace Hrot.NED.Descriptors
         // descriptor if the entity type allows for both.
         public ulong Flags;
 
+        // ⭐ AQ107 (CE-3323, R-169 — APPENDED) — the creation request that made this entity (CreateEntityRequest.RequestId);
+        // all zeros when no request did (a scenario load, a direct spawn). Lets a requester on ANY node tell its entity from the
+        // rest: the receiver stamps it on the replica, and the lifecycle module copies it into EntityConstructionCompleted.
+        public Guid RequestId;
+
         // IMPORTANT NOTE
         // The EntityMaster does NOT have OwnerId field. The owner id determined from sample metadata (sender id)
         // provided by the dds csharp bindings. Usually the last writer is the owner, according to the NED SST rules.

@@ -5,6 +5,7 @@ current-answer: the whole file — an APPENDIX of docs/DESIGN_Checkpoint_And_Dry
 stale-below: nothing
 known-rot: the "Policy" column of the nine SIM-STATE rows is the policy AS FOUND — D1 (2026-10-22) made all nine recorded. Writer/reader lists are grep over FDP/Hrot/Stride (tests excluded); check_index_coverage is not available through the CLI, so not proven exhaustive
 related-designs:
+  - docs/DESIGN_Replay_Census_H0.md — asks the REPLAY question of every type (this file asks the RESTORE one); its verdicts can differ for PROTOCOL / NET-SHADOW types
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the decisions this classification feeds (D1, D6, D7, D12)
 -->
 

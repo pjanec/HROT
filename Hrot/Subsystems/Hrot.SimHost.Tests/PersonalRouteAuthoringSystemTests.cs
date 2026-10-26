@@ -163,6 +163,8 @@ public class PersonalRouteAuthoringSystemTests
         PublishWaypoint(vehicle, new Vector3(10f, 0f, 10f));
         Tick();
 
+        // CE-4046 — RoutePlan is an immutable record: the append Set a NEW plan, so re-read the component.
+        plan = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(childEntity);
         Assert.Equal(versionAfterFirst + 1, plan.Version);
     }
 

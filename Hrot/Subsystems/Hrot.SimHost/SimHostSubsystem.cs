@@ -55,53 +55,12 @@ namespace Hrot.SimHost
         /// which is why <c>CreateDebugProvider</c> exists instead of the subsystem BEING a provider.</para>
         /// </summary>
         public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
-            => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
-                subsystemName: Name,
-                perspective:   "SimHost",
-                world:         () => _app?.WorldOrNull,
-                entityMap:     () => _app?.WorldOrNull is null ? null : _app!.TestHook_EntityMap,
-                drive:         () => _clusterTimeAdapter,
-                // ⭐⭐ BP-487 — SimHost's own map feed (SimHostVisualization.GizmoBuffer, line ~123).
-                // ⚠ Lazy, and doubly so here: the visualization is optional, so this is null on a
-                //   genuinely headless SimHost node and the manifest says panels.gizmo:false there.
-                gizmoBuffer:   () => _app?.Visualization?.GizmoBuffer,
-                // ⭐⭐ CE-110 — SimHost's own catalog (SimHostNodeBootstrapper:179 registers the singleton).
-                // ⚠⚠ Lazy is LOAD-BEARING here, not stylistic: TkbLoadClusterStateHandler CLEARS and
-                //    re-ingests this database on every PrepareLive/PrepareEdit, so a captured value would
-                //    report the boot catalog forever — the node's own scenario TKB would never show up.
-                tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .TkbFrom(() => _app?.WorldOrNull),
-                // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
-                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransitionsVia(() => _app?.OrchestrationBus),
-                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
-                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _app?.OrchestrationBus),
-                // ⭐⭐⭐ CE-163 — SimHost's OWN committed cluster state, from its OWN ClusterSlave, through
-                //    the SAME shared projection CGF and IG use. 🔒 "every ECS node must use the same shared
-                //    code" — ⛔ the identical line, deliberately, in all three composition roots.
-                // 📐 See ClusterStateFrom's remarks for why it was missing everywhere and what it means.
-                clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .ClusterStateFrom(() => _app?.ClusterSlave),
-                // ⭐⭐ MD-002 — this subsystem's OWN kernel snapshot. ⚠ Lazily, like every accessor here:
-                //    the kernel is created in Initialize, after the composition root builds the provider.
-                // ⭐⭐ MD-006 — the dump trigger, on the SAME bus and by the SAME argument as
-                //    requestTransition above: any node can ask, the pipeline is cluster-wide.
-                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .DumpsVia(() => _app?.OrchestrationBus),
-                // ⭐⭐ CE-277(c0, HTTP) — POST /scenario/save on THIS node triggers the cluster-wide JSON
-                //    save by publishing ExecuteStorageOpIntent{SaveScenarioJson} on the same control-plane
-                //    bus as requestTransition/DumpsVia. Any node may ask; the fan-out + merge is cluster-wide.
-                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                             .SavesScenarioJsonVia(() => _app?.OrchestrationBus),
-                // ⭐⭐⭐ CE-276 — SimHost's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) +
-                //    its OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns
-                //    the entity. Mirrors CgfSubsystem.CreateDebugProvider() exactly.
-                requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .TransfersOwnershipVia(() => _app?.WorldOrNull),
-                descriptorMap: () => _app?.NedReplication?.DescriptorOwnershipMap,
-                architecture:  () => _app?.Kernel is null
-                                     ? null
-                                     : new ArchitectureDiagnosticsService(() => _app?.Kernel));
+            // ⭐⭐⭐ the ONE ECS-node debug surface (EcsNodeDebugProvider) — only what SimHost genuinely adds is passed.
+            => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "SimHost", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
+            {
+                Drive       = () => _clusterTimeAdapter,
+                GizmoBuffer = () => _app?.Visualization?.GizmoBuffer,
+            });
 
         /// <inheritdoc/>
         /// <remarks>

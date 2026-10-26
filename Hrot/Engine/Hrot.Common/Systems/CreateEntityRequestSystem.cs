@@ -438,8 +438,8 @@ namespace Hrot.Common.Systems
                     // 5. Automatically spawn child entities if defined in the TKB template.
                     if (parentTemplate != null && parentTemplate.ChildBlueprints.Count > 0)
                     {
-                        // If PreAllocatedNetworkId != 0, this request came from StagingEntityExtractor (Scenario Load).
-                        bool isScenarioLoad = pending.Request.PreAllocatedNetworkId != 0;
+                        // ⭐ CE-3324 — a scenario load SAYS so (StagingEntityExtractor); ⛔ a fixed id is not one (an author may fix its id).
+                        bool isScenarioLoad = pending.Request.IsScenarioLoad;
 
                         foreach (var childDef in parentTemplate.ChildBlueprints)
                         {

@@ -1808,6 +1808,9 @@ public class IgApplication : IDisposable
     /// </summary>
     internal Fdp.Core.FdpEventBus? OrchestrationBus => _context?.EventBus;
 
+    /// <summary>⭐ The node's context — what the ONE ECS-node debug surface (<c>EcsNodeDebugProvider</c>) derives from.</summary>
+    internal Hrot.Common.Infrastructure.HrotNodeContext? NodeContext => _context;
+
     /// <summary>Current kernel sim time in seconds ? available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;
 
@@ -3693,10 +3696,9 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             // Convert each canvas 2D point to Cartesian world space and build RoutePlan.
             // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) is 0 for authoring.
-            var routePlan = new Hrot.Map.Common.Components.RoutePlan { IsLoop = false };
             Vector3 anchorCartesian = Vector3.Zero;
 
-            routePlan.Mutate(wps =>
+            var routePlan = new Hrot.Map.Common.Components.RoutePlan { IsLoop = false }.WithWaypoints(wps =>
             {
                 for (int i = 0; i < points.Length; i++)
                 {

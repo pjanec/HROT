@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Http_Control_Through_The_Cluster_Master.md — owns how the HTTP surface enters, seeks and reads a replay (the cluster's, through the master); supersedes §6b's sandbox
   - docs/DESIGN_Behaviour_Debugging.md — OWNS the debugging workflow (CE-1270) whose views get routes here (DBG-11)
   - docs/DESIGN_Director_Timeline_Editor.md — OWNS films cut from one editor recording in the Replay Browser; its HTTP (TE-15) follows this design's "a route only when none answers"
   - docs/DESIGN_Entity_Brain_View.md — OWNS what the brain view, the journal and "Debug this unit" ARE (§1–§10); this doc owns how an agent reaches them over HTTP
@@ -202,6 +203,12 @@ replay ones under `/replay`, the debug ones editor-only like `/breakpoints`). Id
 | already there, named in `/view` | `/entities/{id}/sensors` (every EQS sensor's last answer included), `/memory`, `/utility`, `/trace`, `/slots`, `/squad` for the possessed or selected unit; `/entities/{id}/focus` and `/annotations` for the agent to point back | — | — |
 
 ### 6b. Over one editor recording *(after `POST /replay/load`; every read is at the frame of the last seek / step)*
+
+> ⭐ **SUPERSEDED `2026-10-26` by [`DESIGN_Http_Control_Through_The_Cluster_Master.md`](DESIGN_Http_Control_Through_The_Cluster_Master.md) §3
+> (R-3052…R-3055, CE-3326, backend — a cross-lane edit, said here).** The debug service no longer holds a replay world of its own: `POST /replay`
+> puts the CLUSTER into its recording and the ORDINARY readers (`/entities/{id}/brain`, `/journal`, `GET /selection`) read the replayed
+> moment. ⭐ The two whole-recording queries stay: `GET /entities/{id}/journal/history` (moved from `/replay/entities/…`) and
+> `POST /replay/search`, each scanning THIS node's replay recording read-only. The table below is the HISTORY of the sandbox shape.
 
 | route | returns / does | reuses | slice |
 |---|---|---|---|

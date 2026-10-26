@@ -24,8 +24,8 @@ multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + exco
 |-------|---------------|----------------|------------------|
 | **Edit** | Authoring; world is static | No | `load_scenario_edit` |
 | **Live** | A real run on every node | Yes — **once you `play`** | `load_scenario_live` |
-| **Preview** | A revertible run from a RAM snapshot | Only when **unpaused** | `enter_preview`, `play`, `checkpoint`, or `start_recording{preview}` |
-| **Replay** | Read-only playback of a `.fdp` in an isolated sandbox | N/A (you seek frames) | `load_replay` |
+| **Preview** | The cluster's dry run, rewound on exit; **never recorded** | Only when **unpaused** | `enter_preview` (from Edit) |
+| **Replay** | Every node replays its OWN recording of a past live run | `play`/`pause`/`step` drive the replay clock; `seek_replay` jumps | `enter_replay` (from ANY state) |
 
 **Two load modes, and they are not the same operation.** `load_scenario_edit` freezes time for authoring;
 `load_scenario_live` starts an exercise run. Both are cluster-wide two-phase-commit transitions — the editor
@@ -42,13 +42,16 @@ edit-load handler yet), so use **live** when every node must hold the world.
   also meant every `step` was silently refused. If you meet an old build whose `simTime` climbs on its own
   with `clusterState:Idle`, that is the old behaviour — and any pause/step measurement taken on it is
   unreliable.
-- **Preview is revertible.** Entering preview snapshots the world; exiting (`stop_preview` /
-  `restore_checkpoint`) rewinds to that snapshot. This is the basis of checkpoint/restore.
-- **Replay is isolated.** Seeking a replay never touches the live world — they are independent.
-
-**Single preview slot.** `checkpoint`, `enter_preview`, and `start_recording{preview}` all use the *same one*
-snapshot slot. You cannot nest them. Restore/stop/exit before starting another. Recording and checkpoint are
-mutually exclusive.
+- **Preview is revertible.** Entering preview snapshots the world; `stop_preview` rewinds to it. It is never
+  recorded — only a LIVE run records, on every node, by itself.
+- **Every route that changes the cluster goes through the cluster master, on every host** — the editor is a
+  one-node cluster. There is no editor shortcut and no `cluster/` prefix to remember: `enter_preview`,
+  `checkpoint`, `enter_replay`, `seek_replay`, `save_scenario` are each one master intent.
+- **A checkpoint is part of the LIVE recording** — a named keyframe on every node — not a preview snapshot.
+  `restore_checkpoint {label}` continues the live run from it.
+- **A replay is the cluster's, not a sandbox.** `enter_replay` (one request from any state — the master plans
+  the way) puts every node into its own recording; the ORDINARY readers (`list_entities`, `get_entity`,
+  `get_entity_brain`, `get_entity_journal`) then read the replayed world. `stop_replay` goes to Idle.
 
 **The envelope.** Every tool returns `{ ok, data, error, awaited }`. On success read `data`. On failure
 `ok:false` and `error` explains why (and the tool result is flagged as an MCP error). `awaited` relates to

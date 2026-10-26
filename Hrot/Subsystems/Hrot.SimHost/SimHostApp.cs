@@ -218,6 +218,9 @@ namespace Hrot.SimHost
         /// </summary>
         internal FdpEventBus? OrchestrationBus => _context?.EventBus;
 
+        /// <summary>⭐ The node's context — what the ONE ECS-node debug surface (<c>EcsNodeDebugProvider</c>) derives from.</summary>
+        internal Hrot.Common.Infrastructure.HrotNodeContext? NodeContext => _context;
+
         /// <summary>
         /// ⭐⭐ <b>This node's <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/></b> — the control-plane
         /// endpoint that commits cluster-state transitions for SimHost and holds
@@ -823,8 +826,8 @@ namespace Hrot.SimHost
             //   computes and publishes the role-group grants (push-only, R-164) exactly as production does. It used
             //   to publish a raw SpawnEntityCommand, which bypasses CreateEntityRequestSystem and so granted
             //   NOTHING: every test built on this hook was blind to CE-500.
-            //   ⚠ The id is pre-allocated so the hook can return it synchronously; on the request path that is the
-            //   scenario-load form, whose only extra effect is not auto-spawning a composite's children.
+            //   ⚠ The id is pre-allocated so the hook can return it synchronously. ⭐ CE-3324: a fixed id is no longer read as a
+            //   scenario load, so an auto-spawning composite gets its children here as on any runtime request.
             //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S3, §5.7.
             var creation = EntityCreation
                 ?? throw new InvalidOperationException("SimHostApp has no entity-creation pack yet.");

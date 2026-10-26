@@ -10,11 +10,11 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [DataPolicy(DataPolicy.NoScenario)]
     [ComponentId(GlobalComponentIds.PendingUnitCommand)]
-    public sealed class PendingUnitCommand
+    public sealed record PendingUnitCommand   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {
-        public string SquadName { get; set; } = "";
-        public string Play { get; set; } = "";
-        public string ParamsJson { get; set; } = "";
-        public double AskedAt { get; set; }
+        public string SquadName { get; init; } = "";
+        public string Play { get; init; } = "";
+        public string ParamsJson { get; init; } = "";
+        public double AskedAt { get; init; }
     }
 }

@@ -23,8 +23,6 @@ namespace Fdp.Tests.Determinism
     {
         private static readonly Dictionary<string, string> Exempt = new()
         {
-            ["FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs"] =
-                "stamps a recorded frame's WALL time (metadata the replay seeks by), only when no time controller supplies one; never world state",
             ["FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs"] = "times each translator for the profile panel; decides nothing",
             ["FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs"]        = "times each translator for the profile panel; decides nothing",
             ["FDP/Network/Fdp.Network.Cyclone/Systems/CycloneIngressSystem.cs"]       = "times each translator for the profile panel; decides nothing",

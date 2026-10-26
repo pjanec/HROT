@@ -113,7 +113,7 @@ namespace Hrot.SimHost.Serializers
             if (obj["Waypoints"] is JsonArray waypointArray)
             {
                 // ⭐ THE MUTATION CONTRACT — the only legal way to fill the list, and what bumps Version.
-                plan.Mutate(list =>
+                plan = plan.WithWaypoints(list =>   // CE-4046 — RoutePlan is an immutable record: the new plan replaces the local
                 {
                     foreach (var node in waypointArray)
                     {

@@ -64,12 +64,15 @@ set_breakpoint {"condition":{"$type":"BehaviourStep","Behaviour":"<name>","Kind"
 3. `diff_state {baselineId}` → a tree of only the changed components (plus entity births/deaths).
 
 ### F. Record and replay (post-mortem)
-1. `start_recording {mode:"preview"}` → enters preview + begins recording; returns `fdpPath`.
-2. `play` / `step` to record some frames.
-3. `stop_recording` → finalizes the `.fdp` (and rewinds, since it's preview); returns `fdpPath`.
-4. `load_replay {fdpPath}` → isolated sandbox; `get_replay_status` shows `totalFrames`.
-5. `seek_replay {frame}` / `step_replay {dir}` → move through it; `list_replay_entities` to inspect a frame.
-6. `unload_replay` when done. The live world was never touched.
+1. `load_scenario_live {name}` → a live run; every node records it by itself (nothing to start).
+2. `play` for a while (optionally `checkpoint {label}` at an interesting moment).
+3. `enter_replay {atSeconds:30, waitForReady:true}` → the newest exercise (or name one from `list_exercises`),
+   entered in ONE request from wherever the cluster is.
+4. Read the moment with the ordinary readers: `list_entities`, `get_entity`, `get_entity_brain`.
+5. `seek_replay {atSeconds:45}` → jump; `get_replay_status` shows the state and the replay's length.
+6. `get_journal_history {networkId}` / `search_replay {condition}` → scan this node's whole recording (ask the
+   node that runs the unit's brain).
+7. `stop_replay` when done (the cluster goes to Idle).
 
 ### G. Inspect AI behavior (BTree/HSM/blueprint)
 1. `observe_trace {networkId, on:true}` — **arms** tracing (allocates trace buffers). Without this, traces

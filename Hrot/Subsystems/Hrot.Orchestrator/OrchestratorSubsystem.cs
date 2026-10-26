@@ -42,11 +42,12 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
         => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
             subsystemName:     Name,
             perspective:       "Orchestrator",
-            requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider.TransitionsVia(() => _bus),
+            master:            Hrot.Presentation.DebugApi.OrchestrationBusMasterControl.Via(() => _bus),   // ⭐ R-3052…R-3055 — the master reads this bus directly
             // ⚠ The master holds the WIRE enum; the provider speaks the toolkit's — kept numerically identical on purpose.
             clusterState:      () => _core is null ? null : (Fdp.Toolkit.Orchestration.ClusterState)(int)_core.Master.CurrentClusterState,
             clusterRoster:     () => _core?.Master.DescribeRoster(),
-            requestCancel:     Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _bus));
+            exercises:         () => _core?.UiCache.AvailableExercises,
+            replayDuration:    () => _core?.UiCache.ReplayDuration);
 
     // ⭐ Q86 (R-215) — the master and every process manager live in the ONE core the editor builds too.
     private OrchestratorCore? _core;

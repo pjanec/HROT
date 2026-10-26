@@ -2557,11 +2557,13 @@ namespace Hrot.Editor
                         //    scenario/load/live work in the editor at all.
                         // ⛔ The editor holds this bus, so not passing it would be the silent-default defect —
                         //    the forwarding rail in DebugApiCompositionTests asserts this argument by name.
-                        requestTransition: intent => _orchestrationBus!.PublishManaged(intent),
-                        // ⭐⭐ CE-4002 — the in-process master's roster and the operator's cancel on the same bus.
-                        //    ⛔ The editor HOLDS both, so not passing them is the silent-default defect.
+                        //    ⭐⭐⭐ R-3052…R-3055 — and every other master intent (save, preview, checkpoint, replay, seek, cancel, dump).
+                        master:            new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),
+                        // ⭐⭐ CE-4002 — the in-process master's roster. ⛔ The editor HOLDS it, so not passing it is the silent-default defect.
                         clusterRoster:     () => _orchestratorCore?.Master.DescribeRoster(),
-                        requestCancel:     intent => _orchestrationBus!.PublishManaged(intent),
+                        // ⭐ R-3055 — the core's cluster read model: what can be replayed, and the loaded replay's length.
+                        exercises:         () => _orchestratorCore?.UiCache.AvailableExercises,
+                        replayDuration:    () => _orchestratorCore?.UiCache.ReplayDuration,
                         // ⭐⭐⭐ MD-001 — the sinks GET /logs reads. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
                         // ⛔⛔ Measured: NEITHER composition root passed this, so `_logSinks` fell to
                         //    Array.Empty and get_logs answered [] on EVERY host — while the SAME records

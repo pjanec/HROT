@@ -66,8 +66,8 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             var (repo, e, sys) = Node(local, primary: Creator);
             var record = new DescriptorOwnership();
-            record.SetOwner(Key(Kinematic), Muscle);
-            record.SetOwner(Key(Kinematic, 4), Muscle);   // a part instance it held too
+            record = record.WithOwner(Key(Kinematic), Muscle);
+            record = record.WithOwner(Key(Kinematic, 4), Muscle);   // a part instance it held too
             repo.SetManagedComponent(e, record);
             repo.SetAuthority<NetworkTransform>(e, false);
             repo.SetAuthority<NetworkVelocity>(e, false);
@@ -86,7 +86,7 @@ namespace Fdp.Toolkit.Replication.Tests
             // P10: the Muscle once held Kinematic but handed it to the Bystander; its exit must not move it.
             var (repo, e, sys) = Node(Creator, primary: Creator);
             var record = new DescriptorOwnership();
-            record.SetOwner(Key(Kinematic), Bystander);
+            record = record.WithOwner(Key(Kinematic), Bystander);
             repo.SetManagedComponent(e, record);
 
             Depart(repo, sys, Muscle);
@@ -100,7 +100,7 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             var (repo, e, sys) = Node(Bystander, primary: Muscle);   // the departing node is the master owner
             var record = new DescriptorOwnership();
-            record.SetOwner(Key(Kinematic), Muscle);
+            record = record.WithOwner(Key(Kinematic), Muscle);
             repo.SetManagedComponent(e, record);
 
             Depart(repo, sys, Muscle);

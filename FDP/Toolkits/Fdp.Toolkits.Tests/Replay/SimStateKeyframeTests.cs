@@ -62,19 +62,39 @@ namespace Fdp.Toolkits.Tests.Replay
 
         [Fact] public void D1_SopStartRecord() => SurvivesAKeyframe(_ =>
         {
-            var r = new SopStartRecord { BehaviorName = "Sop", JsonParams = "{}", InstanceId = 5 };
-            r.HostedKeys.Add(41); r.HostedKeys.Add(42);
-            return r;
+            return new SopStartRecord { BehaviorName = "Sop", JsonParams = "{}", InstanceId = 5, HostedKeys = new[] { 41, 42 } };
         });
 
+        // ⭐ CE-4046 ② — the route geometry (an immutable record) and the follower (an unmanaged struct) survive a keyframe apart
         [Fact] public void D1_AirPath() => SurvivesAKeyframe(_ => new AirPath
         {
             RouteEntityId = 1234, RouteVersion = 2, IntentId = 8, Loop = true,
-            Points = new[] { new Vector3(1, 2, 3), new Vector3(4, 5, 6) }, S = new[] { 0f, 5.2f }, Speed = new[] { 10f, 12f },
-            Curvature = new[] { 0f, 0.1f }, Stops = new[] { new AirStop { S = 5.2f, Waypoint = 1, HoldSeconds = 3f } },
-            Stage = AirStage.Holding, Progress = 3.3f, SpeedNow = 11f, NextStop = 1, HoldLeft = 1.5f, ReleaseArmed = false,
-            Dropping = true, Pitch = 0.1f, Roll = -0.2f, OrbitCenter = new Vector2(7, 8), OrbitAngle = 1.25f,
+            Points = System.Collections.Immutable.ImmutableArray.Create(new Vector3(1, 2, 3), new Vector3(4, 5, 6)),
+            S = System.Collections.Immutable.ImmutableArray.Create(0f, 5.2f), Speed = System.Collections.Immutable.ImmutableArray.Create(10f, 12f),
+            Curvature = System.Collections.Immutable.ImmutableArray.Create(0f, 0.1f),
+            Stops = System.Collections.Immutable.ImmutableArray.Create(new AirStop { S = 5.2f, Waypoint = 1, HoldSeconds = 3f }),
         });
+
+        [Fact] public void CE4046_AirFollower_SurvivesAKeyframe()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<AirFollower>();
+            Assert.True(ComponentTypeRegistry.IsRecordable(ComponentTypeRegistry.GetId(typeof(AirFollower))), "AirFollower must be recordable");
+            var e = repo.CreateEntity();
+            var value = new AirFollower
+            {
+                Stage = AirStage.Holding, Progress = 3.3f, SpeedNow = 11f, NextStop = 1, HoldLeft = 1.5f, ReleaseArmed = false,
+                Dropping = true, Pitch = 0.1f, Roll = -0.2f, OrbitCenter = new Vector2(7, 8), OrbitAngle = 1.25f,
+            };
+            repo.AddComponent(e, value);
+            repo.Tick();
+            var keyframe = WorldKeyframes.Capture(repo, CaptureOptions.Recording);
+            repo.Tick();
+            repo.RemoveComponent<AirFollower>(e);
+            WorldKeyframes.Apply(repo, keyframe);
+            Assert.True(repo.HasComponent<AirFollower>(e), "AirFollower must come back from the keyframe");
+            Assert.Equal(value, repo.GetComponentRO<AirFollower>(e));
+        }
 
         [Fact] public void D1_SensorCapability() => SurvivesAKeyframe(_ => new SensorCapability
         {

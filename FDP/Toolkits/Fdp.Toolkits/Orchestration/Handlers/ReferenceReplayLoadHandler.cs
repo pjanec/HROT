@@ -67,6 +67,11 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     public sealed class ReferenceReplayLoadHandler : IClusterStateHandler
     {
         private readonly IRecordReplayController      _controller;
+
+        /// <summary>⭐ R-3055 — the recording this node replays now (its controller's), or <see langword="null"/>. Every ECS host
+        /// registers this handler through the shared composition (<c>EcsHostClusterHandlers.Compose</c>), so the debug surface reads
+        /// the file from the node's own <c>ClusterSlave</c> — the same way on every node.</summary>
+        public string? ReplayFilePath => _controller.ActiveReplayFilePath;
         private readonly TogglableInputGroup?         _inputGroup;
         private readonly TogglableSimulationGroup?    _simGroup;
         private readonly TogglablePostSimulationGroup? _postSimGroup;

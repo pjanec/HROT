@@ -68,6 +68,9 @@ namespace Hrot.SimHost.Tests
             var subsystem = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(subsystemPath));
 
+            // ⭐ an ECS node gets its map from the ONE shared surface, by construction (EcsNodeDebugProvider: node()?.EntityMap)
+            if (subsystem.Contains(EcsFactoryCall)) { Assert.Contains("entityMap:     () => node()?.EntityMap", EcsFactorySource()); return; }
+
             Assert.Contains("entityMap:", subsystem);
 
             var afterKey = subsystem[(subsystem.IndexOf("entityMap:", System.StringComparison.Ordinal)
@@ -153,6 +156,16 @@ namespace Hrot.SimHost.Tests
             //   registration helpers, and all of them must agree — measured 2026-09-11, CGF and SimHost
             //   each have two and both match.
             int at = 0, seen = 0;
+            // ⭐ the shared ECS-node surface takes the perspective as its 2nd argument: EcsNodeDebugProvider.For(Name, "<p>", …)
+            int f = src.IndexOf(EcsFactoryCall, System.StringComparison.Ordinal);
+            if (f >= 0)
+            {
+                var args = src[(f + EcsFactoryCall.Length)..];
+                var second = args[(args.IndexOf(',') + 1)..].TrimStart();
+                Assert.True(second.StartsWith($"\"{perspective}\"", System.StringComparison.Ordinal) || (second.StartsWith("Name,") && src.Contains($"Name => \"{perspective}\"")),
+                    $"{subsystemPath} builds its provider with a perspective that is not \"{perspective}\" (found: {second[..System.Math.Min(40, second.Length)]}).");
+                seen++;
+            }
             while ((at = src.IndexOf("perspective:", at, System.StringComparison.Ordinal)) >= 0)
             {
                 var after = src[(at + "perspective:".Length)..].TrimStart();
@@ -203,10 +216,13 @@ namespace Hrot.SimHost.Tests
                 "anything. Either it genuinely stopped drawing gizmos (drop the row and say why) or the " +
                 "rail is aimed at the wrong file.");
 
-            Assert.Contains("gizmoBuffer:", src);
+            // ⭐ an ECS node passes its feed as the shared surface's extra (EcsNodeDebugExtras.GizmoBuffer)
+            var key = src.Contains(EcsFactoryCall) ? "GizmoBuffer" : "gizmoBuffer:";
+            if (key == "GizmoBuffer") key = src.Contains("GizmoBuffer   =") ? "GizmoBuffer   =" : "GizmoBuffer =";
+            Assert.Contains(key, src);
 
-            var afterKey = src[(src.IndexOf("gizmoBuffer:", System.StringComparison.Ordinal)
-                                + "gizmoBuffer:".Length)..].TrimStart();
+            var afterKey = src[(src.IndexOf(key, System.StringComparison.Ordinal)
+                                + key.Length)..].TrimStart();
 
             Assert.False(afterKey.StartsWith("null", System.StringComparison.Ordinal),
                 $"{subsystemPath} passes `gizmoBuffer: null` while it drives a DebugPrimitiveBuffer. " +
@@ -264,7 +280,33 @@ namespace Hrot.SimHost.Tests
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
             "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",
+            "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs",
         };
+
+        private const string EcsFactoryCall = "EcsNodeDebugProvider.For(";
+
+        private static string EcsFactorySource() => CompositionRootSource.StripComments(
+            CompositionRootSource.ReadRepoSource("Hrot/Engine/Hrot.Presentation/DebugApi/EcsNodeDebugProvider.cs"));
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>An ECS node cannot get a different debug surface by construction</b> (user, `2026-10-26`: <i>"Best if the nodes cannot
+        /// get different stuff by construction"</i>). Every ECS node builds its provider through the ONE shared
+        /// <c>EcsNodeDebugProvider.For</c>, which derives everything from the node's <c>HrotNodeContext</c>; ⛔ none builds a
+        /// <c>SubsystemDebugProvider</c> by hand. 📌 Before, each hand-wrote ~15 arguments and they had drifted: the traffic node offered
+        /// no save or dump, and only CGF named its replay recording.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(EcsNodeSubsystems))]
+        public void AnEcsNode_BuildsItsDebugSurfaceThroughTheOneSharedFactory(string subsystemPath)
+        {
+            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(subsystemPath));
+
+            Assert.True(src.Contains(EcsFactoryCall),
+                $"{subsystemPath} does not build its debug provider through EcsNodeDebugProvider.For — an ECS node's surface is derived "
+              + "from its HrotNodeContext in ONE place; pass only what the node genuinely adds (EcsNodeDebugExtras).");
+            Assert.False(CompositionRootSource.ConstructsType(src, "SubsystemDebugProvider"),
+                $"{subsystemPath} constructs a SubsystemDebugProvider by hand — that is how four ECS nodes drifted apart.");
+        }
 
         /// <summary>
         /// 🔴 <b><c>CE-163</c>.</b> 📐 Measured on a four-process cluster <c>2026-09-03</c>:
@@ -283,7 +325,7 @@ namespace Hrot.SimHost.Tests
             var subsystem = CompositionRootSource.StripComments(
                 CompositionRootSource.ReadRepoSource(subsystemPath));
 
-            Assert.True(subsystem.Contains("ClusterStateFrom("),
+            Assert.True(subsystem.Contains("ClusterStateFrom(") || (subsystem.Contains(EcsFactoryCall) && EcsFactorySource().Contains("ClusterStateFrom(")),
                 $"{subsystemPath} does not pass its cluster state through " +
                 "SubsystemDebugProvider.ClusterStateFrom(...). Every ECS node holds a ClusterSlave whose " +
                 "LocalClusterState is its committed cluster state; a node that does not project it makes " +
@@ -344,6 +386,7 @@ namespace Hrot.SimHost.Tests
                 "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs"           => "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs" => "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs"         => "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+                "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs" => "Hrot/Subsystems/Hrot.TrafficNode/TrafficNodeBootstrapper.cs",
                 _ => throw new System.InvalidOperationException($"no bootstrapper mapped for {subsystemPath}"),
             };
 

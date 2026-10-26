@@ -359,8 +359,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   this pause is a RESTART.
             if (Overlaps(KeysOf(incomingId, incoming), paused.HeldKeys))
             {
-                paused.HeldKeys = Array.Empty<int>();
-                paused.Restart = true;
+                paused = paused with { HeldKeys = Array.Empty<int>(), Restart = true };   // ⭐ CE-4046 — a record: a new value
             }
             return paused;
         }
@@ -397,10 +396,10 @@ namespace Fdp.Toolkit.Behavior.Systems
             return keys;
         }
 
-        private static bool Overlaps(List<int> keys, int[] held)
+        private static bool Overlaps(List<int> keys, IReadOnlyList<int> held)
         {
             foreach (int k in keys)
-                if (Array.IndexOf(held, k) >= 0) return true;
+                if (held.Contains(k)) return true;
             return false;
         }
 
@@ -408,9 +407,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <paramref name="pausing"/> — the record a start is about to write)? No sweep detaches it.</summary>
         private static bool IsHeldByPausedTask(EntityRepository repo, Entity entity, int key, PausedTask? pausing = null)
         {
-            if (pausing is { Restart: false } p && Array.IndexOf(p.HeldKeys, key) >= 0) return true;
+            if (pausing is { Restart: false } p && p.HeldKeys.Contains(key)) return true;
             return repo.TryGetTable(typeof(PausedTask), out _) && PausedTaskOf(repo, entity) is { Restart: false } held
-                   && Array.IndexOf(held.HeldKeys, key) >= 0;
+                   && held.HeldKeys.Contains(key);
         }
 
         /// <summary>
@@ -434,14 +433,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             if (!repo.TryGetTable(typeof(PausedTask), out _) || PausedTaskOf(repo, entity) is not { Restart: false } held) return;
             if (!Overlaps(KeysOf(behaviorId, def), held.HeldKeys)) return;
-            var restart = new PausedTask
-            {
-                BehaviorName = held.BehaviorName, JsonParams = held.JsonParams, Origin = held.Origin, Hash = held.Hash,
-                InstanceId = held.InstanceId, BrainTier = held.BrainTier, HeldKeys = held.HeldKeys,
-            };
             DropPausedTask(repo, entity);   // detaches the held keys, releases the parts
-            restart.HeldKeys = Array.Empty<int>();
-            restart.Restart = true;
+            var restart = held with { HeldKeys = Array.Empty<int>(), Restart = true };   // ⭐ CE-4046 — a new value, not an in-place edit
             repo.SetManagedComponent(entity, restart);
         }
 

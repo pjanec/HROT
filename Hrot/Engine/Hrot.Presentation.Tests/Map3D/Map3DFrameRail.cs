@@ -1275,7 +1275,7 @@ public sealed class Map3DFrameRail
         var routeEntity = world.CreateEntity();
         world.AddComponent(routeEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
         var avenue = new Hrot.Map.Common.Components.RoutePlan();
-        avenue.Mutate(w =>
+        avenue = avenue.WithWaypoints(w =>
         {
             w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(652f, 30f, 0f), TargetSpeed = 8f });
             w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(652f, 380f, 0f), TargetSpeed = 8f });
@@ -4011,7 +4011,7 @@ public sealed class Map3DFrameRail
         var route = world.CreateEntity();
         world.AddComponent(route, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
         var plan = new Hrot.Map.Common.Components.RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(spot.X - 25f, spot.Y + 20f, 0f) });
             wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(spot.X - 5f, spot.Y + 35f, 0f), HeightAgl = 30f });

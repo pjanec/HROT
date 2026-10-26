@@ -15,10 +15,11 @@
 2. **Arm traces first.** `get_entity_trace` is empty unless you `observe_trace{on:true}` and then step.
 3. **`awaited:false, reason:"sim not running"` is not an error** — it means time wasn't advancing; pause-step
    to observe results instead of waiting.
-4. **One preview slot.** Don't `checkpoint` while in preview, or `start_recording` while checkpointed.
-   Restore/stop first.
-5. **Replay never affects the live world** — and the live world never affects replay. Use
-   `list_replay_entities` (not `list_entities`) while replaying.
+4. **A checkpoint needs a live run, a restore needs its label.** `checkpoint` answers the label it used; pass it
+   to `restore_checkpoint`. A preview is not a checkpoint and is never recorded.
+5. **A replay is the cluster's.** `enter_replay` puts every node into its recording; read it with the ordinary
+   readers (`list_entities`, `get_entity_brain`). The routes PUBLISH — pass `waitForReady:true` or poll
+   `get_replay_status` before reading.
 6. **`patch_attribute` keys must be registered** (see `get_attributes_schema`); unregistered keys are silently
    ignored. For arbitrary fields use `edit_component`.
 7. **Non-finite floats** appear as the strings `"NaN"`/`"Infinity"`/`"-Infinity"` in dumps — that's valid

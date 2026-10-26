@@ -463,72 +463,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// DDS → the master. ⛔ Nothing new is introduced here.</para>
     /// </summary>
     public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
-        => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
-            subsystemName: Name,
-            perspective:   "Scenario",
-            world:         () => _context?.World,
-            entityMap:     () => _entityMap,
-            // ⭐⭐⭐ CE-171 — CGF's OWN extraction service, the one built WITH the scenario serializer
-            //    (line ~1057) and already handed to the entity-inspector panel. ⛔ Until this line the
-            //    debug API built its own from the world alone, which has no translator pipeline, so
-            //    `BrainBlackboard.BehaviorParameters` came back as `{"FixedElementField": 1}` instead of
-            //    the decoded params DTO — on the very node that holds the Brain's behaviour state.
-            // ⚠ Lazy for the same measured reason as gizmoBuffer and missionEditor below: it is created
-            //   during window registration, well after the composition root builds this provider.
-            extraction:    () => _fdpEntityInspector.ExtractionService,
-            drive:         () => _clusterTimeAdapter,
-            // ⭐⭐⭐ BP-487 — CGF's OWN map feed: the very buffer its DebugGizmoLayer draws (line ~1096) and
-            //    its canvas takes as DrawBuffer (line ~1098), fed by GlobalGizmoManager + StatelessGizmoSystem.
-            //    ⇒ GET /panels/_gizmo now reports what CGF's map is actually submitting, which is the ONE
-            //    channel that can answer "does the cluster's map draw the scenario's entities?" — the user's
-            //    `2026-08-27` symptom. 📄 DESIGN_Subsystem_Composition_Unification.md §5.6.
-            // ⚠ Lazy for the measured reason in SubsystemDebugProvider's ctor remarks: the buffer is created
-            //   in Initialize (line ~851), AFTER the composition root builds this provider.
-            gizmoBuffer:   () => _cgfGizmoBuffer,
-            // ⭐⭐⭐ CE-066 — CGF's OWN mission editor: the very ScenarioMissionService its Mission panel
-            //    commits through (built at line ~1095, the SAME shared adapter EditorSubsystem:1962 builds).
-            //    ⛔ Until this line, all four `/missions/*` routes answered "no mission service" on
-            //    `--mode all` while this host had one the whole time — and that omission is also why the
-            //    routes sat UNCLASSIFIED in CapabilityFor, which kept the manifest rail red.
-            // ⚠ Lazy: the service is created during window registration, well after this provider is built.
-            missionEditor: () => _missionService,
-            // ⭐⭐⭐ CE-110 — CGF's OWN catalog. ⭐ Read off the world singleton (registered by CE-111 in
-            //    RegisterDomainComponents) rather than from `_context.TkbDb` directly, so that what /tkb/*
-            //    reports is provably the instance CGF's CreateEntityRequestSystem and NetworkSpawningSystem
-            //    resolve against — 📌 see TkbFrom's remarks on why a private handle is the subtler lie.
-            tkbDb:         Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                               .TkbFrom(() => _context?.World),
-            // ⭐⭐ HN-029: the node's own orchestration bus — the same one its ClusterSlave and
-            //    ClusterOpEgressTranslator sit on, so a transition requested here reaches the master by the
-            //    path the operator's own "Load into Live" button takes.
-            requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                   .TransitionsVia(() => _context?.EventBus),
-            // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
-            requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _context?.EventBus),
-            // ⭐⭐⭐ CE-163 — CGF's OWN committed cluster state, from its OWN ClusterSlave, through the SAME
-            //    shared projection SimHost and IG use. 🔒 "every ECS node must use the same shared code".
-            // ⚠ Lazy for a LOAD-BEARING reason, not style: Initialize REPLACES the context's slave with the
-            //   one it builds itself (`_context = _context with { ClusterSlave = newClusterSlave }`, so it
-            //   can control handler registration order). A captured value would read the pre-Initialize
-            //   slave forever — the one that never commits anything.
-            clusterState:  Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                               .ClusterStateFrom(() => _context?.ClusterSlave),
-            // ⭐⭐ MD-002 — CGF's own kernel snapshot, the same one its Architecture Diagnostics window
-            //    already renders (line ~1038). ⚠ Lazy: _context is null until Initialize.
-            // ⭐⭐ MD-006 — same bus, same argument as requestTransition above.
-            requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .DumpsVia(() => _context?.EventBus),
-            requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .SavesScenarioJsonVia(() => _context?.EventBus),
-            // ⭐⭐⭐ CE-276 — CGF's OWN world bus (the ECS bus OwnershipTransferInitiationSystem reads) + its
-            //    OWN NED descriptor map, so GET/POST /entities/{id}/ownership act on the node that owns the entity.
-            requestOwnershipTransfer: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransfersOwnershipVia(() => _context?.World),
-            descriptorMap: () => _context?.NedReplication?.DescriptorOwnershipMap,
-            architecture:  () => _context?.Kernel is null
-                                 ? null
-                                 : new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(
-                                       () => _context?.Kernel));
+        // ⭐⭐⭐ the ONE ECS-node debug surface (EcsNodeDebugProvider): everything from the node's context is derived there, the same on
+        //    every node; only what CGF genuinely adds is passed. ⭐ The drive is the operator toolbar's ClusterTimeTransportAdapter.
+        => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "Scenario", () => _context, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
+        {
+            Drive         = () => _clusterTimeAdapter,
+            GizmoBuffer   = () => _cgfGizmoBuffer,
+            Extraction    = () => _fdpEntityInspector.ExtractionService,
+            MissionEditor = () => _missionService,
+        });
 
     /// <inheritdoc/>
     public System.Numerics.Vector4 TitleBarColor => new(0.57f, 0.47f, 0.04f, 1f);
@@ -1138,7 +1081,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    extractor and THE SUBSYSTEM wires it — ⛔ the extractor never learns about a bus, which is
         //    what keeps Hrot.CGF separately deployable (R-79).
         // ⭐ `_context.EventBus` is the node's own orchestration bus — the same one its ClusterSlave
-        //   drains (HN-029's TransitionsVia reads it too), ⛔ not the CGF interaction bus.
+        //   drains (the debug surface's OrchestrationBusMasterControl reads it too), ⛔ not the CGF interaction bus.
         extractor.OnRemap = map =>
         {
             // ⭐⭐ Slice 1 — this node's OWN Watch needs the same table it publishes to the cluster.

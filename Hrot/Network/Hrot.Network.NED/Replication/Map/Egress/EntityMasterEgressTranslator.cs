@@ -113,7 +113,10 @@ namespace Hrot.Map.Common.Replication.Egress
                         Specific    = dis.Specific,
                         Extra       = dis.Extra,
                     },
-                    Flags = flags
+                    Flags = flags,
+                    // ⭐ AQ107 (§3.4e) — the request that made it, so a requester on another node knows it
+                    RequestId = view.HasComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(entity)
+                        ? view.GetComponentRO<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(entity).Value : System.Guid.Empty,
                 });
 
                 SentSampleCount++;

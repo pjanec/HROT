@@ -91,10 +91,8 @@ namespace Hrot.ExCon
                 //    bus with an egress translator, which is exactly why it hosts a ClusterScenarioPanel today.
                 //    ⇒ it can request a cluster-wide load without being able to read or step one. 📌 A neat
                 //    demonstration that the capabilities are genuinely independent, not one "is it wired" bit.
-                requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                       .TransitionsVia(() => _bus),
-                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
-                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _bus),
+                //    ⭐⭐⭐ R-3052…R-3055 — every master intent (transition, cancel, dump, save, seek, checkpoint) on that bus.
+                master: Hrot.Presentation.DebugApi.OrchestrationBusMasterControl.Via(() => _bus),
                 // ⭐⭐ MD-002 — EXPLICITLY null, written out rather than omitted: ExCon has no ECS kernel
                 //    (it already builds ArchitectureDiagnosticsService(() => null) for its own window),
                 //    so `diagnostics.architecture` is FALSE here and that is the true cell. ⛔ An empty
@@ -113,9 +111,6 @@ namespace Hrot.ExCon
                                           ? null
                                           : (Fdp.Toolkit.Orchestration.ClusterState)(int)_uiCache.CurrentState,
                 availableScenarios: () => _uiCache?.AvailableScenarios,
-                // ⭐⭐ MD-006 — the dump trigger, on the same bus as requestTransition above.
-                requestDiagnosticDump: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                           .DumpsVia(() => _bus),
                 // ⭐⭐⭐ MD-007 — the STATUS, and ExCon is where it lives for the same measured reason the
                 //    cluster state does: it is the one subsystem in `--mode all` that builds and PUMPS a
                 //    ClusterUiCache. ⭐ This projects EXACTLY what ClusterDiagnosticsPanel renders —
@@ -128,12 +123,9 @@ namespace Hrot.ExCon
                                                 _uiCache.HasInFlightTransaction,
                                                 _uiCache.LastDiagnosticManifest
                                                         .Select(e => e.RelativeDest).ToList()),
-                // ⭐⭐ CE-277(c0, HTTP) — POST /scenario/save on ExCon triggers the cluster-wide JSON save
-                //    by publishing ExecuteStorageOpIntent{SaveScenarioJson} on ExCon's own control-plane bus.
-                //    ⭐ ExCon is a legitimate trigger even though its OWN slice (ExCon.Observer) is the
-                //    intentionally-incompatible one routed to foreign/ — the save it kicks off is cluster-wide.
-                requestSaveScenarioJson: Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                                             .SavesScenarioJsonVia(() => _bus));
+                // ⭐ R-3055 — the exercise inventory and the replay's length, from the same pumped ClusterUiCache.
+                exercises:          () => _uiCache?.AvailableExercises,
+                replayDuration:     () => _uiCache?.ReplayDuration);
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>

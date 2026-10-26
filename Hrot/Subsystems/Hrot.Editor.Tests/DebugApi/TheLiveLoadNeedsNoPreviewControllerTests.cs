@@ -18,11 +18,12 @@ public sealed class TheLiveLoadNeedsNoPreviewControllerTests
     [Fact]
     public void A_live_load_on_a_host_without_a_preview_controller_goes_out_and_stops_no_run()
     {
-        var transitions = new List<TransitionStateIntent>();
+        var master = new RecordingMasterControl();
+        var transitions = master.Transitions;
         var svc = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
-                new SubsystemDebugProvider("Orchestrator", "Orchestrator", requestTransition: () => i => transitions.Add(i)),
+                new SubsystemDebugProvider("Orchestrator", "Orchestrator", master: () => master),
             },
             currentPerspective: () => "Orchestrator",
             acksPending: null),

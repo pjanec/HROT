@@ -85,6 +85,9 @@ namespace Fdp.Toolkit.Lifecycle.Systems
 
             // Check for timeouts
             _manager.CheckTimeouts(currentFrame, cmd);
+
+            // ⭐ AQ107 (CE-3323) — announce what finished this tick, on every node (§3.4e)
+            _manager.PublishOutcomes(view, cmd);
         }
     }
 }

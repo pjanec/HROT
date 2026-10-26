@@ -877,43 +877,58 @@ export const TOOLS_CATALOG = [
   {
     "name": "checkpoint",
     "group": "H — Checkpoint / diff",
-    "summary": "Take a single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true).",
+    "summary": "Take a named checkpoint of the LIVE run — a keyframe of every node's live recording, through the cluster master (R-3044).",
     "http": {
       "method": "POST",
       "path": "/checkpoint"
     },
-    "params": [],
-    "returns": "ok:true with inPreview:true. Returns 409 if a live run is active; 400 if already in preview/checkpointed.",
+    "params": [
+      {
+        "name": "label",
+        "type": "string",
+        "required": false,
+        "description": "The checkpoint's name (restore_checkpoint finds it by it); one is made when omitted, and returned"
+      }
+    ],
+    "returns": "{ published, requestId, label }",
     "notes": [
-      "Single slot: mutually exclusive with enter_preview and start_recording{preview}.",
-      "Restore with restore_checkpoint to rewind all changes."
+      "A checkpoint is part of the live recording (it survives into the replay), not a preview snapshot.",
+      "restore_checkpoint continues the live run from it."
     ],
     "example": {
-      "args": {},
+      "args": {
+        "label": "before-assault"
+      },
       "gist": "take a checkpoint before an experiment"
     },
-    "hint": "No params. Must NOT be in preview. Example: checkpoint({})",
+    "hint": "Optional: label (string). Requires a live run. Example: checkpoint({label:\"before-assault\"})",
     "manualVerify": false
   },
 
   {
     "name": "restore_checkpoint",
     "group": "H — Checkpoint / diff",
-    "summary": "Rewind the simulation to the checkpointed state via IPreviewController.ExitPreviewMode().",
+    "summary": "Continue the live run from a named checkpoint, through the cluster master.",
     "http": {
       "method": "POST",
       "path": "/checkpoint/restore"
     },
-    "params": [],
-    "returns": "ok:true with inPreview:false. Returns 400 if no checkpoint is active.",
-    "notes": [
-      "Returns 400 if no checkpoint is active."
+    "params": [
+      {
+        "name": "label",
+        "type": "string",
+        "required": true,
+        "description": "The checkpoint to restore"
+      }
     ],
+    "returns": "{ published, requestId, label }",
     "example": {
-      "args": {},
+      "args": {
+        "label": "before-assault"
+      },
       "gist": "revert all changes since the last checkpoint"
     },
-    "hint": "No params. Requires an active checkpoint. Example: restore_checkpoint({})",
+    "hint": "Req: label (string, as checkpoint returned it). Requires a live run. Example: restore_checkpoint({label:\"before-assault\"})",
     "manualVerify": false
   },
 
@@ -1126,7 +1141,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "enter_preview",
     "group": "D — Sim / preview / time",
-    "summary": "Enter preview mode. Snapshots the world (revertible via stop_preview).",
+    "summary": "Enter the cluster's dry run (OperatingPreview) from Edit, through the cluster master on every host (R-3052). Never recorded (R-3053).",
     "http": {
       "method": "POST",
       "path": "/preview/enter"
@@ -1136,42 +1151,58 @@ export const TOOLS_CATALOG = [
         "name": "startPaused",
         "type": "boolean",
         "required": false,
-        "description": "Start preview in paused state"
+        "description": "Start the dry run paused"
+      },
+      {
+        "name": "waitForReady",
+        "type": "boolean",
+        "required": false,
+        "description": "Wait until the cluster reports OperatingPreview"
       }
     ],
-    "returns": "ok:true envelope.",
+    "returns": "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
     "notes": [
-      "Snapshots the world; stop_preview rewinds to this snapshot.",
-      "Single preview slot — mutually exclusive with checkpoint and start_recording{preview}."
+      "stop_preview rewinds every node to the moment the dry run began.",
+      "A dry run is never recorded: only a live run records (R-3053)."
     ],
     "example": {
       "args": {
-        "startPaused": true
+        "startPaused": true,
+        "waitForReady": true
       },
       "gist": "enter preview paused for deterministic step-based control"
     },
-    "hint": "No required params. Optional: startPaused (bool). Example: enter_preview({startPaused:true})",
+    "hint": "No required params. Optional: startPaused (bool), waitForReady (bool). Example: enter_preview({startPaused:true, waitForReady:true})",
     "manualVerify": false
   },
 
   {
     "name": "stop_preview",
     "group": "D — Sim / preview / time",
-    "summary": "Exit preview mode; rewinds to the pre-preview snapshot.",
+    "summary": "Leave the dry run back to Edit through the cluster master; every node rewinds to the moment it began.",
     "http": {
       "method": "POST",
       "path": "/preview/exit"
     },
-    "params": [],
-    "returns": "ok:true envelope.",
+    "params": [
+      {
+        "name": "waitForReady",
+        "type": "boolean",
+        "required": false,
+        "description": "Wait until the cluster reports OperatingEdit"
+      }
+    ],
+    "returns": "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
     "notes": [
-      "Rewinds all changes made during preview back to the snapshot taken at enter_preview."
+      "Rewinds all changes made during the dry run."
     ],
     "example": {
-      "args": {},
+      "args": {
+        "waitForReady": true
+      },
       "gist": "exit preview and revert all changes since entering preview"
     },
-    "hint": "No params. Example: stop_preview({})",
+    "hint": "No required params. Optional: waitForReady (bool). Example: stop_preview({waitForReady:true})",
     "manualVerify": false
   },
 
@@ -1466,158 +1497,15 @@ export const TOOLS_CATALOG = [
     "manualVerify": false
   },
 
-  // ── Group I — Recording / replay ────────────────────────────────────────────
+  // ── Group I — Replay ────────────────────────────────────────────────────────
 
   {
-    "name": "start_recording",
-    "group": "I — Recording / replay",
-    "summary": "Start recording. Enters preview and begins writing a .fdp file.",
-    "http": {
-      "method": "POST",
-      "path": "/recording/start"
-    },
-    "params": [
-      {
-        "name": "mode",
-        "type": "string",
-        "required": false,
-        "description": "Recording mode: \"preview\" (revertible) or \"live\" (not supported in editor mode). Default: \"preview\"",
-        "enum": [
-          "preview",
-          "live"
-        ],
-        "default": "preview"
-      }
-    ],
-    "returns": "{ recording:true, mode, fdpPath }",
-    "notes": [
-      "mode=\"preview\" (default): revertible, uses EnterPreviewMode→PrepareRecordingAsync.",
-      "mode=\"live\": not supported in editor mode.",
-      "Mutually exclusive with checkpoint (both use the preview slot)."
-    ],
-    "example": {
-      "args": {
-        "mode": "preview"
-      },
-      "gist": "start a revertible preview recording"
-    },
-    "hint": "No required params. Optional: mode (\"preview\"|\"live\", def \"preview\"). Example: start_recording({mode:\"preview\"})",
-    "manualVerify": false
-  },
-
-  {
-    "name": "stop_recording",
-    "group": "I — Recording / replay",
-    "summary": "Stop the active recording. Finalizes BEFORE the exit rewind.",
-    "http": {
-      "method": "POST",
-      "path": "/recording/stop"
-    },
-    "params": [],
-    "returns": "{ recording:false, fdpPath }",
-    "notes": [
-      "For preview mode: finalizes BEFORE the exit rewind (hard ordering rule)."
-    ],
-    "example": {
-      "args": {},
-      "gist": "stop recording and get the .fdp file path"
-    },
-    "hint": "No params. Example: stop_recording({})",
-    "manualVerify": false
-  },
-
-  {
-    "name": "list_replay_entities",
-    "group": "I — Recording / replay",
-    "summary": "List entities from the ISOLATED replay sandbox at the current frame.",
+    "name": "get_journal_history",
+    "group": "I — Replay",
+    "summary": "EVERY brain-journal entry of one unit across this node's replay recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a replayed exercise.",
     "http": {
       "method": "GET",
-      "path": "/replay/entities"
-    },
-    "params": [],
-    "returns": "Same schema as list_entities but from the sandbox repo, NOT the live world.",
-    "notes": [
-      "Requires an active replay (call load_replay first).",
-      "Does not touch or affect the live world."
-    ],
-    "example": {
-      "args": {},
-      "gist": "inspect entities at current replay frame"
-    },
-    "hint": "No params. Requires load_replay first. Example: list_replay_entities({})",
-    "manualVerify": false
-  },
-
-  {
-    "name": "get_replay_entity_brain",
-    "group": "I — Recording / replay",
-    "summary": "get_entity_brain over the loaded recording at the current replay frame (CE-1265): what the unit was doing, who ordered it, what it knew, its recent journal.",
-    "http": {
-      "method": "GET",
-      "path": "/replay/entities/{networkId}/brain"
-    },
-    "params": [
-      {
-        "name": "networkId",
-        "type": "number",
-        "required": true,
-        "description": "Network entity ID (long)"
-      }
-    ],
-    "returns": "Same as get_entity_brain, plus frame.",
-    "notes": [
-      "Reads the replay SANDBOX, never the live world; seek_replay to the frame before a change to see its cause."
-    ],
-    "example": {
-      "args": {
-        "networkId": 1000
-      },
-      "gist": "what unit 1000 was doing at this replay frame"
-    },
-    "hint": "Req: networkId (number). Load with load_replay and seek first. Example: get_replay_entity_brain({networkId:1000})",
-    "manualVerify": false
-  },
-
-  {
-    "name": "get_replay_entity_journal",
-    "group": "I — Recording / replay",
-    "summary": "get_entity_journal over the loaded recording at the current replay frame (CE-1265) — the last 24 entries as they were then.",
-    "http": {
-      "method": "GET",
-      "path": "/replay/entities/{networkId}/journal"
-    },
-    "params": [
-      {
-        "name": "networkId",
-        "type": "number",
-        "required": true,
-        "description": "Network entity ID (long)"
-      },
-      {
-        "name": "since",
-        "type": "number",
-        "required": false,
-        "description": "Only entries with seq greater than this (query)"
-      }
-    ],
-    "returns": "Same as get_entity_journal, plus frame.",
-    "example": {
-      "args": {
-        "networkId": 1000
-      },
-      "gist": "the unit's recent changes at this replay frame"
-    },
-    "hint": "Req: networkId (number); optional since (number, query). Example: get_replay_entity_journal({networkId:1000})",
-    "manualVerify": false
-  },
-
-  {
-    "name": "get_replay_journal_history",
-    "group": "I — Recording / replay",
-    "summary": "EVERY brain-journal entry of one unit across the loaded recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a finished exercise.",
-    "http": {
-      "method": "GET",
-      "path": "/replay/entities/{networkId}/journal/history"
+      "path": "/entities/{networkId}/journal/history"
     },
     "params": [
       {
@@ -1641,8 +1529,8 @@ export const TOOLS_CATALOG = [
     ],
     "returns": "{ networkId, from, to, found, gap, count, entries:[{seq, at, kind, text, frame}] }",
     "notes": [
-      "It walks the recording frame by frame, so a long file takes a moment; the replay's current frame is restored afterwards.",
-      "Then seek_replay to an entry's frame - 1 and read get_replay_entity_brain to see what led to it.",
+      "Ask the node that runs the unit's brain (its journal is in that node's recording).",
+      "It reads the recording file frame by frame, read-only: the replayed world is not touched; a long file takes a moment.",
       "gap:true means entries were lost between two recorded frames (should not happen: every change dirties the unit's record)."
     ],
     "example": {
@@ -1651,45 +1539,80 @@ export const TOOLS_CATALOG = [
       },
       "gist": "list every decision unit 1000 made in the exercise, and why"
     },
-    "hint": "Req: networkId (number); optional from, to (frames, query). Example: get_replay_journal_history({networkId:1000})",
+    "hint": "Req: networkId (number); optional from, to (frames, query). In a replay. Example: get_journal_history({networkId:1000})",
     "manualVerify": false
   },
 
   {
-    "name": "load_replay",
-    "group": "I — Recording / replay",
-    "summary": "Load a .fdp recording into an ISOLATED ReplayBrowserContext.",
+    "name": "list_exercises",
+    "group": "I — Replay",
+    "summary": "The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053).",
+    "http": {
+      "method": "GET",
+      "path": "/exercises"
+    },
+    "params": [],
+    "returns": "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
+    "notes": [
+      "Answered by a host that keeps the cluster read model (the editor, the orchestrator, ExCon); other nodes answer 503."
+    ],
+    "example": {
+      "args": {},
+      "gist": "what can be replayed"
+    },
+    "hint": "No params. Example: list_exercises({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "enter_replay",
+    "group": "I — Replay",
+    "summary": "Replay an exercise on the whole cluster, from ANY state, in ONE request — the cluster master plans the way (unload, load, seek) (R-3055).",
     "http": {
       "method": "POST",
-      "path": "/replay/load"
+      "path": "/replay"
     },
     "params": [
       {
-        "name": "fdpPath",
+        "name": "exerciseId",
         "type": "string",
-        "required": true,
-        "description": "Absolute path to the .fdp recording file"
+        "required": false,
+        "description": "The exercise (list_exercises); when omitted: the live run in progress, else the newest finished one"
+      },
+      {
+        "name": "atSeconds",
+        "type": "number",
+        "required": false,
+        "description": "Where to enter, seconds after the exercise's start (default 0)"
+      },
+      {
+        "name": "waitForReady",
+        "type": "boolean",
+        "required": false,
+        "description": "Wait until the cluster reports OperatingReplay"
       }
     ],
-    "returns": "{ loaded:true, fdpPath, totalFrames, currentFrame }",
+    "returns": "{ published, transactionId, target, exerciseId, atSeconds } (+ awaited, reached with waitForReady).",
     "notes": [
-      "While replay is active, /replay/entities returns entities from the sandbox (not the live world).",
-      "Use list_replay_entities (not list_entities) while replaying."
+      "With no exerciseId it needs a host that keeps the cluster read model (the editor, the orchestrator, ExCon); a CGF / SimHost / IG process needs the exerciseId.",
+      "Every node replays its OWN recording; the ordinary readers (list_entities, get_entity, get_entity_brain, get_entity_journal, get_selection) then read the replayed world.",
+      "play / pause / step drive the replay clock; seek_replay jumps."
     ],
     "example": {
       "args": {
-        "fdpPath": "/path/to/recording.fdp"
+        "atSeconds": 30,
+        "waitForReady": true
       },
-      "gist": "load a .fdp recording for inspection"
+      "gist": "replay the last exercise from 30 s in"
     },
-    "hint": "Req: fdpPath (string, absolute path to .fdp file). Example: load_replay({fdpPath:\"/path/to/recording.fdp\"})",
+    "hint": "Optional: exerciseId (string; the newest when omitted), atSeconds (number, from the exercise's start), waitForReady (bool). Example: enter_replay({atSeconds:30, waitForReady:true})",
     "manualVerify": false
   },
 
   {
     "name": "search_replay",
-    "group": "I — Recording / replay",
-    "summary": "Find the frames of the loaded recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
+    "group": "I — Replay",
+    "summary": "Find the frames of this node's replay recording where a condition holds (CE-1266) — the same condition shape breakpoints take (component field match, event, lifecycle, spatial, compound).",
     "http": {
       "method": "POST",
       "path": "/replay/search"
@@ -1717,7 +1640,8 @@ export const TOOLS_CATALOG = [
     "returns": "{ count, truncated, hits:[{frame, networkId, context}] }",
     "notes": [
       "Changed compares each frame with the frame before it (a unit's first frame counts as changed) — e.g. every frame a unit's ActiveBehaviorHash switched.",
-      "ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result."
+      "ComponentType takes the component's name or its full name; an unknown name is an error, never an empty result.",
+      "Then seek_replay to a hit to read the moment with the ordinary readers."
     ],
     "example": {
       "args": {
@@ -1741,123 +1665,76 @@ export const TOOLS_CATALOG = [
 
   {
     "name": "seek_replay",
-    "group": "I — Recording / replay",
-    "summary": "Seek to a specific frame in the ISOLATED sandbox. Does NOT touch the live world.",
+    "group": "I — Replay",
+    "summary": "Seek the cluster's replay to a moment — the operator timeline's seek round: every node restores its own recording there and the clocks snap.",
     "http": {
       "method": "POST",
       "path": "/replay/seek"
     },
     "params": [
       {
-        "name": "frame",
+        "name": "atSeconds",
         "type": "number",
         "required": true,
-        "description": "Frame index to seek to (0-based)"
+        "description": "Seconds after the exercise's start"
       }
     ],
-    "returns": "{ frame, totalFrames }",
+    "returns": "{ published, requestId, atSeconds }",
     "notes": [
-      "Isolation guarantee: does NOT touch the live world."
+      "The cluster pauses for the seek; read get_replay_status, then the ordinary readers."
     ],
     "example": {
       "args": {
-        "frame": 0
+        "atSeconds": 45
       },
-      "gist": "seek replay to frame 0 (start)"
+      "gist": "jump the replay to 45 s"
     },
-    "hint": "Req: frame (number, 0-based). Example: seek_replay({frame:0})",
-    "manualVerify": false
-  },
-
-  {
-    "name": "get_replay_selection",
-    "group": "I — Recording / replay",
-    "summary": "The operator's selection at the current replay frame (CE-1265) — the unit they were pointing at then (the selection is recorded).",
-    "http": {
-      "method": "GET",
-      "path": "/replay/selection"
-    },
-    "params": [],
-    "returns": "{ frame, primary, selection:[networkId] }",
-    "notes": [
-      "To find WHEN the operator selected something, search_replay a Changed condition on SelectionState.IsSelected."
-    ],
-    "example": {
-      "args": {},
-      "gist": "which unit the operator had selected at this frame"
-    },
-    "hint": "No params. Example: get_replay_selection({})",
+    "hint": "Req: atSeconds (number, from the exercise's start). Example: seek_replay({atSeconds:45})",
     "manualVerify": false
   },
 
   {
     "name": "get_replay_status",
-    "group": "I — Recording / replay",
-    "summary": "Replay sandbox status.",
+    "group": "I — Replay",
+    "summary": "The cluster's state, the loaded replay's length, this node's replay recording, and its clock.",
     "http": {
       "method": "GET",
       "path": "/replay/status"
     },
     "params": [],
-    "returns": "{ replayActive, currentFrame, totalFrames }",
+    "returns": "{ clusterState, replaying, durationSeconds, recording, sim }",
     "example": {
       "args": {},
-      "gist": "check if replay is active and current frame"
+      "gist": "is the cluster replaying, and where"
     },
     "hint": "No params. Example: get_replay_status({})",
     "manualVerify": false
   },
 
   {
-    "name": "step_replay",
-    "group": "I — Recording / replay",
-    "summary": "Step one frame forward or backward in the ISOLATED sandbox. Does NOT touch the live world.",
+    "name": "stop_replay",
+    "group": "I — Replay",
+    "summary": "Leave the replay: the cluster goes to Idle.",
     "http": {
       "method": "POST",
-      "path": "/replay/step"
+      "path": "/replay/stop"
     },
     "params": [
       {
-        "name": "dir",
-        "type": "string",
+        "name": "waitForReady",
+        "type": "boolean",
         "required": false,
-        "description": "Step direction: \"forward\" or \"back\". Default: \"forward\"",
-        "enum": [
-          "forward",
-          "back"
-        ],
-        "default": "forward"
+        "description": "Wait until the cluster reports Idle"
       }
     ],
-    "returns": "{ stepped:bool, frame, totalFrames }",
-    "notes": [
-      "Isolation guarantee: does NOT touch the live world."
-    ],
+    "returns": "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
     "example": {
       "args": {
-        "dir": "forward"
+        "waitForReady": true
       },
-      "gist": "step one frame forward in the replay"
+      "gist": "end the replay"
     },
-    "hint": "No required params. Optional: dir (\"forward\"|\"back\", def \"forward\"). Example: step_replay({dir:\"forward\"})",
-    "manualVerify": false
-  },
-
-  {
-    "name": "unload_replay",
-    "group": "I — Recording / replay",
-    "summary": "Dispose the replay sandbox and return to live world queries.",
-    "http": {
-      "method": "POST",
-      "path": "/replay/unload"
-    },
-    "params": [],
-    "returns": "ok:true envelope.",
-    "example": {
-      "args": {},
-      "gist": "unload replay sandbox when done inspecting"
-    },
-    "hint": "No params. Example: unload_replay({})",
+    "hint": "Optional: waitForReady (bool). Example: stop_replay({waitForReady:true})",
     "manualVerify": false
   },
 

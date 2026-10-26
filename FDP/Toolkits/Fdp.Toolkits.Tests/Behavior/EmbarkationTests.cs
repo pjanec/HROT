@@ -368,7 +368,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var man = Soldier(new Vector3(0, 0, 15));
             _world.AddComponent(man, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
             var ownership = new DescriptorOwnership();
-            ownership.Map[Embarkation.PositionKey] = 2;                                      // the Muscle elsewhere owns his position
+            ownership = ownership.WithOwner(Embarkation.PositionKey, 2);                                      // the Muscle elsewhere owns his position
             _world.SetManagedComponent(man, ownership);
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, man, heli));
 
@@ -381,7 +381,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal((man, heli, Fdp.Toolkit.Motion.ExitKind.RopeDown, false), (sent[0].Passenger, sent[0].Anchor, sent[0].Exit, sent[0].IsRemote));
             Assert.False(_world.HasComponent<Fdp.Toolkit.Motion.Descent>(man));            // the local command is not applied here
 
-            ownership.Map[Embarkation.PositionKey] = 1;                                      // now: the position owner, receiving it
+            _world.SetManagedComponent(man, ownership.WithOwner(Embarkation.PositionKey, 1));                                      // now: the position owner, receiving it
             _world.Bus.Publish(new StartDescentCommand { Passenger = man, Anchor = heli, Exit = Fdp.Toolkit.Motion.ExitKind.RopeDown, IsRemote = true });
             Frame();
             var d = _world.GetComponent<Fdp.Toolkit.Motion.Descent>(man);

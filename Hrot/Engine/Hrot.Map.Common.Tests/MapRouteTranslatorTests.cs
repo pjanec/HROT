@@ -39,7 +39,7 @@ public class MapRouteTranslatorTests
         entityMap.Register(1, entity);
 
         var plan = new RoutePlan();
-        plan.Mutate(wps =>
+        plan = plan.WithWaypoints(wps =>
         {
             wps.Add(new RouteWaypoint { Position = new Vector3(10, 20, 30), TargetSpeed = 5f });
             wps.Add(new RouteWaypoint { Position = new Vector3(40, 50, 60), TargetSpeed = 10f });
@@ -70,7 +70,7 @@ public class MapRouteTranslatorTests
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
         entityMap.Register(7, entity);
         var plan = new RoutePlan();
-        plan.Mutate(wps => { wps.Add(new RouteWaypoint { Position = new Vector3(10, 10, 0) }); wps.Add(new RouteWaypoint { Position = new Vector3(200, 10, 0) }); });
+        plan = plan.WithWaypoints(wps => { wps.Add(new RouteWaypoint { Position = new Vector3(10, 10, 0) }); wps.Add(new RouteWaypoint { Position = new Vector3(200, 10, 0) }); });
         world.SetManagedComponent(entity, plan);
 
         translator.ScanAndPublish(world);
@@ -95,7 +95,7 @@ public class MapRouteTranslatorTests
         entityMap.Register(2, entity);
 
         var plan = new RoutePlan { IsLoop = true };
-        plan.Mutate(wps => wps.Add(new RouteWaypoint
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint
         {
             Position      = new Vector3(1, 2, 3),
             TargetSpeed   = 7.5f,
@@ -127,7 +127,7 @@ public class MapRouteTranslatorTests
         world.AddComponent(entity, new SimTransform());
         entityMap.Register(3, entity);
         var plan = new RoutePlan();
-        plan.Mutate(wps => wps.Add(new RouteWaypoint
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint
         {
             Position = new Vector3(1, 2, 3), Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, HeightAgl = 45f,
             Hold = Fdp.Toolkit.Navigation.RouteHold.Unload, HoldSeconds = 4f, HoldUnit = 7701,
@@ -169,7 +169,7 @@ public class MapRouteTranslatorTests
         entityMap.Register(3, entity);
 
         var plan = new RoutePlan();
-        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = originalPos }));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint { Position = originalPos }));
         world.SetManagedComponent(entity, plan);
 
         translator.ScanAndPublish(world);
@@ -201,7 +201,7 @@ public class MapRouteTranslatorTests
         entityMap.Register(4, entity);
 
         var plan = new RoutePlan();
-        plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = Vector3.Zero }));
+        plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint { Position = Vector3.Zero }));
         world.SetManagedComponent(entity, plan);
 
         translator.ScanAndPublish(world); // publish once (version=1)
@@ -488,7 +488,7 @@ public class MapRouteTranslatorTests
         var entity    = world.CreateEntity();
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: primaryOwner, localNodeId: local));
         var plan = new RoutePlan();
-        plan.Mutate(wps => { for (int i = 0; i < 3; i++) wps.Add(new RouteWaypoint { Position = new Vector3(i, i, 0) }); });
+        plan = plan.WithWaypoints(wps => { for (int i = 0; i < 3; i++) wps.Add(new RouteWaypoint { Position = new Vector3(i, i, 0) }); });
         world.SetManagedComponent(entity, plan);
         entityMap.Register(10, entity);
         return (world, new MapRouteIngressTranslator(null, entityMap, new StubGeoTransform()), entity);

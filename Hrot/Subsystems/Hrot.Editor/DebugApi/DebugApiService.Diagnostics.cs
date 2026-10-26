@@ -96,8 +96,8 @@ namespace Hrot.Editor.DebugApi
         /// </remarks>
         public (JsonNode? Result, string? Error, string? HintCategory) TriggerClusterDump(JsonNode? body)
         {
-            var publish = _dispatcher?.RequestDiagnosticDumpAnyNode;
-            if (publish == null) return (null, NoClusterDump, DebugApiHints.Panel);
+            var master = MasterOrNull;
+            if (master == null) return (null, NoClusterDump, DebugApiHints.Panel);
 
             // ⭐ The node set. ⛔ An EMPTY list is refused rather than treated as "all": the panel disables
             //   its own button on an empty selection, and a dump of everything is a very different
@@ -146,7 +146,7 @@ namespace Hrot.Editor.DebugApi
             var payloadJson = System.Text.Json.JsonSerializer.Serialize(
                 dto, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
-            publish(new Fdp.Toolkit.Orchestration.ExecuteDiagnosticDumpIntent
+            master.Dump(new Fdp.Toolkit.Orchestration.ExecuteDiagnosticDumpIntent
             {
                 RequestId   = dto.TransactionId,
                 PayloadJson = payloadJson,

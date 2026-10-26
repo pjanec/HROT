@@ -75,13 +75,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         using (var l = _inventoryReader.Take())
             foreach (var s in l)
                 if (s.IsValid)
-                    _bus.PublishManaged(new AssetInventoryUpdateEvent
-                    {
-                        LocalScenarios           = DeserializeStringArray(s.Data.LocalScenariosJson),
-                        LocalExercises           = DeserializeExerciseArray(s.Data.LocalExercisesJson),
-                        ArchivedExercises        = DeserializeExerciseArray(s.Data.ArchivedExercisesJson),
-                        UnarchivedLocalExercises = DeserializeExerciseArray(s.Data.UnarchivedLocalExercisesJson),
-                    });
+                    _bus.PublishManaged(InventoryOf(s.Data));
 
         // NodeHeartbeat → NodeHeartbeatEvent
         using (var l = _heartbeatReader.Take())
@@ -185,6 +179,16 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         _nodeOpStatusReader.Dispose();
         _capabilitiesReader.Dispose();
     }
+
+    /// <summary>⭐ R-3055 — the ONE decoding of the master's inventory sample (this observer and every node's
+    /// <see cref="NodeOpSlaveTranslator"/> use it).</summary>
+    internal static AssetInventoryUpdateEvent InventoryOf(in AssetInventoryTopic data) => new()
+    {
+        LocalScenarios           = DeserializeStringArray(data.LocalScenariosJson),
+        LocalExercises           = DeserializeExerciseArray(data.LocalExercisesJson),
+        ArchivedExercises        = DeserializeExerciseArray(data.ArchivedExercisesJson),
+        UnarchivedLocalExercises = DeserializeExerciseArray(data.UnarchivedLocalExercisesJson),
+    };
 
     private static string[] DeserializeStringArray(string? json)
     {

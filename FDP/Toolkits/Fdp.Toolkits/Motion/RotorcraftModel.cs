@@ -161,119 +161,120 @@ namespace Fdp.Toolkit.Motion
 
         private static void FollowRoute(ref MotionFrame f, in NavigationIntent intent, in FlightParams p, AirPath path, float dt)
         {
-            if (!intent.ReleaseHold) path.ReleaseArmed = true;
+            ref var fol = ref AirFollowers.Of(ref f);   // ⭐ CE-4046 ② — the follower beside the immutable path
+            if (!intent.ReleaseHold) fol.ReleaseArmed = true;
             float yaw = YawOf(f.Transform.Rotation);
 
-            if (path.Stage == AirStage.Start)
+            if (fol.Stage == AirStage.Start)
             {
                 bool onGround = OnGear(ref f);
-                if (path.Stops.Length > 0 && path.Stops[0].S <= 0.5f && AirRoute.IsFlownThrough(in path.Stops[0]) && !onGround)
+                if (path.Stops.Length > 0 && path.Stops[0].S <= 0.5f && AirRoute.IsFlownThrough(path.Stops[0]) && !onGround)
                 {
-                    path.Dropping = true;   // ⭐ B-3 — the route starts on its DZ leg
-                    path.ReleaseArmed = !intent.ReleaseHold;
-                    path.NextStop = 1;
-                    path.Stage = AirStage.Flying;
+                    fol.Dropping = true;   // ⭐ B-3 — the route starts on its DZ leg
+                    fol.ReleaseArmed = !intent.ReleaseHold;
+                    fol.NextStop = 1;
+                    fol.Stage = AirStage.Flying;
                 }
                 else if (path.Stops.Length > 0 && path.Stops[0].S <= 0.5f)
-                    path.Stage = onGround || path.Stops[0].Kind != RouteWaypointKind.Ground ? BeginHold(path, path.Stops[0]) : AirStage.Landing;
-                else path.Stage = onGround ? AirStage.TakingOff : AirStage.Flying;
+                    fol.Stage = onGround || path.Stops[0].Kind != RouteWaypointKind.Ground ? BeginHold(ref fol, path.Stops[0]) : AirStage.Landing;
+                else fol.Stage = onGround ? AirStage.TakingOff : AirStage.Flying;
             }
 
-            switch (path.Stage)
+            switch (fol.Stage)
             {
                 case AirStage.TakingOff:
                 {
                     SetAirborne(ref f, 1);
-                    float top = AirRoute.Sample(path, path.Progress).Point.Z;
+                    float top = AirRoute.Sample(path, fol.Progress).Point.Z;
                     float vz = MathF.Min(p.ClimbMps, MathF.Max(0f, top - f.Transform.Position.Z) / MathF.Max(dt, 1e-4f));
-                    Level(path, dt);
-                    Fly(ref f, yaw, new Vector3(0f, 0f, vz), dt, path);
-                    if (f.Transform.Position.Z >= top - 0.05f) path.Stage = AirStage.Flying;
-                    Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.TakingOff, path.Progress);
+                    Level(ref fol, dt);
+                    Fly(ref f, yaw, new Vector3(0f, 0f, vz), dt, fol);
+                    if (f.Transform.Position.Z >= top - 0.05f) fol.Stage = AirStage.Flying;
+                    Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.TakingOff, fol.Progress);
                     return;
                 }
                 case AirStage.Landing:
                 {
                     var geo = Geometry(f);
                     var pose = geo != null ? RestOn(ref f, geo, yaw) : new RestingPose(f.Ground(f.Transform.Position.X, f.Transform.Position.Y), 0f, 0f);
-                    Level(path, dt);
+                    Level(ref fol, dt);
                     float down = MathF.Min(LandingMps, p.ClimbMps);
-                    Fly(ref f, yaw, new Vector3(0f, 0f, -MathF.Min(down, MathF.Max(0f, f.Transform.Position.Z - pose.Z) / MathF.Max(dt, 1e-4f))), dt, path);
+                    Fly(ref f, yaw, new Vector3(0f, 0f, -MathF.Min(down, MathF.Max(0f, f.Transform.Position.Z - pose.Z) / MathF.Max(dt, 1e-4f))), dt, fol);
                     if (f.Transform.Position.Z <= pose.Z + 1e-3f)
                     {
                         TouchDown(ref f, yaw, pose);
-                        path.Pitch = path.Roll = 0f;
-                        path.Stage = BeginHold(path, path.Stops[path.NextStop]);
+                        fol.Pitch = fol.Roll = 0f;
+                        fol.Stage = BeginHold(ref fol, path.Stops[fol.NextStop]);
                     }
-                    Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.Landing, path.Progress);
+                    Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.Landing, fol.Progress);
                     return;
                 }
                 case AirStage.Holding:
                 {
-                    var stop = path.Stops[path.NextStop];
+                    var stop = path.Stops[fol.NextStop];
                     f.Velocity.Linear = Vector3.Zero;
                     SetVertical(ref f, 0f);
                     bool released = stop.Hold switch
                     {
-                        RouteHold.Seconds => (path.HoldLeft -= dt) <= 0f,
-                        RouteHold.Unload or RouteHold.Pickup or RouteHold.Rope => intent.ReleaseHold && path.ReleaseArmed,
+                        RouteHold.Seconds => (fol.HoldLeft -= dt) <= 0f,
+                        RouteHold.Unload or RouteHold.Pickup or RouteHold.Rope => intent.ReleaseHold && fol.ReleaseArmed,
                         _ => true,
                     };
                     bool onGround = OnGear(ref f);
                     if (released)
                     {
-                        if (stop.Hold is RouteHold.Unload or RouteHold.Pickup or RouteHold.Rope) path.ReleaseArmed = false;
-                        if (stop.Last) path.Stage = AirStage.Done;
-                        else { path.NextStop++; path.Stage = onGround ? AirStage.TakingOff : AirStage.Flying; }
+                        if (stop.Hold is RouteHold.Unload or RouteHold.Pickup or RouteHold.Rope) fol.ReleaseArmed = false;
+                        if (stop.Last) fol.Stage = AirStage.Done;
+                        else { fol.NextStop++; fol.Stage = onGround ? AirStage.TakingOff : AirStage.Flying; }
                     }
-                    if (path.Stage == AirStage.Done) { Report(ref f, intent, NavigationResult.Arrived, onGround ? NavigationPhase.Landed : NavigationPhase.Completed, path.Progress); return; }
+                    if (fol.Stage == AirStage.Done) { Report(ref f, intent, NavigationResult.Arrived, onGround ? NavigationPhase.Landed : NavigationPhase.Completed, fol.Progress); return; }
                     var phase = stop.Hold switch
                     {
                         RouteHold.Unload => NavigationPhase.Unloading,
                         RouteHold.Pickup => NavigationPhase.Loading,
                         RouteHold.Rope => NavigationPhase.Roping,
-                        RouteHold.Drop when path.Dropping => NavigationPhase.Dropping,   // a Drop at the route's end: the hover goes on dropping
+                        RouteHold.Drop when fol.Dropping => NavigationPhase.Dropping,   // a Drop at the route's end: the hover goes on dropping
                         _ => onGround ? NavigationPhase.Landed : NavigationPhase.Following,
                     };
-                    Report(ref f, intent, NavigationResult.InProgress, released ? NavigationPhase.Following : phase, path.Progress);
+                    Report(ref f, intent, NavigationResult.InProgress, released ? NavigationPhase.Following : phase, fol.Progress);
                     return;
                 }
                 case AirStage.Done:
                     f.Velocity.Linear = Vector3.Zero;
                     SetVertical(ref f, 0f);
-                    ReleaseDrop(in intent, path);
+                    ReleaseDrop(in intent, ref fol);
                     Report(ref f, intent, NavigationResult.Arrived,
-                           path.Dropping ? NavigationPhase.Dropping : OnGear(ref f) ? NavigationPhase.Landed : NavigationPhase.Completed, path.Progress);
+                           fol.Dropping ? NavigationPhase.Dropping : OnGear(ref f) ? NavigationPhase.Landed : NavigationPhase.Completed, fol.Progress);
                     return;
             }
-            ReleaseDrop(in intent, path);
+            ReleaseDrop(in intent, ref fol);
 
             // ── Flying: along the path, the speed eased; slowed for the curve ahead and for the next stop ──
-            bool hasStop = path.NextStop < path.Stops.Length;
-            var next = hasStop ? path.Stops[path.NextStop] : default;
-            var here = AirRoute.Sample(path, path.Progress);
+            bool hasStop = fol.NextStop < path.Stops.Length;
+            var next = hasStop ? path.Stops[fol.NextStop] : default;
+            var here = AirRoute.Sample(path, fol.Progress);
             float vt = here.Speed > 0f ? here.Speed : (intent.TargetSpeed > 0f ? intent.TargetSpeed : p.MaxSpeedMps);
             vt = MathF.Min(vt, p.MaxSpeedMps);
             float lateral = Gravity * MathF.Tan(MaxBankDeg * MathF.PI / 180f);
             float accelMax = Accel(in p);
-            float look = path.SpeedNow * path.SpeedNow / (2f * accelMax) + 5f;
-            float kAhead = AirRoute.MaxCurvature(path, path.Progress, path.Progress + look);
+            float look = fol.SpeedNow * fol.SpeedNow / (2f * accelMax) + 5f;
+            float kAhead = AirRoute.MaxCurvature(path, fol.Progress, fol.Progress + look);
             if (kAhead > 1e-5f) vt = MathF.Min(vt, MathF.Sqrt(lateral / kAhead));
-            if (hasStop && !AirRoute.IsFlownThrough(in next)) vt = MathF.Min(vt, MathF.Sqrt(2f * accelMax * MathF.Max(0f, next.S - path.Progress)));
-            float dv = Math.Clamp(vt - path.SpeedNow, -2f * accelMax * dt, accelMax * dt);
+            if (hasStop && !AirRoute.IsFlownThrough(in next)) vt = MathF.Min(vt, MathF.Sqrt(2f * accelMax * MathF.Max(0f, next.S - fol.Progress)));
+            float dv = Math.Clamp(vt - fol.SpeedNow, -2f * accelMax * dt, accelMax * dt);
             float accel = dv / MathF.Max(dt, 1e-4f);
-            path.SpeedNow = MathF.Max(0f, path.SpeedNow + dv);
-            path.Progress += path.SpeedNow * dt;
+            fol.SpeedNow = MathF.Max(0f, fol.SpeedNow + dv);
+            fol.Progress += fol.SpeedNow * dt;
 
             bool arrived = false;
-            if (hasStop && path.Progress >= next.S - 0.05f) { path.Progress = next.S; arrived = true; }
-            else if (!hasStop && path.Progress >= path.Length)
+            if (hasStop && fol.Progress >= next.S - 0.05f) { fol.Progress = next.S; arrived = true; }
+            else if (!hasStop && fol.Progress >= path.Length)
             {
-                if (path.Loop && path.Length > 0f) { path.Progress -= path.Length; path.NextStop = 0; }
-                else path.Progress = path.Length;
+                if (path.Loop && path.Length > 0f) { fol.Progress -= path.Length; fol.NextStop = 0; }
+                else fol.Progress = path.Length;
             }
 
-            var at = AirRoute.Sample(path, path.Progress);
+            var at = AirRoute.Sample(path, fol.Progress);
             var pos = f.Transform.Position;
             float dz = Math.Clamp(at.Point.Z - pos.Z, -p.ClimbMps * dt, p.ClimbMps * dt);
             var newPos = new Vector3(at.Point.X, at.Point.Y, pos.Z + dz);
@@ -281,52 +282,52 @@ namespace Fdp.Toolkit.Motion
 
             // the attitude: the nose down while it accelerates, the roll into the turn (left turn ⇒ left side down)
             float pitchTarget = -MathF.Atan(accel / Gravity);
-            float rollTarget = -MathF.Atan(path.SpeedNow * path.SpeedNow * at.Curvature / Gravity);
-            Tilt(path, pitchTarget, rollTarget, dt);
+            float rollTarget = -MathF.Atan(fol.SpeedNow * fol.SpeedNow * at.Curvature / Gravity);
+            Tilt(ref fol, pitchTarget, rollTarget, dt);
 
             f.Velocity.Linear = (newPos - pos) / MathF.Max(dt, 1e-4f);
             f.Transform.Position = newPos;
-            f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, path.Pitch, path.Roll));
+            f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, fol.Pitch, fol.Roll));
             SetVertical(ref f, f.Velocity.Linear.Z);
 
             if (arrived && AirRoute.IsFlownThrough(in next))
             {
                 // ⭐ airborne insertion B-3 (D-7) — the DZ leg begins: flown on, at its speed, reporting Dropping until the Brain releases it
-                path.Dropping = true;
-                path.ReleaseArmed = !intent.ReleaseHold;
-                path.NextStop++;
+                fol.Dropping = true;
+                fol.ReleaseArmed = !intent.ReleaseHold;
+                fol.NextStop++;
             }
             else if (arrived)
             {
-                path.SpeedNow = 0f;
-                path.Dropping = next.Hold == RouteHold.Drop;   // a real stop ends the DZ leg; a route ending on its DZ hovers there, still dropping
-                path.Stage = next.Kind == RouteWaypointKind.Ground ? AirStage.Landing : BeginHold(path, next);
+                fol.SpeedNow = 0f;
+                fol.Dropping = next.Hold == RouteHold.Drop;   // a real stop ends the DZ leg; a route ending on its DZ hovers there, still dropping
+                fol.Stage = next.Kind == RouteWaypointKind.Ground ? AirStage.Landing : BeginHold(ref fol, next);
             }
-            Report(ref f, intent, NavigationResult.InProgress, path.Dropping ? NavigationPhase.Dropping : NavigationPhase.Following, path.Progress);
+            Report(ref f, intent, NavigationResult.InProgress, fol.Dropping ? NavigationPhase.Dropping : NavigationPhase.Following, fol.Progress);
         }
 
         /// <summary>⭐ Airborne insertion B-3 — the Brain released the DZ leg (nobody aboard): the route goes on as a plain flight.</summary>
-        private static void ReleaseDrop(in NavigationIntent intent, AirPath path)
+        private static void ReleaseDrop(in NavigationIntent intent, ref AirFollower fol)
         {
-            if (!path.Dropping || !intent.ReleaseHold || !path.ReleaseArmed) return;
-            path.Dropping = false;
-            path.ReleaseArmed = false;
+            if (!fol.Dropping || !intent.ReleaseHold || !fol.ReleaseArmed) return;
+            fol.Dropping = false;
+            fol.ReleaseArmed = false;
         }
 
-        private static AirStage BeginHold(AirPath path, in AirStop stop)
+        private static AirStage BeginHold(ref AirFollower fol, in AirStop stop)
         {
-            path.HoldLeft = stop.Hold == RouteHold.Seconds ? stop.HoldSeconds : 0f;
+            fol.HoldLeft = stop.Hold == RouteHold.Seconds ? stop.HoldSeconds : 0f;
             return AirStage.Holding;
         }
 
-        private static void Tilt(AirPath path, float pitchTarget, float rollTarget, float dt)
+        private static void Tilt(ref AirFollower fol, float pitchTarget, float rollTarget, float dt)
         {
             float maxPitch = MaxPitchDeg * MathF.PI / 180f, maxRoll = MaxBankDeg * MathF.PI / 180f, rate = TiltRateDeg * MathF.PI / 180f * dt;
-            path.Pitch += Math.Clamp(Math.Clamp(pitchTarget, -maxPitch, maxPitch) - path.Pitch, -rate, rate);
-            path.Roll += Math.Clamp(Math.Clamp(rollTarget, -maxRoll, maxRoll) - path.Roll, -rate, rate);
+            fol.Pitch += Math.Clamp(Math.Clamp(pitchTarget, -maxPitch, maxPitch) - fol.Pitch, -rate, rate);
+            fol.Roll += Math.Clamp(Math.Clamp(rollTarget, -maxRoll, maxRoll) - fol.Roll, -rate, rate);
         }
 
-        private static void Level(AirPath path, float dt) => Tilt(path, 0f, 0f, dt);
+        private static void Level(ref AirFollower fol, float dt) => Tilt(ref fol, 0f, 0f, dt);
 
         private static void TouchDown(ref MotionFrame f, float yaw, RestingPose pose)
         {
@@ -353,12 +354,12 @@ namespace Fdp.Toolkit.Motion
             SetVertical(ref f, 0f);
         }
 
-        private static void Fly(ref MotionFrame f, float yaw, Vector3 v, float dt, AirPath? tilt = null)
+        private static void Fly(ref MotionFrame f, float yaw, Vector3 v, float dt, AirFollower? tilt = null)
         {
             f.Velocity.Linear = v;
             f.Transform.Position += v * dt;
             f.Transform.Rotation = tilt == null ? Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw)
-                                                : BodyGeometry.Rotation(yaw, new RestingPose(0f, tilt.Pitch, tilt.Roll));
+                                                : BodyGeometry.Rotation(yaw, new RestingPose(0f, tilt.Value.Pitch, tilt.Value.Roll));
             SetVertical(ref f, v.Z);
         }
 

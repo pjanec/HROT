@@ -53,6 +53,29 @@ public class EntityMasterTranslatorTests
         return (repo, entityMap, eventBus, translator);
     }
 
+    // ── ⭐ AQ107 (CE-3323) — the creation request rides the master (docs/DESIGN_Entity_Creation_Unification.md §3.4e) ─────────
+
+    /// <summary>⭐ AQ107 — a master naming the creation request that made it stamps <c>CreationRequestId</c> on the replica, so the
+    /// lifecycle module can name it in <c>EntityConstructionCompleted</c> on THIS node too; a master with none stamps nothing.</summary>
+    [Fact]
+    public void AQ107_AMasterCarryingItsCreationRequest_StampsItOnTheReplica()
+    {
+        var (repo, entityMap, _, translator) = CreateFixture();
+        repo.RegisterComponent<TkbIdentity>();
+        repo.RegisterComponent<NetworkAuthority>();
+        repo.RegisterComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>();
+        var request = Guid.NewGuid();
+        var cmd = new EntityCommandBuffer();
+        translator.ProcessSample(new EntityMaster { EntityId = 501, TkbType = TestTkbType, DisType = TestDisTypeStruct, RequestId = request }, cmd, repo, writerNodeId: 2);
+        translator.ProcessSample(new EntityMaster { EntityId = 502, TkbType = TestTkbType, DisType = TestDisTypeStruct }, cmd, repo, writerNodeId: 2);
+        cmd.Playback(repo);
+
+        Assert.True(entityMap.TryGetEntity(501, out var asked));
+        Assert.Equal(request, repo.GetComponentRO<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(asked).Value);
+        Assert.True(entityMap.TryGetEntity(502, out var unasked));
+        Assert.False(repo.HasComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(unasked));
+    }
+
     // ── ⭐ LR-2 — lightweight rounds (docs/DESIGN_Visual_Effects.md §8.5, R-271) ──────────────────────
 
     /// <summary>⭐ LR-2 — a master with the <c>Lightweight</c> flag (a replicated round) makes the entity ACTIVE at once: no ghost

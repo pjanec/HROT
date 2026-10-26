@@ -67,11 +67,7 @@ namespace Hrot.SimHost.Serializers
             if (!scenarioData.TryGetValue(Key, out var raw) || raw is not JsonObject obj)
                 return;
 
-            var polyline = new EditablePolyline
-            {
-                Points = new List<Vector2>(),
-                Version = obj["Version"]?.GetValue<int>() ?? 0,
-            };
+            var points = new List<Vector2>();   // CE-4046 — EditablePolyline is an immutable record
 
             if (obj["Points"] is JsonArray pointsArray)
             {
@@ -80,9 +76,15 @@ namespace Hrot.SimHost.Serializers
                     if (node is not JsonObject ptObj) continue;
                     float x = ptObj["X"]?.GetValue<float>() ?? 0f;
                     float y = ptObj["Y"]?.GetValue<float>() ?? 0f;
-                    polyline.Points.Add(new Vector2(x, y));
+                    points.Add(new Vector2(x, y));
                 }
             }
+
+            var polyline = new EditablePolyline
+            {
+                Points = points,
+                Version = obj["Version"]?.GetValue<int>() ?? 0,
+            };
 
             repo.SetManagedComponent(entity, polyline);
         }

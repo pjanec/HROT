@@ -19,20 +19,23 @@ namespace Fdp.Toolkit.Replication.Components
     /// </summary>
     [ComponentId(GlobalComponentIds.PendingAuthorityGrants)]
     [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
-    public class PendingAuthorityGrants
+    public record PendingAuthorityGrants
     {
         /// <summary>
         /// Descriptor type ID → owner node ID.  The local node should process only
         /// entries whose value equals its own node ID.
         /// </summary>
         // ⭐ CE-3305 — `private set`, not get-only: a get-only member was LOST from every recording (the recorder writes settable members).
-        public Dictionary<long, int> GrantsByDescriptor { get; private set; } = new();
+        public IReadOnlyDictionary<long, int> GrantsByDescriptor { get; init; } = new Dictionary<long, int>();
 
         /// <summary>The node ID that sent the <c>DeferredTakeOwnership</c> message (the original creator).</summary>
-        public int CreatorNodeId;
+        public int CreatorNodeId { get; init; }
 
-        /// <summary>Merges a grant into the dictionary (last-write-wins per descriptor).</summary>
-        public void Merge(long descriptorTypeId, int nodeId)
-            => GrantsByDescriptor[descriptorTypeId] = nodeId;
+        /// <summary>A NEW value with the grant merged in (last-write-wins per descriptor); this instance is unchanged.</summary>
+        public PendingAuthorityGrants WithGrant(long descriptorTypeId, int nodeId)
+        {
+            var map = new Dictionary<long, int>(GrantsByDescriptor) { [descriptorTypeId] = nodeId };
+            return this with { GrantsByDescriptor = map };
+        }
     }
 }

@@ -197,6 +197,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             if (cmd.IsTransient)
                 world.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
 
+            // 7c. ⭐ AQ107 (CE-3323) — the creation request that made it, so the lifecycle notifications name it on every node
+            //   (EntityMaster carries it to the others). 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4e.
+            if (cmd.RequestId != System.Guid.Empty && world.IsComponentTypeRegistered<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>())
+                world.AddComponent(entity, new Fdp.Toolkit.Lifecycle.Components.CreationRequestId { Value = cmd.RequestId });
+
             // 8. Apply caller-supplied component overrides on top of TKB defaults.
             // Fast path: explicitly typed fields, no boxing, no reflection.
             if (cmd.InitialTransform.HasValue)

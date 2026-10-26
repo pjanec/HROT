@@ -198,7 +198,6 @@ Rails: `ThreatEvaluationSystemTests.CE2371_AnAlertedContact_IsNotForgotten_While
 `TacticsTreesTests.CE2371_TheAttackTarget_StaysKnownUntilDown_ButNotOnOldEvidence` · `…CE2371_HuntingATargetUpstairs_AnArrivalBelowHim_IsReissued`.
 Red-proofs (one build, three mutations: no lease check, no evidence age, no storey check) ⇒ 3 / 3 red.
 
-<<<<<<< HEAD
 📐 **Live after step 2** (one run each, the step-1 orders unchanged): `ia-house-hunt` ✅ 2/2 decided — run 1 the defender shot at his
 window at 31 s (the check now accepts a fight won before entry), run 2 inside at 26 s, on his storey at 29 s, defender down ·
 `ia-area-clear` ⛔ House B still never entered (the order names one building — B's job) but **both defenders down** (baseline: neither) ·
@@ -280,8 +279,10 @@ fires are step 5's (C + F) — recorded there, not treated as an L defect.
 📐 **Re-run with the attackers ~90 m out** (`7d12a9b39`): the guard posted INTO House A within 10 s (L's window post — ✅ he no longer
 stands at the centre), but ⛔ **fired ZERO rounds in 240 s** — not at 90 m, not at Blue East a few metres from him inside the house —
 while the attackers opened at 2.8 s from ~92 m. ⇒ not a posting defect; ⏭ probing his ROE / stress / weapon state.
-=======
-### 7.3 I — arrival on the target's level, the mover's half (the root fix under §7.2's belt) *(backend, 2026-10-25; behaviors' handoff item 1)*
+
+> ⚠ §7.5 and §7.6 were numbered §7.3 / §7.4 in backend's copy; a merge put behaviors' §7.3 beside them (renumbered `2026-10-26`).
+
+### 7.5 I — arrival on the target's level, the mover's half (the root fix under §7.2's belt) *(backend, 2026-10-25; behaviors' handoff item 1)*
 
 | | as built |
 |---|---|
@@ -291,7 +292,7 @@ while the attackers opened at 2.8 s from ~92 m. ⇒ not a posting defect; ⏭ pr
 | ⛔ not here | the brain's own check (`PostureNodes`, behaviors' belt) — ⚠ the brain reads no terrain (user, 2026-10-25: *"brain should use map only for rendering, no direct access"*): its level comes from a survey answer, never `BuildingLayout` itself |
 | rails | `CarKinematicsSystemTests.AQ104I_APersonUnderTheirDestination_OnAnotherFloor_HasNotArrived` (path + direct, other floor + the same-floor control) · `TerrainHeightTests.AQ104I_AShortMove_ToTheLevelAbove_IsNotTheTwoPoints` — 3 red with the production change stashed, 5/5 green with it |
 
-### 7.4 E ② ③ and G — the backend halves *(backend, 2026-10-25; behaviors' handoff items 2–5)*
+### 7.6 E ② ③ and G — the backend halves *(backend, 2026-10-25; behaviors' handoff items 2–5)*
 
 | | as built | owning design |
 |---|---|---|
@@ -299,7 +300,6 @@ while the attackers opened at 2.8 s from ~92 m. ⇒ not a posting defect; ⏭ pr
 | E ③ door sounds | every sound node hears a replicated `DoorState` change once, at the doorway: lock 5 m, swing 15 m, breach 40 m, of the side of the man at it | Sensing §8.8 |
 | AQ105 D the voice | a replica's live shouted `Utterance` (all but `Talk`) is heard 40 m — as a man's sound (kind/class bits are full) | Sensing §8.8 |
 | G the lean's depth | `Lean.Depth` (replicated); `Leans.SetDepth(metres)` for behaviors; eye, seen points, hit boxes and aim read `Leans.ShiftOf` | [Hit location §13 LN-9](../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md) |
->>>>>>> origin/backend
 
 📐 **Why the guard never fired — measured** (brain + slots snapshot at 8 / 16 / 30 s): L's coverage pass gave him an **UPSTAIRS frame
 post** (`Anchor` z 3 — House A's south window, the widest view), and he stayed on the GROUND floor all along: `OffPost` (3-D) kept the

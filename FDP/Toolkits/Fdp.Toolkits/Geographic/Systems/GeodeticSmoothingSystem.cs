@@ -28,13 +28,13 @@ namespace Fdp.Modules.Geographic.Systems
             // so WithoutOwned correctly selects them while skipping locally-owned entities.
             var inbound = view.Query()
                 .With<Position>()
-                .WithManaged<PositionGeodetic>()
+                .With<PositionGeodetic>()
                 .WithoutOwned<Position>()
                 .Build();
             
             foreach (var entity in inbound)
             {
-                var geoPos = view.GetManagedComponentRO<PositionGeodetic>(entity);
+                var geoPos = view.GetComponentRO<PositionGeodetic>(entity);
                 var currentPos = view.GetComponentRO<Position>(entity);
                 
                 // Convert latest geodetic to Cartesian target

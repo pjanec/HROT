@@ -806,6 +806,16 @@ public sealed partial class ClusterMaster : IDisposable
     /// </summary>
     public Func<long>? WallTicks { get; set; }
 
+    /// <summary>⭐ R-3055 — the newest FINISHED exercise the master can replay (its asset inventory), set by the host that owns the
+    /// inventory (<c>OrchestratorCore</c>); <see langword="null"/> ⇒ none known.</summary>
+    public Func<Guid?>? NewestExercise { get; set; }
+
+    /// <summary>⭐ R-3055 — the exercise a replay with no named exercise replays: the live run in progress, else the newest finished one.</summary>
+    internal Guid ResolveReplayExercise()
+        => _currentDsmState == ClusterState.OperatingLive && _currentExerciseId != Guid.Empty
+            ? _currentExerciseId
+            : NewestExercise?.Invoke() ?? Guid.Empty;
+
     private int _checkpointSeq;
 
     private void StartCheckpoint(Guid requestId, string? label)
@@ -1244,6 +1254,22 @@ public sealed partial class ClusterMaster : IDisposable
     private void ProcessTransitionStateIntent(TransitionStateIntent intent)
     {
         var requestId = intent.TransactionId;
+
+        // ⭐⭐ R-3055 (the R-3049 rule, for a replay) — a replay whose request names no exercise gets one from the MASTER: the run in
+        //    progress when the cluster is live (the planner ends it on the way in), else the newest finished one. ⛔ It used to be chosen
+        //    by the asker from a cached inventory, so the same request worked on the editor and was refused on CGF.
+        if (intent.TargetState == FdpClusterState.OperatingReplay && intent.ExerciseId == Guid.Empty)
+        {
+            var resolved = ResolveReplayExercise();
+            if (resolved == Guid.Empty)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] replay {0} REJECTED — it names no exercise and none has run.", requestId);
+                PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+                return;
+            }
+            FdpLog<ClusterMaster>.Info("[Orchestrator] R-3055: the replay names no exercise — the master picks {0}.", resolved);
+            intent.ExerciseId = resolved;
+        }
 
         // ⭐⭐ L8 §7.2c — AT MOST ONE parked transition. ⛔ Rejected, not queued: the master tracks a single
         //    in-flight transition and queueing would be a new property nobody asked for.

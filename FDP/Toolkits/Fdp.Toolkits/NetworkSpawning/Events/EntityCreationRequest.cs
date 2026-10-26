@@ -46,8 +46,9 @@ public sealed class EntityCreationRequest
     /// <summary>
     /// When non-zero, <c>Hrot.Common.Systems.CreateEntityRequestSystem</c> uses
     /// this value directly as the entity's network ID and skips
-    /// <c>INetworkIdAllocator.AllocateId()</c>.  Set by
-    /// <c>StagingEntityExtractor</c> during scenario load.
+    /// <c>INetworkIdAllocator.AllocateId()</c>. Set by <c>StagingEntityExtractor</c> during scenario load, and by any
+    /// author that fixes its id (a traffic conversion, terrain objects, a test hook). ⛔ It does NOT say "scenario load" —
+    /// that is <see cref="IsScenarioLoad"/> (<c>CE-3324</c>).
     /// </summary>
     public long PreAllocatedNetworkId { get; init; } = 0;
 
@@ -123,6 +124,16 @@ public sealed class EntityCreationRequest
     /// still legitimately want peers to ACK it.</para>
     /// </summary>
     public bool IsTransient { get; init; }
+
+    /// <summary>
+    /// ⭐ <c>CE-3324</c> — this request comes from a SCENARIO LOAD (<c>StagingEntityExtractor</c>, the one translator that means
+    /// it): the scenario file already holds the template's subordinates as entities of their own, so
+    /// <c>CreateEntityRequestSystem</c> spawns a child blueprint only where <see cref="ChildComponentOverrides"/> names it.
+    /// <para>⛔ It used to be INFERRED from <see cref="PreAllocatedNetworkId"/> <c>!= 0</c> — and since <c>CE-4024</c> an author's
+    /// fixed id crosses the wire, so a runtime request with a fixed id for a type with child blueprints was born without them.
+    /// It travels as a bit of the wire request's <c>Flags</c>, like <see cref="IsTransient"/>.</para>
+    /// </summary>
+    public bool IsScenarioLoad { get; init; }
 
     /// <summary>
     /// ⭐ <c>CE-1017</c> S2 — the birth-height request (level 0 = ground, +n / −n; on or above the level). <c>null</c> ⇒

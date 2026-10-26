@@ -230,6 +230,7 @@ public sealed class ReferenceHandlerTests
         private long _anchor;
         /// <summary>Like the real controller: the cluster's anchor once set, else this recording's start.</summary>
         public long ReplayAnchorWallTicks { get => _anchor != 0 ? _anchor : ActiveRecordingStartWallTicks; set => _anchor = value; }
+        public string? ActiveReplayFilePath => null;
         public bool IsRestoringReplay { get; private set; }
         /// <summary>R-4012 — when false the fake's recording does not cover the moment: it restores nothing.</summary>
         public bool Covers { get; set; } = true;

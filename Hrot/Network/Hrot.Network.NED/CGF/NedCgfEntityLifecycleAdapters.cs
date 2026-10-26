@@ -94,6 +94,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                 // materialises it. See EntityCreationRequestFlags.Transient for why the wire needed a
                 // carrier at all -- IsTransient previously reached only the LOCAL spawn path.
                 IsTransient           = EntityCreationRequestFlags.IsTransient(msg.Flags),
+                IsScenarioLoad        = EntityCreationRequestFlags.IsScenarioLoad(msg.Flags),   // ⭐ CE-3324
                 // ⭐ CE-1017 S2 — the birth-height request (0 = Absolute ⇒ null, today's behaviour).
                 SpawnHeight           = Fdp.Toolkit.NetworkSpawning.SpawnHeight.FromWire(msg.SpawnHeightMode, msg.SpawnLevel),
             });

@@ -291,6 +291,30 @@ namespace Fdp.Toolkit.Replay.Tests
         private static string MetaOf(string path) => File.ReadAllText(path + ".meta.json");
 
         /// <summary>
+        /// ⭐ backend `2026-10-26` (run C) — a recording keeps ONE timeline: a frame whose clock reads 0 (the editor's clock is reset
+        /// during the unload into a replay) is stamped on the recording's own timeline, ⛔ never with <c>DateTime.UtcNow</c>.
+        /// 📌 Measured on the editor before: the last frame read 639 285 980 141 771 635 ticks after frames near 1.7e8, so the replay's
+        /// length was 63 928 598 528 s.
+        /// </summary>
+        [Fact]
+        public void AFrameWithNoClock_StaysOnTheRecordingsTimeline()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            var (module, frame, path) = Recording(world, "one-timeline.fdp");
+            try
+            {
+                for (long t = 1; t <= 5; t++) frame(t * 100);
+                frame(0);   // the clock reset
+            }
+            finally { module.Dispose(); }
+
+            using var playback = new PlaybackController(path);
+            Assert.Equal(100L, playback.FirstFrameWallTicks);
+            Assert.InRange(playback.LastFrameWallTicks, 100L, 500L);
+        }
+
+        /// <summary>
         /// ⭐ CE-3299 B3 (D3) — asked for a checkpoint at wall time T, the recorder writes a KEYFRAME on its first frame at or past T
         /// (never before), names it, and the mark is on disk before the recording ends (a crash keeps it). The periodic count
         /// restarts there, so the checkpoint costs no extra keyframe.
@@ -748,6 +772,7 @@ namespace Fdp.Toolkit.Replay.Tests
             public long ActiveRecordingStartWallTicks => 0;
             public long ActiveRecordingEndWallTicks => 0;
             public long ReplayAnchorWallTicks { get; set; }
+            public string? ActiveReplayFilePath => null;
             public bool IsRestoringReplay => false;
             public long ActiveMaxNetworkId => 0;
         }

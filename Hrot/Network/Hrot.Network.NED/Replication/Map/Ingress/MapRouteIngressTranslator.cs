@@ -111,17 +111,12 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
     {
         if (data is not MapRoute mapRoute) return;
 
-        RoutePlan routePlan;
-        if (repo.HasManagedComponent<RoutePlan>(entity))
-            routePlan = ((ISimulationView)repo).GetManagedComponentRO<RoutePlan>(entity);
-        else
-        {
-            routePlan = new RoutePlan();
-            repo.SetManagedComponent(entity, routePlan);
-        }
+        // CE-4046 — RoutePlan is an immutable record: build the new value and Set it.
+        var routePlan = repo.HasManagedComponent<RoutePlan>(entity)
+            ? ((ISimulationView)repo).GetManagedComponentRO<RoutePlan>(entity)
+            : new RoutePlan();
 
-        routePlan.IsLoop = mapRoute.IsLoop;
-        ApplyWaypoints(routePlan, mapRoute);
+        repo.SetManagedComponent(entity, ApplyWaypoints(routePlan with { IsLoop = mapRoute.IsLoop }, mapRoute));
     }
 
     public void Dispose(long networkEntityId)
@@ -156,24 +151,17 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
                 view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(OrdinalValue, 0)))
             return;
 
-        RoutePlan routePlan;
-        if (view.HasManagedComponent<RoutePlan>(entity))
-        {
-            routePlan = view.GetManagedComponentRO<RoutePlan>(entity);
-        }
-        else
-        {
-            routePlan = new RoutePlan();
-            cmd.SetManagedComponent(entity, routePlan);
-        }
+        // CE-4046 — RoutePlan is an immutable record: build the new value and Set it (it used to mutate the stored object in place).
+        var routePlan = view.HasManagedComponent<RoutePlan>(entity)
+            ? view.GetManagedComponentRO<RoutePlan>(entity)
+            : new RoutePlan();
 
-        routePlan.IsLoop = data.IsLoop;
-        ApplyWaypoints(routePlan, data);
+        cmd.SetManagedComponent(entity, ApplyWaypoints(routePlan with { IsLoop = data.IsLoop }, data));
     }
 
-    private void ApplyWaypoints(RoutePlan routePlan, MapRoute data)
+    private RoutePlan ApplyWaypoints(RoutePlan routePlan, MapRoute data)
     {
-        routePlan.Mutate(wps =>
+        return routePlan.WithWaypoints(wps =>
         {
             wps.Clear();
             if (data.Points != null)

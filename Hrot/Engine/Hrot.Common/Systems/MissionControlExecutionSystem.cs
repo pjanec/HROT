@@ -235,10 +235,10 @@ namespace Hrot.Common.Systems
                 case eMissionCommandType.CMD_JUMP_TO_TASK:
                 {
                     var orderedTaskIds = repo.HasManagedComponent<ActiveMissionPlan>(entity)
-                        ? ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.TaskOrder ?? new List<Guid>()
-                        : new List<Guid>();
+                        ? ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.TaskOrder ?? System.Array.Empty<Guid>()
+                        : System.Array.Empty<Guid>();
 
-                    int targetIndex = orderedTaskIds.IndexOf(intent.Payload.TargetTaskId);
+                    int targetIndex = System.Linq.Enumerable.ToList(orderedTaskIds).IndexOf(intent.Payload.TargetTaskId);
                     if (targetIndex < 0)
                         targetIndex = 0;
 
