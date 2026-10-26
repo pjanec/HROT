@@ -21,6 +21,18 @@ public static class ReplaySessionIntents
         TargetSimSeconds = simSeconds,
     };
 
+    /// <summary>⭐ CE-4045 H1b — enter a REPLAY of <paramref name="exerciseId"/> (<see cref="Guid.Empty"/> = the master picks: the run in
+    /// progress, else the newest finished one — R-3055) at <paramref name="wallSeconds"/> after its zero or <paramref name="simSeconds"/> of
+    /// the recording's own clock (the sim target wins); neither = the start. From ANY state: ONE request.</summary>
+    public static TransitionStateIntent EnterReplay(Guid exerciseId, double? wallSeconds = null, double? simSeconds = null) => new()
+    {
+        TransactionId    = Guid.NewGuid(),
+        TargetState      = ClusterState.OperatingReplay,
+        ExerciseId       = exerciseId,
+        TargetWallTicks  = wallSeconds is { } w ? SecondsToTicks(w) : 0,   // 0 + no sim target = the start
+        TargetSimSeconds = simSeconds,
+    };
+
     /// <summary>Back to the live run, where it paused.</summary>
     public static TransitionStateIntent ExitReview() => new()
     {

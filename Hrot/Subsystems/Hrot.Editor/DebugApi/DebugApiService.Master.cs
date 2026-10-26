@@ -107,16 +107,10 @@ namespace Hrot.Editor.DebugApi
             if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
             if (!TryReadSimSeconds(body, out double? atSim, out error)) return (null, error, DebugApiHints.Scenario);
 
-            var published = PublishTransition(new TransitionStateIntent
-            {
-                TransactionId   = Guid.NewGuid(),
-                TargetState     = ClusterState.OperatingReplay,
-                ExerciseId      = exerciseId,
-                // ⭐ C9 — ticks AFTER the replay's zero (the earliest first frame across the nodes); 0 = the start
-                TargetWallTicks = SecondsToTicks(at),
-                // ⭐ CE-3329 R11 — or a RECORDED sim time, resolved by the master once the nodes' maps are in
-                TargetSimSeconds = atSim,
-            });
+            // ⭐ CE-4045 H1b — the intent through ReplaySessionIntents, the ONE construction (the director's replay check builds it there too)
+            //   C9: wall ticks AFTER the replay's zero (the earliest first frame across the nodes); 0 = the start · CE-3329 R11: or a RECORDED
+            //   sim time, resolved by the master once the nodes' maps are in
+            var published = PublishTransition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(exerciseId, at, atSim));
             if (published.Result is JsonObject o)
             {
                 o["exerciseId"] = exerciseId == Guid.Empty ? null : exerciseId.ToString();
@@ -165,7 +159,7 @@ namespace Hrot.Editor.DebugApi
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
             // ⭐ CE-3329 R11 — atSimSeconds wins; the master (or the Replay Browser) resolves it through the replay's time map
-            var intent = new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = SecondsToTicks(at), TargetSimSeconds = atSim };
+            var intent = Hrot.UI.Common.Facades.ReplaySessionIntents.Seek(at, atSim);   // ⭐ CE-4045 H1b — the ONE construction
             try { master.SeekReplay(intent); }
             catch (InvalidOperationException ex) { return (null, ex.Message, DebugApiHints.Scenario); }
             var result = new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString() };
@@ -248,13 +242,8 @@ namespace Hrot.Editor.DebugApi
             if (CurrentClusterStateOrNull() is { } s && s != ClusterState.OperatingLive && s != ClusterState.OperatingReview)
                 return (null, $"A review starts from a live run; the cluster is in {s}.", DebugApiHints.Scenario);
             bool named = body?["atSeconds"] is not null || atSim is not null;
-            var published = PublishTransition(new TransitionStateIntent
-            {
-                TransactionId    = Guid.NewGuid(),
-                TargetState      = ClusterState.OperatingReview,
-                TargetWallTicks  = named ? SecondsToTicks(at) : 0,   // 0 + no sim target = the live point (the master's default)
-                TargetSimSeconds = atSim,
-            });
+            // ⭐ CE-4045 H1b — the ONE construction; no moment named ⇒ the live point (the master's default)
+            var published = PublishTransition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReview(named ? at : null, atSim));
             if (published.Result is JsonObject o && !named) o["note"] = "No moment named: the review opens at the live point.";
             return published;
         }
@@ -272,8 +261,6 @@ namespace Hrot.Editor.DebugApi
             try { return CurrentClusterState(); }
             catch (Exception) { return null; }
         }
-
-        private static long SecondsToTicks(double seconds) => (long)Math.Round(seconds * TimeSpan.TicksPerSecond);
 
         /// <summary>⭐ CE-3329 R11 — <c>atSimSeconds</c>: absent ⇒ null; else a non-negative number of the recording's own sim seconds.</summary>
         private static bool TryReadSimSeconds(JsonNode? body, out double? seconds, out string? error)

@@ -602,7 +602,7 @@ live come back exact — and the second half is R1's comparator unchanged, so th
 | # | ⭐ ruled | was | why |
 |---|---|---|---|
 | ① | **RH-3 SUPERSEDED** — replay seconds are wall seconds for good (R-3056); a sim address is `atSimSeconds` through DAR's `ReplayTimeMap` | RH-3: a stepped run's replay seconds = sim seconds | step 0 measured wall gaps of 2–19 ms per step (CE-4053) |
-| ② | **H1b waits for DAR P1** (`atSimSeconds`, the Sim-axis step — DAR §8 rows 9, 10, 12), not for CE-4051…4053 (fixed / ruled) | §10-1: H1b after CE-4051…4053 | `/sim/step` in a replay advances wall time, which lands between a stepped run's sim frames |
+| ② | ✅ *(BUILT, §10-4)* **H1b waits for DAR P1** (`atSimSeconds`, the Sim-axis step — DAR §8 rows 9, 10, 12), not for CE-4051…4053 (fixed / ruled) | §10-1: H1b after CE-4051…4053 | `/sim/step` in a replay advances wall time, which lands between a stepped run's sim frames |
 | ③ | ⭐ **H5 — the review phase** (the picture): live to T, review back to t, compare, return, compare, run on, compare with a straight run. Built by the coordinator once DAR **P3** lands; ⭐ it IS DAR P3's scenario-scale acceptance — backend keeps its unit rails and points P3's report at H5 (one oracle) | — | DAR P3's acceptance is *"R1's oracle reused"* — the verifier already owns that oracle |
 | ④ | **H2 gains a WIRE check** once DAR **PW** lands: after each seek the DDS instances alive on a test reader equal the world's owned ids (DAR §12e at scenario scale; CE-3331). ⛔ **AMENDED `2026-10-26` — it lives in H4, not in the editor's verifier:** 📐 the editor builds with `OfflineNetworkFactory` (`OfflineNetworkFactory.cs:16-23` — "no DDS is allocated", a `NullReplicationModule`), so a `--mode editor` run puts nothing on the wire to check; the unit half is backend's `CycloneNetworkCleanupSystemTests` (CE-3331) | H2: world only | R-3062: every world swap disposes its potential zombies on the wire |
 | ⑤ | **H1a unchanged**; once v7 lands its `RecordedRun` reads the sim frame from the frame index instead of decoding each frame's `GlobalTime` | — | DAR P0 rows 1–3 |
@@ -685,6 +685,36 @@ twice) — red-proved (the return compared against the review's last snapshot �
 | does a review enter at 0 s? | ⛔ it never stands at 0: the clock read 4.92, 4.6 and 4.0 s in three runs, though the entry lands on recorded frame 4 (sim 0) | ⛔ **CE-4056** (backend) |
 | does live come back exact? | every component equal at L = 10.017 s **except `PendingNetworkAck`** (present at L, gone after the return) | ⛔ **CE-4057** (backend) |
 | does live run on as if straight? | first difference at 11 s: `PendingNetworkAck` only (the straight run keeps it) | ⛔ CE-4057 |
+
+### 10-4. ✅ H1b as built `2026-10-26` — the product's replay, sought by recorded sim time *(R-4086 ②)*
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (Verify, replay)
+  participant H as EditorDirectorHost
+  participant M as the master (ReplaySessionIntents)
+  R->>R: H1a — the stopped run's recording in a sandbox (§10-1)
+  R->>H: wait for Idle
+  R->>M: EnterReplay(the newest finished exercise, atSimSeconds first t)
+  loop each LIVE snapshot time t
+    R->>R: wait until the clock STANDS at t · PLAYBACK[t]
+    R->>M: Seek(atSimSeconds next t)
+  end
+  R->>M: Idle
+  R->>R: CompareLookBack — PLAYBACK vs LIVE at the times it stood at (carried = the manifest)
+```
+*What the picture shows: H1b is H5's look-back loop with another way in (a replay from Idle) and another way out (Idle) — ONE loop, one
+result shape (`LookBackResult`: verdict, snapshots, diff, not-carried, problems), one intent construction.*
+
+| as built | why |
+|---|---|
+| `--verify-replay` runs H1a THEN H1b in the same child; the JSON gains `"playback"` beside H5's `"review"` (both `LookBackResult`) | one command, two halves of the replay question |
+| `ReplaySessionIntents.EnterReplay` added; `DebugApiService.Master` (`POST /replay`, `/replay/seek`, `/review`) now builds through `ReplaySessionIntents` — they had their own inline copies (⚠ cross-lane edit, backend's file) | R-3059: a click, a request and the verifier are the same request |
+| a replay is sought with the same `SeekReplayIntent` as a review (`SeekReview` on the host) | one seek path |
+| ⚠ not built: leaving a review / replay when the runner is STOPPED or throws | the host would stay in the review / replay — a known gap |
+
+Rail: `DirectorRunnerTests.CE4045_H1b_*` (one entry, one seek per later snapshot by sim time, Idle at the end; a replay that loses the
+health ⇒ different from t = 2 s naming Runner / Health) — red-proved (the replay's seeks skipped ⇒ the loop times out).
 
 ### 10a. Claim table — what the leans rest on
 

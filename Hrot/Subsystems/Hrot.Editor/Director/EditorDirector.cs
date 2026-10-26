@@ -90,6 +90,9 @@ namespace Hrot.Editor.Director
         public void SeekReview(double simSeconds) => _master.SeekReplay(Hrot.UI.Common.Facades.ReplaySessionIntents.Seek(0, simSeconds));
         public void ExitReview() => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.ExitReview());
         public bool IsOperatingReview => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingReview;
+        // ⭐ CE-4045 H1b — the cluster replay of the finished run (the master picks the newest exercise); a seek is SeekReview's
+        public void EnterReplay(double simSeconds) => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(Guid.Empty, simSeconds: simSeconds));
+        public bool IsOperatingReplay => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay;
         public bool IsIdle => _state() == Fdp.Toolkit.Orchestration.ClusterState.Idle;
         public string? LiveRecordingPath => _recordingPath();
         public IRecordedRun OpenRecording(string path) => _openRecording(path);
