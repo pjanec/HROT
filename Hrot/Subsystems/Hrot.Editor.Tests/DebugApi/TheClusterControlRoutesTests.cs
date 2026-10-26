@@ -122,6 +122,87 @@ public sealed class TheClusterControlRoutesTests
         Assert.Equal(new[] { Newer.ExerciseId.ToString(), Older.ExerciseId.ToString() }, ids);
     }
 
+    // ── RB-1 / RB-2 (docs/DESIGN_Replay_Browser_Debug_Http.md) — the standalone Replay Browser answers the same routes ────────────────
+
+    private sealed class RecordingBrowserControl : IReplayBrowserControl
+    {
+        public readonly System.Collections.Generic.List<(string[] Paths, double At)> Opened = new();
+        public string? Refuse;
+        public string? Open(System.Collections.Generic.IReadOnlyList<string> paths, double atSeconds)
+        {
+            Opened.Add((paths.ToArray(), atSeconds));
+            return Refuse;
+        }
+        public JsonObject Status() => new() { ["frame"] = 7 };
+    }
+
+    private DebugApiService BrowserHost(RecordingBrowserControl browser)
+        => new(new PerspectiveScopedDispatcher(
+                   new ISubsystemDebugProvider[]
+                   {
+                       new SubsystemDebugProvider("ReplayBrowser", "ReplayBrowser",
+                           master: () => _master, clusterState: () => _state, replayBrowser: () => browser),
+                   },
+                   currentPerspective: () => "ReplayBrowser",
+                   acksPending: null));
+
+    [Fact]
+    public void RB2_A_recording_file_opens_through_the_Replay_Browsers_own_seam_and_a_cluster_host_refuses_it()
+    {
+        var body = new JsonObject { ["paths"] = new JsonArray("a/node_1.fdp", "a/node_2.fdp"), ["atSeconds"] = 12.5 };
+
+        // ⛔ a cluster host replays what its master recorded — it refuses a path rather than publish a transition it cannot honour
+        var refused = Host().EnterReplay(body.DeepClone());
+        Assert.Contains("Only the Replay Browser", refused.Error);
+        Assert.Empty(_master.Sent);
+
+        var browser = new RecordingBrowserControl();
+        var (result, error, _) = BrowserHost(browser).EnterReplay(body.DeepClone());
+        Assert.Null(error);
+        var opened = Assert.Single(browser.Opened);
+        Assert.Equal(new[] { "a/node_1.fdp", "a/node_2.fdp" }, opened.Paths);
+        Assert.Equal(12.5, opened.At);
+        Assert.True(result!["published"]!.GetValue<bool>());   // ⭐ waitForReady then finds OperatingReplay at once
+        Assert.Empty(_master.Sent);                             // ⛔ never a transition for a file
+
+        browser.Refuse = "exercise mismatch";
+        Assert.Equal("exercise mismatch", BrowserHost(browser).EnterReplay(new JsonObject { ["path"] = "x.fdp" }).Error);
+    }
+
+    [Fact]
+    public void RB2_The_replay_status_carries_the_Replay_Browsers_own_fields_and_none_elsewhere()
+    {
+        Assert.Equal(7, BrowserHost(new RecordingBrowserControl()).GetReplayStatus()["browser"]!["frame"]!.GetValue<int>());
+        Assert.Null(Host().GetReplayStatus()["browser"]);
+    }
+
+    [Fact]
+    public void RB1_A_master_that_refuses_in_place_answers_with_its_reason_not_a_crash()
+    {
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+                new ISubsystemDebugProvider[]
+                {
+                    new SubsystemDebugProvider("ReplayBrowser", "ReplayBrowser",
+                        master: () => new RefusingMaster(), clusterState: () => ClusterState.OperatingReplay),
+                },
+                currentPerspective: () => "ReplayBrowser",
+                acksPending: null));
+
+        Assert.Equal("no such exercise", svc.EnterReplay(null).Error);
+        Assert.Equal("no such exercise", svc.SeekReplayTo(new JsonObject { ["atSeconds"] = 1 }).Error);
+    }
+
+    private sealed class RefusingMaster : IClusterMasterControl
+    {
+        public void Transition(TransitionStateIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void SeekReplay(SeekReplayIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void Storage(ExecuteStorageOpIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void TakeCheckpoint(TakeCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void Cancel(CancelOperationIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void Dump(ExecuteDiagnosticDumpIntent intent) => throw new InvalidOperationException("no such exercise");
+    }
+
     [Fact]
     public void A_host_that_reaches_no_master_says_so()
     {

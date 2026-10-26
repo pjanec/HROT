@@ -93,6 +93,11 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (JsonNode? Result, string? Error, string? HintCategory) EnterReplay(JsonNode? body)
         {
+            // ⭐ RB-2 — {path | paths}: a recording file or node group that need not be in any inventory. Only the standalone Replay
+            //   Browser opens files (its own seam); a cluster host replays what its master recorded, so it refuses rather than guess.
+            if (body?["path"] is not null || body?["paths"] is not null)
+                return OpenRecordingFiles(body);
+
             Guid exerciseId = Guid.Empty;
             var exText = body?["exerciseId"]?.ToString();
             if (!string.IsNullOrWhiteSpace(exText) && !Guid.TryParse(exText, out exerciseId))
@@ -118,6 +123,33 @@ namespace Hrot.Editor.DebugApi
             return published;
         }
 
+        private (JsonNode? Result, string? Error, string? HintCategory) OpenRecordingFiles(JsonNode body)
+        {
+            var paths = new System.Collections.Generic.List<string>();
+            if (body["path"]?.ToString() is { Length: > 0 } one) paths.Add(one);
+            if (body["paths"] is JsonArray many)
+                foreach (var p in many) if (p?.ToString() is { Length: > 0 } x) paths.Add(x);
+            if (paths.Count == 0) return (null, "path / paths name no file: {\"paths\": [\"…/node_1.fdp\", \"…/node_2.fdp\"]}.", DebugApiHints.Scenario);
+            if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
+
+            var browser = _dispatcher?.ReplayBrowser;
+            if (browser is null)
+                return (null, "Only the Replay Browser opens recording files by path. A cluster replays the exercises its master recorded: "
+                            + "POST /replay {exerciseId} (GET /exercises lists them).", DebugApiHints.Scenario);
+            var refused = browser.Open(paths, at);
+            if (refused != null) return (null, refused, DebugApiHints.Scenario);
+            var arr = new JsonArray();
+            foreach (var p in paths) arr.Add(p);
+            // ⭐ "published": the open is synchronous here, so waitForReady finds the state already reached
+            return (new JsonObject
+            {
+                ["published"] = true,
+                ["target"]    = nameof(ClusterState.OperatingReplay),
+                ["paths"]     = arr,
+                ["atSeconds"] = at,
+            }, null, null);
+        }
+
         /// <summary><c>POST /replay/seek {atSeconds}</c> — the operator timeline's seek round (TE-19), seconds after the replay's start.</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) SeekReplayTo(JsonNode? body)
         {
@@ -128,7 +160,8 @@ namespace Hrot.Editor.DebugApi
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
             var intent = new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = SecondsToTicks(at) };
-            master.SeekReplay(intent);
+            try { master.SeekReplay(intent); }
+            catch (InvalidOperationException ex) { return (null, ex.Message, DebugApiHints.Scenario); }
             return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["atSeconds"] = at }, null, null);
         }
 
@@ -147,6 +180,8 @@ namespace Hrot.Editor.DebugApi
                 ["durationSeconds"] = (JsonNode?)(_editorReplayDuration?.Invoke() ?? _dispatcher?.ReplayDurationAnyNode),
                 ["recording"]       = ReplayRecordingPathOrNull,
                 ["sim"]             = TryRead(() => GetSimState()),
+                // ⭐ RB-2 — the Replay Browser adds its frame, frames, span, nodes, view and rate; null on every other host
+                ["browser"]         = TryRead(() => _dispatcher?.ReplayBrowser?.Status()),
             };
         }
 
@@ -154,7 +189,9 @@ namespace Hrot.Editor.DebugApi
         {
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
-            master.Transition(intent);
+            // ⭐ RB-1 — a master that acts in place (the Replay Browser's federation) says why it refused; a bus-backed one only publishes
+            try { master.Transition(intent); }
+            catch (InvalidOperationException ex) { return (null, ex.Message, DebugApiHints.Scenario); }
             return (new JsonObject
             {
                 ["published"]     = true,

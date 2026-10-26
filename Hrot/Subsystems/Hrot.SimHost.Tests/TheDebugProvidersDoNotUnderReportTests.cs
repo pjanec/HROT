@@ -44,9 +44,10 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-259am — ReplayBrowser gained a map in DESIGN_Gizmo_Anchor_Identity.md §6.7 and must
             //   forward it like everyone else. ⚠ Its composition and its "app" are ONE file: the subsystem
             //   holds _activeRepo and rebuilds the singleton itself (EnsureNetworkEntityMap).
+            // ⭐ RB-1 — its debug surface lives in its own partial file (ReplayBrowserSubsystem.DebugSurface.cs).
             {
-                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
-                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs"
+                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",
+                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs"
             },
         };
 
@@ -102,7 +103,7 @@ namespace Hrot.SimHost.Tests
             { "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",                 "SimHost" },
             { "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",                           "IG" },
             { "Hrot/Subsystems/Hrot.ExCon/ExConSubsystem.cs",                     "ExCon" },
-            { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",     "ReplayBrowser" },
+            { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",     "ReplayBrowser" },
         };
 
         /// <summary>
@@ -198,7 +199,7 @@ namespace Hrot.SimHost.Tests
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
             "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",
-            "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
+            "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",
         };
 
         [Theory]
@@ -230,6 +231,31 @@ namespace Hrot.SimHost.Tests
                 "GET /panels/_gizmo and POST /annotations will refuse for this perspective — and the " +
                 "refusal reads as 'this host draws no gizmos', which would be false. Forward the buffer " +
                 "(BP-487, CE-259am).");
+        }
+
+        /// <summary>
+        /// ⭐⭐ RB-1 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — <b>the Replay Browser passes every member the shared replay routes
+        /// read.</b> 🔴 Before: it passed world, map and gizmo buffer only, so <c>/replay</c>, <c>/replay/seek</c>, <c>/sim/*</c> and
+        /// <c>/exercises</c> all failed on it, and its dumps fell back to reflection (CE-171) while it held a serializer. ⭐ The behaviour is
+        /// railed on the constructed provider (<c>ReplayBrowserSubsystemTests.RB1_*</c>); this row keeps the composition from dropping one.
+        /// </summary>
+        [Theory]
+        [InlineData("extraction:")]
+        [InlineData("drive:")]
+        [InlineData("master:")]
+        [InlineData("clusterState:")]
+        [InlineData("exercises:")]
+        [InlineData("replayDuration:")]
+        [InlineData("replayRecording:")]
+        [InlineData("replayBrowser:")]
+        public void TheReplayBrowser_PassesTheMembersTheSharedReplayRoutesRead(string key)
+        {
+            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs"));
+            int at = src.IndexOf(key, System.StringComparison.Ordinal);
+            Assert.True(at >= 0, $"The Replay Browser's provider passes no `{key}` — the shared route that reads it fails on this host (RB-1).");
+            Assert.False(src[(at + key.Length)..].TrimStart().StartsWith("null", System.StringComparison.Ordinal),
+                $"The Replay Browser's provider passes `{key} null` while it holds what it names (RB-1).");
         }
 
         /// <summary>

@@ -1035,4 +1035,111 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Empty(world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>().Prisms);
         Assert.False(world.GetSingleton<global::CarKinem.Road.ZoneEnvironmentData>().RoadNetwork.Nodes.IsCreated);
     }
+
+    // ── RB-1 (docs/DESIGN_Replay_Browser_Debug_Http.md) — the shared debug members, filled over the federation ────────────────
+
+    /// <summary>
+    /// Records one node of an exercise where a node records (<c>nodes/node-N/exercises/&lt;id&gt;/node_N.fdp</c>): a keyframe at
+    /// <paramref name="startSeconds"/> and three frames one second apart.
+    /// </summary>
+    private static string RecordNode(string stagingRoot, Guid exerciseId, int nodeId, double startSeconds, string? into = null)
+    {
+        string dir = into ?? Path.Combine(stagingRoot, "nodes", $"node-{nodeId}", "exercises", exerciseId.ToString());
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, $"node_{nodeId}.fdp");
+        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = nodeId };
+        using var repo = new EntityRepository();
+        repo.RegisterComponent<NetworkIdentity>();
+        repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = nodeId * 100L });
+        using (var rec = new AsyncRecorder(path, meta))
+        {
+            long t0 = TimeSpan.FromSeconds(startSeconds).Ticks;
+            rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
+            for (uint f = 1; f <= 3; f++)
+                rec.CaptureFrame(repo, f - 1, t0 + TimeSpan.FromSeconds(f).Ticks, blocking: true, eventBus: repo.Bus);
+        }
+        return path;
+    }
+
+    /// <summary>
+    /// ⭐⭐ RB-1 — an agent opens, seeks, steps, plays and closes a recorded exercise through the SAME provider members every host
+    /// fills (<c>Master</c>, <c>Drive</c>, <c>ClusterState</c>, <c>Exercises</c>, the replay's length and recording) — on a HEADLESS host,
+    /// which builds no panel. 🔴 Before: the provider filled world, map and gizmo buffer only, so every control route failed here.
+    /// </summary>
+    [Fact]
+    public void RB1_TheProvider_OpensSeeksStepsPlaysAndCloses_TheFederation_OverTheSharedMembers()
+    {
+        string root = Path.Combine(_tempDir, "staging");
+        var exercise = Guid.NewGuid();
+        string node1 = RecordNode(root, exercise, 1, startSeconds: 1.0);
+        RecordNode(root, exercise, 2, startSeconds: 1.5);
+        // ⚠ the same node archived too: the local copy wins, so the group never carries node 1 twice (LoadGroup refuses that)
+        RecordNode(root, exercise, 1, startSeconds: 1.0,
+            into: Path.Combine(root, "shared", "exercises", exercise.ToString()));
+
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.RecordingsRoot = root;
+        var provider = _subsystem.CreateDebugProvider()!;
+
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, provider.ClusterState);
+        Assert.Equal(exercise, Assert.Single(provider.Exercises!).ExerciseId);
+        Assert.False(provider.Drive!.IsPlayPauseEnabled);
+
+        // none named: the newest exercise on disk, as a cluster master picks — 2 s after the replay's zero (node 1's first frame, 1 s)
+        provider.Master!.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+        {
+            TargetState     = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+            TargetWallTicks = TimeSpan.FromSeconds(2).Ticks,
+        });
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay, provider.ClusterState);
+        Assert.Equal(node1, provider.ReplayRecordingPath);                     // the lowest node is the primary
+        Assert.Equal(3.5f, provider.ReplayDurationSeconds!.Value, 3);         // 1 s … 4.5 s (node 2's last frame)
+        Assert.Equal(2.0, provider.Drive.TotalTime, 3);
+        Assert.Equal(2, _subsystem.PrimaryNodeCurrentFrame());
+
+        provider.Drive.Step();
+        Assert.Equal(3.0, provider.Drive.TotalTime, 3);
+
+        // ⭐ playback runs headless: one recorded frame per 1/60 s of host time, and it stops at the end
+        provider.Drive.TogglePlayPause();
+        Assert.False(provider.Drive.IsPaused);
+        _subsystem.Update(1f / 30f);
+        Assert.True(provider.Drive.IsPaused);
+        Assert.Equal(3, _subsystem.PrimaryNodeCurrentFrame());
+
+        provider.Master.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = TimeSpan.FromSeconds(1).Ticks });
+        Assert.Equal(1.0, provider.Drive.TotalTime, 3);
+        provider.Drive.SetTimeScale(4f);
+        Assert.Equal(4f, provider.Drive.TimeScale);
+
+        Assert.NotNull(provider.Extraction);                                  // CE-171 — the host's serializer-backed dump
+        Assert.NotNull(provider.ReplayBrowser);
+        Assert.Throws<InvalidOperationException>(() => provider.Master.Storage(default));   // an offline viewer saves nothing
+
+        provider.Master.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+            { TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, provider.ClusterState);
+        Assert.Null(provider.ReplayRecordingPath);
+    }
+
+    /// <summary>⭐ RB-2 — a file (or a node group) outside the inventory opens through the Replay Browser's own seam, at a moment.</summary>
+    [Fact]
+    public void RB2_ARecordingFile_OpensByPath_AtAMoment_AndAMismatchedGroupIsRefused()
+    {
+        string root = Path.Combine(_tempDir, "loose");
+        string a = RecordNode(root, Guid.NewGuid(), 1, startSeconds: 1.0);
+        string b = RecordNode(root, Guid.NewGuid(), 2, startSeconds: 1.0);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var provider = _subsystem.CreateDebugProvider()!;
+
+        Assert.Null(provider.ReplayBrowser!.Open(new[] { a }, atSeconds: 1.0));
+        Assert.Equal(1.0, provider.Drive!.TotalTime, 3);
+        Assert.Equal(a, provider.ReplayRecordingPath);
+        Assert.Equal(1, provider.ReplayBrowser.Status()["frame"]!.GetValue<int>());
+
+        Assert.Equal("exercise mismatch", provider.ReplayBrowser.Open(new[] { a, b }, 0));
+        Assert.StartsWith("No such recording file", provider.ReplayBrowser.Open(new[] { a + ".gone" }, 0));
+    }
 }

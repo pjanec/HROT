@@ -33,8 +33,7 @@ namespace Hrot.ReplayBrowser;
 /// live simulation state. Does not implement <c>IMapCameraProvider</c> so the
 /// spatial camera remains independent of other subsystems.
 /// </summary>
-public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
-    Hrot.Presentation.DebugApi.IProvidesDebugSurface
+public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 {
     // ── ISubsystem ────────────────────────────────────────────────────────
 
@@ -194,6 +193,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
             CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _blueprintRegistry);
+            _behaviorsLoaded = true;
             _scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
             // ⭐ P4-③: see CgfSubsystem — the params section is on the tier renderers now.
             Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.BehaviorRegistry = behaviorRegistry;
@@ -313,42 +313,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
             // Wire up group-load delegate and merged-view query so the timeline panel
             // can coordinate with the federation manager without knowing about it.
-            _timelinePanel.OnLoadGroup = paths =>
-            {
-                try
-                {
-                    _manager?.Dispose();
-                    _transientMaster?.Dispose();
-                    _transientMaster = null;
-
-                    _manager = FederatedReplayManager.LoadGroup(paths);
-                    _manager.OnTimeChanged += OnManagerTimeChanged;
-                    ApplyRecordingGeoOrigin();   // CE-3126
-                    ApplyRecordingTerrain();     // CE-3118
-
-                    CreateOrReplaceFederationPanel();
-
-                    OnManagerTimeChanged();
-                    _timelinePanel?.SetManager(_manager!);
-                    return null;  // no rejection
-                }
-                catch (LoadGroupException ex)
-                {
-                    return ex.Message;
-                }
-                catch (System.IO.IOException ex)
-                {
-                    return $"Failed to read recording file: {ex.Message}";
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    return $"Access denied reading recording file: {ex.Message}";
-                }
-                catch (System.Text.Json.JsonException ex)
-                {
-                    return $"Recording metadata is corrupt: {ex.Message}";
-                }
-            };
+            // ⭐ RB-1 — the panel's load and POST /replay are ONE path (OpenGroup).
+            _timelinePanel.OnLoadGroup = OpenGroup;
             _timelinePanel.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
 
             _transientBuilder = new TransientMasterBuilder(_scenarioSerializer);
@@ -405,28 +371,29 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
         if (!_headless) SyncTimelineSource();
 
-        if (!_headless)
+        // ⭐ RB-1 — playback runs on a headless host too (POST /sim/play): the one play state, the panel's or the headless host's.
+        if (IsPlaying)
         {
-            if (_timelinePanel != null && _timelinePanel.IsPlaying)
+            _playbackAccumulator += deltaTime * PlaybackRate;
+            float frameTime = 1.0f / 60.0f;
+
+            if (_playbackAccumulator > frameTime * 10f)
+                _playbackAccumulator = frameTime * 10f;
+
+            while (_playbackAccumulator >= frameTime)
             {
-                _playbackAccumulator += deltaTime * _timelinePanel.PlaybackRate;
-                float frameTime = 1.0f / 60.0f;
-
-                if (_playbackAccumulator > frameTime * 10f)
-                    _playbackAccumulator = frameTime * 10f;
-
-                while (_playbackAccumulator >= frameTime)
+                _playbackAccumulator -= frameTime;
+                if (!TryStepForwardViaManager())
                 {
-                    _playbackAccumulator -= frameTime;
-                    if (!TryStepForwardViaManager())
-                    {
-                        _timelinePanel.IsPlaying = false;
-                        _playbackAccumulator = 0f;
-                        break;
-                    }
+                    IsPlaying = false;
+                    _playbackAccumulator = 0f;
+                    break;
                 }
             }
+        }
 
+        if (!_headless)
+        {
             int currentFrame = PrimaryNodeCurrentFrame();
             Entity? currentEntity = _inspectorState?.SelectedEntity;
             bool isPlaying = _timelinePanel != null && _timelinePanel.IsPlaying;
@@ -830,101 +797,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
         map.RebuildFromWorld(repo);
     }
 
-    // ── IProvidesDebugSurface ─────────────────────────────────────────────
+    // ── IProvidesDebugSurface — ReplayBrowserSubsystem.DebugSurface.cs (RB-1) ──
 
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>CE-259am</c> — THIS SUBSYSTEM CONTRIBUTES A DEBUG PROVIDER, like every other host that
-    /// owns a perspective.</b> 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.8c ·
-    /// <c>docs/DESIGN_Mcp_Diagnostics_Federation.md</c> §1 *(the federation: a node exposes the providers
-    /// for the subsystems it runs)* · <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §5.6 *(the
-    /// classDiagram <see cref="Hrot.Presentation.DebugApi.ISubsystemDebugProvider.GizmoBuffer"/> is drawn
-    /// in)*.
-    ///
-    /// <para>🔴 <b>What its absence cost, measured `2026-09-11` driving <c>--mode replaybrowser</c> over
-    /// HTTP.</b> This was the ONLY perspective-owning subsystem that implemented nothing here, so
-    /// <c>PerspectiveScopedDispatcher</c> was built with an EMPTY provider list ⇒
-    /// <c>GET /capabilities</c> reported <c>providers=[]</c>, <c>matrix={}</c>, and every
-    /// world/gizmo route answered as if the host held nothing: <c>GET /panels/_gizmo</c> and
-    /// <c>POST /annotations</c> said <i>"no debug primitive buffer for the active perspective"</i>,
-    /// <c>GET /entities/{id}</c> said <c>NOT_SUPPORTED_HERE: world.entityMap</c>.
-    /// ⛔⛔ <b>All four answers were FALSE</b> — this host holds a world, a map and a gizmo buffer, and the
-    /// buffer is filled every frame *(proven by an inverse-edit red-proof that aborted the process out of
-    /// <c>DebugPrimitiveBuffer.AppendRaw</c> via <c>StatelessGizmoSystem.Execute</c> → <see cref="Update"/>)*.
-    /// ⇒ ⚠ the instrument reported ABSENT where the truth was PRESENT — the <c>CE-110</c> disease, which
-    /// that row records costing a wrong root-cause hypothesis.</para>
-    ///
-    /// <para>⭐⭐ <b>EVERY accessor is a <see cref="Func{T}"/>, and here that is LOAD-BEARING rather than
-    /// stylistic.</b> ⛔ <see cref="_activeRepo"/> is REPLACED on every seek, step and view-mode switch
-    /// *(<see cref="RebindActiveRepo"/>)*, so a value captured when the composition root builds this
-    /// provider would answer from the pre-load transient master FOREVER — the *"a value-captured provider
-    /// LIES"* shape <see cref="Hrot.Presentation.DebugApi.SubsystemDebugProvider"/>'s own ctor remarks were
-    /// written for. ⭐ This host is the strongest case for it in the repo: nothing else swaps its world
-    /// while running.</para>
-    ///
-    /// <para>⛔ <b>What is null, and each is a MEASURED absence rather than a silent default</b> *(the rule:
-    /// a caller that HAS a dependency must PASS it — so the ones it does not hold are named)*:
-    /// <list type="bullet">
-    ///   <item><b><c>drive</c></b> — replay time is not CLUSTER time. This host has no
-    ///     <c>ClusterTimeTransportAdapter</c>; its timeline is a <see cref="FederatedReplayManager"/>, which
-    ///     <c>/replay/seek</c> and <c>/replay/step</c> already serve. ⚠ Fronting the manager as an
-    ///     <c>ITimeTransportFacade</c> would be a NEW adapter and a design call, not a wiring fix.</item>
-    ///   <item><b><c>extraction</c></b> — 📐 measured: <see cref="_inspectorPanel"/> is given
-    ///     <c>Serializer</c> only *(`:319`)* and its <c>ExtractionService</c> is never set, so there is no
-    ///     node-owned projection to hand over. 🔒 <c>ISubsystemDebugProvider.Extraction</c>'s own contract:
-    ///     <i>"Never fabricate one here — the point is to use the node's REAL projection, not a second,
-    ///     poorer one."</i> ⇒ the API falls back as documented.</item>
-    ///   <item><b><c>architecture</c></b> — ⭐ design-confirmed absent:
-    ///     <c>DESIGN_Subsystem_Composition_Unification.md:1153</c> measures <b>zero</b>
-    ///     <c>ModuleHostKernel</c>/<c>RegisterGlobalSystem</c> references here, and `:2063` records that
-    ///     ReplayBrowser has <i>"neither kernel nor ClusterSlave"</i>.</item>
-    ///   <item><b><c>tkbDb</c> · <c>missionEditor</c> · <c>requestTransition</c> · <c>clusterState</c> ·
-    ///     <c>requestDiagnosticDump</c> · <c>dumpStatus</c> · <c>availableScenarios</c></b> — none exist in
-    ///     this subsystem *(no catalog, no mission service, no orchestration bus, no cluster slave)*. ⭐ A
-    ///     replay browser participates in no cluster; that is what it IS.</item>
-    /// </list></para>
-    ///
-    /// <para>⚠⚠ <b>The one thing to know about <c>world</c> here:</b> <c>world.read</c> is a single
-    /// capability covering the MUTATING entity routes too *(<c>/entities/spawn</c>,
-    /// <c>DELETE /entities/{id}</c>, <c>POST /entities/{id}/component</c>)*. 📐 Measured consequence: such a
-    /// write lands in the replay SANDBOX repo, which <see cref="RebindActiveRepo"/> replaces on the next
-    /// seek — ⛔ it reaches no <c>.fdp</c> and no other node, so it is discarded, not destructive.
-    /// ⭐ Exposing it anyway follows <c>R-141</c> *(an unused capability is the natural outcome of sharing,
-    /// never a per-host decision to just-not)* and <c>R-137</c> *(a unification may not cost a
-    /// capability)*: without it <c>/entities</c>, <c>/entities/{id}/state</c>, <c>/diff/*</c> and
-    /// <c>/checkpoint</c> are all dark, and <c>/replay/entities</c> reports component NAMES only — no
-    /// values. ⛔ <b>Searched <c>docs/</c> and <c>.dev/</c> for a record on whether a replay sandbox may be
-    /// mutated: none found.</b></para>
-    ///
-    /// <para>⛔⛔ <b>AND THE ONE THING A READER MUST NOT MISREAD — THERE ARE TWO REPLAY WORLDS.</b>
-    /// 📐 Measured `2026-09-11`: after <c>POST /replay/load</c> + <c>seek</c>, <c>/replay/entities</c>
-    /// returns <b>8</b> while <c>GET /entities</c> returns <b>0</b>. ⚠ Both are correct.
-    /// <c>POST /replay/load</c> loads into an <b>ISOLATED <c>ReplayBrowserContext</c> owned by the debug
-    /// service</b> — its own route doc says so, and says <i>"use list_replay_entities (not list_entities)
-    /// while replaying"</i> — whereas <see cref="_activeRepo"/> is the UI's own world, driven by this
-    /// subsystem's <see cref="FederatedReplayManager"/> and still EMPTY until an operator opens a
-    /// recording. ⭐ That isolation exists so an agent can inspect a recording without disturbing the
-    /// operator's session; on this host it is redundant but harmless. ⇒ <c>world.read</c> here reports the
-    /// UI's world honestly, ⛔ it is NOT a second view of the HTTP-loaded recording — reading
-    /// <c>/entities</c> → <c>0</c> as <i>"the recording is empty"</i> would be the <c>CE-110</c> mistake
-    /// again. 📄 Filed as <c>CE-259an</c>; wiring <c>/replay/load</c> to the UI's manager is a contract
-    /// change to a shared route, not a wiring fix.</para>
-    /// </summary>
-    public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
-        => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
-            subsystemName: Name,
-            // ⭐ "ReplayBrowser" — the perspective the window manager actually reports, design-confirmed at
-            //   DESIGN_Perspective_Unification.md:84. ⛔ The dispatcher matches on THIS string, so a
-            //   mismatch here is indistinguishable from contributing nothing at all.
-            perspective:   "ReplayBrowser",
-            world:         () => _activeRepo,
-            // ⭐⭐⭐ Read the map off the CURRENT repo through the shared helper, never a captured field:
-            //   the map is a world singleton (§6.7) and this host's world is swapped on every seek, so the
-            //   singleton it must report is whichever one EnsureNetworkEntityMap just rebuilt.
-            entityMap:     Hrot.Presentation.DebugApi.SubsystemDebugProvider
-                               .EntityMapFrom(() => _activeRepo),
-            // ⭐⭐ The very buffer this host's map draws (`:265` takes it as the canvas DrawBuffer) and that
-            //   StatelessGizmoSystem + GlobalGizmoManager + DataDrivenGizmoSystem fill from Update (`:421`).
-            gizmoBuffer:   () => _gizmoBuffer);
 
     /// <summary>
     /// Loads one or more .fdp recording files via a fresh <see cref="FederatedReplayManager"/>

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — handed to BACKEND (R-4082); R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
-updated: 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
-current-answer: §0 rulings and leans · §1 before / now / needed · §2 the feature map · §3 UML · §4 claim table · §5 INVENTORY · §6 build
+build-state: BUILDING — step 1 (RB-1) BUILT 2026-10-26, as-built in §7; R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
+updated: 2026-10-26 (§7 step 1 as-built — backend) · 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
+current-answer: §0 rulings and leans · §1 before / now / needed · §2 the feature map · §3 UML · §4 claim table · §5 INVENTORY · §6 build · §7 as-built (where it deviates from §3)
 stale-below: none
 known-rot: none
 known-conflict: none
@@ -181,3 +181,25 @@ check_index_coverage is not available through the CLI ⇒ these lists are not pr
 | **2** | RB-2 seek forms + RB-5 (lifecycle search, `/events`) | every row of §2 marked "shared" answers on the Replay Browser; the lookups also resolve on the editor's own replay |
 | **3** | RB-3 + RB-4: view, histories, export jobs | §2's "Replay Browser only" rows answer; an export's file equals the panel's for the same options |
 | **4** | RB-6 timeline reads · RB-8 map routes · RB-7 if the user reopens it | the whole §2 table answers; the MCP catalog and skill regenerated (R-1030) |
+
+## 7. As-built *(backend, `2026-10-26`)*
+
+### 7.1 Step 1 — RB-1, the provider members
+
+| as built | where | why / deviation |
+|---|---|---|
+| the provider fills `Master`, `Drive`, `ClusterState` (Idle / OperatingReplay), `Exercises`, `ReplayDurationSeconds`, `ReplayRecordingPath`, a serializer-backed `Extraction` and the new `ReplayBrowser` seam | `ReplayBrowserSubsystem.DebugSurface.cs` (`BuildDebugProvider`) | as §3. ⭐ `Extraction` is rebuilt per world (every seek rebinds it) over the host's own `ScenarioSerializer` (CE-171) |
+| `ReplayBrowserMasterControl`: `OperatingReplay` opens an exercise **found on disk** (none named ⇒ the newest, as a cluster master picks), then seeks `TargetWallTicks` after the zero; `Idle` closes; `SeekReplay` seeks; storage / checkpoint / cancel / dump refuse with a reason | same file | ⭐ the debug service now turns a master's `InvalidOperationException` into the route's error (`DebugApiService.Master.cs` `PublishTransition`, `SeekReplayTo`) — a master that acts in place can say why it refused |
+| ⚠ **DEVIATION** — `POST /replay {path \| paths}` goes through `IReplayBrowserControl.Open(paths, atSeconds)`, not `Master.Transition(OperatingReplay, paths)` | `DebugApiService.OpenRecordingFiles` | ⛔ `TransitionStateIntent` is the cluster's wire intent and carries no paths (`ClusterOpIntents.cs:11-22`); adding them would put files on a message every master reads. ⭐ The route is unchanged (RB-2); a host with no `ReplayBrowser` seam refuses a path |
+| the exercises on disk: `RecordingGroupInventory.Scan(stagingRoot)` — every `nodes/node-N/exercises/<id>/*.fdp` and `shared/exercises/<id>/*.fdp`, grouped by the **sidecar's** exercise id, one file per node (a local copy wins over its archived twin) | `Fdp.Toolkits/ReplayBrowser/Federation/RecordingGroupInventory.cs` | ⭐ beside `FederatedReplayManager`, whose `LoadGroup` validation it mirrors. ⛔ `StorageGatewayModule.ScanNasExercises` lists ids only (no node files) and lives in the orchestrator |
+| the replay's zero = the earliest first frame across the loaded nodes; `atSeconds` / `TotalTime` = seconds after it | `ReplayZeroTicks`, `SeekToSeconds` | the cluster's C9 meaning (`DebugApiService.EnterReplay`) |
+| ONE play state: the timeline panel's when there is one, else the headless host's; playback (`Update`) runs headless too | `IsPlaying` / `PlaybackRate` | ⭐ an agent drives a `--headless` Replay Browser; ⛔ before, the frame loop ran only with a window |
+| ONE open path: the timeline panel's `OnLoadGroup` and `POST /replay` both call `OpenGroup`; `ReplayTimelinePanel.SetManager(null)` on close | `ReplayBrowserSubsystem.cs` | ⚠ cross-lane edit (ui's panel, one signature) |
+| `GET /replay/status` gains `browser: {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[]}` on the Replay Browser, `null` elsewhere | `IReplayBrowserControl.Status` | RB-2's status fields |
+| capability `replay.browser` | `DebugCapabilities.ReplayBrowser` | measured from the seam being wired |
+
+Rails: `ReplayBrowserSubsystemTests.RB1_*` (a recorded two-node exercise on disk, driven only through the provider: open by inventory, seek, step,
+play headless to the end, rate, refuse storage, close), `RB2_*` (open by path at a moment; a mismatched group refused);
+`TheClusterControlRoutesTests.RB1_*` / `RB2_*` (a cluster host refuses a path; a refusing master answers an error; the status field);
+`TheDebugProvidersDoNotUnderReportTests.TheReplayBrowser_PassesTheMembersTheSharedReplayRoutesRead` (8 rows).
+

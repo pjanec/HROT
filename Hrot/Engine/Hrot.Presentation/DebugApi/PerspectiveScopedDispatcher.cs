@@ -238,6 +238,10 @@ public sealed class PerspectiveScopedDispatcher
     /// the node that runs the brain, so another node's file would answer about the wrong node (Q54-2).</summary>
     public string? ReplayRecordingPath => Active()?.ReplayRecordingPath;
 
+    /// <summary>⭐ RB-3 — the active provider's Replay Browser seam. ⛔ No fallback: only the standalone Replay Browser has one, and it is the
+    /// only provider in its process (R-4080).</summary>
+    public IReplayBrowserControl? ReplayBrowser => Active()?.ReplayBrowser;
+
     /// <summary>⭐ <c>R-3055</c> — the loaded replay's length from whichever node caches it.</summary>
     public float? ReplayDurationAnyNode
         => Active()?.ReplayDurationSeconds

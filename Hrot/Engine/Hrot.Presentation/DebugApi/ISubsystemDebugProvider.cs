@@ -210,6 +210,11 @@ public interface ISubsystemDebugProvider
     /// ⛔ Per node, never "any node": a journal lives in the recording of the node that runs the brain.</summary>
     string? ReplayRecordingPath { get; }
 
+    /// <summary>⭐⭐ RB-3 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — what only the standalone Replay Browser can do (open a file,
+    /// the node / merged view, its histories, the JSON export); <see langword="null"/> on every other host. ⛔ Everything a cluster host
+    /// also does stays on the shared members above.</summary>
+    IReplayBrowserControl? ReplayBrowser { get; }
+
     ClusterState? ClusterState { get; }
 
     /// <summary>
@@ -308,6 +313,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<IReadOnlyList<ExerciseInventoryItem>?>? _exercises;
     private readonly Func<float?>? _replayDuration;
     private readonly Func<string?>? _replayRecording;
+    private readonly Func<IReplayBrowserControl?>? _replayBrowser;   // RB-3
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
     private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
@@ -363,7 +369,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<IReadOnlyList<ExerciseInventoryItem>?>? exercises = null,
         Func<float?>? replayDuration = null,
         // ⭐ CE-1265/CE-1266 — this node's replay recording (EcsRecordReplayController.ActiveReplayFilePath).
-        Func<string?>? replayRecording = null)
+        Func<string?>? replayRecording = null,
+        // ⭐ RB-3 — the standalone Replay Browser's own seam (DESIGN_Replay_Browser_Debug_Http.md); null on every other host.
+        Func<IReplayBrowserControl?>? replayBrowser = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -378,6 +386,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _exercises = exercises;
         _replayDuration = replayDuration;
         _replayRecording = replayRecording;
+        _replayBrowser = replayBrowser;
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
         _architecture = architecture;
@@ -520,6 +529,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public IReadOnlyList<ExerciseInventoryItem>? Exercises => _exercises?.Invoke();
     public float? ReplayDurationSeconds => _replayDuration?.Invoke();
     public string? ReplayRecordingPath => _replayRecording?.Invoke();
+    public IReplayBrowserControl? ReplayBrowser => _replayBrowser?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
@@ -576,6 +586,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⚠ Measured 2026-08-28: CGF, IG and SimHost each hold a catalog; ExCon holds none ⇒ 3 of 4,
         //   the same split as GizmoBuffer, and for the same reason (ExCon runs no ECS world).
         [DebugCapabilities.TkbRead] = TkbDb is not null,
+        // ⭐ RB-3 — the standalone Replay Browser's own routes (view, histories, export); measured from the seam being wired.
+        [DebugCapabilities.ReplayBrowser] = ReplayBrowser is not null,
     };
 }
 
@@ -641,4 +653,7 @@ public static class DebugCapabilities
     /// Same reasoning as <see cref="Breakpoints"/>: its three guards threw and read as a crash.
     /// </summary>
     public const string RecordReplay = "debug.recordReplay";
+    /// <summary>⭐ RB-3 — the Replay Browser's own routes (<c>/replay/view</c>, <c>/replay/history</c>, <c>/selection/history</c>,
+    /// <c>/replay/export</c>): only the standalone Replay Browser answers them.</summary>
+    public const string ReplayBrowser = "replay.browser";
 }
