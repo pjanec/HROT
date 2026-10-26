@@ -73,8 +73,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         where TComp : unmanaged where TArr : struct where TElem : unmanaged
     {
         private readonly int _capacity;
-        private readonly Func<TComp, TArr> _items;
-        private readonly Func<TComp, int>? _count;
+        private readonly ItemsRef _itemsRef;                 // ⭐ CE-3330 — the ring BY REFERENCE into the component (no copy of the component or the ring)
+        private readonly CountRead? _countRead;              //   the count field read by reference, when it is a small-integer field
+        private readonly Func<TComp, int>? _count;           //   else the (copying) general reader
+        private delegate ref TArr ItemsRef(ref TComp c);
+        private delegate int CountRead(ref TComp c);
+        private int _typeId = -1;
         private readonly Func<TElem, long> _key;
         private readonly Func<object, object?>? _filterGetter;
         private readonly Func<string, bool>? _filter;
@@ -88,20 +92,28 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             public HashSet<long> Keys = new();
             public TElem[] Copy = Array.Empty<TElem>();
             public int Count = -1;
+            public int Stamp;
         }
         private readonly Dictionary<int, Seen> _seen = new();
         private readonly HashSet<long> _now = new();
         private readonly List<int> _gone = new();
         private int _stamp;
-        private readonly Dictionary<int, int> _lastFrameSeen = new();
 
         public RingEntryScanner(RingEntryPredicateDto p, int capacity, ResultProjectionDto? projection)
         {
             _capacity = capacity;
             var c = Expression.Parameter(typeof(TComp), "c");
-            _items = Expression.Lambda<Func<TComp, TArr>>(Expression.Field(c, p.ItemsPath), c).Compile();
+            const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            var itemsField = typeof(TComp).GetField(p.ItemsPath, Any) ?? throw new ArgumentException($"'{p.ItemsPath}' is not a field of {typeof(TComp).Name}.", nameof(p));
+            _itemsRef = (ItemsRef)FieldRefMethod(itemsField, typeof(TArr).MakeByRefType(), false).CreateDelegate(typeof(ItemsRef));
             if (!string.IsNullOrWhiteSpace(p.CountPath))
+            {
                 _count = Expression.Lambda<Func<TComp, int>>(Expression.Convert(Expression.PropertyOrField(c, p.CountPath!), typeof(int)), c).Compile();
+                var cf = typeof(TComp).GetField(p.CountPath!, Any);
+                if (cf != null && (cf.FieldType == typeof(int) || cf.FieldType == typeof(uint) || cf.FieldType == typeof(short) || cf.FieldType == typeof(ushort)
+                                   || cf.FieldType == typeof(byte) || cf.FieldType == typeof(sbyte)))
+                    _countRead = (CountRead)FieldRefMethod(cf, typeof(int), true).CreateDelegate(typeof(CountRead));
+            }
             _key = CompileKey<TElem>(p.KeyPaths);
             if (!string.IsNullOrWhiteSpace(p.FilterPath))
             {
@@ -112,16 +124,37 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             _label = typeof(TComp).Name;
         }
 
+        /// <summary>⭐ CE-3330 — a method that takes the component by reference and returns a reference to (or the value of) one of its fields, so
+        /// the scan reads a unit's ring in place: copying the component and then the ring (a kilobyte each, per unit, per frame) was most of the cost.</summary>
+        private static System.Reflection.Emit.DynamicMethod FieldRefMethod(FieldInfo field, Type returns, bool load)
+        {
+            var dm = new System.Reflection.Emit.DynamicMethod("ring_" + field.Name, returns, new[] { typeof(TComp).MakeByRefType() }, typeof(TComp).Module, skipVisibility: true);
+            var il = dm.GetILGenerator();
+            il.Emit(System.Reflection.Emit.OpCodes.Ldarg_0);
+            if (load) { il.Emit(System.Reflection.Emit.OpCodes.Ldfld, field); il.Emit(System.Reflection.Emit.OpCodes.Conv_I4); }
+            else il.Emit(System.Reflection.Emit.OpCodes.Ldflda, field);
+            il.Emit(System.Reflection.Emit.OpCodes.Ret);
+            return dm;
+        }
+
         public override void Scan(EntityRepository repo, int frame, long ticks, List<SearchResultDto> results, TargetEntityFilter? entityFilter = null)
         {
             if (!repo.IsComponentTypeRegistered<TComp>()) return;
+            if (_typeId < 0) _typeId = ComponentTypeRegistry.GetId(typeof(TComp));
             _stamp++;
-            foreach (var entity in repo.Query().With<TComp>().Build())
+            // ⭐ CE-3330 — the same entities the query matches (the component, active, lifecycle Active), walked by raw index: the query's
+            //   enumerator copies its masks per step, the loop reads the one mask bit.
+            int maxIdx = repo.MaxEntityIndex;
+            for (int idx = 0; idx <= maxIdx; idx++)
             {
+                if (!repo.GetComponentMask(idx).IsSet(_typeId)) continue;
+                ref var meta = ref repo.GetMetadata(idx);
+                if (!meta.IsActive || meta.LifecycleState != EntityLifecycle.Active) continue;
+                var entity = new Entity(idx, meta.Generation);
                 if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
-                TComp comp = repo.GetComponentRO<TComp>(entity);
-                TArr arr = _items(comp);
-                int n = Math.Clamp(_count?.Invoke(comp) ?? _capacity, 0, _capacity);
+                ref TComp comp = ref Unsafe.AsRef(in repo.GetComponentRO<TComp>(entity));
+                ref TArr arr = ref _itemsRef(ref comp);
+                int n = Math.Clamp(_countRead != null ? _countRead(ref comp) : _count?.Invoke(comp) ?? _capacity, 0, _capacity);
                 ReadOnlySpan<TElem> entries = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<TArr, TElem>(ref arr), _capacity)[..n];
 
                 bool baseline = !_seen.TryGetValue(entity.Index, out var was) || was.Generation != entity.Generation;
@@ -131,7 +164,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     //   collision cannot drop an event) has the same key set and so reports nothing; skip the hashing and the union.
                     if (was!.Count == n && MemoryMarshal.AsBytes(entries).SequenceEqual(MemoryMarshal.AsBytes(was.Copy.AsSpan(0, n))))
                     {
-                        _lastFrameSeen[entity.Index] = _stamp;
+                        was.Stamp = _stamp;
                         continue;
                     }
                 }
@@ -159,12 +192,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (was.Copy.Length < _capacity) was.Copy = new TElem[_capacity];
                 entries.CopyTo(was.Copy);
                 was.Count = n;
-                _lastFrameSeen[entity.Index] = _stamp;
+                was.Stamp = _stamp;
             }
             // an entity whose component went away is forgotten: if it comes back, that frame is its baseline again
             _gone.Clear();
-            foreach (var (index, stamp) in _lastFrameSeen) if (stamp != _stamp) _gone.Add(index);
-            foreach (int index in _gone) { _seen.Remove(index); _lastFrameSeen.Remove(index); }
+            foreach (var (index, seen) in _seen) if (seen.Stamp != _stamp) _gone.Add(index);
+            foreach (int index in _gone) _seen.Remove(index);
         }
     }
 }

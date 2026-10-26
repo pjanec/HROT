@@ -854,6 +854,45 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Assert.Equal(0, Scan());
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> — the structural scan tracks entities by raw index and generation: an index REUSED by another entity (a new
+        /// generation) is a departure plus an arrival in the same frame — never silence — even when the destruction log was cleared (a live
+        /// world's recorder clears it before the timeline looks), and an entity destroyed without a log entry still departs once.
+        /// 🔴 Red-proof: a generation mismatch treated as the same entity ⇒ the reused index reports nothing.
+        /// </summary>
+        [Fact]
+        public void CE3330_Node_StructuralScan_AReusedIndexIsALeftAndASpawn_NotSilence()
+        {
+            using var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<HarnessVelocity>();
+            var a = repo.CreateEntity();
+            repo.AddComponent(a, new HarnessVelocity { Vx = 1f });
+            var scanner = new StructuralScanner(new StructuralPredicateDto { ComponentType = typeof(HarnessVelocity), ModificationType = StructuralModification.AnyChange });
+            int frame = 0;
+            System.Collections.Generic.List<SearchResultDto> Scan() { var r = new System.Collections.Generic.List<SearchResultDto>(); scanner.Scan(repo, frame++, 0, r); return r; }
+
+            Assert.Single(Scan());                                     // a gained
+            Assert.Empty(Scan());                                      // untouched: nothing
+
+            repo.DestroyEntity(a);
+            repo.ClearDestructionLog();                                // the log never shows it
+            var b = repo.CreateEntity();                               // the free list is LIFO: it takes a's slot
+            Assert.Equal(a.Index, b.Index);                            // the precondition: the slot was reused...
+            Assert.NotEqual(a.Generation, b.Generation);               // ...by another generation
+            repo.AddComponent(b, new HarnessVelocity { Vx = 2f });
+
+            var reused = Scan();
+            Assert.Contains(reused, r => r.Entity == a && r.ContextMessage.StartsWith("Lost"));
+            Assert.Contains(reused, r => r.Entity == b && r.ContextMessage.StartsWith("Gained"));
+            Assert.Empty(Scan());
+
+            repo.DestroyEntity(b);
+            repo.ClearDestructionLog();
+            var gone = Scan();                                         // destroyed with no log entry: still one departure
+            Assert.Single(gone, r => r.Entity == b);
+            Assert.DoesNotContain(Scan(), r => r.Entity == b);         // and only once
+        }
+
         /// <summary>⚠ CE-1302 as-built (StructuralScanner): an ADDED-only search no longer reports a destroyed entity as "Lost".</summary>
         [Fact]
         public void CE1302_StructuralAdded_DoesNotReportADestroyedEntity_RemovedDoes()

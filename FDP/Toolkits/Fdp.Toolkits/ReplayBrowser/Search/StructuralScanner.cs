@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Fdp.Core;
 
@@ -18,7 +19,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         private readonly StructuralPredicateDto _predicate;
         private readonly CompiledProjection? _projection;
-        private readonly HashSet<Entity> _has = new();
+        // ⭐ CE-3330 — tracked entities by raw index: the generation seen (−1 = not tracked) and the frame its payload was last read. Replaces a
+        //   HashSet<Entity> probe and a payload-dictionary probe per entity per frame; an index REUSED with a new generation is a departure
+        //   plus an arrival, never silence.
+        private int[] _gen = Array.Empty<int>();
+        private int[] _remembered = Array.Empty<int>();
+        private readonly List<Entity> _departed = new();
         private readonly Dictionary<Entity, (SearchResultPayload Payload, int Frame)> _last = new();
         private readonly string _gained, _lost;
 
@@ -40,57 +46,67 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             if (typeId < 0) return;
 
             int maxIdx = repo.MaxEntityIndex;
+            if (_gen.Length <= maxIdx)
+            {
+                int old = _gen.Length, size = Math.Max(maxIdx + 1, old * 2);
+                Array.Resize(ref _gen, size); Array.Resize(ref _remembered, size);
+                for (int k = old; k < size; k++) _gen[k] = -1;
+            }
+            _departed.Clear();
             for (int i = 0; i <= maxIdx; i++)
             {
                 ref var mask = ref repo.GetComponentMask(i);
                 ref var meta = ref repo.GetMetadata(i);
-                if (!meta.IsActive) continue;
+                bool active = meta.IsActive;
+                int tracked = _gen[i];
+                // a tracked entity that is gone (destroyed, or its index reused by another generation) departs here — no IsAlive sweep, and it
+                //   needs no destruction log (a live world's recorder clears that before the timeline looks)
+                if (tracked >= 0 && (!active || meta.Generation != tracked))
+                {
+                    _departed.Add(new Entity(i, (ushort)tracked));
+                    _gen[i] = -1; tracked = -1;
+                }
+                if (!active) continue;
                 // ⚠ every active entity, not a delta query: playback's RestoreChunkFromBuffer does not move chunk versions.
-                Entity entity = repo.GetEntityByIndex(i);
-                if (entity.IsNull) continue;
+                Entity entity = new Entity(i, meta.Generation);
                 if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
 
                 bool present = IsPresent(ref mask, ref meta, typeId, _predicate.AuthorityRequirement);
-                bool was = _has.Contains(entity);
+                bool was = tracked >= 0;
                 if (present && !was)
                 {
-                    _has.Add(entity);
+                    _gen[i] = meta.Generation;
                     if (ReportsAdded) results.Add(Result(repo, entity, frame, ticks, _gained, refresh: true));
                     else if (_projection != null) Remember(repo, entity, frame);
                 }
                 else if (!present && was)
                 {
-                    _has.Remove(entity);
+                    _gen[i] = -1;
                     if (ReportsRemoved) results.Add(Result(repo, entity, frame, ticks, _lost, refresh: false));
                     _last.Remove(entity);
                 }
-                else if (present && _projection != null && _last.TryGetValue(entity, out var last) && frame - last.Frame >= RefreshFrames)
+                else if (present && _projection != null && frame - _remembered[i] >= RefreshFrames)
                     Remember(repo, entity, frame);
             }
 
+            // departures the destruction log names come first (the log's order), then the ones it never showed — the order the report always had
             var destroyed = repo.GetDestructionLog();
             for (int i = 0; i < destroyed.Count; i++)
             {
                 Entity dead = destroyed[i];
-                if (!_has.Remove(dead)) continue;
+                int at = _departed.IndexOf(dead);
+                if (at >= 0) _departed.RemoveAt(at);
+                else if (dead.Index >= 0 && dead.Index < _gen.Length && _gen[dead.Index] == dead.Generation) _gen[dead.Index] = -1;
+                else continue;
                 if (ReportsRemoved) results.Add(Result(repo, dead, frame, ticks, _lost + " (Destroyed)", refresh: false));
                 _last.Remove(dead);
             }
-
-            // ⭐ CE-3330 (live timeline) — an entity that is GONE although the log never showed it: on a LIVE world the recorder clears the
-            //   log inside the tick, before a timeline's live step reads it. Same report, once (the log pass above removed what it saw).
-            if (_has.Count == 0) return;
-            _gone.Clear();
-            foreach (var e in _has) if (!repo.IsAlive(e)) _gone.Add(e);
-            foreach (var dead in _gone)
+            foreach (var dead in _departed)
             {
-                _has.Remove(dead);
                 if (ReportsRemoved) results.Add(Result(repo, dead, frame, ticks, _lost + " (Destroyed)", refresh: false));
                 _last.Remove(dead);
             }
         }
-
-        private readonly List<Entity> _gone = new();
 
         private SearchResultDto Result(EntityRepository repo, Entity entity, int frame, long ticks, string message, bool refresh)
         {
@@ -104,6 +120,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             object? matched = _projection!.SourceComponent == null ? null : ComponentBox.Read(repo, entity, _projection.SourceComponent);
             var payload = _projection.Apply(repo, matched, entity, out _);
             _last[entity] = (payload, frame);
+            _remembered[entity.Index] = frame;
         }
 
         internal static bool IsPresent(ref BitMask512 mask, ref EntityMetadataCold meta, int typeId, AuthorityRequirement req) => req switch
