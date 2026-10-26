@@ -28,7 +28,7 @@
   <circle cx="300" cy="129" r="3" fill="#fdd663"/><circle cx="700" cy="129" r="3" fill="#fdd663"/>
   <line x1="900" y1="100" x2="900" y2="140" stroke="#81c995" stroke-width="2"/>
   <text x="906" y="122" fill="#81c995" font-size="11">now</text>
-  <text x="560" y="148" fill="#9aa0a6" font-size="11">click in the past → ENTERS A REVIEW there (R10) · the history is appended live</text>
+  <text x="560" y="148" fill="#9aa0a6" font-size="11">right-click in the past → Review from here (R-3059) · a left click only selects</text>
 
   <!-- ===== B. REVIEW, SIM ===== -->
   <text x="20" y="190" fill="#9aa0a6" font-size="14" font-weight="bold">B · REVIEW, SIM axis — paused stretches collapsed to ticks, played over</text>

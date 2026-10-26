@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — ⭐ APPROVED 2026-10-26 (R-3057: R1…R12; R-3058: the axis switches at runtime); §8 the system changes, §9 the live-host UI; nothing built. ⭐ P0 (§7) changes data NOW
-updated: 2026-10-26 (approved — R-3057, R-3058; §3a the state-machine additions as a table, §8 every system change, §9 the review UI on a live cluster host) · 2026-10-26 (first version — backend, from the user's request: the sim-time seek/step that skips unchanged pauses, its UI, and During Action Review)
+build-state: DESIGN — ⭐ APPROVED 2026-10-26 (R-3057: R1…R12; R-3058: the axis switches at runtime; R-3059: no state change on a left click, one UI, any host); §8 the system changes, §9 the live-host UI; nothing built. ⭐ P0 (§7) changes data NOW
+updated: 2026-10-26 (R-3059 — the timeline's left click never changes state, seeking in its right-click menu; one UI for review, cluster replay and the Replay Browser; every control from any host; §9 wireframes, §9d who fills the timeline on each host) · 2026-10-26 (approved — R-3057, R-3058; §3a the state-machine additions as a table, §8 every system change, §9 the review UI on a live cluster host) · 2026-10-26 (first version — backend, from the user's request: the sim-time seek/step that skips unchanged pauses, its UI, and During Action Review)
 current-answer: §0 the decision · §1 claim table · §2 INVENTORY · §3 UML (§3a the state machine) · §4 the time model · §5 decisions (approved) · §6 HTTP · §7 build order · §8 the system changes · §9 the live-host UI
 stale-below: nothing
 known-rot: none
@@ -217,7 +217,7 @@ a replay that is harmless only by luck; for a review it would let in-memory live
 
 ## 5. Decisions — ✅ APPROVED `2026-10-26` (R-3057)
 
-🔒 **User, verbatim:** *"Leans approved."* · *"The sim/wall time line mode needs to be changeble at runtime - chznges the mode of thr timrline and seeking and playback (skipping/not skipping pauses)."* (R-3058 — R2 below as amended)
+🔒 **User, verbatim:** *"Leans approved."* · *"The sim/wall time line mode needs to be changeble at runtime - chznges the mode of thr timrline and seeking and playback (skipping/not skipping pauses)."* (R-3058 — R2 below as amended) · *"clicking timeline itself can not start review (accidental click) - timeline should allow right click menu having seek-related item(s)."* · *"replay in live cluster hosts (and replay browser) needs to share similar ui"* · *"control needs to work from any host (events/network commands to cluster master)"* · *"each host can have different timeline content (whatever the host knows)"* (R-3059 — R10 as amended, §9b–§9d)
 
 | # | question | ⏳ lean | rejected — one line |
 |---|---|---|---|
@@ -230,7 +230,7 @@ a replay that is harmless only by luck; for a review it would let in-memory live
 | **R7** | what runs during a review (the user's "must not respond") | ⭐ the replay's gates (toggle groups off, ELM gated, world-state ingress frozen, no replayed events on the bus) **+ NEW `ReviewGate`**: during a replay AND a review the kernel suspends every module and system registered outside the toggle groups unless it declares `[RunsDuringReplay]` (playback, egress, presentation, recorder). Class S and X state (sessions, SUMO) is therefore frozen and deaf; A / B are re-derived by `AfterRestore` on exit; C is empty (in the ECS, restored by the keyframe). A rail: every module outside the groups declares, and the SUMO step does not run in a review | gate each module by hand — the gap §3d shows is exactly a module someone forgot · let them run and filter their inputs — every module would need its own filter |
 | **R8** | the live recording during a review | ⭐ **suspended, not finalised**: no frame is written while the world is the replayed one; exit resumes the SAME file and exercise (one straight history, a wall gap the Sim axis never shows); the review's wall interval goes into `.meta.json` (`Reviews[]`) so the Wall axis can label it. ⚠ relaxes replay-and-modules §5.7 (recording and replay exclusive) for a review only: both modules installed, only the replay one running | finalise and branch on exit (D18) — a new exercise per review, history copied each time · keep recording during the review — writes replayed frames into the live history |
 | **R9** | the live point and the end of the review | the live point = the last frame written before `Suspend` (wall + sim); the review's replay ends there; reaching it on play pauses (the existing end-of-replay pause, folded into `ReplayClockProcessManager`); a seek past it clamps to it | let the review play past the end — there is nothing recorded |
-| **R10** | the timeline UI — every host | ONE timeline (R-4068): axis toggle; stretches shaded (Wall) or ticks (Sim); checkpoint marks (they carry sim time already — `CheckpointMark`); in a review the live-point marker and a "back to live" button. ⭐ **On a live host, a seek on the timeline ENTERS a review at that moment** (changes TE-19's "a live host never seeks"); the Replay Browser and `ClusterScenarioPanel`'s slider use the same index and axis | a separate review timeline — two timelines for one recording |
+| **R10** ✅ *(amended, R-3059)* | the timeline UI — every host | ONE timeline (R-4068): axis toggle; stretches shaded (Wall) or ticks (Sim); checkpoint marks (they carry sim time already — `CheckpointMark`); in a review the live-point marker and a "back to live" button. ⭐ **A left click NEVER changes the state** (an accidental click must not start a review or move a replay): it selects an event. Seeking is in the **right-click menu** (§9b) — on a live host its items ENTER a review there (amends TE-19); in a review / replay the playhead handle drags. The Replay Browser and `ClusterScenarioPanel`'s slider use the same index and axis | a separate review timeline — two timelines for one recording |
 | **R11** | HTTP | `POST /review {atSeconds \| atSimSeconds}`, `POST /review/exit`; `/replay/seek` and `/review/seek` take `atSimSeconds`; `POST /replay/axis {Sim \| Wall}`; `/replay/status` adds `simSeconds`, `axis`, `review: {livePoint: {atSeconds, simSeconds}}`; `/sim/play\|pause\|step\|timescale` drive the review clock as they drive the replay clock | a review as `POST /replay {review: true}` — one route with two exits |
 | **R12** | when | ⭐ **P0 now** (R1: the header + the status's `simSeconds`), everything else when the user schedules it — P0 is the only part whose absence makes today's recordings worse later | build all now — the user asked for the design first |
 
@@ -284,7 +284,12 @@ a replay that is harmless only by luck; for a review it would let in-memory live
 | 23 | `TimelinePanel` + `ITimelineCursor` (the ONE timeline, R-4068) | positions in the active axis; stretches shaded (Wall) or ticks (Sim); the live point; a click in the past on a live host = `EnterReview(t)` (amends TE-19) | P4 |
 | 24 | `ClusterScenarioPanel` + `ClusterUiCache` | the Review button beside Load Replay; the seek slider on the active axis; the cache holds axis, sim seconds, live point, review state | P4 |
 | 25 | the status bar | a REVIEW state chip (with "− to live") beside the cluster state | P4 |
-| 26 | `DESIGN_Director_Timeline_Editor.md` (ui's) | TL-4 gains the sim axis; TE-19's live row becomes "a seek enters a review" — amended by its owner when P4 is scheduled | P4 |
+| 26 | `DESIGN_Director_Timeline_Editor.md` (ui's) | TL-4 gains the sim axis; TE-19's live row becomes "the right-click menu enters a review" (R-3059) — amended by its owner when P4 is scheduled | P4 |
+| 27 | `TimelineContextMenu` (NEW, beside `TimelinePanel`) | the right-click items of §9b per mode; a left click selects, never seeks (R-3059) | P4 |
+| 28 | `LiveTimelineSource` (NEW — TE-17's, not built) | the catalogue's indexed lanes evaluated on the live world each frame, appended; frozen at the live point for a review | P4 |
+| 29 | the session layer (NEW, in `TimelinePanel`) | ruler, stretches, checkpoint marks, live point, playhead from the cluster status + `ReplayTimeMap` — identical on every host, the only layer on ExCon / Orchestrator | P4 |
+| 30 | `TimelineLaneContext` | `+ Live` beside `Recording`, so a provider says where its lanes apply | P4 |
+| 31 | `ClusterOpEgressTranslator` / `ClusterOpMasterTranslator` + `ClusterOpType` (both copies) | carry `SetReplayAxisIntent` and `SeekReplayIntent.SimSeconds` from any host (§9b″) | P1 |
 
 ## 9. The review UI on a live cluster host
 
@@ -305,18 +310,61 @@ live point is the timeline's right edge in both axes, and the switch re-draws th
 ⭐ A host gets the review by having the transport or the timeline — ⛔ no host-specific review UI: the controls call the facade, the facade
 sends the master's intents (R-3054).
 
-### 9b. The controls
+### 9b. The controls — wireframes *(R-3059)*
 
-| control | shown when | does | through |
-|---|---|---|---|
-| ⟲ **Review** | `OperatingLive` | enter a review at the live point, paused | `EnterReview()` → `TransitionState(OperatingReview)` |
-| a click / drag in the timeline's past | `OperatingLive` | enter a review at that moment | `EnterReview(t)` |
-| ▶ / ⏸ · ⏭ step · rate | a review | drive the review clock (skips stretches on Sim) | the existing play / pause / step / timescale |
-| the timeline scrub | a review | seek, in the active axis | `Seek(t)` → `SeekReplayIntent` (sim or wall) |
-| **SIM \| wall** | live, a review, a replay | switch the session's axis — the ruler, the seek's meaning, the playback's skipping; the frame stays | `SetAxis` → `SetReplayAxisIntent` (R-3058) |
-| ● **Back to live** | a review | return to the live point, paused | `ExitReview()` → `TransitionState(OperatingLive)` |
-| the time readout | always | the playhead on the active axis; in a review also the live point and "− to live" | the cluster status (`SimSeconds`, `LivePoint`) |
-| the REVIEW chip (toolbar + status bar) | a review | says the world on screen is the past | the cluster state |
+![The time-controls bar: its anatomy, the same bar in each mode, the timeline's right-click menus, and the path from any host to the master](img/time-controls-wireframes.svg)
+
+*What the picture shows that prose hid:* the review, a cluster replay and the Replay Browser are ONE bar and ONE timeline — only which buttons
+are visible changes; and nothing on the timeline changes the state on a left click.
+
+| # | control | live | review | cluster replay | Replay Browser | does | intent (→ the master) |
+|---|---|---|---|---|---|---|---|
+| ① | state chip | LIVE | ⟲ REVIEW | ▶ REPLAY | ▶ REPLAY | says what the world on screen is | — (the cluster status) |
+| ② | ⏮ to start | — | ✅ | ✅ | ✅ | seek to the zero | `SeekReplayIntent` |
+| ③ | ◀ ▶ seek history | — | ✅ | ✅ | ✅ | back / forward through the jumps (the Timeline's ◀ ▶, `PlaybackHistoryTracker`) | `SeekReplayIntent` to the waypoint |
+| ④ | step back | — | ✅ | ✅ | ✅ | `−dt` on the active axis | `SeekReplayIntent` |
+| ⑤ | play / pause | ✅ | ✅ | ✅ | ✅ | the cluster clock (live) or the replay clock | `ResumeTimeIntent` / `PauseTimeIntent` (exist) |
+| ⑥ | step forward | ✅ | ✅ | ✅ | ✅ | `+dt` on the active axis (skips stretches on Sim) | `StepTimeIntent` (exists) |
+| ⑦ | stop | ✅ ends the run | — | ✅ leaves the replay | ✅ closes | | `TransitionStateIntent(Idle)` (exists) |
+| ⑧ | time | now | playhead + `/ live` + `(−to live)` | playhead + `/ length` | playhead + `/ length` | the active axis | — (status `SimSeconds`, `LivePoint`) |
+| ⑨ | rate | ✅ | ✅ | ✅ | ✅ | | `SetTimeScaleIntent` (exists) |
+| ⑩ | SIM \| wall | ✅ (decides the next review) | ✅ | ✅ | ✅ (the viewer's) | the ruler, the seek, the playback's skipping (R-3058) | NEW `SetReplayAxisIntent` |
+| ⑪ | ⟲ Review… / ● Back to live | Review… (at the live point, paused) | Back to live | — | — | | `TransitionStateIntent(OperatingReview / OperatingLive)` |
+
+**The timeline's mouse** *(R-3059)*:
+
+| gesture | live | review / replay / Replay Browser |
+|---|---|---|
+| left click | selects the event under it (its details, the unit); ⛔ never seeks, never enters a review | the same — ⛔ never seeks |
+| drag the playhead handle | — | scrub (a seek on release) |
+| right click | **Review from here** · **Review from here and play** · **Review from the event** (when on one) | **Seek here** · **Play from here** · **Seek to this event** · **◀ / ▶ Previous / Next event in this lane** (RB-2's `next.lane`) · **Seek to the live point** (review) · on a pause tick: **Seek to before / after the pause's edits** · Copy the time |
+| wheel / drag on the ruler | zoom / pan (TE-18) | zoom / pan |
+
+### 9b′. One UI for the review, a cluster replay and the Replay Browser
+
+⭐ The bar (`MainToolbarTimeControlSection`) and the timeline (`TimelinePanel` + `TimelineContextMenu`, NEW) are the shared components; each
+host binds them to ITS transport — ⛔ no second implementation (R-4068):
+
+| host | transport the bar and the timeline call | where the state comes from |
+|---|---|---|
+| a live cluster host (CGF, SimHost, IG, editor, ExCon) — live, review, cluster replay | `ClusterTimeTransportAdapter` (the editor: `EditorTimeTransportFacade`) → intents on the node's bus | the cluster status → `ClusterUiCache` |
+| the Replay Browser (offline, R-4080) | its own transport (`ReplayBrowserTransport`, local seeks through `FederatedReplayManager`) | itself |
+
+The Replay Browser keeps its extras in its own panels (node / merged view, export, search); everything that moves time is the shared bar.
+
+### 9b″. Every control from ANY host — an intent, the master decides *(R-3059)*
+
+⭐ A control never acts on its own node's clock or world: it publishes an INTENT on its node's bus; `ClusterOpEgressTranslator` (exists:
+`PauseTimeIntent` `:55`, `TransitionStateIntent` `:91`, `SeekReplayIntent` `:162`) carries it as a `ClusterOpRequest` over DDS to the
+master; the master validates, plans and drives; every host re-draws from the cluster status. ⇒ an operator on CGF, an IG or ExCon starts,
+steers and ends a review exactly as one on the editor, and two operators always see one session.
+
+| new on that path | where |
+|---|---|
+| `SetReplayAxisIntent` + its `ClusterOpType` (both copies) | egress line in `ClusterOpEgressTranslator`, master line in `ClusterOpMasterTranslator` |
+| `SeekReplayIntent.SimSeconds` | the existing seek line |
+| the review request | ⛔ nothing new — `TransitionStateIntent` to `OperatingReview` / `OperatingLive` (R-3055) with `atSeconds \| atSimSeconds` |
+| the cluster status fields `Axis`, `SimSeconds`, `LivePoint`, the review state | the status topic → `ClusterUiCache` on every node |
 
 ### 9c. A switch of the axis — one session setting, every operator
 
@@ -337,3 +385,49 @@ sequenceDiagram
 ```
 *What the picture shows that prose hid:* the axis is not a view preference in a cluster — it changes how the master drives the replay clock, so
 it is ONE setting the master owns and broadcasts; two operators can never see two different playbacks of one replay.
+
+### 9d. Who fills the timeline on each host — ⭐ each shows what IT knows
+
+⭐ **Two layers.** The **session layer** is the cluster's and the SAME on every host: the ruler on the active axis, the paused stretches,
+the checkpoint marks, the live point and the review's span, the playhead — all from the master's status and its `ReplayTimeMap`, never from a
+local file. The **event lanes** are the host's own: its catalogue holds the lane providers of the modules IT hosts (R-4078 — *"the module that
+owns the data registers its provider"*; R-4079 — lanes are definitions, never code), evaluated on the world IT holds.
+
+```mermaid
+graph TD
+  M[ClusterMaster: ReplayTimeMap, checkpoints, live point, axis] -->|cluster status| SL[session layer: ruler, stretches, marks, live point, playhead]
+  subgraph HOST[one host]
+    CAT[TimelineLaneCatalog: the providers of the modules this host runs]
+    LS[LiveTimelineSource: the catalogue's indexed lanes on the live world, each frame, appended]
+    RS[RecordingTimelineSource: the same lanes over this host's own recording]
+    MK[Marks providers: trace rings, director tracks]
+    CAT --> LS
+    CAT --> RS
+    CAT --> MK
+  end
+  SL --> TP[TimelinePanel]
+  LS -->|live and review| TP
+  RS -->|replay, a cold start, the Replay Browser| TP
+  MK --> TP
+```
+*What the picture shows that prose hid:* nothing crosses hosts except the session layer — so every host agrees on WHERE time is and how it is
+drawn, and each shows only the events it can actually see; a host with no world (ExCon, Orchestrator) still has a correct, steerable timeline.
+
+| mode | source of the event lanes | why |
+|---|---|---|
+| live | `LiveTimelineSource` (TE-17, NEW): the catalogue's indexed lanes evaluated on the live world each frame, appended | no file read, nothing to rebuild on entering a review |
+| review | the SAME live source, frozen at the live point — its history IS the recording's up to there | the review shows what live showed |
+| cluster replay | `RecordingTimelineSource` over the node's OWN recording (built; sidecar cached) | each node holds its own recording (R-4012) |
+| Replay Browser | `RecordingTimelineSource` over the shown node's recording (built) | offline |
+| a cold start (the host restarted mid-exercise) | `RecordingTimelineSource` for the frames before it started, then live | its recording holds them |
+
+| host | what it knows ⇒ what its lanes show *(examples)* |
+|---|---|
+| editor (a one-node cluster) | everything — it owns the whole world |
+| CGF | the brain lanes (journal, orders, reports, decisions — R-4076) of the units it owns; life / combat for every unit it holds |
+| SimHost | the muscle / physics lanes of what it simulates; life / combat |
+| IG | what it renders — life, effects, the camera / view lanes |
+| ExCon, Orchestrator | ⭐ the session layer only (no world, no recording); ⏭ later, optionally, one node's lanes read over HTTP (`GET /timeline/events`, RB-6) |
+
+⭐ A lane whose data a host does not hold is not offered there (its provider is not registered, or `Applies` is false) — ⛔ never an empty lane
+that reads as "nothing happened". `TimelineLaneContext` gains `Live` beside `Recording`, so a provider can say where it applies.
