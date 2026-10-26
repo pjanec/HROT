@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — ⭐ APPROVED 2026-10-26 (R-3057: R1…R12; R-3058: the axis switches at runtime; R-3059: no state change on a left click, any host; R-3060: the existing toolbar grown by two icons, the Replay Browser keeps its own controls); §8 the system changes, §9 the live-host UI; nothing built. ⭐ P0 (§7) changes data NOW
-updated: 2026-10-26 (R-3060 — §9 rewritten: ASCII wireframes, the existing time-control section grown by a mode icon and an axis icon, Stop = back to live in a review, the Replay Browser keeps its own controls, §9f the messages incl. ReplaySessionTopic, §9g what loading includes) · 2026-10-26 (R-3059 — the timeline's left click never changes state, seeking in its right-click menu; one UI for review, cluster replay and the Replay Browser; every control from any host; §9 wireframes, §9d who fills the timeline on each host) · 2026-10-26 (approved — R-3057, R-3058; §3a the state-machine additions as a table, §8 every system change, §9 the review UI on a live cluster host) · 2026-10-26 (first version — backend, from the user's request: the sim-time seek/step that skips unchanged pauses, its UI, and During Action Review)
+build-state: DESIGN — ⭐ APPROVED 2026-10-26 (R-3057: R1…R12; R-3058: the axis switches at runtime; R-3059: no state change on a left click, any host; R-3060: the existing toolbar grown by two icons, the Replay Browser keeps its own controls; R-3061: the mode indicator opens a menu, never acts); §8 the system changes, §9 the live-host UI; nothing built. ⭐ P0 (§7) changes data NOW
+updated: 2026-10-26 (R-3061 — the mode icon is an INDICATOR whose click opens a menu (never an action), Edit and Preview get their own; §10 the timeline panel's zoom / pan reviewed against the built code, its interaction spec) · 2026-10-26 (R-3060 — §9 rewritten: ASCII wireframes, the existing time-control section grown by a mode icon and an axis icon, Stop = back to live in a review, the Replay Browser keeps its own controls, §9f the messages incl. ReplaySessionTopic, §9g what loading includes) · 2026-10-26 (R-3059 — the timeline's left click never changes state, seeking in its right-click menu; one UI for review, cluster replay and the Replay Browser; every control from any host; §9 wireframes, §9d who fills the timeline on each host) · 2026-10-26 (approved — R-3057, R-3058; §3a the state-machine additions as a table, §8 every system change, §9 the review UI on a live cluster host) · 2026-10-26 (first version — backend, from the user's request: the sim-time seek/step that skips unchanged pauses, its UI, and During Action Review)
 current-answer: §0 the decision · §1 claim table · §2 INVENTORY · §3 UML (§3a the state machine) · §4 the time model · §5 decisions (approved) · §6 HTTP · §7 build order · §8 the system changes · §9 the live-host UI
 stale-below: nothing
 known-rot: none
@@ -303,7 +303,12 @@ review/replay indicator - different colored switchable icon. Replay browser shou
 review there applicable). May STOP icon could change shape/color/tooltip to "back to live" while in DAR, so only a next press will stop
 the live session. "live host never seeks" is supreseded by DAR."*
 
-### 9a. The toolbar — the EXISTING time-control section, grown by two small icons
+### 9a. The toolbar — the EXISTING time-control section, grown by two small icons *(R-3060, R-3061)*
+
+🔒 **User, `2026-10-26`:** *"starting review at live point means the review is just about to end as it reached the live point. I think it
+should be icon that open some kind of menu on click (offering to change mode maybe? only if there is anything meaningful to offer) but should
+not do any immediate action, it is mainly an indicator or the live/replayy/review mopde, not an action button. If there is a preview mode, it
+needs to have its own indicator icon as well."*
 
 Today (`MainToolbarTimeControlSection`, registered by the editor and CGF — `ShellTimeControlToolbar`):
 
@@ -312,32 +317,53 @@ Today (`MainToolbarTimeControlSection`, registered by the editor and CGF — `Sh
        play/pause · step · stop · time · rate
 ```
 
-Grown — the same three buttons, the same readout and rate, ⭐ plus the **mode icon** in front and the **axis icon** behind:
+Grown — the same three buttons, the same readout and rate, ⭐ plus the **mode indicator** in front and the **axis icon** behind:
 
 ```
- LIVE      … │ (●)  ⏸   ⏭   ■    12:31.4   1×  [S] │ …
-                 green ●  · click: review from now (paused at the live point)
-
- REVIEW    … │ (⟲)  ▶   ⏭  (⏏)   07:04.0   2×  [S] │ …
-                amber ⟲            green ⏏ = BACK TO LIVE (tooltip: "Back to live — 12:31.4, 5:27 ahead")
-                click ⟲ = back to live as well          a second ■ press (in live) stops the run
-
- REPLAY    … │ (▶)  ⏸   ⏭   ■    03:12.7   1×  [W] │ …
-                blue ▶ · not clickable          ■ leaves the replay
+ EDIT      … │ (✎)  ▶   ⏭   ■    00:00.0   1×  [S] │ …     grey ✎ — indicator only, no menu
+ PREVIEW   … │ (◐)  ⏸   ⏭   ■    00:14.2   1×  [S] │ …     violet ◐ — the dry run; ■ returns to edit; no menu
+ LIVE      … │ (●)  ⏸   ⏭   ■    12:31.4   1×  [S] │ …     green ●  — click opens the LIVE menu
+ REVIEW    … │ (⟲)  ▶   ⏭  (⏏)   07:04.0   2×  [S] │ …     amber ⟲  — click opens the REVIEW menu; ■ became green ⏏ Back to live
+ REPLAY    … │ (▶)  ⏸   ⏭   ■    03:12.7   1×  [W] │ …     blue ▶   — click opens the REPLAY menu
 ```
+
+⭐ **The mode indicator never acts on a click — it opens a menu, and only where the menu has something worth offering:**
+
+```
+ LIVE ● ─────────────────────────────┐   REVIEW ⟲ ───────────────────────────┐   REPLAY ▶ ────────────────────────────┐
+ │ Live · ua-tank-ammo · 12:31.4      │   │ Review · 5:27 behind live          │   │ Replay · exercise 3f2a… · 18:40     │
+ │ ─────────────────────────────────  │   │ ─────────────────────────────────  │   │ ─────────────────────────────────── │
+ │ ⟲ Review the last 30 s             │   │ ⟲ Restart from 30 s before live    │   │ ⑂ Go live from here (a new branch)… │
+ │ ⟲ Review the last 2 min            │   │ ⟲ Restart from 2 min before live   │   └─────────────────────────────────────┘
+ │ ⟲ Review the last 10 min           │   │ ⟲ Restart from a checkpoint     ▸  │
+ │ ⟲ Review from a checkpoint      ▸  │   │ ⏏ Back to live (12:31.4)           │
+ │ ⟲ Review from the start            │   └────────────────────────────────────┘
+ │ ─────────────────────────────────  │
+ │ ⚑ Mark this moment                 │    ⚑ = take a checkpoint with an automatic label (R-3044 — a named
+ └────────────────────────────────────┘      keyframe; no second "bookmark" mechanism), shown on the timeline
+```
+
+| mode | indicator | menu |
+|---|---|---|
+| Edit | grey ✎ | none — nothing runs |
+| Preview (the dry run) | violet ◐ | none — ■ returns to edit (its one meaningful action is already a button) |
+| Live | green ● | review the last 30 s / 2 min / 10 min, from a checkpoint ▸, from the start · ⚑ mark this moment (a checkpoint) |
+| Review | amber ⟲ | restart from 30 s / 2 min before live, from a checkpoint ▸ · ⏏ back to live |
+| Replay | blue ▶ | ⑂ go live from here — the existing branch (D18 / R-3047), behind a confirmation |
+| none (Idle) | nothing | — |
 
 | element | what it shows | click | tooltip |
 |---|---|---|---|
-| **mode icon** (NEW, one glyph) | ● green LIVE · ⟲ amber REVIEW · ▶ blue REPLAY · (nothing in Edit / Preview) | LIVE → enter a review at the live point, paused · REVIEW → back to live · REPLAY → none | the mode; in a review the live point and the distance to it |
+| **mode indicator** (NEW, one glyph) | ✎ / ◐ / ● / ⟲ / ▶ by colour | opens its menu (above) — ⛔ never an immediate action | the mode; in a review the live point and the distance to it |
 | ⏯ play / pause (exists) | | the cluster clock in live, the replay clock in a review / replay (skips paused stretches on S) | |
 | ⏭ step (exists) | | `+dt` on the active axis — never lands inside a paused stretch on S | |
-| ■ stop (exists) | ■ — in a review it CHANGES to ⏏ green **Back to live** | live: stop the run · review: back to live (so only a SECOND press, now in live, stops) · replay: leave it | "Stop the exercise" / "Back to live" / "Leave the replay" |
+| ■ stop (exists) | ■ — in a review it CHANGES to ⏏ green **Back to live** | live: stop the run · review: back to live (so only a SECOND press, now in live, stops) · replay: leave it · preview: back to edit | "Stop the exercise" / "Back to live — 12:31.4, 5:27 ahead" / "Leave the replay" / "Back to edit" |
 | time readout (exists) | the playhead on the active axis | | sim / wall; in a review "−5:27 to live" |
 | rate (exists) | | | |
 | **axis icon** (NEW, one glyph) | **S** = sim (pauses collapsed) · **W** = wall | toggles S ⇄ W for the SESSION (R-3058) — ruler, seek and playback at once | "Sim time — pauses skipped" / "Wall time — pauses shown" |
 
-⛔ Withdrawn from the first draft: the separate state chip, jump-to-start, seek-history back / forward, step back, the "Review…" and "Back to
-live" buttons — the timeline's menu and the two icons cover them.
+⛔ Withdrawn: the separate state chip, jump-to-start, seek-history back / forward, step back, "Review…" / "Back to live" buttons (first draft);
+⛔ "click ● = review at the live point" (R-3060's first form — a review starting at its own end; R-3061).
 
 ### 9b. The timeline panel — zoom, pan, time stamps; the seeks are in its right-click menu
 
@@ -514,3 +540,81 @@ part (scanning lanes) is never inside a cluster transition, and a host waits for
 | **why the sidecar usually exists** | ⭐ NEW: at `FinalizeLive` each node writes the `.timeline` sidecar from its `LiveTimelineSource` (the lanes it already evaluated live) — so replaying a just-finished exercise opens fully indexed; only lanes added since are scanned |
 | **a review** | ⛔ no scan at all: the live source's history up to the live point IS the timeline; the session sample adds the live point and the map |
 | **the Replay Browser** | as today (its own process): open → sidecar → background scan; its session layer is local (its own map from its files) |
+
+## 10. The timeline panel's zoom and pan — a critical review of what is built, and the interaction it needs
+
+🔒 **User, `2026-10-26`:** *"Not sure how well the pan/zoom of the timeline is solved … these are crucial features so pls take a critical
+look and use your experience from other sw to identify gaps and flaws there."*
+
+📐 **Read: `FDP/Engine/Fdp.Presentation/ImGui/Panels/Timeline/TimelinePanel.cs` (236 lines) and `TimelineLayout.cs` (265 lines), ui's
+CE-1302 R1-b.** ⭐ The foundations are good and stay: density bins when crowded / glyphs when sparse, clustering with counts, priority on
+top, cost = pixels × lanes × log(events) (two binary searches a bin), zoom maths anchored at the cursor (`ZoomAbout`), an overview strip
+with the window as a bracket. ⛔ What follows is what breaks the review use, or what every mature timeline has and this one lacks.
+
+### 10a. Defects in the built code *(each measured — file:line)*
+
+| # | defect | where | why it matters |
+|---|---|---|---|
+| T1 | 🔴 **the view resets to the WHOLE extent whenever the extent changes** — and a live source's extent grows every frame | `TimelinePanel.cs:70-74` | in live (and a review's source while live) no zoom or pan survives one frame — the panel is unusable for its main DAR job |
+| T2 | 🔴 **a left click SEEKS** (release without drag) | `TimelinePanel.cs:196-199` | contradicts R-3059 (an accidental click must not move a replay or start a review) |
+| T3 | left drag PANS on the lanes | `:191-195` | the same gesture is needed for the playhead scrub and a range selection; pan belongs elsewhere (10c) |
+| T4 | zoom only with **Ctrl+wheel**, only while over a **lane row** — not over the ruler, the overview or empty space; the plain wheel scrolls the ImGui window | `:189-190` | the first thing every user tries (the wheel over the ruler) does the wrong thing |
+| T5 | the wheel's MAGNITUDE is ignored (`MouseWheel > 0 ? 0.8 : 1.25`) | `:190` | a trackpad sends many small deltas per gesture ⇒ each one is a full 25 % step: a flick zooms 10× |
+| T6 | no horizontal wheel (`io.MouseWheelH`) | — | trackpad two-finger sideways / Shift+wheel do nothing |
+| T7 | the closest zoom is **0.1 s** (`minSpan = TicksPerSecond / 10`) | `:190` | a frame is 16.7 ms: individual frames, the shot-then-hit order, a step's effect cannot be inspected |
+| T8 | ruler labels: steps under 1 s use `m:ss.f` — past one hour the HOURS vanish (`TimeSpan` `m` is 0-59); labels are not measured, so long ones overlap; no minor ticks; the step list ends at 2 h | `:164-166`, `TimelineLayout.cs:253-264` | a long exercise mislabels or crowds its own ruler |
+| T9 | the overview only RE-CENTRES the bracket on the mouse; its edges cannot be dragged to zoom | `:144-149` | the cheapest way to zoom on a long recording is missing |
+| T10 | `_dragging` is cleared only on a release over a lane row | `:196-200` | a drag released over the ruler leaves it set: the next click is ignored |
+| T11 | the ruler, the overview and the lanes scroll together vertically | `:86-102` | with many lanes the ruler leaves the screen while you pan |
+| T12 | the playhead can leave the window; nothing follows it during play, nothing points to it when off-screen | `:111-112` | press play, the cursor walks out of view |
+| T13 | time is wall ticks only (TL-4) | `TimelineWindow` | the Sim axis (R-3058) needs the window, the ruler and `XOf` in the active axis |
+
+### 10b. Gaps against mature timelines *(experience: Perfetto / Chrome tracing, DaVinci / Premiere, Audacity, Grafana live, Tacview-style debriefing)*
+
+| gap | what users expect | for DAR |
+|---|---|---|
+| **follow modes** | live: the window stays pinned to the live edge ("tail") until the user pans away, then a `⇥ Live` chip re-pins it; playback: the window pages (or scrolls) to keep the playhead in view | ⭐ essential — live and review are this panel's main use |
+| **fit / presets** | double-click the ruler = fit all; `F` fit, `0`…`3` = last 30 s / 2 min / 10 min / all; "zoom to selection" | the operator thinks "the last two minutes" |
+| **range selection** | Shift+drag on the ruler selects a span showing its duration: zoom to it · loop it in a review · export it · review from its start | ⭐ loop a range is the classic debrief move |
+| **hover readout** | a thin cursor line through the lanes with the time at the mouse (on the active axis) | the user sees what "Seek here" will pick before right-clicking |
+| **snapping** | a seek or a range edge snaps to an event within a few pixels, and to a frame boundary | "seek to the shot" without pixel hunting |
+| **keyboard** (panel focused only) | ←/→ one frame, Shift+←/→ prev / next event, Home / End, +/− zoom, Space play / pause | precise review; ⛔ never stolen from the map when the panel is not focused |
+| **zoom history** | Backspace / mouse-back returns to the previous view | after a deep zoom, one key back |
+| **off-screen playhead** | an arrow at the edge where the playhead is; click = bring it into view | |
+| **unavailable zones** | shade before a node's first frame (a late joiner) and after the live point | the user sees why a seek clamps |
+| **collapsed pauses on S** | a break mark on the ruler (a small zigzag) at each collapsed pause, the ◯ / ● tick as its hit target | the time on the ruler is continuous, the world is not |
+| **an axis switch keeps the view** | S ⇄ W maps the visible window through the time map — the same FRAMES stay in view, not the same numbers | otherwise the switch throws the user elsewhere |
+| **view state is the viewer's** | zoom / pan / follow are per host and per user; only the axis is the session's (R-3058) | two operators zoom independently |
+
+### 10c. The interaction spec — the one mapping every host's timeline obeys
+
+| input | over the ruler / overview | over the lanes |
+|---|---|---|
+| wheel | ⭐ zoom about the mouse — proportional to the delta (smooth on a trackpad) | scroll the lanes vertically (the ruler and overview stay — sticky) |
+| Ctrl+wheel, pinch | zoom about the mouse | zoom about the mouse |
+| Shift+wheel, horizontal wheel | pan | pan |
+| left drag | ruler: pan · overview: move the bracket; its EDGES: zoom | ⛔ nothing on empty space (a drag never pans or seeks by accident) |
+| Shift+left drag | select a range | select a range |
+| middle drag | pan | pan |
+| left click | — | select the event (details, the unit) — ⛔ never seeks (R-3059) |
+| drag the playhead ▼ | scrub (review / replay) — seek on release | — |
+| double-click | fit all (ruler) | zoom to the event's cluster |
+| right click | the seek menu (§9b) | the seek menu, with the event under the mouse |
+
+| zoom limits | |
+|---|---|
+| closest | ⭐ about 10 frames across the panel (≈ 0.17 s at 60 Hz) — every frame a distinct column (T7) |
+| widest | the whole extent (the session's zero → the live point / the end) |
+| step | `factor = 1.0015 ^ (−wheelDelta × 120)` — a notch ≈ 15 %, a trackpad smooth (T5) |
+
+| ruler | |
+|---|---|
+| steps | 1·2·5 × 10ⁿ frames → 0.1 s … 1 s, 2, 5, 10, 15, 30 s, 1, 2, 5, 10, 15, 30 min, 1, 2, 6, 12 h (T8) |
+| labels | measured, never overlapping (a label is skipped when it would collide); minor ticks unlabelled |
+| format | by the step AND the extent: `h:mm:ss` once the extent passes an hour, `m:ss.f` below a second, `+frame` at the closest zoom; sim / wall per the axis, "−5:27" in a review |
+
+### 10d. Where it is fixed
+
+⭐ T1–T13 and 10b–10c are the timeline panel's — ui's component (`DESIGN_Director_Timeline_Editor.md`, CE-1302). Filed as **CE-3330** for
+the ui lane (T1, T2 and T12 first: without them the panel cannot serve live or a review); this section is the spec it builds against, and
+its owner folds it into that design's §2b when it does.
