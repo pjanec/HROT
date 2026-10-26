@@ -72,6 +72,17 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// registers this handler through the shared composition (<c>EcsHostClusterHandlers.Compose</c>), so the debug surface reads
         /// the file from the node's own <c>ClusterSlave</c> — the same way on every node.</summary>
         public string? ReplayFilePath => _controller.ActiveReplayFilePath;
+
+        /// <summary>
+        /// ⭐ RB-2 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — the replay's zero (the master's anchor, else this node's first
+        /// frame) and the replay clock now, in wall ticks; <see langword="null"/> outside a replay. What the debug API resolves a
+        /// frame-based seek against.
+        /// </summary>
+        public (long ZeroWallTicks, long NowWallTicks)? ReplayPosition
+            => _controller.IsReplayActive
+                ? (_controller.ReplayAnchorWallTicks > 0 ? _controller.ReplayAnchorWallTicks : _controller.ActiveRecordingStartWallTicks,
+                   _controller.GetCurrentReplayTime().TotalWallTicks)
+                : null;
         private readonly TogglableInputGroup?         _inputGroup;
         private readonly TogglableSimulationGroup?    _simGroup;
         private readonly TogglablePostSimulationGroup? _postSimGroup;

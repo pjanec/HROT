@@ -430,8 +430,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     return int.TryParse(criteria.TargetValue, out int idx) && entity.Index == idx;
 
                 case EntityIdentifierType.NetworkId:
-                    // Simplified: treat NetworkId as entity index for test compatibility.
-                    return int.TryParse(criteria.TargetValue, out int netId) && entity.Index == netId;
+                    // ⭐ RB-5 — the ONE network-id rule (the breakpoint's too). ⛔ Was: the target compared with the entity's INDEX.
+                    return LifecycleIdentity.IsNetworkId(repo, entity, criteria.TargetValue);
 
                 case EntityIdentifierType.NameSubstring:
                 {

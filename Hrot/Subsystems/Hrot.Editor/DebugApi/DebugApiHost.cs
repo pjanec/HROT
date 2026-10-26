@@ -1004,7 +1004,24 @@ namespace Hrot.Editor.DebugApi
             //   /replay/entities…) is retired. 📄 docs/DESIGN_Http_Control_Through_The_Cluster_Master.md §3.
             _routes.Add(new("GET", "/exercises", _ => RunMainResult(s => ResultOf(s.ListExercises(), unavailable: 503))));
             _routes.Add(new("POST", "/replay", ctx => PublishAndAwait(ctx, s => s.EnterReplay(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay)));
-            _routes.Add(new("POST", "/replay/seek", ctx => RunMainResult(s => ResultOf(s.SeekReplayTo(ctx.Body), unavailable: 503))));
+            // ⭐ RB-2 — {atSeconds} | {frame} | {frames: ±n} | {cause: {frame, entity}} | {next: {entity, component?}, direction}: a
+            //   lookup resolves on the main thread (a "next" scan runs off it, in a reader of its own), then the ordinary seek.
+            _routes.Add(new("POST", "/replay/seek", async ctx =>
+            {
+                var r = await _jobQueue.RunOnMainThread(() => Service().ResolveReplaySeek(ctx.Body)).ConfigureAwait(false);
+                if (r.Scan is not { } scan) return ResultOf((r.Result, r.Error, r.HintCategory), unavailable: 503);
+                int? frame = await Task.Run(() => DebugApiService.RunChangeScan(scan)).ConfigureAwait(false);
+                if (frame is null)
+                    return Ok(new JsonObject
+                    {
+                        ["found"] = false, ["published"] = false,
+                        ["note"] = $"Entity {scan.NetworkId} does not change {(scan.Direction > 0 ? "after" : "before")} frame {scan.StartFrame}"
+                                 + (scan.Component is null ? "." : $" in {scan.Component}."),
+                    });
+                var seek = await _jobQueue.RunOnMainThread(() => Service().SeekReplayToFrame(frame.Value, "next")).ConfigureAwait(false);
+                if (seek.Result is JsonObject o) o["found"] = true;
+                return ResultOf(seek, unavailable: 503);
+            }));
             _routes.Add(new("POST", "/replay/stop", ctx => PublishAndAwait(ctx, s => s.StopReplay(), Fdp.Toolkit.Orchestration.ClusterState.Idle)));
             _routes.Add(new("GET", "/replay/status", _ => RunMain(s => s.GetReplayStatus())));
 

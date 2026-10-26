@@ -1481,11 +1481,9 @@ public sealed class DataBreakpointManager
             // ⭐⭐⭐ BP-512 — asked of the ENTITY, not of a map. See the method remarks for why this is
             //    neither of the two options the design offered: the predicate is "is THIS entity id N?",
             //    which is O(1) off the entity's own component, and this runs per-entity-per-tick.
+            //    ⭐ RB-5 — the rule now lives in ONE place, shared with the replay search (which had compared the entity's INDEX).
             EntityIdentifierType.NetworkId =>
-                long.TryParse(dto.TargetValue, out long wanted) &&
-                wanted != 0 &&
-                repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity) &&
-                repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value == wanted,
+                Fdp.Toolkit.ReplayBrowser.Search.LifecycleIdentity.IsNetworkId(repo, entity, dto.TargetValue),
 
             _ => false
         };

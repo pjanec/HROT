@@ -242,6 +242,12 @@ public sealed class PerspectiveScopedDispatcher
     /// only provider in its process (R-4080).</summary>
     public IReplayBrowserControl? ReplayBrowser => Active()?.ReplayBrowser;
 
+    /// <summary>⭐ RB-2 — the ACTIVE node's replay position (its own recording). ⛔ No fallback, as <see cref="ReplayRecordingPath"/>.</summary>
+    public ReplayPosition? ReplayPosition => Active()?.ReplayPosition;
+
+    /// <summary>⭐ RB-5 — the ACTIVE provider's event history. ⛔ No fallback: another node's events would answer about the wrong world.</summary>
+    public Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory => Active()?.EventHistory;
+
     /// <summary>⭐ <c>R-3055</c> — the loaded replay's length from whichever node caches it.</summary>
     public float? ReplayDurationAnyNode
         => Active()?.ReplayDurationSeconds

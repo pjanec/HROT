@@ -1142,4 +1142,51 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal("exercise mismatch", provider.ReplayBrowser.Open(new[] { a, b }, 0));
         Assert.StartsWith("No such recording file", provider.ReplayBrowser.Open(new[] { a + ".gone" }, 0));
     }
+
+    /// <summary>An event the RB-5 rail records one of per frame (its frame number).</summary>
+    [EventId(932971)]
+    public struct RbFramePing { public int Frame; }
+
+    /// <summary>
+    /// ⭐ RB-5 — the shown frame's recorded events are in the provider's event history (<c>GET /events</c>), and they FOLLOW the shown
+    /// frame: a step adds its frame's events, a step back rewinds, a jump starts over. 🔴 Before: the federation moved with the history
+    /// suppressed, so after the load the history held frame 0's events whatever frame was shown.
+    /// </summary>
+    [Fact]
+    public void RB5_TheShownFramesRecordedEvents_FollowTheFederation()
+    {
+        string root = Path.Combine(_tempDir, "events");
+        Directory.CreateDirectory(root);
+        string path = Path.Combine(root, "node_1.fdp");
+        using (var repo = new EntityRepository())
+        {
+            repo.RegisterEvent<RbFramePing>();
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            for (int f = 0; f <= 3; f++)
+            {
+                repo.Bus.Publish(new RbFramePing { Frame = f });
+                long t = TimeSpan.FromSeconds(1 + f).Ticks;
+                if (f == 0) rec.CaptureKeyframe(repo, t, blocking: true, eventBus: repo.Bus);
+                else rec.CaptureFrame(repo, (uint)(f - 1), t, blocking: true, eventBus: repo.Bus);
+                repo.Bus.SwapBuffers();
+            }
+        }
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var provider = _subsystem.CreateDebugProvider()!;
+        Assert.Null(provider.ReplayBrowser!.Open(new[] { path }, 0));
+
+        int[] Frames() => provider.EventHistory!.GetHistory()
+            .Where(e => e.TypeName == nameof(RbFramePing)).Select(e => (int)e.Frame).ToArray();
+
+        Assert.Equal(new[] { 0 }, Frames());
+        provider.Drive!.Step();
+        provider.Drive.Step();
+        Assert.Equal(new[] { 0, 1, 2 }, Frames());                                      // a step adds its frame
+        provider.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = TimeSpan.FromSeconds(1).Ticks });
+        Assert.Equal(new[] { 0, 1 }, Frames());                                         // a step back rewinds
+        provider.Master.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = TimeSpan.FromSeconds(3).Ticks });
+        Assert.Equal(new[] { 3 }, Frames());                                            // a jump starts over
+        Assert.NotEmpty(provider.EventHistory!.GetHistory().Where(e => e.TypeName == nameof(RbFramePing) && ((RbFramePing)e.RawEvent).Frame == 3));
+    }
 }

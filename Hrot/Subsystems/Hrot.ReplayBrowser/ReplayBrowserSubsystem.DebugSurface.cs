@@ -93,6 +93,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             _transientMaster = null;
 
             _manager = manager;
+            _eventsCapturedAt = null;
             _manager.OnTimeChanged += OnManagerTimeChanged;
             ApplyRecordingGeoOrigin();   // CE-3126
             ApplyRecordingTerrain();     // CE-3118
@@ -122,6 +123,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         _timelinePanel?.SetManager(null);
         _playbackHistory.Clear();
         _extraction = null;
+        _eventsCapturedAt = null;
         if (_headless)
             _activeRepo = null;
         else
@@ -169,6 +171,33 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         _manager.SetBaseWallTicks(target);
         _playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), selected);
     }
+
+    // ── The event history at the shown frame (RB-5) ───────────────────────────────────────────────────────────────────
+
+    private (int Node, int Frame)? _eventsCapturedAt;
+
+    /// <summary>
+    /// ⭐ RB-5 — the primary node's event history follows the shown frame, as <see cref="ReplayBrowserContext"/>'s own seek and step
+    /// keep it: a step forward adds the frame's events, a step back rewinds, a jump starts over. 🔴 Before: the federation seeks and steps
+    /// with the history suppressed, so after the load the Event Browser panel showed frame 0's events whatever frame was shown — and
+    /// <c>GET /events</c> had nothing to read here.
+    /// </summary>
+    private void CaptureEventsAtTheNewFrame()
+    {
+        if (_manager == null || !_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) || ctx.Playback == null)
+            return;
+        int node = _manager.LocalEntitiesProviderNodeId, frame = ctx.CurrentFrame;
+        if (frame < 0 || _eventsCapturedAt == (node, frame)) return;
+        var history = ctx.HistoryService;
+        if (_eventsCapturedAt is not { } last || last.Node != node || frame > last.Frame + 1) history.ClearHistory();
+        else if (frame < last.Frame) history.RewindHistory((uint)frame);
+        history.Capture("Replay", ctx.SandboxBus, (uint)frame);
+        _eventsCapturedAt = (node, frame);
+    }
+
+    /// <summary>The primary node's event history (<c>GET /events</c>).</summary>
+    private Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? PrimaryEventHistory
+        => _manager != null && _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) ? ctx.HistoryService : null;
 
     // ── The debug surface ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -402,5 +431,9 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             exercises:     ExercisesOnDisk,
             replayDuration: () => ReplayZeroTicks is { } z && ReplayEndTicks is { } e ? (float)((e - z) / (double)TimeSpan.TicksPerSecond) : null,
             replayRecording: () => PrimaryRecordingPath,
+            // ⭐ RB-2 — where the replay stands on the wall clock and its zero: what frame-based seeks resolve against
+            replayPosition: () => ReplayZeroTicks is { } z && _manager is { } m ? new ReplayPosition(z, m.BaseWallTicks) : null,
+            // ⭐ RB-5 — the shown frame's recorded events
+            eventHistory:  () => PrimaryEventHistory,
             replayBrowser: () => BrowserControl);
 }

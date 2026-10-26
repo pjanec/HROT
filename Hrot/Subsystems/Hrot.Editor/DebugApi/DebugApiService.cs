@@ -283,6 +283,8 @@ namespace Hrot.Editor.DebugApi
 
         private IDiagnosticEventHistoryService _eventHistory
             => _editorEventHistory
+               // ⭐ RB-5 — the active provider's history (the Replay Browser's: the shown frame's recorded events)
+               ?? _dispatcher?.EventHistory
                ?? throw NotSupportedHere("events.read");
 
         /// <summary>
@@ -855,11 +857,12 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public JsonNode GetEvents(string? bus = "world", string? type = null, uint since = 0, int max = DefaultMaxEvents)
         {
-            string provider = string.Equals(bus, "orchestration", StringComparison.OrdinalIgnoreCase)
-                ? "Orchestration"
-                : "World";
+            // ⭐ RB-5 — a replayed world's events are captured as "Replay" (ReplayBrowserContext): the world bus of that world
+            string[] providers = string.Equals(bus, "orchestration", StringComparison.OrdinalIgnoreCase)
+                ? new[] { "Orchestration" }
+                : new[] { "World", "Replay" };
 
-            var history = _eventHistory.GetHistory(new[] { provider });
+            var history = _eventHistory.GetHistory(providers);
 
             IEnumerable<CapturedEventDto> filtered = history;
             if (!string.IsNullOrEmpty(type))

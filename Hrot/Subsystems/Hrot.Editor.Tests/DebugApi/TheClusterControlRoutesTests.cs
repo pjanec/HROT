@@ -203,6 +203,137 @@ public sealed class TheClusterControlRoutesTests
         public void Dump(ExecuteDiagnosticDumpIntent intent) => throw new InvalidOperationException("no such exercise");
     }
 
+    // ── RB-2 — the seek forms that are lookups over the recording, resolved here for every host ─────────────────────────────────────
+
+    private static readonly long Zero = TimeSpan.FromSeconds(1).Ticks;
+
+    /// <summary>A node's recording: a keyframe at 1 s, then frames 1 s apart to 5 s; unit 1042's Health drops 100 → 60 at frame 3.</summary>
+    private static string RecordUnit(string dir)
+    {
+        System.IO.Directory.CreateDirectory(dir);
+        string path = System.IO.Path.Combine(dir, "node_1.fdp");
+        using var repo = new Fdp.Core.EntityRepository();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var unit = repo.CreateEntity();
+        repo.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1042 });
+        repo.AddComponent(unit, new Fdp.Toolkit.Combat.Components.Health { Current = 100, Max = 100 });
+        using var rec = new Fdp.Core.FlightRecorder.AsyncRecorder(path,
+            new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+        repo.Tick();
+        rec.CaptureKeyframe(repo, Zero, blocking: true, eventBus: repo.Bus);
+        uint prev = repo.GlobalVersion;
+        for (int f = 1; f <= 4; f++)
+        {
+            repo.Tick();
+            if (f == 3) repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(unit).Current = 60;
+            rec.CaptureFrame(repo, prev, Zero + TimeSpan.FromSeconds(f).Ticks, blocking: true, eventBus: repo.Bus);
+            prev = repo.GlobalVersion;
+        }
+        return path;
+    }
+
+    private DebugApiService ReplayingHost(string recording, Func<int> nowFrame)
+        => new(new PerspectiveScopedDispatcher(
+                   new ISubsystemDebugProvider[]
+                   {
+                       new SubsystemDebugProvider("CGF", "CGF",
+                           master:          () => _master,
+                           clusterState:    () => ClusterState.OperatingReplay,
+                           replayRecording: () => recording,
+                           replayPosition:  () => new ReplayPosition(Zero, Zero + TimeSpan.FromSeconds(nowFrame()).Ticks)),
+                   },
+                   currentPerspective: () => "CGF",
+                   acksPending: null));
+
+    private long LastSeekTicks => Assert.IsType<SeekReplayIntent>(_master.Sent[^1]).TargetWallTicks;
+
+    [Fact]
+    public void RB2_A_frame_a_step_back_and_a_causality_jump_resolve_to_their_moment_and_seek_through_the_master()
+    {
+        string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rb2_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            int now = 2;
+            var svc = ReplayingHost(RecordUnit(dir), () => now);
+
+            var frame = svc.ResolveReplaySeek(new JsonObject { ["frame"] = 4 });
+            Assert.Null(frame.Error);
+            Assert.Null(frame.Scan);
+            Assert.Equal(TimeSpan.FromSeconds(4).Ticks, LastSeekTicks);              // frame 4 is 4 s after the zero
+            Assert.Equal(4, frame.Result!["frame"]!.GetValue<int>());
+
+            Assert.Null(svc.ResolveReplaySeek(new JsonObject { ["frames"] = -1 }).Error);
+            Assert.Equal(TimeSpan.FromSeconds(1).Ticks, LastSeekTicks);              // one back from frame 2
+
+            var cause = svc.ResolveReplaySeek(new JsonObject { ["cause"] = new JsonObject { ["frame"] = 2, ["entity"] = 1042 } });
+            Assert.Equal(TimeSpan.FromSeconds(3).Ticks, LastSeekTicks);              // the frame AFTER the event
+            Assert.Equal("1042", cause.Result!["entity"]!.ToJsonString());
+
+            Assert.Null(svc.ResolveReplaySeek(new JsonObject { ["frame"] = 99 }).Error);
+            Assert.Equal(TimeSpan.FromSeconds(4).Ticks, LastSeekTicks);              // clamped to the last frame
+        }
+        finally { try { System.IO.Directory.Delete(dir, true); } catch { } }
+    }
+
+    [Fact]
+    public void RB2_The_next_change_of_a_unit_is_a_scan_off_the_main_thread_in_a_reader_of_its_own()
+    {
+        string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rb2_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            int now = 1;
+            var svc = ReplayingHost(RecordUnit(dir), () => now);
+
+            var r = svc.ResolveReplaySeek(new JsonObject { ["next"] = new JsonObject { ["entity"] = 1042, ["component"] = "Health" }, ["direction"] = 1 });
+            Assert.Null(r.Error);
+            var scan = Assert.IsType<DebugApiService.ChangeScan>(r.Scan);
+            Assert.Empty(_master.Sent);                                              // ⛔ nothing seeks before the scan answers
+            Assert.Equal(3, DebugApiService.RunChangeScan(scan));                    // Health changed at frame 3
+
+            now = 4;
+            var back = svc.ResolveReplaySeek(new JsonObject { ["next"] = new JsonObject { ["entity"] = 1042 }, ["direction"] = -1 });
+            Assert.Equal(3, DebugApiService.RunChangeScan(back.Scan!));             // the last change before frame 4
+
+            now = 1;
+            var none = svc.ResolveReplaySeek(new JsonObject { ["next"] = new JsonObject { ["entity"] = 1042, ["component"] = "NetworkIdentity" }, ["direction"] = 1 });
+            Assert.Null(DebugApiService.RunChangeScan(none.Scan!));                 // a component that never changes: no frame
+        }
+        finally { try { System.IO.Directory.Delete(dir, true); } catch { } }
+    }
+
+    [Fact]
+    public void RB5_The_replay_search_has_the_Search_panels_lifecycle_mode()
+    {
+        string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rb5_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var svc = ReplayingHost(RecordUnit(dir), () => 0);
+            var (result, error) = svc.SearchReplay(new JsonObject
+            {
+                ["lifecycle"] = new JsonObject { ["IdentifierType"] = "NetworkId", ["TargetValue"] = "1042" },
+            });
+            Assert.Null(error);
+            Assert.Equal("lifecycle", result!["mode"]!.GetValue<string>());
+            var span = Assert.Single(result["hits"]!.AsArray())!;
+            Assert.Equal(0, span["startFrame"]!.GetValue<int>());              // the unit lives the whole recording
+            Assert.Equal(4, span["endFrame"]!.GetValue<int>());
+        }
+        finally { try { System.IO.Directory.Delete(dir, true); } catch { } }
+    }
+
+    [Fact]
+    public void RB2_A_lookup_outside_a_replay_is_refused_before_anything_is_read()
+    {
+        _state = ClusterState.OperatingLive;
+        var r = new DebugApiService(new PerspectiveScopedDispatcher(
+                new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", master: () => _master, clusterState: () => _state) },
+                currentPerspective: () => "CGF", acksPending: null))
+            .ResolveReplaySeek(new JsonObject { ["frame"] = 1 });
+        Assert.Contains("POST /replay", r.Error);
+        Assert.Empty(_master.Sent);
+    }
+
     [Fact]
     public void A_host_that_reaches_no_master_says_so()
     {

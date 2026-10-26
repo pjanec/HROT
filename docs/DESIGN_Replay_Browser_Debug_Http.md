@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — step 1 (RB-1) BUILT 2026-10-26, as-built in §7; R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
-updated: 2026-10-26 (§7 step 1 as-built — backend) · 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
+build-state: BUILDING — steps 1–2 (RB-1, RB-2, RB-5) BUILT 2026-10-26, as-built in §7; R-4080, R-4081, R-4083 (RB-7, POST /selection reopened) ruled; RB-1…RB-6, RB-8 leans
+updated: 2026-10-26 (§7.2 step 2 as-built — the seek forms on every host, lifecycle search, /events; the lifecycle search's network-id defect fixed) · 2026-10-26 (§7 step 1 as-built — backend) · 2026-10-26 (R-4083: POST /selection reopened, RB-7) · 2026-10-26 (R-4082: built by ONE lane, backend — the ui handoff withdrawn unstarted) · 2026-10-26 (first version — coordinator, from the user's request after backend's R-3053…R-3055 left the Replay Browser with no HTTP control)
 current-answer: §0 rulings and leans · §1 before / now / needed · §2 the feature map · §3 UML · §4 claim table · §5 INVENTORY · §6 build · §7 as-built (where it deviates from §3)
 stale-below: none
 known-rot: none
@@ -202,4 +202,40 @@ Rails: `ReplayBrowserSubsystemTests.RB1_*` (a recorded two-node exercise on disk
 play headless to the end, rate, refuse storage, close), `RB2_*` (open by path at a moment; a mismatched group refused);
 `TheClusterControlRoutesTests.RB1_*` / `RB2_*` (a cluster host refuses a path; a refusing master answers an error; the status field);
 `TheDebugProvidersDoNotUnderReportTests.TheReplayBrowser_PassesTheMembersTheSharedReplayRoutesRead` (8 rows).
+
+### 7.2 Step 2 — RB-2 the seek forms, RB-5 lifecycle search and `/events`
+
+```mermaid
+sequenceDiagram
+  actor A as Agent (HTTP)
+  participant H as DebugApiHost
+  participant S as DebugApiService (main thread)
+  participant F as EntityChangeFinder (off the main thread)
+  participant P as provider (any host)
+  A->>H: POST /replay/seek {next: {entity: 1042, component: "Health"}, direction: 1}
+  H->>S: ResolveReplaySeek(body)
+  S->>P: ReplayRecordingPath, ReplayPosition (zero, now)
+  S-->>H: ChangeScan(path, frame now, 1042, Health)
+  H->>F: RunChangeScan - its own reader of the file
+  F-->>H: frame 3
+  H->>S: SeekReplayToFrame(3)
+  S->>P: Master.SeekReplay((ticks(3) - zero))
+```
+*What the picture shows that prose hid: the whole-file scan never runs on the main thread or in the shown world, and the seek that
+follows is the ordinary one — so the form works on the editor and a cluster node exactly as on the Replay Browser.*
+
+| as built | where | why / deviation |
+|---|---|---|
+| ⭐ a new provider member `ReplayPosition` (the replay's zero and now, wall ticks) — the Replay Browser's federation, a cluster node's `ReferenceReplayLoadHandler.ReplayPosition` (the master's anchor, else its first frame; the replay clock), the editor's own recorder | `ISubsystemDebugProvider`, `EcsNodeDebugProvider`, `DebugApiService.ReplayPositionOrNull` | ⚠ not in §3's class diagram: a frame becomes `atSeconds = (ticks(frame) − zero)`, and only the host knows its zero. ⭐ It is shared, not Replay Browser-only — RB-2 asks the lookups to resolve on every host |
+| `{frame}`, `{frames: ±n}` (from the frame shown now), `{cause: {frame, entity}}` (frame + 1; the entity is echoed — selecting it is `POST /selection`, step 4) resolve on the main thread and seek | `DebugApiService.ReplaySeek.cs` | as RB-2 |
+| `{next: {entity, component?}, direction}` — a `ChangeScan` the host runs off the main thread in a reader of its own, then the seek; `{found: false}` when nothing changes that way | `DebugApiHost` `/replay/seek` | ⭐ ONE finder, `EntityChangeFinder` (`Fdp.Toolkits/ReplayBrowser/Diff`), extracted from the Diff panel's seek-to-change, which now calls it. ⭐ The dump is a `ScenarioSerializer`'s (CE-171): the reflection fallback collapses a fixed array to its first element and would miss a change past it |
+| `POST /replay/search {lifecycle: {...}}` (or a condition with `"$type":"Lifecycle"`) — each matching unit's first and last frame | `DebugApiService.SearchReplay` | RB-5 |
+| 🔴 **FOUND AND FIXED** — the replay search's lifecycle `NetworkId` mode compared the target with the entity's INDEX ("simplified … for test compatibility"); the live breakpoint had the right rule (BP-512). ⭐ ONE rule now, `LifecycleIdentity.IsNetworkId`, used by both | `RecordingSearchService.MatchesLifecycleCriteria`, `DataBreakpointManager` | ⛔ two implementations of one predicate had drifted; the HTTP form would have matched the wrong unit |
+| `GET /events` reads the active provider's `EventHistory` (a new provider member) when the host keeps none of its own; `bus=world` includes a replayed world's `Replay` captures | `DebugApiService._eventHistory`, `GetEvents` | RB-5 |
+| 🔴 **FOUND AND FIXED** — the Replay Browser's event history did not follow the shown frame: the federation seeks and steps with the history suppressed, so after the load its Event Browser panel showed frame 0's events at every frame. ⭐ Now a step adds the frame's events, a step back rewinds, a jump starts over (`CaptureEventsAtTheNewFrame`) | `ReplayBrowserSubsystem.DebugSurface.cs` | the panel's history and `GET /events` are the one history |
+
+Rails: `TheClusterControlRoutesTests.RB2_*` ×3 (a frame, a step back and a causality jump resolve to their moment; `next` is a scan in its own
+reader, forward / backward / none; refused outside a replay), `RB5_The_replay_search_has_the_Search_panels_lifecycle_mode` (red-proved: index
+rule ⇒ no span), `ReplayBrowserSubsystemTests.RB5_*` (red-proved: no capture ⇒ frame 0 only); `TheNetworkIdPredicateAnswersTests` (the
+breakpoint's rule, unchanged behaviour).
 

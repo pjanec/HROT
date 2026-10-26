@@ -55,6 +55,13 @@ public sealed record DiagnosticDumpStatus(bool InFlight, IReadOnlyList<string> M
 /// <param name="ReportedState">the state the node's own heartbeat reports — ⚠ the NODE's claim, not the cluster's</param>
 /// <param name="Roles">the role mask derived from the node's capability advert (<c>None</c> until it lands)</param>
 /// <param name="SecondsSinceHeartbeat">wall-clock age of its last heartbeat, as the master measures it</param>
+/// <summary>
+/// ⭐ RB-2 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — where a host's replay stands on the recording's wall clock: the replay's
+/// zero (the earliest first frame across the nodes, C9) and now. ⭐ What a frame-based seek resolves against: frame N's wall ticks
+/// minus the zero is the <c>atSeconds</c> every host's seek takes.
+/// </summary>
+public readonly record struct ReplayPosition(long ZeroWallTicks, long NowWallTicks);
+
 public sealed record ClusterRosterEntry(
     int NodeId, string Subsystem, string ReportedState, string Roles, double SecondsSinceHeartbeat);
 
@@ -215,6 +222,13 @@ public interface ISubsystemDebugProvider
     /// also does stays on the shared members above.</summary>
     IReplayBrowserControl? ReplayBrowser { get; }
 
+    /// <summary>⭐ RB-2 — the replay's zero and now on this node's recording clock; <see langword="null"/> outside a replay.</summary>
+    ReplayPosition? ReplayPosition { get; }
+
+    /// <summary>⭐ RB-5 — this host's event history (<c>GET /events</c>): the live world's, or a replay's at the shown frame;
+    /// <see langword="null"/> where none is kept.</summary>
+    Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory { get; }
+
     ClusterState? ClusterState { get; }
 
     /// <summary>
@@ -314,6 +328,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<float?>? _replayDuration;
     private readonly Func<string?>? _replayRecording;
     private readonly Func<IReplayBrowserControl?>? _replayBrowser;   // RB-3
+    private readonly Func<ReplayPosition?>? _replayPosition;          // RB-2
+    private readonly Func<Fdp.Core.Diagnostics.IDiagnosticEventHistoryService?>? _eventHistory;   // RB-5
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
     private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
@@ -371,7 +387,10 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⭐ CE-1265/CE-1266 — this node's replay recording (EcsRecordReplayController.ActiveReplayFilePath).
         Func<string?>? replayRecording = null,
         // ⭐ RB-3 — the standalone Replay Browser's own seam (DESIGN_Replay_Browser_Debug_Http.md); null on every other host.
-        Func<IReplayBrowserControl?>? replayBrowser = null)
+        Func<IReplayBrowserControl?>? replayBrowser = null,
+        // ⭐ RB-2 — the replay's zero and now (frame-based seeks); RB-5 — the host's event history.
+        Func<ReplayPosition?>? replayPosition = null,
+        Func<Fdp.Core.Diagnostics.IDiagnosticEventHistoryService?>? eventHistory = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -387,6 +406,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _replayDuration = replayDuration;
         _replayRecording = replayRecording;
         _replayBrowser = replayBrowser;
+        _replayPosition = replayPosition;
+        _eventHistory = eventHistory;
         _clusterState = clusterState;
         _availableScenarios = availableScenarios;
         _architecture = architecture;
@@ -530,6 +551,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public float? ReplayDurationSeconds => _replayDuration?.Invoke();
     public string? ReplayRecordingPath => _replayRecording?.Invoke();
     public IReplayBrowserControl? ReplayBrowser => _replayBrowser?.Invoke();
+    public ReplayPosition? ReplayPosition => _replayPosition?.Invoke();
+    public Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory => _eventHistory?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();

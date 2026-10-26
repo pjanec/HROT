@@ -279,27 +279,51 @@ namespace Hrot.Editor.DebugApi
         {
             var ctx = ScanContext(out var path);
             if (ctx is null || path is null) return (null, NoReplayRecording);
-            if (body?["condition"] is not JsonNode conditionNode) return (null, "condition is required.");
             Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto condition;
             try
             {
-                condition = System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto>(
-                    conditionNode.ToJsonString(), SearchPredicateJsonOptions) ?? throw new ArgumentException("condition deserialized to null.");
+                // ⭐ RB-5 — {lifecycle: {...}} is the Search panel's lifecycle mode (a condition with "$type":"Lifecycle" is the same)
+                if (body?["lifecycle"] is JsonNode lifecycleNode)
+                    condition = System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.ReplayBrowser.Search.LifecyclePredicateDto>(
+                        lifecycleNode.ToJsonString(), SearchPredicateJsonOptions) ?? throw new ArgumentException("lifecycle deserialized to null.");
+                else if (body?["condition"] is JsonNode conditionNode)
+                    condition = System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto>(
+                        conditionNode.ToJsonString(), SearchPredicateJsonOptions) ?? throw new ArgumentException("condition deserialized to null.");
+                else return (null, "condition (or lifecycle) is required.");
             }
             catch (Exception ex) { return (null, $"Invalid condition: {ex.Message}"); }
             // ⛔ An unknown component name deserializes to null and used to match nothing, silently — a zero that reads like an answer.
             if (UnknownComponentIn(condition)) return (null, "Invalid condition: a ComponentType names no registered component (use its name, e.g. \"BehaviorState\", or its full name).");
 
-            var filter = body["networkId"] is JsonNode n
+            var filter = body!["networkId"] is JsonNode n
                 ? new Fdp.Toolkit.ReplayBrowser.Search.TargetEntityFilter { UseNetworkId = true, NetworkId = n.GetValue<long>() }
                 : null;
             int limit = body["limit"]?.GetValue<int>() ?? 200;
             _recordingSearch ??= new Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchService(
                 new Fdp.Toolkit.ReplayBrowser.Search.PredicateCompiler(_componentEditSvc, _behaviorRegistry, _blueprintRegistry),
                 new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(_componentEditSvc));
+            var map = SandboxMap(ctx.SandboxRepo);
+            long? IdOf(Entity e) => e != Entity.Null && map.TryGetNetworkId(e, out var id) ? id : null;
+
+            // ⭐ RB-5 — the lifecycle mode: each matching unit's lifespan (first and last frame), as the Search panel lists it
+            if (condition is Fdp.Toolkit.ReplayBrowser.Search.LifecyclePredicateDto lifecycle)
+            {
+                var spans = _recordingSearch.ExecuteLifecycleSearch(path, lifecycle, filter);
+                var rows = new JsonArray();
+                foreach (var h in spans)
+                {
+                    if (rows.Count >= limit) break;
+                    rows.Add(new JsonObject
+                    {
+                        ["startFrame"] = h.StartFrame, ["endFrame"] = h.EndFrame,
+                        ["networkId"] = IdOf(h.Entity), ["context"] = h.MatchContext,
+                    });
+                }
+                return (new JsonObject { ["mode"] = "lifecycle", ["count"] = spans.Count, ["truncated"] = spans.Count > limit, ["hits"] = rows }, null);
+            }
+
             var hits = _recordingSearch.ExecuteSearch(path, condition, filter);
 
-            var map = SandboxMap(ctx.SandboxRepo);
             var list = new JsonArray();
             foreach (var h in hits)
             {
@@ -307,7 +331,7 @@ namespace Hrot.Editor.DebugApi
                 list.Add(new JsonObject
                 {
                     ["frame"] = h.FrameIndex,
-                    ["networkId"] = h.Entity != Entity.Null && map.TryGetNetworkId(h.Entity, out var id) ? id : null,
+                    ["networkId"] = IdOf(h.Entity),
                     ["context"] = h.ContextMessage,
                 });
             }

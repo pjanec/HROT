@@ -535,6 +535,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 RebindActiveRepo(ctx.SandboxRepo);
         }
 
+        CaptureEventsAtTheNewFrame();
+
         // Update EventBrowserPanel's history service to the primary node's service.
         if (_eventPanel != null && _manager != null
             && _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primaryCtxForEvent))
@@ -993,80 +995,11 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
         try
         {
-            int? foundFrame = await Task.Run(() =>
-            {
-                using var tempContext = new ReplayBrowserContext();
-                tempContext.LoadRecording(fdpPath);
-                var playback = tempContext.Playback;
-                if (playback == null)
-                    return (int?)null;
-
-                var repo = tempContext.SandboxRepo;
-                var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
-                var mask512 = repo.GetSnapshotableMask();
-
-                bool IsActualIncludedDiff(JsonNode? before, JsonNode? after)
-                {
-                    var diffs = diffSvc.ComputeTreeDiff(before, after, epsilon);
-                    foreach (var node in diffs)
-                    {
-                        if (node.IsModified && !excludedNames.Contains(node.Name))
-                            return true;
-                    }
-
-                    return false;
-                }
-
-                if (direction > 0)
-                {
-                    tempContext.SeekToFrame(startFrame, suppressHistory: true);
-                    JsonNode? baseline = repo.IsAlive(target)
-                        ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                        : null;
-                    while (tempContext.StepForward(suppressHistory: true))
-                    {
-                        JsonNode? current = repo.IsAlive(target)
-                            ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                            : null;
-
-                        if (IsActualIncludedDiff(baseline, current))
-                            return playback.CurrentFrame;
-
-                        baseline = current;
-                    }
-                }
-                else
-                {
-                    if (startFrame <= 0)
-                        return null;
-
-                    tempContext.SeekToFrame(0, suppressHistory: true);
-                    int? lastChangeFrame = null;
-                    JsonNode? baseline = repo.IsAlive(target)
-                        ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                        : null;
-
-                    if (IsActualIncludedDiff(null, baseline))
-                        lastChangeFrame = 0;
-
-                    while (playback.CurrentFrame < startFrame - 1)
-                    {
-                        if (!tempContext.StepForward(suppressHistory: true))
-                            break;
-
-                        JsonNode? current = repo.IsAlive(target)
-                            ? serializer.SerializeEntity(repo, target, resolver, mask512)
-                            : null;
-                        if (IsActualIncludedDiff(baseline, current))
-                            lastChangeFrame = playback.CurrentFrame;
-
-                        baseline = current;
-                    }
-                    return lastChangeFrame;
-                }
-
-                return (int?)null;
-            });
+            // ⭐ RB-2 — the ONE finder the debug API's POST /replay/seek {next} runs too (EntityChangeFinder).
+            int? foundFrame = await Task.Run(() => EntityChangeFinder.Find(
+                fdpPath, startFrame, _ => target, direction,
+                (repo, e) => serializer.SerializeEntity(repo, e, new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver(), repo.GetSnapshotableMask()),
+                name => !excludedNames.Contains(name), epsilon, diffSvc));
 
             if (foundFrame.HasValue)
             {
