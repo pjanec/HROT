@@ -26,6 +26,7 @@ public sealed class ClusterOpMasterTranslator
     private readonly DdsWriter<ClusterOpStatus>     _statusWriter;
     private readonly DdsWriter<AssetInventoryTopic>? _inventoryWriter;
     private readonly DdsWriter<ClusterStateTopic>?   _clusterStateWriter;
+    private readonly DdsWriter<ReplaySessionTopic>?  _sessionWriter;   // ⭐ CE-3329 rows 32, 45 — the session layer
     private readonly FdpEventBus                    _bus;
     private readonly JsonSerializerOptions          _jsonOptions;
 
@@ -36,7 +37,8 @@ public sealed class ClusterOpMasterTranslator
         FdpEventBus                    bus,
         JsonSerializerOptions?         jsonOptions = null,
         DdsWriter<AssetInventoryTopic>? inventoryWriter = null,
-        DdsWriter<ClusterStateTopic>?   clusterStateWriter = null)
+        DdsWriter<ClusterStateTopic>?   clusterStateWriter = null,
+        DdsWriter<ReplaySessionTopic>?  sessionWriter = null)
     {
         _requestReader     = requestReader     ?? throw new ArgumentNullException(nameof(requestReader));
         _statusWriter      = statusWriter      ?? throw new ArgumentNullException(nameof(statusWriter));
@@ -44,6 +46,7 @@ public sealed class ClusterOpMasterTranslator
         _jsonOptions       = jsonOptions       ?? OrchestrationJsonOptions.Default;
         _inventoryWriter   = inventoryWriter;
         _clusterStateWriter = clusterStateWriter;
+        _sessionWriter      = sessionWriter;
     }
 
     /// <summary>Processes one frame: ingests DDS requests and publishes completed statuses.</summary>
@@ -96,6 +99,11 @@ public sealed class ClusterOpMasterTranslator
                 });
             }
         }
+
+        // ── ⭐ CE-3329 — Egress: Bus ReplaySessionPublishedEvent → DDS ReplaySessionTopic (TransientLocal: a late joiner gets the newest)
+        if (_sessionWriter != null)
+            foreach (var ev in _bus.ReadManaged<ReplaySessionPublishedEvent>())
+                if (ev.Session != null) _sessionWriter.Write(ReplaySessionWire.ToTopic(ev.Session));
 
         if (_inventoryWriter != null)
         {

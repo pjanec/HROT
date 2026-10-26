@@ -95,13 +95,14 @@ namespace Hrot.SimHost.Modules.Orchestration
             Action<bool>? worldReplaced = h.Elm == null ? null : h.Elm.OnWorldReplaced;
 
             // 1. Replay load — FIRST, so it claims PrepareLive while a replay is active (live-from-replay, CGF1-S0305).
-            slave.RegisterHandler(new ReferenceReplayLoadHandler(
+            var replayLoad = new ReferenceReplayLoadHandler(
                 controller, h.InputGroup, h.SimGroup, h.PostSimGroup, h.LifecycleGroup, h.BypassLifecycle,
                 h.StagingRoot,
                 suspendGlobalTimePush: h.Kernel.SuspendGlobalTimePush,
                 resumeGlobalTimePush:  h.Kernel.ResumeGlobalTimePush,
                 // §2.1m step 3 — the ELM's bookkeeping is discarded at EVERY world replacement.
-                worldReplaced:         worldReplaced));
+                worldReplaced:         worldReplaced);
+            slave.RegisterHandler(replayLoad);
 
             // 2. Checkpoint — ⭐ CE-3299 B3 (R-3044): a keyframe the node's LIVE recording writes on request, on EVERY host (the
             //    'FDPC' worker it replaced lived on SimHost only, so CGF, IG, Stride, traffic and the editor took none).
@@ -109,6 +110,12 @@ namespace Hrot.SimHost.Modules.Orchestration
             slave.RegisterHandler(new ReferenceCheckpointHandler(
                 () => controller.ActiveRecordingModule, controller, h.World, h.EventAccumulator, worldReplaced, h.StagingRoot,
                 resumeSchedule: h.Kernel.ResumeAfterRestore));   // ⭐ CE-3316
+
+            // 2b. ⭐ CE-3329 P3 — During Action Review: the SAME controller (the replay of the OPEN recording), the SAME gates (the replay
+            //     load's), the checkpoint's return (PutBack) — every dependency a restore touches, handed over (the silent-default rule).
+            slave.RegisterHandler(new ReferenceReviewHandler(
+                controller, () => controller.ActiveRecordingModule, replayLoad, h.World, h.EventAccumulator, worldReplaced,
+                resumeSchedule: h.Kernel.ResumeAfterRestore, storageDirectory: h.StagingRoot));
 
             // 3. Dry run (D14) — this node puts back its OWN world, id pool, entity map and ELM queues (HN-017/HN-018).
             var rewindables = new List<IPreviewRewindable>();

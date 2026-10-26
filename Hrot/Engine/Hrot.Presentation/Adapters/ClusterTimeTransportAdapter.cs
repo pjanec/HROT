@@ -10,6 +10,10 @@ using Hrot.UI.Common.Facades;
 namespace Hrot.UI.Common.Adapters;
 
 /// <summary>
+/// ⭐⭐⭐ <b>THE time facade — on EVERY host, the editor included</b> (user, `2026-10-26`: *"One facade."*; CE-3329 row 21). The editor is
+/// a one-node cluster (DESIGN_Time_Architecture: *"editor IS the cluster … no exceptions"*): its master sits on the same orchestration
+/// bus, so the same intents and the same broadcasts serve it. ⛔ SUPERSEDED: <c>EditorTimeTransportFacade</c> (a second implementation
+/// that drove the editor's dry run through a local shortcut).
 /// Implements <see cref="ITimeTransportFacade"/> for distributed cluster nodes (SimHost, CGF)
 /// by tracking cluster state and sim-time snapshots received on the orchestration
 /// <see cref="FdpEventBus"/> and dispatching time-control intents back onto the same bus
@@ -24,6 +28,9 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     private readonly Func<double>?  _localSimTimeGetter;
 
     private ClusterState _currentState  = ClusterState.Idle;
+    private ReplayAxis _axis = ReplayAxis.Sim;            // ⭐ CE-3329 R-3058 — rides every cluster-state publication
+    private ReplaySession? _session;                      // ⭐ CE-3329 — the session layer (ReplaySessionTopic)
+    private readonly ClusterReplayControls _replay;       // ⭐ CE-3329 row 21 — the review / replay members, written once
 
     /// <summary>
     /// `T7`: the <see cref="SwitchTimeModeEvent"/> fold, shared with <c>ClusterUiCache</c>. The two
@@ -52,6 +59,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     {
         _bus                = bus ?? throw new ArgumentNullException(nameof(bus));
         _localSimTimeGetter = localSimTimeGetter;
+        _replay = new ClusterReplayControls(() => _currentState, () => _session, () => _axis,
+            new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus));
     }
 
     /// <summary>
@@ -62,7 +71,13 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     public void Update()
     {
         foreach (var ev in _bus.ReadManaged<ClusterStateUpdateEvent>())
+        {
             _currentState = ev.CurrentState;
+            if (!ev.MasterGone) _axis = ev.ReplayAxis;
+        }
+
+        foreach (var ev in _bus.ReadManaged<ReplaySessionUpdateEvent>())
+            if (ev.Session != null) _session = ev.Session;
 
         foreach (var ev in _bus.Read<SwitchTimeModeEvent>())
         {
@@ -77,7 +92,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
         _currentState == ClusterState.OperatingLive    ||
         _currentState == ClusterState.OperatingEdit    ||
         _currentState == ClusterState.OperatingPreview ||
-        _currentState == ClusterState.OperatingReplay;
+        _currentState == ClusterState.OperatingReplay  ||
+        _currentState == ClusterState.OperatingReview;   // ⭐ CE-3329
 
     /// <inheritdoc/>
     public bool IsPlayPauseEnabled => _currentState == ClusterState.Idle || IsOperating;
@@ -85,8 +101,9 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     /// <inheritdoc/>
     public bool IsStepEnabled => IsPlayPauseEnabled;
 
-    /// <inheritdoc/>
-    public bool IsStopEnabled => IsOperating;
+    /// <summary>⭐ Stop leaves what runs: a dry run (back to edit), a review (back to live, R-3060), a live run or a replay (to idle).
+    /// ⛔ Not in edit — leaving edit is unloading the scenario, not a transport action.</summary>
+    public bool IsStopEnabled => IsOperating && _currentState != ClusterState.OperatingEdit;
 
     /// <summary>
     /// The cluster's last pause DECISION (`T7`), not this node's clock. On a slave it runs ahead of
@@ -105,6 +122,12 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     /// <inheritdoc/>
     public void TogglePlayPause()
     {
+        // ⭐ CE-3329 row 21 — Play from EDIT is the dry run, running (the master resumes it when it lands); the same request on every host
+        if (_currentState == ClusterState.OperatingEdit)
+        {
+            _bus.PublishManaged(DryRunIntents.Enter(startPaused: false));
+            return;
+        }
         if (IsPaused)
             _bus.PublishManaged(new ResumeTimeIntent());
         else
@@ -119,12 +142,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     {
         if (_currentState == ClusterState.OperatingEdit)
         {
-            _bus.PublishManaged(new TransitionStateIntent
-            {
-                TransactionId = Guid.NewGuid(),
-                TargetState   = ClusterState.OperatingPreview,
-                TimeMode      = "Deterministic",
-            });
+            _bus.PublishManaged(DryRunIntents.Enter(startPaused: true));   // step from edit = the dry run, paused at its first frame
         }
         else if (!IsPaused)
         {
@@ -137,13 +155,41 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     }
 
     /// <inheritdoc/>
-    public void Stop() => _bus.PublishManaged(new TransitionStateIntent
+    public void Stop()
     {
-        TransactionId = Guid.NewGuid(),
-        TargetState   = ClusterState.Idle,
-    });
+        if (ClusterStates.IsReview(_currentState)) { ExitReview(); return; }   // R-3060 — ■ in a review = back to live
+        // ⭐ a dry run goes back to edit (the master puts the clock back, PreviewClockProcessManager); anything else to idle
+        if (_currentState == ClusterState.OperatingPreview) { _bus.PublishManaged(DryRunIntents.Exit()); return; }
+        _bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.Idle });
+    }
 
     /// <inheritdoc/>
     public void SetTimeScale(float scale) =>
         _bus.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
+
+    // ── ⭐ CE-3329 row 21 — the review / replay session (one implementation: ClusterReplayControls) ──────────────────────────
+
+    /// <inheritdoc/>
+    public TransportMode Mode => _replay.Mode;
+
+    /// <inheritdoc/>
+    public ReplayAxis Axis => _replay.Axis;
+
+    /// <inheritdoc/>
+    public void SetAxis(ReplayAxis axis) => _replay.SetAxis(axis);
+
+    /// <inheritdoc/>
+    public void EnterReview(double? at = null) => _replay.EnterReview(at);
+
+    /// <inheritdoc/>
+    public void ExitReview() => _replay.ExitReview();
+
+    /// <inheritdoc/>
+    public double? LivePoint => _replay.LivePoint;
+
+    /// <inheritdoc/>
+    public void Seek(double t) => _replay.Seek(t);
+
+    /// <summary>The session layer as this host last heard it (<see langword="null"/> before the first sample).</summary>
+    public ReplaySession? Session => _session;
 }

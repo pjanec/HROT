@@ -29,6 +29,8 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<ManageEpisodeIntent>();
             bus.RegisterManaged<SeekReplayIntent>();
             bus.RegisterManaged<SetReplayAxisIntent>();   // ⭐ CE-3329 R-3058
+            bus.RegisterManaged<ReplaySessionPublishedEvent>();   // ⭐ CE-3329 rows 32, 45 — the session layer, to the DDS writer
+            bus.RegisterManaged<ReplaySessionUpdateEvent>();      // ⭐ CE-3329 — the session layer, folded by every host
             bus.RegisterManaged<CancelOperationIntent>();
             bus.RegisterManaged<ExecuteStorageOpIntent>();
             bus.RegisterManaged<StorageOpCompletedEvent>();

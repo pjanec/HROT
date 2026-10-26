@@ -205,7 +205,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     exerciseId, maxNetworkId, durationSeconds, $"{first}..{last}");
 
                 // ⭐ CE-3329 P1 (R3) — this node's wall ↔ sim map: the master intersects them into the cluster's sim axis
-                return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last, _controller.ActiveReplayTimeMap);
+                return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last, _controller.ActiveReplayTimeMap,
+                    _controller.ActiveReplayCheckpoints);   // ⭐ CE-3329 §9f — the marks every host's timeline draws
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {
@@ -312,21 +313,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         {
             if (intent.Operation == NodeOpType.PrepareReplay)
             {
-                SetSystemsEnabled(false);
-                _suspendGlobalTimePush?.Invoke();
-                _bypassLifecycleToggle?.Invoke(true);
-                // ⭐ The log is about to own the world: discard bookkeeping keyed by handles it invalidates.
-                //   ⛔ Do NOT arm the re-derive — re-opening protocols the log will overwrite is waste.
-                _worldReplaced?.Invoke(false);
+                EnterReplayGates();
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Commit(PrepareReplay) — sim+lifecycle disabled.");
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {
-                SetSystemsEnabled(true);
-                _resumeGlobalTimePush?.Invoke();
-                _bypassLifecycleToggle?.Invoke(false);
+                LeaveReplayGates();
                 // ⭐⭐ Resuming to a LIVE world: clear, then ARM the re-derive so the next tick re-opens
                 //   every protocol the restored world still implies (else restored Constructing/TearDown
                 //   entities are zombies nothing drives).
@@ -366,6 +360,28 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ The replay's gates ON: the four toggle groups off, the kernel's clock push suspended (the playback owns <c>GlobalTime</c>),
+        /// lifecycle bypassed, the ELM's bookkeeping discarded (the log is about to own the world — ⛔ no re-derive armed).
+        /// ⭐ CE-3329 P3 — the ONE set of gates: a review enters them through here too (F9: gates before the replay module's first frame).
+        /// </summary>
+        public void EnterReplayGates()
+        {
+            SetSystemsEnabled(false);
+            _suspendGlobalTimePush?.Invoke();
+            _bypassLifecycleToggle?.Invoke(true);
+            _worldReplaced?.Invoke(false);
+        }
+
+        /// <summary>⭐ The replay's gates OFF (the caller re-derives the world it resumes to — a replay's finalize, a branch, a review's
+        /// checkpoint return).</summary>
+        public void LeaveReplayGates()
+        {
+            SetSystemsEnabled(true);
+            _resumeGlobalTimePush?.Invoke();
+            _bypassLifecycleToggle?.Invoke(false);
+        }
 
         private void SetSystemsEnabled(bool enabled)
         {

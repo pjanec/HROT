@@ -45,4 +45,47 @@ public interface ITimeTransportFacade
 
     /// <summary>Changes the time-scale multiplier.</summary>
     void SetTimeScale(float scale);
+
+    // ── ⭐⭐ CE-3329 row 21 (R-3059, R-3060) — the review / replay session, from ANY host ─────────────────────────────────────────
+    //   Each member PUBLISHES the master intent HTTP publishes (POST /review, /review/exit, /replay/seek, /replay/axis) through the one
+    //   builder, ReplaySessionIntents. 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §8 row 21.
+
+    /// <summary>What the cluster shows: edit, a dry run, the live run, a review of it, or a replay.</summary>
+    TransportMode Mode { get; }
+
+    /// <summary>R-3058 — the replay session's axis: what <see cref="Seek"/>, <see cref="EnterReview"/> and <see cref="LivePoint"/> mean.</summary>
+    Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; }
+
+    /// <summary>Switches the whole session's axis (no seek: the frame on screen stays).</summary>
+    void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis);
+
+    /// <summary>Reviews the live run in place, at <paramref name="at"/> on the active axis — <see langword="null"/> = the live point.</summary>
+    void EnterReview(double? at = null);
+
+    /// <summary>Back to the live run, exactly where it paused (R-3060: <see cref="Stop"/> in a review does the same).</summary>
+    void ExitReview();
+
+    /// <summary>The review's live point on the active axis (Sim: the run's sim seconds; Wall: seconds after the zero);
+    /// <see langword="null"/> outside a review or before the entry pause has landed.</summary>
+    double? LivePoint { get; }
+
+    /// <summary>Seeks the open replay or review to <paramref name="t"/> on the active axis.</summary>
+    void Seek(double t);
+}
+
+/// <summary>⭐ CE-3329 row 21 — what the cluster shows (the facade's <see cref="ITimeTransportFacade.Mode"/>).</summary>
+public enum TransportMode
+{
+    /// <summary>Nothing loaded.</summary>
+    Idle,
+    /// <summary>Editing a scenario.</summary>
+    Edit,
+    /// <summary>A dry run of the scenario being edited.</summary>
+    Preview,
+    /// <summary>The live run.</summary>
+    Live,
+    /// <summary>A During Action Review of the live run (CE-3329).</summary>
+    Review,
+    /// <summary>A recorded exercise replayed.</summary>
+    Replay,
 }

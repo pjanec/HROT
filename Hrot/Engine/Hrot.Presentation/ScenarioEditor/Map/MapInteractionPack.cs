@@ -396,7 +396,6 @@ namespace Hrot.ScenarioEditor.Map
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
                 rubberBand, actions, actionDispatch, layerControl, authoring, canvasMenu)
             {
-                IsReplayActive = ctx.IsReplayActive,   // ⭐ W1 (VE-R) — the effect systems stand down in a replay
                 MenuOrders     = menuOrders,
                 MenuShortcuts  = new MenuShortcuts(ctx.World, bus, selection, tools),   // ⭐ CE-1076
                 OrderForm      = orderForm,

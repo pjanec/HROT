@@ -419,11 +419,7 @@ namespace Hrot.SimHost
                                                 ? w.GetSingletonManaged<ITkbDatabase>() : null,
                             Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
                             GeoTransform: () => _geoTransform),
-                        // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — effects are recorded; in a replay the effect systems stand down.
-                        //   The SAME gate the ELM reads (NodeBootstrapper wires it to the record/replay controller), read late.
-                        IsReplayActive = () => ctx.BaseModules.Count > 0
-                                               && ctx.BaseModules[0] is Fdp.Toolkit.Lifecycle.EntityLifecycleModule elm
-                                               && elm.IsReplayActive?.Invoke() == true,
+                        // ⭐ W1 (VE-R) — in a replay the effect systems stand down through the world's ReplayState (CE-3329 P2).
                         ContributeExtras = static regs =>
                             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
                             regs.Gizmos.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(

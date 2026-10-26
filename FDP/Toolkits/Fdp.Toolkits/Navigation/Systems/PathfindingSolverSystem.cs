@@ -109,6 +109,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             // ⭐⭐ R2 — resolve the road graph EVERY tick so a terrain/zone load is observed, instead of
             //   using a blob frozen at construction.
             //

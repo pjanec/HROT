@@ -53,8 +53,8 @@ namespace Hrot.Editor.DebugApi
                 var plain = SeekReplayTo(body);
                 return (plain.Result, plain.Error, plain.HintCategory, null);
             }
-            if (CurrentClusterStateOrNull() is { } s && s != ClusterState.OperatingReplay)
-                return (null, $"The cluster is in {s}, not a replay: POST /replay first.", DebugApiHints.Scenario, null);
+            if (CurrentClusterStateOrNull() is { } s && !ClusterStates.IsReplaying(s))   // ⭐ CE-3329 — a review seeks the same way
+                return (null, $"The cluster is in {s}, not a replay: POST /replay (or POST /review) first.", DebugApiHints.Scenario, null);
             var ctx = ScanContext(out var path);
             if (ctx?.Playback is not { } playback || path is null) return (null, NoReplayRecording, DebugApiHints.Scenario, null);
             if (ReplayPositionOrNull is not { } position)

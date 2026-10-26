@@ -49,6 +49,15 @@ public sealed partial class ClusterMaster
     /// <c>ReplayConsensusAggregator</c>); <see cref="Fdp.Core.FlightRecorder.ReplayTimeMap.Empty"/> before a replay or for v6 recordings.</summary>
     public Fdp.Core.FlightRecorder.ReplayTimeMap ReplayTimeMap => _replayTimeMap;
 
+    private Fdp.Core.FlightRecorder.Metadata.CheckpointMark[] _replayCheckpoints = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+    private double _replayDurationSeconds;
+
+    /// <summary>⭐ CE-3329 §9f — the loaded replay's (or review's) checkpoint marks, the union across the nodes.</summary>
+    public Fdp.Core.FlightRecorder.Metadata.CheckpointMark[] ReplayCheckpoints => _replayCheckpoints;
+
+    /// <summary>⭐ CE-3329 §9f — the loaded replay's length in wall seconds after its zero (a review's: up to the live point).</summary>
+    public double ReplayDurationSeconds => _replayDurationSeconds;
+
     /// <summary>
     /// ⭐ CE-3329 P1 (R-3057 R11, design §4 "a sim seek") — ticks after the replay's zero for a target in RECORDED sim time: the
     /// cluster map's wall time (a paused instant lands at the stretch's END, so its changes show). <see langword="null"/> when the
@@ -67,8 +76,18 @@ public sealed partial class ClusterMaster
     /// ⭐ Called while a transition is fanned out: remember that it enters a replay, and where. ⛔ The planner's seek step is
     /// NOT fanned out with the transition any more — its payload is built before any node has answered the prepare round.
     /// </summary>
+    private long _reviewEntryWallTicks;   // ⭐ CE-3329 P3 — where a review enters (long.MaxValue = the live point)
+
     private void NoteReplayEntry(Guid txId, IEnumerable<ISysOpStep> trajectory)
     {
+        // ⭐ CE-3329 P3 — a review enters through the SAME seek round as a replay (§3c): the nodes' prepare results give the zero
+        //   and the map, then one seek lands every node on the moment (the live point unless one was named).
+        if (trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.OperatingReview))
+        {
+            _replayEntryTx       = txId;
+            _replayEntryRelTicks = _reviewEntryWallTicks;
+            return;
+        }
         if (!trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.OperatingReplay)) return;
         _replayEntryTx       = txId;
         _replayEntryRelTicks = trajectory.OfType<OperationStep>()
@@ -87,6 +106,8 @@ public sealed partial class ClusterMaster
         {
             _replayAnchorWallTicks = span.FirstFrameWallTicks;
             _replayTimeMap = span.TimeMap ?? Fdp.Core.FlightRecorder.ReplayTimeMap.Empty;   // ⭐ CE-3329 R3
+            _replayCheckpoints = span.Checkpoints ?? Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();   // ⭐ CE-3329 §9f
+            _replayDurationSeconds = span.DurationSeconds;
             FdpLog<ClusterMaster>.Info(
                 "[Orchestrator] C9: replay zero = {0} (span to {1}, {2:F1}s) — sent on every seek.",
                 span.FirstFrameWallTicks, span.LastFrameWallTicks, span.DurationSeconds);

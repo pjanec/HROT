@@ -29,6 +29,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
 {
     private readonly DdsReader<ClusterStateTopic>      _stateReader;
     private readonly DdsReader<AssetInventoryTopic>   _inventoryReader;
+    private readonly DdsReader<ReplaySessionTopic>    _sessionReader;   // ⭐ CE-3329 rows 32, 45
     private readonly DdsReader<NodeHeartbeat>         _heartbeatReader;
     private readonly DdsReader<SwitchTimeModeWireDto> _timeModeReader;
     private readonly DdsReader<ClusterOpStatus>       _sysOpStatusReader;
@@ -46,6 +47,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         _bus                = bus ?? throw new ArgumentNullException(nameof(bus));
         _stateReader        = new DdsReader<ClusterStateTopic>(participant);
         _inventoryReader    = new DdsReader<AssetInventoryTopic>(participant);
+        _sessionReader      = new DdsReader<ReplaySessionTopic>(participant);
         _heartbeatReader    = new DdsReader<NodeHeartbeat>(participant);
         _timeModeReader     = new DdsReader<SwitchTimeModeWireDto>(participant);
         _sysOpStatusReader  = new DdsReader<ClusterOpStatus>(participant);
@@ -71,6 +73,12 @@ public sealed class OrchestrationObserverTranslator : IDisposable
             foreach (var s in l)
                 if (s.IsValid)
                     _bus.PublishManaged(InventoryOf(s.Data));
+
+        // ⭐ CE-3329 — ReplaySessionTopic → ReplaySessionUpdateEvent (an observer — ExCon — draws the session layer only, §9e)
+        using (var l = _sessionReader.Take())
+            foreach (var s in l)
+                if (s.IsValid && Hrot.Network.Orchestration.ReplaySessionWire.FromTopic(s.Data) is { } session)
+                    _bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
 
         // NodeHeartbeat → NodeHeartbeatEvent
         using (var l = _heartbeatReader.Take())
@@ -167,6 +175,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
     {
         _stateReader.Dispose();
         _inventoryReader.Dispose();
+        _sessionReader.Dispose();
         _heartbeatReader.Dispose();
         _timeModeReader.Dispose();
         _sysOpStatusReader.Dispose();

@@ -27,6 +27,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(NotifyEventEmitterSystem)} requires direct EntityRepository access.");

@@ -1141,6 +1141,10 @@ namespace Fdp.Core
         /// singleton that holds this node's egress from a world swap (a replay seek, a checkpoint restore) until the master commits it
         /// (DESIGN_Replay_Time_Axis_And_Review §12c W2). Transient. 477 free on every lane by a census, 2026-10-26.</summary>
         public const int EgressHold = 477;
+        /// <summary>⭐ CE-3329 P2 (backend) — <c>ReplayState</c>: a world singleton saying the world shows a recording; every system
+        /// that writes world state returns early while it is set (DESIGN_Replay_Time_Axis_And_Review §12l). Transient. 478 free on every
+        /// lane by a census, 2026-10-26.</summary>
+        public const int ReplayState = 478;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

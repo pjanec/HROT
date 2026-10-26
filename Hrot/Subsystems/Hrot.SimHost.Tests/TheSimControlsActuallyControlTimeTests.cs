@@ -34,6 +34,15 @@ public class TheSimControlsActuallyControlTimeTests
         public void StepBy(float seconds)  => StepCount++;
         public void Stop()                 => StopCount++;
         public void SetTimeScale(float s)  { LastScaleSet = s; TimeScale = s; }
+
+        // CE-3329 row 21 — the session members (unused by this fake's rails)
+        public Hrot.UI.Common.Facades.TransportMode Mode { get; set; }
+        public Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; set; }
+        public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => Axis = axis;
+        public void EnterReview(double? at = null) { }
+        public void ExitReview() { }
+        public double? LivePoint { get; set; }
+        public void Seek(double t) { }
     }
 
     /// <summary>

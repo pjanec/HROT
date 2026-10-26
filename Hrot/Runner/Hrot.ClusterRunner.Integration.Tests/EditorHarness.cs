@@ -110,7 +110,7 @@ public sealed class EditorHarness : IDisposable
             world:          Repo,
             entityMap:      EntityMap,
             extraction:     new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(Repo, EntityMap),
-            time:           new Hrot.Editor.UI.EditorTimeTransportFacade(Preview, _timeController!, Repo),
+            time:           new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(OrchBus, () => _timeController!.GetCurrentState().TotalTime),   // ⭐ CE-3329 row 21 — the one facade
             preview:        Preview,
             editor:         Editor,
             eventHistory:   _eventHistory,

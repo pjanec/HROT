@@ -32,7 +32,7 @@ public sealed class DebugApiBatch11Tests
     private static DebugApiService BuildServiceWithSinks(EditorHarness h, InMemoryLogSink sink)
     {
         var extraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(h.Repo, h.EntityMap, h.Serializer);
-        var timeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(h.Preview, h.TimeController, h.Repo);
+        var timeFacade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(h.OrchBus, () => h.TimeController.GetCurrentState().TotalTime);
         return new DebugApiService(
             h.Repo,
             h.EntityMap,

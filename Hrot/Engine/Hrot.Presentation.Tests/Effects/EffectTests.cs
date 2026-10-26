@@ -695,6 +695,7 @@ public sealed class EffectTests
         {
             World = world, IsReplayActive = static () => true,
         });
+        Fdp.Toolkit.Replay.ReplayState.Enter(world);                  // ⭐ CE-3329 P2 — the world says it is a replay
         var other = Living(Hrot.Map.Common.TkbEntityTypes.Tank_T72, 100f);
         Tick(world, mi.WreckSpawn, 0.016f);
         world.SetComponent(other, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
@@ -1233,11 +1234,11 @@ public sealed class EffectTests
         }
 
         var (world, _) = World();
-        bool replaying = true;
         var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext
         {
-            World = world, IsReplayActive = () => replaying,
+            World = world,
         });
+        Fdp.Toolkit.Replay.ReplayState.Enter(world);        // ⭐ CE-3329 P2 — the world says it is a replay
         At(world, 5.0);
         world.Bus.Publish(new DetonationNotification { Target = Entity.Null, HitX = 0, HitY = 0, Damage = 1100f });
         Tick(world, mi.EffectSpawn, 0.016f);
@@ -1250,7 +1251,7 @@ public sealed class EffectTests
         Tick(world, mi.Lifespan, 0.016f);
         Assert.Single(Effects(world));                      // the replay removes it when the recording does, not the collector
 
-        replaying = false;                                  // back to live: the collector runs again
+        Fdp.Toolkit.Replay.ReplayState.Leave(world);        // back to live: the collector runs again
         Tick(world, mi.Lifespan, 0.016f);
         Assert.Empty(Effects(world));
     }

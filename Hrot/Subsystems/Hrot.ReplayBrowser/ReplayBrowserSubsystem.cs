@@ -291,8 +291,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 RubberBand = rubberBandState,
                 // The replay browser is an interactive window: it has a viewer from startup.
                 StartEnabled = true,
-                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — this host only ever shows a recording, and effects are recorded:
-                //   the spawner and the lifespan collector stand down; the recorded effects are drawn as they were.
+                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — this host only ever shows a recording (no order menu). The effect systems
+                //   stand down through the world's ReplayState (PrepareRepo), not through this.
                 IsReplayActive = static () => true,
                 ContributeExtras = regs =>
                 {
@@ -498,7 +498,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — the effects are IN the recording (with their Lifespan), so the layer draws
                 //   them at the recording's own sim time and a jump lands on the right ones. ⛔ The hand-spawning from the replayed
                 //   fire / hit events is gone (it lost every long effect on a jump). Both systems are still ticked so this host's
-                //   run-set is the map's whole set; IsReplayActive keeps them standing down.
+                //   run-set is the map's whole set; ReplayState (PrepareRepo) keeps them standing down.
                 RunSystem(_effectSpawn, deltaTime);
                 RunSystem(_wreckSpawn, deltaTime);
                 RunSystem(_lifespan, deltaTime);
@@ -711,6 +711,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         EnsureNetworkEntityMap(repo);
         // ⭐ CE-3126 — the replay's ONE geo transform, on every repo this host binds, like every other node's world.
         repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_geoTransform);
+        // ⭐ CE-3329 P2 (DESIGN_Replay_Time_Axis_And_Review §12l) — this host only ever shows a recording: every world it binds says so,
+        //   and the systems that would write world state (the effect spawners, the lifespan collector) stand down by reading it.
+        Fdp.Toolkit.Replay.ReplayState.Enter(repo);
         // ⭐ CE-3118 — the recording's terrain and road network, on every repo this host draws (docs/DESIGN_Geo_Origin.md §5).
         Hrot.Map.Common.Services.TerrainResidency.MirrorTerrain(_terrainCarrier, repo);
     }

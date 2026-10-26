@@ -426,8 +426,18 @@ namespace Fdp.Core
             return _entityIndex.GetMetadata(entity.Index).DisType;
         }
 
+        /// <summary>
+        /// ⭐ CE-3329 W1 — moves on every <see cref="Clear"/>: the world was replaced IN PLACE (a keyframe applied — a replay
+        /// seek, a checkpoint / dry-run restore, a review's entry or exit — or the world emptied). Every in-place replacement
+        /// goes through <see cref="Clear"/>, so a consumer that must notice one compares this instead of re-scanning the
+        /// world each frame. 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12b.
+        /// </summary>
+        public uint ClearGeneration => _clearGeneration;
+        private uint _clearGeneration;
+
         internal void Clear()
         {
+            _clearGeneration++;
             _entityIndex.Clear();
             
             // CRITICAL FIX: We must clear component tables to remove stale references.

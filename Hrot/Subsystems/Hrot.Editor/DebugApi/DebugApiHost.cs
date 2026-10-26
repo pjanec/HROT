@@ -130,6 +130,23 @@ namespace Hrot.Editor.DebugApi
         /// must answer <b>before</b> it tears the process down, and a handler that shut down first would kill
         /// the process with the client still waiting for its 200.
         /// </param>
+        /// <summary>
+        /// ⭐ CE-3329 P3 (D-E) — the routes that change the WORLD (or save it): refused with 409 while the cluster shows a recording. A
+        /// rail asserts every one exists. ⚠ Not here: time, seek, selection, view, panels, assets, diagnostics — they change no world state.
+        /// </summary>
+        internal static readonly HashSet<(string Method, string Template)> WorldChangingRoutes = new()
+        {
+            ("POST", "/scenario/save"), ("POST", "/entities/command"), ("POST", "/entities/spawn"), ("POST", "/entities/create-request"),
+            ("POST", "/missions/{networkId}/task"), ("DELETE", "/missions/{networkId}/tasks"), ("POST", "/missions/{networkId}/run"),
+            ("POST", "/entities/{networkId}/order"), ("DELETE", "/entities/{networkId}/order"),
+            ("POST", "/entities/{networkId}/possess"), ("DELETE", "/entities/{networkId}/possess"), ("POST", "/entities/{networkId}/control"),
+            ("POST", "/orders"), ("POST", "/orders/side-lock"), ("POST", "/entities/{networkId}/sector"),
+            ("POST", "/entities/{networkId}/attribute"), ("POST", "/entities/{networkId}/component"),
+            ("POST", "/entities/{networkId}/ownership/transfer"), ("POST", "/entities/{networkId}/variable"),
+            ("POST", "/entities/{networkId}/attach-blueprint"), ("POST", "/entities/{networkId}/detach-blueprint"),
+            ("DELETE", "/entities/{networkId}"), ("POST", "/checkpoint"), ("POST", "/checkpoint/restore"),
+        };
+
         private sealed record RouteEntry(
             string Method,
             string Template,
@@ -555,20 +572,28 @@ namespace Hrot.Editor.DebugApi
                     double? before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull())
                                                     .ConfigureAwait(false);
 
-                    bool? previewBefore = await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull())
-                                                         .ConfigureAwait(false);
+                    bool editBefore = await _jobQueue.RunOnMainThread(() => Service().InEdit()).ConfigureAwait(false);
                     issued = await RunMain(s => s.Step(1, dt)).ConfigureAwait(false);
                     if (issued.Status != 200) return issued;
 
                     // ⭐⭐ CE-3077 — from EDIT the first step only ENTERS PREVIEW, paused, and does not tick: that is the editor's
-                    //    Step button (EditorTimeTransportFacade.Step — "step from edit = preview, paused at t=0"). ⛔ This route
+                    //    Step button (the time facade's Step — "step from edit = preview, paused at t=0"). ⛔ This route
                     //    promises TICKS, so the gate below waited 20 s for a clock that could not move and answered 504 —
                     //    measured on every editor system rail that steps after an edit load (8 reds), and the runbook's
                     //    "the editor ignores /sim/step until it has been PLAYED once" trap was this. ⇒ the transition into
                     //    preview is not the tick: issue the tick now. ⛔ The button's meaning is unchanged (not this route).
-                    if (previewBefore == false
-                        && await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull()).ConfigureAwait(false) == true)
+                    // ⭐ CE-3329 row 21 (one facade) — the dry run is the CLUSTER's transition now (a commit round, not a local
+                    //   switch): wait for the cluster to run it — the publishing routes' waitForReady contract — then tick.
+                    if (editBefore)
                     {
+                        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+                        while (await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull()).ConfigureAwait(false) != true)
+                        {
+                            if (DateTime.UtcNow > deadline)
+                                return Fail(504, "the dry run did not start within 20 s (the cluster stayed in edit)");
+                            await Task.Delay(10).ConfigureAwait(false);
+                        }
+                        before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull()).ConfigureAwait(false);
                         issued = await RunMain(s => s.Step(1, dt)).ConfigureAwait(false);
                         if (issued.Status != 200) return issued;
                     }
@@ -1006,7 +1031,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/replay", ctx => PublishAndAwait(ctx, s => s.EnterReplay(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay)));
             // ⭐ RB-2 — {atSeconds} | {frame} | {frames: ±n} | {cause: {frame, entity}} | {next: {entity, component?}, direction}: a
             //   lookup resolves on the main thread (a "next" scan runs off it, in a reader of its own), then the ordinary seek.
-            _routes.Add(new("POST", "/replay/seek", async ctx =>
+            RouteHandler seekRoute = async ctx =>
             {
                 var r = await _jobQueue.RunOnMainThread(() => Service().ResolveReplaySeek(ctx.Body)).ConfigureAwait(false);
                 if (r.Scan is not { } scan) return ResultOf((r.Result, r.Error, r.HintCategory), unavailable: 503);
@@ -1021,7 +1046,9 @@ namespace Hrot.Editor.DebugApi
                 var seek = await _jobQueue.RunOnMainThread(() => Service().SeekReplayToFrame(frame.Value, "next")).ConfigureAwait(false);
                 if (seek.Result is JsonObject o) o["found"] = true;
                 return ResultOf(seek, unavailable: 503);
-            }));
+            };
+            _routes.Add(new("POST", "/replay/seek", seekRoute));
+            _routes.Add(new("POST", "/review/seek", seekRoute));   // ⭐ CE-3329 R11 — the same seek, named for a review
             // ⭐ RB-3 / RB-4 — what only the standalone Replay Browser has (every other host: NOT_SUPPORTED_HERE(replay.browser)).
             _routes.Add(new("POST", "/replay/view", ctx => RunMainResult(s => ResultOf(s.SetReplayView(ctx.Body), unavailable: 503))));
             _routes.Add(new("POST", "/replay/history", ctx => RunMainResult(s => ResultOf(s.StepReplayHistory(ctx.Body), unavailable: 503))));
@@ -1033,6 +1060,9 @@ namespace Hrot.Editor.DebugApi
                 return error is null ? Ok(status) : Fail(404, error);
             })));
             _routes.Add(new("POST", "/replay/stop", ctx => PublishAndAwait(ctx, s => s.StopReplay(), Fdp.Toolkit.Orchestration.ClusterState.Idle)));
+            // ⭐ CE-3329 P3 — During Action Review: enter / leave; a seek in a review is POST /replay/seek (or its alias /review/seek)
+            _routes.Add(new("POST", "/review", ctx => PublishAndAwait(ctx, s => s.EnterReview(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReview)));
+            _routes.Add(new("POST", "/review/exit", ctx => PublishAndAwait(ctx, s => s.ExitReview(), Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
             // ⭐ CE-3329 R-3058 — the replay session's time axis, from any host
             _routes.Add(new("POST", "/replay/axis", ctx => PublishAndAwait(ctx, s => s.SetReplayAxis(ctx.Body), waitFor: null)));
             _routes.Add(new("GET", "/replay/status", _ => RunMain(s => s.GetReplayStatus())));
@@ -2300,6 +2330,16 @@ namespace Hrot.Editor.DebugApi
                 if (_service is null && entry.NeedsService)
                 {
                     await WriteResponseAsync(ctx, 503, new ApiResponse(false, Error: "Debug API not ready")).ConfigureAwait(false);
+                    return;
+                }
+
+                // ⭐⭐ CE-3329 P3 (D-E, F7, row 41) — a review or a replay SHOWS THE PAST: a command that would change the world is refused,
+                //   on every host, before its handler runs. ⛔ Before: spawn / order / component / save … ran against the replayed world.
+                if (WorldChangingRoutes.Contains((method, entry.Template)) && _service?.ShowsRecording == true)
+                {
+                    await WriteResponseAsync(ctx, 409, new ApiResponse(false,
+                        Error: "The cluster shows a recording (a review or a replay): this would change the world. "
+                             + "Return to live first — POST /review/exit, or POST /replay/stop.")).ConfigureAwait(false);
                     return;
                 }
 

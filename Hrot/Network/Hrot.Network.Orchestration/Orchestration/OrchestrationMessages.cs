@@ -17,6 +17,11 @@ namespace Hrot.NED.Descriptors.Orchestration
         LoadingReplay = 40,
         OperatingReplay = 41,
         UnloadingReplay = 42,
+        // ⭐ CE-3329 P3 (R5) — During Action Review: a replay of the LIVE run in place, whose only exit is back to live.
+        //   ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-26 in BOTH enums. 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §3a.
+        LoadingReview = 50,
+        OperatingReview = 51,
+        UnloadingReview = 52,
         Degraded = 99,
     }
 
@@ -103,6 +108,10 @@ namespace Hrot.NED.Descriptors.Orchestration
         //   `RestoreSnapshot = 5` slot, REUSED for its documented meaning (restore the ECS from a recording keyframe).
         //   ⛔ PERMANENT WIRE VALUE (R-42).
         PrepareRestore = 32,
+
+        // ⭐ CE-3329 P3 — enter / leave a review on a node. ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-26 in BOTH enums.
+        PrepareReview = 33,
+        FinalizeReview = 34,
     }
 
     [DdsTopic("ClusterState")]
@@ -123,6 +132,23 @@ namespace Hrot.NED.Descriptors.Orchestration
         /// <summary>⭐ CE-3329 P1 (R-3058) — the replay session's time axis: 0 = Sim (the default), 1 = Wall. The same on every node
         /// (what each host's timeline draws, what its seeks mean). Additive on the wire.</summary>
         public int ReplayAxis;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3329 (rows 32, 45; DESIGN_Replay_Time_Axis_And_Review §9f) — THE REPLAY'S SESSION LAYER: the zero, the length, the axis,
+    /// the cluster's wall ↔ sim map, the checkpoint marks, the review's id and live point — what every host's timeline draws the same.
+    /// The master republishes it on every change; TransientLocal + KeepLast 1 hands the newest to a late joiner. A host matches it to
+    /// <see cref="ClusterStateTopic"/> by <see cref="SessionId"/> / <see cref="ExerciseId"/>, never by arrival order.
+    /// </summary>
+    [DdsTopic("ReplaySession")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct ReplaySessionTopic
+    {
+        public Guid SessionId;
+        public Guid ExerciseId;
+        /// <summary>The whole session, <c>Fdp.Toolkit.Orchestration.ReplaySession</c> as JSON (the map and the marks are variable-length).</summary>
+        [DdsManaged] public string SessionJson;
     }
 
     /// <summary>

@@ -94,11 +94,27 @@ namespace Fdp.Toolkit.Replay
         /// <summary>⭐ B4 — the checkpoint <paramref name="label"/> of this recording, or null.</summary>
         public CheckpointMark? FindCheckpoint(string label) => _recorder?.Metadata.Checkpoints.Find(m => m.Label == label);
 
+        /// <summary>⭐ CE-3329 (§9f) — every checkpoint written so far (in memory — a review's marks, before any <c>.meta.json</c>).</summary>
+        public CheckpointMark[] Checkpoints => _recorder?.Metadata.Checkpoints.ToArray() ?? System.Array.Empty<CheckpointMark>();
+
         /// <summary>⭐ B4 — the exercise this module records.</summary>
         public Guid ExerciseId => _config.ExerciseId;
 
         /// <summary>⭐ B4 — waits until every frame captured so far is on disk (<see cref="AsyncRecorder.WaitForWrites"/>).</summary>
         public void WaitForWrites() => _recorder?.WaitForWrites();
+
+        /// <summary>⭐ CE-3329 P3 (R8) — suspend the recording for a review (nothing written, the file stays open) and flush.</summary>
+        public void SuspendForReview()
+        {
+            _tick?.Suspend();
+            _recorder?.WaitForWrites();
+        }
+
+        /// <summary>⭐ CE-3329 P3 — resume the SAME recording after a review (a keyframe first, the review's destructions dropped).</summary>
+        public void ResumeAfterReview(double? atSimSeconds = null) => _tick?.Resume(atSimSeconds);
+
+        /// <summary>⭐ CE-3329 — labelled checkpoints this recording still owes (a forced <c>review-&lt;n&gt;</c> waits for its frame).</summary>
+        public int PendingCheckpoints => _tick?.PendingCheckpoints ?? 0;
 
         /// <inheritdoc/>
         public void Tick(ISimulationView view, float deltaTime) { /* driven by RecorderTickSystem */ }

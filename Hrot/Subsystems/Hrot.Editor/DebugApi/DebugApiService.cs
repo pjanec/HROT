@@ -1108,6 +1108,9 @@ namespace Hrot.Editor.DebugApi
         /// ⭐ <c>CE-3077</c> — whether the host is in preview, for the step route, or <see langword="null"/> on a host with no
         /// preview controller to ask. ⛔ Mirrors <see cref="IsPausedOrNull"/>: a host that cannot answer degrades.
         /// </summary>
+        /// <summary>⭐ CE-3329 row 21 — the cluster is editing (a step from here ENTERS the dry run, through the cluster).</summary>
+        public bool InEdit() => _time.Mode == Hrot.UI.Common.Facades.TransportMode.Edit;
+
         public bool? InPreviewOrNull()
         {
             try { return _preview.IsInPreviewMode; }

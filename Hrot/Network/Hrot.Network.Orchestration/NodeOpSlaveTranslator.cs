@@ -36,6 +36,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     private readonly string[] _transportCapabilities;
     private readonly DdsReader<ClusterStateTopic>?     _clusterStateReader;   // ⭐ C2: null in tests / offline.
     private readonly DdsReader<AssetInventoryTopic>?   _inventoryReader;      // ⭐ R-3055: what the cluster can replay, on every node
+    private readonly DdsReader<ReplaySessionTopic>?    _sessionReader;        // ⭐ CE-3329 rows 32, 45: the replay's session layer
     private readonly FdpEventBus                _bus;
     private readonly int                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
@@ -54,10 +55,12 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null,
         DdsReader<ClusterStateTopic>?     clusterStateReader = null,
         DdsReader<AssetInventoryTopic>?   inventoryReader = null,
-        string[]?                         transportCapabilities = null)
+        string[]?                         transportCapabilities = null,
+        DdsReader<ReplaySessionTopic>?    sessionReader = null)
     {
         _clusterStateReader = clusterStateReader;
         _inventoryReader    = inventoryReader;
+        _sessionReader      = sessionReader;
         _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
@@ -80,6 +83,15 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             using var inventoryScope = _inventoryReader.Take();
             foreach (var s in inventoryScope)
                 if (s.IsValid) _bus.PublishManaged(OrchestrationObserverTranslator.InventoryOf(s.Data));
+        }
+
+        // ⭐ CE-3329 — the replay's session layer (§9f) on every node's bus: its time facade and cluster cache fold it
+        if (_sessionReader != null)
+        {
+            using var sessionScope = _sessionReader.Take();
+            foreach (var s in sessionScope)
+                if (s.IsValid && Hrot.Network.Orchestration.ReplaySessionWire.FromTopic(s.Data) is { } session)
+                    _bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
         }
 
         // ── ⭐⭐ C2 (Q91 §4-I I5, R-4006) — Cluster-state ingress: DDS ClusterStateTopic → bus ClusterStateUpdateEvent, so the
@@ -178,6 +190,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _heartbeatWriter.Dispose();
         _capabilitiesWriter?.Dispose();
         _inventoryReader?.Dispose();
+        _sessionReader?.Dispose();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

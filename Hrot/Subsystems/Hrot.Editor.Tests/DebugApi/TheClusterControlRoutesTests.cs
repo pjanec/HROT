@@ -143,6 +143,43 @@ public sealed class TheClusterControlRoutesTests
         Assert.Equal("Wall", svc.GetReplayStatus()["axis"]!.GetValue<string>());
     }
 
+    /// <summary>⭐ CE-3329 P3 — <c>POST /review</c> is ONE transition to OperatingReview (the live point unless a moment is named), only
+    /// from a live run; <c>/review/exit</c> goes back to OperatingLive; the host reports it shows a recording (world-changing routes 409).</summary>
+    [Fact]
+    public void A_review_is_one_transition_from_live_and_the_exit_goes_back_to_live()
+    {
+        _state = ClusterState.OperatingLive;
+        var svc = Host();
+        Assert.False(svc.ShowsRecording);
+
+        Assert.Null(svc.EnterReview(null).Error);
+        var enter = Assert.Single(_master.Transitions);
+        Assert.Equal(ClusterState.OperatingReview, enter.TargetState);
+        Assert.Equal(0L, enter.TargetWallTicks);           // no moment named ⇒ the master enters at the live point
+        Assert.Null(enter.TargetSimSeconds);
+
+        Assert.Null(svc.EnterReview(new JsonObject { ["atSimSeconds"] = 20 }).Error);
+        Assert.Equal(20.0, _master.Transitions[^1].TargetSimSeconds);
+
+        _state = ClusterState.OperatingReview;
+        Assert.True(svc.ShowsRecording);
+        Assert.Null(svc.SeekReplayTo(new JsonObject { ["atSeconds"] = 3 }).Error);   // a review seeks like a replay
+        Assert.Null(svc.ExitReview().Error);
+        Assert.Equal(ClusterState.OperatingLive, _master.Transitions[^1].TargetState);
+
+        _state = ClusterState.OperatingEdit;
+        Assert.NotNull(svc.EnterReview(null).Error);       // only from a live run
+    }
+
+    /// <summary>⭐ CE-3329 D-E — every route the host refuses during a review / replay is a real, documented route (a renamed route would
+    /// silently fall out of the guard).</summary>
+    [Fact]
+    public void Every_guarded_world_changing_route_exists()
+    {
+        foreach (var route in DebugApiHost.WorldChangingRoutes)
+            Assert.True(DebugApiRouteDocs.ByRoute.ContainsKey(route), $"{route.Method} {route.Template} is guarded but is not a route");
+    }
+
     [Fact]
     public void The_exercises_are_listed_newest_first()
     {

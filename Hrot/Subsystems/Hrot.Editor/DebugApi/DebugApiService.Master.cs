@@ -160,8 +160,8 @@ namespace Hrot.Editor.DebugApi
                 return (null, "atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) is required: {\"atSeconds\": 30}.", DebugApiHints.Scenario);
             if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
             if (!TryReadSimSeconds(body, out double? atSim, out error)) return (null, error, DebugApiHints.Scenario);
-            if (CurrentClusterStateOrNull() is { } s && s != ClusterState.OperatingReplay)
-                return (null, $"The cluster is in {s}, not a replay: POST /replay first.", DebugApiHints.Scenario);
+            if (CurrentClusterStateOrNull() is { } s && !ClusterStates.IsReplaying(s))   // ⭐ CE-3329 — a review seeks the same way
+                return (null, $"The cluster is in {s}, not a replay: POST /replay (or POST /review) first.", DebugApiHints.Scenario);
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
             // ⭐ CE-3329 R11 — atSimSeconds wins; the master (or the Replay Browser) resolves it through the replay's time map
@@ -204,7 +204,9 @@ namespace Hrot.Editor.DebugApi
             return new JsonObject
             {
                 ["clusterState"]    = state?.ToString(),
-                ["replaying"]       = state == ClusterState.OperatingReplay,
+                ["replaying"]       = state is { } st && ClusterStates.IsReplaying(st),
+                // ⭐ CE-3329 — a review of the live run (durationSeconds is then the live point, after the zero)
+                ["review"]          = state is { } rs && ClusterStates.IsReview(rs),
                 ["durationSeconds"] = (JsonNode?)(_editorReplayDuration?.Invoke() ?? _dispatcher?.ReplayDurationAnyNode),
                 ["recording"]       = ReplayRecordingPathOrNull,
                 // ⭐ CE-3329 P0 (R-3057 R11, row 6) — the RECORDED sim time of the frame on screen; `sim` below is the replay clock (wall)
@@ -230,6 +232,39 @@ namespace Hrot.Editor.DebugApi
                 ["transactionId"] = intent.TransactionId.ToString(),
                 ["target"]        = intent.TargetState.ToString(),
             }, null, null);
+        }
+
+        /// <summary>⭐ CE-3329 P3 — the cluster shows a recording (a review or a replay): world-changing commands are refused (D-E).</summary>
+        public bool ShowsRecording => CurrentClusterStateOrNull() is { } s && ClusterStates.IsReplaying(s);
+
+        /// <summary>
+        /// ⭐ CE-3329 <c>POST /review {atSeconds? | atSimSeconds?}</c> (R11) — review the LIVE run in place: the cluster pauses, every node
+        /// keeps its live point, and the run's own recording is shown from the moment named (else the live point). ONE request, any host.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) EnterReview(JsonNode? body)
+        {
+            if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
+            if (!TryReadSimSeconds(body, out double? atSim, out error)) return (null, error, DebugApiHints.Scenario);
+            if (CurrentClusterStateOrNull() is { } s && s != ClusterState.OperatingLive && s != ClusterState.OperatingReview)
+                return (null, $"A review starts from a live run; the cluster is in {s}.", DebugApiHints.Scenario);
+            bool named = body?["atSeconds"] is not null || atSim is not null;
+            var published = PublishTransition(new TransitionStateIntent
+            {
+                TransactionId    = Guid.NewGuid(),
+                TargetState      = ClusterState.OperatingReview,
+                TargetWallTicks  = named ? SecondsToTicks(at) : 0,   // 0 + no sim target = the live point (the master's default)
+                TargetSimSeconds = atSim,
+            });
+            if (published.Result is JsonObject o && !named) o["note"] = "No moment named: the review opens at the live point.";
+            return published;
+        }
+
+        /// <summary>⭐ CE-3329 <c>POST /review/exit</c> — back to the live run, exactly where it paused (live, paused).</summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) ExitReview()
+        {
+            if (CurrentClusterStateOrNull() is { } s && s != ClusterState.OperatingReview)
+                return (new JsonObject { ["published"] = false, ["target"] = nameof(ClusterState.OperatingLive), ["note"] = "Not in a review." }, null, null);
+            return PublishTransition(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.OperatingLive });
         }
 
         private ClusterState? CurrentClusterStateOrNull()

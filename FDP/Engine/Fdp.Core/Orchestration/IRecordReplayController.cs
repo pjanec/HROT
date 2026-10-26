@@ -88,6 +88,10 @@ namespace Fdp.Core.Orchestration
         /// replay. Read once per replay — the node's prepare result carries it to the master.</summary>
         FlightRecorder.ReplayTimeMap? ActiveReplayTimeMap => null;
 
+        /// <summary>⭐ CE-3329 (§9f) — the open replay's checkpoint marks (its recording's metadata); <see langword="null"/> outside a
+        /// replay. The node's prepare result carries them to the master's session layer.</summary>
+        FlightRecorder.Metadata.CheckpointMark[]? ActiveReplayCheckpoints => null;
+
         /// <summary>⭐ CE-3329 PW — releases <see cref="HoldEgress"/>: the next egress frame republishes the world.</summary>
         void ReleaseEgress() { }
 

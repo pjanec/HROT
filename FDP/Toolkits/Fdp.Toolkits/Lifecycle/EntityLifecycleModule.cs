@@ -93,29 +93,14 @@ namespace Fdp.Toolkit.Lifecycle
             _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
         
-        /// <summary>
-        /// ⭐⭐⭐ <b>The replay gate, set by the composition root.</b> While it returns <c>true</c>,
-        /// <see cref="Systems.LifecycleSystem"/> does nothing — 📄 <c>mgmt-1/DESIGN.md</c> §8.10: during
-        /// replay <i>"the ELM pipeline is never invoked"</i>.
-        ///
-        /// <para>⭐ The producer already existed: <c>IRecordReplayController.IsReplayActive</c>, implemented
-        /// by both <c>EcsRecordReplayController</c> and <c>CgfRecordReplayController</c>. ⛔ No new state
-        /// type was invented for this.</para>
-        ///
-        /// <para>⭐⭐ Read LATE, through a lambda, so a root may set it AFTER
-        /// <see cref="RegisterSystems"/> — the controller is frequently built after the module.
-        /// ⚠ Unset means "never replaying", so a host that does not wire it behaves exactly as before.</para>
-        /// </summary>
-        public Func<bool>? IsReplayActive { get; set; }
+        // ⭐⭐⭐ The replay gate — 📄 mgmt-1/DESIGN.md §8.10: during replay "the ELM pipeline is never invoked". ⭐ CE-3329 P2: the
+        //   LifecycleSystem reads the world's Fdp.Toolkit.Replay.ReplayState, set by whatever installs a replay. ⛔ SUPERSEDED: an
+        //   IsReplayActive predicate here, set by the composition root ("unset means never replaying").
 
         public void RegisterSystems(ISystemRegistry registry)
         {
             registry.RegisterSystem(new BlueprintApplicationSystem(_tkb, _translators));
-            registry.RegisterSystem(new LifecycleSystem(this)
-            {
-                // ⭐ late-bound on purpose — see IsReplayActive's remarks.
-                IsReplayActive = () => IsReplayActive?.Invoke() ?? false,
-            });
+            registry.RegisterSystem(new LifecycleSystem(this));   // ⭐ CE-3329 P2 — gated by the world's ReplayState
         }
 
         /// <summary>
