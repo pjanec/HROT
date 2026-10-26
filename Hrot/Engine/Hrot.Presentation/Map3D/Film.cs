@@ -56,6 +56,7 @@ public static class FilmStudio
     private static readonly object Gate = new();
     private static readonly Queue<(FilmCaptureRequest Request, TaskCompletionSource<FilmFrame> Done)> Waiting = new();
     private static FilmShot? _shot;
+    private static float _fade;
 
     /// <summary>The shot the director holds, or null when the view is the operator's.</summary>
     public static FilmShot? Shot { get { lock (Gate) return _shot; } }
@@ -63,8 +64,14 @@ public static class FilmStudio
     /// <summary>Holds the view on <paramref name="shot"/> from the next frame.</summary>
     public static void Direct(FilmShot shot) { lock (Gate) _shot = shot ?? throw new ArgumentNullException(nameof(shot)); }
 
-    /// <summary>Gives the view back (the free camera keeps the last pose).</summary>
-    public static void Release() { lock (Gate) _shot = null; }
+    /// <summary>
+    /// ⭐ <c>T4</c> / TE-8 — the black over the picture (0 = none, 1 = full), set by the director from <c>ProgramAt</c>'s dip. Drawn over the
+    /// live picture by the cinema overlay and over every captured scene frame by the film map's capture — one value, both consumers.
+    /// </summary>
+    public static float Fade { get { lock (Gate) return _fade; } set { lock (Gate) _fade = Math.Clamp(value, 0f, 1f); } }
+
+    /// <summary>Gives the view back (the free camera keeps the last pose; the black clears).</summary>
+    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; } }
 
     /// <summary>Asks for the next drawn frame's scene; completes when it is written (or faults with why it could not be).</summary>
     public static Task<FilmFrame> Capture(FilmCaptureRequest request)
@@ -99,6 +106,7 @@ public static class FilmStudio
         lock (Gate)
         {
             _shot = null;
+            _fade = 0f;
             while (Waiting.Count > 0) Waiting.Dequeue().Done.TrySetCanceled();
         }
     }
@@ -252,6 +260,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
                 {
                     _canvas.DrawScene();
                     if (!string.IsNullOrWhiteSpace(request.Caption)) FilmText.Caption(request.Caption!, w, h);
+                    if (FilmStudio.Fade is > 0f and var fade) Raylib.DrawRectangle(0, 0, w, h, new Color((byte)0, (byte)0, (byte)0, (byte)Math.Round(fade * 255f)));
                 }
                 Raylib.EndTextureMode();
             }

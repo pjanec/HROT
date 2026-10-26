@@ -501,7 +501,7 @@ public sealed class FilmDirectorTests
 
     /// <summary>
     /// T1 (TE-8) — <c>ProgramAt</c>: null before the first key; on a cut key that key, whole; part-way through a fly the key before it and the
-    /// eased blend; inside a dip's out-window the PREVIOUS key still, with the black rising; and a key whose anchor has no time is ignored.
+    /// eased blend (⭐ T4: a fly ARRIVES at its key's time, over the seconds before it); inside a dip's out-window the PREVIOUS key still, with the black rising; and a key whose anchor has no time is ignored.
     /// 🔴 Red-proof: ignore the key's own <c>OutSeconds</c> window (fade only after the key) ⇒ the out-window row goes red.
     /// </summary>
     [Fact]
@@ -525,8 +525,8 @@ public sealed class FilmDirectorTests
         Assert.Equal(0f, onCut.Fade);
         Assert.Same(k0, TakeTimeline.ProgramAt(keys, Anchors, 6)!.Key);                 // the ghost never takes the screen
 
-        var half = TakeTimeline.ProgramAt(keys, Anchors, 12)!;                          // halfway through a linear fly
-        Assert.Same(k1, half.Key);
+        var half = TakeTimeline.ProgramAt(keys, Anchors, 8)!;                           // halfway through a linear 4 s fly that ARRIVES at 10
+        Assert.Same(k1, half.Key);                                                      // the key it flies INTO
         Assert.Same(k0, half.From);                                                     // the previous RESOLVED key, not the ghost
         Assert.Equal(0.5f, half.Blend, 1e-5f);
         Assert.Equal(0f, half.Fade);
@@ -547,10 +547,147 @@ public sealed class FilmDirectorTests
         Assert.Equal(0.5f, TakeTimeline.ProgramAt(keys, Anchors, 21.5)!.Fade, 1e-5f);
         Assert.Equal(0f, TakeTimeline.ProgramAt(keys, Anchors, 23)!.Fade);
 
-        var anchored = TakeTimeline.ProgramAt(keys, Anchors, 32)!;                      // an anchored key, eased In: u = 0.5 ⇒ 0.25
+        var anchored = TakeTimeline.ProgramAt(keys, Anchors, 30)!;                      // an anchored key (31), eased In, a 2 s fly: u = 0.5 ⇒ 0.25
         Assert.Same(k3, anchored.Key);
         Assert.Same(k2, anchored.From);
         Assert.Equal(0.25f, anchored.Blend, 1e-5f);
+    }
+
+    // ── CE-1364 T4 — the runner plays the take's KEYS ───────────────────────────────────────────────────
+
+    private static FilmShot? Played(IReadOnlyList<CameraKey> keys, Func<string, double?> anchors, double t, IShotWorld world)
+        => TakeTimeline.ProgramAt(keys, anchors, t) is { } f ? ShotEvaluator.Evaluate(f, world) : null;
+
+    /// <summary>
+    /// T4 — Cut@0 (camera A), Fly@4 (camera B, 2 s, ease In): A at t=1, the eased in-between at t=3 (u = 0.5 ⇒ eased 0.25), B from t=4 on.
+    /// 🔴 Red-proof: make the fly start AT the key (blend after its time, as T1 first had it) ⇒ t=3 shows A and t=5 an in-between ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1364_T4_ACutThenAFly_PlaysAThenTheEasedInBetweenThenB()
+    {
+        var a = new CameraSpec { LookAt = new Vector3(0, 0, 0), Distance = 10f, Yaw = 0f };
+        var b = new CameraSpec { LookAt = new Vector3(0, 0, 0), Distance = 50f, Yaw = 40f };
+        var keys = new[]
+        {
+            new CameraKey { At = new AtExpr(0), Camera = a, In = KeyTransition.Cut },
+            new CameraKey { At = new AtExpr(4), Camera = b, In = KeyTransition.Fly(2, Ease.In) },
+        };
+        var world = new Units();
+        double? None(string _) => null;
+
+        Assert.Equal(10f, Played(keys, None, 1, world)!.Pose!.Value.Distance);
+        Assert.Equal(10f, Played(keys, None, 2, world)!.Pose!.Value.Distance);                 // the fly has not begun
+        var mid = Played(keys, None, 3, world)!;
+        Assert.Equal(10f + 40f * 0.25f, mid.Pose!.Value.Distance, 1e-3f);                       // eased In: 0.5² = 0.25
+        Assert.Equal(40f * 0.25f * MathF.PI / 180f, mid.Pose.Value.Yaw, 1e-4f);
+        Assert.Equal(50f, Played(keys, None, 4, world)!.Pose!.Value.Distance);
+        Assert.Equal(50f, Played(keys, None, 9, world)!.Pose!.Value.Distance);
+    }
+
+    /// <summary>
+    /// T4 — a DIP key: the black is 0 well before, rises over the out-seconds ahead of the key (the old camera still on screen), is full at the key
+    /// and clears over the in-seconds after it. 🔴 Red-proof: drop the in-seconds clear ⇒ the row 1 s after the key stays 1 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1364_T4_ADipKey_FadesOutBeforeItsTime_AndInAfter()
+    {
+        var keys = new[]
+        {
+            new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { LookAt = new Vector3(0, 0, 0), Distance = 10f } },
+            new CameraKey { At = new AtExpr(5), Camera = new CameraSpec { LookAt = new Vector3(9, 9, 0), Distance = 20f }, In = KeyTransition.Dip(1, 2) },
+        };
+        double? None(string _) => null;
+        Assert.Equal(0f, TakeTimeline.ProgramAt(keys, None, 3.9)!.Fade);
+        var rising = TakeTimeline.ProgramAt(keys, None, 4.5)!;
+        Assert.Equal(0.5f, rising.Fade, 1e-5f);
+        Assert.Equal(10f, ShotEvaluator.Evaluate(rising, new Units())!.Pose!.Value.Distance);   // the old camera still on screen
+        Assert.Equal(1f, TakeTimeline.ProgramAt(keys, None, 5)!.Fade);
+        Assert.Equal(0.5f, TakeTimeline.ProgramAt(keys, None, 6)!.Fade, 1e-5f);
+        Assert.Equal(0f, TakeTimeline.ProgramAt(keys, None, 7)!.Fade);
+    }
+
+    /// <summary>
+    /// T4 — ⭐ ONE path: every seeded take (all 55) plus a hand-made one with <c>to</c>, an orbit and a lens, played through
+    /// <c>ProgramAt(CameraKeys.Played(take, plan))</c> + <c>ShotEvaluator.Evaluate(frame)</c>, gives the SAME film shot as the old per-shot path
+    /// (<c>Plan</c> → shot at / next → <c>Evaluate(shot, t - start)</c>), sampled every 0.25 s with a gap hold ahead of each shot's start.
+    /// 🔴 Red-proof: have <c>Blend</c> take the arriving camera's <c>Yaw</c> verbatim (no lerp) ⇒ a <c>to</c> take differs ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1364_T4_AV1Take_PlaysTheSameShots_AsTheOldShotPath()
+    {
+        var repo = RepoRoot();
+        var roots = new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") };
+        var takes = new List<(string Name, Take Take)>();
+        foreach (var root in roots)
+        {
+            var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
+            foreach (var (scenario, names) in store.AllTakes())
+                foreach (var n in names) takes.Add(($"{scenario}/{n}", store.Load(scenario, n).Value!));
+        }
+        takes.Add(("hand-made", new Take
+        {
+            Shots = new[]
+            {
+                Shot("""{"at":1,"seconds":3,"follow":"A","distance":12,"yaw":10,"orbit":5,"fov":50,"to":{"distance":30,"yaw":90,"fov":30},"ease":"in"}"""),
+                Shot("""{"at":6,"seconds":2,"lookAt":[1,2,3],"distance":20,"to":{"pitch":-60},"ease":"linear"}"""),
+                Shot("""{"at":8,"seconds":2,"eye":[0,0,5],"target":[10,10,0]}"""),
+            },
+        }));
+        Assert.True(takes.Count >= 56);
+
+        var units = new HashUnits();
+        int compared = 0;
+        foreach (var (name, take) in takes)
+        {
+            // the take's own scouted times when it has them (the real layout); else a stable time for every anchor name
+            var baked = take.Baked?.Times;
+            Func<string, double?> anchors = baked != null ? a => baked.TryGetValue(a, out var bt) ? bt : null : a => 5d + 3d * (a.Sum(c => c) % 7);
+            var plan = TakeTimeline.Plan(take, anchors);
+            var keys = CameraKeys.Played(take, plan);
+            for (double t = 0; t <= plan.End + 1; t += 0.25)
+            {
+                var shot = plan.At(t);
+                var target = shot ?? plan.Next(t);
+                if (target == null) continue;
+                var expected = ShotEvaluator.Evaluate(target.Shot, Math.Max(0d, t - target.Start), units);
+                double at = shot != null ? t : target.Start;
+                var frame = TakeTimeline.ProgramAt(keys, anchors, at);
+                var actual = frame is null ? null : ShotEvaluator.Evaluate(frame, units);
+                Assert.True(Equals(expected, actual), $"{name} at t={t}: old {expected} vs keys {actual}");
+                compared++;
+            }
+        }
+        Assert.True(compared > 500, $"{compared} samples");
+    }
+
+    private sealed class HashUnits : IShotWorld
+    {
+        public long? Resolve(string who) => long.TryParse(who, out var id) ? id : 1 + Math.Abs(who.Sum(c => c));
+        public Vector3? PositionOf(long id) => new Vector3(id * 2, id % 5, 0);
+        public IReadOnlyCollection<string> Names => Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// T4 — a v2 take with KEYS and no shots still has a film to run: <c>Plan</c> lays one stretch per placed key (to the next key, the last to
+    /// the take's end); a key with no anchor time is named, not laid out. 🔴 Red-proof: have <c>Plan</c> read only <c>take.Shots</c> ⇒ no stretches ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1364_T4_AKeysOnlyTake_LaysOutOneStretchPerKey()
+    {
+        var take = new Take
+        {
+            EndAt = new AtExpr(9),
+            Keys = new[]
+            {
+                new CameraKey { At = new AtExpr(2), Camera = new CameraSpec { Follow = "A" } },
+                new CameraKey { At = new AtExpr(0, "never"), Camera = new CameraSpec { Follow = "G" } },
+                new CameraKey { At = new AtExpr(5), Camera = new CameraSpec { Follow = "B" }, In = KeyTransition.Fly(2) },
+            },
+        };
+        var plan = TakeTimeline.Plan(take, _ => null);
+        Assert.Equal(new[] { (2d, 5d), (5d, 9d) }, plan.Shots.Select(s => (s.Start, s.End)).ToArray());
+        Assert.Equal(new[] { "key 2: anchor 'never'" }, plan.Unresolved);
+        Assert.Equal(9d, plan.End);
     }
 
     private static string RepoRoot()

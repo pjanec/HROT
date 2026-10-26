@@ -402,6 +402,62 @@ public sealed class DirectorRunnerTests : IDisposable
     /// on the first poll; the probe waits for the world to change AND settle. The grace covers a count that never moves; no count ⇒ the state
     /// alone. 🔴 Red-proof: drop the sawChange term ⇒ the first poll answers ready.
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-1364 T4 — the runner plays a take's KEYS (not shots): Cut@0 (distance 10), Fly@2 (distance 30 over the second before it, linear),
+    /// Dip@3 (distance 50, black 0.5 s out and 0.5 s in), ending at 4. The film camera holds 10 at t=1, the in-between at t=1.5, 30 at t=2.5,
+    /// the OLD camera while the black rises (2.75), 50 after the dip; the black is half at 2.75 and 3.25, full at 3, none at 3.6, and the
+    /// run releases it at the end. 🔴 Red-proof: have <c>DirectUpcoming</c> set <c>FilmStudio.Fade</c> to 0 ⇒ the fade rows go red; make
+    /// <c>ProgramAt</c> start the fly AT its key ⇒ the t=1.5 row reads 10 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1364_T4_TheRunner_PlaysTheKeys_CutFlyDip_AndTheFadeReachesTheFilm()
+    {
+        var host = new FakeEditor(Store()) { Moves = false };
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        CameraSpec At(float distance) => new() { LookAt = Vector3.Zero, Distance = distance };
+        var take = new Take
+        {
+            Scenario = "s-a", Name = "keys", TickHz = 60, EndAt = new AtExpr(4),
+            Keys = new[]
+            {
+                new CameraKey { At = new AtExpr(0), Camera = At(10) },
+                new CameraKey { At = new AtExpr(2), Camera = At(30), In = KeyTransition.Fly(1, Ease.Linear) },
+                new CameraKey { At = new AtExpr(3), Camera = At(50), In = KeyTransition.Dip(0.5, 0.5) },
+            },
+        };
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "keys" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Inline: new Dictionary<string, Take> { ["s-a/keys"] = take })));
+
+        var samples = new List<(double Rel, float? Distance, float Fade)>();
+        double? t0 = null;
+        for (int f = 0; f < 20000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing)
+            {
+                t0 ??= host.SimTime;
+                samples.Add((host.SimTime - t0.Value, FilmStudio.Shot?.Pose?.Distance, FilmStudio.Fade));
+            }
+            host.EndFrame();
+        }
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.Equal("ok", runner.Reports[0].Status);
+
+        (float? Distance, float Fade) Near(double rel) => samples.OrderBy(s => Math.Abs(s.Rel - rel)).Select(s => (s.Distance, s.Fade)).First();
+        Assert.Equal(10f, Near(1.0).Distance!.Value, 0.01f);
+        Assert.Equal(20f, Near(1.5).Distance!.Value, 0.5f);                         // halfway through the linear fly
+        Assert.Equal(30f, Near(2.5).Distance!.Value, 0.01f);
+        Assert.Equal(30f, Near(2.75).Distance!.Value, 0.01f);                       // the old camera while the black rises
+        Assert.Equal(0.5f, Near(2.75).Fade, 0.05f);
+        Assert.Equal(1f, Near(3.0).Fade, 0.05f);
+        Assert.Equal(50f, Near(3.25).Distance!.Value, 0.01f);
+        Assert.Equal(0.5f, Near(3.25).Fade, 0.05f);
+        Assert.Equal(0f, Near(3.6).Fade, 0.001f);
+        Assert.Equal(0f, Near(2.0).Fade, 0.001f);
+        Assert.Equal(0f, FilmStudio.Fade);                                          // released with the film
+        Assert.Null(FilmStudio.Shot);
+    }
+
     [Fact]
     public void CE4038_TheReadyProbe_WaitsForTheEdge_NotTheLevel()
     {

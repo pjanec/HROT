@@ -172,6 +172,7 @@ namespace Hrot.Editor.Director
         private Take? _take;
         private AnchorBook? _book;
         private TakeTimeline? _timeline;
+        private IReadOnlyList<CameraKey> _keys = Array.Empty<CameraKey>();
         private PacedClock? _clock;
         private ScenarioReadyProbe? _probe;
         private double _phaseStartWall, _itemStartWall, _t0;
@@ -516,6 +517,7 @@ namespace Hrot.Editor.Director
         private void Replan()
         {
             _timeline = TakeTimeline.Plan(_take!, a => _book!.TimeOf(a), Item.From, Item.To);
+            _keys = CameraKeys.Played(_take!, _timeline);
             Report.Unresolved.Clear();
             Report.Unresolved.AddRange(_timeline.Unresolved);
         }
@@ -610,13 +612,21 @@ namespace Hrot.Editor.Director
             _nextFrameAt = Math.Max(shot.Start, Rel);
         }
 
-        /// <summary>Holds the shot of this moment — in a gap, the NEXT shot at its start, so the camera is there when it begins.</summary>
+        /// <summary>
+        /// Holds the camera of this moment — in a gap, the NEXT shot at its start, so the camera is there when it begins. ⭐ <c>T4</c> (TE-2, TE-6):
+        /// the camera is what <see cref="TakeTimeline.ProgramAt"/> says over the take's KEYS (<see cref="CameraKeys.Played"/> — its own, else its shots
+        /// read as keys where the layout put them), and the dip's black is the same frame's fade; the shots here only gate WHEN the film runs (captions, layers, speed).
+        /// </summary>
         private void DirectUpcoming(double rel)
         {
-            var target = _timeline!.At(rel) ?? _timeline.Next(rel);
+            var inShot = _timeline!.At(rel);
+            var target = inShot ?? _timeline.Next(rel);
             if (target == null) return;
-            var fs = ShotEvaluator.Evaluate(target.Shot, Math.Max(0d, rel - target.Start), _units);
-            if (fs != null) FilmStudio.Direct(fs);
+            Func<string, double?> anchors = a => _book!.TimeOf(a);
+            double at = inShot != null ? rel : target.Start;
+            var frame = TakeTimeline.ProgramAt(_keys, anchors, at);
+            if (frame != null && ShotEvaluator.Evaluate(frame, _units) is { } fs) FilmStudio.Direct(fs);
+            FilmStudio.Fade = (at == rel ? frame : TakeTimeline.ProgramAt(_keys, anchors, rel))?.Fade ?? 0f;   // the black is of NOW, the camera may be the next shot's
         }
 
         private void Capture(TimelineShot shot, double rel)

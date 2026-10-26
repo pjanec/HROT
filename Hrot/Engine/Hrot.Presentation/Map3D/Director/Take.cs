@@ -165,24 +165,40 @@ public static class CameraKeys
         if (take.Keys.Count > 0) return take.Keys;
         var keys = new List<CameraKey>();
         foreach (var s in take.Shots)
-        {
-            if (s.Replay != null) continue;
-            keys.Add(new CameraKey { At = s.At, Camera = s.Camera, Fov = s.Camera.Fov, In = KeyTransition.Cut });
-            if (s.To is not { Count: > 0 } to) continue;
-            var c = s.Camera;
-            float V(string key, float from) => to.TryGetValue(key, out var reached) ? reached : from;
-            var end = c with
-            {
-                Distance = V("distance", c.Distance), Yaw = V("yaw", c.Yaw), Pitch = V("pitch", c.Pitch), Lift = V("lift", c.Lift),
-                Back = V("back", c.Back), Height = V("height", c.Height), Ahead = V("ahead", c.Ahead),
-                Fov = to.TryGetValue("fov", out var fov) ? fov : c.Fov,
-            };
-            keys.Add(new CameraKey
-            {
-                At = new AtExpr(s.At.Offset + s.Seconds, s.At.Anchor), Camera = end, Fov = end.Fov, In = KeyTransition.Fly(s.Seconds, s.Ease),
-            });
-        }
+            if (s.Replay == null) AddShot(keys, s, s.At);
         return keys;
+    }
+
+    /// <summary>
+    /// ⭐ <c>T4</c> — the keys a RUN plays: a v2 take's own, else its shots read as keys <b>where <see cref="TakeTimeline.Plan"/> laid them</b>.
+    /// ⚠ The layout can start a shot LATER than its <c>at</c> (a shot listed after another that is still running waits for it — measured in
+    /// <c>pc-defend-house/main</c>, whose third shot's anchor precedes its second's end); the old runner played that, so the keys must too, or a
+    /// seeded take would film differently. The same per-shot rule as <see cref="Of"/> (<see cref="AddShot"/>), only the start time differs.
+    /// </summary>
+    public static IReadOnlyList<CameraKey> Played(Take take, TakeTimeline laidOut)
+    {
+        if (take.Keys.Count > 0) return take.Keys;
+        var keys = new List<CameraKey>();
+        foreach (var shot in laidOut.Shots) AddShot(keys, shot.Shot, new AtExpr(shot.Start));
+        return keys;
+    }
+
+    private static void AddShot(List<CameraKey> keys, ShotSpec s, AtExpr start)
+    {
+        keys.Add(new CameraKey { At = start, Camera = s.Camera, Fov = s.Camera.Fov, In = KeyTransition.Cut });
+        if (s.To is not { Count: > 0 } to) return;
+        var c = s.Camera;
+        float V(string key, float from) => to.TryGetValue(key, out var reached) ? reached : from;
+        var end = c with
+        {
+            Distance = V("distance", c.Distance), Yaw = V("yaw", c.Yaw), Pitch = V("pitch", c.Pitch), Lift = V("lift", c.Lift),
+            Back = V("back", c.Back), Height = V("height", c.Height), Ahead = V("ahead", c.Ahead),
+            Fov = to.TryGetValue("fov", out var fov) ? fov : c.Fov,
+        };
+        keys.Add(new CameraKey
+        {
+            At = new AtExpr(start.Offset + s.Seconds, start.Anchor), Camera = end, Fov = end.Fov, In = KeyTransition.Fly(s.Seconds, s.Ease),
+        });
     }
 }
 
