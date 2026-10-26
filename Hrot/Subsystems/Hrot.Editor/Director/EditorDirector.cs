@@ -31,7 +31,7 @@ namespace Hrot.Editor.Director
         private readonly Func<string, double> _restoreCheckpoint;
         private readonly Func<bool> _slotRunInFlight;
         private readonly Action<string> _loadLive;
-        private readonly Action _stopLive;
+        private readonly Hrot.Presentation.DebugApi.IClusterMasterControl _master;
         private readonly Func<Fdp.Toolkit.Orchestration.ClusterState> _state;
         private readonly Func<string?> _recordingPath;
         private readonly Func<string, IRecordedRun> _openRecording;
@@ -41,11 +41,11 @@ namespace Hrot.Editor.Director
                                   Action<bool> enterPreview, Action exitPreview, Func<bool> paused, Action pause, Action<float> stepBy,
                                   Func<int, string?> behaviourName, TakeStore takes, Func<bool> slotRunInFlight,
                                   Action<string, string> writeCheckpoint, Func<string, double> restoreCheckpoint,
-                                  Action<string> loadLive, Action stopLive, Func<Fdp.Toolkit.Orchestration.ClusterState> state,
+                                  Action<string> loadLive, Hrot.Presentation.DebugApi.IClusterMasterControl master, Func<Fdp.Toolkit.Orchestration.ClusterState> state,
                                   Func<string?> recordingPath, Func<string, IRecordedRun> openRecording)
         {
             _loadLive = loadLive ?? throw new ArgumentNullException(nameof(loadLive));
-            _stopLive = stopLive ?? throw new ArgumentNullException(nameof(stopLive));
+            _master = master ?? throw new ArgumentNullException(nameof(master));
             _state = state ?? throw new ArgumentNullException(nameof(state));
             _recordingPath = recordingPath ?? throw new ArgumentNullException(nameof(recordingPath));
             _openRecording = openRecording ?? throw new ArgumentNullException(nameof(openRecording));
@@ -82,7 +82,14 @@ namespace Hrot.Editor.Director
         // ⭐ CE-4045 H1a — a live run and its recording (Scenario Regression §10-1)
         public void LoadLive(string scenario) { _loaded = true; _loadLive(scenario); }
         public bool IsOperatingLive => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive;
-        public void StopLive() => _stopLive();
+        public void StopLive() => _master.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+            { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+
+        // ⭐ CE-4045 H5 — the review through the ONE construction of its intents (the same as POST /review and the facade)
+        public void EnterReview(double simSeconds) => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReview(simSeconds: simSeconds));
+        public void SeekReview(double simSeconds) => _master.SeekReplay(Hrot.UI.Common.Facades.ReplaySessionIntents.Seek(0, simSeconds));
+        public void ExitReview() => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.ExitReview());
+        public bool IsOperatingReview => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingReview;
         public bool IsIdle => _state() == Fdp.Toolkit.Orchestration.ClusterState.Idle;
         public string? LiveRecordingPath => _recordingPath();
         public IRecordedRun OpenRecording(string path) => _openRecording(path);

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+updated: 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
 current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
 stale-below: none
 known-rot: §10 RH-3 (replay seconds = sim seconds) — SUPERSEDED by R-3056 / R-4086 (the replay clock stays wall; a sim seek is atSimSeconds) · §10-1 "H1b after CE-4051…4053" — those are fixed / ruled; H1b now waits for DAR P1 (§10-2) · §10 RH-1's "EnterReplay through Idle" is no longer the only product path — a REVIEW replays the run in place (H5, §10-2)
@@ -238,6 +238,7 @@ A unit is a name or `*part` (any whose name contains it) — the take anchors' r
 | **where** — `scenarios/<s>/golden.json`, beside `checks.json` and `takes/` | it belongs to the scenario (a Save As copies it); ⭐ a capture writes it to the editor's working copy **and** to the source tree when there is one (`CuratedScenarios.TryFindSourceScenariosDirectory`) — ⛔ never only the working copy, which the next launch overwrites (the take-bake trap, PLAN_Feature_Films §6) |
 | **what** — the steps taken, every anchor's, action's and expectation's time, every round and burst row, and every named unit every `every` s and at the end: position and health in full, each component as a 64-bit FNV-1a hash (in full under `golden.full`) | the components are what a regression changes first; the rows are the story in one page; the hashes keep it 35–224 KB (§7) |
 | ⭐ **a held entity is hashed by MEANING** — every `"[index, vGen]"` the dump writes for an `Entity` field is rewritten to `"@<unit name>"` (`"@?"` unnamed) before hashing; two units with one name are `Name`, `Name #2`, … | ⛔ an index follows allocation order: one entity more renumbers every later holder (`IsEmbarkedTag.VehicleEntity`, passenger slots) and the golden goes red on a change that moved nothing (backend's lean, [reply](blueprints/batches/NOTE_Coordinator_To_Backend_Determinism_Reply.md) §2). Rail `CE4042_AHeldHandle_HashesAsTheUnitItMeans`. ⚠ A network id held as a plain NUMBER still follows allocation order — those goldens are re-recorded with the change that adds an entity |
+| ⭐ **a per-run id is hashed by MEANING** *(CE-3334, R-4090)* — a `CreationRequestId` (a fresh `Guid` per run, CE-3323) is rewritten wherever it appears to `"@request:<the first unit, in name order, that carries it>"`; the golden records `"meaning": 2`; a golden captured before (no `"meaning"`) compares with `CreationRequestId` left out until it is re-captured | 📐 measured by backend: every golden failed at t = 0 on the request id alone, whatever the behaviour (CE-3334). ⭐ Not masking (N1): what the id MEANS — which units one request made — is still compared; only the per-run number is not. ⛔ Rejected: a deterministic `Guid` (it must stay unique across a cluster) · skipping `NoScenario` components (that would also drop mission and brain state a regression must see) |
 | **compare** — `ComponentDiffService.ComputeTreeDiff` with 0.001 (`/diff/compare`'s tolerance); **nothing masked** | Regression_Net N1. Network ids repeat (Deterministic Network Ids §11) and every run is a first load in a fresh process |
 | **the report names the FIRST difference** — times, then rows, then the EARLIEST differing snapshot with its units and values | a red golden must answer *when did it start to differ, and in whom* — that is where the bisect starts |
 | **re-record** — `--verify-capture` (or `{"capture": true}`); ⛔ refused when a condition fails | a golden of a failing run would bless the failure; the regenerated file is a diff you READ and ship with the change that moved it (TESTING_Harness_And_Goldens §4) |
@@ -609,6 +610,60 @@ live come back exact — and the second half is R1's comparator unchanged, so th
 
 Rejected: a review-only harness — cluster replay (H1b) and the branch (H3) are different product paths and keep their phases · waiting for
 P3 before re-cutting — ①, ② and ④ do not depend on it · a second scenario oracle in backend — two oracles drift apart (R-4078: unify).
+
+### 10-3. ⭐ H5 as designed for the build *(coordinator, `2026-10-26`; build-state: BUILDING — R-4086 ③)*
+
+```mermaid
+sequenceDiagram
+  participant P as VerifyCommand (parent, --verify-review-at T)
+  participant A as child A — straight LIVE run
+  participant B as child B — LIVE run with a review at T
+  participant M as the editor's master (ReplaySessionIntents)
+  P->>A: --verify s, HROT_VERIFY_REVIEW {at: T, straight: true}
+  A->>A: LoadLive · a full snapshot every second to runFor → A.json
+  P->>B: --verify s, HROT_VERIFY_REVIEW {at: T, straight: false}
+  B->>B: LoadLive · a full snapshot every second to T (LIVE)
+  B->>M: EnterReview(atSimSeconds 0) — OperatingReview
+  loop each LIVE snapshot time t ≤ T
+    B->>M: Seek(atSimSeconds t)
+    B->>B: wait until the clock stands at t · REVIEW[t] · compare with LIVE[t] (carried = the recording's manifest)
+  end
+  B->>M: ExitReview — OperatingLive, paused at T
+  B->>B: wait until the clock stands at T · AFTER[T] · compare with LIVE[T], every component
+  B->>B: step on to runFor (the same snapshots) → B.json
+  P->>P: CompareFrom(A, B, T) — the run after a review is the straight run
+```
+*What the picture shows that the prose hid: three comparisons, three questions — REVIEW vs LIVE (does the review show what live was), AFTER vs
+LIVE[T] (does live come back exact), B vs A from T (does live RUN ON as if nothing happened) — and only the third needs a second process,
+exactly as R1's restore oracle did, which is why the parent is R1's shape.*
+
+```mermaid
+classDiagram
+  direction LR
+  class VerifyOptions { <<exists, grown>> +ReviewCheck? Review }
+  class ReviewCheck { <<NEW record>> +double At +bool Straight +string RunOut +double Every }
+  class IDirectorHost { <<exists, grown>> +EnterReview(simSeconds) +SeekReview(simSeconds) +ExitReview() +IsOperatingReview }
+  class EditorDirectorHost { <<exists, grown>> one IClusterMasterControl for StopLive and the review }
+  class ReplaySessionIntents { <<exists, backend>> EnterReview · Seek · ExitReview — the ONE construction }
+  class DirectorRunner { <<exists, grown>> phases Reviewing · Returning between two Playing stretches }
+  class VerifyResult { <<exists, grown>> +Review +ReviewDiff +ReviewNotCarried +ReturnDiff +ReviewSnapshots }
+  class VerifyCommand { <<exists, grown>> +RunReviewChecks — R1's two-children shape }
+  VerifyOptions --> ReviewCheck
+  DirectorRunner --> IDirectorHost
+  EditorDirectorHost ..|> IDirectorHost
+  EditorDirectorHost --> ReplaySessionIntents
+  DirectorRunner --> VerifyResult
+  VerifyCommand ..> DirectorRunner : two children
+```
+*What the picture shows: no new replay path — the review goes through backend's one intent construction (the same as `/review` and the
+facade), and the oracle is the existing `ScenarioGolden.CompareFrom`.*
+
+| rule | why |
+|---|---|
+| both children run LIVE (`LoadLive`) | the straight run must be the same kind of run as the reviewed one; a preview is never recorded (R-3053) |
+| a seek "lands" when the world's clock stands at the target (±½ step) for 3 frames; a miss past the timeout is reported with the landed time, never compared silently | backend measured a review seek landing at 9.895 s for 10 s (§12k of DAR) — the harness says how far it missed |
+| REVIEW vs LIVE uses the recording's manifest as `carried`; AFTER vs LIVE[T] compares EVERY component | the review shows the recording; the return is the FULL checkpoint (R-3063) — anything it drops is a finding |
+| the runner's checks keep judging the whole live run; the review's frames are not observed | the review is a look back, not part of the run |
 
 ### 10a. Claim table — what the leans rest on
 

@@ -333,7 +333,17 @@ namespace Hrot.Editor.Director
     public sealed class ScenarioGolden
     {
         public const string FileName = "golden.json";
+
+        /// <summary>⭐ <c>CE-3334</c> — the version of the by-meaning rules a golden was captured with (<c>"meaning"</c> in the file): 2 = handles
+        /// AND per-run request ids by meaning. A golden without it (captured before) compares with <see cref="PerRunIds"/> left out.</summary>
+        public const int MeaningVersion = 2;
+
+        /// <summary>⭐ <c>CE-3334</c> — components whose value is an id MINTED PER RUN (a fresh <c>Guid</c> each time): its value means "the
+        /// request that made this unit", so it is written as <c>"@request:&lt;the first unit it made&gt;"</c> wherever it appears.</summary>
+        public static readonly IReadOnlyList<string> PerRunIds = new[] { "CreationRequestId" };
+
         private readonly IVerifyWorld _w;
+        private readonly Dictionary<Guid, string> _requests = new();
         private readonly bool _full;
         private readonly JsonArray _snapshots = new();
 
@@ -354,11 +364,20 @@ namespace Hrot.Editor.Director
             var units = new JsonObject();
             // ⭐ two units that share a name are both kept: "M1 Abrams", "M1 Abrams #2" (in network-id order — ids repeat per world)
             var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+            var all = new List<(string Name, JsonObject Comps)>();
             foreach (var (id, unitName) in _w.Named().OrderBy(x => x.Name, StringComparer.Ordinal).ThenBy(x => x.Id))
             {
                 int k = seen[unitName] = seen.TryGetValue(unitName, out var c) ? c + 1 : 1;
-                var name = k == 1 ? unitName : $"{unitName} #{k}";
-                if (_w.Components(id) is not { } comps) continue;
+                if (_w.Components(id) is { } found) all.Add((k == 1 ? unitName : $"{unitName} #{k}", found));
+            }
+            // ⭐ CE-3334 — a per-run id means the unit it made: the first unit (in name order) that carries it
+            _requests.Clear();
+            foreach (var (name, comps) in all)
+                foreach (var idType in PerRunIds)
+                    if (comps[idType]?["Value"] is JsonValue v && v.TryGetValue<string>(out var text) && Guid.TryParse(text, out var g) && g != Guid.Empty)
+                        _requests.TryAdd(g, name);
+            foreach (var (name, comps) in all)
+            {
                 var hashes = new JsonObject();
                 foreach (var (type, value) in comps.OrderBy(kv => kv.Key, StringComparer.Ordinal))
                 {
@@ -406,6 +425,8 @@ namespace Hrot.Editor.Director
                     return null;
                 case JsonValue v when v.TryGetValue<string>(out var text) && HandleShape.Match(text) is { Success: true } m:
                     return JsonValue.Create("@" + (_w.NameOfEntityIndex(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)) ?? "?"));
+                case JsonValue v when v.TryGetValue<string>(out var text) && Guid.TryParse(text, out var g) && _requests.TryGetValue(g, out var maker):
+                    return JsonValue.Create("@request:" + maker);   // ⭐ CE-3334 — a per-run request id, by meaning
                 case JsonValue v when ConditionBook.Num(v) is { } d && !double.IsFinite(d):
                     return Unwritable(d);
                 default:
@@ -451,6 +472,7 @@ namespace Hrot.Editor.Director
             ["$doc"] = "scenario golden — docs/DESIGN_Scenario_Regression.md §4; re-record: Hrot.ClusterRunner --mode editor --headless --verify "
                        + scenario + " --verify-capture (or POST /director/verify {scenario, capture: true})",
             ["scenario"] = scenario,
+            ["meaning"] = MeaningVersion,
             ["steps"] = steps,
             ["times"] = new JsonObject(book.Times.OrderBy(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal)
                                            .Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)Math.Round(kv.Value, 4)))),
@@ -472,6 +494,13 @@ namespace Hrot.Editor.Director
         /// </summary>
         public static IReadOnlyList<string> Compare(JsonObject golden, JsonObject run)
         {
+            // ⭐ CE-3334 — a golden captured before per-run ids were written by meaning holds their raw hash, which no later run can repeat:
+            //   compare it without them (a re-capture brings them back, by meaning)
+            if (golden.ContainsKey("scenario") && golden["meaning"] is null)
+            {
+                golden = WithoutPerRunIds(golden);
+                run = WithoutPerRunIds(run);
+            }
             var diff = new ComponentDiffService();
             var lines = new List<string>();
             foreach (var key in new[] { "steps", "times", "shots", "blasts" })
@@ -510,6 +539,16 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ B5 — the differences from <paramref name="t1"/> on in the components the checkpoint does NOT carry (for information).</summary>
         public static IReadOnlyList<string> CompareNotCarried(JsonObject straight, JsonObject restored, double t1, Func<string, bool> carried)
             => Compare(From(straight, t1, carried, false), From(restored, t1, carried, false));
+
+        private static JsonObject WithoutPerRunIds(JsonObject run)
+        {
+            var copy = run.DeepClone().AsObject();
+            foreach (var snap in (copy["snapshots"] as JsonArray) ?? new JsonArray())
+                foreach (var (_, unit) in (snap?["units"] as JsonObject) ?? new JsonObject())
+                    if (unit?["components"] is JsonObject comps)
+                        foreach (var idType in PerRunIds) comps.Remove(idType);
+            return copy;
+        }
 
         private static JsonObject From(JsonObject run, double t1, Func<string, bool>? carried, bool keepCarried)
         {
@@ -575,7 +614,20 @@ namespace Hrot.Editor.Director
         /// <summary>The live snapshots matched to a recorded frame.</summary>
         public int ReplaySnapshots { get; set; }
 
-        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is ("none" or "same" or "captured") && Replay is (null or "same");
+        /// <summary>⭐ <c>CE-4045</c> H5 — the review against the live run: null (not asked) · same · different.</summary>
+        public string? Review { get; set; }
+        /// <summary>The review's first difference from the live run, on what the recording carries.</summary>
+        public List<string> ReviewDiff { get; } = new();
+        /// <summary>For information (RH-4): what the review differs in that the recording does not carry by its manifest.</summary>
+        public List<string> ReviewNotCarried { get; } = new();
+        /// <summary>⭐ The world after the return against the world the run left — EVERY component (the full checkpoint, R-3063).</summary>
+        public List<string> ReturnDiff { get; } = new();
+        /// <summary>Seeks that did not land, a return that did not come back.</summary>
+        public List<string> ReviewProblems { get; } = new();
+        public int ReviewSnapshots { get; set; }
+
+        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is ("none" or "same" or "captured") && Replay is (null or "same")
+                              && Review is (null or "same") && ReturnDiff.Count == 0 && ReviewProblems.Count == 0;
 
         /// <summary>
         /// ⭐ This run was a reload: a capture is REFUSED (a reload's golden bakes CE-3294 in — measured: <c>SopState</c> and the animation
@@ -602,6 +654,12 @@ namespace Hrot.Editor.Director
             ["replaySnapshots"] = Replay is null ? null : ReplaySnapshots,
             ["replayDiff"] = Replay is null ? null : new JsonArray(ReplayDiff.Select(x => (JsonNode?)x).ToArray()),
             ["replayNotCarried"] = Replay is null ? null : new JsonArray(ReplayNotCarried.Select(x => (JsonNode?)x).ToArray()),
+            ["review"] = Review,
+            ["reviewSnapshots"] = Review is null ? null : ReviewSnapshots,
+            ["reviewDiff"] = Review is null ? null : new JsonArray(ReviewDiff.Select(x => (JsonNode?)x).ToArray()),
+            ["reviewNotCarried"] = Review is null ? null : new JsonArray(ReviewNotCarried.Select(x => (JsonNode?)x).ToArray()),
+            ["returnDiff"] = Review is null ? null : new JsonArray(ReturnDiff.Select(x => (JsonNode?)x).ToArray()),
+            ["reviewProblems"] = ReviewProblems.Count == 0 ? null : new JsonArray(ReviewProblems.Select(x => (JsonNode?)x).ToArray()),
         };
     }
 
@@ -654,6 +712,9 @@ namespace Hrot.Editor.Director
 
         public ScenarioChecks Checks => _checks;
         public ConditionBook Book => _book;
+
+        /// <summary>⭐ CE-4045 H5 — the run's own snapshots so far (null when the checks snapshot nothing).</summary>
+        public ScenarioGolden? Run => _run;
 
         /// <summary>The names the checks use that this scenario's cast does not carry (a <c>*part</c> needs one).</summary>
         public static IReadOnlyList<string> MissingNames(ScenarioChecks checks, IShotWorld units) =>

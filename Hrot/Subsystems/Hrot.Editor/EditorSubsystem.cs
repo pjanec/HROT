@@ -2464,8 +2464,7 @@ namespace Hrot.Editor
                     //   its file named by the ONE recorder, and played back in this process by the product's player
                     loadLive: name => (_debugApiService ?? throw new InvalidOperationException(
                         "a live verify run loads through the debug service — set HROT_DEBUG_API_PORT (--verify sets one)")).LoadScenarioLive(name, startPaused: true),
-                    stopLive: () => new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus).Transition(
-                        new Fdp.Toolkit.Orchestration.TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle }),
+                    master: new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),   // ⭐ H5 — stop and review
                     state: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
                     recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,
                     openRecording: path => new Hrot.Editor.Director.RecordedRun(path, scenarioSerializer,

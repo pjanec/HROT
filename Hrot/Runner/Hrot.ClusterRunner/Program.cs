@@ -132,6 +132,9 @@ class Program
                 return 1;
             }
             // ⭐ CE-3299 B5 — R1: this process is the parent of two children per scenario (a child carries its half in the environment)
+            // ⭐ CE-4045 H5 — the review check: this process is the parent of two LIVE children per scenario
+            if (config.VerifyReviewAt > 0 && Hrot.Editor.Director.CommandLineVerify.ReviewCheckFromEnvironment() == null)
+                return Hrot.ClusterRunner.VerifyCommand.RunReviewChecks(args, verify, config.VerifyReviewAt, config.VerifyReport, config.VerifyOut, config.VerifyTimeout);
             if (config.VerifyRestoreAt > 0 && Hrot.Editor.Director.CommandLineVerify.RestoreCheckFromEnvironment() == null)
                 return Hrot.ClusterRunner.VerifyCommand.RunRestoreChecks(args, verify, config.VerifyRestoreAt, config.VerifyReport, config.VerifyOut, config.VerifyRestoreEvery, config.VerifyTimeout);
             if (verify.Count > 1 || !string.IsNullOrWhiteSpace(config.VerifyOut))
