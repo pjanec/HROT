@@ -2065,7 +2065,7 @@ namespace Hrot.Editor.DebugApi
             Summary: "The Event Timeline's lanes on this host (RB-6): each lane with its event count in the shown recording's index, and the index's progress (it builds in the background on first open).",
             Returns: "{ recording, progress, complete, error, frames, lanes:[{id, name, group, priority, glyph, indexed, count, error}] }",
             Hint:    "No params. Example: get_timeline_lanes({})",
-            Notes: new[] { "Only a host that keeps a timeline index answers (the Replay Browser today); others: NOT_SUPPORTED_HERE(timeline.read)." },
+            Notes: new[] { "Only a host that keeps a timeline index answers (the Replay Browser, the editor and every ECS cluster node — live); others: NOT_SUPPORTED_HERE(timeline.read)." },
             ExampleArgsJson: "{}",
             ExampleGist: "what the timeline shows, and how far its index is"),
 

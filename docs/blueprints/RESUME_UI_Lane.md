@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-26
-current-answer: ⭐⭐⭐ 2026-10-26 — START AT "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
+current-answer: ⭐⭐⭐ 2026-10-26 (b) — START AT "SESSION 2026-10-26 (b) — THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
   what was built 10-25/26, what is open, the traps measured). Then the 10-25 Brain-tab section and the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
@@ -168,6 +168,19 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-10-26 (b) — THE REVIEW TIMELINE, ui HALF *(state at `ui@109f29525`; merged `coordinator@9029aaa4d` + `backend@c79d3de12`)*
+
+| built | where |
+|---|---|
+| `CE-3330` part 1 — zoom / pan / follow / ruler / snapping / keys / right-click menu (DAR §10, R-4087 addendum 2–5) | [Director Timeline §2d](../DESIGN_Director_Timeline_Editor.md) |
+| `CE-3330` part 2 — `LiveTimelineSource` on the builder's own per-frame step (`TimelineFrameScanner`), the editor shows the panel live + `GET /timeline/*` | same §2d; note to coordinator + backend: [NOTE_Ui_To_Coordinator_Review_Timeline_Built](batches/NOTE_Ui_To_Coordinator_Review_Timeline_Built.md) |
+| `CE-3330` part 3 — T13 the Sim axis on backend's P0/P1 `ReplayTimeMap` (`TimelineAxis`, `AxisCursor`, `TimelineView.Remap`, ◯ / ● pause ticks, the Replay Browser's S / W toggle) | same §2d |
+
+**Next, in order:** ① when the rest of backend's data D lands (`ReplaySessionTopic`, `ITimeTransportFacade.Mode / Axis / EnterReview / Seek`): the session layer, the live menu's review items, the toolbar mode indicator + S / W icon — the panel's menu and
+`ITimelineCursor` are the seams (§2d's "waits on D" row). ② live sources on CGF / SimHost / IG (the module diagram's dead edge) — measure the
+per-frame cost first. ③ director tracks on the panel (addendum 1 / 9, R2). ⚠ Run frame rails with a separately started `Xvfb :99` +
+`DISPLAY=:99` (`xvfb-run -a` failed to open the Raylib window this session).
 
 ## ⭐⭐⭐ SESSION 2026-10-26 — RESUME HERE *(state at `ui@8d85ea7ba`, everything pushed, tree clean)*
 

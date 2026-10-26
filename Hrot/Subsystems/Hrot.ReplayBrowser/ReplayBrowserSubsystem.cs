@@ -89,10 +89,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private int _timelineLanesVersion = -1;
     // ⭐ R-4078 / R-4079 (DESIGN_Director_Timeline_Editor.md §9c) — the lanes are REGISTERED by the toolkits that own their data; this host
     //   only composes them (as the editor's §15.2 registers its trace providers) and hands the catalogue to the index and the panel.
-    private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog()
-        .Register(new Fdp.Toolkit.Replication.ReplicationTimelineLanes())
-        .Register(new Fdp.Toolkit.Combat.CombatTimelineLanes())
-        .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
+    private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = Fdp.Toolkit.ReplayBrowser.Timeline.ShippedTimelineLanes.Catalog();
     private static readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext = new(Recording: true);
     private Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler? _timelineCompiler;
     internal Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog TimelineLanes => _timelineLanes;
@@ -230,6 +227,11 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             // ⭐ RB-1 — the panel's load and POST /replay are ONE path (OpenGroup).
             _timelinePanel.OnLoadGroup = OpenGroup;
             _timelinePanel.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
+            // ⭐ CE-3330 T13 (DAR row 34, R-3058) — the viewer's axis toggle on its own transport row; the event timeline follows it
+            _timelinePanel.AxisIsSim = () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+            _timelinePanel.ToggleAxis = () => Axis = Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim
+                ? Fdp.Toolkit.Orchestration.ReplayAxis.Wall : Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+            _timelinePanel.HasSimAxis = () => CachedTimeMap.HasSimTime;
 
             _transientBuilder = new TransientMasterBuilder(_scenarioSerializer);
 
@@ -907,8 +909,12 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
             "rb_event_timeline", "Event Timeline", perspective, _eventTimeline, () => _timelineSource,
-            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0),
-            () => _timelineLanes.Lanes(TimelineContext), color));
+            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),   // ⭐ CE-3330 — Space, "Play from here"
+                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),   // ⭐ CE-3330 T13 — the viewer's axis
+            () => _timelineLanes.Lanes(TimelineContext), color,
+            onSelect: e => SelectTimelineEvent(e),        // ⭐ CE-3330 (R-4087 addendum 5) — the ONE selection, RB-7's path
+            rowMenu: _timelineLanes.MenuItems));          // ⭐ CE-3330 (addendum 4) — the row's provider's items
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
             "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));

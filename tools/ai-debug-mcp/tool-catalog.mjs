@@ -2205,7 +2205,7 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "{ recording, progress, complete, error, frames, lanes:[{id, name, group, priority, glyph, indexed, count, error}] }",
     "notes": [
-      "Only a host that keeps a timeline index answers (the Replay Browser today); others: NOT_SUPPORTED_HERE(timeline.read)."
+      "Only a host that keeps a timeline index answers (the Replay Browser, the editor and every ECS cluster node — live); others: NOT_SUPPORTED_HERE(timeline.read)."
     ],
     "example": {
       "args": {},

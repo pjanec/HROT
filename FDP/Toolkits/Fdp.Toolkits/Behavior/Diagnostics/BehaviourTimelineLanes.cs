@@ -51,6 +51,6 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
 
         public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Changes, Orders, Reports, Decisions };
         public IReadOnlyList<IndexedLaneDefinition> Indexed => Definitions;
-        public bool Applies(TimelineLaneContext context) => context.Recording;
+        public bool Applies(TimelineLaneContext context) => context.Indexing;   // ⭐ CE-3330 — a recording's index or the live one
     }
 }

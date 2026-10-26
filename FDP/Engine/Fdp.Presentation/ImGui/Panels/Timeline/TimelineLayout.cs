@@ -132,15 +132,14 @@ public static class TimelineLayout
         int f0, int f1, Func<string, int> priorityOf, List<TimelineMark> marks)
     {
         // A k-way merge of the lanes' frame-sorted spans, so a collapsed group clusters across its lanes in time order.
-        var spans = new TimelineEvent[lanes.Count][];
+        var spans = new ReadOnlyMemory<TimelineEvent>[lanes.Count];
         var offs = new int[lanes.Count];
         var ends = new int[lanes.Count];
         for (int i = 0; i < lanes.Count; i++)
         {
-            var all = index.Lane(lanes[i]);
-            spans[i] = all as TimelineEvent[] ?? new List<TimelineEvent>(all).ToArray();
-            offs[i] = LowerBound(spans[i], f0);
-            ends[i] = LowerBound(spans[i], f1);
+            spans[i] = index.LaneMemory(lanes[i]);   // ⭐ CE-1361 ② — a view of the lane, never a copy
+            offs[i] = LowerBound(spans[i].Span, f0);
+            ends[i] = LowerBound(spans[i].Span, f1);
         }
         bool open = false;
         TimelineMark cur = default;
@@ -149,9 +148,9 @@ public static class TimelineLayout
         {
             int pick = -1;
             for (int i = 0; i < lanes.Count; i++)
-                if (offs[i] < ends[i] && (pick < 0 || spans[i][offs[i]].Frame < spans[pick][offs[pick]].Frame)) pick = i;
+                if (offs[i] < ends[i] && (pick < 0 || spans[i].Span[offs[i]].Frame < spans[pick].Span[offs[pick]].Frame)) pick = i;
             if (pick < 0) break;
-            var e = spans[pick][offs[pick]++];
+            var e = spans[pick].Span[offs[pick]++];
             float x = window.XOf(index.FrameTicks[e.Frame], width);
             int p = priorityOf(e.Lane);
             if (open && x - cur.X0 < glyphPx)
@@ -206,7 +205,65 @@ public static class TimelineLayout
         return sb.ToString();
     }
 
-    private static int LowerBound(TimelineEvent[] a, int frame)
+    /// <summary>⭐ <c>CE-3330</c> (DAR §10b "snapping") — the event of <paramref name="lanes"/> nearest to <paramref name="x"/> within
+    /// <paramref name="maxPx"/> pixels, else null. Two binary searches a lane.</summary>
+    public static TimelineEvent? NearestEvent(TimelineIndex index, IReadOnlyList<string> lanes, TimelineWindow window, float width, float x,
+        float maxPx = 6f)
+    {
+        var t = index.FrameTicks;
+        if (t.Count == 0 || width <= 0) return null;
+        long ticks = window.TicksAt(x, width);
+        long slack = (long)(maxPx / width * window.Span);
+        int f0 = index.FrameAt(ticks - slack), f1 = index.FrameAt(ticks + slack) + 1;
+        TimelineEvent? best = null;
+        float bestDx = maxPx;
+        foreach (var lane in lanes)
+            foreach (var e in index.Events(lane, f0, f1))
+            {
+                float dx = Math.Abs(window.XOf(t[e.Frame], width) - x);
+                if (dx <= bestDx) { bestDx = dx; best = e; }
+            }
+        return best;
+    }
+
+    /// <summary>⭐ <c>CE-3330</c> — <paramref name="ticks"/> snapped to the nearest recorded frame's ticks (a seek lands on a frame).</summary>
+    public static long SnapToFrame(TimelineIndex index, long ticks)
+    {
+        var t = index.FrameTicks;
+        if (t.Count == 0) return ticks;
+        int f = index.FrameAt(ticks);
+        if (f + 1 < t.Count && Math.Abs(t[f + 1] - ticks) < Math.Abs(t[f] - ticks)) f++;
+        return t[f];
+    }
+
+    /// <summary>⭐ <c>CE-3330</c> — the next (<paramref name="forward"/>) or previous event of <paramref name="lanes"/> strictly after / before
+    /// <paramref name="frame"/>, else null (the menu's "next / previous event in this lane", Shift+←/→).</summary>
+    public static TimelineEvent? Adjacent(TimelineIndex index, IReadOnlyList<string> lanes, int frame, bool forward)
+    {
+        TimelineEvent? best = null;
+        foreach (var lane in lanes)
+        {
+            var all = index.Lane(lane);
+            int i = index.Before(lane, forward ? frame + 1 : frame);   // first event at or after frame+1 / at or after frame
+            if (forward) { if (i < all.Count && (best == null || all[i].Frame < best.Value.Frame)) best = all[i]; }
+            else if (i > 0 && (best == null || all[i - 1].Frame > best.Value.Frame)) best = all[i - 1];
+        }
+        return best;
+    }
+
+    /// <summary>⭐ <c>CE-3330</c> T7 — the recording's typical frame spacing (ticks): the median gap of up to 64 frames, 0 with fewer than two.</summary>
+    public static long FrameSpacing(TimelineIndex index)
+    {
+        var t = index.FrameTicks;
+        if (t.Count < 2) return 0;
+        int n = Math.Min(64, t.Count - 1);
+        var gaps = new long[n];
+        for (int i = 0; i < n; i++) gaps[i] = t[i + 1] - t[i];
+        Array.Sort(gaps);
+        return Math.Max(1, gaps[n / 2]);
+    }
+
+    private static int LowerBound(ReadOnlySpan<TimelineEvent> a, int frame)
     {
         int lo = 0, hi = a.Length;
         while (lo < hi)

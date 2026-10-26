@@ -25,7 +25,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     /// ⭐ Where a timeline is being shown, for <see cref="ITimelineLaneProvider.Applies"/>: the asset being edited (a trace lane's key —
     /// it replaced the provider's <c>AssetKind Kind</c>), and whether a recording is open (an indexed lane's).
     /// </summary>
-    public readonly record struct TimelineLaneContext(string? AssetKind = null, bool Recording = false);
+    /// <param name="Live">⭐ <c>CE-3330</c> — DAR row 30: the timeline is fed by the LIVE world (<see cref="LiveTimelineSource"/>), beside a
+    /// recording. An indexed lane applies to either (the same per-frame step evaluates it).</param>
+    public readonly record struct TimelineLaneContext(string? AssetKind = null, bool Recording = false, bool Live = false)
+    {
+        /// <summary>A world's lanes are being indexed — from a recording or live.</summary>
+        public bool Indexing => Recording || Live;
+    }
 
     /// <summary>
     /// ⭐ An INDEXED lane (R-4079): a descriptor, the condition that makes an event (any <see cref="SearchPredicateDto"/> — the one condition
@@ -51,5 +57,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
 
         /// <summary>Marks the provider draws itself for frames [<paramref name="fromFrame"/>, <paramref name="toFrame"/>) of a lane it owns.</summary>
         void Marks(string laneId, int fromFrame, int toFrame, List<TimelineEvent> into) { }
+
+        /// <summary>⭐ <c>CE-3330</c> (R-4087 addendum 4; DESIGN_Director_Timeline_Editor.md §2c rule 5) — what the row under the mouse adds to
+        /// the timeline's right-click menu (<i>Set breakpoint here</i>, <i>Add key here</i>…), after the mode's own seek items. ⛔ The panel never
+        /// switches on a lane's kind: a lane's menu is its provider's.</summary>
+        IEnumerable<TimelineMenuItem> MenuItems(TimelineMenuContext context) => Array.Empty<TimelineMenuItem>();
     }
+
+    /// <summary>⭐ <c>CE-3330</c> — one item of the timeline's right-click menu; <see cref="Run"/> is called when it is chosen.</summary>
+    public sealed record TimelineMenuItem(string Label, Action Run, bool Enabled = true);
+
+    /// <summary>⭐ <c>CE-3330</c> — where the right click was: the lane (null over the ruler / empty space), the time and frame under the mouse
+    /// (snapped to a frame), and the event there, if any.</summary>
+    public sealed record TimelineMenuContext(string? LaneId, long Ticks, int Frame, TimelineEvent? Event);
 }

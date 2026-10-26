@@ -82,6 +82,15 @@ public sealed class ReplayTimelinePanel
     /// <summary>Returns true when the active view is Merged View.</summary>
     public Func<bool>? IsMergedViewQuery { get; set; }
 
+    /// <summary>⭐ <c>CE-3330</c> T13 — whether the viewer's axis is Sim (the host's; null = no axis toggle shown).</summary>
+    public Func<bool>? AxisIsSim { get; set; }
+
+    /// <summary>⭐ <c>CE-3330</c> T13 — flips the viewer's axis S ⇄ W.</summary>
+    public Action? ToggleAxis { get; set; }
+
+    /// <summary>⭐ <c>CE-3330</c> T13 — whether the loaded group has a sim axis at all (a v6 recording has not: the toggle is disabled).</summary>
+    public Func<bool>? HasSimAxis { get; set; }
+
     public ReplayTimelinePanel(
         FederatedReplayManager? manager,
         Func<int> getSelectedNodeId,
@@ -219,6 +228,22 @@ public sealed class ReplayTimelinePanel
         if (Gui.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
             Gui.SetTooltip("Set playback speed");
         Gui.SetCursorPosY(Gui.GetCursorPosY() - comboOffsetY);
+
+        // ⭐ CE-3330 T13 (DAR §9c, row 34; R-3058) — the viewer's time axis, one small toggle: S = sim (pauses collapsed), W = wall
+        if (AxisIsSim != null && ToggleAxis != null)
+        {
+            Gui.SameLine();
+            Gui.SetCursorPosY(Gui.GetCursorPosY() + comboOffsetY);
+            bool sim = AxisIsSim();
+            bool can = HasSimAxis?.Invoke() ?? true;
+            if (!can) Gui.BeginDisabled();
+            if (Gui.SmallButton(sim && can ? "S##rb_axis" : "W##rb_axis")) ToggleAxis();
+            if (!can) Gui.EndDisabled();
+            if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
+                Gui.SetTooltip(!can ? "Wall time - this recording has no sim time (format v6)"
+                             : sim ? "Sim time - pauses skipped (click: wall time)" : "Wall time - pauses shown (click: sim time)");
+            Gui.SetCursorPosY(Gui.GetCursorPosY() - comboOffsetY);
+        }
 
         Gui.SameLine();
         TransportIconRenderer.DrawButton("##rb_step_back", iconSize, TransportShape.StepBack, hasRecording, out bool stepBackHeld, out bool stepBackActivated);
