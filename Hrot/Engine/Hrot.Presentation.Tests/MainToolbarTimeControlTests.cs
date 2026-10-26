@@ -166,6 +166,19 @@ public class MainToolbarTimeControlTests
         Assert.Equal(new System.Numerics.Vector4(r, g, b, 1f), ind.Color);
     }
 
+    [Theory]
+    [InlineData(TransportMode.Edit,    "")]   // Pen
+    [InlineData(TransportMode.Preview, "")]   // CircleHalfStroke
+    [InlineData(TransportMode.Live,    "")]   // Circle
+    [InlineData(TransportMode.Review,  "")]   // ClockRotateLeft
+    [InlineData(TransportMode.Replay,  "")]   // Play
+    public void ModeIcon_IsTheFontAwesomeGlyphPerMode(TransportMode mode, string expected)
+        => Assert.Equal(expected, MainToolbarTimeControlSection.ModeIcon(mode));
+
+    [Fact]
+    public void ModeIcon_IdleHasNone()
+        => Assert.Null(MainToolbarTimeControlSection.ModeIcon(TransportMode.Idle));
+
     [Fact]
     public void ModeGlyph_IdleHasNone()
         => Assert.Null(MainToolbarTimeControlSection.ModeGlyph(TransportMode.Idle));

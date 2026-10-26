@@ -93,17 +93,29 @@ public sealed class MainToolbarTimeControlSection
 
     // ── ⭐ CE-3330 E3 — the mode indicator, its menu, ■ → ⏏, the axis icon (DAR §9a) ──────────────────────────────────
 
-    /// <summary>The mode indicator of <see cref="ModeGlyph"/>: the spec glyph, a one-letter ASCII fallback for fonts without it, the colour.</summary>
-    public sealed record ModeIndicator(string Glyph, string Letter, Vector4 Color, string Name);
+    /// <summary>The mode indicator of <see cref="ModeGlyph"/>: the spec glyph, the colour.</summary>
+    public sealed record ModeIndicator(string Glyph, Vector4 Color, string Name);
 
     /// <summary>DAR §9a — the indicator per mode: Edit grey ✎, Preview violet ◐, Live green ●, Review amber ⟲, Replay blue ▶; Idle none (<see langword="null"/>).</summary>
     public static ModeIndicator? ModeGlyph(TransportMode mode) => mode switch
     {
-        TransportMode.Edit    => new("✎", "E", new Vector4(0.60f, 0.60f, 0.60f, 1f), "Edit"),
-        TransportMode.Preview => new("◐", "D", new Vector4(0.66f, 0.45f, 0.92f, 1f), "Preview"),
-        TransportMode.Live    => new("●", "L", new Vector4(0.25f, 0.80f, 0.30f, 1f), "Live"),
-        TransportMode.Review  => new("⟲", "R", new Vector4(1.00f, 0.70f, 0.20f, 1f), "Review"),
-        TransportMode.Replay  => new("▶", "P", new Vector4(0.30f, 0.60f, 1.00f, 1f), "Replay"),
+        TransportMode.Edit    => new("✎", new Vector4(0.60f, 0.60f, 0.60f, 1f), "Edit"),
+        TransportMode.Preview => new("◐", new Vector4(0.66f, 0.45f, 0.92f, 1f), "Preview"),
+        TransportMode.Live    => new("●", new Vector4(0.25f, 0.80f, 0.30f, 1f), "Live"),
+        TransportMode.Review  => new("⟲", new Vector4(1.00f, 0.70f, 0.20f, 1f), "Review"),
+        TransportMode.Replay  => new("▶", new Vector4(0.30f, 0.60f, 1.00f, 1f), "Replay"),
+        _ => null,
+    };
+
+    /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview CircleHalfStroke, Live Circle,
+    /// Review ClockRotateLeft, Replay Play; Idle none (<see langword="null"/>).</summary>
+    public static string? ModeIcon(TransportMode mode) => mode switch
+    {
+        TransportMode.Edit    => Fdp.Presentation.Fonts.IconsFontAwesome6.Pen,
+        TransportMode.Preview => Fdp.Presentation.Fonts.IconsFontAwesome6.CircleHalfStroke,
+        TransportMode.Live    => Fdp.Presentation.Fonts.IconsFontAwesome6.Circle,
+        TransportMode.Review  => Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft,
+        TransportMode.Replay  => Fdp.Presentation.Fonts.IconsFontAwesome6.Play,
         _ => null,
     };
 
@@ -341,10 +353,9 @@ public sealed class MainToolbarTimeControlSection
         bool clicked = ImGui.InvisibleButton("##mt_mode", new Vector2(size, size));
         bool hovered = ImGui.IsItemHovered();
         var dl = ImGui.GetWindowDrawList();
-        var c = ind.Color with { W = hovered ? 1f : 0.85f };
-        dl.AddCircleFilled(pos + new Vector2(size * 0.5f), size * 0.42f, ImGui.GetColorU32(c));
-        var ts = ImGui.CalcTextSize(ind.Letter);
-        dl.AddText(pos + (new Vector2(size, size) - ts) * 0.5f, ImGui.GetColorU32(new Vector4(0f, 0f, 0f, 0.9f)), ind.Letter);
+        var icon = ModeIcon(mode)!;   // FontAwesome 6 Solid, drawn in the mode's colour
+        var ts = ImGui.CalcTextSize(icon);
+        dl.AddText(pos + (new Vector2(size, size) - ts) * 0.5f, ImGui.GetColorU32(ind.Color with { W = hovered ? 1f : 0.85f }), icon);
         if (hovered)
         {
             var behind = SecondsBehindLive();
