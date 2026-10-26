@@ -1,5 +1,7 @@
 <!--STATUS
-state: LIVE — backend → ui: the timeline panel's zoom / pan defects (CE-3330) and the interaction spec the review needs
+state: SUPERSEDED — by NOTE_Backend_To_Ui_Review_Timeline.md (the complete list: CE-3330 + the review's timeline / toolbar work)
+superseded-by: NOTE_Backend_To_Ui_Review_Timeline.md
+was: backend → ui: the timeline panel's zoom / pan defects (CE-3330) and the interaction spec the review needs
 updated: 2026-10-26
 current-answer: the whole note
 stale-below: nothing
