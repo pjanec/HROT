@@ -716,6 +716,11 @@ result shape (`LookBackResult`: verdict, snapshots, diff, not-carried, problems)
 Rail: `DirectorRunnerTests.CE4045_H1b_*` (one entry, one seek per later snapshot by sim time, Idle at the end; a replay that loses the
 health ⇒ different from t = 2 s naming Runner / Health) — red-proved (the replay's seeks skipped ⇒ the loop times out).
 
+📐 **Live, `ua-civ-melee`, `--verify-replay`** (`coordinator@b97d9bcec`): H1a ✅ same (41 snapshots); H1b — ✅ **the product's replay
+shows the live run at 1 … 40 s, every recorded component equal** (`PendingNetworkAck` listed apart, not recorded); ⛔ the ENTRY at 0 s
+never stands there (clock 26.6 s) — ⇒ **CE-4056 is the entry path for a replay as well as a review** (a `TransitionState` with a sim
+target), while every `SeekReplay` lands.
+
 ### 10a. Claim table — what the leans rest on
 
 | claim | code — how it IS | design — how it was MEANT |
