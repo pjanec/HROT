@@ -156,7 +156,7 @@ namespace Hrot.IG.Tests
             var entity    = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: primaryOwner, localNodeId: local));
             var record = new DescriptorOwnership();
-            record.Map[Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtEntityDamage, 0)] = damageOwner;
+            record = record.WithOwner(Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtEntityDamage, 0), damageOwner);
             repo.SetManagedComponent(entity, record);
             entityMap.Register(KnownId, entity);
             return (repo, entityMap, entity);

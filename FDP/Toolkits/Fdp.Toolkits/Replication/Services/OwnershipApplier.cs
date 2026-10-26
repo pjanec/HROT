@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
@@ -47,10 +48,10 @@ namespace Fdp.Toolkit.Replication.Services
             if (repo.HasManagedComponent<DescriptorOwnership>(entity))
                 ownership = repo.GetComponent<DescriptorOwnership>(entity);
             else
-            {
                 ownership = new DescriptorOwnership();
-                repo.SetManagedComponent(entity, ownership);
-            }
+
+            // CE-4046: DescriptorOwnership is an immutable record — edit a copy of the map, Set the new value once (below).
+            var map = new Dictionary<long, int>(ownership.Map);
 
             var (typeId, instanceId) = OwnershipExtensions.UnpackKey(packedKey);
             bool isMaster = instanceId == 0 &&
@@ -66,14 +67,15 @@ namespace Fdp.Toolkit.Replication.Services
                     {
                         if (ordinal == typeId) continue;
                         long key = OwnershipExtensions.PackKey(ordinal, 0);
-                        if (!ownership.Map.ContainsKey(key))
-                            ownership.Map[key] = oldPrimary;
+                        if (!map.ContainsKey(key))
+                            map[key] = oldPrimary;
                     }
                 }
             }
 
             // ── 1. The record ──────────────────────────────────────────────────────────────────────────
-            ownership.Map[packedKey] = newOwnerNodeId;
+            map[packedKey] = newOwnerNodeId;
+            repo.SetManagedComponent(entity, ownership with { Map = map });
 
             // ── 2. The claim, on the exact component ids the descriptor maps to (translator targets + group links).
             //    No map ⇒ the claim is not touched (safe default).

@@ -293,12 +293,11 @@ namespace Fdp.Toolkit.Replication.Systems
                     if (repo.HasManagedComponent<DescriptorOwnership>(entity))
                         ownership = repo.GetComponent<DescriptorOwnership>(entity);
                     else
-                    {
                         ownership = new DescriptorOwnership();
-                        repo.SetManagedComponent(entity, ownership);
-                    }
                 }
-                ownership.Map[key] = _localNodeId;
+                // CE-4046: immutable record — a NEW value with the record following the claim, Set at once (later keys read it back).
+                ownership = ownership.WithOwner(key, _localNodeId);
+                repo.SetManagedComponent(entity, ownership);
             }
 
             if (pending != null && pending.Descriptors.Count == 0)

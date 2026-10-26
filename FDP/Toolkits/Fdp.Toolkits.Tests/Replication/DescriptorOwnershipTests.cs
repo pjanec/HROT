@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Replication.Tests
             long packedKey = 100;
             int ownerId = 5;
 
-            ownership.SetOwner(packedKey, ownerId);
+            ownership = ownership.WithOwner(packedKey, ownerId);
 
             bool found = ownership.TryGetOwner(packedKey, out int retrievedOwner);
             Assert.True(found);
@@ -33,8 +33,8 @@ namespace Fdp.Toolkit.Replication.Tests
             var ownership = new DescriptorOwnership();
             long packedKey = 100;
             
-            ownership.SetOwner(packedKey, 1);
-            ownership.SetOwner(packedKey, 2);
+            ownership = ownership.WithOwner(packedKey, 1);
+            ownership = ownership.WithOwner(packedKey, 2);
 
             ownership.TryGetOwner(packedKey, out int owner);
             Assert.Equal(2, owner);

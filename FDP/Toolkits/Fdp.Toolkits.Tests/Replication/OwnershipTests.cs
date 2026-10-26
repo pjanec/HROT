@@ -232,7 +232,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             // Initial Set
             var own = new DescriptorOwnership();
-            own.SetOwner(100, 5); // Key 100, Owner 5
+            own = own.WithOwner(100, 5); // Key 100, Owner 5
             repo.SetManagedComponent(entity, own);
 
             // First Execute - detects everything as "new" relative to empty cache
@@ -251,7 +251,8 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Equal(0, ((ISimulationView)repo).ReadEvents<OwnershipUpdate>().Length);
 
             // Update ownership and verify change is published
-            own.SetOwner(100, 6);
+            own = own.WithOwner(100, 6);
+            repo.SetManagedComponent(entity, own);
             sys.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
 
