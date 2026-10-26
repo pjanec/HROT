@@ -8,7 +8,6 @@ using Fhsm.Kernel.Data;
 using Hrot.Diagnostics.Breakpoints;
 using StructEdit.Reflection;
 using Xunit;
-using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.Diagnostics.Breakpoints.Tests;
 

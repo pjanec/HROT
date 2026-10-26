@@ -37,7 +37,7 @@ internal sealed class FakeHsmSession : IHsmDebugSession
     public void StepInto()             { }
     public void StepOut()              { }
     public void Pause()                { }
-    public void BeginObservingAsset(Guid assetId, Hrot.Editor.AiShared.Debug.TraceLevel level) { }
+    public void BeginObservingAsset(Guid assetId, Fdp.Toolkit.ReplayBrowser.Timeline.TraceLevel level) { }
     public void EndObservingAsset(Guid assetId) { }
 
     public BreakpointId SetBreakpoint(Guid assetId, Guid elementId) => default;

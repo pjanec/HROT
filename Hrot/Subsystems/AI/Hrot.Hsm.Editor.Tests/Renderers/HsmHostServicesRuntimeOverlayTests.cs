@@ -213,7 +213,7 @@ public sealed class HsmHostServicesRuntimeOverlayTests : IDisposable
         public void Pause() { }
 
         // IAiTraceObserver
-        public void BeginObservingAsset(Guid assetId, Hrot.Editor.AiShared.Debug.TraceLevel level) { }
+        public void BeginObservingAsset(Guid assetId, Fdp.Toolkit.ReplayBrowser.Timeline.TraceLevel level) { }
         public void EndObservingAsset(Guid assetId) { }
         public System.Collections.Generic.IReadOnlyList<Fdp.Core.Entity>
             GetActiveEntities(Guid assetId) => Array.Empty<Fdp.Core.Entity>();

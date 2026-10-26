@@ -12,9 +12,11 @@ public class BTreeTraceLaneProviderTests
     private readonly BTreeTraceLaneProvider _sut = new();
 
     [Fact]
-    public void Kind_IsBTree()
+    public void Applies_ToBTreeAssetsOnly()
     {
-        _sut.Kind.Should().Be(AssetKind.BTree);
+        _sut.Applies(new TimelineLaneContext(AssetKind: nameof(AssetKind.BTree))).Should().BeTrue();
+        _sut.Applies(new TimelineLaneContext(AssetKind: nameof(AssetKind.Hsm))).Should().BeFalse();
+        _sut.Applies(new TimelineLaneContext(Recording: true)).Should().BeFalse();
     }
 
     [Fact]

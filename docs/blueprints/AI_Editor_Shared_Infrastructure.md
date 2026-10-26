@@ -1909,6 +1909,12 @@ Registered as `ai_trace_timeline`. Docked at the bottom by default. Visualizes t
 
 ### 15.2 Swim-lane category registration
 
+> ⛔ **SUPERSEDED `2026-10-26` — `R-4078` (one lane seam, no adapter).** The seam moved to the shared toolkit and was generalised:
+> `Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineLaneProvider` (`Lanes`, `Applies(TimelineLaneContext)`, optional `Indexed`/`Marks`)
+> with `TimelineLaneDescriptor(Id, DisplayName, SupportedLevels, Group, Priority, Color, Glyph)`; `TraceLevel` moved with it.
+> The editor providers answer `Applies(ctx) => ctx.AssetKind == nameof(AssetKind.X)`. ⭐ Current answer:
+> [`DESIGN_Director_Timeline_Editor.md`](../DESIGN_Director_Timeline_Editor.md) §9d. The block below is the original shape.
+
 The window does not know what swim lanes mean per subsystem. Subsystems register their categories:
 
 ```csharp
