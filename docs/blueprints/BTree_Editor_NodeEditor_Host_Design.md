@@ -172,7 +172,7 @@ public sealed class BTreeEditorNode
     public NodeType KernelType;        // Root, Sequence, Selector, Action, Subtree, etc.
     public int KernelBlobIndex;        // index into Blob.Nodes (re-derived per reload)
     public Vector2 Position;           // canvas coords
-    public string DisplayLabel;        // human-readable; from DebugMetadata.Label
+    public string DisplayLabel;        // human-readable; from DebugMetadata.Label (⭐ CE-1360: a generated key ⇒ BTreeNodeTitles)
     public string? Comment;            // from DebugMetadata.CustomComment
     public List<Guid> ChildVisualIds;  // ordered (BTree composites are order-sensitive)
 
@@ -286,6 +286,23 @@ A "Reset layout" toolbar action re-runs tidy-tree across the whole tree, ignorin
 > children that are all leaves STAGGERS them over 2 layers (up to 8) or 3, 70 px apart, each leaf clearing the one before it on its own layer.
 > ⭐ A C#-built tree's node ids are DETERMINISTIC (`BTreeBuilder.AssignIds`: tree name, label, file, line, depth-first index), so the editor's
 > rebuilt copy and the running blob agree — what the Decision view and breakpoints key on. Rails `CodeBuiltTreeLayoutTests.CE1344_*`, `CE1345_*`.
+>
+> ⭐ **AS-BUILT `2026-10-26` (ui, [CE-1360](Blueprint_Issues_Tracker.md)) — the node TITLE and two layout fixes.** 🔒 User: *"What the user needs
+> to see is basically the name of the C# method, but without too many extra stuff around."* 📐 Measured: every C#-built leaf was titled with its
+> registry KEY (`Hrot.AI.Behaviors.Brains.PostureNodes.AdvanceAndAttack@24@936`, up to 85 characters ≈ 690 px), the `@` numbers being byte
+> offsets into the behaviour block.
+>
+> | what | rule |
+> |---|---|
+> | ⭐ the title (`BTreeNodeTitles.For`, applied by `BehaviorTreeAssetProjector` to a GENERATED label only — the key or its bare method name; an authored label is kept) | the method in words, sentence case: namespace, type, `@offsets`, `Action_` / `Condition_` gone; a generic method (`Run`, `Execute`, `Tick`…) takes its type's name less `Behavior` / `Nodes` (`SquadMarchBehavior.Run` ⇒ *Squad march*); a condition (or a `Condition_` method) ends with `?` |
+> | ⭐ the instance | the PARAMETER FIELD the shared node was bound at (`SharedNodeBinder.ParamFieldOf`, recorded at registration from the selector) is appended when it says something the method does not: `IsOption` at `IsAdvance` ⇒ *Is option: Advance?*, `OperateDoor` at `Breach` ⇒ *Operate door: Breach*. ⛔ A field named for its type (`Order`, `Mission`, `…Config`, `…Params`) or repeating the method (`Fallback` on `FallBack`) is not |
+> | ⛔ unchanged | the binding (`MethodFqn`, shown by the inspector) and the node ids (`BTreeBuilder.AssignIds` mints them from the BUILDER's label, which stays the key) — display only |
+> | ⭐ real font | `BTreeAutoLayout.Layout(asset, measureTitle)`: the document factory lays an auto-laid-out tree out again with `ImGui.CalcTextSize` when it opens it (the catalog laid it out before any font existed) — `BehaviorTreeAsset.IsAutoLaidOut` / `LaidOutWithFont` |
+> | ⭐ staggered pairs | a row of more than three SMALL subtrees (a node whose children are all leaves — the `Sequence(IsOption, Action)` pair) staggers over layers too; a layer is as tall as the tallest subtree in the row (+20 px), so a second-layer subtree starts below everything the first draws |
+>
+> Rejected: renaming the label in `BTreeBuilder` (it feeds the node ids — breakpoints would move); a second-line subtitle (the canvas draws
+> none); a general graph layout (Sugiyama / dagre — the tree layout is exact; the overlap was the long titles and the estimate). Rails
+> `CodeBuiltTreeLayoutTests.CE1360_*` ×3.
 
 ---
 

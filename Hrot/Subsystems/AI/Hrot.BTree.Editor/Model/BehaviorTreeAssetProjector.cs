@@ -64,6 +64,7 @@ internal static class BehaviorTreeAssetProjector
         else
         {
             BTreeAutoLayout.Layout(asset);
+            asset.IsAutoLaidOut = true;   // ⭐ CE-1360 — redone with the real font when a document opens it
         }
 
         asset.LoadSyncBindings(layout?.SyncBindings);
@@ -183,6 +184,13 @@ internal static class BehaviorTreeAssetProjector
                 };
                 break;
         }
+
+        // ⭐ CE-1360 (§3.4) — a leaf whose label is its registry KEY (every C#-built tree's: "Ns.Type.Method@24@936") shows the method's
+        //   name in words instead; the key stays its binding (MethodFqn). An authored label is kept as it is.
+        string? leafKey = editorNode.Action?.MethodFqn ?? editorNode.Condition?.MethodFqn;
+        if (!string.IsNullOrEmpty(leafKey) && BTreeNodeTitles.IsGenerated(label, leafKey))
+            editorNode.DisplayLabel = BTreeNodeTitles.For(leafKey, condition: editorNode.Condition != null,
+                Fdp.Toolkit.Behavior.SharedNodeBinder.ParamFieldOf(leafKey));
 
         nodes.Add(editorNode);
         byId[visualId] = editorNode;

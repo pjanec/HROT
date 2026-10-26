@@ -29,7 +29,11 @@ public static class BTreeAutoLayout
     /// Writes computed positions directly to each BTreeEditorNode.Position.
     /// Only processes nodes that are reachable from the root.
     /// </summary>
-    public static void Layout(BehaviorTreeAsset asset)
+    public static void Layout(BehaviorTreeAsset asset) => Layout(asset, null);
+
+    /// <summary>⭐ <c>CE-1360</c> — the same, measuring each title with <paramref name="measureTitle"/> (the canvas font's text width) instead of
+    /// the per-character estimate: the document factory passes ImGui's, so a node is placed at the width it is drawn at.</summary>
+    public static void Layout(BehaviorTreeAsset asset, Func<string, float>? measureTitle)
     {
         var root = FindRoot(asset);
         if (root == null) return;
@@ -43,7 +47,7 @@ public static class BTreeAutoLayout
         //   spaced a node one node-width after its left sibling, ignoring how wide the sibling's SUBTREE was — measured on the C#-built
         //   PersonAttack: 48 nodes in 42 places (whole branches drawn on top of each other).
         var top = nodeMap[root.VisualId];
-        Width(top);
+        Width(top, measureTitle);
         Place(top, 0f, 0f);
     }
 
@@ -57,23 +61,33 @@ public static class BTreeAutoLayout
     private const float MinStagger     = 70f;    // neighbouring leaves on different layers: at least this far apart
 
     /// <summary>How wide the canvas draws <paramref name="node"/> (estimated from its title, as CanvasLayout measures it).</summary>
-    public static float WidthOf(BTreeEditorNode node)
+    public static float WidthOf(BTreeEditorNode node, Func<string, float>? measureTitle = null)
     {
         string title = string.IsNullOrEmpty(node.DisplayLabel) ? node.KernelType.ToString() : node.DisplayLabel;
-        return MathF.Max(NodeWidth, title.Length * CharWidth + TitlePadding);
+        float text = measureTitle != null ? measureTitle(title) : title.Length * CharWidth;
+        return MathF.Max(NodeWidth, text + TitlePadding);
     }
 
-    /// <summary>How many layers a parent's children are spread over: one, or 2–3 when they are all leaves and more than three.</summary>
+    /// <summary>How many layers a parent's children are spread over: one, or 2–3 when there are more than three and each is SMALL — a
+    /// leaf, or (⭐ CE-1360) a node whose own children are all leaves (the common <c>Sequence(IsOption, Action)</c> pair).</summary>
     private static int LayersOf(TreeNode node)
-        => node.Children.Count <= 3 || node.Children.Any(c => c.Children.Count > 0) ? 1 : node.Children.Count <= 8 ? 2 : 3;
+        => node.Children.Count <= 3 || node.Children.Any(c => c.Children.Any(g => g.Children.Count > 0)) ? 1
+         : node.Children.Count <= 8 ? 2 : 3;
 
-    private static float Width(TreeNode node)
+    // ⭐ CE-1360 — a staggered layer is as tall as the tallest subtree in the row (a leaf: LayerStep, as CE-1344), so a subtree on the
+    //   second layer starts below everything the first layer draws.
+    private const float LeafHeight = 50f;
+
+    private static float Width(TreeNode node, Func<string, float>? measureTitle)
     {
-        node.OwnWidth = WidthOf(node.Editor);
-        if (node.Children.Count == 0) return node.SpanWidth = node.OwnWidth;
-        foreach (var child in node.Children) Width(child);
+        node.OwnWidth = WidthOf(node.Editor, measureTitle);
+        if (node.Children.Count == 0) { node.Height = LeafHeight; return node.SpanWidth = node.OwnWidth; }
+        foreach (var child in node.Children) Width(child, measureTitle);
         int layers = LayersOf(node);
         node.Layers = layers;
+        node.LayerStep = layers == 1 ? 0f : MathF.Max(LayerStep, node.Children.Max(c => c.Height) + (LayerStep - LeafHeight));
+        float below = node.Children.Select((c, i) => c.Height + (i % layers) * node.LayerStep).Max();
+        node.Height = NodeHeaderHeight + VerticalSpacing + PillRowHeight * node.PillCount + below;
         float block;
         if (layers == 1)
             block = node.Children.Sum(c => c.SpanWidth) + HorizontalSpacing * (node.Children.Count - 1);
@@ -106,7 +120,7 @@ public static class BTreeAutoLayout
                 Place(child, x, childY);
                 x += child.SpanWidth + HorizontalSpacing;
             }
-            else Place(child, left + (node.SpanWidth - node.BlockWidth) / 2f + child.Offset, childY + (i % node.Layers) * LayerStep);
+            else Place(child, left + (node.SpanWidth - node.BlockWidth) / 2f + child.Offset, childY + (i % node.Layers) * node.LayerStep);
         }
         // centred over its children (or its own span when it has none); Position is the node's left edge, as before
         float centre = node.Children.Count == 0
@@ -134,6 +148,8 @@ public static class BTreeAutoLayout
         public float BlockWidth;  // its children's row (or staggered block)
         public float Offset;      // a staggered leaf's x inside its parent's block
         public int Layers = 1;    // how many layers its children are spread over
+        public float LayerStep;   // ⭐ CE-1360 — between two of its children's layers (the tallest child subtree, plus a gap)
+        public float Height;      // ⭐ CE-1360 — how tall its whole subtree draws
         // Number of pill rows stacked above this node (affects vertical offset of children).
         public int PillCount;
 
