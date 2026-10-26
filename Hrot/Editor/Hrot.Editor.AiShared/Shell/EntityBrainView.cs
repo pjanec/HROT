@@ -126,9 +126,9 @@ public sealed record BrainSnapshot(
         }
 
         string? squad = null;
-        if (view is EntityRepository sr && sr.TryGetTable(typeof(Fdp.Toolkit.Squad.SquadDrillTrace), out _)
-            && sr.HasManagedComponent<Fdp.Toolkit.Squad.SquadDrillTrace>(unit)
-            && view.GetManagedComponentRO<Fdp.Toolkit.Squad.SquadDrillTrace>(unit) is { Active: true } d)
+        // ⭐ CE-4047 — from the RECORDED headline (SquadDrillState), so the section shows in a replay at any scrubbed frame; the transient
+        //   trace it is written beside is not recorded
+        if (Has<Fdp.Toolkit.Squad.SquadDrillState>(view, unit) && view.GetComponentRO<Fdp.Toolkit.Squad.SquadDrillState>(unit) is { Active: 1 } d)
             squad = $"play {d.Kind}, phase {d.Phase} (GET /entities/{{id}}/squad for the members' orders)";
 
         var changes = new List<BrainChange>();

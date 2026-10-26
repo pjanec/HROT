@@ -121,6 +121,11 @@ namespace Fdp.Toolkit.Squad
         {
             if (!repo.TryGetTable(typeof(SquadDrillTrace), out _)) repo.RegisterManagedComponent<SquadDrillTrace>();
             repo.SetManagedComponent(commander, trace);
+            // ⭐ CE-4047 (ui, cross-lane) — the recorded headline follows every change, so the Brain tab's Squad section replays
+            if (!repo.IsComponentTypeRegistered<SquadDrillState>()) repo.RegisterComponent<SquadDrillState>();
+            var state = new SquadDrillState { Active = (byte)(trace.Active ? 1 : 0), Kind = trace.Kind, Phase = trace.Phase, PhaseSince = trace.PhaseSince };
+            if (repo.HasComponent<SquadDrillState>(commander)) repo.SetComponent(commander, state);
+            else repo.AddComponent(commander, state);
         }
 
         /// <summary>A drill started on the squad: a fresh trace (the old one's history is kept, so a drill that follows another shows both).</summary>

@@ -1162,5 +1162,8 @@ namespace Fdp.Core
         /// <summary><c>SelectionStore</c> — THE selection keyed by network id, a managed world singleton (CE-4049, the coordinator's replay-UI-state
         /// handoff ①); Transient — UI state, never recorded.</summary>
         public const int SelectionStore = 465;
+        /// <summary><c>SquadDrillState</c> — the recorded headline of a commander's squad drill (active, kind, phase, since), written beside the
+        /// transient SquadDrillTrace (CE-4047, the coordinator's replay-UI-state handoff ③); NoScenario — recorded, never saved.</summary>
+        public const int SquadDrillState = 466;
     }
 }
