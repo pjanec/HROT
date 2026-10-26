@@ -242,4 +242,69 @@ public sealed class TimelineInteractionTests
         Assert.Empty(catalog.MenuItems(new TimelineMenuContext("combat.shot", 42, 7, null)));
         Assert.Empty(catalog.MenuItems(new TimelineMenuContext(null, 42, 7, null)));
     }
+
+    /// <summary>A ten-frame recording, one per second, whose clock stood still for frames 3…6 (an operator pause, an edit at frame 5).</summary>
+    private static (TimelineIndex Index, Fdp.Core.FlightRecorder.ReplayTimeMap Map) Paused()
+    {
+        long[] wall = Enumerable.Range(0, 10).Select(i => i * S).ToArray();
+        double[] sim = { 0, 1, 2, 3, 3, 3, 3, 4, 5, 6 };
+        var flags = new Fdp.Core.FlightRecorder.FrameFlags[10];
+        for (int i = 4; i <= 6; i++) flags[i] = Fdp.Core.FlightRecorder.FrameFlags.Halted;
+        flags[5] |= Fdp.Core.FlightRecorder.FrameFlags.Changed;
+        var lanes = new Dictionary<string, TimelineEvent[]> { [Shot] = new[] { E(2, Shot), E(4, Shot), E(5, Shot), E(8, Shot) } };
+        return (new TimelineIndex(lanes, wall, 10, 10), Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(wall, sim, flags));
+    }
+
+    /// <summary>
+    /// ⭐ T13 (R10, §10b) — on the SIM axis a pause collapses to one instant: the frames inside it share its time (their events cluster
+    /// there), it is ONE pause tick, with edits (●); a seek to that instant lands at the pause's END (what changed is shown); on the WALL axis
+    /// the same pause is a span. 🔴 Red-proof: <c>ToAxis</c> the identity on Sim ⇒ the pause keeps its 3 s.
+    /// </summary>
+    [Fact]
+    public void CE3330_T13_OnTheSimAxis_APauseCollapses_ASeekLandsAtItsEnd()
+    {
+        var (index, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var projected = sim.Project(index);
+        Assert.Equal(new long[] { 0, 1, 2, 3, 3, 3, 3, 4, 5, 6 }.Select(x => x * S), projected.FrameTicks);
+        Assert.Same(projected, sim.Project(index));   // cached for the same snapshot
+        Assert.Equal(index.Lane(Shot).Count, projected.Lane(Shot).Count);
+
+        var pause = Assert.Single(sim.Pauses());
+        Assert.Equal((3 * S, 3 * S, true), (pause.From, pause.To, pause.Changed));
+        Assert.Equal(6 * S, sim.ToWall(3 * S));        // the paused instant → its LAST frame (what changed during it is shown)
+        Assert.Equal(7 * S, sim.ToWall(4 * S));
+
+        var wallPause = Assert.Single(TimelineAxis.Wall.Pauses(map));
+        Assert.Equal((3 * S, 7 * S), (wallPause.From, wallPause.To));
+
+        // the two shots inside the pause sit on one instant on Sim ⇒ one cluster of two (addendum 10)
+        var marks = TimelineLayout.Marks(projected, new[] { Shot }, new TimelineWindow(0, 6 * S), 600f);
+        Assert.Contains(marks, m => m.Count == 2 && m.FromFrame == 4 && m.X0 == 300f);   // the shots of frames 4 and 5 merge at 3 s
+
+        Assert.False(TimelineAxis.Sim(Fdp.Core.FlightRecorder.ReplayTimeMap.Empty).IsSim);   // v6: no sim axis ⇒ wall
+    }
+
+    /// <summary>⭐ T13 — the host's cursor seen on the Sim axis: extent and "now" converted, a seek converted back to wall ticks (the host's own
+    /// transport, TL-2); and an axis switch keeps the same FRAMES in view (§10b) — the window is mapped through wall time.</summary>
+    [Fact]
+    public void CE3330_T13_TheCursorOnTheSimAxis_AndASwitchKeepsTheFramesInView()
+    {
+        var (_, map) = Paused();
+        var sim = TimelineAxis.Sim(map);
+        var wallCursor = new Cursor { CanSeek = true, Now = 8 * S };
+        var c = new AxisCursor(wallCursor, sim);
+        Assert.Equal((0L, 6 * S, 5 * S), (c.ExtentFrom, ExtentToOf(c), c.Now));
+        c.Seek(3 * S);
+        Assert.Equal(6 * S, wallCursor.Seeks.Single());
+
+        var v = new TimelineView();
+        v.OnExtent(0, 9 * S);
+        v.Show(new TimelineWindow(7 * S, 9 * S));                     // wall 7…9 s = after the pause
+        v.Remap(t => sim.ToAxis(TimelineAxis.Wall.ToWall(t)));          // switch to Sim
+        v.OnExtent(0, 6 * S);
+        Assert.Equal(new TimelineWindow(4 * S, 6 * S), v.Window);      // the same frames: sim 4…6
+    }
+
+    private static long ExtentToOf(AxisCursor c) => c.ExtentTo;
 }

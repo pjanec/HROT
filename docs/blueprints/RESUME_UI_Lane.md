@@ -175,9 +175,9 @@ related-designs:
 |---|---|
 | `CE-3330` part 1 — zoom / pan / follow / ruler / snapping / keys / right-click menu (DAR §10, R-4087 addendum 2–5) | [Director Timeline §2d](../DESIGN_Director_Timeline_Editor.md) |
 | `CE-3330` part 2 — `LiveTimelineSource` on the builder's own per-frame step (`TimelineFrameScanner`), the editor shows the panel live + `GET /timeline/*` | same §2d; note to coordinator + backend: [NOTE_Ui_To_Coordinator_Review_Timeline_Built](batches/NOTE_Ui_To_Coordinator_Review_Timeline_Built.md) |
+| `CE-3330` part 3 — T13 the Sim axis on backend's P0/P1 `ReplayTimeMap` (`TimelineAxis`, `AxisCursor`, `TimelineView.Remap`, ◯ / ● pause ticks, the Replay Browser's S / W toggle) | same §2d |
 
-**Next, in order:** ① when backend's data D lands (its handoff P1 — `ReplaySessionTopic`, `ITimeTransportFacade.Mode / Axis / EnterReview / Seek`): the
-Sim axis (T13), pause ticks, the session layer, the live menu's review items, the toolbar mode indicator + S / W icon — the panel's menu and
+**Next, in order:** ① when the rest of backend's data D lands (`ReplaySessionTopic`, `ITimeTransportFacade.Mode / Axis / EnterReview / Seek`): the session layer, the live menu's review items, the toolbar mode indicator + S / W icon — the panel's menu and
 `ITimelineCursor` are the seams (§2d's "waits on D" row). ② live sources on CGF / SimHost / IG (the module diagram's dead edge) — measure the
 per-frame cost first. ③ director tracks on the panel (addendum 1 / 9, R2). ⚠ Run frame rails with a separately started `Xvfb :99` +
 `DISPLAY=:99` (`xvfb-run -a` failed to open the Raylib window this session).

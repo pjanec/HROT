@@ -158,6 +158,18 @@ public sealed class TimelineView
         Follow = Window.To >= ExtentTo ? TimelineFollow.Tail : TimelineFollow.None;
     }
 
+    /// <summary>⭐ <c>CE-3330</c> (§10b) — the axis changed: the window and the range are mapped onto it (the same FRAMES stay in view);
+    /// the history is dropped (it is in the old axis's numbers). The next <see cref="OnExtent"/> clamps them.</summary>
+    public void Remap(Func<long, long> map)
+    {
+        var w = new TimelineWindow(map(Window.From), map(Window.To));
+        if (w.To <= w.From) w = new TimelineWindow(w.From, w.From + MinSpan);
+        Window = w;
+        if (Range is { } r) Range = (map(r.From), map(r.To));
+        _history.Clear();
+        ExtentFrom = ExtentTo = 0;   // the extent is re-read on this axis next frame; a shown window is kept (OnExtent's first case)
+    }
+
     /// <summary>Zoom history (Backspace): the previous remembered view; false when there is none.</summary>
     public bool Back()
     {

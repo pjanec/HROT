@@ -44,6 +44,16 @@ public sealed class TimelinePanel
     private long _scrubTo;
     private float _hoverX = -1f;  // the mouse over the lanes / ruler, in panel x (−1 = elsewhere)
     private TimelineEvent? _selected;
+    private TimelineAxis? _axis;                                 // the axis last drawn on
+    private Fdp.Core.FlightRecorder.ReplayTimeMap? _timeMap;     // its paused stretches
+
+    /// <summary>⭐ CE-3330 (§10b "an axis switch keeps the view") — the window and the range mapped through wall time onto the new axis.</summary>
+    private void Remap(TimelineAxis from, TimelineAxis to)
+    {
+        if (!_view.HasExtent) return;
+        long Map(long t) => to.ToAxis(from.ToWall(t));
+        _view.Remap(Map);
+    }
 
     /// <summary>The visible span (ticks). Exposed for tests and hosts that want to restore it.</summary>
     public TimelineWindow Window => _view.Window;
@@ -86,7 +96,13 @@ public sealed class TimelinePanel
     {
         _byId.Clear();
         foreach (var lane in lanes) _byId[lane.Id] = lane;
-        var index = source?.Index ?? TimelineIndex.Empty;
+        // ⭐ CE-3330 T13 — everything below is on the ACTIVE axis: the index's frame times, the extent, "now" and every seek go through it
+        var axis = cursor?.Axis ?? TimelineAxis.Wall;
+        if (_axis != null && !ReferenceEquals(axis, _axis) && axis.IsSim != _axis.IsSim) Remap(_axis, axis);   // §10b: the same FRAMES stay in view
+        _axis = axis;
+        _timeMap = cursor?.TimeMap;
+        if (cursor != null && axis.IsSim) cursor = new AxisCursor(cursor, axis);
+        var index = axis.Project(source?.Index ?? TimelineIndex.Empty);
         long from = cursor?.ExtentFrom ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[0] : 0);
         long to = cursor?.ExtentTo ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[^1] : 0);
         if (to <= from)
@@ -203,6 +219,20 @@ public sealed class TimelinePanel
             dl.AddLine(p + new Vector2(t.X, RulerHeight - (t.Major ? 6 : 3)), p + new Vector2(t.X, RulerHeight), t.Major ? 0xFFA0A0A0 : 0xFF707070);
             if (t.Label != null) dl.AddText(p + new Vector2(t.X + 2, 0), 0xFFA0A0A0, t.Label);
         }
+
+        // ⭐ CE-3330 T13 (R10, §10b) — on the Sim axis each collapsed pause is a break mark on the ruler with its tick: ◯ unchanged, ● with edits
+        if (_axis is { IsSim: true } && _timeMap != null)
+            foreach (var pz in _axis.Pauses(_timeMap))
+            {
+                float xp = w.XOf(pz.From, width);
+                if (xp < 0 || xp > width) continue;
+                var c = p + new Vector2(xp, RulerHeight - 4);
+                dl.AddLine(c + new Vector2(-3, -9), c + new Vector2(0, -6), 0xFFD0A060);   // a small zigzag: time is continuous, the world is not
+                dl.AddLine(c + new Vector2(0, -6), c + new Vector2(-3, -3), 0xFFD0A060);
+                if (pz.Changed) dl.AddCircleFilled(c, 3f, 0xFFD0A060); else dl.AddCircle(c, 3f, 0xFFD0A060);
+                if (hovered && Math.Abs(ImGui.GetIO().MousePos.X - p.X - xp) <= 4)
+                    ImGui.SetTooltip(pz.Changed ? "A pause, with edits (they appear at the unpause)" : "A pause (nothing changed)");
+            }
 
         // the playhead ▼ (a handle where the cursor seeks), or an arrow at the edge it left by (§10b)
         float xn = w.XOf(_drag == Drag.Scrub ? _scrubTo : now, width);
@@ -344,6 +374,14 @@ public sealed class TimelinePanel
             string len = TimelineRuler.Label(r.To - r.From, TimeSpan.TicksPerSecond / 10, r.To - r.From);
             dl.AddText(new Vector2(x0 + a + 3, top + 1), 0xFFFFD080, len);
         }
+        // ⭐ CE-3330 T13 (R10) — the paused stretches: shaded spans on the Wall axis (darker = with edits); on Sim each is one instant
+        //   (its ◯ / ● tick sits on the ruler) and the events inside it cluster there by themselves (addendum 10)
+        if (_axis is { IsSim: false } && _timeMap != null)
+            foreach (var pz in _axis.Pauses(_timeMap))
+            {
+                float a = Math.Clamp(w.XOf(pz.From, width), 0, width), b = Math.Clamp(w.XOf(pz.To, width), 0, width);
+                if (b > a) dl.AddRectFilled(new Vector2(x0 + a, top), new Vector2(x0 + b, bottom), pz.Changed ? 0x40804020u : 0x28804020u);
+            }
         float xn = w.XOf(now, width);
         if (xn >= 0 && xn <= width) dl.AddLine(new Vector2(x0 + xn, top), new Vector2(x0 + xn, bottom), 0xFF4040FF, 1.5f);
         if (_hoverX >= 0 && _hoverX <= width)   // ⭐ §10b hover readout: a thin line and the time at the mouse

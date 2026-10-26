@@ -160,6 +160,19 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
                  .OrderBy(c => c.Playback!.GetFrameMetadata(0).WallClockTicks)
                  .Select(c => Fdp.Core.FlightRecorder.ReplayTimeMap.FromRecording(c.Playback!)));
 
+    private FederatedReplayManager? _timeMapFor;
+    private Fdp.Core.FlightRecorder.ReplayTimeMap _timeMapCache = Fdp.Core.FlightRecorder.ReplayTimeMap.Empty;
+
+    /// <summary>⭐ CE-3330 T13 — <see cref="TimeMap"/> built once per loaded group (the timeline reads it every frame).</summary>
+    internal Fdp.Core.FlightRecorder.ReplayTimeMap CachedTimeMap
+    {
+        get
+        {
+            if (!ReferenceEquals(_manager, _timeMapFor)) { _timeMapCache = TimeMap; _timeMapFor = _manager; }
+            return _timeMapCache;
+        }
+    }
+
     /// <summary>⭐ CE-3329 R-3058 — this viewer's time axis (the Replay Browser keeps its own, R2). Sim by default.</summary>
     internal Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; set; } = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
 
