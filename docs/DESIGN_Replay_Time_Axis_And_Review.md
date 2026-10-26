@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — ⛔ NOT READY-TO-BUILD: §11 (critical review, 4 blockers, 11 major) — D-A…D-H await the user, then R4 / R6 / §3c / §3b / §7 amended. Principles ⭐ APPROVED 2026-10-26 (R-3057: R1…R12; R-3058: the axis switches at runtime; R-3059: no state change on a left click, any host; R-3060: the existing toolbar grown by two icons, the Replay Browser keeps its own controls; R-3061: the mode indicator opens a menu, never acts); §8 the system changes, §9 the live-host UI; nothing built. ⭐ P0 (§7) changes data NOW
-updated: 2026-10-26 (§11 — critical review: F1–F21 with file:line, D-A…D-H for the user, what is missing before READY-TO-BUILD) · 2026-10-26 (R-3061 — the mode icon is an INDICATOR whose click opens a menu (never an action), Edit and Preview get their own; §10 the timeline panel's zoom / pan reviewed against the built code, its interaction spec) · 2026-10-26 (R-3060 — §9 rewritten: ASCII wireframes, the existing time-control section grown by a mode icon and an axis icon, Stop = back to live in a review, the Replay Browser keeps its own controls, §9f the messages incl. ReplaySessionTopic, §9g what loading includes) · 2026-10-26 (R-3059 — the timeline's left click never changes state, seeking in its right-click menu; one UI for review, cluster replay and the Replay Browser; every control from any host; §9 wireframes, §9d who fills the timeline on each host) · 2026-10-26 (approved — R-3057, R-3058; §3a the state-machine additions as a table, §8 every system change, §9 the review UI on a live cluster host) · 2026-10-26 (first version — backend, from the user's request: the sim-time seek/step that skips unchanged pauses, its UI, and During Action Review)
-current-answer: ⭐ §11 FIRST (the review that blocks the build) · §0 the decision · §1 claim table · §2 INVENTORY · §3 UML (§3a the state machine) · §4 the time model · §5 decisions (approved) · §6 HTTP · §7 build order · §8 the system changes · §9 the live-host UI
+build-state: DESIGN — ✅ every decision answered (R-3057…R-3063; §11f: the full checkpoint, D-A OVERTURNED — the review is ON the wire, §12 disposes every potential zombie at entry, at every seek and at exit). ⏭ READY-TO-BUILD once M1 (Windows share modes), M4 (ingress during a replay) and M5 (wait-for-acks) are measured — §7. ⭐ PW (the wire, §8 rows 35–39) goes first: it also fixes CE-3331, a zombie hole in today's replay seeks and checkpoint restores. Principles ⭐ APPROVED 2026-10-26 (R-3057: R1…R12; R-3058: the axis switches at runtime; R-3059: no state change on a left click, any host; R-3060: the existing toolbar grown by two icons, the Replay Browser keeps its own controls; R-3061: the mode icon is an indicator)
+updated: 2026-10-26 (§11f the user's answers; §12 the review on the wire — the zombie cleanup; §0, §3b, §3c, §4, R4, R6, §7, §8 amended; R-3062, R-3063; CE-3331) · 2026-10-26 (§11 — critical review: F1–F21 with file:line, D-A…D-H for the user, what is missing before READY-TO-BUILD) · 2026-10-26 (R-3061 — the mode icon is an INDICATOR whose click opens a menu (never an action), Edit and Preview get their own; §10 the timeline panel's zoom / pan reviewed against the built code, its interaction spec) · 2026-10-26 (R-3060 — §9 rewritten: ASCII wireframes, the existing time-control section grown by a mode icon and an axis icon, Stop = back to live in a review, the Replay Browser keeps its own controls, §9f the messages incl. ReplaySessionTopic, §9g what loading includes) · 2026-10-26 (R-3059 — the timeline's left click never changes state, seeking in its right-click menu; one UI for review, cluster replay and the Replay Browser; every control from any host; §9 wireframes, §9d who fills the timeline on each host) · 2026-10-26 (approved — R-3057, R-3058; §3a the state-machine additions as a table, §8 every system change, §9 the review UI on a live cluster host) · 2026-10-26 (first version — backend, from the user's request: the sim-time seek/step that skips unchanged pauses, its UI, and During Action Review)
+current-answer: ⭐ §11f the answers + §12 the wire FIRST · §0 the decision · §3 UML (§3a states, §3b classes, §3c the review's sequence) · §5 decisions · §7 build order · §8 the system changes · §9 the UI · §11 the review's findings (each now folded into a row of §8)
 stale-below: nothing
-known-rot: R4's jump by SnapTo, R6's dry-run keyframe and §3c's SnapAndPause entry / SnapTo exit are WRONG — §11 F1, F3, F14 (leans there); §8 row 4's "26-byte-longer" header is 9 bytes longer (F17)
+known-rot: §11d's D-A lean (wire-silent) is OVERTURNED — §12. §1's claim rows and §2's INVENTORY predate §11 / §12 (the wire and checkpoint rows are in §12c with their file:line). replay-and-modules §2.2 / §2.3 ("IG nodes … do not record and do not replay") are SUPERSEDED — every recording node replays (R-4010)
 known-conflict: DESIGN_Director_Timeline_Editor.md TL-4 (time = frame index + wall ticks) and TE-19 (a live host never seeks) — this design ADDS a sim axis and makes a seek on a live host ENTER a review (R10); both stand until the user approves §5
 related-designs:
   - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS the replay routes and R-3056 (wall axis; the sim form deferred) that §5 R1–R4 extend
@@ -40,9 +40,10 @@ is a lookup, a sim-axis play jumps over the stretches, and whatever changed insi
 unpause."* Nodes keep aligning on wall ticks (R-4012) — no second alignment rule.
 
 ⭐ **DAR is a REVIEW of the live run, in place:** `OperatingLive → LoadingReview → OperatingReview → UnloadingReview → OperatingLive`. Entry
-pauses live, captures each node's world in RAM (the dry run's keyframe — D14), SUSPENDS the live recorder and replays that recording up to the
-live point on the SIM axis. Exit puts the RAM keyframe back (`AfterRestore`), snaps the clock to the live point, resumes the SAME recording —
-live, paused. Everything that is not world state does not run during the review, so it neither changes nor hears anything (R7).
+pauses live on the synchronised barrier, captures each node's FULL checkpoint in RAM (every recorded type + the singletons — R6 as amended),
+SUSPENDS the live recording and replays it up to the live point on the SIM axis — ON THE WIRE, with a dispose for every entity that ceases to
+exist at each swap (§12). Exit applies the checkpoint with the checkpoint restore's semantics (`ResumeAfterRestore`), brings the clock back to
+the live point, resumes the SAME recording — live, paused. Everything that is not world state does not run during the review, so it neither changes nor hears anything (R7).
 
 ## 1. Claim table — what the leans rest on
 
@@ -115,71 +116,89 @@ value-identical, as today)*:
 | the session's settings | `ReplayAxis` (Sim \| Wall, runtime — R-3058) and the live point (wall + sim) travel in the cluster status beside the state | `ReplayAnchorWallTicks`, `DurationSeconds` |
 | what each state means on a node | `LoadingReview`: flush + `Suspend` the recorder, RAM keyframe, replay module over the open recording; `OperatingReview`: the replay's gates + `ReviewGate`; `UnloadingReview`: uninstall the replay module, rewind (`AfterRestore`), `Resume` the recorder | `LoadingReplay` / `OperatingReplay` / `UnloadingReplay` — ⛔ minus their Idle on either side |
 
-### 3b. Classes — existing (grey) and new
+### 3b. Classes — existing and new *(brought up to §8 `2026-10-26`)*
 
 ```mermaid
 classDiagram
   direction LR
-  class FrameOuterHeader { <<exists, grown v7>> +WallClockTicks +SimTime NEW +Flags NEW Halted Changed }
-  class RecorderTickSystem { <<exists, grown>> writes SimTime and Flags it already holds +Suspend() +Resume() NEW }
-  class PlaybackController { <<exists, grown>> +GetFrameMetadata(i) with SimTime and Flags · reads v6 by decoding }
-  class ReplayTimeMap { <<NEW, Fdp.Toolkits>> +Segments +PausedStretches +SimAt(wall) +WallAt(sim, edge) +NextUnpause(wall) +FromRecording(pc) +Intersect(maps) }
-  class ReplayAxis { <<NEW enum>> Wall Sim }
-  class ReplayPrepareResult { <<exists, grown>> +TimeMap segments NEW }
-  class ReplayConsensusAggregator { <<exists, grown>> anchor, duration +the cluster map NEW }
-  class ReplayClockProcessManager { <<NEW, master>> axis · sim-axis rate per segment · jumps a paused stretch · pauses at the live point }
-  class ReplayProcessManager { <<exists>> pauses at the end — folded into the new manager }
-  class ReferenceReviewHandler { <<NEW, every ECS node>> PrepareReview · FinalizeReview }
-  class ReferencePreviewHandler { <<exists>> WorldKeyframes.Capture / Apply · PreviewStateBracket · AfterRestore }
-  class EcsRecordReplayController { <<exists, grown>> +BeginReview() +EndReview() — replay module over the OPEN recording }
-  class ReviewGate { <<NEW>> what may run during a replay or review — the kernel gate for modules outside the toggle groups }
-  class TimelineIndex { <<exists, grown>> FrameTicks +FrameSimTime NEW +PausedStretches NEW }
-  class TimelinePanel { <<exists, grown>> axis toggle · stretches shaded or collapsed · live-point marker }
+  class FrameOuterHeader { <<exists, grown v7>> +WallClockTicks +SimTime NEW +Flags NEW OperatorHalt Changed }
+  class RecorderTickSystem { <<exists, grown>> +Suspend() +Resume() NEW - resume clears the destruction log, forces a keyframe }
+  class PlaybackController { <<exists, grown>> +GetFrameMetadata(i) with SimTime and Flags · opens FileShare.ReadWrite }
+  class ReplayTimeMap { <<NEW, Fdp.Toolkits>> +Segments +PausedStretches +SimAt(wall) +WallAt(sim, edge) +NextUnpause(wall) +Intersect(maps) }
+  class ReplayClockProcessManager { <<NEW, master>> axis · rate per segment · non-pausing jump over an operator pause · pauses at the live point }
+  class ReplaySessionTopic { <<NEW DDS, TransientLocal>> +Mode +ReviewId +Axis +Map +LivePoint +Checkpoints }
+  class SetReplayAxisIntent { <<NEW intent>> any host to the master }
+  class ReviewGuard { <<NEW, master>> refuses world-changing ops in a review or replay - ClusterStates.IsReplaying(s) }
+  class ReferenceReviewHandler { <<NEW, every recording node>> PrepareReview · FinalizeReview · abandon on Idle }
+  class ReferenceCheckpointHandler { <<exists>> the return semantics - ResumeAfterRestore }
+  class WorldKeyframes { <<exists>> Capture with CaptureOptions.Recording · Apply · AfterRestore +ForceMarkAllDirty NEW }
+  class EcsRecordReplayController { <<exists, grown>> +BeginReview() +EndReview() - a replay module over the OPEN recording }
+  class ReviewGate { <<NEW, kernel>> suspends modules outside the toggle groups unless RunsDuringReplay }
+  class CycloneNetworkCleanupSystem { <<exists, grown>> mark-and-sweep by network id - dispose the absent, forget the handed-over }
+  class EgressHold { <<NEW>> no sample between a node's swap and the master's commit }
+  class TimelinePanel { <<exists, grown>> axis · stretches · live point · session layer }
+  class TimelineContextMenu { <<NEW>> the right-click seeks - a left click never changes state }
+  class LiveTimelineSource { <<NEW, TE-17>> the live world's lanes, frozen at the live point }
+  class ModeIndicator { <<NEW, toolbar>> Edit Preview Live Review Replay - a click opens a menu }
   RecorderTickSystem --> FrameOuterHeader : writes
   PlaybackController --> FrameOuterHeader : indexes
   ReplayTimeMap ..> PlaybackController : built from the index
-  ReplayPrepareResult o-- ReplayTimeMap
-  ReplayConsensusAggregator --> ReplayTimeMap : intersects per node
   ReplayClockProcessManager --> ReplayTimeMap
-  ReplayClockProcessManager ..> ReplayProcessManager : replaces
-  ReferenceReviewHandler ..> ReferencePreviewHandler : reuses capture / rewind
+  ReplayClockProcessManager --> ReplaySessionTopic : publishes
+  SetReplayAxisIntent ..> ReplayClockProcessManager
+  ReviewGuard ..> ReplaySessionTopic : reads the mode
+  ReferenceReviewHandler --> WorldKeyframes : full checkpoint
+  ReferenceReviewHandler ..> ReferenceCheckpointHandler : shares the return
   ReferenceReviewHandler --> EcsRecordReplayController
+  ReferenceReviewHandler --> RecorderTickSystem : Suspend / Resume
   ReferenceReviewHandler --> ReviewGate
-  TimelineIndex ..> ReplayTimeMap : same data
-  TimelinePanel --> TimelineIndex
+  ReferenceReviewHandler --> EgressHold
+  CycloneNetworkCleanupSystem ..> EgressHold : disposes pass the hold
+  TimelinePanel --> ReplaySessionTopic : the session layer
+  TimelinePanel --> LiveTimelineSource
+  TimelinePanel --> TimelineContextMenu
+  ModeIndicator ..> ReplaySessionTopic : reads the mode
 ```
-*What the picture shows that prose hid:* ONE new data type (`ReplayTimeMap`) serves the cluster master, the Replay Browser and every timeline —
-built from the frame index, never from decoding — and the review's return is the dry run's existing rewind, not a new restore.
+*What the picture shows that prose hid:* the review's return is the CHECKPOINT's existing machinery (`ReferenceCheckpointHandler`,
+`WorldKeyframes`), not a new restore; the zombie cleanup is a grown EXISTING system (the cleanup's sweep) behind one new seam (the egress
+hold); and every host's UI reads one topic.
 
-### 3c. Sequence — enter and leave a review
+### 3c. Sequence — enter and leave a review *(redrawn `2026-10-26` to §11f: full checkpoint, barrier pause, the wire — §12)*
 
 ```mermaid
 sequenceDiagram
-  actor Op as Operator (UI or HTTP)
+  actor Op as Operator (any host)
   participant M as ClusterMaster
   participant C as ReplayClockProcessManager
-  participant N as each ECS node (ReferenceReviewHandler)
+  participant N as each recording node (ReferenceReviewHandler)
   participant R as its recorder
-  Op->>M: POST /review {atSimSeconds?}
-  M->>M: pause (SnapAndPause) - remember the live clock L
-  M->>N: PrepareReview (2PC, the whole roster)
-  N->>R: Suspend() after a flush - the file stays open
-  N->>N: WorldKeyframes.Capture + PreviewStateBracket.Capture (RAM)
-  N->>N: install ReplayModule over the open recording, index frozen at the live point
-  N-->>M: ReplayPrepareResult(span, time map)
-  M->>N: CommitState(OperatingReview) - gates on (R7)
-  M->>C: axis Sim, end = live point
-  M->>N: seek round to atSimSeconds (default: the live point)
-  Note over Op,N: play / pause / step / seek drive the replay clock. On the sim axis C jumps every paused stretch, and pauses at the live point
-  Op->>M: POST /review/exit
+  Op->>M: review intent {atSimSeconds?} - refused outside OperatingLive
+  M->>N: barrier pause (SwitchToDeterministic) on a step with no slot run in flight - never a snap (F3)
+  N-->>M: paused (every node)
+  M->>N: PrepareReview - remember the live clock L
+  N->>N: quiesce - drain ingress, finish in-flight protocols on the paused step (F6)
+  N->>R: force the labelled keyframe review-n (D-C), flush, Suspend - the file stays open
+  N->>N: capture the FULL checkpoint in RAM - every recorded type + the singletons + the unconsumed events (D-B, F1)
+  N->>N: hold egress, freeze ingress, gates on (R7) - install ReplayModule over the open file, seek to T
+  N->>N: the cleanup sweep disposes every id owned at L and absent at T, acks awaited (§12)
+  N-->>M: ReplayPrepareResult (span, time map, live point)
+  M->>N: CommitState(OperatingReview) - egress released, full republish
+  M->>C: axis Sim, end = the live point
+  Note over Op,R: play / pause / step / seek drive the replay clock - world-changing commands refused (D-E) - every seek retracts then publishes (§12)
+  Op->>M: back-to-live intent (the ⏏ button, any host)
+  M->>M: refuse new seeks, drain pending ones (F8)
   M->>N: FinalizeReview
-  N->>N: uninstall ReplayModule, WorldKeyframes.Apply(DryRunExit), bracket restore, AfterRestore
-  N->>R: Resume() - the same file, the same exercise
+  N->>N: hold egress - remove the ReplayModule and await it - apply the checkpoint - AfterRestore
+  N->>N: the sweep disposes every id alive in the review and absent at L, acks awaited, readers drained
   N-->>M: done
-  M->>M: SnapTo(L), paused - OperatingLive
+  M->>N: the clock back to L as a checkpoint restore does it (SnapTo + ResumeAfterRestore, CE-3316) - wall and rate restored (F12, F19)
+  M->>N: CommitState(OperatingLive) - live, paused - egress released, full republish, ingress resumes
+  N->>R: Resume - destruction log cleared, keyframe forced (F11) - the same file, the same exercise
 ```
-*What the picture shows that prose hid:* the live clock L is remembered by the MASTER (the clock is the master's — D5), the world by each
-NODE; and the recorder is suspended, not finalised, so the exercise's history stays one straight line.
+*What the picture shows that prose hid:* the live clock L is remembered by the MASTER, the world by each NODE; the pause is the synchronised
+barrier, never a snap, so no slot is reset on the way in; the return is the CHECKPOINT's (slots resume, unconsumed events delivered); and both
+swaps are wrapped in a hold-retract-release on the wire (§12). ⛔ SUPERSEDED: the first drawing paused with `SnapAndPause`, captured the dry
+run's keyframe and returned with a plain `SnapTo` (F1, F3).
 
 ### 3d. Modules — who runs each frame during a review
 
@@ -205,7 +224,7 @@ a replay that is harmless only by luck; for a review it would let in-memory live
 
 | question | answer |
 |---|---|
-| **what is a "paused stretch"** | a maximal run of consecutive frames whose recorded `DeltaTime == 0` (the `Halted` flag). ⭐ The clock's own word for it (R-126) — never inferred from wall gaps |
+| **what is a "paused stretch"** | ✅ *(amended, R-3063 — D-H)* a maximal run of consecutive frames recorded while the clock was halted by an OPERATOR (`HaltReason.PausedByOperator` in the frame's flags). ⛔ A stepped run's gaps between steps (`SteppingHeld`) are NOT stretches — they collapse with no mark (F14). ⭐ The clock's own word for it (R-126) — never inferred from wall gaps |
 | **what is "unchanged"** | a paused stretch none of whose frames carries a change (the `Changed` flag: the recorder wrote a chunk, a destruction or an event besides `GlobalTime`). ⭐ It only decides the TIMELINE MARK (hollow vs filled) — on the sim axis EVERY stretch collapses, changed or not, and its changes apply at once at the unpause instant (the user's rule) |
 | **what is sim time** | the recorded `GlobalTime.TotalTime` of the frame — the run's own clock, scaled (a 2× live run has 2 s of sim per wall second) |
 | **how the axis is chosen** | it is a VIEW of one replay clock: `axis = Sim \| Wall`, held by the master per replay / review session and by the Replay Browser per viewer. Default **Sim** for a review and a replay once built (R2); `atSeconds` keeps meaning wall (R-3056); a sim form is `atSimSeconds` |
@@ -224,9 +243,9 @@ a replay that is harmless only by luck; for a review it would let in-memory live
 | **R1** | where does a frame's sim time live | ⭐ **the frame index (format v7)**: `FrameOuterHeader` + `double SimTime` + `byte Flags` (Halted, Changed) — written from the `GlobalTime` the recorder already reads; `PlaybackController` reads v6 too, building the same index by decoding each body's `GlobalTime` once at open | a `.timeline` sidecar from a decode pass — slow on first open, absent on cluster nodes · deriving pauses from wall gaps — wall runs on while paused (§8.12), so the gaps prove nothing |
 | **R2** ✅ *(amended, R-3058)* | the default axis, who chooses, and when | ⭐ **switchable at RUNTIME**, and the switch changes all three at once: what the timeline draws, what a seek means and how playback runs (skip / do not skip paused stretches). In a cluster it is the SESSION's setting, held by the master (it drives the cluster's replay clock — §9b): any operator's switch changes it for all; in the Replay Browser it is the viewer's. ⭐ **default Sim**; a switch keeps the frame on screen (no seek) and only changes what comes next. `atSeconds` stays wall forever (R-3056); `atSimSeconds` is always sim, whatever the axis | change `atSeconds` to sim — silently moves every existing script's seeks · one global setting — two operators want different views |
 | **R3** | how one cluster agrees on the map | each node builds `ReplayTimeMap` from its own index and returns it in `ReplayPrepareResult`; the master INTERSECTS the paused stretches (a stretch is the cluster's only where every recording node paused) and keeps the anchor node's sim times | the master reads files — it has none on a pure orchestrator · trust one node — a late joiner's map misses the start |
-| **R4** | how sim playback is driven | ⭐ **the wall clock stays the only replay clock**; the master's `ReplayClockProcessManager` sets its rate per segment and snaps over stretches (§4) — nodes are untouched | each node plays by its own sim clock — nodes' sim clocks agree only at step boundaries, a second alignment rule |
+| **R4** ✅ *(amended, R-3063 — D-H, F14)* | how sim playback is driven | ⭐ **the wall clock stays the only replay clock**; the master's `ReplayClockProcessManager` sets its rate per segment and jumps over a stretch with a NEW non-pausing seek (no epoch bump) — ⛔ not `SnapTo` (= `SnapAndPause`, it would reset the kernel at every jump); ⭐ a stretch is an OPERATOR pause only (`HaltReason.PausedByOperator`), stepping gaps collapse with no mark — nodes are untouched | each node plays by its own sim clock — nodes' sim clocks agree only at step boundaries, a second alignment rule |
 | **R5** | the review's states | NEW `LoadingReview`, `OperatingReview`, `UnloadingReview` (play / pause are sub-states, as in live); edges only `OperatingLive → LoadingReview → OperatingReview → UnloadingReview → OperatingLive`; the master refuses a review from any other state | reuse `OperatingReplay` with a flag — its exits (branch, Idle) are wrong for a review and every reader of the state would need the flag · route through Idle — R-4019 deletes the world |
-| **R6** | how live comes back | ⭐ **the dry run's RAM keyframe** per node (`WorldKeyframes.Capture` / `Apply(DryRunExit)` + `PreviewStateBracket` + `AfterRestore`), the clock by the master's `SnapTo(L)`; unconsumed step events kept (`ApplyKeepingUnconsumedEvents`, D2) | restore through the recording (B4) — forks a new segment (D8) and needs the open file flushed and indexed · a second world per node (sandbox, Replay-Browser style) — every reader, every host and the IG would have to switch worlds; it doubles memory |
+| **R6** ✅ *(amended, R-3063 — D-B, F1, F3)* | how live comes back | ⭐ **the FULL checkpoint in RAM** per node — captured with the `Recording` options (every recorded type AND the singletons; ⛔ not the dry run's `NodeDryRun`, which drops both), on a barrier-paused quiet step; the return applies it with the CHECKPOINT's semantics (`AfterRestore` + `ModuleHostKernel.ResumeAfterRestore`, CE-3316: slots resume, unconsumed step events delivered) + `PreviewStateBracket`; the clock back to L as a checkpoint restore does it; wire: §12 | restore through the recording (B4) — forks a new segment (D8) and needs the open file flushed and indexed · a second world per node (sandbox, Replay-Browser style) — every reader, every host and the IG would have to switch worlds; it doubles memory |
 | **R7** | what runs during a review (the user's "must not respond") | ⭐ the replay's gates (toggle groups off, ELM gated, world-state ingress frozen, no replayed events on the bus) **+ NEW `ReviewGate`**: during a replay AND a review the kernel suspends every module and system registered outside the toggle groups unless it declares `[RunsDuringReplay]` (playback, egress, presentation, recorder). Class S and X state (sessions, SUMO) is therefore frozen and deaf; A / B are re-derived by `AfterRestore` on exit; C is empty (in the ECS, restored by the keyframe). A rail: every module outside the groups declares, and the SUMO step does not run in a review | gate each module by hand — the gap §3d shows is exactly a module someone forgot · let them run and filter their inputs — every module would need its own filter |
 | **R8** | the live recording during a review | ⭐ **suspended, not finalised**: no frame is written while the world is the replayed one; exit resumes the SAME file and exercise (one straight history, a wall gap the Sim axis never shows); the review's wall interval goes into `.meta.json` (`Reviews[]`) so the Wall axis can label it. ⚠ relaxes replay-and-modules §5.7 (recording and replay exclusive) for a review only: both modules installed, only the replay one running | finalise and branch on exit (D18) — a new exercise per review, history copied each time · keep recording during the review — writes replayed frames into the live history |
 | **R9** | the live point and the end of the review | the live point = the last frame written before `Suspend` (wall + sim); the review's replay ends there; reaching it on play pauses (the existing end-of-replay pause, folded into `ReplayClockProcessManager`); a seek past it clamps to it | let the review play past the end — there is nothing recorded |
@@ -244,16 +263,18 @@ a replay that is harmless only by luck; for a review it would let in-memory live
 | new | — | `POST /review`, `POST /review/exit`, `POST /replay/axis` |
 | timelines | frame slider (Replay Browser), wall ruler (Event Timeline), wall-seconds slider (cluster panel) | the one panel with the axis toggle, stretches, marks, the live point |
 
-## 7. Build order — measure first
+## 7. Build order — measure first *(re-cut `2026-10-26` to §8's phases, §11f and §12)*
 
-| step | what | accepted when |
+| step | what (§8 rows) | accepted when |
 |---|---|---|
-| **M1** | ⚠ measure: `PlaybackController` over a recording its writer still holds (open, index, seek) — `RecordingSlice` already does it | a review's replay reads the open file, or the reader opens `ReadWrite` |
-| **P0** | R1: v7 header (`SimTime`, `Flags`), v6 read by decoding; `/replay/status` `simSeconds` | a stepped live run's index shows 601 sim frames and the paused stretches without decoding (the CE-4053 recording) |
-| **P1** | `ReplayTimeMap` + `ReplayPrepareResult` + the master's map; `atSimSeconds`; the axis setting; `ReplayClockProcessManager` | a sim seek lands every node on the same sim frame; a sim play crosses a recorded pause in one frame |
-| **P2** | `ReviewGate` (R7) — fixes the replay gap too | the rail: every module outside the groups declares; nothing undeclared ticks in a replay |
-| **P3** | the review states, `ReferenceReviewHandler`, recorder `Suspend` / `Resume`, `/review` routes | live → review → live leaves the world byte-identical (the dry-run oracle), the recording one straight file |
-| **P4** | the timeline UI on every host (R10) | a seek on a live host's timeline enters a review |
+| **M1** | ⚠ on WINDOWS: `PlaybackController` over a recording its writer still holds (open, index, seek) | the reader opens the live file with `FileShare.ReadWrite` (row 43) |
+| **M4 · M5** | ⚠ ingress during a replay (taken and dropped, or left in the reader?); the .NET binding's wait-for-acks | §12 W3 and W5 can be built as written, or are re-cut |
+| **PW** | ⭐ the wire, rows 35–39 — ⭐ **first, because it fixes a hole that exists TODAY** (CE-3331: ordinary replay seeks and checkpoint restores leave zombies) | §12e's rails, the CE-3331 rail red before and green after |
+| **P0** | rows 1–6: the v7 header (`SimTime`, `Flags` with the `HaltReason`), v6 read by decoding; `/replay/status` `simSeconds` | a stepped live run's index shows the operator pauses only (D-H) without decoding (the CE-4053 recording); M2 |
+| **P1** | rows 7–13, 31, 32, 34, 45: `ReplayTimeMap`, the master's map, `atSimSeconds`, the axis, `ReplayClockProcessManager` with the non-pausing jump (R4) | a sim seek lands every node on the same sim frame; a sim play crosses an operator pause without a kernel reset |
+| **P2** | row 14: `ReviewGate` — fixes the replay gap too | every module outside the groups declares; nothing undeclared ticks in a replay |
+| **P3** | rows 15–20, 40–44: the review states, `ReferenceReviewHandler`, the full checkpoint, the guard, recorder `Suspend` / `Resume`, `/review` routes; M3 | live → review → live identical (world + singletons + the next N steps = the straight run — R1's oracle); a failure during a review leaves a finalised recording and a restorable `review-<n>` |
+| **P4** | rows 21–30, 33: the UI on every host | a right-click seek on a live host's timeline enters a review; a left click never changes state |
 
 ## 8. The system changes — every component, by phase *(✅ approved design; nothing built)*
 
@@ -274,14 +295,14 @@ a replay that is harmless only by luck; for a review it would let in-memory live
 | 13 | Replay Browser: `FederatedReplayManager`, `IReplayBrowserControl` | the same map per node group; its axis is the viewer's; sim seeks / play through the map | P1 |
 | 14 | `ReviewGate` (kernel) + `[RunsDuringReplay]` | in a replay AND a review, suspend every module / system outside the four toggle groups unless declared; rail: every one outside the groups declares | P2 |
 | 15 | `ClusterState` + `NodeOpType` (both copies), `HrotStateGraph`, the master's prepare-op mapping, the review refusals | §3a | P3 |
-| 16 | `ReferenceReviewHandler` (NEW, every ECS node; shares the capture / rewind of `ReferencePreviewHandler` — extracted, not copied) | `PrepareReview` / `FinalizeReview` (§3c) | P3 |
+| 16 | `ReferenceReviewHandler` (NEW, every ECS node; shares the capture / rewind of `ReferencePreviewHandler` — extracted, not copied) | `PrepareReview` / `FinalizeReview` (§3c): quiesce, forced `review-<n>`, FULL checkpoint (`Recording` options), gates before the module (F9); on Idle: abandon and finalise (D-C, F4) | P3 |
 | 17 | `RecorderTickSystem` / `RecordingModule` | `Suspend()` / `Resume()` — flush, keep the file open, write nothing in between; `.meta.json` `Reviews[]` | P3 |
 | 18 | `EcsRecordReplayController` + `PlaybackController` | `BeginReview` / `EndReview`: a `ReplayModule` over the OPEN recording (opened `FileShare.ReadWrite`, index frozen at the live point) — M1 first | P3 |
-| 19 | the master's return | `SnapTo(L)` after `UnloadingReview` (the `PreviewClockProcessManager` pattern), live paused | P3 |
+| 19 | the master's return | ✅ *(amended)* the clock back to L the way the checkpoint restore does it (`SnapTo` + `ResumeAfterRestore`, CE-3316), the wall clock and the rate restored (F12, F19); refuses new seeks and drains pending ones first (F8); live paused | P3 |
 | 20 | `/review`, `/review/exit`, status `review: {livePoint}` | R11 | P3 |
 | 21 | `ITimeTransportFacade` (+ `ClusterTimeTransportAdapter`, `EditorTimeTransportFacade`) | `+ Mode` (Live / Review / Replay), `+ Axis`, `SetAxis`, `EnterReview(t?)`, `ExitReview()`, `LivePoint`, `Seek(t)` (the timeline's menu); `Stop` in a review = back to live | P4 |
-| 22 | `MainToolbarTimeControlSection` (the EXISTING time-control section) | ⭐ two glyphs only: the mode icon (● / ⟲ / ▶, clickable live ⇄ review) before the three existing buttons and the axis icon (S / W) after the rate; ■ shows ⏏ "Back to live" in a review; the readout on the active axis (§9a) | P4 |
-| 23 | `TimelinePanel` + `ITimelineCursor` (the ONE timeline, R-4068) | positions in the active axis; stretches shaded (Wall) or ticks (Sim); the live point; a click in the past on a live host = `EnterReview(t)` (amends TE-19) | P4 |
+| 22 | `MainToolbarTimeControlSection` (the EXISTING time-control section) | ⭐ two glyphs only: the mode INDICATOR (✎ / ◐ / ● / ⟲ / ▶ — a click opens its menu, never an action, R-3061) before the three existing buttons and the axis icon (S / W) after the rate; ■ shows ⏏ "Back to live" in a review; the readout on the active axis (§9a) | P4 |
+| 23 | `TimelinePanel` + `ITimelineCursor` (the ONE timeline, R-4068) | positions in the active axis; stretches shaded (Wall) or ticks (Sim); the live point; a left click selects, never seeks — a live host enters a review from the right-click menu (R-3059, amends TE-19) | P4 |
 | 24 | `ClusterScenarioPanel` + `ClusterUiCache` | the seek slider on the active axis; the cache reads `ReplaySessionTopic` (axis, map, live point, checkpoints) | P4 |
 | 25 | ⛔ withdrawn (R-3060) — no status-bar chip: the toolbar's mode icon says it | — | — |
 | 26 | `DESIGN_Director_Timeline_Editor.md` (ui's) | TL-4 gains the sim axis; TE-19's live row becomes "the right-click menu enters a review" (R-3059) — amended by its owner when P4 is scheduled | P4 |
@@ -293,6 +314,17 @@ a replay that is harmless only by luck; for a review it would let in-memory live
 | 32 | `ReplaySessionTopic` (NEW DDS topic, TransientLocal) — the master publishes, every host's `ClusterUiCache` reads | the session layer (§9f) | P1 |
 | 33 | `LiveTimelineSource` → `.timeline` sidecar at `FinalizeLive` | a just-finished exercise replays fully indexed (§9g) | P4 |
 | 34 | `ReplayTimelinePanel` (the Replay Browser's own controls) | `+` the S / W axis icon (the viewer's) — nothing else (R-3060) | P1 |
+| 35 | `CycloneNetworkCleanupSystem` | ⭐ §12 W1: mark-and-sweep by network id every frame — an id it published and absent from the world ⇒ `DisposeAll`; present as a ghost ⇒ forget; subsumes the lightweight sweep (1b). ⭐ Fixes CE-3331 for ordinary replay seeks, checkpoint restores and the dry-run exit | **PW** |
+| 36 | egress hold (`CycloneEgressSystem` + `SmartEgressSystem` + the cleanup's writers) | §12 W2: no sample between a node's world swap and the master's commit (disposes excepted); released on `CommitState` / the post-seek snap | PW |
+| 37 | the disposing writers | §12 W3: the node's prepare / seek result waits until its disposes are acknowledged (bounded) — M5 first | PW |
+| 38 | `AfterRestore.Run` | §12 W4: `SmartEgressUtil.ForceMarkAllDirty` — the survivors are republished after a checkpoint restore and the review's exit | PW |
+| 39 | ingress during a replay / review (+ `GhostDestructionSystem`) | §12 W5: nothing from the wire into a replaying world; ghost destruction gated (replay-and-modules §3.10.3); the exit's release drops what the readers hold — M4 first | PW |
+| 40 | `WorldKeyframes` capture for a review | `CaptureOptions.Recording` (every recorded type + singletons) — F1 | P3 |
+| 41 | the master's review guard + `ClusterStates.IsReplaying(s)` | world-changing ops refused in `OperatingReview` / `OperatingReplay`, 409 on the debug API, the map hides its order actions, `/scenario/save` refused (D-E, F7); one predicate for the 25 state checks and 42 `IsReplayActive` readers (F20) | P3 |
+| 42 | the master's review entry / exit | the barrier pause first, `PrepareReview` only after every node acked it (F5); every ECS node must participate or the review is refused (F10); the live point = the minimum of the nodes' last frame stamps, the end an exact clamp (F13); ■ asks "Stop the exercise?" for 3 s after a return (F15) | P3 |
+| 43 | `PlaybackController` / `AsyncRecorder` share modes | the reader opens `FileShare.ReadWrite`; `Suspend` waits for the writes (F16) — M1 on WINDOWS | P3 |
+| 44 | the recorder on resume + the episode recorders | destruction log cleared, keyframe forced; episode recorders suspended with it (F11, W6) | P3 |
+| 45 | `ReplaySessionTopic` | `+ ReviewId` (F18) | P1 |
 
 ## 9. The review UI on a live cluster host *(R-3059 as amended by R-3060)*
 
@@ -630,7 +662,7 @@ parts of R4, R6 and §3c — marked; the user decides D-A…D-H.
 | # | flaw | evidence | ⏳ lean (fix) |
 |---|---|---|---|
 | **F1** | the return's keyframe is the DRY RUN's: it omits every singleton and every `NoPreview` type — `PositionGeodetic`, `DomainMissionPlan`, `SubordinateOrders`, `PausedTask`, `PendingAuthorityGrants`, `Lifespan`, … come back EMPTY; versioned singletons keep the last REPLAYED value (`SoundTimeline` resumes its numbering in the past — its guard only rejects values newer than the clock, `SoundEmissionSystem.cs:47-55`) | `WorldKeyframes.cs:55` (`NodeDryRun = Snapshotable, Singletons: false`); `Apply` → `repo.Clear()` | ⭐ capture with `CaptureOptions.Recording` (every recorded type AND the singletons) — the review replaces singletons, so it must put them back; rail: live → review → live leaves the world identical, singletons included. ⚠ R6 amended |
-| **F2** | what the review puts ON THE WIRE is never taken back: replayed entities (alive in the past, dead at the live point) keep their newest DDS samples, TransientLocal hands them to late joiners, other nodes rebuild them as zombie ghosts; historic samples win over the live owner's until it republishes | a restore deletes nothing (`CycloneNetworkCleanupSystem.cs:52-57`: only `WorldEpoch.Ended`); ingress keeps the newest sample (`CycloneNetworkIngressSystem.cs:92-104`) | ⭐ **D-A: a review is WIRE-SILENT** — egress suppressed, ingress frozen; each node replays ITS OWN recording, which holds its full view, ghosts included (replay-and-modules §2.3). Nothing is published, so nothing must be taken back |
+| **F2** | what the review puts ON THE WIRE is never taken back: replayed entities (alive in the past, dead at the live point) keep their newest DDS samples, TransientLocal hands them to late joiners, other nodes rebuild them as zombie ghosts; historic samples win over the live owner's until it republishes | a restore deletes nothing (`CycloneNetworkCleanupSystem.cs:52-57`: only `WorldEpoch.Ended`); ingress keeps the newest sample (`CycloneNetworkIngressSystem.cs:92-104`) | ⛔ ~~D-A: a review is WIRE-SILENT~~ — **overturned by the user (§11f)**: the review is on the wire. ⭐ **Fix: §12** — a dispose per id absent from the new world at every swap (entry, seek, exit), held egress between the swap and the master's commit, a full republish on release |
 | **F3** | the pause and the return's snap DESTROY live kernel state: `SnapAndPause` bumps the timeline epoch ⇒ the kernel restarts the event accumulator, resets every slow module to "never ran" and DISCARDS in-flight async results — at entry (before the capture!) and again at exit | `MasterSyncController.cs:517-519`; `ModuleHostKernel.cs:570-592` | ⭐ enter with the BARRIER pause (`SwitchToDeterministic`) on a step with no slot run in flight (as the recorder defers checkpoints, CE-3316), never a snap; exit with CHECKPOINT semantics — `ResumeAfterRestore` (slots resume, unconsumed step events delivered, D2), not the dry run's. ⚠ §3c amended |
 | **F4** | a failure during a review strands nodes: a node loss → `Degraded` / Idle, a master loss → every node Idle; the replay module stays installed (`IsReplayActive` true), the recorder is never finalised, and the NEXT live load is claimed as a *branch from a replay* — copying replayed history into a new exercise | `ClusterMaster.cs:711-742`; `ClusterSlave.cs:641-692`; `ReferenceReplayLoadHandler.cs:169,178,264-289` | ⭐ **D-C**: the review handler reacts to Idle — removes the replay module, FINALISES the recorder (the live point in `.meta.json`), drops the RAM keyframe. ⭐ Entry forces a labelled keyframe at the live point (`review-<n>`, R-3044), so a lost review is recoverable by the existing checkpoint restore (B4) |
 
@@ -639,7 +671,7 @@ parts of R4, R6 and §3c — marked; the user decides D-A…D-H.
 | # | flaw | evidence | ⏳ lean |
 |---|---|---|---|
 | F5 | the nodes may capture DIFFERENT frames: `PrepareReview` (node-op topic) and the pause (time topic) are unordered | DDS orders no two topics | the master sends `PrepareReview` only after the barrier pause has landed on every node (all acks) |
-| F6 | messages in flight at the live point: world EVENTS are dropped while a node restores (shots, hits, mission control); command-like samples on state topics (ownership hand-overs, attribute writes) land on the live world AFTER the return | `CycloneNetworkIngressSystem.cs:99-101`; `DeferredTakeOwnershipIngressTranslator`, `OwnershipUpdateTranslator` | a QUIESCE round at entry: each node drains its ingress and finishes in-flight protocols on the paused step before it captures; the D-A silence keeps anything new from arriving |
+| F6 | messages in flight at the live point: world EVENTS are dropped while a node restores (shots, hits, mission control); command-like samples on state topics (ownership hand-overs, attribute writes) land on the live world AFTER the return | `CycloneNetworkIngressSystem.cs:99-101`; `DeferredTakeOwnershipIngressTranslator`, `OwnershipUpdateTranslator` | a QUIESCE round at entry: each node drains its ingress and finishes in-flight protocols on the paused step before it captures; frozen ingress during the review and the exit's reader drain keep anything later from landing (§12 W5) |
 | F7 | world-changing commands are NOT refused in a review: `/entities/spawn`, `/component`, `/order`, `/possess`, `/ownership/transfer`, `/missions/*/run`, `/scenario/save` (would save the REPLAYED world); map orders wired once (`MapInteractionPack.cs:348`); ExCon has no gate | `DebugApiHost.cs:618-1562` | **D-E**: ONE guard — the master refuses world-changing ops in `OperatingReview` / `OperatingReplay`; the debug API answers 409 *"a review shows the past — return to live first"*; the map hides its order actions; `/scenario/save` refused |
 | F8 | the exit's order is unsafe: a seek still in flight snaps the live clock back into history (`ReplaySeekProcessManager.cs:59`); `PlaybackTickSystem` runs one more frame after the module's removal is requested and can overwrite the restored world; any seek pauses even live (`:49`) | `ClusterMaster.cs:1859` (no state check on seeks) | the master refuses new seeks and drains pending ones before `UnloadingReview`; the node awaits the module's removal, then applies the keyframe; seeks refused outside a replay / review |
 | F9 | entry installs the replay module BEFORE its gates are on (prepare vs commit): for a frame `PlaybackTickSystem` runs over the LIVE world, its anchor unset — it can seek or `SoftClear` | `ReferenceReplayLoadHandler.cs:186-205` vs `298-309`; `PlaybackTickSystem.cs:100-110,197-206` | gates first, module second; `Abort` after a partial prepare is a full rollback (apply the keyframe, resume the recorder) |
@@ -665,7 +697,7 @@ parts of R4, R6 and §3c — marked; the user decides D-A…D-H.
 
 | # | question | ⏳ lean |
 |---|---|---|
-| **D-A** | does a review publish on the wire? | ⭐ **no — wire-silent**: each node shows its own recording (ghosts included); ingress frozen, egress off. Kills F2, most of F6 and any queue growth |
+| **D-A** | does a review publish on the wire? | ~~no — wire-silent~~ ⛔ **overturned (§11f): YES — §12** |
 | **D-B** | the return's semantics | ⭐ the checkpoint's (`ResumeAfterRestore`, the recorded types + singletons, the unconsumed events), entered on a quiet barrier-paused step |
 | **D-C** | a node or the master lost during a review | ⭐ the review is abandoned; every node finalises its recording at the live point; the live run is recoverable with the existing checkpoint restore from the forced `review-<n>` keyframe — not automatic |
 | **D-D** | a node joining during a review | ⭐ held: it joins after the return (catch-up already skips a replay) |
@@ -676,9 +708,109 @@ parts of R4, R6 and §3c — marked; the user decides D-A…D-H.
 
 ### 11e. What is still missing before `READY-TO-BUILD`
 
-1. the user's answers to D-A…D-H; then R4, R6, §3c, §4, §8 amended to them (the leans above);
+1. ✅ the user's answers (§11f); R4, R6, §0, §3c, §4, §8 amended; §12 the wire;
 2. the class diagram (§3b) brought up to §8: `ReplaySessionTopic`, `SetReplayAxisIntent`, `LiveTimelineSource`, `TimelineContextMenu`, the mode indicator, the quiesce round, `ClusterStates.IsReplaying`;
-3. §3c redrawn: barrier pause → quiesce → forced `review-<n>` keyframe → capture (Recording options) → wire-silent replay; exit: drain seeks → remove the module → apply → `ResumeAfterRestore` → restore wall + rate → resume the recorder with a keyframe;
+3. ✅ §3c redrawn (on the wire, §12);
 4. §7 build order re-cut to §8's phases (M1 on Windows first);
-5. measurements: M1 (Windows share modes), M2 (the `Changed` flag on CE-4053's recording), M3 (capture + apply time of a `Recording` keyframe on `uc-urban-battle`, the review's entry / exit latency);
-6. the rails named per phase: live → review → live identical (world + singletons + the next N steps' trajectory = the straight run — R1's oracle reused); a review leaves nothing on the wire; a failure during a review leaves a finalised recording and a restorable `review-<n>`.
+5. measurements: M1 (Windows share modes), M2 (the `Changed` flag on CE-4053's recording), M3 (capture + apply time of a `Recording` keyframe on `uc-urban-battle`, the review's entry / exit latency), ⭐ M4 (what a replaying node's ingress does with arriving samples), ⭐ M5 (the CycloneDDS .NET binding's wait-for-acks);
+6. the rails named per phase: live → review → live identical (world + singletons + the next N steps' trajectory = the straight run — R1's oracle reused); the wire rails of §12e; a failure during a review leaves a finalised recording and a restorable `review-<n>`.
+
+### 11f. ✅ The user's answers `2026-10-26` (R-3062, R-3063)
+
+🔒 **User, verbatim:** *"approved with following notes: Of course full checkpoint necessary. Replay can not be left off the network; replay
+needs to show on external IGs or HLA/DIS gateway (there is one, just not part of this repo yet). We need to resolve the zombie cleanup when
+entering the review (to get rid of the live entities) as well when exiting it (to get rid of the review entities). 
+Dispose sample for each such potential zombie is mandatory."* · *"every node that recorded something DOES replay and our node called IG (not the external IGs) is no
+exception"*
+
+| # | answer |
+|---|---|
+| **D-A** | ⛔ **OVERTURNED — a review IS on the wire** (external IGs, the HLA / DIS gateway). Every potential zombie gets a DISPOSE at entry and at exit — ⭐ §12 (R-3062) |
+| **D-B** | ✅ the FULL checkpoint: every recorded type + the singletons, the unconsumed events, `ResumeAfterRestore` (R-3063) |
+| **D-C … D-H** | ✅ as leaned (R-3063): abandon + finalise + a forced `review-<n>` keyframe · joiners held · world-changing commands refused · any operator · a node without the moment shows nothing · only an operator pause is a pause |
+
+## 12. The review ON THE WIRE — every potential zombie disposed *(R-3062)*
+
+🔒 the quote above. ⭐ The external consumers — an IG outside this repo, the HLA / DIS gateway — see ONLY DDS. A world that is replaced in
+place (a review's entry, every seek, the review's exit) must therefore say on the wire which entities ceased to exist: **a DISPOSE per
+network id that was published and is absent from the new world.** ⭐ Our own IG node is NOT such a consumer — it records and replays its own
+recording like every recording node (R-4010, Q91 L5; ⛔ replay-and-modules §2.2 / §2.3 say otherwise and are superseded).
+
+**INVENTORY** *(`2026-10-26`; ⚠ `check_index_coverage` is not available through the CLI)*: `search_graph(name_pattern=".*(Cleanup|Disposal|Dispose|Egress)System.*", label=Class)` → **14**; the ONE that writes DDS disposes is `CycloneNetworkCleanupSystem` (the egress systems under the W2 hold: `CycloneEgressSystem`, `SmartEgressSystem`, `OwnershipEgressSystem`, `PeerLifecycleStatusEgressSystem`, `SelectionEgressSystem`, the gizmo transport's). · `search_graph(".*(NetworkId|EntityId)Allocator.*")` → 0, so grep: `INetworkIdAllocator` / `IRestorableIdAllocator` (`DdsIdAllocator`, `SequentialIdAllocator`, `IgSequentialIdAllocator`). · `search_code("zombie")` → 128 matches / 66 files: replay-and-modules §3.10.4, mgmt-1 §8.10, dds-to-ecs §6.1, replication-fixes Issue 2 — the four §12d answers. · grep: `ForceMarkAllDirty` → 2 callers, both `PlaybackTickSystem`; `DestroyEntity` in the ownership / replication paths → none (a hand-over never destroys).
+
+### 12a. Sequence — retract, then publish
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant N as a recording node
+  participant CL as its CycloneNetworkCleanupSystem
+  participant EG as its egress translators
+  participant X as external IG / HLA-DIS gateway
+  Note over M,X: ENTRY - the world goes from the live point L to the review target T
+  M->>N: PrepareReview (after every node acked the barrier pause)
+  N->>EG: HOLD - no sample is written until the commit
+  N->>N: full checkpoint of L in RAM, then the world becomes T
+  CL->>CL: sweep - every id it published, looked up in the new world
+  CL->>X: DISPOSE each id owned at L and absent at T
+  N->>N: wait until the disposes are acknowledged
+  N-->>M: prepared
+  M->>N: CommitState(OperatingReview)
+  N->>EG: RELEASE - a full republish of T
+  EG->>X: the review's world
+  Note over M,X: EVERY SEEK in the review (and in an ordinary replay) is the same hold, sweep, ack, commit, republish
+  Note over M,X: EXIT - the world goes from the review frame R back to L
+  M->>N: FinalizeReview
+  N->>EG: HOLD
+  N->>N: apply the checkpoint of L, ResumeAfterRestore
+  CL->>X: DISPOSE each id alive at R and absent at L
+  N->>N: wait for the acks, then DROP whatever its readers hold
+  N-->>M: done
+  M->>N: CommitState(OperatingLive) - live, paused
+  N->>EG: RELEASE - a full republish of L, ingress resumes
+```
+*What the picture shows that the prose hid:* the dispose is NOT a signal anybody raises — it falls out of one sweep that runs every frame, so
+entry, exit, every seek, a checkpoint restore and the dry run's exit all get it for free. And the HOLD between a node's swap and the master's
+commit is what keeps one node's retraction from landing AFTER another node's publication of the same id.
+
+### 12b. The rule — one sweep, four cases
+
+`CycloneNetworkCleanupSystem` already queries every networked entity each frame (`.WithLifecycle(All).With<NetworkIdentity>().With<NetworkAuthority>()`).
+⭐ It becomes a **mark-and-sweep by network id** over the ids it has published:
+
+| an id this node published | in the world now? | ⭐ action | why |
+|---|---|---|---|
+| owned here | yes, owned | keep | its republish follows the commit |
+| owned here | yes, as a GHOST (another node owns it in this world) | **forget — no dispose** | the owner publishes it; an ownership hand-over flips authority in place (no destroy in the ownership path — `OwnershipUpdateTranslator`, `DeferredTakeoverSystem`) |
+| owned here | **absent** | ⭐⭐ **DISPOSE on every translator** (`DisposeAll`) | the potential zombie |
+| — (new) | yes, owned | track and publish | `EntityMaster`'s once-per-id set forgets an id on its dispose (`EntityMasterEgressTranslator.cs:140`) and on a restore (`:60`), so it is published again |
+
+⭐ **Network ids are never reused within one world** (the id authority's high-water mark only moves forward — `IRestorableIdAllocator`) ⇒
+the same id at L and at T is the same entity, and the diff is exact. ⭐ The sweep absorbs the lightweight-round special case (its step 1b,
+LR-2 — `CycloneNetworkCleanupSystem.cs:90-105`) and the world boundary keeps its own path (`Ended` ⇒ dispose everything, unchanged).
+
+### 12c. The ordering rules
+
+| # | rule | what breaks without it | ⭐ evidence |
+|---|---|---|---|
+| **W1** | the sweep above, every frame, on every node | 🔴 **TODAY a backward seek, a checkpoint restore or a dry-run exit disposes NOTHING**: the cleanup disposes only on a `DestructionOrder` event or a world boundary, and a seek's keyframe is a `repo.Clear()` with no events — the vanished entities stay on the wire, TransientLocal hands them to late joiners (CE-3331) | `CycloneNetworkCleanupSystem.cs:54-124`; `PlaybackSystem.cs:52-58`; `AfterRestore.Run` (`WorldKeyframes.cs:157`): "nothing is deleted on the wire" |
+| **W2** | egress HELD from a node's world swap until the master's commit (entry: `CommitState(OperatingReview)`; exit: `CommitState(OperatingLive)`; a seek: the master's post-seek snap, sent only after every node acked) — the cleanup's disposes go out during the hold | a node whose world lacks an id (a late joiner — D-G: its world is EMPTY there, so it disposes everything it owns at L) retracts an id that its owner AT T is publishing; if the publication lands first, the gateway deletes a live entity | DDS orders no two writers |
+| **W3** | a node reports prepared / seek-done only after its disposes are ACKNOWLEDGED by the matched readers (bounded; a timeout is reported in the result, not fatal) | W2's barrier holds only if the disposes have ARRIVED before anyone publishes | ⚠ **M5**: does the CycloneDDS .NET binding expose `wait_for_acks`? |
+| **W4** | on release: a FULL republish — `SmartEgressUtil.ForceMarkAllDirty` (already done on a seek, `PlaybackTickSystem.cs:175,183`) ⭐ **and in `AfterRestore`** | ⛔ the exit and a checkpoint restore do NOT force it today ⇒ the gateway keeps showing the REVIEW's state for every entity that survives, and live comes back PAUSED, so nothing changes to repair it | `grep ForceMarkAllDirty` — two callers, both in `PlaybackTickSystem` |
+| **W5** | during a replay / review a recording node takes nothing from the wire into its world (ingress frozen, `GhostDestructionSystem` gated — replay-and-modules §3.10.3); at the exit's release it DROPS what its readers hold, then ingress resumes | the entry's disposes would destroy the REPLAYED ghosts; at the exit, review-era samples would overwrite the restored ghosts, and a dispose from the entry would kill a ghost alive at L | ⚠ **M4**: measure what ingress does with samples during a replay (taken and dropped, or left in the reader) |
+| **W6** | the recorder on resume: its destruction log cleared and a keyframe forced (F11) | the review's swaps are written into the first live delta | `AsyncRecorder.cs:201,240` |
+
+### 12d. Rejected — one line each
+
+- **a wire-silent review** (the D-A lean) — 🔒 overturned: the external IGs and the HLA / DIS gateway must show the review.
+- **retract everything, republish everything** at each swap — every entity deleted and re-created on the gateway (a new HLA object, the IG's effects and smoothing lost) where the diff keeps the survivors continuous.
+- **clear the tracking on a seek** (replay-and-modules §3.10.4) — that is exactly what forgets the vanished ids WITHOUT disposing them; its "mass dispose on every seek" premise was never the code (the cleanup disposes only on events).
+- **the local ghost purge on a seek** (mgmt-1 §8.10 "heavy seek") — reaches only nodes that run the op; an external consumer sees only DDS.
+- **a dispose raised by a seek signal** — every path that replaces a world (seek, keyframe, review, dry run, checkpoint) would have to raise it; the frame sweep needs none.
+
+### 12e. Rails
+
+- live → review → live: the set of DDS instances alive on a test reader equals the live world's owned ids at L, before and after; every id alive only in the review was disposed (a reader that saw the review asserts `NotAliveDisposed`).
+- an ordinary replay's backward seek: an entity created after the target is disposed on the wire (CE-3331 — red today).
+- a checkpoint restore leaves no entity of the abandoned future on the wire, and its survivors are republished (W4).
+- a late joiner's retraction never deletes an entity its owner at T publishes (W2 + W3): the reader sees it alive after the commit.

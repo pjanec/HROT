@@ -20,7 +20,7 @@ known-rot: ⛔ §9.1's `.dds` in-flight capture is WITHDRAWN (R-3041). ⛔ §9.3
 known-conflict: docs/designs/cgf-1/mgmt-DESIGN.md is a 3216-line NEAR-COPY of this 3226-line file (two
   producers for one slot, R-132). A reader can quote the stale half without knowing. Prefer THIS file.
 related-designs:
-  - ../../DESIGN_Replay_Time_Axis_And_Review.md — the replay's SIM axis (paused stretches of §8.12's recording collapsed) and the review states Live → Review → Live
+  - ../../DESIGN_Replay_Time_Axis_And_Review.md — the replay's SIM axis (paused stretches of §8.12's recording collapsed) and the review states Live → Review → Live ⭐ its §12 owns the wire at every replay swap: a DDS dispose per id absent from the new world — §8.10's local ghost purge reaches no external consumer (R-3062)
   - docs/DESIGN_Director_Timeline_Editor.md — TE-13: a film's recording is kept in this design's exercise archive layout, with its takes beside it
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — §9's dry run and checkpoint as REBUILT on the flight recorder (R-3040/R-3041; CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f.1 (CE-3297/CE-3298): which SYSTEM state a §9 checkpoint must find in components (class C) and which may stay a field (recoverable A, re-derived protocol B); measured: a latch in a field ejects a second pilot after a restore.
