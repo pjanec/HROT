@@ -41,6 +41,8 @@ public class TheSimControlsActuallyControlTimeTests
         public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => Axis = axis;
         public void EnterReview(double? at = null) { }
         public void ExitReview() { }
+        public Fdp.Toolkit.Orchestration.ReplaySession? Session { get; set; }
+        public void EnterReviewAtSim(double simSeconds) { }
         public double? LivePoint { get; set; }
         public void Seek(double t) { }
     }
