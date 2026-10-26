@@ -443,7 +443,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: seek_replay({next:{lane}}) jumps to the next event of a lane..
   Example: `get_timeline_events({"lane":"shots","limit":20})` — list a lane's events.
 - **`get_timeline_lanes`** — The Event Timeline's lanes on this host (RB-6): each lane with its event count in the shown recording's index, and the index's progress (it builds in the background on first open). No params. Returns { recording, progress, complete, error, frames, lanes:[{id, name, group, priority, glyph, indexed, count, error}] }
-  Notes: Only a host that keeps a timeline index answers (the Replay Browser today); others: NOT_SUPPORTED_HERE(timeline.read)..
+  Notes: Only a host that keeps a timeline index answers (the Replay Browser, the editor and every ECS cluster node — live); others: NOT_SUPPORTED_HERE(timeline.read)..
   Example: `get_timeline_lanes({})` — what the timeline shows, and how far its index is.
 - **`add_timeline_lane`** — Add a user's lane to the timeline (RB-6): a descriptor and the condition that makes an event — the lane catalogue's Register; the index scans it in the background. Req `Lane` (object), Req `When` (object), `Payload?` (object). Returns { registered, note }
   Example: `add_timeline_lane({"Lane":{"Id":"dmg","DisplayName":"Damage"},"When":{"$type":"PropertyMatch","ComponentType":"Health","PropertyPath":"Current","Operator":"Changed","Predicate":{"$type":"Numeric"}}})` — add a lane that marks every health change.

@@ -58,6 +58,9 @@ public sealed record HrotNodeContext : IDisposable
         beforeKernel?.Invoke();
         Kernel.Update();
         afterKernel?.Invoke();
+        // ⭐ CE-3330 — the node's live event timeline: the shipped lanes evaluated on this world each sim frame, while this frame's
+        //   events are still readable (before the swap). Here, so EVERY host gets it by construction; nothing while the world does not advance.
+        Timeline.Step(World, System.DateTime.UtcNow.Ticks);
         EventBus.SwapBuffers();
     }
 
@@ -167,4 +170,26 @@ public sealed record HrotNodeContext : IDisposable
     /// terrain; a capability adds to it (the traffic pack's SUMO net), the node's residency reads it. One per node, never per process.
     /// </summary>
     public Hrot.Map.Common.Services.TerrainContentRegistry TerrainContent { get; init; } = new();
+
+    /// <summary>The context the node's timeline lanes apply in: the live world.</summary>
+    public static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext { get; } = new(Live: true);
+
+    private Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog? _timelineLanes;
+    private Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? _timeline;
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — the lane catalogue of this node's live timeline (the shipped lanes; a user's lane is registered into it).
+    /// Built on first use, one per node.
+    /// </summary>
+    public Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog TimelineLanes
+        => _timelineLanes ??= Fdp.Toolkit.ReplayBrowser.Timeline.ShippedTimelineLanes.Catalog();
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — this node's LIVE event-timeline index, stepped by <see cref="Tick"/> after the kernel (the editor's
+    /// <c>LiveTimelineSource</c>, not a second one). Built on first use, one per node.
+    /// </summary>
+    public Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource Timeline
+        => _timeline ??= new Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource(TimelineLanes, TimelineContext,
+            new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
+                new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(new StructEdit.Reflection.ComponentEditServiceBuilder().Build())));
 }

@@ -44,6 +44,32 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         try { Directory.Delete(_tempDir, recursive: true); } catch { }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — the Replay Browser and the editor compose their timeline lanes from the ONE shipped catalogue
+    /// (<c>ShippedTimelineLanes.Catalog()</c>): same lane ids as the three providers they used to register, and neither host source
+    /// registers a toolkit's lane provider by hand any more. 🔴 Red-proof: the Replay Browser's field re-registering the providers by hand
+    /// (behind a runtime-false guard) ⇒ the source half fails.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_TheReplayBrowserAndTheEditor_ComposeTheShippedCatalogue()
+    {
+        var ctx = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Recording: true);
+        var before = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog()
+            .Register(new Fdp.Toolkit.Replication.ReplicationTimelineLanes())
+            .Register(new Fdp.Toolkit.Combat.CombatTimelineLanes())
+            .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
+        Assert.Equal(before.Lanes(ctx).Select(l => l.Id), _subsystem.TimelineLanes.Lanes(ctx).Select(l => l.Id));
+
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+        foreach (var file in new[] { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs", "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs" })
+        {
+            string text = File.ReadAllText(Path.Combine(root, file));
+            Assert.Contains("ShippedTimelineLanes.Catalog()", text);
+            Assert.DoesNotContain("new Fdp.Toolkit.Replication.ReplicationTimelineLanes()", text);
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private static SubsystemConfig HeadlessConfig() => new SubsystemConfig

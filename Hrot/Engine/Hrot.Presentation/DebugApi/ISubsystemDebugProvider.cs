@@ -412,7 +412,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⭐ RB-2 — the replay's zero and now (frame-based seeks); RB-5 — the host's event history.
         Func<ReplayPosition?>? replayPosition = null,
         Func<Fdp.Core.Diagnostics.IDiagnosticEventHistoryService?>? eventHistory = null,
-        // ⭐ RB-6 — the host's timeline index (only the Replay Browser keeps one today).
+        // ⭐ RB-6 — the host's timeline index (the Replay Browser's recording; CE-3330 — every ECS node's live one, EcsNodeDebugProvider).
         Func<TimelineAccess?>? timeline = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
@@ -638,7 +638,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         [DebugCapabilities.TkbRead] = TkbDb is not null,
         // ⭐ RB-3 — the standalone Replay Browser's own routes (view, histories, export); measured from the seam being wired.
         [DebugCapabilities.ReplayBrowser] = ReplayBrowser is not null,
-        // ⭐ RB-6 — a timeline index (only the Replay Browser keeps one today; the editor's live one is not built).
+        // ⭐ RB-6 — a timeline index (the Replay Browser's recording; CE-3330 — every ECS node's live one; the editor attaches its own).
         [DebugCapabilities.TimelineRead] = Timeline is not null,
     };
 }

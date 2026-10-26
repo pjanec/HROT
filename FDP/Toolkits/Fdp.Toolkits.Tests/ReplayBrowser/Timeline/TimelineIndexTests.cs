@@ -148,6 +148,27 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.Equal(1, live.Frames);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3330</c> — ONE shipped catalogue: the editor, the Replay Browser and every ECS node compose their lanes from
+        /// <see cref="ShippedTimelineLanes.Catalog"/>; it registers the three toolkits' providers in the order the hosts used to (Replication,
+        /// Combat, Behaviour), and each call is a NEW catalogue (a user's lane registered into one host's never leaks into another's).
+        /// 🔴 Red-proof: the Combat provider skipped (behind a runtime-false guard) ⇒ the lane ids lose the combat group.
+        /// </summary>
+        [Fact]
+        public void CE3330_Node_TheShippedCatalog_IsTheThreeToolkitProviders_InOrder_AndNewEachCall()
+        {
+            var ctx = new TimelineLaneContext(Live: true);
+            var shipped = ShippedTimelineLanes.Catalog();
+
+            Assert.Equal(Shipped().Lanes(ctx).Select(l => l.Id), shipped.Lanes(ctx).Select(l => l.Id));
+            Assert.Equal(9, shipped.Lanes(ctx).Count);                     // the three toolkits' nine (the Replay Browser's rail asserts the same)
+            Assert.Contains(CombatTimelineLanes.Shot.Id, shipped.Lanes(ctx).Select(l => l.Id));
+            Assert.NotSame(shipped, ShippedTimelineLanes.Catalog());
+            shipped.Register(new IndexedLaneDefinition(new TimelineLaneDescriptor("mine", "Mine"),
+                new TransientEventPredicateDto { EventType = typeof(HitEvent), AnyOccurrence = true }));
+            Assert.Null(ShippedTimelineLanes.Catalog().Find("mine"));
+        }
+
         private static (int Frame, long Subject, long Other)[] Of(TimelineIndex index, TimelineLaneDescriptor lane)
             => index.Lane(lane.Id).Select(e => (e.Frame, e.Subject, e.Other)).ToArray();
 

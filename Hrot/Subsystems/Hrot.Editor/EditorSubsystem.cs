@@ -240,10 +240,7 @@ namespace Hrot.Editor
         // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR: the lanes the toolkits
         //   register (the Replay Browser composes the same three), indexed live by LiveTimelineSource, drawn by the shared TimelinePanel.
         private static readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext LiveTimelineContext = new(Live: true);
-        private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog()
-            .Register(new Fdp.Toolkit.Replication.ReplicationTimelineLanes())
-            .Register(new Fdp.Toolkit.Combat.CombatTimelineLanes())
-            .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
+        private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = Fdp.Toolkit.ReplayBrowser.Timeline.ShippedTimelineLanes.Catalog();
         private Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? _liveTimeline;
         private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
 

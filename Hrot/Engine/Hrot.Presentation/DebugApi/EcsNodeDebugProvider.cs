@@ -50,10 +50,18 @@ public static class EcsNodeDebugProvider
                 ? req => n.World.Bus.PublishManaged(req)
                 : null,
             descriptorMap: () => node()?.NedReplication?.DescriptorOwnershipMap,
+            // ⭐ CE-3330 — the node's live event timeline, on every node (stepped by HrotNodeContext.Tick)
+            timeline:      () => node() is { } n ? TimelineOf(n) : null,
             architecture:  () => node()?.Kernel is { } kernel
                 ? new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => kernel)
                 : null);
     }
+
+    // one access per context: the provider re-reads the node on every call and the access is a constant of it
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HrotNodeContext, TimelineAccess> Accesses = new();
+
+    private static TimelineAccess TimelineOf(HrotNodeContext n)
+        => Accesses.GetValue(n, c => new TimelineAccess(() => c.Timeline, c.TimelineLanes, HrotNodeContext.TimelineContext));
 }
 
 /// <summary>⭐ What an ECS node genuinely has or lacks beyond its <see cref="HrotNodeContext"/> — each a <see cref="Func{T}"/> because

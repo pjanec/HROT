@@ -276,4 +276,70 @@ public sealed class HrotNodeBuilderTests
         Assert.Same(plain.GeoTransform, plain.World.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>());
         Assert.Equal((0.0, 0.0, 0.0), plain.GeoTransform!.Origin);   // ⛔ no Berlin default
     }
+
+    // ── CE-3330 — every ECS node keeps a LIVE event-timeline index, served on its debug surface ──────────
+
+    private static HrotNodeContext InitialisedNode(int nodeId)
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig(nodeId)).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();
+        foreach (var m in ctx.BaseModules) ctx.Kernel.RegisterModule(m);
+        ctx.Kernel.Initialize();
+        return ctx;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — the node's OWN frame (<see cref="HrotNodeContext.Tick"/>, the one every host runs) steps the live timeline: a unit
+    /// that gains a network id in frame 1 and is destroyed in frame 3 is a <c>Spawned</c> event at frame 1 and a <c>Left</c> event at frame 3,
+    /// with no host wiring. 🔴 Red-proof: the <c>Timeline.Step</c> call in <c>Tick</c> behind a runtime-false guard ⇒ no frame is indexed.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_Tick_IndexesTheShippedLanes_LiveOnTheNodesOwnFrame()
+    {
+        using var ctx = InitialisedNode(97);
+        var world = ctx.World;
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        Entity unit = default;
+
+        ctx.Tick();                                                                   // frame 0
+        ctx.Tick(afterKernel: () =>                                                   // frame 1: the unit appears
+        {
+            unit = world.CreateEntity();
+            world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4242));
+        });
+        ctx.Tick();                                                                   // frame 2
+        ctx.Tick(afterKernel: () => world.DestroyEntity(unit));                       // frame 3: it dies
+
+        var live = ctx.Timeline;
+        live.Step(world, DateTime.UtcNow.Ticks, force: true);                         // publish now (the throttle is a quarter second)
+        Assert.Equal(4, live.Frames);
+        var spawned = Assert.Single(live.Index.Lane(Fdp.Toolkit.Replication.ReplicationTimelineLanes.Spawned.Id));
+        Assert.Equal((1, 4242L), (spawned.Frame, spawned.Subject));
+        var left = Assert.Single(live.Index.Lane(Fdp.Toolkit.Replication.ReplicationTimelineLanes.Left.Id));
+        Assert.Equal((3, 4242L), (left.Frame, left.Subject));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — the ONE node debug provider serves that source: <c>timeline.read</c> is true, <c>Timeline.Source()</c> IS the
+    /// context's live source and the catalogue its lanes; over no context (before Initialize / after Shutdown) there is no timeline and nothing throws.
+    /// 🔴 Red-proof: the provider's <c>timeline:</c> argument returns null behind a runtime-false guard ⇒ the capability reads false.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_TheEcsNodeDebugProvider_ServesTheContextsLiveTimeline()
+    {
+        using var ctx = InitialisedNode(96);
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+
+        Assert.True(provider.DescribeCapabilities()[Hrot.Presentation.DebugApi.DebugCapabilities.TimelineRead]);
+        var access = provider.Timeline!;
+        Assert.Same(ctx.Timeline, access.Source());
+        Assert.Same(ctx.TimelineLanes, access.Catalog);
+        Assert.True(access.Context.Live);
+        Assert.Same(access, provider.Timeline);                                       // one access per context, not one per request
+
+        HrotNodeContext? none = null;
+        var gone = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => none);
+        Assert.Null(gone.Timeline);
+        Assert.False(gone.DescribeCapabilities()[Hrot.Presentation.DebugApi.DebugCapabilities.TimelineRead]);
+    }
 }
