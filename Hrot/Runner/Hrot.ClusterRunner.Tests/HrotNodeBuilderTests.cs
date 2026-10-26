@@ -342,4 +342,31 @@ public sealed class HrotNodeBuilderTests
         Assert.Null(gone.Timeline);
         Assert.False(gone.DescribeCapabilities()[Hrot.Presentation.DebugApi.DebugCapabilities.TimelineRead]);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — a host with its OWN frame (the editor) steps the node's timeline through <see cref="HrotNodeContext.StepTimeline"/>, with
+    /// no <c>Tick</c>: the entity that gained a network id is indexed into <c>ctx.Timeline</c>, and the access every host serves
+    /// (<c>EcsNodeDebugProvider.TimelineOf</c>) is the SAME for the context and reads that same source.
+    /// 🔴 Red-proof: <c>StepTimeline</c>'s body behind a runtime-false guard ⇒ nothing is indexed.
+    /// </summary>
+    [Fact]
+    public void CE3330_Node_StepTimeline_IndexesTheNodesTimeline_WithoutATick_AndTheAccessIsTheContextsOwn()
+    {
+        using var ctx = InitialisedNode(95);
+        if (!ctx.World.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
+            ctx.World.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        ctx.World.SetSingleton(new GlobalTime { FrameNumber = 1 });                   // one sim frame
+        var unit = ctx.World.CreateEntity();
+        ctx.World.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(777));
+
+        ctx.StepTimeline();                                                           // the editor's frame, not ctx.Tick
+        Assert.Equal(1, ctx.Timeline.Frames);                                         // (a source's first step publishes at once)
+        var spawned = Assert.Single(ctx.Timeline.Index.Lane(Fdp.Toolkit.Replication.ReplicationTimelineLanes.Spawned.Id));
+        Assert.Equal(777L, spawned.Subject);
+
+        var access = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx);
+        Assert.Same(access, Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx));
+        Assert.Same(ctx.Timeline, access.Source());
+        Assert.Same(ctx.TimelineLanes, access.Catalog);
+    }
 }

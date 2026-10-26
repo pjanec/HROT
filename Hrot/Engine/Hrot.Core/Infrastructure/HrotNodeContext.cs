@@ -60,7 +60,7 @@ public sealed record HrotNodeContext : IDisposable
         afterKernel?.Invoke();
         // ⭐ CE-3330 — the node's live event timeline: the shipped lanes evaluated on this world each sim frame, while this frame's
         //   events are still readable (before the swap). Here, so EVERY host gets it by construction; nothing while the world does not advance.
-        Timeline.Step(World, System.DateTime.UtcNow.Ticks);
+        StepTimeline();
         EventBus.SwapBuffers();
     }
 
@@ -170,6 +170,12 @@ public sealed record HrotNodeContext : IDisposable
     /// terrain; a capability adds to it (the traffic pack's SUMO net), the node's residency reads it. One per node, never per process.
     /// </summary>
     public Hrot.Map.Common.Services.TerrainContentRegistry TerrainContent { get; init; } = new();
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> — one live-timeline step: the lanes evaluated on this world (nothing while its sim frame does not advance). <see cref="Tick"/>
+    /// calls it after the kernel; a host with its OWN frame (the editor) calls it at the same point.
+    /// </summary>
+    public void StepTimeline() => Timeline.Step(World, System.DateTime.UtcNow.Ticks);
 
     /// <summary>The context the node's timeline lanes apply in: the live world.</summary>
     public static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext { get; } = new(Live: true);

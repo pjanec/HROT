@@ -237,17 +237,13 @@ namespace Hrot.Editor
 
         private EntityRepository?       _world;
 
-        // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR: the lanes the toolkits
-        //   register (the Replay Browser composes the same three), indexed live by LiveTimelineSource, drawn by the shared TimelinePanel.
-        private static readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext LiveTimelineContext = new(Live: true);
-        private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = Fdp.Toolkit.ReplayBrowser.Timeline.ShippedTimelineLanes.Catalog();
-        private Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? _liveTimeline;
+        // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR is its NODE CONTEXT's: the
+        //   lanes, the live index and the lane context are the ones every ECS node has (HrotNodeContext.Timeline); the editor runs its own
+        //   frame, so it steps the index itself (StepTimeline) where the context's Tick would. Drawn by the shared TimelinePanel.
         private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
 
-        /// <summary>⭐ CE-3330 — the live event timeline's index (built on first use).</summary>
-        internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource LiveTimeline => _liveTimeline ??= new(_timelineLanes, LiveTimelineContext,
-            new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
-                new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(new StructEdit.Reflection.ComponentEditServiceBuilder().Build())));
+        /// <summary>⭐ CE-3330 — the live event timeline's index: the node context's (null before Initialize / after Shutdown).</summary>
+        internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? LiveTimeline => _node?.Timeline;
 
         /// <summary>⭐ CE-3330 (R-4087 addendum 5) — a timeline event clicked selects its unit through the ONE selection; ⛔ never a seek.</summary>
         internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e)
@@ -2627,7 +2623,7 @@ namespace Hrot.Editor
                               : new ArchitectureDiagnosticsService(() => _kernel));
 
                     // ⭐ CE-3330 — GET /timeline/* reads the editor's LIVE event timeline (the Replay Browser hands its recording's over its provider)
-                    debugService.AttachTimeline(() => new Hrot.Presentation.DebugApi.TimelineAccess(() => LiveTimeline, _timelineLanes, LiveTimelineContext));
+                    debugService.AttachTimeline(() => _node is { } timelineNode ? Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(timelineNode) : null);
 
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
@@ -2981,7 +2977,7 @@ namespace Hrot.Editor
             if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
             // ⭐ CE-3330 (DAR row 28, R-4087 addendum 6) — the event timeline's LIVE index: the registered lanes evaluated on this world each
             //   sim frame by the recording's own per-frame step (nothing while the world does not advance)
-            if (_world != null) LiveTimeline.Step(_world, DateTime.UtcNow.Ticks);
+            if (_world != null) _node?.StepTimeline();
 
             // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves
             // (BTree/HSM emit-on-dirty).  Safe in headless mode; no-op when nothing is pending.
@@ -5286,8 +5282,8 @@ namespace Hrot.Editor
                 new Fdp.Presentation.Panels.Timeline.LiveTimelineCursor(() => LiveTimeline,
                     isPlaying: () => timelineTransport is { IsPaused: false },
                     togglePlay: timelineTransport == null ? null : () => { if (timelineTransport.IsPlayPauseEnabled) timelineTransport.TogglePlayPause(); }),
-                () => _timelineLanes.Lanes(LiveTimelineContext), EditorWindowColor.TitleBar,
-                onSelect: e => SelectTimelineEvent(e), rowMenu: _timelineLanes.MenuItems)
+                () => _node?.TimelineLanes.Lanes(HrotNodeContext.TimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
+                onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>())
             { IsOpen = false });
 
             // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window over this node's SquadReportLog (filled where the staff runs)

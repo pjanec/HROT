@@ -60,7 +60,9 @@ public static class EcsNodeDebugProvider
     // one access per context: the provider re-reads the node on every call and the access is a constant of it
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HrotNodeContext, TimelineAccess> Accesses = new();
 
-    private static TimelineAccess TimelineOf(HrotNodeContext n)
+    /// <summary>⭐ CE-3330 — the one <see cref="TimelineAccess"/> of a node context (cached per context): the ECS nodes' provider and the editor's
+    /// <c>/timeline</c> attach both serve THIS.</summary>
+    public static TimelineAccess TimelineOf(HrotNodeContext n)
         => Accesses.GetValue(n, c => new TimelineAccess(() => c.Timeline, c.TimelineLanes, HrotNodeContext.TimelineContext));
 }
 
