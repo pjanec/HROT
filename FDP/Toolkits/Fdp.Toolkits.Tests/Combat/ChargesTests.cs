@@ -101,7 +101,7 @@ namespace Fdp.Toolkit.Tests.Combat
         {
             _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: Elsewhere, localNodeId: Here));
             var ownership = new DescriptorOwnership();
-            ownership.Map[Embarkation.PositionKey] = Elsewhere;
+            ownership = ownership.WithOwner(Embarkation.PositionKey, Elsewhere);
             _world.SetManagedComponent(e, ownership);
         }
 

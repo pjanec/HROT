@@ -142,7 +142,7 @@ namespace Fdp.Toolkit.Replication.Tests
         public void AClaimedDescriptorWhoseRecordSaysOtherwise_IsRecordedAsMine()
         {
             var n = Build(Local, primary: Local);
-            n.Repo.GetComponent<DescriptorOwnership>(EnsureRecord(n)).SetOwner(Key(Info), Remote);   // stale record
+            { var rec = EnsureRecord(n); n.Repo.SetManagedComponent(rec, n.Repo.GetComponent<DescriptorOwnership>(rec).WithOwner(Key(Info), Remote)); }   // stale record
             n.Repo.Bus.Publish(new ConstructionOrder { Entity = n.E });
             n.Frame();
 
@@ -220,7 +220,7 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             var n = Build(Local, primary: Local);
             EnsureRecord(n);
-            n.Repo.GetComponent<DescriptorOwnership>(n.E).SetOwner(Key(Kinematic), Remote);
+            n.Repo.SetManagedComponent(n.E, n.Repo.GetComponent<DescriptorOwnership>(n.E).WithOwner(Key(Kinematic), Remote));
             n.Repo.SetAuthority<NetworkVelocity>(n.E, false);      // Kinematic split: Transform claimed, Velocity not
             n.Repo.Bus.Publish(new ConstructionOrder { Entity = n.E });
             n.Frame();
@@ -264,7 +264,7 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             var creator = Build(Local, primary: Local);
             EnsureRecord(creator);
-            creator.Repo.GetComponent<DescriptorOwnership>(creator.E).SetOwner(Key(Kinematic), Remote);   // granted away
+            creator.Repo.SetManagedComponent(creator.E, creator.Repo.GetComponent<DescriptorOwnership>(creator.E).WithOwner(Key(Kinematic), Remote));   // granted away
             var part = AddPart(creator, instance: 2);
 
             creator.Frame();   // no event needed: the parts pass runs every frame

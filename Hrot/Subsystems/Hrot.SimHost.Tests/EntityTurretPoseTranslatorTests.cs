@@ -146,7 +146,7 @@ namespace Hrot.SimHost.Tests
                 var (hull, t) = Tank(w, 6300L, primaryOwner: 1, localNode: local);
                 w.AddComponent(hull, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });
                 w.AddComponent(hull, new TkbIdentity { TkbType = 1 });
-                w.SetManagedComponent(hull, new DescriptorOwnership { Map = { [statusKey] = 2, [poseKey] = 2 } });
+                w.SetManagedComponent(hull, new DescriptorOwnership { Map = new System.Collections.Generic.Dictionary<long, int> { [statusKey] = 2, [poseKey] = 2 } });
                 var target = w.CreateEntity();
                 w.AddComponent(target, new NetworkIdentity(6301L));
                 w.AddComponent(target, new SimTransform { Position = new System.Numerics.Vector3(0, 300, 0), Rotation = System.Numerics.Quaternion.Identity });

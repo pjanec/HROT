@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.AddComponent(s, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
             _world.AddComponent(s, new NetworkAuthority(primaryOwnerId: Elsewhere, localNodeId: Here));
             var ownership = new DescriptorOwnership();
-            ownership.Map[Embarkation.PositionKey] = positionOwner;
+            ownership = ownership.WithOwner(Embarkation.PositionKey, positionOwner);
             _world.SetManagedComponent(s, ownership);
             return s;
         }
