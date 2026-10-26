@@ -67,6 +67,46 @@ namespace Fdp.Toolkit.Orchestration
         public ReplayAxis Axis;
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3329 §12n</c> — set or clear the replay's LOOP range: a SESSION setting of the cluster's replay clock, held by the master
+    /// and enforced by its <c>ReplayClockProcessManager</c> (⛔ never per host — two panels would fight over one clock). Bounds are
+    /// WALL seconds after the replay's zero, OR the recording's SIM seconds (the master resolves them with its time map); all null = clear.
+    /// 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12n.
+    /// </summary>
+    [EventId(9072)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct SetReplayLoopIntent
+    {
+        public Guid RequestId;
+        public double? FromSeconds;
+        public double? ToSeconds;
+        public double? FromSimSeconds;
+        public double? ToSimSeconds;
+
+        /// <summary>A clear: no bound set.</summary>
+        public bool IsClear => FromSeconds is null && ToSeconds is null && FromSimSeconds is null && ToSimSeconds is null;
+
+        /// <summary>
+        /// ⭐ §12n — the ONE resolution and validation of a loop request (the master's and the Replay Browser's own clock both use it):
+        /// sim bounds go through <paramref name="relativeSecondsForSim"/> (seconds after the zero, null = unresolvable); valid only
+        /// <c>0 ≤ from &lt; to ≤ length</c> (length checked when &gt; 0). <see langword="null"/> = refused (and for a clear — test
+        /// <see cref="IsClear"/> first).
+        /// </summary>
+        public (double FromSeconds, double ToSeconds)? Resolve(System.Func<double, double?> relativeSecondsForSim, double lengthSeconds)
+        {
+            double? from = null, to = null;
+            if (FromSimSeconds.HasValue || ToSimSeconds.HasValue)
+            {
+                if (FromSimSeconds is { } fs && ToSimSeconds is { } ts) { from = relativeSecondsForSim(fs); to = relativeSecondsForSim(ts); }
+            }
+            else if (FromSeconds is { } fw && ToSeconds is { } tw) { from = fw; to = tw; }
+
+            if (from is not { } f || to is not { } t || double.IsNaN(f) || double.IsNaN(t) || f < 0 || f >= t) return null;
+            if (lengthSeconds > 0 && t > lengthSeconds) return null;
+            return (f, t);
+        }
+    }
+
     /// <summary>⭐ CE-3329 R-3058 — the two views of the ONE replay clock (wall). <see cref="Sim"/> is the default (R2).</summary>
     public enum ReplayAxis
     {

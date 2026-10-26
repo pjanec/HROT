@@ -39,8 +39,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
 
         /// <summary>
         /// Evaluates every lane on <paramref name="repo"/> as frame <paramref name="frame"/> at <paramref name="ticks"/>. ⚠ The structural lanes
-        /// read the world's destruction log: a PLAYBACK world's caller clears it after each frame (<paramref name="clearDestructionLog"/>);
-        /// ⛔ a LIVE world's must not — its log belongs to the recorder, and a structural scan reports a death once whatever the log holds.
+        /// read the world's destruction log by their own mark (CE-3335): a PLAYBACK world's caller clears it after each frame
+        /// (<paramref name="clearDestructionLog"/>); ⛔ a LIVE world's must not — the recorder and the breakpoints read the same log.
         /// </summary>
         /// <param name="simSeconds">⭐ CE-3330 E1 — the frame's sim time in seconds; <c>null</c> / NaN when unknown (a v6 recording, a world without a clock).</param>
         public void Step(EntityRepository repo, int frame, long ticks, bool clearDestructionLog, double? simSeconds = null)

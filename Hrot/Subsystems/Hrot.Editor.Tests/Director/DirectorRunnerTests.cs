@@ -129,6 +129,54 @@ public sealed class DirectorRunnerTests : IDisposable
         public string? LiveRecordingPath => _recording ? _recordingFile : null;
         public IRecordedRun OpenRecording(string path) { RecordingsOpened++; return Opened = new FakeRecordedRun(path); }
 
+        // ⭐ CE-4045 H5 — a review of the live run: entered, sought and left a frame after it is asked (the master's round); it shows the
+        //   run's own recorded frames and returns to a checkpoint of the moment it left
+        /// <summary>A return that does not bring the health back — what H5 exists to catch.</summary>
+        public bool ReturnLosesHealth;
+        public int Reviews, ReviewSeeks, ReviewExits;
+        public bool IsOperatingReview { get; private set; }
+        private double? _reviewAsk;
+        private bool _exitAsk;
+        private (double SimTime, Dictionary<long, double> Health)? _checkpoint;
+        public void EnterReview(double simSeconds) { Reviews++; _reviewAsk = simSeconds; }
+        public void SeekReview(double simSeconds) { ReviewSeeks++; _reviewAsk = simSeconds; }
+        public void ExitReview() { ReviewExits++; _exitAsk = true; }
+
+        private void ShowRecorded(double simSeconds)
+        {
+            long f = (long)Math.Round(simSeconds * 60d);
+            var frame = _recorded.FirstOrDefault(n => n!["f"]!.GetValue<long>() >= f) ?? _recorded[^1]!;
+            SimTime = frame["f"]!.GetValue<long>() / 60d;
+            foreach (var e in Repo.Query().With<NetworkIdentity>().Build())
+            {
+                var u = frame["units"]![Repo.GetComponentRO<NetworkIdentity>(e).Value.ToString(System.Globalization.CultureInfo.InvariantCulture)];
+                if (u == null) continue;
+                Repo.GetComponentRW<SimTransform>(e).Position = new Vector3(u["x"]!.GetValue<float>(), 0f, 0f);
+                Verifier!.Health[Repo.GetComponentRO<NetworkIdentity>(e).Value] = u["hp"]!.GetValue<double>();
+            }
+        }
+
+        private void ServeReview()
+        {
+            if (_reviewAsk is { } ask)
+            {
+                _reviewAsk = null;
+                if (!IsOperatingReview) { _checkpoint = (SimTime, new Dictionary<long, double>(Verifier!.Health)); IsOperatingReview = true; IsOperatingLive = false; }
+                ShowRecorded(ask);
+            }
+            if (_exitAsk && _checkpoint is { } cp)
+            {
+                _exitAsk = false;
+                IsOperatingReview = false;
+                IsOperatingLive = true;
+                SimTime = cp.SimTime;
+                if (Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
+                    Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
+                Verifier!.Health.Clear();
+                if (!ReturnLosesHealth) foreach (var (id, hp) in cp.Health) Verifier.Health[id] = hp;
+            }
+        }
+
         private void Record()
         {
             var units = new System.Text.Json.Nodes.JsonObject();
@@ -161,6 +209,7 @@ public sealed class DirectorRunnerTests : IDisposable
         /// <summary>The rest of the frame after the director's tick: the kernel takes the step, a load progresses, the map draws.</summary>
         public void EndFrame()
         {
+            ServeReview();
             Shots.Add(FilmStudio.Shot);
             if (_askedSteps > 0) StepsPerFrame.Add(_askedSteps);
             for (int i = 0; i < _askedSteps; i++) _inFlight.Enqueue((_frame, _askedStep));
@@ -211,7 +260,7 @@ public sealed class DirectorRunnerTests : IDisposable
                 _pending = null;
                 _loadFrames = -1;
             }
-            if (_recording) Record();
+            if (_recording && !IsOperatingReview) Record();   // ⭐ H5 — the recorder is suspended during a review
             if (_stopFrames > 0 && --_stopFrames == 0) CloseRecording();
             Wall += FrameSeconds;
         }
@@ -499,6 +548,8 @@ public sealed class DirectorRunnerTests : IDisposable
         /// <summary>⭐ H1a — a component that changes every read and that no recorder keeps (a debug counter): never the verdict's.</summary>
         public bool WithScratch;
         private int _scratch;
+        /// <summary>⭐ CE-3334 — each unit's creation request id, as <c>CreationRequestId</c> dumps it (a fresh Guid per run).</summary>
+        public Dictionary<long, Guid>? RequestIds;
 
         /// <summary>A load rebuilds the world: the edited health goes with the old one (⛔ a fake that kept it would leak like CE-3294).</summary>
         public void Fresh()
@@ -521,6 +572,8 @@ public sealed class DirectorRunnerTests : IDisposable
                     ["Health"] = new System.Text.Json.Nodes.JsonObject { ["Current"] = Health.TryGetValue(id, out var hp) ? hp : 100d },
                 };
                 if (WithScratch) comps["Scratch"] = new System.Text.Json.Nodes.JsonObject { ["Seen"] = ++_scratch };
+                if (RequestIds != null && RequestIds.TryGetValue(id, out var request))
+                    comps["CreationRequestId"] = new System.Text.Json.Nodes.JsonObject { ["Value"] = request.ToString() };
                 return comps;
             }
             return null;
@@ -793,6 +846,111 @@ public sealed class DirectorRunnerTests : IDisposable
 
         var refused = new DirectorRunner(badHost, cinema, new Layers()).Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions()));
         Assert.Contains(refused, p => p.Contains("cannot verify"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3334</c> (docs/DESIGN_Scenario_Regression.md §4) — a creation request id is minted fresh every run, so its raw value can never
+    /// repeat: the golden writes it BY MEANING (<c>"@request:&lt;the first unit it made&gt;"</c>). ① a capture, then ② a fresh run with NEW ids
+    /// compares SAME; ③ two units made by ONE request differ from two requests (what the id means is still compared); ④ a golden captured
+    /// before the rule (no <c>"meaning"</c>, raw hashes) compares without the ids. 🔴 Red-proof: drop the <c>@request:</c> case in
+    /// <c>ScenarioGolden.Meant</c> ⇒ ② is DIFFERENT at t=0, in <c>CreationRequestId</c>.
+    /// </summary>
+    [Fact]
+    public void CE3334_APerRunRequestId_IsComparedByMeaning_SoAGoldenRepeats()
+    {
+        var store = Store();
+        File.WriteAllText(Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
+        (DirectorRunner Runner, FakeEditor Host) Fresh()   // ⭐ a fresh process: fresh request ids
+        {
+            var h = new FakeEditor(store);
+            return (new DirectorRunner(h, new Cinema(), new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)
+            {
+                RequestIds = new Dictionary<long, Guid> { [1] = Guid.NewGuid(), [2] = Guid.NewGuid() },
+            }), h);
+        }
+        VerifyResult Verify(bool capture, Action<FakeEditor>? before = null)
+        {
+            var (runner, host) = Fresh();
+            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Capture: capture))));
+            runner.Tick(); host.EndFrame();
+            before?.Invoke(host);
+            Run(runner, host);
+            return runner.Reports.Single().Verify!;
+        }
+        var goldenPath = Path.Combine(_root, "s-a", ScenarioGolden.FileName);
+
+        Assert.Equal("captured", Verify(capture: true).Golden);                                                   // ①
+        Assert.Equal(ScenarioGolden.MeaningVersion, System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(goldenPath))!["meaning"]!.GetValue<int>());
+
+        var again = Verify(capture: false);                                                                        // ②
+        Assert.True(again.Golden == "same", string.Join("\n", again.GoldenDiff));
+
+        var shared = Verify(capture: false, h => h.Verifier!.RequestIds![2] = h.Verifier.RequestIds[1]);          // ③
+        Assert.Equal("different", shared.Golden);
+        Assert.Contains(shared.GoldenDiff, d => d.Contains("CreationRequestId"));
+
+        var legacy = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(goldenPath))!.AsObject();              // ④
+        legacy.Remove("meaning");
+        foreach (var snap in legacy["snapshots"]!.AsArray())
+            foreach (var (_, unit) in snap!["units"]!.AsObject())
+                unit!["components"]!["CreationRequestId"] = "0123456789abcdef";   // a raw per-run hash, as captured before CE-3334
+        File.WriteAllText(goldenPath, legacy.ToJsonString());
+        var old = Verify(capture: false);
+        Assert.True(old.Golden == "same", string.Join("\n", old.GoldenDiff));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4045</c> H5 (docs/DESIGN_Scenario_Regression.md §10-3, R-4086) — the review check's two halves over the fake editor: A runs LIVE
+    /// straight; B runs LIVE to 2 s, waits for the step in flight, reviews back (an entry and a seek per earlier snapshot — 0, 1, 2 s), each
+    /// compared with its live snapshot, returns, compares the world with the one it left, and runs on. The halves compare SAME from 2 s.
+    /// A return that drops the health is caught twice: the return's own compare and the run after it. 🔴 Red-proof: compare the return
+    /// against the review's last snapshot instead of the world it left ⇒ ① reports a RETURN difference.
+    /// </summary>
+    [Fact]
+    public void CE4045_H5_AReviewShowsTheLiveRun_ComesBackExact_AndTheRunGoesOnAsIfStraight()
+    {
+        var store = Store();
+        File.WriteAllText(Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
+        var rec = Path.Combine(_root, "rec");
+        Directory.CreateDirectory(rec);
+        (DirectorRunner Runner, FakeEditor Host) Fresh()
+        {
+            var h = new FakeEditor(store) { Lag = 1, RecordDir = rec };
+            return (new DirectorRunner(h, new Cinema(), new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+        }
+        System.Text.Json.Nodes.JsonObject RunOf(string path) => System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        (ItemReport Report, FakeEditor Host) Half(bool straight, string runOut, bool losesHealth = false)
+        {
+            var (runner, host) = Fresh();
+            host.ReturnLosesHealth = losesHealth;
+            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Review: new ReviewCheck(2d, straight, runOut)))));
+            Run(runner, host);
+            return (runner.Reports.Single(), host);
+        }
+
+        string a = Path.Combine(_root, "h5-a.json"), b = Path.Combine(_root, "h5-b.json");
+        var (straight, sh) = Half(true, a);
+        Assert.Equal(0, sh.Reviews);
+        Assert.Null(straight.Verify!.Review);
+
+        var (reviewed, rh) = Half(false, b);                                                               // ①
+        var v = reviewed.Verify!;
+        Assert.Equal((1, 2, 1), (rh.Reviews, rh.ReviewSeeks, rh.ReviewExits));
+        Assert.Equal(0, rh.Enters);                                                                         // live, never a preview
+        Assert.All(rh.StepsPerFrame, n => Assert.Equal(1, n));
+        Assert.True(v.Review == "same", string.Join("\n", v.ReviewDiff.Concat(v.ReviewProblems)));
+        Assert.Equal(3, v.ReviewSnapshots);
+        Assert.True(v.ReturnDiff.Count == 0, string.Join("\n", v.ReturnDiff));
+        Assert.Equal("pass", reviewed.Status);
+        Assert.Empty(ScenarioGolden.CompareFrom(RunOf(a), RunOf(b), 2d));                                 // the run after = the straight run
+
+        var (lossy, _) = Half(false, b, losesHealth: true);                                                 // ② a return that drops the health
+        Assert.Equal("fail", lossy.Status);
+        Assert.Contains(lossy.Verify!.ReturnDiff, d => d.Contains("Health"));
+        Assert.NotEmpty(ScenarioGolden.CompareFrom(RunOf(a), RunOf(b), 2d));
+
+        Assert.Contains(Fresh().Runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Replay: true, Review: new ReviewCheck(2d, false, b)))),
+                        p => p.Contains("review check runs LIVE on its own"));
     }
 
 }

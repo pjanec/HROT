@@ -72,6 +72,16 @@ public interface ITimeTransportFacade
     /// <summary>Seeks the open replay or review to <paramref name="t"/> on the active axis.</summary>
     void Seek(double t);
 
+    /// <summary>⭐ CE-3329 §12n — loops the open replay / review between <paramref name="from"/> and <paramref name="to"/> on the active
+    /// axis: a SESSION setting of the master's replay clock (never this host's), so every host draws the same bracket.</summary>
+    void SetLoop(double from, double to);
+
+    /// <summary>⭐ CE-3329 §12n — clears the loop.</summary>
+    void ClearLoop();
+
+    /// <summary>⭐ CE-3329 §12n — the session's loop on the active axis; <see langword="null"/> = none.</summary>
+    (double From, double To)? Loop { get; }
+
     // ── ⭐ CE-3330 E3 (ui lane — a cross-lane edit of this backend-owned facade, said in the commit): what the toolbar's mode menu needs ──
 
     /// <summary>The session layer as this host last heard it (<see langword="null"/> before the first sample) — checkpoints, the wall zero, the live point.</summary>

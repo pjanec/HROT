@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.IO;
 using Xunit;
 using Fdp.Core;
@@ -188,6 +189,78 @@ namespace Fdp.Tests
             Assert.Empty(repo.GetDestructionLog());
         }
         
+        // ⭐ CE-3335 — ONE destruction log, a mark per reader, trimmed by Tick() (docs/DESIGN_Replay_Time_Axis_And_Review.md §12o)
+
+        [Fact]
+        public void CE3335_TwoReaders_EachSeeEveryDeath_AndNeitherEmptiesTheLog()
+        {
+            using var repo = new EntityRepository();
+            var e1 = repo.CreateEntity();
+            long a = repo.DestructionMark, b = repo.DestructionMark;
+
+            repo.DestroyEntity(e1);
+
+            Assert.Equal(new[] { e1 }, repo.ReadDestructions(ref a).ToArray());
+            Assert.Equal(new[] { e1 }, repo.ReadDestructions(ref b).ToArray());   // A's read did not take it from B
+            Assert.Equal(0, repo.ReadDestructions(ref a).Length);                  // and A sees each death once
+        }
+
+        [Fact]
+        public void CE3335_ADeathAfterAReaderInItsFrame_ReachesItTheNextFrame()
+        {
+            using var repo = new EntityRepository();
+            var e1 = repo.CreateEntity();
+            long mark = repo.DestructionMark;
+
+            repo.Tick();
+            Assert.Equal(0, repo.ReadDestructions(ref mark).Length);   // the reader ran (mid-frame) …
+            repo.DestroyEntity(e1);                                     // … and the death comes after it
+            repo.Tick();                                                // the next frame starts
+
+            Assert.Equal(new[] { e1 }, repo.ReadDestructions(ref mark).ToArray());
+        }
+
+        [Fact]
+        public void CE3335_TheLogStaysBounded_WhenNothingRecords()
+        {
+            using var repo = new EntityRepository();
+            for (int frame = 0; frame < 1000; frame++)
+            {
+                repo.Tick();
+                repo.DestroyEntity(repo.CreateEntity());
+            }
+            Assert.True(repo.GetDestructionLog().Count <= 2, $"the log held {repo.GetDestructionLog().Count} deaths after 1000 frames");
+        }
+
+        [Fact]
+        public void CE3335_TheRecorderWritesEachDeathOnce_AndLeavesItForTheOtherReaders()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Position>();
+            var e1 = repo.CreateEntity();
+            var e2 = repo.CreateEntity();
+            var recorder = new RecorderSystem();
+            long breakpoints = repo.DestructionMark;
+
+            repo.Tick();
+            repo.DestroyEntity(e1);
+            Assert.Equal(1, DestroyedCount(recorder, repo));
+            Assert.Equal(new[] { e1 }, repo.ReadDestructions(ref breakpoints).ToArray());   // a reader AFTER the recorder still sees it
+            repo.DestroyEntity(e2);                                                         // a death after the recorder, same frame
+
+            repo.Tick();
+            Assert.Equal(1, DestroyedCount(recorder, repo));   // e2 in the next frame; e1 is not written twice
+        }
+
+        private static int DestroyedCount(RecorderSystem recorder, EntityRepository repo)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream);
+            recorder.RecordDeltaFrame(repo, repo.GlobalVersion - 1, writer, 0);
+            writer.Flush();
+            return BitConverter.ToInt32(stream.ToArray(), sizeof(ulong) + sizeof(byte) + sizeof(long));   // tick · type · wall · destroyed count
+        }
+
         [Fact]
         public void RecordAndReplay_EntityDestruction_RemovesEntity()
         {

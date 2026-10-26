@@ -1883,7 +1883,7 @@ namespace Hrot.Editor.DebugApi
             {
                 new("exerciseId", "string", false, "The exercise (list_exercises); when omitted the master picks: the live run in progress, else the newest finished one"),
                 new("atSeconds", "number", false, "Where to enter, seconds after the exercise's start (default 0)"),
-                new("atSimSeconds", "number", false, "⭐ CE-3329 — or where to enter in the RECORDED sim time (the run's own clock; a pause lands at its end); needs a v7 recording"),
+                new("atSimSeconds", "number", false, "⭐ CE-3329 — or where to enter in the RECORDED sim time (the run's own clock; a pause lands at its end); needs a v7 recording — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"),
                 new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReplay"),
                 new("path", "string", false, "Replay Browser only (RB-2): one recording file (.fdp) to open, need not be in list_exercises"),
                 new("paths", "array", false, "Replay Browser only (RB-2): a node group — one .fdp per node of one exercise"),
@@ -1907,7 +1907,7 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[]
             {
                 new("atSeconds", "number", false, "Seconds after the exercise's start"),
-                new("atSimSeconds", "number", false, "⭐ CE-3329 — or the RECORDED sim time to land on (a paused instant lands at its end, so what changed during the pause shows); refused for a v6 recording"),
+                new("atSimSeconds", "number", false, "⭐ CE-3329 — or the RECORDED sim time to land on (a paused instant lands at its end, so what changed during the pause shows); refused for a v6 recording — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"),
                 new("frame", "integer", false, "A frame of this node's recording"),
                 new("frames", "integer", false, "Frames forward (+) or back (-) from the one shown"),
                 new("cause", "object", false, "{frame, entity}: the frame after an event, where its effect shows (the Event browser's causality jump); select the entity with select_entity"),
@@ -1941,7 +1941,7 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[]
             {
                 new("atSeconds", "number", false, "Where the review opens, seconds after the recording's zero (default: the live point)"),
-                new("atSimSeconds", "number", false, "Or the recorded sim time to open at"),
+                new("atSimSeconds", "number", false, "Or the recorded sim time to open at — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"),
                 new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReview"),
             },
             Notes: new[] { "In a review: seek with POST /replay/seek (or /review/seek), play / pause / step with /sim/*, the axis with /replay/axis; it pauses itself at the live point.",
@@ -1968,7 +1968,7 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[]
             {
                 new("atSeconds", "number", false, "Seconds after the recording's zero"),
-                new("atSimSeconds", "number", false, "The recorded sim time"),
+                new("atSimSeconds", "number", false, "The recorded sim time — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"),
             },
             ExampleArgsJson: "{\"atSimSeconds\":12}",
             ExampleGist: "move within the review"),
@@ -1985,11 +1985,29 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"axis\":\"Wall\"}",
             ExampleGist: "skip or play the pauses"),
 
+        [("POST", "/replay/loop")] = new RouteDoc(
+            Tool:    "set_replay_loop",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 §12n — loop the replay (or review) between two moments: when the playhead reaches the end the master's replay clock jumps back to the start, on either axis. A SESSION setting held by the master and drawn by every host; {} clears it.",
+            Returns: "{ published, requestId, cleared }",
+            Hint:    "Req: fromSeconds+toSeconds (wall seconds after the zero) OR fromSimSeconds+toSimSeconds (the recording's sim seconds); none = clear. Example: set_replay_loop({fromSeconds:2,toSeconds:5})",
+            Params: new RouteParam[]
+            {
+                new("fromSeconds", "number", false, "Loop start, wall seconds after the replay's zero"),
+                new("toSeconds", "number", false, "Loop end, wall seconds after the replay's zero"),
+                new("fromSimSeconds", "number", false, "Loop start in the recording's own sim seconds (the master resolves it)"),
+                new("toSimSeconds", "number", false, "Loop end in the recording's own sim seconds"),
+            },
+            Notes: new[] { "Valid only 0 <= from < to <= the replay's length; otherwise the master refuses it (the previous loop stays). Cleared when the cluster leaves the replay / review.",
+                           "Enforced only while the clock runs; a seek outside the loop is honoured. get_replay_status reports it as loop {fromSeconds,toSeconds} on the active axis (null = none). The Replay Browser keeps its own loop (the viewer's)." },
+            ExampleArgsJson: "{\"fromSeconds\":2,\"toSeconds\":5}",
+            ExampleGist: "loop a stretch of the replay"),
+
         [("GET", "/replay/status")] = new RouteDoc(
             Tool:    "get_replay_status",
             Group:   "I — Replay",
             Summary: "The cluster's state, the loaded replay's length, this node's replay recording, and its clock.",
-            Returns: "{ clusterState, replaying, durationSeconds, recording, simSeconds, axis, sim, browser } — axis: the session's time axis (Sim | Wall, CE-3329) — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
+            Returns: "{ clusterState, replaying, durationSeconds, recording, simSeconds, axis, loop, sim, browser } — axis: the session's time axis (Sim | Wall, CE-3329) — loop: {fromSeconds,toSeconds} on the active axis, or null (CE-3329 §12n) — simSeconds: the RECORDED sim time of the frame on screen (the live run's own clock; sim.totalTime is the replay clock, wall seconds after the zero); browser (Replay Browser only): {exerciseId, frame, frames, atSeconds, spanSeconds, primaryNode, view, playing, rate, nodes[], history, selectionHistory}",
             Hint:    "No params. Example: get_replay_status({})",
             ExampleArgsJson: "{}",
             ExampleGist: "is the cluster replaying, and where"),

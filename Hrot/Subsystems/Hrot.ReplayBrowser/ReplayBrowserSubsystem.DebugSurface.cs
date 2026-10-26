@@ -107,6 +107,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             _timelinePanel?.SetManager(_manager);
             _playbackHistory.Clear();
             IsPlaying = false;
+            LocalLoop = null;   // ⭐ CE-3329 §12n — a new recording starts unlooped
             // ⭐ RB-7 — a headless host builds the map pack on its first open (it has no world before), through the one construction
             if (_headless && _selectionRequests == null && _activeRepo != null)
             {
@@ -125,6 +126,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     internal void CloseGroup()
     {
         IsPlaying = false;
+        LocalLoop = null;   // ⭐ CE-3329 §12n
         _manager?.Dispose();
         _manager = null;
         _transientMaster?.Dispose();
@@ -175,6 +177,19 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
 
     /// <summary>⭐ CE-3329 R-3058 — this viewer's time axis (the Replay Browser keeps its own, R2). Sim by default.</summary>
     internal Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; set; } = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+
+    /// <summary>⭐ CE-3329 §12n — this viewer's own LOOP range, wall seconds after the replay's zero (the Replay Browser's clock is its own,
+    /// so the loop is local: <see cref="TickLocalLoop"/> wraps its playback). Cleared when a group opens or closes.</summary>
+    internal (double From, double To)? LocalLoop { get; set; }
+
+    /// <summary>⭐ CE-3329 §12n — while playing, a playhead at or past the loop's end goes back to its start (called once per frame
+    /// after the playback steps). ⛔ Not <see cref="SeekToSeconds"/>: a wrap is not a navigation, it must not fill the history.</summary>
+    private void TickLocalLoop()
+    {
+        if (LocalLoop is not { } loop || !IsPlaying || _manager == null) return;
+        if (ReplaySeconds is not { } now || now < loop.To || ReplayZeroTicks is not { } zero) return;
+        _manager.SetBaseWallTicks(zero + (long)Math.Round(loop.From * TimeSpan.TicksPerSecond));
+    }
 
     /// <summary>Where the replay stands, in seconds after its zero.</summary>
     internal double? ReplaySeconds
@@ -369,6 +384,23 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         /// <summary>⭐ CE-3329 R-3058 — in the Replay Browser the axis is the VIEWER's (R2); held by the browser, read back in the status.</summary>
         public void SetReplayAxis(SetReplayAxisIntent intent) => _host.Axis = intent.Axis;
 
+        /// <summary>
+        /// ⭐ CE-3329 §12n — the Replay Browser's clock is its own, so its loop is the VIEWER's (like the axis): held by the browser and
+        /// wrapped in its playback (<c>TickLocalLoop</c>). Same validation and sim resolution as the master's, without a status topic.
+        /// </summary>
+        public void SetReplayLoop(SetReplayLoopIntent intent)
+        {
+            if (_host.ReplayState != ClusterState.OperatingReplay) throw new InvalidOperationException("No recording is open: POST /replay first.");
+            if (intent.IsClear) { _host.LocalLoop = null; return; }
+            var map = _host.TimeMap;
+            long? zero = _host.ReplayZeroTicks;
+            double length = zero is { } z0 && _host.ReplayEndTicks is { } e0 ? (e0 - z0) / (double)TimeSpan.TicksPerSecond : 0;
+            var loop = intent.Resolve(sim => map.HasSimTime && zero is { } z ? Math.Max(0, (map.WallAt(sim) - z) / (double)TimeSpan.TicksPerSecond) : null,
+                                      length)
+                ?? throw new InvalidOperationException($"The loop needs both bounds on one axis (sim needs a v7 recording) and 0 <= from < to <= the recording's length ({length:F3}s); the previous loop stays.");
+            _host.LocalLoop = loop;
+        }
+
         public void Storage(ExecuteStorageOpIntent intent) => throw Offline("storage");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw Offline("checkpoint");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw Offline("checkpoint restore");
@@ -440,6 +472,21 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         public void EnterReviewAtSim(double simSeconds) { }   // offline: no live run
         public Fdp.Toolkit.Orchestration.ReplaySession? Session => null;
         public double? LivePoint => null;
+
+        // ⭐ CE-3329 §12n — the loop is the viewer's own (its clock is its own): set through the same intents and the same master control.
+        public void SetLoop(double from, double to) { if (Open) _host.MasterControl.SetReplayLoop(ReplaySessionIntents.SetLoop(Axis, from, to)); }
+        public void ClearLoop() { if (Open) _host.MasterControl.SetReplayLoop(ReplaySessionIntents.ClearLoop()); }
+        public (double From, double To)? Loop
+        {
+            get
+            {
+                if (!Open || _host.LocalLoop is not { } l) return null;
+                var map = _host.CachedTimeMap;
+                if (Axis != Fdp.Toolkit.Orchestration.ReplayAxis.Sim || !map.HasSimTime || _host.ReplayZeroTicks is not { } zero) return l;
+                double Sim(double wall) => map.SimAt(zero + (long)(wall * TimeSpan.TicksPerSecond));
+                return (Sim(l.From), Sim(l.To));
+            }
+        }
 
         public void Seek(double t)
         {

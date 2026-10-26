@@ -599,7 +599,7 @@ public sealed class ClusterMasterSeekTests
         var cmds  = new RecordingTimeCommands();
         var axis  = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
         bool replaying = true;
-        var pm = new ReplayClockProcessManager(clock, cmds, () => replaying, () => axis, () => map, () => 4_000_000L);
+        var pm = new ReplayClockProcessManager(clock, cmds, () => replaying, () => axis, () => map, () => 4_000_000L, () => null);
 
         clock.TotalTime = 0.5;   pm.Tick();
         Assert.Empty(cmds.Jumps);                                           // before the pause: plays on
@@ -641,6 +641,139 @@ public sealed class ClusterMasterSeekTests
         public void SetTimeScale(float scale) { }
         public void SnapTo(GlobalTime position) => throw new InvalidOperationException("the sim axis must never snap (F14)");
         public void JumpTo(double totalTime) => Jumps.Add(totalTime);
+    }
+
+    // ── CE-3329 §12n — the LOOP range: a session setting of the master, enforced by its replay clock ──────────────────────────
+
+    /// <summary>A master in a replay with a sim axis: zero at 4_000_000, 3.9 s long, a pause from 0.9 s to 2.9 s (NodeMap).</summary>
+    private static (FdpEventBus Bus, ClusterMaster Master, Fdp.Core.FlightRecorder.ReplayTimeMap Map) ReplayingMaster()
+    {
+        var bus = new FdpEventBus();
+        var master = new ClusterMaster(bus, NoMandatoryConfig());
+        master.RegisterAggregator(new ReplayConsensusAggregator());
+        RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+        var map = NodeMap(firstWall: 4_000_000L, runBefore: 10, pause: 20);
+        EnterReplay(bus, master, new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 4f, 4_000_000L, 4_000_000L + 39 * Tk, map), targetSimSeconds: null);
+        bus.ReadManaged<SeekReplayIntent>().ToList();
+        return (bus, master, map);
+    }
+
+    /// <summary>Sends the intent to the master and returns the status it answered with.</summary>
+    private static OrchestrationStatusCode SetLoop(FdpEventBus bus, ClusterMaster master, SetReplayLoopIntent intent)
+    {
+        intent.RequestId = Guid.NewGuid();
+        bus.PublishManaged(intent);
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        return Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == intent.RequestId).StatusCode;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3329 §12n — a loop is the MASTER's: wall bounds are held; sim bounds are resolved through the cluster's time map to wall
+    /// seconds after the zero; an inverted (or out-of-length) loop is refused and the previous one stays; clearing and leaving the
+    /// replay both drop it.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3329_The_master_holds_resolves_validates_and_clears_the_loop()
+    {
+        var (bus, master, map) = ReplayingMaster();
+        using var _ = master;
+        Assert.Null(master.ReplayLoop);
+
+        Assert.False(SetLoop(bus, master, new() { FromSeconds = 1.0, ToSeconds = 2.0 }).IsError());
+        Assert.Equal((1.0, 2.0), master.ReplayLoop);                                  // wall bounds, held as given
+
+        Assert.False(SetLoop(bus, master, new() { FromSimSeconds = 0.5, ToSimSeconds = 1.0 }).IsError());
+        var (f, t) = master.ReplayLoop!.Value;                                        // sim bounds, through the map
+        Assert.Equal((map.WallAt(0.5) - 4_000_000L) / (double)TimeSpan.TicksPerSecond, f, 6);
+        Assert.Equal((map.WallAt(1.0) - 4_000_000L) / (double)TimeSpan.TicksPerSecond, t, 6);
+        Assert.NotEqual(0.5, f);                                                      // (a wall value would have been 0.5 / 1.0)
+        var held = master.ReplayLoop;
+
+        Assert.Equal(OrchestrationStatusCode.Rejected, SetLoop(bus, master, new() { FromSeconds = 2.0, ToSeconds = 1.0 }));   // inverted
+        Assert.Equal(OrchestrationStatusCode.Rejected, SetLoop(bus, master, new() { FromSeconds = 1.0, ToSeconds = 1.0 }));   // empty
+        Assert.Equal(OrchestrationStatusCode.Rejected, SetLoop(bus, master, new() { FromSeconds = 1.0, ToSeconds = 99.0 }));  // past the length
+        Assert.Equal(held, master.ReplayLoop);                                        // the previous loop stays
+
+        Assert.False(SetLoop(bus, master, new()).IsError());                          // all null = clear
+        Assert.Null(master.ReplayLoop);
+
+        Assert.False(SetLoop(bus, master, new() { FromSeconds = 1.0, ToSeconds = 2.0 }).IsError());
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(Hrot.NED.Descriptors.Orchestration.ClusterState.Idle, master.CurrentClusterState);
+        Assert.Null(master.ReplayLoop);                                               // leaving the replay drops the bracket
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3329 §12n — the master's replay clock wraps the playhead: ONE <c>JumpTo(From)</c> when it reaches <c>To</c> while running,
+    /// none while that jump has not landed (it goes BACKWARDS, so the Sim axis's "wait until now ≥ target" guard cannot hold it), a second
+    /// only after the clock has read below <c>To</c> and reached it again; on either axis; never while paused; never a snap.
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Toolkit.Orchestration.ReplayAxis.Wall)]
+    [InlineData(Fdp.Toolkit.Orchestration.ReplayAxis.Sim)]
+    public void CE3329_The_replay_clock_wraps_the_playhead_once_per_crossing(Fdp.Toolkit.Orchestration.ReplayAxis axis)
+    {
+        var map   = NodeMap(firstWall: 4_000_000L, runBefore: 10, pause: 20);   // its paused stretch (0.9–2.9 s) lies BEFORE the loop
+        var clock = new FakeReplayClock { Mode = TimeMode.Continuous };
+        var cmds  = new RecordingTimeCommands();
+        (double, double)? loop = (3.0, 3.8);
+        bool replaying = true;
+        var pm = new ReplayClockProcessManager(clock, cmds, () => replaying, () => axis, () => map, () => 4_000_000L, () => loop);
+
+        clock.TotalTime = 3.7; pm.Tick();
+        Assert.Empty(cmds.Jumps);                                    // inside the loop: plays on
+        clock.TotalTime = 3.8; pm.Tick();
+        Assert.Equal(new[] { 3.0 }, cmds.Jumps);                     // at To: back to From
+        Assert.Equal(1, pm.LoopJumps);
+        clock.TotalTime = 3.85; pm.Tick();
+        clock.TotalTime = 3.9; pm.Tick();
+        Assert.Single(cmds.Jumps);                                   // the jump has not landed: no second one
+        clock.TotalTime = 3.1; pm.Tick();
+        Assert.Single(cmds.Jumps);                                   // landed
+        clock.TotalTime = 3.8; pm.Tick();
+        Assert.Equal(new[] { 3.0, 3.0 }, cmds.Jumps);                // the next crossing wraps again
+        Assert.Equal(2, pm.LoopJumps);
+
+        clock.TotalTime = 3.2; pm.Tick();                            // landed again
+        clock.Mode = TimeMode.Deterministic; clock.TotalTime = 3.9; pm.Tick();
+        Assert.Equal(2, cmds.Jumps.Count);                           // paused: never
+        clock.Mode = TimeMode.Continuous; loop = null; pm.Tick();
+        Assert.Equal(2, cmds.Jumps.Count);                           // no loop: never
+        loop = (3.0, 3.8); replaying = false; pm.Tick();
+        Assert.Equal(2, cmds.Jumps.Count);                           // not replaying: never
+    }
+
+    /// <summary>⭐ CE-3329 §12n — the loop rides the session layer: a sample with the bounds after it is set, a NEW sample after it is cleared.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3329_The_session_layer_carries_the_loop()
+    {
+        var (bus, master, _) = ReplayingMaster();
+        using var _m = master;
+        var review = new ReviewProcessManager(bus, new FakeReplayClock { Mode = TimeMode.Continuous }, new RecordingTimeCommands(),
+                                              () => Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay);
+        var session = new ReplaySessionProcessManager(bus, master, review);
+        session.Tick();
+        Assert.True(session.Current!.Active);
+        Assert.Null(session.Current.LoopFromSeconds);
+
+        SetLoop(bus, master, new() { FromSeconds = 1.0, ToSeconds = 2.0 });
+        var before = session.Current;
+        session.Tick();
+        Assert.NotSame(before, session.Current);                      // a loop change is a new sample
+        Assert.Equal(1.0, session.Current!.LoopFromSeconds);
+        Assert.Equal(2.0, session.Current.LoopToSeconds);
+        Assert.False(session.Current.SameAs(before));
+
+        var withLoop = session.Current;
+        session.Tick();
+        Assert.Same(withLoop, session.Current);                       // unchanged: nothing republished
+
+        SetLoop(bus, master, new());
+        session.Tick();
+        Assert.NotSame(withLoop, session.Current);                    // cleared: another new sample
+        Assert.Null(session.Current!.LoopFromSeconds);
+        Assert.Null(session.Current.LoopToSeconds);
     }
 
     /// <summary>Enters a replay on one registered node, answering its prepare round with <paramref name="prepared"/>.</summary>

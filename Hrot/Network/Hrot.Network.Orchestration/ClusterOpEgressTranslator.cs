@@ -175,6 +175,14 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = JsonSerializer.Serialize(SetReplayAxisPayloadDto.From(intent), OrchestrationJsonOptions.Default),
             });
 
+        foreach (var intent in _bus.ReadManaged<SetReplayLoopIntent>())   // ⭐ CE-3329 §12n
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.SetReplayLoop,
+                PayloadJson   = JsonSerializer.Serialize(SetReplayLoopPayloadDto.From(intent), OrchestrationJsonOptions.Default),
+            });
+
         foreach (var intent in _bus.ReadManaged<CancelOperationIntent>())
             _writer.Write(new ClusterOpRequest
             {

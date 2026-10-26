@@ -59,6 +59,8 @@ namespace Fdp.Core
         
         // Flight Recorder Destruction Log
         private readonly List<Entity> _destructionLog = new List<Entity>(128);
+        private long _destructionBase;      // ⭐ CE-3335 — the mark of _destructionLog[0] (every entry ever logged has one mark)
+        private int _destructionKeepFrom;   // ⭐ CE-3335 — where this frame's deaths start; Tick() drops what came before the LAST frame
         
         // Stage 18: Singleton Storage
         // Index = ComponentType<T>.ID
@@ -212,6 +214,7 @@ namespace Fdp.Core
         {
             System.Threading.Interlocked.Increment(ref _globalVersion);
             System.Threading.Interlocked.Increment(ref _simulationTick);
+            TrimDestructionLog();   // ⭐ CE-3335
         }
 
         /// <summary>
@@ -368,15 +371,51 @@ namespace Fdp.Core
         }
 
         /// <summary>
-        /// Returns the list of entities destroyed since the last ClearDestructionLog().
-        /// Used by the Recorder to write the "Destroyed" block.
+        /// ⭐⭐ <c>CE-3335</c> — the destruction log as ONE log with a mark per reader: <see cref="ReadDestructions"/> hands a reader every
+        /// death since ITS mark and moves the mark, so no reader empties the log under another. <see cref="Tick"/> (the start of a frame)
+        /// keeps the last frame's deaths and this one's, so a reader that reads once a frame — anywhere in it, or between frames — misses
+        /// nothing, and the log stays bounded when nothing records. ⛔ SUPERSEDED: the recorder cleared the log inside the tick, so a reader
+        /// after it saw nothing, and with no recorder the log grew forever. 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12o.
+        /// </summary>
+        public long DestructionMark => _destructionBase + _destructionLog.Count;
+
+        /// <summary>⭐ CE-3335 — the deaths since <paramref name="mark"/> (clamped to what is kept), and the mark moved past them. A new
+        /// reader starts from <see cref="DestructionMark"/>.</summary>
+        public ReadOnlySpan<Entity> ReadDestructions(ref long mark)
+        {
+            long end = DestructionMark;
+            long from = Math.Clamp(mark, _destructionBase, end);
+            mark = end;
+            return CollectionsMarshal.AsSpan(_destructionLog).Slice((int)(from - _destructionBase));
+        }
+
+        /// <summary>
+        /// The deaths the log still holds (this frame's and the last one's, or since the last <see cref="ClearDestructionLog"/>).
+        /// ⚠ A reader on a LIVE world uses <see cref="ReadDestructions"/> with its own mark; this is for a world one owner steps and clears.
         /// </summary>
         public IReadOnlyList<Entity> GetDestructionLog() => _destructionLog;
     
         /// <summary>
-        /// Clears the log. Must be called AFTER the Recorder has run for the frame.
+        /// Empties the log (the marks move on). For a world ONE owner steps frame by frame (a playback sandbox); ⛔ never on a live world —
+        /// another reader would miss the deaths (CE-3335).
         /// </summary>
-        public void ClearDestructionLog() => _destructionLog.Clear();
+        public void ClearDestructionLog()
+        {
+            _destructionBase += _destructionLog.Count;
+            _destructionLog.Clear();
+            _destructionKeepFrom = 0;
+        }
+
+        /// <summary>⭐ CE-3335 — at the start of a frame: drop the deaths from before the last frame.</summary>
+        private void TrimDestructionLog()
+        {
+            if (_destructionKeepFrom > 0)
+            {
+                _destructionLog.RemoveRange(0, _destructionKeepFrom);
+                _destructionBase += _destructionKeepFrom;
+            }
+            _destructionKeepFrom = _destructionLog.Count;
+        }
 
         /// <summary>
         /// Restores an entity from serialized data.

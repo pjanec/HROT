@@ -85,6 +85,23 @@ public sealed class TranslatorDtoTests
         Assert.Equal(Fdp.Toolkit.Orchestration.ReplayAxis.Sim, SetReplayAxisPayloadDto.Decode(Guid.Empty, "{\"Axis\":\"sideways\"}").Axis);
     }
 
+    /// <summary>⭐ CE-3329 §12n — a loop request crosses the wire whole in each of its three forms: wall bounds, sim bounds, and the
+    /// clear (all null); an unreadable payload decodes as a clear.</summary>
+    [Fact]
+    public void A_replay_loop_request_crosses_the_wire_in_all_three_forms()
+    {
+        var wall  = new Fdp.Toolkit.Orchestration.SetReplayLoopIntent { RequestId = Guid.NewGuid(), FromSeconds = 2.5, ToSeconds = 5.0 };
+        var sim   = new Fdp.Toolkit.Orchestration.SetReplayLoopIntent { RequestId = Guid.NewGuid(), FromSimSeconds = 1.25, ToSimSeconds = 7.5 };
+        var clear = new Fdp.Toolkit.Orchestration.SetReplayLoopIntent { RequestId = Guid.NewGuid() };
+        foreach (var sent in new[] { wall, sim, clear })
+            Assert.Equal(sent, SetReplayLoopPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetReplayLoopPayloadDto.From(sent), Options)));
+
+        var got = SetReplayLoopPayloadDto.Decode(Guid.Empty, JsonSerializer.Serialize(SetReplayLoopPayloadDto.From(wall), Options));
+        Assert.Equal(2.5, got.FromSeconds); Assert.Equal(5.0, got.ToSeconds);
+        Assert.Null(got.FromSimSeconds); Assert.Null(got.ToSimSeconds);                       // wall form carries no sim bounds
+        Assert.Equal(clear, SetReplayLoopPayloadDto.Decode(clear.RequestId, "not json"));
+    }
+
     // ── Test 4: Unknown enum string should throw ──────────────────────────────
 
     [Fact]

@@ -25,7 +25,7 @@ is deleted (design §12m). Your menu and toolbar call only `ITimeTransportFacade
 | `ExitReview()` | back to live; ⭐ `Stop()` in a review does the same (R-3060) |
 | `LivePoint` | the review's live point on the active axis (null outside a review) — "Seek to the live point" = `Seek(LivePoint)` |
 | `Seek(t)` | on the active axis |
-| `SetLoop(from, to)` / `ClearLoop()` / `Loop` | ⭐ "Loop range" — the MASTER's loop (§12n): every host draws the same bracket. ⚠ building as this note is written; it lands in the next backend commit |
+| `SetLoop(from, to)` / `ClearLoop()` / `Loop` | ⭐ "Loop range" — the MASTER's loop (§12n): every host draws the same bracket (`POST /replay/loop` too) |
 
 ⚠ Play from EDIT is now the cluster's dry run on every host (the editor's too); Stop leaves a dry run back to edit.
 
@@ -41,5 +41,17 @@ inactive outside a replay; match it to the cluster state by `SessionId` / `Exerc
 `ShippedTimelineLanes.Catalog()` in `EditorSubsystem.cs`, which your own `629adc0db` ("the editor's live timeline is its node context's —
 one owner") moved into `HrotNodeContext`. Already absent at `coordinator@7d576b229`; not touched by backend. ⭐ Lean: point the check at
 `HrotNodeContext.cs` (or assert the editor's catalogue's lane ids, as its first half already does).
+
+## 4. The destruction log is shared now (CE-3335) — and one red of yours
+
+⭐ Your finding (the recorder emptied the log inside the tick) is fixed at the source — [DAR §12o](../../DESIGN_Replay_Time_Axis_And_Review.md):
+ONE log, a mark per reader (`EntityRepository.ReadDestructions(ref mark)`), `Tick()` keeps the last frame and this one. ⚠ A cross-lane edit of
+yours, said here: `StructuralScanner` reads by its own mark (a playback world's per-frame clear still works the same), and two comments that
+said "the recorder clears it" are corrected. Your "departs when no longer alive" check stays — it still catches a death from before the
+scanner started.
+
+🔴 `EditorFontCoverageTests.CE1063_EveryUiStringLiteral_DrawsWithBakedGlyphs` is red on `ui@3144aa3f8`: `MainToolbarTimeControlSection.cs:105`
+`ModeGlyph` keeps the literal `⟲` (U+27F2), which no baked font carries — it draws "?". The indicator itself draws `ModeIcon`
+(FontAwesome); ⭐ lean: drop `ModeGlyph`'s glyph literal or switch it to the icon. Not touched by backend.
 
 _backend lane, 2026-10-26_
