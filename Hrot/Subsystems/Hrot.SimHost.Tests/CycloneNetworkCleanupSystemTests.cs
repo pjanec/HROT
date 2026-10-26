@@ -272,9 +272,9 @@ namespace Hrot.SimHost.Tests
             var late  = CreateAuthoritativeEntity(repo, netId: 2002L);   // created AFTER the target
             system.Execute(repo, 0f);
 
-            // the keyframe of the target: everything replaced, the early entity re-created under a new handle, the late one absent
-            repo.DestroyEntity(early);
-            repo.DestroyEntity(late);
+            // the keyframe of the target: the world cleared in place (as PlaybackSystem.ApplyFrame does for a keyframe), the early
+            //   entity re-created, the late one absent
+            repo.SoftClear();
             CreateAuthoritativeEntity(repo, netId: 2001L);
             system.Execute(repo, 0f);
 
@@ -284,6 +284,41 @@ namespace Hrot.SimHost.Tests
 
             system.Execute(repo, 0f);                                    // once only
             Assert.Single(t1.DisposedIds);
+        }
+
+        /// <summary>
+        /// ⭐⭐ §12b — the sweep is CHANGE-DRIVEN: it runs once per in-place world replacement (<c>EntityRepository.ClearGeneration</c>),
+        /// never on an ordinary frame; an ordinary frame looks only at the entities whose networking components changed — a new owned
+        /// entity spawned mid-run is still tracked and retracted by its DestructionOrder. 🔴 First build: a full sweep over every
+        /// networked entity, every frame.
+        /// </summary>
+        [Fact]
+        public void TheSweep_RunsOncePerWorldReplacement_NeverPerFrame()
+        {
+            var repo = CreateWorld();
+            var t1 = new MockTranslator();
+            var system = new CycloneNetworkCleanupSystem(new[] { t1 });
+
+            for (int i = 0; i < 50; i++) CreateAuthoritativeEntity(repo, netId: 5000L + i);
+            system.Execute(repo, 0f);                                    // the first run: one sweep learns the world
+            int afterFirst = system.Sweeps;
+            for (int frame = 0; frame < 20; frame++) { repo.Tick(); system.Execute(repo, 0f); }
+            Assert.Equal(afterFirst, system.Sweeps);                     // ordinary frames: no sweep
+
+            repo.Tick();
+            var spawned = CreateAuthoritativeEntity(repo, netId: 5999L);  // spawned mid-run: found by the delta
+            system.Execute(repo, 0f);
+            repo.Tick();
+            PublishDestructionOrder(repo, spawned);
+            system.Execute(repo, 0f);
+            Assert.Equal(new[] { 5999L }, t1.DisposedIds);
+            Assert.Equal(afterFirst, system.Sweeps);
+
+            repo.SoftClear();                                            // a world replaced in place: exactly one sweep
+            system.Execute(repo, 0f);
+            system.Execute(repo, 0f);
+            Assert.Equal(afterFirst + 1, system.Sweeps);
+            Assert.Equal(51, t1.DisposedIds.Count);                      // the 50 the replacement lacks, retracted
         }
 
         /// <summary>⭐ §12b — an id handed over to another node (authority flipped in place, no destroy) is FORGOTTEN, never disposed: its
@@ -329,9 +364,10 @@ namespace Hrot.SimHost.Tests
             system.Execute(repo, 0f);                                   // gone: no second dispose
             Assert.Equal(new[] { 4001L }, t1.DisposedIds);
 
-            var back = CreateAuthoritativeEntity(repo, netId: 4001L);   // a backward seek re-creates it
+            repo.SoftClear();                                           // a backward seek re-creates it
+            CreateAuthoritativeEntity(repo, netId: 4001L);
             system.Execute(repo, 0f);
-            repo.DestroyEntity(back);                                   // a forward seek past its death
+            repo.SoftClear();                                           // a forward seek past its death
             system.Execute(repo, 0f);
             Assert.Equal(new[] { 4001L, 4001L }, t1.DisposedIds);
         }

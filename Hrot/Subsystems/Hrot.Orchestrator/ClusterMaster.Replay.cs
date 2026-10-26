@@ -67,8 +67,18 @@ public sealed partial class ClusterMaster
     /// ⭐ Called while a transition is fanned out: remember that it enters a replay, and where. ⛔ The planner's seek step is
     /// NOT fanned out with the transition any more — its payload is built before any node has answered the prepare round.
     /// </summary>
+    private long _reviewEntryWallTicks;   // ⭐ CE-3329 P3 — where a review enters (long.MaxValue = the live point)
+
     private void NoteReplayEntry(Guid txId, IEnumerable<ISysOpStep> trajectory)
     {
+        // ⭐ CE-3329 P3 — a review enters through the SAME seek round as a replay (§3c): the nodes' prepare results give the zero
+        //   and the map, then one seek lands every node on the moment (the live point unless one was named).
+        if (trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.OperatingReview))
+        {
+            _replayEntryTx       = txId;
+            _replayEntryRelTicks = _reviewEntryWallTicks;
+            return;
+        }
         if (!trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.OperatingReplay)) return;
         _replayEntryTx       = txId;
         _replayEntryRelTicks = trajectory.OfType<OperationStep>()

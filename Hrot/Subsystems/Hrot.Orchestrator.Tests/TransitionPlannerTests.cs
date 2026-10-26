@@ -318,7 +318,7 @@ public sealed class TransitionPlannerTests
     {
         var targets = _planner.GetReachableTargets(ClusterState.OperatingLive);
 
-        Assert.Single(targets);
-        Assert.Equal(ClusterState.UnloadingLive, targets[0]);
+        // ⭐ CE-3329 P3 (§3a) — a live run's one step leads to unloading it, or (since During Action Review) into a review of it. No other.
+        Assert.Equal(new[] { ClusterState.UnloadingLive, ClusterState.LoadingReview }.OrderBy(x => x), targets.OrderBy(x => x));
     }
 }

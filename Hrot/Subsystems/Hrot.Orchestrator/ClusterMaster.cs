@@ -1280,6 +1280,32 @@ public sealed partial class ClusterMaster : IDisposable
         // ⭐ CE-3329 R11 — a replay entered at a RECORDED sim time: resolved when the prepare round brings the nodes' maps
         if (intent.TargetState == FdpClusterState.OperatingReplay) _replayEntrySimSeconds = intent.TargetSimSeconds;
 
+        // ⭐⭐ CE-3329 P3 (R5, §3a) — a REVIEW of the live run: only from OperatingLive (the planner would otherwise LOAD a live run from
+        //   Idle to reach it); a review requested during a review is a seek. Where it enters: the request's moment, else the live point.
+        if (intent.TargetState == FdpClusterState.OperatingReview)
+        {
+            var current = (FdpClusterState)(int)_currentDsmState;
+            if (current == FdpClusterState.OperatingReview)
+            {
+                ProcessSeekReplayIntent(new SeekReplayIntent
+                {
+                    RequestId = requestId, TargetSimSeconds = intent.TargetSimSeconds,
+                    TargetWallTicks = intent.TargetWallTicks != 0 || intent.TargetSimSeconds != null ? intent.TargetWallTicks : long.MaxValue,
+                });
+                return;
+            }
+            if (current != FdpClusterState.OperatingLive)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] review {0} REJECTED — a review starts only from a live run (the cluster is {1}).",
+                    requestId, current);
+                PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+                return;
+            }
+            _replayEntrySimSeconds = intent.TargetSimSeconds;
+            _reviewEntryWallTicks  = intent.TargetWallTicks != 0 || intent.TargetSimSeconds != null ? intent.TargetWallTicks : long.MaxValue;
+            if (intent.ExerciseId == Guid.Empty) intent.ExerciseId = _currentExerciseId;   // the run being reviewed
+        }
+
         // ⭐⭐ L8 §7.2c — AT MOST ONE parked transition. ⛔ Rejected, not queued: the master tracks a single
         //    in-flight transition and queueing would be a new property nobody asked for.
         if (_parked != null)
@@ -1489,6 +1515,8 @@ public sealed partial class ClusterMaster : IDisposable
                             ClusterState.UnloadingLive   => NodeOpType.FinalizeLive,
                             ClusterState.LoadingReplay   => NodeOpType.PrepareReplay,
                             ClusterState.UnloadingReplay => NodeOpType.FinalizeReplay,
+                            ClusterState.LoadingReview   => NodeOpType.PrepareReview,    // ⭐ CE-3329 P3
+                            ClusterState.UnloadingReview => NodeOpType.FinalizeReview,
                             ClusterState.LoadingEdit     => NodeOpType.PrepareEdit,
                             ClusterState.UnloadingEdit   => NodeOpType.FinalizeEdit,
                             _                            => NodeOpType.PrepareState,
@@ -1763,6 +1791,14 @@ public sealed partial class ClusterMaster : IDisposable
 
     private void ProcessStorageOpIntent(ExecuteStorageOpIntent intent)
     {
+        // ⭐ CE-3329 P3 (D-E, F7) — a scenario save while the cluster shows a RECORDING would save the replayed world as the scenario
+        if (intent.Operation == StorageOpType.SaveScenario && ClusterStates.IsReplaying((FdpClusterState)(int)_currentDsmState))
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] save {0} REJECTED — the cluster shows a recording ({1}); return to live first.",
+                intent.RequestId, _currentDsmState);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
         switch (intent.Operation)
         {
             // CE-278: StorageOpType.SaveScenario (=2) retired — the half-built .fdp-archive stub whose only

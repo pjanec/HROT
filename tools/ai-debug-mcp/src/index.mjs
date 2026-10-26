@@ -1436,6 +1436,37 @@ const TOOLS = [
     },
   },
 
+  // ⭐ CE-3329 P3 — During Action Review
+  {
+    name: 'enter_review',
+    description: TOOL_DEFS['enter_review'].description,
+    inputSchema: TOOL_DEFS['enter_review'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/review', toolArgs)); }
+      catch (err) { return toolError(err.message, err.envelope, 'enter_review'); }
+    },
+  },
+
+  {
+    name: 'exit_review',
+    description: TOOL_DEFS['exit_review'].description,
+    inputSchema: TOOL_DEFS['exit_review'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/review/exit', toolArgs)); }
+      catch (err) { return toolError(err.message, err.envelope, 'exit_review'); }
+    },
+  },
+
+  {
+    name: 'seek_review',
+    description: TOOL_DEFS['seek_review'].description,
+    inputSchema: TOOL_DEFS['seek_review'].inputSchema,
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('POST', '/review/seek', toolArgs)); }
+      catch (err) { return toolError(err.message, err.envelope, 'seek_review'); }
+    },
+  },
+
   {
     name: 'set_replay_axis',
     description: TOOL_DEFS['set_replay_axis'].description,

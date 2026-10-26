@@ -48,5 +48,10 @@ namespace Fdp.Toolkit.Orchestration
         //   `RestoreSnapshot = 5` slot, REUSED for its documented meaning (restore the ECS from a recording keyframe).
         //   ⛔ PERMANENT WIRE VALUE (R-42).
         PrepareRestore = 32,
+
+        // ⭐ CE-3329 P3 (§3a) — enter / leave a review on a node (the full checkpoint of the live point, the replay over the OPEN
+        //   recording; the return). ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-26 in BOTH enums.
+        PrepareReview = 33,
+        FinalizeReview = 34,
     }
 }

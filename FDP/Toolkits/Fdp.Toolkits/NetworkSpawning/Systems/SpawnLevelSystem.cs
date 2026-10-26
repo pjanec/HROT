@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<SpawnLevelRequest>()) return;
             _waiting.Clear();
             foreach (var e in repo.Query().With<SpawnLevelRequest>().WithLifecycle(EntityLifecycle.All).Build())

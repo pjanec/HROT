@@ -56,6 +56,9 @@ public sealed class ReplayProcessManager
     /// </summary>
     public INodeResponseAggregator CreateAggregator() => new ReplayConsensusAggregator();
 
+    /// <summary>⭐ CE-3329 P3 — a review's prepare round: the same aggregate, ending at the live point (F13).</summary>
+    public INodeResponseAggregator CreateReviewAggregator() => new ReplayConsensusAggregator(NodeOpType.PrepareReview, endAtEarliestLast: true);
+
     /// <summary>
     /// Checks whether the replay has ended and publishes <see cref="PauseTimeIntent"/> if so.
     /// Call once per frame in Phase 3, after <see cref="ClusterMaster.Tick"/>.
@@ -82,7 +85,7 @@ public sealed class ReplayProcessManager
         // Reset end time when the cluster leaves OperatingReplay.
         foreach (var ev in _bus.ReadManaged<ClusterStateUpdateEvent>())
         {
-            if ((FdpClusterState)(int)ev.CurrentState != FdpClusterState.OperatingReplay)
+            if (!ClusterStates.IsReplaying((FdpClusterState)(int)ev.CurrentState))   // ⭐ CE-3329 — a review pauses at the live point too
             {
                 _replayEndSimTime = double.MaxValue;
                 _triggered        = false;

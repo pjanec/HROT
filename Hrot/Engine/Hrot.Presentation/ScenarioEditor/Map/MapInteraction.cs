@@ -260,16 +260,8 @@ namespace Hrot.ScenarioEditor.Map
         /// passes its <see cref="Fdp.Toolkit.Time.Lifespan"/> (it replaced the effects' own <c>EffectLifetimeSystem</c>).</summary>
         public Fdp.Toolkit.Time.LifespanSystem Lifespan { get; } = new();
 
-        /// <summary>
-        /// ⭐ W1 (VE-R) — true while this host's world is driven by a REPLAY: the effect spawner and the lifespan collector then stand
-        /// down, because the recording already holds every effect and when it went. Set once from
-        /// <see cref="MapInteractionContext.IsReplayActive"/>; read late, so a host may build its replay controller after the map.
-        /// </summary>
-        public Func<bool>? IsReplayActive
-        {
-            get => EffectSpawn.IsReplayActive;
-            set { EffectSpawn.IsReplayActive = value; WreckSpawn.IsReplayActive = value; Lifespan.IsReplayActive = value; }
-        }
+        // ⭐ W1 (VE-R) — in a REPLAY the effect spawner and the lifespan collector stand down (the recording already holds every effect
+        //   and when it went). ⭐ CE-3329 P2: they read the world's ReplayState. ⛔ SUPERSEDED: an IsReplayActive predicate set here.
 
         /// <summary>
         /// ⭐ <c>CE-3169</c> — the unit menu's Move Here · Engage · Stop and their follow-up picks (registered on <see cref="Actions"/>

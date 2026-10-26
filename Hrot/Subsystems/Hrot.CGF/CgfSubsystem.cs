@@ -1237,8 +1237,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 {
                     HostPickers = () => _shellPickers,
                 },
-                // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — effects are recorded; in a replay the effect systems stand down.
-                //   The SAME source the ELM's gate reads (rrController, above).
+                // ⭐ W1 (VE-R) — in a replay the effect systems stand down through the world's ReplayState (CE-3329 P2). This
+                //   predicate only decides, at build, whether the map offers orders.
                 IsReplayActive = () => rrController.IsReplayActive,
             });
 

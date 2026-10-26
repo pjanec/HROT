@@ -410,8 +410,8 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 
 | key | class | why | evidence |
 |---|---|---|---|
-| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._trackedEntities` | **B** | owned net ids awaiting wire dispose; rescanned from world each frame | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:85 |
-| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._trackedLightweight` | **B** | owned lightweight rounds awaiting wire dispose; rescanned from world | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:86 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._trackedEntities` | **B** | owned net ids awaiting wire dispose; re-swept by network id whenever `EntityRepository.ClearGeneration` moves (CE-3329 W1), `WorldEpoch.Ended` disposes them all | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:21 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._trackedLightweight` | **B** | owned lightweight rounds awaiting wire dispose; re-learnt by the sweep at a world replacement | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:24 |
 | `Fdp.Toolkit.Behavior.Systems.BrainTickSystem._publishedTerminalForInstanceId` | **B** | terminal-event published-once latch; cleared on WorldEpoch | FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs:443 |
 | `Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem._killSent` | **B** | kill-damage already-sent latch per passenger; cleared on WorldEpoch | FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/EmbarkedStateSystem.cs:147 |
 | `Fdp.Toolkit.Lifecycle.EntityLifecycleModule._pendingConstruction` | **B** | in-flight construction handshake; re-derived by ResumeFromRestoredWorld | FDP/Toolkits/Fdp.Toolkits/Lifecycle/EntityLifecycleModule.cs:248 |
@@ -546,7 +546,13 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.ModuleHost.Scheduling.TogglableSimulationGroup.<Enabled>k__BackingField` | **A** | execution gate re-driven by debug/replay controller; not sim memory | Hrot/Subsystems/Hrot.CGF/Debug/CgfClusterDebugTimeController.cs:298 |
 | `Fdp.Network.Cyclone.Systems.CycloneEgressSystem._translatorProfileData` | **A** | per-translator profiling data; diagnostic only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs:33 |
 | `Fdp.Network.Cyclone.Systems.CycloneIngressSystem._translatorProfileData` | **A** | per-translator profiling data; diagnostic only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneIngressSystem.cs:40 |
-| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._goneLightweight` | **A** | scratch cleared before each refill | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:96 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._gone` | **A** | scratch cleared before each refill | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:23 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._present` | **A** | scratch — the sweep's ids-in-this-world, cleared before each refill | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:22 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._clearGeneration` | **A** | the `EntityRepository.ClearGeneration` seen-count — the CE-3329 W1 sweep trigger itself (like `*._epoch`) | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:25 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._lastRunVersion` | **A** | the delta query's horizon; a `GlobalVersion` that went backwards forces a sweep | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:26 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem.<SweptDisposes>k__BackingField` | **A** | diagnostic counter — read by tests and diagnostics only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:38 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem.<ForgottenHandedOver>k__BackingField` | **A** | diagnostic counter — read by tests and diagnostics only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:41 |
+| `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem.<Sweeps>k__BackingField` | **A** | diagnostic counter — read by tests and diagnostics only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:44 |
 | `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._translatorProfileData` | **A** | per-translator profiling data; diagnostic only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:37 |
 | `Fdp.Toolkit.Behavior.CarryStationSystem.<Moved>k__BackingField` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Behavior/CarryStations.cs:129 |
 | `Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem._toAddBTree` | **A** | scratch cleared at top of Execute | FDP/Toolkits/Fdp.Toolkits/Behavior/Diagnostics/TraceBufferLifecycleSystem.cs:45 |
@@ -665,6 +671,13 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Replay.RecorderTickSystem._wroteManifest` | **A** | the recording has written its first manifest (CE-3313; CE-3299 B4); recorder output only | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:116 |
 | `Fdp.Toolkit.Replay.RecorderTickSystem._lastKeyframeSimTime` | **A** | CHECKPOINTING mode cadence (CE-3299 D17): sim time of the last keyframe; empty only forces the next keyframe early | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:118 |
 | `Fdp.Toolkit.Replay.RecorderTickSystem._deferredSteps` | **A** | steps a due checkpoint has waited for a quiet step (CE-3316); recorder output timing, not the world | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:133 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._lastWallTicks` | **A** | the last frame's wall stamp — the recording's timeline never goes back; recorder output, not the world | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:27 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._suspended` | **S** | session state (CE-3329 P3 R8): the recorder is suspended for a review — set by the review handler, not the world | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:157 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._resumePending` | **S** | session state (CE-3329 P3): a review's return asked the recorder to resume | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:158 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._resumeAtSimSeconds` | **S** | session state (CE-3329 P3): the live point L the recorder resumes at | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:176 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._framesWaitingForLivePoint` | **A** | resume gate counter (CE-3329 P3); bounded, reset on resume | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:177 |
+| `Fdp.Toolkit.Replay.RecorderTickSystem._framesAtLivePoint` | **A** | resume gate counter (CE-3329 P3): frames the clock has stood at L; reset on resume | FDP/Toolkits/Fdp.Toolkits/Replay/RecorderTickSystem.cs:178 |
+| `Fdp.Toolkit.Replay.ReplayModule._timeMap` | **A** | the recording's sim/wall time map (CE-3329 P1), derived lazily from the file's frame index | FDP/Toolkits/Fdp.Toolkits/Replay/ReplayModule.cs:200 |
 | `Fdp.Toolkit.Replay.RecordingModule._tick` | **A** | the module's handle on its own recorder system, to route checkpoint requests; not the world | FDP/Toolkits/Fdp.Toolkits/Replay/RecordingModule.cs:28 |
 | `Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem._restoresSeen` | **A** | the world restores already numbered on from (CE-3315); a watcher of `WorldEpoch.RestoresOf`, like `_epoch` | FDP/Toolkits/Fdp.Toolkits/Perception/Signatures/SoundEmissionSystem.cs:26 |
 | `Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem._doorsSeen` | **A** | scratch — cleared at the top of each door pass and filled from this frame's world; the memory is the `DoorHeard` component (AQ104 E ③) | FDP/Toolkits/Fdp.Toolkits/Perception/Signatures/SoundEmissionSystem.cs:131 |
@@ -772,6 +785,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Traffic.TrafficMirrorSystem._cars` | **A** | car poses scratch cleared/refilled on resolve from wire | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:72 |
 | `Hrot.Traffic.TrafficMirrorSystem._generation` | **A** | SUMO session restart counter in session key (SUMO engine state itself is X in TrafficRuntime) | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:162 |
 | `Hrot.Traffic.TrafficMirrorSystem._lastResolved` | **A** | resolve cadence gate; NaN forces re-resolve | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:212 |
+| `Hrot.Traffic.TrafficMirrorSystem._restored` | **A** | one-frame signal: the world was put back (CE-3325 B2) — consumed and cleared by the next tick | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:84 |
 | `Hrot.Traffic.TrafficMirrorSystem._lights` | **A** | traffic-light table re-derived from wire each frame | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:178 |
 | `Hrot.Traffic.TrafficMirrorSystem._liveMirrors` | **A** | scratch cleared every frame | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:79 |
 | `Hrot.Traffic.TrafficMirrorSystem._livePedMirrors` | **A** | scratch cleared every frame | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:76 |

@@ -69,7 +69,10 @@ namespace Fdp.Core.FlightRecorder
             SchemaValidator.Validate(_metadata);
 
             // Step 2: Open the binary frame stream.
-            _fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            // ⭐ CE-3329 P3 (M1, row 43, F16) — ReadWrite: a REVIEW reads the recording its own recorder still holds open for writing
+            //   (as RecordingSlice already does). ⛔ FileShare.Read means "no one else may write" — Windows refuses it while the
+            //   recorder holds the file; Linux .NET only advises, so a Linux test passes either way.
+            _fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             _reader = new BinaryReader(_fileStream);
             _playback = new PlaybackSystem();
 

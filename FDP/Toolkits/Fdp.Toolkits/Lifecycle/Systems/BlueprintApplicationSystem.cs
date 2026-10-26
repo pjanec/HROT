@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Lifecycle.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             // We need direct access to Repository to apply templates immediately
             if (view is not EntityRepository repo)
             {

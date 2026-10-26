@@ -1932,6 +1932,47 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"waitForReady\":true}",
             ExampleGist: "end the replay"),
 
+        [("POST", "/review")] = new RouteDoc(
+            Tool:    "enter_review",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 — During Action Review: pause the LIVE run and review its own recording in place — every node keeps its exact live point (a full checkpoint in RAM, a labelled keyframe review-<n> in its recording), the past is shown on the wire, and POST /review/exit returns to exactly where it paused. Only from OperatingLive.",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "Optional: atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) — else the live point; waitForReady (bool). Example: enter_review({atSimSeconds:30, waitForReady:true})",
+            Params: new RouteParam[]
+            {
+                new("atSeconds", "number", false, "Where the review opens, seconds after the recording's zero (default: the live point)"),
+                new("atSimSeconds", "number", false, "Or the recorded sim time to open at"),
+                new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReview"),
+            },
+            Notes: new[] { "In a review: seek with POST /replay/seek (or /review/seek), play / pause / step with /sim/*, the axis with /replay/axis; it pauses itself at the live point.",
+                           "World-changing commands answer 409 until you return (spawn, orders, components, save, checkpoints …)." },
+            ExampleArgsJson: "{\"atSimSeconds\":30,\"waitForReady\":true}",
+            ExampleGist: "look back at the live run"),
+
+        [("POST", "/review/exit")] = new RouteDoc(
+            Tool:    "exit_review",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 — leave the review: every node puts its live point back (the checkpoint restore's semantics), the clock returns to it, the recording resumes — live, paused.",
+            Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+            Hint:    "Optional: waitForReady (bool). Example: exit_review({waitForReady:true})",
+            Params: new RouteParam[] { new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingLive") },
+            ExampleArgsJson: "{\"waitForReady\":true}",
+            ExampleGist: "back to the live run"),
+
+        [("POST", "/review/seek")] = new RouteDoc(
+            Tool:    "seek_review",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-3329 — the same seek as POST /replay/seek, named for a review (atSeconds, atSimSeconds, frame, frames, cause, next).",
+            Returns: "as seek_replay",
+            Hint:    "One of: atSeconds · atSimSeconds · frame · frames · cause · next. Example: seek_review({atSimSeconds:12})",
+            Params: new RouteParam[]
+            {
+                new("atSeconds", "number", false, "Seconds after the recording's zero"),
+                new("atSimSeconds", "number", false, "The recorded sim time"),
+            },
+            ExampleArgsJson: "{\"atSimSeconds\":12}",
+            ExampleGist: "move within the review"),
+
         [("POST", "/replay/axis")] = new RouteDoc(
             Tool:    "set_replay_axis",
             Group:   "I — Replay",

@@ -22,7 +22,19 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
     private static readonly JsonSerializerOptions _deserializeOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     /// <inheritdoc/>
-    public NodeOpType TargetOp => NodeOpType.PrepareReplay;
+    private readonly NodeOpType _target;
+    private readonly bool _endAtEarliestLast;
+
+    /// <param name="target">The prepare op whose results this aggregates — <c>PrepareReplay</c>, or ⭐ CE-3329 <c>PrepareReview</c>.</param>
+    /// <param name="endAtEarliestLast">⭐ CE-3329 F13 — a REVIEW ends at the live point: the EARLIEST of the nodes' last frames (no node
+    /// replays past what every node recorded), never a duration estimate.</param>
+    public ReplayConsensusAggregator(NodeOpType target = NodeOpType.PrepareReplay, bool endAtEarliestLast = false)
+    {
+        _target = target;
+        _endAtEarliestLast = endAtEarliestLast;
+    }
+
+    public NodeOpType TargetOp => _target;
 
     /// <inheritdoc/>
     public object? Aggregate(IReadOnlyDictionary<int, Dictionary<NodeOpType, string>> nodeResponses)
@@ -36,7 +48,7 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
 
         foreach (var nodeDict in nodeResponses.Values)
         {
-            if (!nodeDict.TryGetValue(NodeOpType.PrepareReplay, out var json)) continue;
+            if (!nodeDict.TryGetValue(_target, out var json)) continue;
             if (string.IsNullOrWhiteSpace(json)) continue;
             try
             {
@@ -45,7 +57,11 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
                 if (result.MaxNetworkId    > maxNetworkId) maxNetworkId = result.MaxNetworkId;
                 if (result.FirstFrameWallTicks > 0 && (firstFrame == 0 || result.FirstFrameWallTicks < firstFrame))
                     firstFrame = result.FirstFrameWallTicks;
-                if (result.LastFrameWallTicks > lastFrame) lastFrame = result.LastFrameWallTicks;
+                if (_endAtEarliestLast)
+                {
+                    if (result.LastFrameWallTicks > 0 && (lastFrame == 0 || result.LastFrameWallTicks < lastFrame)) lastFrame = result.LastFrameWallTicks;
+                }
+                else if (result.LastFrameWallTicks > lastFrame) lastFrame = result.LastFrameWallTicks;
                 if (result.TimeMap is { HasSimTime: true } map) maps.Add((result.FirstFrameWallTicks, map));
             }
             catch { /* non-ReplayPrepareResult JSON — skip */ }

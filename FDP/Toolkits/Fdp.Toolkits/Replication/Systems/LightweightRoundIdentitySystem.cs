@@ -42,6 +42,7 @@ namespace Fdp.Toolkit.Replication.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             Assigned = 0;
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             if (_ids == null || view is not EntityRepository world || !world.IsComponentTypeRegistered<LightweightRound>()) return;
             if (!ReferenceEquals(world, _queryWorld))
             {

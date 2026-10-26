@@ -126,6 +126,7 @@ namespace Fdp.Core
             SyncSingletonById(source, GlobalComponentIds.IGeographicTransform); // ⭐ CE-3216 S2-0 (R-3017) — the sun's lat/lon (WeatherField), read-only
             SyncSingletonById(source, GlobalComponentIds.SoundEmissionRing); // ⭐ CE-3282 (Q95 C) — the lossless sound ring; BORROWED live, read by seqlock
             SyncSingletonById(source, GlobalComponentIds.WorldEpoch); // ⭐ CE-3294 — which world this is: a background system forgets the last one's entities too
+            SyncSingletonById(source, GlobalComponentIds.ReplayState); // ⭐ CE-3329 P2 — is this world a replay: a background writer stands down too (borrowed: the live flag)
 
             // 4. Sync BOTH version clocks.
             //
