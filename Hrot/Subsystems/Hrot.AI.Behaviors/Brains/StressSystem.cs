@@ -308,6 +308,9 @@ namespace Hrot.AI.Behaviors.Brains
     // ⭐ CE-1309 (ui, cross-lane) — R-3036: every system declares its tick policy; without it the scheduler throws on the first frame of
     //   every host running CgfLogicPack (measured: the editor crashed at once). Stress integrates sim time, as its siblings do.
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    // ⭐ backend (cross-lane, 2026-10-26) — the phase it runs in: CgfLogicPack lists it with the simulation systems, like its siblings. Without
+    //   it SystemScheduler.RegisterSystem throws ("must have [UpdateInPhase]") and the editor harness failed at boot.
+    [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class StressSystem : IEcsModuleSystem
     {
         private readonly bool _gateOnAuthority;
