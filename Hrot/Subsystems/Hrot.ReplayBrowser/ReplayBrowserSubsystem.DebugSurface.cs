@@ -429,6 +429,22 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
                 throw new ArgumentOutOfRangeException(nameof(scale), scale, "The playback rate must be a positive number.");
             _host.PlaybackRate = scale;
         }
+
+        // ⭐ CE-3329 row 21 — the session members: an offline viewer only replays (no live run to review); a seek and the axis go through
+        //   the SAME intents and the SAME master control every other host's facade publishes to (ReplaySessionIntents).
+        public TransportMode Mode => Open ? TransportMode.Replay : TransportMode.Idle;
+        public Fdp.Toolkit.Orchestration.ReplayAxis Axis => _host.Axis;
+        public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => _host.MasterControl.SetReplayAxis(ReplaySessionIntents.SetAxis(axis));
+        public void EnterReview(double? at = null) { }   // offline: no live run
+        public void ExitReview() { }
+        public double? LivePoint => null;
+
+        public void Seek(double t)
+        {
+            if (!Open) return;
+            var (wall, sim) = ReplaySessionIntents.OnAxis(Axis, t);
+            _host.MasterControl.SeekReplay(ReplaySessionIntents.Seek(wall, sim));
+        }
     }
 
     /// <summary>⭐ RB-3 — what only this host has.</summary>

@@ -16,7 +16,7 @@ namespace Hrot.Editor.UI
     /// and bound to the "Scenario" perspective so it is hidden when switching away.</para>
     ///
     /// <para>Rendering is delegated to the shared <see cref="ClusterTimeControlStatusBarSection"/>
-    /// via an <see cref="EditorTimeTransportFacade"/>.</para>
+    /// via the one time facade (<c>ClusterTimeTransportAdapter</c>, CE-3329 row 21).</para>
     ///
     /// <para>This used to build its own <c>EditorTimeTransportAdapter</c> — a byte-for-byte copy of
     /// the facade but for its name, its accessibility and its missing null-guards. Both were live
@@ -29,15 +29,10 @@ namespace Hrot.Editor.UI
     {
         private readonly ClusterTimeControlStatusBarSection _inner;
 
-        internal TimeControlStatusBarSection(
-            IPreviewController   preview,
-            MasterSyncController timeCtrl,
-            EntityRepository     world,
-            Fdp.Toolkit.Time.ITimeCommands? commands = null,
-            System.Func<bool>? isReplaying = null)
+        internal TimeControlStatusBarSection(Hrot.UI.Common.Facades.ITimeTransportFacade transport)
         {
-            _inner = new ClusterTimeControlStatusBarSection(
-                new EditorTimeTransportFacade(preview, timeCtrl, world, commands, isReplaying));
+            // ⭐ CE-3329 row 21 — the ONE facade (ClusterTimeTransportAdapter), the same instance the toolbar drives
+            _inner = new ClusterTimeControlStatusBarSection(transport ?? throw new System.ArgumentNullException(nameof(transport)));
         }
 
         /// <summary>

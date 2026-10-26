@@ -200,7 +200,7 @@ first live frame reconciles the rebuilt index with the wire.
 ## 7. Cross-lane
 
 - **ui** — the readers in `DESIGN_Agent_Shared_View.md` §6b (CE-1265/1266) lose their `/replay/…` twins (the ordinary readers answer during a
-  replay); the editor's own Play/Stop preview uses the same `IPreviewController` shortcut — the UI half of "no shortcuts", proposed to ui.
+  replay); the editor's own Play/Stop preview uses the same `IPreviewController` shortcut — the UI half of "no shortcuts", proposed to ui. ⭐ **DONE `2026-10-26` by backend** (user: *"What the play has to do with UI?"* — it is the cluster's dry run, not UI): the editor's Play / Step / Stop publish the cluster transition through the one time facade (`DryRunIntents`), `IPreviewController` is a cluster client — DAR design §12m.
 - **coordinator** — the replay verifier (CE-4045) uses `ReplayBrowserContext` in code, not over HTTP: unaffected.
 - **MCP** — the catalog and skill regenerate in the same commit (R-1030).
 

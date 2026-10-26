@@ -1085,3 +1085,76 @@ the recorder and playback, diagnostics, `TrafficSteppingModule` (no world access
 `StaticObstacleBakeSystem`, `TerrainQueryResolutionSystem` (`IgGroundClampingModule`), `ResumeAndDrainSystem`, `BehaviorDiagnosticsModule`,
 `GizmoInteractionModule`, `ContextMenuSystem`, `MapLayerAssignmentSystem`.
 
+### 12m. ✅ As built `2026-10-26` — rows 21, 32, 45: ONE time facade on every host; the session layer on the wire
+
+🔒 User: *"One facade."* · *"What the play has to do with UI?"* (the dry run is the cluster's, not the editor's) · *"in the editor, I need the
+determinism, because this is used for regression checks of scenarios."* ⛔ SUPERSEDES row 21's "in EVERY implementation" — there is now ONE.
+
+```mermaid
+classDiagram
+  class ITimeTransportFacade {
+    <<exists, grown>>
+    Mode, Axis, LivePoint
+    SetAxis(), EnterReview(t?), ExitReview(), Seek(t)
+  }
+  class ClusterTimeTransportAdapter {
+    <<exists, grown: THE facade on every host>>
+    Play from edit = DryRunIntents.Enter(running)
+    Stop: preview to edit, review to live, else idle
+  }
+  class ClusterReplayControls {
+    <<new>>
+    the session members, written once
+  }
+  class ReplaySessionIntents {
+    <<new>>
+    the one construction: review, seek, axis
+  }
+  class DryRunIntents {
+    <<new>>
+    the one construction: enter / exit the dry run
+  }
+  class EditorPreviewController {
+    <<exists, now a cluster client>>
+    publishes DryRunIntents, reads the cluster state
+  }
+  class EditorTimeTransportFacade {
+    <<deleted>>
+  }
+  class ReplaySessionProcessManager {
+    <<new, master>>
+    builds ReplaySession, republishes on change
+  }
+  ClusterTimeTransportAdapter ..|> ITimeTransportFacade
+  ClusterTimeTransportAdapter --> ClusterReplayControls
+  ClusterReplayControls --> ReplaySessionIntents
+  ClusterTimeTransportAdapter --> DryRunIntents
+  EditorPreviewController --> DryRunIntents
+  ReplaySessionProcessManager --> ClusterTimeTransportAdapter : ReplaySessionTopic, LivePoint
+```
+*What the picture shows that the prose hid:* the editor has no time path of its own any more — its toolbar, status bar, timeline, debug
+API and the film director (the regression verifier) all hold the SAME adapter instance, and the HTTP routes and the facade build the SAME
+intents. The editor differs only in where its master lives (in-process, on the same orchestration bus — T3).
+
+| rule | as built |
+|---|---|
+| Play from edit = the cluster's dry run, running | `DryRunIntents.Enter(startPaused: false)` (`TimeMode` "Continuous"); the master resumes it when `OperatingPreview` lands — `GlobalContextProcessManager`, the same "run when it lands" path a live start uses |
+| Step from edit = the dry run, paused at its first frame | `DryRunIntents.Enter(startPaused: true)` — unchanged meaning |
+| Stop | preview → edit (the master puts the clock back: `PreviewClockProcessManager`, CE-3299 D5 — CE-3156's local put-back is gone) · review → live (R-3060) · live / replay → idle · ⛔ not offered in edit |
+| the editor's `IPreviewController` | a cluster client: enter / exit publish `DryRunIntents`; "in preview" = `OperatingPreview`; `ForgetPreview` (CE-1025) still drops the shared handler's capture |
+| `POST /sim/step` from edit | waits for the cluster to run the dry run (≤ 20 s, the publishing routes' contract), then ticks |
+| the session layer | `ReplaySessionProcessManager` (master) → `ReplaySessionTopic` (Reliable, TransientLocal, KeepLast 1) → `NodeOpSlaveTranslator` / `OrchestrationObserverTranslator` → `ClusterUiCache.ReplaySession` and the facade's `LivePoint`; checkpoint marks ride the prepare round (`ReplayPrepareResult.Checkpoints`, union by label); `ReviewId` minted at a review's entry (F18) |
+| determinism (R-3035 / R-3038) | unchanged by construction: stepping was ALREADY a bus intent (`ITimeCommands.StepBy`) on both facades; the dry run reaches the same handler instance (D14). ⭐ Proof: the director's verify on three scenarios before / after — §12m measured below |
+
+📐 **Measured — the regression path unchanged** (`--mode editor --headless --verify ua-civ-melee,ua-tank-ammo,bt-grenade-posture`, each a fresh
+process; the before run on the binaries without the change, golden of `ua-civ-melee` captured on them):
+
+| scenario | before | after (one facade, the editor's Play/Stop through the cluster) |
+|---|---|---|
+| `ua-civ-melee` | 4/4 conditions; golden differs ONLY in `CreationRequestId` (CE-3334: a fresh Guid per run — no golden repeats) | identical |
+| `ua-tank-ammo` | "soft-target round at the technical" held at 51.0667 s; kinetic round at 8.9333 s; the same 54 values against the stored golden | identical |
+| `bt-grenade-posture` | "the standing man is hurt" FAILS; the same 6 values | identical |
+
+⚠ The first after-run failed every load: an edit had put `_editorLogic?.Update()` inside a comment (the editor's scenario session stopped
+reading the cluster state). Caught by this very check, fixed before commit.
+

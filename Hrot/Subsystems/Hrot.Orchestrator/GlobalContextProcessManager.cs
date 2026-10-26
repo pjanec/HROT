@@ -28,6 +28,11 @@ public sealed class GlobalContextProcessManager
     /// <summary>The <see cref="TransitionStateIntent.TimeMode"/> value that asks a load to start paused.</summary>
     public const string StartPausedTimeMode = "Deterministic";
 
+    /// <summary>⭐ CE-3329 row 21 — the <c>TimeMode</c> a dry run asks for to start RUNNING (Play from edit); absent ⇒ paused.</summary>
+    public const string ContinuousTimeMode = "Continuous";
+
+    private bool _resumeWhenPreview;
+
     public GlobalContextProcessManager(FdpEventBus bus, GlobalContextClusterOpHandler handler)
     {
         _bus     = bus     ?? throw new ArgumentNullException(nameof(bus));
@@ -46,6 +51,11 @@ public sealed class GlobalContextProcessManager
         // Reacts to any target state that implies a load step (e.g. OperatingLive implies LoadingLive).
         foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())
         {
+            // ⭐ CE-3329 row 21 (one facade) — a DRY RUN asked to start RUNNING (the Play button from edit, on every host) runs once
+            //   the cluster reports OperatingPreview, through this same "run when it lands" path. A dry run starts paused otherwise.
+            if ((ClusterState)(int)intent.TargetState == ClusterState.OperatingPreview)
+                _resumeWhenPreview = intent.TimeMode == ContinuousTimeMode;
+
             var loadState = ResolveLoadState((ClusterState)(int)intent.TargetState);
             if (loadState == null || string.IsNullOrEmpty(intent.ScenarioId)) continue;
 
@@ -57,6 +67,12 @@ public sealed class GlobalContextProcessManager
         //   Any other state reached first (Idle after an abort, Degraded, Edit) drops the pending resume.
         foreach (var ev in _bus.ReadManaged<ClusterStateTransitionedEvent>())
         {
+            if (_resumeWhenPreview && ev.SubsystemName == "Cluster" && ev.NewStateId != Fdp.Toolkit.Orchestration.ClusterState.LoadingPreview)
+            {
+                if (ev.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview)
+                    _bus.PublishManaged(new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
+                _resumeWhenPreview = false;
+            }
             if (!_resumeWhenLive || ev.SubsystemName != "Cluster") continue;
             if (ev.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.LoadingLive) continue;
             if (ev.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)

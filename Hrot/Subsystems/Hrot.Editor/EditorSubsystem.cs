@@ -304,6 +304,10 @@ namespace Hrot.Editor
         private CanvasMapPickAdapter?           _mapPickAdapter;
         private EditorZoneAdapter?              _zoneAdapter;
         private EditorPreviewController?        _previewController;
+
+        /// <summary>⭐⭐⭐ CE-3329 row 21 — <b>THE time facade</b>, the one every host uses (user: *"One facade."*): built ONCE, read each
+        /// frame beside the cluster cache, handed to the status bar, the toolbar, the timeline, the debug API and the director.</summary>
+        private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _timeTransport;
         private MapViewConfig?                  _mapViewConfig;
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
@@ -346,8 +350,6 @@ namespace Hrot.Editor
         private Hrot.Editor.DebugApi.EditorAiTracerCoordinator?          _debugApiTracer;
         private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _debugApiRrController;
 
-        /// <summary>⭐ CE-4051 — a replay is on: the time controls drive the replay clock, not the recorded frame's (EditorTimeTransportFacade).</summary>
-        private bool IsReplaying() => _clusterHandlers?.RecordReplayController?.IsReplayActive == true;
         /// <summary>⭐ D16 — what the shared host composition built: the ONE recorder and the ONE dry-run handler.</summary>
         private Hrot.SimHost.Modules.Orchestration.EcsHostClusterHandlers? _clusterHandlers;
         private FdpInspectorState       _fdpInspectorState  = new();
@@ -685,92 +687,54 @@ namespace Hrot.Editor
         // ?? Private helpers ???????????????????????????????????????????????????
 
         /// <summary>
-        /// Lightweight IPreviewController over the ONE dry-run handler (<c>D14</c>)
-        /// and tracks preview state internally without requiring <c>IScenarioStateProvider</c>.
+        /// ⭐⭐⭐ <b>The editor's <see cref="IPreviewController"/> — a CLIENT of the cluster's dry run</b> (user, `2026-10-26`: *"One facade."*,
+        /// and *"What the play has to do with UI?"*). Enter and exit publish the cluster transition every host publishes
+        /// (<c>DryRunIntents</c>); "in preview" is the cluster's state. The dry-run handler, the world's rewind and the clock's put-back
+        /// are the cluster's: <c>ReferencePreviewHandler</c> on this node's slave (D14) and the master's <c>PreviewClockProcessManager</c>
+        /// (CE-3299 B2 / D5, which closed for the cluster path what CE-3156 closed here).
+        /// ⛔ SUPERSEDED: the local shortcut that triggered the handler and drove the clock directly (CE-3156's own put-back) —
+        /// DESIGN_Http_Control_Through_The_Cluster_Master §7 "no shortcuts". 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12m.
         /// </summary>
         private sealed class EditorPreviewController : IPreviewController
         {
             private readonly Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler _handler;
-            private readonly MasterSyncController    _timeController;
+            private readonly System.Func<FdpEventBus?> _bus;
+            private readonly System.Func<Fdp.Toolkit.Orchestration.ClusterState> _state;
             private readonly Fdp.Toolkit.Time.ITimeCommands _timeCommands;
-            private bool _inPreview;
 
-            /// <summary>
-            /// ⭐⭐⭐ <c>CE-3156</c> — <b>where the clock stood when the preview began</b>, so Stop can put it back.
-            /// <para>🔒 User, <c>2026-10-10</c>: <i>"Stop Preview does NOT reset time to zero (although the entity
-            /// state resets to initial state)."</i></para>
-            /// <para>📐 Measured: Stop did two things — <c>TriggerUnloadingPreview()</c> (the world rewind,
-            /// <c>_liveRepo.SyncFrom(_snap)</c>) and <c>SwitchToDeterministic</c> (a PAUSE). Neither repositions the
-            /// clock. <c>SyncFrom</c> restores entities and eight named singletons, <b>not</b> <c>GlobalTime</c>
-            /// (<c>EntityRepository.Sync.cs:112-123</c>) — and restoring that singleton would not help anyway: the
-            /// kernel rewrites it every frame from <c>MasterSyncController._totalTime</c>
-            /// (<c>ModuleHostKernel.cs:496-500</c>), which nothing on the Stop path touched. ⇒ the world went back
-            /// to its snapshot while the clock kept the time of the moment Stop was pressed.</para>
-            /// <para>⭐ The clock's accumulator is exactly what <c>DESIGN_Deterministic_Network_Ids.md</c> §2b calls
-            /// <i>"state outside the EntityRepository [that] survives the preview rewind"</i> — the same class as the
-            /// id allocator, the entity map and the ELM queues, which already have participants. ⚠ It is captured
-            /// HERE rather than as an <c>IPreviewRewindable</c> because the one legal way to move the clock is
-            /// <c>ITimeCommands.SnapTo</c> (<c>DESIGN_Time_Architecture.md</c> §12a), and on the cluster path only
-            /// the master owns the clock — a shared participant is a larger question, filed with the row.</para>
-            /// </summary>
-            private GlobalTime _enteredAt;
-
-            /// <param name="dryRun">
-            /// ⭐⭐ <c>D14</c> — THE dry-run handler, the same instance this node's cluster slave holds
-            /// (<c>EcsHostClusterHandlers</c>); it also puts back the id pool, entity map and ELM queues (HN-017/HN-018).
-            /// </param>
-            /// <param name="timeCommands">
-            /// ⭐ <c>CE-3156</c> — the seam through which Stop asks the clock to go back
-            /// (<c>DESIGN_Time_Architecture.md</c> §12a: <i>"callers outside the clock no longer call it — they
-            /// ask: ITimeCommands.SnapTo"</i>). ⛔ Not optional and not defaulted: the caller HOLDS it.
-            /// </param>
+            /// <param name="dryRun">⭐ D14 — THE dry-run handler this node's cluster slave holds; used here only to FORGET a dry run a load
+            /// interrupts (CE-1025).</param>
+            /// <param name="bus">The orchestration bus the editor's master reads (the intents' bus, T3).</param>
+            /// <param name="state">The cluster state as this host knows it.</param>
+            /// <param name="timeCommands">The clock's command seam — <see cref="ForgetPreview"/> pauses through it.</param>
             internal EditorPreviewController(
                 Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler dryRun,
-                MasterSyncController timeController,
+                System.Func<FdpEventBus?> bus,
+                System.Func<Fdp.Toolkit.Orchestration.ClusterState> state,
                 Fdp.Toolkit.Time.ITimeCommands timeCommands)
             {
-                _handler        = dryRun ?? throw new System.ArgumentNullException(nameof(dryRun));
-                _timeController = timeController;
-                _timeCommands   = timeCommands ?? throw new System.ArgumentNullException(nameof(timeCommands));
+                _handler      = dryRun ?? throw new System.ArgumentNullException(nameof(dryRun));
+                _bus          = bus ?? throw new System.ArgumentNullException(nameof(bus));
+                _state        = state ?? throw new System.ArgumentNullException(nameof(state));
+                _timeCommands = timeCommands ?? throw new System.ArgumentNullException(nameof(timeCommands));
             }
 
-            public bool IsInPreviewMode => _inPreview;
+            /// <summary>The cluster runs the dry run (its operating state — ⛔ not while it is still loading).</summary>
+            public bool IsInPreviewMode => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview;
 
             public void EnterPreviewMode(bool startPaused = false)
-            {
-                // ⭐ CE-3156 — BEFORE the clock starts running: this is the position the world snapshot belongs to.
-                _enteredAt = _timeController.GetCurrentState();
-
-                _handler.TriggerLoadingPreview();
-                if (!startPaused)
-                    _timeController.SwitchToContinuous();
-                _inPreview = true;
-            }
+                => _bus()?.PublishManaged(Hrot.UI.Common.Facades.DryRunIntents.Enter(startPaused));
 
             public void ExitPreviewMode()
-            {
-                _handler.TriggerUnloadingPreview();
-                _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
+                => _bus()?.PublishManaged(Hrot.UI.Common.Facades.DryRunIntents.Exit());
 
-                // ⭐⭐⭐ CE-3156 — and the CLOCK goes back with the world. The pause above stays (it takes effect at
-                //   once; CE-3068); the snap is applied by the clock FIRST on its next Update, before any
-                //   pause/resume intent (MasterSyncController.cs:162-163), and leaves the clock paused at the
-                //   position the preview started from — the whole position: frame number, sim time, unscaled time
-                //   and wall ticks, so nothing is left from the abandoned timeline.
-                _timeCommands.SnapTo(_enteredAt);
-
-                _inPreview = false;
-            }
-
-            /// <summary>⭐ <c>CE-1025</c> (R-1031) — a load during the dry run: the restore point is dropped, the clock paused and NOT put
-            /// back (every load resets it to 0, AQ86 §4-G). ⛔ ExitPreviewMode here was the defect: nothing left the dry run, so Stop
-            /// rewound the newly loaded world to the one before the load.</summary>
+            /// <summary>⭐ <c>CE-1025</c> (R-1031) — a load during the dry run: the restore point is dropped (the load's way out of the dry
+            /// run then rewinds nothing) and the clock paused; ⛔ not put back — every load resets it to 0 (AQ86 §4-G).</summary>
             public void ForgetPreview()
             {
-                if (!_inPreview) return;
+                if (!IsInPreviewMode) return;
                 _handler.TriggerForgetPreview();
-                _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
-                _inPreview = false;
+                _timeCommands.Pause();
             }
         }
 
@@ -2452,16 +2416,20 @@ namespace Hrot.Editor
             // ⭐⭐⭐ D14 — the toolbar's Play/Stop drives the ONE dry-run handler the shared host composition registered on this
             //   node's slave (above), so the editor's world, id pool, entity map and ELM queues (HN-017/HN-018 — the
             //   participants are listed there, once) come back the same way whoever starts the dry run.
-            // ⭐ CE-3156 — _timeCommands is handed over because this method HOLDS it (built above, at the
-            //   orchestration-bus wiring): Stop Preview needs it to put the clock back with the world.
-            _previewController = new EditorPreviewController(_clusterHandlers!.DryRun, _timeController!, _timeCommands!);
+            // ⭐⭐ CE-3329 row 21 (one facade) — the controller is a CLIENT of the cluster's dry run: Play/Stop publish the transition every
+            //   host publishes; the master puts the clock back (PreviewClockProcessManager), so CE-3156's local put-back is gone.
+            _previewController = new EditorPreviewController(_clusterHandlers!.DryRun, () => _orchestrationBus,
+                () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle, _timeCommands!);
+            // ⭐⭐⭐ the ONE time facade (the cluster nodes' own), its readout on this node's clock (the master's — the editor hosts it)
+            _timeTransport = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(_orchestrationBus!,
+                localSimTimeGetter: () => _timeController!.GetCurrentState().TotalTime);
 
             // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
             //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
             {
                 _takeStore = new Hrot.UI.Common.Map3D.Director.TakeStore(() => EditorBootstrap.ScenariosRoot,
                                                                          Hrot.UI.Common.Map3D.Director.TakeStore.FindFilmsDirectory);
-                var directorTime = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world, isReplaying: IsReplaying);
+                var directorTime = _timeTransport!;
                 var directorHost = new Hrot.Editor.Director.EditorDirectorHost(
                     world:          () => _world,
                     load:           name => _editorLogic!.LoadScenarioByName(name),
@@ -2542,7 +2510,7 @@ namespace Hrot.Editor
                         debugApiPort, _debugApiJobQueue, () => _requestAppExit());
 
                     var debugExtraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap!, scenarioSerializer);
-                    var debugTimeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController!, _timeController!, _world, isReplaying: IsReplaying);
+                    var debugTimeFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
                     // The behavior-trace arming coordinator (Hrot.Editor.DebugApi.*) — distinct from the
                     // time-control tracer of the same short name in Hrot.Editor.Debug. Self-contained.
                     _debugApiTracer = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(_world);
@@ -2988,6 +2956,7 @@ namespace Hrot.Editor
             _orchestrationBus?.SwapBuffers();
             _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
             _orchestratorCore?.UiCache.Update();
+            _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
             _editorLogic?.Update();
             _orchestratorCore?.ScenarioPanel.Update(deltaTime);
 
@@ -5275,8 +5244,7 @@ namespace Hrot.Editor
 
             // ⭐ CE-3330 (DAR row 28; Director Timeline §2d) — the shared event timeline, LIVE: it never seeks (a live host seeks by entering a
             //   review — backend's EnterReview); Space plays / pauses through the editor's own transport
-            var timelineTransport = _previewController != null && _timeController != null && _world != null
-                ? new Hrot.Editor.UI.EditorTimeTransportFacade(_previewController, _timeController, _world, isReplaying: IsReplaying) : null;
+            var timelineTransport = _timeTransport;   // ⭐ CE-3329 row 21 — the one facade
             windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
                 "editor_event_timeline", "Event Timeline", "Scenario", _eventTimeline, () => LiveTimeline,
                 new Fdp.Presentation.Panels.Timeline.LiveTimelineCursor(() => LiveTimeline,
@@ -5370,8 +5338,7 @@ namespace Hrot.Editor
             if (_previewController != null && _timeController != null && _world != null
                 && windowManager.MainToolbar != null)
             {
-                var timeControls = new TimeControlStatusBarSection(
-                    _previewController, _timeController, _world, _timeCommands, IsReplaying);
+                var timeControls = new TimeControlStatusBarSection(_timeTransport!);
                 windowManager.StatusBar.RegisterSection(
                     id:             "editor_time_controls",
                     sortOrder:      100,
@@ -5383,8 +5350,7 @@ namespace Hrot.Editor
                 //    live once in `ShellTimeControlToolbar`. 📄 design §5c.8 H1.
                 // ⭐⭐⭐ CE-090 — the `withSeparator` parameter is GONE: both hosts emit the separator, and
                 //    a shared surface takes no host gate. 📄 §5c.14.
-                var timeTransportFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
-                    _previewController, _timeController, _world, _timeCommands, IsReplaying);
+                var timeTransportFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
                 Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
                     windowManager.MainToolbar, timeTransportFacade);
             }

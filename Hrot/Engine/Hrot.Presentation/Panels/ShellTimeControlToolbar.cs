@@ -55,7 +55,7 @@ public static class ShellTimeControlToolbar
     /// caller guards on it any more (design §5c.8 <c>H2</c>).
     /// </param>
     /// <param name="facade">the host's transport. ⭐ The existing seam: the editor supplies
-    /// <c>EditorTimeTransportFacade</c>, CGF and SimHost supply <c>ClusterTimeTransportAdapter</c>.</param>
+    /// every host supplies the one <c>ClusterTimeTransportAdapter</c> (CE-3329 row 21; the editor's own facade is retired).</param>
     public static void Register(
         MainToolbarManager toolbar,
         ITimeTransportFacade facade)

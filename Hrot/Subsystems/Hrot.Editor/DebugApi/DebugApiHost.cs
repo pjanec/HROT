@@ -572,20 +572,28 @@ namespace Hrot.Editor.DebugApi
                     double? before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull())
                                                     .ConfigureAwait(false);
 
-                    bool? previewBefore = await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull())
-                                                         .ConfigureAwait(false);
+                    bool editBefore = await _jobQueue.RunOnMainThread(() => Service().InEdit()).ConfigureAwait(false);
                     issued = await RunMain(s => s.Step(1, dt)).ConfigureAwait(false);
                     if (issued.Status != 200) return issued;
 
                     // ⭐⭐ CE-3077 — from EDIT the first step only ENTERS PREVIEW, paused, and does not tick: that is the editor's
-                    //    Step button (EditorTimeTransportFacade.Step — "step from edit = preview, paused at t=0"). ⛔ This route
+                    //    Step button (the time facade's Step — "step from edit = preview, paused at t=0"). ⛔ This route
                     //    promises TICKS, so the gate below waited 20 s for a clock that could not move and answered 504 —
                     //    measured on every editor system rail that steps after an edit load (8 reds), and the runbook's
                     //    "the editor ignores /sim/step until it has been PLAYED once" trap was this. ⇒ the transition into
                     //    preview is not the tick: issue the tick now. ⛔ The button's meaning is unchanged (not this route).
-                    if (previewBefore == false
-                        && await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull()).ConfigureAwait(false) == true)
+                    // ⭐ CE-3329 row 21 (one facade) — the dry run is the CLUSTER's transition now (a commit round, not a local
+                    //   switch): wait for the cluster to run it — the publishing routes' waitForReady contract — then tick.
+                    if (editBefore)
                     {
+                        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+                        while (await _jobQueue.RunOnMainThread(() => Service().InPreviewOrNull()).ConfigureAwait(false) != true)
+                        {
+                            if (DateTime.UtcNow > deadline)
+                                return Fail(504, "the dry run did not start within 20 s (the cluster stayed in edit)");
+                            await Task.Delay(10).ConfigureAwait(false);
+                        }
+                        before = await _jobQueue.RunOnMainThread(() => Service().TotalTimeOrNull()).ConfigureAwait(false);
                         issued = await RunMain(s => s.Step(1, dt)).ConfigureAwait(false);
                         if (issued.Status != 200) return issued;
                     }
