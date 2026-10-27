@@ -67,6 +67,9 @@ public interface IEditorHostServices
     /// </summary>
     INodeContextMenuProvider? NodeContextMenu => null;
 
+    /// <summary>⭐ CE-1368 — optional provider for the empty-canvas right-click menu, appended after the built-in items; null = none.</summary>
+    ICanvasContextMenuProvider? CanvasContextMenu => null;
+
     /// <summary>⭐ CE-1323 — optional provider for link right-click menus, appended after the built-in link items; null = none.</summary>
     ILinkContextMenuProvider? LinkContextMenu => null;
 

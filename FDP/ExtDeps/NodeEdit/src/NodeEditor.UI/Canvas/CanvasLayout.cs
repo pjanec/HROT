@@ -93,57 +93,17 @@ internal sealed class CanvasLayoutBuilder
             // of the node or any of its parents.
             Vector2 graphPos = GetVisualCanvasPosition(view, layout, node.Id);
 
-            var inputPins = new List<IPinModel>();
-            var outputPins = new List<IPinModel>();
-            float maxInputWidthGu = 0f;
-            float maxOutputWidthGu = 0f;
-
-            foreach (var p in node.Pins)
-            {
-                if (p.IsAdvanced && !node.ShowAdvancedPins) continue;
-
-                float labelWidthGu = string.IsNullOrEmpty(p.Label) ? 0f : ImGui.CalcTextSize(p.Label).X;
-                float pinWidthGu = 20f + labelWidthGu; // glyph + label spacing budget
-
-                if (p.Direction == PinDirection.Input)
-                {
-                    bool hasInlineEditor = p.Kind == PinKind.Data
-                                           && p.Default != null
-                                           && p.Type.HasValue
-                                           && !layout.ConnectedInputPins.Contains(p.Id)
-                                           && view.TypeSystem.GetDefaultEditor(p.Type.Value) != null;
-
-                    if (hasInlineEditor)
-                    {
-                        float reqWidth = EditorWidthGu;
-                        var t = p.Type?.Id;
-                        if (t == "System.Numerics.Vector2") reqWidth = 120f;
-                        else if (t == "System.Numerics.Vector3" || t == "System.Numerics.Quaternion") reqWidth = 180f;
-                        else if (t == "System.Numerics.Vector4") reqWidth = 240f;
-                        else if (t == "System.Guid") reqWidth = 260f;
-
-                        pinWidthGu += reqWidth + (EditorHorizPadGu * 2f);
-                    }
-
-                    maxInputWidthGu = Math.Max(maxInputWidthGu, pinWidthGu);
-                    inputPins.Add(p);
-                }
-                else
-                {
-                    maxOutputWidthGu = Math.Max(maxOutputWidthGu, pinWidthGu);
-                    outputPins.Add(p);
-                }
-            }
-
-            float titleWidthGu = ImGui.CalcTextSize(node.Title).X + 48f;
-            float requiredWidthGu = (NodeHorizPadGu * 2f) + maxInputWidthGu + maxOutputWidthGu + 24f;
-            float nodeWGu = node.SizeOverride?.X ?? Math.Max(NodeMinWidthGu, Math.Max(titleWidthGu, requiredWidthGu));
-
-            int rowCount = Math.Max(inputPins.Count, outputPins.Count);
-            bool vertical = view.Model.Kind.Orientation == PinOrientation.Vertical;
-            float nodeHGu = vertical
-                ? headerHt + PinTopPadGu + PinBottomPadGu
-                : headerHt + PinTopPadGu + rowCount * PinRowHeightGu + PinBottomPadGu;
+            // ⭐ CE-1367 — the node's drawn size (body AND the pills above it) comes from the ONE NodeSizing, which a host that places
+            //   nodes itself (the BTree auto-layout) asks too — so the layout and the canvas cannot disagree on how big a node is.
+            var nodeAttachments = view.Model.GetAttachmentsForNode(node.Id);
+            var drawn = NodeSizing.Measure(
+                node, nodeAttachments, view.Model.Kind.Orientation, headerHt,
+                s => ImGui.CalcTextSize(s).X,
+                p => InlineEditorWidth(view, layout, p));
+            var inputPins = drawn.InputPins;
+            var outputPins = drawn.OutputPins;
+            float nodeWGu = drawn.Width;
+            float nodeHGu = drawn.Height;
 
             var screenPos = view.Viewport.GraphToScreen(graphPos);
             float sw = nodeWGu * zoom;
@@ -153,26 +113,10 @@ internal sealed class CanvasLayoutBuilder
             layout.NodeGraphSizes[node.Id]  = new Vector2(nodeWGu, nodeHGu);
             entries?.Add((node.Id, new RectF(graphPos, new Vector2(nodeWGu, nodeHGu))));
 
-            // Compute screen-space attachment layout for this node.
-            var nodeAttachments = view.Model.GetAttachmentsForNode(node.Id);
+            // Screen-space attachment layout for this node (computed above, from the unscaled graph width, so wrapping is stable across zooms).
             if (nodeAttachments.Count > 0)
             {
-                // Compute using the UNSCALED graph width so layout wrapping is stable across zooms.
-                var attachLayout = AttachmentLayoutEngine.Compute(
-                    nodeAttachments,
-                    nodeWGu,
-                    a =>
-                    {
-                        float w = 0f;
-                        if (!string.IsNullOrEmpty(a.Glyph))
-                            w += ImGui.CalcTextSize(a.Glyph).X;
-                        if (!string.IsNullOrEmpty(a.Label))
-                        {
-                            if (w > 0f) w += 4f;
-                            w += ImGui.CalcTextSize(a.Label).X;
-                        }
-                        return w;
-                    });
+                var attachLayout = drawn.Pills;
                 layout.AttachmentLayouts[node.Id] = attachLayout;
                 foreach (var (aId, placement) in attachLayout.Placements)
                     layout.AttachmentScreenRects[aId] = new RectF(
@@ -234,6 +178,23 @@ internal sealed class CanvasLayoutBuilder
                 spatialIndex.Insert(node.Id, new RectF(canvasPos, graphSize));
             }
         }
+    }
+
+    /// <summary>The width of an input pin's inline editor, 0 when it shows none (a connected pin, one with no default or no editor).</summary>
+    private static float InlineEditorWidth(GraphView view, CanvasLayout layout, IPinModel p)
+    {
+        bool hasInlineEditor = p.Kind == PinKind.Data
+                               && p.Default != null
+                               && p.Type.HasValue
+                               && !layout.ConnectedInputPins.Contains(p.Id)
+                               && view.TypeSystem.GetDefaultEditor(p.Type.Value) != null;
+        if (!hasInlineEditor) return 0f;
+        var t = p.Type?.Id;
+        if (t == "System.Numerics.Vector2") return 120f;
+        if (t == "System.Numerics.Vector3" || t == "System.Numerics.Quaternion") return 180f;
+        if (t == "System.Numerics.Vector4") return 240f;
+        if (t == "System.Guid") return 260f;
+        return EditorWidthGu;
     }
 
     internal static void BuildLinkPaths(GraphView view, CanvasLayout layout)

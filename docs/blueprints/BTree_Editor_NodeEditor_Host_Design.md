@@ -273,13 +273,23 @@ Parameters:
 - Horizontal spacing between siblings: 40 px
 - Vertical spacing between parent and child: 80 px
 - Root is centered at canvas origin (0, 0)
-- Pill rows above a host node count toward vertical spacing (each pill row is 23 px tall, host header is 24 px tall — so an N-row-pill host needs `80 + 23*N` clearance instead of 80)
+- ~~Pill rows above a host node count toward vertical spacing (each pill row is 23 px tall, host header is 24 px tall — so an N-row-pill host needs `80 + 23*N` clearance instead of 80)~~ ⛔ SUPERSEDED `2026-10-27` (CE-1367, below): sizes now come from `NodeSizing`, the canvas's own; the layout never counted pills at all (`PillCount = 0`)
 
 Auto-layout runs only on opening an asset with missing layout entries. Once positions are persisted, they're authoritative.
 
-A "Reset layout" toolbar action re-runs tidy-tree across the whole tree, ignoring stored positions. Used when an asset has drifted into mess via hand-edits or merge conflicts.
+A "Reset layout" action re-runs tidy-tree across the whole tree, ignoring stored positions. Used when an asset has drifted into mess via hand-edits or merge conflicts. ✅ **BUILT `2026-10-27` ([CE-1368](Blueprint_Issues_Tracker.md))** as an item on the EMPTY-canvas right-click menu (see the AS-BUILT block below), not a toolbar button.
 
 > ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1273](Blueprint_Issues_Tracker.md))** — `BTreeAutoLayout` is **subtree-width placement**: each subtree gets a span as wide as its leaves need (`160 + 40` per leaf), its children side by side inside it, the parent centred over them. Overlap-free by construction. Two measured faults fixed: ① a **C#-built** tree (`BTreeBuilder.Compile`) has **no `Root` node**, and the layout gave up ⇒ every node at (0, 0) — the top is now the node no other node lists as a child; ② the "simplified Walker" spaced a node one node-width after its left sibling, ignoring the sibling's **subtree** width ⇒ `PersonAttack`: 48 nodes in 42 places. Rail: `CodeBuiltTreeLayoutTests.CE1273_EveryCodeBuiltTree_HasOnePlacePerNode` (every code-built tree in `Hrot.AI.Behaviors`). ⛔ SUPERSEDED above: "Reingold-Tilford".
+
+> ⭐ **AS-BUILT `2026-10-27` (ui, [CE-1368](Blueprint_Issues_Tracker.md)) — a STORED layout that overlaps is tidied on open; "Reset layout" is built.** 🔒 User: *"the nodes still overlap so on opening a bit more complex btree it is just a big mess … Take a look at BasicSquadSop"* — the editor opens the JSON asset (it wins the `AssetId` collision, [AiAssetCatalogBuilder](../../Hrot/Editor/Hrot.Editor.AiShared/Catalog/AiAssetCatalogBuilder.cs)) and its authored `EditorMetadata.X/Y` were never touched by the auto layout.
+>
+> | what | rule |
+> |---|---|
+> | ⭐ ONE overlap measure | `BTreeLayoutCheck.OverlappingPairs` — the DRAWN rectangles (body AND pills) sized by `BTreeAutoLayout.SizerFor` ⇒ `NodeSizing`, the canvas's own. The CE-1367 rail, the open path and Reset layout all call it |
+> | ⭐ open path | `BTreeDocumentFactory.Build`, once per asset instance (`LaidOutWithFont`): an auto-laid-out tree is laid out again (CE-1360); a stored (JSON) layout is tidied by `BTreeLayoutCheck.RelayIfOverlapping` ONLY when two drawn rectangles overlap. **In memory, never `MarkDirty`** (saved only if the author saves). A layout with 0 overlaps is left exactly as authored. ⛔ No `*.btree.json` on disk is rewritten |
+> | ⭐ Reset layout | empty-canvas right-click item, via the new NodeEditor `ICanvasContextMenuProvider` (`IEditorHostServices.CanvasContextMenu`) and `BTreeCanvasContextMenuProvider`: one `MoveNodes` through `GraphView.Execute` ⇒ undoable; the sink then does what it does for a drag — **dirty** on a writable asset, **view state** (CE-1275, never dirty) on a code-built one |
+>
+> Rails `Ce1368OpenAndResetLayoutTests` (`CE1368_*`). ⛔ SUPERSEDED above: "toolbar action".
 
 > ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1344 / CE-1345](Blueprint_Issues_Tracker.md)) — supersedes the flat 160 px above.** A node is as wide as
 > its TITLE (`BTreeAutoLayout.WidthOf`: 7.5 px a character + 48, at least 160 — what `CanvasLayout` draws), and a parent with more than three
@@ -303,7 +313,28 @@ A "Reset layout" toolbar action re-runs tidy-tree across the whole tree, ignorin
 > Rejected: renaming the label in `BTreeBuilder` (it feeds the node ids — breakpoints would move); a second-line subtitle (the canvas draws
 > none); a general graph layout (Sugiyama / dagre — the tree layout is exact; the overlap was the long titles and the estimate). Rails
 > `CodeBuiltTreeLayoutTests.CE1360_*` ×3.
-
+>
+> ⭐ **AS-BUILT `2026-10-27` (ui, [CE-1367](Blueprint_Issues_Tracker.md)) — the layout sizes a node with the canvas's OWN sizing.** 🔒 User: *"the nodes
+> still overlap so on opening a bit more complex btree it is just a big mess … Take a look at BasicSquadSop"*.
+>
+> | what | as built |
+> |---|---|
+> | ⭐ ONE sizing | `NodeSizing.Measure` (`NodeEditor.UI/Canvas/NodeSizing.cs`) — width (title + 48 / pins / min 160), height (theme header + pin padding) AND the pills' layout above the node. `CanvasLayoutBuilder.Build` sizes every node through it; `BTreeAutoLayout` asks it for every node (`Sizer`, over `BTreeNodeModel` + `BTreePillAttachmentModel`). ⛔ SUPERSEDED: the layout's own estimate (title × 7.5 + 48; a leaf 50 high; a header of 24; `PillCount = 0` — pills were never counted) |
+> | ⭐ vertical | a child's top = parent top + the parent's drawn height + 60 clearance + the tallest PILL stack among the siblings (pills hang above their host); a staggered layer is as tall as the tallest subtree + that stack + 20. `Layout(asset, measureText, headerHeight)` — the document factory passes `ImGui.CalcTextSize` and the theme's `NodeHeaderHeight` |
+> | ⭐ horizontal | a node's span is its body OR its pill row, whichever is wider (a lone pill can exceed a 160-wide host); the node is kept inside its span |
+>
+> 📐 **Measured before the change** (default ImGui font, theme header 28, bodies + pills as `NodeSizing` draws them): every PROJECTED tree the catalogue
+> holds — every one, `BasicSquadSop` (42 nodes), `PersonAttack`/`PlatformAttack`/`CombatPosture` (48 each) included — had **0** overlapping
+> pairs, so the pill/pin-width gaps the layout had were LATENT (the corpus' pills sit on small trees with room to spare; a synthetic tree with five-pill
+> stacks had 9 overlapping pairs). ⚠ **The messy `BasicSquadSop` the user sees is the other path:** the catalogue holds BOTH the generated tree
+> (auto-laid-out) and `Assets/BTrees/Library/Sop/BasicSquadSop.btree.json`, and the JSON contributor is added last so it WINS the `AssetId`
+> collision (`AiAssetCatalogBuilder`, design D4) — so the editor should open the JSON asset (⚠ read from the code, not observed in a running editor) with its AUTHORED `EditorMetadata.X/Y`, never auto-laid-out. Measured
+> overlaps in the stored positions: `BasicSquadSop` **73** pairs (43 nodes), `BasicInfantrySop` 32, `BasicPlatoonSop` 18, `BasicVehicleSop` 16,
+> `PlatoonHillAttack` 6, `DangerCrossing` 4, `CivilianSop` 3 (the authored titles are long sentences — *"Carrier on a Rope hold → fast rope"* — at fixed
+> 200-px steps). ⛔ Not rewritten (authored positions are the author's); the remedy is filed with the row.
+>
+> Rail `CodeBuiltTreeLayoutTests.CE1367_NoTwoDrawnRectanglesOverlap_BodiesAndPills_InEveryProjectedTree` (every projected tree + the pill-stack tree).
+>
 ---
 
 ## 4. The fluent C# emitter

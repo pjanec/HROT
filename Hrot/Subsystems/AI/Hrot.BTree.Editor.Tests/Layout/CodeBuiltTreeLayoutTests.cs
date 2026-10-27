@@ -1,7 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using Hrot.BTree.Editor.Catalog;
 using Hrot.BTree.Editor.Model;
+using ImGuiNET;
+using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
+using NodeEditor.UI.Canvas;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -171,5 +177,92 @@ public sealed class CodeBuiltTreeLayoutTests
         }
         _out.WriteLine($"staggered rows of subtrees: {pairRows}");
         Assert.True(pairRows > 0, "no row of small subtrees was staggered");
+    }
+
+    // ───────────────────────── ⭐ CE-1367 — the drawn rectangles, as the canvas sizes them ─────────────────────────
+
+    internal static T WithImGuiFont<T>(Func<Func<string, float>, T> body)
+    {
+        var ctx = ImGui.CreateContext();
+        ImGui.SetCurrentContext(ctx);
+        try
+        {
+            var io = ImGui.GetIO();
+            io.Fonts.AddFontDefault();
+            io.Fonts.Build();
+            io.DisplaySize = new Vector2(1280, 720);
+            io.DeltaTime = 1f / 60f;
+            ImGui.NewFrame();
+            try { return body(s => ImGui.CalcTextSize(s).X); }
+            finally { ImGui.EndFrame(); }
+        }
+        finally { ImGui.DestroyContext(ctx); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1367</c> (BTree host design §3.4) — laid out with the canvas's font and header height, NO two DRAWN rectangles of a projected tree
+    /// overlap — each node's body AND its decorator pills, sized by <see cref="NodeSizing"/> (the code <c>CanvasLayoutBuilder</c> draws with):
+    /// every tree the catalogue projects (the C#-built ones and the generated ones — <c>BasicSquadSop</c> among them), plus a synthetic tree whose
+    /// nodes carry stacks of pills (tall, wrapped, one wider than its host), which no projected tree has. 🔒 User, 2026-10-27: <i>"the nodes still
+    /// overlap so on opening a bit more complex btree it is just a big mess … Take a look at BasicSquadSop"</i>.
+    /// 🔴 Red-proof: the layout's pill height dropped (<c>PillsAbove</c> read as 0 behind a runtime condition) ⇒ the pill-stack tree overlaps.
+    /// </summary>
+    [Fact]
+    public void CE1367_NoTwoDrawnRectanglesOverlap_BodiesAndPills_InEveryProjectedTree()
+    {
+        var contributor = new BTreeAssetContributor();
+        contributor.LoadFrom(typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly);
+        var trees = contributor.Enumerate().OfType<BehaviorTreeAsset>().ToList();
+        Assert.Contains(trees, t => t.Name == "BasicSquadSop");
+        trees.Add(PillStackTree());
+
+        var report = WithImGuiFont(measure =>
+        {
+            const float header = Hrot.BTree.Editor.Layout.BTreeAutoLayout.DefaultHeaderHeight;
+            var lines = new List<(int Pairs, string Text)>();
+            foreach (var t in trees)
+            {
+                Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(t, measure, header);
+                int pairs = Hrot.BTree.Editor.Layout.BTreeLayoutCheck.OverlappingPairs(t, measure, header, out var first);   // CE-1368 - the production measure
+                lines.Add((pairs, $"{t.Name}: {t.Nodes.Count} nodes, {t.Pills.Count} pills, {pairs} overlapping pairs {first}"));
+            }
+            return lines;
+        });
+        foreach (var l in report.Where(l => l.Text.StartsWith("BasicSquadSop") || l.Text.StartsWith("PillStack"))) _out.WriteLine(l.Text);
+        var worst = report.OrderByDescending(l => l.Pairs).First();
+        Assert.True(worst.Pairs == 0, $"{report.Count(l => l.Pairs > 0)} tree(s) overlap; worst: {worst.Text}");
+    }
+
+    /// <summary>A root over a Selector over a row of Sequences, each carrying a stack of five pills (two wrapped rows) — the tall, wide, wrapped
+    /// shapes the projected corpus does not contain.</summary>
+    private static BehaviorTreeAsset PillStackTree()
+    {
+        var asset = new BehaviorTreeAsset(Guid.NewGuid(), "PillStackTree", "/t.cs", true, "BB", "Ctx",
+            new Fbt.BehaviorTreeBlob { TreeName = "T", Nodes = Array.Empty<Fbt.NodeDefinition>(), MethodNames = Array.Empty<string>(),
+                FloatParams = Array.Empty<float>(), IntParams = Array.Empty<int>(), SubtreeAssetIds = Array.Empty<string>() });
+        BTreeEditorNode Add(Fbt.NodeType type, string label, params BTreeEditorNode[] children)
+        {
+            var n = new BTreeEditorNode { VisualId = Guid.NewGuid(), KernelType = type, DisplayLabel = label };
+            foreach (var c in children) n.ChildVisualIds.Add(c.VisualId);
+            asset.AddNode(n);
+            return n;
+        }
+        void Pills(BTreeEditorNode host, int count)
+        {
+            var kinds = new[] { Fbt.NodeType.Inverter, Fbt.NodeType.ForceSuccess, Fbt.NodeType.UntilFailure, Fbt.NodeType.Repeater, Fbt.NodeType.Cooldown };
+            for (int i = 0; i < count; i++)
+                asset.AddPill(new BTreeEditorPill { VisualId = Guid.NewGuid(), HostNodeVisualId = host.VisualId, DecoratorType = kinds[i % kinds.Length], IntParam = 3, FloatParam = 1.5f, StackIndex = i });
+        }
+        var rows = Enumerable.Range(0, 4).Select(i =>
+        {
+            var seq = Add(Fbt.NodeType.Sequence, "Row " + i, Add(Fbt.NodeType.Condition, "Cond " + i), Add(Fbt.NodeType.Action, "Leaf " + i));
+            Pills(seq, 5);
+            return seq;
+        }).ToArray();
+        var sel = Add(Fbt.NodeType.Selector, "Rows", rows);
+        Pills(sel, 3);
+        var root = Add(Fbt.NodeType.Root, "Root", sel);
+        Pills(root, 1);
+        return asset;
     }
 }

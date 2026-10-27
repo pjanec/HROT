@@ -143,9 +143,17 @@ public static class BTreeDocumentFactory
 
         // ⭐ CE-1360 (§3.4) — an auto-laid-out tree (a C#-built one: nobody saved positions) is laid out again with the canvas's REAL
         //   font, so a node's width is the one it is drawn at (the catalog laid it out before any font existed, from an estimate).
-        if (btAsset.IsAutoLaidOut && !btAsset.LaidOutWithFont && ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+        // ⭐ CE-1368 — a STORED layout (a JSON asset) is left as authored unless two DRAWN rectangles overlap; then it is tidied the same way,
+        //   in memory only (no MarkDirty: it is saved only if the author saves). Checked once per asset instance. 🔒 User, 2026-10-27: "nodes
+        //   still overlap … it is just a big mess … BasicSquadSop".
+        float headerHeight = bundle.EditorTheme.NodeHeaderHeight;   // ⭐ CE-1367 — the theme's header height, as the canvas sizes a node with
+        Func<string, float> measureText = text => ImGuiNET.ImGui.CalcTextSize(text).X;
+        if (!btAsset.LaidOutWithFont && ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
         {
-            Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(btAsset, title => ImGuiNET.ImGui.CalcTextSize(title).X);
+            if (btAsset.IsAutoLaidOut)
+                Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(btAsset, measureText, headerHeight);
+            else
+                Hrot.BTree.Editor.Layout.BTreeLayoutCheck.RelayIfOverlapping(btAsset, measureText, headerHeight);
             btAsset.LaidOutWithFont = true;
         }
 
@@ -188,6 +196,7 @@ public static class BTreeDocumentFactory
         // Wire node context menu provider (DEC-03b: "Add Decorator →" submenu; Phase D/AIE-053:
         // "Open Blueprint" on composed AiPrimitive nodes when a catalog + open callback are supplied).
         hostServices.SetNodeContextMenuProvider(commandSink, graphModel, btAsset, assetCatalog, openBlueprint);
+        hostServices.SetCanvasContextMenuProvider(commandSink, btAsset, measureText, () => bundle.EditorTheme.NodeHeaderHeight);
 
         // ── 5. GraphView ──────────────────────────────────────────────────────
         var view = new GraphView(
@@ -201,6 +210,9 @@ public static class BTreeDocumentFactory
         // DEC-06 Part 1: wire undo recorder into the context menu provider now
         // that the GraphView (and its undo stack) exists.
         hostServices.SetNodeContextMenuRecorder(view);
+
+        // ⭐ CE-1368 — "Reset layout" on the empty canvas (undoable; dirty on a writable asset, view state on a code-built one).
+        hostServices.SetCanvasContextMenuRecorder(view);
 
         // ── BCP-F: FindBar + IEditorCommands ─────────────────────────────────
         var commands = new EditorCommandsImpl();
