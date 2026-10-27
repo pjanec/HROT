@@ -948,5 +948,28 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(sent.Posture, got.Posture);
             Assert.Equal(sent.Level, got.Level);
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-3337 — the run-token counter follows the world across a restore (a branch from a replay included): after the restore's
+        /// first step the next token is the one after the world's recorded count, not the one after this PROCESS's — the ONE shared protocol
+        /// (<c>ResumableCounter</c>) the navigation handles use. 🔴 Before: a branch numbered its next run from the original live run's count
+        /// (the coordinator's H3: a behaviour <c>InstanceId</c> 2147483652 where the straight run had 2147483651).
+        /// </summary>
+        [Fact]
+        public void CE3337_After_a_restore_the_next_run_token_follows_the_worlds_recorded_count()
+        {
+            using var world = TestWorldFactory.Create();
+            var ingress = new BehaviorIngressSystem(new BehaviorRegistry());
+            int recorded = RunTokens.Last + 7;
+            for (int i = 0; i < 40; i++) RunTokens.Next();   // this process ran on past the recorded frame
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0 });
+            world.SetSingletonUnmanaged(new RunTokenMark { Last = recorded, At = 5.0 });
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(world);
+
+            ingress.Execute(world, 0f);                                     // a paused frame: undecided, the copy kept
+            Assert.Equal(recorded, world.GetSingletonUnmanaged<RunTokenMark>().Last);
+            ingress.Execute(world, 1f / 60f);                               // the first step
+            Assert.Equal(0x8000_0000u | (uint)(recorded + 1), RunTokens.Next());   // ⭐ numbered on from the world's count
+        }
     }
 }

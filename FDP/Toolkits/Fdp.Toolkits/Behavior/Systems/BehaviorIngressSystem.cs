@@ -91,12 +91,18 @@ namespace Fdp.Toolkit.Behavior.Systems
             return _shadow.AsSpan(0, need);
         }
 
+        private readonly Fdp.Toolkit.Replay.ResumableCounter<RunTokenMark> _runTokens = new(
+            () => RunTokens.Last, RunTokens.ResumeAt, m => (m.Last, m.At), (last, at) => new RunTokenMark { Last = last, At = at });
+
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(BehaviorIngressSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            // ⭐ CE-3337 — the run-token counter follows the world across a restore (the ONE shared protocol), before this frame mints any
+            _runTokens.Step(repo, deltaTime);
 
             _startedByNameThisFrame.Clear();
             var events = repo.ReadManagedEvents<AssignBehaviorEvent>();

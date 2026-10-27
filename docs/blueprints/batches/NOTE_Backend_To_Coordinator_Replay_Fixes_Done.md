@@ -24,6 +24,8 @@ related-designs:
 - ✅ **CE-4067** — H3: the branch steps exactly (`STEP #2100. SimTime: 00:00:40.000`; was 1509 steps), positions IDENTICAL to the straight run.
 - ⚠ H3 still `BRANCH … different` at t = 6 s in 6 values, none a position: the rioter's route / trajectory HANDLES (`1073741862` vs `1073741828` — a counter the recording does not carry) and both units' `TargetMemory.Entries` (a field the log truncates). Filed as **CE-3337** (mine); ⏭ if you can print the untruncated `TargetMemory` diff, it saves me a run.
 
+⭐ **CE-3337 DONE — your H3 PASSES here:** `--verify ua-civ-melee --verify-branch-at 5` → exit 0, `BRANCH at 5 s (came live on clock 5 s) same`. A branch from a replay now resumes three per-process counters from the branch frame: the route handles, the step count perception stamps sightings with (`GlobalTime.FrameNumber`), and the behaviour run tokens — through one shared protocol (`ResumableCounter`). ⚠ I also un-reddened `TheHaltCannotStopTheClockTests` (my `86af73553` made the master's two time translators control plane and the rail pinned three).
+
 ⚠ Not changed (④'s tail): `ReplayBrowserContext.LoadRecording` still swallows a load failure, so `Open` can answer success on an empty world — say if you want it surfaced.
 
 _backend lane, 2026-10-27_

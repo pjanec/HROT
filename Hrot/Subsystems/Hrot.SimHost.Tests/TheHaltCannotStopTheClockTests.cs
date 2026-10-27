@@ -119,6 +119,9 @@ public sealed class TheHaltCannotStopTheClockTests
             TimeNetworkModule.CreateDescriptorTranslator(null, bus),
             TimeNetworkModule.CreateSlaveLockstepTranslator(null, bus, localNodeId: 7),
             TimeNetworkModule.CreateSlaveTimeSyncTranslator(null, bus, localNodeId: 7),
+            // ⭐ CE-3329 W5 — the master's two: it must keep hearing FrameAck / time sync while frozen or restoring a replay
+            TimeNetworkModule.CreateMasterLockstepTranslator(null, bus),
+            TimeNetworkModule.CreateMasterTimeSyncTranslator(null),
         };
 
         foreach (var t in translators)
@@ -126,7 +129,8 @@ public sealed class TheHaltCannotStopTheClockTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>EXACTLY these three translators are control plane — and no fourth appears unnoticed.</b>
+    /// ⭐⭐⭐ <b>EXACTLY these translators are control plane — and no other appears unnoticed.</b> ⭐ Five since CE-3329 W5 (the master's
+    /// two joined the slaves' three, by a decision, not by drift); the method keeps its name.
     ///
     /// <para>⛔⛔ The fail-safe default protects against a FORGOTTEN mark; nothing protects against a
     /// WRONG one. ⚠ A world-state translator marked <c>ControlPlane</c> would keep polling into a
@@ -179,6 +183,10 @@ public sealed class TheHaltCannotStopTheClockTests
         Assert.Equal(new[]
         {
             "FDP/Toolkits/Fdp.Toolkits/Time/SwitchTimeModeDescriptorTranslator.cs",
+            // ⭐ CE-3329 W5 (2026-10-27) — the MASTER's two: found by EveryIngressTranslatorCanDiscardRail defaulting to WorldState, so a
+            //   frozen or replay-restoring master stopped hearing its slaves' FrameAck / time sync (the deadlock their slave peers warn of)
+            "FDP/Toolkits/Fdp.Toolkits/Time/Translators/MasterLockstepTranslator.cs",
+            "FDP/Toolkits/Fdp.Toolkits/Time/Translators/MasterTimeSyncTranslator.cs",
             "FDP/Toolkits/Fdp.Toolkits/Time/Translators/SlaveLockstepTranslator.cs",
             "FDP/Toolkits/Fdp.Toolkits/Time/Translators/SlaveTimeSyncTranslator.cs",
         }, declaring);
