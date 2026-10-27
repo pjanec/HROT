@@ -3,7 +3,7 @@ state: LIVE
 build-state: ✅ BUILT (2026-09-27) — all five §9 items shipped as CE-371..CE-375. ⚠ This line read
   READY-TO-BUILD for the whole of the build and was corrected afterwards; §10a is the AS-BUILT and
   wins over §9 wherever they disagree.
-updated: 2026-10-27 (§10d-i — CE-1430 a code-built tree's editor Variables rows = its published manifest `SharedNodeBinder.PublishedVariablesOf`, read-only) · 2026-10-27 (§10d-i — CE-1411 one channel release `ChannelRelease`; CE-1412 the variables manifest `SharedNodeBinder.VariablesOf`, opt-in `PublishesVariables`) · 2026-10-27 (§10d — the shipped trees are C#; the curated registration carries SOP orders, channels, the bake, labels — R-1042, CE-1410) · 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
+updated: 2026-10-27 (§10d-i — CE-1433 defaults on the code-built rows; CE-1432 the other channel-release copies via ChannelRelease) · 2026-10-27 (§10d-i — CE-1430 a code-built tree's editor Variables rows = its published manifest `SharedNodeBinder.PublishedVariablesOf`, read-only) · 2026-10-27 (§10d-i — CE-1411 one channel release `ChannelRelease`; CE-1412 the variables manifest `SharedNodeBinder.VariablesOf`, opt-in `PublishesVariables`) · 2026-10-27 (§10d — the shipped trees are C#; the curated registration carries SOP orders, channels, the bake, labels — R-1042, CE-1410) · 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
 current-answer: ⭐ §10a is the AS-BUILT — read it FIRST for what actually exists. §4 is the decision,
   §5-§7 the UML, §9 the build items as dispatched. ⭐ Start at §2 (INVENTORY)
   if you are about to argue that something here already exists — it probably does, and §2 says which.
@@ -628,8 +628,13 @@ trees are `Params`), so renaming public C# fields to a retired asset's spelling 
     `IsCodeBuilt` (the one gate, CE-1252) makes the asset refuse default / comment edits, and `BlackboardSectionRowSource` gives a
     code-built asset's rows `ReadOnlyPassthrough` and refuses (says `false` to) their default / properties writes; the Variables window
     was already read-only for it (CE-1277). Live values show.
-  - ⚠ **No default / comment on the rows** — the planning cell shows no initial value for a code-built tree (the bake is a runtime value,
-    not the editor's `DefaultValueJson` text) → `CE-1433`.
+  - ✅ **Defaults on the rows — `CE-1433` (ui, `2026-10-27`).** ⛔ SUPERSEDED: *"no default on the rows — the planning cell is empty for a
+    code-built tree"*. Each row's `DefaultValueJson` is now the block's constructor value of that field (`ParamsDefaults.DefaultOf(ParamsType)`
+    — the bake's own answer, `BakeNew<T>()` writes the same object), read by field name and written by the ONE serializer the editor already
+    uses for a default (`DefaultValueAuthoring.TrySerialize`, which `CommitAndSerialize` now calls too) in `BehaviorTreeAssetProjector`
+    (`BTreeAssetContributor` passes the definition's `ParamsType`). BasicSquadSop's rows read `{"Kind":"SquadUnderFire","Seconds":3}` …
+    `{"WithinMetres":30}` — what its JSON asset authored. Still no comment (the code documents itself). Rail:
+    `CodeBuiltTreeVariablesProjectionTests.CE1433_…`.
   - Rails: `CodeBuiltTreeVariablesProjectionTests.CE1430_…` ×3 (`Hrot.BTree.Editor.Tests`: BasicSquadSop's rows = its manifest; every
     code-built tree = its manifest, the three variable-less SOPs and every tree without `PublishesVariables` none; edits refused),
     `LiveBlackboardValueProviderTests.CE1430_TheProjectedCodeBuiltSop_ShowsItsLiveValuesInItsRows` (`Hrot.Editor.Tests`: the projected
@@ -642,6 +647,16 @@ plain condition, param-less action and param-less condition thunks — typed and
 either. ⚠ The same two writes remain in three places with other triggers (the HSM exit cleanup, the blueprint AI primitive, the
 arbitration system) — `ChannelRelease.Release` is their home too → `CE-1432`. Rails: `CodeBuiltStatefulActionTests.CE1411_…` (runtime: `ActiveAction` 5 → 0, `ActionInstanceId` 7 → 8, `DispatchedInstanceId`
 untouched; Success keeps the claim), `SharedAiBindingCompilesTests.ABTreeAssetBindingSharedAiMethods_…` (the emitted call).
+
+- ✅ **CE-1432 (ui, `2026-10-27`; cross-lane: behaviors' HSM generator and blueprint emitter) — the other three copies of the release go
+  through `ChannelRelease.Release`.** `ChannelArbitrationSystem` (a stale claim) calls it for the three kinds; the HSM exit cleanup
+  (`HsmActionGenerator.EmitExitCleanupThunk`) emits one call per channel through `ChannelClearEmit.EmitRelease` (the same emitter file as the
+  BTree release, so the kind mapping exists once); the blueprint AI primitive's exit cleanup (`AiPrimitiveEmitter.EmitHsmExitCleanupThunk`)
+  emits `ChannelRelease.Release(__repo, __bridge->Self, (ChannelKind)n)` **inside its `HasComponent` guard** (a derived channel may not be on
+  every entity — a real difference, kept at the call site). ⚠ A channel component that is not one of the three engine channels (a catalog
+  entry outside them) keeps the inline writes — `ChannelRelease` switches on `ChannelKind` → `CE-1435`. ⚠ `HostedSubtree` has three more
+  (terminal-status-only release) → `CE-1434`. Golden: the Tier-2 emit of the HSM blueprint assets moves by exactly the cleanup body.
+  Rails: `ChannelArbitrationTests.CE1432_…`, `BrainTickSystemHsmArmTests.CE1432_…` (the real generated thunk, invoked), `BlueprintChannelDerivationTests.CE1432_…`.
 
 ## 11. ⛔ REJECTED
 

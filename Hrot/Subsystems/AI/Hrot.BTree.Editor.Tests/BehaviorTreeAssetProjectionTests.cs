@@ -496,8 +496,41 @@ public sealed class CodeBuiltTreeVariablesProjectionTests
         squad.UpdateVariableDefaultValueJson("UnderFire", "{\"Seconds\":9}");
         squad.UpdateVariableComment("UnderFire", "edited");
 
-        squad.BlackboardVariables[0].DefaultValueJson.Should().BeNull();
+        squad.BlackboardVariables[0].DefaultValueJson.Should().Be("{\"Kind\":\"SquadUnderFire\",\"Seconds\":3}", "the refused edit left the baked default");
         squad.BlackboardVariables[0].Comment.Should().BeNull();
         squad.IsDirty.Should().BeFalse();
+    }
+
+    /// <summary>⭐ <c>CE-1433</c> — a C#-built tree's projected Variables rows carry the DEFAULTS its JSON asset authored: the block's
+    /// constructor value of each field, written by the editor's own default-value serializer (<c>DefaultValueAuthoring.TrySerialize</c>) — so
+    /// the planning cell (<c>ReadInitialJson</c>) shows e.g. the under-fire timeout 3 s before a run. The expected texts are the
+    /// <c>DefaultValueJson</c> of <c>BasicSquadSop.btree.json</c> at <c>f72d799c3^</c> (the retired asset), compared as JSON.
+    /// 🔴 Red-proof: the projector's <c>DefaultValueJson: defaultJson</c> argument dropped ⇒ every row's planning cell is null and the
+    /// five comparisons red.</summary>
+    [Fact]
+    public void CE1433_ACodeBuiltSopsRows_CarryTheDefaultsItsJsonAssetAuthored()
+    {
+        var (trees, _) = LoadShipped();
+        var squad = trees.Find(t => t.Name == "BasicSquadSop")!;
+
+        var authored = new Dictionary<string, string>
+        {
+            ["UnderFire"]  = "{\"Kind\":\"SquadUnderFire\",\"Seconds\":3}",
+            ["LeaderDown"] = "{\"Kind\":\"SquadLeaderDown\",\"Seconds\":3}",
+            ["Contact"]    = "{\"Kind\":\"SquadContact\",\"Seconds\":3}",
+            ["MemberDown"] = "{\"Kind\":\"SquadMemberDown\",\"Seconds\":3}",
+            ["AreaAhead"]  = "{\"WithinMetres\":30}",
+        };
+        var rows = RowsOf(squad);
+        rows.Should().HaveCount(authored.Count);
+        foreach (var row in rows)
+        {
+            string? shown = row.ReadInitialJson?.Invoke();
+            shown.Should().NotBeNull($"{row.ShortName}'s planning cell has its default");
+            var expected = System.Text.Json.Nodes.JsonNode.Parse(authored[row.ShortName])!.AsObject();
+            var actual   = System.Text.Json.Nodes.JsonNode.Parse(shown!)!.AsObject();
+            foreach (var (key, value) in expected)
+                actual[key]!.ToJsonString().Should().Be(value!.ToJsonString(), $"{row.ShortName}.{key} is what the JSON asset authored");
+        }
     }
 }

@@ -25,7 +25,8 @@ internal static class BehaviorTreeAssetProjector
         string blackboardTypeName,
         string contextTypeName,
         string targetNamespace = "",
-        IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? variables = null)
+        IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? variables = null,
+        Type? paramsBlock = null)
     {
         var asset = new BehaviorTreeAsset(
             assetId, name, sourceFilePath, isEditorOwned,
@@ -98,13 +99,21 @@ internal static class BehaviorTreeAssetProjector
         // ⭐ CE-1430 — the blackboard variables of a C#-built tree ARE its published manifest (SharedNodeBinder.PublishedVariablesOf, the
         //   list the registry holds as ManagedBlackboardVariables): one row per manifest entry, its name and type, in manifest order — so
         //   the Variables window, the Details rows and the Watch ask the live provider for exactly the names it answers. ⛔ No second list.
-        //   No default / comment: the C# block's constructor is the default and the code its documentation (read-only — CE-1252).
+        //   ⭐ CE-1433 — each row's DEFAULT is the block's constructor value for that field (ParamsDefaults.DefaultOf — the bake's own answer,
+        //   CE-3194), written as the editor's default-value JSON by the ONE serializer it already uses (DefaultValueAuthoring.TrySerialize), so
+        //   the planning cell shows what a JSON asset's authored default showed. No comment (the code is its documentation); read-only (CE-1252).
         if (variables is { Count: > 0 })
         {
             bool wasDirty = asset.IsDirty;
+            object? block = paramsBlock != null ? Fdp.Toolkit.Behavior.ParamsDefaults.DefaultOf(paramsBlock) : null;
             var entries = new List<Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry>(variables.Count);
             foreach (var v in variables)
-                entries.Add(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(v.Name, v.Type, Comment: null));
+            {
+                string? defaultJson = null;
+                var field = block != null ? paramsBlock!.GetField(v.Name) : null;
+                if (field != null) defaultJson = Hrot.Editor.AiShared.Inspector.DefaultValueAuthoring.TrySerialize(field.GetValue(block), v.Type);
+                entries.Add(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(v.Name, v.Type, Comment: null, DefaultValueJson: defaultJson));
+            }
             asset.SetBlackboardVariables(entries);
             if (!wasDirty) asset.ClearDirty();   // a projection is not an edit
         }

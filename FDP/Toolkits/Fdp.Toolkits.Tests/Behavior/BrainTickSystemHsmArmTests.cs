@@ -1201,5 +1201,51 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Dispose();
         }
+
+        // ── CE-1432 — the generated HSM exit cleanup is ChannelRelease's ────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-1432</c> — the REAL generated <c>ExitCleanup_*</c> thunk (<c>HsmActionGenerator</c>) of the two channel-writing HSM
+        /// activities releases its channel through <c>ChannelRelease.Release</c> (the ONE implementation, CE-1411): <c>ActiveAction</c> → 0,
+        /// <c>ActionInstanceId</c> + 1, the other channel untouched. The thunk is invoked through the generated registrar, exactly as the
+        /// dispatcher would, over a real bridge.
+        /// 🔴 Red-proof: <c>ChannelRelease.Release</c>'s <c>Locomotion</c> arm stepping by <c>+ 2u</c> ⇒ the first assertion reds (the
+        /// thunk emitting the two writes inline again would not).
+        /// </summary>
+        [Fact]
+        public void CE1432_TheGeneratedHsmExitCleanup_ReleasesItsChannel_ThroughChannelRelease()
+        {
+            var registrar = typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo).Assembly
+                .GetType("Hrot.AI.Behaviors.Generated.HsmActionRegistrar")!;
+            var world = TestWorldFactory.Create();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new LocomotionChannel { ActiveAction = 4, ActionInstanceId = 7, BehaviorInstanceId = 3 });
+            world.AddComponent(e, new WeaponChannel     { ActiveAction = 5, ActionInstanceId = 9, BehaviorInstanceId = 3 });
+
+            var handle = System.Runtime.InteropServices.GCHandle.Alloc(world);
+            try
+            {
+                var bridge = new HsmKernelBridge { Self = e, WorldHandle = System.Runtime.InteropServices.GCHandle.ToIntPtr(handle) };
+                object[] args =
+                {
+                    Pointer.Box(null, typeof(void*)), Pointer.Box(&bridge, typeof(void*)), Pointer.Box(null, typeof(HsmCommandWriter*)),
+                };
+
+                registrar.GetMethod("ExitCleanup_Activity_DriveChannel", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, args);
+
+                var loco = world.GetComponent<LocomotionChannel>(e);
+                Assert.Equal(0, loco.ActiveAction);
+                Assert.Equal(8u, loco.ActionInstanceId);
+                Assert.Equal(3u, loco.BehaviorInstanceId);                       // selective, as the arbitration release
+                Assert.Equal(5, world.GetComponent<WeaponChannel>(e).ActiveAction);   // the other channel is not this activity's
+
+                registrar.GetMethod("ExitCleanup_Activity_FireChannel", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, args);
+
+                var weapon = world.GetComponent<WeaponChannel>(e);
+                Assert.Equal(0, weapon.ActiveAction);
+                Assert.Equal(10u, weapon.ActionInstanceId);
+            }
+            finally { handle.Free(); world.Dispose(); }
+        }
     }
 }

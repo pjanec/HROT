@@ -32,11 +32,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static readonly DiagnosticDescriptor BHU002_NonStatic     = SharedBhuDiagnostics.BHU002_NonStatic;
         private static readonly DiagnosticDescriptor BHU003_UnknownField  = SharedBhuDiagnostics.BHU003_UnknownField;
 
-        // ---- Channel kind -> fully-qualified component type --------------------
-        private const string LocomotionChannelFqn  = "global::Fdp.Toolkit.Behavior.Components.LocomotionChannel";
-        private const string WeaponChannelFqn      = "global::Fdp.Toolkit.Behavior.Components.WeaponChannel";
-        private const string InteractionChannelFqn = "global::Fdp.Toolkit.Behavior.Components.InteractionChannel";
-
         // ---- Initialize --------------------------------------------------------
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -459,26 +454,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
             sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
             sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-            foreach (int kind in channels)
-            {
-                string? ct = ChannelKindToFqn(kind);
-                if (ct == null) continue;
-                string varName = "ch" + kind;
-                sb.AppendLine("            ref var " + varName + " = ref repo.GetComponentRW<" + ct + ">(bridge->Self);");
-                sb.AppendLine("            " + varName + ".ActiveAction     = 0;");
-                sb.AppendLine("            " + varName + ".ActionInstanceId = unchecked(" + varName + ".ActionInstanceId + 1u);");
-            }
+            // ⭐ CE-1432 — the release is the runtime ChannelRelease (CE-1411), through the ONE emitter (ChannelClearEmit).
+            Fdp.Toolkit.Behavior.Shared.ChannelClearEmit.EmitRelease(sb, channels, "            ", "repo", "bridge->Self");
             sb.AppendLine("        }");
             sb.AppendLine();
         }
-
-        private static string? ChannelKindToFqn(int kind) => kind switch
-        {
-            0 => LocomotionChannelFqn,
-            1 => WeaponChannelFqn,
-            2 => InteractionChannelFqn,
-            _ => null,
-        };
 
         // ---- FNV-1a hash (identical to BTreeActionGenerator) -------------------
 

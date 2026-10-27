@@ -39,5 +39,19 @@ namespace Fdp.Toolkit.Behavior.Shared
                 sb.AppendLine(indent + "global::Fdp.Toolkit.Behavior.ChannelRelease.OnFailure(status, ctx.World, ctx.Self, (global::Fbt.Kernel.ChannelKind)" + kind + ");");
             }
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1432</c> — the UNCONDITIONAL release (a state's exit cleanup, not a node's Failure): one call per channel to
+        /// <c>Fdp.Toolkit.Behavior.ChannelRelease.Release</c> on the <paramref name="world"/> / <paramref name="self"/> expressions. The same
+        /// runtime implementation as <see cref="Emit"/>, so the HSM exit cleanup (<c>HsmActionGenerator</c>) cannot drift from the BTree release.
+        /// </summary>
+        public static void EmitRelease(StringBuilder sb, IReadOnlyList<int> channels, string indent, string world, string self)
+        {
+            foreach (int kind in channels)
+            {
+                if (ChannelKindToType(kind) == null) continue;
+                sb.AppendLine(indent + "global::Fdp.Toolkit.Behavior.ChannelRelease.Release(" + world + ", " + self + ", (global::Fbt.Kernel.ChannelKind)" + kind + ");");
+            }
+        }
     }
 }

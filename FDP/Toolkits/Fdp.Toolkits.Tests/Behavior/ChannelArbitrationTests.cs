@@ -453,5 +453,51 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(1, onEnterCalls);        // ⭐ and one activation — no storm
         }
 
+
+        // ── CE-1432 — the stale-claim release is ChannelRelease's, for every channel kind ──────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-1432</c> — <c>ChannelArbitrationSystem</c> releases a stale claim through <c>ChannelRelease.Release</c> (the ONE
+        /// implementation, CE-1411) for EACH of the three channels: <c>ActiveAction</c> → 0, <c>ActionInstanceId</c> + 1 (never zeroed,
+        /// never <c>default</c>), the rest of the channel untouched. A claim of the CURRENT behaviour is left alone.
+        /// 🔴 Red-proof: <c>ChannelRelease.Release</c>'s <c>Weapon</c> arm stepping the instance by <c>+ 2u</c> ⇒ the weapon assertion
+        /// reds (a copy of the writes left inline in the system would not).
+        /// </summary>
+        [Fact]
+        public void CE1432_Arbitration_ReleasesEveryChannelKind_ThroughChannelRelease()
+        {
+            var world = TestWorldFactory.Create();
+            var sys   = new ChannelArbitrationSystem();
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState { InstanceId = 2 });
+            world.AddComponent(e, new LocomotionChannel  { ActiveAction = 1, ActionInstanceId = 7,  BehaviorInstanceId = 1, Status = NodeStatus.Running });
+            world.AddComponent(e, new WeaponChannel      { ActiveAction = 2, ActionInstanceId = 11, BehaviorInstanceId = 1, Status = NodeStatus.Running });
+            world.AddComponent(e, new InteractionChannel { ActiveAction = 3, ActionInstanceId = 13, BehaviorInstanceId = 1, Status = NodeStatus.Running });
+
+            var live = world.CreateEntity();   // a claim of the CURRENT behaviour: untouched
+            world.AddComponent(live, new BehaviorState { InstanceId = 5 });
+            world.AddComponent(live, new WeaponChannel { ActiveAction = 2, ActionInstanceId = 21, BehaviorInstanceId = 5 });
+
+            sys.Execute(world, 0.016f);
+
+            var loco = world.GetComponent<LocomotionChannel>(e);
+            Assert.Equal(0, loco.ActiveAction);
+            Assert.Equal(8u, loco.ActionInstanceId);
+            var weapon = world.GetComponent<WeaponChannel>(e);
+            Assert.Equal(0, weapon.ActiveAction);
+            Assert.Equal(12u, weapon.ActionInstanceId);
+            var interaction = world.GetComponent<InteractionChannel>(e);
+            Assert.Equal(0, interaction.ActiveAction);
+            Assert.Equal(14u, interaction.ActionInstanceId);
+            Assert.Equal(NodeStatus.Running, weapon.Status);        // selective: only the two fields move
+            Assert.Equal(1u, weapon.BehaviorInstanceId);
+
+            var kept = world.GetComponent<WeaponChannel>(live);
+            Assert.Equal(2, kept.ActiveAction);
+            Assert.Equal(21u, kept.ActionInstanceId);
+
+            world.Dispose();
+        }
     }
 }

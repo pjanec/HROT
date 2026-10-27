@@ -146,13 +146,23 @@ public static class DefaultValueAuthoring
         //    would not even fail loudly — it would write `{}` through the catch below and look like a
         //    serialisation quirk rather than the wrapper leaking.
         var committed = ScalarEditBox.Unwrap(session.Commit(), fieldType);
+        return TrySerialize(committed, fieldType) ?? "{}";
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1433</c> — the ONE value → default-value-JSON serializer (<see cref="JsonOptions"/>): what <see cref="CommitAndSerialize"/>
+    /// writes after an edit, and what the projection of a C#-built tree writes for a variable whose default is its block's constructor.
+    /// Returns <c>null</c> on a value it cannot serialize (never throws).
+    /// </summary>
+    public static string? TrySerialize(object? value, Type fieldType)
+    {
         try
         {
-            return JsonSerializer.Serialize(committed, fieldType, JsonOptions);
+            return JsonSerializer.Serialize(value, fieldType, JsonOptions);
         }
         catch
         {
-            return "{}";
+            return null;
         }
     }
 

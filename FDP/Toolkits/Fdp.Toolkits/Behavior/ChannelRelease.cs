@@ -26,8 +26,8 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>Releases <paramref name="kind"/>'s channel on <paramref name="self"/>: <c>ActiveAction</c> = 0, <c>ActionInstanceId</c> + 1.
-        /// ⚠ The same two writes are still emitted inline by the HSM exit cleanup (<c>HsmActionGenerator</c>), the blueprint AI primitive
-        /// (<c>AiPrimitiveEmitter</c>) and made by <c>ChannelArbitrationSystem</c> — routing them here is CE-1432.</summary>
+        /// ⭐ <c>CE-1432</c> — also the home of the HSM exit cleanup (<c>HsmActionGenerator</c>, through <c>ChannelClearEmit.EmitRelease</c>),
+        /// the blueprint AI primitive's exit cleanup (<c>AiPrimitiveEmitter</c>) and <c>ChannelArbitrationSystem</c>'s stale-claim release.</summary>
         public static void Release(EntityRepository world, Entity self, ChannelKind kind)
         {
             switch (kind)
