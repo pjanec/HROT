@@ -551,7 +551,7 @@ public static class TakeJson
             {
                 if (arr[i] is not JsonObject it) { problems.Add($"item {i + 1} is not an object"); continue; }
                 foreach (var (k, _) in it)
-                    if (k is not ("scenario" or "take" or "title" or "chapterCard" or "clip" or "from" or "to" or "note"))
+                    if (k is not ("scenario" or "take" or "title" or "chapterCard" or "clip" or "from" or "to" or "note" or "recording"))
                         problems.Add($"item {i + 1}: unknown key '{k}'");
                 var scenario = Str(it["scenario"]);
                 if (string.IsNullOrWhiteSpace(scenario)) { problems.Add($"item {i + 1}: no scenario"); continue; }
@@ -561,6 +561,7 @@ public static class TakeJson
                     ChapterCard = Str(it["chapterCard"]), Clip = Str(it["clip"]),
                     From = TryAt(it["from"], $"item {i + 1} from", problems), To = TryAt(it["to"], $"item {i + 1} to", problems),
                     Note = Str(it["note"]),
+                    Recording = string.IsNullOrWhiteSpace(Str(it["recording"])) ? null : Str(it["recording"]),   // ⭐ CE-1391 (TE-16)
                 });
             }
         else problems.Add("a reel needs items");
@@ -577,6 +578,7 @@ public static class TakeJson
         foreach (var it in reel.Items)
         {
             var o = new JsonObject { ["scenario"] = it.Scenario, ["take"] = it.Take };
+            if (it.Recording != null) o["recording"] = it.Recording;   // ⭐ CE-1391 — absent when none: an old reel writes back unchanged
             if (it.Title != null) o["title"] = it.Title;
             if (it.Clip != null) o["clip"] = it.Clip;
             if (it.ChapterCard != null) o["chapterCard"] = it.ChapterCard;

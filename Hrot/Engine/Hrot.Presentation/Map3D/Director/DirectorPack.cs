@@ -26,6 +26,9 @@ namespace Hrot.UI.Common.Map3D.Director
     /// <param name="Scenario">⭐ CE-4059 — the scenario the shown run belongs to (a draft is a take of it).</param>
     /// <param name="ScenarioTakes">⭐ CE-1304 P4 (§11s) — the SCENARIOS root's takes, when this host's own takes are a recording's (the Replay Browser): promote
     /// copies a take there. Null = this host's takes are the scenario's (the editor): nothing to promote to.</param>
+    /// <param name="Recordings">⭐ CE-1391 (§11u "as built: CE-1391") — the host's ONE recording opener (the Replay Browser's <c>IReplayBrowserControl</c>, the one
+    /// <c>POST /replay</c> ends in): the render queue opens a job's recording and the runner a reel item's through it — with or without a debug HTTP host. Null = this
+    /// host opens no recordings (the editor): such a job fails, such a reel is refused.</param>
     public sealed record DirectorPackHost(
         IDirectorHost Host,
         Func<WindowManager?> Wm,
@@ -40,7 +43,8 @@ namespace Hrot.UI.Common.Map3D.Director
         string Perspective = "Scenario",
         Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex?>? Index = null,
         Func<string?>? Scenario = null,
-        Func<TakeStore?>? ScenarioTakes = null);
+        Func<TakeStore?>? ScenarioTakes = null,
+        Hrot.Presentation.DebugApi.IRecordingOpener? Recordings = null);
 
     /// <summary>
     /// ⭐ <c>CE-1303</c> P1 (§11j, CR-2) — the ONE registrar of the film director: builds the runner (with the window / layer / audio / frame
@@ -113,7 +117,11 @@ namespace Hrot.UI.Common.Map3D.Director
             var stills = new DirectorStills(runner, sink, () => h.Host.CanSeek);
             // ⭐ CE-1306 R4 (§11u D3) — the render queue over the SAME runner and stills (one at a time), and the reel composer (the one reel model)
             var renders = new DirectorRenders(runner, stills, sink, () => h.Host.CanSeek, () => h.Host.Takes, h.Scenario ?? (() => null));
-            var composer = new ReelComposer(() => h.Host.Takes);
+            // ⭐⭐ CE-1391 (§11u "as built: CE-1391") — the host's ONE recording opener, wired ONCE: the queue opens a job's recording, the runner a reel item's
+            //   (one movie over several recordings), the composer stamps the open one on a take it adds — ⛔ no HTTP host needed, no second opener
+            runner.Recordings = h.Recordings;
+            renders.Recordings = h.Recordings;
+            var composer = new ReelComposer(() => h.Host.Takes, h.Recordings is { } rec ? () => rec.Shown?.Text : null);
             var window = new DirectorWindow(() => runner, () => h.Host.Takes, session, h.WindowTabs, h.TitleBarColor, h.Perspective,
                                             playhead: () => h.Host.SimTime, promotion: promotion, renders: renders, composer: composer);
             // ⭐ CE-4059 (§11q D1) — the drafter wired ONCE for every host: names and kinds from the host's world, the event menu on its Event Timeline

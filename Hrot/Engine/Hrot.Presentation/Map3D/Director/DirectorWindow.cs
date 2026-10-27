@@ -475,6 +475,13 @@ namespace Hrot.UI.Common.Map3D.Director
                     ImGui.Text($"{i + 1}");
                     ImGui.TableNextColumn();
                     ImGui.TextUnformatted($"{it.Scenario}/{it.Take}");
+                    // ⭐ CE-1391 — the recording the item plays over (its own; none: the one the play starts on)
+                    if (it.Recording is { } rec)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextDisabled("@ " + System.IO.Path.GetFileName(rec.TrimEnd('/', '\\')));
+                        if (ImGui.IsItemHovered()) ImGui.SetTooltip(rec);
+                    }
                     var (_, t, c) = _itemEdit is { } e && e.Index == i ? e : (i, it.Title ?? "", it.ChapterCard ?? "");
                     ImGui.TableNextColumn();
                     ImGui.SetNextItemWidth(-1f);

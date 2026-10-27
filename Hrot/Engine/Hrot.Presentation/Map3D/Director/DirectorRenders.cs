@@ -126,8 +126,9 @@ namespace Hrot.UI.Common.Map3D.Director
         public const string NoOpener = "this host opens no recordings (recording= is the Replay Browser's) - leave it out to render what this host shows";
         public const string TakenOver = "another play took the director while this render ran (Play, /director/play): the render stopped";
         public const string StoppedByUser = "stopped by the director's Stop (or Esc) before it finished";
-        /// <summary>Frames a job waits after its recording opened before it plays (the open's source settles into the host's frame).</summary>
-        public const int OpenSettleFrames = 2;
+        /// <summary>Frames a job waits after its recording opened before it plays (the open's source settles into the host's frame) — the runner's own
+        /// settle after a reel item's open (CE-1391), one number.</summary>
+        public const int OpenSettleFrames = DirectorRunner.OpenSettleFrames;
         /// <summary>⭐ <c>CE-1305</c> TE-10 — the most frames a stills job waits for its recording's index to be read (~10 min at 60 fps); then it plans with what is read.</summary>
         public const int MaxIndexWaitFrames = 36_000;
         /// <summary>Ended jobs kept for <see cref="Jobs"/> (the oldest go first).</summary>
@@ -157,10 +158,11 @@ namespace Hrot.UI.Common.Map3D.Director
         }
 
         /// <summary>
-        /// ⭐ §11u D4 — opens a job's recording (a path, a folder, an exercise id); returns why not (null: opened). Handed in by the process's debug HTTP host
-        /// (<c>DebugApiHost.AttachDirector</c>): the very call <c>POST /replay</c> makes — ⛔ no second opener. Null: this host opens none (a job naming one fails).
+        /// ⭐ §11u D4, ⭐ <c>CE-1391</c> — opens a job's recording (a path, a folder, an exercise id: <see cref="Hrot.Presentation.DebugApi.RecordingName.Parse"/>).
+        /// Set by <see cref="DirectorPack"/> from the host's ONE opener (<see cref="DirectorPackHost.Recordings"/> — the Replay Browser's, the one <c>POST /replay</c>
+        /// ends in; it no longer comes from the debug HTTP host). Null: this host opens none (a job naming one fails).
         /// </summary>
-        public Func<string, string?>? OpenRecording { get; set; }
+        public Hrot.Presentation.DebugApi.IRecordingOpener? Recordings { get; set; }
 
         /// <summary>Null when this host can render, else why not (a headless host has no frame to capture).</summary>
         public string? Refusal => _sink == null ? NoRenderer : null;
@@ -238,11 +240,16 @@ namespace Hrot.UI.Common.Map3D.Director
             _running = job;
             if (job.Request.Recording is { } recording)
             {
-                if (OpenRecording == null) { End(job, RenderState.Failed, NoOpener); return; }
+                if (Recordings == null) { End(job, RenderState.Failed, NoOpener); return; }
+                var (name, bad) = Hrot.Presentation.DebugApi.RecordingName.Parse(recording);
                 string? error;
-                try { error = OpenRecording(recording); }
-                catch (Exception ex) { error = $"{ex.GetType().Name}: {ex.Message}"; }
-                if (error != null) { End(job, RenderState.Failed, error); return; }
+                if (name is null) error = bad;
+                else
+                {
+                    try { error = Recordings.Open(name, 0d); }
+                    catch (Exception ex) { error = $"{ex.GetType().Name}: {ex.Message}"; }
+                }
+                if (error != null) { End(job, RenderState.Failed, $"recording '{recording}' did not open: {error}"); return; }
                 job.State = RenderState.Opening;
                 job.Settle = OpenSettleFrames;
                 return;

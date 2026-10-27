@@ -611,4 +611,162 @@ public sealed class DirectorPackTests : IDisposable
         pack.Tick();
         return FilmStudio.Shot?.Pose?.LookAt;
     }
+
+    // ── ⭐ CE-1391 (§11u "as built: CE-1391", TE-16) — a reel over TWO recordings, one run, on a fake seeking host ─────────────────────────────────
+
+    /// <summary>The ONE opener of a fake Replay Browser: it knows the recordings under <c>known</c> (each a folder's <c>node_1.fdp</c>) and records every open.</summary>
+    private sealed class FakeRecordings : Hrot.Presentation.DebugApi.IRecordingOpener
+    {
+        private readonly HashSet<string> _known;
+        public FakeRecordings(params string[] known) => _known = new HashSet<string>(known.Select(Path.GetFullPath));
+        public readonly List<string> Opens = new();
+        public Action? Opened;
+        public Hrot.Presentation.DebugApi.RecordingName? Shown { get; private set; }
+        public string? Open(Hrot.Presentation.DebugApi.RecordingName recording, double atSeconds)
+        {
+            Opens.Add(recording.Text);
+            if (recording.IsExercise || !recording.Paths.All(p => _known.Contains(Path.GetFullPath(p)))) return $"no such recording '{recording.Text}'";
+            Shown = recording;
+            Opened?.Invoke();
+            return null;
+        }
+        /// <summary>The folder name of the recording open now ("A", "B"; none: null).</summary>
+        public string? ShownKey => Shown is { Paths.Count: > 0 } s ? Path.GetFileName(Path.GetDirectoryName(s.Paths[0])) : null;
+    }
+
+    /// <summary>A Replay Browser's kind of host: it SEEKS, each step is taken at once, a recording opened starts at sim 0, and its takes are the ones BESIDE the
+    /// recording open now (TE-1) — so a take is found only while its recording is open.</summary>
+    private sealed class RecordingHost : IDirectorHost
+    {
+        public RecordingHost(FakeRecordings recordings, string root)
+        {
+            Takes = new TakeStore(() => Path.Combine(root, recordings.ShownKey ?? "none"), () => null);
+            recordings.Opened = () => SimTime = 0d;
+        }
+        public EntityRepository? World => null;
+        public void LoadScenario(string scenario) => SimTime = 0d;
+        public bool IsOperatingEdit => true;
+        public int? EntityCount => null;
+        public bool InPreview { get; private set; }
+        public void EnterPreview(bool startPaused) { InPreview = true; Paused = startPaused; }
+        public void ExitPreview() => InPreview = false;
+        public bool Paused { get; private set; }
+        public void Pause() => Paused = true;
+        public void StepBy(float seconds) => SimTime += seconds;
+        public double SimTime { get; private set; }
+        public double WallNow { get; private set; }
+        public void Hold(double seconds) => WallNow += Math.Max(seconds, 0d);
+        public string? BehaviourName(int hash) => null;
+        public TakeStore Takes { get; }
+        public bool CanSeek => true;
+        public void Seek(double sourceSim) => SimTime = sourceSim;
+    }
+
+    /// <summary>A sink that writes nothing and notes, for every captured film frame, the reel item playing and the recording open at that moment.</summary>
+    private sealed class NotingSink : IFrameSink
+    {
+        private readonly Func<int> _item;
+        private readonly Func<string?> _recording;
+        public NotingSink(Func<int> item, Func<string?> recording) { _item = item; _recording = recording; }
+        public readonly List<(string Path, int Item, string? Recording)> Frames = new();
+        public System.Threading.Tasks.Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle)
+        {
+            Frames.Add((path, _item(), _recording()));
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+        public System.Threading.Tasks.Task Card(string path, int width, int height, string text)
+        {
+            File.WriteAllText(path, "");   // the runner copies the card frame for the card's length
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+    }
+
+    private static readonly System.Numerics.Vector3 AAt = new(1f, 0f, 0f), BAt = new(0f, 2f, 0f);
+
+    /// <summary>Recording folders A and B under <see cref="_root"/>, each with its take s-a/main BESIDE it: A's looks at <see cref="AAt"/> for 1 s, B's at
+    /// <see cref="BAt"/> for 1.5 s.</summary>
+    private (string A, string B) TwoRecordingsWithTheirTakes()
+    {
+        string a = Path.Combine(_root, "A", "node_1.fdp"), b = Path.Combine(_root, "B", "node_1.fdp");
+        foreach (var (file, at, end) in new[] { (a, AAt, 1d), (b, BAt, 1.5d) })
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, "");
+            new TakeStore(() => Path.GetDirectoryName(file)!, () => null).Save(new Take
+            {
+                Scenario = "s-a", Name = "main",
+                Keys = new[] { new CameraKey { At = new AtExpr(0d), Camera = new CameraSpec { LookAt = at } } },
+                EndAt = new AtExpr(end),
+            });
+        }
+        return (a, b);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1391</c> (TE-16; §11u "as built: CE-1391"; success condition 1 — the fake seeking host) — a reel whose items come from DIFFERENT recordings is ONE run,
+    /// each item over its own recording. ① The pack hands its host's ONE opener (<see cref="DirectorPackHost.Recordings"/>) to the runner and the render queue. With A
+    /// open, a reel [s-a/main over B, s-a/main naming none] plays: the runner opens B before item 1 and A again before item 2 (the recording the play STARTED on);
+    /// every playing frame of item 1 is over B with B's take (its camera), every one of item 2 over A with A's; each item reports its recording. ② A RENDER of
+    /// [none, B, none] queued with recording A: the queue opens A, the runner B then A — and every captured frame of the ONE capture (one folder, one job) comes
+    /// from its item's recording: items 1 and 3 from A, item 2 from B. 🔴 Mutation: <c>DirectorRunner.TickItemRecording</c> returning false at once (no item
+    /// opens its recording) ⇒ item 1 plays over A (B never opens) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1391_AReelOverTwoRecordings_PlaysAsOneRun_EachItemOverItsOwnRecording_OnASeekingHost()
+    {
+        FilmStudio.Reset();
+        var (a, b) = TwoRecordingsWithTheirTakes();
+        var recordings = new FakeRecordings(a, b);
+        Assert.Null(recordings.Open(Hrot.Presentation.DebugApi.RecordingName.Files(new[] { a }), 0d));   // the person has A open
+        recordings.Opens.Clear();
+        var host = new RecordingHost(recordings, _root);
+
+        // ① the pack wires the ONE opener; a play spans the recordings
+        var pack = DirectorPack.Attach(new DirectorPackHost(host, () => null, () => null, Headless: true, Pilot: () => null,
+                                                            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel(), Recordings: recordings));
+        Assert.Same(recordings, pack.Runner.Recordings);
+        Assert.Same(recordings, pack.Renders.Recordings);
+        var reel = new Reel { Name = "two", Items = new[] { new ReelItem { Scenario = "s-a", Take = "main", Recording = b }, new ReelItem { Scenario = "s-a", Take = "main" } } };
+        Assert.Empty(pack.Runner.Play(new PlayRequest(reel, Speed: 1000d, Cinema: false)));
+        var seen = new List<(int Item, string? Recording, System.Numerics.Vector3? Camera)>();
+        for (int i = 0; i < 5000 && pack.Runner.Busy; i++)
+        {
+            pack.Tick();
+            if (pack.Runner.Phase == DirectorPhase.Playing) seen.Add((pack.Runner.CurrentItem, recordings.ShownKey, FilmStudio.Shot?.Pose?.LookAt));
+        }
+        Assert.Equal(DirectorPhase.Done, pack.Runner.Phase);
+        Assert.All(pack.Runner.Reports, r => Assert.True(r.Status == "ok", $"{r.Status}: {string.Join("; ", r.Problems)}"));
+        Assert.Equal(new[] { b, a }, recordings.Opens);                                                  // B for item 1, A again for item 2
+        Assert.Equal(new[] { b, a }, pack.Runner.Reports.Select(r => r.Recording));
+        var item1 = seen.Where(s => s.Item == 0).ToList();
+        var item2 = seen.Where(s => s.Item == 1).ToList();
+        Assert.True(item1.Count > 30 && item2.Count > 30, $"{item1.Count} / {item2.Count} playing frames");
+        Assert.All(item1, s => Assert.Equal(("B", (System.Numerics.Vector3?)BAt), (s.Recording, s.Camera)));
+        Assert.All(item2, s => Assert.Equal(("A", (System.Numerics.Vector3?)AAt), (s.Recording, s.Camera)));
+
+        // ② one RENDER over the recordings: the job's recording is the default of the items naming none
+        recordings.Opens.Clear();
+        DirectorRunner? runner = null;
+        var sink = new NotingSink(() => runner!.CurrentItem, () => recordings.ShownKey);
+        runner = new DirectorRunner(host, new WindowCinema(() => null), new MapLayerOverride(() => null), sink) { Recordings = recordings };
+        var stills = new DirectorStills(runner, sink, () => true);
+        var renders = new DirectorRenders(runner, stills, sink, () => true, () => host.Takes, () => "s-a") { Recordings = recordings };
+        var three = new Reel { Name = "three", Items = new[] { new ReelItem { Scenario = "s-a" }, new ReelItem { Scenario = "s-a", Recording = b }, new ReelItem { Scenario = "s-a" } } };
+        var (job, why) = renders.Enqueue(new RenderRequest { Reel = three, Recording = a, Fps = 10, Width = 320, Height = 180, Encode = false,
+                                                             Dir = Path.Combine(_root, "render") });
+        Assert.True(job != null, why);
+        for (int i = 0; i < 20_000 && (renders.Busy || renders.Queued > 0); i++) { runner.Tick(); stills.Tick(); renders.Tick(); }
+        Assert.True(job!.State == RenderState.Done, job.ToJson().ToJsonString());
+        Assert.Equal(new[] { a, b, a }, recordings.Opens);                                              // the job's A, item 2's B, A again for item 3
+        Assert.Equal(3, job.Items);
+        var frames = sink.Frames;
+        Assert.All(frames, f => Assert.StartsWith(Path.Combine(_root, "render", "frames"), f.Path));    // ONE capture
+        foreach (var (item, rec) in new[] { (0, "A"), (1, "B"), (2, "A") })
+        {
+            var of = frames.Where(f => f.Item == item).ToList();
+            Assert.True(of.Count >= 9, $"item {item + 1}: {of.Count} frames");
+            Assert.All(of, f => Assert.Equal(rec, f.Recording));
+        }
+        Assert.True(frames.Count(f => f.Item == 1) > frames.Count(f => f.Item == 0), "B's take (1.5 s) is longer than A's (1 s)");
+    }
 }

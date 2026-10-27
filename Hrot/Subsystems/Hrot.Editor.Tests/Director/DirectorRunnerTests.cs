@@ -1682,6 +1682,37 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Equal(2, q.Renders.Jobs.Count);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1391</c> (TE-16; docs/DESIGN_Director_Timeline_Editor.md §11u "as built: CE-1391"; success condition 3) — on the EDITOR's kind of host (it opens no
+    /// recordings: the pack hands its runner no opener) a reel whose item names a recording is REFUSED at Play — the item, its take and the reason
+    /// (<see cref="DirectorRunner.NoRecordings"/>) — and nothing loads; queued as a render it fails with the same reason, and the next render (a reel naming
+    /// none) still plays. 🔴 Mutation: <c>DirectorRunner.Play</c> not refusing such an item when <c>Recordings</c> is null (the check removed) ⇒ Play starts ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1391_OnTheEditor_AReelItemNamingARecording_IsRefused_WithTheReason()
+    {
+        var store = Store();
+        var host = new FakeEditor(store);
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        Assert.Null(runner.Recordings);                                                    // the editor opens no recordings
+        var reel = new Reel { Name = "two", Items = new[] { new ReelItem { Scenario = "s-a" }, new ReelItem { Scenario = "s-b", Recording = "/runs/b/node_1.fdp" } } };
+        var refused = runner.Play(new PlayRequest(reel));
+        var why = Assert.Single(refused);
+        Assert.Equal("item 2 (s-b/main) " + DirectorRunner.NoRecordings, why);
+        Assert.Equal(DirectorPhase.Idle, runner.Phase);
+        Run(runner, host);
+        Assert.Empty(host.Loads);                                                           // nothing loaded
+
+        var q = RenderQueue(store);
+        var bad = q.Renders.Enqueue(new RenderRequest { Reel = reel, Width = 320, Height = 180, Encode = false, Dir = Path.Combine(_root, "r-bad") }).Job!;
+        var good = q.Renders.Enqueue(new RenderRequest { Reel = Reel.Of("s-a", "main"), Width = 320, Height = 180, Encode = false, Dir = Path.Combine(_root, "r-good") }).Job!;
+        RunQueue(q);
+        Assert.Equal(RenderState.Failed, bad.State);
+        Assert.Contains(bad.Problems, p => p.Contains(DirectorRunner.NoRecordings, StringComparison.Ordinal));
+        Assert.Equal(RenderState.Done, good.State);
+        Assert.Equal(new[] { "s-a" }, q.Host.Loads);
+    }
+
 }
 
 [CollectionDefinition(Name, DisableParallelization = true)]

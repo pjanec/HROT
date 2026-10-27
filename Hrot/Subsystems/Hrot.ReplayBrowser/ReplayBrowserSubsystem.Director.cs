@@ -54,7 +54,10 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
             Index:         () => { SyncTimelineSource(); return _timelineSource?.Index; },
             Scenario:      () => PrimaryMetadata?.ScenarioName,
             // ⭐ CE-1304 P4 (§11s) — promote copies a take from beside the recording into the SHARED scenarios root (the one every host lists)
-            ScenarioTakes: () => scenarioTakes));
+            ScenarioTakes: () => scenarioTakes,
+            // ⭐⭐ CE-1391 (§11u "as built: CE-1391") — THE opener (the one POST /replay ends in): render jobs and reel items open their recordings through
+            //   it, with or without the debug HTTP host (HROT_DEBUG_API_PORT)
+            Recordings:    BrowserControl));
     }
 
     /// <summary>⭐ CE-1304 P4 — the scenarios root a promoted take goes to: the shared one (<c>{shared}/scenarios</c>, the editor's working root too).</summary>

@@ -12,14 +12,15 @@ namespace Hrot.Presentation.DebugApi;
 /// <remarks>
 /// ⚠ Every member runs on the host's main thread (the debug service's job queue), as the panels do.
 /// </remarks>
-public interface IReplayBrowserControl
+public interface IReplayBrowserControl : IRecordingOpener
 {
     /// <summary>
     /// <c>POST /replay {path | paths}</c> — opens a recording file or a node group that need not be in the exercise inventory, at
     /// <paramref name="atSeconds"/> after its zero. ⛔ A cluster host has no such member: it replays only what its master recorded.
+    /// ⭐ CE-1391 — a spelling of <see cref="IRecordingOpener.Open"/> (the ONE opener), not a second path.
     /// </summary>
     /// <returns><see langword="null"/> when opened, else why the group was refused (the federation's own message).</returns>
-    string? Open(IReadOnlyList<string> paths, double atSeconds);
+    string? Open(IReadOnlyList<string> paths, double atSeconds) => Open(RecordingName.Files(paths), atSeconds);
 
     /// <summary>The fields <c>GET /replay/status</c> adds on this host: frame, frames, span, nodes, view, rate.</summary>
     JsonObject Status();
