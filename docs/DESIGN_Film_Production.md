@@ -186,7 +186,7 @@ only resolved unit is the subject films it as the actor.
 | the runner, reels, capture, sound, the live stepping rule | [Film Director](DESIGN_Film_Director.md) | BUILT in the editor |
 | the feature list and the grammar | [PLAN_Feature_Films](PLAN_Feature_Films.md) §1, §1a, §5 | 55 takes, reels |
 | verify runs, checks, recordings of verify runs | [Scenario Regression](DESIGN_Scenario_Regression.md) | BUILT |
-| the Replay Browser's routes | [Replay Browser Debug HTTP](DESIGN_Replay_Browser_Debug_Http.md) | BUILT (no `/director/*` there yet) |
+| the Replay Browser's routes | [Replay Browser Debug HTTP](DESIGN_Replay_Browser_Debug_Http.md) | BUILT — ⭐ `/director/*` answers there since `2026-10-27` (the shared host attaches the RB's director, [Director Timeline §11f "P3 step"](DESIGN_Director_Timeline_Editor.md)); `/director/stills` not yet (ui, P3) |
 
 ## 6. Measured `2026-10-27` — is a recording a good film source? (F-8, Director Timeline §11 P0)
 
