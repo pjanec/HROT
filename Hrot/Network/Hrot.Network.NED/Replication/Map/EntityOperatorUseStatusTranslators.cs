@@ -74,7 +74,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>⭐ <c>CE-1153</c> — applies a unit's published <see cref="OperatorUseStatus"/> on this node (the station's HUD reads it). An
     /// unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
-    public sealed class EntityOperatorUseStatusIngressTranslator : IDescriptorTranslator
+    public sealed class EntityOperatorUseStatusIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityOperatorUseStatus";
         private const long OrdinalValue = (long)EDescriptorType.dtOperatorUseStatus;
@@ -93,6 +93,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityOperatorUseStatus>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

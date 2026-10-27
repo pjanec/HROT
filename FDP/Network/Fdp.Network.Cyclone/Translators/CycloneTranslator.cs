@@ -94,6 +94,9 @@ namespace Fdp.Network.Cyclone.Translators
         /// <summary>
         /// Egress: Scan ECS and publish samples to DDS.
         /// </summary>
+        /// <inheritdoc />
+        public override int DiscardIngress() => Reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public abstract override void ScanAndPublish(ISimulationView view);
 
         /// <summary>

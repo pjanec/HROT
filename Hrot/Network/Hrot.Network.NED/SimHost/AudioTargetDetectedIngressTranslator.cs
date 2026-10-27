@@ -14,7 +14,7 @@ namespace Hrot.Network.NED.SimHost
     /// <see cref="SoundContactEvent"/> on the unit that heard it, which the memory merges (<c>CE-3063</c>).
     /// docs/DESIGN_Thermal_And_Acoustic_Sensing.md §3, §5.1. Replaces the IG ingress nothing read.
     /// </summary>
-    public sealed class AudioTargetDetectedIngressTranslator : IDescriptorTranslator
+    public sealed class AudioTargetDetectedIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "AudioTargetDetected";
 
@@ -32,6 +32,9 @@ namespace Hrot.Network.NED.SimHost
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _reader    = participant is not null ? new DdsReader<AudioTargetDetected>(participant, DdsTopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

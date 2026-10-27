@@ -25,7 +25,7 @@ namespace Hrot.Network.NED.SimHost
     /// <c>Suspended</c> config, which the solver skips. ⭐ <c>CE-492</c>: an instance can have two writers after an authority
     /// move, so samples are taken in SOURCE-TIME order per instance, not arrival order (<see cref="Receive"/>).
     /// </summary>
-    public sealed class EqsSensorConfigIngressTranslator : IDescriptorTranslator
+    public sealed class EqsSensorConfigIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EqsSensorConfig";
         private readonly DdsReader<EqsSensorConfigTopic>? _reader;
@@ -82,6 +82,9 @@ namespace Hrot.Network.NED.SimHost
                 ? new DdsReader<EqsSensorConfigTopic>(participant, DdsTopicName)
                 : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

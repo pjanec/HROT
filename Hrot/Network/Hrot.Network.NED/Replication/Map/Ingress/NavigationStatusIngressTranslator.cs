@@ -23,7 +23,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// wire-stable scalar values.
     /// </para>
     /// </summary>
-    public sealed class NavigationStatusIngressTranslator : IDescriptorTranslator
+    public sealed class NavigationStatusIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<Hrot.NED.Descriptors.NavigationStatus> _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -44,6 +44,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <summary>
         /// Polls DDS reader and updates <see cref="EcsNavigationStatus"/> on matching entities.

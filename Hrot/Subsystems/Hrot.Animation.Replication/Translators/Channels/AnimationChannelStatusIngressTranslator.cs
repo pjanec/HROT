@@ -12,7 +12,7 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// Ingress translator: receives <see cref="DdsAnimationChannelStatus"/> from DDS
 /// and writes the Brain ghost's <see cref="AnimationChannelStatus"/> (CE-513 / R-180); the Brain's request component is not touched.
 /// </summary>
-internal sealed class AnimationChannelStatusIngressTranslator : INetworkTranslator
+internal sealed class AnimationChannelStatusIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
     private const string TopicNameConst = "hrot/anim/status/AnimationChannel";
 
@@ -32,6 +32,9 @@ internal sealed class AnimationChannelStatusIngressTranslator : INetworkTranslat
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {

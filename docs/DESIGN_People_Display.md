@@ -200,7 +200,7 @@ nowhere) — until they exist, the parts that read them draw nothing, and the re
 |---|---|---|---|
 | `CE-1169` | U7 + U8 — what is in his hand and where carried weapons sit (pistol, phone, binoculars, stone / grenade / canister in hand, slung on the back, hidden not drawn, the ExCon layer) | on the wire today; ⚠ the phone and binoculars show only once G7 sets them | ✅ READY · ⭐ the HAND-WEAPON half BUILT `2026-10-21` as `CE-1236` (§7b): the pistol, and every soldier's weapon (U7a) |
 | `CE-1170` | U9 — aimed at a person: the line | on the wire today | ✅ READY |
-| `CE-1171` | U10 — the melee swing (fist, baton, knife) | G3 (and G4 for the baton / knife as items) | ✅ the swing built `2026-10-19` (§7a); the items in the hand at rest still wait G4 |
+| `CE-1171` | U10 — the melee swing (fist, baton, knife) | G3 (and G4 for the baton / knife as items) | ✅ the swing built `2026-10-19` (§7a); the items in the hand at rest still wait G4. ⭐ `CE-4062` (`2026-10-27`): drawn in a REPLAY too — `EffectSpawnSystem.TrackStrikes` runs before the spawner's replay gate (the recorded `StrikeNotification` replays onto the bus with each played or stepped frame; ⚠ not across a seek, which skips events) |
 | `CE-1172` | U11 — the police look (cap, riot helmet, vest, belt, baton in hand) | ui only (baton in hand from his type until G4) | ✅ READY |
 | `CE-1173` | U12 — the toy gun drawn orange | ✅ the data; a catalogue toy type is G6 | ✅ READY |
 | `CE-1174` | U13 — non-lethal weapons (launcher band; taser, spray) | the launcher today; taser / spray G5 | ✅ partly READY |

@@ -17,7 +17,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// reports as NoTarget rather than aiming at the point). A sample whose hull or part is not built yet is dropped — the order is
     /// Reliable + TransientLocal, so the next change re-sends it; the recorded owner never takes its own sample back.
     /// </summary>
-    public sealed class EntityWeaponTaskIngressTranslator : IDescriptorTranslator
+    public sealed class EntityWeaponTaskIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityWeaponTask";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponTask;
@@ -36,6 +36,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityWeaponTask>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -71,7 +74,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     }
 
     /// <summary>⭐ WL-2b (CE-1049, W-3) — applies a published <see cref="WeaponTaskStatus"/> to this node's turret part (the Brain's).</summary>
-    public sealed class EntityWeaponTaskStatusIngressTranslator : IDescriptorTranslator
+    public sealed class EntityWeaponTaskStatusIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityWeaponTaskStatus";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponTaskStatus;
@@ -90,6 +93,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityWeaponTaskStatus>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

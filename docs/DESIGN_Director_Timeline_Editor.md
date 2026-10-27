@@ -1671,6 +1671,81 @@ third path that could sample differently; the writer reuses the lanes' grow-only
 ⛔ **Not done, by choice:** delta-compression of a stationary unit (a hold sample would make `PositionAt` after a departure ambiguous — the
 cost is stated above); a spatial index for `UnitsWithin`.
 
+### 11n. CR-8 — the DRAFTER: the grammar as rules *(coordinator, `2026-10-27`, CE-4059 — the coordinator's half; build-state: READY-TO-BUILD)*
+
+⭐ **What it is:** ONE pure function from *a moment* of a recording to a take that films it — the grammar of
+[PLAN_Feature_Films §1a](PLAN_Feature_Films.md) written as rules over the timeline index and its position track (ui, CE-4059). The person
+reaches it by right-clicking an event (*"Draft a shot sequence here"*), the agent by `POST /director/draft` (both ui, P3); the overnight
+documentation (CE-4060) by a moment per passed check. ⛔ It plays nothing and edits nothing: it RETURNS a take, which the take session
+opens like any other (so every drafted key is adjusted with the same tools).
+
+INVENTORY (`2026-10-27`, grep + graph): no drafter exists (`search_code` `Drafter|DraftTake|/director/draft` → design docs only). It builds
+on `EventAnchors` (CR-6 — naming an index event in the take's anchor vocabulary), `TimelineIndex` (`Lane`, `FrameSim`, `PositionAt`),
+`CameraSpec` / `CameraKey` / `KeyTransition` / `TimeSegment` / `Take` (format v2), `AtExpr`, `BakedAnchors`.
+
+```mermaid
+classDiagram
+  direction LR
+  class Drafter { <<NEW, static, Hrot.Presentation/Map3D/Director>> Moments(index, names) · Draft(index, moment, names, options) Take }
+  class DraftMoment { <<NEW record>> Lane · EventIndex · Frame · Sim · Actor long · Subject long? }
+  class DraftOptions { <<NEW record>> Scenario · Name · Caption? · Kind Func~long,SubjectKind~ · Replay bool · AspectRatio · FovDeg }
+  class SubjectKind { <<NEW enum>> Person · Vehicle · Aircraft · Group · Unknown }
+  class EventAnchors { <<exists, CR-6>> names an index event: shot:Unit#n · blast#n · hit:Unit }
+  class TimelineIndex { <<exists>> Lane · FrameSim · PositionAt }
+  class Take { <<exists, v2>> Keys · Segments · Anchors · Baked }
+  Drafter --> TimelineIndex : events, positions
+  Drafter --> EventAnchors : the moment's anchor name
+  Drafter --> DraftMoment
+  Drafter --> DraftOptions
+  Drafter --> Take : returns
+```
+*What the picture shows that prose hid:* the drafter has no state and no host — the person's menu, the agent's route and the night run call
+the same function, and what it returns is an ordinary take.
+
+```mermaid
+sequenceDiagram
+  participant C as caller (menu / route / night run)
+  participant D as Drafter
+  participant I as TimelineIndex
+  C->>D: Moments(index, names) — candidates, scored
+  C->>D: Draft(index, moment, names, options)
+  D->>I: the actor's and subject's positions over [t-8, t+6]
+  D->>D: the 180° side · the height by kind · the framing distance
+  D-->>C: a Take: anchors {moment}, baked {moment: t}, keys establish · set-up · moment · consequence, a replay segment when asked
+```
+
+**The rules** — every key's time is an `AtExpr` on the MOMENT's anchor (`"shot:Tank#2-0.7"`), so the take holds when the run's timing moves
+(CR-6); the moment's index time is baked (`Baked.Times`), as K does.
+
+| beat | when (from the moment t) | camera | rule (§1a) |
+|---|---|---|---|
+| ① establish | `t − 8` for 4 s (or from 0 when t < 8, shortened, never < 2 s) | `LookAt` the actor–subject midpoint over the whole clip window, `Pitch −40°`, distance to fit both with a 1.3 margin, `Yaw` across the line on the clip's side | wide and high: the geography first |
+| ② set-up | `t − 4` | `Over` the actor, `Toward` the subject (the existing over-the-shoulder camera); a subject-less moment: `Follow` the actor | the actor's view |
+| ③ the moment | `t − 0.7` | `LookAt` the actor–subject midpoint over `[t−0.7, t+2]`, `Yaw` across the line on the clip's side, distance to fit; **past 100 m between them**: `Follow` the subject from the actor's side with `Fov` 18° (telephoto) | cut on anticipation, never after |
+| ④ consequence | `t + 2` for 4 s — or from the NEXT hit / blast on the subject within 5 s of t, then `−0.3` | `Follow` the subject, `Pitch −35°` (from above, the same side) | the result |
+| ⑤ replay *(DraftOptions.Replay; a fast beat only: shot, hit, blast)* | a time segment going BACK: `[t − 1, t + 1.5]` at speed 0.4 after ④, its key across the line (the reverse angle) | `LookAt` as ③, `Yaw + 180°` | the one crossing of the line; slow motion — ⚠ plays once segments play (P2b, CR-7) |
+| end | ④'s end | — | 15–30 s of film |
+
+| craft rule | as a rule |
+|---|---|
+| **the 180° line** | the side is chosen ONCE per take: the side of the actor→subject line the establish camera sees both from without the subject behind the actor — the camera's yaw on ①, ③, ④ stays on it; only ⑤ crosses |
+| **height by kind** | `Pitch` per `SubjectKind` of the ACTOR: Person −8° (eye level, 5–12°) · Vehicle −6° (low, 3–10°) · Group −55° (high, 45–75°) · Aircraft +10° (from below) · Unknown −20° — ① stays −40° (it establishes) |
+| **framing distance** | the half-width to fit is the spread of the actor's and subject's positions over the shot window across the camera's view, times 1.3; `d = halfWidth / tan(hfov / 2)`, `hfov` from `FovDeg` (default 45) and `AspectRatio` (16:9); clamped to [8 m, 600 m] |
+| **no dead seconds** | no key holds longer than 6 s of source time unless a unit in it moves more than 1 m in that window |
+| **anticipation** | ③ and ④ frame where the units WILL be (the position track over the window), not where they are at the cut |
+
+**`Moments(index, names)` — the candidates, scored** (for the agent's choice and the night run; the person picks by right-click):
+every event of the expressible lanes (`combat.shot` — the FIRST shot of each shooter at each target, `combat.hit`, `combat.blast`), each
+`(lane, index, frame, sim, actor, subject)` with a score: blast 3 + damage / 100 · hit 2 · first shot 1; a moment within 2 s after a better one
+merges into it. ⏭ Behaviour lanes (orders, decisions) join when CR-5 grows the anchor cues.
+
+**Acceptance (rails, `DrafterTests` in Hrot.Presentation.Tests)** on a synthetic index (two units 60 m apart; one shot; a hit 0.8 s later):
+① the take has 4 keys in time order at t−8, t−4, t−0.7, t+0.8−0.3 (the hit pulls ④ in), each `At` anchored on the shot's anchor name with
+the right offset, and `Baked` holds the shot's sim time · ② ①, ③, ④ yaw on ONE side of the line (and ⑤, when asked, on the other) · ③'s
+distance fits both units over its window (both inside the frustum at every sample) · ④ follows the subject · ③ switches to a telephoto follow
+when the units are 150 m apart · a moment at t = 3 s shortens ① to start at 0 with ≥ 2 s · `Moments` scores a blast over a first shot and
+merges a hit 0.8 s after a shot into one moment. Each red-proved by a mutation that compiles.
+
 ## 8. INVENTORY
 
 ```
@@ -1846,6 +1921,18 @@ Rails (each red-proved by a compiling mutation): `ReplayBrowserSubsystemTests.CE
 cleared by a new scenario) · `FlightRecorderTests.CE4050_*` (the manifest names assemblies, an unknown one is reported; an unresolved type
 is skipped). ⏭ ①'s acceptance is a still pair (Film Production §6) — not taken yet.
 
+### 11p. ✅ As built `2026-10-27` — P0 items ③ and ⑤ (backend)
+
+| item | as built | measured |
+|---|---|---|
+| **③ "Keep for films"** (TE-13) | ⭐ NOT a new copier — the cluster's existing **Export** op (CE-278 §5) already pulls every node's `.fdp` + meta into `{shared}/exercises/<id>/`, writes `Orchestrator.json` and archives the scenario as it was loaded (`AssetInventoryProcessManager.ArchiveScenario`). Added: `POST /exercises/keep {exerciseId?}` (`keep_exercise`; the newest when none is named) publishing that intent through the master, and the timeline sidecar (`.fdp.timeline`) in the node's archive manifest (`ReferenceArchiveHandler`). The Replay Browser already lists the archive beside the nodes' own copies (`RecordingGroupInventory`) | 📐 live: an editor run of demo-city kept → `{shared}/exercises/<id>/` holds `node_1.fdp`, its meta (naming `Recipes/demo-city` + its hash), `Orchestrator.json`, `scenario/scenario.json`; with the node's own copy deleted (a relaunch), the Replay Browser listed it and opened it (`OperatingReplay`, 27.7 s) |
+| **⑤ paused frames** | ruled and built in [DAR §12s](DESIGN_Replay_Time_Axis_And_Review.md): kept (the Wall axis needs every stamp), but a chunk written with unchanged bytes is not written again | 📐 89 KB/s running · 15 KB/s paused |
+
+⚠ The editor's live timeline index stays in memory (no sidecar file), so an editor run's archive has none — the manifest takes one when it exists.
+⏭ **①'s still pair and ⑥ (people, animation, wrecks, deaths, doors, sound):** asked of the coordinator, who owns the measured method (Film
+Production §6, `ua-tank-ammo`). 📐 My own attempt on demo-city was inconclusive (the follow shot did not hold in the Replay Browser, and
+`POST /replay {atSimSeconds}` there opens at the recording's start) — not evidence either way.
+
 ### 11m. P2a detail — the director in the Replay Browser *(ui, `2026-10-27`, CE-1303 P2a; build-state: ✅ BUILT `2026-10-27` — as built at the end; §11j's red P2 edge is the green RB box here)*
 
 ⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) (P2 row),
@@ -2011,18 +2098,6 @@ NEXT wrap), `ATakeLongerThanItsRecording_EndsWhereTheRecordingEnds`, `TheReplayB
 The RB's two window-inventory rails (`RegisterWindowsCore_*`) now expect the Director window too — and their "every window is in the
 ReplayBrowser perspective" check is what D11 satisfies.
 
-### 11n. ✅ As built `2026-10-27` — P0 items ③ and ⑤ (backend)
-
-| item | as built | measured |
-|---|---|---|
-| **③ "Keep for films"** (TE-13) | ⭐ NOT a new copier — the cluster's existing **Export** op (CE-278 §5) already pulls every node's `.fdp` + meta into `{shared}/exercises/<id>/`, writes `Orchestrator.json` and archives the scenario as it was loaded (`AssetInventoryProcessManager.ArchiveScenario`). Added: `POST /exercises/keep {exerciseId?}` (`keep_exercise`; the newest when none is named) publishing that intent through the master, and the timeline sidecar (`.fdp.timeline`) in the node's archive manifest (`ReferenceArchiveHandler`). The Replay Browser already lists the archive beside the nodes' own copies (`RecordingGroupInventory`) | 📐 live: an editor run of demo-city kept → `{shared}/exercises/<id>/` holds `node_1.fdp`, its meta (naming `Recipes/demo-city` + its hash), `Orchestrator.json`, `scenario/scenario.json`; with the node's own copy deleted (a relaunch), the Replay Browser listed it and opened it (`OperatingReplay`, 27.7 s) |
-| **⑤ paused frames** | ruled and built in [DAR §12s](DESIGN_Replay_Time_Axis_And_Review.md): kept (the Wall axis needs every stamp), but a chunk written with unchanged bytes is not written again | 📐 89 KB/s running · 15 KB/s paused |
-
-⚠ The editor's live timeline index stays in memory (no sidecar file), so an editor run's archive has none — the manifest takes one when it exists.
-⏭ **①'s still pair and ⑥ (people, animation, wrecks, deaths, doors, sound):** asked of the coordinator, who owns the measured method (Film
-Production §6, `ua-tank-ammo`). 📐 My own attempt on demo-city was inconclusive (the follow shot did not hold in the Replay Browser, and
-`POST /replay {atSimSeconds}` there opens at the recording's start) — not evidence either way.
-
 ### 11o. P2b detail — segments, subtitles, update key from view *(ui, `2026-10-27`, CE-1303 P2b; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 
 ⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) (P2 row), §11e CR-7 / CR-11,
@@ -2162,7 +2237,7 @@ silent the second time (TE-11, P6) — and the RB renders no film yet (P3).
 | a seek rebases the step counters | ✅ `DirectorRunner.SeekSource` (P2a) | ✅ §11m D5 |
 | a live host already fast-forwards unheld | ✅ `fastForward` in `TickPlaying` (P2a D5); a gap between shots is stepped unheld | ✅ TE-7: *"a skip still steps one step per frame … it shows a card"* |
 | the caption reaches the screen only in the cinema | ✅ `WindowCinema.Draw` returns when `!Active`; an iteration pass (`Cinema: false`, D7) never calls `Enter` | ⛔ searched §11 / Film Director: none — the iteration pass is new in P2a |
-| a kept exercise is opened from the NODE's temp copy while that exists | ✅ `RecordingGroupInventory.Scan` *"the local copy wins"*; rail `RB1_*` asserts the node's path | ✅ §11n ③ (kept = `{shared}/exercises/<id>/`) ⇒ ⛔ P2a's "beside the recording" puts its takes in the TEMP folder |
+| a kept exercise is opened from the NODE's temp copy while that exists | ✅ `RecordingGroupInventory.Scan` *"the local copy wins"*; rail `RB1_*` asserts the node's path | ✅ §11p ③ (kept = `{shared}/exercises/<id>/`) ⇒ ⛔ P2a's "beside the recording" puts its takes in the TEMP folder |
 | the map camera can be given back while a shot is held | ✅ `FilmCaptureLayer.Direct`; rail `CE3289_TheLayer_*` builds the layer headless | ✅ the doc's *pilot camera / program camera* words |
 
 **Decisions** *(the lean; the rejected alternatives one line each)*

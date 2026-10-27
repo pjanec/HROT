@@ -1,4 +1,5 @@
 using System;
+using Fdp.Toolkit.Replication.Services;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -20,7 +21,7 @@ namespace Hrot.Network.NED.Gizmos
     /// Bypasses the global world bus entirely so that interaction noise is
     /// quarantined inside the <c>GizmoInteractionModule</c> pipeline.
     /// </summary>
-    public sealed class GizmoInteractionIngressTranslator : INetworkTranslator
+    public sealed class GizmoInteractionIngressTranslator : INetworkTranslator, IDiscardableIngress
     {
         private readonly IDdsReader<GizmoInteractionBatch>? _reader;
         private readonly FdpEventBus _interactionBus;
@@ -56,6 +57,18 @@ namespace Hrot.Network.NED.Gizmos
             _reader         = reader;
             _localNodeId    = localNodeId;
             _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
+        }
+
+        /// <inheritdoc />
+        /// <remarks>⭐ CE-3329 W5 — this translator reads through the gizmo transport's <c>IDdsReader&lt;T&gt;</c> (one
+        /// <c>TryRead</c> per sample), not a <c>DdsReader&lt;T&gt;</c>, so <c>DiscardAll</c> cannot reach it; the drain below is the
+        /// same take-and-drop over that abstraction. Never applies anything.</remarks>
+        public int DiscardIngress()
+        {
+            if (_reader is null) return 0;
+            int dropped = 0;
+            while (_reader.TryRead(out _)) dropped++;
+            return dropped;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

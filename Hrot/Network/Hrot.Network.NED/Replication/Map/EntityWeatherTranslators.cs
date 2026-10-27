@@ -120,7 +120,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// ⭐ CE-3216 S1 — applies published weather on every node that does not own it; a sample for an entity this node does not know yet is
     /// HELD (the newest per entity). The recorded owner never takes its own sample back (S8 / F-5).
     /// </summary>
-    public sealed class EntityWeatherIngressTranslator : IDescriptorTranslator
+    public sealed class EntityWeatherIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityWeather";
         private const long OrdinalValue = (long)EDescriptorType.dtWeather;
@@ -141,6 +141,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityWeather>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

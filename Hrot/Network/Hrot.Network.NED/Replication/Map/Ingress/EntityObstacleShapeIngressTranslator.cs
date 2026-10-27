@@ -17,7 +17,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// default. 📄 docs/DESIGN_Peek_And_Fire.md §9. The rules of <see cref="EntityDoorStateIngressTranslator"/>: an unknown id
     /// makes a ghost, and the recorded owner of <c>dtObstacleShape</c> never takes its own sample back.
     /// </summary>
-    public sealed class EntityObstacleShapeIngressTranslator : IDescriptorTranslator
+    public sealed class EntityObstacleShapeIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityObstacleShape";
         private const long OrdinalValue = (long)EDescriptorType.dtObstacleShape;
@@ -41,6 +41,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

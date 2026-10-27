@@ -193,6 +193,25 @@ public sealed class EffectTests
         Assert.Empty(Effects(world));   // a blow is no shot: no flash, no blast
     }
 
+    /// <summary>⭐ CE-4062 — in a REPLAY the recorded blow is kept for the bodies too (the swing is drawn), and still makes no effect: the
+    /// spawner's replay gate stops what it would SPAWN, not what it remembers. 🔴 Before: the gate came first, so a replay never drew a swing.</summary>
+    [Fact]
+    public void CE4062_A_replayed_blow_is_kept_for_the_bodies_and_spawns_nothing()
+    {
+        var (world, _) = World();
+        Fdp.Toolkit.Replay.ReplayState.Enter(world);
+        At(world, 4.4);
+        var rioter = Unit(world, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(0, 0, 0));
+        var struck = Unit(world, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(1, 0, 0));
+        world.Bus.Publish(new Fdp.Toolkit.Combat.StrikeNotification { Striker = rioter, Target = struck, Weapon = Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+        var tracker = StrikeTracker.Of(world);
+        Assert.NotNull(tracker);
+        Assert.True(tracker!.StruckWithin(rioter, 4.4, 0.1, out var with, out _), "a replayed blow is drawn");
+        Assert.Equal(Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist, with);
+        Assert.Empty(Effects(world));
+    }
+
     /// <summary>⭐ CE-1215 (docs/DESIGN_Entity_Control.md §8j H-1, H-2) — the spawner keeps every hit that names a target (a round's,
     /// with its travel and damage; a blow's, at the one struck) and not a burst on the ground; the arc's place on the screen is the bearing
     /// toward where the hit came from, relative to the camera (ahead −90, right 0, behind 90 — raylib's ring degrees).</summary>

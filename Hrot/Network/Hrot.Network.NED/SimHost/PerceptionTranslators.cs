@@ -199,7 +199,7 @@ namespace Hrot.Network.NED.SimHost
     /// DDS-to-event-bus bridge with no component-mutation logic.
     /// Enforces entity-pointer safety: raw network IDs are resolved to generational ECS handles before publishing.
     /// </summary>
-    public sealed class SensorTrackStateIngressTranslator : IDescriptorTranslator
+    public sealed class SensorTrackStateIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<SensorTrackState>? _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -217,6 +217,9 @@ namespace Hrot.Network.NED.SimHost
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _reader    = participant != null ? new DdsReader<SensorTrackState>(participant, TopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -261,7 +264,7 @@ namespace Hrot.Network.NED.SimHost
     /// and injects the resolved hit results into the local <c>RaycastBatchData</c> singleton.
     /// Accepts TargetNodeId == 0 (broadcast) in addition to the local node ID.
     /// </summary>
-    public sealed class RaycastBatchIngressTranslator : IDescriptorTranslator
+    public sealed class RaycastBatchIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<RaycastResponseBatch>? _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -282,6 +285,9 @@ namespace Hrot.Network.NED.SimHost
             _localNodeId = localNodeId;
             _reader      = participant != null ? new DdsReader<RaycastResponseBatch>(participant, TopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -332,7 +338,7 @@ namespace Hrot.Network.NED.SimHost
     /// Perception Solver.  Performs the FovDegrees -> FovCos conversion at the network boundary
     /// so the spatial-hash solver never executes trigonometry on the hot path.
     /// </summary>
-    public sealed class SensorConfigIngressTranslator : IDescriptorTranslator
+    public sealed class SensorConfigIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<SensorConfig>? _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -353,6 +359,9 @@ namespace Hrot.Network.NED.SimHost
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _reader    = participant != null ? new DdsReader<SensorConfig>(participant, TopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -405,7 +414,7 @@ namespace Hrot.Network.NED.SimHost
     /// <c>RaycastResponseBatch</c> back to the requesting brain node.
     /// This avoids touching the shared <c>RaycastBatchData</c> singleton used by ballistics.
     /// </summary>
-    public sealed class RaycastBatchSolverIngressTranslator : IDescriptorTranslator
+    public sealed class RaycastBatchSolverIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<RaycastRequestBatch>? _reader;
         private readonly DdsWriter<RaycastResponseBatch>? _writer;
@@ -428,6 +437,9 @@ namespace Hrot.Network.NED.SimHost
             _reader       = participant != null ? new DdsReader<RaycastRequestBatch>(participant, TopicName) : null;
             _writer       = participant != null ? new DdsWriter<RaycastResponseBatch>(participant, "RaycastResponseBatch") : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

@@ -55,8 +55,12 @@ namespace Fdp.Interfaces
     }
 
     /// <summary>
-    /// ⭐⭐ <c>R-4007</c> — a <see cref="TranslatorClass.WorldEvent"/> translator's way to throw away what arrived while the node
-    /// could not use it: take every pending sample and drop it. ⛔ Never applies anything to the world.
+    /// ⭐⭐ <c>R-4007</c> — a translator's way to throw away what arrived while the node could not use it: take every pending
+    /// sample and drop it. ⛔ Never applies anything to the world.
+    /// <para>⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — EVERY translator that takes ingress and is not
+    /// <see cref="TranslatorClass.ControlPlane"/> implements it (a join drops the events, a replay's exit drops state and events);
+    /// <c>EveryIngressTranslatorCanDiscardRail</c> sweeps the translator assemblies for one that does not. Each reader it owns goes
+    /// through <c>DdsReaderDiscard.DiscardAll</c>; a translator that must KEEP its samples says so here, explicitly.</para>
     /// </summary>
     public interface IDiscardableIngress
     {

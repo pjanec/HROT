@@ -58,6 +58,9 @@ namespace Fdp.Network.Cyclone.Translators
         // =================================================================
         // EGRESS: ECS -> Network (Zero Alloc)
         // =================================================================
+        /// <inheritdoc />
+        public override int DiscardIngress() => Reader.DiscardAll();   // ⭐ CE-3329 W5
+
         public override void ScanAndPublish(ISimulationView view)
         {
             // Get Span of events (Zero Copy)

@@ -79,7 +79,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>⭐ <c>CE-3174</c> (C-7) — applies a unit's published <see cref="WeaponAmmo"/> on this node (the station's HUD reads it).
     /// An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
-    public sealed class EntityWeaponAmmoIngressTranslator : IDescriptorTranslator
+    public sealed class EntityWeaponAmmoIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityWeaponAmmo";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponAmmo;
@@ -98,6 +98,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityWeaponAmmo>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

@@ -72,7 +72,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>⭐ <c>CE-3265</c> — applies a civilian's published <see cref="Demeanour"/> on this node (ui draws the mood). An unknown unit
     /// is dropped; the recorded owner never takes its own sample back.</summary>
-    public sealed class EntityDemeanourIngressTranslator : IDescriptorTranslator
+    public sealed class EntityDemeanourIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityDemeanour";
         private const long OrdinalValue = (long)EDescriptorType.dtDemeanour;
@@ -91,6 +91,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityDemeanour>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

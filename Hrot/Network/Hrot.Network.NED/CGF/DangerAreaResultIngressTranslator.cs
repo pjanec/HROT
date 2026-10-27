@@ -19,7 +19,7 @@ namespace Hrot.Network.NED.CGF
     /// <see cref="EqsResultIngressTranslator"/>: the same re-checked child cache (part ids are reused, CE-487) and the same
     /// own-echo skip (the recorded owner of the result part SOLVED it). 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
     /// </summary>
-    public sealed class DangerAreaResultIngressTranslator : IDescriptorTranslator
+    public sealed class DangerAreaResultIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "DangerAreaResult";
         private readonly DdsReader<DangerAreaResultTopic>? _reader;
@@ -37,6 +37,9 @@ namespace Hrot.Network.NED.CGF
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _reader = participant != null ? new DdsReader<DangerAreaResultTopic>(participant, DdsTopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

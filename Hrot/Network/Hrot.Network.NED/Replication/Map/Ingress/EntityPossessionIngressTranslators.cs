@@ -18,7 +18,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// station's frames both restart the sequence — M-6's newest-seq rule is the brain's, on the frames it receives. An unknown unit is
     /// dropped; the recorded owner never takes its own sample back.
     /// </summary>
-    public sealed class EntityManualDriveIngressTranslator : IDescriptorTranslator
+    public sealed class EntityManualDriveIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityManualDrive";
         private const long OrdinalValue = (long)EDescriptorType.dtManualDrive;
@@ -37,6 +37,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityManualDrive>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -71,7 +74,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// ⭐ <c>CE-3172</c> S4e (§8c, C-3) — applies who holds a unit on every node: <c>Held = 1</c> sets <see cref="PossessedBy"/>,
     /// <c>Held = 0</c> removes it. A station reads it to know it holds (or lost) the unit.
     /// </summary>
-    public sealed class EntityPossessedByIngressTranslator : IDescriptorTranslator
+    public sealed class EntityPossessedByIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityPossessedBy";
         private const long OrdinalValue = (long)EDescriptorType.dtPossessedBy;
@@ -90,6 +93,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityPossessedBy>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

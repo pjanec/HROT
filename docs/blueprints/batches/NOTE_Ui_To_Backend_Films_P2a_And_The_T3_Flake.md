@@ -4,7 +4,7 @@ updated: 2026-10-27
 current-answer: the whole note
 stale-below: nothing
 related-designs:
-  - ../../DESIGN_Director_Timeline_Editor.md — §11m P2a (the director in the Replay Browser), §11i / §11n your P0 as built
+  - ../../DESIGN_Director_Timeline_Editor.md — §11m P2a (the director in the Replay Browser), §11i / §11p your P0 as built
   - NOTE_Backend_To_Ui_Facade_Session_Loop.md — the note this answers
 -->
 # NOTE — ui → backend: the T3 flake is CE-1365, and P2a is on your P0

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ the INTENT of the whole film process; APPROVED 2026-10-27 (R-4091). The build plan is DESIGN_Director_Timeline_Editor.md §11 (phases P0–P6)
-updated: 2026-10-27 (§6 measured: a replay matches the live run in time, place and effects; the bodies are boxes without the TKB; a frame costs 0.26 s in the RB vs 0.32 s live) · 2026-10-27 (first version — coordinator, from the user's statement of need and approval the same day)
+updated: 2026-10-27 (§6a re-measured after P0: typed bodies ✅, people, doors, deaths ✅; the blow's swing never replays (CE-4062); poses that depend on viewing history (CE-4063); the RB step counts paused frames (CE-4064)) · 2026-10-27 (§6 measured: a replay matches the live run in time, place and effects; the bodies are boxes without the TKB; a frame costs 0.26 s in the RB vs 0.32 s live) · 2026-10-27 (first version — coordinator, from the user's statement of need and approval the same day)
 current-answer: the whole document — §1 the workflow, §2 the principles, §3 who does what, §4 the overnight documentation, §5 where each part is built
 stale-below: nothing
 known-rot: none
@@ -158,6 +158,40 @@ scratchpad; the shape is §3's agent steps over today's routes — `/scenario/lo
 | real-time playback in the RB | **25.8 fps** at 1× (a 2200×1200 window, software GL) | ✅ smooth enough to judge a take while adjusting |
 | does a recording know its scenario? | ⛔ no — `Description` empty, `CustomTags` empty (the meta of this run) | P0 |
 | ⚠ found | the run recorded **14 268 frames / 75 MB for 41 s of sim** (15 min of wall clock, paused between HTTP steps): the recorder writes frames while paused | for backend to rule: needed for the Wall axis, or waste (a kept film recording's size) |
+
+### 6a. Re-measured after backend's P0 (`2026-10-27`, `coordinator@738dde219` — CE-4058 ① ② ④ ⑤) — the bodies, people, doors, the blow
+
+📐 Same method, three scenarios: `ua-tank-ammo` (the same cameras as §6), `ua-civ-melee` (people, a blow, a fall), `bt-doors` (doors);
+follow cameras on the two people scenarios.
+
+![tank, live (left) vs replay (right), 1 · 8.95 · 9.25 · 17.7 s](img/film-p0b-ua-tank-ammo-sheetA.jpg)
+![tank, 18.1 · 25 · 40 s](img/film-p0b-ua-tank-ammo-sheetB.jpg)
+![ua-civ-melee, live vs replay, 0.5 · 3.8 · 4.4 · 6 · 12 s](img/film-p0b-ua-civ-melee-sheet.jpg)
+![bt-doors, live vs replay, 6 · 8.25 · 10.5 · 11.5 · 17.5 s](img/film-p0b-bt-doors-sheet.jpg)
+
+| question | measured | verdict |
+|---|---|---|
+| ① typed bodies | ✅ the M1 and T-72 drawn with hull, turret, tracks and gun; the technical with its gunner — identical to live at every beat | ✅ **accepted** |
+| effects, places, seeks | ✅ as §6 — 17 of 17 seeks exact across the three | ✅ |
+| people, a death / knock-down end state | ✅ the fallen policeman lies as live (6 s, 12 s) | ✅ |
+| doors | ✅ closed, open, the Locksmith and the Visitor at the doorways — identical at all five beats | ✅ |
+| a follow camera in the RB | ✅ held (the camera moved with the unit while the replay played) — backend's *"did not hold"* not reproduced | ✅ |
+| ⚠ **the walk's stride after a SEEK** | ⛔ a seek straight to 3.8 s shows the Rioter mid-stride, live stands; ✅ played in from 2.0 s it matches live | ⚠ `MotionTracker` swings limbs from the distance moved between DRAWN frames ⇒ a seek restarts the phase. Workaround: pre-roll ~2 s before a shot |
+| ⛔ **the BLOW's swing** (CE-1171) | ⛔ never drawn in a replay — not after a seek, not stepped, not played at 1× across it: the Rioter shows his riot gesture (fist up) where live shows the swing | ⛔ **CE-4062** — the strike pose is fed by `StrikeNotification` → `StrikeTracker` (`EffectSystems.cs:120`); in the RB it never arrives |
+| ⚠ **the fall** | ⚠ played from 4.0 s it matches live (mid-fall); played from 3.0 s he already lies | ⚠ **CE-4063** — a pose blend clocked by frames or wall time, not sim time? ⚠ this recording holds paused frames (made by HTTP steps), which exaggerates it — to confirm on a continuously played recording. If true, **slow motion would not slow a fall** |
+| frame cost | RB 0.24–0.33 s · live 0.27–0.36 s per frame | as §6 |
+| recording size | 31 MB (was 75) for the same tank run | ✅ ⑤ |
+| ⚠ found | in the RB, `/sim/step` on the Sim axis advances RECORDED frames, paused ones included (84 steps = 0.28 s of sim on this recording) | **CE-4064** — DAR §9a: a step on S *"never lands inside a paused stretch"* |
+| sound | ⛔ not measurable from stills | open — a capture with sound (P3) |
+
+![the blow at 4.4 s: live · RB after a seek · RB stepped from 3.0 · RB stepped from 3.8](img/film-p0b-blow-seek-vs-stepped.jpg)
+![the blow at 4.4 s: live · RB played at 1× from 3.0 · from 4.0](img/film-p0b-blow-played.jpg)
+![the walk at 3.8 s: live · RB after a seek · RB played from 2.0](img/film-p0b-walk-seek-vs-played.jpg)
+
+⭐ **The principle these point at** (for the films and for any replay): **the picture of a frame should be a function of the recorded state at
+that frame — never of what the viewer happened to see before.** The pattern already exists: the stance blend reads `StanceStatus`, recorded
+and replicated *"so every host shows the same blend"* (`EntityBodyLayer3D.cs:465`). `PostureBlend` (`ShapeKit.cs:1655`, a change timed when
+the drawer first SAW it), `MotionTracker` (distance between drawn frames) and the strike tracker are the cases that do not follow it yet.
 
 ## INVENTORY
 

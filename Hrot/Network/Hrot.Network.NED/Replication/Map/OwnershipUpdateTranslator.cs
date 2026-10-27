@@ -36,7 +36,7 @@ namespace Hrot.Map.Common.Replication
     /// per-role wiring in <c>NedReplicationModule</c>.
     /// </para>
     /// </summary>
-    public sealed class OwnershipUpdateTranslator : IDescriptorTranslator
+    public sealed class OwnershipUpdateTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "SST_OwnershipUpdate";
 
@@ -95,6 +95,9 @@ namespace Hrot.Map.Common.Replication
                     _localNodeId, evt.NetworkId.Value, typeId, evt.NewOwnerNodeId);
             }
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <summary>
         /// Brain ingress: read DDS samples and re-publish onto the local bus

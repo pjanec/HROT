@@ -17,7 +17,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// Applies per-entity visual overrides via <see cref="IgSymbolOverride"/>.
     /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class MapEntitySymbolIngressTranslator : IDescriptorTranslator
+    public class MapEntitySymbolIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "MapEntitySymbol";
         private const long OrdinalValue = (long)EDescriptorType.dtMapEntitySymbol;
@@ -47,6 +47,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
