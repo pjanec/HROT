@@ -1435,7 +1435,7 @@ sequenceDiagram
 
 | phase | lane | builds | accepted when | after |
 |---|---|---|---|---|
-| **P0 — the recording is a good source** | **backend** | the recording names its scenario + hash; *"Keep for films"* keeps the exercise with its scenario (TE-13); the RB loads the TKB (R-4069, TE-12); CE-4050; ⭐ **measure** R0 ①: a fight replayed in the RB beside the live run — bodies, animation, muzzle flashes, tracers, blasts, wrecks, deaths, doors, sound — and the RB's render cost per frame | a kept editor recording opens in the RB with typed bodies and its effects; a side-by-side still pair per effect in the report | — |
+| **P0 — the recording is a good source** (**CE-4058**) | **backend** | ⭐ measured `2026-10-27` by the coordinator ([Film Production §6](DESIGN_Film_Production.md)): time, place and effects replay exactly; ⛔ the bodies are boxes. ⇒ builds: **the RB loads the TKB** (R-4069, TE-12) — first, it decides whether a film from a recording is watchable · the recording names its scenario + hash · *"Keep for films"* keeps the exercise with its scenario (TE-13) · CE-4050 · rule on frames recorded while paused (75 MB / 14 268 frames for 41 s of sim) · then re-measure: people, animation, wrecks, deaths, doors, sound | the same still pairs with typed bodies; a kept editor recording opens in the RB | — |
 | **P1 — one director** | coordinator, then **ui** | CR-1 (coordinator) · then the film runner, session, window, adapters, pilot camera → `Hrot.Presentation` + `DirectorPack` (CR-2), the editor using it | the editor unchanged: the 55 seeded takes play the same shots (`CE1364_T4_*`), every director and verify rail green | — |
 | **P2 — adjust in the RB** ⭐ *the critical phase* | **ui** | `ReplayDirectorHost` (CR-3) · `DirectorPack` in the RB · CR-4 in-memory take + play-from + loop · CR-7 segments (speed, skip, replay) on both hosts · CR-11 Subtitles · keys tied to events (CR-6) · *"update key from view"*, pilot ⇄ program camera · takes and reels saved beside the recording (TE-1) | the person opens a recording, plays a take from any time, changes a cut / an angle / a subtitle and sees it on the next loop, saves it | P0, P1 |
 | **P3 — the agent's means** | **ui** (routes) + **coordinator** (the drafter's rules, the agent workflow) | the position track in the index · `Drafter` (CR-8) · `/director/*` on the RB with `recording=` · `/director/draft` · `/director/stills` · render to MP4 in the RB · the MCP catalog (R-1030) | ⭐ the agent drafts a feature's take from a recording, looks at its contact sheet, adjusts it, and renders it — without the person | P2 |
@@ -1443,14 +1443,13 @@ sequenceDiagram
 | **P5 — overnight documentation** | **coordinator** | CR-10: verify runs record; doc takes from `checks.json`; stills (+ clips where asked) rendered from the recordings into the verify report, with a contact sheet | the morning report shows each scenario's beats as stills, a failed condition framed where it should have happened | P3 |
 | **P6 — polish** | **ui** (+ backend) | View track (2-D ⇄ 3-D, layers) · Graphics track (TE-9) · audio at any rate (TE-11) · smooth slow motion (CR-9) · the reel composer + render queue (R4) · polygon / line conditions (R-4072) · picture-in-picture tactical inset (an idea, needs a second render) | §6 R2b / R3 / R4 | P4 |
 
-⭐ **Parallel from the start:** P0 (backend) and CR-1 (coordinator). ⭐ The tracker rows stay: P1 + P2 ⊂ **CE-1303**, P4 + View ⊂ **CE-1304**,
-P6 ⊂ **CE-1305 / CE-1306**; P3 and P5 get rows when dispatched.
+⭐ **Parallel from the start:** P0 (backend) and CR-1 (coordinator). ⭐ **Tracker:** P0 = **CE-4058** (backend) · CR-1 = **CE-4061** (coordinator) · P1 + P2 ⊂ **CE-1303** (ui) · P3 = **CE-4059** (ui routes + coordinator drafter) · P4 + View ⊂ **CE-1304** (ui) · P5 = **CE-4060** (coordinator) · P6 ⊂ **CE-1305 / CE-1306** (ui).
 
 ### 11g. Claim table — what the plan rests on
 
 | the plan rests on | code — how it IS | design — how it was MEANT |
 |---|---|---|
-| a replayed fight shows its effects | ✅ `EffectSystems.cs:67-136` read the recorded events; `MapInteraction.cs:245` schedules them on every map host (re-read) — ⛔ **not seen** in the RB yet, and no TKB there | ✅ Film Director §3e: *"that slice starts by measuring both"* ⇒ P0 |
+| a replayed fight shows its effects | ✅ **SEEN `2026-10-27`** ([Film Production §6](DESIGN_Film_Production.md)): muzzle glow, round, tracer and blast at the same place and moment as live; ⛔ the BODIES are plain boxes (no TKB in the RB) | ✅ Film Director §3e: *"that slice starts by measuring both"* — measured |
 | the RB can host a director camera and capture | ✅ `MapInteractionPack.cs:581` (re-read) | ✅ `DESIGN_Map_3D_Mode.md` §6ab — the film on every map host |
 | the runner cannot move whole | ✅ `DirectorRunner.cs:20-40, 232-235` (re-read) | ⛔ TE-5 assumed it could — corrected here |
 | a recording does not name its scenario | ✅ `RecordingMetadata.cs` (re-read); an exercise folder holds `node_1.fdp` + meta only (measured) | ✅ TE-13 *"measure in R0"* — measured: not archived |
@@ -1458,7 +1457,7 @@ P6 ⊂ **CE-1305 / CE-1306**; P3 and P5 get rows when dispatched.
 | one index step serves live and recordings | ✅ `LiveTimelineSource.cs:19` over `TimelineFrameScanner` | ✅ R-4089 (T-L5 amended: ONE per-frame step) |
 | the RB transport seeks by sim | ✅ `DebugSurface.cs:491-496` (re-read) | ✅ DAR §9c |
 | the runner plays the saved file; segments never play | ✅ §10 T3 as built; grep over `Hrot/` (re-run) | ✅ TE-6 / TE-7 say the program plays them |
-| rendering from the RB is cheaper than stepping the editor | ⛔ **assumed** — the sim cost goes, the render cost stays; not measured | — ⇒ measured in P0 before CR-12 binds |
+| rendering from the RB is cheaper than stepping the editor | ✅ **measured `2026-10-27`**: 0.26 s vs 0.32 s per 1280×720 frame (~20 % cheaper; the renderer dominates) — the gain of CR-12 is the iteration, not the render time | — |
 
 ## 8. INVENTORY
 

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ the INTENT of the whole film process; APPROVED 2026-10-27 (R-4091). The build plan is DESIGN_Director_Timeline_Editor.md §11 (phases P0–P6)
-updated: 2026-10-27 (first version — coordinator, from the user's statement of need and approval the same day)
+updated: 2026-10-27 (§6 measured: a replay matches the live run in time, place and effects; the bodies are boxes without the TKB; a frame costs 0.26 s in the RB vs 0.32 s live) · 2026-10-27 (first version — coordinator, from the user's statement of need and approval the same day)
 current-answer: the whole document — §1 the workflow, §2 the principles, §3 who does what, §4 the overnight documentation, §5 where each part is built
 stale-below: nothing
 known-rot: none
@@ -137,6 +137,27 @@ so the documentation's shot list exists the moment a scenario has checks. ⭐ St
 | the feature list and the grammar | [PLAN_Feature_Films](PLAN_Feature_Films.md) §1, §1a, §5 | 55 takes, reels |
 | verify runs, checks, recordings of verify runs | [Scenario Regression](DESIGN_Scenario_Regression.md) | BUILT |
 | the Replay Browser's routes | [Replay Browser Debug HTTP](DESIGN_Replay_Browser_Debug_Http.md) | BUILT (no `/director/*` there yet) |
+
+## 6. Measured `2026-10-27` — is a recording a good film source? (F-8, Director Timeline §11 P0)
+
+📐 `ua-tank-ammo`, one live run in the WINDOWED editor (Xvfb, llvmpipe) stepped to the beats and recorded; then its recording opened in the
+WINDOWED Replay Browser, sought by sim time, and filmed with the SAME camera at the same sim times. Script: `filmmeasure.py` (coordinator's
+scratchpad; the shape is §3's agent steps over today's routes — `/scenario/load/live`, `/sim/step`, `/replay`, `/replay/seek {atSimSeconds}`,
+`/film/shot`, `/film/capture`).
+
+![live (left) vs replay (right), 1 s · 8.95 s · 9.25 s · 17.7 s](img/film-p0-live-vs-replay-A.jpg)
+![live (left) vs replay (right), 18.1 s · 25 s · 40 s](img/film-p0-live-vs-replay-B.jpg)
+
+| question | measured | verdict |
+|---|---|---|
+| does every seek land on its sim time? | 7 of 7 exactly (1, 8.95, 9.25, 17.7, 18.1, 25, 40 s — the status read back the target) | ✅ |
+| are the units where they were, at the same moment? | every framing matches pixel for pixel in placement | ✅ |
+| do the EFFECTS replay? | ✅ the muzzle glow (8.95 s), the round in flight (9.25 s), the tracer line (17.7 s), the blast on the T-72 (18.1 s) — all present, same place, same moment | ✅ the effects come from the recorded events |
+| do the BODIES look the same? | ⛔ **no** — the Replay Browser draws every vehicle as a plain box: no hull, turret, tracks or gun on the tanks, no crew on the technical | ⛔ the RB has no TKB (R-4069) ⇒ **P0's first item, and the one that decides whether a film from a recording is watchable** |
+| a film frame's cost (step + capture over HTTP, 1280×720) | editor live **0.32 s** (0.29–0.38) · Replay Browser **0.26 s** (0.24–0.30), 30 frames each | ⭐ the RB is ~20 % cheaper; the renderer dominates both. `features` (632 s × 30 fps) ≈ **82 min** from the RB vs ~101 min stepped live — both well inside a night |
+| real-time playback in the RB | **25.8 fps** at 1× (a 2200×1200 window, software GL) | ✅ smooth enough to judge a take while adjusting |
+| does a recording know its scenario? | ⛔ no — `Description` empty, `CustomTags` empty (the meta of this run) | P0 |
+| ⚠ found | the run recorded **14 268 frames / 75 MB for 41 s of sim** (15 min of wall clock, paused between HTTP steps): the recorder writes frames while paused | for backend to rule: needed for the Wall axis, or waste (a kept film recording's size) |
 
 ## INVENTORY
 
