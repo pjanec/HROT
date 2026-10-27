@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Hrot.UI.Common.Map3D;
-using Hrot.UI.Common.Map3D.Director;
 
-namespace Hrot.Editor.Director
+namespace Hrot.UI.Common.Map3D.Director
 {
     /// <summary>
     /// ⭐ <c>CE-4061</c> (docs/DESIGN_Director_Timeline_Editor.md §11h, CR-1) — what an <see cref="IRunExtension"/> runs instead of a take

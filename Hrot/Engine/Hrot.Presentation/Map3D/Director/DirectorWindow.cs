@@ -1,10 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.WindowManager;
-using Hrot.UI.Common.Map3D.Director;
 using ImGuiNET;
 
-namespace Hrot.Editor.Director
+namespace Hrot.UI.Common.Map3D.Director
 {
     /// <summary>
     /// ⭐ <c>CE-4038</c> B6 (docs/DESIGN_Film_Director.md §4 "The panel") — <i>View › Director</i>: pick a reel or a scenario's take · Play /
@@ -15,29 +15,36 @@ namespace Hrot.Editor.Director
     /// with its golden), and its row says pass/fail with every verdict. 🔒 <i>"Verify button ok, per scenario."</i> ⚠ In this editor each
     /// verify after the first is a reload (CE-3294) — the command line's <c>--verify</c> is the regression verdict.</para>
     /// </summary>
-    internal sealed class DirectorWindow : ManagedWindow
+    public sealed class DirectorWindow : ManagedWindow, IDirectorTabContext
     {
         public const string WindowId = "editor_director";
 
         private readonly Func<DirectorRunner?> _runner;
         private readonly Func<TakeStore?> _store;
-        private enum Pick { Reel, Take, Verify }
-        private Pick _pick = Pick.Reel;
-        private int _reel, _scenario, _take, _verify;
+        private readonly IReadOnlyList<IDirectorWindowTab> _tabs;   // ⭐ CE-1303 P1 — contributed by the host, drawn after the film tabs
+        /// <summary>The tabs the host contributed, after the film tabs.</summary>
+        public IReadOnlyList<IDirectorWindowTab> Tabs => _tabs;
+        private const int PickReel = 0, PickTake = 1;   // 2 + i = _tabs[i]
+        private int _pick = PickReel;
+        private int _reel, _scenario, _take;
+        private DirectorRunner? _ctxRunner;
+        private TakeStore? _ctxStore;
         private readonly DirectorTakeSession _takes;
         private string? _message;
 
         // ⭐ CE-1364 T3 — the playback rate is the session's (the timeline's J / L change the same number)
         private float _speed { get => _takes.Speed; set => _takes.Speed = value; }
 
-        public DirectorWindow(Func<DirectorRunner?> runner, Func<TakeStore?> store, DirectorTakeSession takes)
+        public DirectorWindow(Func<DirectorRunner?> runner, Func<TakeStore?> store, DirectorTakeSession takes,
+                              IReadOnlyList<IDirectorWindowTab>? tabs = null, System.Numerics.Vector4? titleBarColor = null)
             : base(WindowId, "Director", "Scenario", WindowScope.PerspectiveBound)
         {
             _runner = runner;
             _store = store;
             _takes = takes ?? throw new ArgumentNullException(nameof(takes));
+            _tabs = tabs ?? Array.Empty<IDirectorWindowTab>();
             IsOpen = false;
-            TitleBarColor = Hrot.Editor.Windows.EditorWindowColor.TitleBar;
+            if (titleBarColor is { } c) TitleBarColor = c;
         }
 
         protected override void DrawClientArea()
@@ -46,17 +53,25 @@ namespace Hrot.Editor.Director
             var store = _store();
             if (runner == null || store == null) { ImGui.TextDisabled("The director is not available on this host."); return; }
 
-            if (ImGui.RadioButton("Reel", _pick == Pick.Reel)) _pick = Pick.Reel;
+            if (ImGui.RadioButton("Reel", _pick == PickReel)) _pick = PickReel;
             ImGui.SameLine();
-            if (ImGui.RadioButton("One take", _pick == Pick.Take)) _pick = Pick.Take;
-            ImGui.SameLine();
-            if (ImGui.RadioButton("Verify", _pick == Pick.Verify)) _pick = Pick.Verify;
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Run a scenario as the regression check does: judged by its checks.json, compared with its golden.json.");
+            if (ImGui.RadioButton("One take", _pick == PickTake)) _pick = PickTake;
+            for (int i = 0; i < _tabs.Count; i++)
+            {
+                ImGui.SameLine();
+                if (ImGui.RadioButton(_tabs[i].Name, _pick == 2 + i)) _pick = 2 + i;
+            }
 
-            if (_pick == Pick.Verify) { DrawVerify(runner, store); DrawStatus(runner); return; }
+            if (_pick >= 2 && _pick - 2 < _tabs.Count)
+            {
+                _ctxRunner = runner; _ctxStore = store;
+                _tabs[_pick - 2].Draw(this);
+                DrawStatus(runner);
+                return;
+            }
 
             Reel? chosen = null;
-            if (_pick == Pick.Reel)
+            if (_pick == PickReel)
             {
                 var reels = store.ReelNames();
                 if (reels.Count == 0) ImGui.TextDisabled($"No reels (films/*.reel.json{(store.FilmsRoot == null ? " — no films/ folder found" : "")}).");
@@ -90,7 +105,7 @@ namespace Hrot.Editor.Director
             ImGui.SliderFloat("Speed", ref speed, 0.25f, 2f, "%.2fx");
             _speed = speed;
             if (runner.Busy && ImGui.IsItemDeactivatedAfterEdit()) runner.SetSpeed(_speed);
-            if (_pick == Pick.Take && chosen != null) DrawEdit(chosen.Items[0].Scenario, chosen.Items[0].Take);
+            if (_pick == PickTake && chosen != null) DrawEdit(chosen.Items[0].Scenario, chosen.Items[0].Take);
 
             ImGui.BeginDisabled(chosen == null);
             if (ImGui.Button("Play")) Start(runner, new PlayRequest(chosen!, _speed));
@@ -136,28 +151,9 @@ namespace Hrot.Editor.Director
             if (ImGui.Button("Close")) _takes.Close();
         }
 
-        /// <summary>⭐ CE-4042 — pick a scenario that has checks; Verify, or re-record its golden (refused for a failing run).</summary>
-        private void DrawVerify(DirectorRunner runner, TakeStore store)
-        {
-            var names = store.ScenariosWith(ChecksJson.FileName);
-            if (names.Count == 0) { ImGui.TextDisabled("No scenario has checks (scenarios/<name>/checks.json)."); return; }
-            _verify = Math.Clamp(_verify, 0, names.Count - 1);
-            var arr = names.ToArray();
-            ImGui.Combo("Scenario##verify", ref _verify, arr, arr.Length);
-            ImGui.BeginDisabled(runner.Busy);
-            if (ImGui.Button("Verify")) Start(runner, VerifyRequest(arr[_verify], capture: false));
-            ImGui.SameLine();
-            if (ImGui.Button("Re-record golden")) Start(runner, VerifyRequest(arr[_verify], capture: true));
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Runs it and writes golden.json (working copy and source tree) — refused when a condition fails. Read its diff before committing.");
-            ImGui.EndDisabled();
-            ImGui.SameLine();
-            ImGui.BeginDisabled(!runner.Busy);
-            if (ImGui.Button("Stop")) runner.Stop();
-            ImGui.EndDisabled();
-        }
-
-        private static PlayRequest VerifyRequest(string scenario, bool capture) =>
-            new(Reel.Of(scenario, "_verify"), Plan: new VerifyOptions(capture));
+        DirectorRunner IDirectorTabContext.Runner => _ctxRunner!;
+        TakeStore IDirectorTabContext.Store => _ctxStore!;
+        void IDirectorTabContext.Start(PlayRequest request) { if (_ctxRunner != null) Start(_ctxRunner, request); }
 
         private void DrawStatus(DirectorRunner runner)
         {
@@ -190,23 +186,23 @@ namespace Hrot.Editor.Director
                     ImGui.TableNextColumn();
                     ImGui.TextUnformatted($"{r.Scenario}/{r.Take}");
                     ImGui.TableNextColumn();
-                    var v = r.Verify();
-                    var line = v != null
-                        ? $"{r.Status} · {v.Verdicts.Count(x => x.Ok)}/{v.Verdicts.Count} conditions · golden {v.Golden}"
-                        : r.Status + (r.Missing.Count > 0 ? $" · missing {string.Join(", ", r.Missing)}" : "")
+                    IDirectorWindowTab? owner = null;
+                    string? owned = null;
+                    foreach (var tab in _tabs) if ((owned = tab.ReportLine(r)) != null) { owner = tab; break; }
+                    var line = owned
+                        ?? r.Status + (r.Missing.Count > 0 ? $" · missing {string.Join(", ", r.Missing)}" : "")
                                    + (r.Mismatches.Count > 0 ? $" · {r.Mismatches.Count} drifted" : "")
                                    + (r.Steps > 0 ? $" · ×{r.RealtimeFactor:0.00}" : "");
                     ImGui.TextUnformatted(line);
-                    if (ImGui.IsItemHovered() && v != null)
-                        ImGui.SetTooltip(string.Join("\n", v.Verdicts.Select(x => $"{(x.Ok ? "PASS" : "FAIL")}  {x.Name}{(x.Time is { } t ? $"  ({t:0.##} s)" : "")}{(x.Outside is { } o ? $"  — held at {o:0.##} s, outside its window" : "")}")
-                            .Concat(v.GoldenDiff).Concat(v.Problems).Concat(r.Problems)));
+                    if (ImGui.IsItemHovered() && owner?.ReportDetail(r) is { } detail)
+                        ImGui.SetTooltip(string.Join("\n", detail));
                     else if (ImGui.IsItemHovered() && (r.Problems.Count + r.Mismatches.Count + r.Unresolved.Count) > 0)
                         ImGui.SetTooltip(string.Join("\n", r.Problems.Concat(r.Mismatches).Concat(r.Unresolved)));
                     ImGui.TableNextColumn();
                     ImGui.PushID(i);
                     ImGui.BeginDisabled(runner.Busy);
-                    if (ImGui.SmallButton(v != null ? "Again" : "Replay"))
-                        Start(runner, v != null ? VerifyRequest(r.Scenario, capture: false) : new PlayRequest(Reel.Of(r.Scenario, r.Take), _speed));
+                    if (ImGui.SmallButton(owner != null ? "Again" : "Replay"))
+                        Start(runner, owner?.Again(r) ?? new PlayRequest(Reel.Of(r.Scenario, r.Take), _speed));
                     ImGui.EndDisabled();
                     ImGui.PopID();
                 }

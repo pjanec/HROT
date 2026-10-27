@@ -5,9 +5,8 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Hrot.UI.Common.Map3D;
-using Hrot.UI.Common.Map3D.Director;
 
-namespace Hrot.Editor.Director
+namespace Hrot.UI.Common.Map3D.Director
 {
     /// <summary>How the director runs a reel: on screen in real time, frame by frame to files, as a scout that bakes anchor times, or as
     /// an extension's <see cref="RunPlan"/> (the editor's verifier — CE-4042, CE-4061).</summary>
@@ -190,6 +189,9 @@ namespace Hrot.Editor.Director
         }
 
         public DirectorPhase Phase { get; private set; } = DirectorPhase.Idle;
+
+        /// <summary>⭐ CE-1303 — the host's one extension (the editor's verifier); null on a films-only host.</summary>
+        public IRunExtension? Extension => _ext;
         public DirectorMode Mode => _request?.Mode ?? DirectorMode.Live;
         public bool Busy => Phase is DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing or DirectorPhase.Encoding
                                   or DirectorPhase.Extension;
