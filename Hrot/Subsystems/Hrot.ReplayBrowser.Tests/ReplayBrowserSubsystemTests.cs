@@ -111,8 +111,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Same(pack!.Runner, _subsystem.Director!.Runner);                   // the one the browser ticks and its window drives
         // ⭐ CE-4059 — the one attach carries the pack's drafter too (moments / draft); 🔴 mutation: AttachDirector(pack) drops pack.Drafts ⇒ 503
         Assert.NotNull(pack.Drafts);
-        var (moments, momentsBody) = await Get("/director/moments");
-        Assert.True(moments == 200, momentsBody);
+        var (moments, momentsBody) = await Get("/director/moments");          // no recording open: the DRAFTER answers (no index yet), not "no director"
+        Assert.True(moments != 503, momentsBody);
+        Assert.Contains("no timeline index is shown yet", momentsBody);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
