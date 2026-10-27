@@ -145,7 +145,8 @@ public static class BTreeDocumentFactory
         //   font, so a node's width is the one it is drawn at (the catalog laid it out before any font existed, from an estimate).
         if (btAsset.IsAutoLaidOut && !btAsset.LaidOutWithFont && ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
         {
-            Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(btAsset, title => ImGuiNET.ImGui.CalcTextSize(title).X);
+            Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(
+                btAsset, text => ImGuiNET.ImGui.CalcTextSize(text).X, bundle.EditorTheme.NodeHeaderHeight);   // ⭐ CE-1367 — the theme's header height, as the canvas sizes a node with
             btAsset.LaidOutWithFont = true;
         }
 
