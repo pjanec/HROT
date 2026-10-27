@@ -785,6 +785,60 @@ public sealed class FilmDirectorTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-4059</c> / CR-7 (docs/DESIGN_Director_Timeline_Editor.md §11q K1, success condition 2): a key that belongs to a SEGMENT round-trips — the segment's
+    /// <c>id</c> and the key's <c>segment</c> are read, written and read again unchanged — a key naming a segment the take does not have, and an id used twice, are
+    /// named problems; and the 55 seeded takes name no segment and write none, and the per-segment lookup hands each its OWN key list back untouched (they play as
+    /// before). 🔴 Mutation: <c>WriteKey</c> not writing <c>segment</c> ⇒ the read-back key is unscoped ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4059_CR7_AKeyOfASegment_RoundTrips_AndTheSeededTakesStayUnscoped()
+    {
+        var json = JsonNode.Parse("""
+            {"segments":[{"id":"main","from":0,"to":12},{"id":"replay","from":9,"to":11.5,"speed":0.4}],
+             "keys":[{"at":2,"lookAt":[1,2,3]},{"at":9,"lookAt":[4,5,6],"segment":"replay"}]}
+            """)!.AsObject();
+        var problems = new List<string>();
+        var take = TakeJson.ParseTake(json, "s", "main", problems);
+        Assert.Empty(problems);
+        Assert.Equal(new[] { "main", "replay" }, take.Segments.Select(s => s.Id));
+        Assert.Null(take.Keys[0].Segment);
+        Assert.Equal("replay", take.Keys[1].Segment);
+        var written = TakeJson.WriteTake(take);
+        Assert.Equal("replay", written["keys"]![1]!["segment"]!.GetValue<string>());
+        Assert.False(written["keys"]![0]!.AsObject().ContainsKey("segment"));            // an unscoped key writes nothing new
+        var again = TakeJson.ParseTake(written, "s", "main", problems);
+        Assert.Empty(problems);
+        Assert.Equal(take.Keys, again.Keys);
+        Assert.Equal(take.Segments, again.Segments);
+        Assert.Equal(written.ToJsonString(), TakeJson.WriteTake(again).ToJsonString());
+
+        TakeJson.ParseTake(JsonNode.Parse("""
+            {"segments":[{"id":"a","from":0,"to":1},{"id":"a","from":1,"to":2}],"keys":[{"at":0,"lookAt":[0,0,0],"segment":"b"}]}
+            """)!.AsObject(), "s", "bad", problems);
+        Assert.Contains("segment id 'a' is used twice", problems);
+        Assert.Contains("key 1: segment 'b' is not a segment of the take", problems);
+
+        var repo = RepoRoot();
+        int count = 0;
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        {
+            var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
+            foreach (var (scenario, names) in store.AllTakes())
+                foreach (var n in names)
+                {
+                    var loaded = store.Load(scenario, n).Value!;
+                    Assert.All(CameraKeys.Of(loaded), k => Assert.Null(k.Segment));
+                    Assert.All(loaded.Segments, s => Assert.Null(s.Id));
+                    var keys = CameraKeys.Of(loaded);
+                    Assert.Same(keys, CameraKeys.OnScreenIn(keys, null, _ => 0d));            // ⭐ the lookup hands an unscoped take its own list
+                    Assert.DoesNotContain("\"segment\"", TakeJson.WriteTake(loaded).ToJsonString());
+                    count++;
+                }
+        }
+        Assert.True(count >= 55, $"{count} seeded takes");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-1303</c> P2b — CR-11 (§11o S8): a take with no subtitles has its CAPTIONS read as subtitles — over every seeded take (55) the subtitle at
     /// each 0.25 s is exactly the caption the runner showed before subtitles existed (the shot on screen's <c>caption ?? take.caption</c>, none in a
     /// gap) — and a take's own subtitles win, with a fade's alpha rising from 0 at its start. 🔴 Mutation: <c>TakeSubtitles.Of</c> giving ONE

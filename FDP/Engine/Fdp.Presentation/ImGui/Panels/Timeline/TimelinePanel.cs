@@ -74,6 +74,13 @@ public sealed class TimelinePanel
     /// <summary>⭐ <c>CE-3330</c> (addendum 4) — the items the row under the mouse contributes (the host's <c>TimelineLaneCatalog.MenuItems</c>).</summary>
     public Func<TimelineMenuContext, IReadOnlyList<TimelineMenuItem>>? RowMenu { get; set; }
 
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> (docs/DESIGN_Director_Timeline_Editor.md §11q) — the items a TOOL adds to an EVENT's menu, given the index this panel draws (the
+    /// director's <c>DirectorDrafts.MenuItems</c>: "Draft a shot sequence here"). Set by the director's pack on every host — ⛔ not the row's provider
+    /// (<see cref="RowMenu"/> is the host's lane catalogue; the window sets it).
+    /// </summary>
+    public Func<TimelineIndex, TimelineMenuContext, IReadOnlyList<TimelineMenuItem>>? EventMenu { get; set; }
+
     /// <summary>⭐ <c>CE-1364</c> T2 (docs/DESIGN_Director_Timeline_Editor.md §10) — the editable tracks the host shows ABOVE the lanes (the director's Time /
     /// Camera); null or empty = none, every existing host unchanged. The panel draws, hit-tests, selects and drags; it knows nothing about takes.</summary>
     public Func<IReadOnlyList<ITimelineTrack>>? Tracks { get; set; }
@@ -422,7 +429,7 @@ public sealed class TimelinePanel
             var it = items[i];
             if (TrackLayout.SpanOf(it, w, width, axis, map) is not { } s) continue;
             float cy = p.Y + RowHeight / 2;
-            uint col = it.Selected ? 0xFFFFFFFF : TrackKeyColour;
+            uint col = it.Selected ? 0xFFFFFFFF : it.Colour ?? TrackKeyColour;
             if (it.Kind == TimelineTrackItemKind.Segment)
             {
                 var a = new Vector2(p.X + s.X0, p.Y + 2);
@@ -607,6 +614,7 @@ public sealed class TimelinePanel
         string time = TimelineRuler.Label(at - _view.ExtentFrom, TimeSpan.TicksPerSecond / 10, _view.ExtentTo - _view.ExtentFrom);
         _menu.AddRange(MenuItems(index, cursor, lane, at, frame, ev, time, _view, _nameOf));
         if (RowMenu != null) _menu.AddRange(RowMenu(new TimelineMenuContext(lane, at, frame, ev)));
+        if (EventMenu != null && ev != null) _menu.AddRange(EventMenu(index, new TimelineMenuContext(lane, at, frame, ev)));   // ⭐ CE-4059 — e.g. the director's "Draft a shot sequence here"
         if (extra != null) _menu.InsertRange(0, extra);   // ⭐ CE-1364 T2 — a track's own items lead its menu
         ImGui.OpenPopup("##tl-menu");
     }

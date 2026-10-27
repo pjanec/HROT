@@ -515,4 +515,60 @@ public sealed class DirectorTracksTests : IDisposable
         undo.Undo(null!);
         Assert.Equal(2, editor.Take.Segments.Count);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> / CR-7 (docs/DESIGN_Director_Timeline_Editor.md §11q K2 / K3 / K4): while the runner plays a REPLAY of this take (the segment on screen goes
+    /// back), <b>U</b> does not change the main pass's key on screen — the replay gets its OWN key with the view, where that key took the screen (the segment gets an
+    /// id in the same undo step); a second U changes that own key in place; <b>K</b> adds a key of the replay at the playhead. Such a key is drawn in its own colour,
+    /// its label naming the segment. Off a replay (the main pass) K and U act as before (unscoped, in place). Deleting the replay deletes its keys. 🔴 Mutation:
+    /// <c>ReplayOnScreen</c> returning null ⇒ U overwrites key 0 (the main pass's) and K adds an unscoped key ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4059_CR7_DuringAReplay_KAndU_GiveTheReplayItsOwnKeys()
+    {
+        Write("main", V2);
+        var pilot = Look(77f);
+        var loaded = _store.Load("sc", "main").Value!;
+        var undo = new GizmoUndoStack();
+        var editor = new TakeEditor(_store, loaded, undo);
+        FilmSegment? onScreen = null;
+        var tracks = new DirectorTracks(editor, () => pilot, segmentNow: () => onScreen);
+        Assert.True(editor.Apply(new TakeEdit.ReplaySegment(0)));                     // segments [0–4] [0–4 again] [8–12]
+        var map = FilmTimeMap.Of(editor.Take, _ => 10d);
+        var key0 = editor.Take.Keys[0];
+
+        onScreen = map.Segments[1];                                                     // the runner is in the replay
+        Assert.True(map.Segments[1].Back);
+        Assert.True(tracks.Camera.Key('U', 3.0));
+        Assert.Equal(key0, editor.Take.Keys[0]);                                        // ⭐ the main pass's key is untouched …
+        var own = editor.Take.Keys[^1];
+        Assert.Equal(("s1", 2d, pilot), (own.Segment, own.At.Offset, own.Camera));      // … the replay has its own, from where key 0 took the screen
+        Assert.Equal("s1", editor.Take.Segments[1].Id);
+        Assert.Null(editor.Take.Segments[0].Id);
+        int count = editor.Take.Keys.Count;
+        pilot = Look(88f);
+        Assert.True(tracks.Camera.Key('U', 3.0));                                        // its own key is on screen now: changed in place
+        Assert.Equal(count, editor.Take.Keys.Count);
+        Assert.Equal(pilot, editor.Take.Keys[^1].Camera);
+        Assert.True(tracks.Camera.Key('K', 3.5));                                        // K: a key of the replay at the playhead
+        Assert.Equal(("s1", 3.5), (editor.Take.Keys[^1].Segment, editor.Take.Keys[^1].At.Offset));
+
+        var item = tracks.Camera.Items.Single(i => i.Id == "key:" + (editor.Take.Keys.Count - 1));
+        Assert.Equal(DirectorTracks.ScopedKeyColour, item.Colour);
+        Assert.EndsWith("| segment s1", item.Label);
+        Assert.Null(tracks.Camera.Items.Single(i => i.Id == "key:0").Colour);
+
+        onScreen = map.Segments[0];                                                     // the main pass: as before
+        Assert.True(tracks.Camera.Key('K', 3.7));
+        Assert.Null(editor.Take.Keys[^1].Segment);
+        Assert.True(editor.Apply(new TakeEdit.RemoveKey(editor.Take.Keys.Count - 1)));
+
+        Assert.True(editor.Apply(new TakeEdit.RemoveSegment(1)));                       // the replay goes, and its keys with it
+        Assert.DoesNotContain(editor.Take.Keys, k => k.Segment != null);
+        undo.Undo(null!);
+        Assert.Equal(2, editor.Take.Keys.Count(k => k.Segment == "s1"));
+        undo.Undo(null!); undo.Undo(null!); undo.Undo(null!); undo.Undo(null!); undo.Undo(null!);   // remove-key, K, K, U, U
+        Assert.Null(editor.Take.Segments[1].Id);                                        // the id came with the first scoped key's undo step
+        Assert.DoesNotContain(editor.Take.Keys, k => k.Segment != null);
+    }
 }

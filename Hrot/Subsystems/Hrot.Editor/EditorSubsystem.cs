@@ -1236,14 +1236,8 @@ namespace Hrot.Editor
             return Hrot.UI.Common.Map3D.Director.EventAnchors.NearestBefore(index, sim, UnitNameOf);
         }
 
-        private string? UnitNameOf(long networkId)
-        {
-            if (_world is not { } world) return null;
-            var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, networkId);
-            if (e.IsNull || !world.IsAlive(e) || !world.HasComponent<EntityInfo>(e)) return null;
-            var name = world.GetComponentRO<EntityInfo>(e).Name.ToString();
-            return name.Length > 0 ? name : null;
-        }
+        // ⭐ CE-4059 (§11q D3) — the ONE network-id → name reading, shared with the Replay Browser
+        private string? UnitNameOf(long networkId) => Hrot.UI.Common.Map3D.Director.DirectorUnits.NameOf(_world, networkId);
 
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
@@ -2512,7 +2506,10 @@ namespace Hrot.Editor
                             () => _debugApiService)),
                     WindowTabs: new Hrot.UI.Common.Map3D.Director.IDirectorWindowTab[] { new Hrot.Editor.Director.VerifyTab() },
                     EventAt:   EventAnchorAt,
-                    TitleBarColor: Hrot.Editor.Windows.EditorWindowColor.TitleBar));
+                    TitleBarColor: Hrot.Editor.Windows.EditorWindowColor.TitleBar,
+                    // ⭐ CE-4059 (§11q D1) — the drafter over the index the Event Timeline shows, a take of the loaded scenario
+                    Index:     () => _node?.ShownTimeline?.Index,
+                    Scenario:  () => _editorLogic?.LoadedScenarioName));
                 _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 

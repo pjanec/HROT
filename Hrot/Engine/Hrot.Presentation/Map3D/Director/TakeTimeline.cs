@@ -24,7 +24,7 @@ public sealed record ProgramFrame(CameraKey Key, CameraKey? From, float Blend, f
 /// <see cref="Speed"/> sim seconds per film second from film second <see cref="FilmStart"/>. <see cref="Back"/>: it starts before where the segment
 /// before it ended — an instant replay (a seekable source seeks back; a live one cannot).
 /// </summary>
-public sealed record FilmSegment(int Number, double From, double To, double Speed, SegmentGap Gap, double FilmStart, bool Back)
+public sealed record FilmSegment(int Number, double From, double To, double Speed, SegmentGap Gap, double FilmStart, bool Back, string? Id = null)
 {
     public double FilmSeconds => (To - From) / Speed;
     public double FilmEnd => FilmStart + FilmSeconds;
@@ -76,7 +76,7 @@ public sealed class FilmTimeMap
                 continue;
             }
             if (!(to > from + 1e-9) || !(s.Speed > 0)) { unresolved.Add($"segment {i + 1}: from {from:0.###} is not before to {to:0.###}"); continue; }
-            var seg = new FilmSegment(i + 1, from, to, s.Speed, s.Gap, film, lastTo is { } prev && from < prev - 1e-6);
+            var seg = new FilmSegment(i + 1, from, to, s.Speed, s.Gap, film, lastTo is { } prev && from < prev - 1e-6, s.Id);
             placed.Add(seg);
             film = seg.FilmEnd;
             lastTo = to;

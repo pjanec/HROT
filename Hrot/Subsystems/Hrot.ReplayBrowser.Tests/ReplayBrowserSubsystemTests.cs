@@ -109,6 +109,11 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.True(after == 200, afterBody);
         Assert.Contains("\"phase\"", afterBody);
         Assert.Same(pack!.Runner, _subsystem.Director!.Runner);                   // the one the browser ticks and its window drives
+        // ⭐ CE-4059 — the one attach carries the pack's drafter too (moments / draft); 🔴 mutation: AttachDirector(pack) drops pack.Drafts ⇒ 503
+        Assert.NotNull(pack.Drafts);
+        var (moments, momentsBody) = await Get("/director/moments");          // no recording open: the DRAFTER answers (no index yet), not "no director"
+        Assert.True(moments != 503, momentsBody);
+        Assert.Contains("no timeline index is shown yet", momentsBody);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -1537,7 +1542,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
     /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the
     /// keyframe) whose meta names its scenario <c>s-film</c>, under <paramref name="dir"/>.</summary>
-    private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null)
+    private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null, bool named = false)
     {
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, "node_1.fdp");
@@ -1545,6 +1550,16 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
         repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
+        if (named)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
+        {
+            repo.RegisterComponent<EntityInfo>();
+            foreach (var (id, name) in new[] { (1L, "Alpha"), (2L, "Bravo") })
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new NetworkIdentity { Value = id });
+                repo.AddComponent(e, new EntityInfo { Name = new FixedString64(name) });
+            }
+        }
         using (var rec = new AsyncRecorder(path, meta))
         {
             long t0 = TimeSpan.FromSeconds(1).Ticks;
@@ -1573,11 +1588,11 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     };
 
     /// <summary>Opens a 6 s recording on a headless browser and saves <see cref="TwoShotTake"/> BESIDE it (TE-1) through the pack's store.</summary>
-    private (Hrot.UI.Common.Map3D.Director.DirectorPack Pack, string Dir) OpenFilmRecording(string name)
+    private (Hrot.UI.Common.Map3D.Director.DirectorPack Pack, string Dir) OpenFilmRecording(string name, bool named = false)
     {
         Hrot.UI.Common.Map3D.FilmStudio.Reset();
         string dir = Path.Combine(_tempDir, name, "exercises", Guid.NewGuid().ToString());
-        string path = RecordFilmRun(dir, 6d);
+        string path = RecordFilmRun(dir, 6d, named: named);
         _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
         _subsystem.Initialize(HeadlessConfig());
         Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { path }, 0));
@@ -1822,6 +1837,93 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.InRange(seen[cut].Sim - step, 1d - 1e-6, 1d + 1e-6);                           // … then ONE frame later the replay's first, at source 1.0
         Assert.InRange(seen[^1].Sim, 2d - step, 2d + step);                                    // the film ends with the replay
         Assert.Equal(1, Enumerable.Range(1, seen.Count - 1).Count(i => seen[i].Sim < seen[i - 1].Sim - 1e-6));   // one cut back, nothing else goes back
+    }
+
+    private static readonly Vector3 ReplayKeyAt = new(-7f, -7f, 0f);
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> / CR-7 (docs/DESIGN_Director_Timeline_Editor.md §11q K1, success condition 1 — the RB rail on a REAL recording): <see cref="TwoShotTake"/>
+    /// with segments <c>main</c> [0–5] and <c>replay</c> [1–2.5] (back), plus a key OF THE REPLAY at 1.5 s — inside the main pass. Through the main pass the
+    /// recording's frames never show the replay's key (1.5–3 s is key 1); the replay (the playhead sought back to 1) shows key 1 until 1.5 s, then its own key to
+    /// its end. 🔴 Mutation: the runner looking the camera up among ALL keys (<c>DirectUpcoming</c> over <c>_keys</c>) ⇒ the main pass shows the replay's key ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4059_CR7_AKeyOfTheReplay_IsSeenOnlyInTheReplay_OverARecording()
+    {
+        var (pack, _) = OpenFilmRecording("scoped");
+        var take = TwoShotTake();
+        pack.Takes.Save(take with
+        {
+            Keys = take.Keys.Append(new Hrot.UI.Common.Map3D.Director.CameraKey
+            {
+                At = new Hrot.UI.Common.Map3D.Director.AtExpr(1.5), Segment = "replay",
+                Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = ReplayKeyAt, Distance = 20f },
+            }).ToList(),
+            Segments = new[] { Seg(0, 5) with { Id = "main" }, Seg(1, 2.5) with { Id = "replay" } },
+        });
+        var runner = pack.Runner;
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d, Cinema: false)));
+        UntilPlaying(runner);
+        var seen = new List<(double Sim, double Film, Vector3? Camera)>();
+        for (int i = 0; i < 800 && runner.Busy; i++)
+        {
+            double film = runner.FilmTime;
+            double sim = Frame();
+            if (runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing) seen.Add((sim, film, Camera()));
+        }
+        var report = runner.Reports[0];
+        Assert.True(report.Status == "ok", $"{report.Status}: {string.Join("; ", report.Problems)}");
+
+        const double step = 1d / 60;
+        var main = seen.Where(s => s.Film < 5d - step).ToList();
+        var replay = seen.Where(s => s.Film > 5d + step).ToList();
+        Assert.True(main.Count > 200, $"main pass frames {main.Count}");
+        Assert.True(replay.Count > 60, $"replay frames {replay.Count}");
+        Assert.DoesNotContain(main, s => s.Camera == ReplayKeyAt);                                          // ⭐ the main pass never uses the replay's key
+        Assert.All(main.Where(s => s.Sim > 1.5 + step && s.Sim < 3 - step), s => Assert.Equal(Key1At, s.Camera));
+        Assert.All(replay, s => Assert.InRange(s.Sim, 1d - step, 2.5 + step));                              // the playhead went back to 1 …
+        Assert.All(replay.Where(s => s.Sim < 1.5 - step), s => Assert.Equal(Key1At, s.Camera));
+        var own = replay.Where(s => s.Sim > 1.5 + step).ToList();
+        Assert.True(own.Count > 30, $"replay frames after 1.5 s: {own.Count}");
+        Assert.All(own, s => Assert.Equal(ReplayKeyAt, s.Camera));                                         // … and its own key took over at 1.5
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> P3 (§11q D1, success condition 4 — the RB host rail): the Replay Browser's Event Timeline gets the director's EVENT menu from the pack (the
+    /// browser wires nothing of its own); <i>"Draft a shot sequence here"</i> on a shot of the index the panel draws opens the drafter's take — the names from the
+    /// RECORDING's world (Alpha → Bravo), a take of the scenario the recording names (<c>s-film</c>) — in the session, unsaved, and the next Play plays it.
+    /// 🔴 Mutation: the browser not handing the pack its index (<c>Index:</c> omitted in <c>AttachDirector</c>) ⇒ no drafts, no <c>EventMenu</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4059_P3_DraftHere_OnTheReplayBrowsersTimeline_OpensTheDraft()
+    {
+        var (pack, _) = OpenFilmRecording("draft", named: true);
+        Assert.NotNull(pack.Drafts);
+        Assert.Equal("s-film", pack.Drafts!.Scenario);
+        Assert.Equal("Alpha", pack.Drafts.NameOf(1));
+
+        // the index the panel draws (one shot Alpha → Bravo at 2 s; the recording's own index has no combat lanes)
+        var shot = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(120, "combat.shot", 1, 2, 0f, 0f, 1f);
+        var index = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(
+            new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent>> { ["combat.shot"] = new(new[] { shot }) },
+            new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<long>(Enumerable.Range(0, 361).Select(f => (long)f * TimeSpan.TicksPerSecond / 60).ToArray()), 361, 361, null,
+            new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<double>(Enumerable.Range(0, 361).Select(f => f / 60d).ToArray()),
+            new Fdp.Toolkit.ReplayBrowser.Timeline.PositionTrack(new Dictionary<long, Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample[]>()));
+        var menu = _subsystem.EventTimeline.EventMenu!(index, new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuContext("combat.shot", 0, 120, shot));
+        var item = Assert.Single(menu);
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorDrafts.MenuLabel, item.Label);
+        Assert.True(item.Enabled);
+        item.Run();
+
+        var editor = pack.Session.Editor!;
+        Assert.Equal(("s-film", "draft"), (editor.Take.Scenario, editor.Take.Name));
+        Assert.True(editor.Dirty);
+        Assert.Equal(new[] { "shot:Alpha#1" }, editor.Take.Anchors.Keys);
+        Assert.Contains(editor.Take.Keys, k => k.Segment == Hrot.UI.Common.Map3D.Director.Drafter.ReplaySegmentId);
+        Assert.Same(editor.Take, pack.Runner.OpenTake!("s-film", "draft"));
+        Assert.Empty(pack.Runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "draft"), Speed: 1000d, Cinema: false)));
+        UntilPlaying(pack.Runner);
+        pack.Runner.Stop();
     }
 
     /// <summary>

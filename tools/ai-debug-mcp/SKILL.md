@@ -759,6 +759,10 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `director_get_checks({"scenario":"ua-tank-ammo"})` — read a scenario's checks.
 - **`director_put_checks`** — ⭐ CE-4042 — write a scenario's checks (authoring by an agent): refused, with every problem, when a key, a cue or a time is wrong. Written to the working copy AND the source tree. Req `scenario` (string), Req `expect` (array), `runFor?` (number), `golden?`, `anchors?` (object), `do?` (array), `sampleEvery?` (number). Returns { saved[], expect, anchors, do, golden }
   Example: `director_put_checks({"scenario":"ua-tank-ammo","runFor":60,"expect":[{"name":"fires","on":"shot","by":"Tank"}]})` — write a scenario's checks.
+- **`director_draft`** — ⭐ CE-4059 (CR-8) — draft a shot sequence on one event of the shown index (establish, set-up, the moment, consequence, and a slow replay from the reverse angle) and OPEN it in the take session as a new, unsaved take — exactly what right-clicking the event and choosing "Draft a shot sequence here" does. Req `lane` (string), Req `eventIndex` (integer), `replay?` (boolean). Returns { scenario, take, opened, saved: false, keys, segments, json }
+  Example: `director_draft({"lane":"combat.shot","eventIndex":0})` — draft a take on the first shot.
+- **`director_moments`** — ⭐ CE-4059 (CR-8) — the moments the drafter can film in the index the Event Timeline shows: every first shot of a shooter at a target, every hit, every blast, scored (blast 3 + damage/100, hit 2, shot 1), a moment within 2 s after another merged into it, in time order. No params. Returns { scenario, count, moments[{ lane, eventIndex, frame, sim, actor, actorName, subject, subjectName, score }] }
+  Example: `director_moments({})` — list the moments the drafter can film.
 - **`director_next`** — ⭐ CE-4038 — end this reel item (reported as stopped) and go on to the next. No params. Returns the director's status
   Example: `director_next({})` — skip to the next take.
 - **`director_pause`** — ⭐ CE-4038 — pause the live show (⚠ a paused frame changes the run — the report says so). No params. Returns the director's status

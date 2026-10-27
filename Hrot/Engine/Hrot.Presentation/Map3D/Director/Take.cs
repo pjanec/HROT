@@ -136,6 +136,12 @@ public sealed record CameraKey
     public KeyTransition In { get; init; } = KeyTransition.Cut;
     public float? Fov { get; init; }
     public string? Still { get; init; }
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> / CR-7 (docs/DESIGN_Director_Timeline_Editor.md §11q) — the <see cref="TimeSegment.Id"/> of the ONE segment this key belongs to (null = every
+    /// pass, as before). A scoped key is placed at its real SOURCE time and is looked up only while its segment plays (<see cref="CameraKeys.OnScreenIn"/>),
+    /// so a replay's reverse angle can sit inside the stretch the main pass also plays without cutting it.
+    /// </summary>
+    public string? Segment { get; init; }
 }
 
 /// <summary>⭐ <c>TE-2</c> — what the film shows where a <see cref="TimeSegment"/> ends and the next begins: a hard cut or a dip to black.</summary>
@@ -147,6 +153,9 @@ public enum SegmentGap : byte { Cut, Dip }
 /// </summary>
 public sealed record TimeSegment
 {
+    /// <summary>⭐ <c>CE-4059</c> / CR-7 (§11q) — the name a scoped key uses (<see cref="CameraKey.Segment"/>); null = no key can name it. Stable under a reorder
+    /// or an insert (a list position is not); unique within the take (the reader names a duplicate).</summary>
+    public string? Id { get; init; }
     public AtExpr From { get; init; }
     public AtExpr To { get; init; }
     public double Speed { get; init; } = 1d;
@@ -242,6 +251,32 @@ public static class CameraKeys
         var keys = new List<CameraKey>();
         foreach (var shot in laidOut.Shots) AddShot(keys, shot.Shot, new AtExpr(shot.Start));
         return keys;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4059</c> / CR-7 (docs/DESIGN_Director_Timeline_Editor.md §11q K1) — the keys the camera is looked up among while segment <paramref name="segmentId"/>
+    /// plays (null: no segment plays, or the one playing has no id): the UNSCOPED keys, and — when the segment owns keys — its OWN keys, which take over from the
+    /// first of them for the rest of that segment (an unscoped key placed after it is not seen there). A key scoped to ANOTHER segment is never seen.
+    /// <para>⛔ Not "unscoped ∪ own, by time": the drafter's replay key sits at t−1 and the main pass's moment key at t−0.7 — the union would cut back to the
+    /// main angle 0.3 s into the replay.</para>
+    /// </summary>
+    public static IReadOnlyList<CameraKey> OnScreenIn(IReadOnlyList<CameraKey> keys, string? segmentId, Func<string, double?> anchorTime)
+    {
+        bool scoped = false;
+        foreach (var k in keys) if (k.Segment != null) { scoped = true; break; }
+        if (!scoped) return keys;   // ⭐ every take before CR-7 keys: the same list, untouched
+        double? first = null;
+        if (segmentId != null)
+            foreach (var k in keys)
+                if (k.Segment == segmentId && k.At.Resolve(anchorTime) is { } at && (first is null || at < first)) first = at;
+        var list = new List<CameraKey>(keys.Count);
+        foreach (var k in keys)
+        {
+            if (k.Segment != null) { if (k.Segment == segmentId) list.Add(k); continue; }
+            if (first is { } f && !(k.At.Resolve(anchorTime) is { } at && at < f - 1e-9)) continue;   // muted from the segment's own first key on
+            list.Add(k);
+        }
+        return list;
     }
 
     private static void AddShot(List<CameraKey> keys, ShotSpec s, AtExpr start)

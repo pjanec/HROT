@@ -22,6 +22,8 @@ namespace Hrot.UI.Common.Map3D.Director
     /// <param name="EventAt">CR-6: the nearest event of THIS host's timeline index (K hangs the key on it); null = no index.</param>
     /// <param name="TitleBarColor">The host's title-bar colour for the window.</param>
     /// <param name="Perspective">⭐ CE-1303 P2a (§11m D11) — the perspective the Director window belongs to (the editor's "Scenario", the RB's "ReplayBrowser").</param>
+    /// <param name="Index">⭐ CE-4059 (§11q D1) — the index THIS host's Event Timeline shows (the editor's live / review index, the recording's); null = no drafts.</param>
+    /// <param name="Scenario">⭐ CE-4059 — the scenario the shown run belongs to (a draft is a take of it).</param>
     public sealed record DirectorPackHost(
         IDirectorHost Host,
         Func<WindowManager?> Wm,
@@ -33,7 +35,9 @@ namespace Hrot.UI.Common.Map3D.Director
         IReadOnlyList<IDirectorWindowTab>? WindowTabs = null,
         Func<double, EventAnchor?>? EventAt = null,
         Vector4? TitleBarColor = null,
-        string Perspective = "Scenario");
+        string Perspective = "Scenario",
+        Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex?>? Index = null,
+        Func<string?>? Scenario = null);
 
     /// <summary>
     /// ⭐ <c>CE-1303</c> P1 (§11j, CR-2) — the ONE registrar of the film director: builds the runner (with the window / layer / audio / frame
@@ -43,10 +47,13 @@ namespace Hrot.UI.Common.Map3D.Director
     public sealed class DirectorPack
     {
         private DirectorPack(DirectorRunner runner, DirectorTakeSession session, DirectorWindow window, MapLayerOverride layers, WindowCinema cinema, TakeStore takes,
-                             Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl)
+                             Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl, DirectorDrafts? drafts)
         {
-            Takes = takes; Runner = runner; Session = session; Window = window; Layers = layers; Cinema = cinema; LayerControl = layerControl;
+            Takes = takes; Runner = runner; Session = session; Window = window; Layers = layers; Cinema = cinema; LayerControl = layerControl; Drafts = drafts;
         }
+
+        /// <summary>⭐ CE-4059 (§11q) — the drafter over this host's shown index (null: the host handed no index): the event menu's item and the editor's routes.</summary>
+        public DirectorDrafts? Drafts { get; }
 
         public DirectorRunner Runner { get; }
         /// <summary>The take open for editing (one <see cref="TakeEditor"/> shared by the window and the Event Timeline).</summary>
@@ -79,7 +86,15 @@ namespace Hrot.UI.Common.Map3D.Director
             runner.OpenTake = session.OpenTakeOf;
             var window = new DirectorWindow(() => runner, () => h.Host.Takes, session, h.WindowTabs, h.TitleBarColor, h.Perspective,
                                             playhead: () => h.Host.SimTime);
-            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers);
+            // ⭐ CE-4059 (§11q D1) — the drafter wired ONCE for every host: names and kinds from the host's world, the event menu on its Event Timeline
+            DirectorDrafts? drafts = null;
+            if (h.Index != null)
+            {
+                drafts = new DirectorDrafts(h.Index, id => DirectorUnits.NameOf(h.Host.World, id), id => DirectorUnits.KindOf(h.Host.World, id),
+                                            h.Scenario ?? (() => null), session);
+                h.Timeline.EventMenu = drafts.MenuItems;
+            }
+            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts);
         }
 
         /// <summary>The director's frame: once per host frame, after the routes drained and before the map's update (§0, R-3038).</summary>

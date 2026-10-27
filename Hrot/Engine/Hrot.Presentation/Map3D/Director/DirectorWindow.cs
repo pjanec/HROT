@@ -59,6 +59,7 @@ namespace Hrot.UI.Common.Map3D.Director
             var store = _store();
             if (runner == null || store == null) { ImGui.TextDisabled("The director is not available on this host."); return; }
 
+            if (_takes.Opened != _openedSeen && _takes.Editor != null) _pick = PickTake;   // ⭐ CE-4059 — a take opened elsewhere (a draft): show it
             if (ImGui.RadioButton("Reel", _pick == PickReel)) _pick = PickReel;
             ImGui.SameLine();
             if (ImGui.RadioButton("One take", _pick == PickTake)) _pick = PickTake;
@@ -93,7 +94,7 @@ namespace Hrot.UI.Common.Map3D.Director
             }
             else
             {
-                var all = store.AllTakes();
+                var all = WithOpenTake(store.AllTakes());
                 if (all.Count == 0) ImGui.TextDisabled("No takes (scenarios/<name>/takes/*.take.json).");
                 else
                 {
@@ -145,6 +146,31 @@ namespace Hrot.UI.Common.Map3D.Director
             ImGui.EndDisabled();
 
             DrawStatus(runner);
+        }
+
+        private int _openedSeen;
+
+        /// <summary>
+        /// ⭐ CE-4059 (§11q D2) — the takes to pick from: the store's, plus the session's OPEN take when it is not saved yet (a draft); and when the session has opened
+        /// a take since the last frame, the pick moves to it (One take), so a draft opened from the Event Timeline is the one Play plays.
+        /// </summary>
+        private IReadOnlyList<(string Scenario, IReadOnlyList<string> Takes)> WithOpenTake(IReadOnlyList<(string Scenario, IReadOnlyList<string> Takes)> all)
+        {
+            var list = all.ToList();
+            if (_takes.Editor?.Take is { } open)
+            {
+                int si = list.FindIndex(x => x.Scenario == open.Scenario);
+                if (si < 0) { list.Add((open.Scenario, new[] { open.Name })); list = list.OrderBy(x => x.Scenario, StringComparer.Ordinal).ToList(); si = list.FindIndex(x => x.Scenario == open.Scenario); }
+                else if (!list[si].Takes.Contains(open.Name)) list[si] = (open.Scenario, list[si].Takes.Append(open.Name).ToList());
+                if (_takes.Opened != _openedSeen)
+                {
+                    _openedSeen = _takes.Opened;
+                    _pick = PickTake;
+                    _scenario = si;
+                    _take = list[si].Takes.ToList().IndexOf(open.Name);
+                }
+            }
+            return list;
         }
 
         /// <summary>⭐ CE-1364 T3 — open the picked take on the Event Timeline's Camera / Time tracks (one <see cref="TakeEditor"/>, shared with the panel); save · close · undo · redo.</summary>

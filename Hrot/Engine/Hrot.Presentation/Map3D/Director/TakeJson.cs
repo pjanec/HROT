@@ -29,10 +29,10 @@ public static class TakeJson
     private static readonly HashSet<string> KeyKeys = new(StringComparer.Ordinal)
     {
         "at", "follow", "over", "toward", "look_at", "lookAt", "eye", "target", "distance", "yaw", "pitch", "orbit", "lift",
-        "back", "height", "ahead", "fov", "in", "still",
+        "back", "height", "ahead", "fov", "in", "still", "segment",
     };
 
-    private static readonly HashSet<string> SegmentKeys = new(StringComparer.Ordinal) { "from", "to", "speed", "gap" };
+    private static readonly HashSet<string> SegmentKeys = new(StringComparer.Ordinal) { "id", "from", "to", "speed", "gap" };
 
     /// <summary>⭐ <c>CE-1303</c> P2b — CR-11 (§5, §11o) — a subtitle's keys.</summary>
     private static readonly HashSet<string> SubtitleKeys = new(StringComparer.Ordinal) { "at", "until", "text", "position", "fade" };
@@ -69,6 +69,13 @@ public static class TakeJson
             for (int i = 0; i < sarr.Count; i++)
                 if (sarr[i] is JsonObject g) { if (ParseSegment(g, i + 1, problems) is { } seg) segments.Add(seg); }
                 else problems.Add($"segment {i + 1} is not an object");
+
+        // ⭐ CE-4059 / CR-7 (§11q) — a segment id is unique; a key names a segment the take has
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var g in segments)
+            if (g.Id is { } id && !ids.Add(id)) problems.Add($"segment id '{id}' is used twice");
+        for (int i = 0; i < keys.Count; i++)
+            if (keys[i].Segment is { } seg && !ids.Contains(seg)) problems.Add($"key {i + 1}: segment '{seg}' is not a segment of the take");
 
         var subtitles = new List<Subtitle>();
         if (json["subtitles"] is JsonArray tarr)
@@ -140,6 +147,7 @@ public static class TakeJson
             Camera = camera, Fov = camera.Fov,
             In = ParseTransition(k["in"], where, problems),
             Still = Str(k["still"]),
+            Segment = Str(k["segment"]),   // ⭐ CE-4059 / CR-7 (§11q) — the segment it belongs to (absent: every pass)
         };
     }
 
@@ -190,7 +198,7 @@ public static class TakeJson
         var gap = SegmentGap.Cut;
         if (Str(g["gap"]) is { } gp && !Enum.TryParse(gp, ignoreCase: true, out gap)) problems.Add($"{where}: gap '{gp}' (cut, dip)");
         if (from is not { } f || to is not { } t) return null;
-        return new TimeSegment { From = f, To = t, Speed = speed, Gap = gap };
+        return new TimeSegment { Id = Str(g["id"]), From = f, To = t, Speed = speed, Gap = gap };
     }
 
     /// <summary>⭐ <c>CE-1303</c> P2b — CR-11: one subtitle — <c>at</c>, <c>until</c>, <c>text</c>, optional <c>position</c> (<c>"bottom"</c> | <c>"top"</c> |
@@ -358,13 +366,17 @@ public static class TakeJson
                 break;
         }
         if (k.Still != null) o["still"] = k.Still;
+        if (k.Segment != null) o["segment"] = k.Segment;
         return o;
     }
 
     /// <summary>⭐ <c>TE-2</c> — a segment as written (<c>speed</c> / <c>gap</c> only when they differ from 1 / cut).</summary>
     public static JsonObject WriteSegment(TimeSegment g)
     {
-        var o = new JsonObject { ["from"] = g.From.ToJson(), ["to"] = g.To.ToJson() };
+        var o = new JsonObject();
+        if (g.Id != null) o["id"] = g.Id;
+        o["from"] = g.From.ToJson();
+        o["to"] = g.To.ToJson();
         if (g.Speed != 1d) o["speed"] = g.Speed;
         if (g.Gap != SegmentGap.Cut) o["gap"] = "dip";
         return o;

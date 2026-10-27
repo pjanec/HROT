@@ -14,8 +14,9 @@ public abstract record TakeEdit
 {
     /// <summary>Camera key <paramref name="Index"/> (into <see cref="Take.Keys"/>) now at <paramref name="ToSim"/> sim seconds.</summary>
     public sealed record MoveKey(int Index, double ToSim) : TakeEdit;
-    /// <summary>A new camera key. CR-6: <paramref name="Anchor"/> is the index event the key's <c>At</c> hangs on — the take gets the anchor and its baked time in the SAME edit (one undo step).</summary>
-    public sealed record AddKey(CameraKey Key, EventAnchor? Anchor = null) : TakeEdit;
+    /// <summary>A new camera key. CR-6: <paramref name="Anchor"/> is the index event the key's <c>At</c> hangs on — the take gets the anchor and its baked time in the SAME edit (one undo step).
+    /// ⭐ <c>CE-4059</c> / CR-7 (§11q K3): <paramref name="Segment"/> (an index into <see cref="Take.Segments"/>) scopes the key to that segment — it gets an id in the same edit when it has none.</summary>
+    public sealed record AddKey(CameraKey Key, EventAnchor? Anchor = null, int? Segment = null) : TakeEdit;
     public sealed record RemoveKey(int Index) : TakeEdit;
     /// <summary>Segment <paramref name="Index"/>: <paramref name="Edge"/> now at <paramref name="ToSim"/> (<see cref="SegmentEdge.Whole"/>: its start, same length).</summary>
     public sealed record MoveSegment(int Index, SegmentEdge Edge, double ToSim) : TakeEdit;
@@ -69,13 +70,14 @@ public sealed class TakeEditor
 
     private readonly TakeStore? _store;
     private readonly GizmoUndoStack _undo;
-    private Take _saved;
+    private Take? _saved;
 
-    public TakeEditor(TakeStore? store, Take take, GizmoUndoStack undo)
+    /// <param name="unsaved">⭐ <c>CE-4059</c> (§11q D2) — the take was never written (a draft): it is <see cref="Dirty"/> from the start, so Save writes it.</param>
+    public TakeEditor(TakeStore? store, Take take, GizmoUndoStack undo, bool unsaved = false)
     {
         _store = store;
         Take = take ?? throw new ArgumentNullException(nameof(take));
-        _saved = take;
+        _saved = unsaved ? null : take;
         _undo = undo ?? throw new ArgumentNullException(nameof(undo));
     }
 
@@ -119,7 +121,7 @@ public sealed class TakeEditor
         switch (edit)
         {
             case TakeEdit.MoveKey m: after = MoveKey(basis, m); what = "Move camera key"; break;
-            case TakeEdit.AddKey a: after = WithAnchor(basis, a.Anchor) with { Keys = basis.Keys.Append(a.Key).ToList() }; what = "Add camera key"; break;
+            case TakeEdit.AddKey a: after = AddKey(WithAnchor(basis, a.Anchor), a); what = "Add camera key"; break;
             case TakeEdit.RemoveKey r: after = RemoveKey(basis, r); what = "Delete camera key"; break;
             case TakeEdit.SetKeyCamera c: after = SetKeyCamera(basis, c); what = "Update key from view"; break;
             case TakeEdit.MoveSegment s: after = MoveSegment(basis, s); what = "Move time segment"; break;
@@ -222,6 +224,26 @@ public sealed class TakeEditor
         return take with { Keys = keys };
     }
 
+    /// <summary>⭐ CR-7 (§11q K3) — the key appended; scoped to segment <c>a.Segment</c> when given (null when there is no such segment), which gets an id here if it has none.</summary>
+    private static Take? AddKey(Take take, TakeEdit.AddKey a)
+    {
+        var key = a.Key;
+        if (a.Segment is { } i)
+        {
+            if ((uint)i >= (uint)take.Segments.Count) return null;
+            var seg = take.Segments[i];
+            if (seg.Id is null)
+            {
+                int n = 1;
+                while (take.Segments.Any(s => s.Id == "s" + n)) n++;
+                seg = seg with { Id = "s" + n };
+                take = take with { Segments = Replace(take.Segments, i, seg) };
+            }
+            key = key with { Segment = seg.Id };
+        }
+        return take with { Keys = take.Keys.Append(key).ToList() };
+    }
+
     private static Take? RemoveKey(Take take, TakeEdit.RemoveKey r)
     {
         if ((uint)r.Index >= (uint)take.Keys.Count) return null;
@@ -234,8 +256,10 @@ public sealed class TakeEditor
     {
         if ((uint)r.Index >= (uint)take.Segments.Count) return null;
         var segments = take.Segments.ToList();
+        var gone = segments[r.Index].Id;
         segments.RemoveAt(r.Index);
-        return take with { Segments = segments };
+        // ⭐ CR-7 (§11q K4) — the keys of a deleted segment go with it (same undo step): no other pass could ever show them
+        return take with { Segments = segments, Keys = gone is null ? take.Keys : take.Keys.Where(k => k.Segment != gone).ToList() };
     }
 
     private static Take? MoveSegment(Take take, TakeEdit.MoveSegment s)
@@ -284,7 +308,7 @@ public sealed class TakeEditor
     {
         if ((uint)r.Index >= (uint)take.Segments.Count) return null;
         var list = take.Segments.ToList();
-        list.Insert(r.Index + 1, list[r.Index] with { Gap = SegmentGap.Cut });
+        list.Insert(r.Index + 1, list[r.Index] with { Gap = SegmentGap.Cut, Id = null });   // ⭐ §11q — a copy has no id: the original's keys stay the original's
         return take with { Segments = list };
     }
 
