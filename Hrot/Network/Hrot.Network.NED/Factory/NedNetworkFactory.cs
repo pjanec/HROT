@@ -96,7 +96,6 @@ public sealed class NedNetworkFactory : INetworkFactory
                participant:       _participant,
                role:              _role,
                entityMap:         _entityMap,
-               geoTransform:      _geoTransform,
                // Use world bus when available so ingress translators publish ECS commands
                // (DestroyEntityCommand, UpdateEntityCommand) to the same bus that
                // NetworkSpawningSystem reads from.  Falls back to _eventBus in contexts
@@ -119,14 +118,14 @@ public sealed class NedNetworkFactory : INetworkFactory
     public ICommandGateway CreateCommandGateway()
     {
         if (_participant == null) return new NullCommandGateway();
-        return new Hrot.Map.Common.Commands.NedCommandGateway(_participant, _localNodeId, _geoTransform);
+        return new Hrot.Map.Common.Commands.NedCommandGateway(_participant, _localNodeId);
     }
 
     /// <inheritdoc/>
     public IExConEgressWriters CreateExConEgressWriters()
     {
         if (_participant == null) return new NullExConEgressWriters();
-        return new Hrot.Network.NED.ExCon.NedExConEgressWriters(_participant, geoTransform: _geoTransform);
+        return new Hrot.Network.NED.ExCon.NedExConEgressWriters(_participant);
     }
 
     /// <inheritdoc/>
@@ -159,12 +158,12 @@ public sealed class NedNetworkFactory : INetworkFactory
         {
             // ⭐⭐ AX-014 — the JSON compiler is no longer built here. 📌 It used to be, while the BINARY
             //    interpreter was not built at all (AX-012) — one factory line supplying one arm and silently
-            //    omitting its sibling. ⇒ the constructor now defaults BOTH from `_geoTransform`, so this call
+            //    omitting its sibling. ⇒ the constructor now defaults BOTH (from the WORLD), so this call
             //    site cannot disable either by omission. ⛔ Do not "helpfully" pass them back in.
             new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
-                _participant, _entityMap, _geoTransform),
+                _participant, _entityMap),
             new Hrot.Map.Common.Replication.Ingress.UpdateEntityDescriptorRequestSystem(
-                _participant, _entityMap, _geoTransform),
+                _participant, _entityMap),
         };
     }
 
@@ -190,7 +189,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
         => participant == null
            ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
-           : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId, _geoTransform);
+           : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
 
     /// <inheritdoc/>
     public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
@@ -205,7 +204,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         if (participant == null)
             yield break;
 
-        yield return new NedMapClickIngressHandler(participant, onMapClick, localNodeId: localNodeId, geoTransform: _geoTransform);
+        yield return new NedMapClickIngressHandler(participant, onMapClick, localNodeId: localNodeId);
         yield return new NedSelectionChangedIngressHandler(participant, onSelectionChanged);
         yield return new NedEntityLifecycleAckIngressHandler(participant, onEntityLifecycleAck, localNodeId: localNodeId);
         yield return new NedMapCommandAckIngressHandler(participant, onMapCommandAck, localNodeId: localNodeId);
@@ -261,7 +260,6 @@ public sealed class NedNetworkFactory : INetworkFactory
     public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
         DdsParticipant participant,
         FdpEventBus bus,
-        IGeographicTransform geoTransform,
         long nodeId)
     {
         // ⛔⛔ SpawnEntityCommandEgressTranslator is NO LONGER REGISTERED (host (f), 2026-09-02).
@@ -283,7 +281,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         //    running — "no rush removals". 📄 DESIGN_Entity_Creation_Unification.md §3.4b.
         return new IDescriptorTranslator[]
         {
-            new UpdateEntityCommandEgressTranslator(participant, bus, _entityMap, geoTransform, nodeId),
+            new UpdateEntityCommandEgressTranslator(participant, bus, _entityMap, nodeId),
             // ⭐ CE-2247 — DestroyEntityCommandEgressTranslator moved to SharedTranslatorPack: every node forwards a destroy it cannot
             //   dispose (R-3015), not the IG alone.
         };
@@ -299,18 +297,18 @@ public sealed class NedNetworkFactory : INetworkFactory
         var capabilitiesReader = new DdsReader<NodeCapabilitiesTopic>(_participant);   // CE-285 (C-cap)
 
         return new NedCgfEntityLifecycleAdapters(
-            requestSource:      new NedEntityCreationRequestSource(_participant, _geoTransform),
+            requestSource:      new NedEntityCreationRequestSource(_participant),
             deleteSource:       new NedEntityDeletionRequestSource(_participant),
             ackSink:            new NedEntityAckSink(_participant),
             // D1: the forwarding half. Present on every NED host, so a request addressed elsewhere
             // leaves the node instead of being silently dropped by the Level-1 guard.
-            requestEgress:      new NedEntityCreationRequestEgress(_participant, _geoTransform),
+            requestEgress:      new NedEntityCreationRequestEgress(_participant),
             // ⭐⭐ S3 — push-only: every applicable role group goes to a node serving that role (CE-500).
             ownershipStrategy:  new RoleGroupOwnershipStrategy(
                                     clusterCache,
                                     Hrot.Map.Common.HrotOwnershipGroups.Table,
                                     Hrot.Network.Replication.NedOwnershipGroupBinding.GroupDescriptors),
-            jsonCompiler:       AttributeCompilerFactory.Build(_geoTransform),
+            jsonCompiler:       AttributeCompilerFactory.Build(),
             clusterCache:       clusterCache,
             heartbeatReader:    heartbeatReader,
             capabilitiesReader: capabilitiesReader);

@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Replication.Attributes;
 public static class AttributeVocabulary
 {
     /// <summary>
-    /// ⭐⭐⭐ <b>THE VOCABULARY.</b> ⚠ Six entries — ⛔ do not add one without the JSON setter in
+    /// ⭐⭐⭐ <b>THE VOCABULARY.</b> ⚠ ⛔ Do not add an entry without the JSON setter in
     /// <see cref="AttributeCompilerFactory.Build"/> and the handler in an installer.
     /// </summary>
     public static readonly IReadOnlyList<AttributeDefinition> All = new AttributeDefinition[]
@@ -50,15 +50,16 @@ public static class AttributeVocabulary
         //   rather than "FORCE_OPPOSING". ⭐ AX-018 made the edge compiler honour the token, so both cross.
         new("Affiliation",           AttributeIds.Affiliation, AttributeValueKind.CsString,  typeof(EntityInfo)),
 
-        // ⚠ RequiresGeoTransform: without an IGeographicTransform there is nothing to convert geodetic
-        //   coordinates WITH, so these three are not registered on the ECS side at all.
-        new("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueKind.CsFloat64, typeof(SimTransform), RequiresGeoTransform: true),
-        new("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.CsFloat64, typeof(SimTransform), RequiresGeoTransform: true),
-        new("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64, typeof(SimTransform), RequiresGeoTransform: true),
+        // ⭐⭐ CE-4073 (AQ107 B's tail, R-4092) — the position is LOCAL ENU METRES, the frame the NED wire speaks, so each axis is a plain
+        //   copy into SimTransform.Position: nothing to convert with, therefore NOTHING to gate on — these three exist on EVERY host.
+        //   🔴 They used to be three geodetic latitude / longitude / altitude paths (ids 10–12, retired), registered only when a host had an
+        //   IGeographicTransform ⇒ a host with no terrain silently dropped a position patch.
+        new("Position.X",            AttributeIds.PositionX,   AttributeValueKind.CsFloat64, typeof(SimTransform)),
+        new("Position.Y",            AttributeIds.PositionY,   AttributeValueKind.CsFloat64, typeof(SimTransform)),
+        new("Position.Z",            AttributeIds.PositionZ,   AttributeValueKind.CsFloat64, typeof(SimTransform)),
 
-        // ⭐⭐ Heading needs NO geo transform — a compass heading is already in the units the conversion takes
-        //    — so it is registered unconditionally. 📌 Q59-N1 renamed the id from GeoHeading, which had
-        //    advertised a "GeoPosition.Heading" path that does not exist.
+        // ⭐⭐ Heading is a compass heading, already in the units the conversion takes. 📌 Q59-N1 renamed the id from
+        //    GeoHeading, which had advertised a geodetic-prefixed heading path that does not exist.
         new("Heading",               AttributeIds.Heading,     AttributeValueKind.CsFloat64, typeof(SimTransform)),
         // ⭐ CE-3216 S1-0 (W-8) — the World Environment's clock: a new scenario start time, and its display offset.
         new("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    AttributeValueKind.CsInt64, typeof(Fdp.Toolkit.Weather.ScenarioClock)),
@@ -69,10 +70,6 @@ public static class AttributeVocabulary
         new("FrightFrom.Y",          AttributeIds.CivilianFrightFromY, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
         new("FrightFrom.Z",          AttributeIds.CivilianFrightFromZ, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
     };
-
-    /// <summary>⭐ The definitions active on a host, given whether it has a geographic transform.</summary>
-    public static IEnumerable<AttributeDefinition> For(bool hasGeoTransform)
-        => All.Where(d => hasGeoTransform || !d.RequiresGeoTransform);
 
     /// <summary>
     /// ⭐⭐ The distinct ECS components the attribute path writes.
@@ -103,7 +100,6 @@ public static class AttributeVocabulary
 /// category *(<c>AX-018</c>)*.
 /// </param>
 /// <param name="Component">⭐⭐ The ECS component written. This is the JOIN to the descriptor world.</param>
-/// <param name="RequiresGeoTransform">⭐ True when the path is unregisterable without an <c>IGeographicTransform</c>.</param>
 /// <param name="BrainLocal">⭐ CE-4024 — true when <see cref="Component"/> lives only on the node that runs the entity's brain and is never
 /// replicated (<c>CivilianState</c>): the attribute is applied there, and no translator republishes it — by design, not by omission.</param>
 public sealed record AttributeDefinition(
@@ -111,5 +107,4 @@ public sealed record AttributeDefinition(
     ushort AttributeId,
     AttributeValueKind Kind,
     Type Component,
-    bool RequiresGeoTransform = false,
     bool BrainLocal = false);

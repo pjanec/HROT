@@ -276,8 +276,8 @@ public class IosIgIntegrationTests
         ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Latitude             = 45.0,
-            Longitude            = 12.0
+            X             = 12.0,
+            Y            = 45.0
         });
         logic.Update();
 
@@ -295,8 +295,8 @@ public class IosIgIntegrationTests
         ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = Guid.NewGuid(), // Does not match active context.
-            Latitude             = 1.0,
-            Longitude            = 1.0
+            X             = 1.0,
+            Y            = 1.0
         });
         logic.Update();
 
@@ -317,8 +317,8 @@ public class IosIgIntegrationTests
             ig.ClickQueue.Enqueue(new MapClickEventDto
             {
                 InteractionContextId = ctx,
-                Latitude             = i,
-                Longitude            = i
+                X             = i,
+                Y            = i
             });
         }
         logic.Update();
@@ -332,22 +332,26 @@ public class IosIgIntegrationTests
         var ig = new IgStub();
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
         const long tkbType = 105L;
-        const double lat = 51.5;
-        const double lon = -0.1;
+        // ⭐ CE-4073 — the click is LOCAL ENU metres (east X, north Y); the command carries them UNCHANGED (rail (c), the console half).
+        const double x = -123.4;
+        const double y = 5678.9;
+        const double z = 12.5;
 
         logic.StartPlacementMode(tkbType);
         ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Latitude             = lat,
-            Longitude            = lon
+            X                    = x,
+            Y                    = y,
+            Z                    = z,
         });
         logic.Update();
 
         var cmd = ig.EgressCapture.WrittenCreateCommands.Single();
         Assert.Equal(tkbType, cmd.TkbType);
-        Assert.Equal(lat, cmd.Latitude,  5);
-        Assert.Equal(lon, cmd.Longitude, 5);
+        Assert.Equal(x, cmd.X, 9);
+        Assert.Equal(y, cmd.Y, 9);
+        Assert.Equal(z, cmd.Z, 9);
     }
 
     // ── SelectionChangedEventDto forwarding ───────────────────────────────────
@@ -493,8 +497,8 @@ public class IosSimHostIntegrationTests
         ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Latitude             = 48.9,
-            Longitude            = 2.3
+            X             = 2.3,
+            Y            = 48.9
         });
         logic.Update();
 

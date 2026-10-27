@@ -88,7 +88,6 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
         CycloneDDS.Runtime.DdsParticipant participant,
         Fdp.Core.FdpEventBus bus,
-        Fdp.Modules.Geographic.IGeographicTransform geoTransform,
         long nodeId)
         => System.Array.Empty<Fdp.Interfaces.IDescriptorTranslator>();
 

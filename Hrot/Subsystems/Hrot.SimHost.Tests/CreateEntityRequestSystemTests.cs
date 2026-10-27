@@ -912,7 +912,7 @@ namespace Hrot.SimHost.Tests
             };
             source.Enqueue(request);
 
-            var jsonCompiler = AttributeCompilerFactory.Build(null);
+            var jsonCompiler = AttributeCompilerFactory.Build();
             var idAlloc      = new StubIdAllocator(startId: 100);
             var ackSink      = new StubAckSink();
             var system       = new CreateEntityRequestSystem(

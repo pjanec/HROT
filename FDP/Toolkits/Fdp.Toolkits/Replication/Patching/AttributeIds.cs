@@ -48,25 +48,33 @@ public static class AttributeIds
     /// </summary>
     public const ushort Affiliation = 2;
 
-    // ── Range 100–199: Geo-spatial / positional ───────────────────────────────────
+    // ── Geo-spatial / positional ──────────────────────────────────────────────────
 
     /// <summary>
-    /// WGS-84 geodetic latitude in decimal degrees (<c>SimTransform</c>).
-    /// Value type: <c>AttributeValueType.Float64</c>.
+    /// ⛔ RESERVED — was <c>GeoLat</c> (WGS-84 latitude, degrees), retired by <c>CE-4073</c> (AQ107 B's tail, R-4092): every position the
+    /// attribute route carries is now LOCAL ENU metres (<see cref="PositionX"/>/<see cref="PositionY"/>/<see cref="PositionZ"/>), the
+    /// frame the NED wire already speaks. ⚠ Do NOT reuse 10 — a stale sender would be read as the wrong quantity.
     /// </summary>
-    public const ushort GeoLat = 10;
+    public const ushort RetiredGeoLat = 10;
+
+    /// <summary>⛔ RESERVED — was <c>GeoLon</c> (WGS-84 longitude, degrees), retired by <c>CE-4073</c>. ⚠ Do NOT reuse 11.</summary>
+    public const ushort RetiredGeoLon = 11;
+
+    /// <summary>⛔ RESERVED — was <c>GeoAlt</c> (WGS-84 altitude, metres), retired by <c>CE-4073</c>. ⚠ Do NOT reuse 12.</summary>
+    public const ushort RetiredGeoAlt = 12;
 
     /// <summary>
-    /// WGS-84 geodetic longitude in decimal degrees (<c>SimTransform</c>).
-    /// Value type: <c>AttributeValueType.Float64</c>.
+    /// ⭐⭐ <c>CE-4073</c> — local ENU <b>east</b> metres: <c>SimTransform.Position.X</c>. Value type: <c>Float64</c>.
+    /// The three axes are independent plain copies — a patch carrying only <c>Position.X</c> moves the entity east and leaves its
+    /// north and altitude alone — and they exist on EVERY host (nothing to convert with, so nothing to gate on).
     /// </summary>
-    public const ushort GeoLon = 11;
+    public const ushort PositionX = 14;
 
-    /// <summary>
-    /// WGS-84 altitude above the reference ellipsoid in metres (<c>SimTransform</c>).
-    /// Value type: <c>AttributeValueType.Float64</c>.
-    /// </summary>
-    public const ushort GeoAlt = 12;
+    /// <summary>⭐⭐ <c>CE-4073</c> — local ENU <b>north</b> metres: <c>SimTransform.Position.Y</c>. <c>Float64</c>. See <see cref="PositionX"/>.</summary>
+    public const ushort PositionY = 15;
+
+    /// <summary>⭐⭐ <c>CE-4073</c> — local ENU <b>up</b> metres: <c>SimTransform.Position.Z</c>. <c>Float64</c>. See <see cref="PositionX"/>.</summary>
+    public const ushort PositionZ = 16;
 
     /// <summary>
     /// ⭐⭐⭐ <b>Compass heading in degrees — <c>0 = North, 90 = East, clockwise</b></c> — applied to
@@ -87,7 +95,7 @@ public static class AttributeIds
     ///
     /// <para>⭐⭐ <b>RENAMED <c>GeoHeading</c> → <c>Heading</c> by <c>Q59-N1</c>.</b> 📐 The old name
     /// advertised a JSON path that does not exist: the route is <c>"Heading"</c>, and
-    /// <c>{"GeoPosition":{"Heading":…}}</c> applies <b>nothing, silently</b>. ⚠ The rename is
+    /// <c>{"Position":{"Heading":…}}</c> applies <b>nothing, silently</b>. ⚠ The rename is
     /// <b>source-only</b> — the wire carries the <c>ushort</c> <c>13</c> and no <c>.idl</c> names the
     /// constant — whereas renaming the PATH would be a breaking external contract change. 📄 <c>Q59</c> §8.2.</para>
     ///
@@ -96,9 +104,10 @@ public static class AttributeIds
     /// twice. ⛔ A radians-or-math-yaw id would be a second convention for one concept.</para>
     ///
     /// <para>⚠ <b>Numbering:</b> the class doc reserves 100–199 for geo-spatial, but the shipped
-    /// <c>Geo*</c> ids are 10/11/12 — a pre-existing doc/value mismatch. ⭐ This follows the VALUES and
-    /// takes <c>13</c>, keeping the family contiguous; ⛔ these ids are a WIRE schema, so renumbering the
-    /// existing three to match the prose is not a free edit and is not attempted here.</para>
+    /// position ids sit at 10–16 — a pre-existing doc/value mismatch. ⭐ This follows the VALUES and
+    /// takes <c>13</c>, keeping the family contiguous; ⛔ these ids are a WIRE schema, so renumbering
+    /// them to match the prose is not a free edit and is not attempted. <c>CE-4073</c> retired 10–12
+    /// and added <see cref="PositionX"/>–<see cref="PositionZ"/> at 14–16.</para>
     /// </summary>
     public const ushort Heading = 13;
 

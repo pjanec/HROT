@@ -39,7 +39,6 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly IDdsWriter<CreateEntityRequest> _writer;
         private readonly FdpEventBus _eventBus;
-        private readonly IGeographicTransform? _geoTransform;
         private readonly long _localNodeId;
 
         public string TopicName => DdsTopicName;
@@ -52,9 +51,8 @@ namespace Hrot.Map.Common.Replication.Egress
         public SpawnEntityCommandEgressTranslator(
             DdsParticipant participant,
             FdpEventBus eventBus,
-            IGeographicTransform? geoTransform,
             long localNodeId = 0)
-            : this(new DdsWriterAdapter<CreateEntityRequest>(participant, DdsTopicName), eventBus, geoTransform, localNodeId)
+            : this(new DdsWriterAdapter<CreateEntityRequest>(participant, DdsTopicName), eventBus, localNodeId)
         {
         }
 
@@ -62,12 +60,10 @@ namespace Hrot.Map.Common.Replication.Egress
         internal SpawnEntityCommandEgressTranslator(
             IDdsWriter<CreateEntityRequest> writer,
             FdpEventBus eventBus,
-            IGeographicTransform? geoTransform,
             long localNodeId = 0)
         {
             _writer       = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus     = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
-            _geoTransform = geoTransform;
             _localNodeId  = localNodeId;
         }
 
@@ -109,8 +105,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 initialAttributesJson: cmd.InitialAttributesJson,
                 anchor:                CreateEntityRequestDescriptorBuilder.ResolveAnchor(
                                            cmd.InitialTransform, cmd.InitialComponents),
-                initialComponents:     cmd.InitialComponents,
-                geoTransform:          _geoTransform);
+                initialComponents:     cmd.InitialComponents);
             // ⭐ CE-1017 S2 — the birth-height request travels with the order (the receiver resolves it).
             sample.SpawnHeightMode = (byte)(cmd.SpawnHeight?.Mode ?? Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.Absolute);
             sample.SpawnLevel      = cmd.SpawnHeight?.Level ?? 0;

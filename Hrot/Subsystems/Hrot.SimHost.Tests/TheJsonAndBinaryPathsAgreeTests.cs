@@ -92,14 +92,14 @@ public class TheJsonAndBinaryPathsAgreeTests
     {
         // ── JSON ──
         var (jsonRepo, jsonEntity) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
         var jsonCtx  = compiler.CreatePatchContext(jsonRepo, jsonEntity);
         compiler.Compile("{\"Name\":\"Renamed\"}", jsonCtx);
         // ⛔ NO explicit FlushDirtyMarks — claim ③. Compile flushes itself.
 
         // ── binary ──
         var (binRepo, binEntity) = OwnedEntity();
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         var binPatchCtx = EcsPatchContext.Create(binRepo, binEntity);
         var binCtx      = interpreter.CreateContext(binPatchCtx);
         binCtx.Repo = binRepo; binCtx.Entity = binEntity;
@@ -136,12 +136,12 @@ public class TheJsonAndBinaryPathsAgreeTests
     public void AHeadingChangeMarksTheSameDescriptorOnBothPaths()
     {
         var (jsonRepo, jsonEntity) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
         var jsonCtx  = compiler.CreatePatchContext(jsonRepo, jsonEntity);
         compiler.Compile("{\"Heading\":90.0}", jsonCtx);
 
         var (binRepo, binEntity) = OwnedEntity();
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         var binPatchCtx = EcsPatchContext.Create(binRepo, binEntity);
         var binCtx      = interpreter.CreateContext(binPatchCtx);
         binCtx.Repo = binRepo; binCtx.Entity = binEntity;
@@ -185,7 +185,7 @@ public class TheJsonAndBinaryPathsAgreeTests
     public void TheJsonPathDoesNotNeedItsCallerToRememberToFlush()
     {
         var (repo, e) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
 
         compiler.Compile("{\"Name\":\"Flushless\"}", compiler.CreatePatchContext(repo, e));
 
@@ -210,7 +210,7 @@ public class TheJsonAndBinaryPathsAgreeTests
     public void AnExplicitFlushAfterCompileIsHarmless()
     {
         var (repo, e) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
         var ctx = compiler.CreatePatchContext(repo, e);
 
         compiler.Compile("{\"Name\":\"Twice\"}", ctx);

@@ -25,9 +25,9 @@ namespace Hrot.SimHost.Tests
             new JsonToRecordCompilerBuilder()
                 .Register("Name",                  AttributeIds.Name,         AttributeValueKind.CsString)
                 .Register("Affiliation",            AttributeIds.Affiliation,   AttributeValueKind.CsString)
-                .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,       AttributeValueKind.CsFloat64)
-                .Register("GeoPosition.Longitude", AttributeIds.GeoLon,       AttributeValueKind.CsFloat64)
-                .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,       AttributeValueKind.CsFloat64)
+                .Register("Position.X",  AttributeIds.PositionX,       AttributeValueKind.CsFloat64)
+                .Register("Position.Y", AttributeIds.PositionY,       AttributeValueKind.CsFloat64)
+                .Register("Position.Z",  AttributeIds.PositionZ,       AttributeValueKind.CsFloat64)
                 .Register("Weapon.*.Ammo",         WeaponAmmoId,              AttributeValueKind.CsInt32)
                 .Build();
 
@@ -66,10 +66,10 @@ namespace Hrot.SimHost.Tests
             var compiler = BuildCompiler();
             var (emitter, buffer) = MakeEmitter();
 
-            compiler.Compile(Utf8("{\"GeoPosition.Latitude\":32.085}"), emitter);
+            compiler.Compile(Utf8("{\"Position.X\":32.085}"), emitter);
 
             Assert.Equal(1, emitter.Count);
-            Assert.Equal(AttributeIds.GeoLat,          buffer[0].AttributeId);
+            Assert.Equal(AttributeIds.PositionX,          buffer[0].AttributeId);
             Assert.Equal(AttributeValueType.KindFloat64, buffer[0].Value.ValueType);
             Assert.Equal(32.085,                        buffer[0].Value.DoubleValue);
         }
@@ -83,15 +83,15 @@ namespace Hrot.SimHost.Tests
             var (emitter, buffer) = MakeEmitter();
 
             compiler.Compile(
-                Utf8("{\"GeoPosition\":{\"Latitude\":32.085,\"Longitude\":34.78}}"),
+                Utf8("{\"Position\":{\"X\":32.085,\"Y\":34.78}}"),
                 emitter);
 
             Assert.Equal(2, emitter.Count);
 
-            Assert.Equal(AttributeIds.GeoLat, buffer[0].AttributeId);
+            Assert.Equal(AttributeIds.PositionX, buffer[0].AttributeId);
             Assert.Equal(32.085, buffer[0].Value.DoubleValue);
 
-            Assert.Equal(AttributeIds.GeoLon, buffer[1].AttributeId);
+            Assert.Equal(AttributeIds.PositionY, buffer[1].AttributeId);
             Assert.Equal(34.78, buffer[1].Value.DoubleValue);
         }
 
@@ -124,15 +124,15 @@ namespace Hrot.SimHost.Tests
             var (emitter1, buffer1) = MakeEmitter();
             var (emitter2, buffer2) = MakeEmitter();
 
-            compiler.Compile(Utf8("{\"GeoPosition.Latitude\":10.0}"), emitter1);
-            compiler.Compile(Utf8("{\"GeoPosition\":{\"Latitude\":20.0}}"), emitter2);
+            compiler.Compile(Utf8("{\"Position.X\":10.0}"), emitter1);
+            compiler.Compile(Utf8("{\"Position\":{\"X\":20.0}}"), emitter2);
 
             Assert.Equal(1, emitter1.Count);
-            Assert.Equal(AttributeIds.GeoLat, buffer1[0].AttributeId);
+            Assert.Equal(AttributeIds.PositionX, buffer1[0].AttributeId);
             Assert.Equal(10.0, buffer1[0].Value.DoubleValue);
 
             Assert.Equal(1, emitter2.Count);
-            Assert.Equal(AttributeIds.GeoLat, buffer2[0].AttributeId);
+            Assert.Equal(AttributeIds.PositionX, buffer2[0].AttributeId);
             Assert.Equal(20.0, buffer2[0].Value.DoubleValue);
         }
 
@@ -182,11 +182,11 @@ namespace Hrot.SimHost.Tests
             var (emitter, buffer) = MakeEmitter(1); // only room for 1
 
             compiler.Compile(
-                Utf8("{\"GeoPosition\":{\"Latitude\":32.0,\"Longitude\":34.0}}"),
+                Utf8("{\"Position\":{\"X\":32.0,\"Y\":34.0}}"),
                 emitter);
 
             Assert.Equal(1, emitter.Count);
-            Assert.Equal(AttributeIds.GeoLat, buffer[0].AttributeId);
+            Assert.Equal(AttributeIds.PositionX, buffer[0].AttributeId);
         }
 
         // ── Test 9: Zero allocation (GC) ─────────────────────────────────────────
@@ -195,7 +195,7 @@ namespace Hrot.SimHost.Tests
         public void Compile_NonStringPath_ZeroAllocation()
         {
             var compiler = BuildCompiler();
-            byte[] utf8    = Encoding.UTF8.GetBytes("{\"GeoPosition.Latitude\":32.085}");
+            byte[] utf8    = Encoding.UTF8.GetBytes("{\"Position.X\":32.085}");
             var    buffer  = new AttributeRecord[8];
             var    emitter = new NedAttributeRecordEmitter(buffer);
 

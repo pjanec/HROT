@@ -273,9 +273,8 @@ public sealed class SharedApplicationBootstrapperTests
             Action<MapCommandAckDto>              onMapCommandAck)
             => _base.CreateExConIngressHandlers(p, id, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
         public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
-            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus,
-            Fdp.Modules.Geographic.IGeographicTransform geoTransform, long nodeId)
-            => _base.CreateIgEgressTranslators(participant, bus, geoTransform, nodeId);
+            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, long nodeId)
+            => _base.CreateIgEgressTranslators(participant, bus, nodeId);
         public IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, long id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
         public IEcsModuleSystem? CreateGizmoPublisherSystem(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buf, long id) => _base.CreateGizmoPublisherSystem(buf, id);
     }

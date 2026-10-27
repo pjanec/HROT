@@ -8,7 +8,6 @@ using Hrot.IG.Components;
 using Hrot.IG.EntityCreation;
 using Fdp.Core.Logging;
 using Fdp.Core;
-using Fdp.Modules.Geographic;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication;
 
@@ -65,8 +64,6 @@ public class MiniExConPanelState
     // RNG instance shared across calls; not thread-safe (panel state is single-threaded).
     private static readonly Random _rng = new();
 
-    private IGeographicTransform? _geoTransform;
-
     /// <summary>Creates a new <see cref="MiniExConPanelState"/> with an optional node ID for log messages.</summary>
     public MiniExConPanelState(long localNodeId = 0) => _localNodeId = localNodeId;
 
@@ -78,13 +75,6 @@ public class MiniExConPanelState
     /// draining the source.
     /// </summary>
     public event Action<EntityCreationRequest>? OnRequestEnqueued;
-
-    /// <summary>
-    /// Supplies the geodetic transform used to convert map-space spawn coordinates
-    /// into DDS GeoSpatial descriptors for networked spawns.
-    /// </summary>
-    /// <param name="geoTransform">Transform instance shared with DDS translators.</param>
-    public void SetGeoTransform(IGeographicTransform? geoTransform) => _geoTransform = geoTransform;
 
     // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -153,21 +143,17 @@ public class MiniExConPanelState
             return;
         }
 
-        double lat = 0, lon = 0, alt = 0;
-        if (_geoTransform != null)
-        {
-            float spawnX = UseSpecificCoordinates ? PositionX : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
-            float spawnY = UseSpecificCoordinates ? PositionY : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
-            var local = new Vector3(spawnX, spawnY, 0f);
-            (lat, lon, alt) = _geoTransform.ToGeodetic(local);
-        }
+        // ⭐ CE-4073 — the command carries the LOCAL ENU position directly (it was converted to geodetic here and back at the NED
+        //   boundary — and with no transform it silently spawned at the origin instead of the chosen / random spot).
+        float spawnX = UseSpecificCoordinates ? PositionX : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
+        float spawnY = UseSpecificCoordinates ? PositionY : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
 
         var cmd = new CreateEntityCommand
         {
             TkbType   = TkbType,
-            Latitude  = lat,
-            Longitude = lon,
-            Altitude  = alt,
+            X         = spawnX,
+            Y         = spawnY,
+            Z         = 0.0,
             ForceId   = (int)(byte)Affiliation,
         };
 
@@ -195,21 +181,17 @@ public class MiniExConPanelState
             return 0L;
         }
 
-        double lat = 0, lon = 0, alt = 0;
-        if (_geoTransform != null)
-        {
-            float spawnX = UseSpecificCoordinates ? PositionX : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
-            float spawnY = UseSpecificCoordinates ? PositionY : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
-            var local = new Vector3(spawnX, spawnY, 0f);
-            (lat, lon, alt) = _geoTransform.ToGeodetic(local);
-        }
+        // ⭐ CE-4073 — the command carries the LOCAL ENU position directly (it was converted to geodetic here and back at the NED
+        //   boundary — and with no transform it silently spawned at the origin instead of the chosen / random spot).
+        float spawnX = UseSpecificCoordinates ? PositionX : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
+        float spawnY = UseSpecificCoordinates ? PositionY : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
 
         var createCmd = new CreateEntityCommand
         {
             TkbType   = TkbType,
-            Latitude  = lat,
-            Longitude = lon,
-            Altitude  = alt,
+            X         = spawnX,
+            Y         = spawnY,
+            Z         = 0.0,
             ForceId   = (int)(byte)Affiliation,
         };
 

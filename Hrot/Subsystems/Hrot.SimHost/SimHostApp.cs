@@ -417,8 +417,7 @@ namespace Hrot.SimHost
                         EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                             Tkb:          () => _world is { } w && w.HasSingletonManaged<ITkbDatabase>()
                                                 ? w.GetSingletonManaged<ITkbDatabase>() : null,
-                            Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
-                            GeoTransform: () => _geoTransform),
+                            Requests:     () => EntityCreation?.World.Bus),   // ⭐ CE-3228 — the creation pack reads this world's bus
                         // ⭐ W1 (VE-R) — in a replay the effect systems stand down through the world's ReplayState (CE-3329 P2).
                         ContributeExtras = static regs =>
                             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
@@ -502,9 +501,9 @@ namespace Hrot.SimHost
                 foreach (string problem in mapInteraction.Unserviceable(mapInteraction.InteractionSystems))
                     FdpLog<SimHostApp>.Info("[Map] {0}", problem);
                 // ── GZ052: Entity attribute schema publisher ──────────────────────
-                // Build the compiler using the same geographic transform as the network factory.
+                // The standard attribute routing table (CE-4073: it needs no geographic transform — the position is local ENU metres).
                 // SimHost is always the default processor in standalone mode.
-                _jsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(_geoTransform);
+                _jsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build();
                 IDdsWriter<Hrot.NED.Messages.EntityAttributeSchema>? schemaWriter =
                     ctx.Participant != null
                         ? new DdsWriterGizmoAdapter<Hrot.NED.Messages.EntityAttributeSchema>(ctx.Participant)

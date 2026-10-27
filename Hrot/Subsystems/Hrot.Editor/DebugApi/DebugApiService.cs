@@ -421,16 +421,15 @@ namespace Hrot.Editor.DebugApi
         private JsonAttributeCompiler? _builtAttributeCompiler;
 
         /// <summary>
-        /// ⭐ <c>CE-236</c> — built LAZILY, because it needs <see cref="GeoTransform"/> and this service
-        /// is constructed BEFORE the world exists on some hosts (the same ordering that made
-        /// <c>_behaviorRegistry</c> a <c>Func</c> in <c>CE-169</c>). Building it in the constructor is
-        /// what forced the old <c>?? new WGS84Transform()</c> default that answered against the wrong
-        /// origin.
+        /// ⭐ <c>CE-236</c> — built LAZILY. It used to need <see cref="GeoTransform"/> (this service is constructed BEFORE the
+        /// world exists on some hosts — the ordering that made <c>_behaviorRegistry</c> a <c>Func</c> in <c>CE-169</c>, and what
+        /// forced an old <c>?? new WGS84Transform()</c> default that answered against the wrong origin). ⭐ <c>CE-4073</c>: it needs
+        /// none now (the position attributes are local ENU metres), so laziness is only a startup saving.
         /// </summary>
         private JsonAttributeCompiler _attributeCompiler
             => _injectedAttributeCompiler
                ?? (_builtAttributeCompiler ??=
-                   Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(GeoTransform));
+                   Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build());
         private readonly IComponentEditService _componentEditSvc;
 
         // Group M — Focus / Annotations (ADA-BATCH-14)

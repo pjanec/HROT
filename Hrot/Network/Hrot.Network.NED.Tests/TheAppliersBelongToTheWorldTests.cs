@@ -146,7 +146,7 @@ public class TheAppliersBelongToTheWorldTests
         using var repo        = WorldWithGeo();
 
         var system = new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
-            participant, new NetworkEntityMap(), repo.GetSingletonManaged<IGeographicTransform>());
+            participant, new NetworkEntityMap());
 
         system.Execute(repo, 0.016f);
 
@@ -164,12 +164,11 @@ public class TheAppliersBelongToTheWorldTests
         using var participant = new DdsParticipant(TestDomain + 1);
         using var repo        = WorldWithGeo();
 
-        var geo       = repo.GetSingletonManaged<IGeographicTransform>();
-        var ownJson   = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geo);
-        var ownBinary = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.BuildBinaryInterpreter(geo);
+        var ownJson   = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build();
+        var ownBinary = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.BuildBinaryInterpreter();
 
         var system = new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
-            participant, new NetworkEntityMap(), geo, ownJson, default, ownBinary);
+            participant, new NetworkEntityMap(), ownJson, default, ownBinary);
 
         system.Execute(repo, 0.016f);
 

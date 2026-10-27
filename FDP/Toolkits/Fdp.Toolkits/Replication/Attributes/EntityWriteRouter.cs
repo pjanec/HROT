@@ -1,5 +1,4 @@
 ﻿using Fdp.Core;
-using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Patching;
 
 namespace Fdp.Toolkit.Replication.Attributes;
@@ -16,11 +15,9 @@ namespace Fdp.Toolkit.Replication.Attributes;
 /// *(<c>.claude/CLAUDE.md</c>)*: *"a production caller that HAS a dependency must PASS it."* ⭐ Here the
 /// dependency is derived, not passed, so it cannot be forgotten.</para>
 ///
-/// <para>⭐⭐ <b>The geographic transform comes from the WORLD, not from a parameter.</b> 📐 All three hosts
-/// already publish it as a managed singleton *(<c>CgfSubsystem:440</c>, <c>SimHostApp:497</c>,
-/// <c>EditorSubsystem:934</c>)*, so reading it here means no host has to thread it into a gizmo call site.
-/// ⚠ <see langword="null"/> is legitimate — a world with no geodetic frame simply has no <c>GeoLat</c>/
-/// <c>GeoLon</c> handlers, and <c>AttributeCompilerFactory</c> already models that.</para>
+/// <para>⭐⭐ <b>Nothing is read from the world but the world itself.</b> ⭐ <c>CE-4073</c>: the position attributes are local ENU metres, so
+/// the interpreter needs no geographic transform, and a world with no geodetic frame has the same <c>Position.X/Y/Z</c> handlers as any other
+/// (it used to have none).</para>
 ///
 /// <para>⛔ <c>R-134</c>: nothing here mentions DDS. The router speaks
 /// <see cref="Fdp.Toolkit.Replication.Patching.EntityAttributeChange"/> and the request it publishes is the

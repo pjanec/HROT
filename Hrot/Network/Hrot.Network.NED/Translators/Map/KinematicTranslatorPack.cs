@@ -36,10 +36,6 @@ namespace Hrot.Map.Common.Translators
         /// </summary>
         /// <param name="participant">Live DDS participant; passed to all translator constructors.</param>
         /// <param name="entityMap">Shared <see cref="NetworkEntityMap"/> for entity lookups.</param>
-        /// <param name="geoTransform">
-        ///   Geodetic transform used by <see cref="NavigationIntentIngressTranslator"/>
-        ///   to convert incoming WGS-84 waypoints back to Cartesian <c>Vector2</c>.
-        /// </param>
         /// <param name="ghostCreationSystem">
         ///   Ghost-creation helper injected into <see cref="NavigationIntentIngressTranslator"/>.
         /// </param>
@@ -47,12 +43,11 @@ namespace Hrot.Map.Common.Translators
         public static IEnumerable<IDescriptorTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform,
             GhostCreationSystem? ghostCreationSystem = null,
             long                 localNodeId = 0)
         {
             yield return new NavigationStatusEgressTranslator(participant, entityMap, localNodeId);
-            yield return new NavigationIntentIngressTranslator(participant, entityMap, geoTransform, localNodeId);
+            yield return new NavigationIntentIngressTranslator(participant, entityMap, localNodeId);
         }
     }
 }

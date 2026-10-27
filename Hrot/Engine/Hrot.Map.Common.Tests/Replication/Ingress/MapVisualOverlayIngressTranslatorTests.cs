@@ -55,7 +55,7 @@ public class MapVisualOverlayIngressTranslatorTests
         world.AddComponent(e, new SimTransform());
         map.Register(NetId, e);
 
-        return (world, new MapVisualOverlayIngressTranslator(null, map, null, new GhostCreationSystem(map), local));
+        return (world, new MapVisualOverlayIngressTranslator(null, map, new GhostCreationSystem(map), local));
     }
 
     private static void Apply(EntityRepository world, MapVisualOverlayIngressTranslator translator)

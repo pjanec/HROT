@@ -70,9 +70,10 @@ public interface INetworkFactory : IGizmoNetworkFactory
     IIgNetworkAdapter CreateIgNetworkAdapter(DdsParticipant? participant, long nodeId = 0);
 
     /// <summary>
-    /// ⭐ <c>CE-3126</c> — the geo transform this factory's translators convert with, or <c>null</c> when it holds none. The node
-    /// builder adopts it as the node's one transform, so a terrain commit that sets the world singleton's origin moves the
-    /// wire too. 📄 docs/DESIGN_Geo_Origin.md §2 C.
+    /// ⭐ <c>CE-3126</c> — the node's geo transform as this factory holds it, or <c>null</c> when it holds none. The node
+    /// builder adopts it as the node's one transform. ⭐ <c>CE-4073</c>: no translator converts with it any more — the NED wire and
+    /// the neutral DTOs are local ENU metres, so it serves only the places a person reads a geodetic position (and an ExCon location
+    /// pick, which is a geodetic mission field). 📄 docs/DESIGN_Geo_Origin.md §2 C.
     /// </summary>
     IGeographicTransform? GeoTransform => null;
 
@@ -84,7 +85,6 @@ public interface INetworkFactory : IGizmoNetworkFactory
     IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
         DdsParticipant participant,
         FdpEventBus bus,
-        IGeographicTransform geoTransform,
         long nodeId);
 
     /// <summary>

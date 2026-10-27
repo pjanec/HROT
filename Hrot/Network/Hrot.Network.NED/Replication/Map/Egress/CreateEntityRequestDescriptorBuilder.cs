@@ -70,7 +70,6 @@ namespace Hrot.Map.Common.Replication.Egress
             string? initialAttributesJson,
             Vector3? anchor,
             IReadOnlyList<object>? initialComponents,
-            IGeographicTransform? geoTransform,   // ⭐ AQ107 B: no longer used — the wire is local ENU, copied. Kept so the callers keep their shape
             long preAllocatedNetworkId = 0)
         {
             var descriptors = new List<EntityDescriptorUnion>

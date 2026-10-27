@@ -40,7 +40,7 @@ public class NedEntityCreationRequestEgressRails
     private static (NedEntityCreationRequestEgress Egress, CapturingWriter<CreateEntityRequest> Writer) NewEgress()
     {
         var writer = new CapturingWriter<CreateEntityRequest>();
-        return (new NedEntityCreationRequestEgress(writer, geoTransform: null), writer);
+        return (new NedEntityCreationRequestEgress(writer), writer);
     }
 
     /// <summary>The address must travel: a request targeted at node 7 arrives targeted at node 7.</summary>
@@ -289,7 +289,7 @@ public class NedEntityCreationRequestEgressRails
         var sample = Assert.Single(writer.Publishes);
         Assert.Single(sample.InitialDescriptors, d => d._d == EDescriptorType.dtAreaEffectCloud);
         var back = Assert.Single(Hrot.Map.Common.Replication.Utils.DescriptorMapper
-            .MapToComponents(sample.InitialDescriptors, geoTransform: null).OfType<Fdp.Toolkit.Combat.AreaEffectCloud>());
+            .MapToComponents(sample.InitialDescriptors).OfType<Fdp.Toolkit.Combat.AreaEffectCloud>());
         Assert.Equal(cloud, back);
     }
 }

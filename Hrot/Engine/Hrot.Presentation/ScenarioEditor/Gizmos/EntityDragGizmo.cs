@@ -7,7 +7,6 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Patching;
-using Fdp.Modules.Geographic;
 
 namespace Hrot.ScenarioEditor.Gizmos;
 
@@ -198,52 +197,37 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     /// asks the owner. ⚠ On an unowned entity that means the preview is visibly reverted by replication
     /// until the request lands — which is the honest picture of a distributed edit, not a defect.</para>
     ///
-    /// <para>⭐⭐ <b>Both coordinates in ONE write</b> *(see the interface's remarks)*: <c>GeoLat</c> and
-    /// <c>GeoLon</c> are one geodetic point, and the installer converts them in a single flush.</para>
+    /// <para>⭐⭐ <b>Both coordinates in ONE write</b> *(see the interface's remarks)*: <c>Position.X</c> and <c>Position.Y</c> are one
+    /// gesture, so they reach the owner as one request and one apply.</para>
     ///
-    /// <para>⚠ <b>Falls back to the direct write when there is no writer OR no geodetic frame.</b> The
-    /// attributes are geodetic, so a world with no <see cref="IGeographicTransform"/> singleton has no way
-    /// to express this position as <c>GeoLat</c>/<c>GeoLon</c> — ⛔ and inventing a Cartesian attribute pair
-    /// here would be a second position vocabulary. ⭐ Such a world is single-node by construction, where the
-    /// direct write is exactly right.</para>
+    /// <para>⭐⭐⭐ <b><c>CE-4073</c> — the drag writes LOCAL ENU METRES, once.</b> 🔴 It used to convert TWICE: the dragged local position
+    /// went through <c>ToGeodetic</c> into the geodetic latitude/longitude attributes, and the owner converted it back with <c>ToCartesian</c> — and with
+    /// no <c>IGeographicTransform</c> singleton it fell back to a direct write that never reached the owner. ⭐ Now the position the
+    /// operator dragged to IS the attribute value, a plain copy at the owner, so there is no geodetic-frame fallback: the only fallback
+    /// left is "no writer", where the direct write is exactly right on a one-node editor.</para>
+    ///
+    /// <para>⚠ <b>Z is not sent.</b> A 2D map drag moves the entity in the horizontal plane and must not flatten its altitude; the three
+    /// <c>Position.*</c> axes are independent copies at the owner, so omitting <c>Position.Z</c> keeps the entity's current height there
+    /// <b>by construction</b> (no pre-fill needed). ⭐ The local preview already keeps it too (<see cref="ApplyPosition"/>).</para>
     /// </summary>
     private void CommitPosition(Vector3 worldPos)
     {
-        if (_writer == null || _view is not EntityRepository repo)
+        if (_writer == null || _view is not EntityRepository)
         {
             ApplyPosition(worldPos);
             return;
         }
-
-        var geo = repo.GetSingletonManaged<IGeographicTransform>();
-        if (geo == null)
-        {
-            ApplyPosition(worldPos);
-            return;
-        }
-
-        // ⚠ Z comes from the CURRENT transform, not from the drag: a 2D map drag moves the entity in the
-        //   horizontal plane and must not silently flatten its altitude.
-        float z = worldPos.Z;
-        if (repo.IsAlive(_entity) && repo.HasComponent<SimTransform>(_entity))
-            z = repo.GetComponentRO<SimTransform>(_entity).Position.Z;
-
-        var (lat, lon, alt) = geo.ToGeodetic(new Vector3(worldPos.X, worldPos.Y, z));
 
         var route = _writer.Write(_entity, new[]
         {
-            EntityAttributeChange.Double(AttributeIds.GeoLat, lat),
-            EntityAttributeChange.Double(AttributeIds.GeoLon, lon),
+            EntityAttributeChange.Double(AttributeIds.PositionX, worldPos.X),
+            EntityAttributeChange.Double(AttributeIds.PositionY, worldPos.Y),
         });
 
         // ⭐ Refused means nothing was written and nobody was asked (no request sink, or a dead entity).
         //   ⛔ Leaving the preview standing would show a move that never happened ⇒ put it back.
         if (route == EntityWriteRoute.Refused)
             ApplyPosition(_originalPos);
-
-        // ⚠ `alt` is read and deliberately not sent — the drag did not change it, and GeoAlt's partial-update
-        //   pre-fill already preserves it on the owner.
-        _ = alt;
     }
 
     private void ApplyPosition(Vector3 worldPos)

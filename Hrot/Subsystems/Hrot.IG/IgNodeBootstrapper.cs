@@ -455,7 +455,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         if (_networkFactory != null)
         {
             foreach (var t in _networkFactory.CreateIgEgressTranslators(
-                context.Participant, context.World.Bus, context.GeoTransform!, _effectiveInstanceId))
+                context.Participant, context.World.Bus, _effectiveInstanceId))
             {
                 translators.Add(t);
             }

@@ -774,9 +774,6 @@ public class IgApplication : IDisposable
             _mapContextEntity = ctx.World.CreateEntity();
             ctx.World.AddComponent(_mapContextEntity, new NetworkIdentity(0));
 
-            // GeoTransform is pure math; set miniIos now so SendGeoSpatialUpdate works in tests
-            _miniIosState.SetGeoTransform(ctx.GeoTransform!);
-
             // E. SlaveSyncController - unified slave that handles Continuous/Stepping transitions.
             // Must use ctx.EventBus (the same bus as the time translators),
             // NOT ctx.World.Bus which is swapped internally by the kernel.
@@ -865,8 +862,7 @@ public class IgApplication : IDisposable
                     EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                         Tkb:          () => ctx.World.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                             ? ctx.World.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
-                        Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
-                        GeoTransform: () => ctx.GeoTransform),
+                        Requests:     () => EntityCreation?.World.Bus),   // ⭐ CE-3228 — the creation pack reads this world's bus
                 });
             _igMapInteraction = igMapInteraction;
             // ⭐ CE-3169 — the menu orders' follow-up picks (a resolver: the adapter is built lazily, once the canvas exists).
@@ -2202,13 +2198,9 @@ public class IgApplication : IDisposable
 
     {
 
-        if (!_networkEnabled || _networkAdapter == null || _geoTransform == null)
+        if (!_networkEnabled || _networkAdapter == null)
 
             return;
-
-
-
-        var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(worldPos.X, worldPos.Y, 0f));
 
 
 
@@ -2232,11 +2224,13 @@ public class IgApplication : IDisposable
 
             InteractionContextId = _activeContextId,
 
-            Latitude             = lat,
+            // ⭐ CE-4073 — the click is LOCAL ENU metres on the neutral DTO too (it was converted to geodetic here and back at the
+            //   NED boundary). The map is 2D, so Z is the ground reference 0 — as the geodetic round trip of (x, y, 0) always gave.
+            X                    = worldPos.X,
 
-            Longitude            = lon,
+            Y                    = worldPos.Y,
 
-            Altitude             = alt,
+            Z                    = 0.0,
 
             HitEntityIds         = hitEntityIds,
 
@@ -2358,15 +2352,16 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     /// </summary>
     private void SendGeoSpatialUpdate(Entity entity, System.Numerics.Vector2 worldPos)
     {
-        if (!_networkEnabled || _commandGateway == null || _geoTransform == null) return;
+        if (!_networkEnabled || _commandGateway == null) return;
 
         var view = (ISimulationView)_world;
         if (!view.HasComponent<NetworkIdentity>(entity)) return;
 
         long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
 
-        var position = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f);
-        var (lat, lon, alt) = _geoTransform.ToGeodetic(position);
+        // ⭐ CE-4073 — local ENU metres (keys x / y / z; they were geodetic lat / lon / alt, converted here and back at the NED boundary).
+        //   A 2D map drag: Z is the ground reference 0.
+        double x = worldPos.X, y = worldPos.Y, z = 0.0;
 
         // Encode as JSON for the neutral UpdateEntityDescriptorCommand; NedCommandGateway
         // parses it back to the wire type (WorldPos) via NedTranslationHelper.
@@ -2374,9 +2369,9 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         {
             type     = "WorldPos",
             entityId = (int)netId,
-            lat,
-            lon,
-            alt,
+            x,
+            y,
+            z,
             time     = System.DateTime.UtcNow.Ticks,
         }, FdpJsonOptionsRegistry.DefaultRelaxed);
         var cmd = new Hrot.Core.Network.UpdateEntityDescriptorCommand
@@ -2388,8 +2383,8 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         _ = _commandGateway.SendUpdateDescriptorAsync(cmd);
 
         FdpLog<IgApplication>.Info(
-            "[Node-{0}] GeoSpatial update: sent UpdateEntityDescriptorCommand for NetID {1} to ({2:F5}, {3:F5}).",
-            _effectiveInstanceId, netId, lat, lon);
+            "[Node-{0}] GeoSpatial update: sent UpdateEntityDescriptorCommand for NetID {1} to ({2:F1}, {3:F1}) m.",
+            _effectiveInstanceId, netId, x, y);
     }
 
 
@@ -3214,19 +3209,20 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     private async System.Threading.Tasks.Task OrchestratePersonalRouteAsync(
         Guid requestId, int vehicleId, Vector2[] canvasPoints)
     {
-        if (_networkAdapter == null || _commandGateway == null || _geoTransform == null)
+        if (_networkAdapter == null || _commandGateway == null)
             return;
 
-        // Convert canvas points to absolute geodetic waypoints.
-        // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) = 0 for authoring.
-        var waypoints = new List<(double Lat, double Lon, double Alt)>(canvasPoints.Length);
-        double anchorLat = 0, anchorLon = 0, anchorAlt = 0;
+        // ⭐ CE-4073 — the waypoints are LOCAL ENU metres (they were converted to geodetic here and back at the NED boundary).
+        // ⚠ The mapping is unchanged from that round trip, quirk included: canvas X → X (east), canvas Y → Z (the third axis),
+        //   Y = 0 — a point (x, 0, y) was converted to lat/lon/alt and back, which is the identity. DrawPersonalRouteCommandTests pins it
+        //   ("canvas Y encoded as altitude, not latitude"); whether that is the intended frame for a 2D map is NOT decided here.
+        var waypoints = new List<(double X, double Y, double Z)>(canvasPoints.Length);
+        double anchorX = 0, anchorY = 0, anchorZ = 0;
         for (int i = 0; i < canvasPoints.Length; i++)
         {
-            var (lat, lon, alt) = _geoTransform.ToGeodetic(
-                new Vector3(canvasPoints[i].X, 0f, canvasPoints[i].Y));
-            waypoints.Add((lat, lon, alt));
-            if (i == 0) { anchorLat = lat; anchorLon = lon; anchorAlt = alt; }
+            double wx = canvasPoints[i].X, wy = 0.0, wz = canvasPoints[i].Y;
+            waypoints.Add((wx, wy, wz));
+            if (i == 0) { anchorX = wx; anchorY = wy; anchorZ = wz; }
         }
 
         // Create the route entity via the neutral adapter.
@@ -3236,7 +3232,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             routeEntityId = await _networkAdapter.CreateRouteEntityAsync(
                 TkbEntityTypes.TacGraphic_Route,
                 waypoints,
-                anchorLat, anchorLon, anchorAlt,
+                anchorX, anchorY, anchorZ,
                 vehicleId);
         }
         catch (Exception ex)
@@ -3684,26 +3680,16 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 return;
             }
 
-            // Guard: cannot convert canvas positions to geodetic without a geo-transform.
-            // Passing raw XY canvas coordinates as lat/lon produces invalid DDS payloads.
-            if (_geoTransform == null)
-            {
-                FdpLog<IgApplication>.Error(
-                    "[Node-{0}] Cannot create route: geographic transform is unavailable. " +
-                    "Ensure the IG is initialised with a valid map origin before authoring routes.", _effectiveInstanceId);
-                return;
-            }
-
-            // Convert each canvas 2D point to Cartesian world space and build RoutePlan.
-            // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) is 0 for authoring.
+            // ⭐ CE-4073 — no geodetic frame is needed: each canvas point is already a local position (it used to go through
+            //   ToGeodetic and straight back through ToCartesian, which is the identity, behind a "no geo transform" guard).
+            // Canvas is XZ: canvas Y = world Z. Altitude (Vector3.Y) is 0 for authoring — the same mapping as before.
             Vector3 anchorCartesian = Vector3.Zero;
 
             var routePlan = new Hrot.Map.Common.Components.RoutePlan { IsLoop = false }.WithWaypoints(wps =>
             {
                 for (int i = 0; i < points.Length; i++)
                 {
-                    var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, 0f, points[i].Y));
-                    var cartPos = _geoTransform.ToCartesian(lat, lon, alt);
+                    var cartPos = new Vector3(points[i].X, 0f, points[i].Y);
 
                     wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = cartPos, TargetSpeed = 0f });
 

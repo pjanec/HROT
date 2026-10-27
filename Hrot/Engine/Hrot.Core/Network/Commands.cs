@@ -2,15 +2,24 @@ namespace Hrot.Core.Network;
 
 // ── Egress commands ───────────────────────────────────────────────────────────
 
-/// <summary>Protocol-neutral create-entity command.</summary>
+/// <summary>
+/// Protocol-neutral create-entity command.
+///
+/// <para>⭐ <c>CE-4073</c> (AQ107 B's tail, R-4092): the position is LOCAL ENU METRES — <see cref="X"/> east, <see cref="Y"/> north,
+/// <see cref="Z"/> up, relative to the cluster's one origin — the frame the NED wire and the scenario files already speak. It used to be a
+/// geodetic latitude / longitude / altitude converted at the NED boundary (<c>NeutralGeoBoundary</c>, deleted).</para>
+/// </summary>
 public sealed class CreateEntityCommand
 {
     /// <summary>Correlation ID for tracking the create request lifecycle.</summary>
     public Guid RequestId { get; set; } = Guid.NewGuid();
     public long TkbType { get; set; }
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    public double Altitude { get; set; }
+    /// <summary>Local ENU east, metres.</summary>
+    public double X { get; set; }
+    /// <summary>Local ENU north, metres.</summary>
+    public double Y { get; set; }
+    /// <summary>Local ENU up, metres.</summary>
+    public double Z { get; set; }
     public string? PropertiesJson { get; set; }
     public int ForceId { get; set; }
 }
@@ -75,12 +84,12 @@ public sealed class EntityPropertyPatch
     public string? Name { get; set; }
     /// <summary>Force affiliation override as a string (e.g. "FORCE_FRIENDLY"). Null = use TKB default.</summary>
     public string? Affiliation { get; set; }
-    /// <summary>Latitude override in degrees. Null = use click position.</summary>
-    public double? Latitude { get; set; }
-    /// <summary>Longitude override in degrees. Null = use click position.</summary>
-    public double? Longitude { get; set; }
-    /// <summary>Altitude override in metres. Null = terrain-clamped.</summary>
-    public double? Altitude { get; set; }
+    /// <summary>Local ENU east override, metres (<c>CE-4073</c>; was a geodetic latitude). Null = use click position.</summary>
+    public double? X { get; set; }
+    /// <summary>Local ENU north override, metres (<c>CE-4073</c>; was a geodetic longitude). Null = use click position.</summary>
+    public double? Y { get; set; }
+    /// <summary>Local ENU up override, metres (<c>CE-4073</c>; was a geodetic altitude). Null = terrain-clamped.</summary>
+    public double? Z { get; set; }
     /// <summary>Height above ground override in metres.</summary>
     public double? HeightAboveGround { get; set; }
 
@@ -101,13 +110,19 @@ public sealed class EntityPropertyPatch
 
 // ── Neutral ingress event DTOs ────────────────────────────────────────────────
 
-/// <summary>Neutral DTO for a map click event from the IG.</summary>
+/// <summary>
+/// Neutral DTO for a map click event from the IG. ⭐ <c>CE-4073</c>: the click position is LOCAL ENU METRES (<see cref="X"/> east,
+/// <see cref="Y"/> north, <see cref="Z"/> up) — a copy of the wire's <c>MapClickEvent.Position</c>, no conversion either side.
+/// </summary>
 public sealed class MapClickEventDto
 {
     public Guid InteractionContextId { get; set; }
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    public double Altitude { get; set; }
+    /// <summary>Local ENU east, metres.</summary>
+    public double X { get; set; }
+    /// <summary>Local ENU north, metres.</summary>
+    public double Y { get; set; }
+    /// <summary>Local ENU up, metres.</summary>
+    public double Z { get; set; }
     /// <summary>Ordered list of entity IDs under the cursor (top to bottom).</summary>
     public System.Collections.Generic.IReadOnlyList<int> HitEntityIds { get; set; }
         = System.Array.Empty<int>();

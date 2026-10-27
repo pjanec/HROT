@@ -102,8 +102,8 @@ public class FullStackWorkflowTests
         f.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = f.Logic.ActiveContextId,
-            Latitude             = 50.0,
-            Longitude            = 14.4
+            X             = 14.4,
+            Y            = 50.0
         });
         f.Mock.Update(0f); // Processes the click -> writes CreateEntityCommand.
 
@@ -183,8 +183,8 @@ public class FullStackWorkflowTests
             f.ClickQueue.Enqueue(new MapClickEventDto
             {
                 InteractionContextId = ctx,
-                Latitude             = i,
-                Longitude            = i
+                X             = i,
+                Y            = i
             });
         }
         f.Mock.Update(0f);
@@ -204,8 +204,8 @@ public class FullStackWorkflowTests
         f.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = f.Logic.ActiveContextId,
-            Latitude             = 1.0,
-            Longitude            = 1.0
+            X             = 1.0,
+            Y            = 1.0
         });
         f.Mock.Update(0f);
         // Log entries queued during ProcessClickEvents (frame N) are drained

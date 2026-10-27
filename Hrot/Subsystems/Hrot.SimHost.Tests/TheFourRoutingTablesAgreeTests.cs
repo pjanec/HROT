@@ -53,9 +53,9 @@ public class TheFourRoutingTablesAgreeTests
     {
         ("Name",                  AttributeIds.Name,       "{\"Name\":\"Charlie\"}"),
         ("Affiliation",           AttributeIds.Affiliation, "{\"Affiliation\":\"FORCE_OPPOSING\"}"),
-        ("GeoPosition.Latitude",  AttributeIds.GeoLat,     "{\"GeoPosition\":{\"Latitude\":32.0}}"),
-        ("GeoPosition.Longitude", AttributeIds.GeoLon,     "{\"GeoPosition\":{\"Longitude\":34.0}}"),
-        ("GeoPosition.Altitude",  AttributeIds.GeoAlt,     "{\"GeoPosition\":{\"Altitude\":100.0}}"),
+        ("Position.X",             AttributeIds.PositionX,  "{\"Position\":{\"X\":32.0}}"),
+        ("Position.Y",             AttributeIds.PositionY,  "{\"Position\":{\"Y\":34.0}}"),
+        ("Position.Z",             AttributeIds.PositionZ,  "{\"Position\":{\"Z\":100.0}}"),
         ("Heading",               AttributeIds.Heading, "{\"Heading\":90.0}"),
         // ⭐ CE-3216 S1-0 (W-8) — the World Environment's clock: a new scenario start time and its display offset
         ("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    "{\"ScenarioStartUtcTicks\":638450000000000000}"),
@@ -99,7 +99,7 @@ public class TheFourRoutingTablesAgreeTests
     public void TheWholeVocabularyInOnePatchEmitsOneRecordEach()
     {
         const string all = "{\"Name\":\"Charlie\",\"Affiliation\":\"FORCE_OPPOSING\",\"Heading\":90.0," +
-                           "\"GeoPosition\":{\"Latitude\":32.0,\"Longitude\":34.0,\"Altitude\":100.0}," +
+                           "\"Position\":{\"X\":32.0,\"Y\":34.0,\"Z\":100.0}," +
                            "\"ScenarioStartUtcTicks\":638450000000000000,\"ScenarioUtcOffsetMinutes\":120," +
                            "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0}}";
 
@@ -122,7 +122,7 @@ public class TheFourRoutingTablesAgreeTests
     [Fact]
     public void TheDeclaredVocabularyCoversEveryJsonRoute()
     {
-        var registered = AttributeCompilerFactory.Build(new VocabularyGeoTransform())
+        var registered = AttributeCompilerFactory.Build()
             .RegisteredPaths.OrderBy(p => p, StringComparer.Ordinal).ToArray();
 
         Assert.Equal(
@@ -183,7 +183,7 @@ public class TheFourRoutingTablesAgreeTests
     public void AFrightOnACreationRequest_BearsAMindInPanic()
     {
         var ctx = new ListPatchContext(new List<object>());
-        AttributeCompilerFactory.Build(geoTransform: null).Compile("{\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0}}", ctx);
+        AttributeCompilerFactory.Build().Compile("{\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0}}", ctx);
 
         var mind = Assert.IsType<Fdp.Toolkit.Civilians.CivilianState>(Assert.Single(ctx.FlushComponents()));
         Assert.Equal(1f, mind.Fear);
@@ -198,7 +198,7 @@ public class TheFourRoutingTablesAgreeTests
 
         // ── route A: JSON straight to ECS ──
         var (repoA, eA) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
         compiler.Compile(patch, compiler.CreatePatchContext(repoA, eA));
 
         // ── route B: JSON → records → binary interpreter → ECS ──
@@ -253,7 +253,7 @@ public class TheFourRoutingTablesAgreeTests
     public void EveryDeclaredAttributeHasABinaryHandler(string path, ushort id, string json)
     {
         var (repo, e) = OwnedEntity();
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(new VocabularyGeoTransform());
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         var patchCtx    = EcsPatchContext.Create(repo, e);
         var ctx         = interpreter.CreateContext(patchCtx);
         ctx.Repo = repo; ctx.Entity = e;
@@ -275,7 +275,7 @@ public class TheFourRoutingTablesAgreeTests
     [MemberData(nameof(VocabularyCases))]
     public void EveryDeclaredAttributeHasAJsonSetter(string path, ushort id, string json)
     {
-        var compiler = AttributeCompilerFactory.Build(new VocabularyGeoTransform());
+        var compiler = AttributeCompilerFactory.Build();
 
         Assert.Contains(path, compiler.RegisteredPaths);
     }
@@ -286,7 +286,7 @@ public class TheFourRoutingTablesAgreeTests
     /// ⭐⭐⭐ <b>The published schema has one property per FULL path, with the RIGHT type.</b>
     ///
     /// <para>🔴🔴 <b>Measured before the fix:</b> <c>ExportSchema</c> keyed each property on the path's root
-    /// segment, so the three <c>GeoPosition.*</c> paths collapsed and <c>"GeoPosition"</c> appeared
+    /// segment, so the three dotted position paths (then geodetic) collapsed to their shared root and it appeared
     /// <b>three times in one JSON object</b>; and every type was <c>"string"</c>, including four
     /// <c>Float64</c> paths. ⇒ a consumer saw <b>4 properties instead of 6</b>, all mistyped.</para>
     ///
@@ -297,7 +297,7 @@ public class TheFourRoutingTablesAgreeTests
     public void ThePublishedSchemaDescribesEveryPathWithItsRealType()
     {
         var doc = System.Text.Json.Nodes.JsonNode.Parse(
-            AttributeCompilerFactory.Build(new VocabularyGeoTransform()).ExportSchema())!;
+            AttributeCompilerFactory.Build().ExportSchema())!;
 
         var props = doc["properties"]!.AsObject();
 
@@ -306,7 +306,7 @@ public class TheFourRoutingTablesAgreeTests
             AttributeVocabulary.All.Select(d => d.JsonPath).OrderBy(p => p, StringComparer.Ordinal).ToArray(),
             props.Select(kv => kv.Key).OrderBy(p => p, StringComparer.Ordinal).ToArray());
 
-        // ⭐⭐ And the types are truthful: the geo paths and Heading are numbers, the clock's two are integers (CE-3216), the rest strings.
+        // ⭐⭐ And the types are truthful: the position paths and Heading are numbers, the clock's two are integers (CE-3216), the rest strings.
         foreach (var d in AttributeVocabulary.All)
         {
             string expected = d.Kind switch
@@ -392,7 +392,7 @@ public class TheFourRoutingTablesAgreeTests
         var records = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), json).Records.ToArray();
 
         (repo, entity) = OwnedEntity();
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         var patchCtx    = EcsPatchContext.Create(repo, entity);
         var ctx         = interpreter.CreateContext(patchCtx);
         ctx.Repo = repo; ctx.Entity = entity;
@@ -440,18 +440,6 @@ public class TheFourRoutingTablesAgreeTests
         public void EmitFloat64(ushort id, double v, short s1 = 0, short s2 = 0) => Add(id, AttributeValue.FromDouble(v));
         public void EmitBool(ushort id, bool v, short s1 = 0, short s2 = 0)      => Add(id, AttributeValue.FromInt(v ? 1 : 0));
         public void EmitString(ushort id, string? v, short s1 = 0, short s2 = 0) => Add(id, AttributeValue.FromString(v ?? string.Empty));
-    }
-
-    /// <summary>⭐ A geo transform so <see cref="AttributeCompilerFactory.Build"/> registers the geo paths.</summary>
-    private sealed class VocabularyGeoTransform : Fdp.Modules.Geographic.IGeographicTransform
-    {
-        public void SetOrigin(double lat, double lon, double alt) { }
-
-        public System.Numerics.Vector3 ToCartesian(double lat, double lon, double alt)
-            => new System.Numerics.Vector3((float)lon, (float)lat, (float)alt);
-
-        public (double lat, double lon, double alt) ToGeodetic(System.Numerics.Vector3 p)
-            => (p.Y, p.X, p.Z);
     }
 
     /// <summary>⭐ Walks up to the repo root. ⛔ Fails loudly rather than skipping.</summary>

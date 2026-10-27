@@ -133,7 +133,7 @@ public sealed class TheGateCannotBeForgottenTests
     {
         var denied = new AuthorityPatchContext(canWrite: false);
 
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         interpreter.Apply(interpreter.CreateContext(denied), new[] { HeadingRecord(123) });
 
         Assert.Equal(0, denied.UnmanagedFetches);
@@ -158,7 +158,7 @@ public sealed class TheGateCannotBeForgottenTests
     public void HeadingAppliesTheExistingCompassConversion(double headingDeg)
     {
         var ctx = new AuthorityPatchContext(canWrite: true);
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
 
         interpreter.Apply(interpreter.CreateContext(ctx), new[] { HeadingRecord(headingDeg) });
 
@@ -285,7 +285,7 @@ public sealed class TheGateCannotBeForgottenTests
         repo.SetAuthority<SimTransform>(e, true);
 
         var writer = new AttributeEntityComponentWriter(
-            repo, AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null));
+            repo, AttributeCompilerFactory.BuildBinaryInterpreter());
 
         var route = writer.Write(e, AttributeIds.Heading, 90.0);
 
@@ -328,7 +328,7 @@ public sealed class TheGateCannotBeForgottenTests
         var published = new List<(Entity, ushort, double)>();
         var writer = new AttributeEntityComponentWriter(
             repo,
-            AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null),
+            AttributeCompilerFactory.BuildBinaryInterpreter(),
             publishRequest: (ent, recs) => published.Add((ent, recs[0].AttributeId, recs[0].Value.DoubleValue)));
 
         Assert.Equal(EntityWriteRoute.Requested, writer.Write(e, AttributeIds.Heading, 90.0));
@@ -348,7 +348,7 @@ public sealed class TheGateCannotBeForgottenTests
         repo.DestroyEntity(e);
 
         var writer = new AttributeEntityComponentWriter(
-            repo, AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null));
+            repo, AttributeCompilerFactory.BuildBinaryInterpreter());
 
         Assert.Equal(EntityWriteRoute.Refused, writer.Write(e, AttributeIds.Heading, 90.0));
     }
@@ -373,7 +373,7 @@ public sealed class TheGateCannotBeForgottenTests
 
         var writer = new AttributeEntityComponentWriter(
             repo,
-            AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null),
+            AttributeCompilerFactory.BuildBinaryInterpreter(),
             publishRequest: (ent, recs) => published.Add((ent, recs[0].AttributeId, recs[0].Value.DoubleValue)));
 
         var route = writer.Write(e, AttributeIds.Heading, 137.5);
@@ -400,7 +400,7 @@ public sealed class TheGateCannotBeForgottenTests
         var e = repo.CreateEntity();      // no SimTransform
 
         var writer = new AttributeEntityComponentWriter(
-            repo, AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null));
+            repo, AttributeCompilerFactory.BuildBinaryInterpreter());
 
         Assert.Equal(EntityWriteRoute.Refused, writer.Write(e, AttributeIds.Heading, 90.0));
     }

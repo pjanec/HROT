@@ -23,12 +23,10 @@ namespace Hrot.Network.NED.CGF;
 public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSource
 {
     private readonly DdsReader<CreateEntityRequest> _reader;
-    private readonly IGeographicTransform?          _geoTransform;
 
-    public NedEntityCreationRequestSource(DdsParticipant participant, IGeographicTransform? geoTransform = null)
+    public NedEntityCreationRequestSource(DdsParticipant participant)
     {
         _reader       = new DdsReader<CreateEntityRequest>(participant);
-        _geoTransform = geoTransform;
     }
 
     public void ProcessRequests(Action<EntityCreationRequest> handler)
@@ -70,7 +68,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
             List<object>? initialComponents = null;
             if (msg.InitialDescriptors != null && msg.InitialDescriptors.Count > 0)
             {
-                var mapped = DescriptorMapper.MapToComponents(msg.InitialDescriptors, _geoTransform);
+                var mapped = DescriptorMapper.MapToComponents(msg.InitialDescriptors);
                 if (mapped.Count > 0)
                     initialComponents = mapped;
             }

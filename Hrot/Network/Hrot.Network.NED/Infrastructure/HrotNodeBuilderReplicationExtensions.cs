@@ -107,7 +107,6 @@ public sealed class HrotNodeBuilderWithReplication
             participant:          context.Participant,
             role:                 _role,
             entityMap:            context.EntityMap,
-            geoTransform:         context.GeoTransform ?? HrotEnvironment.CreateGeoTransform(),   // CE-3126 — the node's one transform
             // Use world.Bus so that events published by EntityMasterIngressTranslator.ProcessDispose()
             // during the Input kernel phase are made visible to GhostDestructionSystem (PostSimulation)
             // via view.ReadManagedEvents<T>() after the kernel's internal Bus.SwapBuffers().
@@ -193,7 +192,6 @@ public static class HrotNodeBuilderReplicationExtensions
             participant:      participant,
             role:             role,
             entityMap:        context.EntityMap,
-            geoTransform:     context.GeoTransform ?? HrotEnvironment.CreateGeoTransform(),   // CE-3126 — the node's one transform
             eventBus:         context.World.Bus,
             localNodeId:      context.NodeId,
             domainId:         0,

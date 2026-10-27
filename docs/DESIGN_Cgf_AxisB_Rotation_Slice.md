@@ -47,6 +47,8 @@ known-conflict: ✅ parallel-safe with the MCP create-recipes session (disjoint 
 -->
 # DESIGN — **Axis-B first cut: the subsystem-agnostic write path, proven with ROTATION** *(UXI-30 + rotation)*
 
+> ⛔ **CE-4073 note (2026-10-27):** where this document describes the attribute route as **geodetic** (`GeoPosition.Latitude/Longitude/Altitude`, `GeoLat`/`GeoLon`/`GeoAlt`, a `ToCartesian`/`ToGeodetic` scratchpad), that is HISTORY — the route is now local ENU metres: `Position.X/Y/Z` (`AttributeIds.PositionX/Y/Z` = 14/15/16, a plain copy per axis, on every host); ids 10–12 are retired. See `docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md` §4 row B (as-built).
+
 > 🎯 Axis B lets a node manipulate map entities like the editor. The editor never hits authority *(one-node
 > cluster, owns everything)*; a distributed node does. This slice builds the **one write path** every attribute
 > gizmo will reuse — **owned → write ECS directly; unowned → publish a change-request** — and proves it with the

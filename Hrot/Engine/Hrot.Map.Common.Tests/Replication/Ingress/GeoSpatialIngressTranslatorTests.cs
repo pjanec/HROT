@@ -48,7 +48,7 @@ public sealed class GeoSpatialIngressTranslatorTests
             NetworkEntityMap     entityMap,
             GhostCreationSystem  ghostSystem,
             long                 localNodeId)
-            : base(participant: null, entityMap, geoTransform, ghostSystem, localNodeId)
+            : base(participant: null, entityMap, ghostSystem, localNodeId)
         { }
 
         public void TestDecode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)

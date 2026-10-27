@@ -366,10 +366,10 @@ The SST (Shared-State Topics) model governs how entities exist and are updated:
 
 | File | Class | Purpose |
 |------|-------|---------|
-| `AttributeCompilerFactory.cs` | `AttributeCompilerFactory` (static) | Builds the application-wide `JsonAttributeCompiler` with `Name`, `Affiliation`, `GeoPosition.Latitude/Longitude/Altitude`, and `Heading` route registrations |
+| `AttributeCompilerFactory.cs` | `AttributeCompilerFactory` (static) | Builds the application-wide `JsonAttributeCompiler` with `Name`, `Affiliation`, `Position.X/Y/Z` (local ENU metres, every host — CE-4073; the geodetic `GeoPosition.*` paths are gone), and `Heading` route registrations |
 | `EntityAttributeSchemaPublisherSystem.cs` | `EntityAttributeSchemaPublisherSystem` | ECS system (`BeforeSync` phase) that publishes the attribute schema JSON once at startup via the `EntityAttributeSchema` DDS topic |
 | `EntityDataAttributeInstaller.cs` | `EntityDataAttributeInstaller` | `IBinaryAttributeInstaller<AttributeRecord>` for routing `Name` and `ForceId` binary records to `EntityInfo` ECS component |
-| `SimTransformAttributeInstaller.cs` | `SimTransformAttributeInstaller` | `IBinaryAttributeInstaller<AttributeRecord>` for routing `GeoLat/Lon/Alt` binary attribute records to `SimTransform` ECS component; uses scratchpad accumulation + deferred `ToCartesian` flush |
+| `SimTransformAttributeInstaller.cs` | `SimTransformAttributeInstaller` | `IBinaryAttributeInstaller<AttributeRecord>` for routing `PositionX/Y/Z` (ids 14–16, local ENU metres) binary attribute records to `SimTransform` ECS component — a plain copy per axis, no geographic transform (CE-4073; ids 10–12 retired) |
 
 ### CGF/ -- Computer Generated Forces Adapters
 

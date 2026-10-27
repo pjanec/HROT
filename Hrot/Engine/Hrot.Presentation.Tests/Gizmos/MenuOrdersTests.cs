@@ -749,7 +749,7 @@ public sealed class MenuOrdersTests : IDisposable
         var mi = MapInteractionPack.Build(new MapInteractionContext
         {
             World = _w,
-            EntityAuthoring = new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(() => null, () => null, () => null)
+            EntityAuthoring = new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(() => null, () => null)
             {
                 SuspendedReason = () => hostReason,
             },

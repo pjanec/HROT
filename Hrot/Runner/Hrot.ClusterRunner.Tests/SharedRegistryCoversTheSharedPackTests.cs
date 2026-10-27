@@ -84,8 +84,7 @@ public sealed class SharedRegistryCoversTheSharedPackTests
         using var participant = new DdsParticipant(Domain);
         var entityMap = new NetworkEntityMap();
         var translators = SharedTranslatorPack.Create(
-            participant, entityMap, localNodeId: 1, world.Bus, new GhostCreationSystem(entityMap),
-            HrotEnvironment.CreateGeoTransform()).ToList();
+            participant, entityMap, localNodeId: 1, world.Bus, new GhostCreationSystem(entityMap)).ToList();
         var missing = new List<string>();
         int checkedIds = 0;
         foreach (var t in translators.OfType<IDescriptorTranslator>())
@@ -104,8 +103,7 @@ public sealed class SharedRegistryCoversTheSharedPackTests
         using var participant = new DdsParticipant(Domain);
         var entityMap = new NetworkEntityMap();
         var translators = SharedTranslatorPack.Create(
-            participant, entityMap, localNodeId: 1, world.Bus, new GhostCreationSystem(entityMap),
-            HrotEnvironment.CreateGeoTransform()).ToList();
+            participant, entityMap, localNodeId: 1, world.Bus, new GhostCreationSystem(entityMap)).ToList();
 
         var failures = new List<string>();
         int applied = 0;

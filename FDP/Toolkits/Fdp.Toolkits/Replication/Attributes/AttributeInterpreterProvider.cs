@@ -1,6 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
 using Fdp.Core;
-using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Replication.Services;
 
@@ -51,13 +50,12 @@ public static class AttributeInterpreterProvider
     /// caller is no longer a problem. ⚠ Not thread-safe by design: FDP world access is single-threaded
     /// during a tick, and the shipped callers are gizmo construction and a system's <c>Execute</c>.</para>
     ///
-    /// <para>⚠ <b><c>IGeographicTransform</c> is read from the world, and its ABSENCE is normal</b>
-    /// *(<c>AX-010</c>)*: a host without a geodetic frame simply gets an interpreter with no
-    /// <c>Geo*</c> handlers, which <c>AttributeCompilerFactory</c> already models. ⛔ It must not throw —
-    /// <c>GetSingletonManaged</c> does when unset, so the presence check is required.</para>
+    /// <para>⭐ <b><c>CE-4073</c>: no geodetic frame is read from the world any more</b> *(it was <c>AX-010</c>'s optional
+    /// <c>IGeographicTransform</c>, whose absence dropped the position handlers)*. The position attributes are local ENU metres, a plain copy,
+    /// so every world gets the same interpreter.</para>
     /// </summary>
     public static BinaryInterpreter<EntityAttributeChange> GetOrCreate(EntityRepository repo)
-        => Slot(repo).Binary ??= AttributeCompilerFactory.BuildBinaryInterpreter(GeoOf(repo));
+        => Slot(repo).Binary ??= AttributeCompilerFactory.BuildBinaryInterpreter();
 
     /// <summary>
     /// ⭐⭐ <b>The world's JSON attribute compiler — same lifetime rule, for the same reason.</b>
@@ -71,7 +69,7 @@ public static class AttributeInterpreterProvider
     /// this is consistency rather than a fix. ⭐ Stated so the change is not read as repairing a defect.</para>
     /// </summary>
     public static JsonAttributeCompiler GetOrCreateJson(EntityRepository repo)
-        => Slot(repo).Json ??= AttributeCompilerFactory.Build(GeoOf(repo));
+        => Slot(repo).Json ??= AttributeCompilerFactory.Build();
 
     // ── Q59-E — the world's component→descriptor map ───────────────────────────
 
@@ -141,14 +139,4 @@ public static class AttributeInterpreterProvider
         System.ArgumentNullException.ThrowIfNull(repo);
         return Cache.GetValue(repo, static _ => new Appliers());
     }
-
-    /// <summary>
-    /// ⚠ <b>The geodetic frame is OPTIONAL and its absence is normal</b> *(<c>AX-010</c>)* — a host without
-    /// one simply gets appliers with no <c>Geo*</c> handlers. ⛔ The presence check is required because
-    /// <c>GetSingletonManaged</c> THROWS when unset; that is the trap that reddened the AX-005 rail on the IG.
-    /// </summary>
-    private static IGeographicTransform? GeoOf(EntityRepository repo)
-        => repo.HasSingletonManaged<IGeographicTransform>()
-            ? repo.GetSingletonManaged<IGeographicTransform>()
-            : null;
 }

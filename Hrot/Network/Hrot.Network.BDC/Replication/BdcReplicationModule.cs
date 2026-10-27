@@ -26,7 +26,6 @@ namespace Hrot.BDC.Replication
 
         private readonly DdsParticipant? _participant;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
         private readonly FdpEventBus _eventBus;
         private readonly long _localNodeId;
         private readonly bool _driveFromNetwork;
@@ -44,13 +43,11 @@ namespace Hrot.BDC.Replication
             DdsParticipant? participant,
             NodeRole role,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform,
             FdpEventBus eventBus,
             long localNodeId)
         {
             _participant  = participant;
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _eventBus     = eventBus     ?? throw new ArgumentNullException(nameof(eventBus));
             _localNodeId  = localNodeId;
 
@@ -71,7 +68,7 @@ namespace Hrot.BDC.Replication
                 var masterTranslator = new BdcEntityMasterTranslator(
                     _participant, _entityMap, _localNodeId, _eventBus, GhostCreationSystem);
                 var worldPosTranslator = new BdcWorldPosTranslator(
-                    _participant, _entityMap, _geoTransform, _localNodeId);
+                    _participant, _entityMap, _localNodeId);
 
                 var translators = new IDescriptorTranslator[]
                 {

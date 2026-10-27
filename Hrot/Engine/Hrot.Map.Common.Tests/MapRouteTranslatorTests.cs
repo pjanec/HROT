@@ -31,7 +31,7 @@ public class MapRouteTranslatorTests
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
         var writer       = new CapturingWriter<MapRoute>();
-        var translator   = new MapRouteEgressTranslator(writer, entityMap, geoTransform);
+        var translator   = new MapRouteEgressTranslator(writer, entityMap);
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new NetworkIdentity(1));
@@ -65,7 +65,7 @@ public class MapRouteTranslatorTests
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var writer       = new CapturingWriter<MapRoute>();
-        var translator   = new MapRouteEgressTranslator(writer, entityMap, new StubGeoTransform());
+        var translator   = new MapRouteEgressTranslator(writer, entityMap);
         var entity = world.CreateEntity();
         world.AddComponent(entity, new NetworkIdentity(7));
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
@@ -87,7 +87,7 @@ public class MapRouteTranslatorTests
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
         var writer       = new CapturingWriter<MapRoute>();
-        var translator   = new MapRouteEgressTranslator(writer, entityMap, geoTransform);
+        var translator   = new MapRouteEgressTranslator(writer, entityMap);
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new NetworkIdentity(2));
@@ -121,7 +121,7 @@ public class MapRouteTranslatorTests
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
         var writer       = new CapturingWriter<MapRoute>();
-        var egress       = new MapRouteEgressTranslator(writer, entityMap, geoTransform);
+        var egress       = new MapRouteEgressTranslator(writer, entityMap);
         var entity = world.CreateEntity();
         world.AddComponent(entity, new NetworkIdentity(3));
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
@@ -142,7 +142,7 @@ public class MapRouteTranslatorTests
         var otherMap = new NetworkEntityMap();
         var replica = other.CreateEntity();
         otherMap.Register(3, replica);
-        new MapRouteIngressTranslator(null, otherMap, geoTransform).ApplyToEntity(replica, writer.Publishes[0], other);
+        new MapRouteIngressTranslator(null, otherMap).ApplyToEntity(replica, writer.Publishes[0], other);
         var back = ((ISimulationView)other).GetManagedComponentRO<RoutePlan>(replica).Waypoints[0];
         Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 45f, Fdp.Toolkit.Navigation.RouteHold.Unload, 4f, 7701L),
                      (back.Kind, back.HeightAgl, back.Hold, back.HoldSeconds, back.HoldUnit));
@@ -155,7 +155,7 @@ public class MapRouteTranslatorTests
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var writer       = new CapturingWriter<MapRoute>();
-        var translator   = new MapRouteEgressTranslator(writer, entityMap, new StubGeoTransform());
+        var translator   = new MapRouteEgressTranslator(writer, entityMap);
 
         var originalPos = new Vector3(500f, 1000f, 50f);
 
@@ -184,7 +184,7 @@ public class MapRouteTranslatorTests
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
         var writer       = new CapturingWriter<MapRoute>();
-        var translator   = new MapRouteEgressTranslator(writer, entityMap, geoTransform);
+        var translator   = new MapRouteEgressTranslator(writer, entityMap);
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new NetworkIdentity(4));
@@ -212,7 +212,7 @@ public class MapRouteTranslatorTests
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
         var writer       = new CapturingWriter<MapRoute>();
-        var translator   = new MapRouteEgressTranslator(writer, entityMap, geoTransform);
+        var translator   = new MapRouteEgressTranslator(writer, entityMap);
 
         // Entity without RoutePlan
         var entity = world.CreateEntity();
@@ -234,7 +234,7 @@ public class MapRouteTranslatorTests
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
-        var translator   = new MapRouteIngressTranslator(null, entityMap, geoTransform);
+        var translator   = new MapRouteIngressTranslator(null, entityMap);
 
         var entity = world.CreateEntity();
         entityMap.Register(10, entity);
@@ -252,7 +252,7 @@ public class MapRouteTranslatorTests
         // ⭐ AQ107 B — was Ingress_GeoPosition_RoundTripWithinOneMm (a WGS84 conversion). The wire waypoint is local ENU: a copy.
         using var world = CreateEcsWorld();
         var entityMap   = new NetworkEntityMap();
-        var translator  = new MapRouteIngressTranslator(null, entityMap, new StubGeoTransform());
+        var translator  = new MapRouteIngressTranslator(null, entityMap);
 
         var originalPos = new Vector3(300f, 700f, 20f);
 
@@ -284,7 +284,7 @@ public class MapRouteTranslatorTests
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
-        var translator   = new MapRouteIngressTranslator(null, entityMap, geoTransform);
+        var translator   = new MapRouteIngressTranslator(null, entityMap);
 
         var entity = world.CreateEntity();
         entityMap.Register(12, entity);
@@ -317,7 +317,7 @@ public class MapRouteTranslatorTests
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
-        var translator   = new MapRouteIngressTranslator(null, entityMap, geoTransform);
+        var translator   = new MapRouteIngressTranslator(null, entityMap);
 
         var entity = world.CreateEntity();
         entityMap.Register(13, entity);
@@ -340,7 +340,7 @@ public class MapRouteTranslatorTests
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
-        var translator   = new MapRouteIngressTranslator(null, entityMap, geoTransform);
+        var translator   = new MapRouteIngressTranslator(null, entityMap);
 
         var view = (ISimulationView)world;
         var cmd  = (EntityCommandBuffer)view.GetCommandBuffer();
@@ -377,7 +377,7 @@ public class MapRouteTranslatorTests
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
-        var translator   = new MapRouteIngressTranslator(null, entityMap, geoTransform);
+        var translator   = new MapRouteIngressTranslator(null, entityMap);
 
         var view = (ISimulationView)world;
         var cmd  = (EntityCommandBuffer)view.GetCommandBuffer();
@@ -426,7 +426,7 @@ public class MapRouteTranslatorTests
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var geoTransform = new StubGeoTransform();
-        var translator   = new MapRouteIngressTranslator(null, entityMap, geoTransform);
+        var translator   = new MapRouteIngressTranslator(null, entityMap);
 
         var view = (ISimulationView)world;
         var cmd  = (EntityCommandBuffer)view.GetCommandBuffer();
@@ -480,7 +480,7 @@ public class MapRouteTranslatorTests
         plan = plan.WithWaypoints(wps => { for (int i = 0; i < 3; i++) wps.Add(new RouteWaypoint { Position = new Vector3(i, i, 0) }); });
         world.SetManagedComponent(entity, plan);
         entityMap.Register(10, entity);
-        return (world, new MapRouteIngressTranslator(null, entityMap, new StubGeoTransform()), entity);
+        return (world, new MapRouteIngressTranslator(null, entityMap), entity);
     }
 
     private static void ProcessAndPlay(EntityRepository world, MapRouteIngressTranslator translator, MapRoute sample)

@@ -125,12 +125,12 @@ namespace Hrot.DDS.DataModel.Tests
 
         /// <summary>
         /// The exported schema must contain at least one entry under "properties"
-        /// for every path registered in AttributeCompilerFactory.Build(null).
+        /// for every path registered in AttributeCompilerFactory.Build().
         /// </summary>
         [Fact]
         public void SC_GZ052_5_ExportSchema_ContainsAtLeastOneProperty()
         {
-            var compiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform: null);
+            var compiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build();
             string schema = compiler.ExportSchema();
 
             using var doc = JsonDocument.Parse(schema);

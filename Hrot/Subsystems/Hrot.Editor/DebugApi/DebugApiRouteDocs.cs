@@ -2938,7 +2938,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_attributes_schema",
             Group:   "L — Mutation / fault injection",
             Summary: "Return all patchable attribute paths and their JSON Schema.",
-            Returns: "{ registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, GeoPosition.*, Heading, …).",
+            Returns: "{ registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, Position.X/Y/Z (local ENU metres), Heading, …).",
             Hint:    "No params. Example: get_attributes_schema({})",
             Notes: new[]
             {

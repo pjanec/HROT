@@ -6,6 +6,8 @@ current-answer: NOT-BUILT (design only; also gated on UXI-30). Gizmos still writ
 -->
 # Feature design — authority-aware ECS writes
 
+> ⛔ **CE-4073 note (2026-10-27):** where this document describes the attribute route as **geodetic** (`GeoPosition.Latitude/Longitude/Altitude`, `GeoLat`/`GeoLon`/`GeoAlt`, a `ToCartesian`/`ToGeodetic` scratchpad), that is HISTORY — the route is now local ENU metres: `Position.X/Y/Z` (`AttributeIds.PositionX/Y/Z` = 14/15/16, a plain copy per axis, on every host); ids 10–12 are retired. See `docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md` §4 row B (as-built).
+
 > **Design for [UXI-29](UX_Issues.md#uxi-29) · drafted 2026-08-12.** **Status: ❌ NOT-BUILT (design only; also gated on UXI-30) — gizmos still write ECS unguarded (`EntityRotatorGizmo.cs:152`, `EntityDragGizmo.cs:222/228`); no `PoseIntent*` types; the UXI-30 binary authority gate absent.** Implements [ruling 22](UX_RESUME_INTERACTION.md) (*mutate ECS only where you own it*)
 > and [ruling 30](UX_RESUME_INTERACTION.md) (*structural changes via the command buffer*).
 >

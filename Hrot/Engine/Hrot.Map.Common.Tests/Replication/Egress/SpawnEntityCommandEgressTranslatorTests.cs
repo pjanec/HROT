@@ -40,7 +40,7 @@ public class SpawnEntityCommandEgressTranslatorTests
     {
         var bus        = new FdpEventBus();
         var writer     = new CapturingWriter<CreateEntityRequest>();
-        var translator = new SpawnEntityCommandEgressTranslator(writer, bus, geoTransform: null);
+        var translator = new SpawnEntityCommandEgressTranslator(writer, bus);
 
         var requestId = Guid.NewGuid();
         bus.PublishManaged(new SpawnEntityCommand { TkbType = 1L, RequestId = requestId });
@@ -64,7 +64,7 @@ public class SpawnEntityCommandEgressTranslatorTests
         var writer = new CapturingWriter<CreateEntityRequest>();
 
         // No delegate — translator must produce the descriptor from InitialComponents only.
-        var translator = new SpawnEntityCommandEgressTranslator(writer, bus, geoTransform: null);
+        var translator = new SpawnEntityCommandEgressTranslator(writer, bus);
 
         bus.PublishManaged(new SpawnEntityCommand
         {
@@ -101,7 +101,7 @@ public class SpawnEntityCommandEgressTranslatorTests
     {
         var bus        = new FdpEventBus();
         var writer     = new CapturingWriter<CreateEntityRequest>();
-        var translator = new SpawnEntityCommandEgressTranslator(writer, bus, geoTransform: null);
+        var translator = new SpawnEntityCommandEgressTranslator(writer, bus);
 
         bus.PublishManaged(new SpawnEntityCommand
         {

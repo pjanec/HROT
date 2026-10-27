@@ -55,7 +55,7 @@ public class TheHeadingConversionIsSharedTests
     public void TheJsonPathUsesTheSharedConversion(double headingDeg)
     {
         var (repo, e) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
         compiler.Compile($"{{\"Heading\":{headingDeg}}}", compiler.CreatePatchContext(repo, e));
 
         AssertSameRotation(
@@ -71,7 +71,7 @@ public class TheHeadingConversionIsSharedTests
     public void TheBinaryPathUsesTheSharedConversion(double headingDeg)
     {
         var (repo, e) = OwnedEntity();
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         var patchCtx    = EcsPatchContext.Create(repo, e);
         var ctx         = interpreter.CreateContext(patchCtx);
         ctx.Repo = repo; ctx.Entity = e;
@@ -141,14 +141,14 @@ public class TheHeadingConversionIsSharedTests
         repo.GetComponentRW<SimTransform>(e).Rotation = SimTransformBridgeSystem.EulerDegToRotation(30f, 10f, -20f);
         if (binary)
         {
-            var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+            var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
             var ctx = interpreter.CreateContext(EcsPatchContext.Create(repo, e));
             ctx.Repo = repo; ctx.Entity = e;
             interpreter.Apply(ctx, new[] { new EntityAttributeChange { AttributeId = AttributeIds.Heading, Value = AttributeValue.FromDouble(200.0) } });
         }
         else
         {
-            var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+            var compiler = AttributeCompilerFactory.Build();
             compiler.Compile("{\"Heading\":200}", compiler.CreatePatchContext(repo, e));
         }
 

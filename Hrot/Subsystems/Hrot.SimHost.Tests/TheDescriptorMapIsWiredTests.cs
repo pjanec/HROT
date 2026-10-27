@@ -166,7 +166,6 @@ public class TheDescriptorMapIsWiredTests
             participant:          null,
             role:                 Fdp.Core.NodeRole.MuscleGround,
             entityMap:            new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
-            geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:             new FdpEventBus(),
             localNodeId:          1,
             domainId:             0,
@@ -232,7 +231,7 @@ public class TheDescriptorMapIsWiredTests
         repo.AddComponent(e, default(SimTransform));
         repo.SetAuthority<SimTransform>(e, true);
 
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
         compiler.Compile("{\"Heading\":90.0}", compiler.CreatePatchContext(repo, e));
 
         // ⭐ The write LANDED — a networkless host still applies attributes.
@@ -249,7 +248,6 @@ public class TheDescriptorMapIsWiredTests
             participant:          null,
             role:                 role,
             entityMap:            new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
-            geoTransform:         Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:             new FdpEventBus(),
             localNodeId:          1,
             domainId:             0,

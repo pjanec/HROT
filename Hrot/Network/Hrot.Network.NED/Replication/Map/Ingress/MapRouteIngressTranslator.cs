@@ -61,12 +61,10 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
 
     public MapRouteIngressTranslator(
         DdsParticipant? participant,
-        NetworkEntityMap entityMap,
-        IGeographicTransform geoTransform)
+        NetworkEntityMap entityMap)
     {
         _reader       = participant is not null ? new DdsReader<MapRoute>(participant) : null;
         _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-        // geoTransform: ⭐ AQ107 B — no longer used (waypoints are local ENU on the wire; copied). Kept so the callers keep their shape.
 
         // Subscribe to registration events so the retry loop only runs when relevant
         // entities become available, rather than scanning all pending IDs every tick.

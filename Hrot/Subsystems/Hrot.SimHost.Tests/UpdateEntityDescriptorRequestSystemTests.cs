@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
             const uint domain = 210u;
             using var participant = new DdsParticipant(domain);
             var entityMap  = new NetworkEntityMap();
-            var system     = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
+            var system     = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo       = CreateWorld();
 
             using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
@@ -131,7 +131,7 @@ namespace Hrot.SimHost.Tests
             const uint domain = 211u;
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -162,7 +162,7 @@ namespace Hrot.SimHost.Tests
             const uint domain = 212u;
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -193,7 +193,7 @@ namespace Hrot.SimHost.Tests
             const uint domain = 213u;
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -242,7 +242,7 @@ namespace Hrot.SimHost.Tests
             var stub      = new StubAckWriter();
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform(), stub);
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, stub);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();
@@ -269,7 +269,7 @@ namespace Hrot.SimHost.Tests
             var stub      = new StubAckWriter();
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
-            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform(), stub);
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, stub);
             var repo      = CreateWorld();
 
             var entity = repo.CreateEntity();

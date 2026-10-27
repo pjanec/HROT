@@ -120,7 +120,7 @@ namespace Hrot.SimHost.Tests
         public void AHullThatStops_PublishesTheStop_ThoughItDidNotMove_CE2348()
         {
             using var participant = new DdsParticipant(166u);
-            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), new PassthroughGeo(), localNodeId: 1);
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
             var (repo, hull) = OwnedHull();
             translator.ScanAndPublish(repo);
             long first = translator.SentSampleCount;
@@ -143,7 +143,7 @@ namespace Hrot.SimHost.Tests
         public void AStandingHull_GetsItsHeartbeat_HoweverOftenTheTranslatorRuns_CE2348()
         {
             using var participant = new DdsParticipant(167u);
-            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), new PassthroughGeo(), localNodeId: 1);
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
             var (repo, hull) = OwnedHull();
             repo.GetComponentRW<Fdp.Core.SimVelocity>(hull) = default;
             translator.ScanAndPublish(repo);
@@ -171,7 +171,7 @@ namespace Hrot.SimHost.Tests
         private sealed class IngressProbe : GeoSpatialIngressTranslator
         {
             public IngressProbe(NetworkEntityMap map, GhostCreationSystem ghosts)
-                : base(participant: null, map, new PassthroughGeo(), ghosts, localNodeId: 2) { }
+                : base(participant: null, map, ghosts, localNodeId: 2) { }
             public void Apply(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view) => Decode(data, cmd, view);
         }
 
@@ -189,7 +189,7 @@ namespace Hrot.SimHost.Tests
         {
             using var participant = new DdsParticipant(188u);
             using var reader      = new DdsReader<WorldPos>(participant, "WorldPos");
-            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), new PassthroughGeo(), localNodeId: 1);
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
 
             var (repo, hull) = OwnedHull();
             var position = new Vector3(1234.5f, -8765.25f, 42.125f);
@@ -261,7 +261,7 @@ namespace Hrot.SimHost.Tests
 
             var geoTransform = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var entityMap    = new NetworkEntityMap();
-            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
+            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, localNodeId: 0);
 
             // Call Dispose -- this should tombstone the WorldPos instance.
             translator.Dispose(42L);
@@ -298,7 +298,7 @@ namespace Hrot.SimHost.Tests
 
             var geoTransform = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var entityMap    = new NetworkEntityMap();
-            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
+            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, localNodeId: 0);
 
             // Call Dispose -- base.Dispose should tombstone the GeoSpatial instance.
             translator.Dispose(99L);

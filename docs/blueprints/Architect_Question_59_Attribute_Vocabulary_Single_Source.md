@@ -21,6 +21,8 @@ known-conflict: none. §5 F3 is a NEW defect this investigation found; it has no
 -->
 # ⭐⭐⭐ `Q59` — **One attribute, declared how many times?** *(consistency · architectural correctness · redundancy)*
 
+> ⛔ **CE-4073 note (2026-10-27):** where this document describes the attribute route as **geodetic** (`GeoPosition.Latitude/Longitude/Altitude`, `GeoLat`/`GeoLon`/`GeoAlt`, a `ToCartesian`/`ToGeodetic` scratchpad), that is HISTORY — the route is now local ENU metres: `Position.X/Y/Z` (`AttributeIds.PositionX/Y/Z` = 14/15/16, a plain copy per axis, on every host); ids 10–12 are retired. See `docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md` §4 row B (as-built).
+
 > ⭐⭐⭐ **User, `2026-08-26`:** *"so what can we do to achieve consistency and architectural correctness and
 > eliminated redundancy?"*
 >

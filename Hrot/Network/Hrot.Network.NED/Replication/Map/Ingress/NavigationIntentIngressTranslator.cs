@@ -38,12 +38,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         public NavigationIntentIngressTranslator(
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
-            IGeographicTransform geoTransform,
             long localNodeId)
         {
             _reader       = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent");
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
-            // geoTransform: ⭐ AQ107 B — no longer used (the destination is local ENU on the wire; copied). Kept so the callers keep their shape.
             _localNodeId  = localNodeId;
         }
 

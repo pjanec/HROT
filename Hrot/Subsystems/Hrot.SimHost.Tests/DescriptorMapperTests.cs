@@ -92,7 +92,7 @@ namespace Hrot.SimHost.Tests
                 MakeEntityMasterDescriptor(tkbType: 10L),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             Assert.Empty(components);
         }
@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
                 MakeEntityMasterDescriptor(tkbType: 10L),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             Assert.DoesNotContain(components, c => c is EntityMaster);
         }
@@ -118,7 +118,7 @@ namespace Hrot.SimHost.Tests
                 MakeEntityInfoDescriptor(),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             var igData = Assert.Single( components, c => c is Fdp.Core.EntityInfo );
             var entityInfo = (Fdp.Core.EntityInfo)igData;
@@ -133,7 +133,7 @@ namespace Hrot.SimHost.Tests
                 MakeEntityInfoDescriptor(),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
 			Assert.DoesNotContain( components, c => c is Hrot.NED.Descriptors.EntityInfo );
         }
@@ -147,7 +147,7 @@ namespace Hrot.SimHost.Tests
                 MakeGeoSpatialDescriptor(x: 16.0, y: 48.0),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geo);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             var simTransform = Assert.Single(components.OfType<SimTransform>());
             Assert.Equal(16f, simTransform.Position.X, precision: 3);
@@ -164,7 +164,7 @@ namespace Hrot.SimHost.Tests
                 MakeGeoSpatialDescriptor(x: 16.0, y: 48.0),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geo);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             Assert.DoesNotContain(components, c => c is WorldPos);
         }
@@ -179,7 +179,7 @@ namespace Hrot.SimHost.Tests
                 MakeGeoSpatialDescriptor(x: 16.0, y: 48.0),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             var simTransform = Assert.Single(components.OfType<SimTransform>());
             Assert.Equal(16f, simTransform.Position.X, precision: 3);
@@ -202,7 +202,7 @@ namespace Hrot.SimHost.Tests
             var descriptors = new List<EntityDescriptorUnion> { unknown };
 
             // Must not throw; must return an empty list
-            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             Assert.Empty(components);
         }
@@ -215,7 +215,7 @@ namespace Hrot.SimHost.Tests
                 MakeGeoSpatialDrDescriptor(speedMs: 15f, headingDeg: 90f),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             var simVelocity = Assert.Single(components.OfType<SimVelocity>());
             Assert.Equal(15f, simVelocity.Linear.Length(), precision: 3);
@@ -232,7 +232,7 @@ namespace Hrot.SimHost.Tests
                 MakeGeoSpatialDrDescriptor(speedMs: 15f, headingDeg: 90f),
             };
 
-            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+            var components = DescriptorMapper.MapToComponents(descriptors);
 
             Assert.DoesNotContain(components, c => c is WorldPos);
         }

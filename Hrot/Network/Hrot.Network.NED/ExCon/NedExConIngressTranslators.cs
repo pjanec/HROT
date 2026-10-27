@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
-using Fdp.Modules.Geographic;
 using Fdp.Toolkit.DER;
 using Hrot.Core.Network;
 using Hrot.NED.Descriptors;
@@ -22,16 +21,13 @@ public sealed class NedMapClickIngressHandler : IIngressHandler, IDisposable
     private readonly Action<MapClickEventDto>   _enqueue;
     private readonly int                        _maxSamples;
     private readonly long                       _localNodeId;
-    private readonly IGeographicTransform?      _geoTransform;   // AQ107 B: the wire click is local ENU, the neutral DTO is lat/lon
 
     public NedMapClickIngressHandler(
         DdsParticipant            participant,
         Action<MapClickEventDto>  enqueue,
         int                       maxSamples  = 10,
-        long                      localNodeId = 0,
-        IGeographicTransform?     geoTransform = null)
+        long                      localNodeId = 0)
     {
-        _geoTransform = geoTransform;
         _reader      = new DdsReader<MapClickEvent>(participant, "MapClickEvent");
         _enqueue     = enqueue ?? throw new ArgumentNullException(nameof(enqueue));
         _maxSamples  = Math.Max(1, maxSamples);
@@ -52,13 +48,12 @@ public sealed class NedMapClickIngressHandler : IIngressHandler, IDisposable
             if (d.HitStack != null)
                 foreach (var h in d.HitStack) hits.Add(checked((int)h.EntityId));   // AQ107 E: wire id int64 → neutral DTO int32
 
-            var (lat, lon, alt) = NeutralGeoBoundary.ToNeutral(_geoTransform, d.Position);   // AQ107 B: wire local ENU → neutral lat/lon
             _enqueue(new MapClickEventDto
             {
                 InteractionContextId = d.InteractionContextId,
-                Latitude             = lat,
-                Longitude            = lon,
-                Altitude             = alt,
+                X                    = d.Position.X,   // CE-4073: the neutral DTO is local ENU metres like the wire — a copy
+                Y                    = d.Position.Y,
+                Z                    = d.Position.Z,
                 HitEntityIds         = hits,
             });
         }

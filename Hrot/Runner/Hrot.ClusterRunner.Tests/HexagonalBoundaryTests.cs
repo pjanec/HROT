@@ -292,8 +292,8 @@ public sealed class HexagonalBoundaryTests
         public Hrot.Common.Abstractions.IReplicationModule CreateReplicationModule()               => _base.CreateReplicationModule();
 
         public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
-            DdsParticipant participant, FdpEventBus bus, IGeographicTransform geoTransform, long nodeId)
-            => _base.CreateIgEgressTranslators(participant, bus, geoTransform, nodeId);
+            DdsParticipant participant, FdpEventBus bus, long nodeId)
+            => _base.CreateIgEgressTranslators(participant, bus, nodeId);
 
         public IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
             FdpEventBus interactionBus, long localNodeId, bool headless)
@@ -354,8 +354,8 @@ public sealed class HexagonalBoundaryTests
         public Hrot.Common.Abstractions.IReplicationModule CreateReplicationModule()               => _base.CreateReplicationModule();
 
         public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
-            DdsParticipant participant, FdpEventBus bus, IGeographicTransform geoTransform, long nodeId)
-            => _base.CreateIgEgressTranslators(participant, bus, geoTransform, nodeId);
+            DdsParticipant participant, FdpEventBus bus, long nodeId)
+            => _base.CreateIgEgressTranslators(participant, bus, nodeId);
 
         public IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
             FdpEventBus interactionBus, long localNodeId, bool headless)

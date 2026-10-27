@@ -46,19 +46,16 @@ namespace Hrot.Map.Common.Commands
         private readonly DdsWriter<UpdateEntityDescriptorRequest>                              _updateWriter;
         private readonly DdsWriter<UpdateEntityAttributeRequest>                               _attributeWriter;
         private readonly long _localNodeId;
-        private readonly IGeographicTransform? _geoTransform;   // AQ107 B: the neutral commands carry lat/lon, the wire is local ENU
 
         /// <summary>
         /// creates a new gateway instance.
         /// </summary>
         /// <param name="participant">The DDS participant to use for communication.</param>
         /// <param name="localNodeId">Local node identifier; embedded in FdpLog messages.</param>
-        /// <param name="geoTransform">The node's geo transform — converts the neutral commands' lat/lon to the wire's local ENU (AQ107 B).</param>
-        public NedCommandGateway(DdsParticipant participant, long localNodeId = 0, IGeographicTransform? geoTransform = null)
+        public NedCommandGateway(DdsParticipant participant, long localNodeId = 0)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
             _localNodeId = localNodeId;
-            _geoTransform = geoTransform;
 
             // Initialize the client for CreateEntityRequest
             _createEntityClient = new DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>(
@@ -156,7 +153,7 @@ namespace Hrot.Map.Common.Commands
         /// <inheritdoc/>
         async Task<int> ICommandGateway.CreateEntityAsync(CreateEntityCommand cmd, CancellationToken ct)
         {
-            var request = NedTranslationHelper.ToCreateEntityRequest(cmd, _geoTransform);
+            var request = NedTranslationHelper.ToCreateEntityRequest(cmd);
             var ack     = await CreateEntityAsync(request).ConfigureAwait(false);
             return checked((int)ack.EntityId);   // AQ107 E: the wire id is int64, ICommandGateway's result stays int32
         }
@@ -164,7 +161,7 @@ namespace Hrot.Map.Common.Commands
         /// <inheritdoc/>
         Task ICommandGateway.SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, CancellationToken ct)
         {
-            var request = NedTranslationHelper.ToUpdateDescriptorRequest(cmd, _geoTransform);
+            var request = NedTranslationHelper.ToUpdateDescriptorRequest(cmd);
             SendUpdateDescriptor(request);
             return Task.CompletedTask;
         }

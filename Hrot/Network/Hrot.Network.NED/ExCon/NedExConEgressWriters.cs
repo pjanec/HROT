@@ -22,12 +22,10 @@ public sealed class NedExConEgressWriters : IExConEgressWriters
     private readonly DdsWriter<DeleteEntityRequest>   _deleteEntityWriter;
     private readonly DdsWriter<ContextActionsUpdate>  _contextMenuWriter;
     private readonly int                              _mapGroupId;
-    private readonly IGeographicTransform?            _geoTransform;   // AQ107 B: neutral lat/lon → wire local ENU
 
-    public NedExConEgressWriters(DdsParticipant participant, int mapGroupId = 0, IGeographicTransform? geoTransform = null)
+    public NedExConEgressWriters(DdsParticipant participant, int mapGroupId = 0)
     {
         _mapGroupId          = mapGroupId;
-        _geoTransform        = geoTransform;
         _configWriter        = new DdsWriter<MapInteractionConfig>(participant);
         _createEntityWriter  = new DdsWriter<CreateEntityRequest>(participant);
         _commandWriter       = new DdsWriter<MapCommandRequest>(participant);
@@ -67,7 +65,7 @@ public sealed class NedExConEgressWriters : IExConEgressWriters
             RequestId          = cmd.RequestId,
             Owner              = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
             Flags              = 0,
-            InitialDescriptors = NedTranslationHelper.BuildCreateEntityDescriptors(cmd, _geoTransform),
+            InitialDescriptors = NedTranslationHelper.BuildCreateEntityDescriptors(cmd),
         });
     }
 

@@ -13,8 +13,8 @@ namespace Fdp.Toolkit.Replication.Patching;
 /// <para>
 /// Handles three JSON shapes without heap allocation:
 /// <list type="bullet">
-///   <item>Flat dotted keys: <c>{ "GeoPosition.Latitude": 32.0 }</c></item>
-///   <item>Nested objects: <c>{ "GeoPosition": { "Latitude": 32.0 } }</c></item>
+///   <item>Flat dotted keys: <c>{ "Position.X": 120.0 }</c></item>
+///   <item>Nested objects: <c>{ "Position": { "X": 120.0 } }</c></item>
 ///   <item>Array-indexed nested objects: <c>{ "Weapon": { "2": { "Ammo": 5 } } }</c>
 ///         — integer string keys are captured as SubIndex1 / SubIndex2.</item>
 /// </list>
@@ -198,7 +198,7 @@ public sealed class JsonToRecordCompiler
     /// differently from the other; ⛔ adding the diagnostic to only one of them would repeat that mistake.</para>
     ///
     /// <para>⭐ Warned ONCE per key per compiler; ⚠ the key is the LEAF property name *(exact for the flat
-    /// <c>{"GeoPosition.Latitude": …}</c> form that ExCon and the debug API send)*.</para>
+    /// <c>{"Position.X": …}</c> form that ExCon and the debug API send)*.</para>
     /// </summary>
     private void WarnUnknownKeyOnce(ReadOnlySpan<byte> keyUtf8)
     {

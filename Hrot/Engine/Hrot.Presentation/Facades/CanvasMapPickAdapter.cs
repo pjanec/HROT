@@ -142,9 +142,7 @@ public sealed class CanvasMapPickAdapter : IMapPickService
                   ?? (_repo != null && _repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                         ? _repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                         : null);
-        if (geo is null) return new GeoPoint(world.X, world.Y, 0);
-        var (lat, lon, alt) = geo.ToGeodetic(new System.Numerics.Vector3(world.X, world.Y, 0f));
-        return new GeoPoint(lat, lon, alt);
+        return MapPickGeo.ToGeoPoint(geo, world.X, world.Y);   // ⭐ CE-4073 — the one conversion, shared with ExConLogic
     }
 
     /// <inheritdoc/>

@@ -24,7 +24,7 @@ public sealed class AttributeCompilerBuilder
     /// </summary>
     /// <typeparam name="T">Unmanaged struct component type.</typeparam>
     /// <param name="jsonPath">
-    /// Dot-separated JSON path, e.g. <c>"GeoPosition"</c> or <c>"Weapons.*.Ammo.Count"</c>.
+    /// Dot-separated JSON path, e.g. <c>"Position"</c> or <c>"Weapons.*.Ammo.Count"</c>.
     /// Use <c>*</c> as a wildcard for numeric array indices.
     /// </param>
     /// <param name="setter">Delegate that mutates the component in-place.</param>

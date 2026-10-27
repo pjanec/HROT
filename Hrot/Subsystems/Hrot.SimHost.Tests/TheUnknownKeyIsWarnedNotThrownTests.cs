@@ -16,7 +16,7 @@ namespace Hrot.SimHost.Tests;
 /// logged as warning and ignored, no throw."*</para>
 ///
 /// <para>🔴 <b>What it replaces: total silence.</b> 📐 Measured <c>2026-08-26</c>:
-/// <c>{"GeoPosition":{"Heading":90.0}}</c> — the path a reader of the old <c>AttributeIds.GeoHeading</c> would
+/// <c>{"Position":{"Heading":90.0}}</c> — the path a reader of the old <c>AttributeIds.GeoHeading</c> would
 /// naturally guess — applied <b>nothing, with no exception and no log</b>. ⇒ an operator had no way to discover
 /// the key was wrong. ⭐ The binary path had the same hole, behind a comment reading *"Unknown IDs: silently
 /// skipped (forward-compatibility)"*.</para>
@@ -37,13 +37,13 @@ public class TheUnknownKeyIsWarnedNotThrownTests
     /// lose the good ones. ⛔ A throw — or an early return — would do exactly that.</para>
     /// </summary>
     [Theory]
-    [InlineData("{\"GeoPosition\":{\"Heading\":90.0},\"Name\":\"Kept\"}")]   // the natural wrong guess
+    [InlineData("{\"Position\":{\"Heading\":90.0},\"Name\":\"Kept\"}")]   // the natural wrong guess
     [InlineData("{\"NoSuchAttribute\":1,\"Name\":\"Kept\"}")]
     [InlineData("{\"Name\":\"Kept\",\"Nested\":{\"Deep\":{\"Thing\":true}}}")]
     public void AnUnknownKeyIsIgnoredAndTheKnownOnesStillApply(string json)
     {
         var (repo, e) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
 
         var ex = Record.Exception(
             () => compiler.Compile(json, compiler.CreatePatchContext(repo, e)));
@@ -86,7 +86,7 @@ public class TheUnknownKeyIsWarnedNotThrownTests
     public void AnUnregisteredAttributeIdIsIgnoredAndTheKnownOneStillApplies()
     {
         var (repo, e) = OwnedEntity();
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         var patchCtx    = EcsPatchContext.Create(repo, e);
         var ctx         = interpreter.CreateContext(patchCtx);
         ctx.Repo = repo; ctx.Entity = e;
@@ -139,7 +139,7 @@ public class TheUnknownKeyIsWarnedNotThrownTests
     public void TheDiagnosticCostsNothingWhenEveryKeyIsKnown()
     {
         var (repo, e) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
         var utf8 = Encoding.UTF8.GetBytes("{\"Heading\":90.0}");
 
         // warm-up so JIT and the patch context are outside the measured window
@@ -171,7 +171,7 @@ public class TheUnknownKeyIsWarnedNotThrownTests
     public void ARepeatedUnknownKeyIsOnlyReportedOnce()
     {
         var (repo, e) = OwnedEntity();
-        var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+        var compiler = AttributeCompilerFactory.Build();
         var utf8 = Encoding.UTF8.GetBytes("{\"NoSuchAttribute\":1}");
 
         // first call reports it (and allocates the key string + the log message)

@@ -3280,7 +3280,7 @@ export const TOOLS_CATALOG = [
       "path": "/attributes/schema"
     },
     "params": [],
-    "returns": "{ registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, GeoPosition.*, Heading, …).",
+    "returns": "{ registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, Position.X/Y/Z (local ENU metres), Heading, …).",
     "notes": [
       "Use patch_attribute to apply a patch using these paths.",
       "Paths not in registeredPaths are silently ignored by patch_attribute."

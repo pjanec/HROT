@@ -16,11 +16,9 @@ namespace Hrot.UI.Common.AddEntity;
 /// <param name="Tkb">The host's TKB.</param>
 /// <param name="Requests">⭐ <c>CE-3228</c> — the bus the host's creation pack reads (its world's bus), once that pack is composed; null
 /// before. Every authoring affordance publishes an <c>EntityCreationRequest</c> on it (Entity Creation §3.4d).</param>
-/// <param name="GeoTransform">The host's geodetic transform (for the JSON attribute compiler: affiliation, geo coordinates).</param>
 public sealed record EntityAuthoringInputs(
     Func<ITkbDatabase?> Tkb,
-    Func<FdpEventBus?> Requests,
-    Func<IGeographicTransform?> GeoTransform)
+    Func<FdpEventBus?> Requests)
 {
     /// <summary>Why authoring is suspended now (Preview, loading), or null. Greys the Add Entity submenu.</summary>
     public Func<string?>? SuspendedReason { get; init; }
@@ -69,8 +67,9 @@ public sealed class EntityAuthoring
             if (_spawn != null) return _spawn;
             var requests = _in.Requests();
             if (requests is null) return null;
-            var geo = _in.GeoTransform();
-            var json = geo is null ? null : Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geo);
+            // ⭐ CE-4073 — the attribute compiler needs no geographic transform (local ENU metres), so it is built on every host:
+            //   `geo is null ? null : …` used to leave a host with no terrain without one, silently dropping every request's attributes.
+            var json = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build();
             _spawn = new ScenarioSpawnAdapter(requests, json, _in.Tkb(), _gizmos, _tools);
             return _spawn;
         }

@@ -55,10 +55,9 @@ namespace Hrot.Map.Common.Replication.Egress
         public NavigationIntentEgressTranslator(
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
-            IGeographicTransform geoTransform,
             long localNodeId)
             : this(new DdsWriterAdapter<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent"),
-                   entityMap, geoTransform, localNodeId)
+                   entityMap, localNodeId)
         {
         }
 
@@ -69,12 +68,10 @@ namespace Hrot.Map.Common.Replication.Egress
         internal NavigationIntentEgressTranslator(
             IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> writer,
             NetworkEntityMap    entityMap,
-            IGeographicTransform geoTransform,
             long localNodeId)
         {
             _writer       = writer       ?? throw new System.ArgumentNullException(nameof(writer));
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
-            // geoTransform: ⭐ AQ107 B — no longer used (the destination is local ENU on the wire; copied). Kept so the callers keep their shape.
             _localNodeId  = localNodeId;
         }
 

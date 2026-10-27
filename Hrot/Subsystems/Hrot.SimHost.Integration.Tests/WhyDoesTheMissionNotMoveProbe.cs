@@ -120,10 +120,7 @@ namespace Hrot.SimHost.Integration.Tests
 
             _out.WriteLine("── GATE 2b: is the DESTINATION the test asked for even reachable? ─");
             _out.WriteLine($"  CartesianToGeo(500,0,0) = ({Inv(dest.Latitude)}, {Inv(dest.Longitude)})");
-            var destBack = _host.GeoToCartesian(new Hrot.NED.Common.GeoPoint
-            {
-                Latitude = dest.Latitude, Longitude = dest.Longitude, Altitude = dest.Altitude,
-            });
+            var destBack = _host.GeoToCartesian(dest);   // CE-4073: Hrot.NED.Common.GeoPoint is gone; CartesianToGeo already returns the host GeoPoint
             _out.WriteLine($"  …GeoToCartesian back    = ({destBack.X:F2}, {destBack.Y:F2})"
                          + "   (should be ~500,0 — if it is, the test's own target is fine)");
 

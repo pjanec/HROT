@@ -56,21 +56,18 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     /// <summary>Production constructor: creates a live DDS writer.</summary>
     public MapRouteEgressTranslator(
         DdsParticipant participant,
-        NetworkEntityMap entityMap,
-        IGeographicTransform geoTransform)
-        : this(new DdsWriterAdapter<MapRoute>(participant, DdsTopicName), entityMap, geoTransform)
+        NetworkEntityMap entityMap)
+        : this(new DdsWriterAdapter<MapRoute>(participant, DdsTopicName), entityMap)
     {
     }
 
     /// <summary>Testable constructor: accepts an injected writer stub.</summary>
     internal MapRouteEgressTranslator(
         IDdsWriter<MapRoute> writer,
-        NetworkEntityMap entityMap,
-        IGeographicTransform geoTransform)
+        NetworkEntityMap entityMap)
     {
         _writer       = writer       ?? throw new ArgumentNullException(nameof(writer));
         _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-        // geoTransform: ⭐ AQ107 B — no longer used (waypoints are local ENU on the wire; copied). Kept so the callers keep their shape.
     }
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }

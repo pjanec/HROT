@@ -68,7 +68,6 @@ public sealed class NedReplicationModule : INedReplicationModule
     // ── DDS params (held for RegisterSystems) ─────────────────────────────────
     private readonly DdsParticipant?     _participant;
     private readonly NetworkEntityMap    _entityMap;
-    private readonly IGeographicTransform _geoTransform;
     private readonly FdpEventBus         _eventBus;
     private readonly int                 _localNodeId;
 
@@ -188,7 +187,6 @@ public sealed class NedReplicationModule : INedReplicationModule
     /// <param name="participant">Live DDS participant (may be <c>null</c> in headless tests).</param>
     /// <param name="role">Node role; must include at least one of MuscleGround, ImageGenerator, Brain, or AllInOne.</param>
     /// <param name="entityMap">Shared network entity map.</param>
-    /// <param name="geoTransform">Geodetic coordinate transform.</param>
     /// <param name="eventBus">Application event bus.</param>
     /// <param name="localNodeId">Local DDS node identifier.</param>
     /// <param name="domainId">DDS domain ID (unused in this version; reserved for future use).</param>
@@ -219,7 +217,6 @@ public sealed class NedReplicationModule : INedReplicationModule
         DdsParticipant?       participant,
         NodeRole              role,
         NetworkEntityMap      entityMap,
-        IGeographicTransform  geoTransform,
         FdpEventBus           eventBus,
         int                   localNodeId,
         int                   domainId,
@@ -235,7 +232,6 @@ public sealed class NedReplicationModule : INedReplicationModule
         _participant     = participant;
         _role            = role;
         _entityMap       = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
-        _geoTransform    = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
         _eventBus        = eventBus   ?? throw new ArgumentNullException(nameof(eventBus));
         _localNodeId     = localNodeId;
         _tkbDb           = tkbDb;
@@ -288,21 +284,21 @@ public sealed class NedReplicationModule : INedReplicationModule
         if (participant != null)
         {
             _sharedTranslators = SharedTranslatorPack.Create(
-                participant, entityMap, localNodeId, eventBus, GhostCreationSystem, geoTransform);
+                participant, entityMap, localNodeId, eventBus, GhostCreationSystem);
 
             if (_roleHasMuscle)
                 _kinematicTranslators = KinematicTranslatorPack.Create(
-                    participant, entityMap, geoTransform, localNodeId: localNodeId);
+                    participant, entityMap, localNodeId: localNodeId);
 
             if (role.HasFlag(NodeRole.Traffic) && !_roleHasMuscle)
                 _trafficTranslators = new FdpIDescriptorTranslator[]
                 {
-                    new Hrot.Map.Common.Replication.Ingress.NavigationIntentIngressTranslator(participant, entityMap, geoTransform, localNodeId),
+                    new Hrot.Map.Common.Replication.Ingress.NavigationIntentIngressTranslator(participant, entityMap, localNodeId),
                 };
 
             if (_roleHasBrain)
                 _cognitiveTranslators = CognitiveTranslatorPack.Create(
-                    participant, entityMap, geoTransform,
+                    participant, entityMap,
                     behaviorRegistry,
                     GhostCreationSystem,
                     localNodeId: localNodeId);

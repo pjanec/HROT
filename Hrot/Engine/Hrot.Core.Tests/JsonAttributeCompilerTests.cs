@@ -54,7 +54,7 @@ public class AttributeCompilerBuilderTests
     public void AttributeCompilerBuilder_RegisterValuePath_CanBuildAndCompile()
     {
         var compiler = new AttributeCompilerBuilder()
-            .RegisterValuePath<SimTransform>("GeoPosition",
+            .RegisterValuePath<SimTransform>("Position",
                 (ref SimTransform c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Position = new System.Numerics.Vector3((float)r.GetDouble(), 0f, 0f))
             .Build();
@@ -361,23 +361,23 @@ public class JsonAttributeCompilerTests
     [Fact]
     public void JsonAttributeCompiler_NestedProperty_InvokesCorrectDelegate()
     {
-        double capturedLat = 0;
+        double capturedX = 0;
         int invocations = 0;
 
         var compiler = new AttributeCompilerBuilder()
-            .RegisterValuePath<SimTransform>("GeoPosition.Latitude",
+            .RegisterValuePath<SimTransform>("Position.X",
                 (ref SimTransform c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                 {
-                    capturedLat = r.GetDouble();
+                    capturedX = r.GetDouble();
                     invocations++;
                 })
             .Build();
 
         var ctx = new ListPatchContext(null);
-        compiler.Compile("{\"GeoPosition\":{\"Latitude\":32.5,\"Longitude\":34.8,\"Altitude\":0}}", ctx);
+        compiler.Compile("{\"Position\":{\"X\":32.5,\"Y\":34.8,\"Z\":0}}", ctx);
 
         Assert.Equal(1, invocations);
-        Assert.Equal(32.5, capturedLat, precision: 5);
+        Assert.Equal(32.5, capturedX, precision: 5);
     }
 
     [Fact]
@@ -817,19 +817,19 @@ public class JsonAttributeCompilerSpanOverloadTests
     [Fact]
     public void Compile_SpanOverload_NestedProperty_InvokesDelegate()
     {
-        double capturedLat = 0;
+        double capturedX = 0;
 
         var compiler = new AttributeCompilerBuilder()
-            .RegisterValuePath<SimTransform>("GeoPosition.Latitude",
+            .RegisterValuePath<SimTransform>("Position.X",
                 (ref SimTransform c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
-                    capturedLat = r.GetDouble())
+                    capturedX = r.GetDouble())
             .Build();
 
         var ctx = new ListPatchContext(null);
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(
-            "{\"GeoPosition\":{\"Latitude\":55.5,\"Longitude\":0}}");
+            "{\"Position\":{\"X\":55.5,\"Y\":0}}");
         compiler.Compile(new ReadOnlySpan<byte>(bytes), ctx);
 
-        Assert.Equal(55.5, capturedLat, precision: 5);
+        Assert.Equal(55.5, capturedX, precision: 5);
     }
 }

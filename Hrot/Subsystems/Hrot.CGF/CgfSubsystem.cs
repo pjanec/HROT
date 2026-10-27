@@ -1231,8 +1231,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //   no submenu. No SuspendedReason: CGF has no Preview state (its world ticks from boot).
                 EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                     Tkb:          () => _context?.TkbDb,
-                    Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
-                    GeoTransform: () => _context?.GeoTransform)
+                    Requests:     () => EntityCreation?.World.Bus)   // ⭐ CE-3228 — the creation pack reads this world's bus
                 {
                     HostPickers = () => _shellPickers,
                 },

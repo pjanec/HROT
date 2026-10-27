@@ -341,7 +341,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             //   IsBroadcastArbiter is FALSE, matching CreateEntityRequestSystem's own default, which
             //   is what this harness passed implicitly before. The tests target their requests at
             //   OwnerAppInstanceId == NodeId, so the broadcast tiebreaker never applies.
-            var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
+            var jsonAttributeCompiler = AttributeCompilerFactory.Build();
 
             _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
 
@@ -670,10 +670,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             var cart = _wgs84.ToCartesian(geoPos.Latitude, geoPos.Longitude, geoPos.Altitude);
             return new Vector2(cart.X, cart.Y);
         }
-
-        /// <summary>Overload that accepts the NED protocol <see cref="Hrot.NED.Common.GeoPoint"/>.</summary>
-        public Vector2 GeoToCartesian(Hrot.NED.Common.GeoPoint geoPos)
-            => GeoToCartesian(new GeoPoint { Latitude = geoPos.Latitude, Longitude = geoPos.Longitude, Altitude = geoPos.Altitude });
 
         public GeoPoint CartesianToGeo(System.Numerics.Vector3 cartesian)
         {

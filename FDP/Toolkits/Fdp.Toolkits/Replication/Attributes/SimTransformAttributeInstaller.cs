@@ -1,148 +1,56 @@
-﻿using System.Numerics;
-using System.Runtime.CompilerServices;
-using Fdp.Toolkit.Replication;
+﻿using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
-using Fdp.Modules.Geographic;
 
 namespace Fdp.Toolkit.Replication.Attributes;
 
 /// <summary>
-/// <see cref="IBinaryAttributeInstaller"/> that routes <c>GeoLat</c>, <c>GeoLon</c>,
-/// and <c>GeoAlt</c> binary attribute records to <see cref="SimTransform"/> ECS
-/// component writes via a scratchpad-based accumulation + deferred flush pattern.
+/// ⭐⭐⭐ <b><c>CE-4073</c> (AQ107 B's tail, R-4092) — routes the <see cref="AttributeIds.PositionX"/>/<see cref="AttributeIds.PositionY"/>/
+/// <see cref="AttributeIds.PositionZ"/> binary attribute records to <see cref="SimTransform.Position"/>: LOCAL ENU metres, a plain copy per axis.</b>
 ///
-/// <para>
-/// Rather than converting geodetic coordinates on every record receipt, the three
-/// handler delegates accumulate lat/lon/alt into a per-context
-/// <see cref="GeoCoordScratchpad"/> block and mark a single subsystem-flush bit.
-/// A single <c>ToCartesian</c> conversion is performed at flush time, regardless of
-/// how many of the three coordinates are present in the packet.
-/// </para>
+/// <para>⭐⭐ <b>What this replaced, and why it is smaller.</b> 🔴 It used to route <c>GeoLat</c>/<c>GeoLon</c>/<c>GeoAlt</c> (ids 10–12, retired):
+/// a scratchpad that pre-filled the entity's CURRENT position through <c>ToGeodetic</c>, accumulated the geodetic point, and converted back
+/// once at flush time through <c>ToCartesian</c> — because three geodetic coordinates are ONE point. 📐 Local metres are three independent
+/// axes, so the pre-fill, the scratchpad and the flusher are all gone: a partial patch (only <c>Position.X</c>) leaves the other two
+/// untouched BY CONSTRUCTION, with nothing to pre-fill.</para>
 ///
-/// <para>
-/// <b>Partial update semantics:</b> if only one or two of the three coordinates
-/// are present in the packet, the missing coordinates are pre-filled from the
-/// entity's current <see cref="SimTransform.Position"/> via a reverse-geodetic
-/// <c>ToGeodetic</c> call.  This mirrors the behaviour documented in
-/// <c>ATTR2-DESIGN.md §3.3</c> and the <c>TODO</c> note inside
-/// <see cref="AttributeCompilerFactory"/>.
-/// </para>
+/// <para>⭐⭐⭐ <b>It needs no <c>IGeographicTransform</c>, so it is added on EVERY host</b> — the constructor takes nothing, and
+/// <see cref="AttributeCompilerFactory.BuildBinaryInterpreter"/> adds it unconditionally. ⛔ It used to be added only
+/// <c>if (geoTransform != null)</c>, which silently dropped a position on a host with no terrain.</para>
+///
+/// <para>⭐ Registered through the TYPED <c>RegisterHandler&lt;SimTransform&gt;</c> (<c>UXI-30</c>), so the authority gate is applied by the
+/// registration: a node that does not own <see cref="SimTransform"/> applies nothing and the writer asks the owner instead.</para>
+///
+/// <para>⭐ The one writer of an axis is <see cref="SimTransformPosition.SetAxis"/>, shared with the JSON arm
+/// (<c>AttributeCompilerFactory.Build</c>) — ⛔ never a second copy of the copy.</para>
 /// </summary>
 public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<EntityAttributeChange>
 {
-    // ── Subsystem flusher bit ─────────────────────────────────────────────────
-    private const int GeoFlushBit = 0;
-
-    // ── Scratchpad layout ─────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Per-context scratchpad for accumulating individual geodetic coordinate updates.
-    /// Zeroed by <see cref="BinaryInterpreter.Apply"/> at the start of each call;
-    /// pre-populated from the entity's current position by a registered pre-apply handler.
-    /// </summary>
-    private struct GeoCoordScratchpad
-    {
-        /// <summary>Accumulated WGS-84 latitude (degrees).</summary>
-        public double Lat;
-        /// <summary>Accumulated WGS-84 longitude (degrees).</summary>
-        public double Lon;
-        /// <summary>Accumulated altitude above reference ellipsoid (metres).</summary>
-        public double Alt;
-    }
-
-    // ── Instance state ────────────────────────────────────────────────────────
-
-    private readonly IGeographicTransform _geoTransform;
-    private int _scratchpadOffset;
-
-    /// <summary>
-    /// Initialises the installer with a geographic transform used for coordinate
-    /// conversion.
-    /// </summary>
-    /// <param name="geoTransform">Transform for <c>ToCartesian</c> (forward) and
-    /// <c>ToGeodetic</c> (inverse) geodetic conversions.</param>
-    public SimTransformAttributeInstaller(IGeographicTransform geoTransform)
-    {
-        _geoTransform = geoTransform;
-    }
-
     /// <inheritdoc/>
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
     {
-        _scratchpadOffset = builder.ReserveScratchpad(Unsafe.SizeOf<GeoCoordScratchpad>());
-
-        // Pre-apply: runs once per Apply invocation after the scratchpad is zeroed,
-        // before any handler fires.  Pre-fills the scratchpad with the entity's current
-        // geodetic position so partial-update packets (e.g. only GeoLat) preserve the
-        // unchanged coordinates without an Initialized flag inside the hot dispatch loop.
-        builder.RegisterPreApplyHandler(PreFillFromCurrentPosition);
-
-        // ⭐⭐⭐ UXI-30 — registered through the TYPED overload, so the authority gate is applied by the
-        //    registration and the handler bodies need no guard of their own. 📌 The hand-written
-        //    `if (!CanWrite<SimTransform>()) return;` that used to open each of the three is GONE: it was
-        //    correct, and it was also per-installer and therefore forgettable — which is what UXI-30 is
-        //    actually about. 📄 BinaryInterpreterBuilder.RegisterHandler<TComponent>.
-        builder.RegisterHandler<SimTransform>(AttributeIds.GeoLat, HandleGeoLat);
-        builder.RegisterHandler<SimTransform>(AttributeIds.GeoLon, HandleGeoLon);
-        builder.RegisterHandler<SimTransform>(AttributeIds.GeoAlt, HandleGeoAlt);
-        builder.RegisterSubsystemFlusher(GeoFlushBit, FlushGeo);
+        builder.RegisterHandler<SimTransform>(AttributeIds.PositionX, (ctx, r) => Apply(ctx, 0, r));
+        builder.RegisterHandler<SimTransform>(AttributeIds.PositionY, (ctx, r) => Apply(ctx, 1, r));
+        builder.RegisterHandler<SimTransform>(AttributeIds.PositionZ, (ctx, r) => Apply(ctx, 2, r));
     }
 
-    // ── Handlers ──────────────────────────────────────────────────────────────
-
-    private void HandleGeoLat(BinaryPatchContext ctx, EntityAttributeChange record)
+    private static void Apply(BinaryPatchContext ctx, int axis, EntityAttributeChange record)
     {
-        ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
-        scratch.Lat = record.Value.DoubleValue;
-        ctx.MarkSubsystemDirty(GeoFlushBit);
-    }
-
-    private void HandleGeoLon(BinaryPatchContext ctx, EntityAttributeChange record)
-    {
-        ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
-        scratch.Lon = record.Value.DoubleValue;
-        ctx.MarkSubsystemDirty(GeoFlushBit);
-    }
-
-    private void HandleGeoAlt(BinaryPatchContext ctx, EntityAttributeChange record)
-    {
-        ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
-        scratch.Alt = record.Value.DoubleValue;
-        ctx.MarkSubsystemDirty(GeoFlushBit);
-    }
-
-    // ── Flusher ───────────────────────────────────────────────────────────────
-
-    private void FlushGeo(BinaryPatchContext ctx)
-    {
-        ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
-
-        var cart = _geoTransform.ToCartesian(scratch.Lat, scratch.Lon, scratch.Alt);
         ref SimTransform st = ref ctx.PatchContext.GetUnmanagedComponent<SimTransform>();
-        st.Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
+        SimTransformPosition.SetAxis(ref st, axis, record.Value.DoubleValue);
     }
+}
 
-    // ── Pre-apply handler ─────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Pre-populates the <see cref="GeoCoordScratchpad"/> from the entity's current
-    /// <see cref="SimTransform"/> position via a reverse-geodetic conversion.
-    /// Runs once per <see cref="BinaryInterpreter.Apply"/> call, after the scratchpad
-    /// has been zeroed, so partial packets (e.g. only GeoLat) preserve the unchanged
-    /// coordinates without branching inside the dispatch loop.
-    /// </summary>
-    private void PreFillFromCurrentPosition(BinaryPatchContext ctx)
+/// <summary>⭐ <c>CE-4073</c> — the one writer of a local-ENU position axis into <see cref="SimTransform"/>, shared by the JSON and binary arms.</summary>
+public static class SimTransformPosition
+{
+    /// <summary>Sets one axis (0 = X east, 1 = Y north, 2 = Z up) of <see cref="SimTransform.Position"/> to <paramref name="metres"/>; the other two are kept.</summary>
+    public static void SetAxis(ref SimTransform st, int axis, double metres)
     {
-        // Skip pre-fill if this node has no authority to write SimTransform —
-        // the handlers will also early-out, so the pre-fill data would never be used.
-        if (!ctx.PatchContext.CanWrite<SimTransform>()) return;
-
-        ref SimTransform st = ref ctx.PatchContext.GetUnmanagedComponent<SimTransform>();
-        var (lat, lon, alt) = _geoTransform.ToGeodetic(st.Position);
-        ref GeoCoordScratchpad scratch = ref ctx.GetScratchpad<GeoCoordScratchpad>(_scratchpadOffset);
-        scratch.Lat = lat;
-        scratch.Lon = lon;
-        scratch.Alt = alt;
+        var p = st.Position;
+        if (axis == 0) p.X = (float)metres;
+        else if (axis == 1) p.Y = (float)metres;
+        else p.Z = (float)metres;
+        st.Position = p;
     }
 }

@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -61,7 +62,7 @@ public class DrawPersonalRouteCommandTests : IDisposable
 
         public int                                                     CreateRouteCallCount   { get; private set; }
         public long                                                    LastTkbRouteType       { get; private set; }
-        public IReadOnlyList<(double Lat, double Lon, double Alt)>?   LastWaypoints          { get; private set; }
+        public IReadOnlyList<(double X, double Y, double Z)>?   LastWaypoints          { get; private set; }
         public int                                                     LastCommanderEntityId  { get; private set; }
         public int                                                     CreateRouteReturnId    { get; set; } = 77;
         public int                                                     CreateRouteStatusCode  { get; set; } = 0;
@@ -83,8 +84,8 @@ public class DrawPersonalRouteCommandTests : IDisposable
 
         public Task<int> CreateRouteEntityAsync(
             long tkbRouteType,
-            IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
-            double anchorLat, double anchorLon, double anchorAlt,
+            IReadOnlyList<(double X, double Y, double Z)> waypoints,
+            double anchorX, double anchorY, double anchorZ,
             int commanderEntityId,
             CancellationToken ct = default)
         {
@@ -201,15 +202,33 @@ public class DrawPersonalRouteCommandTests : IDisposable
     }
 
     // ── Coordinate-fix regression tests ──────────────────────────────────────
+    // ⭐ CE-4073 — the neutral route waypoints are LOCAL ENU metres (they were geodetic lat/lon/alt, converted at the NED boundary).
+    //   The mapping is UNCHANGED from the geodetic round trip, quirk included: canvas X → X (east), canvas Y → the THIRD axis (Z),
+    //   Y = 0 (`ToGeodetic(x, 0, y)` and straight back is the identity). ⚠ Whether that is the intended frame for a 2D map is not decided here.
 
     /// <summary>
-    /// After the personal-route coordinate fix, canvas Y should be encoded as
-    /// geodetic altitude (the "route XZ convention"), NOT as latitude.
-    /// Two canvas points with the same X but different Y values must produce
-    /// waypoints with identical latitudes and differing altitudes.
+    /// ⭐ <c>CE-4073</c> rail (c), the IG half — the waypoints reach the adapter as the canvas points' LOCAL metres, unchanged
+    /// (no geodetic round trip, so exact equality holds, and it needs no geographic transform on the IG).
     /// </summary>
     [Fact]
-    public async Task CoordinateFix_CanvasYEncodedAsAltitude_NotLatitude()
+    public async Task TheWaypointsAreTheCanvasPointsAsLocalMetres_Unchanged()
+    {
+        _app.TestHook_ParseCommandAndActivatePersonalRoute(Guid.NewGuid(), "{\"entityId\":5}");
+        _app.TestHook_DirectPointSequenceToolCommit(ThreePoints);
+        await Task.Delay(200);
+
+        Assert.NotNull(_adapter.LastWaypoints);
+        Assert.Equal(
+            new[] { (100.0, 0.0, 200.0), (300.0, 0.0, 400.0), (500.0, 0.0, 600.0) },
+            _adapter.LastWaypoints!.ToArray());
+    }
+
+    /// <summary>
+    /// Two canvas points with the same X but different Y must produce waypoints with identical X (east) and differing Z — canvas Y is
+    /// the route's third axis, NOT north.
+    /// </summary>
+    [Fact]
+    public async Task CoordinateFix_CanvasYEncodedAsZ_NotNorth()
     {
         var sameXDifferentY = new[]
         {
@@ -228,21 +247,17 @@ public class DrawPersonalRouteCommandTests : IDisposable
         var wp0 = _adapter.LastWaypoints[0];
         var wp1 = _adapter.LastWaypoints[1];
 
-        // Latitudes must be identical (canvas Y → altitude, not North).
-        Assert.Equal(wp0.Lat, wp1.Lat, precision: 8);
-        // Altitudes must differ (canvas Y=200 → alt smaller than Y=400).
-        Assert.NotEqual(wp0.Alt, wp1.Alt);
-        Assert.True(wp1.Alt > wp0.Alt,
-            "Waypoint with higher canvas Y should have higher altitude.");
+        Assert.Equal(wp0.X, wp1.X);
+        Assert.Equal(wp0.Y, wp1.Y);                                   // north untouched by the canvas Y
+        Assert.True(wp1.Z > wp0.Z, "Waypoint with higher canvas Y should have higher Z.");
     }
 
     /// <summary>
-    /// Two canvas points with different X but same Y must produce waypoints
-    /// with different longitudes but identical altitudes — confirming that canvas X
-    /// maps to East (longitude change) and canvas Y maps to altitude, not latitude.
+    /// Two canvas points with different X but the same Y must produce waypoints with different X (east) and identical Z — canvas X
+    /// maps to east, and a local frame has no skew to blur the equality.
     /// </summary>
     [Fact]
-    public async Task CoordinateFix_CanvasXEncodesLongitudeCorrectly()
+    public async Task CoordinateFix_CanvasXEncodesEastCorrectly()
     {
         var differentXSameY = new[]
         {
@@ -261,11 +276,7 @@ public class DrawPersonalRouteCommandTests : IDisposable
         var wp0 = route2[0];
         var wp1 = route2[1];
 
-        // Longitudes must differ (canvas X → East → longitude).
-        Assert.NotEqual(wp0.Lon, wp1.Lon);
-        // Altitudes must be equal (same canvas Y → same altitude).
-        // WGS84 coordinate-frame skew between two Easting positions introduces up to
-        // ~20 mm of apparent altitude offset; precision:1 (tolerance 0.05 m) is sufficient.
-        Assert.Equal(wp0.Alt, wp1.Alt, precision: 1);
+        Assert.NotEqual(wp0.X, wp1.X);
+        Assert.Equal(wp0.Z, wp1.Z);
     }
 }

@@ -470,7 +470,8 @@ namespace Hrot.ExCon
                 targetMapId:          TargetMapId,
                 mapCommandAckQueue:   mapCommandAckQueue,
                 timeControl:          _timeControl,
-                localNodeId:          config.NodeId);
+                localNodeId:          config.NodeId,
+                geoTransform:         nodeFactory?.GeoTransform);   // ⭐ CE-4073 — only for a location pick's geodetic mission field
 
             // S0507: Time ingress handlers removed (TC2-P3-T4): OnTimePulse/OnTimeMode on
             // ExConLogic are purely display properties that are never consumed by any panel

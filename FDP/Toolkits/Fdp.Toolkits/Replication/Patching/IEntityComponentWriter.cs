@@ -49,11 +49,10 @@ public interface IEntityComponentWriter
     /// <summary>
     /// ⭐⭐ Writes SEVERAL attributes as ONE change, and that is not a convenience overload.
     ///
-    /// <para>📌 <c>AX-007</c>: a drag commits <c>GeoLat</c> AND <c>GeoLon</c>. Sent as two single-attribute
-    /// writes they become two independent change-requests, each of which the owner applies through the
-    /// partial-update pre-fill path — so the entity visibly lands on the latitude first and the longitude
-    /// a round trip later, and a request lost in between leaves it on a coordinate pair the operator never
-    /// chose. ⭐ One call ⇒ one interpreter <c>Apply</c> ⇒ one scratchpad flush ⇒ one geodetic conversion,
+    /// <para>📌 <c>AX-007</c>: a drag commits <c>Position.X</c> AND <c>Position.Y</c> (local ENU metres — <c>CE-4073</c>; it was a geodetic
+    /// latitude/longitude pair). Sent as two single-attribute writes they become two independent change-requests, so the entity
+    /// visibly lands on the east coordinate first and the north one a round trip later, and a request lost in between leaves it on a
+    /// coordinate pair the operator never chose. ⭐ One call ⇒ one interpreter <c>Apply</c> ⇒ one request to the owner,
     /// on both the local and the remote path.</para>
     ///
     /// <para>⚠ The route is reported for the batch as a whole: the changes address one entity, and

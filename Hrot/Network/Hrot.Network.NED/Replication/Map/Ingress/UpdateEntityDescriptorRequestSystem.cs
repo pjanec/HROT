@@ -52,9 +52,6 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// </summary>
         /// <param name="participant">DDS participant for topic subscriptions.</param>
         /// <param name="entityMap">Shared net-ID â†’ entity lookup service.</param>
-        /// <param name="geoTransform">
-        /// ⭐ AQ107 B — no longer used: the request's positions are local ENU metres (the ECS frame), copied. Kept so the callers keep their shape.
-        /// </param>
         /// <param name="ackWriter">
         /// Optional ACK writer. When <c>null</c> (default) a live
         /// <see cref="DdsWriterAdapter{T}"/> is created from <paramref name="participant"/>.
@@ -63,7 +60,6 @@ namespace Hrot.Map.Common.Replication.Ingress
         public UpdateEntityDescriptorRequestSystem(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform,
             IDdsWriter<UpdateEntityDescriptorAck>? ackWriter = null)
         {
             _reader    = new DdsReader<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");

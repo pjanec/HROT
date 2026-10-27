@@ -347,7 +347,7 @@ public sealed class JsonAttributeCompiler
     /// be logged as warning and ignored, no throw."*</para>
     ///
     /// <para>🔴 <b>What it replaces:</b> total silence. 📐 Measured <c>2026-08-26</c>:
-    /// <c>{"GeoPosition":{"Heading":90.0}}</c> — the path a reader of <c>AttributeIds.GeoHeading</c> would
+    /// <c>{"Position":{"Heading":90.0}}</c> — the path a reader of <c>AttributeIds.GeoHeading</c> would
     /// naturally guess — applied <b>nothing, with no exception and no log</b>. ⇒ an operator or script had no
     /// way to discover the key was wrong.</para>
     ///
@@ -360,7 +360,7 @@ public sealed class JsonAttributeCompiler
     ///
     /// <para>⚠ <b>The key reported is the LEAF property name, not the full dotted path</b> — stated plainly.
     /// The compiler carries hashes, not strings, so a full path would cost an allocation per property. ⭐ For
-    /// the FLAT form *(<c>{"GeoPosition.Latitude": …}</c>, which is what ExCon and the debug API send)* the
+    /// the FLAT form *(<c>{"Position.X": …}</c>, which is what ExCon and the debug API send)* the
     /// leaf name IS the whole path, so the common case is exact; for a NESTED unknown key the warning names
     /// the leaf only.</para>
     /// </summary>
@@ -469,13 +469,13 @@ public sealed class JsonAttributeCompiler
     ///
     /// <para>🔴🔴 <b><c>Q59-N3</c>/<c>F4</c> — this used to publish a MALFORMED, mistyped schema.</b>
     /// 📐 Measured <c>2026-08-26</c>, actual output: it keyed each property on the path's <b>root segment</b>,
-    /// so the three <c>GeoPosition.*</c> paths all collapsed to <c>"GeoPosition"</c> and the key appeared
+    /// so the three dotted position paths (then geodetic ones) all collapsed to their shared root and the key appeared
     /// <b>THREE TIMES</b> in one object; and every <c>"type"</c> was <c>"string"</c>, including four
     /// <c>Float64</c> paths. ⇒ a consumer saw <b>4 properties instead of 6</b>, all mistyped.</para>
     ///
     /// <para>⭐⭐ <b>Now:</b> one property per FULL path, typed from the route's declared
     /// <see cref="AttributeValueKind"/>. ⭐ The flat dotted key is the right choice — the compiler accepts
-    /// <c>{"GeoPosition.Latitude": …}</c> and the nested form alike, and a flat key is what makes the
+    /// <c>{"Position.X": …}</c> and the nested form alike, and a flat key is what makes the
     /// available paths <b>discoverable</b>, which is the need behind <c>Q59</c> §8.2's naming question.</para>
     ///
     /// <para>📌 Also removes a leaked, never-used <c>Utf8JsonWriter</c> over a throwaway

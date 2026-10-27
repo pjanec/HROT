@@ -346,9 +346,8 @@ public sealed class StrideNodeBootstrapperTests
             Action<EntityLifecycleAckDto> onEntityLifecycleAck, Action<MapCommandAckDto> onMapCommandAck)
             => _base.CreateExConIngressHandlers(p, id, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
         public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
-            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus,
-            Fdp.Modules.Geographic.IGeographicTransform geoTransform, long nodeId)
-            => _base.CreateIgEgressTranslators(participant, bus, geoTransform, nodeId);
+            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, long nodeId)
+            => _base.CreateIgEgressTranslators(participant, bus, nodeId);
         public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, long id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
         public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buf, long id) => _base.CreateGizmoPublisherSystem(buf, id);
     }

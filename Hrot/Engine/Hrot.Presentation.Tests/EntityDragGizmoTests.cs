@@ -293,10 +293,8 @@ public class TheDragCommitsThroughTheWriteRouterTests
         _entity = _repo.CreateEntity();
         _repo.AddComponent(_entity, new SimTransform { Position = new Vector3(10f, 20f, 5f) });
         _repo.AddComponent(_entity, new NetworkIdentity { Value = 55L });
-
-        var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
-        geo.SetOrigin(52.520, 13.405, 0.0);
-        _repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+        // ⭐ CE-4073 — NO IGeographicTransform singleton on purpose: the drag writes local ENU metres, so the world needs no geodetic
+        //   frame at all (it used to fall back to a direct write that never reached the owner when the frame was absent).
     }
 
     /// <summary>⭐ Records what the gizmo asked for, and answers a route the test chooses.</summary>
@@ -324,15 +322,16 @@ public class TheDragCommitsThroughTheWriteRouterTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>ONE call, carrying BOTH coordinates.</b>
+    /// ⭐⭐⭐ <b>ONE call, carrying BOTH coordinates — as the dragged LOCAL ENU metres (<c>CE-4073</c> rail (b)).</b>
     ///
     /// <para>⛔ Two single-attribute writes would reach the owner as two requests applied a round trip
-    /// apart, landing the entity on a latitude the operator chose and a longitude they did not — see the
+    /// apart, landing the entity on an east coordinate the operator chose and a north one they did not — see the
     /// interface's remarks. ⭐ Asserted as a COUNT plus the pair, because either half alone would pass a
-    /// weaker rail.</para>
+    /// weaker rail. ⭐ And the VALUES: <c>Position.X</c> = the dragged east metres, <c>Position.Y</c> = the dragged north metres
+    /// — no geodetic conversion on the way, and a swap of the two reddens it.</para>
     /// </summary>
     [Fact]
-    public void ACommitSendsGeoLatAndGeoLonAsOneChange()
+    public void ACommitSendsPositionXAndPositionYAsOneChange_WithTheDraggedMetres()
     {
         var writer = new FakeWriter(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested);
         var gizmo  = new EntityDragGizmo(_repo, _entity, writer);
@@ -343,8 +342,10 @@ public class TheDragCommitsThroughTheWriteRouterTests
 
         Assert.Equal(1, writer.Calls);
         Assert.Equal(2, writer.Last.Count);
-        Assert.Contains(writer.Last, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.GeoLat);
-        Assert.Contains(writer.Last, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.GeoLon);
+        var x = Assert.Single(writer.Last, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionX);
+        var y = Assert.Single(writer.Last, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionY);
+        Assert.Equal(210.0, x.Value.DoubleValue, 3);
+        Assert.Equal(170.0, y.Value.DoubleValue, 3);
     }
 
     /// <summary>
@@ -392,33 +393,59 @@ public class TheDragCommitsThroughTheWriteRouterTests
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The Z coordinate survives a 2D drag.</b> 📐 The gizmo commits geodetic lat/lon derived from a
-    /// point whose altitude it takes from the CURRENT transform — ⛔ taking it from the drag would silently
-    /// flatten every airborne entity to the map plane.
+    /// ⭐⭐ <b>The Z coordinate survives a 2D drag (<c>CE-4073</c> rail (b), the "current Z" half).</b> 📐 The gizmo commits
+    /// <c>Position.X</c>/<c>Position.Y</c> only — ⛔ taking Z from the drag would silently flatten every airborne entity to the map
+    /// plane, and ⛔ re-sending the replica's own Z would write a possibly stale height at the owner. ⭐ The three axes are independent
+    /// copies at the owner, so omitting <c>Position.Z</c> keeps the entity's current height there by construction: asserted by
+    /// applying the committed batch through the REAL binary interpreter onto the entity's own transform.
     /// </summary>
     [Fact]
     public void AHorizontalDragDoesNotFlattenAltitude()
     {
         var writer = new FakeWriter(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested);
-        var geo    = _repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()!;
         var gizmo  = new EntityDragGizmo(_repo, _entity, writer);
 
         gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
         gizmo.OnDragUpdate(new Vector3(210f, 170f, 0f));
         gizmo.OnCommit(new Vector3(210f, 170f, 0f));
 
-        // ⭐ Re-derive what the gizmo must have converted: the drag XY at the entity's own altitude.
-        var expected = geo.ToGeodetic(new Vector3(210f, 170f, 5f));
+        Assert.DoesNotContain(writer.Last, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionZ);
 
-        double lat = 0, lon = 0;
-        foreach (var c in writer.Last)
-        {
-            if (c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.GeoLat) lat = c.Value.DoubleValue;
-            if (c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.GeoLon) lon = c.Value.DoubleValue;
-        }
+        // ⭐ What the OWNER does with the batch: apply it onto an entity at (10, 20, 5) — the height must still be 5.
+        _repo.SetAuthority<SimTransform>(_entity, true);
+        var interpreter = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.BuildBinaryInterpreter();
+        var ctx = interpreter.CreateContext(Fdp.Toolkit.Replication.Patching.EcsPatchContext.Create(_repo, _entity));
+        ctx.Repo = _repo; ctx.Entity = _entity;
+        _repo.GetComponentRW<SimTransform>(_entity).Position = new Vector3(10f, 20f, 5f);   // undo the local preview: the owner's copy
+        interpreter.Apply(ctx, writer.Last.ToArray());
 
-        Assert.Equal(expected.Item1, lat, 9);
-        Assert.Equal(expected.Item2, lon, 9);
+        Assert.Equal(new Vector3(210f, 170f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-4073</c> rail (b), the owned-ELSEWHERE shape through the REAL router:</b> a drag release on an entity this node does NOT
+    /// own publishes the change request to the owner with <c>Position.X</c>/<c>Position.Y</c> = the dragged local metres — and no height —
+    /// while the replica's own height stays (nothing is converted, nothing is flattened).
+    /// </summary>
+    [Fact]
+    public void ADragReleaseOnAnEntityOwnedElsewhere_RequestsPositionXY_WithTheDraggedMetres()
+    {
+        _repo.SetAuthority<SimTransform>(_entity, false);   // owned by another node
+        var published = new System.Collections.Generic.List<Fdp.Toolkit.Replication.Patching.EntityAttributeChange>();
+        var writer = new Fdp.Toolkit.Replication.Attributes.AttributeEntityComponentWriter(
+            _repo,
+            Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.BuildBinaryInterpreter(),
+            publishRequest: (ent, recs) => published.AddRange(recs.ToArray()));
+        var gizmo = new EntityDragGizmo(_repo, _entity, writer);
+
+        gizmo.OnInteractionStarted(default, new Vector3(10f, 20f, 0f));
+        gizmo.OnDragUpdate(new Vector3(210f, 170f, 0f));
+        gizmo.OnCommit(new Vector3(210f, 170f, 0f));
+
+        Assert.Equal(2, published.Count);
+        Assert.Equal(210.0, Assert.Single(published, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionX).Value.DoubleValue, 3);
+        Assert.Equal(170.0, Assert.Single(published, c => c.AttributeId == Fdp.Toolkit.Replication.Patching.AttributeIds.PositionY).Value.DoubleValue, 3);
+        Assert.Equal(5f, _repo.GetComponent<SimTransform>(_entity).Position.Z);   // the current height is untouched
     }
 
     /// <summary>

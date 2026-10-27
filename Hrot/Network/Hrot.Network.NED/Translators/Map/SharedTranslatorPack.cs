@@ -54,18 +54,12 @@ namespace Hrot.Map.Common.Translators
         ///   Ghost-creation helper; used by <see cref="EntityMasterIngressTranslator"/>
         ///   and <see cref="MapVisualOverlayIngressTranslator"/> to materialise replicas of remote entities.
         /// </param>
-        /// <param name="geoTransform">
-        ///   Geodetic coordinate transform; passed to <see cref="GeoSpatialEgressTranslator"/>,
-        ///   <see cref="GeoSpatialIngressTranslator"/>, <see cref="MapVisualOverlayEgressTranslator"/>,
-        ///   and <see cref="MapVisualOverlayIngressTranslator"/> for coordinate conversions.
-        /// </param>
         public static IEnumerable<INetworkTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
             long                 localNodeId,
             FdpEventBus          eventBus,
-            GhostCreationSystem  ghostCreationSystem,
-            IGeographicTransform geoTransform)
+            GhostCreationSystem  ghostCreationSystem)
         {
             yield return new EntityMasterEgressTranslator(participant, entityMap, localNodeId);
             yield return new EntityMasterIngressTranslator(participant, entityMap, localNodeId, eventBus, ghostCreationSystem);
@@ -189,17 +183,17 @@ namespace Hrot.Map.Common.Translators
             // ⭐ R-221 — every interaction kind (doors first) travels to the target's owner on ONE topic; the kind's handler applies it there.
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionEgressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionIngressTranslator(participant, entityMap);
-            yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId);
-            yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
+            yield return new GeoSpatialEgressTranslator(participant, entityMap, localNodeId);
+            yield return new GeoSpatialIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);
-            yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform, localNodeId);
-            yield return new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
+            yield return new MapVisualOverlayEgressTranslator(participant, entityMap, localNodeId);
+            yield return new MapVisualOverlayIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             // ⭐ CE-2171 (Air Ops E2) — a route's plan, its owner → every node. Moved here from KinematicTranslatorPack (egress) and
             //   added (ingress) beside the overlay pair, for the same reason: a SCENARIO route is created and owned by CGF (Brain), and
             //   the egress existed only on the Muscle ⇒ SimHost, where the route is followed, never had the plan. 📄 ROUTES1 §6.1/6.2.
             //   ⭐ CE-1148 S1 — every node, the IG included, polls this pack's ingress (no second IG list).
-            yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
-            yield return new MapRouteIngressTranslator(participant, entityMap, geoTransform);
+            yield return new MapRouteEgressTranslator(participant, entityMap);
+            yield return new MapRouteIngressTranslator(participant, entityMap);
             yield return new UpdateEntityAttributeCommandEgressTranslator(participant);
             // ⭐ CE-2247 — a destroy on a node that does not own the entity's master goes to the owner (DeleteEntityRequest), whose
             //   teardown disposes it everywhere. Was the IG's alone (CreateIgEgressTranslators); a charge set off on SimHost stayed live

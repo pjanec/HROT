@@ -71,7 +71,7 @@ public class TheBinaryApplyTellsSmartEgressTests
         repo.AddComponent(e, default(EntityInfo));
         repo.SetAuthority<EntityInfo>(e, true);   // ⭐ the owner shape — UXI-30's gate needs it
 
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         var patchCtx    = EcsPatchContext.Create(repo, e);
         var ctx         = interpreter.CreateContext(patchCtx);
         ctx.Repo = repo; ctx.Entity = e;
@@ -124,7 +124,7 @@ public class TheBinaryApplyTellsSmartEgressTests
         repo.AddComponent(e, default(EntityInfo));
         repo.SetAuthority<EntityInfo>(e, true);
 
-        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+        var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter();
         var patchCtx    = EcsPatchContext.Create(repo, e);
         var ctx         = interpreter.CreateContext(patchCtx);
         ctx.Repo = repo; ctx.Entity = e;

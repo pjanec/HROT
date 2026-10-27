@@ -132,7 +132,7 @@ public sealed class AclBackdoorEliminationTests
         // translator never writes â€” because the kernel never pumps it.
         var capWriter  = new CapturingWriter<CreateEntityRequest>();
         var translator = new SpawnEntityCommandEgressTranslator(
-            capWriter, harness.Bus, geoTransform: null);
+            capWriter, harness.Bus);
 
         // Publish a SpawnEntityCommand with TkbType=1L which is registered in EditorHarness.
         // Provide an explicit NetworkId (non-zero) because the EditorHarness IdAllocator

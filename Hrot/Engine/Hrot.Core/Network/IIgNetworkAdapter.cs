@@ -66,11 +66,13 @@ namespace Hrot.Core.Network
         /// <summary>
         /// Creates a route entity with the given waypoints and returns the assigned entity ID.
         /// Returns 0 on failure.
+        /// <para>⭐ <c>CE-4073</c>: the waypoints and the anchor are LOCAL ENU METRES (X east, Y north, Z up), like every position on the wire
+        /// — they were geodetic latitude / longitude / altitude converted at the NED boundary.</para>
         /// </summary>
         Task<int> CreateRouteEntityAsync(
             long tkbRouteType,
-            IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
-            double anchorLat, double anchorLon, double anchorAlt,
+            IReadOnlyList<(double X, double Y, double Z)> waypoints,
+            double anchorX, double anchorY, double anchorZ,
             int commanderEntityId,
             CancellationToken ct = default);
 
@@ -113,8 +115,8 @@ namespace Hrot.Core.Network
         public MapConfigDto? PollMapConfig() => null;
         public MapCommandDto? PollMapCommand() => null;
         public EntityLifecycleAckDto? PollEntityLifecycleAck() => null;
-        public Task<int> CreateRouteEntityAsync(long tkbRouteType, IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
-            double anchorLat, double anchorLon, double anchorAlt, int commanderEntityId, CancellationToken ct = default)
+        public Task<int> CreateRouteEntityAsync(long tkbRouteType, IReadOnlyList<(double X, double Y, double Z)> waypoints,
+            double anchorX, double anchorY, double anchorZ, int commanderEntityId, CancellationToken ct = default)
             => Task.FromResult(0);
         public ICommandGateway CommandGateway => NullIgCommandGateway.Instance;
         public IDdsWriter<GizmoMap.Network.GizmoInteractionBatch>? GizmoInteractionWriter => null;

@@ -59,10 +59,9 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
-            IGeographicTransform? geoTransform,
             long localNodeId = 0)
             : this(new DdsWriterAdapter<UpdateEntityDescriptorRequest>(participant, DdsTopicName),
-                   eventBus, entityMap, geoTransform, localNodeId)
+                   eventBus, entityMap, localNodeId)
         {
         }
 
@@ -71,13 +70,11 @@ namespace Hrot.Map.Common.Replication.Egress
             IDdsWriter<UpdateEntityDescriptorRequest> writer,
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
-            IGeographicTransform? geoTransform,
             long localNodeId = 0)
         {
             _writer       = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus     = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
             _entityMap    = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            // geoTransform: ⭐ AQ107 B — no longer used (points are absolute local ENU on the wire). Kept so the callers keep their shape.
             _localNodeId  = localNodeId;
         }
 

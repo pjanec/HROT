@@ -95,7 +95,7 @@ public class DescriptorMapperAreaShapeTests
         };
 
         var descriptors = BuildAreaDescriptors(absPositions);
-        var components  = DescriptorMapper.MapToComponents(descriptors, geo);
+        var components  = DescriptorMapper.MapToComponents(descriptors);
 
         var simTransform = components.OfType<SimTransform>().Single();
         var polyline     = components.OfType<EditablePolyline>().Single();
@@ -129,7 +129,7 @@ public class DescriptorMapperAreaShapeTests
         };
 
         var descriptors = BuildAreaDescriptors(absPositions);
-        var components  = DescriptorMapper.MapToComponents(descriptors, geo);
+        var components  = DescriptorMapper.MapToComponents(descriptors);
 
         var simTransform = components.OfType<SimTransform>().Single();
 
@@ -168,8 +168,8 @@ public class DescriptorMapperAreaShapeTests
             },
         };
 
-        var ex         = Record.Exception(() => DescriptorMapper.MapToComponents(descriptors, geo));
-        var components = DescriptorMapper.MapToComponents(descriptors, geo);
+        var ex         = Record.Exception(() => DescriptorMapper.MapToComponents(descriptors));
+        var components = DescriptorMapper.MapToComponents(descriptors);
         var polyline   = components.OfType<EditablePolyline>().Single();
 
         Assert.Null(ex);
@@ -194,7 +194,7 @@ public class DescriptorMapperAreaShapeTests
         var absPositions = new (double lat, double lon)[] { (lat0, lon0), (lat1, lon1), (lat2, lon2) };
 
         var descriptors = BuildAreaDescriptors(absPositions);
-        var components  = DescriptorMapper.MapToComponents(descriptors, geo);
+        var components  = DescriptorMapper.MapToComponents(descriptors);
 
         var simTransform = components.OfType<SimTransform>().Single();
         var polyline     = components.OfType<EditablePolyline>().Single();

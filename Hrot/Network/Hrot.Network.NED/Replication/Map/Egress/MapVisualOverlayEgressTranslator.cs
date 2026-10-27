@@ -47,12 +47,10 @@ namespace Hrot.Map.Common.Replication.Egress
         public MapVisualOverlayEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform,
             long localNodeId)
         {
             _writer = new DdsWriter<MapVisualOverlay>(participant, DdsTopicName);
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            // geoTransform: ⭐ AQ107 B — no longer used (points are absolute local ENU on the wire). Kept so the callers keep their shape.
             _localNodeId = localNodeId;
         }
 

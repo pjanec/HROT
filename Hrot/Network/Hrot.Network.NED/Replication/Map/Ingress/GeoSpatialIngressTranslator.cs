@@ -33,7 +33,6 @@ namespace Hrot.Map.Common.Replication.Ingress
         public GeoSpatialIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform,   // ⭐ AQ107 B: no longer used — the wire is local ENU, nothing converts. Kept so the factories and tests keep their shape
             GhostCreationSystem ghostCreationSystem,
             long localNodeId)
             : base(participant, DdsTopicName, OrdinalValue, entityMap)

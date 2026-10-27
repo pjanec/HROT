@@ -1,11 +1,9 @@
 using System;
 ﻿using System.Linq;
-using System.Numerics;
 using System.Text.Json;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
-using Fdp.Modules.Geographic;
 
 namespace Fdp.Toolkit.Replication.Attributes;
 
@@ -19,10 +17,9 @@ namespace Fdp.Toolkit.Replication.Attributes;
 /// <list type="bullet">
 ///   <item><c>"Name"</c> → <see cref="Fdp.Core.EntityInfo.Name"/> (ordinal: <c>dtEntityInfo</c>)</item>
 ///   <item><c>"Affiliation"</c> → <see cref="Fdp.Core.EntityInfo.ForceId"/> (ordinal: <c>dtEntityInfo</c>)</item>
-///   <item><c>"GeoPosition.Latitude"</c>, <c>"GeoPosition.Longitude"</c>, <c>"GeoPosition.Altitude"</c>
-///         → <see cref="Fdp.Toolkit.Replication.Components.SimTransform.Position"/> via
-///         <c>IGeographicTransform.ToCartesian</c> (ordinal: <c>dtGeoSpatial</c>).
-///         Registered only when <paramref name="geoTransform"/> is non-null.</item>
+///   <item><c>"Position.X"</c>, <c>"Position.Y"</c>, <c>"Position.Z"</c> (⭐ <c>CE-4073</c> — local ENU metres)
+///         → <see cref="Fdp.Toolkit.Replication.Components.SimTransform.Position"/>, one axis each, a plain copy
+///         (<see cref="SimTransformPosition.SetAxis"/>). ⭐ Registered on EVERY host — there is no geodetic frame to wait for.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -35,12 +32,9 @@ public static class AttributeCompilerFactory
     /// Constructs an immutable <see cref="JsonAttributeCompiler"/> with the standard SimHost
     /// attribute routing table.
     /// </summary>
-    /// <param name="geoTransform">
-    /// Geographic transform used to convert geodetic coordinates to local Cartesian space.
-    /// When <c>null</c>, <c>GeoPosition</c> leaf paths are not registered and geo-position
-    /// patches are silently ignored.
-    /// </param>
-    public static JsonAttributeCompiler Build(IGeographicTransform? geoTransform)
+    /// <remarks>⭐ <c>CE-4073</c> — there is no <c>IGeographicTransform</c> parameter: the position route is local ENU metres, so it
+    /// cannot be gated on one (it used to be, and a host with no terrain silently dropped position patches).</remarks>
+    public static JsonAttributeCompiler Build()
     {
         var builder = new AttributeCompilerBuilder()
 
@@ -59,39 +53,20 @@ public static class AttributeCompilerFactory
                         : MapAffiliationString( r.GetString()),
                 kind: KindOf("Affiliation") );
 
-        // ── SimTransform — unmanaged struct paths (GeoPosition) ───────────────
-        if (geoTransform != null)
-        {
-            var acc = new GeoCoordAccumulator(geoTransform);
-
-            builder
-                .RegisterValuePath<SimTransform>(
-                    "GeoPosition.Latitude",
-                    (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
-                    {
-                        acc.Lat = r.GetDouble();
-                        acc.TryApply(ref st);
-                    },
-                    kind: KindOf("GeoPosition.Latitude"))
-
-                .RegisterValuePath<SimTransform>(
-                    "GeoPosition.Longitude",
-                    (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
-                    {
-                        acc.Lon = r.GetDouble();
-                        acc.TryApply(ref st);
-                    },
-                    kind: KindOf("GeoPosition.Longitude"))
-
-                .RegisterValuePath<SimTransform>(
-                    "GeoPosition.Altitude",
-                    (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
-                    {
-                        acc.Alt = r.GetDouble();
-                        acc.TryApply(ref st);
-                    },
-                    kind: KindOf("GeoPosition.Altitude"));
-        }
+        // ── SimTransform — Position.X/Y/Z: local ENU metres, a plain copy per axis, on EVERY host (CE-4073) ──────────────────
+        builder
+            .RegisterValuePath<SimTransform>(
+                "Position.X",
+                (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => SimTransformPosition.SetAxis(ref st, 0, r.GetDouble()),
+                kind: KindOf("Position.X"))
+            .RegisterValuePath<SimTransform>(
+                "Position.Y",
+                (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => SimTransformPosition.SetAxis(ref st, 1, r.GetDouble()),
+                kind: KindOf("Position.Y"))
+            .RegisterValuePath<SimTransform>(
+                "Position.Z",
+                (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => SimTransformPosition.SetAxis(ref st, 2, r.GetDouble()),
+                kind: KindOf("Position.Z"));
 
         // ── SimTransform — Heading (compass degrees, always registered) ───────
         builder.RegisterValuePath<SimTransform>(
@@ -173,9 +148,7 @@ public static class AttributeCompilerFactory
         //    both had one — silently, for months.
         // ⇒ ⭐⭐ a row can no longer be missing HERE by construction; the only place to add an attribute is
         //    AttributeVocabulary.All.
-        // ⚠ Every definition is registered, geo-gated ones included: the edge only TRANSCRIBES JSON into
-        //   records and needs no IGeographicTransform. ⛔ A host without one simply drops those records at
-        //   apply time, which is the pre-existing behaviour and is deliberate.
+        // ⚠ Every definition is registered: the edge only TRANSCRIBES JSON into records.
         var builder = new JsonToRecordCompilerBuilder();
 
         foreach (var d in AttributeVocabulary.All)
@@ -188,26 +161,20 @@ public static class AttributeCompilerFactory
     /// Constructs a <see cref="BinaryInterpreter"/> configured with the standard SimHost
     /// domain installers.
     /// </summary>
-    /// <param name="geoTransform">
-    /// Geographic transform used by <see cref="SimTransformAttributeInstaller"/> to convert
-    /// geodetic coordinates to Cartesian space.  When <c>null</c>,
-    /// <see cref="SimTransformAttributeInstaller"/> is not added and geo-position attribute
-    /// records are silently ignored.
-    /// </param>
-    public static BinaryInterpreter<EntityAttributeChange> BuildBinaryInterpreter(IGeographicTransform? geoTransform)
+    /// <remarks>⭐ <c>CE-4073</c> — no <c>IGeographicTransform</c> parameter: <see cref="SimTransformAttributeInstaller"/> copies local
+    /// ENU metres, so it is added on every host (it used to be added only when a transform was passed).</remarks>
+    public static BinaryInterpreter<EntityAttributeChange> BuildBinaryInterpreter()
     {
         var builder = new BinaryInterpreterBuilder<EntityAttributeChange>(r => r.AttributeId)
             .AddInstaller(new EntityDataAttributeInstaller())
-            // ⭐⭐ Axis-B item ② — heading. ⚠ Added UNCONDITIONALLY, unlike the position installer:
-            //    📐 it needs no IGeographicTransform, because a compass heading is already in the units
-            //    SimTransformBridgeSystem.HeadingDegToRotation takes. ⇒ ⭐ heading works on a host with no
-            //    geo transform, and gating it behind one would refuse rotation for no reason.
+            // ⭐⭐⭐ CE-4073 — the position (local ENU metres, a copy per axis), UNCONDITIONALLY. ⛔ It used to be added only
+            //    `if (geoTransform != null)` — the gate that made a host with no terrain drop position patches silently.
+            .AddInstaller(new SimTransformAttributeInstaller())
+            // ⭐⭐ Axis-B item ② — heading, also unconditional: a compass heading is already in the units
+            //    SimTransformBridgeSystem.HeadingDegToRotation takes.
             .AddInstaller(new SimTransformHeadingInstaller())
             .AddInstaller(new ScenarioClockAttributeInstaller())    // ⭐ CE-3216 S1-0 — the scenario start time (no geo transform needed)
             .AddInstaller(new CivilianFrightAttributeInstaller());  // ⭐ CE-4024 — a civilian's fright (AQ93 §15 K5)
-
-        if (geoTransform != null)
-            builder.AddInstaller(new SimTransformAttributeInstaller(geoTransform));
 
         return builder.Build();
     }
@@ -252,51 +219,4 @@ public static class AttributeCompilerFactory
             ForceIdentifier.Neutral  => ForceId.Neutral,
             _                        => ForceId.Neutral,
         };
-
-    /// <summary>
-    /// Accumulates individual GeoPosition leaf values (Latitude, Longitude, Altitude) and
-    /// fires the Cartesian coordinate conversion only when all three are available.
-    /// Resets automatically after a successful conversion to prepare for the next entity.
-    /// </summary>
-    /// <remarks>
-    /// A single accumulator instance is captured by all three GeoPosition delegates registered
-    /// in <see cref="Build"/>. The delegates fire sequentially within a single
-    /// <c>JsonAttributeCompiler.Compile</c> call, so there is no concurrency concern.
-    /// Partial updates (fewer than three fields) are silently deferred; the final value applied
-    /// is always the result of the last complete Latitude/Longitude/Altitude triple received.
-    ///
-    /// TODO ATTR-BATCH-04: The coordinate math relies on a non-linear WGS84 transformation.
-    /// Because the Earth is curved, "Altitude" does not simply map to the Cartesian Z axis.
-    /// If an entity moves far from the tangent origin, its "Up" vector tilts.
-    /// Thus, to apply a partial update (e.g., just changing the Altitude), we cannot just offset
-    /// Z. We must first perform an inverse calculation: get the current Cartesian Position, 
-    /// convert it to Geodetic (Lat/Lon/Alt) via ToGeodetic, overwrite the provided coordinate(s), 
-    /// and then run ToCartesian again to get the final Cartesian Position.
-    /// </remarks>
-    private sealed class GeoCoordAccumulator
-    {
-        private readonly IGeographicTransform _geo;
-
-        public double? Lat { get; set; }
-        public double? Lon { get; set; }
-        public double? Alt { get; set; }
-
-        public GeoCoordAccumulator(IGeographicTransform geo) => _geo = geo;
-
-        /// <summary>
-        /// Attempts to apply the accumulated coordinates to <paramref name="st"/>.
-        /// Fires only when all three (Lat, Lon, Alt) are non-null, then resets.
-        /// </summary>
-        public void TryApply(ref SimTransform st)
-        {
-            if (!Lat.HasValue || !Lon.HasValue || !Alt.HasValue)
-                return;
-
-            var cart = _geo.ToCartesian(Lat.Value, Lon.Value, Alt.Value);
-            st.Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
-
-            // Reset for subsequent entities.
-            Lat = Lon = Alt = null;
-        }
-    }
 }

@@ -65,7 +65,7 @@ public static class EntityAttributeChangeRequests
             {
                 NetworkId        = networkId,
                 // ⭐ AX-007 — the WHOLE batch in ONE command, so a multi-attribute gesture (a drag's
-                //   GeoLat+GeoLon) reaches the owner as one apply and one geodetic flush.
+                //   Position.X+Position.Y) reaches the owner as one apply.
                 AttributeChanges = changes,
                 // ⚠ Deliberately empty: this is the BINARY arm. ⛔ Sending a JSON patch too would apply the
                 //   same change twice on the owner, through two different compilers.

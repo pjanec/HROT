@@ -59,15 +59,11 @@ namespace Hrot.Map.Common.Replication.Utils
         /// instances to be placed in <c>SpawnEntityCommand.InitialComponents</c>.
         /// </summary>
         /// <param name="descriptors">The descriptor list from the incoming DDS request.</param>
-        /// <param name="geoTransform">
-        /// ⭐ AQ107 B — no longer used: every position on the wire is local ENU metres, so a <c>dtWorldPos</c> descriptor
-        /// always yields a <see cref="SimTransform"/> by a plain copy (<see cref="WorldPosCodec"/>), transform or not.
-        /// Kept so the callers and the factories keep their shape.
-        /// VehicleState is NOT added here — it is the responsibility of the TKB template.
-        /// </param>
+        /// <remarks>⭐ AQ107 B / CE-4073: every position on the wire is local ENU metres, so a <c>dtWorldPos</c> descriptor
+        /// always yields a <see cref="SimTransform"/> by a plain copy (<see cref="WorldPosCodec"/>) — there is no geographic
+        /// transform to pass. VehicleState is NOT added here — it is the responsibility of the TKB template.</remarks>
         public static List<object> MapToComponents(
-            List<EntityDescriptorUnion>? descriptors,
-            IGeographicTransform? geoTransform)
+            List<EntityDescriptorUnion>? descriptors)
         {
             var result = new List<object>();
 
@@ -188,13 +184,10 @@ namespace Hrot.Map.Common.Replication.Utils
         /// </summary>
         /// <remarks>
         /// This overload is the Phase 6 "unified routing" path (ATTR-S6T1, ATTR-S6T2).
-        /// The existing <see cref="MapToComponents(List{EntityDescriptorUnion},IGeographicTransform)"/>
+        /// The existing <see cref="MapToComponents(List{EntityDescriptorUnion})"/>
         /// overload is retained for backward compatibility.
         /// </remarks>
         /// <param name="descriptors">The descriptor list from the incoming DDS request.</param>
-        /// <param name="geoTransform">
-        /// ⭐ AQ107 B — no longer used (the wire is local ENU; nothing converts). Kept so the callers keep their shape.
-        /// </param>
         /// <param name="compiler">
         /// Shared <see cref="JsonAttributeCompiler"/> used to apply Name and Affiliation via the
         /// same routing table as the JSON attribute patch path.
@@ -202,11 +195,10 @@ namespace Hrot.Map.Common.Replication.Utils
         /// </param>
         public static List<object> MapToComponents(
             List<EntityDescriptorUnion>? descriptors,
-            IGeographicTransform? geoTransform,
             JsonAttributeCompiler? compiler)
         {
             if (compiler == null)
-                return MapToComponents(descriptors, geoTransform);
+                return MapToComponents(descriptors);
 
             var result = new List<object>();
 

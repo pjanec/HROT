@@ -103,6 +103,11 @@ public sealed class ExConLogic : IExConLogic, Hrot.UI.Common.Facades.IMapPickSer
     public ExConPickMode PickMode { get; private set; } = ExConPickMode.None;
 
     private TaskCompletionSource<GeoPoint>? _pendingLocationTcs;
+
+    /// <summary>⭐ <c>CE-4073</c> — the node's geographic transform (the factory's <c>GeoTransform</c>), used ONLY to turn a location pick's
+    /// LOCAL click into the geodetic <see cref="GeoPoint"/> a mission field holds (<see cref="Hrot.UI.Common.Facades.MapPickGeo"/>). Every other
+    /// position this console handles is local ENU metres — an entity placement carries the click as it arrived.</summary>
+    private readonly Fdp.Modules.Geographic.IGeographicTransform? _geoTransform;
     private TaskCompletionSource<int>?         _pendingEntityTcs;
 
     private bool _disposed;
@@ -178,9 +183,11 @@ public sealed class ExConLogic : IExConLogic, Hrot.UI.Common.Facades.IMapPickSer
         int                                   targetMapId        = ExConLogicConstants.DefaultTargetMapId,
         IEventQueue<MapCommandAckDto>?        mapCommandAckQueue = null,
         ITimeControlGateway?                  timeControl        = null,
-        long                                  localNodeId        = 0)
+        long                                  localNodeId        = 0,
+        Fdp.Modules.Geographic.IGeographicTransform? geoTransform = null)
     {
         _localNodeId          = localNodeId;
+        _geoTransform         = geoTransform;
         Repo                  = repo                 ?? throw new ArgumentNullException(nameof(repo));
         MissionEditorService  = missionEditorService ?? throw new ArgumentNullException(nameof(missionEditorService));
         ContextMenuLogic      = contextMenuLogic     ?? throw new ArgumentNullException(nameof(contextMenuLogic));
@@ -712,13 +719,14 @@ public sealed class ExConLogic : IExConLogic, Hrot.UI.Common.Facades.IMapPickSer
         {
             RequestId = requestId,
             TkbType   = PlacementType,
-            Latitude  = evt.Latitude,
-            Longitude = evt.Longitude,
-            Altitude  = evt.Altitude,
+            // ⭐ CE-4073 — local ENU metres, carried unchanged from the click (there is no conversion in the console).
+            X         = evt.X,
+            Y         = evt.Y,
+            Z         = evt.Z,
         });
 
         _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCreate,
-            $"tkb={PlacementType} pos={evt.Latitude:F2},{evt.Longitude:F2}");
+            $"tkb={PlacementType} pos={evt.X:F2},{evt.Y:F2} m");
     }
 
     private void ProcessLocationPickClick(MapClickEventDto evt)
@@ -728,9 +736,11 @@ public sealed class ExConLogic : IExConLogic, Hrot.UI.Common.Facades.IMapPickSer
         PickMode            = ExConPickMode.None;
 
         _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicClick,
-            $"LOCATION_PICK pos={evt.Latitude:F4},{evt.Longitude:F4}");
+            $"LOCATION_PICK pos={evt.X:F2},{evt.Y:F2} m");
 
-        tcs?.TrySetResult(new GeoPoint(evt.Latitude, evt.Longitude, evt.Altitude));
+        // ⭐ CE-4073 — a mission's location field is geodetic by authoring convention, so THIS is where the local click becomes
+        //   latitude/longitude (the one conversion the console owns).
+        tcs?.TrySetResult(Hrot.UI.Common.Facades.MapPickGeo.ToGeoPoint(_geoTransform, evt.X, evt.Y, evt.Z));
     }
 
     private void ProcessEntityPickClick(MapClickEventDto evt)

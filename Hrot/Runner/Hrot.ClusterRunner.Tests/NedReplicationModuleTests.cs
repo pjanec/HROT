@@ -49,7 +49,6 @@ public sealed class NedReplicationModuleTests
             participant:  null,         // headless — no DDS
             role:         role,
             entityMap:    entityMap,
-            geoTransform: geoTransform,
             eventBus:     eventBus,
             localNodeId:  1,
             domainId:     99);
@@ -237,7 +236,6 @@ public sealed class NedReplicationModuleTests
             participant:  participant,
             role:         role,
             entityMap:    new NetworkEntityMap(),
-            geoTransform: Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  1,
             domainId:     0);

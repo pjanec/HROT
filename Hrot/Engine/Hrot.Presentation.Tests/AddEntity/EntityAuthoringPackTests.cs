@@ -38,7 +38,7 @@ public sealed class EntityAuthoringPackTests : IDisposable
     });
 
     private EntityAuthoringInputs Inputs(Func<FdpEventBus?>? requests = null)
-        => new(() => _tkb, requests ?? (() => Requests), () => null);
+        => new(() => _tkb, requests ?? (() => Requests));
 
     [Fact]
     public void CE1017_AHostThatCanAuthor_GetsTheWholeSurface_FromThePack()

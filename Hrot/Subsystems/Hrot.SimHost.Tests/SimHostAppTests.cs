@@ -38,16 +38,15 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domain);
 
             var entityMap      = new NetworkEntityMap();
-            var wgs84          = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var behaviorReg    = new BehaviorRegistry();
-            var compiler       = AttributeCompilerFactory.Build(wgs84);
+            var compiler       = AttributeCompilerFactory.Build();
 
             var systems = new System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
 
             // Register the exact same set that SimHostApp._kernelGroup builds.
             systems.Add(new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, behaviorReg, new TacticalIntentMapperRegistry()));
-            systems.Add(new UpdateEntityDescriptorRequestSystem(participant, entityMap, wgs84));
-            systems.Add(new UpdateEntityAttributeRequestSystem(participant, entityMap, wgs84, compiler));
+            systems.Add(new UpdateEntityDescriptorRequestSystem(participant, entityMap));
+            systems.Add(new UpdateEntityAttributeRequestSystem(participant, entityMap, compiler));
             // (The duplicate in SimHostApp was the second UpdateEntityDescriptorRequestSystem —
             //  it is intentionally NOT added here to mirror the fixed code.)
 

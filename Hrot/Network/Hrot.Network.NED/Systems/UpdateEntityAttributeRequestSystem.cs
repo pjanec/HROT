@@ -128,13 +128,6 @@ namespace Hrot.Map.Common.Systems
         /// </summary>
         /// <param name="participant">DDS participant used for topic subscriptions and publications.</param>
         /// <param name="entityMap">Shared net-ID → entity lookup service.</param>
-        /// <param name="geoTransform">
-        /// ⭐⭐⭐ <b><c>AX-012</c> — this is now USED: it builds the BINARY interpreter.</b>
-        ///
-        /// <para>⚠ It previously said *"retained for API compatibility; not used directly by this
-        /// system"*, and that was true — which is exactly how the binary arm came to be dead in
-        /// production.</para>
-        /// </param>
         /// <param name="jsonAttributeCompiler">
         /// ⭐⭐ Optional override. ⚠ <see langword="null"/> no longer means *"no JSON arm"* — it means
         /// *"build the standard one"*, exactly as the binary arm does. See the constructor's remarks.
@@ -157,13 +150,12 @@ namespace Hrot.Map.Common.Systems
         //    ⚠ The override is not decoration: `SimHostAppTests` passes its own JSON compiler.
         //
         // 📐 Measured: `NedNetworkFactory` was the ONLY production caller, and it passed
-        //    `AttributeCompilerFactory.Build(_geoTransform)` — byte-for-byte what the default now builds.
+        //    `AttributeCompilerFactory.Build(_geoTransform)` — byte-for-byte what the default built then (CE-4073: no geo parameter now).
         //    ⇒ no behaviour change, one fewer thing for a caller to get wrong.
         // ────────────────────────────────────────────────────────────────────────────────────────────
         public UpdateEntityAttributeRequestSystem(
             DdsParticipant        participant,
             NetworkEntityMap      entityMap,
-            IGeographicTransform? geoTransform = null,
             JsonAttributeCompiler? jsonAttributeCompiler = null,
             NodeId                 localNodeId = default,
             BinaryInterpreter<EntityAttributeChange>? binaryInterpreter = null)

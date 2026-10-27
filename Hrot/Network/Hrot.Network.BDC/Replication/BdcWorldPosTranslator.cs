@@ -42,7 +42,6 @@ namespace Hrot.BDC.Replication
         public BdcWorldPosTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform,   // ⭐ AQ107 F: no longer used — the BDC wire is local ENU, nothing converts. Kept so the factory keeps its shape
             long localNodeId)
         {
             _entityMap    = entityMap;

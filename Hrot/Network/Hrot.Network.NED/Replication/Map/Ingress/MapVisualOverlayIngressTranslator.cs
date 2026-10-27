@@ -49,13 +49,11 @@ namespace Hrot.Map.Common.Replication.Ingress
         public MapVisualOverlayIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform? geoTransform,
             GhostCreationSystem ghostCreationSystem,
             long localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MapVisualOverlay>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            // geoTransform: ⭐ AQ107 B — no longer used (points are absolute local ENU on the wire). Kept so the callers keep their shape.
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;
         }

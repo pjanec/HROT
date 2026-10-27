@@ -46,7 +46,6 @@ namespace Hrot.Map.Common.Replication.Egress
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform,   // ⭐ AQ107 B: no longer used — the wire is local ENU, nothing converts. Kept so the factories and tests keep their shape
             long localNodeId)
             : base(participant, "WorldPos", ordinal: WorldPosOrdinal, entityMap)
         {

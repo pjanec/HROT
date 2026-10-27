@@ -47,7 +47,7 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public Hrot.Common.Abstractions.IReplicationModule CreateReplicationModule()
             => new Hrot.BDC.Replication.BdcReplicationModule(
-                _participant, _role, _entityMap, _geoTransform, _eventBus, _localNodeId);
+                _participant, _role, _entityMap, _eventBus, _localNodeId);
 
         /// <inheritdoc/>
         public ICommandGateway CreateCommandGateway()
@@ -130,7 +130,6 @@ namespace Hrot.BDC.Factory
         public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
             CycloneDDS.Runtime.DdsParticipant participant,
             Fdp.Core.FdpEventBus bus,
-            Fdp.Modules.Geographic.IGeographicTransform geoTransform,
             long nodeId)
             => System.Array.Empty<Fdp.Interfaces.IDescriptorTranslator>();
 

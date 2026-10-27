@@ -60,7 +60,7 @@ public sealed class NavigationIntentEgressTranslatorTests
         var writer     = new CapturingWriter();
         var entityMap  = new NetworkEntityMap();
         var geoXform   = new IdentityGeoTransform();
-        var translator = new NavigationIntentEgressTranslator(writer, entityMap, geoXform, localNodeId: 1);
+        var translator = new NavigationIntentEgressTranslator(writer, entityMap, localNodeId: 1);
         return (translator, writer);
     }
 

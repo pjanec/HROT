@@ -386,8 +386,8 @@ public class ExConLogicTests
         clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Latitude             = 45.0,
-            Longitude            = 12.0
+            X             = 12.0,
+            Y            = 45.0
         });
 
         logic.Update();
@@ -418,8 +418,8 @@ public class ExConLogicTests
         clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = Guid.NewGuid(),   // <── different
-            Latitude             = 45.0,
-            Longitude            = 12.0
+            X             = 12.0,
+            Y            = 45.0
         });
 
         logic.Update();
@@ -480,8 +480,8 @@ public class ExConLogicTests
         clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Latitude             = 45.0,
-            Longitude            = 12.0
+            X             = 12.0,
+            Y            = 45.0
         });
 
         logic.Update();
@@ -521,8 +521,8 @@ public class ExConLogicTests
         clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Latitude             = 10.0,
-            Longitude            = 20.0
+            X             = 20.0,
+            Y            = 10.0
         });
 
         logic.Update();

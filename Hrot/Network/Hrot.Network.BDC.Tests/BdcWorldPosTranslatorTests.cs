@@ -43,7 +43,7 @@ namespace Hrot.Network.BDC.Tests
             using var participant = new DdsParticipant(189u);
             var geo   = Substitute.For<IGeographicTransform>();
             var ownerMap = new NetworkEntityMap();
-            var egress   = new BdcWorldPosTranslator(participant, ownerMap, geo, localNodeId: 1);
+            var egress   = new BdcWorldPosTranslator(participant, ownerMap, localNodeId: 1);
 
             var position = new Vector3(1234.5f, -8765.25f, 42.125f);
             var linear   = new Vector3(1.5f, -2f, 0.25f);
@@ -74,7 +74,7 @@ namespace Hrot.Network.BDC.Tests
             replica.AddComponent(ghost, new NetworkTransform());
             replica.AddComponent(ghost, new NetworkVelocity());
             replicaMap.Register(42, ghost);
-            var ingress = new BdcWorldPosTranslator(participant, replicaMap, geo, localNodeId: 2);
+            var ingress = new BdcWorldPosTranslator(participant, replicaMap, localNodeId: 2);
 
             egress.ScanAndPublish(owner);
             Assert.Equal(1, egress.SentSampleCount);

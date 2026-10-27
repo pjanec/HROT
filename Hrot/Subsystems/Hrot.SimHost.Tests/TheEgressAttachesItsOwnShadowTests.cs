@@ -89,7 +89,7 @@ namespace Hrot.SimHost.Tests
             const uint domainId = 215u;
             using var participant = new DdsParticipant(domainId);
             var translator = new GeoSpatialEgressTranslator(
-                participant, new NetworkEntityMap(), new IdentityGeoTransform(), localNodeId: 1);
+                participant, new NetworkEntityMap(), localNodeId: 1);
 
             var repo = CreateWorld();
             var e = MakeEntity(repo, primaryOwnerId: 1, position: new Vector3(13.4f, 52.5f, 0f));
@@ -121,7 +121,7 @@ namespace Hrot.SimHost.Tests
             const uint domainId = 216u;
             using var participant = new DdsParticipant(domainId);
             var translator = new GeoSpatialEgressTranslator(
-                participant, new NetworkEntityMap(), new IdentityGeoTransform(), localNodeId: 1);
+                participant, new NetworkEntityMap(), localNodeId: 1);
 
             var repo = CreateWorld();
             var e = MakeEntity(repo, primaryOwnerId: 1, position: new Vector3(13.4f, 52.5f, 0f));
@@ -147,7 +147,7 @@ namespace Hrot.SimHost.Tests
             const uint domainId = 217u;
             using var participant = new DdsParticipant(domainId);
             var translator = new GeoSpatialEgressTranslator(
-                participant, new NetworkEntityMap(), new IdentityGeoTransform(), localNodeId: 1);
+                participant, new NetworkEntityMap(), localNodeId: 1);
 
             var repo = CreateWorld();
             var e = MakeEntity(repo, primaryOwnerId: 2, position: new Vector3(13.4f, 52.5f, 0f));
@@ -178,7 +178,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domainId);
             using var reader = new DdsReader<WorldPos>(participant, "WorldPos");
             var translator = new GeoSpatialEgressTranslator(
-                participant, new NetworkEntityMap(), new IdentityGeoTransform(), localNodeId: 1);
+                participant, new NetworkEntityMap(), localNodeId: 1);
 
             var repo = CreateWorld();
             MakeEntity(repo, primaryOwnerId: 1, position: new Vector3(13.4f, 52.5f, 0f));
@@ -213,7 +213,7 @@ namespace Hrot.SimHost.Tests
             const uint domainId = 219u;
             using var participant = new DdsParticipant(domainId);
             var translator = new GeoSpatialEgressTranslator(
-                participant, new NetworkEntityMap(), new IdentityGeoTransform(), localNodeId: 1);
+                participant, new NetworkEntityMap(), localNodeId: 1);
 
             var repo = CreateWorld();
             var pos = new Vector3(13.4f, 52.5f, 7f);
@@ -242,7 +242,7 @@ namespace Hrot.SimHost.Tests
             const uint domainId = 220u;
             using var participant = new DdsParticipant(domainId);
             var translator = new GeoSpatialEgressTranslator(
-                participant, new NetworkEntityMap(), new IdentityGeoTransform(), localNodeId: 1);
+                participant, new NetworkEntityMap(), localNodeId: 1);
 
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();

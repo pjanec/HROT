@@ -1636,7 +1636,7 @@ namespace Hrot.Editor
                 // ⭐ CE-4024 — a request's InitialAttributesJson (a spawn's attributesJson, a converted pedestrian's fright) is applied here
                 //   as on every networked host, whose factory hands the pack this compiler. 📌 Measured 2026-10-17: the editor passed none,
                 //   so every attribute of every request was silently dropped (the SILENT-DEFAULT shape: the host held the geo transform).
-                JsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform),
+                JsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(),
             });
             EntityCreation = creation;   // CE-515
 
@@ -2214,8 +2214,7 @@ namespace Hrot.Editor
                     //   Windowed only: a headless editor reports Spawn unserviceable, as before.
                     EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                         Tkb:          () => _tkbDatabase,
-                        Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
-                        GeoTransform: () => geoTransform)
+                        Requests:     () => EntityCreation?.World.Bus)   // ⭐ CE-3228 — the creation pack reads this world's bus
                     {
                         // ⭐ CE-1226 (R-1012, user: "When preview, adding new entities is disabled in the menu, i need it enabled") —
                         //   Add Entity stays on in Preview. ⛔ Was: SuspendedReason "suspended in Preview". An entity added in Preview

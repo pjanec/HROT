@@ -1,5 +1,7 @@
 # Design: ATTR2 — Binary Attribute Pipeline
 
+> ⛔ **CE-4073 note (2026-10-27):** where this document describes the attribute route as **geodetic** (`GeoPosition.Latitude/Longitude/Altitude`, `GeoLat`/`GeoLon`/`GeoAlt`, a `ToCartesian`/`ToGeodetic` scratchpad), that is HISTORY — the route is now local ENU metres: `Position.X/Y/Z` (`AttributeIds.PositionX/Y/Z` = 14/15/16, a plain copy per axis, on every host); ids 10–12 are retired. See `docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md` §4 row B (as-built).
+
 **Source:** [`design_talk.md`](./design_talk.md)  
 **Predecessor:** [`../attribs-to-ecs/ATTR-DESIGN.md`](../attribs-to-ecs/ATTR-DESIGN.md)  
 **Status:** Ready for implementation  

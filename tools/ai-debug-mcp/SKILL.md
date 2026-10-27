@@ -533,7 +533,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `get_utility_decision({"key":"Combat posture"})` — read a utility decision's settings.
 
 ### Group L — Mutation / fault injection
-- **`get_attributes_schema`** — Return all patchable attribute paths and their JSON Schema. No params. Returns { registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, GeoPosition.*, Heading, …).
+- **`get_attributes_schema`** — Return all patchable attribute paths and their JSON Schema. No params. Returns { registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, Position.X/Y/Z (local ENU metres), Heading, …).
   Notes: Use patch_attribute to apply a patch using these paths.; Paths not in registeredPaths are silently ignored by patch_attribute..
   Example: `get_attributes_schema({})` — discover patchable attribute paths before calling patch_attribute.
 - **`patch_attribute`** — Apply a JSON attribute patch to an entity — locally where this node owns it, by request to the owner where it does not. Req `networkId` (number), Req `patchJson`. Returns Updated entity dump on success, plus write:{route, appliedComponents, requestedComponents}; route is direct, requested or noMatch.

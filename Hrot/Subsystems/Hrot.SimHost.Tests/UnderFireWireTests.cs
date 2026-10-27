@@ -154,7 +154,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(231u);
             var entityMap = new NetworkEntityMap();
             var pack = SharedTranslatorPack.Create(participant, entityMap, localNodeId: 1, new FdpEventBus(),
-                new Fdp.Toolkit.Replication.Systems.GhostCreationSystem(entityMap), HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0)).ToList();
+                new Fdp.Toolkit.Replication.Systems.GhostCreationSystem(entityMap)).ToList();
             var egress = Assert.Single(pack.OfType<EntityUnderFireEgressTranslator>());
             Assert.Single(pack.OfType<EntityUnderFireIngressTranslator>());
             Assert.Equal(new[] { GlobalComponentIds.UnderFire }, egress.TargetComponentIds);
