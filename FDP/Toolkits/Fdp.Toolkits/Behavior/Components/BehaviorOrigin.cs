@@ -29,8 +29,11 @@ namespace Fdp.Toolkit.Behavior.Components
         /// every order, it PAUSES what runs (as a reaction does — never drops it), no reaction may interrupt it, and its own clear
         /// RESUMES the paused task (C-4). Possession is a behaviour of this origin, never a switch that turns the brain off (R-270).</summary>
         Possession = 5,
-        /// <summary>A behaviour replacing or ending ITSELF (hot-reload restart, a chained re-assign) — keeps the running origin.</summary>
-        Self = 255,
+        /// <summary>A behaviour replacing or ending ITSELF (hot-reload restart, a chained re-assign) — keeps the running origin.
+        /// ⭐ Value <c>127</c>, not 255 <i>(changed 2026-10-27, CycloneDDS.NET 0.4 trial, <c>CE-3000</c>)</i>: Cyclone DDS 11's IDL compiler reads an
+        /// enumerator as a SIGNED value of <c>@bit_bound</c> bits, so a one-byte enum holds 0..127. 127 is the largest value that fits and stays
+        /// above any appended member; the enum stays ONE byte. 🔒 Recordings made before the change (they store 255) are deliberately NOT supported — user, 2026-10-27: "we can disregard old recordings".</summary>
+        Self = 127,
     }
 
     /// <summary>⭐ <c>CE-2078</c> (R-199) — how urgent a reaction is: a running reaction yields only to a MORE urgent one.
