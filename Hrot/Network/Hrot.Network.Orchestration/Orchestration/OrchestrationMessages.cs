@@ -162,6 +162,37 @@ namespace Hrot.NED.Descriptors.Orchestration
     }
 
     /// <summary>
+    /// ⭐⭐ <c>AQ107 C</c> (R-4094) — THE ORIGIN OF THE NED WIRE'S LOCAL FRAME. Every position on the NED wire is local ENU metres (X east,
+    /// Y north, Z up); this retained, keyless sample says WHERE on the Earth that frame's (0, 0, 0) is, so a gateway (DIS / HLA) can convert
+    /// to ECEF / geodetic: <c>ECEF = ecef(origin) + R(origin) · local</c>, the same exact transform every node uses (<c>WGS84Transform</c>).
+    /// <para>⭐ Published by the CLUSTER MASTER only (one writer, not one per CGF): at a load it is the loaded terrain's declared origin
+    /// (0, 0, 0 when the terrain declares none — R-229), at a replay entry the recording's own origin. TransientLocal + KeepLast 1 hands the
+    /// newest to a late joiner. <see cref="Generation"/> goes up by 1 whenever a DIFFERENT origin is published; republishing the same origin
+    /// keeps it, so a gateway re-bases its entities only when it changes. Nothing in HROT reads it (every node holds the terrain).</para>
+    /// <para>📄 docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md §3, §4 row C; docs/reference/NED_DDS_Protocol.md §11.</para>
+    /// </summary>
+    [DdsTopic("GeoReference")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct GeoReference
+    {
+        /// <summary>Geodetic latitude of the frame's origin, degrees (WGS84 ellipsoid).</summary>
+        public double OriginLatitudeDeg;
+        /// <summary>Geodetic longitude of the frame's origin, degrees (WGS84 ellipsoid).</summary>
+        public double OriginLongitudeDeg;
+        /// <summary>Altitude of the frame's origin above the WGS84 ellipsoid, metres.</summary>
+        public double OriginAltitudeM;
+        /// <summary>The frame kind; <see cref="NedWire.FrameEnuTangentPlane"/> (0) = an ENU tangent plane at the origin — the only value so far.</summary>
+        public byte Frame;
+        /// <summary>The terrain the origin belongs to (the recording's terrain in a replay); empty when none.</summary>
+        [DdsManaged] public string TerrainName;
+        /// <summary>+1 every time a DIFFERENT origin is published; 0 never appears on the wire (the first publish is 1).</summary>
+        public int Generation;
+        /// <summary>The NED wire version the publisher speaks — <see cref="NedWire.ProtocolVersion"/> — so a gateway can refuse an unknown wire.</summary>
+        public int ProtocolVersion;
+    }
+
+    /// <summary>
     /// Published by the Orchestrator every 5 seconds. Carries the NAS/local asset lists
     /// so that any subscriber — including ExCon — can populate asset combo-boxes purely over DDS,
     /// with no direct reference to <see cref="Hrot.Orchestrator.ClusterMaster"/>

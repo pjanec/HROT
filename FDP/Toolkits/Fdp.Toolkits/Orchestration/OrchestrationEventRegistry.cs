@@ -32,6 +32,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<SetReplayLoopIntent>();   // ⭐ CE-3329 §12n
             bus.RegisterManaged<ReplaySessionPublishedEvent>();   // ⭐ CE-3329 rows 32, 45 — the session layer, to the DDS writer
             bus.RegisterManaged<ReplaySessionUpdateEvent>();      // ⭐ CE-3329 — the session layer, folded by every host
+            bus.RegisterManaged<GeoReferencePublishedEvent>();    // ⭐ AQ107 C — the NED wire's frame origin, to the DDS writer
             bus.RegisterManaged<CancelOperationIntent>();
             bus.RegisterManaged<ExecuteStorageOpIntent>();
             bus.RegisterManaged<StorageOpCompletedEvent>();

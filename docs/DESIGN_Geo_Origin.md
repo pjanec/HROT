@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
-updated: 2026-10-17 (§4 ⑨ CE-2242 — the origin before the bake)
+updated: 2026-10-27 (§4 ⑩ AQ107 C — the master publishes the origin as GeoReference)
 current-answer: §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: none
 known-conflict: none
 related-designs:
+  - blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the NED wire frame and the retained GeoReference topic that publishes this file's origin (§4 ⑩); this file owns where the origin comes from
   - docs/DESIGN_Map_3D_Mode.md §6ac — the map cursor's latitude / longitude / altitude in the status bar (CE-1289) reads this file's transform from the world singleton; OWNS the readout, not the origin
   - docs/designs/weather/DESIGN_Weather_And_Time.md — the sun position reads this file's geographic transform (latitude / longitude of a point)
   - DESIGN_Terrain_Zones_And_Assets.md — owns the terrain asset and TerrainResidency's prepare/commit; this adds an origin to the asset and one line to Commit.
@@ -156,6 +157,7 @@ Seen on 5 of ~10 fresh `--mode all` loads (log: the third "geo origin set" line 
 `Definition.Origin`), or hold the scenario's entity requests until every node has committed its terrain.
 
 | ⑨ ⭐ `2026-10-17` (`CE-2242`) | **the origin goes in before the bake on an empty world.** `ILoadPartProvider.BeforePrepare(context, world)` (default nothing) runs on the frame thread once per load, after the world-boundary clear and before any step prepares (`LoadPhaseChain.PrepareAsync`); `TerrainLoadStep` implements it only for a world boundary or a late joiner's catch-up and calls `TerrainResidency.ApplyOriginAhead` (reads just the definition; a missing one is left to `Prepare` to report). `Commit` still sets it (a no-op when equal), so ③ holds for every other load — there the world holds entities placed under the old origin and the change stays inside the commit. Rejected: holding the scenario's entity requests until every node committed (a new cluster barrier for a value one file read gives). Rail `TerrainLoadStepTests.CE2242_OnAFreshWorld_TheGeoOriginIsSetBeforeTheBakeFinishes_OtherLoadsWaitForCommit` (the bake held open: boundary / catch-up have the origin, a plain load does not) | `LoadPhaseContracts.cs`, `LoadPhaseChain.cs`, `TerrainLoadStep.cs`, `TerrainResidency.cs` |
+| ⑩ ⭐ `2026-10-27` (`AQ107 C`, R-4094) | **the origin is also PUBLISHED, by the cluster master only.** The NED wire's positions are local ENU metres, so a gateway needs this file's origin: the master publishes the retained, keyless `GeoReference` — at a world-boundary load the loaded terrain's `Origin` (read through `TerrainCatalog.ReadDefinition`, the catalog's one locate + parse that `ApplyOriginAhead` now shares), at a replay entry the recording's `RecordingMetadata.GeoOrigin` (carried by the nodes' `PrepareReplay` result). Nothing in HROT reads it. 📄 `blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md` §4 row C | `ClusterMaster.GeoReference.cs`, `TerrainCatalog.cs`, `ReplayConsensusAggregator.cs` |
 
 ⚠ **Not done here:** loading the recording's terrain BY NAME in the Replay Browser is `CE-3118` — the metadata now carries the name it needs.
 

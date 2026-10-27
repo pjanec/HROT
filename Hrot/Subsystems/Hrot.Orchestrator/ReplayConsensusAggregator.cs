@@ -47,6 +47,8 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
         var maps = new List<(long First, Fdp.Core.FlightRecorder.ReplayTimeMap Map)>();
         // ⭐ CE-3329 §9f — the checkpoint marks: the union by label (a cluster checkpoint is one label on every node), the earliest
         var marks = new Dictionary<string, Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+        // ⭐ AQ107 C — the origin the run used: the ANCHOR node's (the earliest first frame, like the time map) that carries one
+        (long First, Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord Origin, string? Terrain)? geo = null;
 
         foreach (var nodeDict in nodeResponses.Values)
         {
@@ -65,6 +67,8 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
                 }
                 else if (result.LastFrameWallTicks > lastFrame) lastFrame = result.LastFrameWallTicks;
                 if (result.TimeMap is { HasSimTime: true } map) maps.Add((result.FirstFrameWallTicks, map));
+                if (result.GeoOrigin is { } nodeOrigin && (geo is null || result.FirstFrameWallTicks < geo.Value.First))
+                    geo = (result.FirstFrameWallTicks, nodeOrigin, result.TerrainName);
                 foreach (var mark in result.Checkpoints ?? System.Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>())
                     if (!marks.TryGetValue(mark.Label, out var seen) || mark.WallTicks < seen.WallTicks) marks[mark.Label] = mark;
             }
@@ -76,12 +80,29 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
         if (firstFrame > 0 && lastFrame > firstFrame)
             maxDuration = System.Math.Max(maxDuration, (float)((lastFrame - firstFrame) / (double)System.TimeSpan.TicksPerSecond));
 
+        // ⭐ AQ107 C — a REPLAY's aggregate always names the origin (the master publishes it as the NED wire's frame origin): the anchor
+        //   node's, else 0,0,0 when no recording carries one (R-229 "Missing geo = zeros"). A review's aggregate leaves it null — the run's
+        //   origin was published at its load and a review changes nothing.
+        Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? aggregatedOrigin = null;
+        string? aggregatedTerrain = null;
+        if (_target == NodeOpType.PrepareReplay && maxDuration > 0f)
+        {
+            if (geo is { } anchor) { aggregatedOrigin = anchor.Origin; aggregatedTerrain = anchor.Terrain; }
+            else
+            {
+                aggregatedOrigin = new Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord();   // 0, 0, 0
+                Fdp.Core.Logging.FdpLog<ReplayConsensusAggregator>.Warn(
+                    "[Orchestrator] AQ107 C: no node's recording carries a geo origin (it pre-dates CE-3126) — the replay's GeoReference is 0,0,0.");
+            }
+        }
+
         return maxDuration > 0f
             ? new ReplayPrepareResult(MaxNetworkId: maxNetworkId, DurationSeconds: maxDuration,
                                       FirstFrameWallTicks: firstFrame, LastFrameWallTicks: lastFrame,
                                       TimeMap: maps.Count == 0 ? null
                                           : Fdp.Core.FlightRecorder.ReplayTimeMap.Intersect(maps.OrderBy(m => m.First).Select(m => m.Map)),
-                                      Checkpoints: marks.Values.OrderBy(m => m.WallTicks).ToArray())
+                                      Checkpoints: marks.Values.OrderBy(m => m.WallTicks).ToArray(),
+                                      GeoOrigin: aggregatedOrigin, TerrainName: aggregatedTerrain)
             : null;
     }
 }

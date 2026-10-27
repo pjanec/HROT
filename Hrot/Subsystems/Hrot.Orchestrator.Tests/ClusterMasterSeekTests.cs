@@ -881,6 +881,60 @@ public sealed class ClusterMasterSeekTests
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
     }
 
+    // ── ⭐ AQ107 C (R-4094) — a replay entry publishes the origin the RECORDING used, not any terrain's ──
+
+    /// <summary>⭐ AQ107 C (d) — entering a replay publishes the recording metadata's origin (the anchor node's, carried by the prepare result) under the
+    /// recording's terrain name; a second replay of a recording made elsewhere is generation 2.</summary>
+    [Fact(Timeout = 10_000)]
+    public void AQ107C_AReplayEntry_PublishesTheRecordingsOrigin()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        master.RegisterAggregator(new ReplayConsensusAggregator());
+        RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+
+        EnterReplay(bus, master, new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 20f, 4_000_000L, 204_000_000L,
+            GeoOrigin: new Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord { Lat = 48.1, Lon = -11.5, Alt = 420.0 }, TerrainName: "recorded-terrain"),
+            targetSimSeconds: null);
+
+        var geo = Assert.Single(bus.ReadManaged<GeoReferencePublishedEvent>());
+        Assert.Equal((48.1, -11.5, 420.0), (geo.OriginLatitudeDeg, geo.OriginLongitudeDeg, geo.OriginAltitudeM));
+        Assert.Equal("recorded-terrain", geo.TerrainName);
+        Assert.Equal(1, geo.Generation);
+    }
+
+    /// <summary>⭐ AQ107 C — the origin is the ANCHOR node's (the earliest first frame), never the first node listed; and a recording that carries no
+    /// origin (it pre-dates CE-3126) publishes 0,0,0 (R-229).</summary>
+    [Fact]
+    public void AQ107C_TheAggregateTakesTheAnchorNodesOrigin_AndZerosWhenNoRecordingHasOne()
+    {
+        static string Wire(Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult r)
+            => JsonSerializer.Serialize(r, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        var late  = new Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord { Lat = 1, Lon = 2, Alt = 3 };
+        var early = new Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord { Lat = 10, Lon = 20, Alt = 30 };
+        var responses = new Dictionary<int, Dictionary<FdpNodeOpType, string>>
+        {
+            [1] = new() { [FdpNodeOpType.PrepareReplay] = Wire(new(5, 4f, 300_000_000, 340_000_000, null, null, late, "late")) },
+            [2] = new() { [FdpNodeOpType.PrepareReplay] = Wire(new(7, 4f, 100_000_000, 140_000_000, null, null, early, "early")) },
+        };
+        var r = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(new ReplayConsensusAggregator().Aggregate(responses));
+        Assert.Equal((10.0, 20.0, 30.0), (r.GeoOrigin!.Lat, r.GeoOrigin.Lon, r.GeoOrigin.Alt));
+        Assert.Equal("early", r.TerrainName);
+
+        var bare = new Dictionary<int, Dictionary<FdpNodeOpType, string>>
+        {
+            [1] = new() { [FdpNodeOpType.PrepareReplay] = Wire(new(5, 4f, 100_000_000, 140_000_000)) },
+        };
+        var zero = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(new ReplayConsensusAggregator().Aggregate(bare));
+        Assert.Equal((0.0, 0.0, 0.0), (zero.GeoOrigin!.Lat, zero.GeoOrigin.Lon, zero.GeoOrigin.Alt));
+
+        // a REVIEW's aggregate names no origin: the run's was published at its load
+        var review = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(
+            new ReplayConsensusAggregator(FdpNodeOpType.PrepareReview, endAtEarliestLast: true).Aggregate(
+                new Dictionary<int, Dictionary<FdpNodeOpType, string>> { [1] = new() { [FdpNodeOpType.PrepareReview] = Wire(new(5, 4f, 100_000_000, 140_000_000, null, null, early, "early")) } }));
+        Assert.Null(review.GeoOrigin);
+    }
+
     /// <summary>
     /// ⭐ C9 P7 (moved to the replay clock, CE-3329 row 9) — the playhead is seconds after the replay's zero, so the end IS the duration:
     /// a running clock at or past it pauses ONCE; a seek back re-arms it. 🔴 Before C9: "now + duration"; and a seek back never re-armed.

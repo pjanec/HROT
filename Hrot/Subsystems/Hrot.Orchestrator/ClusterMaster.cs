@@ -9,6 +9,7 @@ using Hrot.Network.Orchestration;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Terrain;
 using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Controllers;
@@ -1599,6 +1600,9 @@ public sealed partial class ClusterMaster : IDisposable
                             ? ReadContentNamesForFanOut(intent.ScenarioId)
                             : default;
 
+                        // ⭐ AQ107 C — a world-boundary load parks the terrain's origin; it is published when this round succeeds.
+                        if (isLoadStep && worldBoundary) NoteLoadGeoReference(tx.TransactionId, contentNames.TerrainName);
+
                         var preparePayload = new EditLoadHandlerPayload(
                             isLoadStep ? intent.ScenarioId : null,
                             false,
@@ -2263,6 +2267,7 @@ public sealed partial class ClusterMaster : IDisposable
             if (authoritativeError && tracker.AbortOnFirstFailure)
             {
                 _pendingTransactions.Remove(ev.TransactionId);
+                _pendingGeoReferences.Remove(ev.TransactionId);   // ⭐ AQ107 C
                 _owedAcks.Remove(ev.TransactionId);
                 FdpLog<ClusterMaster>.Warn(
                     "[Orchestrator] 2PC transaction {0} aborted: node {1} returned error {2}.",
@@ -2304,6 +2309,9 @@ public sealed partial class ClusterMaster : IDisposable
     private void CompleteRound(Guid txId, GenericTransactionTracker tracker)
     {
         _pendingTransactions.Remove(txId);
+        // ⭐ AQ107 C — a load's parked origin is published on success only; a failed round drops it (the nodes never adopted it).
+        (TerrainGeoOrigin Origin, string TerrainName)? parkedGeo =
+            _pendingGeoReferences.Remove(txId, out var parked) ? parked : null;
         // ⚠ BEFORE the outcome: a phased round (zone, terrain asset) re-uses this id for its commit phase, and
         //   OnPhaseSuccess below records that phase's owed ACKs under the SAME id.
         _owedAcks.Remove(txId);
@@ -2343,6 +2351,7 @@ public sealed partial class ClusterMaster : IDisposable
                 ?? (tracker.ResultFromResponses ? ResponsesByNode(tracker.NodeResponses) : TryAggregate(txId, tracker.NodeResponses));
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
             OnRoundSucceededForReplay(txId, aggregated);   // ⭐ C9 — the replay zero, and the seek that enters a replay
+            OnRoundSucceededForGeoReference(parkedGeo, aggregated);   // ⭐ AQ107 C — the NED wire's frame origin (load: terrain; replay: recording)
         }
 
         if (tracker.BroadcastClusterStateOnComplete)

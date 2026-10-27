@@ -29,6 +29,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
     private readonly DdsWriter<AssetInventoryTopic>                    _inventoryWriter;
     private readonly DdsWriter<ClusterStateTopic>                       _stateWriter;
     private readonly DdsWriter<ReplaySessionTopic>                      _sessionWriter;   // ⭐ CE-3329 rows 32, 45
+    private readonly DdsWriter<GeoReference>                            _geoReferenceWriter;   // ⭐ AQ107 C — the NED wire's frame origin
     // Per-node command writers, created on demand and cached.
     private readonly Dictionary<int, DdsWriter<NodeOpCommand>>         _commandWriters = new();
     // ⭐ Q86 §4-B — the Context Plane (mgmt-1 §1.2): written from the bus event, never by the handler itself.
@@ -53,11 +54,12 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _inventoryWriter     = new DdsWriter<AssetInventoryTopic>(_participant);
         _stateWriter         = new DdsWriter<ClusterStateTopic>(_participant);
         _sessionWriter       = new DdsWriter<ReplaySessionTopic>(_participant);
+        _geoReferenceWriter  = new DdsWriter<GeoReference>(_participant);
         _contextWriter       = new DdsWriter<OrchestratorContextTopic>(_participant);
         _nodeIdRequestReader = new DdsReader<NodeIdRequest>(_participant);
         _nodeIdGrantWriter   = new DdsWriter<NodeIdGrant>(_participant);
         _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
-            _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter, _sessionWriter);
+            _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter, _sessionWriter, _geoReferenceWriter);
         _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
             GetOrCreateCommandWriter, _nodeOpStatusReader, _bus);
     }
@@ -163,6 +165,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _inventoryWriter.Dispose();
         _stateWriter.Dispose();
         _sessionWriter.Dispose();
+        _geoReferenceWriter.Dispose();
         _contextWriter.Dispose();
         _nodeIdRequestReader.Dispose();
         _nodeIdGrantWriter.Dispose();

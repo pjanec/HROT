@@ -170,6 +170,12 @@ namespace Hrot.SimHost.Modules.Orchestration
         public Fdp.Core.FlightRecorder.Metadata.CheckpointMark[]? ActiveReplayCheckpoints => _activeReplayModule?.Checkpoints;
 
         /// <inheritdoc />
+        public Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? ActiveReplayGeoOrigin => _activeReplayModule?.GeoOrigin;
+
+        /// <inheritdoc />
+        public string ActiveReplayTerrainName => _activeReplayModule?.TerrainName ?? string.Empty;
+
+        /// <inheritdoc />
         public void HoldEgress(string reason) => Fdp.Toolkit.Replication.Services.EgressHold.Hold(_repo, reason);
 
         /// <inheritdoc />

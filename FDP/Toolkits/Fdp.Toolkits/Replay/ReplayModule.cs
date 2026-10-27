@@ -203,6 +203,13 @@ namespace Fdp.Toolkit.Replay
         public Fdp.Core.FlightRecorder.Metadata.CheckpointMark[] Checkpoints
             => _playback?.Metadata.Checkpoints.ToArray() ?? System.Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
 
+        /// <summary>⭐ AQ107 C — the geodetic origin the recording was made under (its metadata); <see langword="null"/> for a listener
+        /// or a recording that pre-dates the field.</summary>
+        public Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? GeoOrigin => _playback?.Metadata.GeoOrigin;
+
+        /// <summary>⭐ AQ107 C — the terrain that was resident while recording (its metadata); empty when none / pre-dates the field.</summary>
+        public string TerrainName => _playback?.Metadata.TerrainName ?? string.Empty;
+
         /// <summary>
         /// The maximum network entity ID present in the recording, as reported by
         /// the recording session's <c>AsyncRecorder</c>.

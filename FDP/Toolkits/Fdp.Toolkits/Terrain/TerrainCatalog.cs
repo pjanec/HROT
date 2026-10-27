@@ -73,6 +73,18 @@ namespace Fdp.Toolkit.Terrain
             return null;
         }
 
+        /// <summary>
+        /// ⭐ <c>AQ107 C</c> — the parsed definition of <paramref name="terrainName"/> (locate through <see cref="ResolveDefinition"/>, parse
+        /// through <see cref="TerrainDefinitionParser"/>), or <c>null</c> when no root holds it. ⭐ The ONE locate-and-parse for callers that
+        /// need only the definition (the cluster master reads the origin from it; <c>TerrainResidency.ApplyOriginAhead</c> too).
+        /// <see cref="TerrainDefinitionParser"/> still throws on a malformed file.
+        /// </summary>
+        public TerrainDefinition? ReadDefinition(string terrainName)
+        {
+            var path = ResolveDefinition(terrainName);
+            return path == null ? null : TerrainDefinitionParser.Parse(File.ReadAllText(path));
+        }
+
         /// <summary>The folder holding <paramref name="terrainName"/>, or <c>null</c>.</summary>
         public string? ResolveFolder(string terrainName)
         {

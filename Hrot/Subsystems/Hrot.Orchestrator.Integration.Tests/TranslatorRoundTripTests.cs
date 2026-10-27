@@ -150,4 +150,50 @@ public sealed class TranslatorRoundTripTests : IDisposable
         Assert.NotNull(result);
         Assert.Equal((int)OrchestrationStatusCode.Success, result!.Value.StatusCode);
     }
+    // ── ⭐ AQ107 C (R-4094) — the NED wire's frame origin is RETAINED: a gateway that joins late still gets it ──
+
+    /// <summary>
+    /// The master's <see cref="GeoReferencePublishedEvent"/> goes out through <see cref="ClusterOpMasterTranslator"/> as the retained
+    /// <see cref="GeoReference"/> (Reliable + TransientLocal + KeepLast 1); a reader created AFTER the write — a late-joining gateway — receives
+    /// it, with the frame kind and the NED wire version the translator states, and a newer origin replaces it for the next late joiner.
+    /// </summary>
+    [Fact(Timeout = 20_000)]
+    public void AQ107C_ALateJoiningReader_ReceivesTheRetainedGeoReference()
+    {
+        using var requestReader = new DdsReader<ClusterOpRequest>(_participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(_participant);
+        using var geoWriter     = new DdsWriter<GeoReference>(_participant);
+        var bus = new FdpEventBus();
+        var translator = new ClusterOpMasterTranslator(requestReader, statusWriter, bus, geoReferenceWriter: geoWriter);
+
+        void Publish(double lat, double lon, double alt, string terrain, int generation)
+        {
+            bus.PublishManaged(new GeoReferencePublishedEvent
+            {
+                OriginLatitudeDeg = lat, OriginLongitudeDeg = lon, OriginAltitudeM = alt, TerrainName = terrain, Generation = generation,
+            });
+            bus.SwapBuffers();
+            translator.Tick();
+        }
+        Publish(47.25, 11.4, 612.5, "alps", 1);
+        Publish(54.3, 10.1, 3.0, "coast", 2);   // KeepLast 1: only this one is retained
+
+        using var late = new DdsReader<GeoReference>(_participant);   // created AFTER both writes
+        GeoReference? got = null;
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < deadline && got is null)
+        {
+            using var scope = late.Take();
+            foreach (var sample in scope)
+                if (sample.IsValid) got = sample.Data;
+            if (got is null) Thread.Sleep(50);
+        }
+
+        Assert.NotNull(got);
+        Assert.Equal((54.3, 10.1, 3.0), (got!.Value.OriginLatitudeDeg, got.Value.OriginLongitudeDeg, got.Value.OriginAltitudeM));
+        Assert.Equal("coast", got.Value.TerrainName);
+        Assert.Equal(2, got.Value.Generation);
+        Assert.Equal(NedWire.FrameEnuTangentPlane, got.Value.Frame);
+        Assert.Equal(NedWire.ProtocolVersion, got.Value.ProtocolVersion);
+    }
 }

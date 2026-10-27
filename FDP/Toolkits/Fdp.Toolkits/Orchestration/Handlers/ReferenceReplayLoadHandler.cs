@@ -211,7 +211,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
                 // ⭐ CE-3329 P1 (R3) — this node's wall ↔ sim map: the master intersects them into the cluster's sim axis
                 return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last, _controller.ActiveReplayTimeMap,
-                    _controller.ActiveReplayCheckpoints);   // ⭐ CE-3329 §9f — the marks every host's timeline draws
+                    _controller.ActiveReplayCheckpoints,   // ⭐ CE-3329 §9f — the marks every host's timeline draws
+                    _controller.ActiveReplayGeoOrigin, _controller.ActiveReplayTerrainName);   // ⭐ AQ107 C — the origin the run used
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {

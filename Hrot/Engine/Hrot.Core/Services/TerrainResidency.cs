@@ -563,9 +563,8 @@ public sealed class TerrainResidency
             ApplyGeoOrigin(world, TerrainGeoOrigin.Zero, terrainName: null);
             return;
         }
-        string? definitionPath = _catalog.ResolveDefinition(terrainName);
-        if (definitionPath == null) return;
-        var definition = TerrainDefinitionParser.Parse(File.ReadAllText(definitionPath));
+        var definition = _catalog.ReadDefinition(terrainName);   // ⭐ AQ107 C — the catalog's one locate-and-parse (the master reads it the same way)
+        if (definition == null) return;
         ApplyGeoOrigin(world, definition.Origin, terrainName);
     }
 

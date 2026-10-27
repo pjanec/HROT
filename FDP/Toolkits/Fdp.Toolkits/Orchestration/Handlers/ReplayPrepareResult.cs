@@ -24,8 +24,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// without a recording. Aggregated: the cluster's map — the anchor node's sim times, the stretches every node paused in.</param>
     /// <param name="Checkpoints">⭐ CE-3329 (§9f) — this node's recording's checkpoint marks; aggregated: the union by label (the
     /// earliest), what every host's timeline marks.</param>
+    /// <param name="GeoOrigin">⭐ AQ107 C — the geodetic origin this node's recording was made under (its metadata); <see langword="null"/>
+    /// when the recording pre-dates the field, and on a REVIEW's result (the run's origin is already published). Aggregated by a replay's
+    /// aggregator: the anchor node's, else zeros (R-229) — the master publishes it as the NED wire's frame origin.</param>
+    /// <param name="TerrainName">⭐ AQ107 C — the terrain resident while this node's recording was made (its metadata), with <paramref name="GeoOrigin"/>.</param>
     public record struct ReplayPrepareResult(long MaxNetworkId, float DurationSeconds,
                                              long FirstFrameWallTicks = 0, long LastFrameWallTicks = 0,
                                              Fdp.Core.FlightRecorder.ReplayTimeMap? TimeMap = null,
-                                             Fdp.Core.FlightRecorder.Metadata.CheckpointMark[]? Checkpoints = null);
+                                             Fdp.Core.FlightRecorder.Metadata.CheckpointMark[]? Checkpoints = null,
+                                             Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? GeoOrigin = null,
+                                             string? TerrainName = null);
 }

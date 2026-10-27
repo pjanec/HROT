@@ -92,6 +92,14 @@ namespace Fdp.Core.Orchestration
         /// replay. The node's prepare result carries them to the master's session layer.</summary>
         FlightRecorder.Metadata.CheckpointMark[]? ActiveReplayCheckpoints => null;
 
+        /// <summary>⭐ AQ107 C — the geodetic origin the open replay's recording was made under (its metadata); <see langword="null"/>
+        /// outside a replay or for a recording that pre-dates the field. The node's prepare result carries it to the master, which
+        /// publishes it as the NED wire's frame origin.</summary>
+        FlightRecorder.Metadata.GeoOriginRecord? ActiveReplayGeoOrigin => null;
+
+        /// <summary>⭐ AQ107 C — the terrain that was resident while the open replay's recording was made; empty outside a replay or when none.</summary>
+        string ActiveReplayTerrainName => string.Empty;
+
         /// <summary>⭐ CE-3329 PW — releases <see cref="HoldEgress"/>: the next egress frame republishes the world.</summary>
         void ReleaseEgress() { }
 
