@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-27 (§7 the run after the 10-25/26 merges — a layout change at t = 0 hides later drift) · 2026-10-26 (§10-3a H5 built and measured live — the review shows the live run; CE-4056, CE-4057 found) · 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+updated: 2026-10-27 (§10-3a / §10-4 re-run after backend's fixes — H5 and H1b green on ua-civ-melee) · 2026-10-27 (§7 the run after the 10-25/26 merges — a layout change at t = 0 hides later drift) · 2026-10-26 (§10-3a H5 built and measured live — the review shows the live run; CE-4056, CE-4057 found) · 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
 current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
 stale-below: none
 known-rot: §10 RH-3 (replay seconds = sim seconds) — SUPERSEDED by R-3056 / R-4086 (the replay clock stays wall; a sim seek is atSimSeconds) · §10-1 "H1b after CE-4051…4053" — those are fixed / ruled; H1b now waits for DAR P1 (§10-2) · §10 RH-1's "EnterReplay through Idle" is no longer the only product path — a REVIEW replays the run in place (H5, §10-2)
@@ -686,6 +686,7 @@ twice) — red-proved (the return compared against the review's last snapshot �
 | does a review enter at 0 s? | ⛔ it never stands at 0: the clock read 4.92, 4.6 and 4.0 s in three runs, though the entry lands on recorded frame 4 (sim 0) | ⛔ **CE-4056** (backend) |
 | does live come back exact? | every component equal at L = 10.017 s **except `PendingNetworkAck`** (present at L, gone after the return) | ⛔ **CE-4057** (backend) |
 | does live run on as if straight? | first difference at 11 s: `PendingNetworkAck` only (the straight run keeps it) | ⛔ CE-4057 |
+| ⭐ **re-run `2026-10-27`** after backend's fixes (`coordinator@290a6ef69`, backend `bad9aa626`) | the review stands at 0 s; **review same, return exact, after same** (51 s) — `PendingNetworkAck` is recorded now and comes back | ✅ CE-4056, CE-4057 fixed |
 
 ### 10-4. ✅ H1b as built `2026-10-26` — the product's replay, sought by recorded sim time *(R-4086 ②)*
 
@@ -720,7 +721,7 @@ health ⇒ different from t = 2 s naming Runner / Health) — red-proved (the re
 📐 **Live, `ua-civ-melee`, `--verify-replay`** (`coordinator@b97d9bcec`): H1a ✅ same (41 snapshots); H1b — ✅ **the product's replay
 shows the live run at 1 … 40 s, every recorded component equal** (`PendingNetworkAck` listed apart, not recorded); ⛔ the ENTRY at 0 s
 never stands there (clock 26.6 s) — ⇒ **CE-4056 is the entry path for a replay as well as a review** (a `TransitionState` with a sim
-target), while every `SeekReplay` lands.
+target), while every `SeekReplay` lands. ⭐ **Re-run `2026-10-27`** after backend's CE-4056 fix (a seek BACK stood one seek behind — the entry was not the cause): H1a and H1b **same**, 41 snapshots, no problem listed.
 
 ### 10a. Claim table — what the leans rest on
 
