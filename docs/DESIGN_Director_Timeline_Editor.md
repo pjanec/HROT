@@ -2221,3 +2221,34 @@ host: gap fast-forward + back segment skipped once; the overlay's subtitle at a 
 (the map; the JSON round-trip + the 55 seeded takes without `subtitles`; the captions read as subtitles = what played before, over all 55) ·
 `DirectorTracksTests.CE1303_P2b_*` ×4 (the Subtitles track with undo; a v1 caption read + the note offered; update key from view + undo; replay this
 segment) · `FilmTests.CE1303_P2b_ThePilotView_*`.
+
+**§11m/§11o live proof** *(`2026-10-27`, ui — the coordinator's P2 gate: one adjusted key, before and after, from the RB)*
+
+| before — the seeded key (`over Tank toward Enemy Tank`, back 14, height 4.5) | after — the same key moved in the OPEN take (back 42, height 18), not saved |
+|---|---|
+| ![before](img/film-p2-before.jpg) | ![after](img/film-p2-after.jpg) |
+
+*What it shows:* film time 9.1 s of `ua-tank-ammo/main` (shot 1, 0.17 s after the first round) played by the ONE pack's runner over a REAL live
+recording in a WINDOWED Replay Browser; both frames are at source 9.117 s (the director's sim and the captured frame's sim agree). Before: the
+over-the-shoulder shot close behind the M1 — hull, turret, tracks and gun as the TKB's tank kit (real bodies, not boxes: §11i ① holds), the T-72
+small and red on the horizon of `basic-desert`. After: the camera three times further back and four times higher, the M1 small in the lower
+middle and the T-72 still on the line of fire — CR-4 (the next play shows the unsaved edit) on a real recording.
+
+*How:* ① the recording — `dotnet Hrot.ClusterRunner.dll --mode editor --headless --verify ua-tank-ammo --verify-replay` (H1a: the run is LIVE
+and records; `REPLAY same, 61 snapshots matched`): `node_1.fdp`, 60 s, 3607 frames, meta `ScenarioName ua-tank-ammo`, hash `346794a367ebdc52`
+(= the take's bake), terrain `basic-desert`. ⚠ The verify itself FAILED one check (the soft round at the technical at 51.07 s, outside its
+window) — that is [CE-4055](blueprints/Blueprint_Issues_Tracker.md), not this proof. Not kept (`/exercises/keep` is a cluster route; the
+editor run had ended) — the file stays in the node's temp folder. ② the browser and the director — the RB has no `/director/*` routes (P3,
+backend's), so an in-process harness: `ReplayBrowserSubsystemTests.CE1303_P2_LiveProof_OneAdjustedKey_BeforeAndAfter_InAWindowedReplayBrowser`
+(`[Trait Category Manual]`, skipped unless `HROT_FILM_PROOF=1`): `DISPLAY=:99 HROT_FILM_PROOF=1 HROT_FILM_PROOF_RECORDING=<node_1.fdp>
+HROT_FILM_PROOF_OUT=<dir> dotnet test Hrot/Subsystems/Hrot.ReplayBrowser.Tests --no-build --filter FullyQualifiedName~CE1303_P2_LiveProof`. It
+initializes the subsystem WINDOWED (raylib + ImGui on Xvfb, llvmpipe; the runner's shell is internal to `Hrot.ClusterRunner`), opens the
+recording through the debug provider (`POST /replay`'s path), copies the seeded take BESIDE it (TE-1), `Session.Open` → `Runner.PlayFrom(9.1)`
+(`Cinema: false`) → pause on the first playing frame → `FilmStudio.Capture` (the path `POST /film/capture` uses, 1280×720); then
+`TakeEdit.SetKeyCamera(0, …)` and the same again. Optional env: `HROT_FILM_PROOF_AT`, `_KEY`, `_SCENARIO`, `_TAKE`.
+
+*What looked wrong:* ⚠ the first harness runs played nothing — the recording had silently not opened (`frames 0`, an empty world ⇒ *"no unit
+named 'Tank'"*): the schema check refuses a recorded component this process has not REGISTERED, though CE-4050 loaded its assembly
+([CE-1372](blueprints/Blueprint_Issues_Tracker.md); the runner's RB process is not affected — measured, the same file opens there). The
+capture called directly burns no subtitle (the runner's capture path does). Nothing else: the follow framing held across both plays, the time
+was right, the bodies were models.
