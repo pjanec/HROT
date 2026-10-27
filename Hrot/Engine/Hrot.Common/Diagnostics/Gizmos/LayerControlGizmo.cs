@@ -66,7 +66,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 30;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-1420 — 29 → 30: the Ground colour row took bit 29
+        public const int FirstUntoggledLayer = 29;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -120,7 +120,6 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Fire.Hearing) mask.SetBit(DebugTraceLayers.Hearing);
             if (Map.Terrain2D) mask.SetBit(DebugTraceLayers.Terrain2D);
             if (Map.Grid) mask.SetBit(DebugTraceLayers.Grid);
-            if (Map.GroundFill) mask.SetBit(DebugTraceLayers.GroundFill);
             if (Map.TerrainZones) mask.SetBit(DebugTraceLayers.TerrainZones);
             if (Map.Roads) mask.SetBit(DebugTraceLayers.Roads);
             if (Map.Traffic) mask.SetBit(DebugTraceLayers.Traffic);
@@ -207,8 +206,6 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool Terrain2D { get; set; } = true;
         [EditDisplayName("Grid (2-D)"), EditDoc("The 2-D map's helper grid: thin grey lines for the fine step, thicker for the coarse one, the step chosen by the zoom (CE-1288).")]
         public bool Grid { get; set; } = true;
-        [EditDisplayName("Ground colour (2-D)"), EditDoc("The 2-D map's open ground in a muted green (the 3-D ground's colour, darkened) instead of black, so the grid, roads, units and graphics read on a ground. Off by default (CE-1420: a sample awaiting the pick).")]
-        public bool GroundFill { get; set; }
         [EditDisplayName("Terrain zones"), EditDoc("The terrain zones and whether each is loaded.")]
         public bool TerrainZones { get; set; } = true;
         [EditDisplayName("Roads"), EditDoc("The loaded terrain's road network.")]
@@ -269,9 +266,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <remarks>⭐ <c>CE-1379</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "as built") — and the SCENARIO's own drawing: its tactical graphics
         /// (areas, overlay lines) and its route entities — what the scenario author put on the map, not a helper.
         /// ⭐ <c>CE-1420</c> — and the 2-D map's GRID (the only thing drawn on open ground: a 2-D film frame shows it as the screen does; the person's
-        /// own tick decides, a take may still turn it off) and the 2-D ground colour (<c>Map.GroundFill</c>, the ground itself).</remarks>
+        /// own tick decides, a take may still turn it off).</remarks>
         public static readonly System.Collections.Generic.IReadOnlyList<string> SceneRows = new[]
-            { "Units.Entities", "Units.Rounds", "Map.Terrain2D", "Map.Grid", "Map.GroundFill", "Map.Roads", "Map.Traffic", "Map.Doors", "Map.TacticalGraphics", "Command.Routes" };
+            { "Units.Entities", "Units.Rounds", "Map.Terrain2D", "Map.Grid", "Map.Roads", "Map.Traffic", "Map.Doors", "Map.TacticalGraphics", "Command.Routes" };
 
         /// <summary>
         /// ⭐ <c>CE-1379</c> / <c>CE-1380</c> (§11t "as built") — the gizmo layer bits a FILM frame may draw: the bits the Layers panel's rows toggle

@@ -375,7 +375,7 @@ public sealed class FilmFrameRail
         finally { FilmStudio.Reset(); film.Dispose(); world.Dispose(); }
     }
 
-    // ── ⭐ CE-1420 / CE-1381 (§11t "CE-1381 sample") — the 2-D grid in a clean take, and the 2-D ground colour option ──────────────────────────────────
+    // ── ⭐ CE-1420 (§11t "CE-1381 sample") — the 2-D grid in a clean take ──────────────────────────────────
 
     /// <summary>The production layer control (the gizmo that hands the buffer its mask each frame), standing in for the host's: <paramref name="buffer"/>
     /// gets its mask, as <c>LayerControlGizmo.UpdateAndDraw</c> does each frame.</summary>
@@ -441,53 +441,6 @@ public sealed class FilmFrameRail
                 Assert.True(QuadrantCount(withGrid, IsOutlineOrGrid, 0, 0) > QuadrantCount(withoutGrid, IsOutlineOrGrid, 0, 0), "the lines are neutral grey");
             }
             finally { Raylib.UnloadImage(withGrid); Raylib.UnloadImage(withoutGrid); }
-        }
-        finally { FilmStudio.Reset(); film.Dispose(); world.Dispose(); }
-    }
-
-    /// <summary>
-    /// ⭐ <c>CE-1420</c> — the 2-D GROUND COLOUR is OFF by default (the open ground is black, the look of every host today) and, ticked, fills the open ground with the
-    /// 3-D ground colour darkened to <see cref="Hrot.ScenarioEditor.Gizmos.TerrainPlan2D.DefaultGroundFillFactor"/> — in the window and in a clean take's film.
-    /// 🔴 Mutations: <c>TerrainLayer2D.UploadMesh</c> not adding the ground triangles ⇒ no ground pixels when ticked ⇒ red; the row's default <c>true</c> ⇒ ground
-    /// pixels by default ⇒ red.
-    /// </summary>
-    [SkippableFact]
-    public void CE1420_The2DGroundColour_IsOffByDefault_AndWhenTickedFillsTheOpenGround_InTheWindowAndInTheFilm()
-    {
-        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
-        FilmStudio.Reset();
-        using var frame = UiFrameHarness.Begin(1280, 800);
-        LitShader.Reset();
-        var gizmo = LayerControl();
-        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? buf = null;
-        var (canvas, layers, film, unit, _, world) = FilmSet((buffer, _, _) => buf = buffer);
-        try
-        {
-            var expected = Hrot.ScenarioEditor.Gizmos.TerrainPlan2D.MutedGround(new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(
-                TerrainLayer3D.GroundColor.R, TerrainLayer3D.GroundColor.G, TerrainLayer3D.GroundColor.B, 255));
-            bool IsGround(Color c) => Math.Abs(c.R - expected.R) <= 3 && Math.Abs(c.G - expected.G) <= 3 && Math.Abs(c.B - expected.B) <= 3;
-            FilmStudio.TwoD = true;
-            FilmStudio.Direct(new FilmShot { Pose = new CameraPose(unit, 160f, 0f, -0.6f) });
-            string dir = Path.Combine(Path.GetTempPath(), "hrot-film-rail");
-
-            // default: the person's set, the row unticked
-            Mask(buf!, gizmo);
-            var (w0, f0) = WindowAndFilm(frame, canvas, film, Path.Combine(dir, "film-2d-ground-off.png"));
-            int offWindow = Count(w0, IsGround), offFilm = Count(f0, IsGround);
-            Raylib.UnloadImage(w0); Raylib.UnloadImage(f0);
-            Assert.False(layers.Terrain2D!.GroundFilled);
-            Assert.True(offWindow < 100 && offFilm < 100, $"off by default: no ground colour (window {offWindow}, film {offFilm})");
-
-            // ticked, then a clean take: the film keeps the person's tick
-            gizmo.SetRows(is3D: false, new[] { "Map.GroundFill" }, Array.Empty<string>());
-            Assert.Empty(gizmo.SetOverride(Array.Empty<string>(), Array.Empty<string>()));
-            Mask(buf!, gizmo);
-            var (w1, f1) = WindowAndFilm(frame, canvas, film, Path.Combine(dir, "film-2d-ground-on.png"));
-            int onWindow = Count(w1, IsGround), onFilm = Count(f1, IsGround);
-            Raylib.UnloadImage(w1); Raylib.UnloadImage(f1);
-            Assert.True(layers.Terrain2D!.GroundFilled);
-            Assert.True(onWindow > 20_000, $"ticked: the window's open ground is the muted ground colour ({onWindow} pixels of {expected.R},{expected.G},{expected.B})");
-            Assert.True(onFilm > 20_000, $"ticked: a clean take's film frame keeps it ({onFilm} pixels)");
         }
         finally { FilmStudio.Reset(); film.Dispose(); world.Dispose(); }
     }
