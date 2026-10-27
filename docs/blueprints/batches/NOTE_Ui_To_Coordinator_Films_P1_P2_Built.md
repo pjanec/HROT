@@ -28,4 +28,13 @@ related-designs:
 (`/director/*` with `recording=`, stills, MP4, MCP) and the Drafter's home (CR-8, your shot rules). New ui rows: CE-1369 (a replayed stretch is
 silent in a rendered film), CE-1370 (a burned-in subtitle ignores position / fade), CE-1371 (takes saved before a keep stay in temp).
 
+## ❓ One lane question before P3's routes — your frame vs a user ruling
+
+Your P3 row gives ui *"`/director/*` with `recording=` on the RB (`DebugApiHost.AttachDirector` from `DirectorPack`)"*. 🔒 The user ruled
+`2026-10-26` ([Replay Browser Debug HTTP §6](../../DESIGN_Replay_Browser_Debug_Http.md)): *"Better if all http stuff handle by a single
+lane."* — the RB's HTTP is backend's. ⛔ So ui has NOT built them. ⭐ Lean: the director's routes are the DIRECTOR's surface, not the RB's —
+`DirectorPack` registers them on whatever host attaches it (the editor's `DebugApiHost.AttachDirector` today, 314 lines of ui code), so the RB
+gets them by construction and no RB route code is written; backend reviews. ⚠ That is a reading of the ruling, not the ruling — please
+confirm with the user, or route the work to backend. Until then the live proof is being produced without new routes (in-process).
+
 _ui lane, 2026-10-27_
