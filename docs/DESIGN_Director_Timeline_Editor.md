@@ -1557,3 +1557,15 @@ Rails (each red-proved by a compiling mutation): `ReplayBrowserSubsystemTests.CE
 `CE3126_TheRecordingCarriesItsOrigin_AndTheReplayUsesIt` (now also the scenario) · `ScenarioLoadStepTests.CE3288_LoadThenSave_…` (name + hash,
 cleared by a new scenario) · `FlightRecorderTests.CE4050_*` (the manifest names assemblies, an unknown one is reported; an unresolved type
 is skipped). ⏭ ①'s acceptance is a still pair (Film Production §6) — not taken yet.
+
+### 11i. ✅ As built `2026-10-27` — P0 items ③ and ⑤ (backend)
+
+| item | as built | measured |
+|---|---|---|
+| **③ "Keep for films"** (TE-13) | ⭐ NOT a new copier — the cluster's existing **Export** op (CE-278 §5) already pulls every node's `.fdp` + meta into `{shared}/exercises/<id>/`, writes `Orchestrator.json` and archives the scenario as it was loaded (`AssetInventoryProcessManager.ArchiveScenario`). Added: `POST /exercises/keep {exerciseId?}` (`keep_exercise`; the newest when none is named) publishing that intent through the master, and the timeline sidecar (`.fdp.timeline`) in the node's archive manifest (`ReferenceArchiveHandler`). The Replay Browser already lists the archive beside the nodes' own copies (`RecordingGroupInventory`) | 📐 live: an editor run of demo-city kept → `{shared}/exercises/<id>/` holds `node_1.fdp`, its meta (naming `Recipes/demo-city` + its hash), `Orchestrator.json`, `scenario/scenario.json`; with the node's own copy deleted (a relaunch), the Replay Browser listed it and opened it (`OperatingReplay`, 27.7 s) |
+| **⑤ paused frames** | ruled and built in [DAR §12s](DESIGN_Replay_Time_Axis_And_Review.md): kept (the Wall axis needs every stamp), but a chunk written with unchanged bytes is not written again | 📐 89 KB/s running · 15 KB/s paused |
+
+⚠ The editor's live timeline index stays in memory (no sidecar file), so an editor run's archive has none — the manifest takes one when it exists.
+⏭ **①'s still pair and ⑥ (people, animation, wrecks, deaths, doors, sound):** asked of the coordinator, who owns the measured method (Film
+Production §6, `ua-tank-ammo`). 📐 My own attempt on demo-city was inconclusive (the follow shot did not hold in the Replay Browser, and
+`POST /replay {atSimSeconds}` there opens at the recording's start) — not evidence either way.

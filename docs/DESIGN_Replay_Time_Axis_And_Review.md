@@ -1366,3 +1366,21 @@ until the clock's reading changes (`HoldUntilTheClockMoves`). 📐 After: entry 
 only when the entity carries `PendingNetworkAck` — `Transient` until now (M4 classification: PROTOCOL, a watch item), so a reliable entity
 went Active after a review without its peers. ✅ `DataPolicy.NoScenario` (recorded; not in an authored scenario). ⚠ The re-opened barrier's
 timeout starts at the resume frame (the ELM's rule), so an offline run drops the tag later than the straight run.
+
+### 12s. ✅ RULED + BUILT `2026-10-27` — frames recorded while paused (CE-4058 ⑤; the coordinator's Film Production §6 finding)
+
+🔒 The rule: **a paused frame is KEPT, and writes only what moved.** ⭐ Kept, because the Wall axis is real wall time (R-3058): its
+frame index needs a stamp per frame, and the timeline draws a pause's length from them (◯ / ● §4, §12q). ⛔ Dropping paused frames, or
+writing one per pause, would make the Wall axis lie about how long a pause lasted. ⭐ But a paused frame no longer repeats unchanged
+chunks: `RecorderSystem` writes a dirty chunk only when its sanitized bytes differ from what it last went to THIS recording with — the
+same comparison that sets `Changed` (§12q). The playback follows the same stream, so it already holds those bytes: the replayed state is
+identical, sought or stepped. The comparison resets at a keyframe, so every delta chain stays self-contained (a seek starts at a keyframe).
+
+| what a paused frame carries | before | after |
+|---|---|---|
+| header, frame index entry (wall, sim, Halted / Changed) | ✅ | ✅ |
+| entity index chunks (structure), managed tables, events, deaths | ✅ when dirty | ✅ when dirty (unchanged) |
+| unmanaged chunks WRITTEN with the same value (5 tables on demo-city, §12q) | ⛔ every frame, full size | ✅ skipped |
+
+Rail: `FlightRecorderTests.CE4058_A_quiet_frame_writes_no_chunk_and_the_replay_stays_exact` (red-proved: write every chunk ⇒ the quiet frame
+is as large as the first). 📐 **Measured live** (`scratchpad/run-4058.sh`, the editor, demo-city, 10 s running then 10 s paused): **89 KB/s running · 15 KB/s paused** (~6× smaller; what remains is the entity index, managed tables and the frame headers). ⏭ Not re-measured: the coordinator's stepped `ua-tank-ammo` run (75 MB / 14 268 frames before).

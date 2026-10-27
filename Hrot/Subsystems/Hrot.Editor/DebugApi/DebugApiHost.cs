@@ -1028,6 +1028,7 @@ namespace Hrot.Editor.DebugApi
             //   node and a preview never does (R-3053). ⛔ The debug service's own replay world (/replay/load, /step, /unload,
             //   /replay/entities…) is retired. 📄 docs/DESIGN_Http_Control_Through_The_Cluster_Master.md §3.
             _routes.Add(new("GET", "/exercises", _ => RunMainResult(s => ResultOf(s.ListExercises(), unavailable: 503))));
+            _routes.Add(new("POST", "/exercises/keep", ctx => RunMainResult(s => ResultOf(s.KeepExercise(ctx.Body), unavailable: 503))));   // ⭐ CE-4058 ③
             _routes.Add(new("POST", "/replay", ctx => PublishAndAwait(ctx, s => s.EnterReplay(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay)));
             // ⭐ RB-2 — {atSeconds} | {frame} | {frames: ±n} | {cause: {frame, entity}} | {next: {entity, component?}, direction}: a
             //   lookup resolves on the main thread (a "next" scan runs off it, in a reader of its own), then the ordinary seek.

@@ -314,6 +314,50 @@ namespace Fdp.Tests
             Assert.Contains(987_655, playback.UnresolvedTypes);
         }
 
+        /// <summary>
+        /// ⭐ CE-4058 ⑤ (DAR §12s) — a chunk written with the bytes it last went to the recording with is not written again, so a paused
+        /// frame shrinks to its header — and the replay still stands at the recorded values on every frame, sought or stepped.
+        /// </summary>
+        [Fact]
+        public void CE4058_A_quiet_frame_writes_no_chunk_and_the_replay_stays_exact()
+        {
+            using (var repo = new EntityRepository())
+            {
+                repo.RegisterComponent<Position>();
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new Position { X = 1, Y = 2, Z = 3 });
+                using var recorder = new AsyncRecorder(_testFilePath);
+                recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true);
+                uint prev = repo.GlobalVersion;
+                for (int f = 0; f < 4; f++)
+                {
+                    repo.Tick();
+                    // frames 0 and 1: a rewrite of the same value (a paused frame) · frame 2: a real change · frame 3: its rewrite
+                    repo.SetComponent(e, f < 2 ? new Position { X = 1, Y = 2, Z = 3 } : new Position { X = 9, Y = 2, Z = 3 });
+                    recorder.CaptureFrame(repo, prev, 2_000_000L + f, blocking: true);
+                    prev = repo.GlobalVersion;
+                }
+            }
+            using var world = new EntityRepository();
+            world.RegisterComponent<Position>();
+            using var playback = new PlaybackController(_testFilePath);
+            Assert.Equal(5, playback.TotalFrames);
+            // frame 0 the keyframe · 1 the first delta after it (the comparison starts there: written) · 2 a quiet rewrite · 3 a real
+            //   change · 4 its quiet rewrite
+            int Bytes(int frame) => playback.GetFrameMetadata(frame).UncompressedSize;
+            Assert.True(Bytes(2) < Bytes(1), $"a quiet rewrite ({Bytes(2)} B) must not carry the chunk the first delta ({Bytes(1)} B) does");
+            Assert.True(Bytes(3) > Bytes(2), $"a real change ({Bytes(3)} B) carries the chunk");
+            Assert.Equal(Bytes(2), Bytes(4));   // quiet again after the change
+
+            var expect = new[] { 1f, 1f, 1f, 9f, 9f };
+            for (int frame = 0; frame < 5; frame++)
+            {
+                playback.SeekToFrame(world, frame);
+                var e = world.GetEntityByIndex(0);
+                Assert.Equal(expect[frame], world.GetComponentRO<Position>(e).X);
+            }
+        }
+
         private static int DestroyedCount(RecorderSystem recorder, EntityRepository repo)
         {
             using var stream = new MemoryStream();

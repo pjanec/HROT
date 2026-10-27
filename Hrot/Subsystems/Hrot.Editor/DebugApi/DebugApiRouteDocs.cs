@@ -1873,6 +1873,24 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "what can be replayed"),
 
+        [("POST", "/exercises/keep")] = new RouteDoc(
+            Tool:    "keep_exercise",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4058 — \"Keep for films\": archive an exercise — every node's recording, its meta and timeline sidecar, the scenario as it was loaded and Orchestrator.json, into {shared}/exercises/<id>/ (the cluster's Export op).",
+            Returns: "{ published, requestId, exerciseId, archive } — archive is the folder the files land in.",
+            Hint:    "Optional: exerciseId (string; the newest when omitted). Example: keep_exercise({})",
+            Params: new RouteParam[]
+            {
+                new("exerciseId", "string", false, "The exercise to keep (list_exercises); the newest when omitted"),
+            },
+            Notes: new[]
+            {
+                "A kept exercise survives the temp root being cleared (a relaunch): the Replay Browser lists the archive beside the nodes' own copies.",
+                "The takes of a kept recording live in its folder (Director Timeline TE-13).",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "keep a recording for films"),
+
         [("POST", "/replay")] = new RouteDoc(
             Tool:    "enter_replay",
             Group:   "I — Replay",

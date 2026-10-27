@@ -1565,6 +1565,35 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "keep_exercise",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4058 — \"Keep for films\": archive an exercise — every node's recording, its meta and timeline sidecar, the scenario as it was loaded and Orchestrator.json, into {shared}/exercises/<id>/ (the cluster's Export op).",
+    "http": {
+      "method": "POST",
+      "path": "/exercises/keep"
+    },
+    "params": [
+      {
+        "name": "exerciseId",
+        "type": "string",
+        "required": false,
+        "description": "The exercise to keep (list_exercises); the newest when omitted"
+      }
+    ],
+    "returns": "{ published, requestId, exerciseId, archive } — archive is the folder the files land in.",
+    "notes": [
+      "A kept exercise survives the temp root being cleared (a relaunch): the Replay Browser lists the archive beside the nodes' own copies.",
+      "The takes of a kept recording live in its folder (Director Timeline TE-13)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "keep a recording for films"
+    },
+    "hint": "Optional: exerciseId (string; the newest when omitted). Example: keep_exercise({})",
+    "manualVerify": false
+  },
+
+  {
     "name": "enter_replay",
     "group": "I — Replay",
     "summary": "Replay an exercise on the whole cluster, from ANY state, in ONE request — the cluster master plans the way (unload, load, seek) (R-3055).",
@@ -1589,7 +1618,7 @@ export const TOOLS_CATALOG = [
         "name": "atSimSeconds",
         "type": "number",
         "required": false,
-        "description": "⭐ CE-3329 — or where to enter in the RECORDED sim time (the run's own clock; a pause lands at its end); needs a v7 recording"
+        "description": "⭐ CE-3329 — or where to enter in the RECORDED sim time (the run's own clock; a pause lands at its end); needs a v7 recording — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"
       },
       {
         "name": "waitForReady",
@@ -1935,7 +1964,7 @@ export const TOOLS_CATALOG = [
         "name": "atSimSeconds",
         "type": "number",
         "required": false,
-        "description": "⭐ CE-3329 — or the RECORDED sim time to land on (a paused instant lands at its end, so what changed during the pause shows); refused for a v6 recording"
+        "description": "⭐ CE-3329 — or the RECORDED sim time to land on (a paused instant lands at its end, so what changed during the pause shows); refused for a v6 recording — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"
       },
       {
         "name": "frame",
@@ -2077,7 +2106,7 @@ export const TOOLS_CATALOG = [
         "name": "atSimSeconds",
         "type": "number",
         "required": false,
-        "description": "Or the recorded sim time to open at"
+        "description": "Or the recorded sim time to open at — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"
       },
       {
         "name": "waitForReady",
@@ -2148,7 +2177,7 @@ export const TOOLS_CATALOG = [
         "name": "atSimSeconds",
         "type": "number",
         "required": false,
-        "description": "The recorded sim time"
+        "description": "The recorded sim time — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"
       }
     ],
     "returns": "as seek_replay",

@@ -353,8 +353,12 @@ namespace Fdp.Core.FlightRecorder
                     if (bytes > 0)
                     {
                         SanitizeScratchBuffer(_scratchBuffer, bytes, table.ComponentSize, new ReadOnlySpan<bool>(_livenessBuffer, 0, capacity));
+                        // ⭐ CE-4058 ⑤ (DAR §12s) — a chunk WRITTEN with the bytes it last went to this recording with is not written again:
+                        //   the playback already holds exactly them (the stream it follows is this one), so a paused frame shrinks to its
+                        //   header. 📐 Measured before: 14 268 frames / 75 MB for 41 s of sim on a stepped run, the pauses' frames full size.
+                        if (!ChunkBytesMoved(table.ComponentTypeId, c, bytes)) continue;
                         actualChunkCount++;
-                        if (ChunkBytesMoved(table.ComponentTypeId, c, bytes)) movedChunkCount++;
+                        movedChunkCount++;
                         writer.Write(c);            // Chunk ID (specific to this table)
                         writer.Write(1);            // Count (1 component type)
                         writer.Write(table.ComponentTypeId); // Type ID
