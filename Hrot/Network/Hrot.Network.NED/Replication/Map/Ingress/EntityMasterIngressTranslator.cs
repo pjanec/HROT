@@ -42,7 +42,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     ///
     /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class EntityMasterIngressTranslator : IDescriptorTranslator
+    public class EntityMasterIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         // --- Named constants (§CODE-STANDARDS §1 — no magic numbers) ---
         private const string DdsTopicName = "EntityMaster";
@@ -95,6 +95,9 @@ namespace Hrot.Map.Common.Replication.Ingress
         }
 
         // ── Ingress ──────────────────────────────────────────────────────────
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

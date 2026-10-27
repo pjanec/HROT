@@ -7,8 +7,8 @@ namespace Hrot.UI.Common.Effects;
 /// ⭐ <c>CE-1171</c> (docs/DESIGN_People_Display.md §5 U10) — the last blow each striker struck, as the map host saw it: with what and when
 /// (sim seconds). Written by <see cref="EffectSpawnSystem"/> from every <see cref="StrikeNotification"/> (backend <c>CE-3266</c>: local, or a
 /// remote one from the <c>MeleeStrike</c> topic), kept beside the world (one per world), read by the 3-D bodies: a man who has just struck is
-/// drawn mid-swing. ⚠ Presentation memory only — no wire; empty during a replay (the spawner is off) and after a restart, as
-/// <see cref="RecentShots"/>.
+/// drawn mid-swing. ⚠ Presentation memory only — no wire; empty after a restart, as <see cref="RecentShots"/>. ⭐ CE-4062 — filled in a
+/// replay too, from the recorded notification (⛔ was empty there: the spawner's replay gate skipped it).
 /// </summary>
 public sealed class StrikeTracker
 {

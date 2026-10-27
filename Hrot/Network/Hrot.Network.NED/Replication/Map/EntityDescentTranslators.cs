@@ -88,7 +88,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>⭐ Airborne insertion B-1 — applies a body's published <see cref="Descent"/> on this node (Kind 0 removes it): his class is
     /// Rope / Parachute here too, and the drawing reads the phase. An unknown entity is dropped; the recorded owner never takes its own sample.</summary>
-    public sealed class EntityDescentIngressTranslator : IDescriptorTranslator
+    public sealed class EntityDescentIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityDescent";
         private const long OrdinalValue = (long)EDescriptorType.dtDescent;
@@ -107,6 +107,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityDescent>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

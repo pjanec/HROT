@@ -76,7 +76,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>⭐ <c>CE-3219</c> part 3 — applies a published <see cref="AreaEffectCloud"/> on this node (sight queries and maps read it).
     /// An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
-    public sealed class EntityAreaEffectCloudIngressTranslator : IDescriptorTranslator
+    public sealed class EntityAreaEffectCloudIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityAreaEffectCloud";
         private const long OrdinalValue = (long)EDescriptorType.dtAreaEffectCloud;
@@ -95,6 +95,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityAreaEffectCloud>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

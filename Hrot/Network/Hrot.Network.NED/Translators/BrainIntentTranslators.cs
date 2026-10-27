@@ -127,7 +127,7 @@ namespace Hrot.Network.Translators
     /// appears: the sample is durable but delivered once. A writer that goes away (a failover) does NOT clear the replica
     /// — that is exactly when it is needed.</para>
     /// </summary>
-    public sealed class BrainIntentIngressTranslator : IDescriptorTranslator
+    public sealed class BrainIntentIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<EntityBrainIntent>? _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -146,6 +146,9 @@ namespace Hrot.Network.Translators
             _reader    = participant is not null ? new DdsReader<EntityBrainIntent>(participant, BrainIntentEgressTranslator.DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

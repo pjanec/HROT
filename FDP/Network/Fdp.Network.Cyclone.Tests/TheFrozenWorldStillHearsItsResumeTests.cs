@@ -234,8 +234,8 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
 
     // ── CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — the exit of a replay / review DISCARDS what the readers hold ──────
 
-    /// <summary>A world-STATE translator the way ~170 real ones are: no discard of its own, its reader a private field — here on a
-    /// BASE class, so the drain has to walk the hierarchy.</summary>
+    /// <summary>A world-STATE translator: its reader a private field on a base class, emptied through the shared
+    /// <c>DdsReaderDiscard.DiscardAll</c>.</summary>
     private abstract class ReaderOwningBase
     {
         private readonly CycloneDDS.Runtime.DdsReader<Fdp.Network.Cyclone.Topics.EntityMasterTopic> _reader;
@@ -247,10 +247,12 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
             while (true) { using var loan = _reader.Take(); if (loan.Count == 0) return n; n += loan.Count; }
         }
         public int Peek() { using var loan = _reader.Read(); return loan.Count; }
+        protected int Discard() => Fdp.Toolkit.Replication.Services.DdsReaderDiscard.DiscardAll(_reader);
     }
 
-    private sealed class StateTranslator : ReaderOwningBase, INetworkTranslator
+    private sealed class StateTranslator : ReaderOwningBase, INetworkTranslator, IDiscardableIngress
     {
+        public int DiscardIngress() => Discard();
         public StateTranslator(CycloneDDS.Runtime.DdsParticipant p, string topic) : base(p, topic) => TopicName = topic;
         public int Applied { get; private set; }
         public string TopicName { get; }
@@ -298,7 +300,6 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
         await WaitFor(() => state.Peek() == 1);
         system.Execute(View(), 1f / 60f);
         Assert.Equal((1, 1), (state.Applied, system.ExitDiscards));   // ⭐ the owners' republish is taken in; the drain ran once
-        Assert.Equal(1, IngressReaderDrain.ReaderFieldCount(typeof(StateTranslator)));
     }
 
     private static async Task WaitFor(System.Func<bool> condition)

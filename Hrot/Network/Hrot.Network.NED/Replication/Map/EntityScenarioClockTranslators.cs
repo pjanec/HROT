@@ -79,7 +79,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// not know yet is HELD (the newest per entity) until it does — it is sent once per change (TransientLocal). The recorded owner
     /// never takes its own sample back (S8 / F-5). Same shape as <see cref="EntityWeaponSystemStateIngressTranslator"/>.
     /// </summary>
-    public sealed class EntityScenarioClockIngressTranslator : IDescriptorTranslator
+    public sealed class EntityScenarioClockIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityScenarioClock";
         private const long OrdinalValue = (long)EDescriptorType.dtScenarioClock;
@@ -101,6 +101,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityScenarioClock>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

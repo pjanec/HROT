@@ -78,7 +78,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// muscle that claimed the position before it arrived (two topics, no ordering) — the man would keep the sent height. An unknown entity
     /// is dropped.
     /// </summary>
-    public sealed class EntitySpawnLevelIngressTranslator : IDescriptorTranslator
+    public sealed class EntitySpawnLevelIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntitySpawnLevel";
         private const long OrdinalValue = (long)EDescriptorType.dtSpawnLevel;
@@ -97,6 +97,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntitySpawnLevel>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

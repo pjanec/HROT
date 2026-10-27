@@ -18,7 +18,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// or part is not built yet is dropped — the next change or heartbeat lands once it is. The node holding the RECORDED ownership of
     /// <c>(dtTurretPose, part)</c> never takes its own sample back (S8 / F-5).
     /// </summary>
-    public sealed class EntityTurretPoseIngressTranslator : IDescriptorTranslator
+    public sealed class EntityTurretPoseIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityTurretPose";
         private const long OrdinalValue = (long)EDescriptorType.dtTurretPose;
@@ -39,6 +39,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityTurretPose>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

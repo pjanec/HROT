@@ -127,4 +127,44 @@ public class CuratedScenariosTests
         var found = CuratedScenarios.TryFindSourceScenariosDirectory();
         Assert.True(found is null || Directory.Exists(found));
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-1365 — the working root is shared by every editor and test host on the machine: seeds racing into it (here two sources, four
+    /// seeders each) never fail and never let a reader see a half-written scenario — every read is one whole version or the other.
+    /// 🔴 With the in-place <c>File.Copy(overwrite)</c> readers saw truncated files and seeders threw on each other's handles.
+    /// </summary>
+    [Fact]
+    public void CE1365_Seeds_racing_into_one_shared_root_never_expose_a_half_written_scenario()
+    {
+        var srcA = NewTempDir(); var srcB = NewTempDir(); var work = NewTempDir();
+        string a = "{\"v\":\"" + new string('a', 2_000_000) + "\"}", b = "{\"v\":\"" + new string('b', 1_500_000) + "\"}";
+        WriteScenario(srcA, "golden", a);
+        WriteScenario(srcB, "golden", b);
+        CuratedScenarios.SeedFrom(srcA, work);
+
+        var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        using var stop = new System.Threading.CancellationTokenSource();
+        var seeders = Enumerable.Range(0, 8).Select(i => System.Threading.Tasks.Task.Run(() =>
+        {
+            for (int n = 0; n < 25; n++)
+                try { CuratedScenarios.SeedFrom(i % 2 == 0 ? srcA : srcB, work); }
+                catch (System.Exception e) { failures.Enqueue("seed: " + e.GetType().Name + " " + e.Message); }
+        })).ToArray();
+        var reader = System.Threading.Tasks.Task.Run(() =>
+        {
+            while (!stop.IsCancellationRequested)
+                try
+                {
+                    var text = ReadScenario(work, "golden");
+                    if (text != a && text != b) failures.Enqueue($"read a partial file ({text.Length} chars)");
+                }
+                catch (IOException) { /* the rename's instant on a platform that locks — not a torn read */ }
+        });
+        System.Threading.Tasks.Task.WaitAll(seeders);
+        stop.Cancel();
+        reader.Wait();
+
+        Assert.True(failures.IsEmpty, string.Join("\n", failures.Take(5)));
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(work, "golden"), "*.tmp"));   // no temp file left behind
+    }
 }

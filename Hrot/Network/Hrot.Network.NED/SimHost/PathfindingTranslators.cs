@@ -126,7 +126,7 @@ namespace Hrot.Network.NED.SimHost
     /// <c>PathfindingBatchData.Results</c> directly (runs on the main thread).
     /// The ring-buffer slot is derived from <c>requestId % DefaultCapacity</c>.
     /// </summary>
-    public sealed class PathResponseBrainIngressTranslator : IDescriptorTranslator
+    public sealed class PathResponseBrainIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<PathResponseBatch>? _reader;
         private readonly IGeographicTransform _geoTransform;
@@ -151,6 +151,9 @@ namespace Hrot.Network.NED.SimHost
             _localNodeId    = localNodeId;
             _reader         = participant != null ? new DdsReader<PathResponseBatch>(participant, TopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -236,7 +239,7 @@ namespace Hrot.Network.NED.SimHost
     /// so <c>PathfindingSolverSystem</c> can resolve them on its next background tick.
     /// Stamps <c>SourceNodeId</c> for return-path demultiplexing.
     /// </summary>
-    public sealed class PathRequestSolverIngressTranslator : IDescriptorTranslator
+    public sealed class PathRequestSolverIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<PathRequestBatch>? _reader;
         private readonly IGeographicTransform _geoTransform;
@@ -255,6 +258,9 @@ namespace Hrot.Network.NED.SimHost
             _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _reader       = participant != null ? new DdsReader<PathRequestBatch>(participant, TopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

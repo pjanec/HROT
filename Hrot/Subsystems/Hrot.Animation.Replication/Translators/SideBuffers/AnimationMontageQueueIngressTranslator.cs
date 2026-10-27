@@ -13,7 +13,7 @@ namespace Hrot.Animation.Replication.Translators.SideBuffers;
 /// Writes Count valid entries and zeros the remainder.
 /// Does NOT touch ObservedQueueVersion (Muscle-internal executor state).
 /// </summary>
-internal sealed class AnimationMontageQueueIngressTranslator : INetworkTranslator
+internal sealed class AnimationMontageQueueIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
     private const string TopicNameConst = "hrot/anim/MontageQueue";
 
@@ -33,6 +33,9 @@ internal sealed class AnimationMontageQueueIngressTranslator : INetworkTranslato
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {

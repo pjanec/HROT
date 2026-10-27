@@ -18,7 +18,7 @@ namespace Hrot.Network.NED.CGF
     /// event bus so that <c>EqsResultUpdateSystem</c> can write the results into the entity's
     /// <c>EqsCognitiveBuffer</c> component.
     /// </summary>
-    public sealed class EqsResultIngressTranslator : IDescriptorTranslator
+    public sealed class EqsResultIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EqsResult";
         private readonly DdsReader<EqsResultTopic>? _reader;
@@ -41,6 +41,9 @@ namespace Hrot.Network.NED.CGF
                 ? new DdsReader<EqsResultTopic>(participant, DdsTopicName)
                 : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

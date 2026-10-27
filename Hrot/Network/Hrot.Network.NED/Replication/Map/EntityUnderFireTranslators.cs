@@ -86,7 +86,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// doubles σ for the same window the Muscle does. The recorded owner never takes its own sample back; an unknown entity is dropped
     /// (Reliable + TransientLocal re-sends on the next change); the component is added when the man has none yet.
     /// </summary>
-    public sealed class EntityUnderFireIngressTranslator : IDescriptorTranslator
+    public sealed class EntityUnderFireIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityUnderFire";
         private const long OrdinalValue = (long)EDescriptorType.dtUnderFire;
@@ -105,6 +105,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityUnderFire>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

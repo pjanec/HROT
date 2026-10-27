@@ -100,7 +100,7 @@ namespace Hrot.Network.Translators
     /// window). Skips samples this node published (its own <see cref="BehaviorFault.Raise"/> already reported them);
     /// <see cref="BehaviorFaultLog.Report"/> drops the remaining duplicates (several nodes in one process).</para>
     /// </summary>
-    public sealed class BehaviorFaultIngressTranslator : IDescriptorTranslator
+    public sealed class BehaviorFaultIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "BehaviorFault";
 
@@ -121,6 +121,9 @@ namespace Hrot.Network.Translators
             _localNodeId = localNodeId;
             _log         = log ?? BehaviorFaultLog.Shared;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

@@ -16,7 +16,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// the figure then holds the rifle forward). An unknown unit is dropped (Reliable + TransientLocal re-sends on the next change); the
     /// recorded owner never takes its own sample back.
     /// </summary>
-    public sealed class EntityWeaponPostureIngressTranslator : IDescriptorTranslator
+    public sealed class EntityWeaponPostureIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityWeaponPosture";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponPosture;
@@ -35,6 +35,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityWeaponPosture>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

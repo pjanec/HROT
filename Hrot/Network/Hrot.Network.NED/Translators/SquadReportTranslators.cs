@@ -112,7 +112,7 @@ namespace Hrot.Network.Translators
     /// Skips this node's own samples. A unit not known here yet is read as null (the report still arrives — a log can show it).
     /// An unknown kind still arrives and is counted (<see cref="UnknownKindCount"/>). Installed by <c>SharedTranslatorPack</c> (every node).
     /// </summary>
-    public sealed class SquadReportIngressTranslator : IDescriptorTranslator
+    public sealed class SquadReportIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<SquadReport>? _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -134,6 +134,9 @@ namespace Hrot.Network.Translators
             _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

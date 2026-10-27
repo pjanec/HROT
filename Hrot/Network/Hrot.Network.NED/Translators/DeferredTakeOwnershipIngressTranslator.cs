@@ -32,7 +32,7 @@ namespace Hrot.Network.Translators
     ///
     /// <para>This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.</para>
     /// </summary>
-    public sealed class DeferredTakeOwnershipIngressTranslator : IDescriptorTranslator
+    public sealed class DeferredTakeOwnershipIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "DeferredTakeOwnership";
 
@@ -60,6 +60,9 @@ namespace Hrot.Network.Translators
             _ghostCreationSystem = ghostCreationSystem  ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId         = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

@@ -24,7 +24,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// Entities not yet registered in the <see cref="NetworkEntityMap"/> are silently skipped.
     /// </para>
     /// </summary>
-    public sealed class NavigationIntentIngressTranslator : IDescriptorTranslator
+    public sealed class NavigationIntentIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<Hrot.NED.Descriptors.NavigationIntent> _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -48,6 +48,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _geoTransform = geoTransform ?? throw new System.ArgumentNullException(nameof(geoTransform));
             _localNodeId  = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <summary>
         /// Polls DDS reader and updates <see cref="EcsNavigationIntent"/> on matching entities.

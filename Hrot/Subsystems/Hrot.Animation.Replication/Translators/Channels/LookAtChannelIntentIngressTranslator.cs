@@ -14,7 +14,7 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// <see cref="LookAtChannel"/> component.
 /// The Muscle's report is the separate <see cref="LookAtChannelStatus"/> (CE-513 / R-180), so nothing here is Muscle-owned.
 /// </summary>
-internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator
+internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
     private const string TopicNameConst = "hrot/anim/intent/LookAtChannel";
 
@@ -34,6 +34,9 @@ internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {

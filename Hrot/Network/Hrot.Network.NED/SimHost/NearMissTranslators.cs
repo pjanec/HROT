@@ -58,7 +58,7 @@ namespace Hrot.Network.NED.SimHost
 
     /// <summary>⭐ <c>CE-3064</c> — the Brain's half: a DDS <c>NearMiss</c> becomes a remote <see cref="NearMissEvent"/> on the unit,
     /// which <c>NearMissSensingSystem</c> turns into <c>SensorChange.NearMiss</c>.</summary>
-    public sealed class NearMissIngressTranslator : IDescriptorTranslator
+    public sealed class NearMissIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "NearMiss";
         private readonly DdsReader<NearMiss>? _reader;
@@ -75,6 +75,9 @@ namespace Hrot.Network.NED.SimHost
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _reader    = participant is not null ? new DdsReader<NearMiss>(participant, DdsTopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

@@ -56,7 +56,7 @@ namespace Hrot.Network.NED.SimHost
 
     /// <summary>⭐ <c>CE-2189</c> — the Brain's half: a DDS <c>MissileWarning</c> becomes a remote <see cref="MissileWarningEvent"/> on the
     /// aircraft, which <c>MissileWarningSensingSystem</c> turns into <c>SensorChange.MissileWarning</c>.</summary>
-    public sealed class MissileWarningIngressTranslator : IDescriptorTranslator
+    public sealed class MissileWarningIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "MissileWarning";
         private readonly DdsReader<MissileWarning>? _reader;
@@ -73,6 +73,9 @@ namespace Hrot.Network.NED.SimHost
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _reader    = participant is not null ? new DdsReader<MissileWarning>(participant, DdsTopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

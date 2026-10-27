@@ -22,7 +22,7 @@ namespace Hrot.Network.NED.SimHost
     /// <para>No authority check: authority verification is handled downstream by
     /// <c>TacticalIntentResolutionSystem</c>.</para>
     /// </summary>
-    public sealed class TacticalIntentIngressTranslator : IDescriptorTranslator
+    public sealed class TacticalIntentIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "TacticalIntentRequest";
 
@@ -51,6 +51,9 @@ namespace Hrot.Network.NED.SimHost
                 ? new DdsReader<TacticalIntentRequest>(participant, DdsTopicName)
                 : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

@@ -12,7 +12,7 @@ namespace Hrot.Animation.Replication.Translators.SideBuffers;
 /// and updates the Brain ghost's <see cref="AnimationMontageQueueState"/> component.
 /// Does NOT replicate ObservedQueueVersion (Muscle executor internal).
 /// </summary>
-internal sealed class AnimationMontageQueueStateIngressTranslator : INetworkTranslator
+internal sealed class AnimationMontageQueueStateIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
     private const string TopicNameConst = "hrot/anim/MontageQueueState";
 
@@ -32,6 +32,9 @@ internal sealed class AnimationMontageQueueStateIngressTranslator : INetworkTran
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {
