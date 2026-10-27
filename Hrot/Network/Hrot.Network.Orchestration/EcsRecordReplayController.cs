@@ -118,6 +118,32 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// <inheritdoc />
         public bool IsRestoringReplay => _activeReplayModule?.IsRestoring ?? false;
 
+        // ⭐⭐ CE-3329 W5 (§12u) — from the teardown of a replay until the exit's release the ingress stays gated as if restoring: the
+        //   readers keep the replay-era state (nothing lands on the world being put back), and the release discards it.
+        private volatile bool _exitHeld;
+
+        /// <summary>⭐ CE-3329 W5 — true from <see cref="TeardownReplayAsync"/> until <see cref="ReleaseReplayExit"/>.</summary>
+        public bool IsExitHeld => _exitHeld;
+
+        /// <summary>⭐ CE-3329 W5 — what every gated ingress system asks: restoring a replay, or between its teardown and the release.</summary>
+        private bool IngressGated => IsRestoringReplay || _exitHeld;
+
+        /// <inheritdoc />
+        public void ReleaseReplayExit()
+        {
+            if (!_exitHeld) return;
+            int told = 0;
+            foreach (var system in _kernel.SystemScheduler.GetAllSystems())
+            {
+                if (system is not Fdp.Interfaces.IReplayRestoreGated g) continue;
+                g.DiscardAtReplayExit();   // ⭐ asked BEFORE the hold lifts: the system's next Execute drains before it polls
+                told++;
+            }
+            _exitHeld = false;
+            FdpLog<EcsRecordReplayController>.Info(
+                "[Node-{0}] Replay exit released; {1} ingress system(s) discard what their readers hold (CE-3329 W5).", _nodeId, told);
+        }
+
         /// <inheritdoc />
         public float ActiveReplayDurationSeconds
         {
@@ -201,6 +227,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch, double checkpointingSeconds = 0)
         {
             if (branch == null) SessionCheckpointingSeconds = Math.Max(0, checkpointingSeconds);   // D17 — a branch inherits its parent's mode
+            ReleaseReplayExit();   // ⭐ CE-3329 W5 — a node that starts a live recording is live: a hold an aborted exit left is lifted here
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             var config = new RecordingConfiguration
@@ -304,7 +331,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             foreach (var system in _kernel.SystemScheduler.GetAllSystems())
             {
                 if (system is not Fdp.Interfaces.IReplayRestoreGated g) continue;
-                g.IsReplayRestoring = () => IsRestoringReplay;
+                g.IsReplayRestoring = () => IngressGated;
                 gated++;
             }
             FdpLog<EcsRecordReplayController>.Info(
@@ -320,6 +347,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public async Task TeardownReplayAsync()
         {
             if (_activeReplayModule == null) return;
+            _exitHeld = true;   // ⭐ CE-3329 W5 — BEFORE the module goes: no frame between the two may poll the replay-era readers
             await _kernel.UninstallModuleAsync(_activeReplayModule);
             _activeReplayModule = null;
             ActiveReplayFilePath = null;

@@ -678,9 +678,10 @@ public sealed class ClusterMasterSeekTests
     {
         public double TotalTime;
         public TimeMode Mode;
+        public float Scale = 1f;   // ⭐ row 9 — the rate the clock runs at (a test applies what the manager asked for)
         public GlobalTime Update() => GetCurrentState();
-        public void SetTimeScale(float scale) { }
-        public float GetTimeScale() => 1f;
+        public void SetTimeScale(float scale) => Scale = scale;
+        public float GetTimeScale() => Scale;
         public TimeMode GetMode() => Mode;
         public GlobalTime GetCurrentState() => new() { TotalTime = TotalTime };
         public void SeedState(GlobalTime state) { }
@@ -690,11 +691,13 @@ public sealed class ClusterMasterSeekTests
     private sealed class RecordingTimeCommands : Fdp.Toolkit.Time.ITimeCommands
     {
         public List<double> Jumps { get; } = new();
-        public void Pause() { }
+        public List<float> Rates { get; } = new();   // ⭐ row 9
+        public int Pauses;
+        public void Pause() => Pauses++;
         public void Resume() { }
         public void StepOneTick() { }
         public void StepBy(float seconds) { }
-        public void SetTimeScale(float scale) { }
+        public void SetTimeScale(float scale) => Rates.Add(scale);
         public void SnapTo(GlobalTime position) => throw new InvalidOperationException("the sim axis must never snap (F14)");
         public void JumpTo(double totalTime) => Jumps.Add(totalTime);
     }
@@ -858,37 +861,70 @@ public sealed class ClusterMasterSeekTests
     }
 
     /// <summary>
-    /// ⭐ C9 P7 — entering a replay seeks every node to the replay's zero, so the playhead is seconds after it and the end IS
-    /// the duration. 🔴 Before: "now + duration" with "now" the live clock's time at entry; and a seek back from the end
-    /// never re-armed the pause.
+    /// ⭐ C9 P7 (moved to the replay clock, CE-3329 row 9) — the playhead is seconds after the replay's zero, so the end IS the duration:
+    /// a running clock at or past it pauses ONCE; a seek back re-arms it. 🔴 Before C9: "now + duration"; and a seek back never re-armed.
     /// </summary>
     [Fact]
     public void C9_The_replay_end_is_the_duration_on_the_playhead_and_a_seek_rearms_it()
     {
-        var bus  = new FdpEventBus();
-        var time = new FixedTime { Now = 31.0 };   // the live clock's time when the replay is entered
-        var pm   = new ReplayProcessManager(bus, time);
+        var clock = new FakeReplayClock { Mode = TimeMode.Continuous, TotalTime = 31.0 };   // the live clock's time when the replay is entered
+        var cmds  = new RecordingTimeCommands();
+        var pm = new ReplayClockProcessManager(clock, cmds, () => true, () => Fdp.Toolkit.Orchestration.ReplayAxis.Wall,
+                                               () => Fdp.Core.FlightRecorder.ReplayTimeMap.Empty, () => 0L, () => null, durationSeconds: () => 10.0);
+        pm.Tick();
+        Assert.Equal(1, cmds.Pauses);   // past the end until the entry seek lands
+        pm.Tick();
+        Assert.Equal(1, cmds.Pauses);   // once per arrival
+        clock.TotalTime = 0.0; pm.Tick();
+        Assert.Equal(1, cmds.Pauses);   // the seek landed at the zero: re-armed
+        clock.TotalTime = 10.0; pm.Tick();
+        Assert.Equal(2, cmds.Pauses);
+        Assert.Equal(2, pm.EndPauses);
+    }
 
-        bus.PublishManaged(new ClusterOpCompletedEvent
-        {
-            RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
-            ResultPayload = new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 10f, 1, 2),
-        });
-        bus.SwapBuffers(); pm.Tick(); bus.SwapBuffers();
-        Assert.Single(bus.ReadManaged<PauseTimeIntent>());   // past the end until the entry seek lands
+    /// <summary>
+    /// ⭐⭐ CE-3329 row 9 — the per-segment RATE: on the Sim axis the clock runs at the OPERATOR's rate divided by the recorded rate of the
+    /// segment under the playhead (a run recorded at 2× plays its sim at the operator's speed); the operator's rate is kept apart (its own
+    /// requests change it, the manager's echoes do not) and given back when the replay ends — ⛔ not when a review ends (F19).
+    /// </summary>
+    [Fact]
+    public void CE3329_The_sim_axis_plays_each_segment_at_the_operators_rate()
+    {
+        // wall 0–2 s recorded at 1×, 2–4 s at 2× (sim 2 → 6)
+        var wall = new long[41]; var sim = new double[41]; var flags = new Fdp.Core.FlightRecorder.FrameFlags[41];
+        for (int i = 0; i <= 40; i++) { double w = i * 0.1; wall[i] = 1_000_000L + (long)Math.Round(w * TimeSpan.TicksPerSecond); sim[i] = w <= 2 ? w : 2 + 2 * (w - 2); }
+        var map = Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(wall, sim, flags);
+        var bus = new FdpEventBus();
+        var clock = new FakeReplayClock { Mode = TimeMode.Continuous, TotalTime = 1.0 };
+        var cmds = new RecordingTimeCommands();
+        var axis = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
+        bool replaying = true, reviewing = false;
+        var pm = new ReplayClockProcessManager(clock, cmds, () => replaying, () => axis, () => map, () => 1_000_000L, () => null,
+                                               reviewing: () => reviewing, bus: bus);
+        void Tick() { bus.SwapBuffers(); pm.Tick(); if (cmds.Rates.Count > 0) clock.Scale = cmds.Rates[^1]; }
 
-        bus.PublishManaged(new ClusterOpCompletedEvent
-        {
-            RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
-            ResultPayload = new ReplaySeekResult(new GlobalTime { TotalWallTicks = 1 }),
-        });
-        time.Now = 0.0;
-        bus.SwapBuffers(); pm.Tick(); bus.SwapBuffers();
-        Assert.Empty(bus.ReadManaged<PauseTimeIntent>());
+        Tick();
+        Assert.Empty(cmds.Rates);                                       // 1× segment, operator 1×: nothing to change
+        clock.TotalTime = 3.0; Tick();
+        Assert.Equal(0.5f, cmds.Rates[^1], 3);                          // a 2× segment: the clock at ½ so the sim plays at 1×
+        bus.PublishManaged(new SetTimeScaleIntent { TimeScale = 0.5f }); Tick();   // the manager's own request coming back
+        Assert.Equal(1f, pm.OperatorRate);                              //   is not the operator's
+        bus.PublishManaged(new SetTimeScaleIntent { TimeScale = 2f }); Tick();     // the operator asks for 2×
+        Assert.Equal(2f, pm.OperatorRate);
+        Tick();
+        Assert.Equal(1f, cmds.Rates[^1], 3);                            // 2× of a 2× segment's sim: the clock at 1
+        axis = Fdp.Toolkit.Orchestration.ReplayAxis.Wall; Tick();
+        Assert.Equal(2f, cmds.Rates[^1], 3);                            // Wall: the operator's rate itself
+        axis = Fdp.Toolkit.Orchestration.ReplayAxis.Sim; Tick();
+        Assert.Equal(1f, cmds.Rates[^1], 3);
+        replaying = false; Tick();
+        Assert.Equal(2f, cmds.Rates[^1], 3);                            // the replay ended: the operator's rate given back
 
-        time.Now = 10.0;
-        pm.Tick(); bus.SwapBuffers();
-        Assert.Single(bus.ReadManaged<PauseTimeIntent>());
+        replaying = true; reviewing = true; clock.Scale = 1f; Tick();  // a REVIEW at a 2× segment
+        Assert.Equal(1f / 1f / 2f, cmds.Rates[^1], 3);
+        int before = cmds.Rates.Count;
+        replaying = false; Tick();
+        Assert.Equal(before, cmds.Rates.Count);                         // ⛔ its end gives nothing back: the review's return restores the live rate
     }
 
     private sealed class FixedTime : ITimeController

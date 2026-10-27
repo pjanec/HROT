@@ -331,9 +331,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             }
             else if (intent.Operation == NodeOpType.PrepareLive)
             {
-                SetSystemsEnabled(true);
-                _resumeGlobalTimePush?.Invoke();
-                _bypassLifecycleToggle?.Invoke(false);
+                LeaveReplayGates();   // ⭐ the ONE gate set (W5's release included) — ⛔ was its three lines copied
                 // ⭐⭐ Branch-to-live: same as FinalizeReplay — clear and arm. This is the path that left
                 //   restored Constructing entities permanently invisible to every default query.
                 _worldReplaced?.Invoke(true);
@@ -381,6 +379,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             SetSystemsEnabled(true);
             _resumeGlobalTimePush?.Invoke();
             _bypassLifecycleToggle?.Invoke(false);
+            _controller.ReleaseReplayExit();   // ⭐ CE-3329 W5 (§12u) — the readers' replay-era state is discarded before ingress resumes
         }
 
         private void SetSystemsEnabled(bool enabled)

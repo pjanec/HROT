@@ -21,8 +21,13 @@ namespace Hrot.Orchestrator;
 /// <para>⭐⭐ <c>CE-3329 §12n</c> — the LOOP range, on EITHER axis: while the clock runs and the playhead is at or past the loop's
 /// <c>To</c>, the clock <see cref="ITimeCommands.JumpTo"/>s back to <c>From</c> (a non-pausing move, so slaves follow it as an ordinary
 /// continuous jump). A backward jump has its own landing guard — no second loop jump until the clock reads below <c>To</c> again.</para>
-/// <para>⚠ As built (design §12h): the per-segment RATE (a run recorded at 2× plays its sim at 2× here) and the end-of-replay pause stay
-/// with <see cref="ReplayProcessManager"/>, which this does not absorb yet.</para>
+/// <para>⭐⭐ <c>CE-3329</c> row 9 — the per-segment RATE: on the Sim axis the clock runs at the OPERATOR's rate divided by the recorded
+/// rate of the segment under the playhead (<see cref="ReplayTimeMap.RateAt"/>), so a run recorded at 2× plays its sim at the operator's
+/// speed; on the Wall axis at the operator's rate. The operator's rate is kept apart (taken from the clock when the replay starts, then from
+/// every <c>SetTimeScaleIntent</c> this manager did not issue) and put back when a REPLAY ends — ⛔ not a review: its return restores the
+/// live rate (<see cref="ReviewProcessManager"/>, F19).</para>
+/// <para>⭐ The end of the replay (its duration — a review's live point) pauses the clock once per arrival; a seek back re-arms it.
+/// ⛔ SUPERSEDED: <c>ReplayProcessManager.Tick</c> held this (it keeps only the prepare aggregators).</para>
 /// </remarks>
 public sealed class ReplayClockProcessManager
 {
@@ -35,6 +40,21 @@ public sealed class ReplayClockProcessManager
     private readonly Func<(double FromSeconds, double ToSeconds)?> _loop;
     private double _pendingJumpTo = double.NaN;   // a jump in flight: the clock has not reached it yet
     private bool _loopJumpInFlight;               // ⭐ §12n — a BACKWARD jump issued, the clock still reads at/after To
+    private readonly Func<double>? _durationSeconds;   // ⭐ row 9 — the replay's end (a review's live point), seconds after the zero
+    private readonly Func<bool>? _reviewing;
+    private readonly Fdp.Core.FdpEventBus? _bus;       // ⭐ row 9 — where the operator's rate requests arrive
+    private bool _inReplay, _isReview, _rateChanged, _endPaused;
+    private float _operatorRate = 1f;
+    private float _lastIssuedRate = float.NaN;
+
+    /// <summary>⭐ CE-3329 row 9 — the rate the operator asked for (kept apart from the per-segment rate the clock runs at).</summary>
+    public float OperatorRate => _operatorRate;
+
+    /// <summary>⭐ row 9 — how many times this manager changed the clock's rate / paused at the end (diagnostics, rails).</summary>
+    public int RateChanges { get; private set; }
+
+    /// <inheritdoc cref="RateChanges"/>
+    public int EndPauses { get; private set; }
 
     /// <summary>⭐ CE-3329 §12n — how many loop wraps this manager made (diagnostics, rails).</summary>
     public int LoopJumps { get; private set; }
@@ -44,8 +64,12 @@ public sealed class ReplayClockProcessManager
 
     public ReplayClockProcessManager(ITimeController clock, ITimeCommands time, Func<bool> replaying, Func<ReplayAxis> axis,
                                      Func<ReplayTimeMap> map, Func<long> anchorWallTicks,
-                                     Func<(double FromSeconds, double ToSeconds)?> loop)
+                                     Func<(double FromSeconds, double ToSeconds)?> loop,
+                                     Func<double>? durationSeconds = null, Func<bool>? reviewing = null, Fdp.Core.FdpEventBus? bus = null)
     {
+        _durationSeconds = durationSeconds;
+        _reviewing = reviewing;
+        _bus = bus;
         _loop = loop ?? throw new ArgumentNullException(nameof(loop));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _time = time ?? throw new ArgumentNullException(nameof(time));
@@ -57,8 +81,19 @@ public sealed class ReplayClockProcessManager
 
     public void Tick()
     {
-        if (!_replaying() || _clock.GetMode() != TimeMode.Continuous) { _pendingJumpTo = double.NaN; _loopJumpInFlight = false; return; }
+        ObserveOperatorRate();
+        if (!_replaying()) { LeaveReplay(); _pendingJumpTo = double.NaN; _loopJumpInFlight = false; return; }
+        if (!_inReplay)
+        {
+            _inReplay = true;
+            _isReview = _reviewing?.Invoke() ?? false;
+            _operatorRate = _clock.GetTimeScale();
+            _rateChanged = _endPaused = false;
+        }
+        if (_clock.GetMode() != TimeMode.Continuous) { _pendingJumpTo = double.NaN; _loopJumpInFlight = false; return; }
         if (TickLoop()) return;   // ⭐ §12n — before the Sim axis's paused-stretch jump; a wrap ends the tick
+        if (TickEnd()) return;    // ⭐ row 9 — the end pauses (a loop wraps before it)
+        TickRate();
         if (_axis() != ReplayAxis.Sim) { _pendingJumpTo = double.NaN; return; }
         var map = _map();
         long anchor = _anchorWallTicks();
@@ -95,5 +130,53 @@ public sealed class ReplayClockProcessManager
         LoopJumps++;
         FdpLog<ReplayClockProcessManager>.Debug("[Replay] loop: wrapped {0:F3}s → {1:F3}s.", now, loop.FromSeconds);
         return true;
+    }
+
+    // ⭐ row 9 — every rate request this manager did not issue is the operator's
+    private void ObserveOperatorRate()
+    {
+        if (_bus == null || !_inReplay) return;
+        foreach (var intent in _bus.ReadManaged<Fdp.Toolkit.Time.Domain.SetTimeScaleIntent>())
+            if (Math.Abs(intent.TimeScale - _lastIssuedRate) > 1e-6f) _operatorRate = intent.TimeScale;
+    }
+
+    // ⭐ row 9 — a replay that ends gives the operator's rate back; ⛔ a review's return restores the live rate itself (F19)
+    private void LeaveReplay()
+    {
+        if (!_inReplay) return;
+        if (!_isReview && _rateChanged) _time.SetTimeScale(_operatorRate);
+        _inReplay = _rateChanged = _endPaused = false;
+        _lastIssuedRate = float.NaN;
+    }
+
+    // ⭐ row 9 — the replay's end pauses the running clock once per arrival; a seek back re-arms it
+    private bool TickEnd()
+    {
+        double end = _durationSeconds?.Invoke() ?? 0;
+        if (end <= 0) return false;
+        if (_clock.GetCurrentState().TotalTime < end) { _endPaused = false; return false; }
+        if (_endPaused) return true;
+        _time.Pause();
+        _endPaused = true;
+        EndPauses++;
+        FdpLog<ReplayClockProcessManager>.Debug("[Replay] the end ({0:F3}s) — paused.", end);
+        return true;
+    }
+
+    // ⭐ row 9 — the clock's rate: the operator's, divided on the Sim axis by the recorded rate of the segment under the playhead
+    private void TickRate()
+    {
+        double rate = _operatorRate;
+        if (_axis() == ReplayAxis.Sim && _map() is { HasSimTime: true } map && _anchorWallTicks() is > 0 and var anchor)
+        {
+            double recorded = map.RateAt(anchor + (long)Math.Round(_clock.GetCurrentState().TotalTime * TimeSpan.TicksPerSecond));
+            if (recorded > 1e-6) rate = _operatorRate / recorded;   // a flat run (0) is jumped, not slowed
+        }
+        rate = Math.Clamp(rate, 0.01, 64.0);
+        if (Math.Abs(_clock.GetTimeScale() - rate) <= 1e-4) return;
+        _lastIssuedRate = (float)rate;
+        _time.SetTimeScale(_lastIssuedRate);
+        _rateChanged = true;
+        RateChanges++;
     }
 }

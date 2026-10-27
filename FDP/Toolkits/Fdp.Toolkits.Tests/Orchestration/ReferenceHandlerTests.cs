@@ -329,6 +329,7 @@ public sealed class ReferenceHandlerTests
             review.Commit(exit, null);
 
             Assert.False(review.InReview);
+            Assert.Equal(1, controller.ExitReleases);                                                // ⭐ W5 — the gates' release discards the readers
             Assert.Equal(12.0, episode.ResumedAt);                                                   // ⭐ row 44 — resumed at L
             Assert.Equal(7f, world.GetComponentRO<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X);
             Assert.False(world.IsAlive(ghost));
@@ -358,6 +359,62 @@ public sealed class ReferenceHandlerTests
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-3329 F6 (DESIGN_Replay_Time_Axis_And_Review §12u) — the QUIESCE: what was in flight when the cluster paused lands in the
+    /// live point, because the entry lets <see cref="ReferenceReviewHandler.QuiesceFrames"/> paused frames pass before it captures.
+    /// Here a sample sent before the pause is taken in on the SECOND paused frame; the review then rewrites the unit, and the return
+    /// must bring back the landed value. 🔴 Captured at once, the live point misses it and the return restores the stale one.
+    /// </summary>
+    [Fact(Timeout = 20_000)]
+    public async Task CE3329_F6_The_entry_quiesces_so_what_was_in_flight_lands_in_the_live_point()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "ce3329-f6-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new Fdp.Toolkits.Tests.Replay.KeyframeTestPos { X = 7f });
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 12.0, DeltaTime = 0f, TimeScale = 1f, TotalWallTicks = 5_000 });   // paused
+
+            var recording = new Fdp.Toolkit.Replay.RecordingModule(new Fdp.Toolkit.Replay.RecordingConfiguration
+            {
+                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = Guid.NewGuid(), NodeId = 1, Blocking = true,
+            });
+            var registry = new CapturingRegistry();
+            recording.RegisterSystems(registry);
+            void Frame() { world.Tick(); foreach (var sys in registry.Systems) sys.Execute(world, 0f); }
+            Frame();
+
+            var controller = new SeekCapturingController();
+            var review = new ReferenceReviewHandler(controller, () => recording, new ReferenceReplayLoadHandler(controller, null, null, null, null, null, dir),
+                                                    world, accumulator: null, worldReplaced: null, resumeSchedule: null, storageDirectory: dir);
+
+            var enter = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareReview };
+            var prepare = review.PrepareAsync(enter, CancellationToken.None);
+            int paused = 0;
+            while (!prepare.IsCompleted)
+            {
+                await Task.Delay(40);   // ⚠ the handler polls every 10 ms: it reacts to each frame before the next one
+                if (++paused == 2) world.GetComponentRW<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X = 55f;   // the in-flight sample lands
+                Frame();
+            }
+            await prepare;
+            review.Commit(enter, null);
+
+            world.GetComponentRW<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X = -1f;   // the review's playback
+            var exit = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.FinalizeReview };
+            await review.PrepareAsync(exit, CancellationToken.None);
+            review.Commit(exit, null);
+
+            Assert.Equal(55f, world.GetComponentRO<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X);
+            Assert.True(paused > ReferenceReviewHandler.QuiesceFrames);
+            recording.Dispose();
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
     /// <summary>⭐ CE-3329 D-C / F4 — a node that drops to Idle during a review abandons it: the RAM checkpoint dropped, the gates off,
     /// the egress released; the way back is the recording's labelled keyframe.</summary>
     [Fact]
@@ -380,6 +437,8 @@ public sealed class ReferenceHandlerTests
         public int Releases => HoldLog.FindAll(x => x == "release").Count;
         public void HoldEgress(string reason) => HoldLog.Add(LastSeekTarget == 0 ? "hold" : "hold-after-seek");
         public void ReleaseEgress() => HoldLog.Add("release");
+        public int ExitReleases { get; private set; }
+        public void ReleaseReplayExit() => ExitReleases++;   // ⭐ CE-3329 W5
         public long LastSeekTarget { get; private set; }
         public long ActiveRecordingStartWallTicks { get; set; }
         public long ActiveRecordingEndWallTicks { get; set; }

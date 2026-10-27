@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Fdp.Toolkit.Runner;
 using Hrot.Editor.Director;
+using Hrot.UI.Common.Map3D.Director;
 using Xunit;
 
 namespace Hrot.Editor.Tests.Director;
@@ -69,6 +70,26 @@ public sealed class DirectorTracksOnTheEditorTests
         }
     }
 
+    /// <summary>⭐ <c>CE-1303</c> P1 (docs/DESIGN_Director_Timeline_Editor.md §11j) — the editor attaches the director through the ONE pack, with the verifier
+    /// as the runner's extension and the Verify tab on the window; the pack's session is the editor's.
+    /// 🔴 Mutation: the editor not passing its <c>VerifyTab</c> (or its <c>ScenarioVerifyRun</c>) to <c>DirectorPack.Attach</c> ⇒ the tab / extension assertion fails.</summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1303_P1_TheEditor_AttachesTheDirectorThroughThePack_WithTheVerifyTab()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true });
+        try
+        {
+            var pack = editor.DirectorPackForTest;
+            Assert.NotNull(pack);
+            Assert.IsType<ScenarioVerifyRun>(pack!.Runner.Extension);
+            Assert.Contains(pack.Window.Tabs, t => t is VerifyTab && t.Name == "Verify");
+            Assert.Same(pack.Session, editor.DirectorTakesForTest);
+            Assert.NotNull(editor.EventTimelineForTest.Tracks);
+        }
+        finally { editor.Shutdown(); }
+    }
+
     /// <summary>A second take cannot be opened over unsaved edits (they would be lost), and J / L step the ONE playback rate the Director window's slider shows.
     /// 🔴 Mutation: <c>Open</c> not checking <c>Dirty</c> ⇒ the refusal assertion fails.</summary>
     [Fact(Timeout = 60_000)]
@@ -106,7 +127,7 @@ public sealed class DirectorTracksOnTheEditorTests
     }
 
     /// <summary>CE-1364 — K on the Camera track stores the editor's map camera lens: the key's <c>Fov</c> is the 3-D camera's <c>FovyDegrees</c> (the one field of view the map
-    /// has — the film default is only what a key WITHOUT a lens plays at). 🔴 Mutation: <c>PilotCameraSpec</c> not passing <c>cam.FovyDegrees</c> ⇒ the key's Fov is null.</summary>
+    /// has — the film default is only what a key WITHOUT a lens plays at). 🔴 Mutation: <c>PilotCamera.FromMap</c> not passing <c>cam.FovyDegrees</c> ⇒ the key's Fov is null.</summary>
     [Fact(Timeout = 60_000)]
     public void CE1364_K_OnTheEditorsTimeline_StoresTheMapCamerasFov()
     {
