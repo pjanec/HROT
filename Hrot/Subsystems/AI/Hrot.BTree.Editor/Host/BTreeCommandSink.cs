@@ -47,11 +47,14 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
 
     // ---- IGraphCommandSink --------------------------------------------------
 
+    /// <summary>⭐ CE-1276 — the document is a code-built (read-only) graph; the canvas asks this to hide its authoring affordances.</summary>
+    internal bool IsReadOnly => Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset);
+
     public GraphCommandResult Apply(GraphCommand command)
     {
-        // ⭐ CE-1252 (BV-19) — a code-built graph is read-only; a breakpoint is debugging, not an edit, so it still goes through.
-        if (Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset)
-            && command is not GraphCommand.SetNodeProperty { Key: "isBreakpoint" })
+        // ⭐ CE-1252 (BV-19) — a code-built graph is read-only. ⭐ CE-1275 — a breakpoint and a node MOVE are view state, not an edit
+        //   of the behaviour, so they still go through (and mark nothing dirty: see ApplyNodeMoves).
+        if (Hrot.Editor.AiShared.Documents.AiDocument.RefusesCommand(_asset, command))
             return new GraphCommandResult(false, Hrot.Editor.AiShared.Documents.AiDocument.ReadOnlyReason(_asset));
         switch (command)
         {
@@ -140,7 +143,9 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             if (node != null)
                 node.Position = m.NewPosition;
         }
-        _asset.MarkDirty();
+        // ⭐ CE-1275 — a position on a code-built graph is view state: kept on the in-memory asset, never a document change.
+        if (!Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset))
+            _asset.MarkDirty();
     }
 
     private void ApplyAddNode(GraphCommand.AddNode add)

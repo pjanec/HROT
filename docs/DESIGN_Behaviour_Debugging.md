@@ -267,6 +267,31 @@ hit goes through the one manager.
 
 ![the one breakpoint list](assets/brain-view/d-breakpoints-one-list.png)
 
+### 8.1 AS-BUILT — DBG-3 "C#-built graphs are read-only, but their boxes move" *(CE-1275, CE-1276, CE-1277, ui, `2026-10-27`)*
+
+*Read-only means the BEHAVIOUR, not where its boxes sit.* One gate, `AiDocument.IsCodeBuilt` (CE-1252); three places consult it.
+
+```mermaid
+graph TD
+  G["AiDocument.IsCodeBuilt (the ONE gate)"] --> S["BTree / HSM command sink: RefusesCommand"]
+  G --> H["host services IsReadOnly -> GraphView.IsReadOnly"]
+  G --> B["BlackboardAuthoringWindow.IsReadOnlyAsset"]
+  S -->|"IsViewStateCommand: move, drop, container size / collapse, breakpoint"| OK["applied to the in-memory asset, never dirty"]
+  S -->|"every other command"| NO["refused: built in C#"]
+  H --> C["CanvasInput / CanvasRenderer: no wire, no Tab picker, no Delete, no Add / Paste / Rename / Comment items"]
+  B --> V["variables table: Add greyed with the reason; add / remove / rename / reorder refuse"]
+```
+
+*What the picture shows that prose hid:* the refusal used to be ONE place (the sink), so the canvas offered what the sink then threw
+away — and a node drop, which is a command like any edit, was thrown away too (the snap-back). Now the sink separates VIEW commands from
+edits, and the canvas and the Variables window ask the same gate up front.
+
+| piece | where | note |
+|---|---|---|
+| **CE-1275** a drop is `ChangeParentMultiple`, a drag `MoveNodes`; both are *view state* | `AiDocument.IsViewStateCommand` / `RefusesCommand`; `BTreeCommandSink.Apply`, `HsmCommandSink.Apply` | position kept on the in-memory asset (**per session** — the document's asset instance, never saved; layout runs once per open: `BTreeDocumentFactory` re-lays out only while `!LaidOutWithFont`, so a moved box is not overwritten). No `MarkDirty`. ⚠ HSM: a drop on a code-built machine moves the box only — it never re-parents (`HsmCommandSink.ApplyChangeParentMultiple`) |
+| **CE-1276** the canvas hides authoring | `IEditorHostServices.IsReadOnly` (default `false`) → `GraphView.IsReadOnly`; `CanvasInput` (pin wire, `BeginNodeWire`, Tab picker, alt-break, reroute insert), `EditCommands.DeleteSelectedUndoable`, `CanvasRenderer.DrawContextMenu` (empty canvas: view items only; node: no Add link / Rename / Collapse / Expand / Cut / Duplicate / Delete / Comment; pin: nothing; link: select only; comment: nothing); the host menus (`BTreeNodeContextMenuProvider` no *Add Decorator*, `HsmNodeContextMenuProvider` no *Set as Initial State*) | one implementation: BTree and HSM share `CanvasRenderer` / `CanvasInput`; only the two host services answer `IsReadOnly` (from their sink). Kept: select, pan, zoom, move, Copy, Toggle Breakpoint, Frame All, Open Blueprint |
+| **CE-1277** the Variables window | `BlackboardAuthoringWindow.IsReadOnlyAsset` (load failure OR code-built) → `BTreeHsmSchemaSource(isReadOnly)`; `VariablesPanelControl.AddOffered` | the *Add variable* button is greyed with a tooltip; the schema source itself refuses add / remove / rename / reorder, so a caller that bypasses the button changes nothing. Viewing values stays (live values: CE-1286) |
+
 ## 9. Behaviour breakpoints — five kinds, one condition, three ways in *(CE-1323, ui, `2026-10-25` — build-state: BUILT, §9.4)*
 
 🔒 **User, `2026-10-25`:** *"ok go ahead with all five. make sure there are ways how to set the breakpoints from the editor as well as

@@ -21,11 +21,14 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         _asset = asset;
     }
 
+    /// <summary>⭐ CE-1276 — the document is a code-built (read-only) graph; the canvas asks this to hide its authoring affordances.</summary>
+    internal bool IsReadOnly => Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset);
+
     public GraphCommandResult Apply(GraphCommand command)
     {
-        // ⭐ CE-1252 (BV-19) — a code-built graph is read-only; a breakpoint is debugging, not an edit, so it still goes through.
-        if (Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset)
-            && command is not GraphCommand.SetNodeProperty { Key: "isBreakpoint" })
+        // ⭐ CE-1252 (BV-19) — a code-built graph is read-only. ⭐ CE-1275 — a breakpoint and a node MOVE are view state, not an edit
+        //   of the behaviour, so they still go through (positions only, nothing dirty: see below and ApplyChangeParentMultiple).
+        if (Hrot.Editor.AiShared.Documents.AiDocument.RefusesCommand(_asset, command))
             return new GraphCommandResult(false, Hrot.Editor.AiShared.Documents.AiDocument.ReadOnlyReason(_asset));
         switch (command)
         {
@@ -109,7 +112,8 @@ internal sealed class HsmCommandSink : IGraphCommandSink
                 return new GraphCommandResult(false, $"Unsupported: {command.GetType().Name}");
         }
 
-        _asset.MarkDirty();
+        if (!Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset))   // ⭐ CE-1275 — view state on a code-built graph is no document change
+            _asset.MarkDirty();
         return new GraphCommandResult(true, null);
     }
 
@@ -134,6 +138,9 @@ internal sealed class HsmCommandSink : IGraphCommandSink
 
             // Always persist the new position so nodes don't jump back.
             state.Position = m.NewLocalPosition;
+
+            // ⭐ CE-1275 — on a code-built graph a drop only MOVES the box; the hierarchy is the behaviour and is not touched.
+            if (Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset)) continue;
 
             // Reparent: if the new parent / region differs from current, update the hierarchy.
             // Resolve the new parent state (null means top-level / child of root).

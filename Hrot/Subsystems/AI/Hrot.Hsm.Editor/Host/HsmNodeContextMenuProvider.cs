@@ -29,7 +29,7 @@ internal sealed class HsmNodeContextMenuProvider : INodeContextMenuProvider
             return Array.Empty<ContextMenuItem>();
 
         var items = new List<ContextMenuItem>();
-        if (Recorder is not null)
+        if (Recorder is not null && !Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset))   // ⭐ CE-1276 — an edit, hidden on a read-only machine
             items.Add(new ContextMenuItem("Set as Initial State", () => SetInitial(state), Enabled: !_asset.IsStartState(state)));
         // ⭐ CE-1323 (DBG-13) — the state's breakpoints, on the state itself (they were only on its gutter dot)
         if (Breakpoints is { } manager)

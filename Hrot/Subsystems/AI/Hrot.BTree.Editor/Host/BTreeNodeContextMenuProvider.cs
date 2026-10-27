@@ -92,6 +92,16 @@ internal sealed class BTreeNodeContextMenuProvider : INodeContextMenuProvider
 
     public IReadOnlyList<ContextMenuItem> GetItemsFor(NodeId node, IReadOnlyList<NodeId> selection)
     {
+        // ⭐ CE-1276 — a read-only (code-built) tree is not decorated: no "Add Decorator"; "Open Blueprint" is navigation and stays.
+        if (_asset is not null && Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(_asset))
+        {
+            var viewOnly = new List<ContextMenuItem>();
+            var target   = ResolveOpenBlueprintTarget(node);
+            if (target != null && _openAsset != null)
+                viewOnly.Add(new ContextMenuItem("Open Blueprint", () => _openAsset(target), true));
+            return viewOnly;
+        }
+
         // Part 4 (L3 prevention): check whether this node already has a Repeater pill.
         bool hasRepeater = false;
         foreach (var att in _model.GetAttachmentsForNode(node))

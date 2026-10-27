@@ -114,11 +114,12 @@ public sealed class BTreeHsmSchemaSource : IVariablesSchemaSource
     public bool IsReadOnly => _isReadOnly;
     public IReadOnlyList<VariableViewModel> Variables => _vm.Variables;
     public string? GetRefactorKey(string variableName) => null;
-    public void AddVariable(BlackboardVariableEntry entry) => _asset.AddVariable(entry);
-    public void RemoveVariable(string name) => _asset.RemoveVariable(name);
-    public void RemoveVariables(IReadOnlyList<string> names) => _asset.RemoveVariables(names);
-    public void RenameVariable(string oldName, string newName) => _asset.RenameVariable(oldName, newName);
-    public void MoveVariable(int sourceIndex, int destIndex) => _asset.MoveVariable(sourceIndex, destIndex);
+    // ⭐ CE-1277 — a read-only table (a code-built graph, a blackboard that failed to load) REFUSES the edit itself, not only its button.
+    public void AddVariable(BlackboardVariableEntry entry) { if (!_isReadOnly) _asset.AddVariable(entry); }
+    public void RemoveVariable(string name) { if (!_isReadOnly) _asset.RemoveVariable(name); }
+    public void RemoveVariables(IReadOnlyList<string> names) { if (!_isReadOnly) _asset.RemoveVariables(names); }
+    public void RenameVariable(string oldName, string newName) { if (!_isReadOnly) _asset.RenameVariable(oldName, newName); }
+    public void MoveVariable(int sourceIndex, int destIndex) { if (!_isReadOnly) _asset.MoveVariable(sourceIndex, destIndex); }
     public int CountNodesReferencingVariable(string name) => _asset.CountNodesReferencingVariable(name);
     
 
@@ -177,6 +178,9 @@ public sealed record VariablesPanelSection(
 
 public sealed class VariablesPanelControl
 {
+    /// <summary>⭐ <c>CE-1277</c> — whether the table offers "Add variable": not on a read-only one (a code-built graph).</summary>
+    internal static bool AddOffered(IVariablesSchemaSource schema) => !schema.IsReadOnly;
+
     private readonly IRefactorService _refactorService;
     private readonly IEditableAsset _assetBase;
     private readonly IReadOnlyList<VariableTypeChoice> _typeChoices;
@@ -307,7 +311,16 @@ public sealed class VariablesPanelControl
 
         ImGui.Separator();
 
-        if (ImGui.Button($"[+] Add variable...##add_{section.TableId}") && !schema.IsReadOnly)
+        // ⭐ CE-1277 — a read-only table (a code-built graph) offers no Add: the button is greyed with the reason.
+        if (!AddOffered(schema)) ImGui.BeginDisabled();
+        bool addClicked = ImGui.Button($"[+] Add variable...##add_{section.TableId}");
+        if (!AddOffered(schema))
+        {
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip("Read-only here (a graph built in C# is edited in its builder method). Current values stay visible.");
+        }
+        if (addClicked && AddOffered(schema))
         {
             _openAddPopup = true;
             _addPopupSchema = schema;

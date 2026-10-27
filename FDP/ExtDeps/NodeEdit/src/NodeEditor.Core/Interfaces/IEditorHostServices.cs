@@ -18,6 +18,11 @@ public interface IEditorHostServices
     /// <summary>Link validator (rejects illegal connections).</summary>
     ILinkValidator LinkValidator { get; }
 
+    /// <summary>⭐ CE-1276 — true when the document cannot be edited (a C#-built BTree / HSM): the canvas HIDES the authoring
+    /// affordances (starting a link, Add / Delete / Paste menu items, the Tab picker) instead of letting the sink refuse afterwards.
+    /// View affordances (select, pan, zoom, move nodes, breakpoints) stay. Default false.</summary>
+    bool IsReadOnly => false;
+
     /// <summary>Sink for all mutations.</summary>
     IGraphCommandSink CommandSink { get; }
 

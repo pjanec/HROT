@@ -147,7 +147,8 @@ public sealed class NodeToNodeWireTests
         public bool IsMouseReleased(MouseButton b) => b == Button && Released;
         public bool IsMouseDoubleClicked(MouseButton b) => false;
         public bool IsKeyDown(EditorKey k) => false;
-        public bool IsKeyPressed(EditorKey k, bool r = false) => false;
+        public EditorKey? Key { get; set; }   // the key "pressed" this frame
+        public bool IsKeyPressed(EditorKey k, bool r = false) => Key == k;
         public bool IsKeyReleased(EditorKey k) => false;
     }
 
@@ -179,6 +180,8 @@ public sealed class NodeToNodeWireTests
         private readonly Sink _sink;
         public Host(Sink sink) { _sink = sink; }
         public IPickerRegistry? PickerRegistry { get; set; }
+        public bool ReadOnly { get; set; }
+        public bool IsReadOnly => ReadOnly;
         public INodeCatalog NodeCatalog => throw new NotImplementedException();
         public ITypeSystem TypeSystem => throw new NotImplementedException();
         public ILinkValidator LinkValidator => throw new NotImplementedException();
@@ -192,12 +195,12 @@ public sealed class NodeToNodeWireTests
         public IEditorTheme Theme => throw new NotImplementedException();
     }
 
-    private static (Graph g, Sink sink, GraphView view) Make(IPickerRegistry? pickers = null)
+    private static (Graph g, Sink sink, GraphView view) Make(IPickerRegistry? pickers = null, bool readOnly = false)
     {
         var g = new Graph();
         var sink = new Sink();
         var view = new GraphView(g, sink, new Validator(), new Types(), new Catalog(),
-            new Host(sink) { PickerRegistry = pickers });
+            new Host(sink) { PickerRegistry = pickers, ReadOnly = readOnly });
         return (g, sink, view);
     }
 
@@ -357,5 +360,133 @@ public sealed class NodeToNodeWireTests
         Assert.Equal(InteractionMode.Idle, view.Interaction.Mode);
         Assert.False(view.Interaction.PanByMiddle);
         Assert.Null(view.Interaction.ContextMenuScreen);
+    }
+
+    // ── CE-1276 — a read-only graph hides the authoring affordances ───────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-1276</c> — no link can be STARTED on a read-only graph (node border, Shift-drag, the menu's "Add …" all go
+    /// through <c>BeginNodeWire</c>); a writable graph still starts one. 🔴 Red-proof: the gate in <c>BeginNodeWire</c> made conditional on
+    /// a false runtime condition ⇒ the read-only view starts a wire.</summary>
+    [Fact]
+    public void CE1276_ReadOnlyGraph_StartsNoLink_WritableStillDoes()
+    {
+        var (gRo, _, ro) = Make(readOnly: true);
+        var a = gRo.Add();
+        Assert.False(CanvasInput.BeginNodeWire(ro, new Input(), a.Id, addToSelectionOnClick: false, sticky: false));
+        Assert.Equal(InteractionMode.Idle, ro.Interaction.Mode);
+        Assert.Null(ro.Interaction.PendingWire);
+
+        var (gRw, _, rw) = Make();
+        var b = gRw.Add();
+        Assert.True(CanvasInput.BeginNodeWire(rw, new Input(), b.Id, addToSelectionOnClick: false, sticky: false));
+        Assert.Equal(InteractionMode.PendingWire, rw.Interaction.Mode);
+    }
+
+    /// <summary>⭐ <c>CE-1276</c> — pressing on a PIN starts a wire on a writable graph and does nothing on a read-only one.
+    /// 🔴 Red-proof: the <c>IsReadOnly</c> break in the <c>HoverKind.Pin</c> case made conditional on a false runtime condition.</summary>
+    [Fact]
+    public void CE1276_PressingAPin_StartsAWire_OnlyOnAWritableGraph()
+    {
+        foreach (bool readOnly in new[] { true, false })
+        {
+            var (g, _, view) = Make(readOnly: readOnly);
+            var a = g.Add();
+            var input = new Input { Pressed = true, MousePosition = new Vector2(5, 5) };
+            view.Interaction.Hover = new HoverInfo { Kind = HoverKind.Pin, Pin = a.Out.Id };
+            CanvasInput.HandleIdle(view, canProcess: true, isCanvasDirectlyFocused: true, input);
+            Assert.Equal(readOnly ? InteractionMode.Idle : InteractionMode.PendingWire, view.Interaction.Mode);
+        }
+    }
+
+    /// <summary>⭐ <c>CE-1276</c> — Delete removes nothing from a read-only graph (the command is never sent), and the Tab picker does not
+    /// open; on a writable graph both work. 🔴 Red-proof: the gates in <c>DeleteSelectedUndoable</c> / the picker condition made
+    /// conditional on a false runtime condition.</summary>
+    [Fact]
+    public void CE1276_ReadOnlyGraph_DeletesNothing_AndOpensNoAddPicker()
+    {
+        foreach (bool readOnly in new[] { true, false })
+        {
+            var reg = new AutoPickRegistry();
+            var (g, sink, view) = Make(reg, readOnly);
+            var a = g.Add();
+            view.Selection.ReplaceWith(SelectionEntry.OfNode(a.Id));
+            NodeEditor.UI.Action.EditCommands.DeleteSelectedUndoable(view);
+            Assert.Equal(readOnly, sink.Log.Count == 0);
+
+            view.Interaction.Hover = default;
+            CanvasInput.HandleIdle(view, canProcess: true, isCanvasDirectlyFocused: true, new Input { Key = EditorKey.Tab });
+            Assert.Equal(readOnly ? null : "nodes.all", reg.OpenedKey);
+        }
+    }
+
+    private static List<string> MenuLabels(GraphView view, HoverInfo target)
+    {
+        var ctx = ImGuiNET.ImGui.CreateContext();
+        ImGuiNET.ImGui.SetCurrentContext(ctx);
+        var io = ImGuiNET.ImGui.GetIO();
+        io.Fonts.AddFontDefault();
+        io.Fonts.Build();
+        io.DisplaySize = new Vector2(1280, 720);
+        io.DeltaTime = 1f / 60f;
+        var renderer = new CanvasRenderer();
+        view.Interaction.ContextMenuTarget = target;
+        var log = new List<string>();
+        CanvasRenderer.MenuLog = log;
+        try
+        {
+            for (int frame = 0; frame < 3; frame++)
+            {
+                ImGuiNET.ImGui.NewFrame();
+                ImGuiNET.ImGui.Begin("w");
+                if (frame == 0) ImGuiNET.ImGui.OpenPopup("##canvas_ctx");
+                if (ImGuiNET.ImGui.BeginPopup("##canvas_ctx"))
+                {
+                    renderer.DrawContextMenu(view);
+                    ImGuiNET.ImGui.EndPopup();
+                }
+                ImGuiNET.ImGui.End();
+                ImGuiNET.ImGui.Render();
+            }
+        }
+        finally
+        {
+            CanvasRenderer.MenuLog = null;
+            ImGuiNET.ImGui.DestroyContext(ctx);
+        }
+        return log.Distinct().ToList();
+    }
+
+    /// <summary>⭐ <c>CE-1276</c> (user: "read-only graph still allow drawing connectors and having 'add' items in context menu") — the
+    /// canvas menu of a read-only graph has NO Add / Paste / Comment item on empty canvas, NO Add-link / Rename / Cut / Duplicate / Delete
+    /// / Comment on a node, and NOTHING on a pin; it keeps the view items (Frame All, Toggle Breakpoint, Copy). A writable graph still has
+    /// all of them. 🔴 Red-proof: the empty-canvas gate made conditional on a false runtime condition ⇒ "Add Node..." appears read-only.</summary>
+    [Fact]
+    public void CE1276_TheContextMenu_OfAReadOnlyGraph_HasNoAuthoringItems_ButKeepsTheViewOnes()
+    {
+        var authoringOnCanvas = new[] { "Add Node...", "Add Return Node", "Add Comment", "Paste" };
+        var authoringOnNode   = new[] { "Add Transition", "Rename\u2026", "Cut", "Duplicate", "Delete Node", "Add Comment" };
+
+        var (_, _, ro) = Make(readOnly: true);
+        var roCanvas = MenuLabels(ro, new HoverInfo { Kind = HoverKind.None });
+        Assert.Contains("Frame All", roCanvas);
+        Assert.DoesNotContain(roCanvas, l => authoringOnCanvas.Contains(l));
+
+        var (gRo, _, ro2) = Make(readOnly: true);
+        var n = gRo.Add();
+        var roNode = MenuLabels(ro2, new HoverInfo { Kind = HoverKind.Node, Node = n.Id });
+        Assert.Contains("Toggle Breakpoint", roNode);
+        Assert.DoesNotContain(roNode, l => authoringOnNode.Contains(l));
+
+        var roPin = MenuLabels(ro2, new HoverInfo { Kind = HoverKind.Pin, Pin = n.Out.Id });
+        Assert.Empty(roPin);
+
+        var (_, _, rw) = Make();
+        var rwCanvas = MenuLabels(rw, new HoverInfo { Kind = HoverKind.None });
+        Assert.All(authoringOnCanvas, l => Assert.Contains(l, rwCanvas));
+
+        var (gRw, _, rw2) = Make();
+        var m = gRw.Add();
+        var rwNode = MenuLabels(rw2, new HoverInfo { Kind = HoverKind.Node, Node = m.Id });
+        Assert.All(authoringOnNode, l => Assert.Contains(l, rwNode));
     }
 }
