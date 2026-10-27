@@ -415,6 +415,38 @@ public sealed class ReferenceHandlerTests
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-3337 — a branch from a replay is a restore IN PLACE (D18): its commit counts a restore, so every per-process counter a
+    /// restore resumes from the world does — here the muscle's route handles, which go on from the branch frame's recorded copy, not from
+    /// where the original live run left the process. 🔴 Before: no restore was counted; the coordinator's H3 saw the branch number its next
+    /// routes 0x40000026 where the straight run stood at 0x40000004.
+    /// </summary>
+    [Fact]
+    public void CE3337_A_branch_commit_counts_a_restore_and_the_route_handles_resume_from_the_branch_frame()
+    {
+        using var world = new EntityRepository();
+        var controller = new SeekCapturingController();
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, ".", world: world);
+        using var pool = new global::CarKinem.Trajectory.TrajectoryPoolManager();
+        var restore = new global::CarKinem.Systems.TrajectoryRestoreSystem(pool);
+
+        // the live run went on far past the branch frame; the recorded copy at the frame on screen (5 s) stood lower
+        int liveEnd = Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() + 5000;
+        Fdp.Toolkit.Navigation.NavigationHandleAllocator.EnsureAbove(liveEnd);
+        int atBranch = liveEnd - 30;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0 });
+        world.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = atBranch, At = 5.0 });
+        // ⚠ the system does not run during the replay (its group is off), so it never mirrored the live counter over the recorded copy
+        int before = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(world);
+
+        // ⚠ repo: null — exactly as ClusterSlave commits every op (my first rail passed the world here and hid that the live path got none)
+        handler.Commit(new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive }, repo: null);
+
+        Assert.Equal(before + 1, Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(world));   // ⭐ a restore, counted
+        restore.Execute(world, 1f / 60f);                                                             // the branch's first step
+        Assert.Equal(atBranch + 1, Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate());      // ⭐ numbered on from the branch frame
+    }
+
     /// <summary>⭐ CE-3329 D-C / F4 — a node that drops to Idle during a review abandons it: the RAM checkpoint dropped, the gates off,
     /// the egress released; the way back is the recording's labelled keyframe.</summary>
     [Fact]

@@ -67,6 +67,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     public sealed class ReferenceReplayLoadHandler : IClusterStateHandler, IClusterStateUpdateObserver
     {
         private readonly IRecordReplayController      _controller;
+        private readonly EntityRepository?            _world;   // ⭐ CE-3337
 
         /// <summary>⭐ R-3055 — the recording this node replays now (its controller's), or <see langword="null"/>. Every ECS host
         /// registers this handler through the shared composition (<c>EcsHostClusterHandlers.Compose</c>), so the debug surface reads
@@ -144,8 +145,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             //   Invoked with resumingToLive:false when ENTERING a replay and true when leaving it for a
             //   live world. The implementation clears the ELM's in-flight queues and, on a resume, arms the
             //   re-derive. ⚠ Unset = the previous behaviour exactly.
-            Action<bool>?                 worldReplaced         = null)
+            Action<bool>?                 worldReplaced         = null,
+            // ⭐ CE-3337 — this node's world: a branch's commit runs the after-restore step on it. ⛔ The commit's own `repo` argument is
+            //   NULL from ClusterSlave (every call site passes repo: null), so the world must be held here; ⚠ every production caller passes it.
+            EntityRepository?             world                 = null)
         {
+            _world                 = world;
             _controller            = controller       ?? throw new ArgumentNullException(nameof(controller));
             _inputGroup            = inputGroup;
             _simGroup              = simGroup;
@@ -335,6 +340,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 // ⭐⭐ Branch-to-live: same as FinalizeReplay — clear and arm. This is the path that left
                 //   restored Constructing entities permanently invisible to every default query.
                 _worldReplaced?.Invoke(true);
+                // ⭐⭐ CE-3337 — a branch is a restore IN PLACE (D18: "a checkpoint restore is a branch too"): the ONE after-restore step —
+                //   the entity map rebuilt, the restore COUNTED, every descriptor republished. ⛔ Without the count, every per-process
+                //   counter a restore resumes from the world stayed where the original live run had left it: the muscle's route handles
+                //   went on from 0x40000026 where the straight run at the branch frame stood at 0x40000004 (the coordinator's H3), and
+                //   the sound sequence numbering likewise (CE-3315).
+                if ((repo ?? _world) is { } branched) Fdp.Toolkit.Replay.AfterRestore.Run(branched);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Commit(PrepareLive/branch) — sim+lifecycle re-enabled.");
