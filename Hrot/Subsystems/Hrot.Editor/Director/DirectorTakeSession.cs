@@ -22,11 +22,13 @@ namespace Hrot.Editor.Director
         private readonly Func<TakeStore?> _store;
         private readonly Func<DirectorRunner?> _runner;
         private readonly Func<CameraSpec?> _pilot;
+        private readonly Func<double, EventAnchor?>? _eventAt;
         private DirectorTracks? _tracks;
 
-        public DirectorTakeSession(Func<TakeStore?> store, Func<DirectorRunner?> runner, Func<CameraSpec?> pilot)
+        /// <param name="eventAt">⭐ CR-6: the nearest event of THIS host's timeline index at or before a sim second (K hangs the new key on it); null = no index.</param>
+        public DirectorTakeSession(Func<TakeStore?> store, Func<DirectorRunner?> runner, Func<CameraSpec?> pilot, Func<double, EventAnchor?>? eventAt = null)
         {
-            _store = store; _runner = runner; _pilot = pilot;
+            _store = store; _runner = runner; _pilot = pilot; _eventAt = eventAt;
         }
 
         /// <summary>The editor's undo stack for take edits.</summary>
@@ -64,7 +66,7 @@ namespace Hrot.Editor.Director
             if (loaded.Value is null) return loaded.Problems;
             UndoStack.Clear();
             Editor = new TakeEditor(store, loaded.Value, UndoStack);
-            _tracks = new DirectorTracks(Editor, _pilot, StepRate);
+            _tracks = new DirectorTracks(Editor, _pilot, StepRate, _eventAt);
             return Array.Empty<string>();
         }
 
