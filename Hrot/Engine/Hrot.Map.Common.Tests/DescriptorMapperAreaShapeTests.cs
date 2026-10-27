@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
-using Hrot.NED.Common;
+using Hrot.NED.Messages;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Utils;
 using Fdp.Interfaces;
@@ -14,9 +14,9 @@ namespace Hrot.Map.Common.Tests;
 /// Tests for <see cref="DescriptorMapper.MapToComponents"/> with <c>dtMapVisualOverlay</c>
 /// descriptors (OC1-B003 — Tactical Shape Authoring: Shape Position Wrong).
 ///
-/// <para>Verifies that the coordinate contract is correct end-to-end: vertices stored by
-/// <c>ActivateAreaAuthoringTool</c> as <em>relative geodetic offsets</em> from the centroid
-/// are reconstructed into <em>relative Cartesian offsets</em> from the entity's
+/// <para>Verifies that the coordinate contract is correct end-to-end: vertices carried on the wire as
+/// <em>absolute local-ENU positions</em> (AQ107 B; before it, relative geodetic offsets from the centroid)
+/// are reconstructed into <em>relative offsets</em> from the entity's
 /// <see cref="SimTransform"/> position. When the rendering system adds
 /// <c>SimTransform.Position + EditablePolyline.Points[i]</c>, the result must equal the
 /// original absolute Cartesian position of vertex <em>i</em>.</para>
@@ -41,11 +41,11 @@ public class DescriptorMapperAreaShapeTests
     }
 
     /// <summary>
-    /// Builds a descriptor list that mirrors what <c>ActivateAreaAuthoringTool</c> emits:
+    /// Builds a descriptor list that mirrors what the authoring tool emits (AQ107 B — local ENU; the test data keeps its
+    /// (lat, lon) tuples and reads them as (Y, X) metres, like <see cref="FlatGeoTransform"/>):
     /// <list type="bullet">
-    ///   <item><c>dtGeoSpatial</c> with centroid (mean of absPositions).</item>
-    ///   <item><c>dtMapVisualOverlay</c> with relative-geo offsets
-    ///         (absPos[i] - centroid).</item>
+    ///   <item><c>dtWorldPos</c> with the centroid (mean of absPositions).</item>
+    ///   <item><c>dtMapVisualOverlay</c> with the ABSOLUTE vertices.</item>
     /// </list>
     /// </summary>
     private static List<EntityDescriptorUnion> BuildAreaDescriptors(
@@ -56,21 +56,21 @@ public class DescriptorMapperAreaShapeTests
         refLat /= absPositions.Count;
         refLon /= absPositions.Count;
 
-        var relGeoPoints = new List<GeoPoint>(absPositions.Count);
+        var absPoints = new List<Vec3d>(absPositions.Count);
         foreach (var p in absPositions)
-            relGeoPoints.Add(new GeoPoint { Latitude = p.Item1 - refLat, Longitude = p.Item2 - refLon });
+            absPoints.Add(new Vec3d { X = p.Item2, Y = p.Item1, Z = 0 });
 
         return new List<EntityDescriptorUnion>
         {
             new EntityDescriptorUnion
             {
                 _d         = EDescriptorType.dtWorldPos,
-                WorldPos = new WorldPos { Pos = new GeoPoint { Latitude = refLat, Longitude = refLon } }
+                WorldPos = new WorldPos { Position = new Vec3d { X = refLon, Y = refLat } }
             },
             new EntityDescriptorUnion
             {
                 _d               = EDescriptorType.dtMapVisualOverlay,
-                MapVisualOverlay = new MapVisualOverlay { Points = relGeoPoints }
+                MapVisualOverlay = new MapVisualOverlay { Points = absPoints }
             },
         };
     }
@@ -159,10 +159,10 @@ public class DescriptorMapperAreaShapeTests
                 _d               = EDescriptorType.dtMapVisualOverlay,
                 MapVisualOverlay = new MapVisualOverlay
                 {
-                    Points = new List<GeoPoint>
+                    Points = new List<Vec3d>
                     {
-                        new GeoPoint { Latitude = 1.0, Longitude = 2.0 },
-                        new GeoPoint { Latitude = 3.0, Longitude = 4.0 },
+                        new Vec3d { X = 2.0, Y = 1.0 },
+                        new Vec3d { X = 4.0, Y = 3.0 },
                     }
                 }
             },

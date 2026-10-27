@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -8,7 +10,8 @@ using Fdp.Toolkit.Replication.Systems;
 using Fdp.Modules.Geographic;
 using Hrot.Map.Common.Replication.Ingress;
 using Hrot.NED.Descriptors;
-using Hrot.NED.Common;
+using Hrot.NED.Messages;
+using Hrot.Map.Common.Replication.Utils;
 using Xunit;
 
 namespace Hrot.Map.Common.Tests.Replication.Ingress;
@@ -54,6 +57,7 @@ public sealed class GeoSpatialIngressTranslatorTests
 
     // ── Infrastructure ────────────────────────────────────────────────────────
 
+    // ⭐ AQ107 B — the ingress no longer converts; this transform is only handed to the (now ignoring) constructor.
     private sealed class IdentityGeoTransform : IGeographicTransform
     {
         public void SetOrigin(double lat, double lon, double alt) { }
@@ -85,15 +89,9 @@ public sealed class GeoSpatialIngressTranslatorTests
         return (translator, entityMap);
     }
 
-    /// <summary>Creates a WorldPos sample at an arbitrary position.</summary>
-    private static WorldPos MakeSample(long entityId, float lat = 1f, float lon = 2f)
-        => new WorldPos
-        {
-            EntityId = entityId,
-            Pos      = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = 0 },
-            Ori      = new EulerOri { Heading = 0 },
-            Vel      = new AngularVector(),
-        };
+    /// <summary>Creates a WorldPos sample at an arbitrary local-ENU position (AQ107 B / D): identity rotation, no motion.</summary>
+    private static WorldPos MakeSample(long entityId, float x = 1f, float y = 2f)
+        => WorldPosCodec.Encode(entityId, simTimeSeconds: 5.0, new Vector3(x, y, 0f), Quaternion.Identity, Vector3.Zero, Vector3.Zero);
 
     // ── GEOINGRESS-1: Remote entity — ingress updates SimTransform ────────────
 
@@ -115,7 +113,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.AddComponent(entity, new NetworkVelocity());
         map.Register(netId, entity);
 
-        var sample = MakeSample(netId, lat: 10f, lon: 20f);
+        var sample = MakeSample(netId, x: 10f, y: 20f);
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
         translator.TestDecode(sample, cmd, view);
@@ -126,44 +124,121 @@ public sealed class GeoSpatialIngressTranslatorTests
         Assert.Equal(20f, transform.Position.Y, precision: 3);
     }
 
-    // ── ⭐ ui handoff P3 (docs/DESIGN_Dead_Reckoning.md §9) — pitch and roll cross the wire ─────────────────
+    // ── ⭐ AQ107 D — the pose crosses the wire as a quaternion: ECS → WorldPos → ECS ──────────────────────────
+
+    public static IEnumerable<object[]> Poses()
+    {
+        yield return new object[] { "heading 30 / pitch 10 / roll -20", Quaternion.Normalize(Quaternion.CreateFromYawPitchRoll(0.4f, 0.17f, -0.35f)) };
+        yield return new object[] { "yaw 250 deg about Z",               Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 250f * MathF.PI / 180f) };
+        yield return new object[] { "nose straight UP (CE-4068)",        Quaternion.CreateFromAxisAngle(Vector3.UnitY, -MathF.PI / 2f) };
+        yield return new object[] { "nose straight DOWN (CE-4068)",      Quaternion.CreateFromAxisAngle(Vector3.UnitY,  MathF.PI / 2f) };
+        yield return new object[] { "nose up, rolled and yawed",         Quaternion.Normalize(Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.1f) * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -MathF.PI / 2f) * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.6f)) };
+        // the SAME rotation as a quaternion with w < 0 (q and -q are one rotation): the sender must canonicalise it
+        var q = Quaternion.Normalize(Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(1f, 2f, 3f)), 2.4f));
+        yield return new object[] { "w < 0 before canonicalisation",     new Quaternion(-q.X, -q.Y, -q.Z, -q.W) };
+        yield return new object[] { "a half turn (w = 0)",               Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) };
+    }
 
     /// <summary>
-    /// ⭐ P3 — a banking, climbing aircraft on node B: the ingress rebuilds the rotation from heading AND pitch AND roll, so the owner's
-    /// own egress conversion (<c>RotationToHeadingDeg</c> + <c>RotationToPitchRollDeg</c>) reads the same three angles back within 0.01°;
-    /// and with pitch = roll = 0 the result is exactly the heading-only rotation every ground vehicle had before. ⛔ Before: pitch and roll
-    /// were dropped (heading only) — the plane flew level on every receiving node. ✅ Red-proof: the ingress back on
-    /// <c>HeadingDegToRotation</c> ⇒ the pitch reads 0 ⇒ red.
+    /// ⭐⭐ <b>AQ107 D acceptance (a)</b> — a pose (position, rotation, velocity, angular velocity) round-trips ECS → <c>WorldPos</c> → ECS:
+    /// position within 1 mm, rotation within 1e-6 (quaternion dot ≥ 1 − 1e-6, sign-insensitive), velocity and angular velocity exact —
+    /// including a nose straight up and straight down (CE-4068: the Euler wire lost the heading there) and a rotation whose w is negative
+    /// before canonicalisation. ✅ Red-proof (run): <c>QuaternionWireCodec.Encode</c> without the <c>w ≥ 0</c> canonicalisation ⇒ the
+    /// "w &lt; 0" case decodes to the INVERSE rotation ⇒ red.
     /// </summary>
     [Theory]
-    [InlineData(30f, 10f, -20f)]
-    [InlineData(250f, -15f, 45f)]
-    [InlineData(90f, 0f, 0f)]
-    public void P3_PitchAndRoll_CrossTheWire_AHeadingOnlySampleIsUnchanged(float heading, float pitch, float roll)
+    [MemberData(nameof(Poses))]
+    public void AQ107D_APose_RoundTripsEcsToWorldPosToEcs(string _, Quaternion rotation)
     {
         using var world = CreateWorld();
+        world.RegisterComponent<SimVelocity>();
         var (translator, map) = CreateTranslator();
         var entity = world.CreateEntity();
         world.AddComponent(entity, new NetworkIdentity(77L));
         world.AddComponent(entity, new SimTransform());
         world.AddComponent(entity, new NetworkTransform());
         world.AddComponent(entity, new NetworkVelocity());
+        world.AddComponent(entity, new SimVelocity());
         map.Register(77L, entity);
 
-        var sample = MakeSample(77L) with { Ori = new EulerOri { Heading = heading, Pitch = pitch, Roll = roll } };
+        var position = new Vector3(1234.567f, -8765.432f, 42.125f);
+        var linear   = new Vector3(1.5f, -2f, 0.25f);
+        var angular  = new Vector3(0.1f, -0.2f, 0.3f);
+        var sample   = WorldPosCodec.Encode(77L, simTimeSeconds: 12.5, position, rotation, linear, angular);
+
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
         translator.TestDecode(sample, cmd, view);
         ((EntityCommandBuffer)cmd).Playback(world);
 
-        var rotation = world.GetComponent<SimTransform>(entity).Rotation;
-        Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.RotationToPitchRollDeg(rotation, out float p, out float r);
-        Assert.Equal(heading, Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.RotationToHeadingDeg(rotation), 2);
-        Assert.Equal(pitch, p, 2);
-        Assert.Equal(roll, r, 2);
-        Assert.Equal(rotation, world.GetComponent<NetworkTransform>(entity).LastRotation);
-        if (pitch == 0f && roll == 0f)
-            Assert.Equal(Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.HeadingDegToRotation(heading), rotation);
+        var st = world.GetComponent<SimTransform>(entity);
+        Assert.True(Vector3.Distance(position, st.Position) < 0.001f, $"position {st.Position}");
+        float dot = MathF.Abs(Quaternion.Dot(Quaternion.Normalize(rotation), st.Rotation));
+        Assert.True(dot >= 1f - 1e-6f, $"rotation dot {dot:R}");
+        Assert.Equal(linear,  world.GetComponent<NetworkVelocity>(entity).Value);
+        var vel = world.GetComponent<SimVelocity>(entity);
+        Assert.Equal(linear,  vel.Linear);
+        Assert.Equal(angular, vel.Angular);
+        var shadow = world.GetComponent<NetworkTransform>(entity);
+        Assert.Equal(12.5, shadow.SimStamp);                                  // the sim time is the dead-reckoning anchor
+        Assert.True(MathF.Abs(Quaternion.Dot(shadow.LastRotation, st.Rotation)) >= 1f - 1e-6f);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>AQ107 D acceptance (b)</b> — an ALL-ZERO <c>WorldPos</c> (a struct nobody filled in) decodes to the IDENTITY rotation and no NaN
+    /// anywhere. ✅ Red-proof (run): the decoder leaving <c>w</c> at 0 ⇒ a zero (invalid) quaternion ⇒ red.
+    /// </summary>
+    [Fact]
+    public void AQ107D_AnAllZeroWorldPos_DecodesToTheIdentity_NoNaN()
+    {
+        using var world = CreateWorld();
+        var (translator, map) = CreateTranslator();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(78L));
+        world.AddComponent(entity, new SimTransform());
+        world.AddComponent(entity, new NetworkTransform());
+        world.AddComponent(entity, new NetworkVelocity());
+        map.Register(78L, entity);
+
+        ISimulationView view = world;
+        var cmd = view.GetCommandBuffer();
+        translator.TestDecode(new WorldPos { EntityId = 78L }, cmd, view);
+        ((EntityCommandBuffer)cmd).Playback(world);
+
+        var st = world.GetComponent<SimTransform>(entity);
+        Assert.Equal(Quaternion.Identity, st.Rotation);
+        Assert.Equal(Quaternion.Identity, world.GetComponent<NetworkTransform>(entity).LastRotation);
+        Assert.Equal(Vector3.Zero, st.Position);
+        Assert.False(float.IsNaN(st.Rotation.X + st.Rotation.Y + st.Rotation.Z + st.Rotation.W + st.Position.X));
+    }
+
+    /// <summary>
+    /// ⭐ AQ107 D — a vector part LONGER than 1 (float rounding at a half-turn, or a corrupt sample) decodes to a finite UNIT quaternion, never
+    /// NaN. ✅ Red-proof (run): <c>QuaternionWireCodec.Decode</c> computing <c>w = sqrt(1 − |v|²)</c> without the <c>max(0, …)</c> clamp ⇒ NaN ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(0.8f, 0.6f, 0.1f)]
+    [InlineData(1f, 1f, 1f)]
+    public void AQ107D_AVectorPartOverUnitLength_DecodesToAUnitQuaternion_NotNaN(float x, float y, float z)
+    {
+        using var world = CreateWorld();
+        var (translator, map) = CreateTranslator();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(79L));
+        world.AddComponent(entity, new SimTransform());
+        world.AddComponent(entity, new NetworkTransform());
+        world.AddComponent(entity, new NetworkVelocity());
+        map.Register(79L, entity);
+
+        var sample = MakeSample(79L) with { OrientationXyz = new Vec3f { X = x, Y = y, Z = z } };
+        ISimulationView view = world;
+        var cmd = view.GetCommandBuffer();
+        translator.TestDecode(sample, cmd, view);
+        ((EntityCommandBuffer)cmd).Playback(world);
+
+        var q = world.GetComponent<SimTransform>(entity).Rotation;
+        Assert.False(float.IsNaN(q.X + q.Y + q.Z + q.W));
+        Assert.Equal(1f, q.Length(), 5);
     }
 
     // ── GEOINGRESS-2: Primary-owner loopback — SimTransform NOT updated ───────
@@ -189,7 +264,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.AddComponent(entity, new NetworkVelocity());
         map.Register(netId, entity);
 
-        var sample = MakeSample(netId, lat: 1f, lon: 2f);
+        var sample = MakeSample(netId, x: 1f, y: 2f);
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
         translator.TestDecode(sample, cmd, view);
@@ -221,7 +296,7 @@ public sealed class GeoSpatialIngressTranslatorTests
 
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
-        translator.TestDecode(MakeSample(101L, lat: 3f, lon: 4f), cmd, view);
+        translator.TestDecode(MakeSample(101L, x: 3f, y: 4f), cmd, view);
         ((EntityCommandBuffer)cmd).Playback(world);
 
         var shadow = world.GetComponent<NetworkTransform>(entity);
@@ -259,7 +334,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.SetAuthority<SimTransform>(entity, true);
 
         // A loopback packet arrives — Muscle should drop it for SimTransform.
-        var sample = MakeSample(netId, lat: 1f, lon: 2f);
+        var sample = MakeSample(netId, x: 1f, y: 2f);
         ISimulationView view3 = world;
         var cmd3 = view3.GetCommandBuffer();
         translator.TestDecode(sample, cmd3, view3);
@@ -298,7 +373,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         // Local node does not own SimTransform for this entity.
         world.SetAuthority<SimTransform>(entity, false);
 
-        var sample = MakeSample(netId, lat: 7f, lon: 8f);
+        var sample = MakeSample(netId, x: 7f, y: 8f);
         ISimulationView view4 = world;
         var cmd4 = view4.GetCommandBuffer();
         translator.TestDecode(sample, cmd4, view4);

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
+using Hrot.Map.Common.Replication.Utils;
 using Hrot.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -27,7 +28,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private readonly DdsReader<MapVisualOverlay>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform? _geoTransform;
         private readonly GhostCreationSystem _ghostCreationSystem;
         private readonly long _localNodeId;
 
@@ -55,7 +55,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             _reader = participant is not null ? new DdsReader<MapVisualOverlay>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform;
+            // geoTransform: ⭐ AQ107 B — no longer used (points are absolute local ENU on the wire). Kept so the callers keep their shape.
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;
         }
@@ -146,8 +146,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (repo != null && IsOwnedHere(repo, entity))
                 return;
 
-            // Pass the entity's Cartesian position so BuildPolyline can correctly
-            // reconstruct absolute Cartesian from relative geodetic offsets.
+            // Pass the entity's position so BuildPolyline can make the wire's ABSOLUTE local points entity-relative.
             Vector3? entityPos = null;
             if (repo != null && repo.IsAlive(entity) && repo.HasComponent<SimTransform>(entity))
             {
@@ -158,7 +157,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // When SimTransform is not yet in the live repo (same-frame ordering race with
             // GeoSpatialIngressTranslator), defer the polyline rebuild to the next frame.
             // Always apply MapOverlayStyle immediately since it is position-independent.
-            if (entityPos == null && _geoTransform != null && data.Points != null && data.Points.Count > 0)
+            if (entityPos == null && data.Points != null && data.Points.Count > 0)
             {
                 _pendingOverlays[entity] = data;
             }
@@ -169,52 +168,23 @@ namespace Hrot.Map.Common.Replication.Ingress
             cmd.SetComponent(entity, MapOverlayStyle.FromJson(data.StyleOverrideJson));
         }
 
-        /// <param name="entityCartesianPos">
-        /// The entity's world-space position from <see cref="SimTransform.Position"/>, used to
-        /// reconstruct absolute geodetic coordinates from the stored relative offsets before
-        /// converting back to relative Cartesian.  When <c>null</c> (entity SimTransform not
-        /// yet available), falls back to the legacy behaviour that treats delta-geo as absolute
-        /// geo — accurate only when the geo-transform origin matches the entity centroid.
+        /// <param name="entityPos">
+        /// The entity's position (<see cref="SimTransform.Position"/>). ⭐ AQ107 B — the wire's points are ABSOLUTE local ENU metres and
+        /// the ECS polyline is entity-relative, so each point becomes <c>point.XY − entityPos.XY</c>. When <c>null</c> (SimTransform not
+        /// yet available — only the descriptor-apply path), the entity is taken to sit at the local origin and the points are the offsets.
         /// </param>
-        private EditablePolyline BuildPolyline(in MapVisualOverlay overlay, Vector3? entityCartesianPos = null)
+        private EditablePolyline BuildPolyline(in MapVisualOverlay overlay, Vector3? entityPos = null)
         {
             var polyline = new EditablePolyline();
             if (overlay.Points == null || overlay.Points.Count == 0)
                 return polyline;
 
+            var reference = entityPos ?? Vector3.Zero;
             var points = new List<Vector2>(overlay.Points.Count);
             for (int i = 0; i < overlay.Points.Count; i++)
             {
-                var geo = overlay.Points[i];
-                if (_geoTransform != null && entityCartesianPos.HasValue)
-                {
-                    // Correct path: reconstruct absolute Cartesian from (entityRefGeo + deltaGeo),
-                    // then express as relative offset from the entity's SimTransform origin.
-                    // This avoids the cos(refLat) scale error that arises when delta-geo values
-                    // are passed directly to ToCartesian as if they were absolute coordinates.
-                    var refGeo = _geoTransform.ToGeodetic(entityCartesianPos.Value);
-                    var absCart = _geoTransform.ToCartesian(
-                        refGeo.lat + geo.Latitude,
-                        refGeo.lon + geo.Longitude,
-                        refGeo.alt + geo.Altitude);
-                    var relCart = absCart - entityCartesianPos.Value;
-                    points.Add(new Vector2(relCart.X, relCart.Y));
-                }
-                else if (_geoTransform != null)
-                {
-                    // Fallback (entity position unavailable): treat delta-geo as absolute geo
-                    // and compute displacement from the geo-transform Cartesian origin.
-                    // Legacy behaviour — accurate only when the transform origin ≈ entity centroid.
-                    Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);
-                    var absCart = _geoTransform.ToCartesian(geo.Latitude, geo.Longitude, geo.Altitude);
-                    var relCart = absCart - origin;
-                    points.Add(new Vector2(relCart.X, relCart.Y));
-                }
-                else
-                {
-                    // No geo transform: treat lat/lon as Y/X directly.
-                    points.Add(new Vector2((float)geo.Longitude, (float)geo.Latitude));
-                }
+                var abs = EnuWire.FromWire(overlay.Points[i]);
+                points.Add(new Vector2(abs.X - reference.X, abs.Y - reference.Y));
             }
 
             return polyline with { Points = points };   // CE-4046 — immutable record

@@ -180,12 +180,12 @@ public class MapPlacementIntegrationTests
             }
             else if (d._d == EDescriptorType.dtWorldPos)
             {
-                summary.Append("(Lat=");
-                summary.Append(d.WorldPos.Pos.Latitude);
-                summary.Append(" Lon=");
-                summary.Append(d.WorldPos.Pos.Longitude);
-                summary.Append(" Alt=");
-                summary.Append(d.WorldPos.Pos.Altitude);
+                summary.Append("(X=");
+                summary.Append(d.WorldPos.Position.X);
+                summary.Append(" Y=");
+                summary.Append(d.WorldPos.Position.Y);
+                summary.Append(" Z=");
+                summary.Append(d.WorldPos.Position.Z);
                 summary.Append(")");
             }
         }
@@ -257,15 +257,14 @@ public class MapPlacementIntegrationTests
             HasMasterWithTkb(observedRequest.InitialDescriptors, tkbType),
             DescribeDescriptors("DDS", observedRequest.InitialDescriptors));
 
-        // Before TASK-IF006 the lat/lon were raw world-space metres (e.g. 0 m
-        // treated as 0, which is technically valid but would break at any non-
-        // origin position). Verify the values are within geodetic bounds.
+        // ⭐ AQ107 B — the WorldPos descriptor is local ENU metres now (this used to assert lat/lon within geodetic bounds,
+        //   TASK-IF006): it must be a finite position, within the flat-plane range the local frame is valid for.
         var geoDescriptor = observedRequest.InitialDescriptors
             .First(d => d._d == EDescriptorType.dtWorldPos);
-        double lat = geoDescriptor.WorldPos.Pos.Latitude;
-        double lon = geoDescriptor.WorldPos.Pos.Longitude;
-        Assert.InRange(lat, -90.0,  90.0);
-        Assert.InRange(lon, -180.0, 180.0);
+        double x = geoDescriptor.WorldPos.Position.X;
+        double y = geoDescriptor.WorldPos.Position.Y;
+        Assert.InRange(x, -100_000.0, 100_000.0);
+        Assert.InRange(y, -100_000.0, 100_000.0);
 
         // Verify SimHost acknowledged and spawned the entity.
         CreateUpdateDeleteEntityAck ack = default;

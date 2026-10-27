@@ -5,6 +5,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
+using Hrot.Map.Common.Replication.Utils;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -34,7 +35,6 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 
     private readonly IDdsWriter<MapRoute> _writer;
     private readonly NetworkEntityMap _entityMap;
-    private readonly IGeographicTransform _geoTransform;
 
     /// <summary>
     /// Tracks the last-published <see cref="RoutePlan.Version"/> per entity so
@@ -70,7 +70,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     {
         _writer       = writer       ?? throw new ArgumentNullException(nameof(writer));
         _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-        _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+        // geoTransform: ⭐ AQ107 B — no longer used (waypoints are local ENU on the wire; copied). Kept so the callers keep their shape.
     }
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -106,10 +106,9 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
             for (int i = 0; i < routePlan.Waypoints.Count; i++)
             {
                 var wp = routePlan.Waypoints[i];
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(wp.Position);
                 waypoints.Add(new Waypoint
                 {
-                    Position          = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
+                    Position          = EnuWire.ToWire(wp.Position),   // ⭐ AQ107 B — local ENU, copied
                     Name              = string.Empty,
                     SpeedMetersPerSec = wp.TargetSpeed,
                     ExtensionJson     = wp.ExtensionJson ?? string.Empty,

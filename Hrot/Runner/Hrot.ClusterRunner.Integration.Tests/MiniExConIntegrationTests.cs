@@ -155,12 +155,12 @@ public class MiniExConIntegrationTests
             }
             else if (d._d == EDescriptorType.dtWorldPos)
             {
-                summary.Append("(Lat=");
-                summary.Append(d.WorldPos.Pos.Latitude);
-                summary.Append(" Lon=");
-                summary.Append(d.WorldPos.Pos.Longitude);
-                summary.Append(" Alt=");
-                summary.Append(d.WorldPos.Pos.Altitude);
+                summary.Append("(X=");
+                summary.Append(d.WorldPos.Position.X);
+                summary.Append(" Y=");
+                summary.Append(d.WorldPos.Position.Y);
+                summary.Append(" Z=");
+                summary.Append(d.WorldPos.Position.Z);
                 summary.Append(")");
             }
         }

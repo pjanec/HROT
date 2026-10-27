@@ -14,11 +14,12 @@ namespace Hrot.NED.Common
         public int AppInstanceId;
     }
 
-    // position in geographical coordinates
-    [DdsStruct]
-    [DdsIdlFile("hrot-common")]
-    [DdsTypeFormat("[Lat:{Latitude:0.000000:Number}, Lon:{Longitude:0.000000:Number}, Alt:{Altitude:0.000000:Number}]")]
-    public partial struct GeoPoint
+    // ⭐ AQ107 B — NOT a wire type any more. Every position on the NED wire is local ENU metres (`Hrot.NED.Messages.Vec3d`,
+    //   X east · Y north · Z up, at the terrain origin). This plain struct survives ONLY as the type of the JSON placement
+    //   override `EntityPropertyPatch.GeoPosition` (an ExCon→IG authoring convenience, `{"GeoPosition":{"Latitude":…}}`); it is
+    //   no longer a [DdsStruct], so it is not in `hrot-common.idl`. EulerOri / AngularVector / EulerRate (the Euler-degree pose
+    //   of the old `WorldPos`) are gone with D: the pose is a quaternion + ENU velocities.
+    public struct GeoPoint
     {
         // latitude in degrees
         public double Latitude;
@@ -29,43 +30,4 @@ namespace Hrot.NED.Common
         // altitude in meters above reference ellipsoid
         public double Altitude;
     }
-
-
-    // position in geographical coordinates
-    [DdsStruct]
-    [DdsIdlFile("hrot-common")]
-    [DdsTypeFormat("[Heading:{Heading:0.0:Number}, Pitch:{Pitch:0.0:Number}, Roll:{Roll:0.0:Number}]")]
-    public partial struct EulerOri
-    {
-        // angles in degrees
-        public float Heading;
-        public float Pitch;
-        public float Roll;
-    }
-
-    // "Direction Angles and Length" 3d vector defined by 2 directional angles and a length
-    [DdsStruct]
-    [DdsIdlFile("hrot-common")]
-    [DdsTypeFormat("[Azimuth:{Azimuth:0.0:Number}, Elevation:{Elevation:0.0:Number}, Length:{Length:0.00:Number}]")]
-    public partial struct AngularVector
-    {
-        // angles in degrees
-        public float Azimuth;
-        public float Elevation;
-        // length in meters
-        public float Length;
-    }
-
-    // Angular velocity (deg/s) — heading, pitch, roll rates
-    [DdsStruct]
-    [DdsIdlFile("hrot-common")]
-    [DdsTypeFormat("[Heading:{Heading:0.0:Number}, Pitch:{Pitch:0.0:Number}, Roll:{Roll:0.0:Number}]")]
-    public partial struct EulerRate
-    {
-        // rates in degrees per second
-        public float Heading;
-        public float Pitch;
-        public float Roll;
-    }
-
 }

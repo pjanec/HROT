@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -119,14 +119,14 @@ public sealed class NedNetworkFactory : INetworkFactory
     public ICommandGateway CreateCommandGateway()
     {
         if (_participant == null) return new NullCommandGateway();
-        return new Hrot.Map.Common.Commands.NedCommandGateway(_participant, _localNodeId);
+        return new Hrot.Map.Common.Commands.NedCommandGateway(_participant, _localNodeId, _geoTransform);
     }
 
     /// <inheritdoc/>
     public IExConEgressWriters CreateExConEgressWriters()
     {
         if (_participant == null) return new NullExConEgressWriters();
-        return new Hrot.Network.NED.ExCon.NedExConEgressWriters(_participant);
+        return new Hrot.Network.NED.ExCon.NedExConEgressWriters(_participant, geoTransform: _geoTransform);
     }
 
     /// <inheritdoc/>
@@ -190,7 +190,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
         => participant == null
            ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
-           : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
+           : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId, _geoTransform);
 
     /// <inheritdoc/>
     public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
@@ -205,7 +205,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         if (participant == null)
             yield break;
 
-        yield return new NedMapClickIngressHandler(participant, onMapClick, localNodeId: localNodeId);
+        yield return new NedMapClickIngressHandler(participant, onMapClick, localNodeId: localNodeId, geoTransform: _geoTransform);
         yield return new NedSelectionChangedIngressHandler(participant, onSelectionChanged);
         yield return new NedEntityLifecycleAckIngressHandler(participant, onEntityLifecycleAck, localNodeId: localNodeId);
         yield return new NedMapCommandAckIngressHandler(participant, onMapCommandAck, localNodeId: localNodeId);

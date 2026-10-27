@@ -7,7 +7,7 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
-using Fdp.Modules.Geographic.Systems;
+using Hrot.Map.Common.Replication.Utils;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
@@ -18,13 +18,11 @@ using Fdp.Network.Cyclone.Translators;
 namespace Hrot.Map.Common.Replication.Egress
 {
     /// <summary>
-    /// Reads <see cref="SimTransform"/> + <see cref="SimVelocity"/> ECS components,
-    /// converts them to geodetic coordinates on-the-fly via <see cref="IGeographicTransform"/>,
-    /// and publishes the merged <see cref="WorldPos"/> DDS topic.
+    /// Reads <see cref="SimTransform"/> + <see cref="SimVelocity"/> ECS components and publishes the merged
+    /// <see cref="WorldPos"/> DDS topic — a COPY into the local ENU frame (AQ107 B / D, <see cref="WorldPosCodec"/>), no geodetic maths.
     /// </summary>
     public class GeoSpatialEgressTranslator : CycloneTranslator<WorldPos, WorldPos>
     {
-        private readonly IGeographicTransform _geoTransform;
         private readonly HashSet<long> _tracedNetIds = new();
         private readonly long _localNodeId;
 
@@ -48,11 +46,10 @@ namespace Hrot.Map.Common.Replication.Egress
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform,
+            IGeographicTransform geoTransform,   // ⭐ AQ107 B: no longer used — the wire is local ENU, nothing converts. Kept so the factories and tests keep their shape
             long localNodeId)
             : base(participant, "WorldPos", ordinal: WorldPosOrdinal, entityMap)
         {
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _localNodeId = localNodeId;
         }
 
@@ -73,8 +70,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>
         /// Scans all locally-owned entities with <see cref="SimTransform"/> and publishes
-        /// <see cref="WorldPos"/> (position/orientation) and <see cref="GeoSpatialDR"/>
-        /// (velocity/acceleration) to DDS, converting Cartesian to geodetic on the fly.
+        /// <see cref="WorldPos"/> (position, quaternion orientation, velocity, angular velocity — local ENU) to DDS.
         ///
         /// <para>
         /// Change-detection is performed by comparing the live <see cref="SimTransform"/> against
@@ -197,62 +193,22 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                // Direct conversion: SimTransform (Cartesian) â†’ WorldPos (Geodetic)
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(simTf.Position);
-                float heading = SimTransformBridgeSystem.RotationToHeadingDeg(simTf.Rotation);
-                SimTransformBridgeSystem.RotationToPitchRollDeg(simTf.Rotation, out float pitch, out float roll);
-
-                AngularVector vel = default;
-                AngularVector acc = default;
-                EulerRate rotVel = default;
-
+                // ⭐ AQ107 B / D — the ECS pose is COPIED onto the wire (local ENU metres, quaternion, ENU velocities).
+                //   ⛔ No geodetic conversion, no Euler angles (CE-4068: a nose straight up lost its heading in Euler).
+                Vector3 angular = Vector3.Zero;
                 if (view.HasComponent<SimVelocity>(entity))
-                {
-                    ref readonly var simVel = ref view.GetComponentRO<SimVelocity>(entity);
-                    vel = EnuToAngularVector(simVel.Linear, heading);
-                    acc = new AngularVector { Azimuth = heading, Elevation = 0f, Length = 0f };
-                    rotVel = new EulerRate
-                    {
-                        // Angular velocity: rad/s to deg/s
-                        // simVel.Angular: X=roll-rate, Y=pitch-rate, Z=yaw-rate
-                        Heading = simVel.Angular.Z * (180f / MathF.PI),
-                        Pitch   = simVel.Angular.Y * (180f / MathF.PI),
-                        Roll    = simVel.Angular.X * (180f / MathF.PI),
-                    };
-                }
+                    angular = view.GetComponentRO<SimVelocity>(entity).Angular;   // rad/s about the local ENU axes — as held
 
-                Publish(new WorldPos
-                {
-                    EntityId = netId.Value,
-                    // Cluster-synced SIMULATION time, not wall time (CE-211). The receiver ages this
-                    // sample as `simNow - stamp` to extrapolate; that subtraction only means anything
-                    // if both terms come from the same synced clock. A UtcNow stamp re-introduced the
-                    // node-to-node skew the time sync exists to remove, and kept advancing while the
-                    // cluster was paused. This also restores the field's own documented intent —
-                    // "Sync timestamp (exercise FILETIME)" is exercise time.
-                    // 📄 docs/DESIGN_Dead_Reckoning.md rule R4 + §"Encoding".
-                    Time     = SimStampCodec.Encode(simNowSeconds),
-                    Pos = new GeoPoint
-                    {
-                        Latitude  = lat,
-                        Longitude = lon,
-                        Altitude  = alt,
-                    },
-                    Ori = new EulerOri
-                    {
-                        Heading = heading,
-                        Pitch   = pitch,
-                        Roll    = roll,
-                    },
-                    Vel    = vel,
-                    Acc    = acc,
-                    RotVel = rotVel,
-                });
+                // Cluster-synced SIMULATION time, not wall time (CE-211). The receiver ages this sample as `simNow - SimTime` to
+                // extrapolate; that subtraction only means anything if both terms come from the same synced clock. A UtcNow stamp
+                // re-introduced the node-to-node skew the time sync exists to remove, and kept advancing while the cluster was paused.
+                // 📄 docs/DESIGN_Dead_Reckoning.md rule R4 + §"Encoding".
+                Publish(WorldPosCodec.Encode(netId.Value, simNowSeconds, simTf.Position, simTf.Rotation, linear, angular));
 
                 if (_tracedNetIds.Add(netId.Value))
                 {
                     FdpLog<GeoSpatialEgressTranslator>.Trace(
-                        "[Node-{0}] Egress: Writing WorldPos for NetID={1} pos=({2},{3})", _localNodeId, netId.Value, lat, lon);
+                        "[Node-{0}] Egress: Writing WorldPos for NetID={1} pos={2}", _localNodeId, netId.Value, simTf.Position);
                 }
             }
         }
@@ -260,27 +216,6 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <inheritdoc/>
         public override void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
-        }
-
-        /// <summary>
-        /// Converts an ENU vector (X=East, Y=North, Z=Up) to <see cref="AngularVector"/>
-        /// (Azimuth=compass heading, Elevation=pitch, Length=magnitude).
-        /// </summary>
-        private static AngularVector EnuToAngularVector(Vector3 enu, float fallbackAzimuth)
-        {
-            float length = enu.Length();
-            if (length < 1e-4f)
-                return new AngularVector { Azimuth = fallbackAzimuth, Elevation = 0f, Length = 0f };
-
-            float azimuth = SimTransformBridgeSystem.VelocityToAzimuthDeg(enu, fallbackAzimuth);
-            float elevation = MathF.Asin(Math.Clamp(enu.Z / length, -1f, 1f)) * (180f / MathF.PI);
-
-            return new AngularVector
-            {
-                Azimuth   = azimuth,
-                Elevation = elevation,
-                Length    = length,
-            };
         }
     }
 }

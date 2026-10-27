@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Components;
+using Hrot.Map.Common.Replication.Utils;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -18,9 +19,8 @@ namespace Hrot.Map.Common.Replication.Ingress;
 ///
 /// <para>
 /// Receives <see cref="MapRoute"/> DDS samples and writes the decoded waypoints
-/// into the target entity's <see cref="RoutePlan"/> managed component. Geodetic
-/// coordinates in the DDS payload are converted to local Cartesian world-space
-/// via <see cref="IGeographicTransform.ToCartesian"/>.
+/// into the target entity's <see cref="RoutePlan"/> managed component. Waypoint positions in the DDS
+/// payload are local ENU metres (AQ107 B) — the ECS frame — and are copied.
 /// </para>
 /// <para>
 /// If the target entity is not yet registered in <see cref="NetworkEntityMap"/>
@@ -36,7 +36,6 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
 
     private readonly DdsReader<MapRoute>? _reader;
     private readonly NetworkEntityMap _entityMap;
-    private readonly IGeographicTransform _geoTransform;
 
     /// <summary>
     /// Samples deferred because the entity was not yet registered in
@@ -67,7 +66,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
     {
         _reader       = participant is not null ? new DdsReader<MapRoute>(participant) : null;
         _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-        _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+        // geoTransform: ⭐ AQ107 B — no longer used (waypoints are local ENU on the wire; copied). Kept so the callers keep their shape.
 
         // Subscribe to registration events so the retry loop only runs when relevant
         // entities become available, rather than scanning all pending IDs every tick.
@@ -171,14 +170,9 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
             {
                 foreach (var wp in data.Points)
                 {
-                    var cartesian = _geoTransform.ToCartesian(
-                        wp.Position.Latitude,
-                        wp.Position.Longitude,
-                        wp.Position.Altitude);
-
                     wps.Add(new RouteWaypoint
                     {
-                        Position      = cartesian,
+                        Position      = EnuWire.FromWire(wp.Position),   // ⭐ AQ107 B — local ENU, copied
                         TargetSpeed   = (float)wp.SpeedMetersPerSec,
                         ExtensionJson = string.IsNullOrEmpty(wp.ExtensionJson) ? null : wp.ExtensionJson,
                         Kind          = (Fdp.Toolkit.Navigation.RouteWaypointKind)wp.Kind,   // ⭐ Air Ops B1

@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+using Hrot.NED.Messages;
+using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using Hrot.Map.Common.Replication.Ingress;
@@ -41,7 +42,7 @@ namespace Hrot.IG.Tests
             translator.DecodeForTest(new WorldPos
             {
                 EntityId = KnownId,
-                Vel = new AngularVector { Azimuth = 0, Elevation = 0, Length = 10 }
+                Velocity = new Vec3f { X = 0, Y = 10, Z = 0 }   // AQ107 D: an ENU vector (north 10 m/s), copied
             }, cmd, repo);
 
             Assert.True(cmd.SetNetworkVelocityCalled);
@@ -68,7 +69,7 @@ namespace Hrot.IG.Tests
             translator.DecodeForTest(new WorldPos
             {
                 EntityId = UnknownId,
-                Vel = new AngularVector { Azimuth = 0, Elevation = 0, Length = 10 }
+                Velocity = new Vec3f { X = 0, Y = 10, Z = 0 }   // AQ107 D: an ENU vector (north 10 m/s), copied
             }, cmd, repo);
 
             Assert.True(entityMap.TryGetEntity(UnknownId, out _),

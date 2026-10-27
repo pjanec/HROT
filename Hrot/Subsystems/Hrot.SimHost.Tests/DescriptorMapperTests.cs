@@ -1,8 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors;
-using Hrot.NED.Common;
+using Hrot.NED.Messages;
 using Hrot.Map.Common.Replication.Utils;
 using CarKinem.Core;
 using Fdp.Core;
@@ -43,30 +44,29 @@ namespace Hrot.SimHost.Tests
                 EntityInfo = new Hrot.NED.Descriptors.EntityInfo { EntityId = 0, Name = "TestUnit" },
             };
 
-        private static EntityDescriptorUnion MakeGeoSpatialDescriptor(double lat, double lon) =>
+        // ⭐ AQ107 B / D — a WorldPos descriptor is a local-ENU pose: position in metres, quaternion, ENU velocity.
+        private static EntityDescriptorUnion MakeGeoSpatialDescriptor(double x, double y) =>
             new EntityDescriptorUnion
             {
                 _d = EDescriptorType.dtWorldPos,
-                WorldPos = new WorldPos
-                {
-                    EntityId = 0,
-                    Pos = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = 100.0 },
-                    Ori = new EulerOri { Heading = 90f },
-                },
+                WorldPos = WorldPosCodec.Encode(
+                    entityId: 0, simTimeSeconds: 0.0,
+                    new Vector3((float)x, (float)y, 100f),
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0f),      // heading East
+                    Vector3.Zero, Vector3.Zero),
             };
 
-        private static EntityDescriptorUnion MakeGeoSpatialDrDescriptor(float speedMs, float headingDeg) =>
-            new EntityDescriptorUnion
+        private static EntityDescriptorUnion MakeGeoSpatialDrDescriptor(float speedMs, float headingDeg)
+        {
+            // a velocity of `speedMs` along the compass heading `headingDeg`, as an ENU vector
+            float rad = headingDeg * (MathF.PI / 180f);
+            var enu = new Vector3(speedMs * MathF.Sin(rad), speedMs * MathF.Cos(rad), 0f);
+            return new EntityDescriptorUnion
             {
                 _d = EDescriptorType.dtWorldPos,
-                WorldPos = new WorldPos
-                {
-                    EntityId = 0,
-                    Vel = new AngularVector { Azimuth = headingDeg, Elevation = 0f, Length = speedMs },
-                    Acc = new AngularVector { Azimuth = 0f, Elevation = 0f, Length = 0f },
-                    RotVel = new EulerRate { Heading = 0f, Pitch = 0f, Roll = 0f },
-                },
+                WorldPos = WorldPosCodec.Encode(0, 0.0, Vector3.Zero, Quaternion.Identity, enu, Vector3.Zero),
             };
+        }
 
         // ─── Tests ────────────────────────────────────────────────────────────
 
@@ -144,15 +144,15 @@ namespace Hrot.SimHost.Tests
             var geo = new IdentityGeoTransform();
             var descriptors = new List<EntityDescriptorUnion>
             {
-                MakeGeoSpatialDescriptor(lat: 48.0, lon: 16.0),
+                MakeGeoSpatialDescriptor(x: 16.0, y: 48.0),
             };
 
             var components = DescriptorMapper.MapToComponents(descriptors, geo);
 
             var simTransform = Assert.Single(components.OfType<SimTransform>());
-            // IdentityGeoTransform returns (lon, lat, alt) → Position.X = lon, Position.Y = lat
             Assert.Equal(16f, simTransform.Position.X, precision: 3);
             Assert.Equal(48f, simTransform.Position.Y, precision: 3);
+            Assert.Equal(100f, simTransform.Position.Z, precision: 3);
         }
 
         [Fact]
@@ -161,7 +161,7 @@ namespace Hrot.SimHost.Tests
             var geo = new IdentityGeoTransform();
             var descriptors = new List<EntityDescriptorUnion>
             {
-                MakeGeoSpatialDescriptor(lat: 48.0, lon: 16.0),
+                MakeGeoSpatialDescriptor(x: 16.0, y: 48.0),
             };
 
             var components = DescriptorMapper.MapToComponents(descriptors, geo);
@@ -170,16 +170,20 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void DescriptorMapper_GeoSpatialDescriptor_NullTransform_ProducesNoComponents()
+        public void DescriptorMapper_GeoSpatialDescriptor_NullTransform_StillProducesTheSimTransform()
         {
+            // ⭐ AQ107 B — was "NullTransform_ProducesNoComponents" (a geodetic wire needed the transform to place anything).
+            //   The wire is local ENU now: the position is copied, so no transform is needed.
             var descriptors = new List<EntityDescriptorUnion>
             {
-                MakeGeoSpatialDescriptor(lat: 48.0, lon: 16.0),
+                MakeGeoSpatialDescriptor(x: 16.0, y: 48.0),
             };
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            Assert.Empty(components);
+            var simTransform = Assert.Single(components.OfType<SimTransform>());
+            Assert.Equal(16f, simTransform.Position.X, precision: 3);
+            Assert.Equal(48f, simTransform.Position.Y, precision: 3);
         }
 
         [Fact]

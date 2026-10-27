@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CycloneDDS.Schema;
 using Hrot.NED.Common;
+using Hrot.NED.Messages;
 
 namespace Hrot.NED.Descriptors
 {
@@ -86,8 +87,11 @@ namespace Hrot.NED.Descriptors
         // Geometry - interpretation depends on TKB type
         // For icon/bitmap: points[0] is anchor position
         // For line/area: points define vertices
+        // ⭐ AQ107 B: ABSOLUTE positions in local ENU metres (X east, Y north, Z up), like every position on the wire. ⛔ Not the old
+        //   relative lat/lon offsets (three producers had three conventions); a receiver subtracts the entity's own position to get the
+        //   entity-relative polyline its ECS holds.
         [DdsManaged]
-        public List<GeoPoint> Points;
+        public List<Vec3d> Points;
 
         // Performance optimization for large shapes during editing
         public bool IsPartialUpdate;
@@ -107,8 +111,8 @@ namespace Hrot.NED.Descriptors
     [DdsManaged]
     public partial struct Waypoint
     {
-        // 3D Position.
-        public GeoPoint Position;
+        // 3D Position: local ENU metres (X east, Y north, Z up) — AQ107 B.
+        public Vec3d Position;
 
         // Optional label (e.g., "Checkpoint Alpha").
         public string Name;

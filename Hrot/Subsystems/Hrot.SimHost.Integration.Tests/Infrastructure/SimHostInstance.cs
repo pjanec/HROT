@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
@@ -641,9 +641,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
         /// <summary>
         /// Reads the latest <see cref="WorldPos"/> state of the entity identified by
-        /// <paramref name="networkId"/> by querying its <see cref="SimTransform"/> ECS
-        /// component and converting to geodetic coordinates on-the-fly.
-        /// Returns <c>null</c> when no such entity is found.
+        /// <paramref name="networkId"/> from its <see cref="SimTransform"/> ECS component (⭐ AQ107 B / D: the wire pose is the
+        /// local-ENU one, a copy — no geodetic conversion). Returns <c>null</c> when no such entity is found.
         /// </summary>
         public WorldPos? ReadGeoSpatial(long networkId)
         {
@@ -654,20 +653,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 return null;
 
             ref readonly var simTf = ref _world.GetComponentRO<SimTransform>(entity);
-            var (lat, lon, alt) = _wgs84.ToGeodetic(simTf.Position);
-
-            return new WorldPos
-            {
-                EntityId = networkId,
-                Time     = DateTime.UtcNow,
-                Pos      = new Hrot.NED.Common.GeoPoint
-                {
-                    Latitude  = lat,
-                    Longitude = lon,
-                    Altitude  = alt,
-                }
-            };
+            return Hrot.Map.Common.Replication.Utils.WorldPosCodec.Encode(
+                networkId, 0.0, simTf.Position, simTf.Rotation, Vector3.Zero, Vector3.Zero);
         }
+
+        /// <summary>The local ENU position (X east, Y north) of a <see cref="WorldPos"/> (AQ107 B: already local, a copy).</summary>
+        public static Vector2 LocalXY(WorldPos pose) => new Vector2((float)pose.Position.X, (float)pose.Position.Y);
 
         /// <summary>
         /// Converts a <see cref="GeoPoint"/> back to a local Cartesian

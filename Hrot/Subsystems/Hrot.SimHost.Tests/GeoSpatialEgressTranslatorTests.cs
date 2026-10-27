@@ -7,6 +7,13 @@ using Hrot.Map.Common.Replication.Egress;
 using CycloneDDS.Runtime;
 using Fdp.Modules.Geographic.Systems;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
+using Hrot.Map.Common.Replication.Ingress;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -62,18 +69,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(123f, azimuth, precision: 1);
         }
 
-        // ?? Angular velocity conversion (rad/s ? deg/s) ??????????????????????
-
-        [Fact]
-        public void AngularVelocity_RadToDeg_CorrectConversion()
-        {
-            // WorldPos.RotVel expects deg/s; GeoVelocity.Angular stores rad/s  
-            float yawRateRadS = MathF.PI; // 180 deg/s
-            float expectedDegS = 180f;
-
-            float actual = yawRateRadS * (180f / MathF.PI);
-            Assert.Equal(expectedDegS, actual, precision: 1);
-        }
+        // AQ107 D — the old "angular velocity rad/s -> deg/s" arithmetic test is gone with the conversion: AngularVelocity is
+        // SimVelocity.Angular as is (rad/s about the local ENU axes), asserted by the wire round-trip rail below.
 
         // ?? Consistency: heading round-trip (rotation ? heading ? verify against forward vector)
 
@@ -157,6 +154,96 @@ namespace Hrot.SimHost.Tests
                 translator.ScanAndPublish(repo);
             }
             Assert.InRange(translator.SentSampleCount - first, 2, 4);               // ~ every 600 ticks: 3
+        }
+
+        // -- AQ107 B / D — the pose on the wire: ECS -> egress -> DDS -> WorldPos -> ingress -> ECS --
+
+        public static IEnumerable<object[]> WirePoses()
+        {
+            yield return new object[] { "heading 30 / pitch 10 / roll -20", Quaternion.Normalize(Quaternion.CreateFromYawPitchRoll(0.4f, 0.17f, -0.35f)) };
+            yield return new object[] { "nose straight UP (CE-4068)",       Quaternion.CreateFromAxisAngle(Vector3.UnitY, -MathF.PI / 2f) };
+            yield return new object[] { "nose straight DOWN (CE-4068)",     Quaternion.CreateFromAxisAngle(Vector3.UnitY,  MathF.PI / 2f) };
+            var q = Quaternion.Normalize(Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(1f, 2f, 3f)), 2.4f));
+            yield return new object[] { "w < 0 before canonicalisation",    new Quaternion(-q.X, -q.Y, -q.Z, -q.W) };
+        }
+
+        /// <summary>Exposes the protected <c>Decode</c> so the REAL ingress translator reads what the REAL egress put on the wire.</summary>
+        private sealed class IngressProbe : GeoSpatialIngressTranslator
+        {
+            public IngressProbe(NetworkEntityMap map, GhostCreationSystem ghosts)
+                : base(participant: null, map, new PassthroughGeo(), ghosts, localNodeId: 2) { }
+            public void Apply(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view) => Decode(data, cmd, view);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>AQ107 D acceptance (a), through the real DDS wire</b> — an owned entity's pose (position, rotation, velocity, angular
+        /// velocity) published by <see cref="GeoSpatialEgressTranslator"/> and read back by <see cref="GeoSpatialIngressTranslator"/> on a
+        /// replica arrives within 1 mm / quaternion dot ≥ 1 − 1e-6 (sign-insensitive) / exactly, including a nose straight up and
+        /// straight down (CE-4068) and a quaternion whose w is negative before canonicalisation; and the sample on the wire is the
+        /// local-ENU one (position copied, SimTime = the sim clock). ✅ Red-proof (run): <c>QuaternionWireCodec.Encode</c> without the
+        /// <c>w ≥ 0</c> canonicalisation ⇒ the "w &lt; 0" case comes back as the inverse rotation ⇒ red.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(WirePoses))]
+        public void AQ107D_APoseOnTheDdsWire_RoundTripsEcsToWorldPosToEcs(string _, Quaternion rotation)
+        {
+            using var participant = new DdsParticipant(188u);
+            using var reader      = new DdsReader<WorldPos>(participant, "WorldPos");
+            var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), new PassthroughGeo(), localNodeId: 1);
+
+            var (repo, hull) = OwnedHull();
+            var position = new Vector3(1234.5f, -8765.25f, 42.125f);
+            var linear   = new Vector3(1.5f, -2f, 0.25f);
+            var angular  = new Vector3(0.1f, -0.2f, 0.3f);
+            repo.GetComponentRW<Fdp.Core.SimTransform>(hull) = new Fdp.Core.SimTransform { Position = position, Rotation = rotation };
+            repo.GetComponentRW<Fdp.Core.SimVelocity>(hull)  = new Fdp.Core.SimVelocity { Linear = linear, Angular = angular };
+
+            translator.ScanAndPublish(repo);
+            Assert.Equal(1, translator.SentSampleCount);
+
+            WorldPos wire = default;
+            bool got = false;
+            for (int i = 0; i < 60 && !got; i++)
+            {
+                using var loan = reader.Take();
+                foreach (var sample in loan)
+                    if (sample.IsValid && sample.Info.InstanceState == DdsInstanceState.Alive && sample.Data.EntityId == 42) { wire = sample.Data; got = true; }
+                if (!got) Thread.Sleep(50);
+            }
+            Assert.True(got, "no WorldPos sample for entity 42 arrived over DDS");
+            Assert.Equal(position.X, wire.Position.X, 3);     // the wire is local ENU: a copy
+            Assert.Equal(position.Y, wire.Position.Y, 3);
+            Assert.Equal(position.Z, wire.Position.Z, 3);
+
+            // the replica: another world, the REAL ingress translator
+            var replica = new EntityRepository();
+            replica.RegisterComponent<NetworkIdentity>();
+            replica.RegisterComponent<NetworkAuthority>();
+            replica.RegisterComponent<Fdp.Core.SimTransform>();
+            replica.RegisterComponent<Fdp.Core.SimVelocity>();
+            replica.RegisterComponent<NetworkTransform>();
+            replica.RegisterComponent<NetworkVelocity>();
+            var map = new NetworkEntityMap();
+            var ghost = replica.CreateEntity();
+            replica.AddComponent(ghost, new NetworkIdentity(42));
+            replica.AddComponent(ghost, new Fdp.Core.SimTransform());
+            replica.AddComponent(ghost, new Fdp.Core.SimVelocity());
+            replica.AddComponent(ghost, new NetworkTransform());
+            replica.AddComponent(ghost, new NetworkVelocity());
+            map.Register(42, ghost);
+
+            var probe = new IngressProbe(map, new GhostCreationSystem(map));
+            ISimulationView view = replica;
+            var cmd = view.GetCommandBuffer();
+            probe.Apply(wire, cmd, view);
+            ((EntityCommandBuffer)cmd).Playback(replica);
+
+            var st = replica.GetComponent<Fdp.Core.SimTransform>(ghost);
+            Assert.True(Vector3.Distance(position, st.Position) < 0.001f, $"position {st.Position}");
+            float dot = MathF.Abs(Quaternion.Dot(Quaternion.Normalize(rotation), st.Rotation));
+            Assert.True(dot >= 1f - 1e-6f, $"rotation dot {dot:R}");
+            Assert.Equal(linear,  replica.GetComponent<NetworkVelocity>(ghost).Value);
+            Assert.Equal(angular, replica.GetComponent<Fdp.Core.SimVelocity>(ghost).Angular);
         }
 
         // -- BUG2-N003 - WorldPos disposal integration tests --

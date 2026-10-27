@@ -1,4 +1,5 @@
-﻿using System;
+using Hrot.NED.Messages;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
@@ -75,8 +76,7 @@ public sealed class TraceLoggingTests : IDisposable
                 geoWriter.Write(new WorldPos
                 {
                     EntityId = networkId,
-                    Pos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0 },
-                    Ori = new EulerOri()
+                    Position = new Vec3d { X = 100, Y = 200, Z = 0 }   // AQ107 B: local ENU
                 });
                 geoSent = true;
             }

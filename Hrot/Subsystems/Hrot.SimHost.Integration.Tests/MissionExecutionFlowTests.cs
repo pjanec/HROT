@@ -72,13 +72,13 @@ namespace Hrot.SimHost.Integration.Tests
             var geo = _host.ReadGeoSpatial(ack.EntityId);
             Assert.NotNull(geo);
 
-            var cartesian = _host.GeoToCartesian(geo!.Value.Pos);
+            var cartesian = SimHostInstance.LocalXY(geo!.Value);
             float distFromOrigin = Vector2.Distance(cartesian, Vector2.Zero);
 
             Assert.True(
                 distFromOrigin > 50f,
                 $"Expected the tank to have moved > 50 m, but it only moved {distFromOrigin:F1} m. " +
-                $"GeoPos = ({geo.Value.Pos.Latitude:F6}Â°, {geo.Value.Pos.Longitude:F6}Â°).");
+                $"Position = ({geo.Value.Position.X:F1}, {geo.Value.Position.Y:F1}) m.");
         }
 
         /// <summary>
@@ -103,7 +103,7 @@ namespace Hrot.SimHost.Integration.Tests
             var geo = _host.ReadGeoSpatial(ack.EntityId);
             Assert.NotNull(geo);
 
-            var cartesian = _host.GeoToCartesian(geo!.Value.Pos);
+            var cartesian = SimHostInstance.LocalXY(geo!.Value);
             float distFromOrigin = Vector2.Distance(cartesian, Vector2.Zero);
 
             // Should stay within 1 m of the spawn origin (floating-point tolerance).
@@ -144,7 +144,7 @@ namespace Hrot.SimHost.Integration.Tests
             var geo = _host.ReadGeoSpatial(ack.EntityId);
             Assert.NotNull(geo);
 
-            var cartesian = _host.GeoToCartesian(geo!.Value.Pos);
+            var cartesian = SimHostInstance.LocalXY(geo!.Value);
             float distFromOrigin = Vector2.Distance(cartesian, Vector2.Zero);
 
             Assert.True(

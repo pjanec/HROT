@@ -10,6 +10,7 @@ using Hrot.NED.Common;
 using Hrot.Map.Common.Commands;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
+using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using DebugPrimitivesBatch = GizmoMap.Network.DebugPrimitivesBatch;
@@ -34,6 +35,7 @@ namespace Hrot.Network.NED.IG
         private readonly DdsReader<CreateUpdateDeleteEntityAck> _ackReader;
         private readonly ICommandGateway                       _commandGateway;
         private readonly int                                   _mapId;
+        private readonly IGeographicTransform?                 _geoTransform;   // AQ107 B: the neutral layer is geodetic, the wire is local ENU — converted at this boundary
         private readonly DdsWriterGizmoAdapter<GizmoInteractionBatch>  _gizmoInteractionWriter;
         private readonly DdsReaderGizmoAdapter<DebugPrimitivesBatch>   _debugPrimitivesReader;
         private bool _disposed;
@@ -52,12 +54,14 @@ namespace Hrot.Network.NED.IG
         /// </summary>
         /// <param name="participant">Active DDS participant; must not be null.</param>
         /// <param name="nodeId">Node ID of this IG instance (used as MapId).</param>
-        public NedIgNetworkAdapter(DdsParticipant participant, long nodeId = 0)
+        /// <param name="geoTransform">The node's geo transform — converts the neutral DTOs' lat/lon to the wire's local ENU (AQ107 B).</param>
+        public NedIgNetworkAdapter(DdsParticipant participant, long nodeId = 0, IGeographicTransform? geoTransform = null)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
 
             _participant       = participant;
             _mapId             = (int)nodeId;
+            _geoTransform      = geoTransform;
             _clickWriter       = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
             _selectionWriter   = new DdsWriter<SelectionChangedEvent>(participant, "SelectionChangedEvent");
             _ackWriter         = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
@@ -65,7 +69,7 @@ namespace Hrot.Network.NED.IG
             _configReader      = new DdsReader<MapInteractionConfig>(participant);
             _commandReader     = new DdsReader<MapCommandRequest>(participant, "MapCommandRequest");
             _ackReader         = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
-            _commandGateway    = new NedCommandGateway(participant, nodeId);
+            _commandGateway    = new NedCommandGateway(participant, nodeId, geoTransform);
             _gizmoInteractionWriter = new DdsWriterGizmoAdapter<GizmoInteractionBatch>(participant);
             _debugPrimitivesReader  = new DdsReaderGizmoAdapter<DebugPrimitivesBatch>(participant);
         }
@@ -82,7 +86,7 @@ namespace Hrot.Network.NED.IG
             _clickWriter.Write(new MapClickEvent
             {
                 MapId                = _mapId,
-                Position             = new GeoPoint { Latitude = dto.Latitude, Longitude = dto.Longitude, Altitude = dto.Altitude },
+                Position             = NeutralGeoBoundary.ToWire(_geoTransform, dto.Latitude, dto.Longitude, dto.Altitude),   // AQ107 B: neutral lat/lon → wire local ENU
                 InteractionContextId = dto.InteractionContextId,
                 HitStack             = hitStack,
             });
@@ -205,7 +209,7 @@ namespace Hrot.Network.NED.IG
         {
             var waypointStructs = waypoints.Select(w => new Waypoint
             {
-                Position          = new GeoPoint { Latitude = w.Lat, Longitude = w.Lon, Altitude = w.Alt },
+                Position          = NeutralGeoBoundary.ToWire(_geoTransform, w.Lat, w.Lon, w.Alt),   // AQ107 B
                 SpeedMetersPerSec = 0.0,
             }).ToList();
 
@@ -224,7 +228,7 @@ namespace Hrot.Network.NED.IG
                     new EntityDescriptorUnion
                     {
                         _d       = EDescriptorType.dtWorldPos,
-                        WorldPos = new WorldPos { Pos = new GeoPoint { Latitude = anchorLat, Longitude = anchorLon, Altitude = anchorAlt } },
+                        WorldPos = new WorldPos { Position = NeutralGeoBoundary.ToWire(_geoTransform, anchorLat, anchorLon, anchorAlt) },   // AQ107 B: local ENU; no rotation (zero = identity)
                     },
                     new EntityDescriptorUnion
                     {

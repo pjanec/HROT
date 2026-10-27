@@ -2,12 +2,19 @@ using System;
 using System.Collections.Generic;
 using CycloneDDS.Schema;
 using Hrot.NED.Common;
+using Hrot.NED.Messages;
 
 namespace Hrot.NED.Descriptors
 {
 
-    // Merged entity spatial topic: position, orientation, velocity, and angular velocity.
-    // Replaces the former separate GeoSpatial and GeoSpatialDR topics into a single unified source of truth.
+    // The entity pose: ONE topic carrying position, orientation, velocity and angular velocity, in ONE frame.
+    //
+    // ⭐ AQ107 B + D (docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md §3, §4 rows B / D; R-4092): every
+    //   value is in the LOCAL ENU frame — X east, Y north, Z up, metres at the terrain origin (the ECS `SimTransform` frame).
+    //   ⛔ Not geodetic any more, and no Euler angles: a receiver copies the fields into its ECS; a gateway (DIS / HLA) converts
+    //   with one rigid transform fixed by the origin. The shape REPLACES the former lat/lon `GeoPoint`, Euler-degree
+    //   `EulerOri`, azimuth/elevation `AngularVector` velocity, the always-zero acceleration and the `DateTime` stamp.
+    //   Name and topic QoS are unchanged.
     [DdsTopic("WorldPos")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
@@ -17,12 +24,23 @@ namespace Hrot.NED.Descriptors
         [DdsKey]
         public long EntityId;
 
-        public DateTime Time;         // Sync timestamp (exercise FILETIME). 0 = unspecified.
-        public GeoPoint Pos;          // Latitude [deg], longitude [deg], altitude [m] above WGS84 ellipsoid
-        public EulerOri Ori;          // Static orientation: Heading [deg], pitch [deg], roll [deg]
-        public AngularVector Vel;     // Velocity vector: Azim=heading [deg], Elev=pitch [deg], Length=speed [m/s]
-        public AngularVector Acc;     // Acceleration vector [m/s²]; same coordinate system as Vel
-        public EulerRate RotVel;      // Angular velocity: Heading [deg/s], Pitch [deg/s], Roll [deg/s]
+        // Cluster-synced SIMULATION time (seconds) at which the sender sampled this pose — the anchor dead reckoning ages from
+        // (`simNow - SimTime`). Time of day = `EntityScenarioClock` UTC at sim 0 + SimTime (W-4).
+        public double SimTime;
+
+        // Position [m], local ENU.
+        public Vec3d Position;
+
+        // Orientation as the quaternion VECTOR part (x, y, z); w is implied: w = +sqrt(max(0, 1 - |v|^2)). The sender
+        // canonicalises w >= 0 (negates q when w < 0), so an ALL-ZERO struct is the identity rotation, never NaN.
+        // 📐 One encoder/decoder for NED and BDC: Fdp.Toolkit.Replication.Components.QuaternionWireCodec.
+        public Vec3f OrientationXyz;
+
+        // Linear velocity [m/s], local ENU (`SimVelocity.Linear` as is).
+        public Vec3f Velocity;
+
+        // Angular velocity [rad/s] about the local ENU axes — X east, Y north, Z up (`SimVelocity.Angular` as is; AQ107 §5a).
+        public Vec3f AngularVelocity;
     }
 
 
@@ -732,8 +750,7 @@ namespace Hrot.NED.Descriptors
 
     /// <summary>
     /// DDS descriptor for the CQRS navigation command.  Owned by the Brain node.
-    /// <c>FinalDestination</c> is encoded as <see cref="GeoPoint"/> (WGS-84);
-    /// a translator converts from the ECS <c>Vector2</c> Cartesian representation.
+    /// <c>FinalDestination</c> is local ENU metres (<see cref="Vec3d"/>, AQ107 B) — the ECS destination, copied.
     /// </summary>
     [DdsTopic("NavigationIntent")]
     [DdsIdlFile("hrot-sim-desc")]
@@ -751,10 +768,9 @@ namespace Hrot.NED.Descriptors
         public ENavigationMode Mode;
 
         /// <summary>
-        /// Destination in WGS-84 geographic coordinates.
-        /// Translators convert the ECS Cartesian <c>Vector2</c> to/from this field.
+        /// Destination, local ENU metres (X east, Y north, Z up) — the ECS destination as is.
         /// </summary>
-        public GeoPoint FinalDestination;
+        public Vec3d FinalDestination;
 
         /// <summary>Desired travel speed (m/s).</summary>
         public float TargetSpeed;
@@ -857,7 +873,7 @@ namespace Hrot.NED.Descriptors
     {
         [DdsKey] public int          SourceNodeId;
         public uint                   BatchCorrelationId;
-        public GeoPoint            BatchOrigin;
+        public Vec3d               BatchOrigin;   // local ENU metres (AQ107 B): the anchor the RelativeVector3 offsets are measured from
         [DdsManaged] public List<DdsRaycastRequest> Requests;
     }
 
@@ -971,7 +987,7 @@ namespace Hrot.NED.Descriptors
     public partial struct PathRequestBatch
     {
         [DdsKey] public int          SourceNodeId;
-        public GeoPoint            BatchOrigin;
+        public Vec3d               BatchOrigin;   // local ENU metres (AQ107 B): the anchor the RelativeVector3 offsets are measured from
         [DdsManaged] public List<DdsPathRequest> Requests;
     }
 
@@ -992,8 +1008,8 @@ namespace Hrot.NED.Descriptors
     public partial struct PathResponseBatch
     {
         [DdsKey] public int          TargetNodeId;
-        /// <summary>High-precision geographic anchor for coordinate reconstruction on the Brain node.</summary>
-        public GeoPoint              BatchOrigin;
+        /// <summary>High-precision anchor (local ENU metres, AQ107 B) for coordinate reconstruction on the Brain node.</summary>
+        public Vec3d                 BatchOrigin;
         [DdsManaged] public List<DdsPathResult> Results;
     }
 

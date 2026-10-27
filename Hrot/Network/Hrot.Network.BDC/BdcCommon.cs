@@ -11,33 +11,27 @@ namespace Hrot.BDC.Common
         public int AppInstanceId;
     }
 
-    // Geographic position for BDC — latitude/longitude/altitude in degrees/meters
+    // ⭐ AQ107 F — the BDC stack follows the NED wire's rules: every position / velocity is in the LOCAL ENU frame
+    //   (X east, Y north, Z up, metres at the terrain origin — the ECS SimTransform frame), orientation is a quaternion.
+    //   Replaces BdcGeoPoint (lat/lon), BdcEulerOri (Euler degrees) and BdcAngularVector (azimuth/elevation/length).
+
+    // 3-component double vector: a position in metres, local ENU
     [DdsStruct]
     [DdsIdlFile("bdc-common")]
-    public partial struct BdcGeoPoint
+    public partial struct BdcVec3d
     {
-        public double Latitude;
-        public double Longitude;
-        public double Altitude;
+        public double X;
+        public double Y;
+        public double Z;
     }
 
-    // Orientation angles in degrees (heading, pitch, roll)
+    // 3-component float vector: a velocity (m/s), an angular velocity (rad/s) or a quaternion's vector part
     [DdsStruct]
     [DdsIdlFile("bdc-common")]
-    public partial struct BdcEulerOri
+    public partial struct BdcVec3f
     {
-        public float Heading;
-        public float Pitch;
-        public float Roll;
-    }
-
-    // Velocity/angular vector: azimuth (deg), elevation (deg), length (m/s)
-    [DdsStruct]
-    [DdsIdlFile("bdc-common")]
-    public partial struct BdcAngularVector
-    {
-        public float Azimuth;
-        public float Elevation;
-        public float Length;
+        public float X;
+        public float Y;
+        public float Z;
     }
 }

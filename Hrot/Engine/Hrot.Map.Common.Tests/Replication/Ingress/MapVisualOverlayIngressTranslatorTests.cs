@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Ingress;
 using Hrot.NED.Descriptors;
-using Hrot.NED.Common;
+using Hrot.NED.Messages;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
@@ -62,7 +62,7 @@ public class MapVisualOverlayIngressTranslatorTests
     {
         var view = (ISimulationView)world;
         var cmd  = (EntityCommandBuffer)view.GetCommandBuffer();
-        translator.ProcessSample(new MapVisualOverlay { EntityId = NetId, Points = new List<GeoPoint>() }, cmd, world);
+        translator.ProcessSample(new MapVisualOverlay { EntityId = NetId, Points = new List<Vec3d>() }, cmd, world);
         cmd.Playback(world);
     }
 

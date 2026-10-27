@@ -24,8 +24,8 @@ namespace Hrot.BDC.Messages
         public byte Diskind;
     }
 
-    // Merged BDC spatial topic: position, orientation, and velocity.
-    // Topic name BDC_WorldPos is distinct from NED's WorldPos.
+    // Merged BDC spatial topic: position, orientation, velocity, angular velocity — the same shape and rules as NED's WorldPos
+    // (AQ107 D / F), in BDC's own types. Topic name BDC_WorldPos is distinct from NED's WorldPos.
     [DdsTopic("BDC_WorldPos")]
     [DdsIdlFile("bdc-entity-msgs")]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal,
@@ -35,9 +35,20 @@ namespace Hrot.BDC.Messages
         [DdsKey]
         public long EntityId;
 
-        public DateTime Time;
-        public BdcGeoPoint Pos;
-        public BdcEulerOri Ori;
-        public BdcAngularVector Vel;
+        // Cluster-synced SIMULATION time (seconds) at which the sender sampled the pose; dead reckoning ages from it.
+        public double SimTime;
+
+        // Position [m], local ENU (X east, Y north, Z up).
+        public BdcVec3d Position;
+
+        // Quaternion vector part (x, y, z); w = +sqrt(max(0, 1 - |v|^2)), sender canonicalises w >= 0 — an all-zero struct is the
+        // identity. Encoded/decoded by Fdp.Toolkit.Replication.Components.QuaternionWireCodec (the one helper NED uses too).
+        public BdcVec3f OrientationXyz;
+
+        // Linear velocity [m/s], local ENU.
+        public BdcVec3f Velocity;
+
+        // Angular velocity [rad/s] about the local ENU axes.
+        public BdcVec3f AngularVelocity;
     }
 }

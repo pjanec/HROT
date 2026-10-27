@@ -112,11 +112,12 @@ public class TheHeadingConversionIsSharedTests
     public void TheDescriptorRouteUsesTheSharedConversion(double headingDeg)
     {
         var ctx = new ListPatchContext(null);
-        var wp  = new Hrot.NED.Descriptors.WorldPos();
-        wp.Ori.Heading = (float)headingDeg;
+        // ⭐ AQ107 D — the wire carries the quaternion, not the heading: encode the rotation the attribute route would build for this
+        //   heading, and the descriptor route must hand back the same rotation (the Euler wire this rail once drove is gone).
+        var wp  = Hrot.Map.Common.Replication.Utils.WorldPosCodec.Encode(
+            0, 0.0, Vector3.Zero, SimTransformBridgeSystem.HeadingDegToRotation((float)headingDeg), Vector3.Zero, Vector3.Zero);
 
-        Hrot.Map.Common.Replication.Utils.DescriptorMapper
-            .ApplyGeoSpatialDescriptor(ctx, wp, new UnitGeoTransform());
+        Hrot.Map.Common.Replication.Utils.DescriptorMapper.ApplyGeoSpatialDescriptor(ctx, wp);
 
         var st = ctx.FlushComponents().OfType<SimTransform>().Single();
 
@@ -164,22 +165,13 @@ public class TheHeadingConversionIsSharedTests
     public void TheDescriptorRoute_CarriesPitchAndRoll()
     {
         var ctx = new ListPatchContext(null);
-        var wp  = new Hrot.NED.Descriptors.WorldPos();
-        wp.Ori.Heading = 30f; wp.Ori.Pitch = 10f; wp.Ori.Roll = -20f;
-        Hrot.Map.Common.Replication.Utils.DescriptorMapper.ApplyGeoSpatialDescriptor(ctx, wp, new UnitGeoTransform());
+        var wp  = Hrot.Map.Common.Replication.Utils.WorldPosCodec.Encode(
+            0, 0.0, Vector3.Zero, SimTransformBridgeSystem.EulerDegToRotation(30f, 10f, -20f), Vector3.Zero, Vector3.Zero);
+        Hrot.Map.Common.Replication.Utils.DescriptorMapper.ApplyGeoSpatialDescriptor(ctx, wp);
         var q = ctx.FlushComponents().OfType<SimTransform>().Single().Rotation;
         SimTransformBridgeSystem.RotationToPitchRollDeg(q, out float pitch, out float roll);
         Assert.InRange(pitch, 9.9f, 10.1f);
         Assert.InRange(roll, -20.1f, -19.9f);
-    }
-
-    /// <summary>⭐ Identity-ish transform: this rail is about ROTATION, not the coordinate conversion.</summary>
-    private sealed class UnitGeoTransform : Fdp.Modules.Geographic.IGeographicTransform
-    {
-        public void SetOrigin(double lat, double lon, double alt) { }
-        public Vector3 ToCartesian(double lat, double lon, double alt)
-            => new((float)lon, (float)lat, (float)alt);
-        public (double lat, double lon, double alt) ToGeodetic(Vector3 p) => (p.Y, p.X, p.Z);
     }
 
     // ══ ③ the compass semantics themselves — the claim the doc makes ══════════════

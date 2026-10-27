@@ -19,8 +19,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// matching entity.
     ///
     /// <para>
-    /// The wire <see cref="Hrot.NED.Common.GeoPoint"/> is converted back to a
-    /// Cartesian <c>Vector2</c> via <see cref="IGeographicTransform"/>.
+    /// The wire destination (local ENU metres, AQ107 B) is copied into the ECS destination.
     /// Entities not yet registered in the <see cref="NetworkEntityMap"/> are silently skipped.
     /// </para>
     /// </summary>
@@ -28,7 +27,6 @@ namespace Hrot.Map.Common.Replication.Ingress
     {
         private readonly DdsReader<Hrot.NED.Descriptors.NavigationIntent> _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
         private readonly long _localNodeId;
 
         public string TopicName      => "NavigationIntent";
@@ -45,7 +43,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             _reader       = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent");
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new System.ArgumentNullException(nameof(geoTransform));
+            // geoTransform: ⭐ AQ107 B — no longer used (the destination is local ENU on the wire; copied). Kept so the callers keep their shape.
             _localNodeId  = localNodeId;
         }
 
@@ -83,12 +81,8 @@ namespace Hrot.Map.Common.Replication.Ingress
                         view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0)))
                     continue;
 
-                // Convert wire GeoPosition back to 3D Cartesian (Sim Z-up); ToCartesian already
-                // returns the altitude, so the destination Z survives the round-trip (P3D-304).
-                var cartesian = _geoTransform.ToCartesian(
-                    msg.FinalDestination.Latitude,
-                    msg.FinalDestination.Longitude,
-                    msg.FinalDestination.Altitude);
+                // ⭐ AQ107 B — the wire destination is local ENU, Z up (P3D-304): the ECS destination as it is — a copy.
+                var cartesian = Hrot.Map.Common.Replication.Utils.EnuWire.FromWire(msg.FinalDestination);
 
                 cmd.SetComponent(entity, new EcsNavigationIntent
                 {

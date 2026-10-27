@@ -6,6 +6,7 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Dds;
+using Hrot.Map.Common.Replication.Utils;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
@@ -28,11 +29,8 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// immediately via <see cref="SmartEgressUtil.MarkDirty"/>.</para>
     ///
     /// <para>Currently handles <see cref="EDescriptorType.dtWorldPos"/>:
-    /// converts the geodetic position carried in the request to local Cartesian
-    /// coordinates and writes the result into <see cref="SimTransform"/>.
-    /// The geographic bridge system converts <c>SimTransform</c> to
-    /// <c>GeoTransform</c> on the same tick, so the egress translator picks up
-    /// the updated position immediately.</para>
+    /// copies the local-ENU position carried in the request (AQ107 B) into <see cref="SimTransform"/>, keeping the entity's rotation.
+    /// The egress translator picks up the updated position on the next scan.</para>
     ///
     /// <para>An <see cref="UpdateEntityDescriptorAck"/> is written for every
     /// processed sample regardless of outcome so the sender can correlate replies.</para>
@@ -48,7 +46,6 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly IDdsWriter<UpdateEntityDescriptorAck>     _ackWriter;
         private readonly IDisposable?                              _ownedAckWriter;
         private readonly NetworkEntityMap                         _entityMap;
-        private readonly IGeographicTransform                     _geoTransform;
 
         /// <summary>
         /// Creates a new system instance.
@@ -56,8 +53,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <param name="participant">DDS participant for topic subscriptions.</param>
         /// <param name="entityMap">Shared net-ID â†’ entity lookup service.</param>
         /// <param name="geoTransform">
-        /// Geographic transform used to convert incoming geodetic coordinates to
-        /// local Cartesian space (must match the transform used by egress translators).
+        /// ⭐ AQ107 B — no longer used: the request's positions are local ENU metres (the ECS frame), copied. Kept so the callers keep their shape.
         /// </param>
         /// <param name="ackWriter">
         /// Optional ACK writer. When <c>null</c> (default) a live
@@ -82,7 +78,6 @@ namespace Hrot.Map.Common.Replication.Ingress
                 _ownedAckWriter = owned;
             }
             _entityMap    = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform  ?? throw new ArgumentNullException(nameof(geoTransform));
         }
 
         // â”€â”€ ComponentSystem lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -148,12 +143,9 @@ namespace Hrot.Map.Common.Replication.Ingress
                 return;
             }
 
-            // 3. Convert geodetic â†’ local Cartesian.
+            // 3. ⭐ AQ107 B — the position is local ENU already: a copy.
             var geo = req.Payload.WorldPos;
-            var cartesian = _geoTransform.ToCartesian(
-                geo.Pos.Latitude,
-                geo.Pos.Longitude,
-                geo.Pos.Altitude);
+            var cartesian = WorldPosCodec.Position(in geo);
 
             // 4. Preserve existing rotation; update position only.
             var currentRot = view.HasComponent<SimTransform>(entity)
@@ -198,20 +190,18 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             var overlay = req.Payload.MapVisualOverlay;
 
-            // Convert RELATIVE geo offsets â†’ relative Cartesian offsets.
-            // relCart = ToCartesian(dLat, dLon, dAlt) - ToCartesian(0, 0, 0).
-            // For a flat-earth linear projection this equals the true Cartesian displacement.
-            Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);
+            // ⭐ AQ107 B — the wire's points are ABSOLUTE local ENU metres; the ECS polyline is relative to the entity's own position.
+            Vector3 anchor = view.HasComponent<SimTransform>(entity)
+                ? view.GetComponentRO<SimTransform>(entity).Position
+                : Vector3.Zero;
 
             var polylinePoints = new List<Vector2>(overlay.Points?.Count ?? 0);   // CE-4046 — EditablePolyline is an immutable record
             if (overlay.Points != null && overlay.Points.Count > 0)
             {
                 for (int i = 0; i < overlay.Points.Count; i++)
                 {
-                    var p       = overlay.Points[i];
-                    var absCart = _geoTransform.ToCartesian(p.Latitude, p.Longitude, p.Altitude);
-                    var relCart = absCart - origin;
-                    polylinePoints.Add(new Vector2((float)relCart.X, (float)relCart.Y));
+                    var abs = EnuWire.FromWire(overlay.Points[i]);
+                    polylinePoints.Add(new Vector2(abs.X - anchor.X, abs.Y - anchor.Y));
                 }
             }
 

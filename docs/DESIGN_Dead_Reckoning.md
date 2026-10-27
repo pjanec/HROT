@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-10-21 (§10 — the owner sends a stop, CE-2348 ②)
+updated: 2026-10-27 (AQ107 D / F — the sample is a local-ENU pose with `double SimTime`; §"Encoding"; the old encoding is in the HISTORY at the bottom)
 approved: 2026-09-07 by the user ("go"). CE-211 is slice S0 of the Stride build order and is IN FLIGHT
   on claude/reset-working-branch-qd1qpv (started marker bbd976a7d).
 current-answer: the whole file. It is the ONE owning design for dead reckoning / remote-entity
@@ -11,7 +11,7 @@ design-basis: user rulings 2026-09-05/06/07 (quoted verbatim in §2) · measured
   BdcEntityMessages.cs, GeoSpatialEgress/IngressTranslator.cs, EqsResultUpdateSystem.cs ·
   NotebookLM architect input on the clock domain (job 20260907T055024Z-b217f7b7), verified in
   Blueprint_Issues_Tracker CE-211.
-known-rot: none yet — this document is new.
+known-rot: §9 (pitch and roll on the wire, Euler `Ori`) describes the pre-AQ107 wire — superseded at its head, kept as history; the Euler helpers it names remain only for the attribute routes.
 known-conflict: it SUPERSEDES three places that frame DR as an IG-only presentation feature —
   docs/designs/dds-to-ecs/DESIGN.md §6.3 (the birth design, which specifies the accumulator this
   removes), docs/designs/IG/DESIGN-IG.md, and docs/projects/relationships/FDP-Network-Stack.md §12.6.
@@ -98,16 +98,20 @@ classDiagram
         +Execute(view, dt)
     }
     class WorldPos {
-        <<wire NED>>
-        +DateTime Time
-        +GeoPoint Pos
-        +AngularVector Vel
+        <<wire NED · AQ107 D>>
+        +double SimTime
+        +Vec3d Position
+        +Vec3f OrientationXyz
+        +Vec3f Velocity
+        +Vec3f AngularVelocity
     }
     class BdcWorldPos {
-        <<wire BDC>>
-        +DateTime Time
-        +BdcGeoPoint Pos
-        +BdcAngularVector Vel
+        <<wire BDC · AQ107 F>>
+        +double SimTime
+        +BdcVec3d Position
+        +BdcVec3f OrientationXyz
+        +BdcVec3f Velocity
+        +BdcVec3f AngularVelocity
     }
     class GeoSpatialEgressTranslator {
         +ScanAndPublish(view)
@@ -176,18 +180,18 @@ sequenceDiagram
 | **R4** | ⭐⭐⭐ **Both the stamp and `simNow` are cluster-synced SIMULATION time** | 🔒 `D4`. ⭐ Matches the codebase's only prior art for cross-node sample age — EQS `BecomesStale` ages over `view.Time` *(`EqsResultUpdateSystem.cs:65`)*, chosen so Brain/Muscle clock skew cannot corrupt the delta |
 | **R5** | ⭐⭐ **No pause guard.** Extrapolation freezes because `simNow` stops | 🔒 `D4`. ⛔ This deliberately avoids the `IsPaused`/`IsAdvancing` landmine *(`M-42`: `IsPaused` is **false** while paused — pause switches to `Stepping` with `DeltaTime → 0`)* |
 | **R6** | ⭐ *(`2026-10-15`, behaviors, CE-2173)* **A brain reads a unit whose MOTION another node owns through `ReplicatedMotion.Of`, never `SimVelocity`** — on a brain node such a unit is neither owned nor a ghost, so R1's predicate skips it and its `SimVelocity` stays the zero `SpatialCoreTkbTranslator` gave it. `ReplicatedMotion.Project` is R3's formula; `DeadReckoningSyncSystem` calls it too, so there is one | 📌 the A-10 never released its bomb live (`DESIGN_Air_Operations.md` §9c). ⭐ Second reader routed `2026-10-15`: `VehicleCover.IsStanding` (every vehicle read as parked on a brain node; rail `CoverPointsGizmoTests.CE2173_AVehicleAnotherNodeDrives_IsNotStanding`) |
-| **R6** | ⭐⭐ **No unstamped mode.** An unstamped sample is a **defect, logged loudly** | 🔒 `D3`. ⛔ Not a silent degraded path — the "make an omission loud" habit |
+| **R6** | ⭐⭐ **No unstamped mode.** An unstamped sample is a **defect, logged loudly** | 🔒 `D3`. ⛔ Not a silent degraded path — the "make an omission loud" habit. ⭐ **AQ107 D (`2026-10-27`):** the stamp is a plain `double SimTime`, so the old "0 ticks = unspecified" sentinel is gone (sim time 0.0 is legitimate); the loud diagnostic now fires on `SimTime <= 0` once the receiver's sim clock is past 1 s (`GeoSpatialIngressTranslator.CheckSimStamp`, `BdcWorldPosTranslator.CheckSimStamp`) |
 | **R7** | ⭐ **Smoothing RATE is per-host, not per-role** — a constructor parameter | 🔒 `D1`: renderers *"might just do smoothing on higher rate as they are usually running on higher fps"* |
 | **R8** | ⭐⭐ **Both stacks, identically** | 🔒 `D5` |
 
 ### Encoding
 
-⭐ **`SimStamp` is carried in the existing `DateTime Time` field on both wire types**, as **ticks from the
-exercise epoch**. ⛔ **No IDL change** — both `WorldPos` *(`[DdsIdlFile("hrot-sim-desc")]`)* and
-`BdcWorldPos` *(`[DdsIdlFile("bdc-entity-msgs")]`)* are IDL-backed, so a **type** change would touch every
-node. ⭐⭐ **And this restores the field's documented intent**: its own declaration reads
-`public DateTime Time; // Sync timestamp (exercise FILETIME)` — **exercise** time. ⇒ the `DateTime.UtcNow`
-stamp at `GeoSpatialEgressTranslator:214` is the drift, not the field.
+⭐ **AQ107 D / F (`2026-10-27`, [AQ107](blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md) R-4092/R-4093):** `SimStamp` is carried in
+**`double SimTime`** (cluster-synced simulation SECONDS) on both wire types — `WorldPos.SimTime` and `BdcWorldPos.SimTime`. The sample around it is
+a local-ENU pose (`Position` m, `OrientationXyz` quaternion vector part with `w` implied, `Velocity` m/s, `AngularVelocity` rad/s); the receiver
+copies it into `NetworkTransform` (`LastPosition`, `LastRotation`, `SimStamp = SimTime`) and `NetworkVelocity` and projects with `ReplicatedMotion.Project`
+**unchanged** — the velocity it reads is the sender's `SimVelocity.Linear`, no azimuth/elevation arithmetic in between.
+⭐ One mapping per stack: NED `WorldPosCodec`, BDC `BdcWorldPosCodec`; both call `QuaternionWireCodec` for the orientation.
 
 ---
 
@@ -196,8 +200,8 @@ stamp at `GeoSpatialEgressTranslator:214` is the drift, not the field.
 | | **NED** | **BDC** |
 |---|---|---|
 | wire type · IDL | `WorldPos` · `hrot-sim-desc` | `BdcWorldPos` · `bdc-entity-msgs`, topic `BDC_WorldPos` |
-| timestamp field | `public DateTime Time` | ⭐ **the same field, same type** |
-| velocity | `Vel` *(+ `Acc`, unused)* | `Vel` |
+| timestamp field | `double SimTime` *(AQ107 D)* | ⭐ **the same field, same type** *(AQ107 F)* |
+| velocity | `Velocity` (m/s ENU) + `AngularVelocity` (rad/s) | ⭐ **the same** |
 | DR registration | ⛔ `NedReplicationModule:333/339` — **gated on `_roleHasIG`** | ✅✅ **`:87` — UNCONDITIONAL** |
 | drive predicate | hard-coded per arm | ⭐⭐ **`!roleHasMuscle && !roleHasBrain`** *(`:58`)* |
 
@@ -277,6 +281,8 @@ nodes **disagree about what they can see**. ⭐ `R3` + `R4` are what prevent tha
 
 ## 9. Pitch and roll on the wire (ui handoff P3, `2026-10-15`)
 
+⛔ **SUPERSEDED `2026-10-27` by AQ107 D:** the wire no longer carries `Ori { Heading, Pitch, Roll }` — `WorldPos.OrientationXyz` is a quaternion, so pitch and roll cross by construction and the Euler helpers named below are not on the wire path (they still serve the JSON/binary attribute routes). The rail `P3_PitchAndRoll_CrossTheWire_…` was replaced by `GeoSpatialIngressTranslatorTests.AQ107D_APose_RoundTripsEcsToWorldPosToEcs`. Read the rest of this section as history.
+
 📐 **Measured:** egress already writes `Ori { Heading, Pitch, Roll }` (`GeoSpatialEgressTranslator.cs:193-236`, `RotationToPitchRollDeg`);
 every ingress site rebuilds the rotation from the HEADING only (`GeoSpatialIngressTranslator.cs:73,148`, `DescriptorMapper.cs:130,362`) — so
 a banking aircraft flies level on a receiving node.
@@ -347,3 +353,10 @@ to the sender, and it covers a stop for any reason (a mobility kill, a halt orde
 `GeoSpatialIngressTranslator.Decode` (③). Rails: `GeoSpatialEgressTranslatorTests.AHullThatStops_PublishesTheStop_ThoughItDidNotMove_CE2348`,
 `AStandingHull_GetsItsHeartbeat_HoweverOftenTheTranslatorRuns_CE2348`; `GeoSpatialIngressTranslatorTests.TheOwnersLoopback_KeepsWhatItsEgressLastSent_CE2348`.
 📐 **Measured live after the fix** (`uc-urban-battle` unscripted, `--mode all`, 160 sim s, `2026-10-22`): the APC and the IFV both destroyed in combat — on CGF each reads `NetworkVelocity` (0, 0, 0) at the muscle's exact position from the first probe after death, and holds it (before: (2.11, 1.22) for 100+ s). ⭐ BDC needs no change (R8 holds): `BdcWorldPosTranslator.ScanAndPublish` sends every owned entity EVERY scan (`:123-147`), so a stop is always a sample.
+
+## ⛔ HISTORY — the pre-AQ107 encoding (SUPERSEDED `2026-10-27`; do not quote as current)
+
+⛔ `SimStamp` was carried in the existing `DateTime Time` field on both wire types, as **ticks from the exercise epoch plus one tick**
+(`SimStampCodec`; 0 ticks = "unspecified"), to avoid an IDL change; velocity travelled as azimuth/elevation/length. AQ107 changed the IDL anyway
+(the whole NED wire cut over once), so the bias, the sentinel and `SimStampCodec`'s use on these two types are gone (`SimStampCodec` still serves
+`EntityTurretPose`).

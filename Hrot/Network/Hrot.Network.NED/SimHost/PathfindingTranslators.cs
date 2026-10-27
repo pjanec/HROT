@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Trajectory;
@@ -9,6 +9,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
+using Hrot.Map.Common.Replication.Utils;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
 
@@ -19,14 +20,13 @@ namespace Hrot.Network.NED.SimHost
     /// <summary>
     /// Egress translator. Reads <see cref="PathfindingRequestEvent"/>s from the previous
     /// frame's event buffer, converts absolute Cartesian start/end positions to relative
-    /// ENU offsets relative to a GeoPoint anchor, and publishes a <c>PathRequestBatch</c>
+    /// ENU offsets relative to a local-ENU anchor (<c>BatchOrigin</c>, AQ107 B), and publishes a <c>PathRequestBatch</c>
     /// to the Navigation Solver via DDS.
     /// Only forwards requests whose <c>SourceNodeId</c> matches <c>_localNodeId</c>.
     /// </summary>
     public sealed class PathRequestBrainEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<PathRequestBatch>? _writer;
-        private readonly IGeographicTransform _geoTransform;
         private readonly int _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathRequestBatch;
@@ -41,7 +41,6 @@ namespace Hrot.Network.NED.SimHost
             IGeographicTransform geoTransform,
             int                  localNodeId = 0)
         {
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _localNodeId  = localNodeId;
             _writer       = participant != null ? new DdsWriter<PathRequestBatch>(participant, TopicName) : null;
         }
@@ -68,8 +67,7 @@ namespace Hrot.Network.NED.SimHost
 
             // Use the first request's Start as the spatial anchor for encoding relative offsets.
             var anchorCartesian = requests[0].Start;
-            var (lat, lon, alt) = _geoTransform.ToGeodetic(anchorCartesian);
-            var batchOrigin = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
+            var batchOrigin = EnuWire.ToWire(anchorCartesian);   // ⭐ AQ107 B — the anchor is local ENU, copied
 
             var ddsRequests = new List<DdsPathRequest>(requests.Length);
             for (int i = 0; i < requests.Length; i++)
@@ -129,7 +127,6 @@ namespace Hrot.Network.NED.SimHost
     public sealed class PathResponseBrainIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<PathResponseBatch>? _reader;
-        private readonly IGeographicTransform _geoTransform;
         private readonly TrajectoryPoolManager _trajectoryPool;
         private readonly int _localNodeId;
 
@@ -146,7 +143,6 @@ namespace Hrot.Network.NED.SimHost
             TrajectoryPoolManager trajectoryPool,
             int                   localNodeId = 0)
         {
-            _geoTransform   = geoTransform   ?? throw new ArgumentNullException(nameof(geoTransform));
             _trajectoryPool = trajectoryPool ?? throw new ArgumentNullException(nameof(trajectoryPool));
             _localNodeId    = localNodeId;
             _reader         = participant != null ? new DdsReader<PathResponseBatch>(participant, TopicName) : null;
@@ -186,13 +182,8 @@ namespace Hrot.Network.NED.SimHost
 
             ref var batch = ref repo.GetSingleton<PathfindingBatchData>();
 
-            // Spatial precision reconstruction: convert geodetic anchor to absolute Cartesian.
-            var originCartesian = _geoTransform.ToCartesian(
-                data.BatchOrigin.Latitude,
-                data.BatchOrigin.Longitude,
-                data.BatchOrigin.Altitude);
-            // 3D anchor (Sim Z-up): ToCartesian carries the anchor altitude (P3D-304).
-            var anchor3D = new Vector3((float)originCartesian.X, (float)originCartesian.Y, (float)originCartesian.Z);
+            // Spatial precision reconstruction: the anchor is local ENU (AQ107 B) — absolute 3D (Sim Z-up, P3D-304).
+            var anchor3D = EnuWire.FromWire(data.BatchOrigin);
 
             foreach (var ddsResult in data.Results)
             {
@@ -242,7 +233,6 @@ namespace Hrot.Network.NED.SimHost
     public sealed class PathRequestSolverIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<PathRequestBatch>? _reader;
-        private readonly IGeographicTransform _geoTransform;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathRequestBatch;
         public string TopicName         => "PathRequestBatch";
@@ -255,7 +245,6 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap     entityMap,
             IGeographicTransform geoTransform)
         {
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _reader       = participant != null ? new DdsReader<PathRequestBatch>(participant, TopicName) : null;
         }
 
@@ -283,15 +272,8 @@ namespace Hrot.Network.NED.SimHost
         {
             if (data.Requests == null || data.Requests.Count == 0) return;
 
-            // Spatial precision reconstruction: convert geodetic anchor to absolute Cartesian.
-            var originCartesian = _geoTransform.ToCartesian(
-                data.BatchOrigin.Latitude,
-                data.BatchOrigin.Longitude,
-                data.BatchOrigin.Altitude);
-            var anchor = new Vector3(
-                (float)originCartesian.X,
-                (float)originCartesian.Y,
-                (float)originCartesian.Z);
+            // Spatial precision reconstruction: the anchor is local ENU (AQ107 B).
+            var anchor = EnuWire.FromWire(data.BatchOrigin);
 
             foreach (var ddsReq in data.Requests)
             {
@@ -324,14 +306,13 @@ namespace Hrot.Network.NED.SimHost
     /// Egress translator on the Navigation Solver. Reads resolved
     /// <see cref="PathfindingResultEvent"/>s from the <see cref="FdpEventBus"/>,
     /// extracts waypoints from the solver's local <c>TrajectoryPoolManager</c>,
-    /// converts positions to relative ENU offsets from a GeoPoint anchor,
+    /// converts positions to relative ENU offsets from a local-ENU anchor (AQ107 B),
     /// groups results by originating Brain node, and publishes targeted
     /// <c>PathResponseBatch</c> messages via DDS.
     /// </summary>
     public sealed class PathResponseSolverEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<PathResponseBatch>? _writer;
-        private readonly IGeographicTransform _geoTransform;
         private readonly TrajectoryPoolManager _trajectoryPool;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathResponseBatch;
@@ -346,7 +327,6 @@ namespace Hrot.Network.NED.SimHost
             IGeographicTransform  geoTransform,
             TrajectoryPoolManager trajectoryPool)
         {
-            _geoTransform   = geoTransform   ?? throw new ArgumentNullException(nameof(geoTransform));
             _trajectoryPool = trajectoryPool ?? throw new ArgumentNullException(nameof(trajectoryPool));
             _writer         = participant != null ? new DdsWriter<PathResponseBatch>(participant, TopicName) : null;
         }
@@ -372,7 +352,7 @@ namespace Hrot.Network.NED.SimHost
             public readonly List<DdsPathResult> Results = new();
             public bool HasAnchor;
             public Vector3 Anchor;
-            public GeoPoint Origin;
+            public Hrot.NED.Messages.Vec3d Origin;
         }
 
         /// <summary>
@@ -405,8 +385,7 @@ namespace Hrot.Network.NED.SimHost
                     if (!nb.HasAnchor)
                     {
                         nb.Anchor = traj.Waypoints[0].Position;
-                        var (lat, lon, alt) = _geoTransform.ToGeodetic(nb.Anchor);
-                        nb.Origin = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
+                        nb.Origin = EnuWire.ToWire(nb.Anchor);   // ⭐ AQ107 B — local ENU, copied
                         nb.HasAnchor = true;
                     }
 

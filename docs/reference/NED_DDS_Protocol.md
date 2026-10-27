@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-27
 current-answer: the whole document; §Inventory is generated-checked by scripts/ned-wire-inventory.py --check
 stale-below: nothing
-known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 128 wire types here; its EDescriptorType listing stops at 94 (the enum now has 77 entries, AllDescriptors.cs:6); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) The field comment on WorldPos.Time says "exercise FILETIME" (SimDescriptors.cs:21) but the value is SIMULATION seconds (SimStampCodec.cs:51). (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
+known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 128 wire types here; its EDescriptorType listing stops at 94 (the enum now has 77 entries, AllDescriptors.cs:6); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) [fixed 2026-10-27 by AQ107 D: `WorldPos.Time` is now `WorldPos.SimTime`, a double of sim seconds]. (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
 known-conflict: BDC_NED_SST_Descriptor_Rules.md (the authoritative spec) and the code differ in the places listed in §Code versus the spec; neither side has been reconciled by a ruling. Two C# types share the topic name "IGCapabilitiesAnnounce" (see §Inventory F).
 related-designs:
   - ../blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the planned wire change: one frame (local metres + GeoReference), names from types, WorldPos as a quaternion pose (R-4092); this reference is updated as each step lands
@@ -37,8 +37,8 @@ determined says so.
 **The one-paragraph model.** An entity is *nothing but* a set of keyed DDS instances ("descriptors"), one topic per descriptor type,
 all sharing the entity id. `EntityMaster` alive = the entity exists. Each descriptor has its own owner (the node that writes it);
 ownership moves with a small `OwnershipUpdate` message, never by dispose. Everything that is not state — commands, requests, shots,
-detonations, cluster control — is a *message* on its own topic. Time is cluster-synchronised simulation time; positions on the wire are
-geodetic WGS84.
+detonations, cluster control — is a *message* on its own topic. Time is cluster-synchronised simulation time; every position on the wire is
+**local ENU metres** (X east, Y north, Z up, at the terrain origin — the ECS frame; AQ107 B), orientation a quaternion.
 
 ## Diagrams
 
@@ -284,7 +284,7 @@ Counts over the 128 types: S 66 · Q 33 · D 9 · SL 6 · L 6 · B 4 · SN 2 · 
 
 | Rule | Evidence |
 |---|---|
-| **Simulation time is cluster-synchronised.** Each position sample carries the sender's *sim time* (not wall time) in `WorldPos.Time`: sim seconds as `DateTime` ticks (100 ns) **plus one tick** (0 ticks = "unspecified") | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/SimStampCodec.cs:51`; `GeoSpatialEgressTranslator.cs:101,234` |
+| **Simulation time is cluster-synchronised.** Each position sample carries the sender's *sim time* (not wall time) in `WorldPos.SimTime`: **sim seconds as a `double`** *(AQ107 D, 2026-10-27; before it: `DateTime` ticks plus one, 0 = "unspecified" — gone, sim time 0.0 is a legitimate stamp)* | `Hrot/Network/Hrot.Network.NED/SimDescriptors.cs` (`WorldPos`); `Replication/Map/Egress/GeoSpatialEgressTranslator.cs` (`WorldPosCodec.Encode(…, simNowSeconds, …)`) |
 | Clock sync: slave sends `TimeSyncRequest` (keyed by client node id), master answers `TimeSyncResponse` with the four NTP timestamps; PLL-synchronised virtual wall clock | `FDP/Toolkits/Fdp.Toolkits/Time/Messages/TimeMessages.cs:202-235` |
 | **Pause / resume / step / time scale** are operator requests: `ClusterOpRequest` with op `PauseTime`(10) / `ResumeTime`(11) / `StepTime`(14) / `SetTimeScale`(15); the master executes them by switching time mode at a wall-clock barrier (`SwitchTimeModeEvent`: continuous ↔ deterministic, with sim-time snapshot and scale) and, in deterministic mode, by lock-step `FrameOrder` / `FrameAck` | `Hrot/Network/Hrot.Network.NED/ExCon/NedTimeControlGateway.cs:24-60`; `Hrot/Subsystems/Hrot.Orchestrator/ClusterMaster.cs:429`; `OrchestrationMessages.cs:29-72`; `TimeMessages.cs:8-160` |
 | **Cluster state machine** is the retained singleton `ClusterState` (`S`): Idle · Loading/Operating/Unloading × {Edit, Preview, Live, Replay, Review} · Degraded; carries exercise id, **session id**, replay axis. Transitions are requested by `ClusterOpRequest` op `TransitionState` (JSON payload with the target state) and driven by `NodeOpCommand` / `NodeOpStatus` per node | `OrchestrationMessages.cs:5-22,121-140`; payload type `Hrot/Network/Hrot.Network.Orchestration/NodeOpMasterTranslator.cs:125`. The JSON payload schema per operation: **not determinable from sources** as one document (see the senders, e.g. `Hrot/Runner/Hrot.ClusterRunner/Testing/OrchestratorActionHandlers.cs:140`) |
@@ -295,14 +295,14 @@ Counts over the 128 types: S 66 · Q 33 · D 9 · SL 6 · L 6 · B 4 · SN 2 · 
 
 | Rule | Evidence |
 |---|---|
-| **State positions are geodetic WGS84**: latitude/longitude in **degrees**, altitude in **metres above the WGS84 ellipsoid** (`GeoPoint`) | `Hrot/Network/Hrot.Network.NED/Common.cs:19-31`; `SimDescriptors.cs:11-26` |
-| **Orientation** = Euler angles in **degrees** relative to the **local East-North-Up tangent frame** (not geocentric): heading compass 0 = North, 90 = East, clockwise; pitch nose-up positive; roll right-wing-down positive | `FDP/Toolkits/Fdp.Toolkits/Geographic/Systems/SimTransformBridgeSystem.cs:18-55` |
-| **Velocity** is not a Cartesian vector: *azimuth (deg, = heading convention), elevation (deg), length (m/s)*; angular velocity in deg/s | `GeoSpatialEgressTranslator.cs:212-225,269-284` |
-| **Acceleration is always published with zero length** (azimuth = heading only) | `GeoSpatialEgressTranslator.cs:213` |
-| **Events and many commands carry LOCAL metres** ("world metres": X east, Y north, Z up, relative to the node's geo origin), not geodetic: aim point, shot origin and velocity, hit point (field comments say "world metres" / "world-space"). The other event positions (near miss, round impact, missile warning, EQS points, `FireInteractionEvent` X/Y) do not state their frame — presumably the same local frame, **not determinable from the comments** | `FireInteractionMessages.cs` (field comments); `FDP/Toolkits/Fdp.Toolkits/Geographic/Transforms/WGS84Transform.cs:8` |
-| The local frame is a **flat ENU tangent plane at one origin**, accurate "< 100 km from origin"; the **origin comes from the loaded terrain** (no default). **No `[DdsTopic]` type carries the origin** — a gateway must learn it out of band | `WGS84Transform.cs:8-9`; §[Geo Origin](../DESIGN_Geo_Origin.md) 2. Searched `grep -rniE "originlat\|geoorigin\|OriginLongitude" Hrot/Network FDP/Network` (no hit) and the descriptor/message files |
-| Time-stamped samples use **sim time**; durations in seconds (`float`), angles degrees, distances metres, speeds m/s | field comments throughout `SimDescriptors.cs`, `FireInteractionMessages.cs` |
-| **Dead reckoning is receiver-side and implicit**: position projected linearly from the sample's pose + velocity × (sim-now − sample stamp); no algorithm id or parameter set on the wire. Owner re-sends `WorldPos` on change (1 cm / 0.5° / 5 cm·s⁻¹ thresholds) and **every 600 ticks (10 s at 60 Hz)** as a heartbeat | `FDP/Toolkits/Fdp.Toolkits/Replication/ReplicatedMotion.cs:20`; `GeoSpatialEgressTranslator.cs:125-131`; §[Dead Reckoning](../DESIGN_Dead_Reckoning.md) |
+| **Every position on the wire is LOCAL ENU metres** — X east, Y north, Z up, relative to the one origin, as `Vec3d` (double): `WorldPos.Position`, `Waypoint.Position` (map routes), `MapVisualOverlay.Points` (**absolute**, not offsets), `NavigationIntent.FinalDestination`, the three `BatchOrigin` anchors (the `RelativeVector3` offsets stay relative to them), `MapClickEvent.Position`, `DragEvent.CurrentPosition`. `GeoPoint` (lat/lon/alt) is **no longer a wire type** *(AQ107 B, R-4092, 2026-10-27)*. ⚠ Still geodetic and NOT part of that change: the JSON attribute route (`GeoPosition.Latitude/Longitude/Altitude`, `AttributeIds.GeoLat/GeoLon/GeoAlt`) and the protocol-neutral ExCon/IG DTOs (converted at the NED boundary, `NeutralGeoBoundary.cs`) | `Hrot/Network/Hrot.Network.NED/SimDescriptors.cs` (`WorldPos`, `NavigationIntent`, `*Batch`); `MapDescriptors.cs`; `MapMessages.cs`; `Replication/Map/Utils/EnuWire.cs` |
+| **Orientation** = a **quaternion**, sent as its vector part `OrientationXyz` (`Vec3f`: x, y, z) with **w implied**: `w = +sqrt(max(0, 1 − |v|²))`; the sender negates `q` when `w < 0`, so an **all-zero struct is the identity**, never NaN. The rotation is the ECS `SimTransform.Rotation` — body axes expressed in the local ENU frame (so a nose straight up or down round-trips; CE-4068) *(AQ107 D)*. No Euler angles on the wire | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/QuaternionWireCodec.cs`; `Replication/Map/Utils/WorldPosCodec.cs` |
+| **Velocity** is a Cartesian vector in the local ENU frame: `Velocity` (`Vec3f`, **m/s**) = `SimVelocity.Linear` as is; `AngularVelocity` (`Vec3f`, **rad/s**) = `SimVelocity.Angular` as is, about the local ENU axes (X east, Y north, Z up) — only vehicles fill it today (`CarKinematicsSystem.cs:720`), people and aircraft send 0 *(AQ107 D, §5a)* | `Replication/Map/Utils/WorldPosCodec.cs`; `GeoSpatialEgressTranslator.cs` |
+| **Acceleration is not on the wire** — it was always published as zero and was dropped with the `WorldPos` reshape *(AQ107 D; appendable later)* | `SimDescriptors.cs` (`WorldPos`) |
+| **Events and commands carry LOCAL metres too** ("world metres": X east, Y north, Z up, relative to the node's geo origin) — now the same frame as every state position: aim point, shot origin and velocity, hit point (field comments say "world metres" / "world-space"). The other event positions (near miss, round impact, missile warning, EQS points, `FireInteractionEvent` X/Y) do not state their frame — presumably the same local frame, **not determinable from the comments** | `FireInteractionMessages.cs` (field comments); `FDP/Toolkits/Fdp.Toolkits/Geographic/Transforms/WGS84Transform.cs:8` |
+| The local frame is a **flat ENU tangent plane at one origin**, accurate "< 100 km from origin"; the **origin comes from the loaded terrain** (no default). **No `[DdsTopic]` type carries the origin yet** (a retained `GeoReference` is AQ107 C, separate) — until then a gateway must learn it out of band | `WGS84Transform.cs:8-9`; §[Geo Origin](../DESIGN_Geo_Origin.md) 2. Searched `grep -rniE "originlat\|geoorigin\|OriginLongitude" Hrot/Network FDP/Network` (no hit) and the descriptor/message files |
+| Time-stamped samples use **sim time**; durations in seconds (`float`), distances metres, speeds m/s, angular rates rad/s on `WorldPos` *(other angle-valued fields are still degrees — AQ107 I)* | field comments throughout `SimDescriptors.cs`, `FireInteractionMessages.cs` |
+| **Dead reckoning is receiver-side and implicit**: position projected linearly from the sample's pose + velocity × (sim-now − sample stamp); no algorithm id or parameter set on the wire. Owner re-sends `WorldPos` on change (1 cm / quaternion-dot 0.9999 (~0.5°) / 5 cm·s⁻¹ thresholds) and **every 600 ticks (10 s at 60 Hz)** as a heartbeat | `FDP/Toolkits/Fdp.Toolkits/Replication/ReplicatedMotion.cs:20`; `GeoSpatialEgressTranslator.cs:125-131`; §[Dead Reckoning](../DESIGN_Dead_Reckoning.md) |
 
 ### 12. Entity typing: TKB type ids and DIS types
 
@@ -383,7 +383,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityWeaponTaskStatus` | `EntityWeaponTaskStatus` | descriptor | yes: parent entity id + part instance id | S | Hrot.Network.NED | Muscle's report on a turret order |
 | `Hrot.NED.Descriptors.EntityWeather` | `EntityWeather` | descriptor | yes: entity id | S | Hrot.Network.NED | Authored weather, global or regional |
 | `Hrot.NED.Descriptors.GroundClampingOverride` | `GroundClampingOverride` | descriptor | yes: entity id | S | Hrot.Network.NED | Per-entity ground clamping override for the IG |
-| `Hrot.NED.Descriptors.WorldPos` | `WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Geodetic pose, velocity, sim-time stamp |
+| `Hrot.NED.Descriptors.WorldPos` | `WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
 
 ### B. Interactions and events (fire, impact, damage, interaction) — 11
 
@@ -519,7 +519,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.BDC.Messages.BdcEntityMaster` | `BDC_EntityMaster` | descriptor | yes: entity id | S | Hrot.Network.BDC | BDC stack: entity existence (BDC_ prefix) |
 | `Hrot.BDC.Messages.BdcMissionControlAck` | `BDC_MissionControlAck` | message | no | Q | Hrot.Network.BDC | BDC stack: mission control ack |
 | `Hrot.BDC.Messages.BdcMissionControlRequest` | `BDC_MissionControlRequest` | message | no | Q | Hrot.Network.BDC | BDC stack: mission control request |
-| `Hrot.BDC.Messages.BdcWorldPos` | `BDC_WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.BDC | BDC stack: pose and velocity |
+| `Hrot.BDC.Messages.BdcWorldPos` | `BDC_WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.BDC | BDC stack: the same local-ENU pose (AQ107 F) |
 
 
 ## Excluded roots
@@ -554,10 +554,10 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | Entity Type (kind.domain.country.category.subcategory.specific.extra) | `EntityMaster.DisType` (optional) + `TkbType` (mandatory) | `DisType` may be zeros; the TKB↔DIS table is **not on the wire** |
 | Marking | `EntityInfo.Name` (free string) | DIS marking is 11 characters |
 | Force ID | `EntityInfo.ForceIdentifier` | values 0..3 (UNKNOWN, FRIENDLY, OPPOSING, NEUTRAL); the numbering coincides with the DIS Force ID values Other, Friendly, Opposing, Neutral (SISO-REF-010, from general knowledge — not checked in this repo) |
-| Location (ECEF metres) | `WorldPos` position: lat/lon deg, alt m above ellipsoid | **ECEF is a GAP** — convert; the node's lat/lon comes from a flat ENU plane at the terrain origin (≈ valid < 100 km) |
-| Orientation (psi, theta, phi, geocentric radians) | `WorldPos` heading/pitch/roll **degrees, local ENU** | **GAP**: not geocentric, degrees, compass heading |
-| Linear velocity (ECEF m/s) | `WorldPos` velocity as azimuth/elevation/length | convert; angular velocity deg/s available |
-| Linear acceleration | `WorldPos` acceleration — **always zero length** | **GAP** (never real) |
+| Location (ECEF metres) | `WorldPos.Position`: **local ENU metres** (`Vec3d`) | convert: `ECEF = origin_ECEF + R(origin) · Position` — the origin is **not on the wire yet** (AQ107 C); it comes from the terrain (flat ENU plane, ≈ valid < 100 km) |
+| Orientation (psi, theta, phi, geocentric radians) | `WorldPos.OrientationXyz`: quaternion vector part, **local ENU**, w implied | convert: rebuild `q`, rotate by `R(origin)`, then to DIS Euler; **GAP**: not geocentric, not Euler |
+| Linear velocity (ECEF m/s) | `WorldPos.Velocity`: m/s, **local ENU** vector; `AngularVelocity` rad/s about the ENU axes | convert: rotate by `R(origin)` |
+| Linear acceleration | **not on the wire** (dropped with AQ107 D; it was always zero) | **GAP** (never real) |
 | Dead-reckoning algorithm + parameters | none; receiver-side linear projection from sim-time stamp | **GAP**: pick DIS algorithm FPW (position + velocity) yourself |
 | Entity appearance, damage state | `EntityDamage` (current / max health, floats), `EntityPartDamage`, `EntityEffectState` | thresholds to DIS's 4 damage states are **not defined** by HROT |
 | Articulated parts | `EntityTurretPose` (per turret part, azimuth/elevation) | other parts: none |
@@ -583,7 +583,7 @@ Source: `SimNetGateway.Protocol.Ned/NedMessages.cs` and DD-001 §9, Appendix A (
 | Gateway message | Real HROT type(s) | Mismatch to handle |
 |---|---|---|
 | `NedEntityMaster(Id, Name, TkbType, Force)` | `Hrot.NED.Descriptors.EntityMaster` (id, `TkbType`) **+** `Hrot.NED.Descriptors.EntityInfo` (name, force) | Name and Force are in **EntityInfo**; `TkbType` is `int64`; ids are `int32` on these topics (gateway `ulong`); the master also holds `DisType`, flags, request id |
-| `NedGeoSpatial(Id, lat, lon, alt, heading, pitch, roll, speed)` | `Hrot.NED.Descriptors.WorldPos` | speed = velocity *length* with azimuth/elevation; heading compass-North, ENU Euler; has sim-time stamp, angular velocity; acceleration always zero; sender must re-send every ≤ 10 s |
+| `NedGeoSpatial(Id, lat, lon, alt, heading, pitch, roll, speed)` | `Hrot.NED.Descriptors.WorldPos` | **no lat/lon, no Euler** (AQ107 B/D): local-ENU `Position` (m), quaternion `OrientationXyz`, ENU `Velocity` (m/s, a vector — speed = its length) and `AngularVelocity` (rad/s), `SimTime` (sim seconds); no acceleration; the gateway converts with the origin (not yet on the wire — AQ107 C); sender must re-send every ≤ 10 s |
 | `NedEntityDamage(Id, Level 0..3)` | `Hrot.NED.Descriptors.EntityDamage` (current, max health floats); event `Hrot.NED.Messages.EntityHitDamage` (HP lost) | **no discrete level**; derive from current/max — the thresholds are the gateway's decision |
 | `NedWeaponStatus(Id, SelectedMunitionTkb, Ammo, Member)` | `Hrot.NED.Descriptors.EntityWeaponAmmo` (per mount ammo + loaded round type), `EntityWeaponPosture`, `EntityWeaponSystemState` | **no "selected munition" field**; ammo is per mount (up to 4); no formation `Member` index |
 | `NedEntityDisposed(Id)` | **a dispose of the `EntityMaster` instance** (+ its other descriptors by the owner) | not a message: read `InstanceState`, check the disposer is the owner |

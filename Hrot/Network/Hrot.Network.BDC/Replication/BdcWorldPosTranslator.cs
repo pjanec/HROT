@@ -6,7 +6,6 @@ using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Modules.Geographic;
-using Fdp.Modules.Geographic.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
@@ -27,7 +26,6 @@ namespace Hrot.BDC.Replication
         private readonly DdsWriter<BdcWorldPos>? _writer;
         private readonly DdsReader<BdcWorldPos>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
         private readonly long _localNodeId;
 
         public string TopicName => "BDC_WorldPos";
@@ -44,68 +42,36 @@ namespace Hrot.BDC.Replication
         public BdcWorldPosTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform,
+            IGeographicTransform geoTransform,   // ⭐ AQ107 F: no longer used — the BDC wire is local ENU, nothing converts. Kept so the factory keeps its shape
             long localNodeId)
         {
             _entityMap    = entityMap;
-            _geoTransform = geoTransform;
             _localNodeId  = localNodeId;
             _writer       = new DdsWriter<BdcWorldPos>(participant, "BDC_WorldPos");
             _reader       = new DdsReader<BdcWorldPos>(participant);
         }
 
         /// <summary>
-        /// ENU linear velocity to the wire's azimuth/elevation/length form. Mirrors the NED stack's
-        /// <c>EnuToAngularVector</c> so a receiver decodes both wires with the same arithmetic.
+        /// The sample's simulation-time stamp (<see cref="BdcWorldPos.SimTime"/>), complaining loudly if it looks unstamped — the NED
+        /// stack's translator has the same guard, for the same reason (<c>docs/DESIGN_Dead_Reckoning.md</c> rule R6). ⭐ AQ107 D: the
+        /// stamp is a plain double, so "unstamped" can only be recognised as 0 while the cluster clock is well past 0.
         /// </summary>
-        private static BdcAngularVector ToAngularVector(Vector3 enu)
+        private double CheckSimStamp(double simTime, ISimulationView view, long entityId)
         {
-            float length = enu.Length();
-            if (length <= 1e-6f)
-                return new BdcAngularVector { Azimuth = 0, Elevation = 0, Length = 0 };
+            if (simTime > 0.0)
+                return simTime;
 
-            // Azimuth measured clockwise from north (+Y), elevation above the horizontal plane.
-            float azimuthDeg   = MathF.Atan2(enu.X, enu.Y) * (180f / MathF.PI);
-            float elevationDeg = MathF.Asin(Math.Clamp(enu.Z / length, -1f, 1f)) * (180f / MathF.PI);
-
-            return new BdcAngularVector
+            double simNow = Fdp.Toolkit.Time.SimClock.Of(view).TotalTime;
+            if (simNow > 1.0)
             {
-                Azimuth   = azimuthDeg,
-                Elevation = elevationDeg,
-                Length    = length,
-            };
-        }
+                FdpLog<BdcWorldPosTranslator>.Warn(
+                    "[BDC Node-{0}] BDC_WorldPos for entity {1} arrived with SimTime={2} while the cluster clock reads {3:F1} s. " +
+                    "Dead reckoning cannot extrapolate it and will hold the raw sample. " +
+                    "The publisher is not stamping — fix it there (docs/DESIGN_Dead_Reckoning.md R6).",
+                    _localNodeId, entityId, simTime, simNow);
+            }
 
-        /// <summary>Inverse of <see cref="ToAngularVector"/>: wire form back to ENU linear velocity.</summary>
-        private static Vector3 FromAngularVector(BdcAngularVector v)
-        {
-            float speed   = v.Length;
-            float azimRad = v.Azimuth   * (MathF.PI / 180f);
-            float elevRad = v.Elevation * (MathF.PI / 180f);
-
-            return new Vector3(
-                speed * MathF.Cos(elevRad) * MathF.Sin(azimRad),
-                speed * MathF.Cos(elevRad) * MathF.Cos(azimRad),
-                speed * MathF.Sin(elevRad));
-        }
-
-        /// <summary>
-        /// Decodes the sample's simulation-time stamp, complaining loudly if it carries none.
-        /// The NED stack's translator has the same guard, for the same reason — see
-        /// <c>docs/DESIGN_Dead_Reckoning.md</c> rule R6.
-        /// </summary>
-        private double DecodeSimStampOrComplain(DateTime wireStamp, long entityId)
-        {
-            if (SimStampCodec.TryDecode(wireStamp, out double simStamp))
-                return simStamp;
-
-            FdpLog<BdcWorldPosTranslator>.Warn(
-                "[BDC Node-{0}] BDC_WorldPos for entity {1} arrived with NO simulation-time stamp. " +
-                "Dead reckoning cannot extrapolate it and will hold the raw sample. " +
-                "The publisher is not stamping — fix it there (docs/DESIGN_Dead_Reckoning.md R6).",
-                _localNodeId, entityId);
-
-            return 0.0;
+            return simTime;
         }
 
         public void ScanAndPublish(ISimulationView view)
@@ -129,41 +95,19 @@ namespace Hrot.BDC.Replication
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);
 
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(simTf.Position);
-                float heading = SimTransformBridgeSystem.RotationToHeadingDeg(simTf.Rotation);
-                SimTransformBridgeSystem.RotationToPitchRollDeg(simTf.Rotation, out float pitch, out float roll);
-
-                // Velocity is what dead reckoning extrapolates ALONG; publishing zeros made every
-                // receiver hold the last sample still until the next one arrived, which is the
-                // stutter DR exists to remove (CE-211). Encoded the same way the NED stack encodes
-                // it — azimuth/elevation/length in degrees and m/s — so the two wires agree.
-                var vel = new BdcAngularVector { Azimuth = 0, Elevation = 0, Length = 0 };
+                // ⭐ AQ107 F — the pose is COPIED onto the wire in the local ENU frame (BdcWorldPosCodec), like NED's WorldPos.
+                //   Velocity is what dead reckoning extrapolates ALONG; publishing zeros made every receiver hold the last sample
+                //   still until the next one arrived, which is the stutter DR exists to remove (CE-211).
+                Vector3 linear = Vector3.Zero, angular = Vector3.Zero;
                 if (view.HasComponent<SimVelocity>(entity))
                 {
                     ref readonly var simVel = ref view.GetComponentRO<SimVelocity>(entity);
-                    vel = ToAngularVector(simVel.Linear);
+                    linear  = simVel.Linear;
+                    angular = simVel.Angular;
                 }
 
-                _writer!.Write(new BdcWorldPos
-                {
-                    EntityId = netId.Value,
-                    // Cluster-synced SIMULATION time, never wall time — see SimStampCodec and
-                    // docs/DESIGN_Dead_Reckoning.md rule R4.
-                    Time     = SimStampCodec.Encode(simNowSeconds),
-                    Pos      = new BdcGeoPoint
-                    {
-                        Latitude  = lat,
-                        Longitude = lon,
-                        Altitude  = alt,
-                    },
-                    Ori = new BdcEulerOri
-                    {
-                        Heading = heading,
-                        Pitch   = pitch,
-                        Roll    = roll,
-                    },
-                    Vel = vel,
-                });
+                // Cluster-synced SIMULATION time, never wall time — docs/DESIGN_Dead_Reckoning.md rule R4.
+                _writer!.Write(BdcWorldPosCodec.Encode(netId.Value, simNowSeconds, simTf.Position, simTf.Rotation, linear, angular));
 
                 SentSampleCount++;
             }
@@ -197,11 +141,7 @@ namespace Hrot.BDC.Replication
                 if (isLocallyOwned)
                     continue;
 
-                var cartesian = _geoTransform.ToCartesian(
-                    msg.Pos.Latitude, msg.Pos.Longitude, msg.Pos.Altitude);
-
-                var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
-                var rotation = SimTransformBridgeSystem.EulerDegToRotation(msg.Ori.Heading, msg.Ori.Pitch, msg.Ori.Roll);   // ⭐ ui P3 — pitch and roll too
+                BdcWorldPosCodec.Decode(in msg, out var position, out var rotation, out var linear, out _);
 
                 // The sample and its stamp — the anchor dead reckoning extrapolates FROM. Until
                 // CE-211 this translator wrote SimTransform only, so on a BDC node the DR system
@@ -212,9 +152,9 @@ namespace Hrot.BDC.Replication
                 {
                     LastPosition = position,
                     LastRotation = rotation,
-                    SimStamp     = DecodeSimStampOrComplain(msg.Time, msg.EntityId),
+                    SimStamp     = CheckSimStamp(msg.SimTime, view, msg.EntityId),
                 });
-                cmd.SetComponent(entity, new NetworkVelocity { Value = FromAngularVector(msg.Vel) });
+                cmd.SetComponent(entity, new NetworkVelocity { Value = linear });
 
                 cmd.SetComponent(entity, new SimTransform { Position = position, Rotation = rotation });
 
@@ -227,11 +167,7 @@ namespace Hrot.BDC.Replication
         {
             if (data is not BdcWorldPos msg) return;
 
-            var cartesian = _geoTransform.ToCartesian(
-                msg.Pos.Latitude, msg.Pos.Longitude, msg.Pos.Altitude);
-
-            var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
-            var rotation = SimTransformBridgeSystem.EulerDegToRotation(msg.Ori.Heading, msg.Ori.Pitch, msg.Ori.Roll);   // ⭐ ui P3 — pitch and roll too
+            BdcWorldPosCodec.Decode(in msg, out var position, out var rotation, out _, out _);
 
             repo.SetComponent(entity, new SimTransform { Position = position, Rotation = rotation });
         }

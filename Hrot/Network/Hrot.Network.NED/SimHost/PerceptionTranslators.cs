@@ -106,7 +106,6 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsWriter<RaycastRequestBatch>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
         private readonly int _localNodeId;
 
         private uint _batchCorrelationId;
@@ -124,7 +123,6 @@ namespace Hrot.Network.NED.SimHost
             int                  localNodeId = 0)
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _localNodeId  = localNodeId;
             _writer       = participant != null ? new DdsWriter<RaycastRequestBatch>(participant, TopicName) : null;
         }
@@ -136,10 +134,9 @@ namespace Hrot.Network.NED.SimHost
             var events = view.ReadEvents<RaycastRequestEvent>();
             if (events.IsEmpty) return;
 
-            // Spatial precision anchor: convert first ray origin to WGS-84 GeoPoint.
+            // Spatial precision anchor: the first ray origin, as local ENU (AQ107 B) — copied.
             var anchorCartesian = events[0].Start;
-            var (lat, lon, alt) = _geoTransform.ToGeodetic(anchorCartesian);
-            var batchOrigin = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
+            var batchOrigin = Hrot.Map.Common.Replication.Utils.EnuWire.ToWire(anchorCartesian);
 
             var ddsRequests = new List<DdsRaycastRequest>(events.Length);
             for (int i = 0; i < events.Length; i++)
@@ -419,7 +416,6 @@ namespace Hrot.Network.NED.SimHost
         private readonly DdsReader<RaycastRequestBatch>? _reader;
         private readonly DdsWriter<RaycastResponseBatch>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastRequestBatch;
         public string TopicName         => "RaycastRequestBatch";
@@ -433,7 +429,6 @@ namespace Hrot.Network.NED.SimHost
             IGeographicTransform geoTransform)
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _reader       = participant != null ? new DdsReader<RaycastRequestBatch>(participant, TopicName) : null;
             _writer       = participant != null ? new DdsWriter<RaycastResponseBatch>(participant, "RaycastResponseBatch") : null;
         }
@@ -456,15 +451,8 @@ namespace Hrot.Network.NED.SimHost
                 var data = sample.Data;
                 if (data.Requests == null || data.Requests.Count == 0) continue;
 
-                // Spatial precision reconstruction: convert geodetic anchor to absolute Cartesian.
-                var originCartesian = _geoTransform.ToCartesian(
-                    data.BatchOrigin.Latitude,
-                    data.BatchOrigin.Longitude,
-                    data.BatchOrigin.Altitude);
-                var anchor = new Vector3(
-                    (float)originCartesian.X,
-                    (float)originCartesian.Y,
-                    (float)originCartesian.Z);
+                // Spatial precision reconstruction: the anchor is local ENU (AQ107 B).
+                var anchor = Hrot.Map.Common.Replication.Utils.EnuWire.FromWire(data.BatchOrigin);
 
                 var grid = repo.GetSingleton<SpatialGridData>().Grid;
                 var responseHits = new List<DdsRaycastHit>(data.Requests.Count);

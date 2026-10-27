@@ -26,8 +26,8 @@ namespace Hrot.Map.Common.Replication.Egress
     /// <para>
     /// Handles two component types:
     /// <list type="bullet">
-    ///   <item><b><see cref="EditablePolyline"/>:</b> Converts entity-relative Cartesian offsets
-    ///     to relative geodetic coordinates and writes an
+    ///   <item><b><see cref="EditablePolyline"/>:</b> Converts entity-relative offsets
+    ///     to absolute local-ENU positions (AQ107 B) and writes an
     ///     <c>UpdateEntityDescriptorRequest(dtMapVisualOverlay)</c> so the SimHost (authority)
     ///     updates its managed copy of the overlay.</item>
     ///   <item><b><see cref="RoutePlan"/>:</b> No explicit write — version already bumped in ECS;
@@ -46,7 +46,6 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly IDdsWriter<UpdateEntityDescriptorRequest> _writer;
         private readonly FdpEventBus _eventBus;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform? _geoTransform;
         private readonly long _localNodeId;
 
         public string TopicName => DdsTopicName;
@@ -78,7 +77,7 @@ namespace Hrot.Map.Common.Replication.Egress
             _writer       = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus     = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
             _entityMap    = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform;
+            // geoTransform: ⭐ AQ107 B — no longer used (points are absolute local ENU on the wire). Kept so the callers keep their shape.
             _localNodeId  = localNodeId;
         }
 
@@ -117,13 +116,6 @@ namespace Hrot.Map.Common.Replication.Egress
             long networkId, Guid requestId,
             EditablePolyline polyline, ISimulationView view)
         {
-            if (_geoTransform == null)
-            {
-                FdpLog<UpdateEntityCommandEgressTranslator>.Warn(
-                    "[Node-{0}] Cannot update overlay NetID={1}: geo-transform is null.", _localNodeId, networkId);
-                return;
-            }
-
             if (!_entityMap.TryGetEntity(networkId, out var entity))
             {
                 FdpLog<UpdateEntityCommandEgressTranslator>.Warn(
@@ -136,23 +128,19 @@ namespace Hrot.Map.Common.Replication.Egress
             if (view.HasComponent<SimTransform>(entity))
                 anchor = view.GetComponentRO<SimTransform>(entity).Position;
 
-            // Convert relative Cartesian offsets to absolute ENU, then to geodetic.
-            var geoPoints = new List<GeoPoint>(polyline.Points?.Count ?? 0);
+            // ⭐ AQ107 B — relative offsets → ABSOLUTE local ENU positions (the wire's one meaning for a position): a copy plus the anchor.
+            var wirePoints = new List<Vec3d>(polyline.Points?.Count ?? 0);
             if (polyline.Points != null)
             {
                 foreach (var relPt in polyline.Points)
-                {
-                    var absoluteEnu = new Vector3(anchor.X + relPt.X, anchor.Y + relPt.Y, anchor.Z);
-                    var (lat, lon, alt) = _geoTransform.ToGeodetic(absoluteEnu);
-                    geoPoints.Add(new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt });
-                }
+                    wirePoints.Add(Hrot.Map.Common.Replication.Utils.EnuWire.ToWire(new Vector3(anchor.X + relPt.X, anchor.Y + relPt.Y, anchor.Z)));
             }
 
             var mapOverlay = new MapVisualOverlay
             {
                 EntityId            = networkId,
                 PersistenceMode     = PersistenceMode.MODE_PERSISTENT,
-                Points              = geoPoints,
+                Points              = wirePoints,
                 IsEditable          = true,
                 IsClickable         = true,
                 StylePresetName     = string.Empty,
@@ -178,7 +166,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
             FdpLog<UpdateEntityCommandEgressTranslator>.Debug(
                 "[Node-{0}] UpdateEntityCommand \u2192 UpdateEntityDescriptorRequest(dtMapVisualOverlay) " +
-                "NetID={1} points={2}", _localNodeId, networkId, geoPoints.Count);
+                "NetID={1} points={2}", _localNodeId, networkId, wirePoints.Count);
         }
     }
 }

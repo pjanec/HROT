@@ -6,6 +6,7 @@ using Fdp.Modules.Geographic;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
+using Hrot.Map.Common.Replication.Utils;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
@@ -69,28 +70,9 @@ namespace Hrot.Map.Common.Replication.Egress
             string? initialAttributesJson,
             Vector3? anchor,
             IReadOnlyList<object>? initialComponents,
-            IGeographicTransform? geoTransform,
+            IGeographicTransform? geoTransform,   // ⭐ AQ107 B: no longer used — the wire is local ENU, copied. Kept so the callers keep their shape
             long preAllocatedNetworkId = 0)
         {
-            double lat, lon, alt;
-
-            if (geoTransform != null && anchor.HasValue)
-            {
-                (lat, lon, alt) = geoTransform.ToGeodetic(anchor.Value);
-            }
-            else if (anchor.HasValue)
-            {
-                // Offline / test mode: treat canvas XY as lat/lon directly.
-                var pos = anchor.Value;
-                lat = pos.Y;
-                lon = pos.X;
-                alt = 0.0;
-            }
-            else
-            {
-                lat = lon = alt = 0.0;
-            }
-
             var descriptors = new List<EntityDescriptorUnion>
             {
                 new EntityDescriptorUnion
@@ -105,14 +87,11 @@ namespace Hrot.Map.Common.Replication.Egress
                 new EntityDescriptorUnion
                 {
                     _d       = EDescriptorType.dtWorldPos,
+                    // ⭐ AQ107 B — the anchor is local ENU, copied (no anchor ⇒ the local origin). No rotation: the all-zero
+                    //   orientation is the identity.
                     WorldPos = new WorldPos
                     {
-                        Pos = new GeoPoint
-                        {
-                            Latitude  = lat,
-                            Longitude = lon,
-                            Altitude  = alt,
-                        },
+                        Position = EnuWire.ToWire(anchor ?? Vector3.Zero),
                     },
                 },
             };
@@ -139,10 +118,10 @@ namespace Hrot.Map.Common.Replication.Egress
                 }
 
                 if (polyline != null)
-                    descriptors.Add(BuildOverlayDescriptor(polyline, style, anchor, geoTransform));
+                    descriptors.Add(BuildOverlayDescriptor(polyline, style, anchor));
 
                 if (route != null)
-                    descriptors.Add(BuildRouteDescriptor(route, geoTransform));
+                    descriptors.Add(BuildRouteDescriptor(route));
             }
 
             return new CreateEntityRequest
@@ -157,42 +136,22 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>
         /// Builds a <c>dtMapVisualOverlay</c> descriptor from an <see cref="EditablePolyline"/>
-        /// and optional <see cref="MapOverlayStyle"/>. Entity-relative Cartesian XY points are
-        /// converted to relative geodetic offsets from the entity anchor.
+        /// and optional <see cref="MapOverlayStyle"/>. ⭐ AQ107 B — the entity-relative XY points become ABSOLUTE local ENU positions
+        /// (the anchor + the offset; Z is the anchor's) — the wire's one meaning for a position. No anchor ⇒ the entity sits at the
+        /// local origin and the points are already absolute.
         /// </summary>
         private static EntityDescriptorUnion BuildOverlayDescriptor(
             EditablePolyline polyline,
             MapOverlayStyle? style,
-            Vector3? anchor,
-            IGeographicTransform? geoTransform)
+            Vector3? anchor)
         {
-            var geoPoints = new List<GeoPoint>(polyline.Points?.Count ?? 0);
+            var wirePoints = new List<Vec3d>(polyline.Points?.Count ?? 0);
+            var origin = anchor ?? Vector3.Zero;
 
             if (polyline.Points != null)
             {
                 foreach (var relPt in polyline.Points)
-                {
-                    GeoPoint deltaGeo;
-                    if (geoTransform != null && anchor.HasValue)
-                    {
-                        // Convert entity-relative Cartesian XY to relative geodetic offset.
-                        var absCart   = new Vector3(anchor.Value.X + relPt.X, anchor.Value.Y + relPt.Y, anchor.Value.Z);
-                        var (absLat, absLon, absAlt) = geoTransform.ToGeodetic(absCart);
-                        var (refLat, refLon, refAlt) = geoTransform.ToGeodetic(anchor.Value);
-                        deltaGeo = new GeoPoint
-                        {
-                            Latitude  = absLat - refLat,
-                            Longitude = absLon - refLon,
-                            Altitude  = absAlt - refAlt,
-                        };
-                    }
-                    else
-                    {
-                        // No geo-transform or no anchor: treat XY as lat/lon offsets directly.
-                        deltaGeo = new GeoPoint { Latitude = relPt.Y, Longitude = relPt.X, Altitude = 0.0 };
-                    }
-                    geoPoints.Add(deltaGeo);
-                }
+                    wirePoints.Add(EnuWire.ToWire(new Vector3(origin.X + relPt.X, origin.Y + relPt.Y, origin.Z)));
             }
 
             string styleJson = style.HasValue ? style.Value.ToJson() : string.Empty;
@@ -203,7 +162,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 MapVisualOverlay = new MapVisualOverlay
                 {
                     PersistenceMode   = PersistenceMode.MODE_PERSISTENT,
-                    Points            = geoPoints,
+                    Points            = wirePoints,
                     IsEditable        = true,
                     IsClickable       = true,
                     StyleOverrideJson = styleJson,
@@ -213,30 +172,17 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>
         /// Builds a <c>dtMapRoute</c> descriptor from a <see cref="RoutePlan"/>.
-        /// Cartesian waypoint positions are converted to geodetic coordinates.
+        /// ⭐ AQ107 B — the waypoint positions (local ENU) go onto the wire as they are.
         /// </summary>
-        private static EntityDescriptorUnion BuildRouteDescriptor(
-            RoutePlan route,
-            IGeographicTransform? geoTransform)
+        private static EntityDescriptorUnion BuildRouteDescriptor(RoutePlan route)
         {
             var waypoints = new List<Waypoint>(route.Waypoints.Count);
 
             foreach (var wp in route.Waypoints)
             {
-                GeoPoint pos;
-                if (geoTransform != null)
-                {
-                    var (wLat, wLon, wAlt) = geoTransform.ToGeodetic(wp.Position);
-                    pos = new GeoPoint { Latitude = wLat, Longitude = wLon, Altitude = wAlt };
-                }
-                else
-                {
-                    // No geo-transform: treat Cartesian XYZ as lon/lat/alt.
-                    pos = new GeoPoint { Latitude = wp.Position.Y, Longitude = wp.Position.X, Altitude = wp.Position.Z };
-                }
                 waypoints.Add(new Waypoint
                 {
-                    Position = pos, SpeedMetersPerSec = wp.TargetSpeed,
+                    Position = EnuWire.ToWire(wp.Position), SpeedMetersPerSec = wp.TargetSpeed,
                     Kind = (byte)wp.Kind, HeightAgl = wp.HeightAgl, Hold = (byte)wp.Hold,   // ⭐ Air Ops B1
                     HoldSeconds = wp.HoldSeconds, HoldUnit = wp.HoldUnit,
                 });

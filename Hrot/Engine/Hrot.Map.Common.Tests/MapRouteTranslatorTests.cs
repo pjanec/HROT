@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using Hrot.Map.Common.Components;
@@ -148,18 +149,14 @@ public class MapRouteTranslatorTests
     }
 
     [Fact]
-    public void Egress_GeoPosition_RoundTripWithinOneMm()
+    public void Egress_LocalPosition_IsCopiedOntoTheWire()
     {
-        // Use WGS84 for a realistic precision check.
-        var geoTransform = new WGS84Transform();
-        geoTransform.SetOrigin(latDeg: 48.8566, lonDeg: 2.3522, altMeters: 35.0); // Paris
-
+        // ⭐ AQ107 B — was Egress_GeoPosition_RoundTripWithinOneMm (a WGS84 conversion). A waypoint is local ENU on the wire: a copy.
         using var world  = CreateEcsWorld();
         var entityMap    = new NetworkEntityMap();
         var writer       = new CapturingWriter<MapRoute>();
-        var translator   = new MapRouteEgressTranslator(writer, entityMap, geoTransform);
+        var translator   = new MapRouteEgressTranslator(writer, entityMap, new StubGeoTransform());
 
-        // Position within 100 km of origin
         var originalPos = new Vector3(500f, 1000f, 50f);
 
         var entity = world.CreateEntity();
@@ -174,15 +171,10 @@ public class MapRouteTranslatorTests
 
         translator.ScanAndPublish(world);
 
-        var geoPoint = writer.Publishes[0].Points![0].Position;
-
-        // Round-trip back to Cartesian
-        var roundTrippedPos = geoTransform.ToCartesian(
-            geoPoint.Latitude, geoPoint.Longitude, geoPoint.Altitude);
-
-        float distanceMeters = Vector3.Distance(originalPos, roundTrippedPos);
-        Assert.True(distanceMeters < 0.001f,
-            $"Round-trip error {distanceMeters * 1000:F3} mm exceeds 1 mm tolerance.");
+        var onWire = writer.Publishes[0].Points![0].Position;
+        Assert.Equal(500.0, onWire.X, 6);
+        Assert.Equal(1000.0, onWire.Y, 6);
+        Assert.Equal(50.0, onWire.Z, 6);
     }
 
     [Fact]
@@ -255,17 +247,14 @@ public class MapRouteTranslatorTests
     }
 
     [Fact]
-    public void Ingress_GeoPosition_RoundTripWithinOneMm()
+    public void Ingress_LocalPosition_IsCopiedIntoTheRoute()
     {
-        var geoTransform = new WGS84Transform();
-        geoTransform.SetOrigin(latDeg: 48.8566, lonDeg: 2.3522, altMeters: 35.0);
-
+        // ⭐ AQ107 B — was Ingress_GeoPosition_RoundTripWithinOneMm (a WGS84 conversion). The wire waypoint is local ENU: a copy.
         using var world = CreateEcsWorld();
         var entityMap   = new NetworkEntityMap();
-        var translator  = new MapRouteIngressTranslator(null, entityMap, geoTransform);
+        var translator  = new MapRouteIngressTranslator(null, entityMap, new StubGeoTransform());
 
         var originalPos = new Vector3(300f, 700f, 20f);
-        var (lat, lon, alt) = geoTransform.ToGeodetic(originalPos);
 
         var entity = world.CreateEntity();
         entityMap.Register(11, entity);
@@ -276,7 +265,7 @@ public class MapRouteTranslatorTests
             IsLoop   = false,
             Points   = new List<Waypoint>
             {
-                new Waypoint { Position = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt } }
+                new Waypoint { Position = new Vec3d { X = originalPos.X, Y = originalPos.Y, Z = originalPos.Z } }
             },
         };
         translator.ApplyToEntity(entity, sample, world);
@@ -308,7 +297,7 @@ public class MapRouteTranslatorTests
             {
                 new Waypoint
                 {
-                    Position          = new GeoPoint { Latitude = 1.0, Longitude = 2.0, Altitude = 3.0 },
+                    Position          = new Vec3d { X = 2.0, Y = 1.0, Z = 3.0 },
                     SpeedMetersPerSec = 12.5,
                     ExtensionJson     = @"{""wait"":5}",
                 }
@@ -521,7 +510,7 @@ public class MapRouteTranslatorTests
         {
             points.Add(new Waypoint
             {
-                Position          = new GeoPoint { Latitude = i, Longitude = i, Altitude = 0 },
+                Position          = new Vec3d { X = i, Y = i, Z = 0 },
                 SpeedMetersPerSec = 5.0,
             });
         }

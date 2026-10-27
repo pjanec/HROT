@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
+using Hrot.NED.Messages;
+using Hrot.Map.Common.Replication.Utils;
 using Hrot.NED.Common;
 using Hrot.IG.Components;
 using CycloneDDS.Runtime;
@@ -28,7 +30,6 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly DdsWriter<MapVisualOverlay> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
         private readonly HashSet<long> _tracedNetIds = new();
         private readonly long _localNodeId;
 
@@ -51,7 +52,7 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             _writer = new DdsWriter<MapVisualOverlay>(participant, DdsTopicName);
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+            // geoTransform: ⭐ AQ107 B — no longer used (points are absolute local ENU on the wire). Kept so the callers keep their shape.
             _localNodeId = localNodeId;
         }
 
@@ -84,23 +85,13 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var simTr   = ref view.GetComponentRO<SimTransform>(entity);
                 var polyline = view.GetManagedComponentRO<EditablePolyline>(entity);
 
-                // Reference position in geodetic space (entity's SimTransform position).
-                var (refLat, refLon, refAlt) = _geoTransform.ToGeodetic(simTr.Position);
-
-                // Points in EditablePolyline are RELATIVE Cartesian offsets from SimTransform.
-                // Convert back to RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt).
-                var geoPoints = new List<GeoPoint>(polyline.Points.Count);
+                // ⭐ AQ107 B — Points in EditablePolyline are RELATIVE offsets from SimTransform; the wire carries ABSOLUTE local ENU
+                //   positions (the entity's position + the offset; Z is the entity's), so every position on the wire has one meaning.
+                var wirePoints = new List<Vec3d>(polyline.Points.Count);
                 for (int i = 0; i < polyline.Points.Count; i++)
                 {
-                    var relCart = polyline.Points[i];
-                    var absCart = new Vector3(simTr.Position.X + relCart.X, simTr.Position.Y + relCart.Y, simTr.Position.Z);
-                    var (lat, lon, alt) = _geoTransform.ToGeodetic(absCart);
-                    geoPoints.Add(new GeoPoint
-                    {
-                        Latitude  = lat - refLat,
-                        Longitude = lon - refLon,
-                        Altitude  = alt - refAlt,
-                    });
+                    var rel = polyline.Points[i];
+                    wirePoints.Add(EnuWire.ToWire(new Vector3(simTr.Position.X + rel.X, simTr.Position.Y + rel.Y, simTr.Position.Z)));
                 }
 
                 // Extract the authoritative style to send to the IGs
@@ -117,7 +108,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 {
                     EntityId        = netId.Value,
                     PersistenceMode = PersistenceMode.MODE_PERSISTENT,
-                    Points          = geoPoints,
+                    Points          = wirePoints,
                     IsEditable      = true,
                     IsClickable     = true,
                     StyleOverrideJson = styleJson // FIX: Inject the preserved style

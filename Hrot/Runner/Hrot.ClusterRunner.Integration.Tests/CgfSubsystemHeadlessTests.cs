@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Common;
@@ -221,15 +221,14 @@ public sealed class CgfSubsystemHeadlessTests
         {
             EntityId  = networkId,
             IsEditable = false,
-            // Points are DELTA offsets (degrees) from the entity's reference position,
-            // NOT absolute geographic coordinates. The MapVisualOverlayIngressTranslator adds
-            // refGeo.lat + deltaLat when reconstructing Cartesian, so absolute coords would overflow.
-            Points    = new System.Collections.Generic.List<GeoPoint>
+            // ⭐ AQ107 B — Points are ABSOLUTE local-ENU positions (metres); the ingress makes them entity-relative.
+            //   A ~440 m square (the old ±0.002° deltas, in metres).
+            Points    = new System.Collections.Generic.List<Hrot.NED.Messages.Vec3d>
             {
-                new GeoPoint { Latitude = -0.002, Longitude = -0.002, Altitude = 0 },
-                new GeoPoint { Latitude =  0.002, Longitude = -0.002, Altitude = 0 },
-                new GeoPoint { Latitude =  0.002, Longitude =  0.002, Altitude = 0 },
-                new GeoPoint { Latitude = -0.002, Longitude =  0.002, Altitude = 0 },
+                new Hrot.NED.Messages.Vec3d { X = -220, Y = -220, Z = 0 },
+                new Hrot.NED.Messages.Vec3d { X = -220, Y =  220, Z = 0 },
+                new Hrot.NED.Messages.Vec3d { X =  220, Y =  220, Z = 0 },
+                new Hrot.NED.Messages.Vec3d { X =  220, Y = -220, Z = 0 },
             }
         };
         overlayWriter.Write(overlay);

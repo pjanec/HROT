@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Descriptors;
@@ -56,7 +56,7 @@ namespace Hrot.SimHost.Tests
                     WorldPos = new WorldPos
                     {
                         EntityId = entityId,
-                        Pos      = new GeoPoint { Latitude = 10.0, Longitude = 20.0, Altitude = 0.0 }
+                        Position = new Hrot.NED.Messages.Vec3d { X = 20.0, Y = 10.0, Z = 0.0 }   // AQ107 B: local ENU
                     }
                 }
             };

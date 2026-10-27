@@ -144,11 +144,17 @@ public class NedEntityCreationRequestEgressRails
 
         // The anchor came from the SimTransform inside InitialComponents, not from a command field.
         var worldPos = sample.InitialDescriptors.Single(d => d._d == EDescriptorType.dtWorldPos);
-        Assert.Equal(20.0, worldPos.WorldPos.Pos.Latitude,  3);
-        Assert.Equal(10.0, worldPos.WorldPos.Pos.Longitude, 3);
+        // ⭐ AQ107 B — the anchor is local ENU on the wire: X east = 10, Y north = 20 (a copy)
+        Assert.Equal(10.0, worldPos.WorldPos.Position.X, 3);
+        Assert.Equal(20.0, worldPos.WorldPos.Position.Y, 3);
 
         var overlay = sample.InitialDescriptors.Single(d => d._d == EDescriptorType.dtMapVisualOverlay);
         Assert.Equal(2, overlay.MapVisualOverlay.Points.Count);
+        // ⭐ AQ107 B — the polyline offsets (1,2) / (3,4) travel as ABSOLUTE local positions: anchor + offset
+        Assert.Equal(11.0, overlay.MapVisualOverlay.Points[0].X, 3);
+        Assert.Equal(22.0, overlay.MapVisualOverlay.Points[0].Y, 3);
+        Assert.Equal(13.0, overlay.MapVisualOverlay.Points[1].X, 3);
+        Assert.Equal(24.0, overlay.MapVisualOverlay.Points[1].Y, 3);
     }
 
     /// <summary>

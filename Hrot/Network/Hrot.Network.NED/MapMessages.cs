@@ -47,8 +47,8 @@ namespace Hrot.NED.Messages
         // The specific IG Instance where the click happened.
         public int MapId;
 
-        // World coordinates of the click.
-        public GeoPoint Position;
+        // World coordinates of the click: local ENU metres (X east, Y north, Z up) — AQ107 B.
+        public Vec3d Position;
 
         // List of objects under the cursor, ordered Top-to-Bottom (Z-order).
         [DdsManaged]
@@ -92,8 +92,8 @@ namespace Hrot.NED.Messages
         // The Entity being dragged.
         public long EntityId;
 
-        // Current world coordinates of the cursor/object.
-        public GeoPoint CurrentPosition;
+        // Current world coordinates of the cursor/object: local ENU metres — AQ107 B.
+        public Vec3d CurrentPosition;
 
         // The Context ID associated with this drag operation.
         public Guid InteractionContextId;

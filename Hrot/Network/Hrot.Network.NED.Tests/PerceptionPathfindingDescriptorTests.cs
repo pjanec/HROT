@@ -1,3 +1,4 @@
+using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
 using Xunit;
@@ -106,7 +107,7 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new PathRequestBatch
             {
                 SourceNodeId = 3,
-                BatchOrigin  = new GeoPoint { Latitude = 0f, Longitude = 0f, Altitude = 0f },
+                BatchOrigin  = new Vec3d { X = 0, Y = 0, Z = 0 },
                 Requests     = new System.Collections.Generic.List<DdsPathRequest>(),
             };
             Assert.Equal(3, batch.SourceNodeId);
@@ -120,7 +121,7 @@ namespace Hrot.DDS.DataModel.Tests
         [Fact]
         public void PathResponseBatch_HasTargetNodeIdAndBatchOrigin()
         {
-            var origin = new GeoPoint { Latitude = 52.5f, Longitude = 13.4f, Altitude = 100f };
+            var origin = new Vec3d { X = 5250.5, Y = 1340.25, Z = 100 };   // AQ107 B: the anchor is local ENU metres
             var batch  = new PathResponseBatch
             {
                 TargetNodeId = 7,
@@ -128,7 +129,7 @@ namespace Hrot.DDS.DataModel.Tests
                 Results      = new System.Collections.Generic.List<DdsPathResult>(),
             };
             Assert.Equal(7, batch.TargetNodeId);
-            Assert.Equal(52.5f, batch.BatchOrigin.Latitude);
+            Assert.Equal(5250.5, batch.BatchOrigin.X);
         }
 
         /// <summary>
@@ -142,7 +143,7 @@ namespace Hrot.DDS.DataModel.Tests
             {
                 SourceNodeId       = 4,
                 BatchCorrelationId = 12u,
-                BatchOrigin        = new GeoPoint(),
+                BatchOrigin        = new Vec3d(),
                 Requests           = new System.Collections.Generic.List<DdsRaycastRequest>(),
             };
             Assert.Equal(4, batch.SourceNodeId);

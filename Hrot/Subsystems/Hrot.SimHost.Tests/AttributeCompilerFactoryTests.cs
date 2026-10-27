@@ -332,12 +332,13 @@ namespace Hrot.SimHost.Tests
                 new EntityDescriptorUnion
                 {
                     _d = EDescriptorType.dtWorldPos,
-                    WorldPos = new WorldPos
-                    {
-                        EntityId = 0,
-                        Pos      = new GeoPoint { Latitude = Lat, Longitude = Lon, Altitude = Alt },
-                        Ori      = new EulerOri { Heading = (float)HeadingDeg },
-                    },
+                    // ⭐ AQ107 B / D — the descriptor is a local-ENU pose; the same place and heading the JSON route converts from
+                    //   lat/lon/heading are encoded here from the SAME transform and the SAME shared heading conversion.
+                    WorldPos = Hrot.Map.Common.Replication.Utils.WorldPosCodec.Encode(
+                        0, 0.0,
+                        GeoTransform.ToCartesian(Lat, Lon, Alt),
+                        Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.HeadingDegToRotation((float)HeadingDeg),
+                        System.Numerics.Vector3.Zero, System.Numerics.Vector3.Zero),
                 },
             };
 

@@ -248,7 +248,7 @@ namespace Hrot.SimHost.Integration.Tests
             var geo = _host.ReadGeoSpatial(ack.EntityId);
             if (geo != null)
             {
-                var cart = _host.GeoToCartesian(geo.Value.Pos);
+                var cart = SimHostInstance.LocalXY(geo.Value);
                 _out.WriteLine($"  distance from origin  = {Vector2.Distance(cart, Vector2.Zero):F2} m");
             }
         }

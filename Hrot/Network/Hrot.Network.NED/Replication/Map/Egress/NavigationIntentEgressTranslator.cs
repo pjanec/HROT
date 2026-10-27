@@ -26,7 +26,6 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly IGeographicTransform _geoTransform;
         private readonly long _localNodeId;
         // Tracks the tick of the last scan so QueryDelta can skip unchanged chunks.
         private uint _lastScanTick;
@@ -75,7 +74,7 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             _writer       = writer       ?? throw new System.ArgumentNullException(nameof(writer));
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _geoTransform = geoTransform ?? throw new System.ArgumentNullException(nameof(geoTransform));
+            // geoTransform: ⭐ AQ107 B — no longer used (the destination is local ENU on the wire; copied). Kept so the callers keep their shape.
             _localNodeId  = localNodeId;
         }
 
@@ -153,17 +152,14 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                // Convert the 3D Cartesian destination (Sim Z-up) to geodetic (WGS-84) for the
-                // wire format; GeoPoint.Altitude now carries the real destination altitude (P3D-304).
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(intent.FinalDestination);
-
+                // ⭐ AQ107 B — the 3D destination (local ENU, Z up — P3D-304) goes onto the wire as it is: a copy.
                 _publishedIds.Add(netId.Value);   // ⭐ CE-4007 — what this writer must delete on a wipe
                 _writer.Write(new Hrot.NED.Descriptors.NavigationIntent
                 {
                     EntityId         = netId.Value,
                     IntentId         = intent.IntentId,
                     Mode             = MapMode(intent.Mode),
-                    FinalDestination = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
+                    FinalDestination = Hrot.Map.Common.Replication.Utils.EnuWire.ToWire(intent.FinalDestination),
                     TargetSpeed      = intent.TargetSpeed,
                     ArrivalRadius    = intent.ArrivalRadius,
                     RouteHandle      = intent.RouteHandle,

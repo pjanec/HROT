@@ -1,4 +1,5 @@
 using System;
+using Fdp.Modules.Geographic;
 using Hrot.Core.Network;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
@@ -15,7 +16,7 @@ internal static class NedTranslationHelper
     /// Builds the minimal initial descriptor list for a create-entity request.
     /// </summary>
     public static System.Collections.Generic.List<EntityDescriptorUnion> BuildCreateEntityDescriptors(
-        CreateEntityCommand cmd)
+        CreateEntityCommand cmd, IGeographicTransform? geoTransform = null)
     {
         var descriptors = new System.Collections.Generic.List<EntityDescriptorUnion>
         {
@@ -31,14 +32,10 @@ internal static class NedTranslationHelper
             new EntityDescriptorUnion
             {
                 _d       = EDescriptorType.dtWorldPos,
+                // ⭐ AQ107 B — the neutral command's lat/lon becomes the wire's local ENU position (the one boundary conversion).
                 WorldPos = new WorldPos
                 {
-                    Pos = new GeoPoint
-                    {
-                        Latitude  = cmd.Latitude,
-                        Longitude = cmd.Longitude,
-                        Altitude  = cmd.Altitude,
-                    }
+                    Position = NeutralGeoBoundary.ToWire(geoTransform, cmd.Latitude, cmd.Longitude, cmd.Altitude),
                 }
             },
         };
@@ -96,7 +93,7 @@ internal static class NedTranslationHelper
     /// Translates a neutral <see cref="CreateEntityCommand"/> to a NED
     /// <see cref="CreateEntityRequest"/>.
     /// </summary>
-    public static CreateEntityRequest ToCreateEntityRequest(CreateEntityCommand cmd)
+    public static CreateEntityRequest ToCreateEntityRequest(CreateEntityCommand cmd, IGeographicTransform? geoTransform = null)
     {
         // Include affiliation in InitialAttributesJson so CreateEntityRequestSystem
         // processes it via the JSON-attribute path. The dtEntityInfo descriptor in
@@ -121,7 +118,7 @@ internal static class NedTranslationHelper
             RequestId             = cmd.RequestId,
             Owner                 = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
             Flags                 = 0,
-            InitialDescriptors    = BuildCreateEntityDescriptors(cmd),
+            InitialDescriptors    = BuildCreateEntityDescriptors(cmd, geoTransform),
             InitialAttributesJson = attrsJson,
         };
     }
@@ -131,7 +128,7 @@ internal static class NedTranslationHelper
     /// <see cref="UpdateEntityDescriptorRequest"/>.
     /// </summary>
     public static UpdateEntityDescriptorRequest ToUpdateDescriptorRequest(
-        UpdateEntityDescriptorCommand cmd)
+        UpdateEntityDescriptorCommand cmd, IGeographicTransform? geoTransform = null)
     {
         var payload = new EntityDescriptorUnion();
 
@@ -155,14 +152,9 @@ internal static class NedTranslationHelper
                         WorldPos = new WorldPos
                         {
                             EntityId = cmd.EntityId,
-                            Time     = DateTime.UtcNow,
-                            Pos      = new GeoPoint
-                            {
-                                Latitude  = lat,
-                                Longitude = lon,
-                                Altitude  = alt,
-                            },
-                            Ori = new EulerOri(),
+                            // AQ107 B / D — a MOVE request: the position (neutral lat/lon → wire local ENU); every other field zero
+                            // (the receiver, UpdateEntityDescriptorRequestSystem, keeps the entity's own rotation and ignores the rest).
+                            Position = NeutralGeoBoundary.ToWire(geoTransform, lat, lon, alt),
                         },
                     };
                 }

@@ -3,8 +3,10 @@ using System;
 namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
-    /// Encodes and decodes the <b>simulation-time stamp</b> carried on position samples
-    /// (<c>WorldPos.Time</c> on the NED stack, <c>BdcWorldPos.Time</c> on BDC).
+    /// Encodes and decodes the <b>simulation-time stamp</b> carried in a <see cref="DateTime"/> field of a sample.
+    /// ⭐ AQ107 D / F: <c>WorldPos</c> and <c>BdcWorldPos</c> no longer use it — they carry <c>double SimTime</c> (seconds); what remains
+    /// on this encoding is <c>EntityTurretPose</c> (<c>EntityTurretPoseEgressTranslator</c>). The remarks below describe the encoding,
+    /// not the position wires.
     ///
     /// <para>
     /// <b>Why this type exists.</b> Both stacks carry the stamp in a pre-existing

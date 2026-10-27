@@ -1,3 +1,4 @@
+using Hrot.NED.Messages;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
@@ -37,7 +38,7 @@ namespace Hrot.IG.Tests
             translator.DecodeForTest(new WorldPos
             {
                 EntityId = KnownId,
-                Pos = new GeoPoint { Latitude = 51, Longitude = 0, Altitude = 0 }
+                Position = new Vec3d { X = 1, Y = 2, Z = 3 }   // AQ107 B: the sample is local ENU, copied (no transform)
             }, cmd, repo);
 
             Assert.True(cmd.SetNetworkPositionCalled);
@@ -73,7 +74,7 @@ namespace Hrot.IG.Tests
             translator.DecodeForTest(new WorldPos
             {
                 EntityId = KnownId,
-                Pos = new GeoPoint { Latitude = 51, Longitude = 0, Altitude = 0 }
+                Position = new Vec3d { X = 10, Y = 20, Z = 30 }
             }, cmd, repo);
 
             Assert.True(cmd.SetSimTransformCalled,
@@ -105,7 +106,7 @@ namespace Hrot.IG.Tests
             translator.DecodeForTest(new WorldPos
             {
                 EntityId = KnownId,
-                Pos = new GeoPoint { Latitude = 1, Longitude = 2, Altitude = 3 }
+                Position = new Vec3d { X = 4, Y = 5, Z = 6 }
             }, cmd, repo);
 
             Assert.False(cmd.AddSimTransformCalled,
@@ -134,7 +135,7 @@ namespace Hrot.IG.Tests
             translator.DecodeForTest(new WorldPos
             {
                 EntityId = UnknownId,
-                Pos = new GeoPoint { Latitude = 10, Longitude = 20, Altitude = 0 }
+                Position = new Vec3d { X = 7, Y = 8, Z = 9 }
             }, cmd, repo);
 
             Assert.True(entityMap.TryGetEntity(UnknownId, out _),
