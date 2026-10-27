@@ -125,6 +125,27 @@ public sealed class ClusterMasterBranchTests
     /// ⭐⭐ D18 ① (R-3047, CE-3299 B4) — a branch from a replay records a NEW exercise whose id the MASTER mints: the request's id
     /// (here the REPLAYED exercise's, the case that truncated a recording) never reaches the nodes, and the cluster reports the new one.
     /// </summary>
+    /// <summary>⭐ CE-4065 — <c>LoadingLive</c> asked for from a replay is REFUSED (it is the branch's passage, not a destination: it parked
+    /// the cluster there with the clock frozen); the branch is asked for as <c>OperatingLive</c>.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4065_LoadingLive_asked_for_from_a_replay_is_refused_and_fans_nothing_out()
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        BootstrapToOperatingReplay(bus, master);
+
+        var requestId = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = requestId, OperationType = ClusterOpType.TransitionState,
+            PayloadJson = ((int)ClusterState.LoadingLive).ToString(),
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        Assert.DoesNotContain(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.PrepareLive);
+        Assert.Equal(ClusterState.OperatingReplay, master.CurrentClusterState);
+    }
+
     [Fact(Timeout = 10_000)]
     public void D18_ABranchFromAReplay_RecordsAnExerciseTheMasterMints_NeverTheRequestedOne()
     {

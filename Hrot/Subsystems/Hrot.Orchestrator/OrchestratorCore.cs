@@ -102,6 +102,7 @@ public sealed class OrchestratorCore : IDisposable
         // Aggregators — one per node-op whose ACKs carry a result.
         _master.RegisterAggregator(new ReplaySeekAggregator());                                   // TASK-T002
         _master.RegisterAggregator(new CheckpointRestoreAggregator());                            // CE-3299 B4 (D5)
+        _master.RegisterAggregator(new LiveBranchAggregator());                                   // CE-3312 — the branch's clock reaches the master
         _replay = new ReplayProcessManager(bus, o.TimeReads);
         _master.RegisterAggregator(_replay.CreateAggregator());
         _master.RegisterAggregator(_replay.CreateReviewAggregator());                             // ⭐ CE-3329 P3
@@ -150,7 +151,8 @@ public sealed class OrchestratorCore : IDisposable
         var replayMasterModule = new ReplayMasterModule(
             scale => timeReads.SetTimeScale(scale),
             () => timeReads.GetTimeScale());
-        _liveBranch = new LiveBranchProcessManager(bus, replayMasterModule, time);
+        _liveBranch = new LiveBranchProcessManager(bus, replayMasterModule, time,
+            map: () => _master.ReplayTimeMap, anchorWallTicks: () => _master.ReplayAnchorWallTicks);   // ⭐ CE-4065 — the branch resumes on sim time
 
         // TASK-T002 — the seek. Must tick BEFORE ClusterMaster so its precondition events precede the fan-out.
         _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule

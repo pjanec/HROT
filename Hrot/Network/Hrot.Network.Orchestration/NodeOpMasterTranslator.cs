@@ -228,6 +228,14 @@ public sealed class NodeOpMasterTranslator
                 catch { return resultJson; }
             }
 
+            // ⭐ CE-3312 — a node's live-branch answer: the replay clock at the branch (the master restores time and snaps to it).
+            //   ⛔ Without this case it fell to `default: null`: on a multi-process cluster a branch left time frozen.
+            case FdpNodeOpType.PrepareLive:
+            {
+                try { return JsonSerializer.Deserialize<LiveBranchResult>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
+            }
+
             // ⭐ CE-3299 B3 — a node's export answer is the path it wrote (a JSON string).
             case FdpNodeOpType.ExportCheckpoint:
             {

@@ -332,7 +332,10 @@ namespace Fdp.Core
         /// delivered as if published on the frame before — so the next swap and capture hand them to every reader exactly once. A type this
         /// bus has no stream for is skipped (nothing here reads it).
         /// </summary>
-        public unsafe void PublishCurrentOf(FdpEventBus source)
+        /// <param name="addMissingStreams">⭐ CE-4062 — when true, a native type this bus has no stream for gets one shaped like the
+        /// source's (typed when the source's is typed), so nothing is skipped: the Replay Browser hands a stepped frame's recorded
+        /// events to the world it draws, whose bus registered only the presentation's own events.</param>
+        public unsafe void PublishCurrentOf(FdpEventBus source, bool addMissingStreams = false)
         {
             if (source is null) throw new ArgumentNullException(nameof(source));
             var natives = Volatile.Read(ref source._nativeList);
@@ -341,7 +344,14 @@ namespace Fdp.Core
             {
                 var from = natives[i];
                 var bytes = from.GetRawBytes();
-                if (bytes.IsEmpty || from.ElementSize <= 0 || !_nativeStreams.TryGetValue(from.EventTypeId, out var to)) continue;
+                if (bytes.IsEmpty || from.ElementSize <= 0) continue;
+                if (!_nativeStreams.TryGetValue(from.EventTypeId, out var to))
+                {
+                    if (!addMissingStreams) continue;
+                    to = AddNativeStream(from.EventTypeId, from is UntypedNativeEventStream
+                        ? new UntypedNativeEventStream(from.EventTypeId, from.ElementSize)
+                        : (INativeEventStream)Activator.CreateInstance(from.GetType(), 1024)!);   // the typed stream's default capacity
+                }
                 fixed (byte* p = bytes)
                     for (int offset = 0; offset + from.ElementSize <= bytes.Length; offset += from.ElementSize)
                         to.WriteRaw(p + offset);

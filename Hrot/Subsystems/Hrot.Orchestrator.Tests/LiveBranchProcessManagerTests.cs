@@ -112,6 +112,42 @@ public sealed class LiveBranchProcessManagerTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-4065 (DAR §4) — a branch resumes on the SIM time of the frame on screen: the replay clock's playhead is WALL seconds after
+    /// the zero (12 s here, after a 7 s pause), the cluster's map says that frame is sim 5 s, and the master's clock is snapped to 5.
+    /// 🔴 Before: snapped to 12 (measured live: branched at sim 5 s the live run read 12.71 s) — every timer came due early.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4065_A_branch_resumes_on_the_frames_sim_time_not_the_wall_playhead()
+    {
+        var bus = new FdpEventBus();
+        var (replayModule, _, _) = MakeTrackedModule();
+        var masterSyncBus = new FdpEventBus();
+        var masterSync    = MakeMasterSync(masterSyncBus);
+        masterSyncBus.SwapBuffers();
+        long zero = TimeSpan.FromSeconds(100).Ticks, s = TimeSpan.TicksPerSecond;
+        var map = new Fdp.Core.FlightRecorder.ReplayTimeMap(
+            new[] { new Fdp.Core.FlightRecorder.ReplayTimeMap.Point(zero, 0), new(zero + 5 * s, 5), new(zero + 12 * s, 5), new(zero + 15 * s, 8) },
+            new[] { new Fdp.Core.FlightRecorder.ReplayTimeMap.Stretch(zero + 5 * s, zero + 12 * s, 5, false) });
+        var mgr = new LiveBranchProcessManager(bus, replayModule, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus),
+                                               map: () => map, anchorWallTicks: () => zero);
+
+        bus.PublishManaged(new ClusterStateTransitionedEvent { NewStateId = (FdpClusterState)(int)ClusterState.OperatingReplay, SubsystemName = "Cluster" });
+        bus.SwapBuffers(); mgr.Tick(); bus.SwapBuffers();
+        bus.PublishManaged(new TransitionStateIntent { TargetState = (FdpClusterState)(int)ClusterState.OperatingLive });
+        bus.SwapBuffers(); mgr.Tick(); bus.SwapBuffers();   // the branch starts: the map is taken while the cluster replays
+
+        bus.PublishManaged(new ClusterOpCompletedEvent
+        {
+            RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
+            ResultPayload = new LiveBranchResult(new GlobalTime { TotalTime = 12.0, TotalWallTicks = zero + 12 * s }),
+        });
+        bus.SwapBuffers(); mgr.Tick();
+
+        masterSyncBus.SwapBuffers(); masterSync.Update();
+        Assert.Equal(5.0, masterSync.GetCurrentState().TotalTime, 6);
+    }
+
+    /// <summary>
     /// ⭐ CE-3299 B4 (D5) — a checkpoint restore's result snaps the master clock back to the checkpoint and leaves it PAUSED, and
     /// touches no replay freeze (there was none: the restore is from a live cluster).
     /// </summary>

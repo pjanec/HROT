@@ -1306,6 +1306,15 @@ public sealed partial class ClusterMaster : IDisposable
             return;
         }
 
+        // ⭐ CE-4065 — LoadingLive is the branch's PASSAGE, not a place to stop: asked for from a replay it parked the cluster there with the
+        //   clock frozen. Refused, naming the branch's real target — one way to branch, OperatingLive (ReplaySessionIntents.BranchLive()).
+        if (ClusterStates.IsReplaying(showing) && intent.TargetState == FdpClusterState.LoadingLive)
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] transition {0} REJECTED — LoadingLive is passed through, not stopped in: to branch a replay live, ask for OperatingLive.", requestId);
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
+
         // ⭐⭐ R-3055 (the R-3049 rule, for a replay) — a replay whose request names no exercise gets one from the MASTER: the run in
         //    progress when the cluster is live (the planner ends it on the way in), else the newest finished one. ⛔ It used to be chosen
         //    by the asker from a cached inventory, so the same request worked on the editor and was refused on CGF.
@@ -1972,6 +1981,12 @@ public sealed partial class ClusterMaster : IDisposable
             }
             intent.TargetWallTicks = rel;
         }
+        // ⭐ CE-3333 — "the end" (long.MaxValue, what scripts send) or anything past it is the replay's LAST moment, resolved here where the
+        //   cluster's length is known. ⛔ Sent through as is, a node found the target past its own recording, took itself for a listener
+        //   (R-4012) and emptied its world: a seek to the end showed nothing.
+        long endTicks = (long)Math.Round(_replayDurationSeconds * TimeSpan.TicksPerSecond);
+        if (_replayDurationSeconds > 0 && intent.TargetWallTicks > endTicks) intent.TargetWallTicks = endTicks;
+
         // RT-008: fan-out with ACK tracker; immediate Success when roster is empty.
         // SlaveNodeSetUpdatedEvent and PauseTimeIntent are published by ReplaySeekProcessManager (TASK-T002).
         var seekNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only

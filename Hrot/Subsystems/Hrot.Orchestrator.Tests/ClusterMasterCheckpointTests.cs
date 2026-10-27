@@ -340,6 +340,24 @@ public sealed class ClusterMasterCheckpointTests
         Assert.Equal(8_100L, result.RestoredTime.TotalWallTicks);
     }
 
+    /// <summary>⭐ CE-3312 — a branch's answers reach the master: the aggregator reports the earliest node's replay clock (a listener's empty
+    /// answer skipped). 🔴 Before: no aggregator and no decode, so on a multi-process cluster the branch never restored time.</summary>
+    [Fact(Timeout = 5_000)]
+    public void CE3312_TheBranchAggregator_ReportsTheEarliestNodeClock()
+    {
+        string Json(long ticks) => System.Text.Json.JsonSerializer.Serialize(
+            new LiveBranchResult(new GlobalTime { TotalWallTicks = ticks, TotalTime = ticks / 1e7 }), Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
+        var answers = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<FdpNodeOpType, string>>
+        {
+            [1] = new() { [FdpNodeOpType.PrepareLive] = Json(120_000_000) },
+            [2] = new() { [FdpNodeOpType.PrepareLive] = Json(119_500_000) },
+            [3] = new() { [FdpNodeOpType.PrepareLive] = "" },
+        };
+        var result = Assert.IsType<LiveBranchResult>(new LiveBranchAggregator().Aggregate(answers));
+        Assert.Equal(119_500_000L, result.HistoricalTime.TotalWallTicks);
+        Assert.Equal(11.95, result.HistoricalTime.TotalTime, 6);   // TotalTime survives the wire (OnTheSimClock reads it)
+    }
+
     /// <summary>
     /// Verifies that <see cref="ClusterOpType.TakeCheckpoint"/> with an empty roster
     /// immediately publishes <see cref="OrchestrationStatusCode.Success"/> (no nodes → no-op).
