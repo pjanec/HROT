@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui, for the user's approval — rewritten the same day from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, DESIGN — for approval; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -1288,7 +1288,9 @@ argument is unused by a take record — a wart, not a fifth stack) · **T-L3** o
 Director window (one edit path) · **T-L4** T1 keeps reading `shots[]` and WRITES v2 only when a take is edited (seeded takes stay as they are
 until touched).
 
-## 11. CR — films from recordings: the workflow and the plan *(coordinator, `2026-10-27`; build-state: DESIGN — for the user's approval)*
+## 11. CR — films from recordings: the workflow and the plan *(coordinator, `2026-10-27`; build-state: ✅ APPROVED `2026-10-27` (R-4091) — READY-TO-BUILD per phase; P0 measured, CR-1 building as CE-4061)*
+
+🔒 **User, `2026-10-27`:** *"approved, do the measurements first, then update the tasks and plans, then note to lanes"* — ⭐ every lean of §11e (CR-1…CR-12) and every phase of §11f (P0–P6) is APPROVED as written; ⛔ nothing here waits on the user.
 
 🔒 **User, `2026-10-27`:** *"I need clip preparation in replay browser, with the edit possibilities as planned and of course the unification
 and sharing cross hosts."* · then, the NEED: *"I need you as an AI agent to be able (have all the means) to prepare the movie clips … by
@@ -1414,7 +1416,7 @@ sequenceDiagram
   U->>S: Save (beside the recording) · Promote (to the scenario)
 ```
 
-### 11e. Decisions — leans for approval
+### 11e. Decisions — ✅ APPROVED `2026-10-27` (R-4091)
 
 | # | ⭐ decision (lean) | rejected — the one fact |
 |---|---|---|
@@ -1458,6 +1460,74 @@ sequenceDiagram
 | the RB transport seeks by sim | ✅ `DebugSurface.cs:491-496` (re-read) | ✅ DAR §9c |
 | the runner plays the saved file; segments never play | ✅ §10 T3 as built; grep over `Hrot/` (re-run) | ✅ TE-6 / TE-7 say the program plays them |
 | rendering from the RB is cheaper than stepping the editor | ✅ **measured `2026-10-27`**: 0.26 s vs 0.32 s per 1280×720 frame (~20 % cheaper; the renderer dominates) — the gain of CR-12 is the iteration, not the render time | — |
+
+### 11h. CR-1 — the verify seam *(coordinator, `2026-10-27`, CE-4061; build-state: BUILDING)*
+
+⭐ What the runner keeps: **load → enter → play → capture → encode** (film, scout, capture). What leaves: every verify field, method and
+phase, into the editor's **`ScenarioVerifyRun`**, which plugs in through ONE seam; the verify-only host members leave `IDirectorHost` for an
+editor **`IVerifyHost`**. The runner then names no verify type, so ui can move it (P1).
+
+```mermaid
+classDiagram
+  direction LR
+  class DirectorRunner { <<film, shared after P1>> Play · Tick · Stop · Next · the stepping rule }
+  class RunPlan { <<abstract record>> what an extension runs instead of a take }
+  class PlayRequest { Reel · Speed · Capture · Scout · Inline · Plan RunPlan? }
+  class IRunExtension { <<NEW seam>> Attach(ctx) · Accepts(plan) · Validate · LoadsLive · BeforeLoad · Load · IsLoaded · BeginItem → RunStart? · OnFrame · HoldsStep · BeforeStep · Finish → owns phases? · Tick · PhaseName · Reset · Stop }
+  class IRunContext { <<NEW>> Host · Units · Request · Item · Report · Rel · T0 · Fail · EndItem · ResumePlaying · EnterExtensionPhase }
+  class IRunResult { <<NEW>> Kind · Passed · ToJson }
+  class ItemReport { Result IRunResult? }
+  class IDirectorHost { <<film members only>> }
+  class IVerifyHost { <<NEW, editor>> checkpoints · live · review · replay · HasLoadedAScenario }
+  class ScenarioVerifyRun { <<NEW, editor>> BeginVerify · R1 · H1a · H1b · H5 look-back }
+  class VerifyOptions { <<editor>> RunPlan }
+  class VerifyResult { <<editor>> IRunResult }
+  DirectorRunner --> IRunExtension : 0..1
+  DirectorRunner ..|> IRunContext : gives itself
+  PlayRequest --> RunPlan
+  ItemReport --> IRunResult
+  ScenarioVerifyRun ..|> IRunExtension
+  ScenarioVerifyRun --> IVerifyHost
+  VerifyOptions --|> RunPlan
+  VerifyResult ..|> IRunResult
+  EditorDirectorHost ..|> IDirectorHost
+  EditorDirectorHost ..|> IVerifyHost
+```
+*What the picture shows that prose hid:* the runner sees a plan, a result and an extension — three abstractions with no verify meaning — and the
+verifier owns its own phases (`Checking`, `Reviewing`, `Returning` become the extension's phase NAMES while the runner sits in one
+`Extension` phase), so a phase added to the verifier never touches the runner.
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner
+  participant X as ScenarioVerifyRun
+  participant H as EditorDirectorHost
+  R->>X: Validate(request, item) at Play
+  R->>X: BeforeLoad · LoadsLive?
+  alt a live verify run
+    R->>X: Load(scenario) — X calls IVerifyHost.LoadLive
+  else
+    R->>H: LoadScenario · EnterPreview
+  end
+  R->>X: BeginItem (each frame until it returns a start: R1 restores first)
+  loop each frame while playing
+    R->>X: OnFrame(rel) — observe the checks
+    R->>X: HoldsStep(rel) — the H5 review takes over here
+    R->>X: BeforeStep(rel) — R1 checkpoint, due actions
+    R->>H: StepBy (the ONE step)
+  end
+  R->>X: Finish(report) — judged, or "I go on" (H1a, H1b)
+  loop X's own phases
+    R->>X: Tick — then X calls ctx.EndItem() or ctx.ResumePlaying()
+  end
+```
+
+| decision | rejected — the one fact |
+|---|---|
+| **composition through `IRunExtension`**, the runner passing itself as `IRunContext` | a subclass `VerifyingDirectorRunner` — the hooks would be `protected virtual` members of the shared class, and the editor's verifier would compile against its private state |
+| **`PlayRequest.Plan` (an abstract `RunPlan`)** replaces `PlayRequest.Verify`; **`ItemReport.Result`** (an `IRunResult`) replaces `ItemReport.Verify`; the report JSON keeps its key from `IRunResult.Kind` (`"verify"`) | keeping the typed `Verify` members — they ARE the verify types the move must not drag |
+| **one `DirectorPhase.Extension`**; the status reports the extension's phase name | three verify phases in the shared enum |
+| `DirectorMode.Verify` becomes `DirectorMode.Plan`; the status `mode` is the extension's name (`"Verify"`) | — |
 
 ## 8. INVENTORY
 
