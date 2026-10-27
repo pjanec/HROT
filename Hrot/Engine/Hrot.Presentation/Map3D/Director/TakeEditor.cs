@@ -14,7 +14,8 @@ public abstract record TakeEdit
 {
     /// <summary>Camera key <paramref name="Index"/> (into <see cref="Take.Keys"/>) now at <paramref name="ToSim"/> sim seconds.</summary>
     public sealed record MoveKey(int Index, double ToSim) : TakeEdit;
-    public sealed record AddKey(CameraKey Key) : TakeEdit;
+    /// <summary>A new camera key. CR-6: <paramref name="Anchor"/> is the index event the key's <c>At</c> hangs on — the take gets the anchor and its baked time in the SAME edit (one undo step).</summary>
+    public sealed record AddKey(CameraKey Key, EventAnchor? Anchor = null) : TakeEdit;
     public sealed record RemoveKey(int Index) : TakeEdit;
     /// <summary>Segment <paramref name="Index"/>: <paramref name="Edge"/> now at <paramref name="ToSim"/> (<see cref="SegmentEdge.Whole"/>: its start, same length).</summary>
     public sealed record MoveSegment(int Index, SegmentEdge Edge, double ToSim) : TakeEdit;
@@ -100,7 +101,7 @@ public sealed class TakeEditor
         switch (edit)
         {
             case TakeEdit.MoveKey m: after = MoveKey(basis, m); what = "Move camera key"; break;
-            case TakeEdit.AddKey a: after = basis with { Keys = basis.Keys.Append(a.Key).ToList() }; what = "Add camera key"; break;
+            case TakeEdit.AddKey a: after = WithAnchor(basis, a.Anchor) with { Keys = basis.Keys.Append(a.Key).ToList() }; what = "Add camera key"; break;
             case TakeEdit.RemoveKey r: after = RemoveKey(basis, r); what = "Delete camera key"; break;
             case TakeEdit.MoveSegment s: after = MoveSegment(basis, s); what = "Move time segment"; break;
             case TakeEdit.AddSegment a: after = basis with { Segments = basis.Segments.Append(a.Segment).ToList() }; what = "Add time segment"; break;
@@ -157,6 +158,22 @@ public sealed class TakeEditor
             keys.Add(key);
         }
         return take with { Keys = keys };
+    }
+
+    /// <summary>
+    /// ⭐ CR-6 — the take with <paramref name="anchor"/> defined (its <see cref="AnchorSpec"/>) and baked (its event's sim time, the take's scenario hash and step rate)
+    /// unless the take already has both; an existing bake keeps its time (the keys written against it stay where they are). Null anchor = the take unchanged.
+    /// </summary>
+    private Take WithAnchor(Take take, EventAnchor? anchor)
+    {
+        if (anchor is null) return take;
+        var anchors = take.Anchors.ContainsKey(anchor.Name)
+            ? take.Anchors
+            : new Dictionary<string, AnchorSpec>(take.Anchors, StringComparer.Ordinal) { [anchor.Name] = anchor.Spec };
+        var baked = take.Baked ?? new BakedAnchors { TickHz = take.TickHz, ScenarioHash = _store?.ScenarioHash(take.Scenario) ?? "" };
+        if (!baked.Times.ContainsKey(anchor.Name))
+            baked = baked with { Times = new Dictionary<string, double>(baked.Times, StringComparer.Ordinal) { [anchor.Name] = anchor.EventSim } };
+        return take with { Anchors = anchors, Baked = baked };
     }
 
     private static AtExpr Retimed(Take take, AtExpr at, double sim)

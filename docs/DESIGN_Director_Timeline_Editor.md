@@ -1539,6 +1539,86 @@ host, the request, the report, the seam), 🔴 red-proved: a `VerifyResult` prop
 | **one `DirectorPhase.Extension`**; the status reports the extension's phase name | three verify phases in the shared enum |
 | `DirectorMode.Verify` becomes `DirectorMode.Plan`; the status `mode` is the extension's name (`"Verify"`) | — |
 
+### 11k. CR-6 detail — K hangs the key on an event *(ui, `2026-10-27`; build-state: BUILT — CE-1303 P2 slice CR-6)*
+
+**What an anchor could already say (measured before designing).** `AtExpr(Offset, Anchor?)` (`Take.cs:14`) is a time or `"name[+-off]"` where **`name` is a key of `Take.Anchors`**
+(an `AnchorSpec`: `shot` by a unit and its n-th round, `blast` the n-th burst, `hit` a target, the six state cues). It resolves through ONE path: `Take.Baked.Times[name] + Offset`
+(`TakeEditor.Resolve`, `TakeEditor.cs:90`; `AnchorBook.TimeOf`, `AnchorBook.cs:56` — baked first, else the live `Observe`). So `"shot:Tank#2+0.4"` already PARSES (the name is
+`shot:Tank#2`, the offset `+0.4`; the parse is name-agnostic). What was missing was only a producer: nothing named an index event as an anchor, K stored `new AtExpr(sim)`.
+Tracks drag an anchored key by changing its offset already (`TakeEditor.Retimed`, T3).
+
+**Choice — no new `AtExpr` form, no second resolver.** An *event anchor* is an ordinary named `AnchorSpec` the take defines plus a baked time. K defines
+`shot:Tank#2` = `{on: shot, by: Tank, n: 2}` with `baked.times["shot:Tank#2"]` = that round's sim time in the index, and the key is `AtExpr(0.4, "shot:Tank#2")`. `AnchorBook`
+then finds the round again on a live run exactly as it finds `fire` in the seeded takes. CR-5 (one resolver over `ITimelineSource`) stays P4 and is not forked: the
+event anchor survives it unchanged, because it is data in the take.
+
+| decision | choice | why (the one fact) |
+|---|---|---|
+| ordinal | **per shooter** (`Tank#2` = the unit's 2nd round) | `AnchorBook.CountShots` counts rounds `by` a unit (`AnchorBook.cs:121`); a global ordinal would renumber when another unit's timing changes — the case CR-6 exists for |
+| lanes offered | `combat.shot` · `combat.blast` · `combat.hit` (`EventAnchors.DefaultLanes`); nearest event wins, a tie goes to the earlier lane | these are the lanes whose cue an `AnchorSpec` can express. ⛔ `life.*` (spawned / left) is NOT offered — `AnchorSpec.Kinds` has no spawn cue, and a name `AnchorBook` cannot find on a live run would drift; CR-5 grows the cues |
+| blast / hit | `blast#n` (global n, as `AnchorBook` counts it) · `hit:Unit` for a unit's FIRST hit only | `AnchorBook.Hit` ignores `n`; a second hit is skipped, the nearest expressible event is used |
+| the unit | `EntityInfo.Name` of the event's subject, via the host's world | the name `By`/`Target` use and `TakeStore.Validate` checks; a subject with no name (gone, unnamed) is skipped |
+| the index | the one the host's timeline SHOWS (`HrotNodeContext.ShownTimeline.Index`) | the editor's live index; a host with no index (or no sim clock) stores a fixed time |
+| offset | `playhead − baked time of the anchor`, rounded to 1 ms | a take that already bakes the anchor keeps its time: the key lands on the playhead and stays consistent with its other keys |
+| no preceding event | a fixed time (`AtExpr(sim)`), no anchor, no bake | CR-6 |
+
+```mermaid
+classDiagram
+  direction LR
+  class EventAnchors { <<NEW, static, Hrot.Presentation/Map3D/Director>> DefaultLanes · NearestBefore(index, sim, unitName) · FrameAt · Label(AtExpr) }
+  class EventAnchor { <<NEW, record>> Name · Spec : AnchorSpec · EventSim }
+  class DirectorTracks { <<exists, grows>> eventAt : Func~double, EventAnchor?~ · K stores event + offset · Describe shows the anchor }
+  class TakeEdit_AddKey { <<exists, grows>> Key · Anchor : EventAnchor? }
+  class TakeEditor { <<exists, grows>> WithAnchor: defines the AnchorSpec and bakes its time in the SAME undo step · Retimed unchanged }
+  class AtExpr { <<exists>> Offset · Anchor }
+  class AnchorSpec { <<exists>> on shot / blast / hit · by · target · n }
+  class BakedAnchors { <<exists>> Times · TickHz · ScenarioHash }
+  class AnchorBook { <<exists>> resolves the SAME anchor live — unchanged }
+  class DirectorTakeSession { <<exists, Hrot.Editor>> passes eventAt to DirectorTracks }
+  class EditorSubsystem { <<exists>> EventAnchorAt : ShownTimeline.Index + UnitNameOf }
+  class TimelineIndex { <<exists, Fdp.Toolkits>> Lane · Before · FrameSim }
+  EventAnchors ..> TimelineIndex : reads lanes + FrameSim
+  EventAnchors --> EventAnchor : returns
+  EditorSubsystem --> EventAnchors : NearestBefore
+  EditorSubsystem --> DirectorTakeSession : eventAt
+  DirectorTakeSession --> DirectorTracks : eventAt
+  DirectorTracks --> TakeEdit_AddKey : K
+  TakeEdit_AddKey --> TakeEditor : Apply
+  EventAnchor --> AnchorSpec
+  TakeEditor --> AnchorSpec : Take.Anchors
+  TakeEditor --> BakedAnchors : Take.Baked.Times
+  DirectorTracks --> AtExpr : offset + anchor name
+  AnchorBook ..> AnchorSpec : finds the event live
+```
+*What the picture shows that prose hid:* the only NEW behaviour is `EventAnchors` (read an index, name an event in the take's existing anchor vocabulary); every box that resolves,
+stores, drags or plays an anchor already existed and is untouched — `AnchorBook`, `Retimed`, `TakeJson`, the runner.
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant P as Event Timeline (K)
+  participant D as DirectorTracks (Camera track)
+  participant X as EditorSubsystem.EventAnchorAt
+  participant A as EventAnchors
+  participant E as TakeEditor
+  U->>P: K at the playhead (sim 1.4 s)
+  P->>D: Key('K', 1.4)
+  D->>X: eventAt(1.4)
+  X->>A: NearestBefore(ShownTimeline.Index, 1.4, UnitNameOf)
+  A-->>D: shot:Tank#2 {on shot, by Tank, n 2}, event at 1.0 s
+  D->>E: Apply(AddKey(key at shot:Tank#2 +0.4, anchor))
+  E->>E: WithAnchor — define the AnchorSpec, bake 1.0 s, add the key (ONE undo record)
+  Note over D,E: Resolve(shot:Tank#2 +0.4) = 1.0 + 0.4 = 1.4; a drag changes the offset (Retimed), the label reads "shot Tank#2 +0.4s"
+```
+
+**As built.** `EventAnchors.cs` (new) · `TakeEdit.AddKey(Key, EventAnchor? Anchor = null)` + `TakeEditor.WithAnchor` · `DirectorTracks` (K, `Describe`; every anchored key's label now ends in
+` @ <anchor>`, seeded ones too) · `DirectorTakeSession` and `EditorSubsystem.EventAnchorAt` / `UnitNameOf` pass the editor's index in. `TakeJson` and `AnchorBook` needed no change (the
+anchor is a normal anchor + bake). **Deviations from the coordinator's one-liner:** the name is `shot:Unit#n` with a per-shooter ordinal (decided above), lanes are the three combat
+lanes, not "combat + life". **Known edges:** (1) the baked time is the index frame's sim time, `AnchorBook` records `ShotRecord.FiredAt` — they differ by under one step (the
+runner's tolerance is 0.02 s; at 15 Hz one step is 0.067 s, so a 15 Hz take may list a drift); (2) a take whose bake is stale for its scenario hash keeps the stale bake (the runner already
+says so and cuts on live cues); (3) the Replay Browser has no director yet (P2 `ReplayDirectorHost`) — its K will pass the recording's index through the same `eventAt`.
+Rails: `EventAnchoredKeysTests.CE1303_CR6_*` ×8 (Hrot.Presentation.Tests) · `DirectorTracksOnTheEditorTests.CE1303_CR6_K_OnTheEditorsTimeline_UsesTheEditorsLiveIndex` (Hrot.Editor.Tests).
+
 ## 8. INVENTORY
 
 ```
@@ -1579,7 +1659,76 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 the reel format, capture and the sound track. *Grown:* `Take`, `AnchorSpec`, `AnchorBook`, `TakeTimeline`, `TakeStore`, `IDirectorHost`,
 `DirectorWindow` (into the timeline panel). *New:* `ReplayDirectorHost`, `FilmGraphicsLayer`, the key/segment/subtitle/view/graphic records.
 
-### 11h. ✅ As built `2026-10-27` — P0 items ①, ② and ④ (backend; NOTE_Coordinator_To_Backend_Films_From_Recordings)
+### 11j. P1 detail — one director, the move *(ui, `2026-10-27`, CE-1303; build-state: READY-TO-BUILD)*
+
+⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) P1 +
+[NOTE_…_Verifier_Split_Landed](blueprints/batches/NOTE_Coordinator_To_Ui_Verifier_Split_Landed.md) (what moves / what stays). INVENTORY
+(grep + graph, `2026-10-27`): `Hrot/Subsystems/Hrot.Editor/Director/` — 15 files, 3 701 lines; the editor wires the director in ONE block
+(`EditorSubsystem.cs` §8a, `:2461-2520`) + three call sites (`_director?.Tick()` `:2919`, `_debugApiHost.AttachDirector` `:2636`, the
+window `:5309`); every type the moving files use is already reachable from `Hrot.Presentation` (`Map3D/Director` holds `Take`, `TakeStore`,
+`TakeEditor`, `DirectorTracks`, `PilotCamera`; `Fdp.Presentation` the panel and windows).
+
+```mermaid
+classDiagram
+  direction LR
+  class DirectorPack { <<NEW, Hrot.Presentation/Map3D/Director>> Attach(DirectorPackHost) · Runner · Takes · Session · Window · Tick() }
+  class DirectorPackHost { <<NEW record>> Host IDirectorHost · Wm · Layers · Headless · Pilot · Timeline TimelinePanel · Extension IRunExtension? · WindowTabs }
+  class DirectorRunner { <<MOVED>> }
+  class IDirectorHost { <<MOVED>> }
+  class IRunExtension { <<MOVED>> }
+  class ICinema { <<MOVED>> }
+  class WindowCinema { <<MOVED, was EditorCinema>> over the WindowManager }
+  class MapLayerOverride { <<MOVED, was EditorLayerOverride>> over LayerControlGizmo }
+  class FilmFrameSink { <<MOVED>> }
+  class AudioDirectorSound { <<MOVED, was EditorDirectorSound>> }
+  class DirectorTakeSession { <<MOVED>> }
+  class DirectorWindow { <<MOVED>> film tabs · extra tabs from the host }
+  class IDirectorWindowTab { <<NEW seam>> Name · Draw(runner, store) }
+  class PilotCamera { <<exists, grown>> FromMap(MapCamera3D, selected) — K's pose, was EditorSubsystem.PilotCameraSpec }
+  class EditorDirectorHost { <<STAYS, editor>> IDirectorHost + IVerifyHost }
+  class ScenarioVerifyRun { <<STAYS, editor>> IRunExtension }
+  class VerifyTab { <<NEW, editor>> IDirectorWindowTab — the Verify tab cut out of DirectorWindow }
+  DirectorPack --> DirectorRunner
+  DirectorPack --> DirectorTakeSession
+  DirectorPack --> DirectorWindow
+  DirectorPack --> DirectorPackHost : built from
+  DirectorRunner --> IDirectorHost
+  DirectorRunner --> IRunExtension : 0..1
+  DirectorRunner --> ICinema
+  WindowCinema ..|> ICinema
+  DirectorWindow --> IDirectorWindowTab : 0..n
+  VerifyTab ..|> IDirectorWindowTab
+  EditorDirectorHost ..|> IDirectorHost
+  ScenarioVerifyRun ..|> IRunExtension
+  DirectorTakeSession --> PilotCamera
+```
+*What the picture shows that prose hid:* the editor keeps only its host, its verifier and a Verify TAB — the window's one editor-only part
+becomes a contributed tab (the same shape as the runner's `IRunExtension`), so `DirectorWindow` can move whole and the Replay Browser
+gets the same window with film tabs only.
+
+```mermaid
+graph TD
+  ED["EditorSubsystem.Initialize §8a"] -->|"DirectorPack.Attach(host: EditorDirectorHost, extension: ScenarioVerifyRun, tabs: VerifyTab)"| DP["DirectorPack"]
+  EDU["EditorSubsystem.Update"] -->|"pack.Tick()"| DP
+  DP --> RUN["DirectorRunner.Tick"]
+  DP -->|"sets Tracks / Undo / Redo"| PAN["the host's TimelinePanel (editor_event_timeline)"]
+  DP -->|"RegisterWindow"| WIN["DirectorWindow"]
+  ED -->|"_debugApiHost.AttachDirector(pack.Runner, pack.Takes, …)"| DBG["/director/* (unchanged)"]
+  RB["ReplayBrowserSubsystem (P2)"]:::later -.->|"DirectorPack.Attach(ReplayDirectorHost)"| DP
+  classDef later stroke:#c33,stroke-dasharray:4 3,color:#c33
+```
+*Caption:* one registrar, one Tick; the red edge is P2.
+
+| decision | why |
+|---|---|
+| the pack lives in `Hrot.Presentation/Map3D/Director`, namespace `Hrot.UI.Common.Map3D.Director` | where `Take` / `TakeStore` / the tracks already are — the director's model and its runner in one place |
+| adapters renamed for WHAT they are (`WindowCinema`, `MapLayerOverride`, `AudioDirectorSound`; `FilmFrameSink` kept) | the note's rule; nothing in them is editor-specific (each takes a Func) |
+| the Verify tab becomes an `IDirectorWindowTab` the editor contributes | the window's only verify code; the same seam shape as `IRunExtension` |
+| tests stay in their projects (`DirectorRunnerTests`, `DirectorTracksOnTheEditorTests` in `Hrot.Editor.Tests`; `FilmDirectorTests`, `DirectorTracksTests` in `Hrot.Presentation.Tests`) — renamed usings only | the move is proven by the SAME rails: `CE1364_T4_*` (55 takes play the same shots), `CE4061_TheFilmRunner_NamesNoVerifyType_*`, every director rail green |
+| ⛔ rejected: a second registrar in the Replay Browser | R-4068 / CR-2 |
+| ⛔ rejected: renaming the editor-side `Director/` namespace now for symmetry | it holds only verify types after the move; renaming them is churn without a reader |
+
+### 11i. ✅ As built `2026-10-27` — P0 items ①, ② and ④ (backend; NOTE_Coordinator_To_Backend_Films_From_Recordings)
 
 ```mermaid
 classDiagram

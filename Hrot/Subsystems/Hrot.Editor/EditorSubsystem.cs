@@ -1245,6 +1245,26 @@ namespace Hrot.Editor
             return Hrot.UI.Common.Map3D.Director.PilotCamera.Of(pose, unit, at, fov: cam.FovyDegrees);   // CE-1364: K stores the map camera's lens
         }
 
+        /// <summary>
+        /// ⭐ CR-6 (docs/DESIGN_Director_Timeline_Editor.md §11e) — K's anchor: the nearest combat event at or before <paramref name="sim"/> in the index the Event Timeline SHOWS
+        /// (<c>HrotNodeContext.ShownTimeline</c>: the live index on a live / review run), named by the unit's <see cref="EntityInfo.Name"/> — the name the take's anchors use.
+        /// Null when no index, no sim clock, or nothing precedes the playhead (K then stores a fixed time).
+        /// </summary>
+        private Hrot.UI.Common.Map3D.Director.EventAnchor? EventAnchorAt(double sim)
+        {
+            if (_node?.ShownTimeline?.Index is not { } index) return null;
+            return Hrot.UI.Common.Map3D.Director.EventAnchors.NearestBefore(index, sim, UnitNameOf);
+        }
+
+        private string? UnitNameOf(long networkId)
+        {
+            if (_world is not { } world) return null;
+            var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, networkId);
+            if (e.IsNull || !world.IsAlive(e) || !world.HasComponent<EntityInfo>(e)) return null;
+            var name = world.GetComponentRO<EntityInfo>(e).Name.ToString();
+            return name.Length > 0 ? name : null;
+        }
+
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
         // ctor for unit tests
@@ -2513,7 +2533,7 @@ namespace Hrot.Editor
                 cinema.EscapePressed = () => runner.Stop();
                 _director = runner;
                 // ⭐ CE-1364 T3 — the open take: the Event Timeline shows ITS Camera / Time tracks, Ctrl+Z on the panel undoes an edit of them
-                _directorTakes = new Hrot.Editor.Director.DirectorTakeSession(() => _takeStore, () => _director, PilotCameraSpec);
+                _directorTakes = new Hrot.Editor.Director.DirectorTakeSession(() => _takeStore, () => _director, PilotCameraSpec, EventAnchorAt);
                 _eventTimeline.Tracks = () => _directorTakes.Tracks;
                 _eventTimeline.Undo = () => _directorTakes.UndoLast();
                 _eventTimeline.Redo = () => _directorTakes.RedoLast();

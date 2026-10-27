@@ -49,12 +49,16 @@ public sealed class DirectorTracks
     private readonly TakeEditor _editor;
     private readonly Func<CameraSpec?> _pilot;
     private readonly Action<int>? _stepRate;
+    private readonly Func<double, EventAnchor?>? _eventAt;
     private string? _selected;
 
     /// <param name="pilot">The pilot camera as a key's camera (<see cref="PilotCamera.Of"/>), null when there is none.</param>
     /// <param name="stepRate">J (−1) / L (+1): the playback rate seam; null = this host has none (J / L are then not taken).</param>
-    public DirectorTracks(TakeEditor editor, Func<CameraSpec?> pilot, Action<int>? stepRate = null)
+    /// <param name="eventAt">⭐ CR-6: the nearest index event at or before a sim second (<see cref="EventAnchors.NearestBefore"/> over the host's index), null when none
+    /// precedes it — K then stores the key as that event + an offset; null function = this host has no index (K stores a fixed time).</param>
+    public DirectorTracks(TakeEditor editor, Func<CameraSpec?> pilot, Action<int>? stepRate = null, Func<double, EventAnchor?>? eventAt = null)
     {
+        _eventAt = eventAt;
         _editor = editor ?? throw new ArgumentNullException(nameof(editor));
         _pilot = pilot ?? throw new ArgumentNullException(nameof(pilot));
         _stepRate = stepRate;
@@ -110,7 +114,15 @@ public sealed class DirectorTracks
                 case 'K':
                     if (_d._pilot() is not { } camera) return false;
                     int count = CameraKeys.Of(_d._editor.Take).Count;
-                    if (!_d._editor.Apply(new TakeEdit.AddKey(new CameraKey { At = new AtExpr(Math.Max(atSimSeconds, 0d)), Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut })))
+                    double sim = Math.Max(atSimSeconds, 0d);
+                    var anchor = _d._eventAt?.Invoke(sim);
+                    var at = new AtExpr(sim);
+                    if (anchor != null)   // ⭐ CR-6: the nearest preceding event + the sim seconds since it (against the take's baked time for it, so the key lands on the playhead)
+                    {
+                        double basis = _d._editor.Take.Baked is { } baked && baked.Times.TryGetValue(anchor.Name, out var t) ? t : anchor.EventSim;
+                        at = new AtExpr(Math.Round(sim - basis, 3), anchor.Name);
+                    }
+                    if (!_d._editor.Apply(new TakeEdit.AddKey(new CameraKey { At = at, Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut }, anchor)))
                         return false;
                     _d._selected = KeyId(count);
                     return true;
@@ -140,12 +152,13 @@ public sealed class DirectorTracks
                 : c.Over != null ? "over " + c.Over
                 : c.LookAt != null ? "look-at"
                 : c.Eye != null || c.Target != null ? "eye-target" : "camera";
-            return k.In.Kind switch
+            string text = k.In.Kind switch
             {
                 KeyTransitionKind.Fly => $"{what} (fly {k.In.Seconds:0.#} s)",
                 KeyTransitionKind.Dip => $"{what} (dip)",
                 _ => what,
             };
+            return EventAnchors.Label(k.At) is { } anchor ? text + " @ " + anchor : text;   // ⭐ CR-6: the key shows what it is tied to
         }
     }
 
