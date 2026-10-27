@@ -3,6 +3,7 @@ group Demos/HillAttack
 sop-orders no
 writes-channels []
 json-params Hrot.Map.Definitions.Behavior.PlatoonHillAttackParamsJsonDto
+variable Params Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams = {"TargetAreaEntity":{"PackedValue":0,"IsNull":true,"Index":0,"Generation":0},"StartX":0,"StartY":0,"EndX":0,"EndY":0,"BaselineStartX":0,"BaselineStartY":0,"BaselineEndX":0,"BaselineEndY":0,"AttackDirX":1,"AttackDirY":0,"TankSpacing":30}
 parse (empty) -> ok
   1a000000-0000-0000-0000-0000000000a1 {"TargetAreaEntity":{"PackedValue":0,"IsNull":true,"Index":0,"Generation":0},"StartX":0,"StartY":0,"EndX":0,"EndY":0,"BaselineStartX":0,"BaselineStartY":0,"BaselineEndX":0,"BaselineEndY":0,"AttackDirX":0,"AttackDirY":0,"TankSpacing":0}
   1a000000-0000-0000-0000-0000000000a2 {"TargetAreaEntity":{"PackedValue":0,"IsNull":true,"Index":0,"Generation":0},"StartX":0,"StartY":0,"EndX":0,"EndY":0,"BaselineStartX":0,"BaselineStartY":0,"BaselineEndX":0,"BaselineEndY":0,"AttackDirX":0,"AttackDirY":0,"TankSpacing":0}

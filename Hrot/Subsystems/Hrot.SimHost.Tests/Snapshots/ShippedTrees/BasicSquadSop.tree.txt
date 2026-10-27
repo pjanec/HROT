@@ -3,6 +3,11 @@ group Library/Sop
 sop-orders yes
 writes-channels []
 json-params Hrot.Map.Definitions.Behavior.NoParams
+variable UnderFire Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadUnderFire","Seconds":3}
+variable LeaderDown Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadLeaderDown","Seconds":3}
+variable Contact Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadContact","Seconds":3}
+variable MemberDown Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadMemberDown","Seconds":3}
+variable AreaAhead Fdp.Toolkit.Behavior.SopAreaParams = {"WithinMetres":30}
 parse (empty) -> ok
   c2123000-0000-0000-0000-000000000041 {"Kind":"SquadUnderFire","Seconds":3}
   c2123000-0000-0000-0000-000000000011 {"Kind":"SquadUnderFire","Seconds":3}

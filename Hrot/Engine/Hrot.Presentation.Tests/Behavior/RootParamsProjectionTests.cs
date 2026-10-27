@@ -200,6 +200,41 @@ public sealed class RootParamsProjectionTests
         Assert.Equal(8, def.ManagedBlackboardVariables[1].ByteOffset);
     }
 
+    /// <summary>A C#-built tree's block: params and a working-state field, the shape CE-1410's tactics carry.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BlockWithState
+    {
+        public TestParams Params;
+        public long       State;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1412</c> — with a manifest the inspector lists the manifest's variables, and the block's fields the manifest does not
+    /// cover (a C#-built tree's working state) under "Behaviour state" — so publishing a manifest never hides what the layout fallback
+    /// showed. No manifest ⇒ nothing extra (the whole layout is rendered).
+    /// <para>✅ Red-proof: <c>UnlistedLayoutFields</c> returns the empty list ⇒ "Assert.Single() Failure: The collection was empty".</para>
+    /// </summary>
+    [Fact]
+    public void CE1412_TheBlocksUnlistedFields_AreTheStateTheManifestLeavesOut()
+    {
+        var def = new BehaviorDefinition
+        {
+            Name = "BlockWithState",
+            BrainTier = BehaviorConstants.BrainTierBTree,
+            BlackboardLayoutType = typeof(BlockWithState),
+            ManagedBlackboardVariables = new[] { new ManagedBlackboardVariable("Params", typeof(TestParams), 0) },
+        };
+        var rest = Assert.Single(RootParamsProjection.UnlistedLayoutFields(def));
+        Assert.Equal("State", rest.Name);
+        Assert.Equal(typeof(long), rest.Type);
+        Assert.Equal(TypeLayout.OffsetOf(typeof(BlockWithState), nameof(BlockWithState.State)), rest.Offset);
+
+        Assert.Empty(RootParamsProjection.UnlistedLayoutFields(new BehaviorDefinition
+        {
+            Name = "BlockWithState", BrainTier = BehaviorConstants.BrainTierBTree, BlackboardLayoutType = typeof(BlockWithState),
+        }));
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static BehaviorRegistry NewRegistry(BehaviorDefinition def)

@@ -18,6 +18,7 @@ namespace Hrot.SimHost.Tests
     /// blob and its parse), never off a source file:
     /// <list type="bullet">
     /// <item>the definition facts the pickers and the ingress read — group, "is an SOP" (CE-1019), its channel set, its authored contract;</item>
+    /// <item>⭐ CE-1412 — its variables manifest (name, type, baked value), which the editor's live values read;</item>
     /// <item>the parse: what each probe payload does (ok / refused), and for "{}" the VALUE every bound node reads;</item>
     /// <item>the tree, depth first — every node's kind, editor id, title and comment, a decorator's / wait's parameter, a leaf's bound METHOD,
     ///   the TYPE and VALUE of the params it reads and the TYPE of its working memory, an SOP order's behaviour and urgency.</item>
@@ -45,6 +46,16 @@ namespace Hrot.SimHost.Tests
             sb.Append("sop-orders ").AppendLine(def.CarriesSopOrders ? "yes" : "no");
             sb.Append("writes-channels ").AppendLine(def.WritesChannels == null ? "unknown" : "[" + string.Join(",", def.WritesChannels.Select(t => t.Name)) + "]");
             sb.Append("json-params ").AppendLine(def.JsonParamsDtoType?.FullName ?? "-");
+
+            // ⭐ CE-1412 — the variables manifest (what the editor's live Variables values and the inspector read): each variable's
+            //   name, type and BAKED value. ⚠ No offset, as for the nodes below — the value is read AT the offset, so a wrong one
+            //   prints a wrong value; and the JSON block's packing need not be the C# block's.
+            var (_, baked) = Parse(def, "{}");
+            if (def.ManagedBlackboardVariables == null) sb.AppendLine("variables none");
+            else
+                foreach (var v in def.ManagedBlackboardVariables)
+                    sb.Append("variable ").Append(v.Name).Append(' ').Append(v.Type.FullName).Append(" = ")
+                      .AppendLine(baked == null ? "?" : Value(v.Type, v.ByteOffset, baked));
 
             var leaves = Leaves(blob);
             foreach (var probe in CommonProbes.Concat(extraProbes))

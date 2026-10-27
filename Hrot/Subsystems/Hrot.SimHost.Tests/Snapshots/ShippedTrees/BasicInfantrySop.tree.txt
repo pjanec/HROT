@@ -3,6 +3,12 @@ group Library/Sop
 sop-orders yes
 writes-channels []
 json-params Hrot.Map.Definitions.Behavior.NoParams
+variable AirSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"AirThreat","Seconds":3}
+variable HitSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"Hit","Seconds":3}
+variable ThreatSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"FirstThreat","Seconds":3}
+variable HoldFire Fdp.Toolkit.Behavior.SopRoeParams = {"Fire":"HoldFire"}
+variable AirDefence Hrot.AI.Behaviors.Brains.EngageAircraftParams = {"ClearSeconds":10,"MinElevationDeg":80}
+variable NearMissSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"NearMiss","Seconds":3}
 parse (empty) -> ok
   c2080000-0000-0000-0000-0000000000a2 {"Kind":"AirThreat","Seconds":3}
   c2080000-0000-0000-0000-0000000000a3 {"ClearSeconds":10,"MinElevationDeg":80}

@@ -53,7 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
             "50-60 m out).";
 
         [Behavior(BehaviorNames.BasicSquadSop, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.BasicSquadSop, AssetId = "a2123000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Sop",
+        [BTreeDefinition(BehaviorNames.BasicSquadSop, AssetId = "a2123000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Sop",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()

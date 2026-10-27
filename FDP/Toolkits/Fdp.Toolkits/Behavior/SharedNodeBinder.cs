@@ -88,6 +88,35 @@ namespace Fdp.Toolkit.Behavior
 
         private static void RecordMethod(string key, Delegate logic) => BoundMethods[key] = logic.Method;
 
+        // ⭐ CE-1412 — the TOP-LEVEL block field each stateful key binds as its working state (bb => bb.State ⇒ "State"): a
+        //   JSON asset's working memory is never a published variable (Role=State, CE-429), and a C#-built tree's lives in its block,
+        //   so VariablesOf leaves these fields out. Keyed like BoundMethods (a key is unique per method + offsets).
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> StateFields = new();
+
+        private static void RecordState<TBB, TWorkingState>(string key, Expression<Func<TBB, TWorkingState>> selector)
+        {
+            var m = selector.Body as MemberExpression ?? (selector.Body as UnaryExpression)?.Operand as MemberExpression;
+            while (m?.Expression is MemberExpression outer) m = outer;   // the outermost link is the block's own field
+            if (m != null) StateFields[key] = m.Member.Name;
+        }
+
+        // ⭐ CE-1411 — a [WritesChannel] method's channels, read once at bind time (the attribute WritesChannelsOf reads).
+        private static Fbt.Kernel.ChannelKind[] ChannelsOf(MethodInfo m)
+        {
+            var list = new List<Fbt.Kernel.ChannelKind>();
+            foreach (var a in m.GetCustomAttributes<Fbt.Kernel.WritesChannelAttribute>()) list.Add(a.Channel);
+            return list.ToArray();
+        }
+
+        /// <summary>⭐ <c>CE-1411</c> — the JSON path's rule (<c>ChannelClearEmit</c>): a plain / param-less node that returns Failure
+        /// releases its <c>[WritesChannel]</c> channels, through the ONE implementation (<see cref="ChannelRelease.OnFailure"/>).
+        /// ⚠ Like the JSON path, the STATEFUL forms do not: their bound working state owns the action (a deactivator ends it).</summary>
+        private static NodeStatus Release(NodeStatus status, Fbt.Kernel.ChannelKind[] channels, in BTreeContext ctx)
+        {
+            for (int i = 0; i < channels.Length; i++) ChannelRelease.OnFailure(status, ctx.World, ctx.Self, channels[i]);
+            return status;
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-1410</c> (R-1042) — an SOP ORDER leaf: <see cref="SopActions.React(EntityRepository, Entity, string, ReactionUrgency, string)"/>
         /// (<paramref name="urgency"/> non-null) or <see cref="SopActions.DoWhenIdle(EntityRepository, Entity, string, string)"/>, with the
@@ -138,15 +167,32 @@ namespace Fdp.Toolkit.Behavior
                 foreach (var a in m.GetCustomAttributes<Fbt.Kernel.WritesChannelAttribute>()) kinds.Add((int)a.Channel);
             }
             var types = new List<Type>();
-            foreach (int kind in kinds)
-                types.Add(kind switch
-                {
-                    (int)Fbt.Kernel.ChannelKind.Locomotion  => typeof(Components.LocomotionChannel),
-                    (int)Fbt.Kernel.ChannelKind.Weapon      => typeof(Components.WeaponChannel),
-                    (int)Fbt.Kernel.ChannelKind.Interaction => typeof(Components.InteractionChannel),
-                    _ => throw new InvalidOperationException($"CE-1410: channel kind {kind} has no channel component."),
-                });
+            foreach (int kind in kinds) types.Add(ChannelRelease.ComponentTypeOf((Fbt.Kernel.ChannelKind)kind));
             return types;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1412</c> — the VARIABLES manifest of a C#-built tree, the one its JSON asset published (<c>ManagedBlackboardVariables</c>,
+        /// <c>BTreeBridgeEmitCore.EmitManagedBlackboardVariablesArray</c>): every public top-level field of its block
+        /// <paramref name="block"/> (the tree's <c>ParamsType</c>) at its MANAGED offset, in layout order — ⛔ less the fields a stateful node
+        /// of <paramref name="blob"/> binds as its working state (a JSON asset's <c>Role=State</c> half was never in the manifest). The name
+        /// is the C# field's. Read by the editor's live Variables values (<c>LiveBlackboardValueProvider</c>) and the inspector.
+        /// </summary>
+        public static IReadOnlyList<ManagedBlackboardVariable> VariablesOf(BehaviorTreeBlob blob, Type block)
+        {
+            if (blob == null) throw new ArgumentNullException(nameof(blob));
+            if (block == null) throw new ArgumentNullException(nameof(block));
+            var state = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var k in blob.MethodNames)
+                if (k != null && StateFields.TryGetValue(k, out var f)) state.Add(f);
+            var vars = new List<ManagedBlackboardVariable>();
+            foreach (var f in block.GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (state.Contains(f.Name)) continue;
+                vars.Add(new ManagedBlackboardVariable(f.Name, f.FieldType, Fdp.Core.TypeLayout.OffsetOf(block, f.Name)));
+            }
+            vars.Sort((a, b) => a.ByteOffset.CompareTo(b.ByteOffset));
+            return vars;
         }
 
         private static void AddRuntime(object builderRegistry, string key, NodeLogicDelegate<byte, BTreeContext> thunk)
@@ -191,10 +237,11 @@ namespace Fdp.Toolkit.Behavior
             string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), offset);   // ⭐ CE-2032
             RecordParam(key, paramSelector);   // ⭐ CE-1360
             RecordMethod(key, logic);           // ⭐ CE-1410
+            var ch = ChannelsOf(logic.Method);  // ⭐ CE-1411
             registry.Register(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
-                logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World));
+                Release(logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World), ch, ctx));
             AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
-                logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), offset)), ctx.Self, ctx.World));
+                Release(logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), offset)), ctx.Self, ctx.World), ch, ctx));
             PairDeactivator<TBB, TParams, byte>(registry, key, logic.Method, offset, stateOffset: null);
             return key;
         }
@@ -210,12 +257,13 @@ namespace Fdp.Toolkit.Behavior
             string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), offset);   // ⭐ CE-2032
             RecordParam(key, paramSelector);   // ⭐ CE-1360
             RecordMethod(key, logic);           // ⭐ CE-1410
+            var ch = ChannelsOf(logic.Method);  // ⭐ CE-1411
             registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
-                logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World)
-                    ? NodeStatus.Success : NodeStatus.Failure);
+                Release(logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World)
+                    ? NodeStatus.Success : NodeStatus.Failure, ch, ctx));
             AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
-                logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), offset)), ctx.Self, ctx.World)
-                    ? NodeStatus.Success : NodeStatus.Failure);
+                Release(logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), offset)), ctx.Self, ctx.World)
+                    ? NodeStatus.Success : NodeStatus.Failure, ch, ctx));
             PairDeactivator<TBB, TParams, byte>(registry, key, logic.Method, offset, stateOffset: null);
             return key;
         }
@@ -232,6 +280,7 @@ namespace Fdp.Toolkit.Behavior
             string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), po, so);   // ⭐ CE-2032
             RecordParam(key, paramSelector);   // ⭐ CE-1360
             RecordMethod(key, logic);           // ⭐ CE-1410
+            RecordState(key, stateSelector);    // ⭐ CE-1412
             registry.Register(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, po)),
                       ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, so)),
@@ -257,6 +306,7 @@ namespace Fdp.Toolkit.Behavior
             string key = Shared.HsmActionKey.CompoundKeyName(Fqn(logic), po, so);
             RecordParam(key, paramSelector);   // ⭐ CE-1360
             RecordMethod(key, logic);           // ⭐ CE-1410
+            RecordState(key, stateSelector);    // ⭐ CE-1412
             registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, po)),
                       ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, so)),
@@ -277,11 +327,12 @@ namespace Fdp.Toolkit.Behavior
             Require(registry, logic);
             string key = Fqn(logic);
             RecordMethod(key, logic);   // ⭐ CE-1410
+            var ch = ChannelsOf(logic.Method);   // ⭐ CE-1411
             NodeLogicDelegate<TBB, BTreeContext> thunk =
-                (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) => logic(ctx.Self, ctx.World);
+                (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) => Release(logic(ctx.Self, ctx.World), ch, ctx);
             if (isCondition) registry.RegisterCondition(key, thunk);
             else             registry.Register(key, thunk);
-            AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) => logic(ctx.Self, ctx.World));
+            AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) => Release(logic(ctx.Self, ctx.World), ch, ctx));
             PairDeactivator<TBB, byte, byte>(registry, key, logic.Method, offset: null, stateOffset: null);
             return key;
         }
@@ -294,10 +345,11 @@ namespace Fdp.Toolkit.Behavior
             Require(registry, logic);
             string key = Fqn(logic);
             RecordMethod(key, logic);   // ⭐ CE-1410
+            var ch = ChannelsOf(logic.Method);   // ⭐ CE-1411
             registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
-                logic(ctx.Self, ctx.World) ? NodeStatus.Success : NodeStatus.Failure);
+                Release(logic(ctx.Self, ctx.World) ? NodeStatus.Success : NodeStatus.Failure, ch, ctx));
             AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
-                logic(ctx.Self, ctx.World) ? NodeStatus.Success : NodeStatus.Failure);
+                Release(logic(ctx.Self, ctx.World) ? NodeStatus.Success : NodeStatus.Failure, ch, ctx));
             PairDeactivator<TBB, byte, byte>(registry, key, logic.Method, offset: null, stateOffset: null);
             return key;
         }

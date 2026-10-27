@@ -3,6 +3,7 @@ group Library/Tactics
 sop-orders no
 writes-channels []
 json-params Fdp.Toolkit.Behavior.ThreatCountParams
+variable Params Fdp.Toolkit.Behavior.ThreatCountParams = {"Count":1,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":90}
 parse (empty) -> ok
   c3079000-0000-0000-0000-000000000004 {"Count":1,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":90}
 parse {} -> ok

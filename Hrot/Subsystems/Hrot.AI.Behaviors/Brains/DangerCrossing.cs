@@ -42,7 +42,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         // ⭐ The contract and its resolver live beside the nodes (DangerAreaNodes.ResolveDangerCrossing, [Behavior] there).
-        [BTreeDefinition(BehaviorNames.DangerCrossing, AssetId = "a3079000-0000-0000-0000-000000000002", Curated = true, Group = "Library/Tactics",
+        [BTreeDefinition(BehaviorNames.DangerCrossing, AssetId = "a3079000-0000-0000-0000-000000000002", Curated = true, PublishesVariables = true, Group = "Library/Tactics",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()

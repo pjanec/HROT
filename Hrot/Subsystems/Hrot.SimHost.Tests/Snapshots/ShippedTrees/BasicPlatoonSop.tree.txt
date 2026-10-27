@@ -3,6 +3,8 @@ group Library/Sop
 sop-orders yes
 writes-channels []
 json-params Hrot.Map.Definitions.Behavior.NoParams
+variable ReportReceived Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"ReportReceived","Seconds":3}
+variable EnemyNear Fdp.Toolkit.Squad.Command.ElementReportedParams = {"MinSize":"Team","WithinMetres":400,"FreshSeconds":30}
 parse (empty) -> ok
   c2284000-0000-0000-0000-000000000024 {"Kind":"ReportReceived","Seconds":3}
   c2294000-0000-0000-0000-000000000011 {"Kind":"ReportReceived","Seconds":3}

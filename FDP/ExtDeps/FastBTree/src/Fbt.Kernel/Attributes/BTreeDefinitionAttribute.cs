@@ -69,6 +69,18 @@ namespace Fbt
         // Null = "Other". Read by CuratedBehaviorGenerator into BehaviorDefinition.Group.
         public string? Group { get; set; }
 
+        /// <summary>
+        /// ⭐ CE-1412: a curated tree with a <see cref="ParamsType"/> publishes its VARIABLES manifest
+        /// (<c>BehaviorDefinition.ManagedBlackboardVariables</c> = <c>SharedNodeBinder.VariablesOf(blob, ParamsType)</c>: the block's
+        /// top-level fields less its working state), as a JSON asset's registrar does — the editor's live Variables values and the
+        /// inspector read it. Set on the 15 shipped trees that were JSON assets until CE-1410 (R-1042).
+        /// <para>⚠ An OPT-IN, measured 2026-10-27: a manifest also changes how <c>BehaviorRegistry.TryGetHostedInputType</c> (a manifest
+        /// reads as "generated", so an undeclared contract means "takes nothing"), <c>RootParamsAccess.InputBytes</c> (the hosted Input
+        /// width) and the CE-437 resolver-overlay check read a behaviour — rules the other ~77 curated trees were never tuned to.
+        /// Extending it to every curated tree is CE-1431.</para>
+        /// </summary>
+        public bool PublishesVariables { get; set; }
+
         public BTreeDefinitionAttribute(string treeName)
         {
             TreeName = treeName;

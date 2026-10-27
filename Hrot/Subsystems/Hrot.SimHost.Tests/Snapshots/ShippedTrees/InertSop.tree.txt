@@ -3,6 +3,7 @@ group Library/Sop
 sop-orders no
 writes-channels []
 json-params Hrot.Map.Definitions.Behavior.NoParams
+variables none
 parse (empty) -> no params region
 parse {} -> no params region
 parse {"bogus":1} -> no params region

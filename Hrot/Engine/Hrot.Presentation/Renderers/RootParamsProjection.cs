@@ -70,6 +70,22 @@ public static class RootParamsProjection
                 if (childPath != null && doubleClickedPath == null)
                     doubleClickedPath = $"$.Memory[{payloadOffset + v.ByteOffset}]" + childPath[1..];
             }
+
+            // ⭐ CE-1412 — the block's fields the manifest does not list (a C#-built tree's working state lives in its block, a
+            //   generated block's State half): shown too, so publishing a manifest does not hide what the layout fallback showed.
+            var rest = UnlistedLayoutFields(def);
+            if (rest.Count > 0)
+            {
+                ImGui.TextDisabled("Behaviour state");
+                foreach (var (name, type, offset) in rest)
+                {
+                    ImGui.TextUnformatted(name + ":");
+                    ImGui.SameLine();
+                    RenderTypedDtoAt(memory, payloadOffset + offset, type, out string? childPath);
+                    if (childPath != null && doubleClickedPath == null)
+                        doubleClickedPath = $"$.Memory[{payloadOffset + offset}]" + childPath[1..];
+                }
+            }
         }
         else if (def.BlackboardLayoutType != null)
         {
@@ -83,6 +99,31 @@ public static class RootParamsProjection
         //    show SOMETHING; here the slot table above already reports the region's id and size, and
         //    a second hex dump of the same bytes is noise. A behaviour with no layout metadata is
         //    not a fault to display.
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1412</c> — the top-level fields of <paramref name="def"/>'s <c>BlackboardLayoutType</c> that overlap no manifest variable:
+    /// what the inspector shows under "Behaviour state" beside the manifest. Empty with no manifest (the layout is rendered whole then)
+    /// or no layout type.
+    /// </summary>
+    internal static System.Collections.Generic.IReadOnlyList<(string Name, Type Type, int Offset)> UnlistedLayoutFields(BehaviorDefinition def)
+    {
+        var rest = new System.Collections.Generic.List<(string, Type, int)>();
+        if (def?.BlackboardLayoutType is not { } layout || def.ManagedBlackboardVariables is not { Count: > 0 } vars) return rest;
+        foreach (var f in layout.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            int at = Fdp.Core.TypeLayout.OffsetOf(layout, f.Name);
+            int end = at + Math.Max(Fdp.Core.TypeLayout.SizeOf(f.FieldType), 1);
+            bool listed = false;
+            foreach (var v in vars)
+            {
+                int vEnd = v.ByteOffset + Math.Max(Fdp.Core.TypeLayout.SizeOf(v.Type), 1);
+                if (at < vEnd && v.ByteOffset < end) { listed = true; break; }
+            }
+            if (!listed) rest.Add((f.Name, f.FieldType, at));
+        }
+        rest.Sort((a, b) => a.Item3.CompareTo(b.Item3));
+        return rest;
     }
 
     // ── Resolve seam ─────────────────────────────────────────────────────────

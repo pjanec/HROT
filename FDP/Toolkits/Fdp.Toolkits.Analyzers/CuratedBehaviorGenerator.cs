@@ -136,6 +136,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 var groupArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "Group");
                 string? group = groupArg.Key != null ? groupArg.Value.Value as string : null;
 
+                // CE-1412: the opt-in to publishing the variables manifest (a JSON asset's registrar always did).
+                var varsArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "PublishesVariables");
+                bool publishesVariables = varsArg.Key != null && varsArg.Value.Value is bool pv && pv;
+
                 return new CuratedTopology
                 {
                     Name       = name!,
@@ -145,6 +149,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         ? ptq.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
                     DeclaredParams = DeclaredParams(symbol, name!),
                     Group      = string.IsNullOrEmpty(group) ? null : group,
+                    PublishesVariables = publishesVariables,
                 };
             }
             return null;
@@ -328,6 +333,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 if (t.ParamsType != null)
                 {
                     sb.AppendLine("                BlackboardLayoutType = typeof(global::" + t.ParamsType + "),");
+                    // ⭐ CE-1412 — the variables manifest a JSON asset's registrar publishes, derived in ONE place from the block and the
+                    //   compiled blob (its stateful nodes' working-state fields are not variables). Opt-in: see PublishesVariables.
+                    if (!t.IsHsm && t.PublishesVariables)
+                        sb.AppendLine("                ManagedBlackboardVariables = global::Fdp.Toolkit.Behavior.SharedNodeBinder.VariablesOf(__blob" + safe
+                                      + ", typeof(global::" + t.ParamsType + ")),");
                     // ⭐ CE-1410 (R-3002) — stage 1: the params struct's own default (its constructor), composed in front of a resolver.
                     sb.AppendLine("                BakeDefaults = global::Fdp.Toolkit.Behavior.BehaviorParams.BakeNew<global::" + t.ParamsType + ">(),");
                     // ⭐⭐ CE-416 ② / Q75 decision D, state ② — a curated behaviour whose JSON contract IS its layout
@@ -419,6 +429,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string? ParamsTypeFq { get; set; }
         /// <summary>CE-2134: the <c>[Behavior(Params = …)]</c> on this method (global::), or null.</summary>
         public string? DeclaredParams { get; set; }
+        /// <summary>CE-1412: the attribute's <c>PublishesVariables</c> — emit the variables manifest.</summary>
+        public bool PublishesVariables { get; set; }
     }
 
     internal class CuratedResolver

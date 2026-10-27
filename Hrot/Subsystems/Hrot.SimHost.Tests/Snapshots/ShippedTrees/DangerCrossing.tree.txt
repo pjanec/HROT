@@ -3,6 +3,7 @@ group Library/Tactics
 sop-orders no
 writes-channels []
 json-params Hrot.AI.Behaviors.Brains.DangerCrossingParams
+variable Params Hrot.AI.Behaviors.Brains.DangerCrossingConfig = {"sensor":{"RouteTo":[0, 0, 0],"CorridorHalfWidth":0,"RefreshSeconds":0,"MaxAreas":0},"holdAhead":{"MinThreat":0.5,"WithinMetres":60,"KindMask":0},"hold":{"MinThreat":0.5,"Speed":1.5,"ArrivalRadius":1.5},"crossAhead":{"MinThreat":0,"WithinMetres":15,"KindMask":14},"cross":{"Speed":4.5,"ArrivalRadius":1.5},"walk":{"X":0,"Y":0,"Speed":1.5,"ArrivalRadius":3,"RoadUse":"Unspecified"}}
 parse (empty) -> ok
   c3079100-0000-0000-0000-000000000003 {"RouteTo":[0, 0, 0],"CorridorHalfWidth":0,"RefreshSeconds":0,"MaxAreas":0}
   c3079100-0000-0000-0000-000000000006 {"MinThreat":0.5,"WithinMetres":60,"KindMask":0}
