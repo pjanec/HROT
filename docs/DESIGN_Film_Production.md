@@ -231,6 +231,11 @@ follow cameras on the two people scenarios.
 ![the blow at 4.4 s: live · RB played at 1× from 3.0 · from 4.0](img/film-p0b-blow-played.jpg)
 ![the walk at 3.8 s: live · RB after a seek · RB played from 2.0](img/film-p0b-walk-seek-vs-played.jpg)
 
+⛔ **CE-4062 after backend's fix (`f8c9833c1`), re-measured the same day — still not drawn:** stepped one frame at a time onto exactly 4.4 s
+(from 3.0 s and from 4.0 s), the Rioter shows his gesture, not the swing.
+
+![the blow at 4.4 s after the fix: live · RB stepped from 3.0 · from 4.0](img/film-p0b-blow-after-ce4062.jpg)
+
 ⭐ **The principle these point at** (for the films and for any replay): **the picture of a frame should be a function of the recorded state at
 that frame — never of what the viewer happened to see before.** The pattern already exists: the stance blend reads `StanceStatus`, recorded
 and replicated *"so every host shows the same blend"* (`EntityBodyLayer3D.cs:465`). `PostureBlend` (`ShapeKit.cs:1655`, a change timed when
