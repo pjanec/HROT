@@ -33,8 +33,8 @@ public sealed class Ce1368OpenAndResetLayoutTests : IDisposable
     /// <summary>The trees the user's measurement named as overlapping when stored (CE-1368 brief).</summary>
     private static readonly string[] Overlapping =
     {
-        "BasicSquadSop", "BasicInfantrySop", "BasicPlatoonSop", "BasicVehicleSop", "PlatoonHillAttack", "DangerCrossing",
-        "CivilianSop", "PilotSop", "FiringPosition", "T11_Aliasing", "BTreeRenderShowcase",
+        // ⭐ CE-1410 (R-1042): the SOPs, tactics and hill-attack trees on this list are C#-built now (CodeBuiltTreeLayoutTests covers them)
+        "T11_Aliasing", "BTreeRenderShowcase",
     };
 
     private static string BTreesRoot()
@@ -65,7 +65,7 @@ public sealed class Ce1368OpenAndResetLayoutTests : IDisposable
     public void CE1368_EveryShippedJsonTree_HasNoOverlap_AfterTheOpenPath()
     {
         var trees = LoadShipped();
-        trees.Count.Should().BeGreaterThan(30, "the shipped JSON corpus is ~40 trees");
+        trees.Count.Should().BeGreaterThan(20, "the JSON corpus is the samples and the authoring fixtures, 24 trees (CE-1410)");
         var rows = WithFont(measure =>
         {
             var list = new List<(string Name, int Before, int After)>();
@@ -133,7 +133,7 @@ public sealed class Ce1368OpenAndResetLayoutTests : IDisposable
         WithFont(measure =>
         {
             // a writable JSON asset
-            var writable = LoadShipped().Single(t => t.Name == "BasicSquadSop");
+            var writable = LoadShipped().Single(t => t.Name == "BTreeRenderShowcase");   // CE-1410: BasicSquadSop is C# now
             var ctx = BTreeDocumentFactory.Build(writable, Bundle());
             foreach (var n in writable.Nodes) n.Position = Vector2.Zero;   // a hopeless stored layout
             writable.IsDirty.Should().BeFalse();

@@ -201,22 +201,8 @@
     </Content>
   </ItemGroup>
 
-  <!-- ⭐ CE-2080 — the shipped SOP is COMPILED (Assets/BTrees/Sop, so a TKB template can name it as its DefaultSop) AND
-       offered as the BTree RECIPE a designer starts their own SOP from (AssetRoots.RecipesRelative(BTree) = Recipes/BTrees).
-       ONE file, two roles — a copy would drift. -->
-  <ItemGroup>
-    <Content Include="Assets\BTrees\Library\Sop\BasicInfantrySop.btree.json" Link="Recipes\BTrees\BasicInfantrySop.btree.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <!-- ⭐ CE-2123 S2 — the squad leader's standing orders: same two roles. -->
-    <Content Include="Assets\BTrees\Library\Sop\BasicSquadSop.btree.json" Link="Recipes\BTrees\BasicSquadSop.btree.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <!-- ⭐ CE-2294 CC-D — the platoon commander's standing orders (Command Chain §6): same two roles. -->
-    <Content Include="Assets\BTrees\Library\Sop\BasicPlatoonSop.btree.json" Link="Recipes\BTrees\BasicPlatoonSop.btree.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+  <!-- ⛔ CE-2080's SOP recipe copies (Recipes/BTrees/Basic*Sop.btree.json) are gone with the assets: the shipped SOPs are C#
+       (CE-1410, R-1042), and nothing read Recipes/BTrees (BTreeNewAssetService.AvailableRecipes offers only Empty / Starter). -->
 
   <!-- H4 — SCENARIO SEEDS: the "recipe" a new scenario is created from (design §2.1e ⑤b: a scenario
        recipe IS an ordinary scenario stored under Recipes/Scenarios, not a new asset kind).

@@ -10,7 +10,7 @@ current-answer: section 10 (AS-BUILT) first, then section 4 (the decision) and s
   superseded "rank by authorship" answer. Do NOT quote either.
 stale-below: section 7.2a (the three-arm ParamResolverRef shape) and section 7.2's trailing
   HISTORY note are both SUPERSEDED and kept only for the measurements that retired them.
-known-rot: ⛔ 2026-09-30 (CE-448) — the REUSABLE resolver (a Library Construction graph declaring
+known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · ⛔ 2026-09-30 (CE-448) — the REUSABLE resolver (a Library Construction graph declaring
   1-in/1-out DTO, published in BlueprintDefinition.Resolvers via BlueprintResolverEntry, §7.1) is RETIRED with
   its demos ParamResolverDemo/ResolverWorldReachDemo; BP1676 now refuses a Library Construction graph without a
   ResolverSubject. The reach decision (world + self in scope) stands on the ONE kind left, the behaviour resolver

@@ -354,6 +354,30 @@ namespace Fbt.Compiler
             return this;
         }
 
+        // ---- Editor annotations (CE-1410) ----
+
+        /// <summary>
+        /// ⭐ <c>CE-1410</c> (R-1042) — the editor TITLE of the node added last by this builder (its debug label), so a C#-built tree
+        /// shows in the editor with the words a JSON asset's <c>DisplayLabel</c> carried. Annotation only: nothing binds by it.
+        /// </summary>
+        public BTreeBuilder<TBlackboard, TContext> Label(string label)
+        {
+            LastEntry(nameof(Label)).Meta.Label = label ?? throw new ArgumentNullException(nameof(label));
+            return this;
+        }
+
+        /// <summary>⭐ <c>CE-1410</c> — the editor COMMENT of the node added last by this builder (<see cref="NodeDebugMetadata.CustomComment"/>).</summary>
+        public BTreeBuilder<TBlackboard, TContext> Comment(string comment)
+        {
+            LastEntry(nameof(Comment)).Meta.CustomComment = comment ?? throw new ArgumentNullException(nameof(comment));
+            return this;
+        }
+
+        private BuilderEntry LastEntry(string what)
+            => _entries.Count > 0
+                ? _entries[_entries.Count - 1]
+                : throw new InvalidOperationException($"{what}() annotates the node added last; add a node first.");
+
         // ---- Terminal calls ----
 
         /// <summary>

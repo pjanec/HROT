@@ -155,6 +155,19 @@ namespace Fdp.Toolkit.Behavior.Shared
             }
         }
 
+        /// <summary>⭐ <c>CE-1410</c> — every SOP order's key starts with this (the class the thunk calls): the mark "this tree carries
+        /// SOP orders" is read off a compiled blob by it.</summary>
+        public const string SopOrderPrefix = "Fdp.Toolkit.Behavior.SopActions.";
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2079</c> / <c>CE-1410</c> — an SOP order's action key, <c>Fdp.Toolkit.Behavior.SopActions.{kind}:{behaviour}:{urgency|-}@{offset}</c>
+        /// (<paramref name="byteOffset"/> = the params variable's offset, <c>-1</c> for none). ⭐ The ONE spelling: the JSON asset's
+        /// emit (<c>SopOrderPayloadDto.ActionKey</c>) and the C# builder (<c>SharedNodeBinder.RegisterSopOrder</c>) both call it, so a
+        /// tree written either way binds the same thunk key.
+        /// </summary>
+        public static string SopOrderKeyName(string kind, string behaviorName, string urgencyOrDash, long byteOffset)
+            => CompoundKeyName(SopOrderPrefix + kind + ":" + behaviorName + ":" + urgencyOrDash, byteOffset);
+
         /// <summary>The key for the generated exit-cleanup peer of a channel-writing action.</summary>
         public static ushort ForExitCleanup(string registeredName) => Compute(ExitCleanupName(registeredName));
 

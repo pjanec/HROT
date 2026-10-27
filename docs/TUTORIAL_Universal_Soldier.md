@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-06
 current-answer: the whole file — a TUTORIAL composing shipped building blocks; §8 lists what is NOT possible yet
 stale-below: none
-known-rot: none known; every asset / parameter quoted here was read from the repo on 2026-10-06 — re-check §8 against the tracker
+known-rot: §3.1 linked the retired CombatPosture.btree.json until 2026-10-27 (fixed: the tree is C#, CE-3161; every shipped tree is C# since CE-1410, R-1042) · every asset / parameter quoted here was read from the repo on 2026-10-06 — re-check §8 against the tracker
 related-designs:
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — the open question behind §8's "symmetric combat model" gap.
   - docs/TUTORIAL_Behaviour_Composition.md — the GUIDE to choosing between blocks (host, decision, starter, sensing) and composing them
@@ -84,7 +84,7 @@ suppress; fall back when hurt; flank or take a firing position when the enemy ca
 
 ### 3.1 The tree, as shipped
 
-[`Assets/BTrees/Tactics/CombatPosture.btree.json`](../Hrot/Subsystems/Hrot.AI.Behaviors/Assets/BTrees/Tactics/CombatPosture.btree.json):
+[`Brains/CombatPostureBehavior.cs`](../Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CombatPostureBehavior.cs) — a C#-built tree since CE-3161 (R-266); the library's shipped trees all are since CE-1410 (R-1042), `.btree.json` being what the editor saves:
 
 ```mermaid
 graph TD

@@ -3,7 +3,7 @@ state: LIVE
 build-state: ✅ BUILT (2026-09-27) — all five §9 items shipped as CE-371..CE-375. ⚠ This line read
   READY-TO-BUILD for the whole of the build and was corrected afterwards; §10a is the AS-BUILT and
   wins over §9 wherever they disagree.
-updated: 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
+updated: 2026-10-27 (§10d — the shipped trees are C#; the curated registration carries SOP orders, channels, the bake, labels — R-1042, CE-1410) · 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
 current-answer: ⭐ §10a is the AS-BUILT — read it FIRST for what actually exists. §4 is the decision,
   §5-§7 the UML, §9 the build items as dispatched. ⭐ Start at §2 (INVENTORY)
   if you are about to argue that something here already exists — it probably does, and §2 says which.
@@ -503,6 +503,88 @@ through `EntityAiEditModel.AsChoices` (same technology label as the mission pane
 | `BTrees/Tests/Authoring`, `HSMs/Tests/Binding`, `Blueprints/Tests` (+ `Tests/Smoke`) | regression assets that pin a generator / binding shape |
 
 ⚠ A file's folder is now meaningful: moving it changes its picker group (and its generated registrar — the golden moves by one line).
+
+## 10d. ⭐⭐ THE SHIPPED TREES ARE C# — **the curated registration carries what a JSON asset's did** *(R-1042, CE-1410, ui, `2026-10-27`; build-state: BUILT)*
+
+🔒 User, `2026-10-27`: *"The json btrees - rather conver them to csharp hardcoded ones, easier on ai agent dev. Then no need to solve their
+layout."* ⇒ the 15 runtime trees under `Assets/BTrees/{Library/Sop, Library/Tactics, Demos/HillAttack}` are curated C# trees in
+`Hrot.AI.Behaviors/Brains` (`BasicInfantrySop.cs`, `BasicSquadSop.cs`, `BasicPlatoonSop.cs`, `BasicVehicleSop.cs`,
+`CivilianInertPilotSops.cs`, `LibraryTactics.cs`, `DangerCrossing.cs`, `HillAttackTrees.cs`; `PlatoonHillAttack` is its existing C# twin `HillAttackCommanderNodes.BuildPlatoonHillAttackTree` (CE-430), now registered — not a second copy); `.btree.json` stays the format the EDITOR
+saves, and `Samples/` + `Tests/Authoring/` stay JSON (§10b: demos a human edits, fixtures of the asset pipeline).
+
+📐 **INVENTORY** (graph, this worktree, `2026-10-27`: `search_graph name_pattern='.*(SopOrder|SharedNodeBinder|CuratedBehavior|SopActions).*'` — 113 rows, paginated; the SOP-order producers are ALL JSON/editor side: `BTreeBridgeEmitCore.EmitSopOrderThunks`, `HsmBridgeEmitCore.EmitSopOrderThunk`/`CollectSopOrders`, the facet mappers — none for a C# tree · `name_pattern='.*(CarriesSopOrders|WritesChannels|BakeDefaults).*'` — 20 rows, `has_more:false`; + grep for the readers; ⚠ coverage could not be checked, `check_index_coverage` is not in the CLI):
+what a JSON tree's GENERATED registrar publishes and the curated one did not — the gap this section closes, each by EXTENDING the one
+existing producer (no second registrar):
+
+| the JSON registrar published | used by | the curated path, as built |
+|---|---|---|
+| SOP order thunks (`SopActions.React/DoWhenIdle`, key `…SopActions.{kind}:{name}:{urgency}@-1`) | the SOP tree's leaves | ⭐ `SharedNodeBinder.RegisterSopOrder` + builder verbs `.React(name, urgency)` / `.DoWhenIdle(name)` — the key's ONE spelling is `HsmActionKey.SopOrderKeyName` (linked; the JSON DTO's `ActionKey` calls it too) |
+| `CarriesSopOrders` (CE-1019: an SOP is a tree that carries orders) | the SOP picker, the task pickers, `ScenarioMissionService` | ⭐ read off the compiled blob: `SharedNodeBinder.CarriesSopOrders(blob)` |
+| `WritesChannels` (union of bound methods' `[WritesChannel]`; `null` = unknown) | the SOP picker (`Count: 0` only), the SOP slot | ⭐ `SharedNodeBinder.WritesChannelsOf(blob)` — every key's bound method is recorded at bind time; an unknown key or a subtree ⇒ `null`, as the emitter's rule |
+| `BakeDefaults` (the variables' `DefaultValueJson`, the asset's `ParamsDefaultJson`) | stage 1 of every parse (`ApplyResolverOverlay` composes it in front of a curated resolver) | ⭐ `BehaviorParams.BakeNew<ParamsType>()` = the block's own constructor (`ParamsDefaults.New`, R-3002) — a tree's tuning is its blackboard's `public Blackboard() { … }` |
+| `ParseParams`: `RequireNoStoredFields` (NoParams trees) / `OverlayFlat` (one Input = its params DTO) | the ingress | a `[BehaviorResolver]` per tree: `RequireNoStoredFields(…)` or `BehaviorParams.OverlayFlatAt<T>` (new, width-checked) — composed after the bake as for every curated resolver |
+| `JsonParamsDtoType` | `GET /behaviors`, the forms | `[Behavior(name, Params = …)]` (CE-2134), the one producer |
+| `DisplayLabel` / comment per node (editor only, never in the blob) | the editor's graph | ⭐ `BTreeBuilder.Label(…)` / `.Comment(…)` annotate the node added last (its `NodeDebugMetadata`); the projector already shows an authored label |
+| per-node working memory in occurrence SLOTS (`@po@slotHash`) | stateful nodes | in the BLOCK (`StatefulAction(bb => bb.P, bb => bb.State, …)`, `@po@offset`) — the CombatPosture port's form (R-266); one memory per node per run, held across a pause either way (CE-2081 holds the root params slot) |
+| `ManagedBlackboardVariables` | the editor's live Variables values (`LiveBlackboardValueProvider`) | ⛔ **not carried** — the inspector falls back to `BlackboardLayoutType` (`RootParamsProjection`); filed as `CE-1412` |
+
+```mermaid
+classDiagram
+  class BTreeBuilder { <<existing, Fbt.Compiler>> +Label(string) NEW · +Comment(string) NEW }
+  class SharedNodeBuilderExtensions { <<existing>> +React(name, urgency) NEW · +DoWhenIdle(name) NEW }
+  class SharedNodeBinder { <<existing>> +RegisterSopOrder() NEW · +CarriesSopOrders(blob) NEW · +WritesChannelsOf(blob) NEW · FieldOffset: nested chains NEW }
+  class HsmActionKey { <<existing, linked>> +SopOrderKeyName() NEW · +SopOrderPrefix NEW }
+  class SopOrderPayloadDto { <<existing, persistence>> +ActionKey() calls SopOrderKeyName }
+  class BehaviorParams { <<existing>> +BakeNew~T~() NEW · +OverlayFlatAt~T~() NEW }
+  class CuratedBehaviorGenerator { <<existing>> emits CarriesSopOrders · WritesChannels · BakeDefaults }
+  class ShippedTree { <<NEW ×15, Hrot.AI.Behaviors/Brains>> +Blackboard (ctor = defaults) · +Resolve() · +Build() }
+  ShippedTree ..> SharedNodeBuilderExtensions
+  ShippedTree ..> BTreeBuilder
+  SharedNodeBuilderExtensions ..> SharedNodeBinder
+  SharedNodeBinder ..> HsmActionKey
+  SopOrderPayloadDto ..> HsmActionKey
+  CuratedBehaviorGenerator ..> SharedNodeBinder : emitted calls
+  CuratedBehaviorGenerator ..> BehaviorParams : emitted calls
+```
+*What the picture shows: every new member sits on a class that already existed; the SOP key has ONE spelling shared by the editor's JSON
+path and the C# path, so a tree written either way binds the same thunk.*
+
+```mermaid
+sequenceDiagram
+  participant G as CuratedBehaviorGenerator (build)
+  participant C as FbtTreeCatalog.GetX
+  participant B as SharedNodeBinder
+  participant R as BehaviorRegistry
+  participant I as BehaviorIngressSystem
+  G->>C: __blob = GetX(isResourceOwning, actionRegistry)
+  C->>B: Build() binds each leaf (shared node / SOP order), records key → method, copies byte thunks
+  G->>R: Register(X, { …, CarriesSopOrders = B.CarriesSopOrders(blob), WritesChannels = B.WritesChannelsOf(blob), BakeDefaults = BakeNew<Blackboard>() })
+  G->>R: RegisterResolver(X, Resolve) — composed BAKE → resolver
+  I->>R: assign X with json ⇒ Clear → bake (the ctor's defaults) → resolver (refuse fields / overlay flat / the contract's resolver)
+```
+
+```mermaid
+graph TD
+  BS["BlueprintRegistrarScanner (every host: CGF, editor, cluster)"] -->|calls once at load| CR["CuratedBehaviorRegistrar (generated)"]
+  CR -->|registers| T["the 15 shipped trees"]
+  T -->|SOP slot, each brain tick| BT["BrainTickSystem → Interpreter"]
+  T -->|task slot, an order / a React| BT
+  CAT["BTreeAssetContributor (editor)"] -->|compiles the same tree — read-only, BTreeAutoLayout| ED["the editor's graph"]
+  JS["BTreeJsonGenerator"] -.->|no longer sees these trees| X["(Samples, Tests/Authoring, designer-saved assets only)"]
+  style X stroke-dasharray: 5 5
+```
+*What the picture shows that prose hid: the trees reach every host through the ONE scan that already runs the curated registrar — no host
+wiring changed; the dashed edge is what LEFT the JSON generator.*
+
+**The proof (rails):** `ShippedTreesAreCSharpTests` (`Hrot.SimHost.Tests`) prints each PRODUCTION definition as canonical text
+(`ShippedTreeDump`: definition facts, the parse of four probes, every node's kind / id / title / comment / bound method / param TYPE and
+VALUE / state type) and pins it to `Snapshots/ShippedTrees/*.tree.txt`, recorded from the JSON registration while both were registered
+(phase 1: the C# tree under `{name}_Cs`, equal for all 15). Layout: `CodeBuiltTreeLayoutTests.CE1410_…`.
+
+⚠ **Adding a shipped SOP now:** a static class in `Brains/` with a `Blackboard` struct (its constructor = the tuning), a
+`[BehaviorResolver]` (`RequireNoStoredFields` for an SOP), and `[Behavior(name, Params = typeof(NoParams))]` +
+`[BTreeDefinition(name, AssetId = …, Curated = true, Group = "Library/Sop", ParamsType = typeof(Blackboard))]` on a `Build()` returning
+the builder — rows as `.Sequence(row => row.Condition(…).React(name, urgency), Id(…)).Label(…)`.
 
 ## 11. ⛔ REJECTED
 

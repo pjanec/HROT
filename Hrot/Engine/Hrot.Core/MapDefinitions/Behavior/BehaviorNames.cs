@@ -263,5 +263,20 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2331</c> (AQ98 A/B, R-2070) — the soldier's cover REACTION: fights from cover (<c>PeekAndFire</c>) and ends once he is
         /// in cover with no hit or near miss on him for a quiet lapse, so his task resumes.</summary>
         public const string FightFromCover = "FightFromCover";
+
+        // ⭐ CE-1410 (R-1042) — the shipped library trees, C#-built since their JSON assets were converted (Hrot.AI.Behaviors/Brains/*Sop.cs,
+        //   *Tactics*.cs). The SOPs (a unit's standing orders, CE-1019) first, then the tactics.
+        public const string BasicInfantrySop = "BasicInfantrySop";
+        public const string BasicSquadSop = "BasicSquadSop";
+        public const string BasicPlatoonSop = "BasicPlatoonSop";
+        public const string BasicVehicleSop = "BasicVehicleSop";
+        public const string CivilianSop = "CivilianSop";
+        public const string InertSop = "InertSop";
+        public const string PilotSop = "PilotSop";
+        public const string TakeCover = "TakeCover";
+        public const string FallBack = "FallBack";
+        public const string Flank = "Flank";
+        public const string FiringPosition = "FiringPosition";
+        public const string Sentry = "Sentry";
     }
 }

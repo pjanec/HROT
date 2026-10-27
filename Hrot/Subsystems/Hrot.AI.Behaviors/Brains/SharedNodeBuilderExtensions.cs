@@ -15,6 +15,13 @@ namespace Hrot.AI.Behaviors.Brains
     /// <para>⚠ These are extension methods with the builder's own names. C# picks an instance method first, but the builder's
     /// <c>Action(selector, ReusableActionDelegate)</c> cannot take a method of the shared signature, so the call resolves here.</para>
     /// </summary>
+    /// <summary>⭐ <c>CE-1410</c> — a node's editor id, written as a literal in a C#-built tree (<c>using static</c>), so a converted asset keeps
+    /// the ids its JSON had: the editor's selection, breakpoints and decision views stay keyed to the same nodes.</summary>
+    public static class TreeNodeIds
+    {
+        public static Guid Id(string id) => Guid.Parse(id);
+    }
+
     public static class SharedNodeBuilderExtensions
     {
         public static BTreeBuilder<TBB, BTreeContext> Action<TBB, TParams>(
@@ -68,5 +75,21 @@ namespace Hrot.AI.Behaviors.Brains
             this BTreeBuilder<TBB, BTreeContext> builder, SharedNodeNoParamsCondition logic, Guid visualId = default)
             where TBB : struct
             => builder.Condition(SharedNodeBinder.RegisterNoParamsCondition(builder.GetRegistry(), logic), visualId);
+
+        /// <summary>⭐ <c>CE-1410</c> (R-1042) — the SOP order "React": start <paramref name="behavior"/> with its defaults as a reaction at
+        /// <paramref name="urgency"/> (pauses the task; <see cref="SopActions.React(Fdp.Core.EntityRepository, Fdp.Core.Entity, string, Fdp.Toolkit.Behavior.Components.ReactionUrgency, string)"/>).
+        /// A tree with one carries SOP orders — it IS an SOP. 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.6.</summary>
+        public static BTreeBuilder<TBB, BTreeContext> React<TBB>(
+            this BTreeBuilder<TBB, BTreeContext> builder, string behavior, Fdp.Toolkit.Behavior.Components.ReactionUrgency urgency,
+            Guid visualId = default)
+            where TBB : struct
+            => builder.Action(SharedNodeBinder.RegisterSopOrder(builder.GetRegistry(), behavior, urgency), visualId);
+
+        /// <summary>⭐ <c>CE-1410</c> (R-1042) — the SOP order "Do when idle": run <paramref name="behavior"/> with its defaults when no order or
+        /// reaction holds the task slot (<see cref="SopActions.DoWhenIdle(Fdp.Core.EntityRepository, Fdp.Core.Entity, string, string)"/>).</summary>
+        public static BTreeBuilder<TBB, BTreeContext> DoWhenIdle<TBB>(
+            this BTreeBuilder<TBB, BTreeContext> builder, string behavior, Guid visualId = default)
+            where TBB : struct
+            => builder.Action(SharedNodeBinder.RegisterSopOrder(builder.GetRegistry(), behavior, urgency: null), visualId);
     }
 }

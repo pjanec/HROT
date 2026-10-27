@@ -121,7 +121,11 @@ public sealed class CodeBuiltTreeLayoutTests
         Assert.Contains("Advance and attack", titles);
         Assert.Contains("Bind sensor handle", titles);   // a plain delegate leaf (labelled with its bare method name) too
         Assert.DoesNotContain(titles, t => t.EndsWith(": Order", StringComparison.Ordinal) || t.Contains("config", StringComparison.OrdinalIgnoreCase));
-        Assert.True(titles.Max(t => t.Length) <= 40, $"longest title: {titles.OrderByDescending(t => t.Length).First()}");
+        // ⭐ CE-1410 — the length cap is for GENERATED titles; a converted shipped tree carries its JSON asset's AUTHORED titles (`.Label`),
+        //   which were never capped ("Squad under fire (fresh, 3 s) AND a member aboard a carrier on the ground").
+        var generated = contributor.Enumerate().OfType<BehaviorTreeAsset>().Where(a => a.IsCodeBuilt && !ConvertedShippedTrees.Contains(a.Name))
+            .SelectMany(t => t.Nodes).Where(n => n.Action != null || n.Condition != null).Select(n => n.DisplayLabel).ToHashSet();
+        Assert.True(generated.Max(t => t.Length) <= 40, $"longest title: {generated.OrderByDescending(t => t.Length).First()}");
     }
 
     /// <summary>The title rule, pure: the namespace, type, offsets and Action_/Condition_ prefixes go; a generic method takes its type's
@@ -231,6 +235,47 @@ public sealed class CodeBuiltTreeLayoutTests
         foreach (var l in report.Where(l => l.Text.StartsWith("BasicSquadSop") || l.Text.StartsWith("PillStack"))) _out.WriteLine(l.Text);
         var worst = report.OrderByDescending(l => l.Pairs).First();
         Assert.True(worst.Pairs == 0, $"{report.Count(l => l.Pairs > 0)} tree(s) overlap; worst: {worst.Text}");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1410</c> (R-1042) — the converted shipped trees open as C#-BUILT graphs (no JSON asset left to win the AssetId), keep their
+    /// JSON titles (the builder's <c>.Label</c>), and — laid out by <see cref="Hrot.BTree.Editor.Layout.BTreeAutoLayout"/> with the canvas
+    /// font — draw NO two overlapping rectangles. 🔒 User, 2026-10-27: <i>"rather conver them to csharp hardcoded ones … Then no need to
+    /// solve their layout."</i> 🔴 Red-proof: a label dropped from the width measure (WidthOf ignoring the title) ⇒ BasicSquadSop overlaps.
+    /// </summary>
+    /// <summary>⭐ <c>CE-1410</c> — the shipped trees converted from JSON (their titles are the assets' authored ones).</summary>
+    private static readonly string[] ConvertedShippedTrees =
+    {
+        "BasicSquadSop", "BasicInfantrySop", "BasicPlatoonSop", "BasicVehicleSop", "CivilianSop", "InertSop", "PilotSop",
+        "TakeCover", "FallBack", "Flank", "FiringPosition", "Sentry", "DangerCrossing", "PlatoonHillAttack", "HullDownAttackRun",
+    };
+
+    [Fact]
+    public void CE1410_TheConvertedShippedTrees_AreCodeBuilt_Titled_AndDoNotOverlap()
+    {
+        var converted = ConvertedShippedTrees;
+        var contributor = new BTreeAssetContributor();
+        contributor.LoadFrom(typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly);
+        var trees = contributor.Enumerate().OfType<BehaviorTreeAsset>().Where(t => converted.Contains(t.Name)).ToList();
+        Assert.Equal(converted.OrderBy(n => n), trees.Select(t => t.Name).OrderBy(n => n));
+        Assert.All(trees, t => Assert.True(t.IsCodeBuilt, $"{t.Name} must be C#-built"));
+        var squad = trees.Single(t => t.Name == "BasicSquadSop");
+        Assert.Equal(Guid.Parse("a2123000-0000-0000-0000-000000000001"), squad.AssetId);   // the JSON's AssetId, kept
+        Assert.Contains(squad.Nodes, n => n.DisplayLabel == "Squad under fire → react");
+        Assert.Contains(squad.Nodes, n => n.DisplayLabel == "React: SquadDismount");
+
+        var report = WithImGuiFont(measure =>
+        {
+            const float header = Hrot.BTree.Editor.Layout.BTreeAutoLayout.DefaultHeaderHeight;
+            return trees.Select(t =>
+            {
+                Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(t, measure, header);
+                int pairs = Hrot.BTree.Editor.Layout.BTreeLayoutCheck.OverlappingPairs(t, measure, header, out var first);
+                return (Pairs: pairs, Text: $"{t.Name}: {t.Nodes.Count} nodes, {t.Pills.Count} pills, {pairs} overlapping pairs {first}");
+            }).ToList();
+        });
+        foreach (var l in report) _out.WriteLine(l.Text);
+        Assert.All(report, l => Assert.True(l.Pairs == 0, l.Text));
     }
 
     /// <summary>A root over a Selector over a row of Sequences, each carrying a stack of five pills (two wrapped rows) — the tall, wide, wrapped

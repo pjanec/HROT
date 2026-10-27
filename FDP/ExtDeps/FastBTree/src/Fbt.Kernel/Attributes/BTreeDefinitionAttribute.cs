@@ -55,7 +55,8 @@ namespace Fbt
         ///         NOWHERE.</item>
         ///   <item><c>PlatoonHillAttack</c> / <c>HullDownAttackRun</c> -- topology owned by their
         ///         GENERATED JSON registrars; only their RESOLVERS are curated. Registering these
-        ///         here would hard-error on a duplicate name.</item>
+        ///         here would hard-error on a duplicate name. (⛔ HISTORY: since CE-1410, R-1042, both are
+        ///         C#-built curated trees — the JSON assets are gone.)</item>
         /// </list>
         /// So presence of the attribute is not the signal, and neither is a null AssetId. The opt-in
         /// is explicit and greppable.

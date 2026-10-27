@@ -163,6 +163,33 @@ namespace Fdp.Toolkit.Behavior
                 "register a resolver.");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1410</c> (R-1042, R-3002) — STAGE 1 of a curated behaviour: its params struct's OWN default
+        /// (<see cref="ParamsDefaults.New{T}"/> — the struct's parameterless constructor, where a C#-built tree keeps the defaults a JSON
+        /// asset's variables carried), written at the block's start. The generated curated registrar emits it for every
+        /// <c>ParamsType</c>; a struct with no constructor bakes zeros — what the cleared region already holds.
+        /// </summary>
+        public static unsafe BakeDefaultsDelegate BakeNew<T>() where T : unmanaged
+            => (byte* memory, int capacity) =>
+            {
+                if (capacity < sizeof(T))
+                    throw new InvalidOperationException(
+                        $"CE-1410: the bake buffer is {capacity} bytes but '{typeof(T).Name}' needs {sizeof(T)} — a stale layout.");
+                Unsafe.Write(memory, ParamsDefaults.New<T>());
+            };
+
+        /// <summary>
+        /// ⭐ <c>CE-1410</c> — <see cref="OverlayFlat{T}"/> onto the <typeparamref name="T"/> at the start of a raw params region (the baked
+        /// block a curated resolver is handed): the supply a JSON asset whose one Input is its params DTO generates, for a C#-built tree.
+        /// </summary>
+        public static unsafe void OverlayFlatAt<T>(string? json, byte* memory, int capacity) where T : unmanaged
+        {
+            if (capacity < sizeof(T))
+                throw new InvalidOperationException(
+                    $"CE-1410: the parse buffer is {capacity} bytes but '{typeof(T).Name}' needs {sizeof(T)} — a stale layout.");
+            OverlayFlat(ref Unsafe.AsRef<T>(memory), json, JsonOptions);
+        }
+
         // ⛔ CE-416 ③ (2026-10-02) — FromJson<TDto>(ResolveParams<TDto>?) and the ResolveParams delegate are RETIRED.
         //   📐 Zero production callers since CE-426/CE-427: every behaviour's supply is the bake + FromBlockResolver's
         //   typed resolve stage, and FromJson wrote the DTO OVER the baked defaults — a second, older supply shape.

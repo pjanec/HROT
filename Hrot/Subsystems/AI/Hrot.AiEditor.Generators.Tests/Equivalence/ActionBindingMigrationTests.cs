@@ -45,7 +45,7 @@ public sealed class ActionBindingMigrationTests
     }
 
     [Theory]
-    [InlineData("PlatoonHillAttack")]
+    // CE-1410: PlatoonHillAttack left the corpus (C#-built); its v1 fixture went with it
     [InlineData("T35_SharedWorkingState")]
     [InlineData("T20_MultiStateful")]
     [InlineData("T34_ComposedAiPrimitiveCondition")]

@@ -173,12 +173,11 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(15f, f.ApproachSpeed);
             Assert.Equal(5f, f.CreepSpeed);
 
-            // ⭐ and the asset's one node is the cycle, bound to that block.
+            // ⭐ and the tree's one node is the cycle, bound to that block (CE-1410: C#-built — the working memory is the block's State).
             var actions = new ActionRegistry<byte, BTreeContext>();
-            Hrot.AI.Behaviors.Trees.HullDownAttackRunRegistrar.Register(
-                new BehaviorRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging(), actions);
-            //   (the key's tail is the binding's slot key — the generator's, stable for the asset's node b1)
-            const string key = "Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover@0@230311729";
+            var blob = Hrot.AI.Behaviors.Generated.FbtTreeCatalog.GetHullDownAttackRun(null, actions);
+            string key = Assert.Single(blob.MethodNames);
+            Assert.StartsWith("Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover@0@", key);
             Assert.True(actions.TryGetAction(key, out _));
             Assert.True(actions.TryGetDeactivator(key, out _));                 // it owns the channels it drives
         }
@@ -1294,9 +1293,9 @@ namespace Hrot.SimHost.Tests
             // ⭐⭐ CE-437: the working state lives in the behaviour's BLOCK (St.State), not in a
             //   Behavior-scoped partition slot — one home. ⛔ This asserted a single side-slot entry.
             //   ⚠ And the curated resolver overlay must NOT demote the block to its params type.
-            Assert.Equal("PlatoonHillAttack_Block", def.BlackboardLayoutType!.Name);
-            Assert.Equal(typeof(HillAttackMutableState),
-                def.BlackboardLayoutType.GetField("St")!.FieldType.GetField("State")!.FieldType);
+            //   ⭐ CE-1410: the tree is C#-built — its block is PlatoonHillAttackBlackboard (Params, then the shared State).
+            Assert.Equal(typeof(PlatoonHillAttackBlackboard), def.BlackboardLayoutType);
+            Assert.Equal(typeof(HillAttackMutableState), def.BlackboardLayoutType!.GetField("State")!.FieldType);
             Assert.DoesNotContain(def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>(),
                 s => s.WorkingStateType == typeof(HillAttackMutableState));
         }
@@ -1341,17 +1340,15 @@ namespace Hrot.SimHost.Tests
 
             // Commander (stateful, Behavior-scoped): RequestAreaQuery ↔ Deactivate_RequestAreaQuery.
             Assert.True(registry.TryGetDefinition(BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack), out var commanderDef));
-            int slotKey = StatefulBTreeActionBinder.ComputeStatefulSlotKey(
-                new Guid("1a000000-0000-0000-0000-0000000000dd"),
-                Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior, Guid.Empty, "State");
+            //   ⭐ CE-1410: C#-built — the key's tail is the State's offset in the block, not a slot key.
             AssertNodeResourceOwning(commanderDef.BTreeInterpreter!.Blob,
-                $"Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@{slotKey}");
+                "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@");
 
             // Tank subordinate (CE-2230): the run's ONE node is the vehicle exposure cycle (stateful) — it drives the hull, the
             //   weapon and the posture, so an aborted run (the commander's halt, a new order) must release them.
             Assert.True(registry.TryGetDefinition(BehaviorHash.FromName(BehaviorNames.HullDownAttackRun), out var tankDef));
             AssertNodeResourceOwning(tankDef.BTreeInterpreter!.Blob,
-                "Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover@0@230311729");
+                "Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover@0@");
         }
 
         private static void AssertNodeResourceOwning(BehaviorTreeBlob blob, string methodKey)
@@ -1360,7 +1357,7 @@ namespace Hrot.SimHost.Tests
             {
                 var node = blob.Nodes[i];
                 if (node.Type is not (NodeType.Action or NodeType.Condition)) continue;
-                if (blob.MethodNames[node.PayloadIndex] != methodKey) continue;
+                if (!blob.MethodNames[node.PayloadIndex].StartsWith(methodKey, StringComparison.Ordinal)) continue;   // a key prefix (CE-1410)
                 Assert.True(node.IsResourceOwning,
                     $"node '{methodKey}' must be resource-owning so its deactivator fires on abort");
                 return;
