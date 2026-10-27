@@ -20,11 +20,14 @@ namespace Fdp.Toolkit.Replication.Components
     // (docs/DESIGN_Distributed_Scenario_Persistence.md §7; UX_Authority_Aware_Writes §342).
 
     /// <summary>
-    /// Transient tag component for entities awaiting network acknowledgment
-    /// in reliable initialization mode. Removed after publishing lifecycle status.
+    /// Tag component for entities awaiting network acknowledgment in reliable initialization mode. Removed after publishing lifecycle
+    /// status.
+    /// <para>⭐ CE-4057 — RECORDED (in every keyframe, checkpoint and replay), never in an authored scenario: a restore re-opens a
+    /// Constructing entity (<c>EntityLifecycleModule.ResumeFromRestoredWorld</c>) and the gateway waits for peers only when the entity
+    /// carries this tag. ⛔ SUPERSEDED: <c>Transient</c> — a review's return dropped it, so a reliable entity went Active without its peers.</para>
     /// </summary>
     [ComponentId(GlobalComponentIds.PendingNetworkAck)]
-    [DataPolicy(DataPolicy.Transient)]
+    [DataPolicy(DataPolicy.NoScenario)]
     public struct PendingNetworkAck
     {
         /// <summary>Reliable Init type required to determine expected peers</summary>

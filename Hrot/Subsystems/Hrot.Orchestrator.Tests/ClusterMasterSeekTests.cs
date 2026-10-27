@@ -46,6 +46,59 @@ public sealed class ClusterMasterSeekTests
         bus.SwapBuffers();
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-3329 F8 — a seek moves the clock, so it is admitted only while the cluster shows a recording; and an exit from a review with a
+    /// seek still in flight WAITS for it (the seek's completion snaps the clock — after the exit it would snap live back into history),
+    /// refusing new seeks meanwhile. 📄 DESIGN_Replay_Time_Axis_And_Review §11b F8.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3329_F8_Seeks_only_inside_a_recording_and_an_exit_waits_for_the_seeks_in_flight()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        master.RegisterAggregator(new ReplaySeekAggregator());
+        RegisterNode(bus, master);   // in sync: it joined an idle cluster
+        MasterShows.State(master, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+
+        var stray = Guid.NewGuid();
+        bus.PublishManaged(new SeekReplayIntent { RequestId = stray, TargetWallTicks = 1 });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == stray && e.StatusCode == OrchestrationStatusCode.Rejected);
+        Assert.DoesNotContain(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.NodeReplaySeek);
+
+        MasterShows.State(master, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        bus.PublishManaged(new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = 50_000 });
+        Guid seekTx = GetSeekTxId(bus, master);
+
+        var exit = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = exit, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Empty(bus.ReadManaged<ExecuteNodeOpIntent>());   // the exit fans out nothing while the seek is in flight
+        Assert.Equal(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingReview, master.CurrentClusterState);
+
+        var late = Guid.NewGuid();
+        bus.PublishManaged(new SeekReplayIntent { RequestId = late, TargetWallTicks = 1 });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == late && e.StatusCode == OrchestrationStatusCode.Rejected);
+
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId = seekTx, Operation = FdpNodeOpType.NodeReplaySeek, NodeId = 1, StatusCode = OrchestrationStatusCode.Success,
+            IsParticipating = true, ResultPayload = new ReplaySeekResult(new GlobalTime { TotalWallTicks = 9999L, TotalTime = 5.0 }),
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();   // the seek lands; its snap reaches the clock a tick later
+        Assert.Empty(bus.ReadManaged<ExecuteNodeOpIntent>());  // ⛔ not yet: the snap has not landed
+
+        bool exitFannedOut = false;
+        for (int i = 0; i < 4 && !exitFannedOut; i++)
+        {
+            bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+            exitFannedOut = bus.ReadManaged<ExecuteNodeOpIntent>().Any();
+        }
+        Assert.True(exitFannedOut, "the held exit never proceeded after the seek landed");
+        Assert.NotEqual(Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingReview, master.CurrentClusterState);
+    }
+
     // ── RT-008: ACK-tracked seek fan-out ─────────────────────────────────────
 
     /// <summary>
@@ -60,6 +113,7 @@ public sealed class ClusterMasterSeekTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         var seekRequestId = Guid.NewGuid();
         master.HandleClusterOpRequest(new ClusterOpRequest
@@ -211,6 +265,7 @@ public sealed class ClusterMasterSeekTests
         var seekManager  = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterBus), master.StepRoster);
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         master.HandleClusterOpRequest(new ClusterOpRequest
         {
@@ -264,6 +319,7 @@ public sealed class ClusterMasterSeekTests
         var seekManager  = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterBus), master.StepRoster);
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+        MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         master.HandleClusterOpRequest(new ClusterOpRequest
         {
@@ -847,3 +903,17 @@ public sealed class ClusterMasterSeekTests
         public void Dispose() { }
     }
 }
+
+/// <summary>⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording: puts a test's master in a state (the node rounds
+/// still go to the nodes that joined while it was idle).</summary>
+internal static class MasterShows
+{
+    public static void State(ClusterMaster master, Fdp.Toolkit.Orchestration.ClusterState state)
+    {
+        var field = typeof(ClusterMaster).GetField("_currentDsmState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        field.SetValue(master, Enum.ToObject(field.FieldType, (int)state));
+    }
+
+    public static void Recording(ClusterMaster master) => State(master, Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay);
+}
+

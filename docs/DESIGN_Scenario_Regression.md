@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
-updated: 2026-10-26 (§10-3a H5 built and measured live — the review shows the live run; CE-4056, CE-4057 found) · 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
+updated: 2026-10-27 (§10-3a / §10-4 re-run after backend's fixes — H5 and H1b green on ua-civ-melee) · 2026-10-27 (§7 the run after the 10-25/26 merges — a layout change at t = 0 hides later drift) · 2026-10-26 (§10-3a H5 built and measured live — the review shows the live run; CE-4056, CE-4057 found) · 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
 current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
 stale-below: none
 known-rot: §10 RH-3 (replay seconds = sim seconds) — SUPERSEDED by R-3056 / R-4086 (the replay clock stays wall; a sim seek is atSimSeconds) · §10-1 "H1b after CE-4051…4053" — those are fixed / ruled; H1b now waits for DAR P1 (§10-2) · §10 RH-1's "EnterReplay through Idle" is no longer the only product path — a REVIEW replays the run in place (H5, §10-2)
 known-conflict: blueprints/DESIGN_Smoke_Suite.md says "do not build a DSL" — written for a different shape (one entity, one behaviour, panel checks; the JSON TestScript kept for cluster/DDS/replay). checks.json EXTENDS the film takes' anchor grammar, which is already built and read by the engine (AnchorBook); it is not a new language. Not reconciled with the Smoke Suite's author — named here so a reader sees both.
 related-designs:
+  - DESIGN_Film_Production.md — §4: the overnight documentation drafts stills from this design's verdicts and the verify runs' recordings
   - DESIGN_Replay_Time_Axis_And_Review.md — OWNS the sim axis (atSimSeconds, ReplayTimeMap) H1b needs, the review (DAR) H5 tests, and §12 the wire H2 checks
   - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS replay through the master (R-3053…R-3055: previews never record; the ordinary world replays; the sandbox retired from HTTP) — the path §10's harness tests
   - DESIGN_Replay_Census_H0.md — H0 of the replay harness (CE-4045): which types a recording must / must not hold; the replay mode this verifier grows (H1–H4) reads its verdicts
@@ -295,6 +296,7 @@ grep and are not proof of completeness.
 | ⛔ the first capture attempt threw on every scenario | *"The node already has a parent"* — the handle rewrite assigned every node back to its own slot; the rail's component held ONLY a handle, so it never met a plain field. Fixed (assign back only a replaced node); the rail now carries a plain field and an array |
 | ⚠ a child's wall-clock limit | `uc-urban-battle` (200 s of sim, ~40 men) steps **~9× slower than real time**: 1751 s once, past the 1800 s limit the next ⇒ `--verify-timeout <min>` (default **60**); the CI template's job limit 75 |
 | ⭐⭐ **the run on the MERGED tree** (`behaviors@3eb2580fa`, `backend@6e5723798`; three streams) | **88 pass / 15 fail of 103.** Goldens: **only 9 files changed** — the scenarios behaviors' merge moved (CE-2232 vehicle hide: `ua-tank-corner`, `ua-ifv-standoff`, `uc-convoy-hit-ifv`, `ua-javelin-lock`; the surrender demos' rifleman off the roof) + `ua-posture`'s first; ⭐ the other 61 were **byte-identical** to the run before ⇒ a golden repeats across fresh processes AND survives a merge that does not touch it. ⭐⭐ **The first regression caught ACROSS a merge:** `uc-reinforce-dry` — the reserve sent at 40.5 s before, never after ([note](blueprints/batches/NOTE_Coordinator_To_Behaviors_Scenario_Regression_After_Merge.md)). The other 14 reds are behaviors' CE-2351/CE-2352 |
+| ⭐ **the run after the 10-25/26 merges** (`coordinator@341da1eec`, one stream, `2026-10-26`) | ⚠ 98 of 103 in the 7000 s limit. **77 pass their own checks / 21 fail** (14 known, 7 new). Goldens: 1 same, 62 different with checks passing. ⭐⭐ **Every different golden differs first at t = 0, on a component's LAYOUT** (`WeaponState` 66 — CE-1358's `Heat`; `SopState` 17 — CE-4046 A; new `CombatTemperament`, `CommandOrderHistory`) ⇒ ⛔ the "first differing snapshot" then names the layout change and HIDES any later snapshot drift; the times / shots / blasts rows are what still show behaviour (33 scenarios moved, e.g. the first round ~0.3 s later). ⇒ a layout change re-captures its goldens in the same commit, or the next behaviour change is masked. [Note to behaviors](blueprints/batches/NOTE_Coordinator_To_Behaviors_Scenario_Regression_2026-10-26.md) |
 | ⛔ parallel processes collided on the working copy | every editor boot seeds the curated scenarios into `FDP_Temp/shared`; a sibling capturing a golden there made one boot throw *"used by another process"* (`bc-house-defended`) ⇒ each verify child gets a PRIVATE `FDP_STAGING_ROOT` (deleted after). Rail: 2 parent streams × 5 scenarios in parallel, all pass, goldens same |
 | a utility decision's winner | ⛔ not readable as component state — it lives in the behaviour's blackboard bytes, and `UtilityDecisionLog` exists only while `/trace/observe` is on ⇒ `ua-posture` (whose live check reads the winner) is not in the pilot; a `decision` cue needs that log attached at load for the units a check names |
 
@@ -602,7 +604,7 @@ live come back exact — and the second half is R1's comparator unchanged, so th
 | # | ⭐ ruled | was | why |
 |---|---|---|---|
 | ① | **RH-3 SUPERSEDED** — replay seconds are wall seconds for good (R-3056); a sim address is `atSimSeconds` through DAR's `ReplayTimeMap` | RH-3: a stepped run's replay seconds = sim seconds | step 0 measured wall gaps of 2–19 ms per step (CE-4053) |
-| ② | **H1b waits for DAR P1** (`atSimSeconds`, the Sim-axis step — DAR §8 rows 9, 10, 12), not for CE-4051…4053 (fixed / ruled) | §10-1: H1b after CE-4051…4053 | `/sim/step` in a replay advances wall time, which lands between a stepped run's sim frames |
+| ② | ✅ *(BUILT, §10-4)* **H1b waits for DAR P1** (`atSimSeconds`, the Sim-axis step — DAR §8 rows 9, 10, 12), not for CE-4051…4053 (fixed / ruled) | §10-1: H1b after CE-4051…4053 | `/sim/step` in a replay advances wall time, which lands between a stepped run's sim frames |
 | ③ | ⭐ **H5 — the review phase** (the picture): live to T, review back to t, compare, return, compare, run on, compare with a straight run. Built by the coordinator once DAR **P3** lands; ⭐ it IS DAR P3's scenario-scale acceptance — backend keeps its unit rails and points P3's report at H5 (one oracle) | — | DAR P3's acceptance is *"R1's oracle reused"* — the verifier already owns that oracle |
 | ④ | **H2 gains a WIRE check** once DAR **PW** lands: after each seek the DDS instances alive on a test reader equal the world's owned ids (DAR §12e at scenario scale; CE-3331). ⛔ **AMENDED `2026-10-26` — it lives in H4, not in the editor's verifier:** 📐 the editor builds with `OfflineNetworkFactory` (`OfflineNetworkFactory.cs:16-23` — "no DDS is allocated", a `NullReplicationModule`), so a `--mode editor` run puts nothing on the wire to check; the unit half is backend's `CycloneNetworkCleanupSystemTests` (CE-3331) | H2: world only | R-3062: every world swap disposes its potential zombies on the wire |
 | ⑤ | **H1a unchanged**; once v7 lands its `RecordedRun` reads the sim frame from the frame index instead of decoding each frame's `GlobalTime` | — | DAR P0 rows 1–3 |
@@ -685,6 +687,42 @@ twice) — red-proved (the return compared against the review's last snapshot �
 | does a review enter at 0 s? | ⛔ it never stands at 0: the clock read 4.92, 4.6 and 4.0 s in three runs, though the entry lands on recorded frame 4 (sim 0) | ⛔ **CE-4056** (backend) |
 | does live come back exact? | every component equal at L = 10.017 s **except `PendingNetworkAck`** (present at L, gone after the return) | ⛔ **CE-4057** (backend) |
 | does live run on as if straight? | first difference at 11 s: `PendingNetworkAck` only (the straight run keeps it) | ⛔ CE-4057 |
+| ⭐ **re-run `2026-10-27`** after backend's fixes (`coordinator@290a6ef69`, backend `bad9aa626`) | the review stands at 0 s; **review same, return exact, after same** (51 s) — `PendingNetworkAck` is recorded now and comes back | ✅ CE-4056, CE-4057 fixed |
+
+### 10-4. ✅ H1b as built `2026-10-26` — the product's replay, sought by recorded sim time *(R-4086 ②)*
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (Verify, replay)
+  participant H as EditorDirectorHost
+  participant M as the master (ReplaySessionIntents)
+  R->>R: H1a — the stopped run's recording in a sandbox (§10-1)
+  R->>H: wait for Idle
+  R->>M: EnterReplay(the newest finished exercise, atSimSeconds first t)
+  loop each LIVE snapshot time t
+    R->>R: wait until the clock STANDS at t · PLAYBACK[t]
+    R->>M: Seek(atSimSeconds next t)
+  end
+  R->>M: Idle
+  R->>R: CompareLookBack — PLAYBACK vs LIVE at the times it stood at (carried = the manifest)
+```
+*What the picture shows: H1b is H5's look-back loop with another way in (a replay from Idle) and another way out (Idle) — ONE loop, one
+result shape (`LookBackResult`: verdict, snapshots, diff, not-carried, problems), one intent construction.*
+
+| as built | why |
+|---|---|
+| `--verify-replay` runs H1a THEN H1b in the same child; the JSON gains `"playback"` beside H5's `"review"` (both `LookBackResult`) | one command, two halves of the replay question |
+| `ReplaySessionIntents.EnterReplay` added; `DebugApiService.Master` (`POST /replay`, `/replay/seek`, `/review`) now builds through `ReplaySessionIntents` — they had their own inline copies (⚠ cross-lane edit, backend's file) | R-3059: a click, a request and the verifier are the same request |
+| a replay is sought with the same `SeekReplayIntent` as a review (`SeekReview` on the host) | one seek path |
+| ⚠ not built: leaving a review / replay when the runner is STOPPED or throws | the host would stay in the review / replay — a known gap |
+
+Rail: `DirectorRunnerTests.CE4045_H1b_*` (one entry, one seek per later snapshot by sim time, Idle at the end; a replay that loses the
+health ⇒ different from t = 2 s naming Runner / Health) — red-proved (the replay's seeks skipped ⇒ the loop times out).
+
+📐 **Live, `ua-civ-melee`, `--verify-replay`** (`coordinator@b97d9bcec`): H1a ✅ same (41 snapshots); H1b — ✅ **the product's replay
+shows the live run at 1 … 40 s, every recorded component equal** (`PendingNetworkAck` listed apart, not recorded); ⛔ the ENTRY at 0 s
+never stands there (clock 26.6 s) — ⇒ **CE-4056 is the entry path for a replay as well as a review** (a `TransitionState` with a sim
+target), while every `SeekReplay` lands. ⭐ **Re-run `2026-10-27`** after backend's CE-4056 fix (a seek BACK stood one seek behind — the entry was not the cause): H1a and H1b **same**, 41 snapshots, no problem listed.
 
 ### 10a. Claim table — what the leans rest on
 

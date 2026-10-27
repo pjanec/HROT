@@ -614,20 +614,17 @@ namespace Hrot.Editor.Director
         /// <summary>The live snapshots matched to a recorded frame.</summary>
         public int ReplaySnapshots { get; set; }
 
-        /// <summary>⭐ <c>CE-4045</c> H5 — the review against the live run: null (not asked) · same · different.</summary>
-        public string? Review { get; set; }
-        /// <summary>The review's first difference from the live run, on what the recording carries.</summary>
-        public List<string> ReviewDiff { get; } = new();
-        /// <summary>For information (RH-4): what the review differs in that the recording does not carry by its manifest.</summary>
-        public List<string> ReviewNotCarried { get; } = new();
+        /// <summary>⭐ <c>CE-4045</c> H5 — the review of the live run against the live run: null (not asked) · same · different.</summary>
+        public LookBackResult? Review { get; set; }
         /// <summary>⭐ The world after the return against the world the run left — EVERY component (the full checkpoint, R-3063).</summary>
         public List<string> ReturnDiff { get; } = new();
-        /// <summary>Seeks that did not land, a return that did not come back.</summary>
-        public List<string> ReviewProblems { get; } = new();
-        public int ReviewSnapshots { get; set; }
+
+        /// <summary>⭐ <c>CE-4045</c> H1b — the product's cluster REPLAY of the finished run (entered, sought by recorded sim time) against the
+        /// live run: null (not asked) · same · different.</summary>
+        public LookBackResult? Playback { get; set; }
 
         public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is ("none" or "same" or "captured") && Replay is (null or "same")
-                              && Review is (null or "same") && ReturnDiff.Count == 0 && ReviewProblems.Count == 0;
+                              && Review is (null or { Verdict: "same" }) && ReturnDiff.Count == 0 && Playback is (null or { Verdict: "same" });
 
         /// <summary>
         /// ⭐ This run was a reload: a capture is REFUSED (a reload's golden bakes CE-3294 in — measured: <c>SopState</c> and the animation
@@ -654,12 +651,37 @@ namespace Hrot.Editor.Director
             ["replaySnapshots"] = Replay is null ? null : ReplaySnapshots,
             ["replayDiff"] = Replay is null ? null : new JsonArray(ReplayDiff.Select(x => (JsonNode?)x).ToArray()),
             ["replayNotCarried"] = Replay is null ? null : new JsonArray(ReplayNotCarried.Select(x => (JsonNode?)x).ToArray()),
-            ["review"] = Review,
-            ["reviewSnapshots"] = Review is null ? null : ReviewSnapshots,
-            ["reviewDiff"] = Review is null ? null : new JsonArray(ReviewDiff.Select(x => (JsonNode?)x).ToArray()),
-            ["reviewNotCarried"] = Review is null ? null : new JsonArray(ReviewNotCarried.Select(x => (JsonNode?)x).ToArray()),
+            ["review"] = Review?.ToJson(),
             ["returnDiff"] = Review is null ? null : new JsonArray(ReturnDiff.Select(x => (JsonNode?)x).ToArray()),
-            ["reviewProblems"] = ReviewProblems.Count == 0 ? null : new JsonArray(ReviewProblems.Select(x => (JsonNode?)x).ToArray()),
+            ["playback"] = Playback?.ToJson(),
+        };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4045</c> — what ONE look-back found: the run's live snapshots against the world the product shows when it looks back at
+    /// the same moments — a review of the live run (H5) or a replay of the finished one (H1b). One shape, one loop
+    /// (<c>DirectorRunner</c>'s look-back), one comparator (<see cref="ScenarioGolden.CompareFrom"/>).
+    /// </summary>
+    public sealed class LookBackResult
+    {
+        /// <summary>same · different (also when a seek never landed, or the way back never came — <see cref="Problems"/> says which).</summary>
+        public string Verdict { get; set; } = "different";
+        /// <summary>The live snapshots looked back at (the times the product actually STOOD at).</summary>
+        public int Snapshots { get; set; }
+        /// <summary>The first difference from the live run, on what the recording carries.</summary>
+        public List<string> Diff { get; } = new();
+        /// <summary>For information (RH-4): what differs in components the recording does NOT carry by its manifest.</summary>
+        public List<string> NotCarried { get; } = new();
+        /// <summary>Seeks that did not land, a way back that did not come.</summary>
+        public List<string> Problems { get; } = new();
+
+        public JsonObject ToJson() => new()
+        {
+            ["verdict"] = Verdict,
+            ["snapshots"] = Snapshots,
+            ["diff"] = new JsonArray(Diff.Select(x => (JsonNode?)x).ToArray()),
+            ["notCarried"] = new JsonArray(NotCarried.Select(x => (JsonNode?)x).ToArray()),
+            ["problems"] = new JsonArray(Problems.Select(x => (JsonNode?)x).ToArray()),
         };
     }
 

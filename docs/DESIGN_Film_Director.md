@@ -7,6 +7,7 @@ stale-below: none
 known-rot: §3c "Kept as the fallback: an in-memory bookmark" and its "basis … a full LIVE run" questions — SUPERSEDED by §3c's R-4088 block (an instant replay is a review) · §2's Scout, CaptureSink, CinemaMode, LayerOverride and SoundTrack.Log boxes are SUPERSEDED by §8.3 (as built). §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
 known-conflict: none — the determinism question ("I still believe we could make this deterministic") is RULED by R-3038; the mechanism is DESIGN_Paused_And_Stepped_Execution.md (CE-3293).
 related-designs:
+  - DESIGN_Film_Production.md — OWNS the INTENT of the whole film process: films are cut and rendered from RECORDINGS; this design's stepped live run stays for live preview (R-4091)
   - DESIGN_Replay_Time_Axis_And_Review.md — answers §3c's instant-replay question: review the live run in place and return to it untouched
   - DESIGN_Director_Timeline_Editor.md — OWNS the EDITOR over takes (timeline panel, camera keys, tracks), the RECORDING source, promote and the recording scout; it builds §3e / D-18 here (R-4067, R-4068)
   - DESIGN_Scenario_Regression.md — REUSES the take anchor grammar for a scenario's machine-checkable conditions (checks.json) and, in its phase 2, AnchorBook and a DirectorRunner verify mode

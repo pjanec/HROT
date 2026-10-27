@@ -15,7 +15,8 @@ namespace Hrot.Editor.Director
 
     /// <summary>⭐ <c>CE-4042</c> — a verify run: <see cref="Capture"/> re-records each scenario's golden (refused for a failing run).
     /// ⭐ <c>CE-4045</c> H1a — <see cref="Replay"/>: the run is LIVE (it records), and its recording, played back, must hold the world the run
-    /// had at every snapshot (docs/DESIGN_Scenario_Regression.md §10-1, R-4085).</summary>
+    /// had at every snapshot (docs/DESIGN_Scenario_Regression.md §10-1, R-4085). ⭐ H1b — then the PRODUCT's cluster replay of that run
+    /// (entered and sought through the master, by recorded sim time) must show the same world (§10-2 ②).</summary>
     public sealed record VerifyOptions(bool Capture = false, RestoreCheck? R1 = null, bool Replay = false, ReviewCheck? Review = null);
 
     /// <summary>
@@ -52,7 +53,8 @@ namespace Hrot.Editor.Director
     }
 
     /// <remarks><see cref="Checking"/>: ⭐ CE-4045 H1a — a verify run's live part is over and its recording is compared.</remarks>
-    /// <remarks><see cref="Reviewing"/> / <see cref="Returning"/>: ⭐ CE-4045 H5 — a verify run looks back in a review, then comes back.</remarks>
+    /// <remarks><see cref="Reviewing"/> / <see cref="Returning"/>: ⭐ CE-4045 H5 / H1b — a verify run looks back (in a review of the live run, or
+    /// in a replay of the finished one), then comes back (to live, or to Idle).</remarks>
     public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Checking, Reviewing, Returning }
 
     /// <summary>⭐ What one reel item did — the per-take report of §3a (missing beats, anchor mismatches, the realtime factor) and the
@@ -208,18 +210,24 @@ namespace Hrot.Editor.Director
         private IRecordedRun? _recorded;
         private ScenarioGolden? _recordedSnapshots;
         private int _checkIndex;
-        // ⭐ CE-4045 H5 — the review: the times to look back at, the one being looked at, how long the clock has stood there
-        private bool _reviewDone;
-        private List<double>? _reviewTimes;
-        private int _reviewIndex;
-        private double _reviewTarget, _liveAtRel;
+        // ⭐ CE-4045 H5 / H1b — the LOOK-BACK, one loop for both: a review of the live run (H5) or a replay of the finished one (H1b). The live
+        //   snapshots to look back at, the one being looked at, how long the clock has stood there
+        private enum LookMode { Review, Replay }
+        private LookMode _look;
+        private bool _reviewDone;   // H5: the run's review happened (or could not)
+        private bool _lookEntered;  // the product is in the review / replay (a replay is entered from Idle, so it waits for it)
+        private List<double>? _lookTimes;
+        private JsonArray? _lookLive;
+        private int _lookIndex;
+        private double _lookTarget, _liveAtRel;
         private int _standing;
-        private ScenarioGolden? _reviewSnapshots, _atLive;
-        private readonly List<string> _reviewProblems = new();
-        // the review's outcome, kept until the run's result exists (FinishItem)
-        private string? _reviewVerdict;
-        private int _reviewCount;
-        private readonly List<string> _reviewDiff = new(), _reviewNotCarried = new(), _returnDiff = new();
+        private ScenarioGolden? _lookSnapshots, _atLive;
+        // the outcomes, kept until the run's result exists (FinishItem for the review, EndPlayback for the replay)
+        private LookBackResult? _review, _playback;
+        private readonly List<string> _returnDiff = new();
+        private LookBackResult Look => _look == LookMode.Review ? _review! : _playback!;
+        private string LookTag => _look == LookMode.Review ? "H5" : "H1b";
+        private string LookNoun => _look == LookMode.Review ? "review" : "replay";
 
         /// <param name="verifyWorld">⭐ CE-4042 — what a verify run reads and edits (the editor's entity dump, combat rows and component edit);
         /// a host without one refuses a verify run.</param>
@@ -378,8 +386,8 @@ namespace Hrot.Editor.Director
             _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0; _verification = null;
             _r1Target = double.NaN; _r1Frames = 0; _r1Written = false;
             _liveRecording = null; _pendingVerify = null; _recordedSnapshots = null; _checkIndex = 0; CloseRecorded();
-            _reviewDone = false; _reviewTimes = null; _reviewIndex = 0; _standing = 0; _reviewSnapshots = null; _atLive = null; _reviewProblems.Clear();
-            _reviewVerdict = null; _reviewCount = 0; _reviewDiff.Clear(); _reviewNotCarried.Clear(); _returnDiff.Clear();
+            _reviewDone = false; _lookEntered = false; _lookTimes = null; _lookLive = null; _lookIndex = 0; _standing = 0; _lookSnapshots = null; _atLive = null;
+            _review = null; _playback = null; _returnDiff.Clear();
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -744,12 +752,8 @@ namespace Hrot.Editor.Director
                     if (!rc.Straight)
                     {
                         if (!_reviewDone) v.Problems.Add($"H5: the run ended before the review time {rc.At} s");
-                        v.Review = _reviewVerdict;
-                        v.ReviewSnapshots = _reviewCount;
-                        v.ReviewDiff.AddRange(_reviewDiff);
-                        v.ReviewNotCarried.AddRange(_reviewNotCarried);
+                        v.Review = _review;
                         v.ReturnDiff.AddRange(_returnDiff);
-                        v.ReviewProblems.AddRange(_reviewProblems);
                     }
                 }
                 _verification = null;
@@ -852,10 +856,32 @@ namespace Hrot.Editor.Director
         {
             CloseRecorded();
             var v = _pendingVerify!;
-            _pendingVerify = null;
             v.Replay = verdict;
             if (why != null) v.ReplayDiff.Insert(0, why);
-            if (!_host.IsIdle) _host.StopLive();   // ⚠ a failed check leaves no live run behind
+            BeginPlayback(v);   // ⭐ H1b — the product's replay of the same run, whatever H1a found (a failed H1a is not a reason to skip it)
+        }
+
+        // ── ⭐ CE-4045 H1b — the product's cluster REPLAY of the finished run (docs/DESIGN_Scenario_Regression.md §10-2 ②) ──────────
+
+        /// <summary>The recording is judged (H1a): look back at EVERY live snapshot through the master's replay — the same loop as the review
+        /// (<see cref="TickReviewing"/>), entered from Idle and left to Idle.</summary>
+        private void BeginPlayback(VerifyResult v)
+        {
+            _look = LookMode.Replay;
+            _playback = new LookBackResult();
+            if (!_host.IsIdle) _host.StopLive();   // ⚠ a replay is entered from Idle; a run that did not stop (H1a failed) is stopped, never left behind
+            var live = (v.GoldenJson?["snapshots"] as JsonArray) ?? new JsonArray();
+            if (!BeginLookBack(live, double.PositiveInfinity)) { EndPlayback(); return; }
+            _phaseStartWall = _host.WallNow;   // the wait for Idle is timed from here, not from H1a's check
+            Phase = DirectorPhase.Reviewing;
+        }
+
+        /// <summary>The replay is left (Idle) and compared: the item is judged.</summary>
+        private void EndPlayback()
+        {
+            var v = _pendingVerify!;
+            _pendingVerify = null;
+            v.Playback = _playback;
             var r = Report;
             r.Verify = v;
             r.Status = v.Passed ? "pass" : "fail";
@@ -875,90 +901,137 @@ namespace Hrot.Editor.Director
         private long SimFrameNow() => _host.World is { } w && w.HasSingletonUnmanaged<Fdp.Core.GlobalTime>()
             ? w.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().FrameNumber : 0;
 
-        // ── ⭐ CE-4045 H5 — a During Action Review in the middle of a live verify run (docs/DESIGN_Scenario_Regression.md §10-3) ──────
+        // ── ⭐ CE-4045 H5 / H1b — the LOOK-BACK: ONE loop for a During Action Review of the live run (docs/DESIGN_Scenario_Regression.md
+        //    §10-3) and for the cluster REPLAY of the finished one (§10-2 ②). Enter, then for each live snapshot time wait until the world's
+        //    clock STANDS there, snapshot, seek on; then come back (review: to live · replay: to Idle) and compare. The mode decides only the
+        //    state it waits for, the entry call and the way back ───────────────────────────────────────────────────────────────────────────
 
         private double HalfStep => 0.5 / Math.Max(1, Report.TickHz);
 
         /// <summary>The live run stands at the review's time with nothing in flight: remember the world, review back to the start.</summary>
         private void BeginReview(double rel)
         {
+            _look = LookMode.Review;
+            _review = new LookBackResult();
             _liveAtRel = rel;
             _atLive = new ScenarioGolden(_verifyWorld!, full: true);
             _atLive.Snapshot(rel);
             var live = (_verification!.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray();
-            _reviewTimes = live.Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).Where(t => t <= rel + 1e-6).ToList();
-            if (_reviewTimes.Count == 0) { _reviewProblems.Add("H5: no live snapshot to look back at"); _reviewDone = true; return; }
-            _reviewSnapshots = new ScenarioGolden(_verifyWorld!, full: true);
-            _reviewIndex = 0;
-            _reviewTarget = _t0 + _reviewTimes[0];
-            _standing = 0;
-            _phaseStartWall = _host.WallNow;
-            _host.EnterReview(_reviewTarget);
+            if (!BeginLookBack(live, rel + 1e-6)) { _reviewDone = true; return; }
+            _host.EnterReview(_lookTarget);
+            _lookEntered = true;
             Phase = DirectorPhase.Reviewing;
         }
 
-        /// <summary>⭐ Once per frame: wait until the review's clock STANDS at the target (a seek lands on a later frame), snapshot, seek on.</summary>
+        /// <summary>The live snapshots up to <paramref name="upTo"/> are the moments to look back at; false when there are none.</summary>
+        private bool BeginLookBack(JsonArray live, double upTo)
+        {
+            _lookLive = live;
+            _lookTimes = live.Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).Where(t => t <= upTo).ToList();
+            if (_lookTimes.Count == 0) { Look.Problems.Add($"{LookTag}: no live snapshot to look back at"); return false; }
+            _lookSnapshots = new ScenarioGolden(_verifyWorld!, full: true);
+            _lookIndex = 0;
+            _lookTarget = _t0 + _lookTimes[0];
+            _lookEntered = false;
+            _standing = 0;
+            _phaseStartWall = _host.WallNow;
+            return true;
+        }
+
+        /// <summary>⭐ Once per frame: wait until the clock STANDS at the target (a seek lands on a later frame), snapshot, seek on.</summary>
         private void TickReviewing()
         {
-            if (!_host.IsOperatingReview || Math.Abs(_host.SimTime - _reviewTarget) > HalfStep) _standing = 0;
+            if (!_lookEntered)   // ⭐ H1b — a replay is entered from Idle: once the master has stopped the live run
+            {
+                if (_host.IsIdle) { _host.EnterReplay(_lookTarget); _lookEntered = true; _phaseStartWall = _host.WallNow; }
+                else if (_host.WallNow - _phaseStartWall > LoadTimeoutSeconds)
+                {
+                    Look.Problems.Add($"{LookTag}: the live run did not stop (Idle) within {LoadTimeoutSeconds:0} s — no replay to look at");
+                    CompareLookBack();
+                    EndPlayback();
+                }
+                return;
+            }
+            bool inLook = _look == LookMode.Review ? _host.IsOperatingReview : _host.IsOperatingReplay;
+            if (!inLook || Math.Abs(_host.SimTime - _lookTarget) > HalfStep) _standing = 0;
             else _standing++;
-            double t = _reviewTimes![_reviewIndex];
+            double t = _lookTimes![_lookIndex];
             if (_standing >= 3)
             {
-                _reviewSnapshots!.Snapshot(t);
-                _reviewIndex++;
+                _lookSnapshots!.Snapshot(t);
+                _lookIndex++;
             }
             else if (_host.WallNow - _phaseStartWall > LoadTimeoutSeconds)
             {
-                _reviewProblems.Add($"H5: the review did not stand at {t} s within {LoadTimeoutSeconds:0} s (state {(_host.IsOperatingReview ? "review" : "not review")}, clock {_host.SimTime - _t0:0.####} s)");
-                _reviewIndex++;
+                Look.Problems.Add($"{LookTag}: the {LookNoun} did not stand at {t} s within {LoadTimeoutSeconds:0} s (state {(inLook ? LookNoun : "not " + LookNoun)}, clock {_host.SimTime - _t0:0.####} s)");
+                _lookIndex++;
             }
             else return;
-            if (_reviewIndex < _reviewTimes.Count)
+            if (_lookIndex < _lookTimes.Count)
             {
-                _reviewTarget = _t0 + _reviewTimes[_reviewIndex];
+                _lookTarget = _t0 + _lookTimes[_lookIndex];
                 _standing = 0;
                 _phaseStartWall = _host.WallNow;
-                if (_host.IsOperatingReview) _host.SeekReview(_reviewTarget);
+                if (inLook) _host.SeekReview(_lookTarget);   // ⭐ the same SeekReplayIntent for a review and a replay
                 return;
             }
-            _host.ExitReview();
-            _reviewTarget = _t0 + _liveAtRel;
+            if (_look == LookMode.Review) { _host.ExitReview(); _lookTarget = _t0 + _liveAtRel; }
+            else _host.StopLive();   // ⭐ H1b — leave the replay: an Idle transition, nothing is left running
             _standing = 0;
             _phaseStartWall = _host.WallNow;
             Phase = DirectorPhase.Returning;
         }
 
-        /// <summary>⭐ Once per frame: wait until live stands at the point it left, compare the world, then step on.</summary>
+        /// <summary>⭐ Once per frame: a review waits until live stands at the point it left and compares the world; a replay waits for Idle.
+        /// Then the look-back is compared with the live run.</summary>
         private void TickReturning()
         {
-            if (!_host.IsOperatingLive || Math.Abs(_host.SimTime - _reviewTarget) > HalfStep) _standing = 0;
+            if (_look == LookMode.Replay)   // ⭐ H1b — back to Idle, then the item is judged
+            {
+                if (!_host.IsIdle)
+                {
+                    if (_host.WallNow - _phaseStartWall <= LoadTimeoutSeconds) return;
+                    Look.Problems.Add($"H1b: the replay did not stop (Idle) within {LoadTimeoutSeconds:0} s");
+                }
+                CompareLookBack();
+                EndPlayback();
+                return;
+            }
+            if (!_host.IsOperatingLive || Math.Abs(_host.SimTime - _lookTarget) > HalfStep) _standing = 0;
             else _standing++;
             if (_standing < 3)
             {
                 if (_host.WallNow - _phaseStartWall <= LoadTimeoutSeconds) return;
-                _reviewProblems.Add($"H5: live did not come back to {_liveAtRel} s within {LoadTimeoutSeconds:0} s (clock {_host.SimTime - _t0:0.####} s)");
+                _review!.Problems.Add($"H5: live did not come back to {_liveAtRel} s within {LoadTimeoutSeconds:0} s (clock {_host.SimTime - _t0:0.####} s)");
             }
             var after = new ScenarioGolden(_verifyWorld!, full: true);
             after.Snapshot(_liveAtRel);
             _returnDiff.AddRange(ScenarioGolden.CompareFrom(_atLive!.SnapshotsJson(), after.SnapshotsJson(), _liveAtRel));
-            // the review against the live run, on what the recording carries (what a review can show)
-            // ⚠ the comparator pairs snapshots by INDEX: compare only the live snapshots at the times the review actually stood at
-            //   (📐 measured: a review that never reached 0 s shifted every later pair by one second)
-            var seen = _reviewSnapshots!.SnapshotsJson();
-            var seenTimes = ((seen["snapshots"] as JsonArray) ?? new JsonArray()).Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).ToList();
-            var live = new JsonObject { ["snapshots"] = new JsonArray(((_verification!.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray())
-                .Where(n => ConditionBook.Num(n?["t"]) is { } t && seenTimes.Any(st => Math.Abs(st - t) < 1e-4)).Select(n => n!.DeepClone()).ToArray()) };
-            var carried = _liveRecording is { } path ? ScenarioGolden.CarriedBy(path) : null;
-            _reviewCount = _reviewSnapshots.Snapshots;
-            _reviewDiff.AddRange(ScenarioGolden.CompareFrom(live, seen, 0d, carried));
-            if (carried != null) _reviewNotCarried.AddRange(ScenarioGolden.CompareNotCarried(live, seen, 0d, carried));
-            else _reviewNotCarried.Add("⚠ no recording manifest was found — every component compared");
-            _reviewVerdict = _reviewDiff.Count == 0 && _reviewProblems.Count == 0 ? "same" : "different";
+            CompareLookBack();
             _reviewDone = true;
             if (!_host.Paused) _host.Pause();
             Phase = DirectorPhase.Playing;
             _clock?.Start(_host.WallNow);
+        }
+
+        /// <summary>
+        /// The look-back against the live run, on what the recording carries (what a review or a replay can show).
+        /// ⚠ The comparator pairs snapshots by INDEX: compare only the live snapshots at the times the product actually STOOD at
+        /// (📐 measured: a review that never reached 0 s shifted every later pair by one second).
+        /// </summary>
+        private void CompareLookBack()
+        {
+            var result = Look;
+            var seen = _lookSnapshots!.SnapshotsJson();
+            var seenTimes = ((seen["snapshots"] as JsonArray) ?? new JsonArray()).Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).ToList();
+            var live = new JsonObject { ["snapshots"] = new JsonArray((_lookLive ?? new JsonArray())
+                .Where(n => ConditionBook.Num(n?["t"]) is { } t && seenTimes.Any(st => Math.Abs(st - t) < 1e-4)).Select(n => n!.DeepClone()).ToArray()) };
+            var carried = _liveRecording is { } path ? ScenarioGolden.CarriedBy(path) : null;
+            result.Snapshots = _lookSnapshots.Snapshots;
+            result.Diff.AddRange(ScenarioGolden.CompareFrom(live, seen, 0d, carried));
+            if (carried != null) result.NotCarried.AddRange(ScenarioGolden.CompareNotCarried(live, seen, 0d, carried));
+            else result.NotCarried.Add("⚠ no recording manifest was found — every component compared");
+            result.Verdict = result.Diff.Count == 0 && result.Problems.Count == 0 ? "same" : "different";
         }
 
         /// <summary>⭐ B7 — the scout's run becomes the take's baked anchors (its step rate, the scenario's hash), saved to the take's file.</summary>
