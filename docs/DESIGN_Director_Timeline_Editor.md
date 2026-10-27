@@ -2698,7 +2698,7 @@ beside it (`takes/main.render/ua-tank-ammo-main.mp4`: 640 × 360, 15 fps, 133 fr
 *What it shows:* a 3 × 2 sheet, each cell labelled with its film and source second. **#1 (8.6 s)** over the shoulder of the Tank (dark blue), the enemy
 on the horizon; **#2 (9.6 s)** the same angle, the round's glow at the target; **#3 (17.4 s)** the follow on the Enemy Tank (red) before the second shot;
 **#4 (18.6 s)** the second round's blast engulfing it (orange); **#5 / #6 (22.0 / 23.5 s)** the wide follow on the Technical (the truck) the HE goes
-to. The take's caption is burned in as the subtitle on every cell. ⚠ The bodies are boxes (no TKB in the RB yet — P0, CE-4058), as §11g measured.
+to. The take's caption is burned in as the subtitle on every cell. The bodies are the TKB's low-poly models (hull, turret, tracks, gun — P0 ① built, §11i), as in the P2 live proof; ⛔ *corrected on review: an earlier line here said "boxes, no TKB in the RB yet" — the image shows the models.*
 
 **Rails** (each red-proved by a compiling mutation; the report lists mutation and message):
 `ReplayBrowserSubsystemTests.CE4059_P3_RecordingIsOpenedThroughTheReplayRoute_AndStillsArePlannedButRefused_OnAHeadlessBrowser` (headless: `recording=`
