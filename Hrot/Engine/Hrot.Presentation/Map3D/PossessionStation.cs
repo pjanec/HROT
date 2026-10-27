@@ -130,7 +130,11 @@ namespace Hrot.UI.Common.Map3D
             var held = w is null ? Entity.Null : HeldHere(w, out _);
             bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
             if (MapPeek && _view.Is3D && !_view.IsSwitching) MapPeek = false;   // ⭐ CE-1218 — something else brought the 3-D view back
-            if (MapPeek && _driver?.Input is { } peekInput && peekInput.IsKeyPressed((MapKeyboardKey)FpsCameraDriver.MapKey)) EndMapPeek();   // ⭐ CE-1218
+            // ⭐ CE-1218 — M on the map ends the peek. ⭐ CE-1295 — but NOT on the frame that opened it: the canvas runs the camera driver's input
+            //   (which opens the peek on that M) BEFORE its layers' Update (this), and IsKeyPressed still reads true — so the same press used to
+            //   end the peek it had just begun (a one-frame flash back to 3-D). One press = one toggle.
+            if (MapPeek && _peekJustBegun) _peekJustBegun = false;
+            else if (MapPeek && _driver?.Input is { } peekInput && peekInput.IsKeyPressed((MapKeyboardKey)FpsCameraDriver.MapKey)) EndMapPeek();
             if (_driver != null && (held.IsNull || held != _driver.Unit))
             {
                 // ⭐ CE-1220 (§8k K-1) — released because he FELL: the fall screen holds the view; a release just after a hit waits a
@@ -572,6 +576,7 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — how far the 2-D map's camera stands off him when it opens (m): a few hundred metres across.</summary>
         public const float PeekDistance = 400f;
         private float _peekEndedAt = -1f;
+        private bool _peekJustBegun;   // ⭐ CE-1295
 
         /// <summary>⭐ <c>CE-1218</c> (§8k M-1) — is the operator looking at the 2-D map (M) while still holding his unit?</summary>
         public bool MapPeek { get; private set; }
@@ -586,6 +591,7 @@ namespace Hrot.UI.Common.Map3D
             if (_world() is not { } w || !w.IsAlive(driver.Unit) || !w.HasComponent<SimTransform>(driver.Unit)) return;
             var at = w.GetComponentRO<SimTransform>(driver.Unit).Position;
             MapPeek = true;
+            _peekJustBegun = true;   // ⭐ CE-1295 — this frame's M opened it; the end check skips that frame
             driver.Input?.SetCursorLocked(false);
             _view.ShowPose(new CameraPose(at, PeekDistance, MapCamera3D.NorthUpYaw, MapCamera3D.OverheadPitch));
         }
@@ -594,6 +600,7 @@ namespace Hrot.UI.Common.Map3D
         internal void EndMapPeek()
         {
             MapPeek = false;
+            _peekJustBegun = false;
             _peekEndedAt = Clock;
             if (_driver == null) return;
             _driver.Input?.SetCursorLocked(true);
@@ -859,7 +866,10 @@ namespace Hrot.UI.Common.Map3D
                 }
                 if (shotPending) lines.Add("LOCKED - fires when the weapon bears (X cancels)");   // ⭐ CE-1078
                 if (!vehicle && !flyer && stance is { } st)
-                    lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}");   // ⭐ CE-1074 / CE-1143
+                    lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}"   // ⭐ CE-1074 / CE-1143
+                              // ⭐ CE-1297 — an order the unit would ignore says so (it used to show the stance and do nothing)
+                              + (st != Fdp.Toolkit.Tkb.Domain.StanceId.Standing && Hrot.MuscleCharacter.Animation.Components.LogicalStance.Refuses(w, unit)
+                                  ? $"  - {st.ToString().ToUpperInvariant()}: not for this unit" : ""));
                 if (lookFree && !vehicle && !flyer) lines.Add(LookFreeLine);   // ⭐ CE-1204 (§8l LK-4)
                 if (seat != null) lines.Add(seat);                             // ⭐ CE-1210 (§8n MS-3)
                 lines.Add(scheme switch
