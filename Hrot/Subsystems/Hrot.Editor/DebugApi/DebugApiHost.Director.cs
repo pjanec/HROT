@@ -33,7 +33,15 @@ namespace Hrot.Editor.DebugApi
             _layerControl = layerControl ?? throw new ArgumentNullException(nameof(layerControl));
         }
 
-        private const string NoDirector = "This host has no film director (it is the editor's: run --mode editor).";
+        /// <summary>⭐ <c>CE-1303</c> P3 — any host's director, from its <see cref="DirectorPack"/> (the editor's, the Replay Browser's): the same
+        /// routes over the same runner, takes and layer control the host's Director window uses.</summary>
+        public void AttachDirector(DirectorPack pack)
+        {
+            if (pack == null) throw new ArgumentNullException(nameof(pack));
+            AttachDirector(pack.Runner, pack.Takes, pack.LayerControl, pack.Drafts);   // ⭐ CE-4059 — the drafter too (moments / draft), on every host
+        }
+
+        private const string NoDirector = "This host has no film director (the editor and the Replay Browser have one).";
 
         private void BuildDirectorRoutes()
         {

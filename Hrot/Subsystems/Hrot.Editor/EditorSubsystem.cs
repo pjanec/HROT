@@ -2626,9 +2626,7 @@ namespace Hrot.Editor
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
                     // ⭐ CE-4038 B5/B10 — /director/* and /map/layers reach the same runner and layer control the panel does
-                    _debugApiHost.AttachDirector(_directorPack!.Runner, _takeStore!,
-                        () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null,
-                        _directorPack.Drafts);   // ⭐ CE-4059 — /director/moments, /director/draft: the pack's drafter, the same the event menu calls
+                    _debugApiHost.AttachDirector(_directorPack!);
                     _debugApiHost.Start();
                     // ⛔⛔ TWO TRAPS THIS LINE EXISTS TO DEFUSE, both measured 2026-09-20 and both
                     //    cost a Windows session a round trip:

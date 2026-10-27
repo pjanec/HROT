@@ -10,12 +10,12 @@ namespace Hrot.ReplayBrowser;
 /// <see cref="DirectorPack"/> the editor attaches (CR-2, R-4068), over <see cref="ReplayDirectorHost"/> (CR-3). ⛔ This host builds no runner,
 /// session or window of its own — it hands the pack its host, its Event Timeline, its window manager and layers, and ticks it.
 /// </summary>
-public sealed partial class ReplayBrowserSubsystem
+public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
 {
     private DirectorPack? _directorPack;
 
-    /// <summary>The director (test seam).</summary>
-    internal DirectorPack? Director => _directorPack;
+    /// <summary>The director — ⭐ CE-1303 P3: the process's debug HTTP host attaches it (<c>/director/*</c>, <c>/map/layers</c>).</summary>
+    public DirectorPack? Director => _directorPack;
 
     /// <summary>This host's Event Timeline panel, which the pack gives the open take's tracks (test seam).</summary>
     internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimeline => _eventTimeline;

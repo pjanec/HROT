@@ -47,9 +47,9 @@ namespace Hrot.UI.Common.Map3D.Director
     public sealed class DirectorPack
     {
         private DirectorPack(DirectorRunner runner, DirectorTakeSession session, DirectorWindow window, MapLayerOverride layers, WindowCinema cinema, TakeStore takes,
-                             DirectorDrafts? drafts)
+                             Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl, DirectorDrafts? drafts)
         {
-            Takes = takes; Runner = runner; Session = session; Window = window; Layers = layers; Cinema = cinema; Drafts = drafts;
+            Takes = takes; Runner = runner; Session = session; Window = window; Layers = layers; Cinema = cinema; LayerControl = layerControl; Drafts = drafts;
         }
 
         /// <summary>⭐ CE-4059 (§11q) — the drafter over this host's shown index (null: the host handed no index): the event menu's item and the editor's routes.</summary>
@@ -63,6 +63,8 @@ namespace Hrot.UI.Common.Map3D.Director
         public WindowCinema Cinema { get; }
         /// <summary>The scenarios root's takes and reels.</summary>
         public TakeStore Takes { get; }
+        /// <summary>⭐ CE-1303 P3 — the host's map layer control (the debug routes' <c>/map/layers</c> read and write it).</summary>
+        public Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> LayerControl { get; }
 
         public static DirectorPack Attach(DirectorPackHost h)
         {
@@ -92,7 +94,7 @@ namespace Hrot.UI.Common.Map3D.Director
                                             h.Scenario ?? (() => null), session);
                 h.Timeline.EventMenu = drafts.MenuItems;
             }
-            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, drafts);
+            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts);
         }
 
         /// <summary>The director's frame: once per host frame, after the routes drained and before the map's update (§0, R-3038).</summary>
@@ -100,5 +102,15 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>Puts the Director window (View › Director) among the host's windows.</summary>
         public void RegisterWindow(WindowManager wm) => wm.RegisterWindow(Window);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P3 (docs/DESIGN_Director_Timeline_Editor.md §11j) — a host subsystem that owns a film director (the Replay Browser).
+    /// The process's debug HTTP host attaches it, so <c>/director/*</c> answers on every host that has a director, by construction — ⛔ no
+    /// host-specific route code.
+    /// </summary>
+    public interface IProvidesDirector
+    {
+        DirectorPack? Director { get; }
     }
 }
