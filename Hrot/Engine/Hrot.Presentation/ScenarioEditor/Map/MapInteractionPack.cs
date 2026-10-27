@@ -486,7 +486,8 @@ namespace Hrot.ScenarioEditor.Map
             //   slot in the map buffer (demo-city's terrain alone was 73 188 primitives a frame against 16 384, and the symbols and the
             //   marquee were dropped). Its checkbox is the buffer's Terrain2D bit — the mask LayerControlGizmo hands the buffer (CE-1071).
             var terrain2D = new Hrot.UI.Common.Map2D.TerrainLayer2D(worldProvider,
-                () => buffer.IsLayerActive(DebugTraceLayers.Terrain2D), () => canvas.Camera);
+                () => buffer.IsLayerActive(DebugTraceLayers.Terrain2D), () => canvas.Camera,
+                groundFill: () => buffer.IsLayerActive(DebugTraceLayers.GroundFill));   // ⭐ CE-1420 — the "Ground colour (2-D)" row, off by default
             canvas.AddLayer(terrain2D);
             // ⭐ CE-1288 (DESIGN_Map_3D_Mode.md §6ac) — the 2-D helper grid: above the terrain's fills (they would hide it),
             //   below every gizmo (the entities draw over it). Its checkbox is the buffer's Grid bit (the "Grid (2-D)" row of the layer

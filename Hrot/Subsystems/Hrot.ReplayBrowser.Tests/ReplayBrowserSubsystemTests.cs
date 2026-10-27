@@ -2760,6 +2760,21 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { recording }, 0));
             for (int i = 0; i < 30; i++) Frame();
             var pack = _subsystem.Director!;
+            // ⭐ CE-1420 — the 2-D ground colour SAMPLES: HROT_FILM_PROOF_GROUND = the share of the 3-D ground colour the 2-D ground keeps (e.g. 0.35); unset = the row off
+            Hrot.UI.Common.Map2D.TerrainLayer2D? terrain2d = null; Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo? layerControl = null;
+            if (double.TryParse(Environment.GetEnvironmentVariable("HROT_FILM_PROOF_GROUND"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ground))
+            {
+                const System.Reflection.BindingFlags priv = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                var mapCanvas = (Fdp.Toolkit.Vis2D.MapCanvas)typeof(ReplayBrowserSubsystem).GetField("_canvas", priv)!.GetValue(_subsystem)!;
+                var mapBuffer = (Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer)typeof(ReplayBrowserSubsystem).GetField("_gizmoBuffer", priv)!.GetValue(_subsystem)!;
+                terrain2d = mapCanvas.Layers.OfType<Hrot.UI.Common.Map2D.TerrainLayer2D>().Single();
+                terrain2d.GroundFillFactor = (float)ground;
+                layerControl = Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(mapBuffer)!;
+                // both views' sets: a take's layers are built from the set of the view the take STARTS in (3-D here) and held across the 2-D switch
+                Assert.Empty(layerControl.SetRows(false, new[] { "Map.GroundFill" }, Array.Empty<string>()));
+                Assert.Empty(layerControl.SetRows(true, new[] { "Map.GroundFill" }, Array.Empty<string>()));
+                Log($"ground colour sample: share {ground}");
+            }
             string root = AppContext.BaseDirectory;
             while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
             string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
@@ -2805,6 +2820,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 capture.GetAwaiter().GetResult();
                 grabScreen = Path.Combine(outDir, name + "-screen.png");
                 Frame();
+                if (terrain2d != null) Log($"{name}: ground drawn {terrain2d.GroundFilled}, mask {layerControl!.ActiveLayers.IsSet(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.GroundFill)}, override {layerControl.Override != null}");
                 Log($"{name}: from {from}, director sim {_subsystem.DirectorSimSeconds:0.###}, 2-D {Hrot.UI.Common.Map3D.FilmStudio.TwoD}, view {runner.ViewNow}, " +
                     $"graphics [{string.Join("; ", overlay.Graphics.Select(g => $"{g.Kind} {string.Join(" ", g.Points)} a={g.Alpha:0.##}"))}], subtitle {overlay.Subtitle?.Text}");
                 runner.Stop();
@@ -2815,6 +2831,12 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Shoot("3d", t);
             Shoot("2d", t + 0.8);
             Assert.True(File.Exists(Path.Combine(outDir, "3d.png")) && File.Exists(Path.Combine(outDir, "2d.png")));
+            if (Environment.GetEnvironmentVariable("HROT_FILM_PROOF_GROUND") != null)   // ⭐ CE-1420 — the sample's tick was the person's click (saved): put it back
+            {
+                var buffer = (Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer)typeof(ReplayBrowserSubsystem).GetField("_gizmoBuffer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(_subsystem)!;
+                Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(buffer)!.SetRows(false, Array.Empty<string>(), new[] { "Map.GroundFill" });
+                Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(buffer)!.SetRows(true, Array.Empty<string>(), new[] { "Map.GroundFill" });
+            }
         }
         finally
         {
