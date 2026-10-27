@@ -746,7 +746,9 @@ whose backward seek shows the last seek's world under the new clock: H1a same, H
 | `target: "LoadingLive"` | ⚠ accepted, and the cluster PARKS in `LoadingLive` (30 s, clock frozen) — an intermediate state as a target | ⚠ in CE-4065 |
 
 ⇒ H3's intent is `TransitionStateIntent(OperatingLive)` from a replay. ⭐ H3 will run its comparison from T on the BRANCH's own run time
-(`t0 = clock at the branch − T`), so a clock offset alone does not fail it — what it measures is whether the WORLD goes on as the straight run did.
+(`t0 = clock at the branch − T`), so the offset does not shift the comparison grid — what it measures is whether the WORLD goes on as the straight run did.
+⛔ **Corrected by the live run (§10-7):** the offset is NOT harmless to the world — the world keeps its timers as absolute sim times, so a clock
+that jumps forward changes what happens (a second blow lands). H3 cannot be green until CE-4065 is fixed.
 
 ### 10-7. ✅ H3 as built `2026-10-27` — the replay, branched live at T, runs on as the straight run *(RH-7)*
 
@@ -785,6 +787,17 @@ the only new seam member is `ResumePlaying(t0)`, because a branch's clock is its
 Rail: `DirectorRunnerTests.CE4045_H3_TheReplay_BranchedLiveAtT_RunsOnAsTheStraightRun` (fake: the branch comes up 7.71 s off; ① same at
 2 and 3 s, the 1.5 s action applied once, the clock reported, Idle at the end; ② a branch that drops the health ⇒ different from t = 2 s
 naming `Health`, while H1a / H1b / H2 stay same; a branch outside the replay check is refused).
+
+📐 **Live, `ua-civ-melee`, `--verify-branch-at 5`** (`coordinator@ed5f3d2a0`, one fresh process, 78 s of wall for the item):
+
+| phase | measured | verdict |
+|---|---|---|
+| H1a — the recording | 41 snapshots, same | ✅ |
+| H1b — the replay in order | 40 of 41 moments same; ⛔ the seek to **20 s stood at 19.983 s** (one frame short, past ±½ step) for 30 s | ⛔ **CE-4066** (backend) — seen once; H1b was green on two earlier runs |
+| H2 — shuffled seeks | 40 moments, same | ✅ |
+| H3 — does the branch come live? | ✅ *"Live-from-Replay branch complete … history 303 frame(s)"*, paused, the run went on to 40 s (36 snapshots) | ✅ the harness works end to end |
+| H3 — the branch's clock | **9.29 s** at T = 5 s (+4.29 s) | ⛔ CE-4065 |
+| H3 — does the world go on as the straight run? | ⛔ from **t = 6 s**: the policeman is hit a SECOND time (health 90 vs 95, `ResolvedStyle.DamageLevel` 10 vs 5, `RecentSenses.Hit` at branch clock 9.56 = run 5.27 s); every time-stamped field (`KnockedDownUntil`, `Restless.NextAt`, …) is on the shifted clock | ⛔ **CE-4065 is behavioural**, not cosmetic — ⚠ the mechanism (timers due at once on a clock 4.29 s ahead) is inferred: the rioter's strike timer sits in `BrainDiagnostics`, which the recording does not carry. The proof is H3 again after the fix |
 
 ### 10a. Claim table — what the leans rest on
 
