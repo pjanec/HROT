@@ -70,6 +70,25 @@ public sealed class AiDocument
     /// file": assets built in code by tests or tools have none either and stay editable.</summary>
     public static bool IsCodeBuilt(IEditableAsset asset) => asset.IsCodeBuilt;
 
+    /// <summary>⭐ <c>CE-1275</c> (DBG-3) — a command that changes only how the graph is LAID OUT or DEBUGGED, never the behaviour: a node
+    /// drag, a container's collapse / size, a breakpoint flag. A code-built graph accepts these (kept in memory for the session, never
+    /// marks the document dirty, never reaches the C# builder); every other command is an edit and is refused.</summary>
+    public static bool IsViewStateCommand(NodeEditor.Core.Commands.GraphCommand command) => command switch
+    {
+        NodeEditor.Core.Commands.GraphCommand.SetNodeProperty { Key: "isBreakpoint" } => true,
+        NodeEditor.Core.Commands.GraphCommand.MoveNodes             => true,
+        NodeEditor.Core.Commands.GraphCommand.ChangeParentMultiple  => true,   // ⚠ the sinks apply the POSITION only on a code-built graph
+        NodeEditor.Core.Commands.GraphCommand.SetContainerCollapsed => true,
+        NodeEditor.Core.Commands.GraphCommand.SetContainerSize      => true,
+        NodeEditor.Core.Commands.GraphCommand.SetRegionPreferredSize => true,
+        NodeEditor.Core.Commands.GraphCommand.Batch b               => System.Linq.Enumerable.All(b.Commands, IsViewStateCommand),
+        _ => false,
+    };
+
+    /// <summary>True when <paramref name="command"/> must be refused: the asset is code-built and the command is an edit (CE-1252 / CE-1275).</summary>
+    public static bool RefusesCommand(IEditableAsset asset, NodeEditor.Core.Commands.GraphCommand command)
+        => IsCodeBuilt(asset) && !IsViewStateCommand(command);
+
     /// <summary>The one line shown when an edit or a save of a code-built document is refused.</summary>
     public static string ReadOnlyReason(IEditableAsset asset) => $"'{asset.Name}' is built in C# — edit its builder method; this graph is read-only";
 
