@@ -14,9 +14,17 @@ namespace Hrot.UI.Common.Map3D.Director
     public sealed class ReelComposer
     {
         private readonly Func<TakeStore?> _store;
+        private readonly Func<string?>? _openRecording;
         private Reel? _reel;
 
-        public ReelComposer(Func<TakeStore?> store) => _store = store ?? throw new ArgumentNullException(nameof(store));
+        /// <param name="store">The host's takes and reels.</param>
+        /// <param name="openRecording">⭐ CE-1391 — the recording open now (its <c>RecordingName.Text</c>; null: none), stamped on a take <see cref="Add"/> adds:
+        /// the take lives beside THAT recording, so the item plays over it (TE-16). Null: this host opens no recordings (the editor).</param>
+        public ReelComposer(Func<TakeStore?> store, Func<string?>? openRecording = null)
+        {
+            _store = store ?? throw new ArgumentNullException(nameof(store));
+            _openRecording = openRecording;
+        }
 
         /// <summary>The reel being composed (null: none open). Every edit replaces it with a new record.</summary>
         public Reel? Reel => _reel;
@@ -51,13 +59,15 @@ namespace Hrot.UI.Common.Map3D.Director
 
         public void Close() { _reel = null; Dirty = false; }
 
-        /// <summary>Appends (or inserts at <paramref name="at"/>) the take <paramref name="scenario"/>/<paramref name="take"/>; false when no reel is open.</summary>
+        /// <summary>Appends (or inserts at <paramref name="at"/>) the take <paramref name="scenario"/>/<paramref name="take"/>; false when no reel is open.
+        /// ⭐ CE-1391 — on a host that opens recordings the item names the recording open now (the take is the one beside it), so a reel can gather takes of
+        /// several recordings — open one, add its take, open the next.</summary>
         public bool Add(string scenario, string take, int? at = null, string? title = null)
         {
             if (_reel is not { } r || string.IsNullOrWhiteSpace(scenario) || string.IsNullOrWhiteSpace(take)) return false;
             var items = r.Items.ToList();
             int i = at is { } a ? Math.Clamp(a, 0, items.Count) : items.Count;
-            items.Insert(i, new ReelItem { Scenario = scenario, Take = take, Title = title });
+            items.Insert(i, new ReelItem { Scenario = scenario, Take = take, Title = title, Recording = _openRecording?.Invoke() });
             return Set(r with { Items = items });
         }
 

@@ -33,8 +33,8 @@ namespace Hrot.Editor.DebugApi
                                    DirectorRenders? renders = null)
         {
             _renders = renders;
-            // ⭐ CE-1306 (§11u D4) — a render naming a recording opens it at ITS turn through the ONE opener: the call POST /replay makes
-            if (renders != null) renders.OpenRecording = rec => OpenRecording(JsonValue.Create(rec)) is { } refused ? refused.Error : null;
+            // ⭐ CE-1391 (§11u "as built: CE-1391") — a render's recording opens through the pack's own opener (DirectorPackHost.Recordings: the Replay
+            //   Browser's IRecordingOpener — the one POST /replay ends in), so it no longer needs this HTTP host: nothing is handed in here
             _drafts = drafts;
             _stills = stills;
             _promotion = promotion;
@@ -68,15 +68,12 @@ namespace Hrot.Editor.DebugApi
             var text = recording is JsonValue v && v.TryGetValue<string>(out var str) ? str : recording.ToJsonString();
             if (string.IsNullOrWhiteSpace(text)) return Fail(400, "recording names nothing: a .fdp path, a recording's folder or an exercise id (GET /exercises)");
             if (_service is not { OpensRecordingFiles: true } service) return Fail(400, RecordingRefused);
-            JsonObject open;
-            if (Guid.TryParse(text, out _)) open = new JsonObject { ["exerciseId"] = text };
-            else if (System.IO.Directory.Exists(text))
-            {
-                var files = System.IO.Directory.GetFiles(text, "*.fdp").OrderBy(f => f, StringComparer.Ordinal).ToArray();
-                if (files.Length == 0) return Fail(400, $"recording '{text}': the folder holds no .fdp file");
-                open = new JsonObject { ["paths"] = new JsonArray(files.Select(f => (JsonNode?)f).ToArray()) };
-            }
-            else open = new JsonObject { ["path"] = text };
+            // ⭐ CE-1391 — the ONE reading of the text (the pack's reel items read it the same way), then POST /replay's own call
+            var (name, bad) = Hrot.Presentation.DebugApi.RecordingName.Parse(text);
+            if (name is null) return Fail(400, $"recording '{text}': {bad}");
+            var open = name.IsExercise
+                ? new JsonObject { ["exerciseId"] = name.ExerciseId.ToString() }
+                : new JsonObject { ["paths"] = new JsonArray(name.Paths.Select(f => (JsonNode?)f).ToArray()) };
             var (_, error, hint) = service.EnterReplay(open);
             return error != null ? Fail(400, $"recording '{text}' did not open: {error}", hint) : null;
         }

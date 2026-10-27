@@ -40,6 +40,9 @@ namespace Hrot.UI.Common.Map3D.Director
         public string Scenario { get; init; } = "";
         public string Take { get; init; } = "";
         public string? Title { get; init; }
+        /// <summary>⭐ <c>CE-1391</c> — the recording this item played over (its own <see cref="ReelItem.Recording"/>, else the one the play started on); null:
+        /// the host's source (a live host, or nothing open).</summary>
+        public string? Recording { get; set; }
         /// <summary>pending · loading · playing · ok · beat-missing · failed · stopped — a verify run: pass · fail</summary>
         public string Status { get; set; } = "pending";
         public List<string> Problems { get; } = new();
@@ -74,7 +77,7 @@ namespace Hrot.UI.Common.Map3D.Director
             foreach (var (k, v) in Found.OrderBy(kv => kv.Value)) found[k] = Math.Round(v, 3);
             var o = new JsonObject
             {
-                ["scenario"] = Scenario, ["take"] = Take, ["title"] = Title, ["status"] = Status,
+                ["scenario"] = Scenario, ["take"] = Take, ["title"] = Title, ["recording"] = Recording, ["status"] = Status,
                 ["problems"] = A(Problems), ["missing"] = A(Missing), ["mismatches"] = A(Mismatches),
                 ["skippedReplays"] = new JsonArray(SkippedReplays.Select(x => (JsonNode?)x).ToArray()), ["unresolved"] = A(Unresolved),
                 ["found"] = found, ["tickHz"] = TickHz, ["usedBake"] = UsedBake,
@@ -225,6 +228,26 @@ namespace Hrot.UI.Common.Map3D.Director
         /// </summary>
         public Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex?>? Index { get; set; }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1391</c> (TE-16; docs/DESIGN_Director_Timeline_Editor.md §11u "as built: CE-1391") — the host's ONE recording opener (the Replay Browser's:
+        /// the one <c>POST /replay</c> ends in). A reel item naming a <see cref="ReelItem.Recording"/> has it opened before the item loads, so one play — one
+        /// movie — spans recordings; an item naming none plays over the recording the play STARTED on (opened again if an earlier item moved off it). Set by
+        /// <see cref="DirectorPack"/> from <see cref="DirectorPackHost.Recordings"/>. Null (the editor): a reel with such an item is refused (<see cref="NoRecordings"/>).
+        /// </summary>
+        public Hrot.Presentation.DebugApi.IRecordingOpener? Recordings { get; set; }
+
+        /// <summary>⭐ CE-1391 — the refusal of a reel item that names a recording on a host that opens none.</summary>
+        public const string NoRecordings =
+            "names a recording, and this host opens no recordings (only the Replay Browser does) - play the reel there, or leave the item's recording out to play it on this host's scenario";
+
+        /// <summary>⭐ CE-1391 — frames the runner waits after an item's recording opened before the item loads (the open settles into the host's frame).</summary>
+        public const int OpenSettleFrames = 2;
+
+        /// <summary>⭐ CE-1391 — the recording the play started on (what an item naming none plays over).</summary>
+        private Hrot.Presentation.DebugApi.RecordingName? _startRecording;
+        private bool _recordingChecked;
+        private int _openSettle;
+
         /// <summary>⭐ CR-5 — the take's anchors in this run, over the run's index (a recording's index leads over a bake: <see cref="AnchorBook"/>).</summary>
         private AnchorBook NewBook(Take take, IReadOnlyDictionary<string, double>? baked)
             => new(take.Anchors, baked, _host.BehaviourName, Index, _t0, indexIsTheRun: _host.CanSeek);
@@ -287,8 +310,18 @@ namespace Hrot.UI.Common.Map3D.Director
                 else problems.AddRange(_ext.Validate(request));
             }
             else
-                foreach (var it in request.Reel.Items)
+                for (int i = 0; i < request.Reel.Items.Count; i++)
                 {
+                    var it = request.Reel.Items[i];
+                    // ⭐ CE-1391 — an item over ANOTHER recording: its take lives beside THAT recording, so it is validated at its turn (TickEntering), once
+                    //   its recording is open; a host that opens none refuses it here
+                    if (it.Recording != null)
+                    {
+                        if (Recordings == null) problems.Add($"item {i + 1} ({it.Scenario}/{it.Take}) {NoRecordings}");
+                        else if (Hrot.Presentation.DebugApi.RecordingName.Parse(it.Recording).Error is { } bad)
+                            problems.Add($"item {i + 1} ({it.Scenario}/{it.Take}): recording '{it.Recording}': {bad}");
+                        continue;
+                    }
                     var t = LoadTake(request, it);
                     foreach (var p in t.Problems) problems.Add($"{it.Scenario}/{it.Take}: {p}");
                 }
@@ -297,6 +330,7 @@ namespace Hrot.UI.Common.Map3D.Director
 
             if (Busy) Stop();
             _request = request;
+            _startRecording = Recordings?.Shown;   // ⭐ CE-1391 — an item naming no recording plays over THIS one
             _reports.Clear();
             foreach (var it in request.Reel.Items) _reports.Add(new ItemReport { Scenario = it.Scenario, Take = it.Take, Title = it.Title });
             _manifest.Clear();
@@ -475,6 +509,7 @@ namespace Hrot.UI.Common.Map3D.Director
             _subs = Array.Empty<Subtitle>(); _subNow = null;
             _views = Array.Empty<ViewChange>(); _viewNow = null; _graphics = Array.Empty<FilmGraphic>(); _graphicsNow = Array.Empty<GraphicFrame>();
             _ext?.Reset();
+            _recordingChecked = false; _openSettle = 0;
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -484,8 +519,35 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_request!.Mode == DirectorMode.Capture) WriteCard(card);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1391</c> — the item's recording, before its load: the item's own (<see cref="ReelItem.Recording"/>), else the one the play started on; opened
+        /// through the ONE opener when it is not the one shown, then <see cref="OpenSettleFrames"/> frames to settle. True while it holds the load back.
+        /// </summary>
+        private bool TickItemRecording()
+        {
+            if (_openSettle > 0) { _openSettle--; return true; }
+            if (_recordingChecked || _request!.Mode == DirectorMode.Plan || Recordings == null) return false;
+            _recordingChecked = true;
+            var want = _startRecording;
+            if (Item.Recording is { } named)
+            {
+                var (name, bad) = Hrot.Presentation.DebugApi.RecordingName.Parse(named);
+                if (name is null) { Fail($"recording '{named}': {bad}"); return true; }
+                want = name;
+            }
+            Report.Recording = Item.Recording ?? want?.Text;
+            if (want == null || want.Same(Recordings.Shown)) return false;
+            string? error;
+            try { error = Recordings.Open(want, 0d); }
+            catch (Exception ex) { error = $"{ex.GetType().Name}: {ex.Message}"; }
+            if (error != null) { Fail($"recording '{Report.Recording}' did not open: {error}"); return true; }
+            _openSettle = OpenSettleFrames;
+            return true;
+        }
+
         private void TickLoading()
         {
+            if (TickItemRecording()) return;
             if (_probe == null)
             {
                 // ⛔ never a rewind as a run (R-3034): leave the last preview, then open the file again

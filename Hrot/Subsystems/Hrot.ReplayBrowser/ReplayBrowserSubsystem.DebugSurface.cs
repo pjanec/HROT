@@ -329,6 +329,9 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     internal ITimeTransportFacade Transport => _transport ??= new ReplayBrowserTransport(this);
     internal IReplayBrowserControl BrowserControl => _browserControl ??= new ReplayBrowserControl(this);
 
+    /// <summary>⭐ CE-1391 — every recording the ONE opener (<c>ReplayBrowserControl.Open</c>) was asked to open, in order (rails: each open path ends there).</summary>
+    internal List<string> RecordingOpens { get; } = new();
+
     /// <summary>
     /// ⭐ RB-1 — the cluster master's part, played by the federation: <c>OperatingReplay</c> opens an exercise found on disk (none named:
     /// the newest, as a cluster master picks), <c>Idle</c> closes it, a seek seeks. ⛔ The rest refuse — an offline viewer saves,
@@ -345,17 +348,9 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             {
                 case ClusterState.OperatingReplay:
                 {
-                    var groups = RecordingGroupInventory.Scan(_host.RecordingsRoot);
-                    var group = intent.ExerciseId == Guid.Empty
-                        ? groups.FirstOrDefault()
-                        : groups.FirstOrDefault(g => g.ExerciseId == intent.ExerciseId);
-                    if (group == null)
-                        throw new InvalidOperationException(intent.ExerciseId == Guid.Empty
-                            ? $"No recorded exercise under '{_host.RecordingsRoot}'. Name the files: POST /replay {{\"paths\": [...]}}."
-                            : $"Exercise {intent.ExerciseId} is not recorded under '{_host.RecordingsRoot}'. GET /exercises lists what is.");
-                    var refused = _host.OpenGroup(group.Paths.ToArray());
-                    if (refused != null) throw new InvalidOperationException($"The recording group was refused: {refused}");
-                    _host.SeekToSeconds(intent.TargetWallTicks / (double)TimeSpan.TicksPerSecond);
+                    // ⭐ CE-1391 — through the ONE opener (the exercise id resolved by the inventory there), as POST /replay {paths} and the pack's reel items
+                    var refused = _host.BrowserControl.Open(RecordingName.Exercise(intent.ExerciseId), intent.TargetWallTicks / (double)TimeSpan.TicksPerSecond);
+                    if (refused != null) throw new InvalidOperationException(refused);
                     return;
                 }
                 case ClusterState.Idle:
@@ -502,14 +497,53 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         private readonly ReplayBrowserSubsystem _host;
         public ReplayBrowserControl(ReplayBrowserSubsystem host) => _host = host;
 
-        public string? Open(IReadOnlyList<string> paths, double atSeconds)
+        /// <summary>
+        /// ⭐⭐ <c>CE-1391</c> — THE recording opener of this host (<see cref="IRecordingOpener"/>): <c>POST /replay {path | paths}</c>, the master transition of
+        /// <c>POST /replay {exerciseId}</c>, the director routes' <c>recording=</c> and the pack's render jobs and reel items all end HERE, and from here in
+        /// <see cref="OpenGroup"/> (the Timeline panel's load path too). An exercise id is found in the inventory under <see cref="RecordingsRoot"/>
+        /// (none named: the newest, as a cluster master picks).
+        /// </summary>
+        public string? Open(RecordingName recording, double atSeconds)
         {
-            if (paths.Count == 0) return "No recording files named.";
-            var missing = paths.FirstOrDefault(p => !System.IO.File.Exists(p));
-            if (missing != null) return $"No such recording file: '{missing}'.";
-            var refused = _host.OpenGroup(paths.ToArray());
-            if (refused == null) _host.SeekToSeconds(atSeconds);
-            return refused;
+            if (recording == null) return "No recording named.";
+            string[] paths;
+            if (recording.IsExercise)
+            {
+                var groups = RecordingGroupInventory.Scan(_host.RecordingsRoot);
+                var group = recording.ExerciseId == Guid.Empty
+                    ? groups.FirstOrDefault()
+                    : groups.FirstOrDefault(g => g.ExerciseId == recording.ExerciseId);
+                if (group == null)
+                    return recording.ExerciseId == Guid.Empty
+                        ? $"No recorded exercise under '{_host.RecordingsRoot}'. Name the files: POST /replay {{\"paths\": [...]}}."
+                        : $"Exercise {recording.ExerciseId} is not recorded under '{_host.RecordingsRoot}'. GET /exercises lists what is.";
+                paths = group.Paths.ToArray();
+            }
+            else
+            {
+                if (recording.Paths.Count == 0) return "No recording files named.";
+                var missing = recording.Paths.FirstOrDefault(p => !System.IO.File.Exists(p));
+                if (missing != null) return $"No such recording file: '{missing}'.";
+                paths = recording.Paths.ToArray();
+            }
+            _host.RecordingOpens.Add(recording.Text);
+            var refused = _host.OpenGroup(paths);
+            if (refused != null) return recording.IsExercise ? $"The recording group was refused: {refused}" : refused;
+            _host.SeekToSeconds(atSeconds);
+            return null;
+        }
+
+        /// <summary>⭐ CE-1391 — the group open now (its node files, the exercise its primary node's meta names); null: nothing open.</summary>
+        public RecordingName? Shown
+        {
+            get
+            {
+                var m = _host._manager;
+                if (m == null || m.Contexts.Count == 0) return null;
+                var paths = m.Contexts.OrderBy(kv => kv.Key).Select(kv => kv.Value.CurrentFdpPath)
+                             .Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).ToArray();
+                return new RecordingName(_host.PrimaryMetadata?.ExerciseId ?? Guid.Empty, paths);
+            }
         }
 
         public JsonObject Status()

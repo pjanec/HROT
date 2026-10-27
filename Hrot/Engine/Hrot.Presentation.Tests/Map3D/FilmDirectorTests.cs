@@ -194,6 +194,97 @@ public sealed class FilmDirectorTests
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1391</c> (TE-16; docs/DESIGN_Director_Timeline_Editor.md §11u "as built: CE-1391"; success condition 4) — a reel item's <c>recording</c> reads,
+    /// writes and reads back (a path, an exercise id; an item without one stays without one); every reel in the repo's <c>films/</c> (written before CE-1391)
+    /// loads with no problem, no item names a recording, and writes back with no <c>recording</c> key; the composer stamps the recording open now on a take it
+    /// adds, and none on a host that opens no recordings. 🔴 Mutation: <c>TakeJson.WriteReel</c> not writing <c>recording</c> ⇒ the read-back item names none ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1391_AReelItemsRecording_RoundTrips_AndOldReelsLoadUnchanged()
+    {
+        var exercise = Guid.NewGuid().ToString();
+        var json = JsonNode.Parse($$"""
+            {"title":"Two runs","items":[{"scenario":"s-a","take":"main","recording":"/runs/a/node_1.fdp"},
+                                         {"scenario":"s-a","take":"main","recording":"{{exercise}}","title":"B"},
+                                         {"scenario":"s-b"}]}
+            """)!.AsObject();
+        var problems = new List<string>();
+        var reel = TakeJson.ParseReel(json, "two", problems);
+        Assert.Empty(problems);
+        Assert.Equal(new[] { "/runs/a/node_1.fdp", exercise, null }, reel.Items.Select(i => i.Recording));
+        var written = TakeJson.WriteReel(reel);
+        Assert.Null(written["items"]![2]!["recording"]);                                         // absent, not null
+        Assert.False(written["items"]![2]!.AsObject().ContainsKey("recording"));
+        var again = TakeJson.ParseReel(written, "two", problems);
+        Assert.Empty(problems);
+        Assert.Equal(reel.Items, again.Items);                                                    // the records equal: recording included
+        Assert.Equal(written.ToJsonString(), TakeJson.WriteReel(again).ToJsonString());
+
+        // the reels written before CE-1391 read with no problem and write back with no recording key
+        var films = Path.Combine(RepoRoot(), "films");
+        var old = Directory.GetFiles(films, "*.reel.json");
+        Assert.True(old.Length >= 8, $"{old.Length} reels in films/");
+        foreach (var f in old)
+        {
+            var p = new List<string>();
+            var r = TakeJson.ParseReel(JsonNode.Parse(File.ReadAllText(f))!.AsObject(), Path.GetFileName(f), p);
+            Assert.True(p.Count == 0, $"{f}: {string.Join("; ", p)}");
+            Assert.All(r.Items, i => Assert.Null(i.Recording));
+            Assert.DoesNotContain("\"recording\"", TakeJson.WriteReel(r).ToJsonString());
+        }
+
+        // the composer stamps the recording open now (the take beside it), and none on a host that opens none
+        string? open = "/runs/a";
+        var stamping = new ReelComposer(() => null, () => open);
+        Assert.Empty(stamping.New("gathered"));
+        Assert.True(stamping.Add("s-a", "main"));
+        open = "/runs/b";
+        Assert.True(stamping.Add("s-a", "main"));
+        Assert.Equal(new[] { "/runs/a", "/runs/b" }, stamping.Reel!.Items.Select(i => i.Recording));
+        var plain = new ReelComposer(() => null);
+        Assert.Empty(plain.New("plain"));
+        Assert.True(plain.Add("s-a", "main"));
+        Assert.Null(plain.Reel!.Items[0].Recording);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1391</c> — the ONE reading of a recording's text (<see cref="Hrot.Presentation.DebugApi.RecordingName.Parse"/>; the routes and the runner both):
+    /// an exercise id, a folder (its <c>.fdp</c> in name order; none: refused), a <c>|</c> list, a file; <c>Text</c> opens the same recording again; <c>Same</c>
+    /// matches by exercise or by the set of files. 🔴 Mutation: <c>Same</c> comparing the file LISTS in order (not as sets) ⇒ a group named in another order is
+    /// "another recording" ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1391_ARecordingsText_ParsesOneWay_AndNamesTheSameRecordingAgain()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ce1391-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            string n1 = Path.Combine(root, "node_1.fdp"), n2 = Path.Combine(root, "node_2.fdp");
+            File.WriteAllText(n2, "");
+            File.WriteAllText(n1, "");
+            var id = Guid.NewGuid();
+            var byId = Hrot.Presentation.DebugApi.RecordingName.Parse(id.ToString()).Name!;
+            Assert.True(byId.IsExercise);
+            Assert.Equal(id, byId.ExerciseId);
+            var folder = Hrot.Presentation.DebugApi.RecordingName.Parse(root).Name!;
+            Assert.Equal(new[] { n1, n2 }, folder.Paths);                                           // name order
+            Assert.Equal(root, folder.Text);                                                         // the folder holds exactly these
+            var list = Hrot.Presentation.DebugApi.RecordingName.Parse(n2 + "|" + n1).Name!;
+            Assert.True(list.Same(folder));                                                          // a set of files, any order
+            Assert.Equal(new[] { n1 }, Hrot.Presentation.DebugApi.RecordingName.Parse(n1).Name!.Paths);
+            Assert.False(Hrot.Presentation.DebugApi.RecordingName.Parse(n1).Name!.Same(folder));
+            Assert.True(new Hrot.Presentation.DebugApi.RecordingName(id, new[] { n1, n2 }).Same(byId)); // the exercise it names
+            Assert.Equal(n1, Hrot.Presentation.DebugApi.RecordingName.Files(new[] { n1 }).Text);
+            var empty = Path.Combine(root, "empty");
+            Directory.CreateDirectory(empty);
+            Assert.Equal("the folder holds no .fdp file", Hrot.Presentation.DebugApi.RecordingName.Parse(empty).Error);
+            Assert.NotNull(Hrot.Presentation.DebugApi.RecordingName.Parse("  ").Error);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
     /// <summary>B1 — a take that names a unit the scenario does not have is refused WITH the name (and a near one offered); an anchor a shot
     /// uses but the take does not define is named too.</summary>
     [Fact]

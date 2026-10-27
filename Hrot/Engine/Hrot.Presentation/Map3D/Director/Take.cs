@@ -416,6 +416,13 @@ public sealed record ReelItem
     public AtExpr? To { get; init; }
     /// <summary>⭐ CE-1306 (§11u) — the item's free note (<c>"note"</c>), kept through a save by the reel composer.</summary>
     public string? Note { get; init; }
+    /// <summary>
+    /// ⭐ <c>CE-1391</c> (TE-16: <i>"an item may name <c>{recording, take}</c>"</i>; §11u "as built: CE-1391") — the recording this item plays over
+    /// (<c>"recording"</c>: a <c>.fdp</c> path, a recording's folder, an exercise id — <see cref="Hrot.Presentation.DebugApi.RecordingName.Parse"/>), opened by the
+    /// runner before the item loads; its take is the one beside THAT recording. Null: the recording the play started on (a render job's <c>recording</c>,
+    /// else the one the host shows). A host that opens no recordings (the editor) refuses a reel with such an item.
+    /// </summary>
+    public string? Recording { get; init; }
 }
 
 /// <summary>A clip waiting to join a reel, and why it is not on it yet.</summary>

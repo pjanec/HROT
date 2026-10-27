@@ -170,7 +170,7 @@ namespace Hrot.Editor.DebugApi
             if (browser is null)
                 return (null, "Only the Replay Browser opens recording files by path. A cluster replays the exercises its master recorded: "
                             + "POST /replay {exerciseId} (GET /exercises lists them).", DebugApiHints.Scenario);
-            var refused = browser.Open(paths, at);
+            var refused = browser.Open(Hrot.Presentation.DebugApi.RecordingName.Files(paths), at);   // ⭐ CE-1391 — the ONE opener
             if (refused != null) return (null, refused, DebugApiHints.Scenario);
             var arr = new JsonArray();
             foreach (var p in paths) arr.Add(p);
