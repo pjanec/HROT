@@ -132,6 +132,68 @@ public sealed class FilmDirectorTests
         Assert.Contains(problems, p => p.Contains("waiting 1: unknown key 'reason'"));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (docs/DESIGN_Director_Timeline_Editor.md §11u D1, D2; success condition 1, the shared model) — the REEL COMPOSER edits the one
+    /// <see cref="Reel"/> model: a new reel gets three takes, the last is moved to the front, the middle one removed, an item titled and given a chapter card,
+    /// the reel's title and gap set; Save writes <c>films/&lt;name&gt;.reel.json</c> and <see cref="TakeStore.LoadReel"/> reads back the SAME reel (order, titles,
+    /// card, gap). Opening a hand-written reel with notes and saving it keeps the notes. A name that is taken, an empty reel and a move to nowhere are refused.
+    /// 🔴 Mutation: <c>TakeJson.WriteReel</c> not writing <c>gapSeconds</c> (as before CE-1306) ⇒ the loaded gap is 1.5 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_TheReelComposer_AddsRemovesReorders_AndSavesTheReelTheStoreLoads()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ce1306-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var films = Path.Combine(root, "films");
+            var store = new TakeStore(() => Path.Combine(root, "scenarios"), () => films);
+            var composer = new ReelComposer(() => store);
+            Assert.False(composer.IsOpen);
+            Assert.False(composer.Add("s-a", "main"));                                  // nothing open
+            Assert.Empty(composer.New("night", "The night"));
+            Assert.Null(composer.Save(out var empty));                                     // a reel needs an item
+            Assert.Contains("at least one item", empty);
+            Assert.True(composer.Add("s-a", "main"));
+            Assert.True(composer.Add("s-b", "main"));
+            Assert.True(composer.Add("s-c", "wide"));
+            Assert.True(composer.Move(2, 0));                                              // s-c first
+            Assert.False(composer.Move(0, 0));
+            Assert.True(composer.Remove(2));                                               // s-b gone: s-c, s-a
+            Assert.True(composer.SetItem(1, composer.Reel!.Items[1] with { Title = "The ambush", ChapterCard = "2 - Armour" }));
+            Assert.True(composer.SetOptions("The night run", "fade", 0.5, loop: false));
+            Assert.True(composer.Dirty);
+            var path = composer.Save(out var problem);
+            Assert.True(path != null, problem);
+            Assert.False(composer.Dirty);
+            Assert.Equal(Path.Combine(films, "night.reel.json"), path);
+
+            var loaded = store.LoadReel("night");
+            Assert.True(loaded.Ok, string.Join("; ", loaded.Problems));
+            var reel = loaded.Value!;
+            Assert.Equal(new[] { "s-c/wide", "s-a/main" }, reel.Items.Select(i => i.Scenario + "/" + i.Take));
+            Assert.Equal(("The ambush", "2 - Armour"), (reel.Items[1].Title, reel.Items[1].ChapterCard));
+            Assert.Equal("The night run", reel.Title);
+            Assert.Equal(0.5, reel.GapSeconds, 3);
+            Assert.Equal(new[] { "night" }, store.ReelNames());
+
+            Assert.NotEmpty(new ReelComposer(() => store).New("night"));                    // the name is taken
+            Assert.NotEmpty(new ReelComposer(() => store).New("a/b"));                      // not a file name
+
+            // a hand-written reel's notes survive the composer's save
+            File.WriteAllText(Path.Combine(films, "noted.reel.json"),
+                """{"title":"N","note":"the reel's note","items":[{"scenario":"a","take":"main","note":"an item's note"},{"scenario":"b"}]}""");
+            var again = new ReelComposer(() => store);
+            Assert.Empty(again.Open("noted"));
+            Assert.True(again.Move(1, 0));
+            Assert.NotNull(again.Save(out _));
+            var noted = store.LoadReel("noted").Value!;
+            Assert.Equal("the reel's note", noted.Note);
+            Assert.Equal(new[] { "b", "a" }, noted.Items.Select(i => i.Scenario));
+            Assert.Equal("an item's note", noted.Items[1].Note);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
+
     /// <summary>B1 — a take that names a unit the scenario does not have is refused WITH the name (and a near one offered); an anchor a shot
     /// uses but the take does not define is named too.</summary>
     [Fact]

@@ -11,6 +11,18 @@ namespace Hrot.UI.Common.Map3D.Director
     public sealed record StillPlan(int Number, double FilmTime, double SourceTime, int Segment, string Name);
 
     /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (docs/DESIGN_Director_Timeline_Editor.md §11u D3) — the stills ASKED for, before the take is read: <c>POST /director/stills</c>'s body and a
+    /// render-queue job of kind <c>stills</c> are this one record, so both plan through <see cref="DirectorStills.Prepare"/> (one place resolves the scenario,
+    /// the take, the plan and the folder). <see cref="Scenario"/> null = the one the open recording names; <see cref="Dir"/> null = beside the take.
+    /// </summary>
+    public sealed record StillsRequest(string? Scenario, string Take = "main", IReadOnlyList<double>? Times = null, bool EveryKey = false,
+                                       int Width = 1280, int Height = 720, string? Dir = null, bool Captions = true);
+
+    /// <summary>A <see cref="StillsRequest"/> resolved against the host: what to play, the plan, the folder, the planning problems (not fatal).</summary>
+    public sealed record StillsPrepared(string Scenario, string Take, PlayRequest Play, IReadOnlyList<StillPlan> Plan, string Dir, int Width, int Height,
+                                        bool Captions, IReadOnlyList<string> Problems);
+
+    /// <summary>
     /// ⭐ <c>CE-4059</c> P3 (docs/DESIGN_Director_Timeline_Editor.md §11r, CR-10, CR-12; Film Production §4a) — the STILLS of a take: for each film second a
     /// PNG of the program's camera there, and one CONTACT SHEET (a grid of them, each labelled with its film and source second). ⭐ A still is ONE seek and ONE
     /// frame: the job asks the pack's runner to <see cref="DirectorRunner.PlayFrom"/> the film second (a recording SEEKS there), pauses on its first playing
@@ -112,6 +124,44 @@ namespace Hrot.UI.Common.Map3D.Director
             return (plan, problems);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1306</c> (§11u D3) — <paramref name="request"/> resolved: its scenario (else <paramref name="openScenario"/>'s), the take the runner would play
+        /// (the open one first — <see cref="DirectorRunner.TakeOf"/>), the plan (<see cref="PlanOf"/>) and the folder (default <c>takes/&lt;take&gt;.stills/</c> beside the
+        /// take). Null with an HTTP-shaped refusal: 400 nothing named / no stills, 404 no such take. Moved from the route so a render-queue job plans the same way.
+        /// </summary>
+        public static (StillsPrepared? Prepared, int Code, string? Error) Prepare(StillsRequest request, DirectorRunner runner, TakeStore store, Func<string?>? openScenario)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            var scenario = string.IsNullOrWhiteSpace(request.Scenario) ? openScenario?.Invoke() : request.Scenario;
+            if (string.IsNullOrWhiteSpace(scenario)) return (null, 400, "name the scenario (or open a recording that names one: {recording})");
+            var takeName = string.IsNullOrWhiteSpace(request.Take) ? "main" : request.Take;
+            var play = new PlayRequest(Reel.Of(scenario!, takeName), Cinema: false);
+            var loaded = runner.TakeOf(play);
+            if (loaded.Value is not { } take) return (null, 404, string.Join("; ", loaded.Problems));
+            var (plan, problems) = PlanOf(take, request.Times, request.EveryKey);
+            if (plan.Count == 0) return (null, 400, "no stills: " + string.Join("; ", problems));
+            var dir = string.IsNullOrWhiteSpace(request.Dir)
+                ? Path.Combine(Path.GetDirectoryName(store.TakePath(scenario!, takeName))!, takeName + ".stills")
+                : request.Dir!;
+            return (new StillsPrepared(scenario!, takeName, play, plan, Path.GetFullPath(dir), request.Width, request.Height, request.Captions, problems), 200, null);
+        }
+
+        /// <summary>Starts a prepared job (<see cref="Start(PlayRequest, IReadOnlyList{StillPlan}, string, int, int, bool)"/>).</summary>
+        public IReadOnlyList<string> Start(StillsPrepared p)
+            => Start((p ?? throw new ArgumentNullException(nameof(p))).Play, p.Plan, p.Dir, p.Width, p.Height, p.Captions);
+
+        /// <summary>⭐ <c>CE-1306</c> (§11u D6) — stops a running job (the render queue's cancel): the runner stopped, the job <c>failed</c> with "cancelled".
+        /// False when none runs.</summary>
+        public bool Cancel()
+        {
+            if (!Busy) return false;
+            Fail(CancelledProblem);
+            return true;
+        }
+
+        /// <summary>The problem a cancelled job carries.</summary>
+        public const string CancelledProblem = "cancelled";
+
         private static int IndexOfSegment(FilmTimeMap film, string id)
         {
             for (int i = 0; i < film.Segments.Count; i++) if (film.Segments[i].Id == id) return i;
@@ -150,6 +200,10 @@ namespace Hrot.UI.Common.Map3D.Director
                 {
                     var refused = _runner.PlayFrom(_play!, _plan[_i].FilmTime);
                     if (refused.Count > 0) { Fail("not started: " + string.Join("; ", refused)); return; }
+                    // ⭐ CE-1306 (§11u, found by the render queue's rail) — a still is a FILM frame: its 2-D ⇄ 3-D switch CUTS, as a capture's does. The
+                    //   runner animates it for a play without a capture (a person watching); after a 2-D stretch (a movie that ended in the person's 2-D
+                    //   map, CE-1380 V7) every still but the first landed mid-animation and the capture refused ("the map is switching")
+                    FilmStudio.AnimateViewSwitch = false;
                     _frames = 0;
                     _step = Step.Wait;
                     return;

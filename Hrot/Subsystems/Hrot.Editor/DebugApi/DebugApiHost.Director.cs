@@ -21,6 +21,7 @@ namespace Hrot.Editor.DebugApi
         private DirectorDrafts? _drafts;
         private DirectorStills? _stills;
         private TakePromotion? _promotion;
+        private DirectorRenders? _renders;
         /// <summary>⭐ CE-4042 — verifies run in a FRESH child process (<c>{fresh: true}</c>).</summary>
         private readonly FreshVerifyJobs _freshVerify = new();
 
@@ -28,8 +29,12 @@ namespace Hrot.Editor.DebugApi
         /// ⭐ CE-4059 (§11q) — and the pack's drafter (<c>/director/moments</c>, <c>/director/draft</c>; null: those answer 503); ⭐ §11r — and its
         /// stills (<c>/director/stills</c>; null: 503).</summary>
         public void AttachDirector(DirectorRunner director, TakeStore takes, Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl,
-                                   DirectorDrafts? drafts = null, DirectorStills? stills = null, TakePromotion? promotion = null)
+                                   DirectorDrafts? drafts = null, DirectorStills? stills = null, TakePromotion? promotion = null,
+                                   DirectorRenders? renders = null)
         {
+            _renders = renders;
+            // ⭐ CE-1306 (§11u D4) — a render naming a recording opens it at ITS turn through the ONE opener: the call POST /replay makes
+            if (renders != null) renders.OpenRecording = rec => OpenRecording(JsonValue.Create(rec)) is { } refused ? refused.Error : null;
             _drafts = drafts;
             _stills = stills;
             _promotion = promotion;
@@ -43,7 +48,7 @@ namespace Hrot.Editor.DebugApi
         public void AttachDirector(DirectorPack pack)
         {
             if (pack == null) throw new ArgumentNullException(nameof(pack));
-            AttachDirector(pack.Runner, pack.Takes, pack.LayerControl, pack.Drafts, pack.Stills, pack.Promotion);   // ⭐ CE-4059 / CE-1304 — drafter, stills, promote: every host
+            AttachDirector(pack.Runner, pack.Takes, pack.LayerControl, pack.Drafts, pack.Stills, pack.Promotion, pack.Renders);   // ⭐ CE-4059 / CE-1304 / CE-1306 — drafter, stills, promote, renders: every host
         }
 
         private const string NoDirector = "This host has no film director (the editor and the Replay Browser have one).";
@@ -95,6 +100,10 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-4059 P3 (§11r) — a take's stills + its contact sheet (a host that seeks, with a renderer); by default answered when done
             _routes.Add(new("POST", "/director/stills", DirectorStillsRoute));
             _routes.Add(new("GET", "/director/stills", _ => Main(() => _stills is { } st ? Ok(st.Status()) : Fail(503, NoDirector))));
+            // ⭐ CE-1306 R4 (§11u) — the render queue: renders run one after another in the background of this host
+            _routes.Add(new("POST", "/director/renders", ctx => Main(() => RendersEnqueue(ctx.Body))));
+            _routes.Add(new("GET", "/director/renders", _ => Main(() => _renders is { } q ? Ok(q.Status()) : Fail(503, NoDirector))));
+            _routes.Add(new("DELETE", "/director/renders/{id}", ctx => Main(() => RendersCancel(ctx.RouteValue("id")!))));
             // ⭐ CE-1304 P4 (§11s) — promote: a recording's take copied into its scenario's own takes
             _routes.Add(new("POST", "/director/promote", ctx => Main(() => OpenRecording(ctx.Body?["recording"]) ?? DirectorPromote(ctx.Body))));
             // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md) — the scenario regression check: author a scenario's checks, verify it
@@ -253,47 +262,153 @@ namespace Hrot.Editor.DebugApi
         private RouteResult DirectorStillsStart(JsonNode? body)
         {
             if (_director is not { } director || _takes is not { } store || _stills is not { } stills) return Fail(503, NoDirector);
+            if (_renders is { Busy: true }) return Fail(409, RendersHold);   // ⭐ CE-1306 — a render holds the director
             if (OpenRecording(body?["recording"]) is { } refused) return refused;
-            var scenario = body?["scenario"]?.ToString();
-            if (string.IsNullOrWhiteSpace(scenario)) scenario = _drafts?.Scenario;
-            if (string.IsNullOrWhiteSpace(scenario)) return Fail(400, "name the scenario (or open a recording that names one: {recording})");
-            var takeName = body?["take"]?.ToString();
-            if (string.IsNullOrWhiteSpace(takeName)) takeName = "main";
-            var play = new PlayRequest(Reel.Of(scenario!, takeName!), Cinema: false);
-            var loaded = director.TakeOf(play);
-            if (loaded.Value is not { } take) return Fail(404, string.Join("; ", loaded.Problems));
+            if (StillsRequestOf(body, out var fault) is not { } request) return fault!.Value;
+            // ⭐ CE-1306 (§11u D3) — the plan, the take and the folder resolved in ONE place (the render queue's stills jobs plan through it too)
+            var (prepared, code, error) = DirectorStills.Prepare(request, director, store, () => _drafts?.Scenario);
+            if (prepared == null) return Fail(code, error!);
+            var planned = new JsonObject
+            {
+                ["scenario"] = prepared.Scenario, ["take"] = prepared.Take, ["dir"] = prepared.Dir, ["width"] = prepared.Width, ["height"] = prepared.Height,
+                ["planned"] = DirectorStills.PlanJson(prepared.Plan), ["problems"] = new JsonArray(prepared.Problems.Select(p => (JsonNode?)p).ToArray()),
+                ["sheetGrid"] = ContactSheet.Layout(prepared.Plan.Count, prepared.Width, prepared.Height).ToJson(),
+            };
+            // ⭐ plan:true — what WOULD be taken (any host: the editor, a headless browser), nothing captured
+            if (body?["plan"] is JsonValue pv && pv.TryGetValue<bool>(out var only) && only) { planned["state"] = "planned"; return Ok(planned); }
+            var why = stills.Start(prepared);
+            if (why.Count > 0)
+            {
+                int status = why[0] == DirectorStills.NoRenderer || why[0] == DirectorStills.CannotSeek || why[0].StartsWith("a still of", StringComparison.Ordinal) ? 400 : 409;
+                return Fail(status, string.Join("; ", why));
+            }
+            var result = stills.Status();
+            result["problems"] = new JsonArray(prepared.Problems.Select(p => (JsonNode?)p).ToArray());
+            return Ok(result);
+        }
+
+        /// <summary>⭐ CE-1306 — the stills asked for in a body (<c>/director/stills</c>'s fields, and a <c>/director/renders</c> job of kind stills).</summary>
+        private static StillsRequest? StillsRequestOf(JsonNode? body, out RouteResult? fault)
+        {
+            fault = null;
             List<double>? times = null;
             if (body?["times"] is JsonArray ta)
             {
                 times = new List<double>();
                 foreach (var t in ta)
                     if (TakeJson.Double(t) is { } d) times.Add(d);
-                    else return Fail(400, $"times: '{t?.ToJsonString()}' is not a film second");
+                    else { fault = Fail(400, $"times: '{t?.ToJsonString()}' is not a film second"); return null; }
             }
-            bool everyKey = body?["everyKey"] is JsonValue ek && ek.TryGetValue<bool>(out var e) && e;
-            var (plan, problems) = DirectorStills.PlanOf(take, times, everyKey);
-            if (plan.Count == 0) return Fail(400, "no stills: " + string.Join("; ", problems));
-            int width = (int)(TakeJson.Double(body?["width"]) ?? 1280d), height = (int)(TakeJson.Double(body?["height"]) ?? 720d);
-            var dir = body?["dir"]?.ToString();
-            if (string.IsNullOrWhiteSpace(dir)) dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(store.TakePath(scenario!, takeName!))!, takeName + ".stills");
-            var planned = new JsonObject
+            var takeName = body?["take"]?.ToString();
+            return new StillsRequest(
+                Scenario: body?["scenario"]?.ToString() is { Length: > 0 } sc ? sc : null,
+                Take: string.IsNullOrWhiteSpace(takeName) ? "main" : takeName!,
+                Times: times,
+                EveryKey: body?["everyKey"] is JsonValue ek && ek.TryGetValue<bool>(out var e) && e,
+                Width: (int)(TakeJson.Double(body?["width"]) ?? 1280d),
+                Height: (int)(TakeJson.Double(body?["height"]) ?? 720d),
+                Dir: body?["dir"]?.ToString() is { Length: > 0 } dir ? dir : null,
+                Captions: body?["captions"] is not JsonValue cv || !cv.TryGetValue<bool>(out var cap) || cap);
+        }
+
+        // ── ⭐ CE-1306 R4 (§11u) — the render queue ────────────────────────────────────────────────────
+
+        internal const string RendersHold = "a render holds the director (GET /director/renders) - it plays when the queue is idle, or cancel the render (DELETE /director/renders/{id})";
+
+        /// <summary>
+        /// <c>POST /director/renders</c> — queues ONE render (<c>{kind?, recording?, scenario?, take?, reel?, capture?, times?, everyKey?, width?, height?, dir?}</c>) or
+        /// several (<c>{renders: [ … ]}</c>, each such an object). 400 when nothing could be queued (each refusal named), else the queue with the new ids.
+        /// </summary>
+        private RouteResult RendersEnqueue(JsonNode? body)
+        {
+            if (_renders is not { } renders) return Fail(503, NoDirector);
+            var asked = body?["renders"] is JsonArray many ? many.ToList() : new List<JsonNode?> { body };
+            if (asked.Count == 0) return Fail(400, "renders: [] queues nothing");
+            var queued = new JsonArray();
+            var refused = new JsonArray();
+            for (int i = 0; i < asked.Count; i++)
             {
-                ["scenario"] = scenario, ["take"] = takeName, ["dir"] = System.IO.Path.GetFullPath(dir!), ["width"] = width, ["height"] = height,
-                ["planned"] = DirectorStills.PlanJson(plan), ["problems"] = new JsonArray(problems.Select(p => (JsonNode?)p).ToArray()),
-                ["sheetGrid"] = ContactSheet.Layout(plan.Count, width, height).ToJson(),
-            };
-            // ⭐ plan:true — what WOULD be taken (any host: the editor, a headless browser), nothing captured
-            if (body?["plan"] is JsonValue pv && pv.TryGetValue<bool>(out var only) && only) { planned["state"] = "planned"; return Ok(planned); }
-            bool captions = body?["captions"] is not JsonValue cv || !cv.TryGetValue<bool>(out var cap) || cap;
-            var why = stills.Start(play, plan, dir!, width, height, captions);
-            if (why.Count > 0)
-            {
-                int code = why[0] == DirectorStills.NoRenderer || why[0] == DirectorStills.CannotSeek || why[0].StartsWith("a still of", StringComparison.Ordinal) ? 400 : 409;
-                return Fail(code, string.Join("; ", why));
+                string? why;
+                if (RenderRequestOf(asked[i], out var error) is not { } request) why = error;
+                else
+                {
+                    var (job, no) = renders.Enqueue(request);
+                    if (job != null) { queued.Add(job.Id); continue; }
+                    why = no;
+                }
+                refused.Add(new JsonObject { ["index"] = i, ["error"] = why });
             }
-            var status = stills.Status();
-            status["problems"] = new JsonArray(problems.Select(p => (JsonNode?)p).ToArray());
+            if (queued.Count == 0)
+                return Fail(400, asked.Count == 1 ? refused[0]!["error"]!.GetValue<string>() : "nothing queued: " + refused.ToJsonString());
+            var status = renders.Status();
+            status["queuedIds"] = queued;
+            status["refused"] = refused;
             return Ok(status);
+        }
+
+        /// <summary>One render's request from its JSON; null with why not.</summary>
+        private RenderRequest? RenderRequestOf(JsonNode? body, out string? error)
+        {
+            error = null;
+            if (body is not JsonObject o) { error = "a render is an object: {take | reel, recording?, capture?} (kind:\"stills\": {take, times | everyKey})"; return null; }
+            var kindText = o["kind"]?.ToString() ?? "movie";
+            RenderKind kind;
+            if (kindText.Equals("movie", StringComparison.OrdinalIgnoreCase)) kind = RenderKind.Movie;
+            else if (kindText.Equals("stills", StringComparison.OrdinalIgnoreCase)) kind = RenderKind.Stills;
+            else { error = $"kind '{kindText}': movie or stills"; return null; }
+            var recording = o["recording"] is JsonValue rv && rv.TryGetValue<string>(out var rec) && !string.IsNullOrWhiteSpace(rec) ? rec : null;
+            if (recording != null && _service is not { OpensRecordingFiles: true }) { error = RecordingRefused; return null; }
+            if (kind == RenderKind.Stills)
+            {
+                if (StillsRequestOf(o, out var fault) is not { } s) { error = fault!.Value.Error; return null; }
+                return new RenderRequest
+                {
+                    Kind = kind, Recording = recording, Scenario = s.Scenario, Take = s.Take, Times = s.Times, EveryKey = s.EveryKey,
+                    Width = s.Width, Height = s.Height, Dir = s.Dir, Captions = s.Captions,
+                };
+            }
+            var c = CaptureFieldsOf(o["capture"] as JsonObject, out var bad);
+            if (bad != null) { error = bad; return null; }
+            var takeName = o["take"]?.ToString();
+            return new RenderRequest
+            {
+                Kind = kind, Recording = recording,
+                Scenario = o["scenario"]?.ToString() is { Length: > 0 } sc ? sc : null,
+                Take = string.IsNullOrWhiteSpace(takeName) ? "main" : takeName!,
+                ReelName = o["reel"]?.ToString() is { Length: > 0 } reel ? reel : null,
+                Dir = c.Dir, Fps = c.Fps, Width = c.Width, Height = c.Height, Supersample = c.Supersample, Captions = c.Captions, Movie = c.Movie, Encode = c.Encode,
+            };
+        }
+
+        /// <summary><c>DELETE /director/renders/{id}</c> — 404 no such render, 409 it already ended, else the queue (the job cancelled).</summary>
+        private RouteResult RendersCancel(string id)
+        {
+            if (_renders is not { } renders) return Fail(503, NoDirector);
+            var (found, refused) = renders.Cancel(id);
+            if (!found) return Fail(404, $"no render '{id}' (GET /director/renders lists them)");
+            if (refused != null) return Fail(409, refused);
+            return Ok(renders.Status());
+        }
+
+        /// <summary>
+        /// ⭐ CE-1306 — the capture object (<c>{dir?, fps?, size?, supersample?, captions?, movie?, encode?}</c>) as <c>/director/play</c> and <c>/director/renders</c>
+        /// read it — ONE reading. A null object: the defaults. <paramref name="error"/> names a malformed field.
+        /// </summary>
+        private static (string? Dir, int Fps, int Width, int Height, int Supersample, bool Captions, string? Movie, bool Encode) CaptureFieldsOf(JsonObject? c, out string? error)
+        {
+            error = null;
+            int w = 1280, h = 720;
+            if (c?["size"]?.ToString() is { } size)
+            {
+                var parts = size.ToLowerInvariant().Split('x');
+                if (parts.Length != 2 || !int.TryParse(parts[0], out w) || !int.TryParse(parts[1], out h)) error = $"size '{size}': WIDTHxHEIGHT";
+            }
+            int fps = (int)(TakeJson.Double(c?["fps"]) ?? 30d);
+            if (error == null && fps is < 1 or > 60) error = "fps 1…60";
+            return (c?["dir"]?.ToString() is { Length: > 0 } d ? d : null, fps, w, h, (int)(TakeJson.Double(c?["supersample"]) ?? 1d),
+                    c?["captions"] is not JsonValue cv || !cv.TryGetValue<bool>(out var burn) || burn,
+                    c?["movie"]?.ToString(),
+                    c?["encode"] is not JsonValue ev || !ev.TryGetValue<bool>(out var enc) || enc);
         }
 
         // ── play / scout / transport ──────────────────────────────────────────────────────────
@@ -302,6 +417,7 @@ namespace Hrot.Editor.DebugApi
         {
             if (_director is not { } director || _takes is not { } store) return Fail(503, NoDirector);
             if (_stills is { Busy: true }) return Fail(409, "a stills job holds the director (GET /director/stills) — play when it is done");   // §11r
+            if (_renders is { Busy: true }) return Fail(409, RendersHold);   // ⭐ CE-1306 — a render holds the director
             Reel reel;
             Dictionary<string, Take>? inline = null;
             var scenario = body?["scenario"]?.ToString();
@@ -333,24 +449,14 @@ namespace Hrot.Editor.DebugApi
             CaptureOptions? capture = null;
             if (body?["capture"] is JsonObject c)
             {
-                var dir = c["dir"]?.ToString();
+                var f = CaptureFieldsOf(c, out var bad);   // ⭐ CE-1306 — the ONE reading of a capture object (the render queue's too)
+                if (bad != null) return Fail(400, bad);
+                var dir = f.Dir;
                 // ⭐ §11r — a render of one take goes BESIDE it by default (takes/<take>.render/: the frames, the movie) — TE-1, the take lives by its recording
                 if (string.IsNullOrWhiteSpace(dir) && !string.IsNullOrWhiteSpace(scenario) && body?["reel"] is null)
                     dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(store.TakePath(scenario!, takeName))!, takeName + ".render");
                 if (string.IsNullOrWhiteSpace(dir)) return Fail(400, "capture needs dir (where the frames and the movie go)");
-                int w = 1280, h = 720;
-                if (c["size"]?.ToString() is { } size)
-                {
-                    var parts = size.ToLowerInvariant().Split('x');
-                    if (parts.Length != 2 || !int.TryParse(parts[0], out w) || !int.TryParse(parts[1], out h)) return Fail(400, $"size '{size}': WIDTHxHEIGHT");
-                }
-                capture = new CaptureOptions(System.IO.Path.GetFullPath(dir!),
-                    Fps: (int)(TakeJson.Double(c["fps"]) ?? 30d), Width: w, Height: h,
-                    Supersample: (int)(TakeJson.Double(c["supersample"]) ?? 1d),
-                    BurnCaptions: c["captions"] is not JsonValue cv || !cv.TryGetValue<bool>(out var burn) || burn,
-                    Movie: c["movie"]?.ToString(),
-                    Encode: c["encode"] is not JsonValue ev || !ev.TryGetValue<bool>(out var enc) || enc);
-                if (capture.Fps is < 1 or > 60) return Fail(400, "fps 1…60");
+                capture = new CaptureOptions(System.IO.Path.GetFullPath(dir!), f.Fps, f.Width, f.Height, f.Supersample, f.Captions, f.Movie, f.Encode);
             }
             double speed = TakeJson.Double(body?["speed"]) ?? 1d;
             bool loop = body?["loop"] is JsonValue lv && lv.TryGetValue<bool>(out var l) && l;

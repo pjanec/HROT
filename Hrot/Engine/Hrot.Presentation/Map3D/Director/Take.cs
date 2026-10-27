@@ -414,6 +414,8 @@ public sealed record ReelItem
     public string? Clip { get; init; }
     public AtExpr? From { get; init; }
     public AtExpr? To { get; init; }
+    /// <summary>⭐ CE-1306 (§11u) — the item's free note (<c>"note"</c>), kept through a save by the reel composer.</summary>
+    public string? Note { get; init; }
 }
 
 /// <summary>A clip waiting to join a reel, and why it is not on it yet.</summary>
@@ -431,6 +433,8 @@ public sealed record Reel
     /// <summary>Clips parked off the reel until they are ready, each with the reason (<c>"waiting": [{clip, why}]</c>,
     /// PLAN_Feature_Films §5) — a note for whoever edits the reel; never played.</summary>
     public IReadOnlyList<ReelWaiting> Waiting { get; init; } = Array.Empty<ReelWaiting>();
+    /// <summary>⭐ CE-1306 (§11u) — the reel's free note (<c>"note"</c>), kept through a save by the reel composer.</summary>
+    public string? Note { get; init; }
 
     /// <summary>A reel of one take (<c>POST /director/play {scenario, take}</c>).</summary>
     public static Reel Of(string scenario, string take) => new()

@@ -51,11 +51,18 @@ namespace Hrot.UI.Common.Map3D.Director
     {
         private DirectorPack(DirectorRunner runner, DirectorTakeSession session, DirectorWindow window, MapLayerOverride layers, WindowCinema cinema, TakeStore takes,
                              Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl, DirectorDrafts? drafts, DirectorStills stills,
-                             TakePromotion promotion)
+                             TakePromotion promotion, DirectorRenders renders, ReelComposer composer)
         {
             Takes = takes; Runner = runner; Session = session; Window = window; Layers = layers; Cinema = cinema; LayerControl = layerControl; Drafts = drafts;
-            Stills = stills; Promotion = promotion;
+            Stills = stills; Promotion = promotion; Renders = renders; Composer = composer;
         }
+
+        /// <summary>⭐ CE-1306 R4 (§11u) — the RENDER QUEUE: renders run one after another through this runner and these stills (the Director window's
+        /// <i>Queue render</i>, <c>/director/renders</c>); refused on a headless host.</summary>
+        public DirectorRenders Renders { get; }
+
+        /// <summary>⭐ CE-1306 R4 (§11u) — the reel being composed in the Director window (the one reel editing model).</summary>
+        public ReelComposer Composer { get; }
 
         /// <summary>⭐ CE-1304 P4 (§11s) — promote a recording's take to its scenario (the Director window's button, <c>POST /director/promote</c>);
         /// <see cref="TakePromotion.Available"/> only on a host whose takes are a recording's.</summary>
@@ -102,8 +109,13 @@ namespace Hrot.UI.Common.Map3D.Director
             runner.Index = h.Index;
             // ⭐ CE-1304 P4 (§11s) — promote, wired ONCE: from this host's takes to the scenario's (none on the editor)
             var promotion = new TakePromotion(() => h.Host.Takes, h.ScenarioTakes, h.Scenario, session);
+            // ⭐ CE-4059 P3 (§11r) — stills: the runner's play-from and the SAME sink (one capture path), on a host that seeks
+            var stills = new DirectorStills(runner, sink, () => h.Host.CanSeek);
+            // ⭐ CE-1306 R4 (§11u D3) — the render queue over the SAME runner and stills (one at a time), and the reel composer (the one reel model)
+            var renders = new DirectorRenders(runner, stills, sink, () => h.Host.CanSeek, () => h.Host.Takes, h.Scenario ?? (() => null));
+            var composer = new ReelComposer(() => h.Host.Takes);
             var window = new DirectorWindow(() => runner, () => h.Host.Takes, session, h.WindowTabs, h.TitleBarColor, h.Perspective,
-                                            playhead: () => h.Host.SimTime, promotion: promotion);
+                                            playhead: () => h.Host.SimTime, promotion: promotion, renders: renders, composer: composer);
             // ⭐ CE-4059 (§11q D1) — the drafter wired ONCE for every host: names and kinds from the host's world, the event menu on its Event Timeline
             DirectorDrafts? drafts = null;
             if (h.Index != null)
@@ -112,17 +124,17 @@ namespace Hrot.UI.Common.Map3D.Director
                                             h.Scenario ?? (() => null), session);
                 h.Timeline.EventMenu = drafts.MenuItems;
             }
-            // ⭐ CE-4059 P3 (§11r) — stills: the runner's play-from and the SAME sink (one capture path), on a host that seeks
-            var stills = new DirectorStills(runner, sink, () => h.Host.CanSeek);
-            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts, stills, promotion);
+            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts, stills, promotion, renders, composer);
         }
 
         /// <summary>The director's frame: once per host frame, after the routes drained and before the map's update (§0, R-3038). ⭐ CE-4059 — a stills
-        /// job after the runner (it reads the phase the runner's tick reached and asks the map for this frame's capture).</summary>
+        /// job after the runner (it reads the phase the runner's tick reached and asks the map for this frame's capture). ⭐ CE-1306 — the render queue
+        /// last (it reads what the runner and the stills reached, and starts the next job only when both are idle).</summary>
         public void Tick()
         {
             Runner.Tick();
             Stills.Tick();
+            Renders.Tick();
         }
 
         /// <summary>Puts the Director window (View › Director) among the host's windows.</summary>
