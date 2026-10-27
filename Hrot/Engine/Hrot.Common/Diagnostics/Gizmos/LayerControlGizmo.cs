@@ -263,8 +263,25 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         /// <summary>⭐ CE-4038 B10 — the rows a film keeps as the user has them when a take "starts clean": the scene itself (units, rounds, the
         /// ground, roads, traffic, doors), not the overlays and helpers (🔒 "Overlays like labels optional, Default is off").</summary>
+        /// <remarks>⭐ <c>CE-1379</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "as built") — and the SCENARIO's own drawing: its tactical graphics
+        /// (areas, overlay lines) and its route entities — what the scenario author put on the map, not a helper.</remarks>
         public static readonly System.Collections.Generic.IReadOnlyList<string> SceneRows = new[]
-            { "Units.Entities", "Units.Rounds", "Map.Terrain2D", "Map.Roads", "Map.Traffic", "Map.Doors" };
+            { "Units.Entities", "Units.Rounds", "Map.Terrain2D", "Map.Roads", "Map.Traffic", "Map.Doors", "Map.TacticalGraphics", "Command.Routes" };
+
+        /// <summary>
+        /// ⭐ <c>CE-1379</c> / <c>CE-1380</c> (§11t "as built") — the gizmo layer bits a FILM frame may draw: the bits the Layers panel's rows toggle
+        /// (<see cref="LayerControlDto.FirstUntoggledLayer"/> and up are never filmed: the selection ring, the always-on tool and helper bits). Which of
+        /// them a frame shows is the layer set in force — on screen and in a film alike (a film's set starts clean: <see cref="SceneRows"/>).
+        /// </summary>
+        public static LayerMask256 FilmLayers
+        {
+            get
+            {
+                var mask = new LayerMask256();
+                for (int i = 0; i < LayerControlDto.FirstUntoggledLayer; i++) mask.SetBit(i);
+                return mask;
+            }
+        }
 
         /// <summary>One row of <paramref name="dto"/> by its <c>Group.Row</c> name; false when no such row.</summary>
         public static bool TryGet(LayerControlDto dto, string name, out bool value)

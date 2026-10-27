@@ -2628,6 +2628,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Fdp.Core.FlightRecorder.RecordedAssemblies.EnsureLoaded(
                 Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(recording + ".meta.json")));
             _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            string? grabScreen = null;   // ⭐ CE-1380 — the WINDOW's own frame, grabbed beside the capture (what the screen shows vs what the film shows)
             void Frame()
             {
                 _subsystem.Update(1f / 60f);
@@ -2637,6 +2638,12 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 rlImGui_cs.rlImGui.Begin();
                 _subsystem.DrawUI();
                 rlImGui_cs.rlImGui.End();
+                if (grabScreen != null)
+                {
+                    var screen = Raylib_cs.Raylib.LoadImageFromScreen();
+                    try { Raylib_cs.Raylib.ExportImage(screen, grabScreen); } finally { Raylib_cs.Raylib.UnloadImage(screen); }
+                    grabScreen = null;
+                }
                 Raylib_cs.Raylib.EndDrawing();
             }
             Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { recording }, 0));
@@ -2685,6 +2692,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 var capture = sink.Frame(Path.Combine(outDir, name + ".png"), 1280, 720, 1, overlay);
                 for (int i = 0; i < 120 && !capture.IsCompleted; i++) Frame();
                 capture.GetAwaiter().GetResult();
+                grabScreen = Path.Combine(outDir, name + "-screen.png");
+                Frame();
                 Log($"{name}: from {from}, director sim {_subsystem.DirectorSimSeconds:0.###}, 2-D {Hrot.UI.Common.Map3D.FilmStudio.TwoD}, view {runner.ViewNow}, " +
                     $"graphics [{string.Join("; ", overlay.Graphics.Select(g => $"{g.Kind} {string.Join(" ", g.Points)} a={g.Alpha:0.##}"))}], subtitle {overlay.Subtitle?.Text}");
                 runner.Stop();

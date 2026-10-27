@@ -15,8 +15,41 @@ using InteractionKeyboardKey = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKey
 
 namespace Fdp.Toolkit.Vis2D.Layers
 {
-    public class DebugGizmoLayer : IMapLayer
+    public class DebugGizmoLayer : ISceneLayer   // ⭐ CE-1379 — filmed: its FILM layers only (FilmLayers, RenderContext.Film)
     {
+        /// <summary>
+        /// ⭐ <c>CE-1379</c> / <c>CE-1380</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "as built") — the layer bits a FILM frame draws from this buffer
+        /// (<see cref="RenderContext.Film"/>, <see cref="MapCanvas.DrawScene"/>), intersected with the frame's own mask as on screen: the scenario's
+        /// drawing (unit symbols, tactical graphics, routes, roads… — whatever the film's layer set turns on). ⛔ Never the UI panels and menus;
+        /// and a bit outside this mask (the selection, the always-on helpers) is not filmed. Default: none — a host that names no film layers
+        /// films no gizmos. Set by <c>MapInteractionPack.AttachMapLayers</c> on every map host.
+        /// </summary>
+        public LayerMask256 FilmLayers { get; set; }
+
+        /// <summary>⭐ CE-1379 — whether a primitive belongs in a film frame: what drawn primitives resolve against (anchors, the frame's mask) always,
+        /// the UI never, a drawn shape when its layer is one of <paramref name="film"/>.</summary>
+        public static bool InFilm(in DebugPrimitive p, in LayerMask256 film) => p.Shape switch
+        {
+            DebugPrimitiveShape.SpatialAnchor or DebugPrimitiveShape.LayerControlMask => true,
+            DebugPrimitiveShape.StructInspector or DebugPrimitiveShape.ContextMenuBinding
+                or DebugPrimitiveShape.InputCaptureBinding or DebugPrimitiveShape.MainMenuBinding => false,
+            _ => film.IsSet(p.DebugLayer),
+        };
+
+        private DebugPrimitive[] _filmFrame = Array.Empty<DebugPrimitive>();
+
+        /// <summary>The buffer's frame as this pass draws it: all of it on screen, its film primitives in a film's pass.</summary>
+        private ReadOnlySpan<DebugPrimitive> FrameFor(in RenderContext ctx)
+        {
+            var all = _buffer!.GetFrame();
+            if (!ctx.Film) return all;
+            if (_filmFrame.Length < all.Length) _filmFrame = new DebugPrimitive[all.Length];
+            var film = FilmLayers;
+            int n = 0;
+            foreach (ref readonly var p in all)
+                if (InFilm(in p, in film)) _filmFrame[n++] = p;
+            return new ReadOnlySpan<DebugPrimitive>(_filmFrame, 0, n);
+        }
         public string Name => "Debug Gizmos";
         public int LayerBitIndex { get; private set; }
 
@@ -138,9 +171,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
             if (_buffer == null) return;
             if (LayerBitIndex >= 0 && LayerBitIndex < 32 && (ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
             if (CurrentCamera?.Invoke() is not Fdp.Toolkit.Vis3D.MapCamera3D camera) return;
-            var primitives = _buffer.GetFrame();
-            // The menus and capture bindings the 2-D draw extracts — the same frame, whatever the view.
-            _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
+            var primitives = FrameFor(in ctx);   // ⭐ CE-1379 — a film's pass: its film layers only
+            // The menus and capture bindings the 2-D draw extracts — the same frame, whatever the view (⛔ not a film's pass: no UI there).
+            if (!ctx.Film) _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
             Draw3D(primitives, camera.ZoomAt, Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared);
             Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared.Flush();   // ⭐ CE-1196 — the fills (biased, no depth writes), then the lines
         }
@@ -256,7 +289,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public void Draw(RenderContext ctx)
         {
             if (_buffer == null) return;
-            var primitives = _buffer.GetFrame();
+            var primitives = FrameFor(in ctx);   // ⭐ CE-1379 / CE-1380 — a film's pass: its film layers only
 
             if (LayerBitIndex >= 0 && LayerBitIndex < 32)
             {
@@ -275,7 +308,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             if (mapCamera != null)
                 _camera = mapCamera.InnerCamera;
 
-            _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
+            if (!ctx.Film) _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);   // ⛔ a film's pass carries no menus
             _renderer.Camera = CurrentCamera?.Invoke() ?? _mapCamera;   // ⭐ CE-1040 — the renderer must know the camera is north-up
             _renderer.Render(primitives, ctx);
         }

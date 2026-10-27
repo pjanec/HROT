@@ -205,7 +205,8 @@ public sealed class FilmDirector : ICameraDriver
 /// <summary>
 /// ⭐ <c>CE-3289</c> (docs/DESIGN_Map_3D_Mode.md §6ab, R-3032) — films the map: holds the camera on the <see cref="FilmStudio"/>'s shot
 /// (through <see cref="FilmDirector"/>) and serves its captures — the scene ALONE (<see cref="MapCanvas.DrawScene"/>: the sky and the
-/// <see cref="ISceneLayer"/>s, no gizmos, cards or HUD, and none of the window's panels) into a render texture, written as a PNG.
+/// <see cref="ISceneLayer"/>s, no tool, cursor or HUD, and none of the window's panels) into a render texture, written as a PNG.
+/// ⭐ CE-1379 / CE-1380 — in 2-D and 3-D alike, the gizmo buffer's film layers included (the scenario's tactical graphics, the unit symbols).
 /// <para>⭐ Only a map the window DREW last frame serves a capture: in <c>--mode all</c> several hosts own a map in one process, and the
 /// film is of the one on screen. ⭐ It runs in <see cref="Update"/>, outside the window's <c>BeginDrawing</c>, so its offscreen pass never
 /// disturbs the frame. Every map host gets it (<c>MapInteractionPack.AttachMapLayers</c>).</para>
@@ -262,6 +263,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
         var camera = _view.Camera3D;
         if (FilmStudio.Shot is { } shot && !FilmStudio.Pilot)   // ⭐ CE-1303 P2b — the pilot view leaves the camera to the operator
         {
+            _personsMap ??= _view.Is3D;   // ⭐ CE-1304 P6 (§11t V7) — the person's map mode, taken when the film first holds the view
             _director.Shot = shot;
             bool animate = _directing && FilmStudio.AnimateViewSwitch;
             _directing = true;
@@ -286,8 +288,19 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
         {
             _directing = false;
             if (ReferenceEquals(camera.Driver, _director)) camera.Driver = null;
+            // ⭐ CE-1304 P6 (§11t V7) — the film released (its end, Stop: FilmStudio.Release, where the runner also clears the layer override): the
+            //   map goes back to the mode the person had before the film, through the ONE switch. ⛔ Not while the pilot view flies (the program
+            //   still holds its shot); a switch still landing is let finish first.
+            if (FilmStudio.Shot == null && _personsMap is { } theirs && !_view.IsSwitching)
+            {
+                _personsMap = null;
+                if (_view.Is3D != theirs) _view.Set(theirs, animate: FilmStudio.AnimateViewSwitch);
+            }
         }
     }
+
+    /// <summary>⭐ CE-1304 P6 (§11t V7) — the map mode (true = 3-D) the person had when the film took the view; null while no film holds it.</summary>
+    private bool? _personsMap;
 
     /// <summary>World → this map's pixels: the 3-D camera's projection (null behind it) or the 2-D map's.</summary>
     private Func<Vector3, Vector2?> Projector()
@@ -341,7 +354,10 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
                 if (request.Card != null) FilmText.Card(request.Card, w, h);
                 else
                 {
-                    if (camera2D != null) _canvas.Draw(); else _canvas.DrawScene();
+                    // ⭐ CE-1379 / CE-1380 (§11t "as built") — ONE film pass in both modes: the scene layers through the screen's own layer passes, the
+                    //   gizmo buffer's film layers among them (the scenario's tactical graphics, the unit symbols — as the set in force shows them).
+                    //   ⛔ Was: 2-D took the WHOLE screen pass (cursor readout, HUD, selection ring, panels), 3-D no gizmo at all.
+                    _canvas.DrawScene();
                     // ⭐ CE-1305 (§11t G3) — the film graphics, laid out through THIS frame's camera, under the subtitle
                     if (request.Graphics is { Count: > 0 } graphics) FilmText.Graphics(graphics, Projector(), h);
                     if (request.Subtitle is { } sub && !string.IsNullOrWhiteSpace(sub.Text)) FilmText.Caption(sub, w, h);

@@ -119,4 +119,184 @@ public sealed class FilmFrameRail
         FilmStudio.Reset();
         film.Dispose();
     }
+
+    // ── ⭐ CE-1380 / CE-1379 (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1380 / CE-1379 as built") — ONE film pass in both modes ─────────────────
+
+    private static readonly Fdp.Toolkit.Diagnostics.Gizmos.Rgba32 Cyan = new(0, 255, 255);
+    private static readonly Fdp.Toolkit.Diagnostics.Gizmos.Rgba32 Pink = new(255, 0, 128);
+
+    /// <summary>Not a scene layer: a cyan square in the 2-D pass (at a world point) and over the screen — what the cursor readout, the HUD and the
+    /// tools are to a film.</summary>
+    private sealed class Clutter2D : IMapLayer
+    {
+        public Vector2 At;
+        public string Name => "Clutter (2-D)";
+        public int LayerBitIndex => -1;
+        public void Update(float dt) { }
+        public void Draw(RenderContext ctx) => Raylib.DrawRectangleV(At - new Vector2(6f, 6f), new Vector2(12f, 12f), new Color(0, 255, 255, 255));
+        public void DrawOverlay(RenderContext ctx) => Raylib.DrawRectangle(0, 0, 60, 60, new Color(0, 255, 255, 255));
+        public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
+        public Entity? PickEntity(Vector2 worldPos) => null;
+    }
+
+    private static bool IsCyan(Color c) => c.R < 60 && c.G > 200 && c.B > 200;
+    private static bool IsPink(Color c) => c.R > 200 && c.G < 70 && c.B > 80 && c.B < 180;
+    private static bool IsMagenta(Color c) => c.R > 200 && c.G < 70 && c.B > 200;
+    // anything drawn over the cleared background: the window clears dark grey (UiFrameSession), a film frame black (FilmCaptureLayer.Serve)
+    private static bool IsGroundOnGrey(Color c) => Math.Abs(c.R - 80) > 12 || Math.Abs(c.G - 80) > 12 || Math.Abs(c.B - 80) > 12;
+    private static bool IsGroundOnBlack(Color c) => c.R + c.G + c.B > 45;
+
+    private static int Count(Image image, Func<Color, bool> what, (int X, int Y)? near = null, int radius = 0)
+    {
+        int n = 0;
+        int x0 = 0, y0 = 0, x1 = image.Width, y1 = image.Height;
+        if (near is { } p) { x0 = Math.Max(0, p.X - radius); y0 = Math.Max(0, p.Y - radius); x1 = Math.Min(image.Width, p.X + radius); y1 = Math.Min(image.Height, p.Y + radius); }
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
+                if (what(Raylib.GetImageColor(image, x, y))) n++;
+        return n;
+    }
+
+    /// <summary>The production map (<c>MapInteractionPack.AttachMapLayers</c>) over test-town with a unit at its middle — its symbol drawn by the production
+    /// projector (<see cref="Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo"/>) — a cyan SELECTION box (layer 255) beside it, a pink tactical AREA
+    /// (<c>DebugTraceLayers.TacticalGraphics</c>) east of it, and the non-scene clutter.</summary>
+    private static (MapCanvas Canvas, Hrot.ScenarioEditor.Map.MapLayers Layers, FilmCaptureLayer Film, Vector3 Unit, Vector3 Area, EntityRepository World) FilmSet()
+    {
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<NetworkIdentity>();
+        var query = WorldQuery.Of(world)!;
+        var mid = (terrain.BoundsMin + terrain.BoundsMax) / 2f;
+        var unitAt = new Vector3(mid.X, mid.Y, query.GroundHeightAt(mid.X, mid.Y));
+        var areaAt = new Vector3(mid.X + 40f, mid.Y, query.GroundHeightAt(mid.X + 40f, mid.Y));
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new SimTransform { Position = unitAt, Rotation = Quaternion.Identity });
+        world.AddComponent(unit, new NetworkIdentity(77));
+
+        var canvas = new MapCanvas(input: null);
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(Hrot.ScenarioEditor.Map.MapInteractionContext.DefaultBufferCapacity);
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, buffer, new FdpEventBus(), () => world);
+        canvas.AddLayer(new Clutter2D { At = new Vector2(mid.X, mid.Y - 30f) });
+        var film = canvas.Layers.OfType<FilmCaptureLayer>().Single();
+
+        new Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo().Draw(world, unit, buffer);
+        var selection = Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeBox2D(new Vector2(mid.X - 30f, mid.Y), new Vector2(6f, 6f), Cyan,
+            sizeMode: Fdp.Toolkit.Diagnostics.Gizmos.SizeMode.WorldMeters, fillColor: Cyan);
+        selection.DebugLayer = Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Selection;
+        buffer.AppendRaw(selection);
+        var a = new Vector2(areaAt.X - 10f, areaAt.Y - 10f);
+        var b = new Vector2(areaAt.X + 10f, areaAt.Y - 10f);
+        var c = new Vector2(areaAt.X + 10f, areaAt.Y + 10f);
+        var d = new Vector2(areaAt.X - 10f, areaAt.Y + 10f);
+        buffer.DrawFilledTriangle(a, b, c, Pink, layer: Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.TacticalGraphics);
+        buffer.DrawFilledTriangle(a, c, d, Pink, layer: Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.TacticalGraphics);
+        return (canvas, layers, film, unitAt, areaAt, world);
+    }
+
+    /// <summary>Holds the shot, draws the window's frame (returned as an image, the caller unloads it), then captures the same frame size.</summary>
+    private static (Image Window, Image Film) WindowAndFilm(UiFrameSession frame, MapCanvas canvas, FilmCaptureLayer film, string path)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            film.Update(0.016f);
+            canvas.Camera.Update(0.016f);   // the director places the 3-D camera in its update (MapCanvas.Update's first step)
+            frame.Step(canvas.Draw);
+        }
+        var window = Raylib.LoadImageFromScreen();
+        if (File.Exists(path)) File.Delete(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        Raylib.ExportImage(window, Path.ChangeExtension(path, null) + "-window.png");   // evidence: the window beside the film
+        var capture = FilmStudio.Capture(new FilmCaptureRequest(path, Raylib.GetScreenWidth(), Raylib.GetScreenHeight()));
+        film.Update(0.016f);
+        Assert.True(capture.IsCompletedSuccessfully, capture.Exception?.ToString() ?? "the capture was not served");
+        return (window, Raylib.LoadImage(path));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1380</c> — a 2-D FILM frame is the 2-D map as the window draws it: the ground plan's fills (as many as the window shows), the unit's
+    /// symbol at the unit's projected position — and NONE of what is not the scene (the window has the cyan clutter and the cyan selection; the film
+    /// has neither). 🔴 Mutation: <c>FilmCaptureLayer.Serve</c> back to <c>_canvas.Draw()</c> in 2-D (the as-before path) ⇒ the clutter and the
+    /// selection are filmed ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE1380_A2DFilmFrame_IsTheWindowsMap_TheGroundPlanAndTheUnitSymbol_AndNoToolSelectionOrHud()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        FilmStudio.Reset();
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var (canvas, layers, film, unit, _, world) = FilmSet();
+        try
+        {
+            FilmStudio.TwoD = true;
+            FilmStudio.Direct(new FilmShot { Pose = new CameraPose(unit, 160f, 0f, -0.6f) });
+            var (window, image) = WindowAndFilm(frame, canvas, film, Path.Combine(Path.GetTempPath(), "hrot-film-rail", "film-2d.png"));
+            try
+            {
+                Assert.False(layers.ViewSwitch.Is3D, "the film holds the 2-D map");
+                var s = canvas.Camera.WorldToScreen(new Vector2(unit.X, unit.Y));
+                var at = ((int)s.X, (int)s.Y);
+                Assert.True(Count(window, IsCyan) > 50, "anti-vacuity: the WINDOW shows the clutter and the selection");
+                Assert.True(Count(window, IsMagenta, at, 24) > 6, "anti-vacuity: the window shows the unit's symbol at its position");
+
+                int windowGround = Count(window, IsGroundOnGrey), filmGround = Count(image, IsGroundOnBlack);
+                Assert.True(filmGround > 20_000, $"the film's ground plan is drawn ({filmGround} non-black pixels)");
+                Assert.True(filmGround > windowGround * 0.9, $"the film draws the window's ground plan (film {filmGround}, window {windowGround})");
+                Assert.True(Count(image, IsMagenta, at, 24) > 6, $"the unit's symbol is in the film at its position {at}");
+                Assert.Equal(0, Count(image, IsCyan));   // no clutter, no selection
+            }
+            finally { Raylib.UnloadImage(window); Raylib.UnloadImage(image); }
+        }
+        finally { FilmStudio.Reset(); film.Dispose(); world.Dispose(); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1379</c> — a scenario's TACTICAL GRAPHIC (the pink area on <c>TacticalGraphics</c>) is in the film frame in 3-D and in 2-D, where the window
+    /// shows it; the SELECTION (layer 255, cyan) never is. 🔴 Mutations: <c>DebugGizmoLayer</c> not an <c>ISceneLayer</c> (the as-before 3-D film) ⇒ no
+    /// pink in the films ⇒ red; <c>DebugGizmoLayer.InFilm</c> returning true for every primitive ⇒ the selection is filmed ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE1379_AFilmFrame_DrawsTheScenariosTacticalGraphic_In3DAnd2D_AndNeverTheSelection()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        FilmStudio.Reset();
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var (canvas, layers, film, unit, area, world) = FilmSet();
+        try
+        {
+            // 3-D: from above and south of the unit, looking at the area
+            FilmStudio.Direct(FilmShot.Looking(area + new Vector3(-20f, -90f, 70f), area)!);
+            var (window3, film3) = WindowAndFilm(frame, canvas, film, Path.Combine(Path.GetTempPath(), "hrot-film-rail", "film-3d-graphic.png"));
+            try
+            {
+                Assert.True(layers.ViewSwitch.Is3D);
+                var s = layers.ViewSwitch.Camera3D.WorldToScreen(area);
+                var at = ((int)s.X, (int)s.Y);
+                Assert.True(Count(window3, IsPink, at, 60) > 100, $"anti-vacuity: the window shows the area at {at}");
+                Assert.True(Count(film3, IsPink, at, 60) > 100, $"the 3-D film shows the scenario's area at {at}");
+                Assert.Equal(0, Count(film3, IsCyan));
+            }
+            finally { Raylib.UnloadImage(window3); Raylib.UnloadImage(film3); }
+
+            // 2-D: the same set, from overhead
+            FilmStudio.TwoD = true;
+            FilmStudio.AnimateViewSwitch = false;
+            FilmStudio.Direct(new FilmShot { Pose = new CameraPose(unit, 160f, 0f, -0.6f) });
+            var (window2, film2) = WindowAndFilm(frame, canvas, film, Path.Combine(Path.GetTempPath(), "hrot-film-rail", "film-2d-graphic.png"));
+            try
+            {
+                Assert.False(layers.ViewSwitch.Is3D);
+                var s = canvas.Camera.WorldToScreen(new Vector2(area.X, area.Y));
+                var at = ((int)s.X, (int)s.Y);
+                Assert.True(Count(window2, IsCyan) > 50, "anti-vacuity: the window shows the selection");
+                Assert.True(Count(window2, IsPink, at, 30) > 100, $"anti-vacuity: the window shows the area at {at}");
+                Assert.True(Count(film2, IsPink, at, 30) > 100, $"the 2-D film shows the scenario's area at {at}");
+                Assert.Equal(0, Count(film2, IsCyan));
+            }
+            finally { Raylib.UnloadImage(window2); Raylib.UnloadImage(film2); }
+        }
+        finally { FilmStudio.Reset(); film.Dispose(); world.Dispose(); }
+    }
 }

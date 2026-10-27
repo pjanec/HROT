@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Vis2D.Layers;
 /// <para>Visibility is the <c>isVisible</c> delegate; the shared map attach binds it to the "Grid" row of the layer panel
 /// (<c>DebugTraceLayers.Grid</c>). The steps and the line set are the pure <see cref="GridSteps"/>.</para>
 /// </summary>
-public sealed class GridMapLayer : IMapLayer
+public sealed class GridMapLayer : ISceneLayer   // ⭐ CE-1380 — filmed when the film's layer set turns its row on (off by default: a helper)
 {
     /// <summary>Minor line width on screen, pixels.</summary>
     public const float MinorWidthPixels = 1f;

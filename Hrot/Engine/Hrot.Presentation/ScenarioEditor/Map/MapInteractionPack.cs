@@ -497,7 +497,9 @@ namespace Hrot.ScenarioEditor.Map
             var gizmoLayer = BuildRenderLayer(buffer, bus, canvas.Camera, worldProvider, layerBitIndex);
             if (UiStatesOf.TryGetValue(buffer, out var uiStates)) gizmoLayer.UiStates = uiStates;   // ⭐ CE-1234 — the panel follows its gizmo
             gizmoLayer.CurrentCamera = () => canvas.Camera;   // ⭐ CE-1033 S2 — gizmo input picks in 3-D too
-            canvas.AddLayer(gizmoLayer);
+            // ⭐ CE-1379 / CE-1380 (DESIGN_Director_Timeline_Editor §11t) — a film frame draws the buffer's toggled rows (as the set in force shows them),
+            //   never the selection, the always-on bits or the panels — on every map host, so no host films differently
+            gizmoLayer.FilmLayers = Hrot.Common.Diagnostics.Gizmos.LayerControlSets.FilmLayers;
             canvas.DrawBuffer = buffer;
             // ⭐ CE-1289 — the cursor's reading, measured every frame in both views and shown by MapCursorStatusBarSection; it lives on the
             //   canvas, so a host finds it with `canvas.Get<MapCursorReadout>()`. The ground height is the 3-D camera's (one terrain
@@ -528,6 +530,10 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1126 (DESIGN_Entity_Control §8g F-4) — the FPS crosshair's: the parts a round meets (PickFilter.EntityParts)
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityPartPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
+            // ⭐ CE-1384 (DESIGN_Director_Timeline_Editor §11t "CE-1380 / CE-1379 as built") — the gizmos AFTER the 3-D terrain: their ground fills draw
+            //   with depth writes off (CE-1196 CA-4), so drawn before the terrain they were painted over — no tactical area, no filled disc showed
+            //   in 3-D on any host (and so in no 3-D film). ⭐ The 2-D order is unchanged: the 3-D terrain draws nothing in 2-D.
+            canvas.AddLayer(gizmoLayer);
             canvas.AddLayer(new MapCursorLayer(canvas, cursor, worldProvider, viewSwitch.Camera3D.GroundHeight));   // ⭐ CE-1289
             // ⭐ AQ93 R-4024 / V7 — the SUMO roads and lights, TerrainLayer3D's sibling (idle when the terrain has no SUMO net); its far
             //   people and cars are bodies (CE-4031).

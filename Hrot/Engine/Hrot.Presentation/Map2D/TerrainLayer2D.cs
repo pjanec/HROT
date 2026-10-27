@@ -22,7 +22,7 @@ namespace Hrot.UI.Common.Map2D;
 /// frame on demo-city into the map's 16 384 buffer; everything after it was dropped. ⭐ Now the terrain takes no slot in that buffer.</para>
 /// <para>⭐ 2-D only (<see cref="Has3D"/> false): the 3-D map draws its own terrain, and the old triangles were draped under it.</para>
 /// </summary>
-public sealed class TerrainLayer2D : IMapLayer, IDisposable
+public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 — the 2-D ground plan: filmed (its row still gates it)
 {
     /// <summary>Labels are drawn from this zoom (screen pixels per metre) up; below it a 20 m building is under 30 px and the labels
     /// only smear the map.</summary>

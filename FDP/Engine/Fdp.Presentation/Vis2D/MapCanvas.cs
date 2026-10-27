@@ -118,67 +118,63 @@ namespace Fdp.Toolkit.Vis2D
 
         public void Draw()
         {
-            if (Camera.Is3D) { Draw3D(); return; }
-            Camera.BeginMode();
-
-            var ctx = new RenderContext
-            {
-                Zoom              = Camera.Zoom,
-                MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
-                DeltaTime         = GetFrameTime(),
-                VisibleLayersMask = ActiveLayerMask,
-                Resources         = this,
-                DrawBuilder       = DrawBuffer
-            };
-
-            // Draw Layers (0 -> N) - Bottom to Top
-            foreach (var layer in _layers)
-            {
-                // Verify visibility
-                if (IsLayerVisible(layer))
-                {
-                    layer.Draw(ctx);
-                }
-            }
-
-            Camera.EndMode();
-            // ⭐ CE-1033 S5b — the screen-space pass: entity cards over the finished map.
-            foreach (var layer in _layers)
-                if (IsLayerVisible(layer)) layer.DrawOverlay(ctx);
-        }
-
-        /// <summary>⭐ CE-1033 S1 (M1/M3) — the same layers, through their 3-D path, inside the 3-D camera.</summary>
-        private void Draw3D()
-        {
-            var ctx = DrawLayers3D(sceneOnly: false);
-            // ⭐ CE-1033 S3 (M13) — the screen-space pass: labels over the finished scene.
-            foreach (var layer in _layers)
-                if (layer.Has3D && IsLayerVisible(layer)) layer.DrawOverlay(ctx);
+            // ⭐ CE-1033 S5b (2-D: entity cards) / S3 (M13, 3-D: labels) — the screen-space pass over the finished map
+            var ctx = Camera.Is3D ? DrawLayers3D(sceneOnly: false) : DrawLayers2D(sceneOnly: false);
+            DrawOverlays(ctx, sceneOnly: false);
         }
 
         /// <summary>
-        /// ⭐ <c>CE-3289</c> (docs/DESIGN_Map_3D_Mode.md §6ab) — the WORLD alone, as a film frame shows it: the 3-D camera's sky and the
-        /// visible <see cref="ISceneLayer"/>s, no overlay pass (no cards, labels, HUD). Into whatever target is bound (a render texture).
-        /// ⚠ 3-D only: in 2-D it draws nothing.
+        /// ⭐ <c>CE-3289</c> (docs/DESIGN_Map_3D_Mode.md §6ab) — the WORLD alone, as a film frame shows it: the visible
+        /// <see cref="ISceneLayer"/>s through the SAME layer passes <see cref="Draw"/> runs (no tool, cursor, HUD or panel). Into whatever
+        /// target is bound (a render texture).
+        /// <para>⭐ <c>CE-1379</c> / <c>CE-1380</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "as built") — in BOTH modes (⛔ was: 3-D only, so a
+        /// 2-D film frame took the whole screen pass, cursor readout and HUD included), with the scene layers' screen-space pass (the cards and
+        /// labels the film's layer set turns on), and <see cref="RenderContext.Film"/> set so the gizmo layer draws its film layers only.</para>
         /// </summary>
         public void DrawScene()
         {
-            if (Camera.Is3D) DrawLayers3D(sceneOnly: true);
+            var ctx = Camera.Is3D ? DrawLayers3D(sceneOnly: true) : DrawLayers2D(sceneOnly: true);
+            DrawOverlays(ctx, sceneOnly: true);
         }
 
-        /// <summary>The 3-D layer pass both <see cref="Draw3D"/> and <see cref="DrawScene"/> run (one loop).</summary>
+        /// <summary>The screen-space pass both <see cref="Draw"/> and <see cref="DrawScene"/> run (in 3-D only the layers with a 3-D path).</summary>
+        private void DrawOverlays(RenderContext ctx, bool sceneOnly)
+        {
+            foreach (var layer in _layers)
+            {
+                if (!IsLayerVisible(layer) || (sceneOnly && layer is not ISceneLayer)) continue;
+                if (Camera.Is3D && !layer.Has3D) continue;
+                layer.DrawOverlay(ctx);
+            }
+        }
+
+        private RenderContext NewContext(bool film) => new()
+        {
+            Zoom              = Camera.Zoom,
+            MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
+            DeltaTime         = GetFrameTime(),
+            VisibleLayersMask = ActiveLayerMask,
+            Resources         = this,
+            DrawBuilder       = DrawBuffer,
+            Film              = film,
+        };
+
+        /// <summary>The 2-D layer pass (0 → N, bottom to top) both <see cref="Draw"/> and <see cref="DrawScene"/> run (one loop).</summary>
+        private RenderContext DrawLayers2D(bool sceneOnly)
+        {
+            Camera.BeginMode();
+            var ctx = NewContext(sceneOnly);
+            foreach (var layer in _layers)
+                if (IsLayerVisible(layer) && (!sceneOnly || layer is ISceneLayer)) layer.Draw(ctx);
+            Camera.EndMode();
+            return ctx;
+        }
+
+        /// <summary>The 3-D layer pass both <see cref="Draw"/> and <see cref="DrawScene"/> run (one loop).</summary>
         private RenderContext DrawLayers3D(bool sceneOnly)
         {
             Camera.BeginMode();
-            var ctx = new RenderContext
-            {
-                Zoom              = Camera.Zoom,
-                MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
-                DeltaTime         = GetFrameTime(),
-                VisibleLayersMask = ActiveLayerMask,
-                Resources         = this,
-                DrawBuilder       = DrawBuffer
-            };
+            var ctx = NewContext(sceneOnly);
             int without = 0;
             foreach (var layer in _layers)
             {

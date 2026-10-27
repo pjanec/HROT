@@ -654,6 +654,56 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Contains(sink.Overlays, o => o.Graphics.Count == 0 && o.Subtitle?.Text == "Contact");   // 0.5–0.6 and 1.2–1.5: the subtitle alone
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t V7, "CE-1380 / CE-1379 as built") — a film that ENDS in 2-D gives the person the map
+    /// mode they had before it: the person works in 3-D, the take's View track holds the 2-D map, and when the film ends — and again when a second run is
+    /// STOPPED half way — the map on screen (a real <see cref="FilmCaptureLayer"/> over a headless map) is 3-D again, through the one switch. 🔴 Mutation:
+    /// <c>FilmCaptureLayer.Direct</c> not restoring <c>_personsMap</c> on release ⇒ the map stays 2-D ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_AFilmEndingIn2D_GivesThePersonTheirMapModeBack_AtItsEnd_AndOnStop()
+    {
+        var store = Store();
+        store.Save(new Take
+        {
+            Scenario = "s-a", Name = "v2d", TickHz = 60, EndAt = new AtExpr(1.5),
+            Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { Follow = "Runner", Distance = 40 } } },
+            Views = new[] { new ViewChange { At = new AtExpr(0), TwoD = true } },
+        });
+        var host = new FakeEditor(store);
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var view = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+        using var film = new FilmCaptureLayer(canvas, view, () => host.Repo);
+        view.Set(true, animate: false);                                                  // the person works in the 3-D map
+        Assert.True(view.Is3D);
+
+        (bool SawTwoD, bool StoppedHalfWay) Play(bool stop)
+        {
+            var runner = new DirectorRunner(host, new Cinema(), new Layers());
+            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "v2d"))));
+            bool sawTwoD = false, stopped = false;
+            for (int f = 0; f < 20000 && (runner.Busy || view.IsSwitching || f < 3); f++)
+            {
+                runner.Tick();
+                film.Update(1f / 60f);
+                view.Camera3D.Update(1f / 60f);                                           // the switch animates through the camera's update
+                if (runner.Phase == DirectorPhase.Playing && !view.Is3D && !view.IsSwitching) sawTwoD = true;
+                if (stop && sawTwoD && !stopped) { runner.Stop(); stopped = true; }
+                host.EndFrame();
+            }
+            for (int f = 0; f < 120; f++) { film.Update(1f / 60f); view.Camera3D.Update(1f / 60f); }   // a switch still landing lands
+            return (sawTwoD, stopped);
+        }
+
+        var ended = Play(stop: false);
+        Assert.True(ended.SawTwoD, "anti-vacuity: the film held the 2-D map");
+        Assert.True(view.Is3D, "the film's end gives the person's 3-D map back");
+
+        var halted = Play(stop: true);
+        Assert.True(halted.SawTwoD && halted.StoppedHalfWay, "anti-vacuity: stopped while the film held the 2-D map");
+        Assert.True(view.Is3D, "Stop gives the person's 3-D map back");
+    }
+
     /// <summary>B8 — capture: one frame per film frame of each shot (30 fps, so every other 60 Hz step), card frames before each item, one
     /// step per rendered frame still; nothing is held to real time.</summary>
     [Fact]
