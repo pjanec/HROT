@@ -181,37 +181,7 @@ public sealed class CodeBuiltTreeLayoutTests
 
     // ───────────────────────── ⭐ CE-1367 — the drawn rectangles, as the canvas sizes them ─────────────────────────
 
-    /// <summary>One node's drawn rectangles (body + each pill), sized by <see cref="NodeSizing"/> — the code <c>CanvasLayoutBuilder</c> sizes with.</summary>
-    private static List<(string Who, int Owner, Vector2 Min, Vector2 Max)> DrawnRects(BehaviorTreeAsset t, Func<string, float> measure, float header)
-    {
-        var rects = new List<(string, int, Vector2, Vector2)>();
-        for (int i = 0; i < t.Nodes.Count; i++)
-        {
-            var n = t.Nodes[i];
-            var pills = t.Pills.Where(p => p.HostNodeVisualId == n.VisualId).Select(p => (IAttachmentModel)new BTreePillAttachmentModel(p)).ToList();
-            var d = NodeSizing.Measure(new BTreeNodeModel(n, NodeState.Normal, null), pills, PinOrientation.Vertical, header, measure, _ => 0f);
-            string who = string.IsNullOrEmpty(n.DisplayLabel) ? n.KernelType.ToString() : n.DisplayLabel;
-            rects.Add((who, i, n.Position, n.Position + new Vector2(d.Width, d.Height)));
-            foreach (var pl in d.Pills.Placements.Values)
-                rects.Add(("pill of " + who, i, n.Position + pl.TopLeft, n.Position + pl.TopLeft + pl.Size));
-        }
-        return rects;
-    }
-
-    private static int OverlappingPairs(List<(string Who, int Owner, Vector2 Min, Vector2 Max)> r, out string first)
-    {
-        int pairs = 0; first = "";
-        for (int a = 0; a < r.Count; a++)
-            for (int b = a + 1; b < r.Count; b++)
-            {
-                if (r[a].Owner == r[b].Owner) continue;
-                if (r[a].Min.X < r[b].Max.X && r[b].Min.X < r[a].Max.X && r[a].Min.Y < r[b].Max.Y && r[b].Min.Y < r[a].Max.Y)
-                { pairs++; if (first == "") first = $"'{r[a].Who}' x '{r[b].Who}'"; }
-            }
-        return pairs;
-    }
-
-    private static T WithImGuiFont<T>(Func<Func<string, float>, T> body)
+    internal static T WithImGuiFont<T>(Func<Func<string, float>, T> body)
     {
         var ctx = ImGui.CreateContext();
         ImGui.SetCurrentContext(ctx);
@@ -253,7 +223,7 @@ public sealed class CodeBuiltTreeLayoutTests
             foreach (var t in trees)
             {
                 Hrot.BTree.Editor.Layout.BTreeAutoLayout.Layout(t, measure, header);
-                int pairs = OverlappingPairs(DrawnRects(t, measure, header), out var first);
+                int pairs = Hrot.BTree.Editor.Layout.BTreeLayoutCheck.OverlappingPairs(t, measure, header, out var first);   // CE-1368 - the production measure
                 lines.Add((pairs, $"{t.Name}: {t.Nodes.Count} nodes, {t.Pills.Count} pills, {pairs} overlapping pairs {first}"));
             }
             return lines;

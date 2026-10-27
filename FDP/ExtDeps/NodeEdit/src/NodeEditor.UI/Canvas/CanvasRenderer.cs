@@ -685,6 +685,14 @@ public sealed class CanvasRenderer
                 {
                     view.Viewport.Reset();
                 }
+
+                // ⭐ CE-1368 — the host's own empty-canvas items (the BTree editor's "Reset layout")
+                var canvasItems = view.Host.CanvasContextMenu?.GetItems();
+                if (canvasItems is { Count: > 0 })
+                {
+                    ImGui.Separator();
+                    RenderItems(canvasItems);
+                }
                 break;
             }
 

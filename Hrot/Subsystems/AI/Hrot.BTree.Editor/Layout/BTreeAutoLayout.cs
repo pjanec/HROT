@@ -51,8 +51,7 @@ public static class BTreeAutoLayout
         //   spaced a node one node-width after its left sibling, ignoring how wide the sibling's SUBTREE was — measured on the C#-built
         //   PersonAttack: 48 nodes in 42 places (whole branches drawn on top of each other).
         var top = nodeMap[root.VisualId];
-        var pillsOf = asset.Pills.GroupBy(p => p.HostNodeVisualId).ToDictionary(g => g.Key, g => (IReadOnlyList<IAttachmentModel>)g.Select(p => (IAttachmentModel)new BTreePillAttachmentModel(p)).ToList());
-        Width(top, new Sizer(measureTitle, headerHeight, pillsOf));
+        Width(top, SizerFor(asset, measureTitle, headerHeight));
         Place(top, 0f, 0f);
     }
 
@@ -67,7 +66,7 @@ public static class BTreeAutoLayout
 
     /// <summary>What the canvas draws for a node — ⭐ CE-1367: asked of <see cref="NodeSizing"/>, the implementation <c>CanvasLayoutBuilder</c> itself
     /// sizes every node with (title width, pin widths, header + pin rows, the pills above), not a second estimate.</summary>
-    private sealed class Sizer
+    internal sealed class Sizer
     {
         private readonly Func<string, float> _measure;
         private readonly float _header;
@@ -79,6 +78,13 @@ public static class BTreeAutoLayout
             => NodeSizing.Measure(new BTreeNodeModel(node, NodeState.Normal, null),
                 _pills.TryGetValue(node.VisualId, out var p) ? p : Array.Empty<IAttachmentModel>(),
                 PinOrientation.Vertical, _header, _measure, _ => 0f);
+    }
+
+    /// <summary>⭐ CE-1368 — the one sizer for <paramref name="asset"/>'s nodes and pills; <see cref="BTreeLayoutCheck"/> measures the drawn rectangles with it too.</summary>
+    internal static Sizer SizerFor(BehaviorTreeAsset asset, Func<string, float>? measureTitle, float headerHeight)
+    {
+        var pillsOf = asset.Pills.GroupBy(p => p.HostNodeVisualId).ToDictionary(g => g.Key, g => (IReadOnlyList<IAttachmentModel>)g.Select(p => (IAttachmentModel)new BTreePillAttachmentModel(p)).ToList());
+        return new Sizer(measureTitle, headerHeight, pillsOf);
     }
 
     /// <summary>How wide the canvas draws <paramref name="node"/> (its body, from its title, as <see cref="NodeSizing"/> measures it).</summary>

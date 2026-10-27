@@ -277,9 +277,19 @@ Parameters:
 
 Auto-layout runs only on opening an asset with missing layout entries. Once positions are persisted, they're authoritative.
 
-A "Reset layout" toolbar action re-runs tidy-tree across the whole tree, ignoring stored positions. Used when an asset has drifted into mess via hand-edits or merge conflicts.
+A "Reset layout" action re-runs tidy-tree across the whole tree, ignoring stored positions. Used when an asset has drifted into mess via hand-edits or merge conflicts. ✅ **BUILT `2026-10-27` ([CE-1368](Blueprint_Issues_Tracker.md))** as an item on the EMPTY-canvas right-click menu (see the AS-BUILT block below), not a toolbar button.
 
 > ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1273](Blueprint_Issues_Tracker.md))** — `BTreeAutoLayout` is **subtree-width placement**: each subtree gets a span as wide as its leaves need (`160 + 40` per leaf), its children side by side inside it, the parent centred over them. Overlap-free by construction. Two measured faults fixed: ① a **C#-built** tree (`BTreeBuilder.Compile`) has **no `Root` node**, and the layout gave up ⇒ every node at (0, 0) — the top is now the node no other node lists as a child; ② the "simplified Walker" spaced a node one node-width after its left sibling, ignoring the sibling's **subtree** width ⇒ `PersonAttack`: 48 nodes in 42 places. Rail: `CodeBuiltTreeLayoutTests.CE1273_EveryCodeBuiltTree_HasOnePlacePerNode` (every code-built tree in `Hrot.AI.Behaviors`). ⛔ SUPERSEDED above: "Reingold-Tilford".
+
+> ⭐ **AS-BUILT `2026-10-27` (ui, [CE-1368](Blueprint_Issues_Tracker.md)) — a STORED layout that overlaps is tidied on open; "Reset layout" is built.** 🔒 User: *"the nodes still overlap so on opening a bit more complex btree it is just a big mess … Take a look at BasicSquadSop"* — the editor opens the JSON asset (it wins the `AssetId` collision, [AiAssetCatalogBuilder](../../Hrot/Editor/Hrot.Editor.AiShared/Catalog/AiAssetCatalogBuilder.cs)) and its authored `EditorMetadata.X/Y` were never touched by the auto layout.
+>
+> | what | rule |
+> |---|---|
+> | ⭐ ONE overlap measure | `BTreeLayoutCheck.OverlappingPairs` — the DRAWN rectangles (body AND pills) sized by `BTreeAutoLayout.SizerFor` ⇒ `NodeSizing`, the canvas's own. The CE-1367 rail, the open path and Reset layout all call it |
+> | ⭐ open path | `BTreeDocumentFactory.Build`, once per asset instance (`LaidOutWithFont`): an auto-laid-out tree is laid out again (CE-1360); a stored (JSON) layout is tidied by `BTreeLayoutCheck.RelayIfOverlapping` ONLY when two drawn rectangles overlap. **In memory, never `MarkDirty`** (saved only if the author saves). A layout with 0 overlaps is left exactly as authored. ⛔ No `*.btree.json` on disk is rewritten |
+> | ⭐ Reset layout | empty-canvas right-click item, via the new NodeEditor `ICanvasContextMenuProvider` (`IEditorHostServices.CanvasContextMenu`) and `BTreeCanvasContextMenuProvider`: one `MoveNodes` through `GraphView.Execute` ⇒ undoable; the sink then does what it does for a drag — **dirty** on a writable asset, **view state** (CE-1275, never dirty) on a code-built one |
+>
+> Rails `Ce1368OpenAndResetLayoutTests` (`CE1368_*`). ⛔ SUPERSEDED above: "toolbar action".
 
 > ⭐ **AS-BUILT `2026-10-25` (ui, [CE-1344 / CE-1345](Blueprint_Issues_Tracker.md)) — supersedes the flat 160 px above.** A node is as wide as
 > its TITLE (`BTreeAutoLayout.WidthOf`: 7.5 px a character + 48, at least 160 — what `CanvasLayout` draws), and a parent with more than three

@@ -137,6 +137,23 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
 
     INodeContextMenuProvider? IEditorHostServices.NodeContextMenu => _nodeContextMenuProvider;
 
+    // ---- Canvas context menu (⭐ CE-1368 "Reset layout") ───────────────────
+
+    private BTreeCanvasContextMenuProvider? _canvasContextMenuProvider;
+
+    /// <summary>Wires the empty-canvas menu ("Reset layout"). <paramref name="measure"/> is the canvas font's text width.</summary>
+    public void SetCanvasContextMenuProvider(IGraphCommandSink sink, BehaviorTreeAsset asset, Func<string, float> measure, Func<float> headerHeight)
+        => _canvasContextMenuProvider = new BTreeCanvasContextMenuProvider(asset, sink, measure, headerHeight);
+
+    /// <summary>Routes "Reset layout" through the view's undo stack; call after the <see cref="GraphView"/> exists.</summary>
+    public void SetCanvasContextMenuRecorder(GraphView view)
+    {
+        if (_canvasContextMenuProvider != null)
+            _canvasContextMenuProvider.Recorder = (fwd, inv, label) => view.Execute(fwd, inv, label);
+    }
+
+    ICanvasContextMenuProvider? IEditorHostServices.CanvasContextMenu => _canvasContextMenuProvider;
+
     // ---- Breakpoint toggle (AIE-033) ─────────────────────────────────────────
 
     /// <summary>
