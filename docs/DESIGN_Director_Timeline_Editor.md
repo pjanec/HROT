@@ -1447,6 +1447,15 @@ sequenceDiagram
 
 ⭐ **Parallel from the start:** P0 (backend) and CR-1 (coordinator). ⭐ **Tracker:** P0 = **CE-4058** (backend) · CR-1 = **CE-4061** (coordinator) · P1 + P2 ⊂ **CE-1303** (ui) · P3 = **CE-4059** (ui routes + coordinator drafter) · P4 + View ⊂ **CE-1304** (ui) · P5 = **CE-4060** (coordinator) · P6 ⊂ **CE-1305 / CE-1306** (ui).
 
+⭐ **P3 step — `/director/*` on the Replay Browser, BUILT `2026-10-27` (coordinator; 🔒 user: *"if its one call feel free to do it yourself"*).**
+The Replay Browser serves the SAME debug host as every node (`DebugApiHost`, R-4081), so no route was written: `DirectorPack.LayerControl` +
+one `DebugApiHost.AttachDirector(DirectorPack)` (the editor uses it too, in place of three arguments) + `IProvidesDirector` on
+`ReplayBrowserSubsystem`, which the runner attaches (`ClusterDebugApiComposition.Director`, `Program.cs`). Every `/director/*` and `/map/layers`
+route now answers on the RB over ITS director and the takes beside the open recording. 📐 Live: `--mode replaybrowser --headless` ⇒
+`GET /director/status` 200 (Idle), `GET /director/takes` 200 (no recording open: empty). Rail `ReplayBrowserSubsystemTests.CE1303_P3_*`
+(503 "no film director" before the attach — the red — 200 after). ⏭ Still P3's: `recording=` on the routes (TE-15; today the open recording
+is the one — `POST /replay` opens it), `/director/draft`, `/director/stills`, MP4.
+
 ### 11g. Claim table — what the plan rests on
 
 | the plan rests on | code — how it IS | design — how it was MEANT |

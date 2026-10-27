@@ -34,6 +34,10 @@ internal static class ClusterDebugApiComposition
             acksPending: orchestrator is null ? null : () => orchestrator.IsAwaitingStepAcks);
     }
 
+    /// <summary>⭐ <c>CE-1303</c> P3 — the film director of the subsystem that owns one (the Replay Browser), or null.</summary>
+    public static Hrot.UI.Common.Map3D.Director.DirectorPack? Director(IEnumerable<object> subsystems)
+        => subsystems.OfType<Hrot.UI.Common.Map3D.Director.IProvidesDirector>().Select(s => s.Director).FirstOrDefault(d => d is not null);
+
     /// <summary>
     /// ⭐ <c>CE-169</c> — the node's behaviour registry. A node with no CGF genuinely has none, and the routes say so
     /// rather than fabricating an empty one.

@@ -514,6 +514,8 @@ class Program
                     entityCreation: ClusterDebugApiComposition.EntityCreation(subsystems),
                     aiDebugSurface: aiDebugSurfaceGetter);
                 clusterApiHost.AttachService(clusterApiService);
+                // ⭐ CE-1303 P3 — /director/* on the host that has a director (the Replay Browser's; the editor attaches its own host)
+                if (ClusterDebugApiComposition.Director(subsystems) is { } directorPack) clusterApiHost.AttachDirector(directorPack);
                 clusterApiHost.Start();
 
                 FdpLog<Program>.Info(

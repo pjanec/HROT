@@ -69,6 +69,48 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.DoesNotContain("new Fdp.Toolkit.Replication.ReplicationTimelineLanes()", text);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P3 (docs/DESIGN_Director_Timeline_Editor.md §11j) — the Replay Browser's film director answers the SAME debug routes as the
+    /// editor's, through the one <c>DebugApiHost.AttachDirector(DirectorPack)</c> the runner calls for any <see cref="IProvidesDirector"/>: a real
+    /// host on a port says "no film director" (503) until the browser's pack is attached, then <c>GET /director/status</c> is the browser
+    /// runner's status (200, idle) — ⛔ no Replay Browser route code. 🔴 Red-proof: the ① half IS the red (no attach ⇒ 503).
+    /// </summary>
+    [Fact]
+    public async Task CE1303_P3_TheReplayBrowsersDirector_AnswersTheSharedDirectorRoutes()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var pack = ((Hrot.UI.Common.Map3D.Director.IProvidesDirector)_subsystem).Director;
+        Assert.NotNull(pack);
+
+        int port;
+        using (var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0)) { probe.Start(); port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port; probe.Stop(); }
+        var queue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+        using var host = new Hrot.Editor.DebugApi.DebugApiHost(port, queue, () => { });
+        // the service as the runner composes it (ClusterDebugApiComposition): a dispatcher over the browser's own debug provider
+        var provider = ((Hrot.Presentation.DebugApi.IProvidesDebugSurface)_subsystem).CreateDebugProvider()!;
+        host.AttachService(new Hrot.Editor.DebugApi.DebugApiService(
+            new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(new[] { provider }, () => "ReplayBrowser", acksPending: null)));
+        host.Start();
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        async Task<(int Code, string Body)> Get(string route)
+        {
+            var call = http.GetAsync($"http://localhost:{port}{route}");
+            while (!call.IsCompleted) { queue.DrainAll(); await Task.Delay(5); }   // the routes run on the "main thread": this one
+            var r = await call;
+            return ((int)r.StatusCode, await r.Content.ReadAsStringAsync());
+        }
+
+        var (before, beforeBody) = await Get("/director/status");                 // ① no director attached
+        Assert.Equal(503, before);
+        Assert.Contains("no film director", beforeBody);
+
+        host.AttachDirector(pack!);                                                // ② the browser's pack, as the runner attaches it
+        var (after, afterBody) = await Get("/director/status");
+        Assert.True(after == 200, afterBody);
+        Assert.Contains("\"phase\"", afterBody);
+        Assert.Same(pack!.Runner, _subsystem.Director!.Runner);                   // the one the browser ticks and its window drives
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private static SubsystemConfig HeadlessConfig() => new SubsystemConfig
