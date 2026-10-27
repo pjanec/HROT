@@ -1388,6 +1388,58 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
     // ── CE-1303 P2a (docs/DESIGN_Director_Timeline_Editor.md §11m) — the ONE film director, in the Replay Browser, over a recording ──────────
 
+    /// <summary>
+    /// ⭐⭐ CE-4064 (DESIGN_Replay_Time_Axis_And_Review §4 "a sim step") — on the SIM axis a step, and play, never land inside a paused
+    /// stretch: from the last frame before a 30-frame pause the step goes to the first frame after it, in one move. On the WALL axis a step
+    /// is still one recorded frame. 🔴 Before: one recorded frame on both axes — 84 steps covered 0.28 s of sim.
+    /// </summary>
+    [Fact]
+    public void CE4064_On_the_sim_axis_a_step_and_play_skip_a_paused_stretch_on_the_wall_axis_a_step_is_one_frame()
+    {
+        string dir = Path.Combine(_tempDir, "paused-run");
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, "node_1.fdp");
+        using (var repo = new EntityRepository())
+        {
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            long t0 = TimeSpan.FromSeconds(1).Ticks;
+            repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0d });
+            rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
+            for (int f = 1; f <= 90; f++)   // frames 31..60 are a pause: the clock stands at 0.5 s
+            {
+                double sim = f <= 30 ? f / 60d : f <= 60 ? 0.5 : (f - 30) / 60d;
+                repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = sim, DeltaTime = f > 30 && f <= 60 ? 0f : 1f / 60f, TimeScale = 1f });
+                rec.CaptureFrame(repo, (uint)(f - 1), t0 + f * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+            }
+        }
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var provider = _subsystem.CreateDebugProvider()!;
+        Assert.Null(provider.ReplayBrowser!.Open(new[] { path }, 0));
+        void At(int frame) => provider.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = frame * TimeSpan.TicksPerSecond / 60 });
+
+        Assert.Equal(Fdp.Toolkit.Orchestration.ReplayAxis.Sim, _subsystem.Axis);   // the default
+        At(30);
+        Assert.Equal(30, _subsystem.PrimaryNodeCurrentFrame());
+        provider.Drive!.Step();
+        Assert.Equal(61, _subsystem.PrimaryNodeCurrentFrame());                 // ⭐ the whole pause in one step
+        provider.Drive.Step();
+        Assert.Equal(62, _subsystem.PrimaryNodeCurrentFrame());                 // and an ordinary frame after it
+
+        At(30);
+        provider.Drive.TogglePlayPause();
+        _subsystem.Update(1f / 60f);                                            // one frame of play
+        Assert.Equal(61, _subsystem.PrimaryNodeCurrentFrame());                 // ⭐ play collapses the pause too
+        if (!provider.Drive.IsPaused) provider.Drive.TogglePlayPause();
+
+        _subsystem.Axis = Fdp.Toolkit.Orchestration.ReplayAxis.Wall;
+        At(30);
+        provider.Drive.Step();
+        Assert.Equal(31, _subsystem.PrimaryNodeCurrentFrame());                 // the wall axis steps every recorded frame
+    }
+
     private static readonly Vector3 Key1At = new(10f, 0f, 0f), Key2At = new(0f, 30f, 0f);
 
     /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the

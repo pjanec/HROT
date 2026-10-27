@@ -164,7 +164,33 @@ public static class CuratedScenarios
             var rel = Path.GetRelativePath(src, file);
             var target = Path.Combine(dst, rel);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(file, target, overwrite: true);
+            ReplaceIfDifferent(file, target);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1365 — the working root is SHARED (every editor and test host on the machine seeds the same one), so a copy must never be
+    /// seen half-written: identical bytes are left alone, anything else is written to a unique temp file beside the target and RENAMED
+    /// over it (atomic on one volume). ⛔ Was <c>File.Copy(overwrite)</c> in place — two parallel seeds raced on <c>golden.json</c> and a
+    /// reader between them read a truncated file.
+    /// </summary>
+    private static void ReplaceIfDifferent(string source, string target)
+    {
+        var bytes = File.ReadAllBytes(source);
+        try
+        {
+            if (File.Exists(target) && File.ReadAllBytes(target).AsSpan().SequenceEqual(bytes)) return;
+        }
+        catch (IOException) { /* being replaced right now — write our own copy below */ }
+        var temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllBytes(temp, bytes);
+            File.Move(temp, target, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
         }
     }
 }

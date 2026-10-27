@@ -1460,3 +1460,12 @@ paused frames to settle (a two-phase hand-over) is not waited for — none measu
 Rails: `EveryIngressTranslatorCanDiscardRail` (`Hrot.ClusterRunner.Tests`) · `TheFrozenWorldStillHearsItsResumeTests.CE3329_W5_TheReleasedExitDropsTheReplayEraState_ThenIngressResumes` (real DDS) · `EcsRecordReplayControllerTests.CE3329_W5_TheIngressStaysGatedFromTheTeardownUntilTheRelease_WhichDiscardsOnce` ·
 `ReferenceHandlerTests.CE3329_F6_The_entry_quiesces_so_what_was_in_flight_lands_in_the_live_point` + the review round trip asserting the
 release.
+
+### 12v. ✅ FIXED `2026-10-27` — the Replay Browser's step and play on the Sim axis (CE-4064)
+
+📐 The coordinator measured it (Film Production §6a): 84 steps from 3.0 s reached 3.28 s — every recorded frame was a step, paused ones
+included, against §4's *"a sim step … never lands inside a stretch"*. ⭐ `ReplayBrowserSubsystem.TryStepForwardViaManager` — the ONE
+forward move behind the step button, `/sim/step` and play — on the Sim axis goes to the next frame whose recorded sim time is later
+(`NextFrameWhoseSimMoves`), in one seek when that is more than one frame away; a v6 recording (no sim time) steps one frame; paused to the
+end ⇒ no move. The Wall axis is unchanged. Rail: `ReplayBrowserSubsystemTests.CE4064_On_the_sim_axis_a_step_and_play_skip_a_paused_stretch_on_the_wall_axis_a_step_is_one_frame`
+(red with the jump disabled). ⚠ Not addressed: single-step HTTP calls sent faster than frames were partly dropped.

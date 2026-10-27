@@ -1177,8 +1177,35 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         if (!_manager.Contexts.TryGetValue(nodeId, out var ctx) || ctx.Playback == null) return false;
         int nextFrame = ctx.CurrentFrame + 1;
         if (nextFrame >= ctx.Playback.TotalFrames) return false;
+        // ⭐ CE-4064 (DESIGN_Replay_Time_Axis_And_Review §4 "a sim step") — on the Sim axis a step never lands inside a paused stretch: it
+        //   goes to the next frame whose sim time moved, in one seek, so play and the step button collapse a pause to an instant.
+        //   ⛔ Was: one recorded frame — 84 steps from 3.0 s reached 3.28 s on a recording with ~4 paused frames per sim step.
+        if (Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim)
+        {
+            int target = NextFrameWhoseSimMoves(ctx.Playback, ctx.CurrentFrame);
+            if (target < 0) return false;   // paused to the end: nothing on the sim axis is left
+            if (target > nextFrame)
+            {
+                _manager.SetBaseWallTicks(ctx.Playback.GetFrameMetadata(target).WallClockTicks);
+                return true;
+            }
+        }
         _manager.StepForwardAll();
         return true;
+    }
+
+    /// <summary>⭐ CE-4064 — the first frame after <paramref name="frame"/> whose recorded sim time is later; the next frame when the recording
+    /// has no sim time (v6); -1 when the sim time never moves again.</summary>
+    internal static int NextFrameWhoseSimMoves(Fdp.Core.FlightRecorder.PlaybackController playback, int frame)
+    {
+        double sim = playback.GetFrameMetadata(frame).SimTime;
+        if (double.IsNaN(sim)) return frame + 1 < playback.TotalFrames ? frame + 1 : -1;
+        for (int i = frame + 1; i < playback.TotalFrames; i++)
+        {
+            double next = playback.GetFrameMetadata(i).SimTime;
+            if (double.IsNaN(next) || next > sim) return i;
+        }
+        return -1;
     }
 
     private void SeekFrameViaManager(int frame)

@@ -53,14 +53,34 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
     public int Spawned { get; private set; }
 
+    /// <summary>
+    /// ⭐ CE-1171 (People Display §5 U10) — a blow struck (backend CE-3266, G3): the striker's swing is drawn by the 3-D bodies, and
+    /// (CE-1215, §8j H-1, H-2) a blow is a hit too: the striker's marker, the arc toward him on the one struck.
+    /// ⭐ CE-4062 — presentation memory only (no entity, no world write), so it runs in a REPLAY as well: the recorded
+    /// <c>StrikeNotification</c> is replayed onto the bus with each played or stepped frame. ⛔ Was inside the spawner's replay gate, so a
+    /// replay never drew a swing.
+    /// </summary>
+    private static void TrackStrikes(ISimulationView view, EntityRepository world, double now)
+    {
+        if (!world.Bus.IsRegistered<Fdp.Toolkit.Combat.StrikeNotification>()) return;
+        foreach (ref readonly var strike in view.ReadEvents<Fdp.Toolkit.Combat.StrikeNotification>())
+        {
+            if (strike.Striker != Entity.Null) StrikeTracker.In(world).Record(strike.Striker, strike.Weapon, now);
+            if (strike.Target != Entity.Null && view.IsAlive(strike.Target) && view.HasComponent<SimTransform>(strike.Target))
+                HitFeedback.In(world).Record(strike.Striker, strike.Target, view.GetComponentRO<SimTransform>(strike.Target).Position,
+                                             Vector3.Zero, 0f, now);
+        }
+    }
+
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
+        double now = SimClock.Of(world).TotalTime;
+        TrackStrikes(view, world, now);   // ⭐ CE-4062 — BEFORE the replay gate: a replay's blows are drawn too
         if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) return;   // ⭐ CE-3329 P2 — the world says it is a replay
         var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
         var cmd = view.GetCommandBuffer();
-        double now = SimClock.Of(world).TotalTime;
         Housekeep(world, cmd, tkb);
         MoveDecoys(world, now);   // ⭐ CE-1115
 
@@ -112,17 +132,6 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 //   stays registered, so recordings made before this still draw theirs.
             }
         }
-
-        // ⭐ CE-1171 (People Display §5 U10) — a blow struck (backend CE-3266, G3): the striker's swing is drawn by the 3-D bodies
-        if (world.Bus.IsRegistered<Fdp.Toolkit.Combat.StrikeNotification>())
-            foreach (ref readonly var strike in view.ReadEvents<Fdp.Toolkit.Combat.StrikeNotification>())
-            {
-                if (strike.Striker != Entity.Null) StrikeTracker.In(world).Record(strike.Striker, strike.Weapon, now);
-                // ⭐ CE-1215 (§8j H-1, H-2) — a blow is a hit too: the striker's marker, the arc toward him on the one struck
-                if (strike.Target != Entity.Null && view.IsAlive(strike.Target) && view.HasComponent<SimTransform>(strike.Target))
-                    HitFeedback.In(world).Record(strike.Striker, strike.Target, view.GetComponentRO<SimTransform>(strike.Target).Position,
-                                                 Vector3.Zero, 0f, now);
-            }
 
         ImpactsDrawn = 0;
         InertLandings = 0;
