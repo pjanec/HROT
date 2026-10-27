@@ -20,6 +20,7 @@ namespace Hrot.Editor.DebugApi
         private Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?>? _layerControl;
         private DirectorDrafts? _drafts;
         private DirectorStills? _stills;
+        private TakePromotion? _promotion;
         /// <summary>⭐ CE-4042 — verifies run in a FRESH child process (<c>{fresh: true}</c>).</summary>
         private readonly FreshVerifyJobs _freshVerify = new();
 
@@ -27,10 +28,11 @@ namespace Hrot.Editor.DebugApi
         /// ⭐ CE-4059 (§11q) — and the pack's drafter (<c>/director/moments</c>, <c>/director/draft</c>; null: those answer 503); ⭐ §11r — and its
         /// stills (<c>/director/stills</c>; null: 503).</summary>
         public void AttachDirector(DirectorRunner director, TakeStore takes, Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl,
-                                   DirectorDrafts? drafts = null, DirectorStills? stills = null)
+                                   DirectorDrafts? drafts = null, DirectorStills? stills = null, TakePromotion? promotion = null)
         {
             _drafts = drafts;
             _stills = stills;
+            _promotion = promotion;
             _director = director ?? throw new ArgumentNullException(nameof(director));
             _takes = takes ?? throw new ArgumentNullException(nameof(takes));
             _layerControl = layerControl ?? throw new ArgumentNullException(nameof(layerControl));
@@ -41,7 +43,7 @@ namespace Hrot.Editor.DebugApi
         public void AttachDirector(DirectorPack pack)
         {
             if (pack == null) throw new ArgumentNullException(nameof(pack));
-            AttachDirector(pack.Runner, pack.Takes, pack.LayerControl, pack.Drafts, pack.Stills);   // ⭐ CE-4059 — the drafter and the stills too, on every host
+            AttachDirector(pack.Runner, pack.Takes, pack.LayerControl, pack.Drafts, pack.Stills, pack.Promotion);   // ⭐ CE-4059 / CE-1304 — drafter, stills, promote: every host
         }
 
         private const string NoDirector = "This host has no film director (the editor and the Replay Browser have one).";
@@ -93,6 +95,8 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-4059 P3 (§11r) — a take's stills + its contact sheet (a host that seeks, with a renderer); by default answered when done
             _routes.Add(new("POST", "/director/stills", DirectorStillsRoute));
             _routes.Add(new("GET", "/director/stills", _ => Main(() => _stills is { } st ? Ok(st.Status()) : Fail(503, NoDirector))));
+            // ⭐ CE-1304 P4 (§11s) — promote: a recording's take copied into its scenario's own takes
+            _routes.Add(new("POST", "/director/promote", ctx => Main(() => OpenRecording(ctx.Body?["recording"]) ?? DirectorPromote(ctx.Body))));
             // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md) — the scenario regression check: author a scenario's checks, verify it
             _routes.Add(new("GET", "/director/checks/{scenario}", ctx => Main(() => ChecksRead(ctx.RouteValue("scenario")!))));
             _routes.Add(new("PUT", "/director/checks/{scenario}", ctx => Main(() => ChecksWrite(ctx.RouteValue("scenario")!, ctx.Body))));
@@ -194,6 +198,35 @@ namespace Hrot.Editor.DebugApi
                 ["scenario"] = take.Scenario, ["take"] = take.Name, ["opened"] = true, ["saved"] = false,
                 ["keys"] = take.Keys.Count, ["segments"] = take.Segments.Count,
                 ["json"] = TakeJson.WriteTake(take),
+            });
+        }
+
+        // ── ⭐ CE-1304 P4 (§11s) — promote ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// <c>POST /director/promote {take, scenario?, recording?, overwrite?}</c> — the take beside the open recording (or <c>recording=</c>, opened first) copied into
+        /// its scenario's own takes. 404 no such take · 409 the scenario already has one of that name (unless <c>overwrite:true</c>) or it has unsaved edits ·
+        /// 400 nothing to promote to (a host whose takes are the scenario's: the editor) or nothing named.
+        /// </summary>
+        private RouteResult DirectorPromote(JsonNode? body)
+        {
+            if (_promotion is not { } promotion) return Fail(503, NoDirector);
+            var take = body?["take"]?.ToString();
+            if (string.IsNullOrWhiteSpace(take)) return Fail(400, "name the take: {take, scenario?, recording?, overwrite?}");
+            bool overwrite = body?["overwrite"] is JsonValue o && o.TryGetValue<bool>(out var ob) && ob;
+            if (!promotion.Available)
+                return Fail(400, "nothing to promote to: this host's takes are the scenario's own (promote copies a RECORDING's take: the Replay Browser, with the recording open or recording=)");
+            var r = promotion.Promote(body?["scenario"]?.ToString(), take!, overwrite);
+            if (!r.Written)
+            {
+                var why = string.Join("; ", r.Problems);
+                int status = r.Conflict || why.Contains("unsaved", StringComparison.Ordinal) ? 409 : why.StartsWith("no take", StringComparison.Ordinal) ? 404 : 400;
+                return Fail(status, why);
+            }
+            return Ok(new JsonObject
+            {
+                ["promoted"] = true, ["from"] = r.From, ["to"] = r.To, ["overwrote"] = r.Overwrote, ["bake"] = r.Bake,
+                ["fixedKeys"] = new JsonArray(r.FixedKeys.Select(k => (JsonNode?)k).ToArray()),
             });
         }
 

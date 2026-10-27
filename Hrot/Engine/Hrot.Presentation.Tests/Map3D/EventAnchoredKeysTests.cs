@@ -184,4 +184,34 @@ public sealed class EventAnchoredKeysTests : IDisposable
         Assert.Null(editor.Take.Baked);
         Assert.Single(editor.Take.Keys);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1304</c> P4 — CR-5 (§11s D2): the ONE naming switch, both ways. Every event K can name (<see cref="EventAnchors.Of"/>) is found AGAIN by the resolver
+    /// (<see cref="EventAnchors.TimeOf"/>) at its own sim time — per-shooter ordinals, the global blast ordinal, a unit's first strike — and a blast that STRUCK a unit
+    /// (<c>Other</c>) is its first strike, so the later <c>combat.hit</c> on it is not offered. Events before <c>since</c> (a live run's start) are not this run's.
+    /// 🔴 Mutation: <c>TimeOf</c> counting every shooter's rounds for <c>shot</c> (the <c>By</c> filter dropped) ⇒ <c>shot:Tank#2</c> resolves to Rifle's round (0.6 s) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_CR5_EveryNamedEvent_IsFoundAgain_ByTheResolver_AtItsOwnTime()
+    {
+        var struck = new TimelineEvent(7, Blast, RifleId, TankId, 0f, 0f, 0f);   // Rifle's round bursts ON the Tank at 1.4 s
+        var index = Index(At(2, Shot, TankId), At(3, Shot, RifleId), At(5, Shot, TankId), At(4, Hit, RifleId), At(6, Blast, 0), struck, At(8, Hit, TankId));
+        bool IsUnit(string who, long id) => NameOf(id) == who;
+
+        int named = 0;
+        foreach (var lane in EventAnchors.DefaultLanes)
+            for (int i = 0; i < index.Lane(lane).Count; i++)
+            {
+                if (EventAnchors.Of(index, lane, i, NameOf) is not { } a) continue;
+                named++;
+                Assert.Equal(a.EventSim, EventAnchors.TimeOf(index, a.Spec, IsUnit)!.Value, 6);
+            }
+        Assert.Equal(6, named);   // 3 shots, Rifle's hit, 2 blasts — the Tank's hit at 1.6 s is not its first strike (the blast at 1.4 s is)
+        Assert.Null(EventAnchors.Of(index, Hit, 1, NameOf));
+        Assert.Equal(1.4, EventAnchors.TimeOf(index, new AnchorSpec { On = "hit", Target = "Tank" }, IsUnit)!.Value, 6);
+        Assert.Equal(1.0, EventAnchors.TimeOf(index, new AnchorSpec { On = "shot", By = "Tank", N = 2 }, IsUnit)!.Value, 6);
+        Assert.Null(EventAnchors.TimeOf(index, new AnchorSpec { On = "shot", By = "Tank", N = 3 }, IsUnit));             // not (yet) in the index
+        Assert.Equal(1.0, EventAnchors.TimeOf(index, new AnchorSpec { On = "shot", By = "Tank", N = 1 }, IsUnit, since: 0.5)!.Value, 6);   // 0.4 s is before the run
+        Assert.Null(EventAnchors.TimeOf(index, new AnchorSpec { On = "near", Who = "Tank" }, IsUnit));                    // a state cue: the world's, not the index's
+    }
 }

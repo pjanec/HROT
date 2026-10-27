@@ -24,6 +24,8 @@ namespace Hrot.UI.Common.Map3D.Director
     /// <param name="Perspective">⭐ CE-1303 P2a (§11m D11) — the perspective the Director window belongs to (the editor's "Scenario", the RB's "ReplayBrowser").</param>
     /// <param name="Index">⭐ CE-4059 (§11q D1) — the index THIS host's Event Timeline shows (the editor's live / review index, the recording's); null = no drafts.</param>
     /// <param name="Scenario">⭐ CE-4059 — the scenario the shown run belongs to (a draft is a take of it).</param>
+    /// <param name="ScenarioTakes">⭐ CE-1304 P4 (§11s) — the SCENARIOS root's takes, when this host's own takes are a recording's (the Replay Browser): promote
+    /// copies a take there. Null = this host's takes are the scenario's (the editor): nothing to promote to.</param>
     public sealed record DirectorPackHost(
         IDirectorHost Host,
         Func<WindowManager?> Wm,
@@ -37,7 +39,8 @@ namespace Hrot.UI.Common.Map3D.Director
         Vector4? TitleBarColor = null,
         string Perspective = "Scenario",
         Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex?>? Index = null,
-        Func<string?>? Scenario = null);
+        Func<string?>? Scenario = null,
+        Func<TakeStore?>? ScenarioTakes = null);
 
     /// <summary>
     /// ⭐ <c>CE-1303</c> P1 (§11j, CR-2) — the ONE registrar of the film director: builds the runner (with the window / layer / audio / frame
@@ -47,11 +50,16 @@ namespace Hrot.UI.Common.Map3D.Director
     public sealed class DirectorPack
     {
         private DirectorPack(DirectorRunner runner, DirectorTakeSession session, DirectorWindow window, MapLayerOverride layers, WindowCinema cinema, TakeStore takes,
-                             Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl, DirectorDrafts? drafts, DirectorStills stills)
+                             Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl, DirectorDrafts? drafts, DirectorStills stills,
+                             TakePromotion promotion)
         {
             Takes = takes; Runner = runner; Session = session; Window = window; Layers = layers; Cinema = cinema; LayerControl = layerControl; Drafts = drafts;
-            Stills = stills;
+            Stills = stills; Promotion = promotion;
         }
+
+        /// <summary>⭐ CE-1304 P4 (§11s) — promote a recording's take to its scenario (the Director window's button, <c>POST /director/promote</c>);
+        /// <see cref="TakePromotion.Available"/> only on a host whose takes are a recording's.</summary>
+        public TakePromotion Promotion { get; }
 
         /// <summary>⭐ CE-4059 P3 (§11r) — the stills of a take and their contact sheet, over the same runner and frame sink a film uses (the
         /// <c>/director/stills</c> route); it refuses on a host that cannot seek or has no renderer.</summary>
@@ -90,8 +98,12 @@ namespace Hrot.UI.Common.Map3D.Director
             h.Timeline.Redo = () => session.RedoLast();
             // ⭐ CE-1303 P2a — CR-4 (§11m D4): the runner plays the OPEN take, unsaved edits included (the same take the tracks edit)
             runner.OpenTake = session.OpenTakeOf;
+            // ⭐⭐ CE-1304 CR-5 (§11s) — the take's event anchors are found in the index THIS host shows (live, or the open recording's): one resolver, every host
+            runner.Index = h.Index;
+            // ⭐ CE-1304 P4 (§11s) — promote, wired ONCE: from this host's takes to the scenario's (none on the editor)
+            var promotion = new TakePromotion(() => h.Host.Takes, h.ScenarioTakes, h.Scenario, session);
             var window = new DirectorWindow(() => runner, () => h.Host.Takes, session, h.WindowTabs, h.TitleBarColor, h.Perspective,
-                                            playhead: () => h.Host.SimTime);
+                                            playhead: () => h.Host.SimTime, promotion: promotion);
             // ⭐ CE-4059 (§11q D1) — the drafter wired ONCE for every host: names and kinds from the host's world, the event menu on its Event Timeline
             DirectorDrafts? drafts = null;
             if (h.Index != null)
@@ -102,7 +114,7 @@ namespace Hrot.UI.Common.Map3D.Director
             }
             // ⭐ CE-4059 P3 (§11r) — stills: the runner's play-from and the SAME sink (one capture path), on a host that seeks
             var stills = new DirectorStills(runner, sink, () => h.Host.CanSeek);
-            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts, stills);
+            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts, stills, promotion);
         }
 
         /// <summary>The director's frame: once per host frame, after the routes drained and before the map's update (§0, R-3038). ⭐ CE-4059 — a stills

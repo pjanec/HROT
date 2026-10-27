@@ -36,15 +36,18 @@ namespace Hrot.UI.Common.Map3D.Director
         private float _speed { get => _takes.Speed; set => _takes.Speed = value; }
 
         private readonly Func<double>? _playhead;
+        private readonly TakePromotion? _promotion;
+        private bool _promoteOverwrite;
 
         /// <param name="perspective">⭐ CE-1303 P2a (§11m D11) — the host's perspective ("Scenario" in the editor, "ReplayBrowser" in the RB).</param>
         /// <param name="playhead">⭐ CE-1303 P2a — the source's sim second now (the host's playhead): <i>Play from playhead</i> starts the take there.</param>
         public DirectorWindow(Func<DirectorRunner?> runner, Func<TakeStore?> store, DirectorTakeSession takes,
                               IReadOnlyList<IDirectorWindowTab>? tabs = null, System.Numerics.Vector4? titleBarColor = null,
-                              string perspective = "Scenario", Func<double>? playhead = null)
+                              string perspective = "Scenario", Func<double>? playhead = null, TakePromotion? promotion = null)
             : base(WindowId, "Director", perspective, WindowScope.PerspectiveBound)
         {
             _playhead = playhead;
+            _promotion = promotion;
             _runner = runner;
             _store = store;
             _takes = takes ?? throw new ArgumentNullException(nameof(takes));
@@ -197,6 +200,7 @@ namespace Hrot.UI.Common.Map3D.Director
             ImGui.EndDisabled();
             ImGui.SameLine();
             if (ImGui.Button("Close")) _takes.Close();
+            DrawPromote(scenario, take, editor.Dirty);
 
             // ⭐ CE-1303 P2b (§11o S11) — the camera of the selected key (else the key on screen at the playhead) from the pilot's view; the pilot ⇄ program view
             if (_takes.Director is not { } tracks) return;
@@ -210,6 +214,29 @@ namespace Hrot.UI.Common.Map3D.Director
             ImGui.EndDisabled();
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("On: you fly the map camera while the take plays (the program keeps running). Off: the director's camera.");
             DrawSelected(editor!, tracks);
+        }
+
+        /// <summary>⭐ CE-1304 P4 (§11s) — "Promote to scenario": the saved take copied into the scenario's own takes (a recording host only); a take of that
+        /// name already there needs "replace" ticked.</summary>
+        private void DrawPromote(string scenario, string take, bool dirty)
+        {
+            if (_promotion is not { Available: true } promotion) return;
+            ImGui.SameLine();
+            ImGui.BeginDisabled(dirty);
+            if (ImGui.Button("Promote to scenario"))
+            {
+                var r = promotion.Promote(scenario, take, _promoteOverwrite);
+                _message = r.Written
+                    ? $"promoted to {r.To} (bake {r.Bake}{(r.Overwrote ? ", replaced the scenario's take" : "")})"
+                      + (r.FixedKeys.Count > 0 ? " - keys at a fixed time: " + string.Join(", ", r.FixedKeys) : "")
+                    : string.Join("\n", r.Problems);
+                _promoteOverwrite = false;
+            }
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Copies this saved take into the scenario's own takes: its keys hang on events, so it plays on any later run (live or recorded).");
+            ImGui.SameLine();
+            ImGui.Checkbox("replace", ref _promoteOverwrite);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Replace the scenario's take of the same name.");
         }
 
         private bool IsCapturing() => _runner() is { Busy: true, Mode: DirectorMode.Capture };

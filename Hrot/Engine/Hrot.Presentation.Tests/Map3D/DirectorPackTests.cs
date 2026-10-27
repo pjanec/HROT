@@ -468,4 +468,108 @@ public sealed class DirectorPackTests : IDisposable
         var other = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(5, "life.spawned", 1, 0, 0f, 0f, 0f);
         Assert.Empty(panel.EventMenu(index, new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuContext("life.spawned", 0, 5, other)));
     }
+
+    // ── CE-1304 P4 (§11s) — CR-5 on a LIVE host: the event anchor is found in the live index as the run plays ─────────────────────────────
+
+    /// <summary>
+    /// A live host whose world ticks a sim clock and whose LIVE index is the real one every node runs (<see cref="Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource"/>
+    /// over the shipped lanes), stepped after each step as a node steps it after the kernel. <c>Alpha</c> (network id 1) fires once, at <see cref="FireAt"/>.
+    /// </summary>
+    private sealed class LiveIndexHost : IDirectorHost
+    {
+        public const double FireAt = 2.0;
+        private readonly Entity _alpha;
+        private int _frame;
+
+        public LiveIndexHost(TakeStore takes)
+        {
+            Takes = takes;
+            World.RegisterComponent<SimTransform>();
+            World.RegisterComponent<EntityInfo>();
+            World.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            World.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+            _alpha = World.CreateEntity();
+            World.AddComponent(_alpha, new EntityInfo { Name = new FixedString64("Alpha") });
+            World.AddComponent(_alpha, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1 });
+            World.AddComponent(_alpha, new SimTransform { Position = new System.Numerics.Vector3(0, 0, 0), Rotation = System.Numerics.Quaternion.Identity });
+            Live = new Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource(Fdp.Toolkit.ReplayBrowser.Timeline.ShippedTimelineLanes.Catalog(),
+                new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Live: true),
+                new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(
+                    new StructEdit.Reflection.ComponentEditServiceBuilder().Build())));
+        }
+        public Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource Live { get; }
+        public EntityRepository World { get; } = new();
+        EntityRepository? IDirectorHost.World => World;
+        public void LoadScenario(string scenario) { SimTime = 0d; _frame = 0; }
+        public bool IsOperatingEdit => true;
+        public int? EntityCount => null;
+        public bool InPreview { get; private set; }
+        public void EnterPreview(bool startPaused) { InPreview = true; Paused = startPaused; }
+        public void ExitPreview() => InPreview = false;
+        public bool Paused { get; private set; }
+        public void Pause() => Paused = true;
+
+        /// <summary>One sim frame: the clock, Alpha's round on the frame that reaches <see cref="FireAt"/>, then the live index's step (published at once).</summary>
+        public void StepBy(float seconds)
+        {
+            double before = SimTime;
+            SimTime += seconds;
+            World.SetSingleton(new GlobalTime { FrameNumber = ++_frame, TotalTime = SimTime });
+            if (before < FireAt - 1e-9 && SimTime >= FireAt - 1e-9)
+                World.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = _alpha, Quantity = 1 });
+            World.Bus.SwapBuffers();
+            Live.Step(World, _frame * 1000L, force: true);
+        }
+        public double SimTime { get; private set; }
+        public double WallNow { get; private set; }
+        public void Hold(double seconds) => WallNow += Math.Max(seconds, 0d);
+        public string? BehaviourName(int hash) => null;
+        public TakeStore Takes { get; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P4 — CR-5 (§11s, success condition 3): on a LIVE host the take's event anchor <c>shot:Alpha#1</c> (NOT baked) is unknown until Alpha's round
+    /// appears in the live index — the cut it places is unresolved before — and then resolves to the round's frame time: the camera cuts to key 2 at round + 0.5 s,
+    /// and the item ends <c>ok</c>, the anchor found at 2.0 s. The index is the one the pack hands the runner (<see cref="DirectorPackHost.Index"/>).
+    /// 🔴 Mutation: <c>DirectorPack.Attach</c> not handing the runner the host's index (<c>runner.Index = h.Index</c> removed) ⇒ the anchor is never found ⇒ key 1 at 2.7 s
+    /// and <c>beat-missing</c>.
+    /// </summary>
+    [Fact]
+    public void CE1304_CR5_OnALiveHost_AnEventAnchor_ResolvesWhenItsEventAppearsInTheLiveIndex()
+    {
+        FilmStudio.Reset();
+        var store = new TakeStore(() => _root, () => Path.Combine(_root, "films"));
+        store.Save(new Take
+        {
+            Scenario = "s-a", Name = "main",
+            Anchors = new Dictionary<string, AnchorSpec> { ["shot:Alpha#1"] = new() { On = "shot", By = "Alpha", N = 1 } },
+            Keys = new[]
+            {
+                new CameraKey { At = new AtExpr(0.5d), Camera = new CameraSpec { LookAt = Key1At } },
+                new CameraKey { At = new AtExpr(0.5d, "shot:Alpha#1"), Camera = new CameraSpec { LookAt = Key2At } },
+            },
+            EndAt = new AtExpr(4d),
+        });
+        var host = new LiveIndexHost(store);
+        var pack = DirectorPack.Attach(new DirectorPackHost(host, () => null, () => null, Headless: true, Pilot: () => null,
+                                                            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel(), Index: () => host.Live.Index));
+        Assert.Empty(pack.Runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+
+        Assert.Equal(Key1At, CameraAt(pack, host, 1.9));
+        Assert.Contains(pack.Runner.Reports[0].Unresolved, u => u.Contains("shot:Alpha#1"));   // not in the live index yet: the cut it places is unknown
+        Assert.Equal(Key1At, CameraAt(pack, host, 2.4));
+        Assert.Equal(Key2At, CameraAt(pack, host, 2.7));                      // the round at 2.0 s + 0.5
+        for (int i = 0; i < 2000 && pack.Runner.Busy; i++) pack.Tick();
+
+        var report = pack.Runner.Reports[0];
+        Assert.True(report.Status == "ok", $"{report.Status}: missing {string.Join(", ", report.Missing)}; {string.Join("; ", report.Problems)}");
+        Assert.InRange(report.Found["shot:Alpha#1"], LiveIndexHost.FireAt - 1e-6, LiveIndexHost.FireAt + 1d / 60d + 1e-6);
+    }
+
+    private static System.Numerics.Vector3? CameraAt(DirectorPack pack, LiveIndexHost host, double sim)
+    {
+        for (int i = 0; i < 2000 && pack.Runner.Busy && !(pack.Runner.Phase == DirectorPhase.Playing && host.SimTime >= sim - 1e-9); i++) pack.Tick();
+        pack.Tick();
+        return FilmStudio.Shot?.Pose?.LookAt;
+    }
 }

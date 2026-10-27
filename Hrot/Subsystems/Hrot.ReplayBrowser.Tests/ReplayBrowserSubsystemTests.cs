@@ -1542,15 +1542,17 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
     /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the
     /// keyframe) whose meta names its scenario <c>s-film</c>, under <paramref name="dir"/>.</summary>
-    private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null, bool named = false)
+    private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null, bool named = false, double[]? alphaFires = null,
+                                        string scenarioHash = "0123456789abcdef")
     {
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, "node_1.fdp");
-        var meta = new RecordingMetadata { ExerciseId = exerciseId ?? Guid.NewGuid(), NodeId = 1, ScenarioName = "s-film", ScenarioHash = "0123456789abcdef" };
+        var meta = new RecordingMetadata { ExerciseId = exerciseId ?? Guid.NewGuid(), NodeId = 1, ScenarioName = "s-film", ScenarioHash = scenarioHash };
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
         repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
-        if (named)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
+        var units = new Dictionary<string, Entity>();
+        if (named || alphaFires != null)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
         {
             repo.RegisterComponent<EntityInfo>();
             foreach (var (id, name) in new[] { (1L, "Alpha"), (2L, "Bravo") })
@@ -1558,8 +1560,12 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 var e = repo.CreateEntity();
                 repo.AddComponent(e, new NetworkIdentity { Value = id });
                 repo.AddComponent(e, new EntityInfo { Name = new FixedString64(name) });
+                units[name] = e;
             }
         }
+        // ⭐ CE-1304 CR-5 — Alpha's rounds at Bravo, RECORDED as the bus carried them (a frame's events go with that frame): what the recording's index reads
+        if (alphaFires != null) repo.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+        var fireFrames = new HashSet<int>((alphaFires ?? Array.Empty<double>()).Select(s => (int)Math.Round(s * 60d)));
         using (var rec = new AsyncRecorder(path, meta))
         {
             long t0 = TimeSpan.FromSeconds(1).Ticks;
@@ -1569,7 +1575,10 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             for (int f = 1; f <= n; f++)
             {
                 repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f / 60d });
+                if (fireFrames.Contains(f))
+                    repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = units["Alpha"], Target = units["Bravo"], Quantity = 1 });
                 rec.CaptureFrame(repo, (uint)(f - 1), t0 + f * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+                repo.Bus.SwapBuffers();
             }
         }
         return path;
@@ -1886,6 +1895,147 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var own = replay.Where(s => s.Sim > 1.5 + step).ToList();
         Assert.True(own.Count > 30, $"replay frames after 1.5 s: {own.Count}");
         Assert.All(own, s => Assert.Equal(ReplayKeyAt, s.Camera));                                         // … and its own key took over at 1.5
+    }
+
+    // ── ⭐ CE-1304 P4 (docs/DESIGN_Director_Timeline_Editor.md §11s) — CR-5 one resolver, promote ─────────────────────────────────────────────
+
+    private static readonly Vector3 Key3At = new(-20f, 5f, 0f);
+
+    /// <summary>Opens <paramref name="path"/> in the (initialized) browser and waits until its timeline index is fully read (it is scanned in the background).</summary>
+    private Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex OpenAndIndex(string path)
+    {
+        Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { path }, 0));
+        for (int i = 0; i < 1000; i++)
+        {
+            _subsystem.SyncTimelineSource();
+            if (_subsystem.TimelineSource is { IsComplete: true, Index: { } done } src && src.Error == null && done.TotalFrames > 0) return done;
+            System.Threading.Thread.Sleep(10);
+        }
+        throw new Xunit.Sdk.XunitException("the recording's index was not read within 10 s: " + _subsystem.TimelineSource?.Error);
+    }
+
+    /// <summary>Plays <c>s-film/main</c> to its end on the open recording: each playing frame's (sim, camera); the report.</summary>
+    private (List<(double Sim, Vector3? Camera)> Seen, Hrot.UI.Common.Map3D.Director.ItemReport Report) PlayMain(Hrot.UI.Common.Map3D.Director.DirectorRunner runner)
+    {
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d)));
+        var seen = new List<(double Sim, Vector3? Camera)>();
+        for (int i = 0; i < 600 && runner.Busy; i++)
+        {
+            double sim = Frame();
+            if (runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing) seen.Add((sim, Camera()));
+        }
+        Assert.False(runner.Busy);
+        return (seen, runner.Reports[0]);
+    }
+
+    /// <summary>A take adjusted on a recording: key 1 at 1 s (fixed), key 2 at Alpha's 1st round + 0.5 s, key 3 at Alpha's 2nd round; it ends at 5 s.</summary>
+    private static Hrot.UI.Common.Map3D.Director.Take EventTake(Hrot.UI.Common.Map3D.Director.BakedAnchors? baked) => new()
+    {
+        Scenario = "s-film", Name = "main", Title = "On Alpha's rounds",
+        Anchors = new Dictionary<string, Hrot.UI.Common.Map3D.Director.AnchorSpec>
+        {
+            ["shot:Alpha#1"] = new() { On = "shot", By = "Alpha", N = 1 },
+            ["shot:Alpha#2"] = new() { On = "shot", By = "Alpha", N = 2 },
+        },
+        Keys = new[]
+        {
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(1d), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key1At, Distance = 20f } },
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(0.5d, "shot:Alpha#1"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key2At, Distance = 20f } },
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(0d, "shot:Alpha#2"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key3At, Distance = 20f } },
+        },
+        EndAt = new Hrot.UI.Common.Map3D.Director.AtExpr(5d),
+        Baked = baked,
+    };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P4 — CR-5 (§11s, success condition 1): on a REAL recording in the Replay Browser whose index holds Alpha's two rounds (2.0 s and 3.5 s, recorded
+    /// as the bus carried them), a take whose keys hang on those EVENTS — its bake made for ANOTHER scenario hash (stale, so not used) — finds both anchors in the
+    /// RECORDING's index: no <c>beat-missing</c>, the anchors at the rounds' times, key 2 on screen from 2.5 s and key 3 from 3.5 s. 🔴 Mutation: routing the event cues
+    /// back to the side store (<c>AnchorBook.Observe</c> reading <c>ShotLog.Peek(world)</c> in place of <c>ObserveEvents</c>, and the runner's priming call removed) ⇒ a
+    /// replayed world carries no ShotLog ⇒ <c>beat-missing</c> (shot:Alpha#1, shot:Alpha#2).
+    /// </summary>
+    [Fact]
+    public void CE1304_CR5_OnARecording_EventAnchors_ResolveFromItsIndex_NoBeatMissing()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string dir = Path.Combine(_tempDir, "cr5", "exercises", Guid.NewGuid().ToString());
+        string path = RecordFilmRun(dir, 6d, alphaFires: new[] { 2.0, 3.5 });
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var index = OpenAndIndex(path);
+        Assert.Equal(2, index.Lane("combat.shot").Count);   // the recorded rounds are in the recording's index
+        var pack = _subsystem.Director!;
+        pack.Takes.Save(EventTake(new Hrot.UI.Common.Map3D.Director.BakedAnchors
+        {
+            Times = new Dictionary<string, double> { ["shot:Alpha#1"] = 1.0, ["shot:Alpha#2"] = 1.5 }, TickHz = 60, ScenarioHash = "another-version",
+        }));
+
+        var (seen, report) = PlayMain(pack.Runner);
+
+        Assert.True(report.Status == "ok", $"{report.Status}: missing {string.Join(", ", report.Missing)}; {string.Join("; ", report.Problems)}");
+        Assert.False(report.UsedBake);
+        Assert.Equal(2.0, report.Found["shot:Alpha#1"], 3);
+        Assert.Equal(3.5, report.Found["shot:Alpha#2"], 3);
+        Assert.All(seen.Where(s => s.Sim > 1.02 && s.Sim < 2.48), s => Assert.Equal(Key1At, s.Camera));
+        Assert.All(seen.Where(s => s.Sim > 2.52 && s.Sim < 3.48), s => Assert.Equal(Key2At, s.Camera));
+        Assert.All(seen.Where(s => s.Sim > 3.52 && s.Sim < 4.98), s => Assert.Equal(Key3At, s.Camera));
+        Assert.True(seen.Count(s => s.Sim > 2.52 && s.Sim < 3.48) > 30);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1304</c> P4 — the phase's acceptance (§11s, success conditions 2 and 4's flow): a take ADJUSTED on recording A (Alpha fires at 2.0 s; the take's bake made
+    /// on A, for the scenario file as it is) is PROMOTED — copied, bake kept — into the scenario's own takes; recording B of the SAME scenario, run later with Alpha
+    /// firing at 2.6 s, has no take beside it and plays the promoted one (TE-1's reverse: the scenario's takes read through), its beats at B's times: key 2 from
+    /// 3.1 s, key 3 from 4.1 s — not A's 2.5 / 3.5. Both recordings are real files with DIFFERENT event times (constructed, not synthesised indexes).
+    /// 🔴 Mutation: the runner's book letting the bake lead on a recording (<c>indexIsTheRun: false</c> in <c>DirectorRunner.NewBook</c>) ⇒ B cuts at A's baked 2.5 s ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P4_ATakeAdjustedOnRecordingA_IsPromoted_AndPlaysItsBeatsOnRecordingB_AtBsTimes()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string scenarios = Path.Combine(_tempDir, "p4-scenarios");
+        Directory.CreateDirectory(Path.Combine(scenarios, "s-film"));
+        const string scenarioJson = """{"name":"s-film"}""";
+        File.WriteAllText(Path.Combine(scenarios, "s-film", "scenario.json"), scenarioJson);
+        string hash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(scenarioJson);
+        string pathA = RecordFilmRun(Path.Combine(_tempDir, "p4", "exercises", Guid.NewGuid().ToString()), 6d, alphaFires: new[] { 2.0, 3.0 }, scenarioHash: hash);
+        string pathB = RecordFilmRun(Path.Combine(_tempDir, "p4", "exercises", Guid.NewGuid().ToString()), 6d, alphaFires: new[] { 2.6, 3.6 }, scenarioHash: hash);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem._directorScenariosRoot = scenarios;
+        _subsystem.Initialize(HeadlessConfig());
+        var pack = _subsystem.Director!;
+
+        // on A: the take, baked on A's index (as K bakes an event anchor), plays at A's times
+        OpenAndIndex(pathA);
+        pack.Takes.Save(EventTake(new Hrot.UI.Common.Map3D.Director.BakedAnchors
+        {
+            Times = new Dictionary<string, double> { ["shot:Alpha#1"] = 2.0, ["shot:Alpha#2"] = 3.0 }, TickHz = 60, ScenarioHash = hash,
+        }));
+        var (onA, reportA) = PlayMain(pack.Runner);
+        Assert.True(reportA.Status == "ok", $"A: {reportA.Status}: {string.Join("; ", reportA.Problems)}");
+        Assert.All(onA.Where(s => s.Sim > 2.52 && s.Sim < 2.98), s => Assert.Equal(Key2At, s.Camera));
+        Assert.All(onA.Where(s => s.Sim > 3.02 && s.Sim < 4.98), s => Assert.Equal(Key3At, s.Camera));
+
+        // promote: a copy into the scenario's own takes, bake kept (made for the scenario file as it is)
+        var promoted = pack.Promotion.Promote(null, "main");
+        Assert.True(promoted.Written, string.Join("; ", promoted.Problems));
+        Assert.Equal("kept", promoted.Bake);
+        string scenarioTake = Path.Combine(scenarios, "s-film", "takes", "main.take.json");
+        Assert.Equal(File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(pathA)!, "s-film", "takes", "main.take.json")), File.ReadAllBytes(scenarioTake));
+
+        // on B, run later: nothing beside it — the scenario's take plays, its beats at B's times
+        OpenAndIndex(pathB);
+        Assert.False(pack.Takes.HasOwn("s-film", "main"));
+        Assert.Contains("main", pack.Takes.TakesOf("s-film"));
+        var (onB, reportB) = PlayMain(pack.Runner);
+        Assert.True(reportB.Status == "ok", $"B: {reportB.Status}: missing {string.Join(", ", reportB.Missing)}; {string.Join("; ", reportB.Problems)}");
+        Assert.Equal(2.6, reportB.Found["shot:Alpha#1"], 3);
+        Assert.Equal(3.6, reportB.Found["shot:Alpha#2"], 3);
+        Assert.All(onB.Where(s => s.Sim > 1.02 && s.Sim < 3.08), s => Assert.Equal(Key1At, s.Camera));
+        Assert.All(onB.Where(s => s.Sim > 3.12 && s.Sim < 3.58), s => Assert.Equal(Key2At, s.Camera));
+        Assert.All(onB.Where(s => s.Sim > 3.62 && s.Sim < 4.98), s => Assert.Equal(Key3At, s.Camera));
+        Assert.Contains(reportB.Mismatches, m => m.StartsWith("shot:Alpha#1: baked 2 s, live 2.6 s", StringComparison.Ordinal));   // A's bake vs B, said
+        Assert.False(File.Exists(Path.Combine(Path.GetDirectoryName(pathB)!, "s-film", "takes", "main.take.json")));            // nothing written beside B
     }
 
     /// <summary>

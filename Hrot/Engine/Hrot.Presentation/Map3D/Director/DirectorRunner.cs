@@ -212,6 +212,18 @@ namespace Hrot.UI.Common.Map3D.Director
         /// </summary>
         public Func<string, string, Take?>? OpenTake { get; set; }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1304</c> P4 — CR-5 (docs/DESIGN_Director_Timeline_Editor.md §11s): the run's timeline index — the live index on a live host, the open
+        /// recording's on a recording — that the take's EVENT anchors (<c>shot</c> / <c>blast</c> / <c>hit</c>) are found in (<see cref="AnchorBook"/>). Set by
+        /// <see cref="DirectorPack"/> from the host's own shown index (<see cref="DirectorPackHost.Index"/>), so every host's runner has it by construction.
+        /// Null: event anchors stay unseen (a baked time still places them).
+        /// </summary>
+        public Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex?>? Index { get; set; }
+
+        /// <summary>⭐ CR-5 — the take's anchors in this run, over the run's index (a recording's index leads over a bake: <see cref="AnchorBook"/>).</summary>
+        private AnchorBook NewBook(Take take, IReadOnlyDictionary<string, double>? baked)
+            => new(take.Anchors, baked, _host.BehaviourName, Index, _t0, indexIsTheRun: _host.CanSeek);
+
         /// <summary>⭐ CE-1303 P2a (§11m D6) — at the end of the shot on screen the source goes back to the shot's start (a seekable host) and the
         /// take is read again (D4), so an edit shows on the next pass. A host that cannot seek reports it once and plays on.</summary>
         public bool LoopShot { get; set; }
@@ -499,9 +511,10 @@ namespace Hrot.UI.Common.Map3D.Director
             if (baked != null && !fresh && _request!.Mode != DirectorMode.Scout)
                 Report.Problems.Add($"the baked anchors are stale (scouted at {baked.TickHz} Hz for scenario {baked.ScenarioHash}) — re-scout; cutting on live cues");
             Report.UsedBake = fresh;
-            _book = new AnchorBook(take.Anchors, fresh ? baked!.Times : null, _host.BehaviourName);
             // ⭐ CE-1303 D3 — a seekable source's sim clock IS the run's (a recording of it), so a take's times mean the same there as in the editor
             _t0 = _host.CanSeek ? 0d : _host.SimTime;
+            _book = NewBook(take, fresh ? baked!.Times : null);
+            _book.ObserveEvents(_units);   // ⭐ CR-5 — a recording's index already holds the run: the plan below places every event anchor it names
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             Replan();
             Report.SkippedReplays.AddRange(_timeline!.SkippedReplays);
@@ -535,8 +548,8 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             _take = start.Take;
             Report.TickHz = start.Take.TickHz;
-            _book = new AnchorBook(start.Take.Anchors, null, _host.BehaviourName);
             _t0 = start.T0;
+            _book = NewBook(start.Take, null);
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             Replan();
             _clock = new PacedClock(start.Take.TickHz, 1d);
@@ -568,7 +581,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (OpenTakeFor(_request!, Item) is not { } now || ReferenceEquals(now, _take)) return;
             bool anchorsMoved = !ReferenceEquals(now.Anchors, _take!.Anchors) || !ReferenceEquals(now.Baked, _take.Baked);
             _take = now;
-            if (anchorsMoved) _book = new AnchorBook(now.Anchors, BakeIsFresh(now) ? now.Baked!.Times : null, _host.BehaviourName);
+            if (anchorsMoved) { _book = NewBook(now, BakeIsFresh(now) ? now.Baked!.Times : null); _book.ObserveEvents(_units); }
             Replan();
         }
 
@@ -736,8 +749,13 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_request!.Mode == DirectorMode.Scout) return !_book!.Unseen.Any() && rel >= _timeline!.End;
             if (!_film.IsIdentity) return _filmOver;   // ⭐ CE-1303 P2b — CR-7: the segments ARE the film (it ends after the last one, or at the cap)
             if (_timeline!.Unresolved.Count > 0) return rel >= _timeline.End + UnseenGraceSeconds;
-            return rel >= _timeline.End - 1e-6;
+            // ⭐ CE-1304 CR-5 (§11s D4) — a live index publishes at most every quarter second: an event anchor it has not shown yet is not judged missing
+            //   until it has caught up with the run (or IndexGraceSeconds past the end)
+            return rel >= _timeline.End - 1e-6 && !(rel < _timeline.End + IndexGraceSeconds && _book!.AwaitsIndex(rel));
         }
+
+        /// <summary>⭐ CR-5 — how long past its end a live take plays on while the live index catches up with an event anchor not seen yet.</summary>
+        public const double IndexGraceSeconds = 1d;
 
         private void EnterShot(TimelineShot? shot)
         {

@@ -209,4 +209,77 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         Assert.True(s2 == HttpStatusCode.OK, b2.ToJsonString());
         Assert.Equal(1d, Assert.Single(b2["data"]!["planned"]!.AsArray())!["sourceTime"]!.GetValue<double>());
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P4 (docs/DESIGN_Director_Timeline_Editor.md §11s D5, D6; success condition 4) — <c>POST /director/promote {take, scenario?, overwrite?}</c> COPIES a
+    /// recording's take (the store beside the recording) into the scenario's own takes: a bake made for the scenario file as it is now is KEPT (the file byte for
+    /// byte); one made for another version is DROPPED (the rest equal); a second promote of the same name is 409 and <c>overwrite:true</c> replaces it; a take
+    /// that does not exist is 404; a host whose takes ARE the scenario's (the editor: no scenarios store) answers 400.
+    /// 🔴 Mutation: <c>TakePromotion.Copy</c> ignoring an existing scenario take (the <c>exists &amp;&amp; !overwrite</c> refusal removed) ⇒ the second promote answers 200 ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public async Task CE1304_P4_Promote_CopiesTheRecordingsTake_RefusesAnOverwrite_UnlessAsked()
+    {
+        string recordingDir = Path.Combine(_root, "exercise"), scenarios = Path.Combine(_root, "scenarios");
+        Directory.CreateDirectory(Path.Combine(scenarios, "s-a"));
+        File.WriteAllText(Path.Combine(scenarios, "s-a", "scenario.json"), """{"name":"s-a"}""");
+        var scenarioStore = new TakeStore(() => scenarios, () => null);
+        string hash = scenarioStore.ScenarioHash("s-a");
+        var recording = new TakeStore(() => recordingDir, () => null, _ => hash);
+        Take Adjusted(string name, string bakeHash, double cut) => new()
+        {
+            Scenario = "s-a", Name = name,
+            Anchors = new Dictionary<string, AnchorSpec> { ["shot:Alpha#1"] = new() { On = "shot", By = "Alpha", N = 1 } },
+            Keys = new[] { new CameraKey { At = new AtExpr(cut, "shot:Alpha#1"), Camera = new CameraSpec { LookAt = new System.Numerics.Vector3(1, 2, 0), Distance = 20f } } },
+            EndAt = new AtExpr(6d),
+            Baked = new BakedAnchors { Times = new Dictionary<string, double> { ["shot:Alpha#1"] = 2.0 }, TickHz = 60, ScenarioHash = bakeHash },
+        };
+        recording.Save(Adjusted("main", hash, 0.5));
+        recording.Save(Adjusted("old", "made-for-another-version", 0.5));
+        var runner = new DirectorRunner(new Host(recording), new NoCinema(), new NoLayers());
+        var promotion = new TakePromotion(() => recording, () => scenarioStore, () => "s-a");
+
+        int port = FreePort();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDirector(runner, recording, () => null, promotion: promotion);
+        host.AttachService(new DebugApiService(new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+            Array.Empty<Hrot.Presentation.DebugApi.ISubsystemDebugProvider>(), () => "Scenario", null)));
+        host.Start();
+        string url = $"http://localhost:{port}";
+        StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
+
+        var (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main"}""")));
+        Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
+        Assert.Equal(("kept", false), (body["data"]!["bake"]!.GetValue<string>(), body["data"]!["overwrote"]!.GetValue<bool>()));
+        Assert.Equal(File.ReadAllBytes(recording.TakePath("s-a", "main")), File.ReadAllBytes(scenarioStore.TakePath("s-a", "main")));   // a copy
+
+        (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"old","scenario":"s-a"}""")));
+        Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
+        Assert.Equal("dropped", body["data"]!["bake"]!.GetValue<string>());
+        var source = recording.Load("s-a", "old").Value!;
+        var copied = scenarioStore.Load("s-a", "old").Value!;
+        Assert.Null(copied.Baked);
+        Assert.Equal(TakeJson.WriteTake(source with { Baked = null }).ToJsonString(), TakeJson.WriteTake(copied).ToJsonString());   // equal but the bake
+
+        recording.Save(Adjusted("main", hash, 0.9));   // adjusted again on the recording
+        (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main"}""")));
+        Assert.True(status == HttpStatusCode.Conflict, body.ToJsonString());
+        Assert.Equal(0.5, scenarioStore.Load("s-a", "main").Value!.Keys[0].At.Offset, 6);                // untouched
+        (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main","overwrite":true}""")));
+        Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
+        Assert.True(body["data"]!["overwrote"]!.GetValue<bool>());
+        Assert.Equal(0.9, scenarioStore.Load("s-a", "main").Value!.Keys[0].At.Offset, 6);                // replaced
+
+        (status, _) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"nope"}""")));
+        Assert.Equal(HttpStatusCode.NotFound, status);
+        (status, _) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+
+        // the editor's kind of host: its takes ARE the scenario's — nothing to promote to
+        host.AttachDirector(runner, scenarioStore, () => null, promotion: new TakePromotion(() => scenarioStore, null));
+        (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main","scenario":"s-a"}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Contains("nothing to promote to", body["error"]!.GetValue<string>());
+    }
 }

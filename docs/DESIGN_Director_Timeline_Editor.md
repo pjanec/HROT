@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11s — P4: ONE anchor resolver (CR-5: event cues are queries on the run's index — live or the recording's — through EventAnchors' one naming switch; ShotLog / DetonationLog reads leave AnchorBook, the logs keep their other readers; on a recording the index leads over a bake), promote = a copy (POST /director/promote, the Director window's button; the bake kept iff made for the scenario file as it is), TE-1's reverse (a recording's store reads its scenario's own takes) — BUILT) · 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11s P4 — ONE ANCHOR RESOLVER, PROMOTE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -704,6 +704,8 @@ sequenceDiagram
 
 ### 4d. Promote a recording take to a scenario take
 
+⛔ *SUPERSEDED by CR-6 / [§11s](#11s-p4--one-anchor-resolver-promote) D5–D6: promote is a COPY (keys already hang on events); no re-anchoring step, no hash refusal — the bake is kept or dropped by the hash. The sequence below is the first form, kept as history.*
+
 ```mermaid
 sequenceDiagram
   actor U as User
@@ -1328,7 +1330,7 @@ through the CLI).
 | the editor's director adapters are thin: `EditorCinema` (`WindowManager.Cinema`), `EditorLayerOverride` (`LayerControlGizmo`, `Hrot.Common`), `FilmFrameSink` (`FilmStudio.Capture`), `EditorDirectorSound` (`AudioDirector`, `Hrot.Presentation`); `DirectorTakeSession` needs only `Func<DirectorRunner?>` | `EditorDirector.cs:116-238`; `DirectorTakeSession.cs:53` | P1 — they MOVE |
 | ⛔ **the runner plays the SAVED file** — an unsaved edit is not seen (§10 T3) | §10 T3 as built | ⛔ kills ⑤'s iteration ⇒ CR-4 |
 | ⛔ **`Take.Segments` is never played** (no reader in the runner, `TakeTimeline`, `AnchorBook`, `CameraKeys`) | grep over `Hrot/` | CR-7 |
-| anchors: baked first, else `AnchorBook.Observe` — `shot` / `blast` / `hit` read `ShotLog` / `DetonationLog` (side stores, **never recorded**), the six state cues read components | `AnchorBook.cs:56, 80-191`; `CombatTimelineLanes.cs:11` | CR-5 |
+| anchors: baked first, else `AnchorBook.Observe` — `shot` / `blast` / `hit` read `ShotLog` / `DetonationLog` (side stores, **never recorded**), the six state cues read components | `AnchorBook.cs:56, 80-191`; `CombatTimelineLanes.cs:11` | CR-5 — ✅ BUILT in [§11s](#11s-p4--one-anchor-resolver-promote) (event cues from the index) |
 | ⏳ the index has **no position track** (planned in §2b, not built) | §9a "Of §2b's cache tables only `events` is built" | CR-6 (anticipation, auto-framing) |
 | `CameraKey.Still` is read and written, never captured (TE-10 unbuilt) | `Take.cs:139`; `TakeJson.cs:331` | CR-10 |
 | `/director/*` answer 503 on every host but the editor | `DebugApiHost.Director.cs:25-46`; `EditorSubsystem.cs:2634` | P3 |
@@ -1628,6 +1630,8 @@ anchor is a normal anchor + bake). **Deviations from the coordinator's one-liner
 lanes, not "combat + life". **Known edges:** (1) the baked time is the index frame's sim time, `AnchorBook` records `ShotRecord.FiredAt` — they differ by under one step (the
 runner's tolerance is 0.02 s; at 15 Hz one step is 0.067 s, so a 15 Hz take may list a drift); (2) a take whose bake is stale for its scenario hash keeps the stale bake (the runner already
 says so and cuts on live cues); (3) the Replay Browser has no director yet (P2 `ReplayDirectorHost`) — its K will pass the recording's index through the same `eventAt`.
+⭐ *P4 ([§11s](#11s-p4--one-anchor-resolver-promote)):* edge (1) is gone — `AnchorBook` now finds an event anchor in the index too (CR-5), so the bake and the live time come from the same
+frame table; edge (3) was closed by P2a. ⚠ The `hit` naming rule grew: a unit's first strike is a `combat.hit` OR a blast that struck it (§11s D2).
 Rails: `EventAnchoredKeysTests.CE1303_CR6_*` ×8 (Hrot.Presentation.Tests) · `DirectorTracksOnTheEditorTests.CE1303_CR6_K_OnTheEditorsTimeline_UsesTheEditorsLiveIndex` (Hrot.Editor.Tests).
 
 ### 11l. P3 position track detail *(ui, `2026-10-27`; CE-4059 step 1; build-state: BUILT — the as-built is stated in each row; no deviation from the plan below)*
@@ -2707,3 +2711,148 @@ by path opens the file — the control's path and frame count — and by exercis
 `ReplayBrowserSubsystemTests.CE4059_P3_StillsAndTheContactSheet_AndAnMp4_FromARecording_InAWindowedReplayBrowser` (env-gated `HROT_FILM_WINDOW=1`,
 Xvfb: three 320 × 180 PNGs beside the take, each `shownSim` within one step of its source second, the sheet 658 × 422, the MP4 beside the take with
 15 + 55 frames) · `DirectorDraftRoutesTests.CE4059_P3_OnTheEditor_RecordingIsRefused_OnEveryDirectorRoute_AndStillsNeedASourceThatSeeks`.
+
+### 11s. P4 — one anchor resolver, promote *(ui, `2026-10-27`, CE-1304 P4; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ The phase's acceptance (§11f): **a take adjusted on recording A plays its beats on recording B of the same scenario, run later** — and on a fresh live run.
+Two things stood in the way: event cues were found in side stores a recording never carries (CR-5), and a recording's take had no way into its scenario (promote).
+
+**INVENTORY** *(graph + grep; this worktree indexed fresh; ⚠ `check_index_coverage` is not available through the CLI, so no absence below is proven complete)*
+
+| query | result |
+|---|---|
+| `search_graph name_pattern=.*Anchor.* label=Class` | 11 — `AnchorBook`, `AnchorMismatch`, `AnchorSpec`, `BakedAnchors`, `EventAnchor`, `EventAnchors` (+ unrelated `EffectAnchor`, `RopeAnchorDto`, `SpatialAnchorEntry`, `GizmoAnchorIdentityException`, a test class) ⇒ ONE resolver exists (`AnchorBook`) and ONE namer (`EventAnchors`) |
+| `search_graph name_pattern=.*TimelineSource.*` | `ITimelineSource` (interface), `LiveTimelineSource`, `RecordingTimelineSource` (+ diagram nodes) ⇒ the two indexes CR-5 needs exist; `DirectorPackHost.Index` already hands the host's SHOWN index to the drafter (§11q D1) |
+| `search_graph name_pattern=.*Promot.*` | no code symbol — docs only (TE-1, §4d, F-4) ⇒ promote is NEW |
+| `search_code (ShotLog\|DetonationLog)\.(Peek\|For)` (regex) + `grep -rnE` over `FDP/ Hrot/ Stride/` | the readers below |
+
+| reader of `ShotLog` / `DetonationLog` | what it is | P4 |
+|---|---|---|
+| `AnchorBook.Observe` / `Hit` / `CountShots` (before P4) | the director's event cues | ⛔ **RETIRED** — the index (D1) |
+| `DirectorRunner` `_roundsAtStart`, `CutSnapshot` rounds | a cut's "rounds fired since the take began", in the report | ⏭ kept (a report figure, not a cue; on a recording it reads 0) — CE-1376 |
+| `FireProcessingSystem`, `BallisticsSystem`, `GuidedRoundSystem`, `AreaEffectSystem`, `HitResolutionSystem` | the WRITERS (and their own bookkeeping) | kept |
+| `CombatTraceSystem` | mirrors the logs into the RECORDED `ShotTraces` the map draws (CE-3117) | kept |
+| `DebugApi/CombatReport.cs` (`GET /combat/shots`, `/combat/detonations`) | the combat report | kept |
+| `ScenarioVerification` (the editor's verifier, live only — through the `/combat/shots`, `/combat/detonations` rows) | checks' combat conditions | kept — a live-only judge; folding it into the index is CE-1377 |
+| `ClearingScenarioTests`, `WeaponSystemsAcrossNodesTests`, `CombatReportTests`, the Fdp.Toolkits combat tests | rails | kept |
+
+⇒ **route, don't delete** ("no rush removals"): the logs keep every other reader; only the director's cue reading leaves them.
+
+```mermaid
+classDiagram
+  direction LR
+  class AnchorBook { <<exists, grown>> TimeOf · Observe(world, units, rel) · ObserveEvents(units) NEW · AwaitsIndex(rel) NEW · Mismatches }
+  class EventAnchors { <<exists, grown>> Of(index, lane, i) names · TimeOf(index, spec, isUnit, since) NEW finds · IsEventCue NEW }
+  class TimelineIndex { <<exists>> Lane · FrameSim }
+  class LiveTimelineSource { <<exists>> the node's live index }
+  class RecordingTimelineSource { <<exists>> the open recording's index }
+  class DirectorRunner { <<exists>> Index NEW · NewBook(take, baked) NEW }
+  class DirectorPack { <<exists>> runner.Index = host.Index · Promotion NEW }
+  class DirectorPackHost { <<exists>> Index · ScenarioTakes NEW }
+  class TakePromotion { <<NEW>> Promote(scenario, take, overwrite) · Copy(from, to, …) }
+  class TakeStore { <<exists, grown>> ScenarioTakesSource NEW reads a scenario's own takes through · HasOwn }
+  class DirectorWindow { <<exists>> Promote to scenario NEW }
+  class DebugApiHost { <<exists>> POST /director/promote NEW }
+  AnchorBook --> EventAnchors : event cues
+  EventAnchors ..> TimelineIndex
+  LiveTimelineSource --> TimelineIndex
+  RecordingTimelineSource --> TimelineIndex
+  DirectorRunner --> AnchorBook : one per item
+  DirectorPack --> DirectorRunner : Index
+  DirectorPack --> TakePromotion
+  DirectorPackHost --> DirectorPack
+  TakePromotion --> TakeStore : from beside the recording, to the scenarios root
+  DirectorWindow --> TakePromotion
+  DebugApiHost --> TakePromotion
+```
+*What the picture shows that prose hid:* nothing resolves anchors but `AnchorBook`, and nothing names them but `EventAnchors` — CR-5 adds the inverse of the
+naming switch BESIDE it (`TimeOf` next to `Express`), so a name K or the Drafter gives is found by the same file's rules. The index reaches the runner the way
+the drafter's already did (`DirectorPackHost.Index`): no host wires it.
+
+```mermaid
+sequenceDiagram
+  participant W as Director window or POST /director/promote
+  participant P as TakePromotion
+  participant S as TakeStore (scenarios root)
+  participant R as DirectorRunner (RB, recording B open)
+  participant T as TakeStore (beside B)
+  participant B as AnchorBook
+  participant I as B's index (RecordingTimelineSource)
+  W->>P: Promote("s-film", "main") on recording A
+  P->>S: copy main.take.json (bake kept: made for this scenario file)
+  Note over R: later: recording B opened (Alpha's 1st round at 2.6 s, not A's 2.0 s)
+  R->>T: Load("s-film", "main"), none beside B
+  T->>S: read through (TE-1's reverse) to the promoted take
+  R->>B: NewBook(take, A's bake, index, t0 = 0, indexIsTheRun)
+  B->>I: EventAnchors.TimeOf(shot by Alpha, n 1)
+  I-->>B: frame 156, FrameSim 2.6 s
+  B-->>R: TimeOf("shot:Alpha#1") = 2.6 (on a recording the index leads over A's bake)
+  R->>R: key "shot:Alpha#1 +0.5" placed at 3.1 s, B's time
+```
+
+```mermaid
+graph TD
+  subgraph ED["Editor — EditorSubsystem.Update"]
+    EIDX["Index: _node.ShownTimeline.Index (live; a cluster replay: the node's recording)"]
+    ESC["ScenarioTakes: none — its takes ARE the scenario's"]:::dead
+  end
+  subgraph RB["Replay Browser — ReplayBrowserSubsystem.Update"]
+    RIDX["Index: SyncTimelineSource, RecordingTimelineSource.Index"]
+    RSC["ScenarioTakes: shared/scenarios (GetSharedScenariosRoot)"]
+  end
+  PACK["DirectorPack.Attach — runner.Index = h.Index · Promotion(h.Host.Takes to h.ScenarioTakes)"]
+  EIDX --> PACK
+  RIDX --> PACK
+  RSC --> PACK
+  ESC -.->|"promote answers 400"| PACK
+  PACK --> RUN["DirectorRunner.Tick, AnchorBook.Observe (events: the index · state: the world)"]
+  PACK --> PRO["TakePromotion: the Director window button · POST /director/promote"]
+  CGF["CGF / IG / BDC — no director"]:::dead
+  classDef dead fill:#f6d6d6,stroke:#a33
+```
+*What the picture shows that prose hid:* each host already HANDS the pack the index its timeline shows, so the resolver needed no new host wiring; the editor's
+promote edge is dead by construction (it has no scenarios store apart from its own), and the cluster nodes have no director at all.
+
+**Claim table**
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a recording's index holds the combat events | ✅ `CombatTimelineLanes.cs:11` (shot / hit / blast lanes; `Applies` = indexing) · rail 1 asserts 2 shots indexed from a real `.fdp` | ✅ §9 R0 ②, TL-5, §11g row 5 |
+| the index's frame time is the take's clock on the RB | ✅ the runner's t0 = 0 on a seekable host ("CE-1303 D3" in `DirectorRunner`); `DirectorSimSeconds` is the recording's sim axis | ✅ §11m D3 |
+| the live index is the node's, stepped after the kernel, published every ¼ s | ✅ `HrotNodeContext.StepTimeline`, `LiveTimelineSource.PublishTicks` | ✅ R-4089 (one per-frame step) |
+| a shot's index time = what the old cue recorded (`ShotRecord.FiredAt`) | ✅ `FiredAt = HitModel.Now(repo)` = the frame's `GlobalTime.TotalTime` (`FireProcessingSystem.cs:62`, `HitModel.cs:150`); the live index stamps the same `GlobalTime.TotalTime` after that frame (`LiveTimelineSource.Step`) ⇒ **0 drift** on one world; ⛔ not measured on a live editor run (known edge 1) | ✅ §11k known edge 1 named the risk |
+| K's names and the resolver agree | ✅ both in `EventAnchors.cs` (`Express` / `TimeOf`); rail `CE1304_CR5_EveryNamedEvent_IsFoundAgain…` | ✅ §11k "the one naming switch", CR-5 |
+| `hit` from the index loses nothing the takes use | ⚠ the old cue also took area-effect damage on a bystander (`DetonationRecord.Effects`), which the index does not carry; the struck target (`DetonationNotification.Target` = the blast's `Other`) and direct hits (`HitEvent`) are kept. The 4 seeded `hit` anchors are baked (live runs place them by the bake) | ⛔ searched `docs/` + `.dev/` for a ruling on area damage as a `hit`: none found |
+| a scenario take should play on any recording of it | ✅ before P4 the RB's store read only beside the recording (`TakeStore.Load`) | ✅ TE-1: *"the reverse needs no operation: a scenario take plays on any recording of that scenario"* |
+| the RB knows the scenarios root | ✅ `OrchestrationConstants.GetSharedScenariosRoot(stagingRoot)` — the rule `EditorBootstrap.ScenariosRoot` uses | ✅ `TheHostsAgreeOnTheScenarioRootTests` |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **D1** | event cues are `EventAnchors.TimeOf(index, spec, …)` inside `AnchorBook`; state cues keep observing the world; the `ShotLog` / `DetonationLog` reads leave `AnchorBook` | the RECORDED `ShotTraces` singleton on a replayed world — a ring of recent traces for drawing, a second source beside the index with its own counting |
+| **D2** | ONE naming switch: `TimeOf` is written beside `Express` in `EventAnchors.cs` — `shot` = the n-th `combat.shot` by the named unit, `blast` = the n-th `combat.blast`, `hit` = the unit's FIRST strike (a `combat.hit` on it, or a `combat.blast` whose `Other` struck it). `Express` gained the blast half, so K never names a hit that is not the first strike | a resolver-side rule of its own — a name K gives could then resolve to another event |
+| **D3** | **on a recording the index leads; live, the bake leads** (`AnchorBook(indexIsTheRun: host.CanSeek)`): a recording's index is the whole run, future included, and a bake may be another run's (A's, on B); a live index knows only the past, and a bake is exact on a repeating run (R-3038) — so the 55 seeded takes place their cuts exactly as before | the bake always first — on B a fresh-hash bake from A places B's beats at A's times (rail 2's mutation) · the index always first — live, a cut before its event would land late on every run |
+| **D4** | the index reaches the runner as `DirectorRunner.Index`, set by `DirectorPack.Attach` from `DirectorPackHost.Index` (the index the host's timeline SHOWS) — every host by construction. A live take whose end comes before the ¼-s publish has caught up plays on (≤ `IndexGraceSeconds` = 1 s) instead of reporting a beat missing (`AwaitsIndex`) | `IDirectorHost.Index` — a second path for the same value (the pack already had it for the drafter) · forcing a publish — the runner holds a `TimelineIndex`, not the node's source |
+| **D5** | **promote = a COPY** (`TakePromotion.Copy`): the take beside the recording → `<scenarios root>/<scenario>/takes/<take>.take.json`; ⛔ never over an existing scenario take unless `overwrite`; a take with unsaved edits is refused (the SAVED take is copied); keys still at a fixed time are LISTED in the answer (they will not follow a timing change) | re-anchoring at promote (TE-1 first form, §4d) — CR-6 moved it to authoring · promoting the open in-memory take — the person could promote what they never saved |
+| **D6** | **the bake: kept when it was made for the scenario file as it is NOW** (its hash = the destination's `ScenarioHash`) — the file is then copied byte for byte, and a live run of that file places its cuts by it; **dropped otherwise** (it would only be reported stale on every live run). On recordings D3 makes a kept bake harmless | always drop — a promoted take's first live run would cut on live cues only (a cut before its event lands late) · always keep — a stale bake is noise on every run |
+| **D7** | **TE-1's reverse is built** (`TakeStore(…, ScenarioTakesSource)`): the RB's store reads the recording's SCENARIO's own takes where none of that name is beside the recording (list and load); ⛔ never writes there — an adjustment on recording B saves beside B | promoting into each recording's folder — a take per recording again, the drift CR-6 removed |
+| **D8** | `POST /director/promote {take, scenario?, recording?, overwrite?}` on the shared director routes; `recording=` opens first (refused on the editor, as on every route); 404 no take · 409 exists / unsaved · 400 nothing named or nothing to promote to (the editor) | an editor-side promote from a recording path — the editor opens no recordings (§11r) |
+
+**As built.** `EventAnchors.TimeOf` / `IsEventCue` (+ `Express` knows a struck blast) · `AnchorBook` (index, t0, `indexIsTheRun`; `ObserveEvents`, `AwaitsIndex`;
+the `ShotLog` / `DetonationLog` reads and `Matches` gone) · `DirectorRunner.Index`, `NewBook`, the priming `ObserveEvents` at item start (a recording's plan
+places its event anchors before the first frame), `IndexGraceSeconds` · `DirectorPack` (`runner.Index = h.Index`, `Promotion`) · `DirectorPackHost.ScenarioTakes`
+· `TakePromotion` (new) · `TakeStore` (`ScenarioTakesSource`, `HasOwn`) · `DirectorWindow` *Promote to scenario* (+ *replace*) · `POST /director/promote` ·
+`ReplayBrowserSubsystem.Director.cs` (the shared scenarios store, `DirectorScenariosRoot`). **Deviation from the brief:** D7 (TE-1's reverse) was not named in
+it, but the acceptance cannot pass without it — recording B has no take beside it.
+
+**Known edges.** (1) *Measured by reading, not on a live editor run:* the live resolver's shot time is the frame's `GlobalTime.TotalTime`, which is what
+`ShotRecord.FiredAt` held (0 drift); blast / hit times move from "the frame the runner first observed it" to the event's own frame — at most one step
+EARLIER than before. Placement on the editor is unchanged (D3: the seeded takes' bakes lead; `CE1364_T4_*` green); only `mismatches` report lines can
+differ. (2) `hit` no longer counts area-effect damage on a bystander (claim table). (3) The runner's per-cut "rounds" figure still reads `ShotLog` (CE-1376).
+(4) The verifier's checks still judge combat conditions from the logs, live only (CE-1377). (5) A state cue on a recording is observed only as the playhead
+passes it: a cut placed BEFORE a state cue still needs a bake (as live).
+
+**Rails** (each red-proved by a compiling mutation; the report lists mutation and message): `ReplayBrowserSubsystemTests.CE1304_CR5_OnARecording_EventAnchors_ResolveFromItsIndex_NoBeatMissing`
+· `ReplayBrowserSubsystemTests.CE1304_P4_ATakeAdjustedOnRecordingA_IsPromoted_AndPlaysItsBeatsOnRecordingB_AtBsTimes` · `DirectorPackTests.CE1304_CR5_OnALiveHost_AnEventAnchor_ResolvesWhenItsEventAppearsInTheLiveIndex`
+· `EventAnchoredKeysTests.CE1304_CR5_EveryNamedEvent_IsFoundAgain_ByTheResolver_AtItsOwnTime` · `DirectorDraftRoutesTests.CE1304_P4_Promote_CopiesTheRecordingsTake_RefusesAnOverwrite_UnlessAsked`.

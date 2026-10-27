@@ -6114,6 +6114,54 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "director_promote",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-1304 P4 (docs/DESIGN_Director_Timeline_Editor.md §11s) — PROMOTE a take adjusted on a recording (saved beside it) into its scenario's own takes (<scenarios root>/<scenario>/takes/): a COPY — its keys already hang on events (CR-6), which every later run, live or recorded, finds again in its own index (CR-5). The same as the Director window's \"Promote to scenario\". The Replay Browser only: a host whose takes ARE the scenario's (the editor) answers 400.",
+    "http": {
+      "method": "POST",
+      "path": "/director/promote"
+    },
+    "params": [
+      {
+        "name": "take",
+        "type": "string",
+        "required": true,
+        "description": "The take beside the open recording"
+      },
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "Its scenario (default: the one the open recording names)"
+      },
+      {
+        "name": "overwrite",
+        "type": "boolean",
+        "required": false,
+        "description": "Replace the scenario's take of the same name (default false: 409)"
+      },
+      {
+        "name": "recording",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-4059 (TE-15) — the Replay Browser only: a recording (a node_N.fdp path, its folder, or an exercise id) opened FIRST through the same open POST /replay makes; 400 on a host that opens no recordings (the editor)"
+      }
+    ],
+    "returns": "{ promoted: true, from, to, overwrote, bake (kept · dropped · none), fixedKeys[] }",
+    "notes": [
+      "docs/DESIGN_Director_Timeline_Editor.md §11s (D5 promote = a copy, D6 the bake rule, D7 a recording shows its scenario's own takes); docs/DESIGN_Film_Production.md workflow ⑧."
+    ],
+    "example": {
+      "args": {
+        "take": "main"
+      },
+      "gist": "promote the recording's main take"
+    },
+    "hint": "The SAVED take is copied (409 while it has unsaved edits). The bake is kept when it was made for the scenario file as it is now, dropped otherwise. fixedKeys = keys at a fixed second (no event before them): they do not follow a timing change. 409 when the scenario already has a take of that name — pass overwrite:true to replace it. Example: director_promote({take:\"main\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "director_list_reels",
     "group": "Y — node diagnostics",
     "summary": "⭐ CE-4038 — the reels (films/<name>.reel.json): playlists of takes, each ONE movie on film.",

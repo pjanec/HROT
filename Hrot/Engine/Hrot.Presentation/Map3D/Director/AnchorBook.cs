@@ -9,6 +9,7 @@ using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.ReplayBrowser.Timeline;
 
 namespace Hrot.UI.Common.Map3D.Director;
 
@@ -19,10 +20,13 @@ public sealed record AnchorMismatch(string Anchor, double Baked, double? Live)
 }
 
 /// <summary>
-/// ⭐ <c>CE-4038</c> (docs/DESIGN_Film_Director.md §2, §0; B7) — the take's anchors in this run. It reads the run's beats each step from
-/// COMPONENT STATE and the combat logs kept beside the world (<see cref="ShotLog"/>, <see cref="DetonationLog"/>) — ⛔ never
-/// <c>repo.Bus.Read</c> (CE-3293 S3). The scout bakes what it records; during a film it VERIFIES each baked time and names any that drift.
-/// <para>Cues: <c>shot</c> (the n-th round, by a unit) · <c>blast</c> (the n-th burst) · <c>hit</c> (a unit struck) · <c>near</c> (a unit
+/// ⭐ <c>CE-4038</c> (docs/DESIGN_Film_Director.md §2, §0; B7) — the take's anchors in this run. ⭐⭐ <c>CE-1304</c> P4 — CR-5
+/// (docs/DESIGN_Director_Timeline_Editor.md §11s): ONE resolver for a live run and a recording. EVENT cues (<c>shot</c> · <c>blast</c> · <c>hit</c>) are
+/// queries on the run's timeline INDEX (<see cref="EventAnchors.TimeOf"/> — the naming switch K and the Drafter use, in reverse): the live index on a live
+/// run, the recording's on a recording. STATE cues observe the world (live, or the replayed one) — ⛔ never <c>repo.Bus.Read</c> (CE-3293 S3).
+/// ⛔ SUPERSEDED: the event cues read <c>ShotLog</c> / <c>DetonationLog</c>, side stores beside the world that a recording never carries, so a take played on a
+/// recording reported <c>beat-missing</c> (§11r). The scout bakes what it finds; during a film it VERIFIES each baked time and names any that drift.
+/// <para>Cues: <c>shot</c> (the n-th round, by a unit) · <c>blast</c> (the n-th burst) · <c>hit</c> (a unit's first strike) · <c>near</c> (a unit
 /// within a radius of a point) · <c>task</c> (a unit's running behaviour) · <c>side</c> (its affiliation) · <c>health</c> (below a share) ·
 /// <c>embark</c> (aboard or not) · <c>gesture</c>. A unit is a name or <c>"*part"</c> (any whose name contains it).</para>
 /// </summary>
@@ -34,16 +38,25 @@ public sealed class AnchorBook
     private readonly IReadOnlyDictionary<string, AnchorSpec> _specs;
     private readonly IReadOnlyDictionary<string, double> _baked;
     private readonly Func<int, string?> _behaviourName;
+    private readonly Func<TimelineIndex?> _index;
+    private readonly double _t0;
+    private readonly bool _indexIsTheRun;
     private readonly Dictionary<string, double> _live = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, int> _counts = new(StringComparer.Ordinal);
-    private long _shotSeq, _blastSeq, _firstShot;
-    private bool _primed;
 
-    public AnchorBook(IReadOnlyDictionary<string, AnchorSpec> anchors, IReadOnlyDictionary<string, double>? baked, Func<int, string?>? behaviourName = null)
+    /// <param name="index">⭐ CR-5 — the run's timeline index (null, or none: the event cues stay unseen).</param>
+    /// <param name="t0">The sim second the take's clock starts at: an index frame at sim <c>s</c> is take time <c>s − t0</c>; earlier frames are not this run's.</param>
+    /// <param name="indexIsTheRun">⭐ CR-5 — the index is a RECORDING's (the whole run, future included): its time of an event wins over a bake, which may be
+    /// another run's (a take adjusted on recording A plays on B at B's times). A live index knows only the past, so there the bake (exact on a repeating run,
+    /// R-3038) leads.</param>
+    public AnchorBook(IReadOnlyDictionary<string, AnchorSpec> anchors, IReadOnlyDictionary<string, double>? baked, Func<int, string?>? behaviourName = null,
+                      Func<TimelineIndex?>? index = null, double t0 = 0d, bool indexIsTheRun = false)
     {
         _specs = anchors ?? throw new ArgumentNullException(nameof(anchors));
         _baked = baked ?? new Dictionary<string, double>();
         _behaviourName = behaviourName ?? (_ => null);
+        _index = index ?? (() => null);
+        _t0 = t0;
+        _indexIsTheRun = indexIsTheRun;
     }
 
     /// <summary>Anchor times seen in THIS run.</summary>
@@ -51,14 +64,31 @@ public sealed class AnchorBook
 
     /// <summary>
     /// The time a shot is placed by: the BAKED one when there is one (exact on a repeating run — R-3038), else the live one (a take not
-    /// scouted yet: a cut BEFORE its cue then lands late).
+    /// scouted yet: a cut BEFORE its cue then lands late). ⭐ CR-5 — on a recording, an event cue's time in ITS index comes first.
     /// </summary>
-    public double? TimeOf(string anchor) => _baked.TryGetValue(anchor, out var t) ? t : _live.TryGetValue(anchor, out t) ? t : null;
+    public double? TimeOf(string anchor)
+    {
+        if (_indexIsTheRun && _live.TryGetValue(anchor, out var r) && _specs.TryGetValue(anchor, out var spec) && EventAnchors.IsEventCue(spec.On)) return r;
+        return _baked.TryGetValue(anchor, out var t) ? t : _live.TryGetValue(anchor, out t) ? t : null;
+    }
 
     public double? TimeOf(AtExpr at) => at.Resolve(TimeOf);
 
     /// <summary>The anchors still unseen.</summary>
     public IEnumerable<string> Unseen => _specs.Keys.Where(k => !_live.ContainsKey(k));
+
+    /// <summary>
+    /// ⭐ CR-5 — an unseen EVENT anchor may still appear in a LIVE index that has not caught up to take time <paramref name="simTime"/> (it publishes a
+    /// snapshot at most every quarter second of wall time): the run should not be judged yet. Never on a recording (its index is not behind the run).
+    /// </summary>
+    public bool AwaitsIndex(double simTime)
+    {
+        if (_indexIsTheRun || _index() is not { } index) return false;
+        if (!_specs.Any(kv => EventAnchors.IsEventCue(kv.Value.On) && !_live.ContainsKey(kv.Key))) return false;
+        var fs = index.FrameSim;
+        int n = Math.Min(fs.Count, index.FrameTicks.Count);
+        return n == 0 || double.IsNaN(fs[n - 1]) || fs[n - 1] - _t0 < simTime - 1e-6;
+    }
 
     /// <summary>Each baked anchor seen at another time, or (once <paramref name="simTime"/> is past it) not seen.</summary>
     public IReadOnlyList<AnchorMismatch> Mismatches(double simTime)
@@ -76,79 +106,40 @@ public sealed class AnchorBook
         return list;
     }
 
-    /// <summary>Looks at the world after a step: each unseen anchor whose cue holds now is recorded at <paramref name="simTime"/> (a shot at its own firing time).</summary>
-    public void Observe(EntityRepository world, IShotWorld units, double simTime)
+    /// <summary>
+    /// ⭐ CR-5 — each unseen EVENT anchor the index now holds, at its event's take time. On a recording that is every one at once (its index is the whole
+    /// run, read as it is scanned); live, an event once the live index has it. Cheap to call every frame.
+    /// </summary>
+    public void ObserveEvents(IShotWorld units)
     {
-        var shots = ShotLog.Peek(world);
-        var blasts = DetonationLog.Peek(world);
-        if (!_primed)
-        {
-            // ⚠ the logs live beside the world and outlast a load: only what happens from now on counts
-            _shotSeq = _firstShot = shots?.Count ?? 0;
-            _blastSeq = blasts?.Count ?? 0;
-            _primed = true;
-        }
-
-        var newShots = new List<ShotRecord>();
-        if (shots != null)
-        {
-            for (long s = Math.Max(_shotSeq, shots.Count - ShotLog.Capacity); s < shots.Count; s++)
-                if (shots.At(s) is { } r) newShots.Add(r);
-            _shotSeq = shots.Count;
-        }
-        var newBlasts = new List<DetonationRecord>();
-        if (blasts != null)
-        {
-            for (long s = Math.Max(_blastSeq, blasts.Count - DetonationLog.Capacity); s < blasts.Count; s++)
-                if (blasts.At(s) is { } r) newBlasts.Add(r);
-            _blastSeq = blasts.Count;
-        }
-
+        if (_index() is not { } index) return;
         foreach (var (key, a) in _specs)
         {
-            if (_live.ContainsKey(key)) continue;
-            double? at = a.On switch
-            {
-                "shot" => CountShots(key, a, newShots, world, units),
-                "blast" => Count(key, a.N, newBlasts.Count) ? simTime : null,
-                "hit" => Hit(a, newBlasts, world, units) ? simTime : null,
-                _ => AnyUnit(a, world, units, e => Holds(a, world, e, _behaviourName)) ? simTime : null,
-            };
-            if (at is { } t) _live[key] = t;
+            if (_live.ContainsKey(key) || !EventAnchors.IsEventCue(a.On)) continue;
+            if (EventAnchors.TimeOf(index, a, (who, id) => IsUnit(who, id, units), _t0) is { } sim) _live[key] = sim - _t0;
         }
     }
 
-    private double? CountShots(string key, AnchorSpec a, List<ShotRecord> shots, EntityRepository world, IShotWorld units)
+    /// <summary>Looks at the run after a step: the event cues in its index (<see cref="ObserveEvents"/>), then each unseen STATE anchor whose cue holds now,
+    /// recorded at <paramref name="simTime"/>.</summary>
+    public void Observe(EntityRepository world, IShotWorld units, double simTime)
     {
-        foreach (var s in shots)
+        ObserveEvents(units);
+        foreach (var (key, a) in _specs)
         {
-            if (a.By != null && !Matches(a.By, s.Shooter, world, units)) continue;
-            if (Count(key, a.N, 1)) return s.FiredAt;
+            if (_live.ContainsKey(key) || EventAnchors.IsEventCue(a.On)) continue;
+            if (AnyUnit(a, world, units, e => Holds(a, world, e, _behaviourName))) _live[key] = simTime;
         }
-        return null;
     }
 
-    /// <summary>Adds <paramref name="seen"/> to the anchor's count; true when it reaches <paramref name="n"/>.</summary>
-    private bool Count(string key, int n, int seen)
+    /// <summary>Whether <paramref name="who"/> (a name, or <c>"*part"</c>) names the unit with network id <paramref name="networkId"/> (an index's subject id).</summary>
+    private static bool IsUnit(string who, long networkId, IShotWorld units)
     {
-        if (seen <= 0) return false;
-        int c = (_counts.TryGetValue(key, out var k) ? k : 0) + seen;
-        _counts[key] = c;
-        return c >= Math.Max(1, n);
-    }
-
-    private bool Hit(AnchorSpec a, List<DetonationRecord> blasts, EntityRepository world, IShotWorld units)
-    {
-        if (a.Target == null) return false;
-        // ⚠ a round is logged when FIRED and ends later in place: look at every round of this run, not only the new ones
-        if (ShotLog.Peek(world) is { } log)
-            foreach (var s in log.Recent(ShotLog.Capacity))
-            {
-                if (s.Seq < _firstShot) break;
-                if (s.Outcome == ShotOutcome.Hit && Matches(a.Target, s.HitEntity, world, units)) return true;
-            }
-        foreach (var b in blasts)
-            if (Matches(a.Target, b.Struck, world, units) || b.Effects.Any(x => x.TotalDamage > 0 && Matches(a.Target, x.Entity, world, units))) return true;
+        if (networkId == 0) return false;
+        if (!who.StartsWith('*')) return units.Resolve(who) == networkId;
+        var part = who[1..];
+        foreach (var n in units.Names)
+            if (n.Contains(part, StringComparison.Ordinal) && units.Resolve(n) == networkId) return true;
         return false;
     }
 
@@ -211,14 +202,5 @@ public sealed class AnchorBook
         }
         else if (units.Resolve(who) is { } id && NetworkIdResolver.ResolveNetworkId(world, id) is var e && !e.IsNull)
             yield return e;
-    }
-
-    private static bool Matches(string who, Entity e, EntityRepository world, IShotWorld units)
-    {
-        if (e.IsNull) return false;
-        long id = NetworkIdResolver.RuntimeNetworkIdOf(world, e);
-        if (id == 0) return false;
-        if (!who.StartsWith('*')) return units.Resolve(who) == id;
-        return world.HasComponent<EntityInfo>(e) && world.GetComponentRO<EntityInfo>(e).Name.ToString().Contains(who[1..], StringComparison.Ordinal);
     }
 }
