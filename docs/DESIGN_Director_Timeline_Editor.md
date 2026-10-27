@@ -1578,3 +1578,62 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 *Reused as is:* `FilmStudio`, `FilmCaptureLayer`, `ShotEvaluator`, `CameraSpec`, `AtExpr`, `ReplayBrowserContext`, `RecordingSearchService`,
 the reel format, capture and the sound track. *Grown:* `Take`, `AnchorSpec`, `AnchorBook`, `TakeTimeline`, `TakeStore`, `IDirectorHost`,
 `DirectorWindow` (into the timeline panel). *New:* `ReplayDirectorHost`, `FilmGraphicsLayer`, the key/segment/subtitle/view/graphic records.
+
+### 11h. ✅ As built `2026-10-27` — P0 items ①, ② and ④ (backend; NOTE_Coordinator_To_Backend_Films_From_Recordings)
+
+```mermaid
+classDiagram
+  class HrotEnvironment {
+    <<exists>>
+    CreateTkb() the built-in catalogue
+  }
+  class ReplayBrowserSubsystem {
+    <<exists, grown>>
+    _tkb = CreateTkb() ONCE
+    PrepareRepo() sets ITkbDatabase on every repo it binds
+  }
+  class ScenarioLoadStep {
+    <<exists, grown>>
+    stamps name + hash with the description
+  }
+  class ScenarioDescription {
+    <<exists, grown>>
+    HashOf(json) THE scenario hash
+    IdentityOf(world)
+  }
+  class RecorderTickSystem {
+    <<exists, grown>>
+    StampWorld: TerrainName, ScenarioName, ScenarioHash
+  }
+  class TakeStore {
+    <<exists>>
+    ScenarioHash() uses HashOf
+  }
+  class RecordedAssemblies {
+    <<new>>
+    EnsureLoaded(meta) loads the named assemblies
+  }
+  class PlaybackController {
+    <<exists>>
+    ctor calls EnsureLoaded before Validate
+  }
+  ReplayBrowserSubsystem --> HrotEnvironment : the same call every node makes
+  ScenarioLoadStep --> ScenarioDescription : Stamp(world, text, name, hash)
+  RecorderTickSystem --> ScenarioDescription : IdentityOf
+  TakeStore --> ScenarioDescription : HashOf
+  PlaybackController --> RecordedAssemblies
+```
+*What the picture shows that the prose hid:* nothing here is browser-only. The TKB comes from the call every node makes, the scenario's
+identity rides the resident record the load step already stamps (CE-3288), one hash serves takes and recordings, and the assembly load sits
+at the one place every replay path opens a recording (the browser, the index builder, the dumper, node replays).
+
+| item | as built | ⚠ deviation |
+|---|---|---|
+| **① the TKB** | `ReplayBrowserSubsystem._tkb = HrotEnvironment.CreateTkb()`, set by `PrepareRepo` on every repo it binds and handed to the debug surface (`tkbDb`, a listed absence closed) | ⚠ **not "from the recording's scenario"** (TE-12's wording): 🔒 R-4018 — *"the name comes from the FILE SYNC, never from the scenario"*, one TKB per deployment. The built-in catalogue IS what the knowledge-base step falls back to with no archive staged (the default deployment). ⏭ a deployment with a staged TKB file: the meta should name the TKB a recording ran with (`ActiveTkbName`) so the browser can load the same archive — not built |
+| **② the scenario** | `RecordingMetadata.ScenarioName` / `ScenarioHash`, stamped by `RecorderTickSystem.StampWorld` from `ScenarioDescription.IdentityOf(world)`; the load step stamps both with the description; `ScenarioDescription.HashOf` (SHA-256 of the JSON text, 16 hex) is the ONE rule — `TakeStore.ScenarioHash` now calls it | ⚠ only the node that READ the scenario (the scenario creator; the editor in a one-node cluster) names it — another node's meta is empty |
+| **④ CE-4050** | `ComponentSchemaInfo.Assembly` written for every recorded component and event type; `RecordedAssemblies.EnsureLoaded` in the `PlaybackController` constructor; a type still unresolved skips its data with one warning (`PlaybackSystem.UnresolvedTypes`) instead of throwing | a recording made before this has no assembly names — it relies on the skip |
+
+Rails (each red-proved by a compiling mutation): `ReplayBrowserSubsystemTests.CE4058_EveryReplayWorld_CarriesTheNodesCatalogue` ·
+`CE3126_TheRecordingCarriesItsOrigin_AndTheReplayUsesIt` (now also the scenario) · `ScenarioLoadStepTests.CE3288_LoadThenSave_…` (name + hash,
+cleared by a new scenario) · `FlightRecorderTests.CE4050_*` (the manifest names assemblies, an unknown one is reported; an unresolved type
+is skipped). ⏭ ①'s acceptance is a still pair (Film Production §6) — not taken yet.

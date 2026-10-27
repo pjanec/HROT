@@ -67,6 +67,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private IReadOnlyDictionary<string, Fdp.Toolkit.Terrain.TerrainDoorState>? _pendingDoorStates;   // ⭐ 5e — the scenario's TerrainObjects
     private Guid? _pendingTransactionId;
     private string? _pendingDescription;   // ⭐ CE-3288 — the file's Header.Description, stamped resident at Commit (§4d)
+    private string? _pendingName, _pendingHash;   // ⭐ CE-4058 ② — the loaded scenario's identity, stamped with its description
     private uint? _publishedAtTick;   // ⭐ CE-3228 — the SimulationTick at which Commit published (readiness ①)
 
     // ⭐⭐ CE-3304 — readiness ① waits for the ENTITIES, not for the requests to be read: the network ids this load published that
@@ -121,6 +122,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingDoorStates    = null;
         _pendingTransactionId = null;
         _pendingDescription   = null;
+        _pendingName = _pendingHash = null;
         _prepared             = true;
 
         // ⭐ A NEW scenario has no file to read — the world starts empty and the operator authors into it.
@@ -146,6 +148,8 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingRequests      = _extractor.Extract(_serializer, json, _idAllocator, _remapper);
         _pendingDoorStates    = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(json);   // ⭐ 5e — applied when the doors are created
         _pendingDescription   = ScenarioDescription.Read(json);   // ⭐ CE-3288 — held by the world so a save writes it back
+        _pendingName          = context.ScenarioId;              // ⭐ CE-4058 ② — a recording names its scenario
+        _pendingHash          = ScenarioDescription.HashOf(json);
         _pendingTransactionId = context.TransactionId;
 
         FdpLog<ScenarioLoadStep>.Info(
@@ -171,7 +175,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         {
             // ⭐ CE-3288 (§4d) — the loaded scenario's description is RESIDENT, so both save sites write it back; a new scenario (or
             //   one without a description) clears the previous one's.
-            if (world != null && _prepared) ScenarioDescription.Stamp(world, _pendingDescription);
+            if (world != null && _prepared) ScenarioDescription.Stamp(world, _pendingDescription, _pendingName, _pendingHash);
 
             bool hasEnvironment = world != null && Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _);
             if (_pendingRequests != null)
@@ -215,6 +219,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
             _pendingDoorStates    = null;
             _pendingTransactionId = null;
             _pendingDescription   = null;
+            _pendingName = _pendingHash = null;
             _prepared             = false;
         }
     }
@@ -246,6 +251,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingDoorStates    = null;
         _pendingTransactionId = null;
         _pendingDescription   = null;
+        _pendingName = _pendingHash = null;
         _prepared             = false;
     }
 

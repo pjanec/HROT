@@ -48,7 +48,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     /// debug service (CE-259an). That world is retired (R-3054) and the routes now drive THIS host's federation: one replay world.</para>
     ///
     /// <para>⛔ <b>Still absent, each a measured absence:</b> <c>architecture</c> (no <c>ModuleHostKernel</c> here —
-    /// <c>DESIGN_Subsystem_Composition_Unification.md:1153</c>), <c>tkbDb</c>, <c>missionEditor</c>, the roster and the dump status (no catalog,
+    /// <c>DESIGN_Subsystem_Composition_Unification.md:1153</c>), <c>missionEditor</c>, the roster and the dump status (no catalog,
     /// no mission service, no cluster).</para>
     ///
     /// <para>⚠ <c>world.read</c> covers the mutating entity routes too; a write lands in the replay's sandbox, which the next seek replaces —
@@ -719,6 +719,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             // ⭐ "ReplayBrowser" — the perspective the window manager reports (DESIGN_Perspective_Unification.md:84); the dispatcher matches on it.
             perspective:   "ReplayBrowser",
             world:         () => _activeRepo,
+            tkbDb:         () => _tkb,   // ⭐ CE-4058 ① — the catalogue every repo here carries
             // ⭐ the map off the CURRENT repo (EnsureNetworkEntityMap rebuilds it on every rebind)
             entityMap:     SubsystemDebugProvider.EntityMapFrom(() => _activeRepo),
             // ⭐ CE-171 — serializer-backed, the inspector's own serializer

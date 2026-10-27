@@ -985,12 +985,15 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
             repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { ResolvedName = "test-town" });
+            Fdp.Toolkit.Scenario.ScenarioDescription.Stamp(repo, "What: a test.", "ua-tank-ammo", "0123456789abcdef");   // ⭐ CE-4058 ②
             using var rec = new AsyncRecorder(path, meta);
             Fdp.Toolkit.Replay.RecorderTickSystem.StampWorld(repo, rec.Metadata);
             rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
         }
         var written = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(path + ".meta.json"));
         Assert.Equal("test-town", written.TerrainName);
+        Assert.Equal("ua-tank-ammo", written.ScenarioName);       // ⭐ CE-4058 ② — a recording names its scenario …
+        Assert.Equal("0123456789abcdef", written.ScenarioHash);   //   … and its hash as loaded
         Assert.NotNull(written.GeoOrigin);
         Assert.Equal(48.1, written.GeoOrigin!.Lat, 9);
 
@@ -1000,6 +1003,23 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(48.1, lat, 9);
         Assert.Equal(11.5, lon, 9);
         Assert.Equal(500.0, alt, 9);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4058 ① (Director Timeline TE-12, R-4069) — every repo the browser binds carries the catalogue every node runs on, so the
+    /// bodies, effects and sounds resolve their types. 🔴 Before: none — every vehicle drew as a plain box (Film Production §6).
+    /// </summary>
+    [Fact]
+    public void CE4058_EveryReplayWorld_CarriesTheNodesCatalogue()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(RecordNamingTerrain("tkb.fdp", "test-town"));
+        var world = _subsystem.ActiveRepo!;
+        Assert.True(world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>(), "the replay world has no TKB");
+        var tkb = world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+        Assert.Same(_subsystem.Tkb, tkb);   // ONE per host, on every repo it binds
+        var nodeCatalogue = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        Assert.Equal(nodeCatalogue.GetAll().Select(t => t.Name).OrderBy(n => n), tkb.GetAll().Select(t => t.Name).OrderBy(n => n));
     }
 
     // ── CE-3118 — the Replay Browser loads the recording's terrain and road network ────────────────────────────────

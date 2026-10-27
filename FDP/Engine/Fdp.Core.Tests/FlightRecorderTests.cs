@@ -283,6 +283,37 @@ namespace Fdp.Tests
             }
         }
 
+        /// <summary>⭐ CE-4050 — the recording names the assembly each recorded type lives in, and a replaying process loads the named ones it
+        /// has not loaded yet (assemblies load lazily); a name this install does not carry is reported, not thrown.</summary>
+        [Fact]
+        public void CE4050_The_manifest_names_each_types_assembly_and_a_replay_loads_them()
+        {
+            using (var repo = new EntityRepository())
+            {
+                repo.RegisterComponent<Position>();
+                using var recorder = new AsyncRecorder(_testFilePath);
+                recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true);
+            }
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(_testFilePath + ".meta.json"));
+            var position = meta.SchemaManifest!.Values.Single(i => i.Name == typeof(Position).FullName);
+            Assert.Equal(typeof(Position).Assembly.GetName().Name, position.Assembly);
+
+            Assert.Empty(RecordedAssemblies.EnsureLoaded(meta));   // everything named is loadable here
+            meta.SchemaManifest[987_654] = new ComponentSchemaInfo { Name = "Gone.Type", Assembly = "Not.An.Assembly.CE4050" };
+            Assert.Equal(new[] { "Not.An.Assembly.CE4050" }, RecordedAssemblies.EnsureLoaded(meta));   // said, not thrown
+        }
+
+        /// <summary>⭐ CE-4050 — a recorded type no loaded assembly declares no longer STOPS playback: its data is skipped and named.</summary>
+        [Fact]
+        public void CE4050_A_type_nobody_declares_is_skipped_not_thrown()
+        {
+            using var repo = new EntityRepository();
+            var playback = new PlaybackSystem();
+            var apply = typeof(PlaybackSystem).GetMethod("ApplyChunkData", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            apply.Invoke(playback, new object[] { repo, 987_655, 0, new byte[16] });
+            Assert.Contains(987_655, playback.UnresolvedTypes);
+        }
+
         private static int DestroyedCount(RecorderSystem recorder, EntityRepository repo)
         {
             using var stream = new MemoryStream();

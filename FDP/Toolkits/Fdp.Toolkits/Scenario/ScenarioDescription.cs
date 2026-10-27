@@ -17,6 +17,12 @@ namespace Fdp.Toolkit.Scenario
     {
         /// <summary>The header's <c>Description</c> as loaded; empty when the scenario has none.</summary>
         public string Text { get; set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-4058</c> ② — the loaded scenario's NAME (its id); empty for a new scenario.</summary>
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-4058</c> ② — the hash of the scenario as loaded (<see cref="ScenarioDescription.HashOf"/>); empty when none.</summary>
+        public string Hash { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -59,13 +65,34 @@ namespace Fdp.Toolkit.Scenario
             return string.IsNullOrEmpty(held?.Text) ? null : held!.Text;
         }
 
-        /// <summary>Makes <paramref name="text"/> the loaded scenario's description in <paramref name="world"/>; null clears it
-        /// (a new scenario, or one without a description, must not keep the previous one's).</summary>
-        public static void Stamp(EntityRepository world, string? text)
+        /// <summary>Makes <paramref name="text"/> the loaded scenario's description in <paramref name="world"/>, with its
+        /// <paramref name="name"/> and <paramref name="hash"/> (CE-4058 ②); null clears each (a new scenario, or one without a
+        /// description, must not keep the previous one's).</summary>
+        public static void Stamp(EntityRepository world, string? text, string? name = null, string? hash = null)
         {
             if (world == null) return;
-            if (string.IsNullOrWhiteSpace(text) && !world.HasSingletonManaged<ScenarioDescriptionResident>()) return;
-            world.SetSingletonManaged(new ScenarioDescriptionResident { Text = text ?? string.Empty });
+            if (string.IsNullOrWhiteSpace(text) && string.IsNullOrEmpty(name) && !world.HasSingletonManaged<ScenarioDescriptionResident>()) return;
+            world.SetSingletonManaged(new ScenarioDescriptionResident { Text = text ?? string.Empty, Name = name ?? string.Empty, Hash = hash ?? string.Empty });
+        }
+
+        /// <summary>⭐ <c>CE-4058</c> ② — the loaded scenario's name and hash in <paramref name="world"/>, or nulls.</summary>
+        public static (string? Name, string? Hash) IdentityOf(EntityRepository? world)
+        {
+            if (world == null || !world.HasSingletonManaged<ScenarioDescriptionResident>()) return (null, null);
+            var held = world.GetSingletonManaged<ScenarioDescriptionResident>();
+            return (string.IsNullOrEmpty(held?.Name) ? null : held!.Name, string.IsNullOrEmpty(held?.Hash) ? null : held!.Hash);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4058</c> ② — THE scenario hash: the first 16 hex digits (lower case) of the SHA-256 of the scenario's JSON text (UTF-8).
+        /// ONE rule for every reader — a recording's meta, the director's takes (<c>TakeStore.ScenarioHash</c>) — so "the same scenario" means
+        /// one thing. Empty for no text.
+        /// </summary>
+        public static string HashOf(string? json)
+        {
+            if (string.IsNullOrEmpty(json)) return string.Empty;
+            byte[] digest = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json));
+            return System.Convert.ToHexString(digest)[..16].ToLowerInvariant();
         }
     }
 }
