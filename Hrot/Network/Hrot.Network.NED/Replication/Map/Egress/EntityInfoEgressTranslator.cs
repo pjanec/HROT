@@ -143,10 +143,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
 				_writer.Write(new Hrot.NED.Descriptors.EntityInfo
                 {
-                    EntityId            = (int)netId.Value,
+                    EntityId            = netId.Value,
                     Name                = data.Name.ToString(),
                     ForceIdentifier     = Utils.ForceIdMapping.ToWire(data.ForceId),
-                    CommanderId         = (int)commanderNetId,
+                    CommanderId         = commanderNetId,
                     TacticalDesignation = designation,
                     FireTeam            = team,
                 });
@@ -169,7 +169,7 @@ namespace Hrot.Map.Common.Replication.Egress
 		/// </summary>
 		public void Dispose(long networkEntityId)
         {
-			_writer.DisposeInstance(new Hrot.NED.Descriptors.EntityInfo { EntityId = (int)networkEntityId } );
+			_writer.DisposeInstance(new Hrot.NED.Descriptors.EntityInfo { EntityId = networkEntityId } );
         }
     }
 }

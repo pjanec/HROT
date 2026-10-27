@@ -123,7 +123,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 
             _writer.Write(new MapRoute
             {
-                EntityId      = (int)netId.Value,
+                EntityId      = netId.Value,
                 Points        = waypoints,
                 IsLoop        = routePlan.IsLoop,
                 ExtensionJson = string.Empty,
@@ -145,6 +145,6 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
         if (_entityMap.TryGetEntity(networkEntityId, out var entity))
             _publishedVersions.Remove(entity);
 
-        _writer.DisposeInstance(new MapRoute { EntityId = (int)networkEntityId });
+        _writer.DisposeInstance(new MapRoute { EntityId = networkEntityId });
     }
 }

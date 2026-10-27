@@ -81,7 +81,7 @@ namespace Hrot.BDC.Replication
 
                 _writer!.Write(new BdcEntityMaster
                 {
-                    EntityId = (int)netId.Value,
+                    EntityId = netId.Value,
                     TkbType  = tkb.TkbType,
                     Diskind  = 1, // Platform
                 });
@@ -157,7 +157,7 @@ namespace Hrot.BDC.Replication
         {
             if (_writer != null && _publishedNetIds.Contains(networkEntityId))
             {
-                _writer.DisposeInstance(new BdcEntityMaster { EntityId = (int)networkEntityId });
+                _writer.DisposeInstance(new BdcEntityMaster { EntityId = networkEntityId });
                 _publishedNetIds.Remove(networkEntityId);
             }
         }

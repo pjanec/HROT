@@ -50,7 +50,7 @@ public sealed class TraceLoggingTests : IDisposable
 
         masterWriter.Write(new EntityMaster
         {
-            EntityId = (int)networkId,
+            EntityId = networkId,
             TkbType = TkbEntityTypes.Tank_M1Abrams,
             DisType = default
         });
@@ -74,7 +74,7 @@ public sealed class TraceLoggingTests : IDisposable
             {
                 geoWriter.Write(new WorldPos
                 {
-                    EntityId = (int)networkId,
+                    EntityId = networkId,
                     Pos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0 },
                     Ori = new EulerOri()
                 });

@@ -100,7 +100,7 @@ namespace Hrot.NED.Descriptors
         // 0=invalid
         // All descriptor belonging to this entity share the same id.
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         // Link to a detailed entity type database determining whatever entity characteristics are
         // needed for the simulation.
@@ -170,7 +170,7 @@ namespace Hrot.NED.Descriptors
     {
         // The Entity this info belongs to.
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         // Human-readable name (e.g., "Alpha-1", "Bridge 404").
         // Used for display labels in ExCon/Map.
@@ -182,7 +182,7 @@ namespace Hrot.NED.Descriptors
         // The Hierarchical Parent (ORBAT).
         // 0 = This entity is a Root unit / Taskforce.
         // >0 = EntityId of the parent unit this entity is attached/subordinate to.
-        public int CommanderId;
+        public long CommanderId;
 
         // Logical role of this entity within the commander's unit.
         // Undefined = no designation or no commander.
@@ -207,7 +207,7 @@ namespace Hrot.NED.Descriptors
     {
         // Key 1: Entity ID.
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         // Key 2: Descriptor Type (e.g. 10=GeoSpatial).
         // Versioning is granular per descriptor type.

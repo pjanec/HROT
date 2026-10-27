@@ -62,7 +62,7 @@ public class MapVisualOverlayIngressTranslatorTests
     {
         var view = (ISimulationView)world;
         var cmd  = (EntityCommandBuffer)view.GetCommandBuffer();
-        translator.ProcessSample(new MapVisualOverlay { EntityId = (int)NetId, Points = new List<GeoPoint>() }, cmd, world);
+        translator.ProcessSample(new MapVisualOverlay { EntityId = NetId, Points = new List<GeoPoint>() }, cmd, world);
         cmd.Playback(world);
     }
 

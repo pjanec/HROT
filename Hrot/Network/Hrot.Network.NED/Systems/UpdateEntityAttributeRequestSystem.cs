@@ -344,7 +344,7 @@ namespace Hrot.Map.Common.Systems
         /// a sanitized JSON string without the "CommanderId" key.
         /// </summary>
         private string InterceptCommanderId(
-            string json, int entityNetId, Entity entity, ISimulationView view, EntityRepository repo,
+            string json, long entityNetId, Entity entity, ISimulationView view, EntityRepository repo,
             out bool intercepted)
         {
             intercepted = false;

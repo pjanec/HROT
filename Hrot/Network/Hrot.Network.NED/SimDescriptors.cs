@@ -15,7 +15,7 @@ namespace Hrot.NED.Descriptors
     {
         // Primary Key: Which entity is being modified?
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         public DateTime Time;         // Sync timestamp (exercise FILETIME). 0 = unspecified.
         public GeoPoint Pos;          // Latitude [deg], longitude [deg], altitude [m] above WGS84 ellipsoid
@@ -52,7 +52,7 @@ namespace Hrot.NED.Descriptors
     {
         // Primary Key: Which entity is being modified?
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         /// <summary>Current hit points on the authoritative node. 0 = destroyed.</summary>
         public float Current;
@@ -72,7 +72,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityDoorState
     {
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         /// <summary><c>TerrainDoorState</c>: 0 Closed · 1 Open · 2 Locked · 3 Destroyed (CE-3290: Closed is 0, the default).</summary>
         public byte State;
@@ -91,7 +91,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityWeaponSystemState
     {
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         /// <summary><c>WeaponDeploy</c>: 0 Stowed · 1 Deploying · 2 Deployed · 3 Packing.</summary>
         public byte Deploy;
@@ -113,7 +113,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityTrafficDemand
     {
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         /// <summary><c>TrafficDemand.TargetCars</c>.</summary>
         public int TargetCars;
@@ -143,7 +143,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityScenarioClock
     {
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         /// <summary>UTC ticks at sim time 0 (<c>ScenarioClock.StartUtcTicks</c>).</summary>
         public long StartUtcTicks;
@@ -162,7 +162,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityWeather
     {
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         public float GroundTemperatureC;
         public float LapseRateKPerKm;
@@ -679,7 +679,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityObstacleShape
     {
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         /// <summary>Box length along the heading (m).</summary>
         public float Length;
@@ -742,7 +742,7 @@ namespace Hrot.NED.Descriptors
     {
         /// <summary>Which entity this command targets.</summary>
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         /// <summary>Monotonically increasing order identifier; echoed by <see cref="NavigationStatus.IntentId"/>.</summary>
         public uint IntentId;
@@ -793,7 +793,7 @@ namespace Hrot.NED.Descriptors
     {
         /// <summary>Which entity's navigation state is reported.</summary>
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         /// <summary>Echoes <see cref="NavigationIntent.IntentId"/> of the command being executed.</summary>
         public uint IntentId;
@@ -1026,7 +1026,7 @@ namespace Hrot.NED.Descriptors
     public partial struct GroundClampingOverride
     {
         /// <summary>Network entity ID matching <see cref="WorldPos.EntityId"/>.</summary>
-        [DdsKey] public int EntityId;
+        [DdsKey] public long EntityId;
 
         /// <summary>Desired clamping mode for this entity.</summary>
         public EClampingMode Mode;

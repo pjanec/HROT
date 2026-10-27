@@ -100,7 +100,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     //   carries every entity's id. 📌 Measured 2026-10-18: it was dropped, so a SUMO pedestrian converted on the traffic node
                     //   came back from CGF under a NEW id (AQ93 §15 K5 / R-4029 "keeps its network id" held only in the editor).
                     EntityMaster = new EntityMaster { TkbType = tkbType,
-                                                   EntityId = preAllocatedNetworkId is > 0 and <= int.MaxValue ? (int)preAllocatedNetworkId : 0 },
+                                                   EntityId = preAllocatedNetworkId > 0 ? preAllocatedNetworkId : 0 },
                 },
                 new EntityDescriptorUnion
                 {

@@ -88,7 +88,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 var request = new DeleteEntityRequest
                 {
                     RequestId = Guid.NewGuid(),
-                    EntityId  = (int)destroyCmd.NetworkId,
+                    EntityId  = destroyCmd.NetworkId,
                 };
 
                 _writer.Write(request);

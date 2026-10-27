@@ -32,7 +32,7 @@ namespace Hrot.IG.Tests
 
             translator.DecodeForTest(new EntityDamage
             {
-                EntityId = (int)KnownId,
+                EntityId = KnownId,
                 Current  = 12.5f,
                 Max      = 50f
             }, cmd, repo);
@@ -60,7 +60,7 @@ namespace Hrot.IG.Tests
 
             translator.DecodeForTest(new EntityDamage
             {
-                EntityId = (int)UnknownId,
+                EntityId = UnknownId,
                 Current  = 25f,
                 Max      = 100f
             }, cmd, repo);
@@ -93,7 +93,7 @@ namespace Hrot.IG.Tests
 
             var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
             var cmd = new RecordingCommandBuffer();
-            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+            translator.DecodeForTest(new EntityDamage { EntityId = KnownId, Current = 1f, Max = 50f }, cmd, repo);
 
             Assert.False(cmd.SetComponentCalled, "the recorded owner must not take its own health back");
         }
@@ -112,7 +112,7 @@ namespace Hrot.IG.Tests
 
             var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
             var cmd = new RecordingCommandBuffer();
-            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+            translator.DecodeForTest(new EntityDamage { EntityId = KnownId, Current = 1f, Max = 50f }, cmd, repo);
 
             Assert.Equal(1f, cmd.LastHealth?.Current);
         }
@@ -128,7 +128,7 @@ namespace Hrot.IG.Tests
             using var participant = new DdsParticipant(0);
             var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
             var cmd = new RecordingCommandBuffer();
-            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+            translator.DecodeForTest(new EntityDamage { EntityId = KnownId, Current = 1f, Max = 50f }, cmd, repo);
 
             Assert.Equal(1f, cmd.LastHealth?.Current);
         }
@@ -142,7 +142,7 @@ namespace Hrot.IG.Tests
             using var participant = new DdsParticipant(0);
             var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
             var cmd = new RecordingCommandBuffer();
-            translator.DecodeForTest(new EntityDamage { EntityId = (int)KnownId, Current = 1f, Max = 50f }, cmd, repo);
+            translator.DecodeForTest(new EntityDamage { EntityId = KnownId, Current = 1f, Max = 50f }, cmd, repo);
 
             Assert.False(cmd.SetComponentCalled, "the owner of dtEntityDamage must not take its own health back");
         }

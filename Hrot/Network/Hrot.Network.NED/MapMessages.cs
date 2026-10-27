@@ -25,7 +25,7 @@ namespace Hrot.NED.Messages
     public partial struct MapObjectRef
     {
         // The ID of the entity.
-        public int EntityId;
+        public long EntityId;
 
         // The type of the entity (helper to avoid looking up Master).
         public int TkbType;
@@ -90,7 +90,7 @@ namespace Hrot.NED.Messages
         public DragState State;
 
         // The Entity being dragged.
-        public int EntityId;
+        public long EntityId;
 
         // Current world coordinates of the cursor/object.
         public GeoPoint CurrentPosition;
@@ -111,7 +111,7 @@ namespace Hrot.NED.Messages
         // The complete list of currently selected Entity IDs.
         // Replaces any previous selection state.
         [DdsManaged]
-        public List<int> SelectedEntityIds;
+        public List<long> SelectedEntityIds;
     }
 
     // 4. Commands (ExCon -> IG)
@@ -201,7 +201,7 @@ namespace Hrot.NED.Messages
 
         // The ID of the specific entity on which the menu was opened.
         // Necessary for resolving ambiguity in multi-selections.
-        public int ContextEntityId;
+        public long ContextEntityId;
 
         // The Context ID active when the menu was opened.
         public Guid ContextId;
@@ -224,7 +224,7 @@ namespace Hrot.NED.Messages
         // The list of entities currently selected/clicked.
         // ExCon uses this to generate the appropriate menu options.
         [DdsManaged]
-        public List<int> ForSelection;
+        public List<long> ForSelection;
     }
 
     // ===================================================================================
@@ -280,7 +280,7 @@ namespace Hrot.NED.Messages
         // The IG checks this against its current selection. If the user's selection 
         // has changed since this message was generated, the IG discards this update.
         [DdsManaged]
-        public List<int> ForSelection;
+        public List<long> ForSelection;
 
         // Menu structure as JSON.
         // Supports nested menus, icons, shortcuts, and enable/disable states.

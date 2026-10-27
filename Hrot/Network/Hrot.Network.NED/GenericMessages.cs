@@ -210,7 +210,7 @@ namespace Hrot.NED.Messages
     public partial struct DeleteEntityRequest
     {
         public Guid RequestId;
-        public int EntityId;
+        public long EntityId;
     }
 
     // Request to update a descriptor owned by another node.
@@ -223,7 +223,7 @@ namespace Hrot.NED.Messages
         public Guid RequestId;
 
         // The Entity ID to update.
-        public int EntityId;
+        public long EntityId;
 
         // The specific Descriptor Type (e.g. 10=GeoSpatial).
         public EDescriptorType DescriptorType;
@@ -247,7 +247,7 @@ namespace Hrot.NED.Messages
     {
         public Guid RequestId;
 
-        public int EntityId;
+        public long EntityId;
 
         // 0 = success
         public int ErrorCode;
@@ -265,7 +265,7 @@ namespace Hrot.NED.Messages
     {
         public Guid RequestId;
 
-        public int EntityId;
+        public long EntityId;
 
         // Hierarchical JSON attribute patch, e.g. {"Name":"Bravo-2"} or
         // {"Weapons":{"0":{"Ammo":{"Count":5}}}}.  Processed by JsonAttributeCompiler
@@ -296,7 +296,7 @@ namespace Hrot.NED.Messages
         public Guid RequestId;
 
         /// <summary>The affected entity. For creation requests this holds the newly allocated ID.</summary>
-        public int EntityId;
+        public long EntityId;
 
         /// <summary>Maps to NedStatusCode: 0=Success, 1=InProgress, >=2=Error.</summary>
         public int StatusCode;

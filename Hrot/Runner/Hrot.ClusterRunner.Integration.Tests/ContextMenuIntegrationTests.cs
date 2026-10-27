@@ -31,7 +31,7 @@ public class ContextMenuIntegrationTests
         selectionWriter.Write(new SelectionChangedEvent
         {
             MapId = 0,
-            SelectedEntityIds = new List<int> { networkId }
+            SelectedEntityIds = new List<long> { networkId }
         });
 
         bool menuUpdated = harness.PumpUntil(

@@ -92,7 +92,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// The <see cref="TkbIdentity"/> component, or <c>null</c> if no matching
         /// entity is found.
         /// </returns>
-        public TkbIdentity? ReadTkbIdentity(int networkId)
+        public TkbIdentity? ReadTkbIdentity(long networkId)
         {
             // Resolve network-id → ECS entity via the entity map exposed by SimHostInstance.
             if (!_host.EntityMap.TryGetEntity(networkId, out var entity))
@@ -110,7 +110,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 		/// with network-id <paramref name="networkId"/>.
 		/// Returns <c>null</c> if no such entity exists or the component has not been assigned.
 		/// </summary>
-		public EntityInfo? ReadIgEntityData(int networkId)
+		public EntityInfo? ReadIgEntityData(long networkId)
         {
             if (!_host.EntityMap.TryGetEntity(networkId, out var entity))
                 return null;

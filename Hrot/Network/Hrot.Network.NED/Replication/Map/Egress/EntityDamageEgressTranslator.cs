@@ -84,7 +84,7 @@ namespace Hrot.Map.Common.Replication.Egress
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
             {
                 // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
-                foreach (var id in _lastPublished.Keys) _writer.DisposeInstance(new EntityDamage { EntityId = (int)id });
+                foreach (var id in _lastPublished.Keys) _writer.DisposeInstance(new EntityDamage { EntityId = id });
                 _lastPublished.Clear();
             }
 
@@ -123,7 +123,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 //    📄 See the descriptor's own remarks in SimDescriptors.cs.
                 _writer.Write(new EntityDamage
                 {
-                    EntityId = (int)netId.Value,
+                    EntityId = netId.Value,
                     Current  = current,
                     Max      = max,
                 });

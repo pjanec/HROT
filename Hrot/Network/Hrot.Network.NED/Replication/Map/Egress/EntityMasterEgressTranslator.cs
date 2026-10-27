@@ -101,7 +101,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 _writer.Write(new EntityMaster
                 {
-                    EntityId = (int)netId.Value,
+                    EntityId = netId.Value,
                     TkbType = tkb.TkbType,
                     DisType = new DisTypeStruct
                     {
@@ -136,7 +136,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void Dispose(long networkEntityId)
         {
-            _writer.DisposeInstance(new EntityMaster { EntityId = (int)networkEntityId });
+            _writer.DisposeInstance(new EntityMaster { EntityId = networkEntityId });
             _publishedNetIds.Remove(networkEntityId);
         }
     }

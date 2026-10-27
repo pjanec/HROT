@@ -146,7 +146,7 @@ namespace Hrot.BDC.Replication
 
                 _writer!.Write(new BdcWorldPos
                 {
-                    EntityId = (int)netId.Value,
+                    EntityId = netId.Value,
                     // Cluster-synced SIMULATION time, never wall time — see SimStampCodec and
                     // docs/DESIGN_Dead_Reckoning.md rule R4.
                     Time     = SimStampCodec.Encode(simNowSeconds),
@@ -238,7 +238,7 @@ namespace Hrot.BDC.Replication
 
         public void Dispose(long networkEntityId)
         {
-            _writer?.DisposeInstance(new BdcWorldPos { EntityId = (int)networkEntityId });
+            _writer?.DisposeInstance(new BdcWorldPos { EntityId = networkEntityId });
         }
     }
 }

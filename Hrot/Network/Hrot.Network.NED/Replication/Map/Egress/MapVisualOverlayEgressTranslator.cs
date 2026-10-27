@@ -115,7 +115,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 _writer.Write(new MapVisualOverlay
                 {
-                    EntityId        = (int)netId.Value,
+                    EntityId        = netId.Value,
                     PersistenceMode = PersistenceMode.MODE_PERSISTENT,
                     Points          = geoPoints,
                     IsEditable      = true,
@@ -139,7 +139,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void Dispose(long networkEntityId)
         {
-            _writer.DisposeInstance(new MapVisualOverlay { EntityId = (int)networkEntityId });
+            _writer.DisposeInstance(new MapVisualOverlay { EntityId = networkEntityId });
         }
     }
 }

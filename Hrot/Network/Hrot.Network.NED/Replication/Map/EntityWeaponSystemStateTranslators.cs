@@ -54,7 +54,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityWeaponSystemState ToSample(long netId, in WeaponSystemState s)
-            => new() { EntityId = (int)netId, Deploy = (byte)s.Deploy, Until = s.Until };
+            => new() { EntityId = netId, Deploy = (byte)s.Deploy, Until = s.Until };
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

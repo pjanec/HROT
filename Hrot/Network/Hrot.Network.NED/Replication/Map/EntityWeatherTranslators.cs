@@ -42,7 +42,7 @@ namespace Hrot.Map.Common.Replication.Egress
             if (WorldEpoch.Moved(view, ref _worldEpoch))
             {
                 // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal).
-                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityWeather { EntityId = (int)id });
+                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityWeather { EntityId = id });
                 _last.Clear();
             }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<WeatherConditions>()) return;
@@ -64,7 +64,7 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             var s = new EntityWeather
             {
-                EntityId = (int)netId, GroundTemperatureC = w.GroundTemperatureC, LapseRateKPerKm = w.LapseRateKPerKm,
+                EntityId = netId, GroundTemperatureC = w.GroundTemperatureC, LapseRateKPerKm = w.LapseRateKPerKm,
                 SeaLevelPressureHpa = w.SeaLevelPressureHpa, RelativeHumidity = w.RelativeHumidity, VisibilityM = w.VisibilityM,
                 FogTopM = w.FogTopM, FogVisibilityM = w.FogVisibilityM, Precipitation = w.Precipitation,
                 PrecipitationMmPerHour = w.PrecipitationMmPerHour, FeatherM = w.FeatherM, WindCount = w.WindCount, CloudCount = w.CloudCount,

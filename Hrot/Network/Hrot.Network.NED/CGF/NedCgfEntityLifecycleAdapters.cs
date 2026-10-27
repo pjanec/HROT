@@ -146,7 +146,7 @@ public sealed class NedEntityAckSink : IEntityAckSink
         => _writer.Write(new CreateUpdateDeleteEntityAck
         {
             RequestId  = requestId,
-            EntityId   = (int)entityId,
+            EntityId   = entityId,
             StatusCode = (int)status,
         });
 

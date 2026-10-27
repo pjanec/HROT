@@ -48,7 +48,7 @@ namespace Hrot.Network.NED.IG
                     continue;
 
                 var input = sample.Data;
-                int entityId = 0;
+                long entityId = 0;
                 if (input.ForSelection != null && input.ForSelection.Count > 0)
                     entityId = input.ForSelection[0];
 
@@ -74,14 +74,14 @@ namespace Hrot.Network.NED.IG
 
         protected override bool TryDecode(in DdsContextActionsUpdate input, out ContextActionsUpdate output)
         {
-            int entityId = 0;
+            long entityId = 0;
             if (input.ForSelection != null && input.ForSelection.Count > 0)
                 entityId = input.ForSelection[0];
 
             // Pass the raw JSON string directly — no object-level parsing.
             output = new ContextActionsUpdate
             {
-                EntityNetworkId = entityId,
+                EntityNetworkId = checked((int)entityId),   // AQ107 E: the wire id is int64, the in-process event stays int32
                 MenuJson        = input.MenuDefinitionJson ?? string.Empty,
             };
 

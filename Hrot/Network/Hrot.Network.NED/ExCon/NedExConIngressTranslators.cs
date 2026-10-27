@@ -46,7 +46,7 @@ public sealed class NedMapClickIngressHandler : IIngressHandler, IDisposable
 
             var hits = new List<int>(d.HitStack?.Count ?? 0);
             if (d.HitStack != null)
-                foreach (var h in d.HitStack) hits.Add(h.EntityId);
+                foreach (var h in d.HitStack) hits.Add(checked((int)h.EntityId));   // AQ107 E: wire id int64 → neutral DTO int32
 
             _enqueue(new MapClickEventDto
             {
@@ -91,7 +91,7 @@ public sealed class NedSelectionChangedIngressHandler : IIngressHandler, IDispos
             var d = sample.Data;
             var ids = new List<int>(d.SelectedEntityIds?.Count ?? 0);
             if (d.SelectedEntityIds != null)
-                foreach (var id in d.SelectedEntityIds) ids.Add(id);
+                foreach (var id in d.SelectedEntityIds) ids.Add(checked((int)id));   // AQ107 E: wire id int64 → neutral DTO int32
 
             _enqueue(new SelectionChangedEventDto
             {
@@ -141,7 +141,7 @@ public sealed class NedEntityLifecycleAckIngressHandler : IIngressHandler, IDisp
             _enqueue(new EntityLifecycleAckDto
             {
                 RequestId  = d.RequestId,
-                EntityId   = d.EntityId,
+                EntityId   = checked((int)d.EntityId),   // AQ107 E: wire id int64 → neutral DTO int32
                 StatusCode = d.StatusCode,
             });
         }
@@ -227,7 +227,7 @@ public sealed class NedContextActionInvokedIngressHandler : IIngressHandler, IDi
             {
                 MapId    = d.MapId,
                 ActionId = d.ActionId,
-                EntityId = d.ContextEntityId,
+                EntityId = checked((int)d.ContextEntityId),   // AQ107 E: wire id int64 → neutral DTO int32
             });
         }
     }
@@ -265,16 +265,16 @@ public sealed class NedEntityInfoBridgingHandler : IIngressHandler, IDisposable
         {
             if (!sample.IsValid) continue;
             var d      = sample.Data;
-            var entity = _repo.GetEntity(d.EntityId);
+            var entity = _repo.GetEntity(checked((int)d.EntityId));   // AQ107 E: wire id int64 → neutral DTO int32
             if (entity == null) continue;
 
             entity.SetDescriptor(d);
             entity.SetDescriptor(new EntityInfoDescriptor
             {
-                EntityId    = d.EntityId,
+                EntityId    = checked((int)d.EntityId),   // AQ107 E: wire id int64 → neutral DTO int32
                 Name        = d.Name ?? string.Empty,
                 Affiliation = d.ForceIdentifier.ToString(),
-                CommanderId = d.CommanderId,
+                CommanderId = checked((int)d.CommanderId),   // AQ107 E: wire id int64 → neutral DTO int32
             });
         }
     }
@@ -321,7 +321,7 @@ public sealed class NedEntityMissionBridgingHandler : IIngressHandler, IDisposab
 
             entity.SetDescriptor(new EntityMissionDescriptor
             {
-                EntityId = (int)d.EntityId,
+                EntityId = checked((int)d.EntityId),   // AQ107 E: wire id int64 → neutral DTO int32 (was a bare (int) cast before)
                 Plan     = NedMissionHelper.ToNeutral(d.Plan),
                 Version  = version,
             });
@@ -358,11 +358,11 @@ public sealed class NedMapOverlayBridgingHandler : IIngressHandler, IDisposable
         {
             if (!sample.IsValid) continue;
             var d      = sample.Data;
-            var entity = _repo.GetEntity(d.EntityId);
+            var entity = _repo.GetEntity(checked((int)d.EntityId));   // AQ107 E: wire id int64 → neutral DTO int32
             if (entity == null) continue;
 
             entity.SetDescriptor(d);
-            entity.SetDescriptor(new MapOverlayDescriptor { EntityId = d.EntityId, IsEditable = d.IsEditable });
+            entity.SetDescriptor(new MapOverlayDescriptor { EntityId = checked((int)d.EntityId), IsEditable = d.IsEditable });   // AQ107 E: wire id int64 → neutral DTO int32
         }
     }
 

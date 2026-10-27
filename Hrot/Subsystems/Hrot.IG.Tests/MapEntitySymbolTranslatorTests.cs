@@ -35,7 +35,7 @@ namespace Hrot.IG.Tests
 
             translator.ProcessSample(new MapEntitySymbol
             {
-                EntityId   = (int)KnownId,
+                EntityId   = KnownId,
                 MapGroupId = 0,
                 StyleSetId = "hostile"
             }, cmd, null);
@@ -56,7 +56,7 @@ namespace Hrot.IG.Tests
 
             translator.ProcessSample(new MapEntitySymbol
             {
-                EntityId   = (int)KnownId,
+                EntityId   = KnownId,
                 MapGroupId = 5,
                 StyleSetId = "friendly"
             }, cmd, null);
@@ -77,7 +77,7 @@ namespace Hrot.IG.Tests
 
             translator.ProcessSample(new MapEntitySymbol
             {
-                EntityId   = (int)KnownId,
+                EntityId   = KnownId,
                 MapGroupId = 7,
                 StyleSetId = "neutral"
             }, cmd, null);

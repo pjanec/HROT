@@ -223,7 +223,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 Publish(new WorldPos
                 {
-                    EntityId = (int)netId.Value,
+                    EntityId = netId.Value,
                     // Cluster-synced SIMULATION time, not wall time (CE-211). The receiver ages this
                     // sample as `simNow - stamp` to extrapolate; that subtraction only means anything
                     // if both terms come from the same synced clock. A UtcNow stamp re-introduced the

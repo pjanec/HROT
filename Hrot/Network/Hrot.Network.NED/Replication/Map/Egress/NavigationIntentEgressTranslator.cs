@@ -102,7 +102,7 @@ namespace Hrot.Map.Common.Replication.Egress
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
             {
                 // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
-                foreach (var id in _publishedIds) _writer.DisposeInstance(new Hrot.NED.Descriptors.NavigationIntent { EntityId = (int)id });
+                foreach (var id in _publishedIds) _writer.DisposeInstance(new Hrot.NED.Descriptors.NavigationIntent { EntityId = id });
                 _publishedIds.Clear();
                 _lastPublishedIntentId.Clear();
             }
@@ -160,7 +160,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 _publishedIds.Add(netId.Value);   // ⭐ CE-4007 — what this writer must delete on a wipe
                 _writer.Write(new Hrot.NED.Descriptors.NavigationIntent
                 {
-                    EntityId         = (int)netId.Value,
+                    EntityId         = netId.Value,
                     IntentId         = intent.IntentId,
                     Mode             = MapMode(intent.Mode),
                     FinalDestination = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },

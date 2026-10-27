@@ -76,6 +76,57 @@ public class EntityMasterTranslatorTests
         Assert.False(repo.HasComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(unasked));
     }
 
+    // ── ⭐ AQ107 E (R-4093) — every entity id on the NED wire is int64 ───────────────────────────────────────────
+
+    /// <summary>⭐ AQ107 E — an entity whose network id does NOT fit in 32 bits goes out through <see cref="Hrot.Map.Common.Replication.Egress.EntityMasterEgressTranslator"/>
+    /// into the DDS <c>EntityMaster</c> sample and comes back through <see cref="EntityMasterIngressTranslator.PollIngress"/> as a ghost
+    /// under the SAME id (docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md §4 row E). Over a real DDS domain, so the
+    /// wire field itself is what is measured. ✅ Red-proof: <c>EntityMaster.EntityId</c> back to <c>int</c> with the egress keeping a
+    /// <c>(int)</c> cast (it compiles) ⇒ the sample carries the truncated id ⇒ no ghost under the real id ⇒ red.</summary>
+    [Fact]
+    public void AQ107E_AnEntityIdAboveInt32_SurvivesEgressDdsAndIngress()
+    {
+        const uint domain = 172u;
+        const long bigId  = (long)int.MaxValue + 5;
+
+        using var senderParticipant   = new DdsParticipant(domain);
+        using var receiverParticipant = new DdsParticipant(domain);
+
+        // the receiving node: the ingress translator over a real reader
+        var (receiverRepo, receiverMap, receiverBus, _) = CreateFixture();
+        receiverRepo.RegisterComponent<NetworkAuthority>();
+        receiverRepo.RegisterComponent<TkbIdentity>();
+        var ingress = new EntityMasterIngressTranslator(receiverParticipant, receiverMap, localNodeId: 99, receiverBus,
+                                                        new GhostCreationSystem(receiverMap));
+
+        // the owning node: an entity with the big id, locally owned, published by the egress translator
+        var senderRepo = new EntityRepository();
+        senderRepo.RegisterComponent<NetworkIdentity>();
+        senderRepo.RegisterComponent<NetworkAuthority>();
+        senderRepo.RegisterComponent<TkbIdentity>();
+        var owned = senderRepo.CreateEntity();
+        senderRepo.AddComponent(owned, new NetworkIdentity(bigId));
+        senderRepo.AddComponent(owned, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+        senderRepo.AddComponent(owned, new TkbIdentity { TkbType = TestTkbType });
+        var egress = new Hrot.Map.Common.Replication.Egress.EntityMasterEgressTranslator(senderParticipant, new NetworkEntityMap(), localNodeId: 1);
+
+        Entity ghost = Entity.Null;
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (ghost == Entity.Null && DateTime.UtcNow < deadline)
+        {
+            egress.ScanAndPublish(senderRepo);   // exactly-once per id, so only the first scan writes
+            Thread.Sleep(50);
+            using var cmd = new EntityCommandBuffer();
+            ingress.PollIngress(cmd, receiverRepo);
+            cmd.Playback(receiverRepo);
+            if (receiverMap.TryGetEntity(bigId, out var found)) ghost = found;
+        }
+
+        Assert.NotEqual(Entity.Null, ghost);
+        Assert.Equal(bigId, receiverRepo.GetComponentRO<NetworkIdentity>(ghost).Value);
+        Assert.Equal(TestTkbType, receiverRepo.GetComponentRO<TkbIdentity>(ghost).TkbType);
+    }
+
     // ── ⭐ LR-2 — lightweight rounds (docs/DESIGN_Visual_Effects.md §8.5, R-271) ──────────────────────
 
     /// <summary>⭐ LR-2 — a master with the <c>Lightweight</c> flag (a replicated round) makes the entity ACTIVE at once: no ghost
@@ -134,7 +185,7 @@ public class EntityMasterTranslatorTests
     public void ProcessSample_NewEntity_AddsTkbIdentityWithCorrectTkbType()
     {
         var (repo, entityMap, _, translator) = CreateFixture();
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType, DisType = TestDisTypeStruct };
+        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType, DisType = TestDisTypeStruct };
 
         ISimulationView view = repo;
         var cmd = new RecordingCommandBuffer();
@@ -163,7 +214,7 @@ public class EntityMasterTranslatorTests
     public void ProcessSample_NewEntity_RegistersGhostInEntityMap()
     {
         var (repo, entityMap, _, translator) = CreateFixture();
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
 
         ISimulationView view = repo;
         var cmd = new RecordingCommandBuffer();
@@ -182,7 +233,7 @@ public class EntityMasterTranslatorTests
     public void ProcessSample_NewEntity_RegistersGhostWithNoLocalAuthority()
     {
         var (repo, entityMap, _, translator) = CreateFixture();
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
 
         ISimulationView view = repo;
         var cmd = new RecordingCommandBuffer();
@@ -212,7 +263,7 @@ public class EntityMasterTranslatorTests
 
         var updatedMaster = new EntityMaster
         {
-            EntityId = (int)TestNetworkId,
+            EntityId = TestNetworkId,
             TkbType  = TestTkbType,
             DisType  = TestDisTypeStruct,
         };
@@ -231,7 +282,7 @@ public class EntityMasterTranslatorTests
     public void ApplyToEntity_IsNoOp()
     {
         var (repo, _, _, translator) = CreateFixture();
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
 
         var exception = Record.Exception(() =>
             translator.ApplyToEntity(new Entity(), master, repo));
@@ -247,7 +298,7 @@ public class EntityMasterTranslatorTests
     public void ProcessSample_NewEntity_RecordsTheWriterAsThePrimaryOwner()
     {
         var (repo, _, _, translator) = CreateFixture();
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
         var cmd = new RecordingCommandBuffer();
 
         translator.ProcessSample(in master, cmd, repo, writerNodeId: WriterNode);
@@ -264,7 +315,7 @@ public class EntityMasterTranslatorTests
         var entity = repo.CreateEntity();
         repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = -1, LocalNodeId = 1 });
         entityMap.Register(TestNetworkId, entity);
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
         var cmd = new RecordingCommandBuffer();
 
         translator.ProcessSample(in master, cmd, repo, writerNodeId: WriterNode);
@@ -282,7 +333,7 @@ public class EntityMasterTranslatorTests
         var entity = repo.CreateEntity();
         repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = 3, LocalNodeId = 1 });
         entityMap.Register(TestNetworkId, entity);
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
         var cmd = new RecordingCommandBuffer();
 
         translator.ProcessSample(in master, cmd, repo, writerNodeId: WriterNode);
@@ -301,7 +352,7 @@ public class EntityMasterTranslatorTests
         repo.RegisterComponent<TkbIdentity>();
         int? identity = null;
         translator.WriterResolverForTests = h => h == handle ? identity : null;
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
 
         using (var cmd = new EntityCommandBuffer())
         {
@@ -454,7 +505,7 @@ public class EntityMasterTranslatorTests
 
         var master = new EntityMaster
         {
-            EntityId = (int)TestNetworkId,
+            EntityId = TestNetworkId,
             TkbType  = TestTkbType,
             DisType  = wireStruct,
         };
@@ -624,7 +675,7 @@ public class EntityMasterTranslatorTests
         using var senderParticipant = new DdsParticipant(domain);
         senderParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = ownerId });
         using var writer = new DdsWriter<EntityMaster>(senderParticipant);
-        writer.Write(new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType });   // once, no re-send
+        writer.Write(new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType });   // once, no re-send
 
         int owner = int.MinValue;
         var deadline = DateTime.UtcNow.AddSeconds(10);

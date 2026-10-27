@@ -15,7 +15,7 @@ namespace Hrot.BDC.Messages
     {
         // Entity network ID; 0=invalid
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         // TKB type index; 0=invalid
         public long TkbType;
@@ -33,7 +33,7 @@ namespace Hrot.BDC.Messages
     public partial struct BdcWorldPos
     {
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         public DateTime Time;
         public BdcGeoPoint Pos;

@@ -36,7 +36,7 @@ namespace Hrot.IG.Tests
 
             translator.DecodeForTest(new WorldPos
             {
-                EntityId = (int)KnownId,
+                EntityId = KnownId,
                 Pos = new GeoPoint { Latitude = 51, Longitude = 0, Altitude = 0 }
             }, cmd, repo);
 
@@ -72,7 +72,7 @@ namespace Hrot.IG.Tests
 
             translator.DecodeForTest(new WorldPos
             {
-                EntityId = (int)KnownId,
+                EntityId = KnownId,
                 Pos = new GeoPoint { Latitude = 51, Longitude = 0, Altitude = 0 }
             }, cmd, repo);
 
@@ -104,7 +104,7 @@ namespace Hrot.IG.Tests
 
             translator.DecodeForTest(new WorldPos
             {
-                EntityId = (int)KnownId,
+                EntityId = KnownId,
                 Pos = new GeoPoint { Latitude = 1, Longitude = 2, Altitude = 3 }
             }, cmd, repo);
 
@@ -133,7 +133,7 @@ namespace Hrot.IG.Tests
 
             translator.DecodeForTest(new WorldPos
             {
-                EntityId = (int)UnknownId,
+                EntityId = UnknownId,
                 Pos = new GeoPoint { Latitude = 10, Longitude = 20, Altitude = 0 }
             }, cmd, repo);
 

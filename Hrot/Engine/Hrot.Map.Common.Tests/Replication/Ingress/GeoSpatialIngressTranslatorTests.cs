@@ -89,7 +89,7 @@ public sealed class GeoSpatialIngressTranslatorTests
     private static WorldPos MakeSample(long entityId, float lat = 1f, float lon = 2f)
         => new WorldPos
         {
-            EntityId = (int)entityId,
+            EntityId = entityId,
             Pos      = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = 0 },
             Ori      = new EulerOri { Heading = 0 },
             Vel      = new AngularVector(),

@@ -63,7 +63,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 _writer.Write(new EntityObstacleShape
                 {
-                    EntityId = (int)netId, Length = shape.Length, Width = shape.Width, Height = shape.Height,
+                    EntityId = netId, Length = shape.Length, Width = shape.Width, Height = shape.Height,
                 });
                 SentSampleCount++;
             }

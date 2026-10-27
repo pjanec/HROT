@@ -94,7 +94,7 @@ namespace Hrot.Network.NED.IG
             _selectionWriter.Write(new SelectionChangedEvent
             {
                 MapId             = dto.MapId,
-                SelectedEntityIds = new List<int>(dto.SelectedEntityIds),
+                SelectedEntityIds = dto.SelectedEntityIds.Select(id => (long)id).ToList(),   // AQ107 E: neutral int32 → wire int64
             });
         }
 
@@ -116,7 +116,7 @@ namespace Hrot.Network.NED.IG
             {
                 RequestId    = requestId,
                 MapId        = mapId,
-                ForSelection = new List<int>(forSelection),
+                ForSelection = forSelection.Select(id => (long)id).ToList(),   // AQ107 E: neutral int32 → wire int64
             });
         }
 
@@ -188,7 +188,7 @@ namespace Hrot.Network.NED.IG
                 return new EntityLifecycleAckDto
                 {
                     RequestId  = d.RequestId,
-                    EntityId   = d.EntityId,
+                    EntityId   = checked((int)d.EntityId),   // AQ107 E: wire int64 → neutral DTO int32
                     StatusCode = d.StatusCode,
                 };
             }
@@ -244,7 +244,7 @@ namespace Hrot.Network.NED.IG
                 var nedGateway = _commandGateway as NedCommandGateway;
                 if (nedGateway == null) return 0;
                 var ack = await nedGateway.CreateEntityAsync(createReq);
-                return (ack.StatusCode < 2) ? ack.EntityId : 0;
+                return (ack.StatusCode < 2) ? checked((int)ack.EntityId) : 0;   // AQ107 E: wire int64 → neutral int32
             }
             catch (Exception ex)
             {

@@ -45,7 +45,7 @@ namespace Hrot.Map.Common.Replication.Egress
             if (WorldEpoch.Moved(view, ref _worldEpoch))
             {
                 // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal).
-                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityTrafficDemand { EntityId = (int)id });
+                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityTrafficDemand { EntityId = id });
                 _last.Clear();
             }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<TrafficDemand>()) return;
@@ -64,7 +64,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityTrafficDemand ToSample(long netId, in TrafficDemand c)
-            => new() { EntityId = (int)netId, TargetCars = c.TargetCars, Seed = c.Seed, StepSeconds = c.StepSeconds,
+            => new() { EntityId = netId, TargetCars = c.TargetCars, Seed = c.Seed, StepSeconds = c.StepSeconds,
                        TargetPedestrians = c.TargetPedestrians, ShotPanicRadius = c.ShotPanicRadius, BlastPanicRadius = c.BlastPanicRadius,
                        MaxConverted = c.MaxConverted };
 

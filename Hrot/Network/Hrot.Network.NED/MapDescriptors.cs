@@ -27,7 +27,7 @@ namespace Hrot.NED.Descriptors
     {
         // Primary Key: Which entity is being modified?
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         // Target Group (Role).
         // 0 = Global Override (Applies to everyone).
@@ -60,7 +60,7 @@ namespace Hrot.NED.Descriptors
     public partial struct MapVisualOverlay
     {
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         // Persistence and lifecycle
         public PersistenceMode PersistenceMode;
@@ -141,7 +141,7 @@ namespace Hrot.NED.Descriptors
     {
         // The Entity ID representing this route.
         [DdsKey]
-        public int EntityId;
+        public long EntityId;
 
         // Ordered list of waypoints.
         [DdsManaged]

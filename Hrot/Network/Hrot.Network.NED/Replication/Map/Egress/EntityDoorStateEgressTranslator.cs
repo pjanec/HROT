@@ -67,7 +67,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 _writer.Write(new EntityDoorState
                 {
-                    EntityId = (int)netId,
+                    EntityId = netId,
                     State    = (byte)state,
                     Key      = view.GetManagedComponentRO<TerrainObjectKey>(entity).Key,
                 });

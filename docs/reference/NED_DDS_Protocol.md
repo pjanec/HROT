@@ -218,7 +218,7 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 | **Multi-instance descriptors** are keyed by *(parent entity id + part/child instance id)*: turret pose and weapon task/status (part id = 2000 + turret index), the four EQS-family topics (child sensor index = `PartMetadata.InstanceId`) | `SimDescriptors.cs` comments at `EntityTurretPose`; `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsDdsTopics.cs:23-40` |
 | Other composite keys: `MapEntitySymbol` (entity + map group), `SensorTrackState` (observer + target), `DescriptorOptimisticLock` (entity + descriptor type) | inventory §A, §F |
 | For ownership a *(descriptor type, instance)* pair is packed as `(type << 32) OR instance` | `FDP/Toolkits/Fdp.Toolkits/Replication/Extensions/OwnershipExtensions.cs:16-28` |
-| **Entity-id width is mixed**: `int32` on the older descriptors (`EntityMaster`, `EntityInfo`, `WorldPos`, `EntityDamage`, `NavigationIntent`, `NavigationStatus`, map descriptors, …: 19 types) and `int64` on later descriptors and on events (33 types); `0` = invalid. The id space is the same, so values < 2^31 are interchangeable | `scripts/ned-wire-inventory.py --verbose` key members; `Replication/Map/Egress/GeoSpatialEgressTranslator.cs:226` casts `(int)netId.Value` |
+| **Entity ids are `int64` everywhere** *(changed by AQ107 E / R-4093, 2026-10-27; before it the older descriptors, 19 types, carried `int32`)*: every `EntityId` key and every field that names an entity (`EntityInfo.CommanderId`, `ContextActionInvoked.ContextEntityId`, the map selection lists `SelectedEntityIds` / `ForSelection`) is a `long`, in all 128 wire types; `0` = invalid. ⚠ **Node ids stay `int32`** (`AppInstanceId`, `NodeId`, the owner ids of `OwnershipUpdate`); a receiver built before AQ107 E reads an `EntityId` key at the wrong width | `scripts/ned-wire-inventory.py --verbose` key members (every entity key is `long`); `Replication/Map/Egress/GeoSpatialEgressTranslator.cs:226` writes `netId.Value` with no cast; rail `EntityMasterTranslatorTests.AQ107E_AnEntityIdAboveInt32_SurvivesEgressDdsAndIngress` |
 
 ### 5. How entity ids are allocated
 
@@ -550,7 +550,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | DIS / RPR concept | HROT counterpart (full type names) | Gap or caution |
 |---|---|---|
 | Entity State PDU / `BaseEntity.PhysicalEntity` | `Hrot.NED.Descriptors.EntityMaster` + `EntityInfo` + `WorldPos` (+ `EntityDamage`, `EntityPartDamage`, `EntityTurretPose`) | no single message; assemble from 3+ topics keyed by entity id |
-| Entity ID (site, application, entity) | HROT entity id (`int32`/`int64`) + owner node id (`AppInstanceId`) | **not carried**; the gateway maps an id range |
+| Entity ID (site, application, entity) | HROT entity id (`int64`) + owner node id (`AppInstanceId`) | **not carried**; the gateway maps an id range |
 | Entity Type (kind.domain.country.category.subcategory.specific.extra) | `EntityMaster.DisType` (optional) + `TkbType` (mandatory) | `DisType` may be zeros; the TKB↔DIS table is **not on the wire** |
 | Marking | `EntityInfo.Name` (free string) | DIS marking is 11 characters |
 | Force ID | `EntityInfo.ForceIdentifier` | values 0..3 (UNKNOWN, FRIENDLY, OPPOSING, NEUTRAL); the numbering coincides with the DIS Force ID values Other, Friendly, Opposing, Neutral (SISO-REF-010, from general knowledge — not checked in this repo) |
@@ -601,7 +601,7 @@ Spec = [BDC_NED_SST_Descriptor_Rules.md](BDC_NED_SST_Descriptor_Rules.md). Where
 
 | # | Spec says | Code does | Where |
 |---|---|---|---|
-| 1 | `EntityId` is `long` in every descriptor (L40-57) | **mixed**: `int32` on 19 descriptor types (`EntityMaster`, `WorldPos`, …), `int64` on 33 | `GenericDescriptors.cs:97`, `SimDescriptors.cs:17`, `FDP/Network/Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs` (long) |
+| 1 | `EntityId` is `long` in every descriptor (L40-57) | **same** since AQ107 E (R-4093, 2026-10-27): `int64` in every descriptor and event; ~~mixed: `int32` on 19 descriptor types~~ *(superseded)* | `GenericDescriptors.cs:97`, `SimDescriptors.cs:17`, `FDP/Network/Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs` (long) |
 | 2 | `EntityMaster.DisType` is a `uint64` (L122) | a 7-field **struct** `DisTypeStruct` | `GenericDescriptors.cs:53,97-122`. Also: `StaticType` (spec L111) does not exist |
 | 3 | `OwnershipUpdate.NewOwner` is a `NodeId { Domain, Node }` (L150-172) | a single **`int32` node id**, plus `OriginNodeId` and `Timestamp` fields not in the spec | `FDP/Network/Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs:10-55`; R-166 states "same thing as the spec's" without reconciling the shape |
 | 4 | Ownership is "the most recent writer" (L135) | owner of the **master** is the sample's *writer identity* (needs sender tracking); other descriptors' owners follow `OwnershipUpdate` / grants (`FDP/Toolkits/Fdp.Toolkits/Replication/Systems/OwnershipIngressSystem.cs:13`) | `EntityMasterIngressTranslator.cs:84-91,252` |

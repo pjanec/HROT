@@ -99,7 +99,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 var request = new UpdateEntityAttributeRequest
                 {
                     RequestId          = Guid.NewGuid(),
-                    EntityId           = (int)cmd.NetworkId,
+                    EntityId           = cmd.NetworkId,
                     AttributePatchJson = cmd.AttributePatchJson,
                     AttributeRecords   = records,
                     RequireAck         = false,

@@ -101,7 +101,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             => _written.Add(new CreateUpdateDeleteEntityAck
             {
                 RequestId  = requestId,
-                EntityId   = (int)entityId,
+                EntityId   = entityId,
                 StatusCode = (int)status,
             });
 
@@ -645,7 +645,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// component and converting to geodetic coordinates on-the-fly.
         /// Returns <c>null</c> when no such entity is found.
         /// </summary>
-        public WorldPos? ReadGeoSpatial(int networkId)
+        public WorldPos? ReadGeoSpatial(long networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return null;

@@ -86,9 +86,9 @@ public sealed class NedExConEgressWriters : IExConEgressWriters
     /// <inheritdoc/>
     public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson)
     {
-        var sel = forSelection == null
-            ? new System.Collections.Generic.List<int>()
-            : new System.Collections.Generic.List<int>(forSelection);
+        // AQ107 E: the neutral selection is int32, the wire list is int64
+        var sel = new System.Collections.Generic.List<long>(forSelection == null ? 0 : forSelection.Count);
+        if (forSelection != null) foreach (var id in forSelection) sel.Add(id);
         _contextMenuWriter.Write(new ContextActionsUpdate
         {
             MapGroupId         = mapGroupId,

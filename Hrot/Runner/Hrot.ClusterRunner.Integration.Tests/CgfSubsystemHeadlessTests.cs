@@ -219,7 +219,7 @@ public sealed class CgfSubsystemHeadlessTests
 
         var overlay = new MapVisualOverlay
         {
-            EntityId  = (int)networkId,
+            EntityId  = networkId,
             IsEditable = false,
             // Points are DELTA offsets (degrees) from the entity's reference position,
             // NOT absolute geographic coordinates. The MapVisualOverlayIngressTranslator adds
@@ -459,10 +459,10 @@ public sealed class CgfSubsystemHeadlessTests
         using var damageWriter  = new DdsWriter<EntityDamage>(participant, "EntityDamage");
         using var infoWriter    = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>(participant, "EntityInfo");
 
-        damageWriter.Write(new EntityDamage { EntityId = (int)networkId, Current = 75.0f, Max = 100.0f });
+        damageWriter.Write(new EntityDamage { EntityId = networkId, Current = 75.0f, Max = 100.0f });
         infoWriter.Write(new Hrot.NED.Descriptors.EntityInfo
         {
-            EntityId        = (int)networkId,
+            EntityId        = networkId,
             Name            = "TestTank",
             ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY
         });

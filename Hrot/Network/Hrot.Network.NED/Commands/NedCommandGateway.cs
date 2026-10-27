@@ -154,7 +154,7 @@ namespace Hrot.Map.Common.Commands
         {
             var request = NedTranslationHelper.ToCreateEntityRequest(cmd);
             var ack     = await CreateEntityAsync(request).ConfigureAwait(false);
-            return ack.EntityId;
+            return checked((int)ack.EntityId);   // AQ107 E: the wire id is int64, ICommandGateway's result stays int32
         }
 
         /// <inheritdoc/>
@@ -186,7 +186,7 @@ namespace Hrot.Map.Common.Commands
             _attributeWriter.Write(new UpdateEntityAttributeRequest
             {
                 RequestId          = Guid.NewGuid(),
-                EntityId           = (int)cmd.NetworkId,
+                EntityId           = cmd.NetworkId,
                 AttributePatchJson = cmd.AttributePatchJson,
                 RequireAck         = false,
             });

@@ -102,7 +102,7 @@ namespace Hrot.DDS.DataModel.Tests
         {
             var field = typeof(Hrot.NED.Messages.DeleteEntityRequest).GetField("EntityId");
             Assert.NotNull(field);
-            Assert.Equal(typeof(int), field!.FieldType);
+            Assert.Equal(typeof(long)   /* AQ107 E (R-4093): every entity id on the wire is int64 */, field!.FieldType);
         }
 
         // ── TWOACK-DM002: NedStatusCode enum ────────────────────────────────────
@@ -149,7 +149,7 @@ namespace Hrot.DDS.DataModel.Tests
         {
             var field = typeof(Hrot.NED.Messages.CreateUpdateDeleteEntityAck).GetField("EntityId");
             Assert.NotNull(field);
-            Assert.Equal(typeof(int), field!.FieldType);
+            Assert.Equal(typeof(long)   /* AQ107 E (R-4093): every entity id on the wire is int64 */, field!.FieldType);
         }
 
         [Fact]

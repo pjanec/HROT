@@ -150,7 +150,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
             var mapOverlay = new MapVisualOverlay
             {
-                EntityId            = (int)networkId,
+                EntityId            = networkId,
                 PersistenceMode     = PersistenceMode.MODE_PERSISTENT,
                 Points              = geoPoints,
                 IsEditable          = true,
@@ -162,7 +162,7 @@ namespace Hrot.Map.Common.Replication.Egress
             var request = new UpdateEntityDescriptorRequest
             {
                 RequestId      = requestId == Guid.Empty ? Guid.NewGuid() : requestId,
-                EntityId       = (int)networkId,
+                EntityId       = networkId,
                 DescriptorType = EDescriptorType.dtMapVisualOverlay,
                 PartId         = 0,
                 CurrentVersion = 0,

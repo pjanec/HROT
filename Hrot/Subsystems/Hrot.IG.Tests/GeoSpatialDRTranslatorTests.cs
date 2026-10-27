@@ -40,7 +40,7 @@ namespace Hrot.IG.Tests
 
             translator.DecodeForTest(new WorldPos
             {
-                EntityId = (int)KnownId,
+                EntityId = KnownId,
                 Vel = new AngularVector { Azimuth = 0, Elevation = 0, Length = 10 }
             }, cmd, repo);
 
@@ -67,7 +67,7 @@ namespace Hrot.IG.Tests
 
             translator.DecodeForTest(new WorldPos
             {
-                EntityId = (int)UnknownId,
+                EntityId = UnknownId,
                 Vel = new AngularVector { Azimuth = 0, Elevation = 0, Length = 10 }
             }, cmd, repo);
 
