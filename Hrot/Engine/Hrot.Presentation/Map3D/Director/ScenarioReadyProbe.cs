@@ -1,4 +1,4 @@
-namespace Hrot.Editor.Director
+namespace Hrot.UI.Common.Map3D.Director
 {
     /// <summary>
     /// ⭐⭐ <c>CE-4038</c> B4 (docs/DESIGN_Film_Director.md D-11) — "is the scenario I asked for loaded?", EXTRACTED from
