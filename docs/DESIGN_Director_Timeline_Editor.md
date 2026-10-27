@@ -1619,6 +1619,58 @@ runner's tolerance is 0.02 s; at 15 Hz one step is 0.067 s, so a 15 Hz take may 
 says so and cuts on live cues); (3) the Replay Browser has no director yet (P2 `ReplayDirectorHost`) — its K will pass the recording's index through the same `eventAt`.
 Rails: `EventAnchoredKeysTests.CE1303_CR6_*` ×8 (Hrot.Presentation.Tests) · `DirectorTracksOnTheEditorTests.CE1303_CR6_K_OnTheEditorsTimeline_UsesTheEditorsLiveIndex` (Hrot.Editor.Tests).
 
+### 11l. P3 position track detail *(ui, `2026-10-27`; CE-4059 step 1; build-state: BUILT — the as-built is stated in each row; no deviation from the plan below)*
+
+⭐ **What it is.** CR-8's drafter needs *"positions over the shot's window"* (anticipation, framing). The index (§2b) holds events, not places, so
+it gets a second column family: **each networked unit's place, sampled by the ONE per-frame step** both timelines share (R-4089,
+`TimelineFrameScanner`) — ⛔ not a second scanner, ⛔ not the drafter reading the world.
+
+```mermaid
+classDiagram
+  direction LR
+  class TimelineFrameScanner { <<exists, CE-3330>> Step(repo, frame, ticks, ..., sim) · Snapshot() }
+  class PositionTrackWriter { <<NEW, internal>> interval 0.5 s of sim · fallback stride 15 frames · Step · Snapshot cached per round }
+  class GrowOnlyBuffer { <<exists, CE-1361>> Add · Snapshot }
+  class SharedList { <<exists, CE-1361>> view of the first Count items }
+  class PositionTrack { <<NEW>> Samples(unit) · Between(unit, from, to) · At(unit, frame) · UnitsWithin(frame, x, y, r) }
+  class PositionSample { <<NEW, 20 bytes>> Frame · X · Y · Z · Heading }
+  class TimelineIndex { <<exists>> Positions · PositionsOf · PositionAt }
+  class TimelineIndexBuilder { <<exists>> recording pass }
+  class LiveTimelineSource { <<exists>> live Step }
+  class TimelineSidecar { <<exists, schema 2 to 3>> track after the lanes }
+  class RecordingTimelineSource { <<exists>> sidecar or build }
+  class Drafter { <<NEW later, CR-8>> reads the track }
+  TimelineIndexBuilder --> TimelineFrameScanner : same step
+  LiveTimelineSource --> TimelineFrameScanner : same step
+  TimelineFrameScanner *-- PositionTrackWriter : one per scanner
+  PositionTrackWriter *-- GrowOnlyBuffer : one per unit id, SimTransform + NetworkIdentity
+  GrowOnlyBuffer ..> SharedList : Snapshot
+  PositionTrackWriter ..> PositionTrack : Snapshot
+  PositionTrack o-- SharedList : per unit
+  PositionTrack o-- PositionSample
+  TimelineIndex o-- PositionTrack
+  TimelineSidecar ..> TimelineIndex : writes / reads Positions
+  RecordingTimelineSource --> TimelineSidecar
+  Drafter ..> TimelineIndex : PositionAt / PositionsOf / UnitsWithin
+```
+
+*What the picture shows that prose hid:* the recording builder and the live source reach the writer ONLY through the scanner — there is no
+third path that could sample differently; the writer reuses the lanes' grow-only buffers, so a published snapshot stays O(1) per unit.
+
+| decision | ⭐ as built | why / the fact |
+|---|---|---|
+| **component** | `SimTransform` (position, rotation) of every entity that also has `NetworkIdentity`; the key is the **network id** (> 0) | `SimTransform` is `DataPolicy.Default` — recorded, and every spatial entity of a live world has it. ⛔ `NetworkTransform` is `NoReplay` (`NetworkTransform.cs`) and absent from a recording; a unit with no network id has no cross-node identity (the index's negative ids are entity indices) |
+| **fields** | `Frame`, `X`, `Y`, `Z` (up), `Heading` (yaw about up from the rotation, radians, 0 = east) = 20 bytes | a framing needs the place and the way it faces; pitch / roll do not move a camera |
+| **rate** | every **0.5 s of SIM time** (bucket = floor(sim / 0.5); the first frame of a bucket samples); a frame with no sim time (a v6 recording, a bare world) samples every **15 frames** | "a few a second" (the P3 row); at 15 m/s a unit moves 7.5 m between samples, enough to interpolate a shot; sim-time buckets make a paused world add nothing and give a live index and its recording the same frames |
+| **storage** | **one grow-only buffer per unit**, shared by snapshots like the lanes; snapshot = a dictionary of `SharedList` views, **reused unchanged between sample rounds** | the drafter's dominant question is *"unit U in [a, b]"* (a binary search in one buffer); *"who is within R of P at t"* is `At` over the units (no spatial index: see the cost below). A flat time-ordered buffer answers the second in one slice but makes the first a scan |
+| **API** | `TimelineIndex.Positions` · `PositionsOf(unit, from, to)` (a span, frames [from, to)) · `PositionAt(unit, frame)` (linear between the two samples around the frame, heading along the shorter arc; **null** before the first / after the last sample — a unit that left is not extrapolated) · `Positions.UnitsWithin(frame, x, y, r, results)` (ground-plane, ascending id) | interpolation is by FRAME index, not sim time: the sidecar does not keep `FrameSim`, and frame spacing inside a 0.5 s window is uniform enough |
+| **sidecar** | persisted after the lanes, **`SchemaVersion` 2 → 3**; an old sidecar fails the version check and the open rebuilds | a reopened recording does not rescan for places; the lanes' per-lane hash reuse is untouched (the track belongs to the recording, not to a lane) |
+| **a partial rescan** | `Merge` keeps the sidecar's complete track when it has one, else the fresh pass's | a new lane rescans every frame, so the fresh pass would rebuild the same track |
+| **sizing** *(measured `2026-10-27`, Release, 60 fps, units moving every frame, 5 min of sim after a 10 s warm-up; harness in the ui scratchpad `p4059`, the S5 idea)* | **cost** — a sample round (once per 0.5 s = every 30th frame): **0.89 ms at 1 000 units**; every other frame of `LiveTimelineSource.Step`: 0.06 ms (the lanes' own work, unchanged) ⇒ **+0.03 ms per frame on average**; a forced publish + round: 0.47 ms. **Memory** — 20 B × units × 2 per s: **200 units = 28 MB / hour, 1 000 units = 144 MB / hour** of samples (the measured heap growth was ~1.6× that: the buffers double). The sidecar writes the same 20 B a sample. `UnitsWithin`: 0.07 ms at 200 units, **0.16 ms at 1 000** | the levers if a night run is too big: 1 Hz (halves it), or hold-samples for a stationary unit (costs the "left" signal, above) |
+
+⛔ **Not done, by choice:** delta-compression of a stationary unit (a hold sample would make `PositionAt` after a departure ambiguous — the
+cost is stated above); a spatial index for `UnitsWithin`.
+
 ## 8. INVENTORY
 
 ```

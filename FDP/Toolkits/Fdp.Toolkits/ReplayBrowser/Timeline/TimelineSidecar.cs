@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     {
         private const uint Magic = 0x584C5448;   // "HTLX"
         /// <summary>Bumped whenever the layout or what an event means changes — an old sidecar then rebuilds.</summary>
-        public const int SchemaVersion = 2;
+        public const int SchemaVersion = 3;   // ⭐ CE-4059 — 3 adds the position track after the lanes
 
         public static string PathFor(string fdpPath) => fdpPath + ".timeline";
 
@@ -73,6 +73,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                             w.Write(e.X); w.Write(e.Y); w.Write(e.Value);
                         }
                     }
+                    // ⭐ CE-4059 — the position track: per unit (ascending id) its sample count and samples
+                    var units = new List<long>(index.Positions.UnitIds);
+                    units.Sort();
+                    w.Write(units.Count);
+                    foreach (var unit in units)
+                    {
+                        var samples = index.Positions.Samples(unit);
+                        w.Write(unit);
+                        w.Write(samples.Count);
+                        foreach (var s in samples) { w.Write(s.Frame); w.Write(s.X); w.Write(s.Y); w.Write(s.Z); w.Write(s.Heading); }
+                    }
                 }
                 File.Move(tmp, path, overwrite: true);
                 return true;
@@ -111,7 +122,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                         events[i] = new TimelineEvent(r.ReadInt32(), id, r.ReadInt64(), r.ReadInt64(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
                     lanes[id] = events;
                 }
-                return (new TimelineIndex(lanes, ticks, ticks.Length, total), hashes);
+                int unitCount = r.ReadInt32();
+                var units = new Dictionary<long, PositionSample[]>(unitCount);
+                for (int u = 0; u < unitCount; u++)
+                {
+                    long unit = r.ReadInt64();
+                    var samples = new PositionSample[r.ReadInt32()];
+                    for (int i = 0; i < samples.Length; i++)
+                        samples[i] = new PositionSample(r.ReadInt32(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                    units[unit] = samples;
+                }
+                return (new TimelineIndex(lanes, ticks, ticks.Length, total, null, new PositionTrack(units)), hashes);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or OverflowException or OutOfMemoryException)
             {
