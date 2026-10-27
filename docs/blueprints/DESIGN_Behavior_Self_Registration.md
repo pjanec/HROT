@@ -3,7 +3,7 @@ state: LIVE
 build-state: ✅ BUILT (2026-09-27) — all five §9 items shipped as CE-371..CE-375. ⚠ This line read
   READY-TO-BUILD for the whole of the build and was corrected afterwards; §10a is the AS-BUILT and
   wins over §9 wherever they disagree.
-updated: 2026-10-27 (§10d-i — CE-1411 one channel release `ChannelRelease`; CE-1412 the variables manifest `SharedNodeBinder.VariablesOf`, opt-in `PublishesVariables`) · 2026-10-27 (§10d — the shipped trees are C#; the curated registration carries SOP orders, channels, the bake, labels — R-1042, CE-1410) · 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
+updated: 2026-10-27 (§10d-i — CE-1430 a code-built tree's editor Variables rows = its published manifest `SharedNodeBinder.PublishedVariablesOf`, read-only) · 2026-10-27 (§10d-i — CE-1411 one channel release `ChannelRelease`; CE-1412 the variables manifest `SharedNodeBinder.VariablesOf`, opt-in `PublishesVariables`) · 2026-10-27 (§10d — the shipped trees are C#; the curated registration carries SOP orders, channels, the bake, labels — R-1042, CE-1410) · 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
 current-answer: ⭐ §10a is the AS-BUILT — read it FIRST for what actually exists. §4 is the decision,
   §5-§7 the UML, §9 the build items as dispatched. ⭐ Start at §2 (INVENTORY)
   if you are about to argue that something here already exists — it probably does, and §2 says which.
@@ -616,10 +616,24 @@ trees are `Params`), so renaming public C# fields to a retired asset's spelling 
 - ⭐ **The inspector does not lose the working state.** With a manifest, `RootParamsProjection` used to render the manifest ONLY; a C#-built
   tree's working state lives in its block (not in occurrence slots as a JSON asset's did), so it would have vanished. It now renders the
   block's fields the manifest does not cover under "Behaviour state" (`UnlistedLayoutFields`) — which also shows a generated block's State half.
-- ⛔ **Not closed here — the editor's Variables WINDOW has no rows for a C#-built tree**: `BehaviorTreeAssetProjector` projects a
-  code-built tree with an empty `BlackboardVariables`, and the Variables window and the Details rows (`BlackboardSectionRowSource`) draw one
-  row per ASSET variable — so the provider now returns the values (both arms) and the inspector shows them, but no editor row asks for
-  them yet → `CE-1430`.
+- ✅ **The editor's rows — `CE-1430` (ui, `2026-10-27`).** ⛔ SUPERSEDED: *"`BehaviorTreeAssetProjector` projects a code-built tree with
+  an empty `BlackboardVariables`, so no editor row asks for the values"*. ⭐ Now the catalog (`BTreeAssetContributor.LoadFrom`) reads the
+  tree's manifest with **`SharedNodeBinder.PublishedVariablesOf(blob, [BTreeDefinition])`** — `VariablesOf(blob, ParamsType)` when
+  `PublishesVariables`, else none: the rule the curated generator applies to fill `ManagedBlackboardVariables` (the generator spells the
+  same condition at build time; it cannot hold an attribute instance) — and the projector turns each entry into one
+  `BlackboardVariableEntry` (name, type, manifest order). ⇒ the Variables window, the Details rows (`BlackboardSectionRowSource`) and the
+  Watch ask `LiveBlackboardValueProvider` for exactly the names it answers. ⛔ No second list: the rail compares the projected rows of
+  EVERY code-built tree with its registry definition's manifest.
+  - ⭐ **Read-only, decided:** the variables are the block's C# fields and the defaults its constructor — an edit has nowhere to go.
+    `IsCodeBuilt` (the one gate, CE-1252) makes the asset refuse default / comment edits, and `BlackboardSectionRowSource` gives a
+    code-built asset's rows `ReadOnlyPassthrough` and refuses (says `false` to) their default / properties writes; the Variables window
+    was already read-only for it (CE-1277). Live values show.
+  - ⚠ **No default / comment on the rows** — the planning cell shows no initial value for a code-built tree (the bake is a runtime value,
+    not the editor's `DefaultValueJson` text) → `CE-1433`.
+  - Rails: `CodeBuiltTreeVariablesProjectionTests.CE1430_…` ×3 (`Hrot.BTree.Editor.Tests`: BasicSquadSop's rows = its manifest; every
+    code-built tree = its manifest, the three variable-less SOPs and every tree without `PublishesVariables` none; edits refused),
+    `LiveBlackboardValueProviderTests.CE1430_TheProjectedCodeBuiltSop_ShowsItsLiveValuesInItsRows` (`Hrot.Editor.Tests`: the projected
+    asset's rows render the running unit's values through the formatter).
 
 **CE-1411 — the channel release.** The JSON path's rule (`ChannelClearEmit`) was two inline writes per generated thunk; the C# path had
 none. Now `ChannelRelease.OnFailure` is the ONE implementation: the emitter emits a call to it, and `SharedNodeBinder`'s plain action,

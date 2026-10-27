@@ -151,6 +151,52 @@ public class LiveBlackboardValueProviderTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1430</c> — the EDITOR'S OWN asset for a C#-built tree (<c>BTreeAssetContributor</c>'s projection of <c>BasicSquadSop</c>, not
+    /// a fake) draws its Variables rows with LIVE values for a running unit: the Details row source over that asset, wired to the provider's
+    /// byte arm as <c>PerspectiveWorkspaceRegistrar</c> wires it, and each cell rendered by the formatter the control calls.
+    /// ⛔ Before CE-1430 the projected asset had no variables, so there were no rows to show the provider's values in.
+    /// <para>✅ Red-proof: the projector's <c>SetBlackboardVariables</c> call removed ⇒ "Expected: 5, Actual: 0" (no rows).</para>
+    /// </summary>
+    [Fact]
+    public unsafe void CE1430_TheProjectedCodeBuiltSop_ShowsItsLiveValuesInItsRows()
+    {
+        var aiAssembly = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly;
+        var registry = new BehaviorRegistry();
+        Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+        Assert.True(registry.TryGetId("BasicSquadSop", out int id));
+        Assert.True(registry.TryGetDefinition(id, out var def));
+
+        var contributor = new Hrot.BTree.Editor.Catalog.BTreeAssetContributor();
+        contributor.LoadFrom(aiAssembly);
+        var asset = contributor.Enumerate().OfType<Hrot.BTree.Editor.Model.BehaviorTreeAsset>().Single(a => a.Name == "BasicSquadSop");
+
+        int bytes = RootParamsAccess.RootParamsBytes(def!);
+        var region = new byte[bytes];
+        using (var world = new EntityRepository())
+            fixed (byte* p = region) def!.ParseParams!("{}", p, bytes, world, default);   // what ingress writes at attach
+
+        var entity = new Entity(1, 1);
+        var store = new EditorSelectionStore { SelectedEntity = entity };
+        var provider = new LiveBlackboardValueProvider(
+            sessionFactory:  () => new FakeSession(entity, behaviorHash: id, store: MakeStoreWithRootParamsBytes(id, region)),
+            registryFactory: () => registry,
+            store:           store);
+
+        var rows = new Hrot.Editor.AiShared.Variables.BlackboardSectionRowSource(
+            () => asset, asset.AssetId, Hrot.Editor.AiShared.Variables.BlackboardMyBlueprintModel.SectionInputs, entity,
+            readRaw: name => provider.GetLiveBytes(asset) is { } live && live.TryGetValue(name, out var b) ? b : Array.Empty<byte>())
+            .GetRows();
+        var formatter = new Hrot.Editor.AiShared.Variables.VariableValueFormatter(Hrot.Editor.AiShared.Variables.RawValueDecoder.Instance);
+
+        Assert.Equal(5, rows.Count);
+        Assert.Equal(new[] { "UnderFire", "LeaderDown", "Contact", "MemberDown", "AreaAhead" }, rows.Select(r => r.ShortName).ToArray());
+        Assert.All(rows, r => Assert.True(r.HasEverBeenWritten, $"{r.ShortName} has a live value"));
+        Assert.Contains("SquadUnderFire", formatter.Cell(rows[0], width: 200));
+        Assert.Contains("SquadMemberDown", formatter.Cell(rows[3], width: 200));
+        Assert.Contains("30", formatter.Cell(rows[4], width: 200));
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>A POSITIVE rail: known values written into a REAL root params slot read back through
     /// the provider.</b> ⛔ Not a refusal check — a refusal is satisfied by an empty store, which is
     /// exactly how this surface stayed green while it was broken (<c>CE-312</c>).

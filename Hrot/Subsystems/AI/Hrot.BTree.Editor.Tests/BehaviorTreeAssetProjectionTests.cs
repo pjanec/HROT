@@ -402,4 +402,102 @@ public sealed class BTreeEditorLayoutBuilderSyncTests
         layout.SyncBindings[nodeId].Should().ContainSingle(b =>
             b.FieldName == "Phase" && b.MasterVariableName == null);
     }
+
+}
+
+/// <summary>⭐ <c>CE-1430</c> — a C#-built tree's Variables rows are its published manifest (<c>BehaviorTreeAssetProjector</c> through
+/// <c>BTreeAssetContributor</c>; [Self-Registration §10d-i]).</summary>
+public sealed class CodeBuiltTreeVariablesProjectionTests
+{
+
+    private static (List<BehaviorTreeAsset> trees, Fdp.Toolkit.Behavior.BehaviorRegistry registry) LoadShipped()
+    {
+        var aiAssembly = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly;
+        var contributor = new Hrot.BTree.Editor.Catalog.BTreeAssetContributor();
+        contributor.LoadFrom(aiAssembly);
+        var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+        Fdp.Toolkit.Blueprints.BlueprintRegistrarScanner.Scan(aiAssembly, new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging(), registry);
+        var trees = new List<BehaviorTreeAsset>();
+        foreach (var a in contributor.Enumerate())
+            if (a is BehaviorTreeAsset t && t.IsCodeBuilt) trees.Add(t);
+        return (trees, registry);
+    }
+
+    private static string[] Shape(IEnumerable<BlackboardVariableEntry> vars)
+        => System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(vars, v => v.Name + ":" + v.FieldType.FullName));
+
+    private static string[] Shape(IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? vars)
+        => vars == null ? Array.Empty<string>()
+         : System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(vars, v => v.Name + ":" + v.Type.FullName));
+
+    private static IReadOnlyList<Hrot.Editor.AiShared.Variables.VariableRow> RowsOf(BehaviorTreeAsset asset)
+        => new Hrot.Editor.AiShared.Variables.BlackboardSectionRowSource(
+            () => asset, asset.AssetId, Hrot.Editor.AiShared.Variables.BlackboardMyBlueprintModel.SectionInputs).GetRows();
+
+    /// <summary>⭐ <c>CE-1430</c> — opening <c>BasicSquadSop</c> (C#-built since CE-1410) yields one Variables row per variable the runtime
+    /// publishes for it (<c>ManagedBlackboardVariables</c>, CE-1412): the same names and types in the same order, through the Details row
+    /// source too (so the live provider is asked for exactly the names it answers); the projection is not an edit, and the rows are
+    /// read-only. 🔴 Red-proof: the projector's <c>SetBlackboardVariables</c> call removed ⇒ the first assertion finds 0 of 5.</summary>
+    [Fact]
+    public void CE1430_ACodeBuiltSop_ProjectsTheVariablesItsRegistryPublishes()
+    {
+        var (trees, registry) = LoadShipped();
+        var squad = trees.Find(t => t.Name == "BasicSquadSop");
+        squad.Should().NotBeNull();
+        registry.TryGetId("BasicSquadSop", out int id).Should().BeTrue();
+        registry.TryGetDefinition(id, out var def).Should().BeTrue();
+
+        Shape(squad!.BlackboardVariables).Should().Equal(Shape(def!.ManagedBlackboardVariables));
+        Shape(squad.BlackboardVariables).Should().Equal(
+            "UnderFire:Fdp.Toolkit.Behavior.SopSenseParams", "LeaderDown:Fdp.Toolkit.Behavior.SopSenseParams",
+            "Contact:Fdp.Toolkit.Behavior.SopSenseParams", "MemberDown:Fdp.Toolkit.Behavior.SopSenseParams",
+            "AreaAhead:Fdp.Toolkit.Behavior.SopAreaParams");
+        squad.IsDirty.Should().BeFalse("a projection is not an edit");
+
+        var rows = RowsOf(squad);
+        System.Linq.Enumerable.Select(rows, r => r.ShortName).Should().Equal("UnderFire", "LeaderDown", "Contact", "MemberDown", "AreaAhead");
+        rows.Should().OnlyContain(r => r.RowKind == Hrot.Editor.AiShared.Variables.VariableRowKind.ReadOnlyPassthrough);
+    }
+
+    /// <summary>⭐ <c>CE-1430</c> — EVERY C#-built tree projects exactly the manifest its registry definition carries: the 15 shipped trees
+    /// their variables, the three variable-less SOPs (Civilian / Inert / Pilot) and every tree without <c>PublishesVariables</c> (CE-1431's
+    /// open question) none. 🔴 Red-proof: <c>PublishedVariablesOf</c> ignoring <c>PublishesVariables</c> ⇒ a tree without it projects
+    /// rows its registry does not publish.</summary>
+    [Fact]
+    public void CE1430_EveryCodeBuiltTree_ProjectsExactlyItsPublishedManifest()
+    {
+        var (trees, registry) = LoadShipped();
+        trees.Should().NotBeEmpty();
+        int withVariables = 0, without = 0;
+        foreach (var t in trees)
+        {
+            IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? manifest = null;
+            if (registry.TryGetId(t.Name, out int id) && registry.TryGetDefinition(id, out var def)) manifest = def!.ManagedBlackboardVariables;
+            Shape(t.BlackboardVariables).Should().Equal(Shape(manifest), $"{t.Name}'s rows are its published manifest");
+            if (t.BlackboardVariables.Count > 0) withVariables++; else without++;
+        }
+        foreach (var name in new[] { "CivilianSop", "InertSop", "PilotSop" })
+            trees.Find(t => t.Name == name)!.BlackboardVariables.Should().BeEmpty($"{name} carries no variables");
+        withVariables.Should().Be(12, "the 15 shipped trees less the three variable-less SOPs");
+        without.Should().BeGreaterThan(3, "trees without PublishesVariables stay as they were (CE-1431)");
+    }
+
+    /// <summary>⭐ <c>CE-1430</c> — a C#-built tree's variables are READ-ONLY (CE-1252, the one gate): the code is the source. A Details row's
+    /// default / properties write is refused and SAID (<c>false</c>), and the asset itself refuses the default and comment edits.
+    /// 🔴 Red-proof: the <c>IsCodeBuilt</c> guard in <c>UpdateVariableDefaultValueJson</c> removed ⇒ the default reads the edit.</summary>
+    [Fact]
+    public void CE1430_ACodeBuiltTreesVariables_RefuseEdits()
+    {
+        var (trees, _) = LoadShipped();
+        var squad = trees.Find(t => t.Name == "BasicSquadSop")!;
+        var row = RowsOf(squad)[0];
+
+        row.WriteDefault!("{\"Seconds\":9}").Should().BeFalse();
+        squad.UpdateVariableDefaultValueJson("UnderFire", "{\"Seconds\":9}");
+        squad.UpdateVariableComment("UnderFire", "edited");
+
+        squad.BlackboardVariables[0].DefaultValueJson.Should().BeNull();
+        squad.BlackboardVariables[0].Comment.Should().BeNull();
+        squad.IsDirty.Should().BeFalse();
+    }
 }

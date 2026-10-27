@@ -384,6 +384,7 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     /// <summary>Replaces the comment on an existing variable. No-op if not found. Fires Changed.</summary>
     public void UpdateVariableComment(string name, string? comment)
     {
+        if (IsCodeBuilt) return;   // ⭐ CE-1430 — a C#-built tree's variables are its block's fields: the code is the source (CE-1252)
         int idx = _blackboardVariables.FindIndex(v => v.Name == name);
         if (idx < 0) return;
         _blackboardVariables[idx] = _blackboardVariables[idx] with { Comment = comment };
@@ -397,6 +398,7 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     /// </summary>
     public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
     {
+        if (IsCodeBuilt) return;   // ⭐ CE-1430 — its default is the block's constructor, in C# (CE-1252)
         int idx = _blackboardVariables.FindIndex(v => v.Name == name);
         if (idx < 0) return;
         _blackboardVariables[idx] = _blackboardVariables[idx] with { DefaultValueJson = defaultValueJson };

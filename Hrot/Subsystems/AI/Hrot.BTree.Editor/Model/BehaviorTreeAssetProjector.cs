@@ -24,7 +24,8 @@ internal static class BehaviorTreeAssetProjector
         bool isEditorOwned,
         string blackboardTypeName,
         string contextTypeName,
-        string targetNamespace = "")
+        string targetNamespace = "",
+        IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? variables = null)
     {
         var asset = new BehaviorTreeAsset(
             assetId, name, sourceFilePath, isEditorOwned,
@@ -92,6 +93,20 @@ internal static class BehaviorTreeAssetProjector
             {
                 asset.SetConcurrentWritesAllowed(variableName, true);
             }
+        }
+
+        // ⭐ CE-1430 — the blackboard variables of a C#-built tree ARE its published manifest (SharedNodeBinder.PublishedVariablesOf, the
+        //   list the registry holds as ManagedBlackboardVariables): one row per manifest entry, its name and type, in manifest order — so
+        //   the Variables window, the Details rows and the Watch ask the live provider for exactly the names it answers. ⛔ No second list.
+        //   No default / comment: the C# block's constructor is the default and the code its documentation (read-only — CE-1252).
+        if (variables is { Count: > 0 })
+        {
+            bool wasDirty = asset.IsDirty;
+            var entries = new List<Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry>(variables.Count);
+            foreach (var v in variables)
+                entries.Add(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(v.Name, v.Type, Comment: null));
+            asset.SetBlackboardVariables(entries);
+            if (!wasDirty) asset.ClearDirty();   // a projection is not an edit
         }
 
         return asset;

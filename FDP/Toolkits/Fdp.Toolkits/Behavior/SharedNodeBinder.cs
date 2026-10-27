@@ -195,6 +195,18 @@ namespace Fdp.Toolkit.Behavior
             return vars;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1430</c> — the manifest a C#-built tree PUBLISHES, read off its <see cref="BTreeDefinitionAttribute"/>: <see cref="VariablesOf"/>
+        /// when it opts in (<c>PublishesVariables</c>) and names a block (<c>ParamsType</c>), else <c>null</c> (no manifest) — the rule
+        /// <c>CuratedBehaviorGenerator</c> applies at build time to fill <c>ManagedBlackboardVariables</c>. Read by the editor's catalog
+        /// (<c>BTreeAssetContributor</c>), so the Variables rows it projects are the registry's manifest, not a second list.
+        /// </summary>
+        public static IReadOnlyList<ManagedBlackboardVariable>? PublishedVariablesOf(BehaviorTreeBlob blob, BTreeDefinitionAttribute definition)
+        {
+            if (definition == null) throw new ArgumentNullException(nameof(definition));
+            return definition.PublishesVariables && definition.ParamsType != null ? VariablesOf(blob, definition.ParamsType) : null;
+        }
+
         private static void AddRuntime(object builderRegistry, string key, NodeLogicDelegate<byte, BTreeContext> thunk)
         {
             var list = RuntimeThunks.GetOrCreateValue(builderRegistry);
