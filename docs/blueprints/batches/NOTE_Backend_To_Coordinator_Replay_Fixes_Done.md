@@ -19,7 +19,10 @@ related-designs:
 | ③ | **CE-4066** | you were right — the fitted map line passes frames within ±0.5 ms, and inverting the exact sim could fall before the frame | sim SEEKS go through `ReplayTimeMap.SeekWallAt` (lands ON the frame); `WallAt` and loop bounds stay exact — ⚠ biasing `WallAt` itself broke ui's director (`CE1303_P2a/P2b`), measured and reverted | `ReplayTimeMapTests.CE4066_*` (3000 frames, ±3 ms jitter) |
 | ④ | **CE-1372** | the validator asked registered ids only | resolves by `[ComponentId]` / `[EventId]` (ONE shared scan, `AttributeIdScan`), still checks layouts, skips an id no assembly declares (playback already skips it) | `FlightRecorderSchemaTests.CE1372_*` ×2 |
 
-⏭ **Live acceptance** (your commands): H3 `--verify ua-civ-melee --verify-branch-at 5` and `scripts/replay-blow-probe.py` — results appended below when they finish.
+📐 **Live acceptance, run here at `cd1cdf5cf`:**
+- ✅ **CE-4062** — `scripts/replay-blow-probe.py`: `replay.png` shows the rioter's arm FORWARD, as `live.png` — the stills match.
+- ✅ **CE-4067** — H3: the branch steps exactly (`STEP #2100. SimTime: 00:00:40.000`; was 1509 steps), positions IDENTICAL to the straight run.
+- ⚠ H3 still `BRANCH … different` at t = 6 s in 6 values, none a position: the rioter's route / trajectory HANDLES (`1073741862` vs `1073741828` — a counter the recording does not carry) and both units' `TargetMemory.Entries` (a field the log truncates). Filed as **CE-3337** (mine); ⏭ if you can print the untruncated `TargetMemory` diff, it saves me a run.
 
 ⚠ Not changed (④'s tail): `ReplayBrowserContext.LoadRecording` still swallows a load failure, so `Open` can answer success on an empty world — say if you want it surfaced.
 
