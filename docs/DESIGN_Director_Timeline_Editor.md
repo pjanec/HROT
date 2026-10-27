@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11 CR — clip preparation in the Replay Browser: the plan, slices S1–S9 across coordinator / backend / ui, for the user's approval; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11 CR — CLIP PREPARATION IN THE REPLAY BROWSER: THE PLAN (coordinator, 2026-10-27, DESIGN — for approval) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
-known-rot: §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
+known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
 related-designs:
   - DESIGN_Replay_Time_Axis_And_Review.md — OWNS the SIM axis (FrameSimTime in the frame index, paused stretches), the review (DAR) a live host's right-click seek enters, and §10 the panel's defects and input map (CE-3330); amended here in §2c (R-4087)
@@ -1286,6 +1286,169 @@ READ from an index; a track's items are EDITED — two different lifetimes) · *
 argument is unused by a take record — a wart, not a fifth stack) · **T-L3** one `TakeEditor` per open take, shared by the panel and the
 Director window (one edit path) · **T-L4** T1 keeps reading `shots[]` and WRITES v2 only when a take is edited (seeded takes stay as they are
 until touched).
+
+## 11. CR — clip preparation in the Replay Browser: the plan *(coordinator, `2026-10-27`; build-state: DESIGN — for the user's approval)*
+
+🔒 **User, `2026-10-27`:** *"I need clip preparation in replay browser, with the edit possibilities as planned and of course the unification
+and sharing cross hosts. Pls build a plan how to get there, the we will write a note to ui and backend lanes"*.
+
+⭐ **Goal:** open a recording in the Replay Browser, cut a film from it with every edit §2 plans (keys, time, subtitles, view, graphics,
+audio, reels), play it on screen, render it to a movie — with **one** director that the editor and the Replay Browser both host. It is §6's
+R2 → R4 for the recording source; the tracker rows stay **CE-1303** (R2), **CE-1304** (R2b), **CE-1305** (R3), **CE-1306** (R4).
+
+**INVENTORY** (`2026-10-27`, two read-only surveys + grep, re-checked by hand on the load-bearing rows; `search_graph` `.*ReplayDirectorHost.*`
+→ **0**, `.*FilmGraphic.*` → **0**, `.*Director.*Host.*` → `IDirectorHost` + `EditorDirectorHost` only; ⚠ the graph predates ui's last merge
+and its coverage cannot be checked through the CLI):
+
+| what exists | where | for this plan |
+|---|---|---|
+| the film camera on EVERY map host, the Replay Browser included: `AttachMapLayers` adds the 3-D switch, bodies, effects, `AudioLayer` and, last, `FilmCaptureLayer`; `FilmStudio.Direct / Fade / Capture` is a process-wide mailbox | `MapInteractionPack.cs:475-581` (RB: `ReplayBrowserSubsystem.cs:213`); `Film.cs:54-77, 151-231` | ⭐ a director camera and a capture need **nothing new** in the RB — only a director to drive them |
+| the Replay Browser's transport — `ReplayBrowserTransport : ITimeTransportFacade` (play, step, rate any > 0, **seek by sim or wall**, loop) over `FederatedReplayManager` | `ReplayBrowserSubsystem.DebugSurface.cs:418-497`, `:373-379` | ⭐ the director's seek on a recording IS this facade's `Seek` — the same path as the panel's cursor (R-3059 one path) |
+| the RB reaches `Hrot.Presentation` (through `Hrot.CGF`) and already calls its map attach | `Hrot.CGF.csproj:62`; `ReplayBrowserSubsystem.cs:213` | ⛔ **§9's D3 is OUTDATED** — the director's types are reachable from the RB |
+| ⛔ **no TKB in the RB** (R-4069 unbuilt): bodies, effects, audio get a null catalogue | `ReplayBrowserSubsystem.DebugSurface.cs:51`; `MapInteractionPack.cs:508` | S2 |
+| ⛔ **a recording does not know its scenario**: `RecordingMetadata` has `ExerciseId`, `TerrainName`, no scenario, no hash; an editor run writes only `node_1.fdp` + `.meta.json` under the TEMP root | `RecordingMetadata.cs:8-97`; `/tmp/FDP_Temp/nodes/node-1/exercises/<id>/` | S2 — the TKB load, recording takes and promote all need it |
+| ⛔ **CE-4050**: a component type from an assembly the process never loaded stops playback, the RB's sandbox included | `PlaybackSystem.cs:332`; `ReplayBrowserContext.cs:68` | S2 |
+| slow motion in the RB repeats whole frames (an accumulator of `dt × rate`, 1/60 s frames, no interpolation) | `ReplayBrowserSubsystem.cs:400-417` | CR-8 |
+| ⛔ **TE-5's premise is FALSE** — *"the runner's usings are already only director, window-manager and ImGui types"*: `DirectorRunner` (1185 lines) uses six verify types of its own namespace (`IVerifyWorld`, `ScenarioVerification`, `ScenarioChecks`, `VerifyResult`, `LookBackResult`, `IRecordedRun`) and `IDirectorHost` carries 19 verify-only members (lines 51-102) | `DirectorRunner.cs:20-40, 472-1035`; `DirectorHost.cs:13-103` | S1 |
+| the editor's director adapters are thin and editor-free in substance: `EditorCinema` (over `WindowManager.Cinema`), `EditorLayerOverride` (over `LayerControlGizmo`, `Hrot.Common`), `FilmFrameSink` (over `FilmStudio.Capture`), `EditorDirectorSound` (over `AudioDirector`, `Hrot.Presentation`); `DirectorTakeSession` needs only `Func<DirectorRunner?>` | `EditorDirector.cs:116-238`; `DirectorTakeSession.cs:53` | S3 — they MOVE, none is rewritten |
+| ⛔ **`Take.Segments` is never played**: no reader in `DirectorRunner`, `TakeTimeline`, `AnchorBook`, `CameraKeys`; speed comes only from `ShotSpec.Speed`; nothing can skip | `DirectorRunner.cs:657`, `PacedClock.cs:52` | S4 |
+| anchors: baked times first, else `AnchorBook.Observe` on the live world — `shot` / `blast` / `hit` read `ShotLog` / `DetonationLog` (side stores, **never recorded**); the six state cues read recorded components | `AnchorBook.cs:56, 80-191`; `CombatTimelineLanes.cs:11` | S5 — combat cues from the index's combat lanes |
+| `/director/*` answer 503 on every host but the editor (only it calls `AttachDirector`) | `DebugApiHost.Director.cs:25-46`; `EditorSubsystem.cs:2634` | S6 |
+| the RB films only when windowed (no canvas headless) | `ReplayBrowserSubsystem.cs:181, 515` | same as the editor: a capture needs Xvfb |
+
+```mermaid
+classDiagram
+  direction LR
+  class DirectorRunner { <<MOVED, film only>> Play · Tick · Seek · Stop · capture · reel }
+  class IRunExtension { <<NEW seam>> OnItem · OnFrame · OnItemEnd · owns extra phases }
+  class ScenarioVerifyRun { <<NEW, editor>> the verify phases cut out of the runner }
+  class IDirectorHost { <<SPLIT, film members>> World · Takes · StepBy · SimTime · Hold · CanSeek · Seek }
+  class IVerifyHost { <<NEW, editor>> checkpoints · live · review · replay members }
+  class EditorDirectorHost { <<exists>> live run · CanSeek false }
+  class ReplayDirectorHost { <<NEW>> over ReplayBrowserTransport · CanSeek true }
+  class ReplayBrowserTransport { <<exists>> Seek sim or wall · rate }
+  class DirectorPack { <<NEW, Hrot.Presentation>> Attach: runner · session · window · tracks · adapters · debug }
+  class DirectorTakeSession { <<MOVED>> }
+  class DirectorWindow { <<MOVED, film tabs>> + tabs a host contributes }
+  class WindowCinema { <<MOVED, was EditorCinema>> }
+  class FilmFrameSink { <<MOVED>> }
+  class DirectorSound { <<MOVED, was EditorDirectorSound>> }
+  class GizmoLayerOverride { <<MOVED, was EditorLayerOverride>> }
+  class TakeStore { <<grown>> TakesOf scenario · TakesOf exercise }
+  class AnchorBook { <<grown>> combat cues from the index lanes on a recording }
+  class TimelinePanel { <<exists>> Tracks · Undo · Redo }
+  DirectorRunner --> IDirectorHost
+  DirectorRunner --> IRunExtension : 0..1
+  ScenarioVerifyRun ..|> IRunExtension
+  ScenarioVerifyRun --> IVerifyHost
+  EditorDirectorHost ..|> IDirectorHost
+  EditorDirectorHost ..|> IVerifyHost
+  ReplayDirectorHost ..|> IDirectorHost
+  ReplayDirectorHost --> ReplayBrowserTransport
+  DirectorPack --> DirectorRunner
+  DirectorPack --> DirectorTakeSession
+  DirectorPack --> DirectorWindow
+  DirectorPack --> TimelinePanel : sets Tracks, Undo, Redo
+  DirectorPack --> WindowCinema
+  DirectorPack --> FilmFrameSink
+  DirectorPack --> DirectorSound
+  DirectorPack --> GizmoLayerOverride
+  DirectorRunner --> TakeStore
+  DirectorRunner --> AnchorBook
+```
+*What the picture shows that prose hid:* the only NEW behaviour types are the seam (`IRunExtension`), the recording host and one registrar;
+everything else MOVES. The verifier keeps working by plugging into the runner, so the shared runner carries no verify type, and **no host can
+lack a director part another has** — they all come from `DirectorPack.Attach`.
+
+```mermaid
+graph TD
+  subgraph ED["Editor — EditorSubsystem.Update"]
+    EDA["DirectorPack.Attach(EditorDirectorHost) + the Verify tab + ScenarioVerifyRun"]
+  end
+  subgraph RB["Replay Browser — ReplayBrowserSubsystem.Update"]
+    RBA["DirectorPack.Attach(ReplayDirectorHost)"]:::new
+  end
+  RUN["DirectorRunner.Tick (shared) — once per frame"]
+  EDA --> RUN
+  RBA -->|"NEW frame edge"| RUN
+  RUN -->|"live: StepBy, one step per frame"| EH["EditorDirectorHost → the master"]
+  RUN -->|"recording: Seek / play at a rate"| RH["ReplayDirectorHost → ReplayBrowserTransport → FederatedReplayManager"]:::new
+  RUN --> FS["FilmStudio.Direct · Fade · Capture → FilmCaptureLayer (every map host)"]
+  PAN["the host's Event Timeline (TimelinePanel)"] -->|"Tracks: Camera, Time, later Subtitles, View, Graphics, Audio"| SES["DirectorTakeSession"]
+  RBA --> PAN
+  EDA --> PAN
+  SCO["recording scout: its OWN playback (TL-7) + AnchorBook.Observe + the index's combat lanes"]:::new
+  RH -.->|"bake anchors"| SCO
+  DBG["DebugApiHost.AttachDirector — /director/* on BOTH hosts"]:::new
+  RBA --> DBG
+  EDA --> DBG
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+```
+*What the picture shows that prose hid:* the Replay Browser gains ONE frame edge (it ticks the shared runner) and its director drives the
+SAME transport the panel's cursor drives — no second seek path. The scout of a recording never steps the GUI's sandbox (TL-7's invariant).
+
+```mermaid
+sequenceDiagram
+  actor U as Operator
+  participant P as TimelinePanel (RB)
+  participant S as DirectorTakeSession
+  participant R as DirectorRunner
+  participant H as ReplayDirectorHost
+  participant T as ReplayBrowserTransport
+  participant F as FilmStudio
+  U->>P: seek to a shot event, fly the map camera, press K
+  P->>S: Key at the cursor's sim time
+  S->>S: TakeEditor.Apply(AddKey(PilotCamera)) — undoable, saved beside the recording
+  U->>P: drag a Time segment edge, set 0.5x, mark a skip
+  U->>R: Play
+  loop each frame
+    R->>R: ProgramAt(film t) gives source time, rate, camera, fade
+    alt the source time jumps (a skip, a cut back)
+      R->>H: Seek(source sim)
+      H->>T: Seek(sim)
+    else it runs on
+      R->>H: play at the segment's rate
+      H->>T: SetTimeScale(rate)
+    end
+    R->>F: Direct(pose) · Fade
+  end
+```
+*What the picture shows that prose hid:* on a recording a skip is a SEEK and slow motion is the transport's rate; the same `ProgramAt` drives
+the editor, where a skip cannot seek (R-3034) and becomes a fast-forward with a card (TE-7).
+
+| # | ⭐ decision (lean) | rejected — the one fact |
+|---|---|---|
+| **CR-1** | **Split before moving:** the verify phases leave `DirectorRunner` for an editor `ScenarioVerifyRun` plugged in through one `IRunExtension`; `IDirectorHost` keeps the film members, the 19 verify members move to an editor `IVerifyHost`. ⭐ The **coordinator** does it (the verify code is the coordinator's CE-4042 / CE-4045) | moving the runner whole — it drags six verify types and `IRecordedRun` into the shared assembly · a replay copy of the runner — R-4068 |
+| **CR-2** | **The host contract grows `CanSeek` + `Seek(sourceSim)`** (TE-5); the recording host binds to **`ReplayBrowserTransport`** | binding to the panel's `ITimelineCursor` (§9b ②) — the RB's transport now seeks by sim itself (`DebugSurface.cs:491`), and the cursor drives that same manager; the facade is the narrower contract |
+| **CR-3** | **One registrar, `DirectorPack.Attach(host, …)`** in `Hrot.Presentation`, called by the editor and the RB: the runner, the take session, the Director window, the panel's `Tracks` / `Undo` / `Redo`, the four adapters (moved, renamed for what they are), K's pilot camera (`PilotCameraSpec` moved), and `AttachDirector` on the debug API. The editor adds its Verify tab and `ScenarioVerifyRun` | each host wiring its own director (the editor's 2461-2517 copied into the RB) — two wirings drift (the shared-and-unified rule) |
+| **CR-4** | **A recording's takes live beside it**: `exercises/<id>/takes/<name>.take.json`; `Take.Source { Scenario?, Exercise?, ScenarioHash }`; `TakeStore` lists either (TE-1). ⭐ Needs **S2**: the recording names its scenario and the exercise is KEPT (an editor run's folder is under the temp root) | a take in the scenario folder naming a recording — an unpromoted take would sit beside the scenario with recording-only times (TE-1) |
+| **CR-5** | **Anchors on a recording:** `shot` / `blast` / `hit` from the index's combat lanes (already built, R-4079); the six state cues from `AnchorBook.Observe` on the recorded world during a **recording scout** — one pass on its OWN playback, baked into the take as today. Conditions as predicates (R-4072) stay in R2b | waiting for R-4072 first — it would block every recording take on R2b · observing in the GUI sandbox — TL-7 forbids stepping it |
+| **CR-6** | **Backend first, in parallel with CR-1:** the recording stamps its scenario name + hash; "Keep for films" keeps the exercise with its archived scenario (TE-13); the RB loads the TKB from it (R-4069, TE-12, in `PrepareRepo`); **CE-4050** fixed; R0 ① *"does a recording play back faithfully"* measured in the RB | — |
+| **CR-7** | **The Time track plays on BOTH hosts** (TE-6, TE-7): `ProgramAt` reads `Segments` → source time + rate. ⚠ Today's measured gap (segments saved, never played) is closed in the editor first | — |
+| **CR-8** | **Slow-motion smoothness later, measured first:** at 0.25× every recorded frame shows 4 times; whether that judders on film is measured in S6 before interpolating drawn poses between two recorded frames (R3) | interpolating now — unmeasured cost across every drawing layer |
+
+| slice | lane | builds | accepted when | after |
+|---|---|---|---|---|
+| **S1** | coordinator | CR-1: `IRunExtension`, `ScenarioVerifyRun`, `IVerifyHost` | every director and verify rail green; the runner names no verify type | — |
+| **S2** | **backend** | CR-6 | a kept editor recording opens in the RB with typed bodies and effects, no *"type not found"*; R0 ① measured (bodies, deaths, effects, doors) | — |
+| **S3** | **ui** | the film runner, session, window, four adapters, pilot camera → `Hrot.Presentation`; `DirectorPack`; the editor uses it | nothing changes in the editor: the 55 seeded takes play the same shots (`CE1364_T4_*`), all director rails green | S1 |
+| **S4** | **ui** | CR-2's contract + CR-7 on the editor host (speed, skip as a fast-forward card) | a segment at 0.5× and a skip with its card play in the editor | S3 |
+| **S5** | **ui** | `ReplayDirectorHost`, `DirectorPack` in the RB (window, tracks on its Event Timeline, K from its camera), recording takes (CR-4), the recording scout (CR-5) | **§6 R2's acceptance:** a recording take plays in the RB with skips, slow motion and cut / fly / dip, and the same take's keys play in the editor | S2, S4 |
+| **S6** | **ui** (+ the RB's debug provider) | `/director/*` with `recording=` on the RB, capture to files there, the MCP catalog (TE-15, R-1030); CR-8 measured | an AI films a recording take to an MP4 over HTTP | S5 |
+| **S7** | **ui** | R2b (CE-1304): Subtitles and View tracks · promote · anchors as predicates (R-4072) + polygon / line | §6 R2b | S5 |
+| **S8** | **ui** (+ backend for drawn-pose interpolation) | R3 (CE-1305): Graphics track + `FilmGraphicsLayer` · shot templates · audio at any rate (TE-11) · still keys · CR-8 if S6 measured judder | §6 R3 | S7 |
+| **S9** | **ui** | R4 (CE-1306): reels of recording takes · render queue | §6 R4 | S8 |
+
+⭐ **Parallel from the start:** S1 (coordinator) and S2 (backend). ui starts at S3 the moment S1 lands.
+
+| the plan rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the RB can host a director camera and capture | ✅ `MapInteractionPack.cs:581` (re-read) | ✅ `DESIGN_Map_3D_Mode.md` §6ab — the film on every map host |
+| the runner cannot move whole | ✅ `DirectorRunner.cs:20-40, 232-235` (re-read) | ⛔ TE-5 assumed it could — its premise is corrected here |
+| a recording does not name its scenario | ✅ `RecordingMetadata.cs` (re-read); an exercise folder holds `node_1.fdp` + meta only (measured `/tmp/FDP_Temp`) | ✅ TE-13 *"measure in R0"* — measured: it is not archived |
+| combat cues cannot be observed on a replayed world | ✅ `CombatTimelineLanes.cs:11` (re-read) | ✅ §9 R0 ②, TL-5 |
+| the RB transport seeks by sim | ✅ `DebugSurface.cs:491-496` (re-read: `Seek(t)` on the session axis → `ReplaySessionIntents.Seek` through the RB's master control) | ✅ DAR §9c — the RB keeps its own transport |
+| segments are never played | ✅ grep over `Hrot/` (re-run) | ✅ TE-7 says they must |
 
 ## 8. INVENTORY
 
