@@ -170,6 +170,11 @@ public sealed class ScenarioLoadStepTests : IDisposable
         await step.PrepareAsync(ctx, CancellationToken.None);
         step.Commit(ctx, world);
         Assert.Equal(text, Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(world));
+        // ⭐ CE-4058 ② — the scenario's identity rides with its description: the name it was loaded by and the ONE hash of its text
+        var (name, hash) = Fdp.Toolkit.Scenario.ScenarioDescription.IdentityOf(world);
+        Assert.Equal(ctx.ScenarioId, name);
+        Assert.Equal(Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(json), hash);
+        Assert.Equal(16, hash!.Length);
 
         var saved = _serializer.Serialize(world, new ScenarioHeader(SubsystemType,
             Description: Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(world)));
@@ -179,6 +184,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         await step.PrepareAsync(fresh, CancellationToken.None);
         step.Commit(fresh, world);
         Assert.Null(Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(world));
+        Assert.Equal((null, null), Fdp.Toolkit.Scenario.ScenarioDescription.IdentityOf(world));   // ⭐ CE-4058 ② — a new scenario names none
     }
 
     /// <summary>⭐ <c>CE-3288</c> — the shipped scenario files write the header camelCase (<c>header.description</c>); a save writes it

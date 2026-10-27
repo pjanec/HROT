@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -194,8 +193,7 @@ public sealed class TakeStore
     {
         var path = Path.Combine(ScenariosRoot, scenario, "scenario.json");
         if (!File.Exists(path)) return "";
-        using var stream = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(stream))[..16].ToLowerInvariant();
+        return Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(path));   // ⭐ CE-4058 ② — the ONE rule, a recording's meta too
     }
 
     /// <summary>

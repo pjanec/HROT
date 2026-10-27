@@ -224,6 +224,9 @@ namespace Fdp.Toolkit.Replay
         public static void StampWorld(EntityRepository repo, Fdp.Core.FlightRecorder.Metadata.RecordingMetadata metadata)
         {
             metadata.TerrainName = Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(repo) ?? "";
+            var (scenario, hash) = Fdp.Toolkit.Scenario.ScenarioDescription.IdentityOf(repo);   // ⭐ CE-4058 ② — the scenario it ran
+            metadata.ScenarioName = scenario ?? "";
+            metadata.ScenarioHash = hash ?? "";
             if (repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 && repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() is { } geo)
             {

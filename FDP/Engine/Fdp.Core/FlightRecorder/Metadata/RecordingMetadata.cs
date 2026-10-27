@@ -68,6 +68,16 @@ namespace Fdp.Core.FlightRecorder.Metadata
         public string TerrainName { get; set; } = "";
 
         /// <summary>
+        /// ⭐ <c>CE-4058</c> ② (Director Timeline TE-13) — the scenario this recording ran (its name/id) and its hash as loaded
+        /// (<c>ScenarioDescription.HashOf</c>, the director's <c>TakeStore.ScenarioHash</c> rule), so a kept recording, its takes and a
+        /// "promote" know what it is. Empty for a new scenario and for recordings that pre-date these fields.
+        /// </summary>
+        public string ScenarioName { get; set; } = "";
+
+        /// <inheritdoc cref="ScenarioName"/>
+        public string ScenarioHash { get; set; } = "";
+
+        /// <summary>
         /// ⭐ <c>CE-3126</c> (R-229) — the geodetic origin the recording node converted with. 🔒 User: <i>"Origin can be saved in
         /// recording metadata in case terrain with remembered name no longer exists"</i> — so a replay places the recording
         /// where it was recorded even when the terrain is gone or its origin was edited since. <c>null</c> for recordings that

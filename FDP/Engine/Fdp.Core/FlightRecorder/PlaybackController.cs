@@ -66,6 +66,9 @@ namespace Fdp.Core.FlightRecorder
             // This prevents silent memory corruption when struct layouts have changed since recording.
             var metadataPath = filePath + ".meta.json";
             _metadata = LoadMetadata(metadataPath);
+            // ⭐ CE-4050 — the assemblies that declare the recorded types are loaded BEFORE anything resolves an id: assemblies load lazily,
+            //   and a type of one this process has not touched yet was "not found", which stopped playback (the browser, the dumper)
+            RecordedAssemblies.EnsureLoaded(_metadata);
             SchemaValidator.Validate(_metadata);
 
             // Step 2: Open the binary frame stream.

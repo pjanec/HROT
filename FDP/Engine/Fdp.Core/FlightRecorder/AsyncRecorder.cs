@@ -485,6 +485,7 @@ namespace Fdp.Core.FlightRecorder
                     manifest[componentId] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
+                        Assembly   = type.Assembly.GetName().Name ?? string.Empty,   // ⭐ CE-4050 — a replaying process loads it
                         Size       = isValueType ? TypeLayout.SizeOf(type) : 0,   // ⭐ CE-2044 — managed (was Marshal.SizeOf)
                         LayoutHash = isValueType
                             ? ComponentLayoutHasher.ComputeHash(type)
@@ -523,6 +524,7 @@ namespace Fdp.Core.FlightRecorder
                     manifest[attr.Id] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
+                        Assembly   = type.Assembly.GetName().Name ?? string.Empty,   // ⭐ CE-4050 — a replaying process loads it
                         Size       = isValueType ? TypeLayout.SizeOf(type) : 0,   // ⭐ CE-2044 — managed (was Marshal.SizeOf)
                         LayoutHash = isValueType
                             ? ComponentLayoutHasher.ComputeHash(type)

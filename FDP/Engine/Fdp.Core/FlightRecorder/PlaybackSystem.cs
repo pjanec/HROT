@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Fdp.Core.Logging;
@@ -287,6 +288,11 @@ namespace Fdp.Core.FlightRecorder
 
 
         
+        private readonly HashSet<int> _unresolvedTypes = new();   // ⭐ CE-4050 — said once per type
+
+        /// <summary>⭐ CE-4050 — the component type ids whose recorded data this playback skipped (no assembly declares them).</summary>
+        public IReadOnlyCollection<int> UnresolvedTypes => _unresolvedTypes;
+
         private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, byte[] data)
         {
             
@@ -328,9 +334,13 @@ namespace Fdp.Core.FlightRecorder
 
             if (targetTable == null)
             {
-                throw new InvalidOperationException(
-                    $"Component type ID {typeId} not found in repository. " +
-                    "Ensure all component types are registered before playback.");
+                // ⭐ CE-4050 — a type no assembly here declares (a legacy recording that does not name its assembly, or an assembly this
+                //   install does not carry): its data is skipped, said once per type, and the rest of the world plays on.
+                //   ⛔ SUPERSEDED: an InvalidOperationException that stopped playback (the browser, the dumper, the index builder).
+                if (_unresolvedTypes.Add(typeId))
+                    Fdp.Core.Logging.FdpLog<PlaybackSystem>.Warn(
+                        "[Playback] CE-4050: component type id {0} is declared by no loaded assembly — its recorded data is skipped.", typeId);
+                return;
             }
             
             // For unmanaged tables, we can do raw memory copy

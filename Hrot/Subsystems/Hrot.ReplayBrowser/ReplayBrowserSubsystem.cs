@@ -705,7 +705,21 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         Fdp.Toolkit.Replay.ReplayState.Enter(repo);
         // ⭐ CE-3118 — the recording's terrain and road network, on every repo this host draws (docs/DESIGN_Geo_Origin.md §5).
         Hrot.Map.Common.Services.TerrainResidency.MirrorTerrain(_terrainCarrier, repo);
+        // ⭐ CE-4058 ① (TE-12, R-4069) — the catalogue every node runs on, on every repo this host draws: the bodies, the effects and
+        //   the sounds read it from the world (MapInteractionPack's body layer). ⛔ Was none — every vehicle a plain box.
+        repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(_tkb);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4058</c> ① (Director Timeline TE-12, R-4069) — this host's TKB, made ONCE the way every node makes it at start
+    /// (<see cref="Hrot.Map.Common.HrotEnvironment.CreateTkb"/>: the built-in catalogue — what the knowledge-base load step falls back to
+    /// when no archive is staged, the default deployment). ⛔ Not from the recording's scenario: R-4018 — one TKB per deployment, named by
+    /// the file sync, never by a scenario. ⛔ No browser-only loader (CE-4013 D4/D5 removed four).
+    /// </summary>
+    private readonly Fdp.Toolkit.Tkb.TkbDatabase _tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+
+    /// <summary>The TKB every repo this host binds carries (test seam).</summary>
+    internal Fdp.Interfaces.ITkbDatabase Tkb => _tkb;
 
     /// <summary>
     /// ⭐ <c>CE-3118</c> — the terrain the loaded recording names (<c>RecordingMetadata.TerrainName</c>), made resident by the same
