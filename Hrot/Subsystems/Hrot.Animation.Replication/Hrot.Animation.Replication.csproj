@@ -16,7 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- ⭐ CE-2121 — the DDS code generator (GetDescriptorOps) for the stance topics, as Hrot.Network.NED uses it. -->
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Animation.Replication.Tests" />

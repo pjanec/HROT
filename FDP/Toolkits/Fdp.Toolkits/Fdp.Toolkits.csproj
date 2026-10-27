@@ -67,7 +67,7 @@
 
   <!-- CycloneDDS NuGet package -->
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
 
 

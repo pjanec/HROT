@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — A, B, D ✅ RULED by the user 2026-10-27 (R-4092); C, E, F, G, H, I are leans awaiting approval
+state: LIVE — ✅ ALL APPROVED 2026-10-27: A, B, D ruled (R-4092); E, F, G, H, I approved as leaned (R-4093); C decided by the user (R-4094: the orchestrator publishes)
 updated: 2026-10-27
-build-state: DESIGN — nothing built; the order is §5
+build-state: BUILDING — §5 the order; step 1 (CycloneDDS.NET 0.4) under test from a local build
 current-answer: §4 the sub-questions with leans and verdicts · §3 the diagrams (the wire AFTER) · §2 the claims · §5 the order
 stale-below: nothing
 known-rot: none yet
@@ -25,7 +25,7 @@ topic for publishing the geo conversion origin). How could we resolve the situat
 the terrain geo origin so the gateway can conver to whatever coordinate system the other side needs (DIS/HLA...) pls suggest"* ·
 *"cyclonedds.net likely has a good automatic default for topic names, i bet we simply do not need to specify topic name and problem will be solved.
 no one speeks NED besides HROT so changes are allowed."* · *"pls keep the name WorldPos for the topic is possible."* · *"go with quaternion, write
-architect question, file the vertical heading bug for backend"*
+architect question, file the vertical heading bug for backend"* · *"if ok then lets go to aq 107 - approved, use sonnet subagent to do the refactors where possible"*
 
 Why it matters: a DIS/HLA gateway ([SimNetGateway](https://github.com/pjanec/SimNetGateway)) must convert every NED position. Today it cannot —
 state is geodetic, events are local metres, and nothing on the wire says where the local frame is.
@@ -159,9 +159,33 @@ including a vertical nose — CE-4068's case); an all-zero `WorldPos` decodes to
 a gateway-side conversion (`origin + R · local`) agrees with `WGS84Transform.ToGeodetic` within 1 mm at 50 km; the verify harness
 (`--verify-replay --verify-branch-at`) stays green.
 
+## 5a. Step 0 — measured `2026-10-27` (coordinator)
+
+| question | measured | consequence |
+|---|---|---|
+| the frame of angular velocity | the ONLY owner-side writer is vehicles: `vel.Angular = (0, 0, yawRate)` — yaw about world Z, counter-clockwise (`CarKinematicsSystem.cs:720`); the ONLY reader is the egress (`GeoSpatialEgressTranslator.cs:217-220`); people and aircraft leave it 0 | ⭐ D: `AngularVelocity` = **rad/s about the local ENU axes** (X east, Y north, Z up), as `SimVelocity.Angular` holds it. 📐 Found on the way: today's wire labels it a compass HEADING rate (clockwise) but sends the counter-clockwise yaw rate — the sign is opposite its documented meaning (consistent round trip; gone with D) |
+| float precision of `WGS84Transform` | the float `Matrix4x4` rotates only the LOCAL offset; the origin is added in double (`WGS84Transform.ToGeodetic`) ⇒ millimetres at 100 km | ✅ no concern; a gateway doing the same math in double is exact |
+| the degree-valued fields (I) | not yet enumerated field by field | ⏳ the I refactor enumerates them first (its brief) |
+| ⛔ **C's premise: "the cluster master publishes the origin"** | the master holds NO ECS world, terrain or geo transform (`OrchestratorSubsystem.cs` — searched `EntityRepository`, `TerrainResidency`, `IGeographicTransform`: none); the origin is set ONLY by a terrain commit on an ECS host (`TerrainResidency.ApplyGeoOrigin`, `TerrainResidency.cs:546` — CGF, the editor, every `NodeBootstrapper` host) and by the Replay Browser | ⛔ **C STOPPED (R-106)** — re-decision for the user, lean below. Every other step goes on |
+
+✅ **C DECIDED by the user (`2026-10-27`, R-4094):** *"there could be multiple CGF nodes and only one needs to publish the georeference, so it
+must be the orchestrator. And also the orchestrator can load the terrain header which contains the georeference."* ⇒ the **cluster master
+(`ClusterMaster`, the orchestrator)** publishes the retained, keyless `GeoReference`. 📐 Measured, it can: `Hrot.Orchestrator` already references
+`Fdp.Toolkits` (`TerrainDefinitionParser.Parse` → `TerrainDefinition.Origin`, `TerrainDefinition.cs:84`), and it reads the load's terrain name
+itself (`ReadContentNamesForFanOut`, `ClusterMaster.InSync.cs:154-162`). ⭐ At a LOAD: the terrain header's origin (the same file every node
+commits — one fact, one source). ⭐ At a REPLAY entry: the recording's `RecordingMetadata.GeoOrigin` (`RecordingMetadata.cs:86`, written by
+`RecorderTickSystem.cs:237`) — the origin the run actually used. `Generation` +1 on each. ⛔ SUPERSEDED below — the World Environment re-lean.
+
+⛔ *HISTORY — the re-lean the user overruled:* the origin is a descriptor of the **World Environment** entity, `EntityGeoReference`, beside its
+`EntityScenarioClock` — published by that entity's owner (the CGF that creates it, an ECS host that HAS the origin from its own terrain commit),
+read from the node's `IGeographicTransform` singleton, retained, so a late gateway gets one sample. ⭐ The same pattern as the scenario clock
+and the weather (Weather and Time §6.1) — no new publisher. Rejected: the master reading the terrain file itself — a second reader of the terrain
+asset, and a replay's origin comes from the recording, which the master does not open.
+
 ## 6. Answers
 
 | # | verdict | date | by |
 |---|---|---|---|
 | A, B, D | ✅ ruled (quotes in the header) | 2026-10-27 | user |
-| C, E, F, G, H, I | ⏳ leans — awaiting approval | — | — |
+| E, F, G, H, I | ✅ approved as leaned | 2026-10-27 | user |
+| C | ✅ the orchestrator publishes it, from the terrain header (load) and the recording's metadata (replay) — R-4094 (§5a) | 2026-10-27 | user |

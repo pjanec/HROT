@@ -27,7 +27,7 @@
     <Compile Include="..\..\..\FDP\TestShared\ManagedComponentImmutabilityProbe.cs" Link="Shared\ManagedComponentImmutabilityProbe.cs" />   <!-- CE-4046: every recorded managed component is an immutable record -->
     <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
     <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />  </ItemGroup>
 

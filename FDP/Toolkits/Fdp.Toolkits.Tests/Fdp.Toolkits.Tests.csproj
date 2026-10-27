@@ -49,7 +49,7 @@
 
   <!-- CycloneDDS for Commands.Tests -->
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
 
   <!-- No global usings - test files use explicit using directives -->
