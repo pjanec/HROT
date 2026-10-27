@@ -5966,6 +5966,12 @@ export const TOOLS_CATALOG = [
         "type": "boolean",
         "required": false,
         "description": "Add the slow replay from the reverse angle (default true)"
+      },
+      {
+        "name": "recording",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-4059 (TE-15) — the Replay Browser only: a recording (a node_N.fdp path, its folder, or an exercise id) opened FIRST through the same open POST /replay makes; 400 on a host that opens no recordings (the editor)"
       }
     ],
     "returns": "{ scenario, take, opened, saved: false, keys, segments, json }",
@@ -5988,13 +5994,20 @@ export const TOOLS_CATALOG = [
       "method": "GET",
       "path": "/director/moments"
     },
-    "params": [],
-    "returns": "{ scenario, count, moments[{ lane, eventIndex, frame, sim, actor, actorName, subject, subjectName, score }] }",
+    "params": [
+      {
+        "name": "recording",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-4059 (TE-15) — the Replay Browser only: a recording (a node_N.fdp path, its folder, or an exercise id) opened FIRST through the same open POST /replay makes; 400 on a host that opens no recordings (the editor)"
+      }
+    ],
+    "returns": "{ scenario, complete, count, moments[{ lane, eventIndex, frame, sim, actor, actorName, subject, subjectName, score }] }",
     "example": {
       "args": {},
       "gist": "list the moments the drafter can film"
     },
-    "hint": "Pick one and POST /director/draft {lane, eventIndex}. 409 while no index is shown (run the scenario first). Example: director_moments({})",
+    "hint": "Pick one and POST /director/draft {lane, eventIndex}. 409 while no index is shown (run the scenario first). complete:false = a recording's index is still being read (ask again). Example: director_moments({})",
     "manualVerify": false
   },
 
@@ -6076,12 +6089,19 @@ export const TOOLS_CATALOG = [
         "name": "capture",
         "type": "object",
         "required": false,
-        "description": "To film: {dir, fps (30), size (1280x720), supersample (1), captions (true: burned in), movie (dir/<reel>.mp4), encode (true)}"
+        "description": "To film: {dir (one take: beside it, takes/<take>.render/), fps (30), size (1280x720), supersample (1), captions (true: burned in), movie (dir/<reel>.mp4), encode (true)}"
+      },
+      {
+        "name": "recording",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-4059 (TE-15) — the Replay Browser only: a recording (a node_N.fdp path, its folder, or an exercise id) opened FIRST through the same open POST /replay makes; 400 on a host that opens no recordings (the editor)"
       }
     ],
     "returns": "the director's status (see director_status)",
     "notes": [
-      "docs/DESIGN_Film_Director.md §0, §3a, §3b, §4a. Plays in the editor's PREVIEW (R-4061); every item loads again (R-3034). Capture needs a window (Xvfb) and ffmpeg."
+      "docs/DESIGN_Film_Director.md §0, §3a, §3b, §4a. Plays in the editor's PREVIEW (R-4061); every item loads again (R-3034). Capture needs a window (Xvfb) and ffmpeg.",
+      "⭐ CE-4059 (docs/DESIGN_Director_Timeline_Editor.md §11r): in the Replay Browser a capture is paced by the take, not real time — the recording steps once per captured frame; {recording, take, capture:{}} renders a take of that recording to an MP4 beside it (scenario: the recording's own when omitted)."
     ],
     "example": {
       "args": {
@@ -6192,6 +6212,120 @@ export const TOOLS_CATALOG = [
       "gist": "read the director's status"
     },
     "hint": "maxStepsInAFrame is 1 by construction (the stepping rule); maxRetiredInAFrame is what the master took in one frame (1 when the rule holds at the kernel); waitFrames counts frames with two steps still outstanding. Example: director_status({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_stills_status",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4059 P3 (§11r) — the last stills job: running / done / failed, the stills written so far and the contact sheet.",
+    "http": {
+      "method": "GET",
+      "path": "/director/stills"
+    },
+    "params": [],
+    "returns": "the same object POST /director/stills answers ({ state, dir, planned[], stills[], sheet, sheetGrid, problems[] }; state idle before any job)",
+    "example": {
+      "args": {},
+      "gist": "read the stills job"
+    },
+    "hint": "Example: director_stills_status({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_stills",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4059 P3 (docs/DESIGN_Director_Timeline_Editor.md §11r) — the STILLS of a take: a PNG of the program's camera at each film second asked (one seek and one frame each — the runner plays from that second and holds it) and a CONTACT SHEET (one PNG, a labelled grid). The Replay Browser with a window only: refused on a host that cannot seek (the editor) and on a headless one (no renderer) — plan:true answers the plan anywhere.",
+    "http": {
+      "method": "POST",
+      "path": "/director/stills"
+    },
+    "params": [
+      {
+        "name": "recording",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-4059 (TE-15) — the Replay Browser only: a recording (a node_N.fdp path, its folder, or an exercise id) opened FIRST through the same open POST /replay makes; 400 on a host that opens no recordings (the editor)"
+      },
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "The take's scenario (default: the one the open recording names)"
+      },
+      {
+        "name": "take",
+        "type": "string",
+        "required": false,
+        "description": "The take (default main); the OPEN take, unsaved edits included, is what is filmed"
+      },
+      {
+        "name": "times",
+        "type": "array",
+        "required": false,
+        "description": "Film seconds to still (through the take's segments: a film second of a slow or replayed stretch maps to its source second)",
+        "items": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "everyKey",
+        "type": "boolean",
+        "required": false,
+        "description": "A still at every camera key, once its camera is on screen (after its fly or dip-in)"
+      },
+      {
+        "name": "width",
+        "type": "integer",
+        "required": false,
+        "description": "Each still's width in px (default 1280)"
+      },
+      {
+        "name": "height",
+        "type": "integer",
+        "required": false,
+        "description": "Each still's height in px (default 720)"
+      },
+      {
+        "name": "dir",
+        "type": "string",
+        "required": false,
+        "description": "Where the PNGs and contact-sheet.png go (default beside the take: takes/<take>.stills/)"
+      },
+      {
+        "name": "captions",
+        "type": "boolean",
+        "required": false,
+        "description": "Burn the subtitle on screen into each still (default true)"
+      },
+      {
+        "name": "plan",
+        "type": "boolean",
+        "required": false,
+        "description": "Only answer the plan (the film → source seconds and the names); nothing is captured — any host"
+      },
+      {
+        "name": "wait",
+        "type": "boolean",
+        "required": false,
+        "description": "Answer when the job is done (default true; false: answer at once, then GET /director/stills)"
+      }
+    ],
+    "returns": "{ state (done · failed · running), scenario, take, dir, planned[{ number, filmTime, sourceTime, segment, name }], stills[{ number, name, filmTime, sourceTime, segment, shownSim, path, width, height }], sheet, sheetGrid{ columns, rows, cellWidth, cellHeight, width, height }, problems[] } — with plan:true: { state: planned, dir, planned[], sheetGrid, problems[] }",
+    "notes": [
+      "docs/DESIGN_Director_Timeline_Editor.md §11r; docs/DESIGN_Film_Production.md §4a (CE-4060: the documentation take's still keys render through this route).",
+      "Needs a window: on a server run the Replay Browser under Xvfb (DISPLAY=:99)."
+    ],
+    "example": {
+      "args": {
+        "take": "main",
+        "everyKey": true,
+        "plan": true
+      },
+      "gist": "plan a take's stills"
+    },
+    "hint": "One of: times:[film seconds] · everyKey:true (each camera key once on screen) · neither (the keys that name a still — a documentation take). Default dir: beside the take (takes/<take>.stills/). Then read the sheet (an image). Example: director_stills({recording:\"/…/node_1.fdp\", take:\"main\", everyKey:true})",
     "manualVerify": false
   },
 

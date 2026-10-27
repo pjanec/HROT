@@ -158,4 +158,55 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         (status, _) = await Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"lane":"combat.shot"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> P3 (docs/DESIGN_Director_Timeline_Editor.md §11r R1, R2; success condition 2) — on the EDITOR (a host that opens no recordings and
+    /// cannot seek) <c>recording=</c> is refused with the ONE message on every director route that takes it (play, draft, moments, stills), and
+    /// <c>POST /director/stills</c> without it is refused because the source cannot seek — while <c>plan: true</c> still answers the plan.
+    /// 🔴 Mutation: <c>DebugApiService.OpensRecordingFiles</c> answering true ⇒ the editor hands the path to <c>EnterReplay</c>, which answers ITS refusal
+    /// ("Only the Replay Browser opens recording files by path…") ⇒ the message is not <see cref="DebugApiHost.RecordingRefused"/> — red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public async Task CE4059_P3_OnTheEditor_RecordingIsRefused_OnEveryDirectorRoute_AndStillsNeedASourceThatSeeks()
+    {
+        var store = new TakeStore(() => _root, () => null);
+        store.Save(new Take { Scenario = "s-a", Name = "main", Keys = new[] { new CameraKey { At = new AtExpr(1d), Camera = new CameraSpec { Distance = 20f } } },
+                              EndAt = new AtExpr(4d) });
+        var runner = new DirectorRunner(new Host(store), new NoCinema(), new NoLayers());
+        var session = new DirectorTakeSession(() => store, () => runner, () => null);
+        var drafts = new DirectorDrafts(() => ShotIndex(), _ => null, _ => SubjectKind.Vehicle, () => "s-a", session);
+        var stills = new DirectorStills(runner, sink: null, canSeek: () => false);
+
+        int port = FreePort();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDirector(runner, store, () => null, drafts, stills);
+        host.AttachService(new DebugApiService(new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+            Array.Empty<Hrot.Presentation.DebugApi.ISubsystemDebugProvider>(), () => "Scenario", null)));
+        host.Start();
+        string url = $"http://localhost:{port}";
+        StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
+
+        foreach (var call in new Func<Task<HttpResponseMessage>>[]
+                 {
+                     () => _client.PostAsync(url + "/director/play", Json("""{"recording":"/x/node_1.fdp","take":"main"}""")),
+                     () => _client.PostAsync(url + "/director/draft", Json("""{"recording":"/x/node_1.fdp","lane":"combat.shot","eventIndex":0}""")),
+                     () => _client.GetAsync(url + "/director/moments?recording=/x/node_1.fdp"),
+                     () => _client.PostAsync(url + "/director/stills", Json("""{"recording":"/x/node_1.fdp","take":"main","times":[1]}""")),
+                 })
+        {
+            var (status, body) = await Send(queue, call());
+            Assert.Equal(HttpStatusCode.BadRequest, status);
+            Assert.Equal(DebugApiHost.RecordingRefused, body["error"]!.GetValue<string>());
+        }
+        Assert.Null(session.Editor);                                                         // nothing was drafted
+        Assert.Equal(DirectorPhase.Idle, runner.Phase);                                     // nothing played
+
+        var (s2, b2) = await Send(queue, _client.PostAsync(url + "/director/stills", Json("""{"scenario":"s-a","take":"main","times":[1,2]}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, s2);
+        Assert.Equal(DirectorStills.CannotSeek, b2["error"]!.GetValue<string>());
+        (s2, b2) = await Send(queue, _client.PostAsync(url + "/director/stills", Json("""{"scenario":"s-a","take":"main","everyKey":true,"plan":true}""")));
+        Assert.True(s2 == HttpStatusCode.OK, b2.ToJsonString());
+        Assert.Equal(1d, Assert.Single(b2["data"]!["planned"]!.AsArray())!["sourceTime"]!.GetValue<double>());
+    }
 }
