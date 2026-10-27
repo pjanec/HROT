@@ -1579,7 +1579,76 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 the reel format, capture and the sound track. *Grown:* `Take`, `AnchorSpec`, `AnchorBook`, `TakeTimeline`, `TakeStore`, `IDirectorHost`,
 `DirectorWindow` (into the timeline panel). *New:* `ReplayDirectorHost`, `FilmGraphicsLayer`, the key/segment/subtitle/view/graphic records.
 
-### 11h. ✅ As built `2026-10-27` — P0 items ①, ② and ④ (backend; NOTE_Coordinator_To_Backend_Films_From_Recordings)
+### 11j. P1 detail — one director, the move *(ui, `2026-10-27`, CE-1303; build-state: READY-TO-BUILD)*
+
+⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) P1 +
+[NOTE_…_Verifier_Split_Landed](blueprints/batches/NOTE_Coordinator_To_Ui_Verifier_Split_Landed.md) (what moves / what stays). INVENTORY
+(grep + graph, `2026-10-27`): `Hrot/Subsystems/Hrot.Editor/Director/` — 15 files, 3 701 lines; the editor wires the director in ONE block
+(`EditorSubsystem.cs` §8a, `:2461-2520`) + three call sites (`_director?.Tick()` `:2919`, `_debugApiHost.AttachDirector` `:2636`, the
+window `:5309`); every type the moving files use is already reachable from `Hrot.Presentation` (`Map3D/Director` holds `Take`, `TakeStore`,
+`TakeEditor`, `DirectorTracks`, `PilotCamera`; `Fdp.Presentation` the panel and windows).
+
+```mermaid
+classDiagram
+  direction LR
+  class DirectorPack { <<NEW, Hrot.Presentation/Map3D/Director>> Attach(DirectorPackHost) · Runner · Takes · Session · Window · Tick() }
+  class DirectorPackHost { <<NEW record>> Host IDirectorHost · Wm · Layers · Headless · Pilot · Timeline TimelinePanel · Extension IRunExtension? · WindowTabs }
+  class DirectorRunner { <<MOVED>> }
+  class IDirectorHost { <<MOVED>> }
+  class IRunExtension { <<MOVED>> }
+  class ICinema { <<MOVED>> }
+  class WindowCinema { <<MOVED, was EditorCinema>> over the WindowManager }
+  class MapLayerOverride { <<MOVED, was EditorLayerOverride>> over LayerControlGizmo }
+  class FilmFrameSink { <<MOVED>> }
+  class AudioDirectorSound { <<MOVED, was EditorDirectorSound>> }
+  class DirectorTakeSession { <<MOVED>> }
+  class DirectorWindow { <<MOVED>> film tabs · extra tabs from the host }
+  class IDirectorWindowTab { <<NEW seam>> Name · Draw(runner, store) }
+  class PilotCamera { <<exists, grown>> FromMap(MapCamera3D, selected) — K's pose, was EditorSubsystem.PilotCameraSpec }
+  class EditorDirectorHost { <<STAYS, editor>> IDirectorHost + IVerifyHost }
+  class ScenarioVerifyRun { <<STAYS, editor>> IRunExtension }
+  class VerifyTab { <<NEW, editor>> IDirectorWindowTab — the Verify tab cut out of DirectorWindow }
+  DirectorPack --> DirectorRunner
+  DirectorPack --> DirectorTakeSession
+  DirectorPack --> DirectorWindow
+  DirectorPack --> DirectorPackHost : built from
+  DirectorRunner --> IDirectorHost
+  DirectorRunner --> IRunExtension : 0..1
+  DirectorRunner --> ICinema
+  WindowCinema ..|> ICinema
+  DirectorWindow --> IDirectorWindowTab : 0..n
+  VerifyTab ..|> IDirectorWindowTab
+  EditorDirectorHost ..|> IDirectorHost
+  ScenarioVerifyRun ..|> IRunExtension
+  DirectorTakeSession --> PilotCamera
+```
+*What the picture shows that prose hid:* the editor keeps only its host, its verifier and a Verify TAB — the window's one editor-only part
+becomes a contributed tab (the same shape as the runner's `IRunExtension`), so `DirectorWindow` can move whole and the Replay Browser
+gets the same window with film tabs only.
+
+```mermaid
+graph TD
+  ED["EditorSubsystem.Initialize §8a"] -->|"DirectorPack.Attach(host: EditorDirectorHost, extension: ScenarioVerifyRun, tabs: VerifyTab)"| DP["DirectorPack"]
+  EDU["EditorSubsystem.Update"] -->|"pack.Tick()"| DP
+  DP --> RUN["DirectorRunner.Tick"]
+  DP -->|"sets Tracks / Undo / Redo"| PAN["the host's TimelinePanel (editor_event_timeline)"]
+  DP -->|"RegisterWindow"| WIN["DirectorWindow"]
+  ED -->|"_debugApiHost.AttachDirector(pack.Runner, pack.Takes, …)"| DBG["/director/* (unchanged)"]
+  RB["ReplayBrowserSubsystem (P2)"]:::later -.->|"DirectorPack.Attach(ReplayDirectorHost)"| DP
+  classDef later stroke:#c33,stroke-dasharray:4 3,color:#c33
+```
+*Caption:* one registrar, one Tick; the red edge is P2.
+
+| decision | why |
+|---|---|
+| the pack lives in `Hrot.Presentation/Map3D/Director`, namespace `Hrot.UI.Common.Map3D.Director` | where `Take` / `TakeStore` / the tracks already are — the director's model and its runner in one place |
+| adapters renamed for WHAT they are (`WindowCinema`, `MapLayerOverride`, `AudioDirectorSound`; `FilmFrameSink` kept) | the note's rule; nothing in them is editor-specific (each takes a Func) |
+| the Verify tab becomes an `IDirectorWindowTab` the editor contributes | the window's only verify code; the same seam shape as `IRunExtension` |
+| tests stay in their projects (`DirectorRunnerTests`, `DirectorTracksOnTheEditorTests` in `Hrot.Editor.Tests`; `FilmDirectorTests`, `DirectorTracksTests` in `Hrot.Presentation.Tests`) — renamed usings only | the move is proven by the SAME rails: `CE1364_T4_*` (55 takes play the same shots), `CE4061_TheFilmRunner_NamesNoVerifyType_*`, every director rail green |
+| ⛔ rejected: a second registrar in the Replay Browser | R-4068 / CR-2 |
+| ⛔ rejected: renaming the editor-side `Director/` namespace now for symmetry | it holds only verify types after the move; renaming them is churn without a reader |
+
+### 11i. ✅ As built `2026-10-27` — P0 items ①, ② and ④ (backend; NOTE_Coordinator_To_Backend_Films_From_Recordings)
 
 ```mermaid
 classDiagram
