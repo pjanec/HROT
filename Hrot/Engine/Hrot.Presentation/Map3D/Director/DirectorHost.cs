@@ -88,7 +88,7 @@ namespace Hrot.UI.Common.Map3D.Director
     public interface IFrameSink
     {
         /// <summary>Asks the map on screen for this frame's scene; completes when it is written.</summary>
-        Task Frame(string path, int width, int height, int supersample, string? caption);
+        Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle);
 
         /// <summary>A card frame: <paramref name="text"/> on black.</summary>
         Task Card(string path, int width, int height, string text);

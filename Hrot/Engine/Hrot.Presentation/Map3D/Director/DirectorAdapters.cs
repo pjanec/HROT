@@ -91,17 +91,11 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>The subtitle in a dark band — at the bottom (the caption's place), the top or the middle — its band and text at the subtitle's opacity.</summary>
         private static void DrawSubtitle(ImDrawListPtr dl, Vector2 size, ImFontPtr font, SubtitleFrame sub)
         {
-            float s = MathF.Max(14f, size.Y / 30f);
+            float s = SubtitleBand.TextSizeFor(size.Y);   // ⭐ CE-1370 — the band's geometry and opacity are SubtitleBand's, the same as in a captured frame
             var extent = font.CalcTextSizeA(s, size.X * 0.86f, size.X * 0.86f, sub.Text);
-            float top = sub.Position switch
-            {
-                SubtitlePosition.Top => size.Y / 18f,
-                SubtitlePosition.Middle => (size.Y - extent.Y - s) / 2f,
-                _ => size.Y - extent.Y - s - size.Y / 18f,
-            };
-            uint a = (uint)Math.Round(Math.Clamp(sub.Alpha, 0f, 1f) * 255f);
-            dl.AddRectFilled(new Vector2(0, top), new Vector2(size.X, top + extent.Y + s), (uint)Math.Round(a * 150f / 255f) << 24);
-            dl.AddText(font, s, new Vector2((size.X - extent.X) / 2f, top + s / 2f), (a << 24) | 0x00FFFFFF, sub.Text, size.X * 0.86f);
+            var band = SubtitleBand.Of(sub, size.Y, extent.Y);
+            dl.AddRectFilled(new Vector2(0, band.Top), new Vector2(size.X, band.Top + band.Height), (uint)band.BandAlpha << 24);
+            dl.AddText(font, s, new Vector2((size.X - extent.X) / 2f, band.Top + s / 2f), ((uint)band.TextAlpha << 24) | 0x00FFFFFF, sub.Text, size.X * 0.86f);
         }
     }
 
@@ -122,8 +116,8 @@ namespace Hrot.UI.Common.Map3D.Director
     /// <summary>⭐ <c>CE-4038</c> B8 — frames through the film's mailbox: the map on screen writes the scene (or a card) in its own update.</summary>
     public sealed class FilmFrameSink : IFrameSink
     {
-        public Task Frame(string path, int width, int height, int supersample, string? caption)
-            => FilmStudio.Capture(new FilmCaptureRequest(path, width, height, supersample, caption));
+        public Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle)
+            => FilmStudio.Capture(new FilmCaptureRequest(path, width, height, supersample, subtitle));
 
         public Task Card(string path, int width, int height, string text)
             => FilmStudio.Capture(new FilmCaptureRequest(path, width, height, 1, Card: text));

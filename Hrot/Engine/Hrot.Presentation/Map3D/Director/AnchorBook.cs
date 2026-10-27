@@ -90,6 +90,21 @@ public sealed class AnchorBook
         return n == 0 || double.IsNaN(fs[n - 1]) || fs[n - 1] - _t0 < simTime - 1e-6;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1376</c> — the rounds fired from the take's start to take time <paramref name="rel"/>, counted on the run's INDEX (<c>combat.shot</c>, the lane the
+    /// <c>shot</c> anchors read) — so a recording and a live run report the same figure. Null when the index does not cover <paramref name="rel"/> yet (none, or a
+    /// LIVE one that has not caught up: it publishes a snapshot at most every quarter second of wall time) — the caller then has no index figure to give.
+    /// </summary>
+    public long? RoundsUntil(double rel)
+    {
+        if (_index() is not { } index) return null;
+        var fs = index.FrameSim;
+        int n = Math.Min(fs.Count, index.FrameTicks.Count);
+        if (n == 0) return null;
+        if (!_indexIsTheRun && (double.IsNaN(fs[n - 1]) || fs[n - 1] - _t0 < rel - 1e-6)) return null;
+        return EventAnchors.CountBetween(index, "combat.shot", _t0, _t0 + rel);
+    }
+
     /// <summary>Each baked anchor seen at another time, or (once <paramref name="simTime"/> is past it) not seen.</summary>
     public IReadOnlyList<AnchorMismatch> Mismatches(double simTime)
     {

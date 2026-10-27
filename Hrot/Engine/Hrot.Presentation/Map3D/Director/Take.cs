@@ -183,6 +183,37 @@ public sealed record Subtitle
 public sealed record SubtitleFrame(string Text, SubtitlePosition Position, float Alpha);
 
 /// <summary>
+/// ⭐ <c>CE-1370</c> — WHERE a subtitle's dark band sits and HOW opaque it is: the ONE computation behind the cinema overlay on screen
+/// (<c>WindowCinema</c>) and the caption burned into a captured frame (<c>FilmText.Caption</c>), so a rendered film shows what the screen showed.
+/// The band is as wide as the picture; the text is <see cref="TextSize"/> tall, with half a text-size of padding above and below.
+/// </summary>
+public readonly record struct SubtitleBand(float TextSize, float Top, float Height, byte BandAlpha, byte TextAlpha)
+{
+    /// <summary>The band's own opacity at a fully opaque subtitle (of 255).</summary>
+    public const int BandOpacity = 150;
+
+    /// <param name="sub">The subtitle (its position and fade-scaled alpha).</param>
+    /// <param name="frameHeight">The picture's height in pixels.</param>
+    /// <param name="textHeight">The wrapped text's height in pixels, as the caller's font measures it at <see cref="TextSizeFor"/>.</param>
+    public static SubtitleBand Of(SubtitleFrame sub, float frameHeight, float textHeight)
+    {
+        float s = TextSizeFor(frameHeight);
+        float height = textHeight + s;
+        float top = sub.Position switch
+        {
+            SubtitlePosition.Top => frameHeight / 18f,
+            SubtitlePosition.Middle => (frameHeight - height) / 2f,
+            _ => frameHeight - height - frameHeight / 18f,
+        };
+        byte a = (byte)Math.Round(Math.Clamp(sub.Alpha, 0f, 1f) * 255f);
+        return new SubtitleBand(s, top, height, (byte)Math.Round(a * (double)BandOpacity / 255d), a);
+    }
+
+    /// <summary>The text size for a picture of this height (the wrapped text must be measured at it).</summary>
+    public static float TextSizeFor(float frameHeight) => MathF.Max(14f, frameHeight / 30f);
+}
+
+/// <summary>
 /// ⭐ <c>CE-1303</c> P2b — CR-11 (§11o S8) — a take's subtitles, however it was written: its own <see cref="Take.Subtitles"/> when it has any, else its
 /// CAPTIONS READ AS subtitles — each laid-out shot's <c>caption ?? take.caption</c> over the shot's stretch, equal neighbours merged — which is exactly
 /// what the runner showed before subtitles existed (the TE-2 pattern of <see cref="CameraKeys.Of"/>). ⛔ A shot's <c>why</c> is NOT read: it is the

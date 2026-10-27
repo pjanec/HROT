@@ -42,7 +42,7 @@ public sealed record FilmShot
 /// <summary>A capture asked for: the PNG's path and size; <see cref="Supersample"/> renders that many times larger and scales down.
 /// ⭐ CE-4038 B8/B9 — <see cref="Caption"/> is burned in under the picture; a <see cref="Card"/> is a title card (its text on black) instead
 /// of the scene.</summary>
-public sealed record FilmCaptureRequest(string Path, int Width, int Height, int Supersample = 1, string? Caption = null, string? Card = null);
+public sealed record FilmCaptureRequest(string Path, int Width, int Height, int Supersample = 1, Director.SubtitleFrame? Subtitle = null, string? Card = null);
 
 /// <summary>A captured frame: where it was written, its size, and the sim time it shows.</summary>
 public readonly record struct FilmFrame(string Path, int Width, int Height, double SimTime);
@@ -270,7 +270,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
                 else
                 {
                     _canvas.DrawScene();
-                    if (!string.IsNullOrWhiteSpace(request.Caption)) FilmText.Caption(request.Caption!, w, h);
+                    if (request.Subtitle is { } sub && !string.IsNullOrWhiteSpace(sub.Text)) FilmText.Caption(sub, w, h);
                     if (FilmStudio.Fade is > 0f and var fade) Raylib.DrawRectangle(0, 0, w, h, new Color((byte)0, (byte)0, (byte)0, (byte)Math.Round(fade * 255f)));
                 }
                 Raylib.EndTextureMode();
@@ -316,19 +316,21 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
 /// </summary>
 public static class FilmText
 {
-    /// <summary>A caption at the bottom of a <paramref name="w"/>×<paramref name="h"/> picture.</summary>
-    public static void Caption(string text, int w, int h)
+    /// <summary>
+    /// A subtitle on a <paramref name="w"/>×<paramref name="h"/> picture — at its position (top / middle / bottom) and opacity (its fade), exactly as
+    /// the cinema overlay draws it: the band's geometry is <see cref="Director.SubtitleBand"/> (⭐ CE-1370), shared with <c>WindowCinema</c>.
+    /// </summary>
+    public static void Caption(Director.SubtitleFrame sub, int w, int h)
     {
-        int size = Math.Max(12, h / 30);
-        var lines = Wrap(text, size, (int)(w * 0.86f));
+        int size = (int)Director.SubtitleBand.TextSizeFor(h);
+        var lines = Wrap(sub.Text, size, (int)(w * 0.86f));
         int lineH = (int)(size * 1.25f);
-        int band = lineH * lines.Count + size;
-        int top = h - band - h / 18;
-        Raylib.DrawRectangle(0, top, w, band, new Color(0, 0, 0, 150));
+        var band = Director.SubtitleBand.Of(sub, h, lineH * lines.Count);
+        Raylib.DrawRectangle(0, (int)band.Top, w, (int)band.Height, new Color((byte)0, (byte)0, (byte)0, band.BandAlpha));
         for (int i = 0; i < lines.Count; i++)
         {
             int tw = Raylib.MeasureText(lines[i], size);
-            Raylib.DrawText(lines[i], (w - tw) / 2, top + size / 2 + i * lineH, size, Color.RayWhite);
+            Raylib.DrawText(lines[i], (w - tw) / 2, (int)band.Top + size / 2 + i * lineH, size, new Color((byte)245, (byte)245, (byte)245, band.TextAlpha));
         }
     }
 

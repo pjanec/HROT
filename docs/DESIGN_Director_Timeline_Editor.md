@@ -2313,15 +2313,18 @@ view*, the selected segment's speed / dip and the selected subtitle's text / pos
 - **A live run's film clock counts a skipped replay** (film time jumps by its length): film seconds then mean the same on both hosts, so a
   `PlayFrom(t)` from one host is the same moment on the other wherever the live run can reach it.
 - **The caption is now the subtitle of each frame** (set every playing frame, not at each cut); a capture burns in `SubtitleNow`'s text — the same
-  text as before for every take without `subtitles[]` (rail below). ⚠ position / fade are not burned in yet (CE-1370).
+  text as before for every take without `subtitles[]` (rail below). ✅ **CE-1370 as built:** the capture is handed the `SubtitleFrame` (text + position + fade alpha), and
+  `FilmText.Caption` and the cinema overlay (`WindowCinema`) both place the band through ONE `SubtitleBand.Of` (top / middle / bottom, text and band alpha) — a rendered
+  film shows what the screen showed. The text size minimum is now 14 px in both (the burned-in caption was 12).
 - **The fast-forward card** shows only in the cinema (an iteration pass keeps the panels; nothing covers the picture there).
 - Two existing rails changed with the behaviour, deliberately: `CE1364_AddASegmentHere_*` (the new segment is at index 1, between 0–4 and 8–12 —
   S12) and `CE1364_DeleteSegment_*` (the segment menu now has two items); `CE1364_T3_ATakeOpenInTheDirector_*` on the editor names three tracks.
 - `DirectorPackTests` joined the serial `Map3DFrameRail` collection (it reads `FilmStudio`, which now also holds the pilot view).
 
-**Known edges:** a replayed stretch is silent the second time in a rendered film's sound (CE-1369); a burned-in subtitle is bottom and opaque
-(CE-1370); takes saved before the exercise was kept stay in the node's temp folder (CE-1371); live, a back segment is skipped whole even where it
-partly lies ahead.
+**Known edges:** live, a back segment is skipped whole even where it partly lies ahead. ✅ Closed since: a replayed stretch sounds in EVERY pass of a rendered
+film (CE-1369: `SoundTrack.FilmTimes` gives every film time of a cue's sim time and `RenderWav` mixes the cue at each — a loop ends at the first stop shown after its start);
+a burned-in subtitle keeps its position and fade (CE-1370); takes saved before the exercise was kept go with the keep (CE-1371: `ReferenceArchiveHandler` adds each
+`<scenario>/takes/*.take.json` beside the recording to the archive manifest — the one copy rule, no Replay Browser migration).
 
 **Rails** (each red-proved by a compiling mutation — the report lists mutation and message): `ReplayBrowserSubsystemTests.CE1303_P2b_*` ×3 (on a
 real 6 s recording: slow + replay segments, PlayFrom across a slow segment, a kept exercise's takes) · `DirectorPackTests.CE1303_P2b_*` ×2 (a live
@@ -2729,7 +2732,7 @@ Two things stood in the way: event cues were found in side stores a recording ne
 | reader of `ShotLog` / `DetonationLog` | what it is | P4 |
 |---|---|---|
 | `AnchorBook.Observe` / `Hit` / `CountShots` (before P4) | the director's event cues | ⛔ **RETIRED** — the index (D1) |
-| `DirectorRunner` `_roundsAtStart`, `CutSnapshot` rounds | a cut's "rounds fired since the take began", in the report | ⏭ kept (a report figure, not a cue; on a recording it reads 0) — CE-1376 |
+| `DirectorRunner` `_roundsAtStart`, `CutSnapshot` rounds | a cut's "rounds fired since the take began", in the report | ✅ CE-1376: counted on the run's index (`AnchorBook.RoundsUntil` → `EventAnchors.CountBetween`, `combat.shot`), so a recording reports the indexed shots; a LIVE index that has not caught up with the cut (it lags up to a quarter second of wall time) falls back to `ShotLog` (CE-1378) |
 | `FireProcessingSystem`, `BallisticsSystem`, `GuidedRoundSystem`, `AreaEffectSystem`, `HitResolutionSystem` | the WRITERS (and their own bookkeeping) | kept |
 | `CombatTraceSystem` | mirrors the logs into the RECORDED `ShotTraces` the map draws (CE-3117) | kept |
 | `DebugApi/CombatReport.cs` (`GET /combat/shots`, `/combat/detonations`) | the combat report | kept |
@@ -2849,7 +2852,7 @@ it, but the acceptance cannot pass without it — recording B has no take beside
 **Known edges.** (1) *Measured by reading, not on a live editor run:* the live resolver's shot time is the frame's `GlobalTime.TotalTime`, which is what
 `ShotRecord.FiredAt` held (0 drift); blast / hit times move from "the frame the runner first observed it" to the event's own frame — at most one step
 EARLIER than before. Placement on the editor is unchanged (D3: the seeded takes' bakes lead; `CE1364_T4_*` green); only `mismatches` report lines can
-differ. (2) `hit` no longer counts area-effect damage on a bystander (claim table). (3) The runner's per-cut "rounds" figure still reads `ShotLog` (CE-1376).
+differ. (2) `hit` no longer counts area-effect damage on a bystander (claim table). (3) ~~The runner's per-cut "rounds" figure still reads `ShotLog`~~ — SUPERSEDED (CE-1376): it counts `combat.shot` on the run's index; only a live run whose index lags still reads `ShotLog` (CE-1378).
 (4) The verifier's checks still judge combat conditions from the logs, live only (CE-1377). (5) A state cue on a recording is observed only as the playhead
 passes it: a cut placed BEFORE a state cue still needs a bake (as live).
 

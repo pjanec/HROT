@@ -79,10 +79,21 @@ namespace Hrot.UI.Common.Audio
             foreach (var cue in _cues)
             {
                 if (!_clips.TryGetValue(cue.Clip, out var clip)) continue;
-                if (FilmTime(frameSimTimes, cue.SimTime, fps) is not { } start) continue;
-                double? end = cue.Loop ? (cue.StoppedAt is { } s ? FilmTime(frameSimTimes, s, fps) ?? (double)frames / fps : (double)frames / fps) : null;
-                Mix(left, right, clip.Samples, clip.Rate, cue, start, end);
-                placed++;
+                // ⭐ CE-1369 — a cue is logged ONCE (when the mixer starts it) but a source time can be filmed more than once
+                //   (an instant replay is a segment that goes back): it sounds in EVERY pass that shows its sim time.
+                double[]? stops = cue.Loop && cue.StoppedAt is { } s ? FilmTimes(frameSimTimes, s, fps).ToArray() : null;
+                foreach (double start in FilmTimes(frameSimTimes, cue.SimTime, fps))
+                {
+                    double? end = null;
+                    if (cue.Loop)
+                    {
+                        // a loop ends at the first stop shown AFTER its start in the same pass, else with the film
+                        end = (double)frames / fps;
+                        if (stops != null) foreach (double e in stops) if (e > start) { end = e; break; }
+                    }
+                    Mix(left, right, clip.Samples, clip.Rate, cue, start, end);
+                    placed++;
+                }
             }
             if (placed == 0) return false;
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
@@ -90,8 +101,18 @@ namespace Hrot.UI.Common.Audio
             return true;
         }
 
-        /// <summary>The film time (s) of a sim time: between two filmed frames, interpolated; in a gap or on a card, null.</summary>
+        /// <summary>The FIRST film time (s) of a sim time (see <see cref="FilmTimes"/>); null in a gap or on a card.</summary>
         internal static double? FilmTime(IReadOnlyList<double> frameSimTimes, double simTime, int fps)
+        {
+            foreach (double t in FilmTimes(frameSimTimes, simTime, fps)) return t;
+            return null;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1369 — EVERY film time (s) of a sim time, in film order: one per pass of the film that shows it (an instant replay films
+        /// the same sim time twice). Between two filmed frames the time is interpolated; in a gap the film skips, or on a card, none.
+        /// </summary>
+        internal static IEnumerable<double> FilmTimes(IReadOnlyList<double> frameSimTimes, double simTime, int fps)
         {
             for (int i = 0; i + 1 < frameSimTimes.Count; i++)
             {
@@ -99,11 +120,10 @@ namespace Hrot.UI.Common.Audio
                 if (double.IsNaN(a) || double.IsNaN(b) || b < a) continue;
                 if (simTime >= a && simTime < b)
                 {
-                    if (b - a > 0.25) return simTime - a < 1d / fps ? (double)i / fps : null;   // a gap the film skips
-                    return (i + (b > a ? (simTime - a) / (b - a) : 0d)) / fps;
+                    if (b - a > 0.25) { if (simTime - a < 1d / fps) yield return (double)i / fps; }   // a gap the film skips
+                    else yield return (i + (b > a ? (simTime - a) / (b - a) : 0d)) / fps;
                 }
             }
-            return null;
         }
 
         private static void Mix(float[] left, float[] right, short[] samples, int rate, Cue cue, double start, double? end)

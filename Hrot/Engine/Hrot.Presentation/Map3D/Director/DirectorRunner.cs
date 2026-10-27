@@ -757,6 +757,14 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>⭐ CR-5 — how long past its end a live take plays on while the live index catches up with an event anchor not seen yet.</summary>
         public const double IndexGraceSeconds = 1d;
 
+        /// <summary>
+        /// ⭐ <c>CE-1376</c> — the rounds fired since the take began: counted on the run's INDEX (<see cref="AnchorBook.RoundsUntil"/>), which a recording has and the
+        /// live run publishes, so both report the same figure. ⚠ A LIVE index lags the run by up to a quarter second of wall time; until it covers the cut the
+        /// world's own <c>ShotLog</c> (exact, but a side store a recording never carries) gives the figure — the one place the director still names it.
+        /// </summary>
+        private long RoundsFired(Fdp.Core.EntityRepository world)
+            => _book?.RoundsUntil(Rel) ?? (Fdp.Toolkit.Combat.ShotLog.Peek(world)?.Count ?? 0) - _roundsAtStart;
+
         private void EnterShot(TimelineShot? shot)
         {
             _shot = shot;
@@ -765,7 +773,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (shot == null) return;   // ⭐ CE-1303 P2b — the caption is the subtitle of each frame now (TakeSubtitles: a gap has none)
             var s = shot.Shot;
             if (_host.World is { } world)
-                Report.Cuts.Add(CutSnapshot.Of(world, shot.Number, Rel, (Fdp.Toolkit.Combat.ShotLog.Peek(world)?.Count ?? 0) - _roundsAtStart));
+                Report.Cuts.Add(CutSnapshot.Of(world, shot.Number, Rel, RoundsFired(world)));
             var on = new List<string>(take.Layers?.On ?? Array.Empty<string>());
             var off = new List<string>(take.Layers?.Off ?? Array.Empty<string>());
             if (s.Layers != null) { on.AddRange(s.Layers.On); off.AddRange(s.Layers.Off); on.RemoveAll(s.Layers.Off.Contains); }
@@ -798,8 +806,8 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             var c = _request!.Capture!;
             var path = Path.Combine(FramesDir, $"{_frameNo:D6}.png");
-            string? caption = c.BurnCaptions ? _subNow?.Text : null;   // ⭐ CE-1303 P2b — the subtitle on screen (a take's captions read as subtitles)
-            _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, caption);
+            var subtitle = c.BurnCaptions ? _subNow : null;   // ⭐ CE-1303 P2b / CE-1370 — the subtitle on screen, with its position and fade
+            _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, subtitle);
             _manifest.Add((_frameNo, _item, shot.Number, rel));
             _frameNo++;
             Report.Frames++;

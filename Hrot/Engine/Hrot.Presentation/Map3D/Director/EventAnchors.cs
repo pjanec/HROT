@@ -38,6 +38,25 @@ public static class EventAnchors
     }
 
     /// <summary>
+    /// ⭐ <c>CE-1376</c> — how many events of <paramref name="lane"/> the index holds with a sim time in [<paramref name="fromSim"/>, <paramref name="toSim"/>]
+    /// (a frame without a sim time has none). The run's rounds fired so far is this over <c>combat.shot</c> — the same lane the <c>shot</c> anchors read.
+    /// </summary>
+    public static long CountBetween(TimelineIndex index, string lane, double fromSim, double toSim)
+    {
+        if (!index.Has(lane)) return 0;
+        var events = index.Lane(lane);
+        var fs = index.FrameSim;
+        long n = 0;
+        for (int i = 0; i < events.Count; i++)
+        {
+            int f = events[i].Frame;
+            if (f < 0 || f >= fs.Count || double.IsNaN(fs[f])) continue;
+            if (fs[f] >= fromSim - 1e-9 && fs[f] <= toSim + 1e-9) n++;
+        }
+        return n;
+    }
+
+    /// <summary>
     /// The anchor for the nearest expressible event at or before <paramref name="sim"/>; null when none precedes it (a fixed time then).
     /// <paramref name="unitName"/> maps an event's network id to the unit's name (null = unknown / gone: that event is skipped).
     /// </summary>

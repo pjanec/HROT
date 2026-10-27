@@ -334,6 +334,68 @@ public sealed class FilmDirectorTests
         finally { File.Delete(wav); }
     }
 
+    /// <summary>⭐ <c>CE-1369</c> — a cue is logged once, but an instant replay (a segment that goes back) films its source time twice: the
+    /// cue sounds in BOTH passes. 🔴 Red-proof: have <c>FilmTimes</c> stop after its first pass ⇒ the second pass is silent (the WAV holds one cue).</summary>
+    [Fact]
+    public void CE1369_ACue_SoundsInEveryPassThatShowsItsSourceTime()
+    {
+        // 30 fps: film 0–2 s shows sim 0–2; film 2–4 s is the instant replay, sim 1–3
+        var sim = Enumerable.Range(0, 60).Select(i => i / 30d).Concat(Enumerable.Range(0, 60).Select(i => 1d + i / 30d)).ToList();
+        var both = SoundTrack.FilmTimes(sim, 1.5, 30).ToArray();
+        Assert.Equal(2, both.Length);
+        Assert.Equal(1.5d, both[0], 6);                                                                     // pass one
+        Assert.Equal(2.5d, both[1], 6);                                                                     // the replay
+        Assert.Equal(3.5d, Assert.Single(SoundTrack.FilmTimes(sim, 2.5, 30)), 6);                           // sim 2.5 is only in the replay
+        Assert.Equal(1.5d, SoundTrack.FilmTime(sim, 1.5, 30)!.Value, 6);                                    // FilmTime stays the first pass
+
+        double now = 1.5d;
+        var track = new SoundTrack(() => now);
+        var output = new RecordingAudioOutput(new NullAudioOutput(), track);
+        output.Open();
+        output.Define(9, Enumerable.Range(0, 4800).Select(i => (short)(i % 100 * 300)).ToArray(), 48000);
+        output.Play(9, 1f, -1f, 1f);
+        Assert.Single(track.Cues);                                                                          // logged ONCE
+        var wav = Path.Combine(Path.GetTempPath(), $"ce1369-{Guid.NewGuid():N}.wav");
+        try
+        {
+            Assert.True(track.RenderWav(wav, sim, 30));
+            var bytes = File.ReadAllBytes(wav);
+            int Left(double film) => BitConverter.ToInt16(bytes, 44 + ((int)(film * SoundTrack.SampleRate) + 101) * 4);
+            Assert.NotEqual(0, Left(1.5));                                                                  // pass one
+            Assert.NotEqual(0, Left(2.5));                                                                  // pass two (the replay)
+            Assert.Equal(0, Left(2.0));                                                                     // and nothing between them
+        }
+        finally { File.Delete(wav); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1370</c> — the subtitle band is ONE computation for the cinema overlay and a captured frame: top / middle / bottom sit where the overlay put them
+    /// (1/18 of the height from the edge, or centred), and the fade scales the text's alpha and the band's together (the band at 150/255 of the text's).
+    /// 🔴 Mutation: <c>SubtitlePosition.Top</c> falling through to the bottom case ⇒ the top band lands at the bottom ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1370_TheSubtitleBand_IsOnePlace_ForPositionAndFade()
+    {
+        const float h = 720f, text = 40f;
+        var top = SubtitleBand.Of(new SubtitleFrame("x", SubtitlePosition.Top, 1f), h, text);
+        var mid = SubtitleBand.Of(new SubtitleFrame("x", SubtitlePosition.Middle, 1f), h, text);
+        var bot = SubtitleBand.Of(new SubtitleFrame("x", SubtitlePosition.Bottom, 1f), h, text);
+        float size = SubtitleBand.TextSizeFor(h);
+        Assert.Equal(24f, size);                                                  // 720 / 30
+        Assert.Equal(h / 18f, top.Top, 3);
+        Assert.Equal((h - (text + size)) / 2f, mid.Top, 3);
+        Assert.Equal(h - (text + size) - h / 18f, bot.Top, 3);
+        Assert.Equal(text + size, bot.Height, 3);
+        Assert.True(top.Top < mid.Top && mid.Top < bot.Top);
+        Assert.Equal((255, 150), (top.TextAlpha, top.BandAlpha));                 // fully opaque: the band is the dark 150
+
+        var fading = SubtitleBand.Of(new SubtitleFrame("x", SubtitlePosition.Top, 0.5f), h, text);   // mid-fade
+        Assert.Equal(128, fading.TextAlpha);
+        Assert.Equal(75, fading.BandAlpha);
+        Assert.Equal(0, SubtitleBand.Of(new SubtitleFrame("x", SubtitlePosition.Top, 0f), h, text).TextAlpha);
+        Assert.Equal(14f, SubtitleBand.TextSizeFor(100f));                        // a small picture keeps a legible minimum
+    }
+
     /// <summary>D-2 — "Save As" / "new from" carry a scenario's takes; never over a scenario with takes of its own.</summary>
     [Fact]
     public void CE4038_TakesAreCopied_WithTheScenario_NeverOverOwnOnes()

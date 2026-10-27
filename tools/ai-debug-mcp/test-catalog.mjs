@@ -2,8 +2,9 @@
  * test-catalog.mjs — Static tests for tool-catalog.mjs correctness.
  *
  * Does NOT start the MCP server. Tests:
- *   - Every expected tool name is present in the catalog
- *   - No orphan catalog entries (every catalog entry is in the expected list)
+ *   - Every tool the SOURCES declare is present in the catalog, and no catalog entry lacks a source
+ *     (the expectation is DERIVED, never hand-kept — CE-1375: a hand-kept list trailed the generated
+ *      catalog by 58 tools, the rot HN-030 removed from the catalog itself)
  *   - Per-entry richness: non-empty summary, params array, hint, example
  *   - Required params consistency
  *
@@ -13,86 +14,25 @@
 
 import { TOOLS_CATALOG } from './tool-catalog.mjs';
 import { readFileSync } from 'node:fs';
+import { CATALOG_SUPPLEMENT } from './catalog-supplement.mjs';
 
+// ── The expected set is DERIVED from the two sources the generator reads ─────────────────────────
+//
+// ⭐ gen-catalog.mjs builds the catalog from (a) the RouteDocs in DebugApiRouteDocs.cs (`Tool: "name"`) and
+//   (b) catalog-supplement.mjs (the one tool with no endpoint). Reading the same two files here gives the
+//   expectation WITHOUT the generated file in the loop — a route doc dropped from the catalog, or a catalog
+//   entry with no source, fails; and there is no second hand-kept mirror to drift (CE-1375).
+const routeDocs = readFileSync(
+  new URL('../../Hrot/Subsystems/Hrot.Editor/DebugApi/DebugApiRouteDocs.cs', import.meta.url), 'utf8');
 const EXPECTED_TOOLS = [
-  'start_simulation', 'stop_simulation', 'get_status', 'get_capabilities', 'list_perspectives', 'switch_perspective',
-  'list_entities', 'get_entity', 'list_component_types', 'list_scenarios',
-  'get_event_history',
-  'get_sim_state', 'play', 'pause', 'step', 'set_time_scale', 'enter_preview', 'stop_preview',
-  'load_scenario_edit', 'load_scenario_live', 'save_scenario',
-  'list_commands', 'send_entity_command', 'spawn_entity',
-  'list_entity_types', 'get_entity_type',
-  'get_world_info', 'geo_to_local', 'local_to_geo',
-  'set_breakpoint', 'list_breakpoints', 'remove_breakpoint', 'get_breakpoint_status',
-  'checkpoint', 'restore_checkpoint', 'capture_diff_baseline', 'diff_state',
-  'list_exercises', 'enter_replay', 'seek_replay', 'stop_replay', 'set_replay_axis', 'enter_review', 'exit_review', 'seek_review',
-  'get_replay_status', 'get_journal_history', 'search_replay',
-  'get_logs',
-  'observe_trace', 'get_entity_trace',
-  'get_attributes_schema', 'patch_attribute', 'edit_component',
-  'focus_entity', 'add_annotation',
-  // Slice ① — discovery with schema (MX4a / MX7).
-  'list_behaviors', 'list_breakpoint_types',
-  // Group P — mission editing (MX4b): read / add-task / clear / run over the editor's mission seam.
-  'get_mission', 'add_mission_task', 'clear_mission_tasks', 'run_mission',
-  // Slice ② — Group O, variable addressing (MX1): the watch's own tuple, over HTTP.
-  'list_entity_variables', 'get_entity_variable', 'stage_entity_variable',
-  // Slice ③ — the panel snapshot (MX9), blueprint hot-attach (MX2), entity state (MX3),
-  // and the breakpoint resume the staged-write drain turned out to depend on.
-  'list_panels', 'get_panel', 'get_gizmo_frame',
-  'list_blueprints', 'attach_blueprint', 'detach_blueprint', 'list_entity_blueprints',
-  'get_entity_state', 'continue_from_breakpoint',
-  // Slice ④ — Group V, the AI-asset drive surface (cgf==editor slice 2).
-  // ⭐ Three addresses (§3a): the GUID in a URL segment, the human sourceFilePath in the BODY,
-  //   and discovery via list_assets. ⛔ Never a raw path in a segment.
-  'list_assets', 'open_asset', 'open_asset_by_path',
-  'list_documents', 'activate_document', 'focus_panel',
-  // Slice ⑤ — cgf==editor slice 3: the edit -> save -> reload cycle, drivable headlessly.
-  'save_ai_asset', 'reload_ai_asset',
-  // Slice ⑥ — Group W, the AUTHORING surface (AQ56 / DESIGN_Mcp_Authoring.md).
-  // ⭐ read_asset_graph is the entry point: read the IN-MEMORY guids, then edit BY them.
-  //   list_node_kinds is what stops an agent guessing a kind id — an unknown kind is refused,
-  //   but only this list is guaranteed valid for a given graph.
-  'read_asset_graph', 'list_node_kinds',
-  'add_graph_node', 'add_graph_link', 'set_graph_param', 'remove_graph_elements',
-  // ⭐⭐ AQ57 / MA-020 — recipe discovery is the CREATE-side analog of list_node_kinds: without it an
-  //   agent can only ever make BLANKS, because a recipe can only be asked for BY NAME.
-  'create_asset', 'list_asset_recipes',
-  // Group Y — node diagnostics (DESIGN_Mcp_Diagnostics_Federation.md). ⭐ Per NODE: every node hosts
-  //   its own MCP endpoint, so these answer for the node you asked, and get_logs finally answers at
-  //   all — neither composition root passed the sinks, so it returned [] everywhere.
-  'get_architecture_diagnostics',
-  // ⭐ CE-1145 (ui) — the map view's frame rate and camera.
-  'get_render_diagnostics',
-  // ⭐⭐ The cluster dump is a SECOND SURFACE on the built dump-diag pipeline (CQRS intent -> per-node
-  //   gather -> SMB pull to NAS), ⛔ never a second collection mechanism. Status reads the same
-  //   ClusterUiCache the ExCon panel renders.
-  'trigger_cluster_diagnostic_dump', 'get_cluster_diagnostic_status',
-  // ⭐ CE-4002 — the cluster membership routes: roster, operator transition, operator cancel (R-4004).
-  'get_cluster_roster', 'request_cluster_transition', 'cancel_cluster_operation',
-  // ⭐ Scenario authoring is WORLD manipulation (Q56-C): place/configure/assign already had
-  //   routes; delete was the one gap.
-  'delete_entity',
-  // Slice ⑦ — Group X, the UNION backbone + discovery + the editor command bus (AQ56 §10/§10.7/§11).
-  // ⭐⭐ apply_graph_command carries the WHOLE ~35-variant GraphCommand union, so BTree decorators
-  //   (attachments) and HSM parallel regions become reachable — the four typed verbs cannot express
-  //   either, and a curated verb list WILL lag the union.
-  'list_graph_command_types', 'apply_graph_command',
-  'get_node_kind_schema', 'get_node_properties',
-  // ⛔ list_editor_commands is NOT list_commands: the latter enumerates publishable FDP event types
-  //   and send_entity_command depends on it. Two different buses, two different prefixes.
-  'list_editor_commands', 'get_editor_command', 'invoke_editor_command',
-  // ⭐ Ownership (CE-515), the create-request pipeline (CE-271), and the backend lane's AI / combat / terrain reads
-  //   (CE-3072 sensors · G7 weapons · CE-3087 squad · CE-3117 shots/detonations · Stage 4 LOS · Stage 0 resolve ·
-  //   Stage 5 doors · M1 terrain) — catalogued by their batches, handlers added CE-3144.
-  'get_entity_ownership', 'transfer_entity_ownership', 'create_entity_request',
-  'get_entity_utility', 'get_entity_sensors', 'get_entity_memory', 'get_entity_weapons', 'get_entity_squad',
-  'get_combat_shots', 'get_combat_detonations', 'explain_line_of_sight', 'resolve_entity_type_parameters',
-  'list_doors', 'get_terrain_levels', 'query_terrain',
-  // ⭐ CE-3167 — entity control (docs/DESIGN_Entity_Control.md §4.1): the AI player's orders and situation report.
-  'order_entity', 'get_entity_order', 'release_entity', 'list_orders', 'order_entities', 'lock_side', 'get_sitrep',
-  'possess_entity', 'release_possession', 'control_entity',   // CE-3172 — possession (DESIGN_Entity_Control §13)
+  ...[...routeDocs.matchAll(/\bTool:\s*"([a-z0-9_]+)"/g)].map((m) => m[1]),
+  ...CATALOG_SUPPLEMENT.map((t) => t.name),
 ];
+if (EXPECTED_TOOLS.length < 100) {
+  console.error(`Only ${EXPECTED_TOOLS.length} tools derived from the sources — the derivation is broken, not the catalog.`);
+  process.exit(1);
+}
+
 
 let passed = 0;
 let failed = 0;
@@ -151,9 +91,13 @@ assert(TOOLS_CATALOG.length === EXPECTED_TOOLS.length,
 //   at import time, so a test cannot pull its TOOLS array out without launching it.
 console.log('\n-- The server exposes every catalogued tool --');
 const serverSource = readFileSync(new URL('./src/index.mjs', import.meta.url), 'utf8');
+// ⭐ A tool is exposed if it has a hand-written handler (`name: '<tool>'`) OR the generic catalog-driven rule
+//   (GENERIC_FROM_CATALOG in index.mjs) serves it — which needs the entry to carry an `http` route.
+const generic = serverSource.includes('const GENERIC_FROM_CATALOG = true');
 for (const entry of TOOLS_CATALOG) {
-  assert(serverSource.includes(`name: '${entry.name}'`),
-    `src/index.mjs registers a handler for '${entry.name}'`);
+  const explicit = serverSource.includes(`name: '${entry.name}'`);
+  assert(explicit || (generic && entry.http && entry.http.method && entry.http.path),
+    `src/index.mjs serves '${entry.name}' (hand-written handler or the generic catalog rule)`);
 }
 
 console.log(`\nPassed: ${passed}, Failed: ${failed}`);

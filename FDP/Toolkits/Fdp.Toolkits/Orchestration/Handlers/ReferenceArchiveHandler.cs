@@ -101,8 +101,29 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
                 SourceUnc:    timeline,
                 RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, Path.GetFileName(timeline))));
         }
+
+        // ⭐ CE-1371 — the director's TAKES saved beside the recording before it was kept (<scenario>/takes/<take>.take.json, the Replay Browser's store
+        //   next to its local copy) go with it: once the exercise is kept the browser reads the kept folder only, so takes left in the temp folder
+        //   would vanish from its list. The one copy rule — the keep carries everything a recording owns.
+        var exerciseDir = Path.GetDirectoryName(file)!;
+        foreach (var scenarioDir in Directory.EnumerateDirectories(exerciseDir))
+        {
+            var takes = Path.Combine(scenarioDir, TakesFolder);
+            if (!Directory.Exists(takes)) continue;
+            foreach (var take in Directory.EnumerateFiles(takes, "*" + TakeSuffix))
+            {
+                manifest.Add(new FileManifestResult(
+                    SourceUnc:    take,
+                    RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText,
+                                               Path.GetFileName(scenarioDir), TakesFolder, Path.GetFileName(take))));
+            }
+        }
         return Task.FromResult<object?>(manifest.ToArray());
     }
+
+    // The director's take store layout (Hrot.UI.Common.Map3D.Director.TakeStore.TakesFolder / TakeSuffix) — this toolkit cannot reference the UI assembly.
+    private const string TakesFolder = "takes";
+    private const string TakeSuffix = ".take.json";
 
     /// <inheritdoc />
     public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }

@@ -173,7 +173,7 @@ namespace Hrot.UI.Common.Map3D.Director
                     if (++_frames < SettleFrames) return;
                     _path = Path.Combine(_dir, _plan[_i].Name + ".png");
                     _shownSim = _runner.Status()["simTime"]?.GetValue<double>() ?? double.NaN;
-                    _capture = _sink!.Frame(_path, _width, _height, 1, _captions ? _runner.SubtitleNow?.Text : null);
+                    _capture = _sink!.Frame(_path, _width, _height, 1, _captions ? _runner.SubtitleNow : null);
                     _frames = 0;
                     _step = Step.Capture;
                     return;

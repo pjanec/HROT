@@ -1980,6 +1980,13 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.All(seen.Where(s => s.Sim > 2.52 && s.Sim < 3.48), s => Assert.Equal(Key2At, s.Camera));
         Assert.All(seen.Where(s => s.Sim > 3.52 && s.Sim < 4.98), s => Assert.Equal(Key3At, s.Camera));
         Assert.True(seen.Count(s => s.Sim > 2.52 && s.Sim < 3.48) > 30);
+
+        // ⭐ CE-1376 — the cuts' "rounds fired so far" are counted on the recording's INDEX (Alpha's rounds at 2.0 and 3.5 s), not the ShotLog side store a
+        //   replayed world never carries (which read 0 at every cut). 🔴 Mutation: RoundsFired reading ShotLog only ⇒ every cut 0 ⇒ the last cut's 2 is red.
+        Assert.NotEmpty(report.Cuts);
+        foreach (var cut in report.Cuts.Where(c => Math.Abs(c.Time - 2.0) > 0.05 && Math.Abs(c.Time - 3.5) > 0.05))
+            Assert.True(cut.Rounds == (cut.Time > 3.5 ? 2 : cut.Time > 2.0 ? 1 : 0), $"cut {cut.Shot} at {cut.Time:0.###}: {cut.Rounds} rounds");
+        Assert.True(report.Cuts.Any(c => c.Rounds == 2), string.Join("; ", report.Cuts.Select(c => $"{c.Shot}@{c.Time:0.###}={c.Rounds}")));
     }
 
     /// <summary>

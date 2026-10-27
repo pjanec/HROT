@@ -347,7 +347,8 @@ public sealed class DirectorRunnerTests : IDisposable
     {
         public readonly List<string> Frames = new();
         public readonly List<string> Cards = new();
-        public Task Frame(string path, int width, int height, int supersample, string? caption) { Frames.Add(path); return Task.CompletedTask; }
+        public readonly List<SubtitleFrame?> Subtitles = new();
+        public Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle) { Frames.Add(path); Subtitles.Add(subtitle); return Task.CompletedTask; }
         public Task Card(string path, int width, int height, string text) { Cards.Add(text); File.WriteAllText(path, ""); return Task.CompletedTask; }
     }
 
@@ -479,6 +480,37 @@ public sealed class DirectorRunnerTests : IDisposable
         Run(runner, host);
         Assert.Equal("beat-missing", runner.Reports[0].Status);
         Assert.Contains(runner.Reports[0].Mismatches, m => m.StartsWith("far: baked ") && m.EndsWith("not seen live"));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1370</c> — a captured frame is handed the subtitle WITH its position and fade, as the cinema overlay gets it (not just its text): a take's
+    /// top subtitle fading over 0.5 s reaches the sink at <c>Top</c>, its alpha rising from ~0 to 1 and falling again, and no frame past its end carries one.
+    /// 🔴 Mutation: the runner handing the sink <c>new SubtitleFrame(_subNow.Text, SubtitlePosition.Bottom, 1f)</c> (the text only, as before) ⇒ no <c>Top</c>
+    /// frame, no mid-fade alpha ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1370_ACapturedFrame_IsHandedTheSubtitle_WithItsPositionAndFade()
+    {
+        var store = Store();
+        store.Save(new Take
+        {
+            Scenario = "s-a", Name = "fade",
+            Shots = new[] { new ShotSpec { At = new AtExpr(0.5), Seconds = 1.0, Camera = new CameraSpec { Follow = "Runner", Distance = 10 } } },
+            Subtitles = new[] { new Subtitle { At = new AtExpr(0.5), Until = new AtExpr(1.5), Text = "Contact", Position = SubtitlePosition.Top, Fade = 0.5 } },
+        });
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "fade"), Capture: new CaptureOptions(Path.Combine(_root, "film-fade"), Fps: 30, Encode: false))));
+        Run(runner, host);
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+
+        var shown = sink.Subtitles.Where(s => s != null).Select(s => s!).ToList();
+        Assert.True(shown.Count >= 25, $"frames with a subtitle: {shown.Count} of {sink.Subtitles.Count}");
+        Assert.All(shown, s => { Assert.Equal(("Contact", SubtitlePosition.Top), (s.Text, s.Position)); });
+        Assert.Contains(shown, s => s.Alpha is > 0.2f and < 0.8f);   // mid-fade, in or out
+        Assert.Contains(shown, s => s.Alpha >= 0.999f);              // and fully opaque between
+        Assert.True(shown[0].Alpha < 0.2f && shown[^1].Alpha < 0.2f, $"the ends fade: {shown[0].Alpha} … {shown[^1].Alpha}");
     }
 
     /// <summary>B8 — capture: one frame per film frame of each shot (30 fps, so every other 60 Hz step), card frames before each item, one
