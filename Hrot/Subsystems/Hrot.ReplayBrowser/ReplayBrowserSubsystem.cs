@@ -474,8 +474,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             {
                 // ⭐ CE-3327 RB-7 — the shown world's own bus, swapped once a frame as a kernel does (ModuleHostKernel.cs:657): what a
                 //   route or a panel published on it (SelectEntityCommand, SelectionChangeRequest, CenterOnEntityCommand) becomes readable
-                //   to the systems below. 🔴 Nothing swapped it before, so those events were never read. ⚠ Safe: the playback injects the
-                //   recorded events into the context's separate SandboxBus, never this one.
+                //   to the systems below. 🔴 Nothing swapped it before, so those events were never read. ⚠ The playback injects the recorded
+                //   events into the context's separate SandboxBus; a STEP hands them to this bus's pending buffer (CE-4062), read after this swap.
                 _activeRepo.Bus.SwapBuffers();
                 if (!_headless) _selectionSystem?.Tick(deltaTime);
                 // ⭐⭐⭐ UXI-11 — the shared request/notify pair, ticked directly like its neighbours
@@ -1191,7 +1191,24 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             }
         }
         _manager.StepForwardAll();
+        DeliverTheSteppedFrameEvents();
         return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4062 — a STEPPED frame's recorded events reach the world this host draws. The playback injects them into the context's
+    /// own <c>SandboxBus</c> (kept apart on purpose: the shown world's bus is swapped once a frame for what routes and panels publish,
+    /// and a swap would drop injected events). ⇒ they are handed over through the ONE bus-to-bus path
+    /// (<see cref="FdpEventBus.PublishCurrentOf"/>, CE-3316): into the shown bus's PENDING buffer, read once after the frame's swap by
+    /// every system there — the strike that draws the swing included. ⛔ Was: nothing carried them, so no replayed event was ever seen.
+    /// ⚠ The single-node view only (the merged view's world holds copies whose entities differ); a SEEK delivers nothing (its events
+    /// span many frames).
+    /// </summary>
+    private void DeliverTheSteppedFrameEvents()
+    {
+        if (_manager == null || _activeRepo == null || _viewMode == ViewMode.Merged) return;
+        if (_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) && ReferenceEquals(ctx.SandboxRepo, _activeRepo))
+            _activeRepo.Bus.PublishCurrentOf(ctx.SandboxBus, addMissingStreams: true);
     }
 
     /// <summary>⭐ CE-4064 — the first frame after <paramref name="frame"/> whose recorded sim time is later; the next frame when the recording

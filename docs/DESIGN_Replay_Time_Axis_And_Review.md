@@ -1469,3 +1469,40 @@ forward move behind the step button, `/sim/step` and play — on the Sim axis go
 (`NextFrameWhoseSimMoves`), in one seek when that is more than one frame away; a v6 recording (no sim time) steps one frame; paused to the
 end ⇒ no move. The Wall axis is unchanged. Rail: `ReplayBrowserSubsystemTests.CE4064_On_the_sim_axis_a_step_and_play_skip_a_paused_stretch_on_the_wall_axis_a_step_is_one_frame`
 (red with the jump disabled). ⚠ Not addressed: single-step HTTP calls sent faster than frames were partly dropped.
+
+### 12w. ✅ FIXED `2026-10-27` — a branch from a replay resumes on the frame's SIM time (CE-4065); `LoadingLive` from a replay refused; CE-4066 is the "on or before" rule
+
+📐 The coordinator measured it (`ua-civ-melee`, H3): branched at sim 5 s, the live run read 12.71 s — the replay clock's WALL playhead,
+paused wall included — and a policeman was hit a second time (every time-stamped datum on the shifted clock).
+
+```mermaid
+sequenceDiagram
+  participant O as operator
+  participant L as LiveBranchProcessManager (master)
+  participant M as ClusterMaster
+  participant N as each node
+  O->>M: TransitionStateIntent(OperatingLive) while OperatingReplay
+  L->>L: FreezeTime + take the cluster map and anchor (still replaying)
+  M->>N: PrepareLive fan-out
+  N-->>M: LiveBranchResult(playhead: TotalTime = wall s after the zero)
+  M-->>L: ClusterOpCompletedEvent
+  L->>L: sim = map.SimAt(anchor + playhead)
+  L->>M: RestoreTime, SnapTo(TotalTime = sim)
+```
+*What the picture shows that the prose hid:* the map is taken when the branch STARTS — by the time the completion arrives the cluster is
+leaving its replay and the master's session map may be gone; and the conversion is the master's (R3), never a node's (a listening node has
+no recording and its world time is stale).
+
+| piece | as built |
+|---|---|
+| `LiveBranchProcessManager` | optional `map` / `anchorWallTicks` (OrchestratorCore passes the master's); the snap goes through `OnTheSimClock` — a v6 recording keeps the old behaviour |
+| `ClusterMaster.ProcessTransitionStateIntent` | `LoadingLive` asked for from a replay is REJECTED (it is the branch's passage, not a destination — it parked the cluster there with the clock frozen); the branch is `OperatingLive` (`ReplaySessionIntents.BranchLive()`) |
+
+Rails: `LiveBranchProcessManagerTests.CE4065_A_branch_resumes_on_the_frames_sim_time_not_the_wall_playhead` ·
+`ClusterMasterBranchTests.CE4065_LoadingLive_asked_for_from_a_replay_is_refused_and_fans_nothing_out`. ⭐ Acceptance: the coordinator's H3,
+`Hrot.ClusterRunner.dll --mode editor --headless --verify ua-civ-melee --verify-branch-at 5`.
+
+⭐ **CE-4066 (a seek to 20 s stood at 19.983 s) is the documented rule, not a defect:** a sim seek lands ON OR BEFORE — the master maps the
+sim time to a wall moment between frames and every node lands on its last frame at or before it, so the landed sim can be up to ONE frame
+early (the route docs say so: *"measured: 10 → 9.895"*). It is the state that holds at that time, the same rule as a wall seek. ⇒ a check
+compares at the landed `simSeconds` the status reports, or allows `[t − 1 frame, t]`.

@@ -1482,6 +1482,57 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(31, _subsystem.PrimaryNodeCurrentFrame());                 // the wall axis steps every recorded frame
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ CE-4062 — a blow recorded on a frame is SEEN by the world the browser draws when that frame is stepped onto: the striker is
+    /// kept for the bodies (the swing). Through a real browser world, not a test world: the playback injects recorded events into the
+    /// context's own bus, and the step hands them to the shown world's. 🔴 Before: nothing carried them — the swing was never drawn
+    /// (measured by the coordinator in the windowed browser after the spawner fix alone).
+    /// </summary>
+    [Fact]
+    public void CE4062_A_blow_recorded_on_a_frame_reaches_the_drawn_world_when_the_frame_is_stepped_onto()
+    {
+        string dir = Path.Combine(_tempDir, "melee-run");
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, "node_1.fdp");
+        Entity striker, victim;
+        using (var repo = new EntityRepository())
+        {
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterEvent<Fdp.Toolkit.Combat.StrikeNotification>();
+            striker = repo.CreateEntity();
+            repo.AddComponent(striker, new NetworkIdentity { Value = 100 });
+            victim = repo.CreateEntity();
+            repo.AddComponent(victim, new NetworkIdentity { Value = 101 });
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            long t0 = TimeSpan.FromSeconds(1).Ticks;
+            repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0d, DeltaTime = 1f / 60f, TimeScale = 1f });
+            rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
+            for (int f = 1; f <= 5; f++)
+            {
+                repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f / 60d, DeltaTime = 1f / 60f, TimeScale = 1f });
+                if (f == 3) repo.Bus.Publish(new Fdp.Toolkit.Combat.StrikeNotification { Striker = striker, Target = victim, Weapon = Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist });
+                rec.CaptureFrame(repo, (uint)(f - 1), t0 + f * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+                repo.Bus.SwapBuffers();
+            }
+        }
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var provider = _subsystem.CreateDebugProvider()!;
+        Assert.Null(provider.ReplayBrowser!.Open(new[] { path }, 0));
+        provider.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = 2 * TimeSpan.TicksPerSecond / 60 });
+        _subsystem.Update(1f / 60f);
+        Assert.False(Hrot.UI.Common.Effects.StrikeTracker.Of(_subsystem.ActiveRepo!)?.StruckWithin(striker, 3 / 60d, 1.0, out _, out _) == true,
+                     "no blow before its frame");
+
+        provider.Drive!.Step();                                                  // onto frame 3, the blow's
+        Assert.Equal(3, _subsystem.PrimaryNodeCurrentFrame());
+        _subsystem.Update(1f / 60f);                                             // one frame of the browser: swap, then the map's systems
+        var tracker = Hrot.UI.Common.Effects.StrikeTracker.Of(_subsystem.ActiveRepo!);
+        Assert.NotNull(tracker);
+        Assert.True(tracker!.StruckWithin(striker, 3 / 60d, 0.1, out var with, out _), "the stepped frame's blow reaches the drawn world");
+        Assert.Equal(Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist, with);
+    }
+
     private static readonly Vector3 Key1At = new(10f, 0f, 0f), Key2At = new(0f, 30f, 0f);
 
     /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the

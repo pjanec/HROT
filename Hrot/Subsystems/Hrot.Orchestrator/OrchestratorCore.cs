@@ -150,7 +150,8 @@ public sealed class OrchestratorCore : IDisposable
         var replayMasterModule = new ReplayMasterModule(
             scale => timeReads.SetTimeScale(scale),
             () => timeReads.GetTimeScale());
-        _liveBranch = new LiveBranchProcessManager(bus, replayMasterModule, time);
+        _liveBranch = new LiveBranchProcessManager(bus, replayMasterModule, time,
+            map: () => _master.ReplayTimeMap, anchorWallTicks: () => _master.ReplayAnchorWallTicks);   // ⭐ CE-4065 — the branch resumes on sim time
 
         // TASK-T002 — the seek. Must tick BEFORE ClusterMaster so its precondition events precede the fan-out.
         _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule
