@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11u-1 — CE-1391: a reel item names its recording (ReelItem.Recording, TE-16) and ONE movie spans recordings; the ONE opener IRecordingOpener (the RB's control, which POST /replay, recording= and the master transition all end in) reaches the pack directly — DirectorPackHost.Recordings, no debug HTTP host needed; the editor refuses such a reel — BUILT; §11u D4's HTTP-set opener and deviation ① SUPERSEDED) · 2026-10-27 (§11v — R3's rest: audio at any rate (ONE rule SoundAtRate for the live mixer and the offline track — never resampled, past 2× only explosions ducked, paused silent; the runner hands the rate each playing frame), shot templates (the drafter's own beats + follow / top-down through ONE TemplateShot; the Camera row's menu and the Director window, hung on K's event), still keys captured by Verify (= a verify recording's stills through the render queue; the plan resolves keys through the runner's ONE resolver, a stills job waits for the index) — BUILT; CE-1400, CE-1401 filed) · 2026-10-27 (§11u — R4: the reel composer (ReelComposer over the ONE Reel record, drawn by the Director window; TakeStore.SaveReel; WriteReel keeps gapSeconds and notes) and the render queue (DirectorRenders in the pack: movies through the runner, stills through DirectorStills, one at a time, each job's recording opened at its turn through POST /replay's opener; POST/GET /director/renders, DELETE /director/renders/{id}) — BUILT; TE-16's per-item recording not built (CE-1391); a still's view switch now cuts (CE-1390)) · 2026-10-27 (§11t "CE-1380 / CE-1379 as built" — ONE film pass in both modes (MapCanvas.DrawScene over the ISceneLayers, the gizmo layer filmed through RenderContext.Film + FilmLayers), the scenario's tactical graphics and routes are scene rows, the gizmo layer after the 3-D terrain (CE-1384), a film's end / Stop gives the person's map mode back (V7); CE-1380's premise measured wrong in part — the window shows the same 2-D picture — CE-1381…CE-1383 filed) · 2026-10-27 (§11t — P6: the View track (views[]: 2-D / 3-D + a layer set from a time; a take's layers and shot layers READ as views — one path through the ONE ILayerOverride; the map through FilmStudio.TwoD, honoured and filmed by the capture layer on every map host) and the Graphics track (graphics[]: ring, arrow, route, area, label on units or points, fade; ONE layout + ONE painter for the screen pass and every captured frame; FilmOverlay through IFrameSink) — BUILT, live still docs/img/film-p6-graphics.jpg) · 2026-10-27 (§11s — P4: ONE anchor resolver (CR-5: event cues are queries on the run's index — live or the recording's — through EventAnchors' one naming switch; ShotLog / DetonationLog reads leave AnchorBook, the logs keep their other readers; on a recording the index leads over a bake), promote = a copy (POST /director/promote, the Director window's button; the bake kept iff made for the scenario file as it is), TE-1's reverse (a recording's store reads its scenario's own takes) — BUILT) · 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11u-1 — A REEL OVER SEVERAL RECORDINGS, ONE OPENER WITHOUT HTTP (ui, 2026-10-27, CE-1391, BUILT) · ⭐ §11v R3 REST — AUDIO AT ANY RATE, SHOT TEMPLATES, VERIFY STILLS (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11u R4 — THE REEL COMPOSER AND THE RENDER QUEUE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11t P6 — THE VIEW TRACK AND THE GRAPHICS TRACK (ui, 2026-10-27, BUILT; the as-built, the live still and "CE-1380 / CE-1379 as built" at its end) · ⭐ §11s P4 — ONE ANCHOR RESOLVER, PROMOTE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
-known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
+known-rot: TE-16's "sequence row in the same panel" — NOT built: §11u D1 (the composer is the Director window's); its "an item may name {recording, take}" IS built (§11u-1, CE-1391) · §11u D4 ("the HTTP host sets the queue's OpenRecording", "a DirectorPackHost.OpenRecording seam rejected"), its class / sequence / host diagrams' "OpenRecording = DebugApiHost.OpenRecording" and deviation ① — SUPERSEDED by §11u-1 (the pack holds the RB's ONE opener, IRecordingOpener; it is the same opener POST /replay ends in, not a second one) · TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
 related-designs:
   - DESIGN_Film_Production.md — OWNS the INTENT of the whole film process (the workflow, its principles, the overnight documentation); §11 here is its build plan
@@ -704,6 +704,8 @@ sequenceDiagram
 
 ### 4d. Promote a recording take to a scenario take
 
+⛔ *SUPERSEDED by CR-6 / [§11s](#11s-p4--one-anchor-resolver-promote) D5–D6: promote is a COPY (keys already hang on events); no re-anchoring step, no hash refusal — the bake is kept or dropped by the hash. The sequence below is the first form, kept as history.*
+
 ```mermaid
 sequenceDiagram
   actor U as User
@@ -1328,7 +1330,7 @@ through the CLI).
 | the editor's director adapters are thin: `EditorCinema` (`WindowManager.Cinema`), `EditorLayerOverride` (`LayerControlGizmo`, `Hrot.Common`), `FilmFrameSink` (`FilmStudio.Capture`), `EditorDirectorSound` (`AudioDirector`, `Hrot.Presentation`); `DirectorTakeSession` needs only `Func<DirectorRunner?>` | `EditorDirector.cs:116-238`; `DirectorTakeSession.cs:53` | P1 — they MOVE |
 | ⛔ **the runner plays the SAVED file** — an unsaved edit is not seen (§10 T3) | §10 T3 as built | ⛔ kills ⑤'s iteration ⇒ CR-4 |
 | ⛔ **`Take.Segments` is never played** (no reader in the runner, `TakeTimeline`, `AnchorBook`, `CameraKeys`) | grep over `Hrot/` | CR-7 |
-| anchors: baked first, else `AnchorBook.Observe` — `shot` / `blast` / `hit` read `ShotLog` / `DetonationLog` (side stores, **never recorded**), the six state cues read components | `AnchorBook.cs:56, 80-191`; `CombatTimelineLanes.cs:11` | CR-5 |
+| anchors: baked first, else `AnchorBook.Observe` — `shot` / `blast` / `hit` read `ShotLog` / `DetonationLog` (side stores, **never recorded**), the six state cues read components | `AnchorBook.cs:56, 80-191`; `CombatTimelineLanes.cs:11` | CR-5 — ✅ BUILT in [§11s](#11s-p4--one-anchor-resolver-promote) (event cues from the index) |
 | ⏳ the index has **no position track** (planned in §2b, not built) | §9a "Of §2b's cache tables only `events` is built" | CR-6 (anticipation, auto-framing) |
 | `CameraKey.Still` is read and written, never captured (TE-10 unbuilt) | `Take.cs:139`; `TakeJson.cs:331` | CR-10 |
 | `/director/*` answer 503 on every host but the editor | `DebugApiHost.Director.cs:25-46`; `EditorSubsystem.cs:2634` | P3 |
@@ -1628,6 +1630,8 @@ anchor is a normal anchor + bake). **Deviations from the coordinator's one-liner
 lanes, not "combat + life". **Known edges:** (1) the baked time is the index frame's sim time, `AnchorBook` records `ShotRecord.FiredAt` — they differ by under one step (the
 runner's tolerance is 0.02 s; at 15 Hz one step is 0.067 s, so a 15 Hz take may list a drift); (2) a take whose bake is stale for its scenario hash keeps the stale bake (the runner already
 says so and cuts on live cues); (3) the Replay Browser has no director yet (P2 `ReplayDirectorHost`) — its K will pass the recording's index through the same `eventAt`.
+⭐ *P4 ([§11s](#11s-p4--one-anchor-resolver-promote)):* edge (1) is gone — `AnchorBook` now finds an event anchor in the index too (CR-5), so the bake and the live time come from the same
+frame table; edge (3) was closed by P2a. ⚠ The `hit` naming rule grew: a unit's first strike is a `combat.hit` OR a blast that struck it (§11s D2).
 Rails: `EventAnchoredKeysTests.CE1303_CR6_*` ×8 (Hrot.Presentation.Tests) · `DirectorTracksOnTheEditorTests.CE1303_CR6_K_OnTheEditorsTimeline_UsesTheEditorsLiveIndex` (Hrot.Editor.Tests).
 
 ### 11l. P3 position track detail *(ui, `2026-10-27`; CE-4059 step 1; build-state: BUILT — the as-built is stated in each row; no deviation from the plan below)*
@@ -2309,15 +2313,18 @@ view*, the selected segment's speed / dip and the selected subtitle's text / pos
 - **A live run's film clock counts a skipped replay** (film time jumps by its length): film seconds then mean the same on both hosts, so a
   `PlayFrom(t)` from one host is the same moment on the other wherever the live run can reach it.
 - **The caption is now the subtitle of each frame** (set every playing frame, not at each cut); a capture burns in `SubtitleNow`'s text — the same
-  text as before for every take without `subtitles[]` (rail below). ⚠ position / fade are not burned in yet (CE-1370).
+  text as before for every take without `subtitles[]` (rail below). ✅ **CE-1370 as built:** the capture is handed the `SubtitleFrame` (text + position + fade alpha), and
+  `FilmText.Caption` and the cinema overlay (`WindowCinema`) both place the band through ONE `SubtitleBand.Of` (top / middle / bottom, text and band alpha) — a rendered
+  film shows what the screen showed. The text size minimum is now 14 px in both (the burned-in caption was 12).
 - **The fast-forward card** shows only in the cinema (an iteration pass keeps the panels; nothing covers the picture there).
 - Two existing rails changed with the behaviour, deliberately: `CE1364_AddASegmentHere_*` (the new segment is at index 1, between 0–4 and 8–12 —
   S12) and `CE1364_DeleteSegment_*` (the segment menu now has two items); `CE1364_T3_ATakeOpenInTheDirector_*` on the editor names three tracks.
 - `DirectorPackTests` joined the serial `Map3DFrameRail` collection (it reads `FilmStudio`, which now also holds the pilot view).
 
-**Known edges:** a replayed stretch is silent the second time in a rendered film's sound (CE-1369); a burned-in subtitle is bottom and opaque
-(CE-1370); takes saved before the exercise was kept stay in the node's temp folder (CE-1371); live, a back segment is skipped whole even where it
-partly lies ahead.
+**Known edges:** live, a back segment is skipped whole even where it partly lies ahead. ✅ Closed since: a replayed stretch sounds in EVERY pass of a rendered
+film (CE-1369: `SoundTrack.FilmTimes` gives every film time of a cue's sim time and `RenderWav` mixes the cue at each — a loop ends at the first stop shown after its start);
+a burned-in subtitle keeps its position and fade (CE-1370); takes saved before the exercise was kept go with the keep (CE-1371: `ReferenceArchiveHandler` adds each
+`<scenario>/takes/*.take.json` beside the recording to the archive manifest — the one copy rule, no Replay Browser migration).
 
 **Rails** (each red-proved by a compiling mutation — the report lists mutation and message): `ReplayBrowserSubsystemTests.CE1303_P2b_*` ×3 (on a
 real 6 s recording: slow + replay segments, PlayFrom across a slow segment, a kept exercise's takes) · `DirectorPackTests.CE1303_P2b_*` ×2 (a live
@@ -2707,3 +2714,975 @@ by path opens the file — the control's path and frame count — and by exercis
 `ReplayBrowserSubsystemTests.CE4059_P3_StillsAndTheContactSheet_AndAnMp4_FromARecording_InAWindowedReplayBrowser` (env-gated `HROT_FILM_WINDOW=1`,
 Xvfb: three 320 × 180 PNGs beside the take, each `shownSim` within one step of its source second, the sheet 658 × 422, the MP4 beside the take with
 15 + 55 frames) · `DirectorDraftRoutesTests.CE4059_P3_OnTheEditor_RecordingIsRefused_OnEveryDirectorRoute_AndStillsNeedASourceThatSeeks`.
+
+### 11s. P4 — one anchor resolver, promote *(ui, `2026-10-27`, CE-1304 P4; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ The phase's acceptance (§11f): **a take adjusted on recording A plays its beats on recording B of the same scenario, run later** — and on a fresh live run.
+Two things stood in the way: event cues were found in side stores a recording never carries (CR-5), and a recording's take had no way into its scenario (promote).
+
+**INVENTORY** *(graph + grep; this worktree indexed fresh; ⚠ `check_index_coverage` is not available through the CLI, so no absence below is proven complete)*
+
+| query | result |
+|---|---|
+| `search_graph name_pattern=.*Anchor.* label=Class` | 11 — `AnchorBook`, `AnchorMismatch`, `AnchorSpec`, `BakedAnchors`, `EventAnchor`, `EventAnchors` (+ unrelated `EffectAnchor`, `RopeAnchorDto`, `SpatialAnchorEntry`, `GizmoAnchorIdentityException`, a test class) ⇒ ONE resolver exists (`AnchorBook`) and ONE namer (`EventAnchors`) |
+| `search_graph name_pattern=.*TimelineSource.*` | `ITimelineSource` (interface), `LiveTimelineSource`, `RecordingTimelineSource` (+ diagram nodes) ⇒ the two indexes CR-5 needs exist; `DirectorPackHost.Index` already hands the host's SHOWN index to the drafter (§11q D1) |
+| `search_graph name_pattern=.*Promot.*` | no code symbol — docs only (TE-1, §4d, F-4) ⇒ promote is NEW |
+| `search_code (ShotLog\|DetonationLog)\.(Peek\|For)` (regex) + `grep -rnE` over `FDP/ Hrot/ Stride/` | the readers below |
+
+| reader of `ShotLog` / `DetonationLog` | what it is | P4 |
+|---|---|---|
+| `AnchorBook.Observe` / `Hit` / `CountShots` (before P4) | the director's event cues | ⛔ **RETIRED** — the index (D1) |
+| `DirectorRunner` `_roundsAtStart`, `CutSnapshot` rounds | a cut's "rounds fired since the take began", in the report | ✅ CE-1376: counted on the run's index (`AnchorBook.RoundsUntil` → `EventAnchors.CountBetween`, `combat.shot`), so a recording reports the indexed shots; a LIVE index that has not caught up with the cut (it lags up to a quarter second of wall time) falls back to `ShotLog` (CE-1378) |
+| `FireProcessingSystem`, `BallisticsSystem`, `GuidedRoundSystem`, `AreaEffectSystem`, `HitResolutionSystem` | the WRITERS (and their own bookkeeping) | kept |
+| `CombatTraceSystem` | mirrors the logs into the RECORDED `ShotTraces` the map draws (CE-3117) | kept |
+| `DebugApi/CombatReport.cs` (`GET /combat/shots`, `/combat/detonations`) | the combat report | kept |
+| `ScenarioVerification` (the editor's verifier, live only — through the `/combat/shots`, `/combat/detonations` rows) | checks' combat conditions | kept — a live-only judge; folding it into the index is CE-1377 |
+| `ClearingScenarioTests`, `WeaponSystemsAcrossNodesTests`, `CombatReportTests`, the Fdp.Toolkits combat tests | rails | kept |
+
+⇒ **route, don't delete** ("no rush removals"): the logs keep every other reader; only the director's cue reading leaves them.
+
+```mermaid
+classDiagram
+  direction LR
+  class AnchorBook { <<exists, grown>> TimeOf · Observe(world, units, rel) · ObserveEvents(units) NEW · AwaitsIndex(rel) NEW · Mismatches }
+  class EventAnchors { <<exists, grown>> Of(index, lane, i) names · TimeOf(index, spec, isUnit, since) NEW finds · IsEventCue NEW }
+  class TimelineIndex { <<exists>> Lane · FrameSim }
+  class LiveTimelineSource { <<exists>> the node's live index }
+  class RecordingTimelineSource { <<exists>> the open recording's index }
+  class DirectorRunner { <<exists>> Index NEW · NewBook(take, baked) NEW }
+  class DirectorPack { <<exists>> runner.Index = host.Index · Promotion NEW }
+  class DirectorPackHost { <<exists>> Index · ScenarioTakes NEW }
+  class TakePromotion { <<NEW>> Promote(scenario, take, overwrite) · Copy(from, to, …) }
+  class TakeStore { <<exists, grown>> ScenarioTakesSource NEW reads a scenario's own takes through · HasOwn }
+  class DirectorWindow { <<exists>> Promote to scenario NEW }
+  class DebugApiHost { <<exists>> POST /director/promote NEW }
+  AnchorBook --> EventAnchors : event cues
+  EventAnchors ..> TimelineIndex
+  LiveTimelineSource --> TimelineIndex
+  RecordingTimelineSource --> TimelineIndex
+  DirectorRunner --> AnchorBook : one per item
+  DirectorPack --> DirectorRunner : Index
+  DirectorPack --> TakePromotion
+  DirectorPackHost --> DirectorPack
+  TakePromotion --> TakeStore : from beside the recording, to the scenarios root
+  DirectorWindow --> TakePromotion
+  DebugApiHost --> TakePromotion
+```
+*What the picture shows that prose hid:* nothing resolves anchors but `AnchorBook`, and nothing names them but `EventAnchors` — CR-5 adds the inverse of the
+naming switch BESIDE it (`TimeOf` next to `Express`), so a name K or the Drafter gives is found by the same file's rules. The index reaches the runner the way
+the drafter's already did (`DirectorPackHost.Index`): no host wires it.
+
+```mermaid
+sequenceDiagram
+  participant W as Director window or POST /director/promote
+  participant P as TakePromotion
+  participant S as TakeStore (scenarios root)
+  participant R as DirectorRunner (RB, recording B open)
+  participant T as TakeStore (beside B)
+  participant B as AnchorBook
+  participant I as B's index (RecordingTimelineSource)
+  W->>P: Promote("s-film", "main") on recording A
+  P->>S: copy main.take.json (bake kept: made for this scenario file)
+  Note over R: later: recording B opened (Alpha's 1st round at 2.6 s, not A's 2.0 s)
+  R->>T: Load("s-film", "main"), none beside B
+  T->>S: read through (TE-1's reverse) to the promoted take
+  R->>B: NewBook(take, A's bake, index, t0 = 0, indexIsTheRun)
+  B->>I: EventAnchors.TimeOf(shot by Alpha, n 1)
+  I-->>B: frame 156, FrameSim 2.6 s
+  B-->>R: TimeOf("shot:Alpha#1") = 2.6 (on a recording the index leads over A's bake)
+  R->>R: key "shot:Alpha#1 +0.5" placed at 3.1 s, B's time
+```
+
+```mermaid
+graph TD
+  subgraph ED["Editor — EditorSubsystem.Update"]
+    EIDX["Index: _node.ShownTimeline.Index (live; a cluster replay: the node's recording)"]
+    ESC["ScenarioTakes: none — its takes ARE the scenario's"]:::dead
+  end
+  subgraph RB["Replay Browser — ReplayBrowserSubsystem.Update"]
+    RIDX["Index: SyncTimelineSource, RecordingTimelineSource.Index"]
+    RSC["ScenarioTakes: shared/scenarios (GetSharedScenariosRoot)"]
+  end
+  PACK["DirectorPack.Attach — runner.Index = h.Index · Promotion(h.Host.Takes to h.ScenarioTakes)"]
+  EIDX --> PACK
+  RIDX --> PACK
+  RSC --> PACK
+  ESC -.->|"promote answers 400"| PACK
+  PACK --> RUN["DirectorRunner.Tick, AnchorBook.Observe (events: the index · state: the world)"]
+  PACK --> PRO["TakePromotion: the Director window button · POST /director/promote"]
+  CGF["CGF / IG / BDC — no director"]:::dead
+  classDef dead fill:#f6d6d6,stroke:#a33
+```
+*What the picture shows that prose hid:* each host already HANDS the pack the index its timeline shows, so the resolver needed no new host wiring; the editor's
+promote edge is dead by construction (it has no scenarios store apart from its own), and the cluster nodes have no director at all.
+
+**Claim table**
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a recording's index holds the combat events | ✅ `CombatTimelineLanes.cs:11` (shot / hit / blast lanes; `Applies` = indexing) · rail 1 asserts 2 shots indexed from a real `.fdp` | ✅ §9 R0 ②, TL-5, §11g row 5 |
+| the index's frame time is the take's clock on the RB | ✅ the runner's t0 = 0 on a seekable host ("CE-1303 D3" in `DirectorRunner`); `DirectorSimSeconds` is the recording's sim axis | ✅ §11m D3 |
+| the live index is the node's, stepped after the kernel, published every ¼ s | ✅ `HrotNodeContext.StepTimeline`, `LiveTimelineSource.PublishTicks` | ✅ R-4089 (one per-frame step) |
+| a shot's index time = what the old cue recorded (`ShotRecord.FiredAt`) | ✅ `FiredAt = HitModel.Now(repo)` = the frame's `GlobalTime.TotalTime` (`FireProcessingSystem.cs:62`, `HitModel.cs:150`); the live index stamps the same `GlobalTime.TotalTime` after that frame (`LiveTimelineSource.Step`) ⇒ **0 drift** on one world; ⛔ not measured on a live editor run (known edge 1) | ✅ §11k known edge 1 named the risk |
+| K's names and the resolver agree | ✅ both in `EventAnchors.cs` (`Express` / `TimeOf`); rail `CE1304_CR5_EveryNamedEvent_IsFoundAgain…` | ✅ §11k "the one naming switch", CR-5 |
+| `hit` from the index loses nothing the takes use | ⚠ the old cue also took area-effect damage on a bystander (`DetonationRecord.Effects`), which the index does not carry; the struck target (`DetonationNotification.Target` = the blast's `Other`) and direct hits (`HitEvent`) are kept. The 4 seeded `hit` anchors are baked (live runs place them by the bake) | ⛔ searched `docs/` + `.dev/` for a ruling on area damage as a `hit`: none found |
+| a scenario take should play on any recording of it | ✅ before P4 the RB's store read only beside the recording (`TakeStore.Load`) | ✅ TE-1: *"the reverse needs no operation: a scenario take plays on any recording of that scenario"* |
+| the RB knows the scenarios root | ✅ `OrchestrationConstants.GetSharedScenariosRoot(stagingRoot)` — the rule `EditorBootstrap.ScenariosRoot` uses | ✅ `TheHostsAgreeOnTheScenarioRootTests` |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **D1** | event cues are `EventAnchors.TimeOf(index, spec, …)` inside `AnchorBook`; state cues keep observing the world; the `ShotLog` / `DetonationLog` reads leave `AnchorBook` | the RECORDED `ShotTraces` singleton on a replayed world — a ring of recent traces for drawing, a second source beside the index with its own counting |
+| **D2** | ONE naming switch: `TimeOf` is written beside `Express` in `EventAnchors.cs` — `shot` = the n-th `combat.shot` by the named unit, `blast` = the n-th `combat.blast`, `hit` = the unit's FIRST strike (a `combat.hit` on it, or a `combat.blast` whose `Other` struck it). `Express` gained the blast half, so K never names a hit that is not the first strike | a resolver-side rule of its own — a name K gives could then resolve to another event |
+| **D3** | **on a recording the index leads; live, the bake leads** (`AnchorBook(indexIsTheRun: host.CanSeek)`): a recording's index is the whole run, future included, and a bake may be another run's (A's, on B); a live index knows only the past, and a bake is exact on a repeating run (R-3038) — so the 55 seeded takes place their cuts exactly as before | the bake always first — on B a fresh-hash bake from A places B's beats at A's times (rail 2's mutation) · the index always first — live, a cut before its event would land late on every run |
+| **D4** | the index reaches the runner as `DirectorRunner.Index`, set by `DirectorPack.Attach` from `DirectorPackHost.Index` (the index the host's timeline SHOWS) — every host by construction. A live take whose end comes before the ¼-s publish has caught up plays on (≤ `IndexGraceSeconds` = 1 s) instead of reporting a beat missing (`AwaitsIndex`) | `IDirectorHost.Index` — a second path for the same value (the pack already had it for the drafter) · forcing a publish — the runner holds a `TimelineIndex`, not the node's source |
+| **D5** | **promote = a COPY** (`TakePromotion.Copy`): the take beside the recording → `<scenarios root>/<scenario>/takes/<take>.take.json`; ⛔ never over an existing scenario take unless `overwrite`; a take with unsaved edits is refused (the SAVED take is copied); keys still at a fixed time are LISTED in the answer (they will not follow a timing change) | re-anchoring at promote (TE-1 first form, §4d) — CR-6 moved it to authoring · promoting the open in-memory take — the person could promote what they never saved |
+| **D6** | **the bake: kept when it was made for the scenario file as it is NOW** (its hash = the destination's `ScenarioHash`) — the file is then copied byte for byte, and a live run of that file places its cuts by it; **dropped otherwise** (it would only be reported stale on every live run). On recordings D3 makes a kept bake harmless | always drop — a promoted take's first live run would cut on live cues only (a cut before its event lands late) · always keep — a stale bake is noise on every run |
+| **D7** | **TE-1's reverse is built** (`TakeStore(…, ScenarioTakesSource)`): the RB's store reads the recording's SCENARIO's own takes where none of that name is beside the recording (list and load); ⛔ never writes there — an adjustment on recording B saves beside B | promoting into each recording's folder — a take per recording again, the drift CR-6 removed |
+| **D8** | `POST /director/promote {take, scenario?, recording?, overwrite?}` on the shared director routes; `recording=` opens first (refused on the editor, as on every route); 404 no take · 409 exists / unsaved · 400 nothing named or nothing to promote to (the editor) | an editor-side promote from a recording path — the editor opens no recordings (§11r) |
+
+**As built.** `EventAnchors.TimeOf` / `IsEventCue` (+ `Express` knows a struck blast) · `AnchorBook` (index, t0, `indexIsTheRun`; `ObserveEvents`, `AwaitsIndex`;
+the `ShotLog` / `DetonationLog` reads and `Matches` gone) · `DirectorRunner.Index`, `NewBook`, the priming `ObserveEvents` at item start (a recording's plan
+places its event anchors before the first frame), `IndexGraceSeconds` · `DirectorPack` (`runner.Index = h.Index`, `Promotion`) · `DirectorPackHost.ScenarioTakes`
+· `TakePromotion` (new) · `TakeStore` (`ScenarioTakesSource`, `HasOwn`) · `DirectorWindow` *Promote to scenario* (+ *replace*) · `POST /director/promote` ·
+`ReplayBrowserSubsystem.Director.cs` (the shared scenarios store, `DirectorScenariosRoot`). **Deviation from the brief:** D7 (TE-1's reverse) was not named in
+it, but the acceptance cannot pass without it — recording B has no take beside it.
+
+**Known edges.** (1) *Measured by reading, not on a live editor run:* the live resolver's shot time is the frame's `GlobalTime.TotalTime`, which is what
+`ShotRecord.FiredAt` held (0 drift); blast / hit times move from "the frame the runner first observed it" to the event's own frame — at most one step
+EARLIER than before. Placement on the editor is unchanged (D3: the seeded takes' bakes lead; `CE1364_T4_*` green); only `mismatches` report lines can
+differ. (2) `hit` no longer counts area-effect damage on a bystander (claim table). (3) ~~The runner's per-cut "rounds" figure still reads `ShotLog`~~ — SUPERSEDED (CE-1376): it counts `combat.shot` on the run's index; only a live run whose index lags still reads `ShotLog` (CE-1378).
+(4) The verifier's checks still judge combat conditions from the logs, live only (CE-1377). (5) A state cue on a recording is observed only as the playhead
+passes it: a cut placed BEFORE a state cue still needs a bake (as live).
+
+**Rails** (each red-proved by a compiling mutation; the report lists mutation and message): `ReplayBrowserSubsystemTests.CE1304_CR5_OnARecording_EventAnchors_ResolveFromItsIndex_NoBeatMissing`
+· `ReplayBrowserSubsystemTests.CE1304_P4_ATakeAdjustedOnRecordingA_IsPromoted_AndPlaysItsBeatsOnRecordingB_AtBsTimes` · `DirectorPackTests.CE1304_CR5_OnALiveHost_AnEventAnchor_ResolvesWhenItsEventAppearsInTheLiveIndex`
+· `EventAnchoredKeysTests.CE1304_CR5_EveryNamedEvent_IsFoundAgain_ByTheResolver_AtItsOwnTime` · `DirectorDraftRoutesTests.CE1304_P4_Promote_CopiesTheRecordingsTake_RefusesAnOverwrite_UnlessAsked`.
+
+### 11t. P6 — the View track and the Graphics track *(ui, `2026-10-27`, CE-1304 (View) + CE-1305 (Graphics, TE-9); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ Two of P6's items (§11f): a **View** track (the film switches the map 2-D ⇄ 3-D and the layer set at film times — §2's View row) and a **Graphics**
+track (TE-9 / R-4070: film-only arrow, ring, route, area, label, in/out and fade, drawn by the film). ⛔ The brief's fence: the View track EDITS what a take
+already plays (no second layer mechanism); graphics are drawn by the film's own overlay path and captured into stills and movies.
+
+**INVENTORY** *(graph + grep; this worktree indexed fresh; ⚠ `check_index_coverage` is not available through the CLI, so no absence below is proven complete)*
+
+| query | result ⇒ |
+|---|---|
+| `search_graph name_pattern=(.*LayerOverride.*\|.*LayerControl.*\|.*ViewSwitch.*\|.*LayerChange.*)` (95, paged) | `ILayerOverride` · `MapLayerOverride` · `LayerControlGizmo` (`SetOverride` / `ClearOverride`, `Is3D`) · `LayerControlSets` (`RowNames`, `SceneRows`) · `LayerChange` (the take's) · `MapViewSwitch` · `MapInteractionPack.LayerControlFor` ⇒ **ONE layer override** (R-4060) and **ONE 2-D ⇄ 3-D switch** exist; a take already carries `LayerChange` at take level AND per shot |
+| `search_graph name_pattern=.*(Overlay\|Cinema\|Subtitle\|Film).* label=Class` (52) | `WindowCinema` · `FilmCaptureLayer` · `FilmText` · `FilmStudio` · `FilmFrameSink` · `SubtitleBand` / `SubtitleFrame` / `TakeSubtitles` · `FilmCaptureRequest` (+ unrelated overlays: `MapStatsOverlay`, `LabelOverlay3D`, `NotificationOverlay`, the BTree/HSM runtime overlays, `MapOverlayGizmo`, …) ⇒ the film's overlay = cinema (screen, ImGui) + `FilmText` (capture, raylib), unified by `SubtitleBand` (CE-1370) |
+| `search_graph name_pattern=.*(Tactical\|Graphic).* label=Class` (31) + `.*(Tactical\|Arrow\|Callout\|Route\|Area)Gizmo.*\|.*LabelOverlay.*` (6) | `MapGraphic` / `MapGraphicDef` (a scenario entity kind), `TacticalAreaGizmo`, `RouteGizmo`, `AuthoredRouteGizmo`, `DangerAreaGizmo`, `LabelOverlay3D` ⇒ **R0 ⑥ answered:** tactical graphics are SCENARIO ENTITIES drawn by stateless gizmos into the debug draw buffer (`MapOverlayGizmo`: `DrawLine` / `DrawFilledTriangle` on `DebugTraceLayers.TacticalGraphics`); no film graphic exists |
+| `grep -rn "Is3D\|MapViewSwitch\|\.Set(true\|ShowPose"` over `Hrot/Engine/Hrot.Presentation` | the film camera FORCES 3-D (`FilmCaptureLayer.Direct`: `_view.Set(true, animate: false)`) and a capture in 2-D THROWS (`Serve`); `MapCanvas.DrawScene` draws nothing in 2-D ⇒ a 2-D film needs the capture layer to honour a program map |
+| `grep -rn "_layers.Apply" DirectorRunner.cs` | two callers: item start (`take.Layers`) and `EnterShot` (take ∪ shot layers, B10's rule) ⇒ the View track must reproduce exactly these sets |
+| `grep -l '"layers"' scenarios/**/*.take.json` | **0** of the 55 seeded takes carry layers ⇒ they all play a clean set |
+
+```mermaid
+classDiagram
+  direction LR
+  class Take { <<exists, grown>> Layers · Shots[].Layers · Views NEW · Graphics NEW }
+  class LayerChange { <<exists>> On · Off }
+  class ViewChange { <<NEW>> At · TwoD? · Layers? }
+  class TakeViews { <<NEW>> Of(take, laidOut) · At(views, t) · OfShot }
+  class FilmGraphic { <<NEW>> At · Until · Kind · Who · Toward · Points · Text · Radius · Colour · Fade }
+  class FilmGraphics { <<NEW>> At(graphics, t, IShotWorld) }
+  class GraphicLayout { <<NEW>> Of(frame, project, h) the ONE layout }
+  class FilmFade { <<NEW>> Alpha — subtitles and graphics }
+  class FilmOverlay { <<NEW>> Subtitle · Graphics }
+  class TakeSubtitles { <<exists>> At uses FilmFade }
+  class DirectorRunner { <<exists, grown>> ApplyView(rel) · GraphicsNow · OverlayNow }
+  class ILayerOverride { <<exists>> Apply(on, off) · Clear }
+  class MapLayerOverride { <<exists>> Applied NEW }
+  class FilmStudio { <<exists, grown>> TwoD NEW · AnimateViewSwitch NEW · Graphics NEW }
+  class FilmCaptureLayer { <<exists, grown>> Direct honours TwoD · DrawOverlay paints graphics · Serve films 2-D }
+  class FilmText { <<exists, grown>> Caption · Card · Graphics NEW }
+  class IFrameSink { <<exists, grown>> Frame(…, FilmOverlay) default member }
+  class MapViewSwitch { <<exists>> Set · ShowPose }
+  class DirectorTracks { <<exists, grown>> View NEW · Graphics NEW }
+  class TakeEditor { <<exists, grown>> Add/Move/Remove/SetView · …Graphic }
+  Take --> ViewChange
+  Take --> FilmGraphic
+  ViewChange --> LayerChange
+  TakeViews ..> Take : reads Layers and shot layers when Views is empty
+  DirectorRunner --> TakeViews
+  DirectorRunner --> ILayerOverride : the view's set
+  DirectorRunner --> FilmStudio : TwoD · Graphics
+  DirectorRunner --> FilmGraphics
+  DirectorRunner --> IFrameSink : FilmOverlay
+  MapLayerOverride ..|> ILayerOverride
+  FilmCaptureLayer --> MapViewSwitch
+  FilmCaptureLayer --> FilmText
+  FilmText --> GraphicLayout
+  FilmGraphics --> FilmFade
+  TakeSubtitles --> FilmFade
+  DirectorTracks --> TakeEditor
+```
+*What the picture shows that prose hid:* nothing new talks to the map — the view reaches it through the two seams that already existed (the layer override
+and the film mailbox the capture layer already reads for the camera), and the graphics through the painter that already burns the subtitle. The ONLY new
+reader of the take's old layers is `TakeViews`, and the runner's two old `_layers.Apply` sites are gone — one path, not two.
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (Tick, source second t)
+  participant V as TakeViews / FilmGraphics
+  participant L as ILayerOverride (MapLayerOverride)
+  participant S as FilmStudio (mailbox)
+  participant C as FilmCaptureLayer (the map on screen)
+  participant W as MapViewSwitch
+  participant K as IFrameSink (FilmFrameSink)
+  R->>V: At(views, t) → 2-D + {Units.Labels}
+  R->>L: Apply(on, off) — only when the view changed
+  R->>S: TwoD = true
+  R->>V: At(graphics, t, units) → lower ring on Enemy at its position now
+  R->>S: Graphics = [ring]
+  C->>S: Direct(): Shot held, TwoD
+  C->>W: Set(false, animate) once, then ShowPose(overhead of the shot) each frame
+  C->>C: DrawOverlay: FilmText.Graphics(ring, 2-D projection)
+  Note over R,K: the same frame captured (a film or a still)
+  R->>K: Frame(path, w, h, ss, FilmOverlay(subtitle, [ring]))
+  K->>C: FilmCaptureRequest(… Graphics)
+  C->>C: Serve: the 2-D map at the frame's size · FilmText.Graphics · FilmText.Caption · the dip's black
+```
+
+```mermaid
+graph TD
+  subgraph ED["Editor — EditorSubsystem.Update"]
+    EP["DirectorPack.Tick → DirectorRunner.Tick"]
+    EM["map host: MapInteractionPack.AttachMapLayers → FilmCaptureLayer"]
+  end
+  subgraph RB["Replay Browser — ReplayBrowserSubsystem.Update (windowed)"]
+    RP["DirectorPack.Tick → DirectorRunner.Tick"]
+    RM["map host: MapInteractionPack.AttachMapLayers → FilmCaptureLayer"]
+  end
+  RBH["Replay Browser — headless (no map)"]
+  RBH -.->|"layers to a null control · TwoD / Graphics unread"| RP
+  EP --> LO["MapLayerOverride → LayerControlGizmo.SetOverride"]
+  RP --> LO
+  EP --> FS["FilmStudio: Shot · Fade · TwoD · Graphics"]
+  RP --> FS
+  FS --> EM
+  FS --> RM
+  CGF["CGF / IG / BDC — a map, no director"]:::dead
+  CGF -.->|"FilmStudio never set: Direct and DrawOverlay do nothing"| FS
+  classDef dead fill:#f6d6d6,stroke:#a33
+```
+*What the picture shows that prose hid:* the 2-D switch and the graphics live in the capture layer that `AttachMapLayers` gives EVERY map host, so no host
+can lack them; on a host with no map (a headless browser, a rail) the runner still hands the view and the graphics on, and only nobody draws them — which
+is why the rails assert on the seams (`MapLayerOverride.Applied`, `FilmStudio.TwoD` / `.Graphics`, the sink's `FilmOverlay`), not on pixels.
+
+**Claim table**
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a take's layers already play through ONE override | ✅ `DirectorRunner` item start + `EnterShot` → `_layers.Apply` (before P6); `MapLayerOverride` → `LayerControlGizmo.SetOverride` (`LayerControlGizmo.cs:391`) | ✅ R-4060 · §2 View row *"through the transient override"* · Film Director §4b |
+| the override's set is ABSOLUTE (start clean, on, off) | ✅ `SetOverride`: every row off, `SceneRows` as the user has them, then on / off | ✅ `ILayerOverride.Apply` doc · Film Director §4b ("Default is off") |
+| the 2-D ⇄ 3-D switch is one class, animated, with a pose restore | ✅ `MapViewSwitch.Set(on, animate)` / `ShowPose` (2-D = the overhead pose, `IsTwoDPose`) | ✅ Map 3-D Mode M10 / M12, CE-1342 |
+| the film camera forced 3-D and refused a 2-D capture | ✅ `Film.cs` `Direct` (`Set(true, animate: false)`) / `Serve` (throw) before P6 | ⛔ searched `docs/` + `.dev/` (`2-D.*film\|film.*2-D`, Map 3-D §6ab): no ruling that a film is 3-D-only — §2's View row asks for the switch |
+| tactical graphics have a drawer to reuse | ⚠ `MapOverlayGizmo` → debug draw buffer (`DebugTraceLayers.TacticalGraphics`); the buffer is a gizmo pass, not an `ISceneLayer`, so `DrawScene` (a capture) never draws it | ⚠ TE-9 *"reuses the tactical-graphic drawing"* — measured not to reach a captured frame ⇒ G3 below |
+| the subtitle's band is ONE computation for screen and capture | ✅ `SubtitleBand.Of` in `WindowCinema.DrawSubtitle` and `FilmText.Caption` (CE-1370) | ✅ §11o S9, CE-1370 |
+| a graphic's unit can be found by name every frame | ✅ `WorldUnits` / `IShotWorld` (the camera's lookup) | ✅ §5 `"who": "Enemy"` |
+| graphics are film-only | ✅ stored in `Take.Graphics`, drawn from `FilmStudio` / the capture request only | ✅ R-4070 |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **V1** | a View item = `ViewChange { at, map?: 2d \| 3d, layers?: {on, off} }` — `layers` is the take's own `LayerChange`, an ABSOLUTE set (the override's semantics); a null field keeps the item before. JSON `views[]` (§5's shape), written only when present | a delta set (`on` adds, `off` removes) — the override starts clean every call; a delta would need a second accumulation rule beside it |
+| **V2** | ⭐ **no second layer mechanism:** a take without views has its layers READ as views (`TakeViews.Of`: the take's at 0, at each laid-out shot's start the take's ∪ that shot's — B10's rule, equal neighbours merged); the runner plays ONLY views; the first view edit writes them (one undo step) — the `TakeSubtitles` pattern (S8) | keep `EnterShot`'s apply and add views beside it — two writers of one override, the later wins by frame order |
+| **V3** | the View track: POINT items on the panel (`TimelineTrackItemKind.Key`); empty space *"2-D map here"* / *"3-D map here"*; an item *Delete* / *Switch to the other map*; drag moves it; the Director window edits its map and its layers (a checkbox per `LayerControlSets.RowNames` row — the Layers panel's names) | a span row like subtitles — a view holds until the next item; it has no end |
+| **V4** | the runner applies the view every frame it plays but hands it on only when it CHANGES (`ViewFrame.Same`); ⛔ not in an extension's run (verify leaves the editor's layers alone — `StartPlan`'s intent) | apply on shot entry only — a View item between two shots would never fire |
+| **V5** | the program's map is the film mailbox's `FilmStudio.TwoD` (beside `Shot` and `Fade`); `FilmCaptureLayer.Direct` honours it: 3-D as before; 2-D through `MapViewSwitch.Set(false, animate)` then `ShowPose(overhead of the shot)` each frame (the shot's look-at = the centre, its distance = the scale); the first held frame snaps, later switches animate unless `FilmStudio.AnimateViewSwitch` is off (a capture: frames are film frames, not wall time) | a new `IMapMode` seam on `IDirectorHost` — every host would wire it; the capture layer already owns the program camera on every map host |
+| **V6** | a 2-D film frame is the 2-D map as the screen draws it (`MapCanvas.Draw`, its layers the take's), the 2-D camera re-centred at the frame's size for the capture; a capture during an animated switch is refused | `DrawScene` for 2-D (scene layers only) — the 2-D map's units and cards are not `ISceneLayer`s; it would film an empty ground |
+| **G1** | a graphic = `FilmGraphic { at, until, kind: ring \| arrow \| route \| area \| label, who / toward (units) or points, text, radius, color, fade }` — TE-9's five kinds; JSON `graphics[]`, written only when present | title cards / lower thirds as graphics — §2 puts them on the Subtitles row (caption · title card · unit label) |
+| **G2** | `FilmGraphics.At(graphics, t, units)` resolves the world points EVERY frame through `IShotWorld` (a ring follows its unit; a unit not here is not drawn); the fade is `FilmFade.Alpha`, now also the subtitle's (one rule) | resolving once at the graphic's start — a ring on a moving tank would stay behind |
+| **G3** | ⭐ **one layout, one painter:** `GraphicLayout.Of(frame, project, h)` (pixels, from the picture's height — the `SubtitleBand` pattern) painted by `FilmText.Graphics` in BOTH the map's screen pass (`FilmCaptureLayer.DrawOverlay`, from `FilmStudio.Graphics`) and a captured frame (`Serve`, from the request), under the subtitle | the cinema (`WindowCinema`, ImGui) draws them on screen — it has no camera to project a world point and draws over the window, not the map; the debug draw buffer (the tactical graphics' path) — never reaches a captured frame (claim table) |
+| **G4** | the capture carries the overlay as ONE value: `IFrameSink.Frame(…, FilmOverlay)` (a default member, so a text-only sink keeps working); the runner and the stills (`DirectorStills`) call it with `runner.OverlayNow(captions)` | a second `IFrameSink` method per overlay kind — every new overlay would grow every sink |
+| **G5** | the Graphics track is the subtitle's span row (`SpanTrack`): *"Add a graphic here"* = a ring on the unit the pilot camera follows, else a label at its look-at; the Director window edits kind, unit(s), text, radius, fade and adds the pilot's look-at as a point | a graphic editor of its own — the span row already does add / move / resize / delete with one undo step each |
+
+**As built.** `TakeViews.cs` (`ViewChange`, `ViewFrame`, `TakeViews`) · `FilmGraphics.cs` (`FilmGraphic`, `GraphicFrame`, `FilmOverlay`, `FilmFade`, `FilmGraphics`,
+`GraphicPlot`, `GraphicLayout`) · `Take` (`Views`, `Graphics`; `TakeSubtitles.At` uses `FilmFade`) · `TakeJson` (`views[]`, `graphics[]`, `ParseView` / `ParseGraphic`,
+`WriteView` / `WriteGraphic`) · `TakeEditor` (`Add/Move/Remove/SetView`, `…Graphic`; `WithViews`) · `DirectorTracks` (`View`, `Graphics`, `SelectedView` /
+`SelectedGraphic`, `NewGraphic`, `PilotLookAt`) · `DirectorWindow` (the selected view's map + layers, the selected graphic's fields) · `DirectorRunner` (`ApplyView`,
+`ViewNow`, `GraphicsNow`, `OverlayNow`; the two old `_layers.Apply` sites gone) · `IFrameSink.Frame(…, FilmOverlay)` · `FilmFrameSink` · `DirectorStills` ·
+`MapLayerOverride.Applied` · `FilmStudio` (`TwoD`, `AnimateViewSwitch`, `Graphics`; `Release` clears the first and the last) · `FilmCaptureRequest.Graphics` ·
+`FilmCaptureLayer` (`Direct` honours `TwoD`, `DrawOverlay` paints, `Serve` films 2-D and paints) · `FilmText.Graphics`. **Deviations:** (1) the brief named
+`WindowCinema` as the graphics' screen painter; it is the capture layer's screen pass instead (G3: the cinema cannot project a world point) — the SAME painter
+as the capture, which is the brief's intent. (2) An extension's (verify) run no longer applies a shot's layers (V4) — before P6 `EnterShot` did, against
+`StartPlan`'s stated intent; no rail or seeded take relied on it.
+
+**Known edges.** ⛔ (1) and (2) SUPERSEDED `2026-10-27` — see *"CE-1380 / CE-1379 as built"* below: the film's end and Stop give the person's map mode
+back (V7); a 2-D frame is the ONE film pass, and (2)'s diagnosis was wrong in part (the symbols WERE drawn; the black ground is the 2-D map's own). ~~(1) A film that ends in 2-D leaves the map in 2-D (the release gives the camera back; the user's Ctrl+M switches). (2) A 2-D frame lacks the units' 2-D symbols and the terrain's colour — the gizmo buffer is not in the capture (CE-1380, CE-1379); layers with no
+layer bit (the cursor, the rubber band) would be filmed — the live still shows none.~~ (3) An area's fill is a fan from its
+centre (right for convex and star-shaped areas). (4) The graphics' text is raylib's font in both passes (the subtitle's on-screen text is ImGui's).
+
+**§11t live still** *(`2026-10-27`, ui — success condition 5)*
+
+⚠ The image file was REGENERATED after CE-1380 / CE-1379 (`2026-10-27`) — the text below describes the first still; the current picture is described under
+*"CE-1380 / CE-1379 as built"*.
+
+![P6: the same take, 3-D then the View track's 2-D map, with the film's graphics](img/film-p6-graphics.jpg)
+
+*What it shows (the FIRST still):* `ua-tank-ammo/main` played by the ONE pack's runner over a REAL live recording (`node_1.fdp`, 3607 frames, the take's scenario hash) in a
+WINDOWED Replay Browser, both frames captured through the director's own sink with the runner's overlay (`FilmFrameSink.Frame(…, runner.OverlayNow)` —
+the stills' path). The OPEN take (unsaved) was given three graphics from t − 1 (a red ring + *Target* on the Enemy Tank, a yellow arrow Tank → Enemy
+Tank, a blue *M1 Abrams* label on the Tank) and a View item switching to the 2-D map at 9.4 s with a key pulling the camera up (follow Tank, 900 m).
+**Left** (source 9.117 s): the 3-D over-the-shoulder shot — the M1's body, the T-72 on the horizon with its ring and caption, the arrow along the line of
+fire, the label on the M1, the take's caption as the subtitle. **Right** (source 9.917 s): the 2-D map, centred on the Tank at the key's scale — the SAME
+three graphics laid out through the 2-D camera (the ring small at 900 m, the arrow running north to it), the subtitle. *What looked wrong:* the 2-D
+frame's ground is black and the units' 2-D symbols are missing — the capture does not see the gizmo buffer (CE-1380, with CE-1379); the first harness
+run put the View item in a GAP between shots, where the camera is the next shot's, and filmed a 2-D map 50 px/m on the Enemy Tank — the harness now
+places it inside shot 1. *How:* `DISPLAY=:99 HROT_FILM_PROOF=1 HROT_FILM_PROOF_RECORDING=<node_1.fdp> HROT_FILM_PROOF_OUT=<dir> dotnet test
+Hrot/Subsystems/Hrot.ReplayBrowser.Tests --no-build --filter FullyQualifiedName~CE1305_P6_LiveProof` (`[Trait Category Manual]`).
+
+**Rails** (each red-proved by a compiling mutation; the report lists mutation and message): `FilmDirectorTests.CE1304_P6_Views_RoundTrip_AndOldTakesStayWithout`
+· `FilmDirectorTests.CE1304_P6_TheTakesLayers_ReadAsViews_AreWhatPlayedBefore` · `FilmDirectorTests.CE1305_P6_Graphics_RoundTrip_AndBadOnesAreNamed`
+· `FilmDirectorTests.CE1305_P6_TheGraphicsAtATime_AndTheirLayoutOnAPicture` · `DirectorTracksTests.CE1304_P6_TheViewTrack_ShowsTheLayersPlayed_AddsMovesFlipsDeletes_AndUndoes`
+· `DirectorTracksTests.CE1305_P6_TheGraphicsTrack_AddsMovesResizesDeletes_AndUndoes` · `DirectorRunnerTests.CE1304_P6_TheRunner_AppliesTheViewTrack_ThroughTheLayerOverride_AndTheMapMode`
+· `DirectorRunnerTests.CE1305_P6_TheRunner_PutsTheGraphicsOnScreen_AtTheirFilmTime_OnTheirUnit` · `DirectorRunnerTests.CE1305_ACapturedFrame_IsHandedTheGraphics_WithTheSubtitle`
+· `ReplayBrowserSubsystemTests.CE1304_P6_OnARecording_TheViewTrack_AndAGraphic_PlayThroughThePacksOwnSeams`. Unchanged and green: `CE1364_T4_*`, `CE1370_*`,
+the CE-4038 reel rail (a take's `layers` still reach the override).
+
+#### CE-1380 / CE-1379 as built *(ui, `2026-10-27` — the film's ONE pass in both modes, the scenario's graphics filmed, the person's map mode given back)*
+
+**INVENTORY** *(graph + grep; ⚠ `check_index_coverage` is not available through the CLI, so no absence below is proven complete)*
+
+| query | result ⇒ |
+|---|---|
+| `search_graph name_pattern=.*(DebugGizmoLayer\|SceneLayer\|FilmCapture\|MapCanvas\|GridMapLayer\|TerrainLayer2D\|LayerControlSets\|MapViewSwitch).* label=Class` (18, the `ui` index) + `label=Interface .*(SceneLayer\|MapLayer\|LayerOverride).*` (3: `IMapLayer`, `ISceneLayer`, `ILayerOverride`) | ONE canvas (`MapCanvas`: `Draw`, `DrawScene`), ONE marker for "the film draws me" (`ISceneLayer`: 5 implementers, all 3-D), ONE gizmo layer per map (`DebugGizmoLayer`, the buffer's only drawer), ONE layer authority (`LayerControlGizmo` + `LayerControlSets.SceneRows`), ONE 2-D ⇄ 3-D switch (`MapViewSwitch`) ⇒ nothing new to build beside them |
+| `search_code DrawScene` (13) / `ISceneLayer` (13) · `grep -rn "AddLayer("` | `DrawScene`'s only caller is `FilmCaptureLayer.Serve`; every map host's layers come from `MapInteractionPack.AttachMapLayers` alone ⇒ one place to opt layers in |
+| `search_code FilmStudio.Release` · `grep -n "_layers.Clear" DirectorRunner.cs` | the film's end (`EndItem`) and Stop (`EndRun`) both release the mailbox, beside `_layers.Clear()` — the layer restore; the map is put back by its reader (`FilmCaptureLayer.Direct`) when the mailbox is released |
+| `grep -n "ClearBackground" Hrot FDP` · `TerrainPlan2D.Emit` | the window clears BLACK (`Hrot.ClusterRunner/Program.cs:707`); the 2-D plan skips open ground (`TerrainPlan2D.cs:47`, `Open ⇒ continue`) ⇒ the 2-D map has no ground colour on ANY host |
+
+**Measured first — the screen** *(the live-proof harness now grabs the WINDOW's frame beside each capture: `2d-screen.png`, `3d-screen.png`)*. ⭐ The 2-D window
+at the same moment is the capture to the pixel, bar the subtitle (the run plays without the cinema): the same black ground, the same terrain shapes, the
+same graphics. ⇒ **CE-1380's diagnosis was wrong in two of three parts:** (a) the units' symbols WERE drawn — the 16 px floor of the 2-D renderer
+(`DebugPrimitiveRenderer2D.cs:510`) on world-sized silhouettes, the M1's dark-blue outline under the film's own *M1 Abrams* label and the T-72 under the film's
+own ring (the harness put both graphics on the units), the truck's red outline beside; (b) the black ground is the 2-D map's look everywhere (no open-ground
+fill, a black window), and in a film the 2-D grid — the only thing drawn on empty ground — is off because a take starts clean (`Map.Grid` is not a scene
+row). ⭐ What WAS wrong: the 2-D capture drew the WHOLE screen pass (`_canvas.Draw()`, `Film.cs` before this change) — cursor readout, stats HUD, the
+selection ring, the UI panels' scheduling — while a 3-D capture drew no gizmo at all (`DrawScene` was 3-D-only and the gizmo layer not a scene layer:
+CE-1379, and the screen's 3-D picture shows the roads' line the 3-D film lacked).
+
+```mermaid
+classDiagram
+  direction LR
+  class MapCanvas { <<exists, grown>> Draw() · DrawScene() both modes NEW · DrawLayers2D/3D(sceneOnly) · DrawOverlays(sceneOnly) }
+  class RenderContext { <<exists, grown>> Film NEW }
+  class ISceneLayer { <<exists>> the film draws me }
+  class DebugGizmoLayer { <<exists, grown>> ISceneLayer NEW · FilmLayers NEW · InFilm(p, film) NEW }
+  class TerrainLayer2D { <<exists>> ISceneLayer NEW }
+  class GridMapLayer { <<exists>> ISceneLayer NEW }
+  class LayerControlSets { <<exists, grown>> SceneRows + Map.TacticalGraphics, Command.Routes · FilmLayers NEW }
+  class FilmCaptureLayer { <<exists, grown>> Serve → DrawScene in 2-D too · Direct keeps _personsMap NEW }
+  class MapViewSwitch { <<exists>> Set(on, animate) }
+  class MapInteractionPack { <<exists>> AttachMapLayers sets FilmLayers · gizmo layer after the 3-D terrain }
+  DebugGizmoLayer ..|> ISceneLayer
+  TerrainLayer2D ..|> ISceneLayer
+  GridMapLayer ..|> ISceneLayer
+  FilmCaptureLayer --> MapCanvas : DrawScene
+  MapCanvas --> RenderContext : Film = sceneOnly
+  MapInteractionPack --> DebugGizmoLayer : FilmLayers = LayerControlSets.FilmLayers
+  FilmCaptureLayer --> MapViewSwitch : the person's mode back on release
+```
+*What the picture shows that prose hid:* no second renderer — the film is the screen's own two layer passes with a filter (`sceneOnly`), and the gizmo
+buffer reaches a film through the layer that already draws it on screen, told by the context which of its primitives a film shows.
+
+```mermaid
+sequenceDiagram
+  participant K as IFrameSink / FilmStudio.Capture
+  participant C as FilmCaptureLayer.Serve
+  participant M as MapCanvas.DrawScene
+  participant G as DebugGizmoLayer
+  participant R as DirectorRunner (EndItem / EndRun)
+  K->>C: FilmCaptureRequest
+  C->>M: DrawScene() (2-D or 3-D — the map's mode)
+  M->>M: DrawLayers2D/3D(sceneOnly) — ISceneLayers only, ctx.Film = true
+  M->>G: Draw / Draw3D(ctx) — FrameFor(ctx): InFilm(p, FilmLayers), no menus extracted
+  M->>M: DrawOverlays(sceneOnly) — cards / labels the set turns on
+  C->>C: FilmText.Graphics · Caption · the dip
+  R->>R: FilmStudio.Release() · _layers.Clear()
+  C->>C: Direct(): no shot ⇒ MapViewSwitch.Set(_personsMap) once, then forget it
+```
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **F1** | ⭐ ONE film pass: `MapCanvas.DrawScene` runs the SAME 2-D / 3-D layer loops as `Draw`, over the `ISceneLayer`s, plus their screen-space pass; `Serve` calls it in both modes | keep `_canvas.Draw()` for 2-D (V6) — films the cursor readout, the HUD and the selection ring; a second "film renderer" — two drawers of one map (ruling 9) |
+| **F2** | the gizmo layer is a scene layer that, in a film's pass (`RenderContext.Film`), draws only `InFilm` primitives: anchors and the mask always, the UI (panels, menus, capture bindings) never, a drawn shape iff its layer bit is in `FilmLayers` | a per-gizmo "filmable" flag — 60+ projectors to touch; drawing the buffer from `FilmCaptureLayer` (the tracker's lean) — a second reader of the buffer beside the one that already resolves anchors, sorts and drapes |
+| **F3** | `FilmLayers` = the bits the Layers panel toggles (`0 … LayerControlDto.FirstUntoggledLayer − 1`), set once in `AttachMapLayers` for every host; which of them a frame shows is the set in force (a take's start-clean override, or the person's) | the active mask alone — the selection (255) and the always-on bits sit above every row, so they would always be filmed |
+| **F4** | the scenario's own drawing is SCENE: `SceneRows` + `Map.TacticalGraphics` (areas, overlay lines) + `Command.Routes` (route entities) — kept as the person has them when a take starts clean | leave them overlays — a take would have to name them to film the scenario's own picture (CE-1379's complaint) |
+| **F5** | the 2-D plan (`TerrainLayer2D`) and grid (`GridMapLayer`) are scene layers, each still gated by its own row | grid always filmed — it is a helper; off in a clean take unless the take turns `Map.Grid` on · ⛔ **SUPERSEDED `2026-10-27` (CE-1420, below): `Map.Grid` IS a scene row — a clean take keeps the person's grid** |
+| **F6** | the gizmo layer is attached AFTER the 3-D terrain (`AttachMapLayers`; the 2-D order is unchanged — the 3-D terrain draws nothing in 2-D): its ground fills draw with depth writes off (CE-1196 CA-4), so before the terrain they were painted over on every host's 3-D map — and so in every 3-D film (**CE-1384**, measured by the CE-1379 rail's anti-vacuity: the WINDOW showed no area) | depth writes on for fills — the CE-1196 flicker CA-4 removed |
+| **V7** | ⭐ the person's map mode is taken when the film first holds the view and given back through the ONE switch when the mailbox is released — at the film's end and on Stop, the place the runner already clears the layer override; ⛔ not while the pilot view flies; a switch still landing finishes first | the runner remembering the mode — it never sees the map (`IDirectorHost` has no map), and a second owner of "which mode" beside the switch |
+| **G6** | ⛔ the 2-D map's black ground is NOT a film defect — the window shows the same; a ground colour for the 2-D map is a look decision for every host → **CE-1381** | a film-only ground fill — a 2-D film would then differ from the 2-D map on screen |
+
+**Known edges.** (1) Editor TOOL handles share layer 0 with the unit symbols (`DebugGizmoLayer` cannot tell them apart by layer), so an active tool's handles
+would be filmed — the selection and the always-on bits are not (CE-1382). (2) The 2-D plan's and grid's culling read the WINDOW size
+(`TerrainLayer2D.ViewOf`, `GridMapLayer.Draw`), so a capture LARGER than the window (supersampled stills) loses outlines, labels and grid lines toward its
+right and bottom edges (CE-1383). (3) A reel item's end releases the mailbox, so between two 2-D items the map flips back for the frames before the
+next item holds a shot — as the layers already do.
+
+**Rails** (each red-proved by a compiling mutation; the report lists the message): `FilmFrameRail.CE1380_A2DFilmFrame_IsTheWindowsMap_TheGroundPlanAndTheUnitSymbol_AndNoToolSelectionOrHud`
+(the production map over test-town: the 2-D film's ground plan ≥ 90 % of the window's non-background pixels, the unit's symbol from the production projector at
+its projected position, no cyan clutter or selection — the window has both) · `FilmFrameRail.CE1379_AFilmFrame_DrawsTheScenariosTacticalGraphic_In3DAnd2D_AndNeverTheSelection`
+· `DirectorRunnerTests.CE1304_P6_AFilmEndingIn2D_GivesThePersonTheirMapModeBack_AtItsEnd_AndOnStop` (a real runner over the fake editor and a real
+`FilmCaptureLayer` on a headless map). Unchanged and green: `CE3289_AFilmFrame_IsTheSceneAlone_AtTheAskedSize`, `FilmTests.*`.
+
+**The live still, regenerated** *(`2026-10-27`, the same harness, take, recording and moments as above; `docs/img/film-p6-graphics.jpg` replaced)* —
+**left** (3-D, source 9.117 s): as before, plus what the window's 3-D map always showed and the old film lacked — the road under the M1 (its grey fill and
+yellow centre line, `Map.Roads`, a scene row) and the M1's own symbol rim draped at its feet (`Units.Entities`); the fill shows because the gizmos now draw
+after the 3-D terrain (F6). **Right** (2-D, source 9.917 s): unchanged in content, by design — it already was the 2-D window's picture: the road, the
+terrain's two shapes and the walled plot, the truck's red outline (left) and the shot-up vehicle's red marks (right), the M1's dark-blue outline under the
+film's *M1 Abrams* label and the T-72 under the film's ring; no cursor readout, HUD or selection (F1). The ground stays black because the 2-D map's is
+(CE-1381). ⭐ **The window vs the film, the same 2-D moment** (`docs/img/film-p6-2d-window-vs-film.jpg`, the harness's `2d-screen.png` beside `2d.png`): the
+same pixels but for the subtitle (the run plays without the cinema) and the graphics' text boxes, which are dark on black.
+
+#### CE-1382 / CE-1383 as built *(ui, `2026-10-27` — F2's known edges 1 and 2 closed; they supersede those two edges above)*
+
+**CE-1382 — a tool's drawing has its own always-on layer.** `DebugTraceLayers.ToolHandles = 254` (above `LayerControlDto.FirstUntoggledLayer`, beside the
+selection's 255): always drawn on screen, outside `LayerControlSets.FilmLayers`, so never filmed. ⭐ Not emitted by 14 tool gizmos: the two arbiters that
+run every one of them (`GlobalGizmoManager.Execute`, `DataDrivenGizmoSystem.StampSince`) call `DebugPrimitiveBuffer.MoveDefaultLayer(mark, ToolHandles)` right
+beside the existing `StampGizmoTypeId(mark, …)` — what a tool left on layer 0 moves, meta primitives and a tool's own explicit layer do not. Side effect, the
+intended one (CE-1160's comment): a handle now beats an entity pick box by LAYER, not by emission order. Rejected: a per-tool constant (14 emit sites, the next
+tool forgets it); the pick-box anchor id ≥ `ToolAnchorIdBase` (only Box2D carries one — crosshair lines and previews have none).
+**CE-1383 — one size source.** `RenderContext.ViewSize` is the size of the TARGET being drawn (`MapCanvas.NewContext`: the window's on screen, the film's
+capture size via `DrawScene(targetSize)` from `FilmCaptureLayer.Serve`); `RenderContext.TargetSize` falls back to the window for a hand-built context.
+`TerrainLayer2D.ViewOf` and `GridMapLayer.Draw` read it — no layer reads `GetScreenWidth/Height` any more (the 3-D camera already had `ViewportOverride`).
+Rails (`FilmFrameRail`): `CE1382_AFilmFrame_NeverDrawsAnActiveToolsHandles_ButDrawsTheUnitSymbol` (a real `MeasureGizmo` through `GlobalGizmoManager`) ·
+`CE1383_ACaptureLargerThanTheWindow_KeepsThe2DOutlinesAndGridInItsFarQuadrant` (2560×1600 from a 1280×800 window).
+
+![P6 after CE-1380 / CE-1379: the 3-D frame with the road and the unit's symbol, the 2-D frame as the window draws it](img/film-p6-graphics.jpg)
+
+![The 2-D window (left) and the 2-D film frame (right) at the same moment](img/film-p6-2d-window-vs-film.jpg)
+
+#### CE-1381 sample / CE-1420 as built *(ui, `2026-10-27` — the grid in 2-D films; the 2-D ground colour option WITHDRAWN the same day)*
+
+🔒 User, 2026-10-27: *"Ad black 2d map - there should have been the grid at least. Muted color is ok just need to see a sample first."*
+
+**Grid.** ⛔ F5's "off in a clean take" is SUPERSEDED: `LayerControlSets.SceneRows` (the ONE place the clean-take rule lives) now holds `Map.Grid` — a clean take keeps the
+grid as the person has it (a take may still turn it off), so a 2-D film frame shows the grid like the screen. Every map host reaches ONE `LayerControlGizmo`
+construction (`MapInteractionPack.Build`) and `LayerControlDto.Map.Grid` defaults **on**, so the 2-D map shows the grid by default on the editor, the Replay Browser, CGF, IG
+and SimHost alike (the editor's Config "Grid" tick can only add to it); only a person's saved layer file can turn it off. ⚠ Measured edge (not changed): a take's layer set
+is built from the set of the view the take STARTS in (the 3-D set for a 3-D→2-D film) and held across the switch, so a person's 2-D-only tick is not what such a film
+holds; the two sets start equal (the 3-D set is a copy of the 2-D defaults).
+
+**Ground colour — ⛔ WITHDRAWN `2026-10-27`, removed from the code.** 🔒 User, after seeing the samples: *"is the green color on 2d map shown only where 3d terrain has its green gound (so 2d then matches 3d) or is it just all-black to all-dark-green switch? (that would not be needed, black is as good as dark green)"*. It WAS a flat whole-view switch (one rectangle over the view): the 3-D open ground is one colour, and water and forest already come from the terrain's surface polygons in BOTH maps (`TerrainPlan2D.Emit`, `TerrainWorldMesh`), so the user's own condition says it is not needed. Removed: the `Map.GroundFill` row, `DebugTraceLayers.GroundFill` (`FirstUntoggledLayer` back to 29), `TerrainLayer2D.DrawGround`, `TerrainPlan2D.MutedGround`, the ground rails and the `HROT_FILM_PROOF_GROUND` live-proof hook. KEPT: the grid (`Map.Grid` in `SceneRows`) and its rail. The text below is HISTORY (what the sample was); the sample image stays as the record of what was rejected.
+off**, remembered per view like every row and a scene row (a clean take keeps the person's tick). `TerrainLayer2D.DrawGround` draws ONE rectangle over the VIEW, first in the
+layer (under the plan's fills, the grid and every gizmo), in `TerrainPlan2D.MutedGround(TerrainLayer3D.GroundColor, GroundFillFactor)` — the 3-D ground colour × a share
+(default `TerrainPlan2D.DefaultGroundFillFactor = 0.35` → (39,50,30)): ONE ground colour for both maps. ⭐ The view, not the terrain's bounds (CE-1381's lean): measured on the
+`ua-tank-ammo` recording the 3-D map has a green ground plane with NO `TerrainWorld` loaded, and a bounds-based fill drew nothing there (the first attempt — a rectangle of
+`TerrainWorld` bounds — was visible in the rail over test-town and absent in the real recording). Rejected: a film-only fill (G6: a 2-D film would differ from the screen).
+
+![The same 2-D film frame of the recording: (a) today + grid, (b) 35 % muted ground + grid, (c) 55 % ground + grid](img/map2d-ground-samples.jpg)
+
+*Samples* (`docs/img/map2d-ground-samples.jpg`; the live-proof harness, take `main` of `ua-tank-ammo`, source 9.9 s, the 2-D film frame; `HROT_FILM_PROOF_GROUND` unset / 0.35 / 0.55).
+**(a)** black ground, the grid's grey lines and the symbols as the film now shows them. **(b)** dark olive ground (39,50,30): the grid still reads, the road, the orange and
+sand symbols, the red marks and the film's labels keep their contrast — the quietest. **(c)** a lighter olive (62,78,47): reads as grass, the grid is a little less
+distinct, the dark text boxes of the graphics stand out less. ⭐ Lean: **(b)**, as the muted look the user named; awaiting the user's pick (a / b / c) — the pick sets the default
+and `DefaultGroundFillFactor`. Rails: `FilmFrameRail.CE1420_A2DFilmFrame_OfACleanTake_HasTheGrid_AndATakeThatTurnsItOff_HasNone` ·
+`FilmFrameRail.CE1420_The2DGroundColour_IsOffByDefault_AndWhenTickedFillsTheOpenGround_InTheWindowAndInTheFilm` · `TerrainLayer2DTests.CE1420_TheGroundFill_IsThe3DGroundColour_Darkened` ·
+`LayerControlGizmoTests.CE1420_*` (two).
+
+### 11u. R4 — the reel composer and the render queue *(ui, `2026-10-27`, CE-1306; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ Frame: [CE-1306](blueprints/Blueprint_Issues_Tracker.md) (R4 of §6: *"reel composer · render queue"*; its HTTP half — `recording=`, promote, the MCP
+catalog — is §11r / §11s). Basis: §6 R4, TE-16 (*"reels are unchanged … the reel composer is the bin plus a sequence row"*), CR-2 (one registrar: every
+host gets what the pack builds), CR-10 / CR-12 (the night's documentation renders in the RB, many recordings), §11r R1 (ONE recording opener — the one
+`POST /replay` uses), R2 (stills are ONE job in the pack), R6 (the MP4 is the existing `/director/play {capture}`), [Film Director](DESIGN_Film_Director.md)
+§4a (a reel is ONE movie), [Film Production](DESIGN_Film_Production.md) §4 / §4a (the night run renders one stills job per recorded scenario, CE-4060).
+
+**INVENTORY** *(`2026-10-27`)* — ⚠ **this worktree's graph could not be built** (`index_repository` → `aborted_previous_preserved`, twice: other agents'
+index workers held the daemon); the graph queries ran on the main checkout's `ui` index (`home-user-HROT`, **stale**: it still has `DirectorRunner` in
+`Hrot.Editor`, i.e. built before §11j) **and** grep over this tree, which is what the claims below rest on.
+
+```
+search_graph name_pattern=".*(Reel|Render).*" label=Class      → 77, none a reel editor or a render job (renderers, layout attributes); Reel/ReelItem are records (not in the label)
+search_graph name_pattern=".*(Reel|Render).*" label=Interface  → 9, all canvas / ImGui renderers
+search_graph name_pattern=".*(Queue|Job).*" label=Class        → 38: AnimationMontageQueue*, MainThreadJobQueue, FreshVerifyJobs — no render queue
+search_graph name_pattern=".*(Stills|Capture|Composer).*" Class→ 25: CaptureOptions (old home), AiAssetCatalogComposer… — no reel composer
+search_code  "render queue|RenderQueue|reel composer|ReelComposer" → 0
+grep "Reel\b" Hrot/ → the model (Take.cs Reel/ReelItem), TakeJson Parse/WriteReel, TakeStore ReelNames/LoadReel (NO SaveReel), the runner (plays a reel item by
+     item, ONE movie per reel), DirectorWindow (Pick.Reel: a combo of saved reels, Play), the routes (GET /director/reels, play {reel})
+grep "WriteReel" → called by ONE rail only; it drops gapSeconds (read by ParseReel) and the reel's / items' "note" (3 of 8 films/*.reel.json carry one)
+grep "class .*Jobs|JobQueue" → FreshVerifyJobs (child PROCESSES for --verify), MainThreadJobQueue (the routes' main-thread drain) — neither runs a director
+grep "director/play|director/stills" scripts/ → film.py, director-check.py (one play at a time, each waits); DocumentationTakes.cs (CE-4060): the take only —
+     its rendering is "/director/stills" by design (Film Production §4a), nothing calls it yet
+check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
+```
+
+```mermaid
+classDiagram
+  direction LR
+  class Reel { <<exists, grown>> Name · Title · Transition · Items · Loop · GapSeconds · Waiting · Note }
+  class ReelItem { <<exists, grown>> Scenario · Take · Title · ChapterCard · Clip · From · To · Note }
+  class TakeStore { <<exists, grown>> ReelNames · LoadReel · ReelPath · SaveReel }
+  class ReelComposer { <<NEW>> Open · New · Add · Remove · Move · SetItem · SetOptions · Save · Reel · Dirty }
+  class DirectorWindow { <<exists, grown>> Composer · Renders · ReelToPlay · RenderRequestFor · QueueRender }
+  class DirectorPack { <<exists, grown>> Renders · Composer · Tick = Runner + Stills + Renders }
+  class DirectorRenders { <<NEW>> Enqueue · Cancel · Tick · Jobs · Running · Busy · Refusal · OpenRecording }
+  class RenderRequest { <<NEW record>> Kind · Recording · Scenario · Take · ReelName · Reel · capture fields · Times · EveryKey }
+  class RenderJob { <<NEW>> Id · State · Dir · Output · Outputs · Problems · Frames · Item }
+  class DirectorRunner { <<exists, grown>> Play · Stop · Request · MoviePath · Reports }
+  class DirectorStills { <<exists, grown>> Prepare(StillsRequest) · Start · Cancel }
+  class DebugApiHost { <<exists, grown>> POST/GET /director/renders · DELETE /director/renders/id · OpenRecording }
+  ReelComposer --> Reel : edits the ONE model
+  ReelComposer --> TakeStore : Open / Save
+  DirectorWindow --> ReelComposer : draws
+  DirectorWindow --> DirectorRenders : Queue render · the list · Cancel
+  DirectorPack --> ReelComposer : builds once
+  DirectorPack --> DirectorRenders : builds once, ticks last
+  DirectorRenders --> DirectorRunner : a movie = Play(reel, capture)
+  DirectorRenders --> DirectorStills : stills = Prepare + Start
+  DirectorRenders "1" o-- "many" RenderJob
+  RenderJob --> RenderRequest
+  DebugApiHost --> DirectorRenders : routes · hands it OpenRecording
+```
+*What the picture shows that prose hid:* nothing new plays or captures — the queue is a SCHEDULER over the runner and the stills job the pack already
+owns, and the composer is an editor over the `Reel` record the runner already plays; the only new state is the job list. The recording opener comes from
+the HTTP host (§11r R1), so a job's recording opens through `POST /replay`'s own call.
+
+```mermaid
+sequenceDiagram
+  actor A as Agent / the night run
+  participant H as DebugApiHost (RB)
+  participant Q as DirectorRenders
+  participant S as DebugApiService.EnterReplay
+  participant R as DirectorRunner
+  participant M as the map (FilmFrameSink)
+  A->>H: POST /director/renders {renders:[{recording A, take}, {recording B, take}, ...]}
+  H->>Q: Enqueue x N - r1, r2 queued (refusals named per item)
+  A->>H: DELETE /director/renders/r4
+  H->>Q: Cancel(r4) - queued: it never runs
+  loop each frame (DirectorPack.Tick: runner, stills, then the queue)
+    Q->>Q: no job running and the director idle? take the next queued
+    Q->>S: OpenRecording(A) - the /replay open (r1's turn)
+    Note over Q: Opening - 2 settle frames
+    Q->>R: Play(reel of A's take, capture: takes/main.render/r1/)
+    R->>M: one captured frame per film frame (the recording seeks)
+    R-->>Q: Done - MoviePath
+    Q->>Q: r1 done (output = the MP4) - then r2: open B, play, done
+  end
+  A->>H: GET /director/renders
+  H-->>A: jobs[r1 done + mp4, r2 done + mp4, r4 cancelled]
+```
+
+```mermaid
+graph TD
+  subgraph RBW["--mode replaybrowser (windowed)"]
+    RBT["ReplayBrowserSubsystem.Update -> DirectorPack.Tick"]
+    RBQ["DirectorRenders (sink = FilmFrameSink)"]:::new
+    RBO["OpenRecording = DebugApiHost.OpenRecording -> EnterReplay"]:::new
+  end
+  subgraph RBH["--mode replaybrowser --headless"]
+    RHT["ReplayBrowserSubsystem.Update -> DirectorPack.Tick"]
+    RHQ["DirectorRenders (sink = null)"]
+  end
+  subgraph ED["Editor (EditorSubsystem.Update)"]
+    EDT["EditorSubsystem -> DirectorPack.Tick"]
+    EDQ["DirectorRenders (CanSeek false: movies run LIVE, stills refused)"]:::new
+  end
+  NODE["CGF / IG / BDC nodes - no director"]
+  PK["DirectorPack.Attach - builds the queue once, ticks it after the runner and the stills"]:::new
+  PK --> RBQ
+  PK --> RHQ
+  PK --> EDQ
+  RBT --> RBQ
+  RHT --> RHQ
+  EDT --> EDQ
+  RBQ --> RBO
+  RHQ -.->|"refused at enqueue: no renderer"| X1["400"]
+  EDQ -.->|"recording= refused"| X2["400"]
+  NODE -.->|"no pack"| X3["503"]
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+  linkStyle 7 stroke:#c33,stroke-dasharray:4 3
+  linkStyle 8 stroke:#c33,stroke-dasharray:4 3
+  linkStyle 9 stroke:#c33,stroke-dasharray:4 3
+```
+*Caption:* WHO TICKS THE QUEUE — the host's own frame, through the pack's one `Tick` (the editor's `EditorSubsystem.cs:2911`, the RB's `Update`); no
+thread and no timer of its own, so a render can never step the world outside the frame (R-3038). The red dashed edges are where the queue exists and is
+never reached past its refusal: a headless RB (no frame to capture), the editor for `recording=` (it opens no recordings — its movies run LIVE, paced
+by the take), a cluster node (no director at all).
+
+**Claim table**
+
+| the plan rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a reel has one model, played item by item, one movie | ✅ `Take.cs` `Reel` / `ReelItem`; `DirectorRunner.EndItem` → the next item, then `StartEncoding` | ✅ Film Director §4a, TE-16 "reels are unchanged" |
+| nothing writes a reel | ✅ grep `WriteReel` / `SaveReel`: one rail only; no `SaveReel` | ⛔ searched §4a / TE-16: not stated — measured |
+| `WriteReel` loses fields a hand-written reel carries | ✅ `gapSeconds` read, never written; `note` dropped (3 of 8 `films/*.reel.json`) | ✅ Film Director §4a names `gapSeconds` |
+| the runner plays ONE thing; a second `Play` stops the first | ✅ `DirectorRunner.Play`: `if (Busy) Stop()` | ✅ Film Director §1a |
+| the stills job holds the runner and refuses while it plays | ✅ `DirectorStills.Start` (`_runner.Busy` → refused), `DirectorPlay` 409 while stills run | ✅ §11r R2, known edges |
+| a job's recording can be opened by the one opener | ✅ `DebugApiHost.OpenRecording` → `DebugApiService.EnterReplay` (`DebugApiService.Master.cs:127`) | ✅ §11r R1 (no second opener) |
+| the opener exists only where the debug HTTP host is attached | ✅ `Program.cs:518` (`AttachDirector(directorPack)` inside the debug-port block) | ⛔ not stated — measured (⇒ D4's edge) |
+| the pack is ticked by every host that has a director | ✅ `EditorSubsystem.cs:2911`; `ReplayBrowserSubsystem.cs:404` | ✅ CR-2 |
+| a render on the editor runs live, on the RB seeks | ✅ `DirectorRunner.TickEntering` (`_host.CanSeek` → `SeekSource`), the editor host's `CanSeek` false | ✅ CR-12, §11m D2 |
+| CE-4060 renders through `/director/stills`, one recording per call | ✅ `DocumentationTakes.cs` builds the take; the route opens ONE recording per call and refuses while a job runs | ✅ Film Production §4a "what renders it" |
+
+**Decisions** *(the lean; the rejected alternatives one line each)*
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **D1** | **`ReelComposer` (shared, pure) edits the ONE `Reel` record**; the Director window's Reel pick draws it (*Compose* a saved reel, *New reel*; per item Up / Down / Remove, title, chapter card; the reel's title, gap, loop; *Add take* from the store; *Save reel*). ⭐ Play and *Queue render* use the reel AS IT STANDS (unsaved — CR-4's rule for a take) | a reel track on the Event Timeline (TE-16's "sequence row") — a reel spans scenarios / recordings, the timeline shows ONE source · a second reel model for editing — ruling 9 |
+| **D2** | **`TakeStore.SaveReel` → `films/<name>.reel.json`**, `WriteReel` now writes `gapSeconds` and `note` (reel + item) | reels beside the recording (TE-1 is for takes) — a reel names several scenarios |
+| **D3** | **ONE render queue in the pack (`DirectorRenders`)**, ticked after the runner and the stills; it starts a job only when both are idle and drives THEM: a movie = `Runner.Play(reel, capture)`, stills = `DirectorStills.Prepare` + `Start` (the stills route plans through the same `Prepare`) | a queue in `DebugApiHost` — the window could not use it · a queue in each client (film.py, the night script) — N schedulers, none in the window · `FreshVerifyJobs` — it runs child processes; a render needs this host's window and director |
+| **D4** | **a job's `recording` is opened AT ITS TURN** through `DirectorRenders.OpenRecording`, which the HTTP host sets to its `OpenRecording` (§11r R1's one opener); 2 settle frames, then play. No recording named = the source the host shows | opening at enqueue — the next job's open would replace the running one's recording · a `DirectorPackHost.OpenRecording` seam — §11r R1: a second path-vs-exercise-id opener |
+| **D5** | **defaults resolved when the job STARTS** (the scenario the open recording names; the folder — a job's OWN: `takes/<take>.render/<id>/`, `takes/<take>.stills/<id>/`, a reel's `<scenarios root>/.renders/<reel>/<id>/`) | the route's `takes/<take>.render/` — two renders of one take would share a frames folder (the runner never clears it) |
+| **D6** | **cancel**: a queued job never runs (kept in the list, `cancelled`); the running one stops the runner (or `DirectorStills.Cancel`) and the queue goes on; an ended job's cancel is 409; the person's Stop / Esc during a render reads `cancelled` too | removing a cancelled job from the list — the agent polling it would lose its fate |
+| **D7** | **exclusivity**: while a render runs `/director/play` and `/director/stills` answer 409 and the window's Play is disabled; a `Play` from elsewhere anyway fails the job (`TakenOver`) — the job knows itself by its `CaptureOptions` on `DirectorRunner.Request` | letting a play pre-empt and resume the job — a half-captured frames folder, a movie of two runs |
+| **D8** | **headless refuses at enqueue** (no renderer, the queue's `Refusal`); the editor accepts movies (they run live, paced by the take) and refuses stills without a source that seeks | rendering live on the editor refused too — CR-12 keeps the editor's live preview; a scenario take rendered from the editor is today's `/director/play {capture}` path, now queueable |
+| **D9** | **HTTP**: `POST /director/renders` (one, or `{renders:[…]}` — each refusal named, the rest queued), `GET /director/renders`, `DELETE /director/renders/{id}`; a movie's `capture` object is read by ONE reader shared with `/director/play` | a `/director/render` per kind — the job's `kind` names it · answering when done (as stills' `wait`) — a queue is for many; the agent polls |
+
+**⭐ CE-4060's seam** *(the coordinator's overnight documentation, Film Production §4a)*: today it builds the `_doc` take and nothing renders it; the
+designed path is `/director/stills {recording, take:"_doc"}` — ONE recording per call, refused while a job runs. ⭐ The queue takes the whole night in
+one call: `POST /director/renders {renders:[{recording:<run 1>, kind:"stills", take:"_doc", dir:<report>/<scenario>}, …]}` — each recording opened at its
+turn, a failure named per job without stopping the rest, `GET /director/renders` the morning's list (each `output` = a contact sheet). ⛔ Their code is
+not changed here; [NOTE_Ui_To_Coordinator_Render_Queue](blueprints/batches/NOTE_Ui_To_Coordinator_Render_Queue.md) says so.
+
+**✅ As built `2026-10-27`** — the diagrams above are true. Files: `Hrot.Presentation/Map3D/Director/ReelComposer.cs` (new) · `DirectorRenders.cs` (new:
+`RenderKind`, `RenderState`, `RenderRequest`, `RenderJob`, `DirectorRenders`) · `DirectorStills.cs` (`StillsRequest`, `StillsPrepared`, `Prepare`, `Start(prepared)`,
+`Cancel`; a still's view switch cuts) · `DirectorPack.cs` (`Renders`, `Composer`, `Tick` + the queue) · `DirectorRunner.cs` (`Request`) · `DirectorWindow.cs`
+(the composer on the Reel pick, *Queue render* with size / rate, the *Render queue* list with Cancel; `ReelToPlay`, `RenderRequestFor`, `QueueRender`) ·
+`Take.cs` (`Reel.Note`, `ReelItem.Note`) · `TakeJson.cs` (`gapSeconds`, `note`) · `TakeStore.cs` (`ReelPath`, `SaveReel`) ·
+`Hrot.Editor/DebugApi/DebugApiHost.Director.cs` (the three routes, `RenderRequestOf`, `StillsRequestOf`, `CaptureFieldsOf` — `/director/play` reads its capture
+through it — the stills route through `DirectorStills.Prepare`, 409s while a render runs, the queue's opener) · `DebugApiRouteDocs.cs` (three docs) ·
+`tools/ai-debug-mcp/tool-catalog.mjs` + `SKILL.md` (regenerated: `director_render_enqueue`, `director_renders`, `director_render_cancel`; purely additive).
+
+**Deviations:** ① TE-16's *"an item may name `{recording, take}`"* is NOT built: a reel plays on the source the host shows, and a recording is named per
+JOB, not per item ⇒ §6 R4's *"a reel of two recording takes renders to one movie"* holds for two takes of ONE recording; two recordings in ONE movie
+waits for an opener the runner can reach on a UI-only Replay Browser (the one opener lives in the debug HTTP host, which a Replay Browser without
+`HROT_DEBUG_API_PORT` does not attach — `Program.cs:518`) ⇒ **CE-1391**. ② The composer lives in the Director window, not as a sequence row in the
+Event Timeline panel (D1). ③ Found by the RB rail and fixed here: a stills job after the map had been in 2-D failed every still but the first (*"the map is
+switching between 2-D and 3-D"*) — the runner animates the switch for a play without a capture, and a stills job's play has none ⇒ the job now cuts it
+(**CE-1390**, §11r's stills).
+
+**Rails** (each red-proved by a compiling mutation; the report lists mutation and message): `FilmDirectorTests.CE1306_TheReelComposer_AddsRemovesReorders_AndSavesTheReelTheStoreLoads` ·
+`DirectorPackTests.CE1306_TheDirectorWindow_ComposesThePacksReel_AndRendersItAsItStands` · `DirectorRunnerTests.CE1306_AComposedReel_PlaysItsItemsInOrder_Unsaved` ·
+`DirectorRunnerTests.CE1306_TwoRenders_RunOneAfterTheOther_EachIntoItsOwnFolder` · `DirectorRunnerTests.CE1306_Cancel_TakesAQueuedRenderOff_AndStopsTheRunningOne` ·
+`DirectorRunnerTests.CE1306_AFailingRender_IsReported_AndTheQueueGoesOn` · `DirectorDraftRoutesTests.CE1306_TheRenderRoutes_Queue_List_AndCancel` ·
+`ReplayBrowserSubsystemTests.CE1306_OnAHeadlessBrowser_RendersAreRefused_WithTheReason` · `ReplayBrowserSubsystemTests.CE1306_TheRenderQueue_RendersTwoRecordings_OneAfterTheOther_InAWindowedReplayBrowser`
+(env-gated `HROT_FILM_WINDOW=1` + Xvfb + ffmpeg, as §11r's windowed rail: a real capture needs the GL window).
+
+**Measured** *(`2026-10-27`, the windowed rail under Xvfb's software GL)*: ONE `POST /director/renders` of four jobs over two synthetic recordings —
+r1 (A's segmented take: 70 frames = the 1.5 s card + 5.5 film s at 10 fps) and r2 (B's two-shot take) each an MP4 in its own folder beside its own
+recording's take, r3 A's two stills + a contact sheet (A re-opened at its turn), r4 cancelled while queued and never run — the whole queue in 24 s.
+⚠ The Director window's new controls are drawn by ImGui and have no frame rail (the rails drive the window's model: `ReelToPlay`, `RenderRequestFor`,
+`QueueRender`, the pack's one composer and queue).
+
+#### 11u-1. As built: CE-1391 — a reel over several recordings, ONE opener without HTTP *(ui, `2026-10-27`; build-state: ✅ BUILT; supersedes D4's opener and deviation ①)*
+
+⭐ Frame: [CE-1391](blueprints/Blueprint_Issues_Tracker.md) (TE-16: *"an item may name `{recording, take}`"*; §6 R4: *"a reel of two recording takes renders
+to one movie"*). The blocker was the opener: §11r R1's one opener (`DebugApiService.EnterReplay`) is reached only through the debug HTTP host, which a
+Replay Browser attaches only with `HROT_DEBUG_API_PORT` (`Program.cs:518`).
+
+**INVENTORY** *(`2026-10-27`)* — ⚠ this worktree's graph could not be built (`index_repository` → `aborted_previous_preserved`, three times: the index
+races the edits); the queries ran on the main checkout's `ui` index (**stale**: it predates RB-1 — no `IReplayBrowserControl` node) **and** grep over this tree.
+```
+search_graph name_pattern=".*(Recording|Opener|ReplayBrowserControl).*" label=Interface → 2: IRecordingExportService, IRecordingSearchService — no opener seam
+search_graph name_pattern=".*(OpenRecording|OpenGroup|EnterReplay|OpenRecordingFiles|LoadGroup|ReplayBrowserControl).*" → 20: FederatedReplayManager.LoadGroup
+     (the one group loader), LoadGroupException, ReplayTimelinePanel.OnLoadGroup; tests + .dev sections
+search_graph name_pattern=".*(Reel|Renders).*" label=Class → Reel, ReelItem, ReelWaiting (+ unrelated renderers)
+grep "OpenGroup(|LoadGroup(" Hrot/ (production) → ReplayBrowserSubsystem.OpenGroup (the panel's load, ReplayBrowserControl.Open, the master transition) +
+     two TEST seams that load a group themselves: LoadFdpGroupForTest, LoadFdpViaManager (⇒ CE-1393)
+grep "EnterReplay|OpenRecording" → DebugApiService.EnterReplay → OpenRecordingFiles → IReplayBrowserControl.Open(paths) | PublishTransition → the RB's
+     ReplayBrowserMasterControl.Transition (its OWN inventory scan + OpenGroup); DebugApiHost.OpenRecording (text → body → EnterReplay); DirectorRenders.OpenRecording
+     (a Func the HTTP host set); IDirectorHost.OpenRecording (the verifier's IRecordedRun READER — not a replay open: unrelated)
+check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
+```
+
+```mermaid
+classDiagram
+  direction LR
+  class IRecordingOpener { <<NEW interface>> Open(RecordingName, atSeconds) · Shown }
+  class RecordingName { <<NEW record>> ExerciseId · Paths · Parse(text) · Text · Same(other) }
+  class IReplayBrowserControl { <<exists, grown>> extends IRecordingOpener · Open(paths, at) = Open(Files(paths), at) }
+  class ReplayBrowserControl { <<exists, grown>> Open(RecordingName, at) - inventory for an id · Shown }
+  class ReplayBrowserMasterControl { <<exists, changed>> Transition(OperatingReplay) -> control.Open(Exercise(id)) }
+  class ReplayBrowserSubsystem { <<exists>> OpenGroup(paths) - the one group load }
+  class DirectorPackHost { <<exists, grown>> Recordings : IRecordingOpener? }
+  class DirectorRunner { <<exists, grown>> Recordings · TickItemRecording · NoRecordings }
+  class DirectorRenders { <<exists, changed>> Recordings (was a Func set by HTTP) }
+  class ReelItem { <<exists, grown>> Recording }
+  class ReelComposer { <<exists, grown>> Add stamps the open recording }
+  class DebugApiService { <<exists>> EnterReplay -> OpenRecordingFiles -> control.Open }
+  class DebugApiHost { <<exists, changed>> OpenRecording: RecordingName.Parse -> EnterReplay · no longer sets the queue's opener }
+  IReplayBrowserControl --|> IRecordingOpener
+  ReplayBrowserControl ..|> IReplayBrowserControl
+  ReplayBrowserControl --> ReplayBrowserSubsystem : OpenGroup + seek
+  ReplayBrowserMasterControl --> ReplayBrowserControl : exercise id
+  DebugApiService --> IReplayBrowserControl : path / paths
+  DebugApiHost --> DebugApiService : recording= (EnterReplay)
+  DirectorPackHost --> IRecordingOpener : the RB hands BrowserControl
+  DirectorRunner --> IRecordingOpener : a reel item's recording
+  DirectorRenders --> IRecordingOpener : a job's recording
+  ReelComposer --> IRecordingOpener : Shown.Text
+  DirectorRunner --> ReelItem : plays
+```
+*What the picture shows that prose hid:* every arrow into the opener ends in ONE class (`ReplayBrowserControl.Open`) and from there in `OpenGroup` — the
+master transition, which used to scan the inventory and load the group itself, now goes through it too; and the pack's edge to it does not pass through
+`DebugApiHost`, which is why a Replay Browser with no HTTP host can now open recordings between reel items.
+
+```mermaid
+sequenceDiagram
+  actor P as Person / agent
+  participant Q as DirectorRenders
+  participant R as DirectorRunner
+  participant O as IRecordingOpener (RB control)
+  participant G as ReplayBrowserSubsystem.OpenGroup
+  participant M as the map (FilmFrameSink)
+  P->>Q: Enqueue(reel [A's take @A, B's take @B], capture)
+  Q->>R: Play(reel, capture) - items naming a recording are validated at their turn
+  R->>R: start recording = O.Shown (none here)
+  R->>O: item 1: Open(A) - A is not shown
+  O->>G: OpenGroup(A's files) + seek 0
+  Note over R: 2 settle frames, then load, enter, play item 1 (A's take beside A)
+  R->>M: frames of item 1
+  R->>O: item 2: Open(B)
+  O->>G: OpenGroup(B's files)
+  R->>M: frames of item 2 (B's take beside B) - same frames folder
+  R-->>Q: Done - ONE MP4
+```
+
+```mermaid
+graph TD
+  subgraph RB["--mode replaybrowser (with or without HROT_DEBUG_API_PORT)"]
+    RBP["DirectorPackHost.Recordings = BrowserControl"]:::new
+    RBR["DirectorRunner + DirectorRenders: Recordings"]:::new
+    RBC["ReplayBrowserControl.Open"]
+    RBG["OpenGroup"]
+    RBH["DebugApiHost routes (only with a port)"]
+  end
+  subgraph ED["Editor"]
+    EDP["DirectorPackHost.Recordings = null"]
+    EDR["runner: a reel item naming a recording - refused at Play"]
+  end
+  RBP --> RBR
+  RBR --> RBC
+  RBH -->|"POST /replay, recording="| RBC
+  RBC --> RBG
+  EDP -.->|"no opener"| EDR
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+  linkStyle 4 stroke:#c33,stroke-dasharray:4 3
+```
+*Caption:* WHO OPENS — on the Replay Browser the pack reaches the opener directly (green), so the HTTP host is one more caller, not the owner; the
+editor's pack gets none (red dashed), and its runner refuses such a reel with the item and the reason instead of playing it on the wrong source.
+
+**Claim table**
+
+| the change rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| every RB open ends in `OpenGroup` | ✅ `ReplayBrowserSubsystem.DebugSurface.cs` `OpenGroup` (panel's `OnLoadGroup`, `ReplayBrowserControl.Open`, the master transition) | ✅ RB-1 "the panel's load and POST /replay are ONE path" (`ReplayBrowserSubsystem.cs:229`) |
+| the master transition loaded the group itself (a second resolver of an exercise id) | ✅ `ReplayBrowserMasterControl.Transition` scanned + `OpenGroup` (pre-CE-1391) | ✅ §11r R1 "no second opener" |
+| the pack could not reach the opener without HTTP | ✅ `DebugApiHost.AttachDirector` set `renders.OpenRecording`; `Program.cs:518` attaches only with a port | ⛔ not stated — measured (§11u D4's edge) |
+| a recording's takes live beside it, so the store follows the open recording | ✅ `ReplayBrowserSubsystem.Director.cs` `DirectorTakesRoot` (from `PrimaryRecordingPath`) | ✅ TE-1, D8 |
+| an item's take beside ANOTHER recording cannot be validated at `Play` | ✅ `DirectorRunner.Play` loaded every item's take from `_host.Takes` | ✅ the CE-1391 row's ⚠ |
+| the sound track and the frames already span items | ✅ `ItemOffset`, one `FramesDir` per request | ✅ Film Director §4a (a reel is ONE movie) |
+| `IDirectorHost.OpenRecording` is a different concept | ✅ returns `IRecordedRun` (the verifier reads samples) | ✅ CE-4061 (the verifier is an extension) — not touched |
+
+**Decisions** *(the rejected alternatives one line each)*
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **E1** | **ONE opener interface, `IRecordingOpener { Open(RecordingName, at); Shown }`**, which `IReplayBrowserControl` extends; the RB's `ReplayBrowserControl.Open` is THE implementation (exercise id → inventory; files → existence) and ends in `OpenGroup`; `Open(paths, at)` stays as a one-line spelling | a `Func<string,string?>` on the pack (D4's rejected "second opener") — it would sit beside `EnterReplay`'s resolution · moving `EnterReplay` into `Hrot.Presentation` — it is the debug service's (hints, JSON results) and cluster hosts publish a transition instead |
+| **E2** | **the master transition opens through it** (`Transition(OperatingReplay)` → `control.Open(Exercise(id))`) | leaving its own scan + `OpenGroup` — then `POST /replay {exerciseId}` and a reel item's id would resolve in two places |
+| **E3** | **`RecordingName.Parse` is the ONE reading of the text** (id · folder · `|`-list · file); `DebugApiHost.OpenRecording`, the queue and the runner parse through it | three copies of the guid / folder / file switch |
+| **E4** | **`DirectorPackHost.Recordings`** — the pack hands it to the runner and the queue; the HTTP host no longer sets the queue's opener | the HTTP host keeping that job — exactly the blocker |
+| **E5** | **`ReelItem.Recording`** (JSON `recording`, written only when set); the runner opens it in `Loading` before the item's load (2 settle frames, `OpenSettleFrames` shared with the queue); an item naming none plays over the recording the play STARTED on (`Shown` at `Play` — a render job's `recording` once the queue opened it), re-opened if an earlier item moved off it | opening every item's recording at `Play` — only one can be open · "whatever is open now" for an unnamed item — after item 2 opened B, item 3 would silently play B |
+| **E6** | **validated at its turn**: `Play` skips the take check of an item naming a recording (only its text is parsed); `TickEntering` loads it from the store beside THAT recording and fails the item with the store's reason | validating against the shown recording's store — a false "no take" for every other recording |
+| **E7** | **the editor refuses** such a reel at `Play` (`item N (scenario/take) names a recording, and this host opens no recordings …`); a render of it fails with that reason and the queue goes on | playing the item on the editor's scenario — a film of the wrong run, silently |
+| **E8** | **the composer's *Add take* stamps `Shown.Text`** on a host with an opener (the take is beside it); the window shows `@ <recording>` per item | stamping nothing — a reel gathered across recordings would lose which run each take was made for |
+
+**Rails** (each red-proved by a compiling mutation; the report lists mutation and message):
+`DirectorPackTests.CE1391_AReelOverTwoRecordings_PlaysAsOneRun_EachItemOverItsOwnRecording_OnASeekingHost` ·
+`ReplayBrowserSubsystemTests.CE1391_EveryRecordingOpen_EndsInTheOneOpener_AndTheRunnerReachesItWithoutHttp` ·
+`ReplayBrowserSubsystemTests.CE1391_AReelOverTwoRecordings_RendersAsOneMovie_InAWindowedReplayBrowser` (env-gated `HROT_FILM_WINDOW=1`) ·
+`DirectorRunnerTests.CE1391_OnTheEditor_AReelItemNamingARecording_IsRefused_WithTheReason` ·
+`FilmDirectorTests.CE1391_AReelItemsRecording_RoundTrips_AndOldReelsLoadUnchanged` · `FilmDirectorTests.CE1391_ARecordingsText_ParsesOneWay_AndNamesTheSameRecordingAgain`.
+
+⏭ Not built here: the HTTP routes still take a reel by NAME only (`reel: "<name>"`) — a reel whose items name recordings is saved by the composer
+(`films/<name>.reel.json`) and rendered by name, or queued from the Director window; an inline reel object in `POST /director/renders` is not added.
+
+### 11v. R3 rest — audio at any rate, shot templates, Verify stills *(ui, `2026-10-27`, CE-1305 (the rest of R3; the Graphics track is §11t); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ Frame: [CE-1305](blueprints/Blueprint_Issues_Tracker.md) — §6 R3 *"shot templates · audio at any rate (TE-11) · still keys in Verify (TE-10)"*; accepted when *"a
+regression run writes a PNG per still key; slow motion sounds as TE-11 says"*. Basis: §0 TE-10 / TE-11, §2 *"shot templates from a marker … reuses D-10's draft
+rules"*, §11e CR-8 (ONE drafter, used by the person and the agent), CR-9 (slow motion = the transport's rate), CR-10 / CR-12 (documentation stills render in the
+RB from the verify run's recording), §11n (the drafter's beats), §11r R2 / R4 (stills = one job; film seconds through the segments), §11s D3 (on a recording the
+index leads over a bake), §11u D3 / D4 (the render queue opens each job's recording at its turn), [Film Production](DESIGN_Film_Production.md) §4a (CE-4060: the
+documentation take — its keys ARE still keys).
+
+**INVENTORY** *(`2026-10-27`)* — ⚠ **this worktree's graph could not be built** (`index_repository` → `aborted_previous_preserved`: files changed under the run,
+another agent's indexer in flight); the graph queries ran on the main checkout's `ui` index (`home-user-HROT`, **stale**: built before §11j moved the director to
+`Hrot.Presentation`, before the Drafter) **and** grep over this tree, which is what the claims rest on.
+
+```
+search_graph name_pattern=".*(Template|Still|Drafter).*" label=Class      → 43: EQS / formation / TKB templates only — no shot template, no stills type (the index predates DirectorStills and Drafter)
+search_graph name_pattern=".*(Sound|Audio).*" label=Class                 → 31: AudioDirector, AudioLayer, SoundMixer, SoundSources, SoundTrack, RecordingAudioOutput, NullAudioOutput,
+                                                                                 RaylibAudioOutput, SoundSynthesizer, AudioSettings / AudioPreferences, SoundTkbCatalog (+ perception's SoundEmission*, unrelated)
+search_graph name_pattern=".*(Sound|Audio|Director).*" label=Interface    → 3: IAudioOutput, IDirectorHost, IDirectorSound
+grep "Rate|rate" Hrot/Engine/Hrot.Presentation/Audio/                      → only sample rates — NOTHING in the live audio knows the playback rate
+grep "class Drafter|MomentCamera|GroupCamera|TheMoment"                    → Drafter.cs: the beats are built inline in Draft over the private Framing; MomentCamera / GroupCamera (CE-4060) already reuse it
+grep "DocumentationTakes\.|director/renders|director/stills" scripts/ Hrot/ → DocumentationTakes is called by its rails only; nothing renders a verify run's still keys yet (CE-4060's night run is the coordinator's)
+grep '"still"' **/*.take.json                                             → 0: no authored take carries a still key today; the documentation take (_doc) is the first producer
+grep "Baked?.Times" DirectorStills.cs                                      → the stills PLAN resolved anchors through the take's BAKE only — not the run's index (the runner's book does, §11s D3)
+check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
+```
+
+```mermaid
+classDiagram
+  direction LR
+  class SoundAtRate { <<NEW, static>> Gain(category, rate) · OnlyBlastsAbove 2 · Ducked 0.5 }
+  class SoundMixer { <<exists, grown>> Rate NEW · RateGain(category) NEW }
+  class SoundSources { <<exists, grown>> Volume(s) x RateGain · engine velocity per SIM second }
+  class AudioLayer { <<exists, grown>> Update: Mixer.Rate = AudioDirector.Rate, 1 while capturing · the track's CategoryOf }
+  class AudioDirector { <<exists, grown>> TakeSound · Recorder · Rate NEW }
+  class SoundTrack { <<exists, grown>> CategoryOf NEW · Cue.Category NEW · RenderWav applies SoundAtRate per pass · RateAt NEW }
+  class IDirectorSound { <<exists, grown>> SetRate(rate) NEW }
+  class AudioDirectorSound { <<exists, grown>> SetRate to AudioDirector.Rate · Reset and EndLog clear it }
+  class DirectorRunner { <<exists, grown>> Tick: SetRate · AnchorTimesOf(take) NEW }
+  class ShotTemplate { <<NEW enum>> Establish · OverTheShoulder · Moment · Consequence · Reverse · Follow · TopDown }
+  class Drafter { <<exists, grown>> Draft's beats = TemplateShot(framing, template, window) · TemplateCamera NEW · HoldOf · LabelOf }
+  class EventAnchor { <<exists, grown>> Lane · EventIndex NEW }
+  class DirectorDrafts { <<exists, grown>> TemplateCamera(anchor, template, sim) NEW }
+  class DirectorTracks { <<exists, grown>> AddTemplateKey · Camera row menu · AddKeyAt shared with K }
+  class DirectorWindow { <<exists, grown>> template combo · Add key from template }
+  class DirectorStills { <<exists, grown>> PlanOf(take, times, everyKey, anchors) · Prepare through AnchorTimesOf }
+  class DirectorRenders { <<exists, grown>> a stills job waits for its recording's index }
+  class AnchorBook { <<exists>> the ONE resolver, §11s }
+  SoundMixer --> SoundAtRate
+  SoundTrack --> SoundAtRate
+  SoundSources --> SoundMixer : RateGain
+  AudioLayer --> AudioDirector : Rate
+  AudioDirectorSound ..|> IDirectorSound
+  AudioDirectorSound --> AudioDirector
+  DirectorRunner --> IDirectorSound : SetRate each playing frame
+  Drafter --> ShotTemplate
+  DirectorDrafts --> Drafter : TemplateCamera
+  DirectorTracks --> DirectorDrafts : the session's Templates
+  DirectorTracks --> EventAnchor : K's anchor
+  DirectorWindow --> DirectorTracks
+  DirectorStills --> DirectorRunner : AnchorTimesOf
+  DirectorRunner --> AnchorBook
+  DirectorRenders --> DirectorStills
+```
+*What the picture shows that prose hid:* each of the three parts is an EDGE into something that already existed — the rate rule is one function both the live mixer
+and the offline track call; a template is one of the drafter's own beats (the beats now go through the same `TemplateShot`); a verify still is the stills job planning
+through the runner's resolver instead of a bake. Two new types (`SoundAtRate`, `ShotTemplate`), nothing else new.
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (each playing frame)
+  participant S as AudioDirectorSound
+  participant L as AudioLayer (the map's)
+  participant M as SoundMixer and SoundSources
+  participant T as SoundTrack (capture)
+  R->>S: SetRate(request x shot x segment, 0 paused, infinity in a fast-forward)
+  S->>L: AudioDirector.Rate
+  L->>M: Mixer.Rate (1 while a film is captured)
+  M->>M: Volume x SoundAtRate.Gain(category, rate): above 2x only explosions, ducked, 0 silent
+  Note over T: capture - every sound logged at its natural level with its category
+  R->>S: EndLog(the frames' sim times)
+  S->>T: RenderWav - per pass the frame's rate = delta sim x fps, the same SoundAtRate, natural pitch, never resampled
+```
+
+```mermaid
+sequenceDiagram
+  actor P as Person
+  participant C as Camera row or Director window
+  participant K as DirectorTracks
+  participant A as eventAt (K's NearestBefore)
+  participant D as DirectorDrafts
+  participant F as Drafter
+  participant E as TakeEditor
+  P->>C: right-click empty space at t - "Add key: Over the shoulder"
+  C->>K: AddTemplateKey(OverTheShoulder, t)
+  K->>A: the event before t (lane, index - the one K hangs its key on)
+  K->>D: TemplateCamera(anchor, template, t)
+  D->>F: MomentAt(lane, index), then TemplateCamera(moment, template, t) = TemplateShot(framing, template, [t, t + hold])
+  K->>E: AddKey(the key at anchor + offset, camera) - ONE undo step
+```
+
+```mermaid
+sequenceDiagram
+  participant N as night run (CE-4060, coordinator)
+  participant Q as DirectorRenders (RB, windowed)
+  participant J as DirectorStills
+  participant R as DirectorRunner
+  participant I as the recording's index
+  N->>Q: POST /director/renders {recording, kind stills, take _doc or main, dir report}
+  Q->>Q: open the recording at its turn, wait until its index is read
+  Q->>J: Prepare - PlanOf(take, the keys with a Still, R.AnchorTimesOf(take))
+  J->>R: AnchorTimesOf - a fresh bake, with THIS run's events leading (AnchorBook)
+  R->>I: shot:Tank#1 at this run's 8.9 s, not the authoring run's
+  J-->>Q: a PNG per still key and the contact sheet, in the report folder
+```
+
+```mermaid
+graph TD
+  subgraph HOSTS["every map host - MapInteractionPack builds ONE AudioLayer"]
+    AL["AudioLayer.Update - Mixer.Rate = AudioDirector.Rate"]
+  end
+  subgraph PACK["DirectorPack (editor, RB) - DirectorPack.Tick"]
+    RUN["DirectorRunner.TickPlaying - SetRate"]:::new
+    DS["AudioDirectorSound - AudioDirector.Rate"]:::new
+    DR["DirectorDrafts.TemplateCamera"]:::new
+    TR["DirectorTracks - Camera row menu, window button"]:::new
+    ST["DirectorStills.Prepare - Runner.AnchorTimesOf"]:::new
+    RQ["DirectorRenders - waits for the index"]:::new
+  end
+  RBT["the RB transport at 4x with NO film"]
+  NODE["CGF / IG / BDC - no director"]
+  RUN --> DS --> AL
+  TR --> DR
+  RQ --> ST
+  RBT -.->|"not wired: heard at 1x (CE-1400)"| AL
+  NODE -.->|"no runner: Rate stays null = 1x"| AL
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+  linkStyle 4 stroke:#c33,stroke-dasharray:4 3
+  linkStyle 5 stroke:#c33,stroke-dasharray:4 3
+```
+*Caption:* WHO SETS THE RATE EACH FRAME — only the director's runner, while it plays; every map host's ONE audio layer reads it. The red dashed edges are where
+the rule is never reached: the Replay Browser's own transport rate when no film plays (the person scrubbing at 4× hears 1× — filed CE-1400), and nodes with no
+director. Templates and stills exist on every host the pack attaches to; a template needs an index (no index ⇒ no event ⇒ disabled).
+
+**Claim table**
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the offline track already places a cue at its film time, through every pass | ✅ `SoundTrack.FilmTimes` (CE-1369), interpolated between frames | ✅ TE-11 *"the offline track … maps each cue to film time"* |
+| nothing in the live audio knows the playback rate | ✅ grep `Audio/`: sample rates only; `SoundSources` velocity = Δposition / wall `dt` | ⛔ searched `DESIGN_FPS_Audio.md`: no rate rule — its header names TE-11 as the owner |
+| a sound's category is known where its level is computed | ✅ `SoundSources.Volume(SoundDto s)` — `s.Category`; every request and loop goes through it | ✅ AU-9 (per-category volume) |
+| a captured cue does not know its category | ✅ `RecordingAudioOutput.Play(clip, …)` — the clip id only; `SoundTkbCatalog.SoundOf(tkb, clip).Category` maps it | ⛔ not stated — measured |
+| the runner knows the film's rate every frame | ✅ `DirectorRunner.Rate` = request × shot × segment (CR-7) | ✅ CR-9 (slow motion is the transport's rate) |
+| the drafter's beats can be named and reused one by one | ✅ `Drafter.Draft` built ① – ⑤ inline over ONE private `Framing` | ✅ §2 *"shot templates … reuses D-10's draft rules"*, CR-8 *"the §2 shot template"* |
+| K's event is the one a template should frame | ✅ `DirectorTracks` K → `_eventAt(sim)` (CR-6) | ✅ CR-6 (keys anchor to events) |
+| a verify run's still keys are planned at THIS run's events | ⛔ before: `DirectorStills.PlanOf` → `Baked.Times` only; a promoted take carries another run's bake or none (§11s D6) | ✅ §11s D3 *"on a recording the index leads"*; TE-10 |
+| right after an open the index is partial | ✅ `RecordingTimelineSource` scans in the background; §11r known edge (`complete: false`) | ✅ §11r known edges |
+| CE-4060's documentation take renders through the stills job | ✅ `DocumentationTakes.From` — every key a `Still`; §11u's note | ✅ Film Production §4a "what renders it" |
+
+**Decisions** *(the lean; the rejected alternatives one line each)*
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **A1** | ⭐ **ONE rule, `SoundAtRate.Gain(category, rate)`**, called by the live mixer (`SoundMixer.RateGain`, inside `SoundSources.Volume`) and the offline track (`RenderWav`, per pass, the rate = Δsim × fps of the frame): never resampled (natural pitch and length, the cue at its film time); ≤ 2× all; > 2× explosions only, −6 dB; ≤ 0 (paused, a held frame, a card) silent | **resample** (the brief's question) — TE-11 rejects it in words ("a chipmunk / drone") · **drop / repeat samples** — the same pitch error in steps · a second rule in the track — two copies drift |
+| **A2** | **the runner sets the rate every playing frame** (`IDirectorSound.SetRate`, a default no-op on the seam) → `AudioDirector.Rate` → the layer's mixer; `Reset` / `EndLog` clear it; ⛔ **while a film is captured the live mixer stays at 1×** — every sound is logged at its natural level with its category and the offline track applies the rule per pass (a replayed stretch may play at another rate than when it was logged, CE-1369) | the layer reading the runner directly — the audio sits below the director · applying the rule live during a capture — the logged gain would be the FIRST pass's, wrong for a replay pass at another rate |
+| **A3** | **an engine's velocity is per SIM second** (Δposition / (dt × rate)) — its pitch and level stay natural in slow motion | wall-time velocity — at 0.5× an engine would drop in pitch (half the speed seen) |
+| **T1** | ⭐ **the shot templates ARE the drafter's beats**: `ShotTemplate` names them (Establish · OverTheShoulder · Moment · Consequence · Reverse) plus two framings from the same rules (Follow — the consequence's follow at the moment's height; TopDown — the moment's midpoint from −85°); `Drafter.Draft` now builds every beat through ONE private `TemplateShot(framing, template, window)` and `Drafter.TemplateCamera` calls the same ⇒ a template key at a drafted key's time IS that key's camera | a template table beside the drafter — a second camera logic (ruling 9) · only the five beats — "follow" and "top-down" were asked for and cost one line each over the same `Midpoint` / `Followed` |
+| **T2** | **a template frames the event K would hang the key on** (`EventAnchor` now carries its `Lane` / `EventIndex`; `Drafter.MomentAt` on it) and the key is hung on it the K way (`AddKeyAt`, shared with K) — one undo step; offered on the Camera row's empty-space menu (`"Add key: …"`, disabled with no event before the click) and the Director window (*template* + *Add key from template* at the playhead) | the selected unit as the subject — no line (actor → subject) and no kind ⇒ none of the grammar's rules apply · a "template" key kind stored in the take — the format stays cameras (the template is HOW the camera was made, not what it is) |
+| **S1** | ⭐ **"still keys captured by Verify" = a verify run's RECORDING renders the still keys of a take (the `_doc` take CE-4060 drafts, or a scenario take that names stills) through the render queue** (CR-10, CR-12; §11u's seam) — ui's piece is that the stills PLAN resolves keys through the runner's ONE resolver (`DirectorRunner.AnchorTimesOf` → `AnchorBook`: a fresh bake, the index leading on a recording) so each still lands on THIS run's event | the editor's Verify run capturing PNGs live (TE-10's first wording) — CR-12 / §11r R3 refuse it (each still re-runs the scenario) · planning by the take's bake — a promoted take's bake is another run's or dropped (§11s D6) ⇒ "needs an anchor that is not baked" on every verify recording |
+| **S2** | **a stills render job waits for its recording's index** after the open (≤ `MaxIndexWaitFrames`); the direct route says why when an anchor is missing while the index is still read | planning on the partial index — anchors past the scanned frames go missing at random |
+| **S3** | **the night run itself is the coordinator's** (CE-4060): which takes to enqueue, the report folder, the contact sheet beside the verdicts — [NOTE_Ui_To_Coordinator_Verify_Stills](blueprints/batches/NOTE_Ui_To_Coordinator_Verify_Stills.md) | editing `DocumentationTakes` / the verify runner here — their files, their lane |
+
+**✅ As built `2026-10-27`** — the diagrams above are true. Files: `Hrot.Presentation/Audio/SoundAtRate.cs` (new) · `SoundMixer.cs` (`Rate`, `RateGain`) ·
+`SoundSources.cs` (`Volume` × `RateGain`; engine velocity per sim second) · `AudioLayer.cs` (`Mixer.Rate`, the track's `CategoryOf`) · `SoundTrack.cs`
+(`AudioDirector.Rate`, `CategoryOf`, `Cue.Category`, `RateAt`, `RenderWav` per pass) · `Map3D/Director/DirectorHost.cs` (`IDirectorSound.SetRate`) ·
+`DirectorAdapters.cs` (`AudioDirectorSound.SetRate`, cleared by `Reset` / `EndLog`) · `DirectorRunner.cs` (`SetRate` each playing frame, `AnchorTimesOf`) ·
+`Drafter.cs` (`ShotTemplate`, `TemplateShot`, `TemplateCamera`, `HoldOf`, `LabelOf`, `Templates`; `Draft` and `Framing.Moment` through `TemplateShot`) · `EventAnchors.cs`
+(`EventAnchor.Lane` / `EventIndex`) · `DirectorDrafts.cs` (`TemplateCamera`) · `DirectorTracks.cs` (`AddTemplateKey`, `CanAddTemplateKey`, `AddKeyAt`, the Camera row's
+`MenuItems(itemId, at)`) · `DirectorTakeSession.cs` (`Templates`) · `DirectorPack.cs` (`session.Templates = drafts.TemplateCamera`) · `DirectorWindow.cs`
+(`DrawTemplates`, `AddTemplateKey`) · `DirectorStills.cs` (`PlanOf(…, anchors)`, `Prepare` through `AnchorTimesOf`, `IndexStillReading`) · `DirectorRenders.cs`
+(the index wait).
+
+**Known edges:** (1) the RB's own transport rate (no film playing) is not heard by the rule — CE-1400. (2) A one-shot's speed-of-sound delay is still counted
+in wall seconds (at 0.5× a far shot is heard half as late in film time) — small, not filed. (3) Live, a sound already waiting for its delay when the film pauses
+still starts. (4) The Director window's template controls are ImGui (no frame rail); the rails drive `AddTemplateKey` (the window's model).

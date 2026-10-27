@@ -82,6 +82,45 @@ public sealed class DirectorPackTests : IDisposable
         Assert.Empty(pack.Window.Tabs);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (docs/DESIGN_Director_Timeline_Editor.md §11u D1, D3; success condition 1, the Director window's model) — the pack builds ONE reel
+    /// composer and ONE render queue and the Director window draws THOSE (not copies of its own); with a reel being composed the window plays and renders the
+    /// reel AS IT STANDS (unsaved: the picked saved reel is ignored); its render of one picked take is that take (rendered beside it), of a reel the composed
+    /// reel, at the picked size and rate; and on a headless host the queue refuses, so the window's <i>Queue render</i> says why. 🔴 Mutation:
+    /// <c>DirectorPack.Attach</c> handing the window <c>composer: null</c> (the window builds its own) ⇒ the window's composer is not the pack's and plays nothing
+    /// composed through the pack ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_TheDirectorWindow_ComposesThePacksReel_AndRendersItAsItStands()
+    {
+        var store = new TakeStore(() => _root, () => Path.Combine(_root, "films"));
+        var pack = DirectorPack.Attach(new DirectorPackHost(new BareHost(store), () => null, () => null, Headless: true, Pilot: () => null,
+                                                            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel()));
+        Assert.Same(pack.Composer, pack.Window.Composer);
+        Assert.Same(pack.Renders, pack.Window.Renders);
+
+        var saved = new Reel { Name = "saved", Items = new[] { new ReelItem { Scenario = "x", Take = "main" } } };
+        Assert.Same(saved, pack.Window.ReelToPlay(saved));                                   // nothing composed: the picked reel
+        Assert.Empty(pack.Composer.New("composed"));
+        pack.Composer.Add("s-a", "main");
+        pack.Composer.Add("s-b", "wide");
+        pack.Composer.Move(1, 0);
+        var playing = pack.Window.ReelToPlay(saved)!;
+        Assert.Equal(new[] { "s-b/wide", "s-a/main" }, playing.Items.Select(i => i.Scenario + "/" + i.Take));
+        Assert.True(pack.Composer.Dirty);                                                    // unsaved, and still what plays
+
+        pack.Window.RenderSize = 0;                                                          // 640x360
+        pack.Window.RenderRate = 0;                                                          // 15 fps
+        var reelRender = pack.Window.RenderRequestFor(playing);
+        Assert.Same(playing, reelRender.Reel);
+        Assert.Equal((RenderKind.Movie, 640, 360, 15), (reelRender.Kind, reelRender.Width, reelRender.Height, reelRender.Fps));
+        var takeRender = pack.Window.RenderRequestFor(Reel.Of("s-a", "main"));
+        Assert.Equal(("s-a", "main", (Reel?)null), (takeRender.Scenario, takeRender.Take, takeRender.Reel));
+
+        Assert.Equal(DirectorRenders.NoRenderer, pack.Window.QueueRender(playing));          // headless: refused, with the reason
+        Assert.Empty(pack.Renders.Jobs);
+    }
+
     // ── CE-1303 P2a (§11m) — CR-4 on a host that CANNOT seek (the editor's kind: a live run, R-3034) ─────────────────────────────────────
 
     /// <summary>A live host: a load restarts the run at sim 0, each step is taken at once, a hold advances its wall clock (no sleeping).</summary>
@@ -451,7 +490,7 @@ public sealed class DirectorPackTests : IDisposable
         Assert.Equal(("s-a", "draft"), (editor.Take.Scenario, editor.Take.Name));
         Assert.True(editor.Dirty);
         Assert.False(File.Exists(store.TakePath("s-a", "draft")));                                     // unsaved: nothing written
-        Assert.Equal(3, pack.Session.Tracks.Count);                                                      // the panel shows its tracks
+        Assert.Equal(5, pack.Session.Tracks.Count);                                                      // the panel shows its tracks (CE-1304 / CE-1305 P6: + View, Graphics)
         Assert.False(pack.Session.CanUndo);                                                              // a fresh history
         Assert.Same(editor.Take, pack.Runner.OpenTake!("s-a", "draft"));                                 // and Play plays it
 
@@ -467,5 +506,267 @@ public sealed class DirectorPackTests : IDisposable
 
         var other = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(5, "life.spawned", 1, 0, 0f, 0f, 0f);
         Assert.Empty(panel.EventMenu(index, new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuContext("life.spawned", 0, 5, other)));
+    }
+
+    // ── CE-1304 P4 (§11s) — CR-5 on a LIVE host: the event anchor is found in the live index as the run plays ─────────────────────────────
+
+    /// <summary>
+    /// A live host whose world ticks a sim clock and whose LIVE index is the real one every node runs (<see cref="Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource"/>
+    /// over the shipped lanes), stepped after each step as a node steps it after the kernel. <c>Alpha</c> (network id 1) fires once, at <see cref="FireAt"/>.
+    /// </summary>
+    private sealed class LiveIndexHost : IDirectorHost
+    {
+        public const double FireAt = 2.0;
+        private readonly Entity _alpha;
+        private int _frame;
+
+        public LiveIndexHost(TakeStore takes)
+        {
+            Takes = takes;
+            World.RegisterComponent<SimTransform>();
+            World.RegisterComponent<EntityInfo>();
+            World.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            World.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+            _alpha = World.CreateEntity();
+            World.AddComponent(_alpha, new EntityInfo { Name = new FixedString64("Alpha") });
+            World.AddComponent(_alpha, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1 });
+            World.AddComponent(_alpha, new SimTransform { Position = new System.Numerics.Vector3(0, 0, 0), Rotation = System.Numerics.Quaternion.Identity });
+            Live = new Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource(Fdp.Toolkit.ReplayBrowser.Timeline.ShippedTimelineLanes.Catalog(),
+                new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Live: true),
+                new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(
+                    new StructEdit.Reflection.ComponentEditServiceBuilder().Build())));
+        }
+        public Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource Live { get; }
+        public EntityRepository World { get; } = new();
+        EntityRepository? IDirectorHost.World => World;
+        public void LoadScenario(string scenario) { SimTime = 0d; _frame = 0; }
+        public bool IsOperatingEdit => true;
+        public int? EntityCount => null;
+        public bool InPreview { get; private set; }
+        public void EnterPreview(bool startPaused) { InPreview = true; Paused = startPaused; }
+        public void ExitPreview() => InPreview = false;
+        public bool Paused { get; private set; }
+        public void Pause() => Paused = true;
+
+        /// <summary>One sim frame: the clock, Alpha's round on the frame that reaches <see cref="FireAt"/>, then the live index's step (published at once).</summary>
+        public void StepBy(float seconds)
+        {
+            double before = SimTime;
+            SimTime += seconds;
+            World.SetSingleton(new GlobalTime { FrameNumber = ++_frame, TotalTime = SimTime });
+            if (before < FireAt - 1e-9 && SimTime >= FireAt - 1e-9)
+                World.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = _alpha, Quantity = 1 });
+            World.Bus.SwapBuffers();
+            Live.Step(World, _frame * 1000L, force: true);
+        }
+        public double SimTime { get; private set; }
+        public double WallNow { get; private set; }
+        public void Hold(double seconds) => WallNow += Math.Max(seconds, 0d);
+        public string? BehaviourName(int hash) => null;
+        public TakeStore Takes { get; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P4 — CR-5 (§11s, success condition 3): on a LIVE host the take's event anchor <c>shot:Alpha#1</c> (NOT baked) is unknown until Alpha's round
+    /// appears in the live index — the cut it places is unresolved before — and then resolves to the round's frame time: the camera cuts to key 2 at round + 0.5 s,
+    /// and the item ends <c>ok</c>, the anchor found at 2.0 s. The index is the one the pack hands the runner (<see cref="DirectorPackHost.Index"/>).
+    /// 🔴 Mutation: <c>DirectorPack.Attach</c> not handing the runner the host's index (<c>runner.Index = h.Index</c> removed) ⇒ the anchor is never found ⇒ key 1 at 2.7 s
+    /// and <c>beat-missing</c>.
+    /// </summary>
+    [Fact]
+    public void CE1304_CR5_OnALiveHost_AnEventAnchor_ResolvesWhenItsEventAppearsInTheLiveIndex()
+    {
+        FilmStudio.Reset();
+        var store = new TakeStore(() => _root, () => Path.Combine(_root, "films"));
+        store.Save(new Take
+        {
+            Scenario = "s-a", Name = "main",
+            Anchors = new Dictionary<string, AnchorSpec> { ["shot:Alpha#1"] = new() { On = "shot", By = "Alpha", N = 1 } },
+            Keys = new[]
+            {
+                new CameraKey { At = new AtExpr(0.5d), Camera = new CameraSpec { LookAt = Key1At } },
+                new CameraKey { At = new AtExpr(0.5d, "shot:Alpha#1"), Camera = new CameraSpec { LookAt = Key2At } },
+            },
+            EndAt = new AtExpr(4d),
+        });
+        var host = new LiveIndexHost(store);
+        var pack = DirectorPack.Attach(new DirectorPackHost(host, () => null, () => null, Headless: true, Pilot: () => null,
+                                                            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel(), Index: () => host.Live.Index));
+        Assert.Empty(pack.Runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+
+        Assert.Equal(Key1At, CameraAt(pack, host, 1.9));
+        Assert.Contains(pack.Runner.Reports[0].Unresolved, u => u.Contains("shot:Alpha#1"));   // not in the live index yet: the cut it places is unknown
+        Assert.Equal(Key1At, CameraAt(pack, host, 2.4));
+        Assert.Equal(Key2At, CameraAt(pack, host, 2.7));                      // the round at 2.0 s + 0.5
+        for (int i = 0; i < 2000 && pack.Runner.Busy; i++) pack.Tick();
+
+        var report = pack.Runner.Reports[0];
+        Assert.True(report.Status == "ok", $"{report.Status}: missing {string.Join(", ", report.Missing)}; {string.Join("; ", report.Problems)}");
+        Assert.InRange(report.Found["shot:Alpha#1"], LiveIndexHost.FireAt - 1e-6, LiveIndexHost.FireAt + 1d / 60d + 1e-6);
+    }
+
+    private static System.Numerics.Vector3? CameraAt(DirectorPack pack, LiveIndexHost host, double sim)
+    {
+        for (int i = 0; i < 2000 && pack.Runner.Busy && !(pack.Runner.Phase == DirectorPhase.Playing && host.SimTime >= sim - 1e-9); i++) pack.Tick();
+        pack.Tick();
+        return FilmStudio.Shot?.Pose?.LookAt;
+    }
+
+    // ── ⭐ CE-1391 (§11u "as built: CE-1391", TE-16) — a reel over TWO recordings, one run, on a fake seeking host ─────────────────────────────────
+
+    /// <summary>The ONE opener of a fake Replay Browser: it knows the recordings under <c>known</c> (each a folder's <c>node_1.fdp</c>) and records every open.</summary>
+    private sealed class FakeRecordings : Hrot.Presentation.DebugApi.IRecordingOpener
+    {
+        private readonly HashSet<string> _known;
+        public FakeRecordings(params string[] known) => _known = new HashSet<string>(known.Select(Path.GetFullPath));
+        public readonly List<string> Opens = new();
+        public Action? Opened;
+        public Hrot.Presentation.DebugApi.RecordingName? Shown { get; private set; }
+        public string? Open(Hrot.Presentation.DebugApi.RecordingName recording, double atSeconds)
+        {
+            Opens.Add(recording.Text);
+            if (recording.IsExercise || !recording.Paths.All(p => _known.Contains(Path.GetFullPath(p)))) return $"no such recording '{recording.Text}'";
+            Shown = recording;
+            Opened?.Invoke();
+            return null;
+        }
+        /// <summary>The folder name of the recording open now ("A", "B"; none: null).</summary>
+        public string? ShownKey => Shown is { Paths.Count: > 0 } s ? Path.GetFileName(Path.GetDirectoryName(s.Paths[0])) : null;
+    }
+
+    /// <summary>A Replay Browser's kind of host: it SEEKS, each step is taken at once, a recording opened starts at sim 0, and its takes are the ones BESIDE the
+    /// recording open now (TE-1) — so a take is found only while its recording is open.</summary>
+    private sealed class RecordingHost : IDirectorHost
+    {
+        public RecordingHost(FakeRecordings recordings, string root)
+        {
+            Takes = new TakeStore(() => Path.Combine(root, recordings.ShownKey ?? "none"), () => null);
+            recordings.Opened = () => SimTime = 0d;
+        }
+        public EntityRepository? World => null;
+        public void LoadScenario(string scenario) => SimTime = 0d;
+        public bool IsOperatingEdit => true;
+        public int? EntityCount => null;
+        public bool InPreview { get; private set; }
+        public void EnterPreview(bool startPaused) { InPreview = true; Paused = startPaused; }
+        public void ExitPreview() => InPreview = false;
+        public bool Paused { get; private set; }
+        public void Pause() => Paused = true;
+        public void StepBy(float seconds) => SimTime += seconds;
+        public double SimTime { get; private set; }
+        public double WallNow { get; private set; }
+        public void Hold(double seconds) => WallNow += Math.Max(seconds, 0d);
+        public string? BehaviourName(int hash) => null;
+        public TakeStore Takes { get; }
+        public bool CanSeek => true;
+        public void Seek(double sourceSim) => SimTime = sourceSim;
+    }
+
+    /// <summary>A sink that writes nothing and notes, for every captured film frame, the reel item playing and the recording open at that moment.</summary>
+    private sealed class NotingSink : IFrameSink
+    {
+        private readonly Func<int> _item;
+        private readonly Func<string?> _recording;
+        public NotingSink(Func<int> item, Func<string?> recording) { _item = item; _recording = recording; }
+        public readonly List<(string Path, int Item, string? Recording)> Frames = new();
+        public System.Threading.Tasks.Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle)
+        {
+            Frames.Add((path, _item(), _recording()));
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+        public System.Threading.Tasks.Task Card(string path, int width, int height, string text)
+        {
+            File.WriteAllText(path, "");   // the runner copies the card frame for the card's length
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+    }
+
+    private static readonly System.Numerics.Vector3 AAt = new(1f, 0f, 0f), BAt = new(0f, 2f, 0f);
+
+    /// <summary>Recording folders A and B under <see cref="_root"/>, each with its take s-a/main BESIDE it: A's looks at <see cref="AAt"/> for 1 s, B's at
+    /// <see cref="BAt"/> for 1.5 s.</summary>
+    private (string A, string B) TwoRecordingsWithTheirTakes()
+    {
+        string a = Path.Combine(_root, "A", "node_1.fdp"), b = Path.Combine(_root, "B", "node_1.fdp");
+        foreach (var (file, at, end) in new[] { (a, AAt, 1d), (b, BAt, 1.5d) })
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, "");
+            new TakeStore(() => Path.GetDirectoryName(file)!, () => null).Save(new Take
+            {
+                Scenario = "s-a", Name = "main",
+                Keys = new[] { new CameraKey { At = new AtExpr(0d), Camera = new CameraSpec { LookAt = at } } },
+                EndAt = new AtExpr(end),
+            });
+        }
+        return (a, b);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1391</c> (TE-16; §11u "as built: CE-1391"; success condition 1 — the fake seeking host) — a reel whose items come from DIFFERENT recordings is ONE run,
+    /// each item over its own recording. ① The pack hands its host's ONE opener (<see cref="DirectorPackHost.Recordings"/>) to the runner and the render queue. With A
+    /// open, a reel [s-a/main over B, s-a/main naming none] plays: the runner opens B before item 1 and A again before item 2 (the recording the play STARTED on);
+    /// every playing frame of item 1 is over B with B's take (its camera), every one of item 2 over A with A's; each item reports its recording. ② A RENDER of
+    /// [none, B, none] queued with recording A: the queue opens A, the runner B then A — and every captured frame of the ONE capture (one folder, one job) comes
+    /// from its item's recording: items 1 and 3 from A, item 2 from B. 🔴 Mutation: <c>DirectorRunner.TickItemRecording</c> returning false at once (no item
+    /// opens its recording) ⇒ item 1 plays over A (B never opens) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1391_AReelOverTwoRecordings_PlaysAsOneRun_EachItemOverItsOwnRecording_OnASeekingHost()
+    {
+        FilmStudio.Reset();
+        var (a, b) = TwoRecordingsWithTheirTakes();
+        var recordings = new FakeRecordings(a, b);
+        Assert.Null(recordings.Open(Hrot.Presentation.DebugApi.RecordingName.Files(new[] { a }), 0d));   // the person has A open
+        recordings.Opens.Clear();
+        var host = new RecordingHost(recordings, _root);
+
+        // ① the pack wires the ONE opener; a play spans the recordings
+        var pack = DirectorPack.Attach(new DirectorPackHost(host, () => null, () => null, Headless: true, Pilot: () => null,
+                                                            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel(), Recordings: recordings));
+        Assert.Same(recordings, pack.Runner.Recordings);
+        Assert.Same(recordings, pack.Renders.Recordings);
+        var reel = new Reel { Name = "two", Items = new[] { new ReelItem { Scenario = "s-a", Take = "main", Recording = b }, new ReelItem { Scenario = "s-a", Take = "main" } } };
+        Assert.Empty(pack.Runner.Play(new PlayRequest(reel, Speed: 1000d, Cinema: false)));
+        var seen = new List<(int Item, string? Recording, System.Numerics.Vector3? Camera)>();
+        for (int i = 0; i < 5000 && pack.Runner.Busy; i++)
+        {
+            pack.Tick();
+            if (pack.Runner.Phase == DirectorPhase.Playing) seen.Add((pack.Runner.CurrentItem, recordings.ShownKey, FilmStudio.Shot?.Pose?.LookAt));
+        }
+        Assert.Equal(DirectorPhase.Done, pack.Runner.Phase);
+        Assert.All(pack.Runner.Reports, r => Assert.True(r.Status == "ok", $"{r.Status}: {string.Join("; ", r.Problems)}"));
+        Assert.Equal(new[] { b, a }, recordings.Opens);                                                  // B for item 1, A again for item 2
+        Assert.Equal(new[] { b, a }, pack.Runner.Reports.Select(r => r.Recording));
+        var item1 = seen.Where(s => s.Item == 0).ToList();
+        var item2 = seen.Where(s => s.Item == 1).ToList();
+        Assert.True(item1.Count > 30 && item2.Count > 30, $"{item1.Count} / {item2.Count} playing frames");
+        Assert.All(item1, s => Assert.Equal(("B", (System.Numerics.Vector3?)BAt), (s.Recording, s.Camera)));
+        Assert.All(item2, s => Assert.Equal(("A", (System.Numerics.Vector3?)AAt), (s.Recording, s.Camera)));
+
+        // ② one RENDER over the recordings: the job's recording is the default of the items naming none
+        recordings.Opens.Clear();
+        DirectorRunner? runner = null;
+        var sink = new NotingSink(() => runner!.CurrentItem, () => recordings.ShownKey);
+        runner = new DirectorRunner(host, new WindowCinema(() => null), new MapLayerOverride(() => null), sink) { Recordings = recordings };
+        var stills = new DirectorStills(runner, sink, () => true);
+        var renders = new DirectorRenders(runner, stills, sink, () => true, () => host.Takes, () => "s-a") { Recordings = recordings };
+        var three = new Reel { Name = "three", Items = new[] { new ReelItem { Scenario = "s-a" }, new ReelItem { Scenario = "s-a", Recording = b }, new ReelItem { Scenario = "s-a" } } };
+        var (job, why) = renders.Enqueue(new RenderRequest { Reel = three, Recording = a, Fps = 10, Width = 320, Height = 180, Encode = false,
+                                                             Dir = Path.Combine(_root, "render") });
+        Assert.True(job != null, why);
+        for (int i = 0; i < 20_000 && (renders.Busy || renders.Queued > 0); i++) { runner.Tick(); stills.Tick(); renders.Tick(); }
+        Assert.True(job!.State == RenderState.Done, job.ToJson().ToJsonString());
+        Assert.Equal(new[] { a, b, a }, recordings.Opens);                                              // the job's A, item 2's B, A again for item 3
+        Assert.Equal(3, job.Items);
+        var frames = sink.Frames;
+        Assert.All(frames, f => Assert.StartsWith(Path.Combine(_root, "render", "frames"), f.Path));    // ONE capture
+        foreach (var (item, rec) in new[] { (0, "A"), (1, "B"), (2, "A") })
+        {
+            var of = frames.Where(f => f.Item == item).ToList();
+            Assert.True(of.Count >= 9, $"item {item + 1}: {of.Count} frames");
+            Assert.All(of, f => Assert.Equal(rec, f.Recording));
+        }
+        Assert.True(frames.Count(f => f.Item == 1) > frames.Count(f => f.Item == 0), "B's take (1.5 s) is longer than A's (1 s)");
     }
 }

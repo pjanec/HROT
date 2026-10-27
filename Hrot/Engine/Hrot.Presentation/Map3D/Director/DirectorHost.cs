@@ -88,7 +88,11 @@ namespace Hrot.UI.Common.Map3D.Director
     public interface IFrameSink
     {
         /// <summary>Asks the map on screen for this frame's scene; completes when it is written.</summary>
-        Task Frame(string path, int width, int height, int supersample, string? caption);
+        Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle);
+
+        /// <summary>⭐ <c>CE-1305</c> — the same frame with everything the film burns over the scene: the subtitle AND the film graphics (<see cref="FilmOverlay"/>).
+        /// A sink that draws only text keeps the default: the subtitle alone.</summary>
+        Task Frame(string path, int width, int height, int supersample, FilmOverlay overlay) => Frame(path, width, height, supersample, overlay.Subtitle);
 
         /// <summary>A card frame: <paramref name="text"/> on black.</summary>
         Task Card(string path, int width, int height, string text);
@@ -109,5 +113,9 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>The user's own sound again, and no log (a run stopped part way).</summary>
         void Reset();
+
+        /// <summary>⭐ <c>CE-1305</c> TE-11 (§11v A2) — the playback rate the film plays at NOW (sim seconds per film second; 0 paused; +∞ a fast-forward): what the
+        /// scene is heard at (<see cref="Hrot.UI.Common.Audio.SoundAtRate"/>). Called every playing frame; <see cref="Reset"/> and <see cref="EndLog"/> clear it.</summary>
+        void SetRate(double rate) { }
     }
 }

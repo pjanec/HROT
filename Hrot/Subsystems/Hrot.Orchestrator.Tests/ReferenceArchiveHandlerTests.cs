@@ -111,6 +111,34 @@ public sealed class ReferenceArchiveHandlerTests
         finally { Directory.Delete(tempRoot, recursive: true); }
     }
 
+    /// <summary>⭐ CE-1371 — takes saved on an exercise BEFORE it was kept (beside the node's temp copy: <c>&lt;scenario&gt;/takes/&lt;take&gt;.take.json</c>) go with the
+    /// archive, to the same place under the kept exercise's folder; other files in a scenario folder do not. 🔴 Mutation: the handler not listing the takes folder
+    /// ⇒ the manifest holds only the recording's own files ⇒ red.</summary>
+    [Fact]
+    public void CE1371_The_archive_takes_the_takes_saved_beside_the_recording()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var exerciseId = Guid.NewGuid();
+        var dir = Path.Combine(tempRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString());
+        var fdp = Path.Combine(dir, "node_3.fdp");
+        Directory.CreateDirectory(Path.Combine(dir, "s-film", "takes"));
+        File.WriteAllText(fdp, "fdp");
+        File.WriteAllText(Path.Combine(dir, "s-film", "takes", "main.take.json"), "{}");
+        File.WriteAllText(Path.Combine(dir, "s-film", "takes", "notes.txt"), "not a take");
+        File.WriteAllText(Path.Combine(dir, "s-film", "scenario.json"), "{}");
+        try
+        {
+            var handler = new ReferenceArchiveHandler(tempRoot, 3);
+            var result = handler.PrepareAsync(MakeCmd(exerciseId, Guid.NewGuid()), default).GetAwaiter().GetResult();
+            var entries = Assert.IsType<FileManifestResult[]>(result);
+            var take = Assert.Single(entries, e => e.RelativeDest.EndsWith(".take.json", StringComparison.Ordinal));
+            Assert.Equal(Path.Combine(dir, "s-film", "takes", "main.take.json"), take.SourceUnc);
+            Assert.Equal(Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString(), "s-film", "takes", "main.take.json"), take.RelativeDest);
+            Assert.Equal(2, entries.Length);   // the recording and the take — nothing else of the scenario folder
+        }
+        finally { Directory.Delete(tempRoot, recursive: true); }
+    }
+
     // ── CGF1-S0505 Success Condition 3 ────────────────────────────────────────
 
     /// <summary>

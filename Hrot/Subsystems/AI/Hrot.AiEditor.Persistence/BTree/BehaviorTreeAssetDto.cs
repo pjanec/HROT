@@ -260,9 +260,8 @@ public sealed class SopOrderPayloadDto
 
     /// <summary>The ONE spelling of the action key both the topology emit and the bridge registration use.</summary>
     public string ActionKey(long byteOffset)
-        => Fdp.Toolkit.Behavior.Shared.HsmActionKey.CompoundKeyName(
-            $"Fdp.Toolkit.Behavior.SopActions.{Kind}:{BehaviorName}:{(Kind == SopOrderKindDto.React ? Urgency.ToString() : "-")}",
-            byteOffset);
+        => Fdp.Toolkit.Behavior.Shared.HsmActionKey.SopOrderKeyName(   // ⭐ CE-1410 — the spelling the C# builder uses too
+            Kind.ToString(), BehaviorName, Kind == SopOrderKindDto.React ? Urgency.ToString() : "-", byteOffset);
 }
 
 // ── Polymorphic node types (§5.3 "[JsonPolymorphic kind]") ───────────────────

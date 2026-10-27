@@ -245,4 +245,27 @@ public sealed class BlueprintChannelDerivationTests
         Assert.True(d.IsComplete);
         Assert.Equal(new[] { Loco }, d.ChannelComponentFqns);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1432</c> — a blueprint HSM activity's emitted exit cleanup releases its channel by a CALL to the runtime
+    /// <c>ChannelRelease.Release</c> (the ONE implementation, CE-1411), behind the <c>HasComponent</c> guard (a derived channel may not be
+    /// on every entity) — not by the two writes inlined. Compiled from the corpus asset <c>HsmDriveActivity</c> (Locomotion) and
+    /// <c>HsmFireActivity</c> (Weapon) through the golden harness's own stage sequence.
+    /// 🔴 Red-proof: <c>AiPrimitiveEmitter.EmitHsmExitCleanupThunk</c> writing the two lines inline again ⇒ the call is missing and
+    /// <c>ActionInstanceId =</c> is present.
+    /// </summary>
+    [Theory]
+    [InlineData("HsmDriveActivity", "LocomotionChannel", 0)]
+    [InlineData("HsmFireActivity",  "WeaponChannel",     1)]
+    public void CE1432_TheEmittedExitCleanup_ReleasesThroughChannelRelease(string asset, string channel, int kind)
+    {
+        string src = Hrot.Blueprints.Tests.Golden.GoldenCorpus.Compile(Hrot.Blueprints.Tests.Golden.GoldenCorpus.Load(asset)).Tier2;
+        int at = src.IndexOf("public static unsafe void HsmExitCleanup", StringComparison.Ordinal);
+        Assert.True(at >= 0, "the cleanup thunk is emitted");
+        string body = src.Substring(at, src.IndexOf("\n    }", at, StringComparison.Ordinal) - at);
+
+        Assert.Contains($"if (__repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.{channel}>(__bridge->Self))", body);
+        Assert.Contains($"global::Fdp.Toolkit.Behavior.ChannelRelease.Release(__repo, __bridge->Self, (global::Fbt.Kernel.ChannelKind){kind});", body);
+        Assert.DoesNotContain("ActionInstanceId", body);
+    }
 }

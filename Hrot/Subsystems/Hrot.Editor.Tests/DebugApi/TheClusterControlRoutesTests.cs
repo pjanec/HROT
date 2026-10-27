@@ -257,11 +257,14 @@ public sealed class TheClusterControlRoutesTests
     {
         public readonly System.Collections.Generic.List<(string[] Paths, double At)> Opened = new();
         public string? Refuse;
-        public string? Open(System.Collections.Generic.IReadOnlyList<string> paths, double atSeconds)
+        /// <summary>⭐ CE-1391 — the ONE opener (every open of this host lands here).</summary>
+        public string? Open(RecordingName recording, double atSeconds)
         {
-            Opened.Add((paths.ToArray(), atSeconds));
+            Opened.Add((recording.Paths.ToArray(), atSeconds));
+            if (Refuse == null) Shown = recording;
             return Refuse;
         }
+        public RecordingName? Shown { get; private set; }
         public JsonObject Status() => new() { ["frame"] = 7 };
         public string? View(string view) => null;
         public string? History(bool back) => null;

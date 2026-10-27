@@ -184,6 +184,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         /// <summary>
+        /// ⭐ <c>CE-1382</c> — moves every primitive of the half-open range [<paramref name="fromIndex"/>, <see cref="Count"/>) that sits on the
+        /// default layer 0 onto <paramref name="layer"/> (a tool's handles and previews → <c>DebugTraceLayers.ToolHandles</c>, out of a film). Meta
+        /// primitives (bindings, the layer mask, anchors) are left alone — they are routed by shape, not by layer. A primitive the tool put on a layer
+        /// of its own stays there. Same mark-then-range shape as <see cref="StampGizmoTypeId"/>.
+        /// </summary>
+        public void MoveDefaultLayer(int fromIndex, byte layer)
+        {
+            int to = Count;
+            for (int i = fromIndex; i < to; i++)
+            {
+                ref var p = ref _primitives[i];
+                if (p.DebugLayer != 0 || IsProtected(p.Shape) || p.Shape == DebugPrimitiveShape.SpatialAnchor) continue;
+                p.DebugLayer = layer;
+            }
+        }
+
+        /// <summary>
         /// Advances the persistence clock, evicts expired entries, clears the transient buffer,
         /// and re-injects surviving persistent primitives. Call once per frame BEFORE gizmo
         /// systems execute (owned by DataDrivenGizmoSystem).

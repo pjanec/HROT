@@ -1,0 +1,85 @@
+asset a2123000-0000-0000-0000-000000000001
+group Library/Sop
+sop-orders yes
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+variable UnderFire Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadUnderFire","Seconds":3}
+variable LeaderDown Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadLeaderDown","Seconds":3}
+variable Contact Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadContact","Seconds":3}
+variable MemberDown Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"SquadMemberDown","Seconds":3}
+variable AreaAhead Fdp.Toolkit.Behavior.SopAreaParams = {"WithinMetres":30}
+parse (empty) -> ok
+  c2123000-0000-0000-0000-000000000041 {"Kind":"SquadUnderFire","Seconds":3}
+  c2123000-0000-0000-0000-000000000011 {"Kind":"SquadUnderFire","Seconds":3}
+  c2123000-0000-0000-0000-000000000031 {"Kind":"SquadLeaderDown","Seconds":3}
+  c2123000-0000-0000-0000-000000000051 {"Kind":"SquadMemberDown","Seconds":3}
+  c2123000-0000-0000-0000-000000000021 {"Kind":"SquadContact","Seconds":3}
+  c2123000-0000-0000-0000-000000000061 {"WithinMetres":30}
+parse {} -> ok
+parse {"bogus":1} -> refused InvalidOperationException
+Selector c2123000-0000-0000-0000-000000000002 "Rows — first true wins"
+  # The squad leader's standing orders: each row is a SQUAD edge (published on the leader by SquadCoordinationSystem) → React. The reaction pauses the leader's task; when it ends, the task resumes (CE-2123 S2).
+  Sequence c2123000-0000-0000-0000-000000000090 "Carrier on a Rope hold → fast rope"
+    # CE-1118 H-1 (Airborne Insertion §6.3): the squad's helicopter hovers at a Rope stop — down the ropes one man at a time, then a ring round the rope point; the hold releases once nobody is aboard or on a rope.
+    Condition c2123000-0000-0000-0000-000000000091 call Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierRoping "A member aboard a carrier on a Rope hold"
+    Action c2123000-0000-0000-0000-000000000092 sop React:SquadFastRope:Contact "React: SquadFastRope"
+      # Contact, so it replaces a running SquadRide (Alert).
+  Sequence c2123000-0000-0000-0000-000000000093 "Carrier on its Drop leg → jump"
+    # CE-1118 H-1 (§6.4): the squad's aircraft flies a Drop leg — the jumpmaster sends the stick out at each man's release point, then the squad assembles.
+    Condition c2123000-0000-0000-0000-000000000094 call Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierDropping "A member aboard a carrier flying a Drop leg"
+    Action c2123000-0000-0000-0000-000000000095 sop React:SquadAirborneExit:Contact "React: SquadAirborneExit"
+      # Contact, so it replaces a running SquadRide (Alert).
+  Sequence c2123000-0000-0000-0000-000000000070 "Carrier unloading the squad → dismount"
+    # CE-2173 slice 3 (Air Operations §9b): the squad's helicopter holds at an Unload stop — get out; once nobody is aboard the carrier's brain releases it and the squad's task resumes. Unloading, not 'landed', so a squad that has just boarded at a Pickup stop stays aboard.
+    Condition c2123000-0000-0000-0000-000000000071 call Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierUnloading "A member aboard a carrier that is unloading"
+    Action c2123000-0000-0000-0000-000000000072 sop React:SquadDismount:Contact "React: SquadDismount"
+      # Contact, so it replaces a running SquadRide (Alert).
+  Sequence c2123000-0000-0000-0000-000000000040 "Squad under fire while mounted → dismount"
+    # CE-1056 I-2d (Squad Tactics §5a): a carrier under fire puts its squad under fire; get everyone out first. Once nobody is aboard the drill ends and the rows below fight.
+    Condition c2123000-0000-0000-0000-000000000041 call Hrot.AI.Behaviors.Brains.SquadSopConditions.SensedFreshAboard p:SopSenseParams={"Kind":"SquadUnderFire","Seconds":3} "Squad under fire (fresh, 3 s) AND a member aboard a carrier on the ground"
+    Action c2123000-0000-0000-0000-000000000042 sop React:SquadDismount:UnderFire "React: SquadDismount"
+      # Everyone out beside the hull; done when nobody is aboard.
+  Sequence c2123000-0000-0000-0000-0000000000b0 "Enemy near a halted carrier → dismount"
+    # CE-4032: the squad sits in a carrier that has stopped on the ground and an enemy is known within 300 m (by the squad, or by the carrier's crew) — get out and fight. Above the riding row: a squad in a carrier that DRIVES rides on. Measured live on uc-urban-battle: Squad A sat in a wedged APC for ten minutes, 50 m from the fight.
+    Condition c2123000-0000-0000-0000-0000000000b1 call Hrot.AI.Behaviors.Brains.SquadSopConditions.ContactWhileHalted "Enemy within 300 m, the carrier stopped"
+    Action c2123000-0000-0000-0000-0000000000b2 sop React:SquadDismount:Contact "React: SquadDismount"
+  Sequence c2123000-0000-0000-0000-000000000080 "Squad riding → ride"
+    # CE-2173 slice 3 (Air Operations §9b): every live member is aboard a vehicle — nothing to do but ride; the task waits. Above the contact rows: a squad shot at in the air rides on (the dismount row above only fires on the ground).
+    Condition c2123000-0000-0000-0000-000000000081 call Hrot.AI.Behaviors.Brains.SquadSopConditions.Riding "Every live member aboard a vehicle"
+    Action c2123000-0000-0000-0000-000000000082 sop React:SquadRide:Alert "React: SquadRide"
+      # Ends the moment somebody is out.
+  Condition c2123000-0000-0000-0000-0000000000c1 call Fdp.Toolkit.Behavior.SopConditions.UnderCommand "Under a platoon → the platoon reacts for the squad"
+    # CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride). Every squad type now carries this SOP by default.
+  Sequence c2123000-0000-0000-0000-000000000010 "Squad under fire → react"
+    Condition c2359000-0000-0000-0000-0000000000d1 call Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending "Not defending a position"
+      # CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders 50-60 m out).
+    Condition c2123000-0000-0000-0000-000000000011 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadUnderFire","Seconds":3} "Squad under fire (fresh, 3 s)"
+    Action c2123000-0000-0000-0000-000000000012 sop React:ReactToContact:UnderFire "React: ReactToContact"
+      # Hold and return fire, decide once (assault / break contact / hold), run the drill.
+  Sequence c2123000-0000-0000-0000-000000000030 "Squad leader down → react"
+    Condition c2359000-0000-0000-0000-0000000000d3 call Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending "Not defending a position"
+      # CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders 50-60 m out).
+    Condition c2123000-0000-0000-0000-000000000031 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadLeaderDown","Seconds":3} "Squad leader down (fresh, 3 s)"
+    Action c2123000-0000-0000-0000-000000000032 sop React:ReactToContact:UnderFire "React: ReactToContact"
+      # The next man took over (CE-2125): hold, then decide again with the weaker squad.
+  Sequence c2123000-0000-0000-0000-000000000050 "Squad member down → react"
+    Condition c2359000-0000-0000-0000-0000000000d4 call Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending "Not defending a position"
+      # CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders 50-60 m out).
+    Condition c2123000-0000-0000-0000-000000000051 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadMemberDown","Seconds":3} "Squad member down (fresh, 3 s)"
+    Action c2123000-0000-0000-0000-000000000052 sop React:ReactToContact:UnderFire "React: ReactToContact"
+      # CE-2152 C-c (R-2013): a man is down — the reaction scores Rescue against the fight (and with nothing to fight, brings him in).
+  Sequence c2123000-0000-0000-0000-0000000000a0 "Man down, a lull → bring him in"
+    # CE-2344 (R-2066 E, Squad Tactics §7.5.4): a man down still to care for and no round at the squad for 10 s — the squad drags him to cover itself (the care play: the others cover, the medic carries). Under fire the rows above react and the care waits.
+    Condition c2123000-0000-0000-0000-0000000000a1 call Hrot.AI.Behaviors.Brains.SquadSopConditions.CasualtyInALull "A man down to care for, no fire for 10 s"
+    Action c2123000-0000-0000-0000-0000000000a2 sop React:CasualtyCare:Contact "React: CasualtyCare"
+  Sequence c2123000-0000-0000-0000-000000000020 "Squad contact → react"
+    Condition c2359000-0000-0000-0000-0000000000d2 call Hrot.AI.Behaviors.Brains.SquadDefendBehavior.NotDefending "Not defending a position"
+      # CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders 50-60 m out).
+    Condition c2123000-0000-0000-0000-000000000021 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadContact","Seconds":3} "Squad contact (fresh, 3 s)"
+    Action c2123000-0000-0000-0000-000000000022 sop React:ReactToContact:Contact "React: ReactToContact"
+      # Hold and return fire, decide once (assault / break contact / hold), run the drill.
+  Sequence c2123000-0000-0000-0000-000000000060 "Danger area ahead → cross it"
+    # CE-2159 X-c (Squad Tactics §7.7.6): the march's route sensor shows a danger area within 30 m and the squad is not past it — cross it as a drill (Alert: any contact row replaces it).
+    Condition c2123000-0000-0000-0000-000000000061 call Hrot.AI.Behaviors.Brains.SquadSopConditions.DangerAreaAhead p:SopAreaParams={"WithinMetres":30} "Danger area ahead (within 30 m, not yet crossed)"
+    Action c2123000-0000-0000-0000-000000000062 sop React:SquadDangerCrossing:Alert "React: SquadDangerCrossing"
+      # Security watches the near side; the rest cross by pairs on new lanes; the far side watches; security follows; reform. The march resumes after.

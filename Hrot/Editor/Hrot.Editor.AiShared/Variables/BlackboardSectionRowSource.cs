@@ -63,13 +63,14 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
         if (asset == null) return Array.Empty<VariableRow>();
 
         string assetName = asset.Name;
+        bool codeBuilt = asset is IEditableAsset editable && Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(editable);
         return asset.BlackboardVariables
             .Where(v => BlackboardMyBlueprintModel.SectionOf(v) == _section)
-            .Select(v => ToRow(v, assetName))
+            .Select(v => ToRow(v, assetName, codeBuilt))
             .ToList();
     }
 
-    private VariableRow ToRow(BlackboardVariableEntry v, string assetName)
+    private VariableRow ToRow(BlackboardVariableEntry v, string assetName, bool codeBuilt)
     {
         // ⭐⭐⭐ Batch 90 (90c) — PRESENCE IS MEASURED, not inferred from "a reader exists".
         //    🔴 This used to be `HasEverBeenWritten: reader != null`, i.e. "the moment anyone supplies
@@ -106,7 +107,8 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
             AssetTick: () => BehaviorFrame.Current,
             // ⭐ ONE home for the precedence. An authored entry has no passthrough flag, so the
             //   second argument is false by construction rather than by omission.
-            RowKind:   VariableRow.KindOf(v.IsAutoManaged, isReadOnly: false),
+            // ⭐ CE-1430 — a C#-built graph's rows are read-only (CE-1252, the one gate): its variables are the block's fields.
+            RowKind:   VariableRow.KindOf(v.IsAutoManaged, isReadOnly: codeBuilt),
             IsStale:   false,
             // ⭐⭐ Batch 90 — PRESENCE, per name, per frame. See the comment above ToRow's read.
             HasEverBeenWritten: bytes.Length > 0,
@@ -143,6 +145,7 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
                 // 📐 Measured: without this line, TheEditActuallyLandsTests'
                 //   ARowFromAnotherAssetDoesNotWriteIntoTheOpenOne goes red — the rail caught it.
                 if (target is null || (target as IEditableAsset)?.AssetId != _assetId) return false;
+                if (codeBuilt) return false;   // ⭐ CE-1430 — refused, and SAID (the asset refuses too)
                 target.UpdateVariableDefaultValueJson(v.Name, json);
                 return true;
             },
@@ -154,6 +157,7 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
                 var target = _asset();
                 if (target is null || values is null
                     || (target as IEditableAsset)?.AssetId != _assetId) return false;
+                if (codeBuilt) return false;   // ⭐ CE-1430
                 if (values.DefaultValueJson is not null)
                     target.UpdateVariableDefaultValueJson(v.Name, values.DefaultValueJson);
                 if (values.Comment is not null) target.UpdateVariableComment(v.Name, values.Comment);

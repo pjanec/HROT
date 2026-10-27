@@ -221,6 +221,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 int mark = buf.Count;
                 kvp.Value.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
                 buf.StampGizmoTypeId(mark, typeId);
+                buf.MoveDefaultLayer(mark, DebugTraceLayers.ToolHandles);   // ⭐ CE-1382 — a tool's drawing: always on screen, never in a film
 
                 if (_focus.ShouldEmitBinding(this, kvp.Value))
                 {

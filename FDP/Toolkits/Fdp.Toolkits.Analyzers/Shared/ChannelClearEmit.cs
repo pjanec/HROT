@@ -4,7 +4,8 @@ using System.Text;
 namespace Fdp.Toolkit.Behavior.Shared
 {
     /// <summary>
-    /// ⭐ <c>CE-417</c> — THE one emitter for "a <c>[WritesChannel]</c> action that returns <c>Failure</c> releases its channels".
+    /// ⭐ <c>CE-417</c> — THE one emitter for "a <c>[WritesChannel]</c> action that returns <c>Failure</c> releases its channels" — since
+    /// <c>CE-1411</c> a call to the runtime <c>ChannelRelease.OnFailure</c>, which a C#-built tree's binder calls too.
     /// <para>Linked into BOTH <c>Fdp.Toolkits.Analyzers</c> (<c>BTreeActionGenerator</c>'s 4-param wrapper) and
     /// <c>Hrot.AiEditor.Persistence</c> (the BTree asset's per-binding <c>[SharedAi*]</c> call, which replaced the analyzer's
     /// per-method adapter) — the same pattern as <c>HsmActionKey</c>: a linked file crosses the netstandard/net8 wall an
@@ -24,20 +25,33 @@ namespace Fdp.Toolkit.Behavior.Shared
             _ => null,
         };
 
-        /// <summary>Emits the release block, reading a local <c>status</c> and the BTree context <c>ctx</c>.</summary>
+        /// <summary>
+        /// Emits the release, reading a local <c>status</c> and the BTree context <c>ctx</c>: one call per channel to
+        /// <c>Fdp.Toolkit.Behavior.ChannelRelease.OnFailure</c> — ⭐ <c>CE-1411</c>: the ONE runtime implementation, which a C#-built
+        /// tree's <c>SharedNodeBinder</c> thunk calls too. ⛔ HISTORY: the two channel writes were emitted inline here, and the C# path had
+        /// no release at all.
+        /// </summary>
         public static void Emit(StringBuilder sb, IReadOnlyList<int> channels, string indent)
         {
-            sb.AppendLine(indent + "if (status == global::Fbt.NodeStatus.Failure)");
-            sb.AppendLine(indent + "{");
             foreach (int kind in channels)
             {
-                string? ct = ChannelKindToType(kind);
-                if (ct == null) continue;
-                sb.AppendLine(indent + "    ref var ch" + kind + " = ref ctx.World.GetComponentRW<" + ct + ">(ctx.Self);");
-                sb.AppendLine(indent + "    ch" + kind + ".ActiveAction     = 0;");
-                sb.AppendLine(indent + "    ch" + kind + ".ActionInstanceId = unchecked(ch" + kind + ".ActionInstanceId + 1u);");
+                if (ChannelKindToType(kind) == null) continue;
+                sb.AppendLine(indent + "global::Fdp.Toolkit.Behavior.ChannelRelease.OnFailure(status, ctx.World, ctx.Self, (global::Fbt.Kernel.ChannelKind)" + kind + ");");
             }
-            sb.AppendLine(indent + "}");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1432</c> — the UNCONDITIONAL release (a state's exit cleanup, not a node's Failure): one call per channel to
+        /// <c>Fdp.Toolkit.Behavior.ChannelRelease.Release</c> on the <paramref name="world"/> / <paramref name="self"/> expressions. The same
+        /// runtime implementation as <see cref="Emit"/>, so the HSM exit cleanup (<c>HsmActionGenerator</c>) cannot drift from the BTree release.
+        /// </summary>
+        public static void EmitRelease(StringBuilder sb, IReadOnlyList<int> channels, string indent, string world, string self)
+        {
+            foreach (int kind in channels)
+            {
+                if (ChannelKindToType(kind) == null) continue;
+                sb.AppendLine(indent + "global::Fdp.Toolkit.Behavior.ChannelRelease.Release(" + world + ", " + self + ", (global::Fbt.Kernel.ChannelKind)" + kind + ");");
+            }
         }
     }
 }

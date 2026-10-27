@@ -2,7 +2,8 @@ using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
-using Fbt; 
+using Fbt;
+using Fbt.Kernel;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -43,10 +44,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var channel = ref repo.GetComponentRW<LocomotionChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
-                {
-                    channel.ActiveAction = 0;
-                    unchecked { channel.ActionInstanceId++; }
-                }
+                    ChannelRelease.Release(repo, entity, ChannelKind.Locomotion);   // ⭐ CE-1432 — the one release
             }
 
             // Process Weapon Channels
@@ -61,10 +59,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var channel = ref repo.GetComponentRW<WeaponChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
-                {
-                    channel.ActiveAction = 0;
-                    unchecked { channel.ActionInstanceId++; }
-                }
+                    ChannelRelease.Release(repo, entity, ChannelKind.Weapon);   // ⭐ CE-1432 — the one release
             }
 
             // Process Interaction Channels
@@ -79,10 +74,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var channel = ref repo.GetComponentRW<InteractionChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
-                {
-                    channel.ActiveAction = 0;
-                    unchecked { channel.ActionInstanceId++; }
-                }
+                    ChannelRelease.Release(repo, entity, ChannelKind.Interaction);   // ⭐ CE-1432 — the one release
             }
         }
     }

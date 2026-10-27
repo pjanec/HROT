@@ -40,6 +40,9 @@ namespace Hrot.UI.Common.Map3D.Director
         public string Scenario { get; init; } = "";
         public string Take { get; init; } = "";
         public string? Title { get; init; }
+        /// <summary>⭐ <c>CE-1391</c> — the recording this item played over (its own <see cref="ReelItem.Recording"/>, else the one the play started on); null:
+        /// the host's source (a live host, or nothing open).</summary>
+        public string? Recording { get; set; }
         /// <summary>pending · loading · playing · ok · beat-missing · failed · stopped — a verify run: pass · fail</summary>
         public string Status { get; set; } = "pending";
         public List<string> Problems { get; } = new();
@@ -74,7 +77,7 @@ namespace Hrot.UI.Common.Map3D.Director
             foreach (var (k, v) in Found.OrderBy(kv => kv.Value)) found[k] = Math.Round(v, 3);
             var o = new JsonObject
             {
-                ["scenario"] = Scenario, ["take"] = Take, ["title"] = Title, ["status"] = Status,
+                ["scenario"] = Scenario, ["take"] = Take, ["title"] = Title, ["recording"] = Recording, ["status"] = Status,
                 ["problems"] = A(Problems), ["missing"] = A(Missing), ["mismatches"] = A(Mismatches),
                 ["skippedReplays"] = new JsonArray(SkippedReplays.Select(x => (JsonNode?)x).ToArray()), ["unresolved"] = A(Unresolved),
                 ["found"] = found, ["tickHz"] = TickHz, ["usedBake"] = UsedBake,
@@ -179,6 +182,11 @@ namespace Hrot.UI.Common.Map3D.Director
         // ⭐ CR-11 — the take's subtitles (its captions read as subtitles when it has none) and the one on screen
         private IReadOnlyList<Subtitle> _subs = Array.Empty<Subtitle>();
         private SubtitleFrame? _subNow;
+        // ⭐ CE-1304 P6 (§11t V4) — the View track (its layers read as views when it has none) and the view in force; ⭐ CE-1305 (§11t G2) — the graphics
+        private IReadOnlyList<ViewChange> _views = Array.Empty<ViewChange>();
+        private ViewFrame? _viewNow;
+        private IReadOnlyList<FilmGraphic> _graphics = Array.Empty<FilmGraphic>();
+        private IReadOnlyList<GraphicFrame> _graphicsNow = Array.Empty<GraphicFrame>();
         // capture
         private int _frameNo;
         private double _nextFrameAt;
@@ -212,6 +220,54 @@ namespace Hrot.UI.Common.Map3D.Director
         /// </summary>
         public Func<string, string, Take?>? OpenTake { get; set; }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1304</c> P4 — CR-5 (docs/DESIGN_Director_Timeline_Editor.md §11s): the run's timeline index — the live index on a live host, the open
+        /// recording's on a recording — that the take's EVENT anchors (<c>shot</c> / <c>blast</c> / <c>hit</c>) are found in (<see cref="AnchorBook"/>). Set by
+        /// <see cref="DirectorPack"/> from the host's own shown index (<see cref="DirectorPackHost.Index"/>), so every host's runner has it by construction.
+        /// Null: event anchors stay unseen (a baked time still places them).
+        /// </summary>
+        public Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex?>? Index { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1391</c> (TE-16; docs/DESIGN_Director_Timeline_Editor.md §11u "as built: CE-1391") — the host's ONE recording opener (the Replay Browser's:
+        /// the one <c>POST /replay</c> ends in). A reel item naming a <see cref="ReelItem.Recording"/> has it opened before the item loads, so one play — one
+        /// movie — spans recordings; an item naming none plays over the recording the play STARTED on (opened again if an earlier item moved off it). Set by
+        /// <see cref="DirectorPack"/> from <see cref="DirectorPackHost.Recordings"/>. Null (the editor): a reel with such an item is refused (<see cref="NoRecordings"/>).
+        /// </summary>
+        public Hrot.Presentation.DebugApi.IRecordingOpener? Recordings { get; set; }
+
+        /// <summary>⭐ CE-1391 — the refusal of a reel item that names a recording on a host that opens none.</summary>
+        public const string NoRecordings =
+            "names a recording, and this host opens no recordings (only the Replay Browser does) - play the reel there, or leave the item's recording out to play it on this host's scenario";
+
+        /// <summary>⭐ CE-1391 — frames the runner waits after an item's recording opened before the item loads (the open settles into the host's frame).</summary>
+        public const int OpenSettleFrames = 2;
+
+        /// <summary>⭐ CE-1391 — the recording the play started on (what an item naming none plays over).</summary>
+        private Hrot.Presentation.DebugApi.RecordingName? _startRecording;
+        private bool _recordingChecked;
+        private int _openSettle;
+
+        /// <summary>⭐ CR-5 — the take's anchors in this run, over the run's index (a recording's index leads over a bake: <see cref="AnchorBook"/>).</summary>
+        private AnchorBook NewBook(Take take, IReadOnlyDictionary<string, double>? baked)
+            => new(take.Anchors, baked, _host.BehaviourName, Index, _t0, indexIsTheRun: _host.CanSeek);
+
+        /// <summary>
+        /// ⭐ <c>CE-1305</c> TE-10 (docs/DESIGN_Director_Timeline_Editor.md §11v S1) — where <paramref name="take"/>'s anchors fall on the run THIS host shows, the way a
+        /// play of it places them: the ONE resolver (<see cref="AnchorBook"/>: a bake made for this scenario file, the index's events — leading on a recording, CR-5).
+        /// ⭐ What a stills plan maps keys through, so a verify run's recording gets its still keys at ITS events (a promoted take carries no bake, or another run's).
+        /// </summary>
+        public Func<string, double?> AnchorTimesOf(Take take)
+        {
+            if (take is null) throw new ArgumentNullException(nameof(take));
+            if (!Busy) _units.Reset();   // a run that is not playing: the names are read from the world as it is now (another recording may be open)
+            bool fresh = take.Baked is { } baked && !baked.IsStaleFor(_host.Takes.ScenarioHash(take.Scenario), "", take.TickHz);
+            var book = new AnchorBook(take.Anchors, fresh ? take.Baked!.Times : null, _host.BehaviourName, Index, _host.CanSeek ? 0d : _host.SimTime,
+                                      indexIsTheRun: _host.CanSeek);
+            book.ObserveEvents(_units);
+            return book.TimeOf;
+        }
+
         /// <summary>⭐ CE-1303 P2a (§11m D6) — at the end of the shot on screen the source goes back to the shot's start (a seekable host) and the
         /// take is read again (D4), so an edit shows on the next pass. A host that cannot seek reports it once and plays on.</summary>
         public bool LoopShot { get; set; }
@@ -219,6 +275,9 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>⭐ CE-1303 — the host's one extension (the editor's verifier); null on a films-only host.</summary>
         public IRunExtension? Extension => _ext;
         public DirectorMode Mode => _request?.Mode ?? DirectorMode.Live;
+        /// <summary>⭐ <c>CE-1306</c> R4 (§11u D7) — the request the runner plays or last played (the render queue knows its own job by it: another
+        /// <see cref="Play"/> replaces it).</summary>
+        public PlayRequest? Request => _request;
         public bool Busy => Phase is DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing or DirectorPhase.Encoding
                                   or DirectorPhase.Extension;
 
@@ -267,8 +326,18 @@ namespace Hrot.UI.Common.Map3D.Director
                 else problems.AddRange(_ext.Validate(request));
             }
             else
-                foreach (var it in request.Reel.Items)
+                for (int i = 0; i < request.Reel.Items.Count; i++)
                 {
+                    var it = request.Reel.Items[i];
+                    // ⭐ CE-1391 — an item over ANOTHER recording: its take lives beside THAT recording, so it is validated at its turn (TickEntering), once
+                    //   its recording is open; a host that opens none refuses it here
+                    if (it.Recording != null)
+                    {
+                        if (Recordings == null) problems.Add($"item {i + 1} ({it.Scenario}/{it.Take}) {NoRecordings}");
+                        else if (Hrot.Presentation.DebugApi.RecordingName.Parse(it.Recording).Error is { } bad)
+                            problems.Add($"item {i + 1} ({it.Scenario}/{it.Take}): recording '{it.Recording}': {bad}");
+                        continue;
+                    }
                     var t = LoadTake(request, it);
                     foreach (var p in t.Problems) problems.Add($"{it.Scenario}/{it.Take}: {p}");
                 }
@@ -277,6 +346,7 @@ namespace Hrot.UI.Common.Map3D.Director
 
             if (Busy) Stop();
             _request = request;
+            _startRecording = Recordings?.Shown;   // ⭐ CE-1391 — an item naming no recording plays over THIS one
             _reports.Clear();
             foreach (var it in request.Reel.Items) _reports.Add(new ItemReport { Scenario = it.Scenario, Take = it.Take, Title = it.Title });
             _manifest.Clear();
@@ -287,6 +357,8 @@ namespace Hrot.UI.Common.Map3D.Director
             MoviePath = null;
             _paused = false;
             if (request.Capture != null) { Directory.CreateDirectory(FramesDir); FilmStudio.Pilot = false; }   // ⭐ P2b — a capture films the program
+            // ⭐ CE-1304 P6 (§11t V5) — the map's 2-D ⇄ 3-D switch animates on screen; a capture CUTS (its frames are film frames, not wall-clock ones)
+            FilmStudio.AnimateViewSwitch = request.Capture == null;
             if (request.Mode == DirectorMode.Capture) _sound?.BeginLog();
             // ⭐ an extension's run (verify) leaves the editor as it is: no camera, no cinema; ⭐ CE-1303 D7 — nor does an iteration pass
             if (request.Mode != DirectorMode.Plan && request.Cinema) _cinema.Enter();
@@ -334,6 +406,16 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>⭐ CR-11 — the subtitle on screen now (null: none) — what the cinema was handed this frame.</summary>
         public SubtitleFrame? SubtitleNow => _subNow;
+
+        /// <summary>⭐ <c>CE-1304</c> P6 — the view in force now (null: no item playing yet) — what the layer override and <see cref="FilmStudio.TwoD"/> were handed.</summary>
+        public ViewFrame? ViewNow => _viewNow;
+
+        /// <summary>⭐ <c>CE-1305</c> P6 — the film graphics on screen now (their world points resolved this frame).</summary>
+        public IReadOnlyList<GraphicFrame> GraphicsNow => _graphicsNow;
+
+        /// <summary>⭐ CE-1305 — what a captured frame burns in now: the subtitle (when <paramref name="captions"/>) and the graphics — one value for the
+        /// capture of a film and a still (<see cref="DirectorStills"/>).</summary>
+        public FilmOverlay OverlayNow(bool captions) => new(captions ? _subNow : null, _graphicsNow);
 
         /// <summary>
         /// ⭐ <c>CE-4059</c> / CR-7 (§11q K3) — the segment on screen while the runner PLAYS <paramref name="scenario"/>/<paramref name="take"/> (null: another take, not
@@ -441,7 +523,9 @@ namespace Hrot.UI.Common.Map3D.Director
             _loopRefused = false;
             _film = FilmTimeMap.Identity; _seg = -1; _filmOver = false; _fastForwarding = false; _gapCard = false; _skippedBack.Clear();
             _subs = Array.Empty<Subtitle>(); _subNow = null;
+            _views = Array.Empty<ViewChange>(); _viewNow = null; _graphics = Array.Empty<FilmGraphic>(); _graphicsNow = Array.Empty<GraphicFrame>();
             _ext?.Reset();
+            _recordingChecked = false; _openSettle = 0;
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -451,8 +535,35 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_request!.Mode == DirectorMode.Capture) WriteCard(card);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1391</c> — the item's recording, before its load: the item's own (<see cref="ReelItem.Recording"/>), else the one the play started on; opened
+        /// through the ONE opener when it is not the one shown, then <see cref="OpenSettleFrames"/> frames to settle. True while it holds the load back.
+        /// </summary>
+        private bool TickItemRecording()
+        {
+            if (_openSettle > 0) { _openSettle--; return true; }
+            if (_recordingChecked || _request!.Mode == DirectorMode.Plan || Recordings == null) return false;
+            _recordingChecked = true;
+            var want = _startRecording;
+            if (Item.Recording is { } named)
+            {
+                var (name, bad) = Hrot.Presentation.DebugApi.RecordingName.Parse(named);
+                if (name is null) { Fail($"recording '{named}': {bad}"); return true; }
+                want = name;
+            }
+            Report.Recording = Item.Recording ?? want?.Text;
+            if (want == null || want.Same(Recordings.Shown)) return false;
+            string? error;
+            try { error = Recordings.Open(want, 0d); }
+            catch (Exception ex) { error = $"{ex.GetType().Name}: {ex.Message}"; }
+            if (error != null) { Fail($"recording '{Report.Recording}' did not open: {error}"); return true; }
+            _openSettle = OpenSettleFrames;
+            return true;
+        }
+
         private void TickLoading()
         {
+            if (TickItemRecording()) return;
             if (_probe == null)
             {
                 // ⛔ never a rewind as a run (R-3034): leave the last preview, then open the file again
@@ -499,15 +610,17 @@ namespace Hrot.UI.Common.Map3D.Director
             if (baked != null && !fresh && _request!.Mode != DirectorMode.Scout)
                 Report.Problems.Add($"the baked anchors are stale (scouted at {baked.TickHz} Hz for scenario {baked.ScenarioHash}) — re-scout; cutting on live cues");
             Report.UsedBake = fresh;
-            _book = new AnchorBook(take.Anchors, fresh ? baked!.Times : null, _host.BehaviourName);
             // ⭐ CE-1303 D3 — a seekable source's sim clock IS the run's (a recording of it), so a take's times mean the same there as in the editor
             _t0 = _host.CanSeek ? 0d : _host.SimTime;
+            _book = NewBook(take, fresh ? baked!.Times : null);
+            _book.ObserveEvents(_units);   // ⭐ CR-5 — a recording's index already holds the run: the plan below places every event anchor it names
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             Replan();
             Report.SkippedReplays.AddRange(_timeline!.SkippedReplays);
             _clock = new PacedClock(take.TickHz, _request!.Speed);
-            if (take.Layers != null) _layers.Apply(take.Layers.On, take.Layers.Off);
-            else _layers.Apply(Array.Empty<string>(), Array.Empty<string>());
+            // ⭐ CE-1304 P6 (§11t V4) — the view of the take's start: through the View track (a take without one: its layers read as views — the same set as before)
+            _viewNow = null;
+            ApplyView(Rel);
             _sound?.SetTakeSound(take.Sound);
             if (_request.Mode == DirectorMode.Capture && Item.Title != null) _chapters.Add((_frameNo, Item.Title));
             else if (_request.Mode == DirectorMode.Capture) _chapters.Add((_frameNo, Item.Scenario));
@@ -535,8 +648,8 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             _take = start.Take;
             Report.TickHz = start.Take.TickHz;
-            _book = new AnchorBook(start.Take.Anchors, null, _host.BehaviourName);
             _t0 = start.T0;
+            _book = NewBook(start.Take, null);
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             Replan();
             _clock = new PacedClock(start.Take.TickHz, 1d);
@@ -568,7 +681,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (OpenTakeFor(_request!, Item) is not { } now || ReferenceEquals(now, _take)) return;
             bool anchorsMoved = !ReferenceEquals(now.Anchors, _take!.Anchors) || !ReferenceEquals(now.Baked, _take.Baked);
             _take = now;
-            if (anchorsMoved) _book = new AnchorBook(now.Anchors, BakeIsFresh(now) ? now.Baked!.Times : null, _host.BehaviourName);
+            if (anchorsMoved) { _book = NewBook(now, BakeIsFresh(now) ? now.Baked!.Times : null); _book.ObserveEvents(_units); }
             Replan();
         }
 
@@ -594,6 +707,8 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_seg >= _film.Segments.Count) _seg = _film.Segments.Count - 1;
             if (!_film.IsIdentity && _seg < 0 && Phase == DirectorPhase.Playing) _seg = 0;
             _subs = TakeSubtitles.Of(_take!, _timeline);   // ⭐ CR-11
+            _views = TakeViews.Of(_take!, _timeline);      // ⭐ CE-1304 P6 (§11t V2)
+            _graphics = _take!.Graphics;                   // ⭐ CE-1305 P6 (§11t G2)
             Report.Unresolved.Clear();
             Report.Unresolved.AddRange(_timeline.Unresolved);
             Report.Unresolved.AddRange(_film.Unresolved);
@@ -681,11 +796,20 @@ namespace Hrot.UI.Common.Map3D.Director
 
             var shot = _timeline!.At(rel);
             if (!ReferenceEquals(shot, _shot) || (shot == null) != _inGap) EnterShot(shot);
+            ApplyView(rel);   // ⭐ CE-1304 P6 (§11t V4) — the view of this source second (applied only when it changes)
             DirectUpcoming(rel);
             // ⭐ CE-1303 P2b — CR-11 (§11o S9): the subtitle of this source second, to the cinema every frame (its text is also what a capture burns in)
             _subNow = TakeSubtitles.At(_subs, a => _book!.TimeOf(a), rel);
             _cinema.Subtitle(_subNow);
+            // ⭐ CE-1305 P6 (§11t G2) — the film graphics of this source second, their units read now: to the map's screen pass every frame (a capture burns the same in)
+            if (mode != DirectorMode.Plan)
+            {
+                _graphicsNow = FilmGraphics.At(_graphics, a => _book!.TimeOf(a), rel, _units);
+                FilmStudio.Graphics = _graphicsNow;
+            }
             if (!_film.IsIdentity) FilmStudio.Fade = Math.Max(FilmStudio.Fade, _film.GapFade(FilmAt(rel)));   // ⭐ CR-7 S3 — a dip gap's black
+            // ⭐ CE-1305 TE-11 (§11v A2) — the scene is heard at the film's rate: request × shot × segment; paused silent; a fast-forward far past 2×
+            if (!plan) _sound?.SetRate(_paused ? 0d : fastForward ? double.PositiveInfinity : Rate);
 
             if (_paused) return;
             if (masterBehind) { Report.WaitFrames++; return; }
@@ -736,8 +860,21 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_request!.Mode == DirectorMode.Scout) return !_book!.Unseen.Any() && rel >= _timeline!.End;
             if (!_film.IsIdentity) return _filmOver;   // ⭐ CE-1303 P2b — CR-7: the segments ARE the film (it ends after the last one, or at the cap)
             if (_timeline!.Unresolved.Count > 0) return rel >= _timeline.End + UnseenGraceSeconds;
-            return rel >= _timeline.End - 1e-6;
+            // ⭐ CE-1304 CR-5 (§11s D4) — a live index publishes at most every quarter second: an event anchor it has not shown yet is not judged missing
+            //   until it has caught up with the run (or IndexGraceSeconds past the end)
+            return rel >= _timeline.End - 1e-6 && !(rel < _timeline.End + IndexGraceSeconds && _book!.AwaitsIndex(rel));
         }
+
+        /// <summary>⭐ CR-5 — how long past its end a live take plays on while the live index catches up with an event anchor not seen yet.</summary>
+        public const double IndexGraceSeconds = 1d;
+
+        /// <summary>
+        /// ⭐ <c>CE-1376</c> — the rounds fired since the take began: counted on the run's INDEX (<see cref="AnchorBook.RoundsUntil"/>), which a recording has and the
+        /// live run publishes, so both report the same figure. ⚠ A LIVE index lags the run by up to a quarter second of wall time; until it covers the cut the
+        /// world's own <c>ShotLog</c> (exact, but a side store a recording never carries) gives the figure — the one place the director still names it.
+        /// </summary>
+        private long RoundsFired(Fdp.Core.EntityRepository world)
+            => _book?.RoundsUntil(Rel) ?? (Fdp.Toolkit.Combat.ShotLog.Peek(world)?.Count ?? 0) - _roundsAtStart;
 
         private void EnterShot(TimelineShot? shot)
         {
@@ -747,14 +884,27 @@ namespace Hrot.UI.Common.Map3D.Director
             if (shot == null) return;   // ⭐ CE-1303 P2b — the caption is the subtitle of each frame now (TakeSubtitles: a gap has none)
             var s = shot.Shot;
             if (_host.World is { } world)
-                Report.Cuts.Add(CutSnapshot.Of(world, shot.Number, Rel, (Fdp.Toolkit.Combat.ShotLog.Peek(world)?.Count ?? 0) - _roundsAtStart));
-            var on = new List<string>(take.Layers?.On ?? Array.Empty<string>());
-            var off = new List<string>(take.Layers?.Off ?? Array.Empty<string>());
-            if (s.Layers != null) { on.AddRange(s.Layers.On); off.AddRange(s.Layers.Off); on.RemoveAll(s.Layers.Off.Contains); }
-            _layers.Apply(on, off);
+                Report.Cuts.Add(CutSnapshot.Of(world, shot.Number, Rel, RoundsFired(world)));
+            // ⭐ CE-1304 P6 (§11t V2) — a shot's layers are no longer applied here: TakeViews reads them as view items at the shot's start (ApplyView)
             _sound?.SetTakeSound(s.Sound ?? take.Sound);
             ApplyRate();   // ⭐ P2b — request × shot × segment
             _nextFrameAt = Math.Max(shot.Start, Rel);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1304</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t V4) — the view of SOURCE second <paramref name="rel"/> (<see cref="TakeViews.At"/>), handed on only
+        /// when it changes: its layer set to the ONE <see cref="ILayerOverride"/> (R-4060 — the same call a take's and a shot's layers always made), its map to the film's
+        /// mailbox (<see cref="FilmStudio.TwoD"/>, which the map on screen honours while it holds the film camera — <see cref="FilmCaptureLayer"/>).
+        /// </summary>
+        private void ApplyView(double rel)
+        {
+            // ⛔ an extension's run (verify) leaves the editor's layers and map as they are (CE-4061, StartPlan) — a verify take with no shots never touched them
+            if (_request?.Mode == DirectorMode.Plan) return;
+            var view = TakeViews.At(_views, a => _book?.TimeOf(a), rel);
+            if (view.Same(_viewNow)) return;
+            _viewNow = view;
+            _layers.Apply(view.Layers.On, view.Layers.Off);
+            FilmStudio.TwoD = view.TwoD;
         }
 
         /// <summary>
@@ -780,8 +930,8 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             var c = _request!.Capture!;
             var path = Path.Combine(FramesDir, $"{_frameNo:D6}.png");
-            string? caption = c.BurnCaptions ? _subNow?.Text : null;   // ⭐ CE-1303 P2b — the subtitle on screen (a take's captions read as subtitles)
-            _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, caption);
+            // ⭐ CE-1303 P2b / CE-1370 — the subtitle on screen, with its position and fade; ⭐ CE-1305 — and the film graphics (always: they are the film's content)
+            _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, OverlayNow(c.BurnCaptions));
             _manifest.Add((_frameNo, _item, shot.Number, rel));
             _frameNo++;
             Report.Frames++;

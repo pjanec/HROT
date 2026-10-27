@@ -186,7 +186,7 @@ async function callApi(method, path, body) {
   const url = `${baseUrl}${path}`;
   const init = { method };
 
-  if (method === 'POST') {
+  if (method === 'POST' || method === 'PUT' || (method === 'DELETE' && body != null)) {
     if (body !== undefined && body !== null) {
       init.body = JSON.stringify(body);
       init.headers = { 'Content-Type': 'application/json' };
@@ -1969,6 +1969,47 @@ const TOOLS = [
   },
 
 ];
+
+// ── Catalog-driven handlers for every tool with no hand-written one (CE-1375) ───────────────────
+//
+// ⭐ The catalog is GENERATED from the C# route docs (gen-catalog.mjs), so a route gains a catalog entry the
+//   moment its RouteDoc exists — but a hand-written handler above does not appear by itself, and 58 tools
+//   (director_*, film_*, set_audio …) were catalogued and listed in SKILL.md yet unreachable over MCP.
+//   Rather than a second hand-kept mirror, every catalog entry that has an `http` route and no handler above
+//   is served by ONE generic rule: `{name}` segments of the path are filled from the arguments of that name
+//   (URL-encoded); the rest go in the query string for GET, in the JSON body for POST / PUT / DELETE.
+const GENERIC_FROM_CATALOG = true;
+{
+  const have = new Set(TOOLS.map((t) => t.name));
+  for (const entry of TOOLS_CATALOG) {
+    if (have.has(entry.name) || !entry.http) continue;
+    const { method, path: template } = entry.http;
+    TOOLS.push({
+      name: entry.name,
+      description: TOOL_DEFS[entry.name].description,
+      inputSchema: TOOL_DEFS[entry.name].inputSchema,
+      async handler(toolArgs) {
+        try {
+          const rest = { ...toolArgs };
+          const path = template.replace(/\{([^}]+)\}/g, (_, key) => {
+            if (rest[key] == null) throw new McpToolError(`'${key}' is required`);
+            const v = encodeURIComponent(String(rest[key]));
+            delete rest[key];
+            return v;
+          });
+          const keys = Object.keys(rest).filter((k) => rest[k] != null);
+          if (method === 'GET') {
+            const qs = new URLSearchParams();
+            for (const k of keys) qs.set(k, typeof rest[k] === 'object' ? JSON.stringify(rest[k]) : String(rest[k]));
+            return toolSuccess(await callApi('GET', qs.toString() ? `${path}?${qs}` : path));
+          }
+          const body = keys.length ? Object.fromEntries(keys.map((k) => [k, rest[k]])) : undefined;
+          return toolSuccess(await callApi(method, path, body));
+        } catch (err) { return toolError(err.message, err.envelope, entry.name); }
+      },
+    });
+  }
+}
 
 // ── MCP Server setup ────────────────────────────────────────────────────────
 

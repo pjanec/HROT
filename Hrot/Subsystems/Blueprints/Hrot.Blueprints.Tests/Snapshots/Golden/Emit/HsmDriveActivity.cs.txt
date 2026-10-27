@@ -124,9 +124,7 @@ public static class HsmDriveActivity_085BB11D_Bp
         var __repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(__bridge->WorldHandle).Target!;
         if (__repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__bridge->Self))
         {
-            ref var __ch0 = ref __repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__bridge->Self);
-            __ch0.ActiveAction     = 0;
-            __ch0.ActionInstanceId = unchecked(__ch0.ActionInstanceId + 1u);
+            global::Fdp.Toolkit.Behavior.ChannelRelease.Release(__repo, __bridge->Self, (global::Fbt.Kernel.ChannelKind)0);
         }
     }
     

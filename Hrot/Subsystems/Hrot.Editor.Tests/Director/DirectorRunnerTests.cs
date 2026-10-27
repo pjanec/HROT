@@ -338,16 +338,26 @@ public sealed class DirectorRunnerTests : IDisposable
     private sealed class Layers : ILayerOverride
     {
         public readonly List<string> Applied = new();
+        /// <summary>⭐ CE-1304 — the set in force (on, off) after the last call; null after a clear.</summary>
+        public (IReadOnlyList<string> On, IReadOnlyList<string> Off)? Now;
         public int Clears;
-        public void Apply(IReadOnlyList<string> on, IReadOnlyList<string> off) => Applied.Add(string.Join(",", on));
-        public void Clear() => Clears++;
+        public void Apply(IReadOnlyList<string> on, IReadOnlyList<string> off) { Applied.Add(string.Join(",", on)); Now = (on, off); }
+        public void Clear() { Clears++; Now = null; }
     }
 
     private sealed class Sink : IFrameSink
     {
         public readonly List<string> Frames = new();
         public readonly List<string> Cards = new();
-        public Task Frame(string path, int width, int height, int supersample, string? caption) { Frames.Add(path); return Task.CompletedTask; }
+        public readonly List<SubtitleFrame?> Subtitles = new();
+        /// <summary>⭐ CE-1305 — each frame's overlay as the runner handed it (only through the overlay overload — the subtitle-only one records none).</summary>
+        public readonly List<FilmOverlay> Overlays = new();
+        public Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle) { Frames.Add(path); Subtitles.Add(subtitle); return Task.CompletedTask; }
+        public Task Frame(string path, int width, int height, int supersample, FilmOverlay overlay)
+        {
+            Overlays.Add(overlay);
+            return Frame(path, width, height, supersample, overlay.Subtitle);
+        }
         public Task Card(string path, int width, int height, string text) { Cards.Add(text); File.WriteAllText(path, ""); return Task.CompletedTask; }
     }
 
@@ -479,6 +489,280 @@ public sealed class DirectorRunnerTests : IDisposable
         Run(runner, host);
         Assert.Equal("beat-missing", runner.Reports[0].Status);
         Assert.Contains(runner.Reports[0].Mismatches, m => m.StartsWith("far: baked ") && m.EndsWith("not seen live"));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1370</c> — a captured frame is handed the subtitle WITH its position and fade, as the cinema overlay gets it (not just its text): a take's
+    /// top subtitle fading over 0.5 s reaches the sink at <c>Top</c>, its alpha rising from ~0 to 1 and falling again, and no frame past its end carries one.
+    /// 🔴 Mutation: the runner handing the sink <c>new SubtitleFrame(_subNow.Text, SubtitlePosition.Bottom, 1f)</c> (the text only, as before) ⇒ no <c>Top</c>
+    /// frame, no mid-fade alpha ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1370_ACapturedFrame_IsHandedTheSubtitle_WithItsPositionAndFade()
+    {
+        var store = Store();
+        store.Save(new Take
+        {
+            Scenario = "s-a", Name = "fade",
+            Shots = new[] { new ShotSpec { At = new AtExpr(0.5), Seconds = 1.0, Camera = new CameraSpec { Follow = "Runner", Distance = 10 } } },
+            Subtitles = new[] { new Subtitle { At = new AtExpr(0.5), Until = new AtExpr(1.5), Text = "Contact", Position = SubtitlePosition.Top, Fade = 0.5 } },
+        });
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "fade"), Capture: new CaptureOptions(Path.Combine(_root, "film-fade"), Fps: 30, Encode: false))));
+        Run(runner, host);
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+
+        var shown = sink.Subtitles.Where(s => s != null).Select(s => s!).ToList();
+        Assert.True(shown.Count >= 25, $"frames with a subtitle: {shown.Count} of {sink.Subtitles.Count}");
+        Assert.All(shown, s => { Assert.Equal(("Contact", SubtitlePosition.Top), (s.Text, s.Position)); });
+        Assert.Contains(shown, s => s.Alpha is > 0.2f and < 0.8f);   // mid-fade, in or out
+        Assert.Contains(shown, s => s.Alpha >= 0.999f);              // and fully opaque between
+        Assert.True(shown[0].Alpha < 0.2f && shown[^1].Alpha < 0.2f, $"the ends fade: {shown[0].Alpha} … {shown[^1].Alpha}");
+    }
+
+    // ── ⭐ CE-1304 / CE-1305 P6 (docs/DESIGN_Director_Timeline_Editor.md §11t) — the View track and the Graphics track, played ──────────────────────
+
+    /// <summary>A keys take of 3 s on the moving "Runner" with a View track (3-D + cards from 0, the 2-D map + labels from 1, the 3-D map from 2 — layers kept) and
+    /// a ring on the Runner from 0.6 to 1.2 s that fades over 0.2 s.</summary>
+    /// <summary>⭐ CE-1305 TE-11 — the sound seam, faked: every rate the runner hands it, and its resets.</summary>
+    private sealed class Sound : IDirectorSound
+    {
+        public readonly List<double> Rates = new();
+        public int Resets;
+        public void SetTakeSound(bool? on) { }
+        public void BeginLog() { }
+        public bool EndLog(string wavPath, IReadOnlyList<double> frameSimTimes, int fps) { Resets++; return false; }
+        public void Reset() => Resets++;
+        public void SetRate(double rate) => Rates.Add(rate);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> TE-11 (docs/DESIGN_Director_Timeline_Editor.md §11v A2, success condition 1 — the live half): while a take plays, the runner hands the
+    /// sound seam the film's rate EVERY playing frame — a 0.5× segment, then a 4× one, each × the request's speed (what <see cref="DirectorRunner.Rate"/> says that
+    /// frame), 0 while paused — and resets it when the film ends. 🔴 Mutation: the runner's per-frame <c>_sound?.SetRate(…)</c> removed ⇒ no rate reaches the
+    /// sound ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_TE11_TheSceneIsHeard_AtTheRunnersRate_FrameByFrame_SilentWhilePaused()
+    {
+        var host = new FakeEditor(Store());
+        var sound = new Sound();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink: null, sound: sound);
+        var take = new Take
+        {
+            Scenario = "s-a", Name = "te11", TickHz = 60, EndAt = new AtExpr(2),
+            Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { Follow = "Runner", Distance = 20 } } },
+            Segments = new[]
+            {
+                new TimeSegment { From = new AtExpr(0), To = new AtExpr(1), Speed = 0.5 },
+                new TimeSegment { From = new AtExpr(1), To = new AtExpr(2), Speed = 4 },
+            },
+        };
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "te11" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Speed: 1d, Inline: new Dictionary<string, Take> { ["s-a/te11"] = take })));
+        var heard = new List<(double Rate, double Sound)>();
+        bool paused = false;
+        for (int f = 0; f < 40000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing && sound.Rates.Count > 0)
+            {
+                if (paused) { Assert.Equal(0d, sound.Rates[^1]); runner.Resume(); paused = false; }
+                else
+                {
+                    heard.Add((runner.Rate, sound.Rates[^1]));
+                    if (heard.Count == 20) { runner.Pause(); paused = true; }   // once: the next frame must be silent
+                }
+            }
+            host.EndFrame();
+        }
+        Assert.False(runner.Busy, $"{heard.Count} heard; " + runner.Status().ToJsonString());
+        Assert.True(heard.Count > 30, $"{heard.Count} playing frames");
+        Assert.All(heard, h => Assert.Equal(h.Rate, h.Sound, 6));                    // the rate of THIS frame
+        Assert.Contains(heard, h => Math.Abs(h.Sound - 0.5) < 1e-6);                 // the slow segment …
+        Assert.Contains(heard, h => Math.Abs(h.Sound - 4d) < 1e-6);                  // … then the fast one
+        Assert.Contains(0d, sound.Rates);                                             // paused: silent
+        Assert.True(sound.Resets > 0);                                                // the film's end hands the sound back
+    }
+
+    private static Take ViewAndGraphicsTake() => new()
+    {
+        Scenario = "s-a", Name = "p6", TickHz = 60, EndAt = new AtExpr(3),
+        Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { Follow = "Runner", Distance = 20 } } },
+        Views = new[]
+        {
+            new ViewChange { At = new AtExpr(0), TwoD = false, Layers = new LayerChange(new[] { "Units.Cards" }, Array.Empty<string>()) },
+            new ViewChange { At = new AtExpr(1), TwoD = true, Layers = new LayerChange(new[] { "Units.Labels" }, new[] { "Map.Roads" }) },
+            new ViewChange { At = new AtExpr(2), TwoD = false },
+        },
+        Graphics = new[] { new FilmGraphic { At = new AtExpr(0.6), Until = new AtExpr(1.2), Kind = GraphicKind.Ring, Who = "Runner", Text = "Runner", Fade = 0.2 } },
+    };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P6 (§11t V4, success condition 1 — the fake host): at film second t the runner applies the take's VIEW through the EXISTING seams — the
+    /// layer set through <see cref="ILayerOverride"/> (the cards before 1 s; labels on and roads off from 1 s; the same set after the 2 s item, which switches only
+    /// the map) and the map through <see cref="FilmStudio.TwoD"/> (3-D, 2-D in [1, 2), 3-D again) — each change applied ONCE, not every frame; the film's end clears
+    /// the override and gives the 3-D map back. 🔴 Mutation: <c>ApplyView</c> not setting <c>FilmStudio.TwoD</c> ⇒ the 2-D stretch reads 3-D ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_TheRunner_AppliesTheViewTrack_ThroughTheLayerOverride_AndTheMapMode()
+    {
+        var host = new FakeEditor(Store());
+        var layers = new Layers();
+        var runner = new DirectorRunner(host, new Cinema(), layers);
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "p6" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Inline: new Dictionary<string, Take> { ["s-a/p6"] = ViewAndGraphicsTake() })));
+
+        var samples = new List<(double Rel, bool TwoD, string On, string Off)>();
+        double? t0 = null;
+        int appliedBefore = 0;
+        for (int f = 0; f < 20000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing && layers.Now is { } now)
+            {
+                t0 ??= host.SimTime;
+                appliedBefore = appliedBefore == 0 ? layers.Applied.Count : appliedBefore;
+                samples.Add((host.SimTime - t0.Value, FilmStudio.TwoD, string.Join(",", now.On), string.Join(",", now.Off)));
+            }
+            host.EndFrame();
+        }
+        Assert.Equal("ok", runner.Reports[0].Status);
+        Assert.True(samples.Count > 150, $"{samples.Count} playing frames");
+        Assert.All(samples.Where(s => s.Rel < 1 - 0.02), s => Assert.Equal((false, "Units.Cards", ""), (s.TwoD, s.On, s.Off)));
+        Assert.All(samples.Where(s => s.Rel > 1 + 0.02 && s.Rel < 2 - 0.02), s => Assert.Equal((true, "Units.Labels", "Map.Roads"), (s.TwoD, s.On, s.Off)));
+        Assert.All(samples.Where(s => s.Rel > 2 + 0.02), s => Assert.Equal((false, "Units.Labels", "Map.Roads"), (s.TwoD, s.On, s.Off)));   // the map only
+        Assert.True(layers.Applied.Count <= appliedBefore + 3, $"applied {layers.Applied.Count} times — a view is applied when it changes, not every frame");
+        Assert.Null(layers.Now);                                                       // the film's end: the user's own layers …
+        Assert.False(FilmStudio.TwoD);                                                 // … and the 3-D map
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> P6 (§11t G2, success condition 2 — the play rail): at film second t the runner puts the take's GRAPHICS on screen
+    /// (<see cref="FilmStudio.Graphics"/>, the map's screen pass reads it): none before 0.6 s, the ring ON THE RUNNER as it moves (its x = its position that
+    /// frame), fading in over 0.2 s and out before 1.2 s, none after; released with the film. 🔴 Mutation: the runner skipping the per-frame
+    /// <c>FilmStudio.Graphics = _graphicsNow</c> ⇒ the screen never gets the ring ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_P6_TheRunner_PutsTheGraphicsOnScreen_AtTheirFilmTime_OnTheirUnit()
+    {
+        var host = new FakeEditor(Store());
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "p6" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Inline: new Dictionary<string, Take> { ["s-a/p6"] = ViewAndGraphicsTake() })));
+        var samples = new List<(double Rel, IReadOnlyList<GraphicFrame> Shown, float RunnerX)>();
+        double? t0 = null;
+        for (int f = 0; f < 20000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing)
+            {
+                t0 ??= host.SimTime;
+                float runnerAt = float.NaN;
+                foreach (var e in host.Repo.Query().With<SimTransform>().With<EntityInfo>().Build())
+                    if (host.Repo.GetComponentRO<EntityInfo>(e).Name.ToString() == "Runner") runnerAt = host.Repo.GetComponentRO<SimTransform>(e).Position.X;
+                samples.Add((host.SimTime - t0.Value, FilmStudio.Graphics, runnerAt));
+            }
+            host.EndFrame();
+        }
+        Assert.Equal("ok", runner.Reports[0].Status);
+        Assert.All(samples.Where(s => s.Rel < 0.6 - 0.02 || s.Rel > 1.2 + 0.02), s => Assert.Empty(s.Shown));
+        var on = samples.Where(s => s.Rel > 0.6 + 0.02 && s.Rel < 1.2 - 0.02).ToList();
+        Assert.True(on.Count > 30, $"{on.Count} frames with the ring");
+        Assert.All(on, s =>
+        {
+            var g = Assert.Single(s.Shown);
+            Assert.Equal((GraphicKind.Ring, "Runner"), (g.Kind, g.Text));
+            Assert.Equal(s.RunnerX, g.Points[0].X, 0.001f);                             // on the unit, where it is this frame
+        });
+        Assert.Contains(on, s => s.Shown[0].Alpha is > 0.2f and < 0.8f);              // fading
+        Assert.Contains(on, s => s.Shown[0].Alpha >= 0.999f);
+        Assert.True(on[^1].RunnerX - on[0].RunnerX > 0.4f, "the Runner moved, and the ring with it");
+        Assert.Empty(FilmStudio.Graphics);                                              // released with the film
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> P6 (§11t G3, success condition 2 — the capture rail, as CE-1370's): a captured frame is handed the graphics WITH the subtitle in ONE
+    /// <see cref="FilmOverlay"/> — the frames in [0.6, 1.2) carry the ring on the Runner with its fade, the others none, and the subtitle still rides along.
+    /// 🔴 Mutation: the runner's capture calling the subtitle-only <c>Frame(path, w, h, ss, _subNow)</c> (as before CE-1305) ⇒ the sink gets no overlay ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_ACapturedFrame_IsHandedTheGraphics_WithTheSubtitle()
+    {
+        var store = Store();
+        store.Save(ViewAndGraphicsTake() with
+        {
+            Subtitles = new[] { new Subtitle { At = new AtExpr(0.5), Until = new AtExpr(1.5), Text = "Contact" } },
+        });
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "p6"), Capture: new CaptureOptions(Path.Combine(_root, "film-p6"), Fps: 30, Encode: false))));
+        Run(runner, host);
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.Equal(sink.Frames.Count, sink.Overlays.Count);                          // ⭐ every frame through the overlay
+        var withRing = sink.Overlays.Where(o => o.Graphics.Count > 0).ToList();
+        Assert.InRange(withRing.Count, 15, 20);                                        // 0.6 s at 30 fps
+        Assert.All(withRing, o =>
+        {
+            var g = Assert.Single(o.Graphics);
+            Assert.Equal((GraphicKind.Ring, "Runner"), (g.Kind, g.Text));
+            Assert.Equal("Contact", o.Subtitle?.Text);
+        });
+        Assert.Contains(withRing, o => o.Graphics[0].Alpha is > 0.2f and < 0.8f);
+        Assert.Contains(sink.Overlays, o => o.Graphics.Count == 0 && o.Subtitle?.Text == "Contact");   // 0.5–0.6 and 1.2–1.5: the subtitle alone
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t V7, "CE-1380 / CE-1379 as built") — a film that ENDS in 2-D gives the person the map
+    /// mode they had before it: the person works in 3-D, the take's View track holds the 2-D map, and when the film ends — and again when a second run is
+    /// STOPPED half way — the map on screen (a real <see cref="FilmCaptureLayer"/> over a headless map) is 3-D again, through the one switch. 🔴 Mutation:
+    /// <c>FilmCaptureLayer.Direct</c> not restoring <c>_personsMap</c> on release ⇒ the map stays 2-D ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_AFilmEndingIn2D_GivesThePersonTheirMapModeBack_AtItsEnd_AndOnStop()
+    {
+        var store = Store();
+        store.Save(new Take
+        {
+            Scenario = "s-a", Name = "v2d", TickHz = 60, EndAt = new AtExpr(1.5),
+            Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { Follow = "Runner", Distance = 40 } } },
+            Views = new[] { new ViewChange { At = new AtExpr(0), TwoD = true } },
+        });
+        var host = new FakeEditor(store);
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var view = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
+        using var film = new FilmCaptureLayer(canvas, view, () => host.Repo);
+        view.Set(true, animate: false);                                                  // the person works in the 3-D map
+        Assert.True(view.Is3D);
+
+        (bool SawTwoD, bool StoppedHalfWay) Play(bool stop)
+        {
+            var runner = new DirectorRunner(host, new Cinema(), new Layers());
+            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "v2d"))));
+            bool sawTwoD = false, stopped = false;
+            for (int f = 0; f < 20000 && (runner.Busy || view.IsSwitching || f < 3); f++)
+            {
+                runner.Tick();
+                film.Update(1f / 60f);
+                view.Camera3D.Update(1f / 60f);                                           // the switch animates through the camera's update
+                if (runner.Phase == DirectorPhase.Playing && !view.Is3D && !view.IsSwitching) sawTwoD = true;
+                if (stop && sawTwoD && !stopped) { runner.Stop(); stopped = true; }
+                host.EndFrame();
+            }
+            for (int f = 0; f < 120; f++) { film.Update(1f / 60f); view.Camera3D.Update(1f / 60f); }   // a switch still landing lands
+            return (sawTwoD, stopped);
+        }
+
+        var ended = Play(stop: false);
+        Assert.True(ended.SawTwoD, "anti-vacuity: the film held the 2-D map");
+        Assert.True(view.Is3D, "the film's end gives the person's 3-D map back");
+
+        var halted = Play(stop: true);
+        Assert.True(halted.SawTwoD && halted.StoppedHalfWay, "anti-vacuity: stopped while the film held the 2-D map");
+        Assert.True(view.Is3D, "Stop gives the person's 3-D map back");
     }
 
     /// <summary>B8 — capture: one frame per film frame of each shot (30 fps, so every other 60 Hz step), card frames before each item, one
@@ -1197,6 +1481,243 @@ public sealed class DirectorRunnerTests : IDisposable
             Assert.True(leaked.Count == 0, $"{t.Name} names {string.Join(", ", leaked.Select(x => x.Name))}");
         }
         Assert.Contains(typeof(IRunExtension), typeof(ScenarioVerifyRun).GetInterfaces());   // the verifier plugs in through the seam
+    }
+
+    // ── ⭐ CE-1306 R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the reel composer played, the render queue on the fake editor ──────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D1; success condition 1 — "a composed reel plays its items in order on a fake host"): a reel composed from three takes, the last
+    /// moved to the front and the middle one removed, is played UNSAVED by the runner: the fake editor loads s-c then s-a, each item reported ok, and the card
+    /// over each load is that item's title. 🔴 Mutation: <c>ReelComposer.Move</c> inserting at <c>from</c> instead of <c>to</c> ⇒ the order stays s-a, s-b
+    /// … ⇒ the loads are s-a, s-c ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_AComposedReel_PlaysItsItemsInOrder_Unsaved()
+    {
+        var store = Store();
+        var composer = new ReelComposer(() => store);
+        Assert.Empty(composer.New("composed"));
+        composer.Add("s-a", "main", title: "First A");
+        composer.Add("s-b", "main");
+        composer.Add("s-c", "main", title: "Then C");
+        Assert.True(composer.Move(2, 0));
+        Assert.True(composer.Remove(2));
+        Assert.True(composer.Dirty);
+
+        var host = new FakeEditor(store);
+        var cinema = new Cinema();
+        var runner = new DirectorRunner(host, cinema, new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(composer.Reel!)));
+        Run(runner, host);
+
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.Equal(new[] { "s-c", "s-a" }, host.Loads);
+        Assert.Equal(new[] { "s-c", "s-a" }, runner.Reports.Select(r => r.Scenario));
+        Assert.All(runner.Reports, r => Assert.Equal("ok", r.Status));
+        Assert.Equal(new[] { "Then C", "First A" }, cinema.Cards.Take(2));
+        Assert.False(File.Exists(store.ReelPath("composed")));   // never saved: played as it stands
+    }
+
+    private (DirectorRunner Runner, DirectorStills Stills, DirectorRenders Renders, FakeEditor Host, Sink Sink) RenderQueue(TakeStore store)
+    {
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        var stills = new DirectorStills(runner, sink, () => false);
+        var renders = new DirectorRenders(runner, stills, sink, () => false, () => store, () => null);
+        return (runner, stills, renders, host, sink);
+    }
+
+    /// <summary>The pack's frame (runner, stills, queue — <see cref="DirectorPack.Tick"/>'s order) then the editor's, until the queue is idle; the job holding
+    /// the director at each frame. ⭐ Asserts every frame that at most ONE job is started and that the runner plays THAT job's capture.</summary>
+    private static List<string?> RunQueue((DirectorRunner Runner, DirectorStills Stills, DirectorRenders Renders, FakeEditor Host, Sink Sink) q,
+                                          Func<int, bool>? atFrame = null, int maxFrames = 40_000)
+    {
+        var holding = new List<string?>();
+        for (int f = 0; f < maxFrames && (q.Renders.Busy || q.Renders.Queued > 0 || q.Runner.Busy); f++)
+        {
+            q.Runner.Tick();
+            q.Stills.Tick();
+            q.Renders.Tick();
+            q.Host.EndFrame();
+            var started = q.Renders.Jobs.Where(j => j.State is RenderState.Running or RenderState.Opening).ToList();
+            Assert.True(started.Count <= 1, $"frame {f}: {started.Count} renders started at once");
+            if (started.Count == 1 && q.Runner.Busy) Assert.Equal(started[0].Dir, q.Runner.Request!.Capture!.Dir);   // the runner plays THAT job
+            holding.Add(q.Renders.Running?.Id);
+            if (atFrame?.Invoke(f) == false) break;
+        }
+        Assert.False(q.Renders.Busy || q.Renders.Queued > 0, $"the queue is not idle after {maxFrames} frames");
+        return holding;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> TE-10 (docs/DESIGN_Director_Timeline_Editor.md §11v S2, success condition 3): a STILLS render of a recording waits, after the open, until the
+    /// recording's timeline index is read — its keys are planned through that index (the one resolver), so planning on a half-scanned index would miss anchors —
+    /// and goes on the frame it is complete. 🔴 Mutation: the wait in <c>DirectorRenders.Watch</c> removed ⇒ the job leaves Opening after the two settle frames ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_TE10_AStillsRenderOfARecording_WaitsForItsIndex_BeforeItPlans()
+    {
+        var store = Store();
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        var stills = new DirectorStills(runner, sink, () => true);
+        var renders = new DirectorRenders(runner, stills, sink, () => true, () => store, () => "s-a") { Recordings = new OpensAnyRecording() };
+        var reading = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[]>(), new long[10], 10, 600);
+        var read = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[]>(), new long[600], 600, 600);
+        var index = reading;
+        runner.Index = () => index;
+        var (job, why) = renders.Enqueue(new RenderRequest { Kind = RenderKind.Stills, Recording = "night/verify-1/node_1.fdp", Scenario = "s-a", Take = "main", Width = 320, Height = 180 });
+        Assert.True(job != null, why);
+
+        for (int f = 0; f < DirectorRenders.OpenSettleFrames + 30; f++) renders.Tick();
+        Assert.Equal(RenderState.Opening, job!.State);                    // the index is still being read: not planned yet
+
+        index = read;
+        renders.Tick();
+        Assert.NotEqual(RenderState.Opening, job.State);                  // read: it plans (and goes on)
+    }
+
+    /// <summary>CE-1391's one opener seam, faked: every open succeeds (this rail is about the index wait, not the open).</summary>
+    private sealed class OpensAnyRecording : Hrot.Presentation.DebugApi.IRecordingOpener
+    {
+        public string? Open(Hrot.Presentation.DebugApi.RecordingName recording, double atSeconds) { Shown = recording; return null; }
+        public Hrot.Presentation.DebugApi.RecordingName? Shown { get; private set; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1306</c> R4 (§11u D3, D5; success condition 2) — TWO renders queued at once (s-a/main, s-b/main, frames only) run ONE AFTER THE OTHER through the
+    /// one runner: the first holds the director until it is done, then the second; each writes into a folder of its own beside its take
+    /// (<c>takes/main.render/r1</c>, <c>…/r2</c>) and yields that output; every captured frame of r1 comes before every frame of r2; the editor loads s-a then
+    /// s-b. 🔴 Mutation: <c>DirectorRenders.Begin</c> not holding the director (<c>_running = job</c> removed) ⇒ r1 is never watched and r2 starts once the runner
+    /// is idle ⇒ "2 renders started at once" ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_TwoRenders_RunOneAfterTheOther_EachIntoItsOwnFolder()
+    {
+        var store = Store();
+        var q = RenderQueue(store);
+        var (r1, why1) = q.Renders.Enqueue(new RenderRequest { Scenario = "s-a", Take = "main", Fps = 30, Width = 320, Height = 180, Encode = false });
+        var (r2, why2) = q.Renders.Enqueue(new RenderRequest { Scenario = "s-b", Take = "main", Fps = 30, Width = 320, Height = 180, Encode = false });
+        Assert.True(r1 != null && r2 != null, why1 ?? why2);
+        Assert.Equal(("r1", "r2", 2), (r1!.Id, r2!.Id, q.Renders.Queued));
+
+        var holding = RunQueue(q);
+
+        Assert.Equal((RenderState.Done, RenderState.Done), (r1.State, r2.State));
+        string dir1 = Path.Combine(_root, "s-a", "takes", "main.render", "r1"), dir2 = Path.Combine(_root, "s-b", "takes", "main.render", "r2");
+        Assert.Equal((dir1, dir2), (r1.Dir, r2.Dir));
+        Assert.Equal((Path.Combine(dir1, "frames"), Path.Combine(dir2, "frames")), (r1.Output, r2.Output));
+        Assert.Equal(new[] { "s-a", "s-b" }, q.Host.Loads);
+        int lastOf1 = q.Sink.Frames.FindLastIndex(p => p.StartsWith(dir1, StringComparison.Ordinal));
+        int firstOf2 = q.Sink.Frames.FindIndex(p => p.StartsWith(dir2, StringComparison.Ordinal));
+        Assert.True(lastOf1 >= 10 && firstOf2 > lastOf1, $"r1's frames end at {lastOf1}, r2's begin at {firstOf2}");
+        Assert.Equal(q.Sink.Frames.Count, q.Sink.Frames.Count(p => p.StartsWith(dir1, StringComparison.Ordinal) || p.StartsWith(dir2, StringComparison.Ordinal)));
+        // the director was held by r1, then by r2 — never back
+        var order = holding.Where(h => h != null).Distinct().ToList();
+        Assert.Equal(new[] { "r1", "r2" }, order);
+        Assert.True(r1.Frames > 0 && r2.Frames > 0, $"{r1.Frames} / {r2.Frames} frames reported");
+        Assert.All(new[] { r1, r2 }, j => Assert.True(j.Finished >= j.Started, j.Id));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D6; success condition 2) — three renders queued; the THIRD is cancelled while queued (it never runs: s-c is never loaded, nothing
+    /// is written for it), the FIRST is cancelled while running (the runner is STOPPED at once, the job reads cancelled, its folder holds fewer frames than a whole
+    /// take), and the queue goes on to the second, which completes. A second cancel of an ended job is refused; an unknown id is not found.
+    /// 🔴 Mutation: <c>DirectorRenders.Cancel</c> not stopping the runner for the running job ⇒ the runner is still busy after the cancel ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_Cancel_TakesAQueuedRenderOff_AndStopsTheRunningOne()
+    {
+        var store = Store();
+        var q = RenderQueue(store);
+        RenderJob Queue(string scenario) => q.Renders.Enqueue(new RenderRequest { Scenario = scenario, Width = 320, Height = 180, Encode = false }).Job!;
+        var r1 = Queue("s-a");
+        var r2 = Queue("s-b");
+        var r3 = Queue("s-c");
+        Assert.Equal((true, (string?)null), q.Renders.Cancel(r3.Id));
+        Assert.Equal(RenderState.Cancelled, r3.State);
+        Assert.Equal((false, (string?)null), q.Renders.Cancel("r99"));
+
+        bool cancelled = false;
+        RunQueue(q, f =>
+        {
+            if (!cancelled && r1.State == RenderState.Running && r1.Frames >= 5)
+            {
+                Assert.Equal((true, (string?)null), q.Renders.Cancel(r1.Id));
+                Assert.False(q.Runner.Busy);                                   // ⭐ stopped at once
+                Assert.Equal(DirectorPhase.Stopped, q.Runner.Phase);
+                cancelled = true;
+            }
+            return true;
+        });
+
+        Assert.True(cancelled, "r1 never ran long enough to be cancelled while running");
+        Assert.Equal((RenderState.Cancelled, RenderState.Done, RenderState.Cancelled), (r1.State, r2.State, r3.State));
+        Assert.Equal(new[] { "s-a", "s-b" }, q.Host.Loads);                     // r3 never ran
+        Assert.Null(r3.Dir);
+        Assert.DoesNotContain(q.Sink.Frames, p => p.Contains(Path.Combine("s-c", "takes"), StringComparison.Ordinal));
+        int framesOf1 = q.Sink.Frames.Count(p => p.StartsWith(r1.Dir!, StringComparison.Ordinal));
+        int framesOf2 = q.Sink.Frames.Count(p => p.StartsWith(r2.Dir!, StringComparison.Ordinal));
+        Assert.True(framesOf1 < framesOf2, $"the cancelled r1 wrote {framesOf1} frames, the whole r2 {framesOf2}");
+        Assert.NotNull(q.Renders.Cancel(r1.Id).Refused);                       // it has ended
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D3; success condition 2) — a render that FAILS (a take that does not exist) is reported — failed, with the store's own reason
+    /// — and the queue goes on: the next render completes. A stills job on a host that cannot seek (the editor) is refused when it is queued, and a reel with no
+    /// items too. 🔴 Mutation: <c>DirectorRenders.End</c> not releasing the director (<c>_running</c> kept) ⇒ the queue never starts r2 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_AFailingRender_IsReported_AndTheQueueGoesOn()
+    {
+        var store = Store();
+        var q = RenderQueue(store);
+        var bad = q.Renders.Enqueue(new RenderRequest { Scenario = "s-a", Take = "no-such-take", Encode = false }).Job!;
+        var good = q.Renders.Enqueue(new RenderRequest { Scenario = "s-b", Width = 320, Height = 180, Encode = false }).Job!;
+        Assert.Equal(DirectorStills.CannotSeek, q.Renders.Enqueue(new RenderRequest { Kind = RenderKind.Stills, Scenario = "s-a", Times = new[] { 1d } }).Refused);
+        Assert.NotNull(q.Renders.Enqueue(new RenderRequest { Reel = new Reel { Name = "empty" } }).Refused);
+
+        RunQueue(q);
+
+        Assert.Equal(RenderState.Failed, bad.State);
+        Assert.Contains(bad.Problems, p => p.Contains("no take 'no-such-take'", StringComparison.Ordinal));
+        Assert.Equal(RenderState.Done, good.State);
+        Assert.Equal(new[] { "s-b" }, q.Host.Loads);
+        Assert.Equal("failed", bad.ToJson()["state"]!.GetValue<string>());
+        Assert.Equal(2, q.Renders.Jobs.Count);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1391</c> (TE-16; docs/DESIGN_Director_Timeline_Editor.md §11u "as built: CE-1391"; success condition 3) — on the EDITOR's kind of host (it opens no
+    /// recordings: the pack hands its runner no opener) a reel whose item names a recording is REFUSED at Play — the item, its take and the reason
+    /// (<see cref="DirectorRunner.NoRecordings"/>) — and nothing loads; queued as a render it fails with the same reason, and the next render (a reel naming
+    /// none) still plays. 🔴 Mutation: <c>DirectorRunner.Play</c> not refusing such an item when <c>Recordings</c> is null (the check removed) ⇒ Play starts ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1391_OnTheEditor_AReelItemNamingARecording_IsRefused_WithTheReason()
+    {
+        var store = Store();
+        var host = new FakeEditor(store);
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        Assert.Null(runner.Recordings);                                                    // the editor opens no recordings
+        var reel = new Reel { Name = "two", Items = new[] { new ReelItem { Scenario = "s-a" }, new ReelItem { Scenario = "s-b", Recording = "/runs/b/node_1.fdp" } } };
+        var refused = runner.Play(new PlayRequest(reel));
+        var why = Assert.Single(refused);
+        Assert.Equal("item 2 (s-b/main) " + DirectorRunner.NoRecordings, why);
+        Assert.Equal(DirectorPhase.Idle, runner.Phase);
+        Run(runner, host);
+        Assert.Empty(host.Loads);                                                           // nothing loaded
+
+        var q = RenderQueue(store);
+        var bad = q.Renders.Enqueue(new RenderRequest { Reel = reel, Width = 320, Height = 180, Encode = false, Dir = Path.Combine(_root, "r-bad") }).Job!;
+        var good = q.Renders.Enqueue(new RenderRequest { Reel = Reel.Of("s-a", "main"), Width = 320, Height = 180, Encode = false, Dir = Path.Combine(_root, "r-good") }).Job!;
+        RunQueue(q);
+        Assert.Equal(RenderState.Failed, bad.State);
+        Assert.Contains(bad.Problems, p => p.Contains(DirectorRunner.NoRecordings, StringComparison.Ordinal));
+        Assert.Equal(RenderState.Done, good.State);
+        Assert.Equal(new[] { "s-a" }, q.Host.Loads);
     }
 
 }

@@ -508,10 +508,18 @@ internal static class AiPrimitiveEmitter
                 e.WriteLine($"if (__repo.HasComponent<global::{channelFqn}>(__bridge->Self))");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine($"ref var {v} = ref __repo.GetComponentRW<global::{channelFqn}>(__bridge->Self);");
-                // ⛔ zero + INCREMENT, never `= default` — see the summary.
-                e.WriteLine($"{v}.ActiveAction     = 0;");
-                e.WriteLine($"{v}.ActionInstanceId = unchecked({v}.ActionInstanceId + 1u);");
+                // ⭐ CE-1432 — the release is the runtime ChannelRelease (zero + INCREMENT, never `= default` — see the summary).
+                //   The HasComponent guard stays here: a blueprint's derived channel may not be on every entity.
+                int kind = ChannelKindOf(channelFqn);
+                if (kind >= 0)
+                    e.WriteLine($"global::Fdp.Toolkit.Behavior.ChannelRelease.Release(__repo, __bridge->Self, (global::Fbt.Kernel.ChannelKind){kind});");
+                else
+                {
+                    // a channel component the runtime release does not know (a catalog entry outside the three engine channels)
+                    e.WriteLine($"ref var {v} = ref __repo.GetComponentRW<global::{channelFqn}>(__bridge->Self);");
+                    e.WriteLine($"{v}.ActiveAction     = 0;");
+                    e.WriteLine($"{v}.ActionInstanceId = unchecked({v}.ActionInstanceId + 1u);");
+                }
                 e.Outdent();
                 e.WriteLine("}");
             }
@@ -520,6 +528,16 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("}");
     }
+
+    /// <summary>⭐ <c>CE-1432</c> — the <c>Fbt.Kernel.ChannelKind</c> value of an engine channel component FQN (the runtime
+    /// <c>ChannelRelease</c> switches on it), or -1 for any other component.</summary>
+    private static int ChannelKindOf(string channelFqn) => channelFqn switch
+    {
+        "Fdp.Toolkit.Behavior.Components.LocomotionChannel"  => 0,
+        "Fdp.Toolkit.Behavior.Components.WeaponChannel"      => 1,
+        "Fdp.Toolkit.Behavior.Components.InteractionChannel" => 2,
+        _ => -1,
+    };
 
     private static void EmitHsmGuardThunk(CSharpEmitter e)
     {

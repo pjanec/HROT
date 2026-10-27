@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-09-26 (subtree-reference section added at the end — §S1)
 current-answer: the body below; §S1 (at the end) owns the SUBTREE REFERENCE and supersedes any
   earlier statement here that the subtree name is free text.
-known-rot: ⚠ predates the JSON substrate; `BTree_HSM_Editor_State_And_Forward_Plan.md` SUPERSEDES the
+known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · ⚠ predates the JSON substrate; `BTree_HSM_Editor_State_And_Forward_Plan.md` SUPERSEDES the
   substrate assumptions here while leaving this the feature/UX spec. ⛔ Do not quote it for
   persistence shape.
 related-designs:

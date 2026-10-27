@@ -218,6 +218,89 @@ public sealed class CodeBuiltStatefulActionTests
         Assert.True(runtime.TryGetDeactivator($"{fqn}.Count", out _));
     }
 
+    // ── CE-1411: a [WritesChannel] node releases its channel on Failure, as the JSON path does ───────────────────────
+
+    private static class ChannelWriters
+    {
+        public static NodeStatus Outcome = NodeStatus.Failure;
+
+        [Fbt.Kernel.WritesChannel(Fbt.Kernel.ChannelKind.Locomotion)]
+        public static NodeStatus Move(ref DemoCounterNodes.DemoCursorParams p, Entity self, EntityRepository world) => Outcome;
+
+        [Fbt.Kernel.WritesChannel(Fbt.Kernel.ChannelKind.Weapon)]
+        public static bool Aim(Entity self, EntityRepository world) => false;
+    }
+
+    private static (EntityRepository World, Entity Self) ChannelWorld()
+    {
+        var world = TestWorldFactory.Create();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.LocomotionChannel { ActiveAction = 5, ActionInstanceId = 7, DispatchedInstanceId = 7 });
+        world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.WeaponChannel { ActiveAction = 9, ActionInstanceId = 3, DispatchedInstanceId = 3 });
+        return (world, e);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1411</c> — a C#-built tree's <c>[WritesChannel]</c> node that returns <c>Failure</c> releases its channel exactly as the
+    /// JSON path's thunk does (<c>ChannelClearEmit</c> → <see cref="ChannelRelease.OnFailure"/>; its text rail is
+    /// <c>SharedAiBindingCompilesTests.ABTreeAssetBindingSharedAiMethods_CompilesToOnePerBindingCall_AtTheHostOffset</c>): <c>ActiveAction</c>
+    /// cleared, <c>ActionInstanceId</c> stepped (the dispatcher then runs the abandoned action's OnExit), <c>DispatchedInstanceId</c> untouched —
+    /// through the typed thunk the builder ticks AND the byte thunk the runtime registry runs. A Success leaves the channel claimed.
+    /// <para>✅ Red-proof: <c>SharedNodeBinder.Release</c> returns <c>status</c> without calling <c>OnFailure</c> ⇒ "Expected: 0, Actual: 5".</para>
+    /// </summary>
+    [Fact]
+    public void CE1411_ACodeBuiltChannelWriter_ReleasesItsChannelOnFailure()
+    {
+        var (world, self) = ChannelWorld();
+        try
+        {
+            var builder = new BTreeBuilder<CursorBlackboard, BTreeContext>()
+                .Selector(sel => sel
+                    .Action(bb => bb.Cfg, ChannelWriters.Move)
+                    .Condition(ChannelWriters.Aim));
+            var blob = builder.Compile("CE1411ChannelWriters");
+            var interp = new Interpreter<CursorBlackboard, BTreeContext>(blob, builder.GetRegistry());
+            var bb = new CursorBlackboard();
+            var st = new BehaviorTreeState();
+            var ctx = new BTreeContext { World = world, Self = self };
+
+            ChannelWriters.Outcome = NodeStatus.Failure;
+            interp.Tick(ref bb, ref st, ref ctx);
+
+            var loco = world.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
+            Assert.Equal(0, loco.ActiveAction);              // released …
+            Assert.Equal(8u, loco.ActionInstanceId);         // … as a new instance (7 → 8) …
+            Assert.Equal(7u, loco.DispatchedInstanceId);     // … so the dispatcher owes the old one its OnExit
+            var weapon = world.GetComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
+            Assert.Equal(0, weapon.ActiveAction);            // the param-less condition's channel too
+            Assert.Equal(4u, weapon.ActionInstanceId);
+
+            // ⭐ the RUNTIME (byte) thunk a registered curated tree actually runs carries the same release
+            var runtime = new ActionRegistry<byte, BTreeContext>();
+            SharedNodeBinder.CopyRuntimeThunks(builder.GetRegistry(), runtime);
+            Assert.True(runtime.TryGetAction(typeof(ChannelWriters).FullName + ".Aim", out var aim));
+            ref var w = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
+            w.ActiveAction = 9;
+            byte none = 0;
+            Assert.Equal(NodeStatus.Failure, aim(ref none, ref st, ref ctx, 0));
+            Assert.Equal(0, world.GetComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self).ActiveAction);
+
+            // ⛔ a Success keeps the channel claimed
+            ref var l = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
+            l.ActiveAction = 5;
+            ChannelWriters.Outcome = NodeStatus.Success;
+            st = new BehaviorTreeState();
+            interp.Tick(ref bb, ref st, ref ctx);
+            Assert.Equal(5, world.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self).ActiveAction);
+            Assert.Equal(8u, world.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self).ActionInstanceId);
+        }
+        finally
+        {
+            ChannelWriters.Outcome = NodeStatus.Failure;
+            world.Dispose();
+        }
+    }
+
     /// <summary>⛔ CE-504 slice 4 — a deactivator its action cannot feed is refused at BUILD time, never silently unpaired.</summary>
     [Fact]
     public void CodeBuilt_ADeactivatorTheActionCannotFeed_IsRefused()

@@ -1,0 +1,15 @@
+asset a2093000-0000-0000-0000-000000000001
+group Library/Tactics
+sop-orders no
+writes-channels []
+json-params Hrot.AI.Behaviors.Brains.EqsTacticsParams
+variable Params Hrot.AI.Behaviors.Brains.EqsTacticsParams = {"SearchRadius":80,"MinRepositionMetres":0,"Speed":3.5,"ArrivalRadius":1.5,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+parse (empty) -> ok
+  c2093000-0000-0000-0000-000000000002 {"SearchRadius":80,"MinRepositionMetres":0,"Speed":3.5,"ArrivalRadius":1.5,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+parse {} -> ok
+parse {"bogus":1} -> ok
+  c2093000-0000-0000-0000-000000000002 {"SearchRadius":80,"MinRepositionMetres":0,"Speed":3.5,"ArrivalRadius":1.5,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+parse {"Speed":7,"MinRepositionMetres":2} -> ok
+  c2093000-0000-0000-0000-000000000002 {"SearchRadius":80,"MinRepositionMetres":2,"Speed":7,"ArrivalRadius":1.5,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+Action c2093000-0000-0000-0000-000000000002 call Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBack p:EqsTacticsParams={"SearchRadius":80,"MinRepositionMetres":0,"Speed":3.5,"ArrivalRadius":1.5,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0} state:EqsTacticsState "Fall back from the top threat"
+  # CE-2093 — docs/DESIGN_Eqs_Consuming_Behaviours.md §2. One move to a FindSafeRetreatPoint answer (hidden from the top threat, far from it); Success on arrival.

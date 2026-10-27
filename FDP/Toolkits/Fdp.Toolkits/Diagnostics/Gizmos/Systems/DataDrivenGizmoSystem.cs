@@ -599,6 +599,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 return false;
             }
             _stampBuffer.StampGizmoTypeId(mark, gizmoTypeId);
+            _stampBuffer.MoveDefaultLayer(mark, DebugTraceLayers.ToolHandles);   // ⭐ CE-1382 — a tool's drawing: always on screen, never in a film
             return true;
         }
 

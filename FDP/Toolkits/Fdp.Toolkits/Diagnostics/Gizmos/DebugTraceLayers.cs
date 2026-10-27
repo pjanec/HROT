@@ -74,6 +74,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// click work always independently of what i pick in the debug layers menu."</i> It used to sit on layer 0 with the entity symbols,
         /// and turning <c>Entities</c> off hid it.</summary>
         public const byte Selection = 255;
+        /// <summary>⭐ <c>CE-1382</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1382 / CE-1383 as built") — an ACTIVE TOOL's drawing: its handles,
+        /// previews, crosshair and pick boxes. Above every bit a layer toggle owns (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn on
+        /// screen and never in a film (<c>LayerControlSets.FilmLayers</c> stops below the untoggled range). Not emitted by the tools: the two gizmo
+        /// arbiters (<c>GlobalGizmoManager</c>, <c>DataDrivenGizmoSystem</c>) move what a tool drew on the default layer here, once, after its
+        /// <c>UpdateAndDraw</c> — so no tool can forget it. Drawn and picked above the entity symbols (layer 0) it used to share.</summary>
+        public const byte ToolHandles = 254;
     }
 }
 

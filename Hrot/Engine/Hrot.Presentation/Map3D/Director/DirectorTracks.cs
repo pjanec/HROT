@@ -63,13 +63,15 @@ public static class PilotCamera
 /// </summary>
 public sealed class DirectorTracks
 {
-    public const string CameraId = "director.camera", TimeId = "director.time", SubtitlesId = "director.subtitles";
+    public const string CameraId = "director.camera", TimeId = "director.time", SubtitlesId = "director.subtitles",
+                        ViewId = "director.view", GraphicsId = "director.graphics";
 
     private readonly TakeEditor _editor;
     private readonly Func<CameraSpec?> _pilot;
     private readonly Action<int>? _stepRate;
     private readonly Func<double, EventAnchor?>? _eventAt;
     private readonly Func<FilmSegment?>? _segmentNow;
+    private readonly Func<EventAnchor, ShotTemplate, double, CameraSpec?>? _template;
     private string? _selected;
 
     /// <summary>⭐ <c>CE-4059</c> / CR-7 (§11q K2) — a key scoped to a segment is drawn in this colour (ABGR) and its label names the segment.</summary>
@@ -81,9 +83,12 @@ public sealed class DirectorTracks
     /// precedes it — K then stores the key as that event + an offset; null function = this host has no index (K stores a fixed time).</param>
     /// <param name="segmentNow">⭐ <c>CE-4059</c> / CR-7 (§11q K3) — the segment on screen while the runner plays THIS take (<see cref="DirectorRunner.SegmentOf"/>); during a
     /// replay (<see cref="FilmSegment.Back"/>) K and <i>update key from view</i> scope the new key to it. Null = this host never plays segments.</param>
+    /// <param name="template">⭐ <c>CE-1305</c> (§11v T2) — a shot template's camera for a key at a sim second hung on an event (<see cref="DirectorDrafts.TemplateCamera"/>:
+    /// the drafter's rule); null = this host has no drafter (no templates offered).</param>
     public DirectorTracks(TakeEditor editor, Func<CameraSpec?> pilot, Action<int>? stepRate = null, Func<double, EventAnchor?>? eventAt = null,
-                          Func<FilmSegment?>? segmentNow = null)
+                          Func<FilmSegment?>? segmentNow = null, Func<EventAnchor, ShotTemplate, double, CameraSpec?>? template = null)
     {
+        _template = template;
         _eventAt = eventAt;
         _segmentNow = segmentNow;
         _editor = editor ?? throw new ArgumentNullException(nameof(editor));
@@ -92,13 +97,19 @@ public sealed class DirectorTracks
         Camera = new CameraTrack(this);
         Time = MakeTimeTrack();
         Subtitles = MakeSubtitleTrack();
-        Tracks = new ITimelineTrack[] { Camera, Time, Subtitles };
+        View = new ViewTrack(this);
+        Graphics = MakeGraphicsTrack();
+        Tracks = new ITimelineTrack[] { Camera, Time, Subtitles, View, Graphics };
     }
 
     public ITimelineTrack Camera { get; }
     public ITimelineTrack Time { get; }
     /// <summary>⭐ <c>CE-1303</c> P2b — CR-11: the take's subtitles (its captions read as subtitles until the first subtitle edit — S8).</summary>
     public ITimelineTrack Subtitles { get; }
+    /// <summary>⭐ <c>CE-1304</c> P6 (§11t V3): the View track — 2-D / 3-D and the layer set from a time (the take's layers read as views until the first view edit).</summary>
+    public ITimelineTrack View { get; }
+    /// <summary>⭐ <c>CE-1305</c> P6 (§11t G4): the film-only graphics (TE-9).</summary>
+    public ITimelineTrack Graphics { get; }
     public IReadOnlyList<ITimelineTrack> Tracks { get; }
     public TakeEditor Editor => _editor;
 
@@ -145,25 +156,24 @@ public sealed class DirectorTracks
             {
                 case 'K':
                     if (_d._pilot() is not { } camera) return false;
-                    int count = CameraKeys.Of(_d._editor.Take).Count;
                     double sim = Math.Max(atSimSeconds, 0d);
-                    var anchor = _d._eventAt?.Invoke(sim);
-                    var at = new AtExpr(sim);
-                    if (anchor != null)   // ⭐ CR-6: the nearest preceding event + the sim seconds since it (against the take's baked time for it, so the key lands on the playhead)
-                    {
-                        double basis = _d._editor.Take.Baked is { } baked && baked.Times.TryGetValue(anchor.Name, out var t) ? t : anchor.EventSim;
-                        at = new AtExpr(Math.Round(sim - basis, 3), anchor.Name);
-                    }
-                    // ⭐ CR-7 (§11q K3) — K during a replay pass: the key belongs to that replay (at its real source time), never to the main pass
-                    if (!_d._editor.Apply(new TakeEdit.AddKey(new CameraKey { At = at, Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut }, anchor, _d.ReplayOnScreen())))
-                        return false;
-                    _d._selected = KeyId(count);
-                    return true;
+                    return _d.AddKeyAt(sim, camera, _d._eventAt?.Invoke(sim));
                 case 'U': return _d.UpdateKeyFromView(atSimSeconds);   // ⭐ CE-1303 P2b (§11o S11)
                 case 'J': if (_d._stepRate == null) return false; _d._stepRate(-1); return true;
                 case 'L': if (_d._stepRate == null) return false; _d._stepRate(+1); return true;
                 default: return false;
             }
+        }
+
+        /// <summary>⭐ <c>CE-1305</c> (§11v T2) — empty Camera track space: <i>"Add key: &lt;template&gt;"</i> for each shot template, at the sim second the click landed,
+        /// disabled where there is no event before it to frame.</summary>
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId, double atSimSeconds)
+        {
+            if (itemId != null || _d._template == null) return MenuItems(itemId);
+            double sim = Math.Max(atSimSeconds, 0d);
+            var anchor = _d._eventAt?.Invoke(sim);
+            return Drafter.Templates.Select(t => new TimelineMenuItem(TemplateMenuPrefix + Drafter.LabelOf(t), () => _d.AddTemplateKey(t, sim),
+                                                                      anchor != null && _d._template(anchor, t, sim) != null)).ToList();
         }
 
         public IEnumerable<TimelineMenuItem> MenuItems(string? itemId)
@@ -183,6 +193,7 @@ public sealed class DirectorTracks
         private static int? IndexOf(string id, string prefix) =>
             id.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(id.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var i) ? i : null;
         private static string KeyId(int i) => "key:" + i.ToString(CultureInfo.InvariantCulture);
+        internal static string KeyIdOf(int i) => KeyId(i);
 
         private static string Describe(CameraKey k)
         {
@@ -200,6 +211,43 @@ public sealed class DirectorTracks
             if (EventAnchors.Label(k.At) is { } anchor) text += " @ " + anchor;   // ⭐ CR-6: the key shows what it is tied to
             return k.Segment is { } seg ? text + " | segment " + seg : text;    // ⭐ CR-7 (§11q K2): and the one segment it plays in
         }
+    }
+
+    /// <summary>The Camera track's empty-space menu prefix for a shot template.</summary>
+    public const string TemplateMenuPrefix = "Add key: ";
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> (§11v T2) — a cut key at <paramref name="atSim"/> with <paramref name="template"/>'s camera, framed on the event K would hang the key on (the
+    /// nearest preceding index event): the drafter's rule, hung on that event the way K hangs one (CR-6) — ONE undo step. False (nothing added) when this host has
+    /// no drafter, no event precedes the second, or the drafter cannot frame it.
+    /// </summary>
+    public bool AddTemplateKey(ShotTemplate template, double atSim)
+    {
+        double sim = Math.Max(atSim, 0d);
+        if (_template == null || _eventAt?.Invoke(sim) is not { } anchor || _template(anchor, template, sim) is not { } camera) return false;
+        return AddKeyAt(sim, camera, anchor);
+    }
+
+    /// <summary>Whether a template key can be added at <paramref name="atSim"/> (an event precedes it that the drafter frames).</summary>
+    public bool CanAddTemplateKey(ShotTemplate template, double atSim)
+        => _template != null && _eventAt?.Invoke(Math.Max(atSim, 0d)) is { } a && _template(a, template, Math.Max(atSim, 0d)) != null;
+
+    /// <summary>K's add, shared with the templates: a cut key with <paramref name="camera"/> at <paramref name="sim"/>, hung on <paramref name="anchor"/> when there is one
+    /// (CR-6), scoped to the replay on screen (CR-7), selected; one undo step.</summary>
+    private bool AddKeyAt(double sim, CameraSpec camera, EventAnchor? anchor)
+    {
+        int count = CameraKeys.Of(_editor.Take).Count;
+        var at = new AtExpr(sim);
+        if (anchor != null)   // ⭐ CR-6: the nearest preceding event + the sim seconds since it (against the take's baked time for it, so the key lands on the playhead)
+        {
+            double basis = _editor.Take.Baked is { } baked && baked.Times.TryGetValue(anchor.Name, out var t) ? t : anchor.EventSim;
+            at = new AtExpr(Math.Round(sim - basis, 3), anchor.Name);
+        }
+        // ⭐ CR-7 (§11q K3) — a key added during a replay pass belongs to that replay (at its real source time), never to the main pass
+        if (!_editor.Apply(new TakeEdit.AddKey(new CameraKey { At = at, Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut }, anchor, ReplayOnScreen())))
+            return false;
+        _selected = CameraTrack.KeyIdOf(count);
+        return true;
     }
 
     /// <summary>⭐ <c>CE-1303</c> P2b (§11o S11) — "update key from view": the SELECTED camera key — else the key on screen at <paramref name="playheadSim"/>
@@ -248,6 +296,78 @@ public sealed class DirectorTracks
     /// <summary>⭐ P2b — the selected item's index into the take's segments / subtitles (the Director window edits its speed, gap, text, position, fade).</summary>
     public int? SelectedSegment => _selected is { } s ? SpanTrack.IndexOf(s, "seg:") : null;
     public int? SelectedSubtitle => _selected is { } s ? SpanTrack.IndexOf(s, "sub:") : null;
+    /// <summary>⭐ CE-1304 / CE-1305 P6 — the selected view item / graphic (the Director window edits its map and layers / its kind, text, radius, fade).</summary>
+    public int? SelectedView => _selected is { } s ? SpanTrack.IndexOf(s, "view:") : null;
+    public int? SelectedGraphic => _selected is { } s ? SpanTrack.IndexOf(s, "gfx:") : null;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t V3) — the View track: one POINT item per <see cref="ViewChange"/> (2-D / 3-D and its layer set
+    /// from that source second). The items are <see cref="TakeViews.Of"/> — a take with no views shows the layers it already plays — and the first edit writes
+    /// them (one undo step). Empty space offers "2-D map here" / "3-D map here"; an item offers delete and the other map; a drag moves it. Its layers are
+    /// edited in the Director window.
+    /// </summary>
+    private sealed class ViewTrack : ITimelineTrack
+    {
+        private readonly DirectorTracks _d;
+        public ViewTrack(DirectorTracks d) => _d = d;
+        public string Id => ViewId;
+        public string Label => "View";
+
+        public IReadOnlyList<TimelineTrackItem> Items
+        {
+            get
+            {
+                var views = Views(_d._editor.Take);
+                var list = new List<TimelineTrackItem>(views.Count);
+                for (int i = 0; i < views.Count; i++)
+                {
+                    if (_d._editor.Resolve(views[i].At) is not { } at) continue;
+                    string id = ItemId(i);
+                    list.Add(new TimelineTrackItem(id, _d.Shown(id, at), null, TakeViews.Describe(views[i]), TimelineTrackItemKind.Key, id == _d._selected));
+                }
+                return list;
+            }
+        }
+
+        public void Select(string itemId) => _d._selected = itemId;
+
+        public void Move(string itemId, double toSimSeconds, bool commit)
+        {
+            if (SpanTrack.IndexOf(itemId, "view:") is not { } i) return;
+            if (!commit) { _d._editor.SetPreview(itemId, toSimSeconds); return; }
+            _d._editor.ClearPreview();
+            _d._editor.Apply(new TakeEdit.MoveView(i, toSimSeconds));
+        }
+
+        public bool Key(char key, double atSimSeconds) => false;
+
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => MenuItems(itemId, 0d);
+
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId, double atSimSeconds)
+        {
+            if (itemId != null)
+            {
+                var views = Views(_d._editor.Take);
+                if (SpanTrack.IndexOf(itemId, "view:") is not { } i || i >= views.Count) yield break;
+                var v = views[i];
+                yield return new TimelineMenuItem("Delete view change", () => { if (_d._editor.Apply(new TakeEdit.RemoveView(i))) _d._selected = null; });
+                bool twoD = v.TwoD == true;
+                yield return new TimelineMenuItem(twoD ? "Switch to the 3-D map" : "Switch to the 2-D map",
+                    () => _d._editor.Apply(new TakeEdit.SetView(i, v with { TwoD = !twoD })));
+                yield break;
+            }
+            double from = Math.Max(atSimSeconds, 0d);
+            foreach (var (label, twoD) in new[] { ("2-D map here", true), ("3-D map here", false) })
+                yield return new TimelineMenuItem(label, () =>
+                {
+                    if (_d._editor.Apply(new TakeEdit.AddView(new ViewChange { At = new AtExpr(from), TwoD = twoD })))
+                        _d._selected = ItemId(_d._editor.Take.Views.Count - 1);
+                });
+        }
+
+        private static IReadOnlyList<ViewChange> Views(Take take) => TakeViews.Of(take, Layout(take));
+        private static string ItemId(int i) => "view:" + i.ToString(CultureInfo.InvariantCulture);
+    }
 
     /// <summary>
     /// ⭐ <c>CE-1364</c> / <c>CE-1303</c> P2b (§11o S10) — THE one span row: the Time track (segments) and the Subtitles track are this class with their own
@@ -381,6 +501,32 @@ public sealed class DirectorTracks
             ? new[] { new TimelineMenuItem("Add the shot's note as a subtitle", () =>
                 _editor.Apply(new TakeEdit.AddSubtitle(new Subtitle { At = new AtExpr(shot.Start), Until = new AtExpr(shot.End), Text = why }))) }
             : Enumerable.Empty<TimelineMenuItem>());
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> P6 (§11t G4) — the Graphics track: the subtitle's span row over <see cref="Take.Graphics"/>. "Add a graphic here" puts a RING on the
+    /// unit the pilot camera follows (a LABEL at its look-at when it follows none) for <see cref="DefaultGraphicSeconds"/>; the window edits the rest.
+    /// </summary>
+    private SpanTrack MakeGraphicsTrack() => new(this, GraphicsId, "Graphics", "gfx:", "graphic",
+        take => take.Graphics.Select(g => (g.At, g.Until, FilmGraphics.Describe(g))).ToList(),
+        (i, edge, sim) => new TakeEdit.MoveGraphic(i, edge, sim),
+        i => new TakeEdit.RemoveGraphic(i),
+        sim => new TakeEdit.AddGraphic(NewGraphic(sim)),
+        (take, _) => take.Graphics.Count - 1);
+
+    /// <summary>⭐ CE-1305 — the graphic "Add a graphic here" makes at <paramref name="sim"/>: a ring on the pilot's unit, else a label where it looks.</summary>
+    public FilmGraphic NewGraphic(double sim)
+    {
+        var pilot = _pilot();
+        var g = new FilmGraphic { At = new AtExpr(sim), Until = new AtExpr(sim + DefaultGraphicSeconds), Fade = 0.3 };
+        if (pilot?.Follow is { } unit) return g with { Kind = GraphicKind.Ring, Who = unit };
+        return g with { Kind = GraphicKind.Label, Points = new[] { pilot?.LookAt ?? Vector3.Zero }, Text = DefaultGraphicText };
+    }
+
+    /// <summary>⭐ CE-1305 — where the pilot camera looks (a look-at camera's point; null when it follows a unit or there is none): a graphic's next point.</summary>
+    public Vector3? PilotLookAt => _pilot()?.LookAt;
+
+    public const double DefaultGraphicSeconds = 3d;
+    public const string DefaultGraphicText = "Label";
 
     /// <summary>CE-1303 P2b: a subtitle added from the menu — 3 sim seconds long, with a placeholder the window's text field replaces.</summary>
     public const double DefaultSubtitleSeconds = 3d;

@@ -1,0 +1,17 @@
+asset a2108000-0000-0000-0000-000000000002
+group Library/Tactics
+sop-orders no
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+variable Tactics Hrot.AI.Behaviors.Brains.EqsTacticsParams = {"SearchRadius":30,"MinRepositionMetres":5,"Speed":2.5,"ArrivalRadius":1,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":1,"FireWhileMoving":1,"Anchor":[0, 0, 0],"AnchorRadius":0}
+variable Engage Hrot.AI.Behaviors.Brains.EngageParams = {"CooldownSeconds":1}
+parse (empty) -> ok
+  c2108000-0000-0000-0000-000000000103 {"SearchRadius":30,"MinRepositionMetres":5,"Speed":2.5,"ArrivalRadius":1,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":1,"FireWhileMoving":1,"Anchor":[0, 0, 0],"AnchorRadius":0}
+  c2108000-0000-0000-0000-000000000104 {"CooldownSeconds":1}
+parse {} -> ok
+parse {"bogus":1} -> refused InvalidOperationException
+Sequence c2108000-0000-0000-0000-000000000102 "Move to a firing position on the top threat, then fire"
+  Action c2108000-0000-0000-0000-000000000103 call Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FiringPosition p:EqsTacticsParams={"SearchRadius":30,"MinRepositionMetres":5,"Speed":2.5,"ArrivalRadius":1,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":1,"FireWhileMoving":1,"Anchor":[0, 0, 0],"AnchorRadius":0} state:EqsTacticsState "Move to a firing position on the top threat"
+    # CE-2108 — docs/DESIGN_Eqs_Consuming_Behaviours.md §9. FindOpenFiringPosition (near, sees the threat, higher / less exposed); fires on the way (FireWhileMoving = 1); Success on arrival.
+  Action c2108000-0000-0000-0000-000000000104 call Hrot.AI.Behaviors.Brains.PostureNodes.Engage p:EngageParams={"CooldownSeconds":1} state:EngageState "Engage the top threat"
+    # Fires at the top threat until the parent ends the run (the ROE gates every shot).

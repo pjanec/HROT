@@ -400,7 +400,8 @@ public sealed class DirectorTracksTests : IDisposable
     {
         var path = Write("main", V2);
         var (editor, tracks, undo) = Open("main");
-        Assert.Equal(new[] { DirectorTracks.CameraId, DirectorTracks.TimeId, DirectorTracks.SubtitlesId }, tracks.Tracks.Select(t => t.Id));
+        Assert.Equal(new[] { DirectorTracks.CameraId, DirectorTracks.TimeId, DirectorTracks.SubtitlesId, DirectorTracks.ViewId, DirectorTracks.GraphicsId },
+                     tracks.Tracks.Select(t => t.Id));   // ⭐ CE-1304 / CE-1305 P6 — + View, Graphics
         Assert.Empty(tracks.Subtitles.Items);                         // V2 has no caption: nothing read as a subtitle
 
         Assert.Equal("Add a subtitle here", Assert.Single(tracks.Subtitles.MenuItems(null, 6.0)).Label);
@@ -570,5 +571,110 @@ public sealed class DirectorTracksTests : IDisposable
         undo.Undo(null!); undo.Undo(null!); undo.Undo(null!); undo.Undo(null!); undo.Undo(null!);   // remove-key, K, K, U, U
         Assert.Null(editor.Take.Segments[1].Id);                                        // the id came with the first scoped key's undo step
         Assert.DoesNotContain(editor.Take.Keys, k => k.Segment != null);
+    }
+
+    // ── ⭐ CE-1304 / CE-1305 P6 (docs/DESIGN_Director_Timeline_Editor.md §11t) — the View track and the Graphics track ─────────────────────────────
+
+    private const string WithLayers = """
+        {"layers":{"on":["Ai.VisionCones"],"off":[]},
+         "shots":[{"at":1,"seconds":3,"lookAt":[1,2,3],"distance":40},
+                  {"at":6,"seconds":2,"lookAt":[1,2,3],"distance":40,"layers":{"on":["Units.Cards"]}}]}
+        """;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P6 (§11t V3, success condition 1): the View track SHOWS the layers a take already plays (the take's at 0, the second shot's at 6 — nothing
+    /// written), and EDITS them: "2-D map here" at 3 s writes those items AND the new one in ONE undo step, a drag moves it (a preview first), "Switch to the 3-D
+    /// map" flips it, "Delete view change" removes it — each one undo step, undone in order back to a take with no views; Save writes <c>views[]</c>.
+    /// 🔴 Mutation: the view edits' basis being the take as it is (not <c>WithViews</c>) ⇒ the first edit drops the read items (one view, not three) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_TheViewTrack_ShowsTheLayersPlayed_AddsMovesFlipsDeletes_AndUndoes()
+    {
+        var path = Write("main", WithLayers);
+        var (editor, tracks, undo) = Open("main");
+        var shown = tracks.View.Items;
+        Assert.Equal(new[] { (0d, "+Ai.VisionCones"), (6d, "+Ai.VisionCones +Units.Cards") }, shown.Select(i => (i.From, i.Label)));
+        Assert.Empty(editor.Take.Views);                                               // read, never written by looking
+
+        var add = tracks.View.MenuItems(null, 3.0).ToList();
+        Assert.Equal(new[] { "2-D map here", "3-D map here" }, add.Select(m => m.Label));
+        add[0].Run();
+        Assert.Equal(3, editor.Take.Views.Count);                                      // ⭐ the read items AND the new one, one step
+        Assert.Equal("Add view change", undo.UndoDescription);
+        Assert.Equal(2, tracks.SelectedView);
+        Assert.Equal((3d, (bool?)true), (editor.Take.Views[2].At.Offset, editor.Take.Views[2].TwoD));
+        Assert.Contains(tracks.View.Items, i => i.Id == "view:2" && i.Label == "2-D" && i.Selected);
+
+        tracks.View.Move("view:2", 4.5, commit: false);                               // a preview: the take is untouched
+        Assert.Equal(3d, editor.Take.Views[2].At.Offset);
+        Assert.Equal(4.5, tracks.View.Items.Single(i => i.Id == "view:2").From);
+        tracks.View.Move("view:2", 4.5, commit: true);
+        Assert.Equal(4.5, editor.Take.Views[2].At.Offset);
+        var flip = tracks.View.MenuItems("view:2", 4.5).Single(m => m.Label == "Switch to the 3-D map");
+        flip.Run();
+        Assert.False(editor.Take.Views[2].TwoD);
+        Assert.True(editor.Apply(new TakeEdit.SetView(2, editor.Take.Views[2] with { TwoD = true, Layers = new LayerChange(new[] { "Units.Labels" }, Array.Empty<string>()) })));
+
+        Assert.Equal(path, editor.Save());
+        var saved = _store.Load("sc", "main").Value!.Views;
+        Assert.Equal(3, saved.Count);
+        Assert.Equal((4.5, (bool?)true, "Units.Labels"), (saved[2].At.Offset, saved[2].TwoD, saved[2].Layers!.On.Single()));
+
+        tracks.View.MenuItems("view:2", 4.5).Single(m => m.Label == "Delete view change").Run();
+        Assert.Equal(2, editor.Take.Views.Count);
+        foreach (var expected in new[] { "Delete view change", "Change view", "Change view", "Move view change", "Add view change" })
+        {
+            Assert.Equal(expected, undo.UndoDescription);
+            undo.Undo(null!);
+        }
+        Assert.Empty(editor.Take.Views);
+        Assert.Equal(2, editor.Take.Shots.Count);                                      // the shots (and their layers) were never touched
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> P6 (§11t G4, success condition 2): the Graphics track — "Add a graphic here" at 6 s puts a RING on the unit the pilot camera follows (a LABEL
+    /// at its look-at when it follows none), 3 s long and selected; a body drag moves it whole, an end-edge drag only its end, a window edit sets its text, "Delete
+    /// graphic" removes it — each one undo step, undone in order back to none; Save writes <c>graphics[]</c>. 🔴 Mutation: <c>TakeEditor.MoveGraphic</c> passing
+    /// <c>SegmentEdge.Whole</c> for every edge ⇒ the end-edge drag moves the start too ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_P6_TheGraphicsTrack_AddsMovesResizesDeletes_AndUndoes()
+    {
+        var path = Write("main", V2);
+        CameraSpec? pilot = new() { Follow = "Tank 1", Distance = 12 };
+        var (editor, tracks, undo) = Open("main", () => pilot);
+        Assert.Empty(tracks.Graphics.Items);
+
+        Assert.Equal("Add a graphic here", Assert.Single(tracks.Graphics.MenuItems(null, 6.0)).Label);
+        tracks.Graphics.MenuItems(null, 6.0).Single().Run();
+        var g = Assert.Single(editor.Take.Graphics);
+        Assert.Equal((GraphicKind.Ring, "Tank 1", 6d, 6d + DirectorTracks.DefaultGraphicSeconds), (g.Kind, g.Who, g.At.Offset, g.Until.Offset));
+        var item = Assert.Single(tracks.Graphics.Items);
+        Assert.Equal(("ring Tank 1", true), (item.Label, item.Selected));
+        Assert.Equal(0, tracks.SelectedGraphic);
+
+        tracks.Graphics.Move("gfx:0", 7.0, commit: true);                              // the body: whole, same length
+        Assert.Equal((7d, 10d), (editor.Take.Graphics[0].At.Offset, editor.Take.Graphics[0].Until.Offset));
+        tracks.Graphics.Move("gfx:0", 11.5, commit: true, TrackItemPart.EndEdge);       // the end edge only
+        Assert.Equal((7d, 11.5), (editor.Take.Graphics[0].At.Offset, editor.Take.Graphics[0].Until.Offset));
+        Assert.True(editor.Apply(new TakeEdit.SetGraphic(0, editor.Take.Graphics[0] with { Text = "Lead tank" })));
+        Assert.Equal("ring Tank 1 \"Lead tank\"", tracks.Graphics.Items.Single().Label);
+
+        Assert.Equal(path, editor.Save());
+        var saved = _store.Load("sc", "main").Value!.Graphics.Single();
+        Assert.Equal((GraphicKind.Ring, "Tank 1", "Lead tank", 7d, 11.5), (saved.Kind, saved.Who, saved.Text, saved.At.Offset, saved.Until.Offset));
+
+        tracks.Graphics.MenuItems("gfx:0", 8.0).Single(m => m.Label == "Delete graphic").Run();
+        Assert.Empty(editor.Take.Graphics);
+        foreach (var expected in new[] { "Delete graphic", "Change graphic", "Move graphic", "Move graphic", "Add graphic" })
+        {
+            Assert.Equal(expected, undo.UndoDescription);
+            undo.Undo(null!);
+        }
+        Assert.Empty(editor.Take.Graphics);
+
+        pilot = new CameraSpec { LookAt = new Vector3(5, 6, 0), Distance = 50 };        // a look-at pilot: a label where it looks
+        var label = tracks.NewGraphic(2.0);
+        Assert.Equal((GraphicKind.Label, new Vector3(5, 6, 0), DirectorTracks.DefaultGraphicText), (label.Kind, label.Points.Single(), label.Text));
     }
 }

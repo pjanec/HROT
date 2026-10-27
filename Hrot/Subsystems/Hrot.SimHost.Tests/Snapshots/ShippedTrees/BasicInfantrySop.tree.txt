@@ -1,0 +1,57 @@
+asset a2080000-0000-0000-0000-000000000001
+group Library/Sop
+sop-orders yes
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+variable AirSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"AirThreat","Seconds":3}
+variable HitSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"Hit","Seconds":3}
+variable ThreatSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"FirstThreat","Seconds":3}
+variable HoldFire Fdp.Toolkit.Behavior.SopRoeParams = {"Fire":"HoldFire"}
+variable AirDefence Hrot.AI.Behaviors.Brains.EngageAircraftParams = {"ClearSeconds":10,"MinElevationDeg":80}
+variable NearMissSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"NearMiss","Seconds":3}
+parse (empty) -> ok
+  c2080000-0000-0000-0000-0000000000a2 {"Kind":"AirThreat","Seconds":3}
+  c2080000-0000-0000-0000-0000000000a3 {"ClearSeconds":10,"MinElevationDeg":80}
+  c2080000-0000-0000-0000-000000000011 {"Kind":"Hit","Seconds":3}
+  c2080000-0000-0000-0000-000000000016 {"Kind":"NearMiss","Seconds":3}
+  c2080000-0000-0000-0000-000000000021 {"Kind":"FirstThreat","Seconds":3}
+  c2080000-0000-0000-0000-000000000022 {"Fire":"HoldFire"}
+  c2080000-0000-0000-0000-000000000031 {"Kind":"FirstThreat","Seconds":3}
+parse {} -> ok
+parse {"bogus":1} -> refused InvalidOperationException
+Selector c2080000-0000-0000-0000-000000000002 "Rows — first true wins"
+  # A reaction table: each row is condition(s) → React; the idle row is last. Row order picks WHICH reaction; urgency decides whether it may interrupt what already runs (R-199).
+  Condition c2080000-0000-0000-0000-0000000000c1 call Fdp.Toolkit.Behavior.SopConditions.UnderCommand "Under command → his unit reacts for him"
+    # CE-2322 (AQ97 A, R-2062): true = the row wins and nothing is ordered — a man under a live commander gets his reactions from his unit (its SOP, its plays); with no commander (or his commander out of the fight) the rows below are his.
+  Condition c2080000-0000-0000-0000-0000000000c2 call Fdp.Toolkit.Behavior.SopConditions.Aboard "Aboard a vehicle → the vehicle decides"
+    # CE-2322 (AQ97, as built): a crewman in his seat or a passenger — his seat and the vehicle's behaviour decide, not his own rows.
+  Sequence c2080000-0000-0000-0000-0000000000a1 "Aircraft + an air-defence weapon → engage"
+    # CE-2191 (Air Ops §7f): a unit that carries or controls an air-defence weapon (a SAM launcher, a gun elevating ≥ 80°) stands and fires at the aircraft; every other unit falls through to its old rows.
+    Condition c2080000-0000-0000-0000-0000000000a2 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "Air threat (fresh, 3 s)"
+    Condition c2080000-0000-0000-0000-0000000000a3 call Hrot.AI.Behaviors.Brains.AirDefenceNodes.CanEngageAir p:EngageAircraftParams={"ClearSeconds":10,"MinElevationDeg":80} "Can engage aircraft"
+    Action c2080000-0000-0000-0000-0000000000a4 sop React:EngageAircraft:UnderFire "React: EngageAircraft"
+  Sequence c2080000-0000-0000-0000-000000000010 "Hit → fight from cover"
+    Condition c2080000-0000-0000-0000-000000000011 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"Hit","Seconds":3} "Hit (fresh, 3 s)"
+    Action c2080000-0000-0000-0000-000000000012 sop React:FightFromCover:Hit "React: FightFromCover"
+      # CE-2331 (AQ98 A/B, R-2070): fights from cover (PeekAndFire, per the ROE) and ends after 8 s quiet in cover, so the task resumes. Stand-in reaction — swap for your project's take-cover behaviour in the picker.
+  Sequence c2080000-0000-0000-0000-000000000015 "Shot at (near miss) → fight from cover"
+    Condition c2080000-0000-0000-0000-000000000016 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"NearMiss","Seconds":3} "Near miss (fresh, 3 s)"
+    Action c2080000-0000-0000-0000-000000000017 sop React:FightFromCover:UnderFire "React: FightFromCover"
+      # CE-2331 (AQ98 A/B, R-2070): fights from cover (PeekAndFire, per the ROE) and ends after 8 s quiet in cover, so the task resumes. CE-2322 (AQ97 B): rounds passing near him are reason enough.
+  Sequence c2080000-0000-0000-0000-000000000020 "Contact + hold fire → withdraw"
+    Condition c2080000-0000-0000-0000-000000000021 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"FirstThreat","Seconds":3} "First threat (fresh, 3 s)"
+    Condition c2080000-0000-0000-0000-000000000022 call Fdp.Toolkit.Behavior.SopConditions.RoeFireAtMost p:SopRoeParams={"Fire":"HoldFire"} "ROE ≤ HoldFire"
+    Action c2080000-0000-0000-0000-000000000023 sop React:FallBack:Contact "React: FallBack"
+  Sequence c2080000-0000-0000-0000-000000000030 "Contact → fight from cover"
+    Condition c2080000-0000-0000-0000-000000000031 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"FirstThreat","Seconds":3} "First threat (fresh, 3 s)"
+    Action c2080000-0000-0000-0000-000000000032 sop React:FightFromCover:Contact "React: FightFromCover"
+      # CE-2331 (AQ98 A/B, R-2070): fights from cover (PeekAndFire, per the ROE) and ends after 8 s quiet in cover, so the task resumes.
+  Sequence c2331000-0000-0000-0000-000000000001 "Enemy in sight, no task → fight from cover"
+    # CE-2332 (AQ98 C, R-2070): a man nobody gave anything to do engages an enemy he sees from where he is — never Idle with an enemy in sight.
+    Condition c2331000-0000-0000-0000-000000000002 call Hrot.AI.Behaviors.Brains.CoverFightConditions.EnemyInSight "Enemy in sight (seen within 1 s)"
+    Condition c2331000-0000-0000-0000-000000000003 call Hrot.AI.Behaviors.Brains.CoverFightConditions.NoTask "No task"
+    Condition c2331000-0000-0000-0000-000000000005 call Hrot.AI.Behaviors.Brains.CoverFightConditions.MayFire "May fire (ROE)"
+      # CE-3306: FightFromCover fights, so it runs only where the ROE lets him fire; under Hold Fire the withdraw row decides (D5).
+    Action c2331000-0000-0000-0000-000000000004 sop React:FightFromCover:Contact "React: FightFromCover"
+  Action c2080000-0000-0000-0000-000000000040 sop DoWhenIdle:Idle:- "Idle: Idle"
+    # What the unit does with no order.

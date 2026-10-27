@@ -1558,15 +1558,17 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
     /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the
     /// keyframe) whose meta names its scenario <c>s-film</c>, under <paramref name="dir"/>.</summary>
-    private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null, bool named = false)
+    private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null, bool named = false, double[]? alphaFires = null,
+                                        string scenarioHash = "0123456789abcdef")
     {
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, "node_1.fdp");
-        var meta = new RecordingMetadata { ExerciseId = exerciseId ?? Guid.NewGuid(), NodeId = 1, ScenarioName = "s-film", ScenarioHash = "0123456789abcdef" };
+        var meta = new RecordingMetadata { ExerciseId = exerciseId ?? Guid.NewGuid(), NodeId = 1, ScenarioName = "s-film", ScenarioHash = scenarioHash };
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
         repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
-        if (named)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
+        var units = new Dictionary<string, Entity>();
+        if (named || alphaFires != null)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
         {
             repo.RegisterComponent<EntityInfo>();
             foreach (var (id, name) in new[] { (1L, "Alpha"), (2L, "Bravo") })
@@ -1574,8 +1576,12 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 var e = repo.CreateEntity();
                 repo.AddComponent(e, new NetworkIdentity { Value = id });
                 repo.AddComponent(e, new EntityInfo { Name = new FixedString64(name) });
+                units[name] = e;
             }
         }
+        // ⭐ CE-1304 CR-5 — Alpha's rounds at Bravo, RECORDED as the bus carried them (a frame's events go with that frame): what the recording's index reads
+        if (alphaFires != null) repo.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+        var fireFrames = new HashSet<int>((alphaFires ?? Array.Empty<double>()).Select(s => (int)Math.Round(s * 60d)));
         using (var rec = new AsyncRecorder(path, meta))
         {
             long t0 = TimeSpan.FromSeconds(1).Ticks;
@@ -1585,7 +1591,10 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             for (int f = 1; f <= n; f++)
             {
                 repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f / 60d });
+                if (fireFrames.Contains(f))
+                    repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = units["Alpha"], Target = units["Bravo"], Quantity = 1 });
                 rec.CaptureFrame(repo, (uint)(f - 1), t0 + f * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+                repo.Bus.SwapBuffers();
             }
         }
         return path;
@@ -1902,6 +1911,244 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var own = replay.Where(s => s.Sim > 1.5 + step).ToList();
         Assert.True(own.Count > 30, $"replay frames after 1.5 s: {own.Count}");
         Assert.All(own, s => Assert.Equal(ReplayKeyAt, s.Camera));                                         // … and its own key took over at 1.5
+    }
+
+    // ── ⭐ CE-1304 / CE-1305 P6 (docs/DESIGN_Director_Timeline_Editor.md §11t) — the View track and the Graphics track on a recording ─────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> / <c>CE-1305</c> P6 (§11t, success conditions 1 and 2 — the RB rail): on a REAL recording in the Replay Browser, the two-shot take with a View
+    /// track (3-D + cards from 0, the 2-D map + labels from 2 s, the 3-D map from 4 s) and a label graphic (1.5–3.5 s) plays through the PACK's own seams — the layer
+    /// set reaches the pack's <see cref="Hrot.UI.Common.Map3D.Director.MapLayerOverride"/> (the one override every host builds), the map reaches
+    /// <see cref="Hrot.UI.Common.Map3D.FilmStudio.TwoD"/>, the graphic <see cref="Hrot.UI.Common.Map3D.FilmStudio.Graphics"/> — each at the recording's sim second.
+    /// 🔴 Mutation: <c>ApplyView</c> not calling <c>_layers.Apply</c> ⇒ the pack's override is never handed the view's set ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_OnARecording_TheViewTrack_AndAGraphic_PlayThroughThePacksOwnSeams()
+    {
+        var (pack, _) = OpenFilmRecording("p6");
+        static Hrot.UI.Common.Map3D.Director.LayerChange L(string on, string? off = null)
+            => new(new[] { on }, off == null ? Array.Empty<string>() : new[] { off });
+        pack.Takes.Save(TwoShotTake() with
+        {
+            Views = new[]
+            {
+                new Hrot.UI.Common.Map3D.Director.ViewChange { At = new Hrot.UI.Common.Map3D.Director.AtExpr(0d), TwoD = false, Layers = L("Units.Cards") },
+                new Hrot.UI.Common.Map3D.Director.ViewChange { At = new Hrot.UI.Common.Map3D.Director.AtExpr(2d), TwoD = true, Layers = L("Units.Labels", "Map.Roads") },
+                new Hrot.UI.Common.Map3D.Director.ViewChange { At = new Hrot.UI.Common.Map3D.Director.AtExpr(4d), TwoD = false },
+            },
+            Graphics = new[]
+            {
+                new Hrot.UI.Common.Map3D.Director.FilmGraphic
+                {
+                    At = new Hrot.UI.Common.Map3D.Director.AtExpr(1.5), Until = new Hrot.UI.Common.Map3D.Director.AtExpr(3.5),
+                    Kind = Hrot.UI.Common.Map3D.Director.GraphicKind.Label, Points = new[] { Key1At }, Text = "Phase line BLUE",
+                },
+            },
+        });
+        var runner = pack.Runner;
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d, Cinema: false)));
+        UntilPlaying(runner);
+        var seen = new List<(double Sim, bool TwoD, string On, string Off, int Graphics)>();
+        for (int i = 0; i < 600 && runner.Busy; i++)
+        {
+            double sim = Frame();
+            if (runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing && pack.Layers.Applied is { } applied)
+                seen.Add((sim, Hrot.UI.Common.Map3D.FilmStudio.TwoD, string.Join(",", applied.On), string.Join(",", applied.Off), Hrot.UI.Common.Map3D.FilmStudio.Graphics.Count));
+        }
+        var report = runner.Reports[0];
+        Assert.True(report.Status == "ok", $"{report.Status}: {string.Join("; ", report.Problems)}");
+        const double step = 1d / 60;
+        Assert.True(seen.Count > 200, $"{seen.Count} playing frames");
+        Assert.All(seen.Where(s => s.Sim < 2 - step), s => Assert.Equal((false, "Units.Cards", ""), (s.TwoD, s.On, s.Off)));
+        Assert.All(seen.Where(s => s.Sim > 2 + step && s.Sim < 4 - step), s => Assert.Equal((true, "Units.Labels", "Map.Roads"), (s.TwoD, s.On, s.Off)));
+        Assert.All(seen.Where(s => s.Sim > 4 + step), s => Assert.Equal((false, "Units.Labels", "Map.Roads"), (s.TwoD, s.On, s.Off)));
+        Assert.Contains(seen, s => s.TwoD);
+        Assert.All(seen.Where(s => s.Sim > 1.5 + step && s.Sim < 3.5 - step), s => Assert.Equal(1, s.Graphics));
+        Assert.All(seen.Where(s => s.Sim < 1.5 - step || s.Sim > 3.5 + step), s => Assert.Equal(0, s.Graphics));
+        Assert.Null(pack.Layers.Applied);                                                 // the film's end: the user's own layers, the 3-D map
+        Assert.False(Hrot.UI.Common.Map3D.FilmStudio.TwoD);
+    }
+
+    // ── ⭐ CE-1304 P4 (docs/DESIGN_Director_Timeline_Editor.md §11s) — CR-5 one resolver, promote ─────────────────────────────────────────────
+
+    private static readonly Vector3 Key3At = new(-20f, 5f, 0f);
+
+    /// <summary>Opens <paramref name="path"/> in the (initialized) browser and waits until its timeline index is fully read (it is scanned in the background).</summary>
+    private Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex OpenAndIndex(string path)
+    {
+        Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { path }, 0));
+        for (int i = 0; i < 1000; i++)
+        {
+            _subsystem.SyncTimelineSource();
+            if (_subsystem.TimelineSource is { IsComplete: true, Index: { } done } src && src.Error == null && done.TotalFrames > 0) return done;
+            System.Threading.Thread.Sleep(10);
+        }
+        throw new Xunit.Sdk.XunitException("the recording's index was not read within 10 s: " + _subsystem.TimelineSource?.Error);
+    }
+
+    /// <summary>Plays <c>s-film/main</c> to its end on the open recording: each playing frame's (sim, camera); the report.</summary>
+    private (List<(double Sim, Vector3? Camera)> Seen, Hrot.UI.Common.Map3D.Director.ItemReport Report) PlayMain(Hrot.UI.Common.Map3D.Director.DirectorRunner runner)
+    {
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d)));
+        var seen = new List<(double Sim, Vector3? Camera)>();
+        for (int i = 0; i < 600 && runner.Busy; i++)
+        {
+            double sim = Frame();
+            if (runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing) seen.Add((sim, Camera()));
+        }
+        Assert.False(runner.Busy);
+        return (seen, runner.Reports[0]);
+    }
+
+    /// <summary>A take adjusted on a recording: key 1 at 1 s (fixed), key 2 at Alpha's 1st round + 0.5 s, key 3 at Alpha's 2nd round; it ends at 5 s.</summary>
+    private static Hrot.UI.Common.Map3D.Director.Take EventTake(Hrot.UI.Common.Map3D.Director.BakedAnchors? baked) => new()
+    {
+        Scenario = "s-film", Name = "main", Title = "On Alpha's rounds",
+        Anchors = new Dictionary<string, Hrot.UI.Common.Map3D.Director.AnchorSpec>
+        {
+            ["shot:Alpha#1"] = new() { On = "shot", By = "Alpha", N = 1 },
+            ["shot:Alpha#2"] = new() { On = "shot", By = "Alpha", N = 2 },
+        },
+        Keys = new[]
+        {
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(1d), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key1At, Distance = 20f } },
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(0.5d, "shot:Alpha#1"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key2At, Distance = 20f } },
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(0d, "shot:Alpha#2"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key3At, Distance = 20f } },
+        },
+        EndAt = new Hrot.UI.Common.Map3D.Director.AtExpr(5d),
+        Baked = baked,
+    };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P4 — CR-5 (§11s, success condition 1): on a REAL recording in the Replay Browser whose index holds Alpha's two rounds (2.0 s and 3.5 s, recorded
+    /// as the bus carried them), a take whose keys hang on those EVENTS — its bake made for ANOTHER scenario hash (stale, so not used) — finds both anchors in the
+    /// RECORDING's index: no <c>beat-missing</c>, the anchors at the rounds' times, key 2 on screen from 2.5 s and key 3 from 3.5 s. 🔴 Mutation: routing the event cues
+    /// back to the side store (<c>AnchorBook.Observe</c> reading <c>ShotLog.Peek(world)</c> in place of <c>ObserveEvents</c>, and the runner's priming call removed) ⇒ a
+    /// replayed world carries no ShotLog ⇒ <c>beat-missing</c> (shot:Alpha#1, shot:Alpha#2).
+    /// </summary>
+    [Fact]
+    public void CE1304_CR5_OnARecording_EventAnchors_ResolveFromItsIndex_NoBeatMissing()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string dir = Path.Combine(_tempDir, "cr5", "exercises", Guid.NewGuid().ToString());
+        string path = RecordFilmRun(dir, 6d, alphaFires: new[] { 2.0, 3.5 });
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var index = OpenAndIndex(path);
+        Assert.Equal(2, index.Lane("combat.shot").Count);   // the recorded rounds are in the recording's index
+        var pack = _subsystem.Director!;
+        pack.Takes.Save(EventTake(new Hrot.UI.Common.Map3D.Director.BakedAnchors
+        {
+            Times = new Dictionary<string, double> { ["shot:Alpha#1"] = 1.0, ["shot:Alpha#2"] = 1.5 }, TickHz = 60, ScenarioHash = "another-version",
+        }));
+
+        var (seen, report) = PlayMain(pack.Runner);
+
+        Assert.True(report.Status == "ok", $"{report.Status}: missing {string.Join(", ", report.Missing)}; {string.Join("; ", report.Problems)}");
+        Assert.False(report.UsedBake);
+        Assert.Equal(2.0, report.Found["shot:Alpha#1"], 3);
+        Assert.Equal(3.5, report.Found["shot:Alpha#2"], 3);
+        Assert.All(seen.Where(s => s.Sim > 1.02 && s.Sim < 2.48), s => Assert.Equal(Key1At, s.Camera));
+        Assert.All(seen.Where(s => s.Sim > 2.52 && s.Sim < 3.48), s => Assert.Equal(Key2At, s.Camera));
+        Assert.All(seen.Where(s => s.Sim > 3.52 && s.Sim < 4.98), s => Assert.Equal(Key3At, s.Camera));
+        Assert.True(seen.Count(s => s.Sim > 2.52 && s.Sim < 3.48) > 30);
+
+        // ⭐ CE-1376 — the cuts' "rounds fired so far" are counted on the recording's INDEX (Alpha's rounds at 2.0 and 3.5 s), not the ShotLog side store a
+        //   replayed world never carries (which read 0 at every cut). 🔴 Mutation: RoundsFired reading ShotLog only ⇒ every cut 0 ⇒ the last cut's 2 is red.
+        Assert.NotEmpty(report.Cuts);
+        foreach (var cut in report.Cuts.Where(c => Math.Abs(c.Time - 2.0) > 0.05 && Math.Abs(c.Time - 3.5) > 0.05))
+            Assert.True(cut.Rounds == (cut.Time > 3.5 ? 2 : cut.Time > 2.0 ? 1 : 0), $"cut {cut.Shot} at {cut.Time:0.###}: {cut.Rounds} rounds");
+        Assert.True(report.Cuts.Any(c => c.Rounds == 2), string.Join("; ", report.Cuts.Select(c => $"{c.Shot}@{c.Time:0.###}={c.Rounds}")));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1304</c> P4 — the phase's acceptance (§11s, success conditions 2 and 4's flow): a take ADJUSTED on recording A (Alpha fires at 2.0 s; the take's bake made
+    /// on A, for the scenario file as it is) is PROMOTED — copied, bake kept — into the scenario's own takes; recording B of the SAME scenario, run later with Alpha
+    /// firing at 2.6 s, has no take beside it and plays the promoted one (TE-1's reverse: the scenario's takes read through), its beats at B's times: key 2 from
+    /// 3.1 s, key 3 from 4.1 s — not A's 2.5 / 3.5. Both recordings are real files with DIFFERENT event times (constructed, not synthesised indexes).
+    /// 🔴 Mutation: the runner's book letting the bake lead on a recording (<c>indexIsTheRun: false</c> in <c>DirectorRunner.NewBook</c>) ⇒ B cuts at A's baked 2.5 s ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P4_ATakeAdjustedOnRecordingA_IsPromoted_AndPlaysItsBeatsOnRecordingB_AtBsTimes()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string scenarios = Path.Combine(_tempDir, "p4-scenarios");
+        Directory.CreateDirectory(Path.Combine(scenarios, "s-film"));
+        const string scenarioJson = """{"name":"s-film"}""";
+        File.WriteAllText(Path.Combine(scenarios, "s-film", "scenario.json"), scenarioJson);
+        string hash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(scenarioJson);
+        string pathA = RecordFilmRun(Path.Combine(_tempDir, "p4", "exercises", Guid.NewGuid().ToString()), 6d, alphaFires: new[] { 2.0, 3.0 }, scenarioHash: hash);
+        string pathB = RecordFilmRun(Path.Combine(_tempDir, "p4", "exercises", Guid.NewGuid().ToString()), 6d, alphaFires: new[] { 2.6, 3.6 }, scenarioHash: hash);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem._directorScenariosRoot = scenarios;
+        _subsystem.Initialize(HeadlessConfig());
+        var pack = _subsystem.Director!;
+
+        // on A: the take, baked on A's index (as K bakes an event anchor), plays at A's times
+        OpenAndIndex(pathA);
+        pack.Takes.Save(EventTake(new Hrot.UI.Common.Map3D.Director.BakedAnchors
+        {
+            Times = new Dictionary<string, double> { ["shot:Alpha#1"] = 2.0, ["shot:Alpha#2"] = 3.0 }, TickHz = 60, ScenarioHash = hash,
+        }));
+        var (onA, reportA) = PlayMain(pack.Runner);
+        Assert.True(reportA.Status == "ok", $"A: {reportA.Status}: {string.Join("; ", reportA.Problems)}");
+        Assert.All(onA.Where(s => s.Sim > 2.52 && s.Sim < 2.98), s => Assert.Equal(Key2At, s.Camera));
+        Assert.All(onA.Where(s => s.Sim > 3.02 && s.Sim < 4.98), s => Assert.Equal(Key3At, s.Camera));
+
+        // promote: a copy into the scenario's own takes, bake kept (made for the scenario file as it is)
+        var promoted = pack.Promotion.Promote(null, "main");
+        Assert.True(promoted.Written, string.Join("; ", promoted.Problems));
+        Assert.Equal("kept", promoted.Bake);
+        string scenarioTake = Path.Combine(scenarios, "s-film", "takes", "main.take.json");
+        Assert.Equal(File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(pathA)!, "s-film", "takes", "main.take.json")), File.ReadAllBytes(scenarioTake));
+
+        // on B, run later: nothing beside it — the scenario's take plays, its beats at B's times
+        OpenAndIndex(pathB);
+        Assert.False(pack.Takes.HasOwn("s-film", "main"));
+        Assert.Contains("main", pack.Takes.TakesOf("s-film"));
+        var (onB, reportB) = PlayMain(pack.Runner);
+        Assert.True(reportB.Status == "ok", $"B: {reportB.Status}: missing {string.Join(", ", reportB.Missing)}; {string.Join("; ", reportB.Problems)}");
+        Assert.Equal(2.6, reportB.Found["shot:Alpha#1"], 3);
+        Assert.Equal(3.6, reportB.Found["shot:Alpha#2"], 3);
+        Assert.All(onB.Where(s => s.Sim > 1.02 && s.Sim < 3.08), s => Assert.Equal(Key1At, s.Camera));
+        Assert.All(onB.Where(s => s.Sim > 3.12 && s.Sim < 3.58), s => Assert.Equal(Key2At, s.Camera));
+        Assert.All(onB.Where(s => s.Sim > 3.62 && s.Sim < 4.98), s => Assert.Equal(Key3At, s.Camera));
+        Assert.Contains(reportB.Mismatches, m => m.StartsWith("shot:Alpha#1: baked 2 s, live 2.6 s", StringComparison.Ordinal));   // A's bake vs B, said
+        Assert.False(File.Exists(Path.Combine(Path.GetDirectoryName(pathB)!, "s-film", "takes", "main.take.json")));            // nothing written beside B
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> TE-10 (docs/DESIGN_Director_Timeline_Editor.md §11v S1, success condition 3): "still keys captured by Verify" — a VERIFY run's recording
+    /// (Alpha fires at 2.6 s and 3.6 s) and a take whose keys name STILLS, hung on Alpha's rounds, its bake made on ANOTHER run (2.0 / 3.0 s, another scenario
+    /// hash — as a promoted take carries): the stills plan places each still at THIS run's event (key 2 at 2.6 + 0.5 = 3.1 s, key 3 at 3.6 s) through the runner's
+    /// ONE resolver — not the stale bake — and names each PNG by its key's still. 🔴 Mutation: <c>DirectorStills.Prepare</c> planning without
+    /// <c>runner.AnchorTimesOf(take)</c> (the bake only) ⇒ the stills land at the other run's 2.5 s / 3.0 s ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_TE10_AVerifyRunsRecording_PlansItsStillKeys_AtItsOwnEvents_NotAnotherRunsBake()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string path = RecordFilmRun(Path.Combine(_tempDir, "te10", "exercises", Guid.NewGuid().ToString()), 6d, alphaFires: new[] { 2.6, 3.6 });
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        OpenAndIndex(path);
+        var pack = _subsystem.Director!;
+        var take = EventTake(new Hrot.UI.Common.Map3D.Director.BakedAnchors
+        {
+            Times = new Dictionary<string, double> { ["shot:Alpha#1"] = 2.0, ["shot:Alpha#2"] = 3.0 }, TickHz = 60, ScenarioHash = "another-run",
+        });
+        take = take with { Keys = take.Keys.Select((k, i) => k with { Still = $"{i + 1:D2}-still" }).ToArray() };
+        pack.Takes.Save(take);
+
+        var (prepared, code, error) = Hrot.UI.Common.Map3D.Director.DirectorStills.Prepare(
+            new Hrot.UI.Common.Map3D.Director.StillsRequest("s-film", "main"), pack.Runner, pack.Takes, null);
+
+        Assert.True(prepared != null, $"{code}: {error}");
+        Assert.Empty(prepared!.Problems);
+        Assert.Equal(new[] { "01-still", "02-still", "03-still" }, prepared.Plan.Select(p => p.Name).ToArray());
+        Assert.Equal(1.0, prepared.Plan[0].SourceTime, 3);
+        Assert.Equal(3.1, prepared.Plan[1].SourceTime, 3);   // THIS run's first round + 0.5 (the other run's bake said 2.5)
+        Assert.Equal(3.6, prepared.Plan[2].SourceTime, 3);   // THIS run's second round (the bake said 3.0)
     }
 
     /// <summary>
@@ -2243,6 +2490,250 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         }
     }
 
+    // ── ⭐ CE-1306 R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the render queue in the Replay Browser ───────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D3, D8; success condition 2, the headless half) — a HEADLESS Replay Browser has the pack's render queue (every host gets it from
+    /// the pack, CR-2) but no renderer: <c>POST /director/renders</c> is refused with the queue's reason and nothing is queued; <c>GET /director/renders</c>
+    /// answers the empty queue and names the refusal. 🔴 Mutation: <c>DirectorRenders.Refusal</c> answering null ⇒ the render is queued (200) ⇒ red.
+    /// </summary>
+    [Fact]
+    public async Task CE1306_OnAHeadlessBrowser_RendersAreRefused_WithTheReason()
+    {
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var (host, queue, port) = DirectorHttp();
+        using var _ = host;
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        string url = $"http://localhost:{port}";
+        void Frame() { queue.DrainAll(); _subsystem.Update(1f / 60f); }
+
+        var (code, body) = await Call(http.PostAsync(url + "/director/renders", Json("""{"take":"main","capture":{"size":"320x180"}}""")), Frame);
+        Assert.Equal(400, code);
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorRenders.NoRenderer, body["error"]!.GetValue<string>());
+        (code, body) = await Call(http.GetAsync(url + "/director/renders"), Frame);
+        Assert.Equal(200, code);
+        Assert.Empty(body["data"]!["jobs"]!.AsArray());
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorRenders.NoRenderer, body["data"]!["refusal"]!.GetValue<string>());
+        Assert.Same(_subsystem.Director!.Renders, _subsystem.Director.Window.Renders);
+    }
+
+    // ── ⭐ CE-1391 (§11u "as built: CE-1391", TE-16) — ONE opener, reachable without HTTP; a reel over two recordings ─────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1391</c> (§11u "as built: CE-1391", §11r R1; success condition 2) — on a HEADLESS Replay Browser every way to open a recording ends in the ONE opener
+    /// (<see cref="Hrot.Presentation.DebugApi.IRecordingOpener"/>, the browser's control — its log <c>RecordingOpens</c> is written there and nowhere else):
+    /// ① <c>POST /replay {path}</c>, ② the director's <c>recording=</c> (a folder), ③ <c>POST /replay {exerciseId}</c> (the master transition); and ④ the pack's runner
+    /// and render queue hold THAT object (<c>DirectorPackHost.Recordings</c>) — so ⑤ a reel [A's take, B's take] played by the runner with NO HTTP call opens B before
+    /// item 2 through it, and each item reports ok over its own recording (B's take is only beside B). 🔴 Mutation: the browser's master transition opening the
+    /// exercise's group itself (<c>_host.OpenGroup(group.Paths)</c>, the pre-CE-1391 body) ⇒ ③ never reaches the opener ⇒ red.
+    /// </summary>
+    [Fact]
+    public async Task CE1391_EveryRecordingOpen_EndsInTheOneOpener_AndTheRunnerReachesItWithoutHttp()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string root = Path.Combine(_tempDir, "staging");
+        var idA = Guid.NewGuid();
+        var idB = Guid.NewGuid();
+        string dirA = Path.Combine(root, "nodes", "node-1", "exercises", idA.ToString()), dirB = Path.Combine(root, "nodes", "node-1", "exercises", idB.ToString());
+        string pathA = RecordFilmRun(dirA, 6d, exerciseId: idA), pathB = RecordFilmRun(dirB, 6d, exerciseId: idB);
+        PutTakeBeside(dirA, SegmentedTake());
+        PutTakeBeside(dirB, TwoShotTake());
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.RecordingsRoot = root;
+        _subsystem.Initialize(HeadlessConfig());
+        var (host, queue, port) = DirectorHttp();
+        using var _ = host;
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        string url = $"http://localhost:{port}";
+        void Frame() { queue.DrainAll(); _subsystem.Update(1f / 60f); }
+
+        // ① POST /replay {path}
+        var (code, body) = await Call(http.PostAsync(url + "/replay", Json($$"""{"path":{{System.Text.Json.JsonSerializer.Serialize(pathA)}}}""")), Frame);
+        Assert.True(code == 200, body.ToJsonString());
+        Assert.Equal(new[] { pathA }, _subsystem.RecordingOpens);
+        // ② recording= on a director route, as a folder
+        (code, body) = await Call(http.GetAsync(url + "/director/moments?recording=" + Uri.EscapeDataString(dirB)), Frame);
+        Assert.True(code == 200, body.ToJsonString());
+        Assert.Equal(new[] { pathA, pathB }, _subsystem.RecordingOpens);
+        // ③ POST /replay {exerciseId}: the master's transition — the same opener
+        (code, body) = await Call(http.PostAsync(url + "/replay", Json($$"""{"exerciseId":"{{idA}}"}""")), Frame);
+        Assert.True(code == 200, body.ToJsonString());
+        Assert.Equal(new[] { pathA, pathB, idA.ToString() }, _subsystem.RecordingOpens);
+        Assert.Equal(idA.ToString(), _subsystem.CreateDebugProvider()!.ReplayBrowser!.Status()["exerciseId"]!.GetValue<string>());
+
+        // ④ the pack holds THAT opener
+        var pack = _subsystem.Director!;
+        Assert.Same(_subsystem.BrowserControl, pack.Runner.Recordings);
+        Assert.Same(_subsystem.BrowserControl, pack.Renders.Recordings);
+
+        // ⑤ a reel over A and B, played with no HTTP call (A is open): B opens before item 2 through the same opener
+        _subsystem.RecordingOpens.Clear();
+        var reel = new Hrot.UI.Common.Map3D.Director.Reel
+        {
+            Name = "two",
+            Items = new[] { new Hrot.UI.Common.Map3D.Director.ReelItem { Scenario = "s-film" }, new Hrot.UI.Common.Map3D.Director.ReelItem { Scenario = "s-film", Recording = dirB } },
+        };
+        Assert.Empty(pack.Runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(reel, Speed: 1000d, Cinema: false)));
+        for (int i = 0; i < 20_000 && pack.Runner.Busy; i++) _subsystem.Update(1f / 60f);
+        Assert.False(pack.Runner.Busy);
+        Assert.All(pack.Runner.Reports, r => Assert.True(r.Status == "ok", $"{r.Scenario}/{r.Take} over {r.Recording}: {r.Status}: {string.Join("; ", r.Problems)}"));
+        Assert.Equal(new[] { pathB }, _subsystem.RecordingOpens);                        // item 1 plays over the open A; item 2 opens B (its folder's one file)
+        Assert.Equal(dirB, pack.Runner.Reports[1].Recording);
+        Assert.Equal(pathB, Assert.Single(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Status()["nodes"]!.AsArray())!["path"]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1306</c> R4 (§11u D3–D6; success condition 2, the RB half — env-gated like the P3 windowed rail: <c>HROT_FILM_WINDOW=1</c>, Xvfb, ffmpeg) — a
+    /// WINDOWED Replay Browser with NOTHING open; ONE <c>POST /director/renders {renders:[…]}</c> queues four jobs over TWO recordings: r1 a movie of recording A's
+    /// take, r2 a movie of recording B's, r3 recording A's stills, r4 another movie — then <c>DELETE</c> cancels r4 while queued. The queue opens each job's
+    /// recording AT ITS TURN (A, then B, then A again), seeks it, and renders: r1 and r2 are MP4s beside their own recording's take in folders of their own, r3 two
+    /// PNGs + a contact sheet beside A's take; r4 never runs. ⚠ A real capture needs the GL window, so this rail cannot run headless.
+    /// 🔴 Mutation: <c>DirectorRenders.Begin</c> skipping <c>OpenRecording</c> ⇒ nothing is open, no scenario is named ⇒ r1 fails ("name the scenario") ⇒ red.
+    /// </summary>
+    [FilmWindowFact]
+    [Trait("Category", "Manual")]
+    public void CE1306_TheRenderQueue_RendersTwoRecordings_OneAfterTheOther_InAWindowedReplayBrowser()
+    {
+        Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser - CE-1306 render queue");
+        Fdp.Toolkit.Vis3D.LitShader.Reset();
+        try
+        {
+            rlImGui_cs.rlImGui.Setup(true);
+            Hrot.UI.Common.Map3D.FilmStudio.Reset();
+            string dirA = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
+            string dirB = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
+            string pathA = RecordFilmRun(dirA, 6d), pathB = RecordFilmRun(dirB, 6d);
+            PutTakeBeside(dirA, SegmentedTake());
+            PutTakeBeside(dirB, TwoShotTake());
+            _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            var (host, queue, port) = DirectorHttp();
+            using var _ = host;
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(300) };
+            string url = $"http://localhost:{port}";
+            void Frame()
+            {
+                queue.DrainAll();
+                _subsystem.Update(1f / 60f);
+                Raylib_cs.Raylib.BeginDrawing();
+                Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+                _subsystem.DrawWorld();
+                rlImGui_cs.rlImGui.Begin();
+                _subsystem.DrawUI();
+                rlImGui_cs.rlImGui.End();
+                Raylib_cs.Raylib.EndDrawing();
+            }
+            string a = System.Text.Json.JsonSerializer.Serialize(pathA), b = System.Text.Json.JsonSerializer.Serialize(pathB);
+            const string movie = "\"capture\":{\"fps\":10,\"size\":\"320x180\"}";
+            var (code, body) = CallOnThisThread(http.PostAsync(url + "/director/renders", Json(
+                $$"""{"renders":[{"recording":{{a}},"take":"main",{{movie}}},{"recording":{{b}},"take":"main",{{movie}}},{"recording":{{a}},"kind":"stills","take":"main","times":[0.5,4.5],"width":320,"height":180},{"recording":{{b}},"take":"main",{{movie}}}]}""")), Frame);
+            Assert.True(code == 200, body.ToJsonString());
+            Assert.Equal(new[] { "r1", "r2", "r3", "r4" }, body["data"]!["queuedIds"]!.AsArray().Select(x => x!.GetValue<string>()));
+            (code, body) = CallOnThisThread(http.DeleteAsync(url + "/director/renders/r4"), Frame);
+            Assert.True(code == 200, body.ToJsonString());
+
+            var renders = _subsystem.Director!.Renders;
+            for (int i = 0; i < 60_000 && (renders.Busy || renders.Queued > 0); i++) Frame();
+            Assert.False(renders.Busy || renders.Queued > 0, "the queue did not drain");
+            var jobs = renders.Jobs.ToDictionary(j => j.Id);
+            string Why(string id) => jobs[id].ToJson().ToJsonString();
+            Assert.True(jobs["r1"].State == Hrot.UI.Common.Map3D.Director.RenderState.Done, Why("r1"));
+            Assert.True(jobs["r2"].State == Hrot.UI.Common.Map3D.Director.RenderState.Done, Why("r2"));
+            Assert.True(jobs["r3"].State == Hrot.UI.Common.Map3D.Director.RenderState.Done, Why("r3"));
+            Assert.Equal(Hrot.UI.Common.Map3D.Director.RenderState.Cancelled, jobs["r4"].State);
+            Assert.Null(jobs["r4"].Dir);
+
+            Assert.Equal(Path.Combine(dirA, "s-film", "takes", "main.render", "r1", "s-film-main.mp4"), jobs["r1"].Output);
+            Assert.Equal(Path.Combine(dirB, "s-film", "takes", "main.render", "r2", "s-film-main.mp4"), jobs["r2"].Output);
+            foreach (var id in new[] { "r1", "r2" })
+                Assert.True(File.Exists(jobs[id].Output) && new FileInfo(jobs[id].Output!).Length > 0, Why(id));
+            // each movie is paced by ITS take: A's segmented take is 5.5 film seconds, B's two-shot take its own length — never the same frames
+            int framesA = Directory.GetFiles(Path.Combine(dirA, "s-film", "takes", "main.render", "r1", "frames"), "*.png").Length;
+            int framesB = Directory.GetFiles(Path.Combine(dirB, "s-film", "takes", "main.render", "r2", "frames"), "*.png").Length;
+            Assert.Equal(15 + 55, framesA);
+            Assert.True(framesB > 15 && framesB != framesA, $"B rendered {framesB} frames");
+
+            string stillsDir = Path.Combine(dirA, "s-film", "takes", "main.stills", "r3");
+            Assert.Equal(2, jobs["r3"].Outputs.Count);
+            Assert.All(jobs["r3"].Outputs, p => { Assert.Equal(stillsDir, Path.GetDirectoryName(p)); Assert.Equal((320, 180), PngSize(p)); });
+            Assert.Equal(Path.Combine(stillsDir, "contact-sheet.png"), jobs["r3"].Output);
+        }
+        finally
+        {
+            try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
+            Raylib_cs.Raylib.CloseWindow();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1391</c> (TE-16; §11u "as built: CE-1391"; success condition 1, the RB half — env-gated like the CE-1306 windowed rail: <c>HROT_FILM_WINDOW=1</c>,
+    /// Xvfb, ffmpeg) — a WINDOWED Replay Browser with NOTHING open and NO debug HTTP host: the pack's render queue (the Director window's <i>Queue render</i>)
+    /// takes r1 = a REEL [A's take over recording A, B's take over recording B] and r2 = B's take alone over B. r1 is ONE MP4 whose frame count covers BOTH items
+    /// (A alone is 15 + 55 frames, measured by CE-1306's rail; B alone is r2's count) — the runner opened A, then B, through the browser's one opener; r2 shows what
+    /// B alone gives. 🔴 Mutation: <c>DirectorRunner.TickItemRecording</c> returning false at once ⇒ nothing is open when item 1 loads (no take beside no
+    /// recording) ⇒ r1 fails ⇒ red.
+    /// </summary>
+    [FilmWindowFact]
+    [Trait("Category", "Manual")]
+    public void CE1391_AReelOverTwoRecordings_RendersAsOneMovie_InAWindowedReplayBrowser()
+    {
+        Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser - CE-1391 a reel over two recordings");
+        Fdp.Toolkit.Vis3D.LitShader.Reset();
+        try
+        {
+            rlImGui_cs.rlImGui.Setup(true);
+            Hrot.UI.Common.Map3D.FilmStudio.Reset();
+            string dirA = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
+            string dirB = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
+            string pathA = RecordFilmRun(dirA, 6d), pathB = RecordFilmRun(dirB, 6d);
+            PutTakeBeside(dirA, SegmentedTake());
+            PutTakeBeside(dirB, TwoShotTake());
+            _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            void Frame()
+            {
+                _subsystem.Update(1f / 60f);
+                Raylib_cs.Raylib.BeginDrawing();
+                Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+                _subsystem.DrawWorld();
+                rlImGui_cs.rlImGui.Begin();
+                _subsystem.DrawUI();
+                rlImGui_cs.rlImGui.End();
+                Raylib_cs.Raylib.EndDrawing();
+            }
+            var renders = _subsystem.Director!.Renders;
+            var reel = new Hrot.UI.Common.Map3D.Director.Reel
+            {
+                Name = "two-runs",
+                Items = new[]
+                {
+                    new Hrot.UI.Common.Map3D.Director.ReelItem { Scenario = "s-film", Title = "Run A", Recording = pathA },
+                    new Hrot.UI.Common.Map3D.Director.ReelItem { Scenario = "s-film", Title = "Run B", Recording = pathB },
+                },
+            };
+            var (r1, why1) = renders.Enqueue(new Hrot.UI.Common.Map3D.Director.RenderRequest { Reel = reel, Fps = 10, Width = 320, Height = 180, Dir = Path.Combine(_tempDir, "reel-render") });
+            var (r2, why2) = renders.Enqueue(new Hrot.UI.Common.Map3D.Director.RenderRequest { Recording = pathB, Take = "main", Fps = 10, Width = 320, Height = 180 });
+            Assert.True(r1 != null && r2 != null, why1 ?? why2);
+            for (int i = 0; i < 60_000 && (renders.Busy || renders.Queued > 0); i++) Frame();
+            Assert.False(renders.Busy || renders.Queued > 0, "the queue did not drain");
+            Assert.True(r1!.State == Hrot.UI.Common.Map3D.Director.RenderState.Done, r1.ToJson().ToJsonString());
+            Assert.True(r2!.State == Hrot.UI.Common.Map3D.Director.RenderState.Done, r2.ToJson().ToJsonString());
+            Assert.EndsWith(".mp4", r1.Output);
+            Assert.True(File.Exists(r1.Output) && new FileInfo(r1.Output!).Length > 0, r1.Output);
+            Assert.Equal(new[] { pathA, pathB, pathB }, _subsystem.RecordingOpens);              // r1: A, then B (the runner); r2: B (the queue)
+            int framesReel = Directory.GetFiles(Path.Combine(_tempDir, "reel-render", "frames"), "*.png").Length;
+            int framesB = Directory.GetFiles(Path.Combine(r2.Dir!, "frames"), "*.png").Length;
+            Assert.True(framesB > 15 && framesB != 70, $"B alone rendered {framesB} frames");
+            Assert.Equal(70 + framesB, framesReel);                                                // ONE movie: A's 15 + 55, then B's own
+        }
+        finally
+        {
+            try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
+            Raylib_cs.Raylib.CloseWindow();
+        }
+    }
+
     // ── CE-1303 P2 LIVE PROOF (docs/DESIGN_Director_Timeline_Editor.md §11o "live proof") — a WINDOWED browser, a real recording, one key moved ──
 
     /// <summary>Runs only with <c>HROT_FILM_PROOF=1</c> (it opens a window: run it under Xvfb, <c>DISPLAY=:99</c>).</summary>
@@ -2376,6 +2867,121 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
             Shoot("after");
             Assert.True(File.Exists(Path.Combine(outDir, "before.png")) && File.Exists(Path.Combine(outDir, "after.png")));
+        }
+        finally
+        {
+            try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
+            Raylib_cs.Raylib.CloseWindow();
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1304</c> / <c>CE-1305</c> P6 live proof (docs/DESIGN_Director_Timeline_Editor.md §11t) — the same WINDOWED browser and REAL recording as the P2 proof; the
+    /// scenario's seeded take is opened and, in the OPEN take (unsaved), given a ring + arrow + label (the Graphics track) and a View item that switches to the
+    /// 2-D map 0.3 s after t (with a key pulling the camera up). Played from t: <c>3d.png</c> (the 3-D film with the graphics); from t + 0.8: <c>2d.png</c> (the 2-D map, the same graphics). Each
+    /// still is captured through the director's own sink with the runner's overlay (<c>FilmFrameSink.Frame(…, runner.OverlayNow)</c> — the stills' path).
+    /// ⛔ Not a rail: a person judges the pixels.
+    /// </summary>
+    [FilmProofFact]
+    [Trait("Category", "Manual")]
+    public void CE1305_P6_LiveProof_AGraphicAndAViewSwitch_InAWindowedReplayBrowser()
+    {
+        string recording = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_RECORDING") ?? throw new InvalidOperationException("HROT_FILM_PROOF_RECORDING");
+        string scenario = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_SCENARIO") ?? "ua-tank-ammo";
+        string takeName = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_TAKE") ?? "main";
+        double t = double.Parse(Environment.GetEnvironmentVariable("HROT_FILM_PROOF_AT") ?? "9.1", System.Globalization.CultureInfo.InvariantCulture);
+        string outDir = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_OUT") ?? Path.Combine(Path.GetTempPath(), "hrot-film-proof-p6");
+        string who = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_UNIT") ?? "Enemy Tank";
+        string from = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_FROM") ?? "Tank";
+        Directory.CreateDirectory(outDir);
+        var log = new List<string>();
+        void Log(string line) { log.Add(line); Console.WriteLine("[film-proof-p6] " + line); File.WriteAllLines(Path.Combine(outDir, "proof.log"), log); }
+
+        Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.Msaa4xHint);
+        Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser — P6 live proof");
+        try
+        {
+            rlImGui_cs.rlImGui.Setup(true);
+            Hrot.UI.Common.Map3D.FilmStudio.Reset();
+            Fdp.Core.FlightRecorder.RecordedAssemblies.EnsureLoaded(
+                Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(recording + ".meta.json")));
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            string? grabScreen = null;   // ⭐ CE-1380 — the WINDOW's own frame, grabbed beside the capture (what the screen shows vs what the film shows)
+            void Frame()
+            {
+                _subsystem.Update(1f / 60f);
+                Raylib_cs.Raylib.BeginDrawing();
+                Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+                _subsystem.DrawWorld();
+                rlImGui_cs.rlImGui.Begin();
+                _subsystem.DrawUI();
+                rlImGui_cs.rlImGui.End();
+                if (grabScreen != null)
+                {
+                    var screen = Raylib_cs.Raylib.LoadImageFromScreen();
+                    try { Raylib_cs.Raylib.ExportImage(screen, grabScreen); } finally { Raylib_cs.Raylib.UnloadImage(screen); }
+                    grabScreen = null;
+                }
+                Raylib_cs.Raylib.EndDrawing();
+            }
+            Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { recording }, 0));
+            for (int i = 0; i < 30; i++) Frame();
+            var pack = _subsystem.Director!;
+            string root = AppContext.BaseDirectory;
+            while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+            string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
+            File.Copy(Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json"), beside, overwrite: true);
+            _subsystem.MoveDirectorPlayhead(t);
+            for (int i = 0; i < 10; i++) Frame();
+
+            Assert.Empty(pack.Session.Open(scenario, takeName));
+            var editor = pack.Session.Editor!;
+            var at = new Hrot.UI.Common.Map3D.Director.AtExpr(t - 1d);
+            var until = new Hrot.UI.Common.Map3D.Director.AtExpr(t + 8d);
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddGraphic(new Hrot.UI.Common.Map3D.Director.FilmGraphic
+                { At = at, Until = until, Kind = Hrot.UI.Common.Map3D.Director.GraphicKind.Ring, Who = who, Radius = 10, Text = "Target", Colour = 0xFF4030 })));
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddGraphic(new Hrot.UI.Common.Map3D.Director.FilmGraphic
+                { At = at, Until = until, Kind = Hrot.UI.Common.Map3D.Director.GraphicKind.Arrow, Who = from, Toward = who })));
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddGraphic(new Hrot.UI.Common.Map3D.Director.FilmGraphic
+                { At = at, Until = until, Kind = Hrot.UI.Common.Map3D.Director.GraphicKind.Label, Who = from, Text = "M1 Abrams", Colour = 0x60C0FF })));
+            // the View track: the 2-D map from t + 0.3 (inside the take's first shot — in a gap the camera is the NEXT shot's), layers as the take played
+            // them, and a key there pulling the camera up so the 2-D map frames both tanks
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddView(new Hrot.UI.Common.Map3D.Director.ViewChange
+                { At = new Hrot.UI.Common.Map3D.Director.AtExpr(t + 0.3), TwoD = true })));
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddKey(new Hrot.UI.Common.Map3D.Director.CameraKey
+            {
+                At = new Hrot.UI.Common.Map3D.Director.AtExpr(t + 0.3),
+                Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { Follow = from, Distance = 900f, Pitch = -89f },
+            })));
+            var runner = pack.Runner;
+            var request = new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of(scenario, takeName), Speed: 1000d, Cinema: false);
+            var sink = new Hrot.UI.Common.Map3D.Director.FilmFrameSink();
+
+            string Shoot(string name, double from)
+            {
+                Assert.Empty(runner.PlayFrom(request, from));
+                for (int i = 0; i < 600 && runner.Phase != Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing && runner.Busy; i++) Frame();
+                Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing, runner.Phase);
+                Frame();
+                runner.Pause();
+                for (int i = 0; i < 90; i++) Frame();                                   // the camera settles; a 2-D switch lands
+                var overlay = runner.OverlayNow(true);
+                var capture = sink.Frame(Path.Combine(outDir, name + ".png"), 1280, 720, 1, overlay);
+                for (int i = 0; i < 120 && !capture.IsCompleted; i++) Frame();
+                capture.GetAwaiter().GetResult();
+                grabScreen = Path.Combine(outDir, name + "-screen.png");
+                Frame();
+                Log($"{name}: from {from}, director sim {_subsystem.DirectorSimSeconds:0.###}, 2-D {Hrot.UI.Common.Map3D.FilmStudio.TwoD}, view {runner.ViewNow}, " +
+                    $"graphics [{string.Join("; ", overlay.Graphics.Select(g => $"{g.Kind} {string.Join(" ", g.Points)} a={g.Alpha:0.##}"))}], subtitle {overlay.Subtitle?.Text}");
+                runner.Stop();
+                for (int i = 0; i < 5; i++) Frame();
+                return name;
+            }
+
+            Shoot("3d", t);
+            Shoot("2d", t + 0.8);
+            Assert.True(File.Exists(Path.Combine(outDir, "3d.png")) && File.Exists(Path.Combine(outDir, "2d.png")));
         }
         finally
         {

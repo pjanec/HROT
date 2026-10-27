@@ -35,6 +35,17 @@ public abstract record TakeEdit
     public sealed record RemoveSubtitle(int Index) : TakeEdit;
     /// <summary>⭐ CR-11 — subtitle <paramref name="Index"/>'s text, position, fade (its times as <paramref name="Subtitle"/> says).</summary>
     public sealed record SetSubtitle(int Index, Subtitle Subtitle) : TakeEdit;
+    /// <summary>⭐ <c>CE-1304</c> P6 (§11t V3) — view item <paramref name="Index"/> now at <paramref name="ToSim"/> (its anchor kept).</summary>
+    public sealed record MoveView(int Index, double ToSim) : TakeEdit;
+    public sealed record AddView(ViewChange View) : TakeEdit;
+    public sealed record RemoveView(int Index) : TakeEdit;
+    /// <summary>⭐ CE-1304 P6 — view item <paramref name="Index"/>'s map and layers (its time as <paramref name="View"/> says).</summary>
+    public sealed record SetView(int Index, ViewChange View) : TakeEdit;
+    /// <summary>⭐ <c>CE-1305</c> P6 (§11t G4) — graphic <paramref name="Index"/>'s <paramref name="Edge"/> now at <paramref name="ToSim"/> (the span rule of a subtitle).</summary>
+    public sealed record MoveGraphic(int Index, SegmentEdge Edge, double ToSim) : TakeEdit;
+    public sealed record AddGraphic(FilmGraphic Graphic) : TakeEdit;
+    public sealed record RemoveGraphic(int Index) : TakeEdit;
+    public sealed record SetGraphic(int Index, FilmGraphic Graphic) : TakeEdit;
 }
 
 /// <summary>
@@ -114,6 +125,8 @@ public sealed class TakeEditor
         {
             TakeEdit.MoveKey or TakeEdit.AddKey or TakeEdit.RemoveKey or TakeEdit.SetKeyCamera => before.Keys.Count > 0 ? before : WithKeys(before),
             TakeEdit.MoveSubtitle or TakeEdit.AddSubtitle or TakeEdit.RemoveSubtitle or TakeEdit.SetSubtitle => before.Subtitles.Count > 0 ? before : WithSubtitles(before),
+            // ⭐ CE-1304 P6 (§11t V2) — and its layers as views (the take's from its start, each shot's laid over them), so the first view edit changes nothing else
+            TakeEdit.MoveView or TakeEdit.AddView or TakeEdit.RemoveView or TakeEdit.SetView => before.Views.Count > 0 ? before : WithViews(before),
             _ => before,
         };
         Take? after;
@@ -136,6 +149,18 @@ public sealed class TakeEditor
                                                 ? basis with { Subtitles = basis.Subtitles.Where((_, i) => i != r.Index).ToList() } : null; what = "Delete subtitle"; break;
             case TakeEdit.SetSubtitle s: after = (uint)s.Index < (uint)basis.Subtitles.Count && basis.Subtitles[s.Index] != s.Subtitle
                                                 ? basis with { Subtitles = Replace(basis.Subtitles, s.Index, s.Subtitle) } : null; what = "Change subtitle"; break;
+            case TakeEdit.MoveView m: after = MoveView(basis, m); what = "Move view change"; break;
+            case TakeEdit.AddView a: after = basis with { Views = basis.Views.Append(a.View).ToList() }; what = "Add view change"; break;
+            case TakeEdit.RemoveView r: after = (uint)r.Index < (uint)basis.Views.Count
+                                                ? basis with { Views = basis.Views.Where((_, i) => i != r.Index).ToList() } : null; what = "Delete view change"; break;
+            case TakeEdit.SetView s: after = (uint)s.Index < (uint)basis.Views.Count && basis.Views[s.Index] != s.View
+                                                ? basis with { Views = Replace(basis.Views, s.Index, s.View) } : null; what = "Change view"; break;
+            case TakeEdit.MoveGraphic m: after = MoveGraphic(basis, m); what = "Move graphic"; break;
+            case TakeEdit.AddGraphic a: after = basis with { Graphics = basis.Graphics.Append(a.Graphic).ToList() }; what = "Add graphic"; break;
+            case TakeEdit.RemoveGraphic r: after = (uint)r.Index < (uint)basis.Graphics.Count
+                                                ? basis with { Graphics = basis.Graphics.Where((_, i) => i != r.Index).ToList() } : null; what = "Delete graphic"; break;
+            case TakeEdit.SetGraphic s: after = (uint)s.Index < (uint)basis.Graphics.Count && basis.Graphics[s.Index] != s.Graphic
+                                                ? basis with { Graphics = Replace(basis.Graphics, s.Index, s.Graphic) } : null; what = "Change graphic"; break;
             default: return false;
         }
         if (after is null || ReferenceEquals(after, before)) return false;
@@ -279,6 +304,27 @@ public sealed class TakeEditor
         var moved = sub with { At = span.From, Until = span.To };
         return moved == sub ? null : take with { Subtitles = Replace(take.Subtitles, s.Index, moved) };
     }
+
+    private static Take? MoveView(Take take, TakeEdit.MoveView m)
+    {
+        if ((uint)m.Index >= (uint)take.Views.Count) return null;
+        var view = take.Views[m.Index];
+        var at = Retimed(take, view.At, m.ToSim);
+        return at == view.At ? null : take with { Views = Replace(take.Views, m.Index, view with { At = at }) };
+    }
+
+    private static Take? MoveGraphic(Take take, TakeEdit.MoveGraphic s)
+    {
+        if ((uint)s.Index >= (uint)take.Graphics.Count) return null;
+        var g = take.Graphics[s.Index];
+        if (MoveSpan(take, g.At, g.Until, s.Edge, s.ToSim) is not { } span) return null;
+        var moved = g with { At = span.From, Until = span.To };
+        return moved == g ? null : take with { Graphics = Replace(take.Graphics, s.Index, moved) };
+    }
+
+    /// <summary>⭐ CE-1304 P6 (§11t V2) — a take whose views are its layers READ as views gets them written, as they play, by its first view edit.</summary>
+    private static Take WithViews(Take take)
+        => take with { Views = TakeViews.Of(take, TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null)).ToList() };
 
     /// <summary>⭐ CE-1364 / P2b (§11o S10) — the ONE span rule of a segment and a subtitle: the body moves both ends (same length), an edge only itself and
     /// it stops <see cref="MinSegmentSeconds"/> short of the other; each end keeps its anchor (the offset changes). Null when an end has no time.</summary>

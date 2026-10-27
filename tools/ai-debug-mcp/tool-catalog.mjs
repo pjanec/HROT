@@ -6114,6 +6114,54 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "director_promote",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-1304 P4 (docs/DESIGN_Director_Timeline_Editor.md §11s) — PROMOTE a take adjusted on a recording (saved beside it) into its scenario's own takes (<scenarios root>/<scenario>/takes/): a COPY — its keys already hang on events (CR-6), which every later run, live or recorded, finds again in its own index (CR-5). The same as the Director window's \"Promote to scenario\". The Replay Browser only: a host whose takes ARE the scenario's (the editor) answers 400.",
+    "http": {
+      "method": "POST",
+      "path": "/director/promote"
+    },
+    "params": [
+      {
+        "name": "take",
+        "type": "string",
+        "required": true,
+        "description": "The take beside the open recording"
+      },
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "Its scenario (default: the one the open recording names)"
+      },
+      {
+        "name": "overwrite",
+        "type": "boolean",
+        "required": false,
+        "description": "Replace the scenario's take of the same name (default false: 409)"
+      },
+      {
+        "name": "recording",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-4059 (TE-15) — the Replay Browser only: a recording (a node_N.fdp path, its folder, or an exercise id) opened FIRST through the same open POST /replay makes; 400 on a host that opens no recordings (the editor)"
+      }
+    ],
+    "returns": "{ promoted: true, from, to, overwrote, bake (kept · dropped · none), fixedKeys[] }",
+    "notes": [
+      "docs/DESIGN_Director_Timeline_Editor.md §11s (D5 promote = a copy, D6 the bake rule, D7 a recording shows its scenario's own takes); docs/DESIGN_Film_Production.md workflow ⑧."
+    ],
+    "example": {
+      "args": {
+        "take": "main"
+      },
+      "gist": "promote the recording's main take"
+    },
+    "hint": "The SAVED take is copied (409 while it has unsaved edits). The bake is kept when it was made for the scenario file as it is now, dropped otherwise. fixedKeys = keys at a fixed second (no event before them): they do not follow a timing change. 409 when the scenario already has a take of that name — pass overwrite:true to replace it. Example: director_promote({take:\"main\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "director_list_reels",
     "group": "Y — node diagnostics",
     "summary": "⭐ CE-4038 — the reels (films/<name>.reel.json): playlists of takes, each ONE movie on film.",
@@ -6128,6 +6176,162 @@ export const TOOLS_CATALOG = [
       "gist": "list the reels"
     },
     "hint": "Example: director_list_reels({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_renders",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-1306 R4 (§11u) — the RENDER QUEUE: the running job, the queued ones in order and the ended ones (done with their output path, failed with why, cancelled).",
+    "http": {
+      "method": "GET",
+      "path": "/director/renders"
+    },
+    "params": [],
+    "returns": "{ running, queued, refusal, jobs[{ id, state, kind, what, recording, scenario, take, reel, size, fps, dir, output, outputs[], frames, item, items, waiting, problems[], enqueuedAt, startedAt, finishedAt, wallSeconds }] }",
+    "example": {
+      "args": {},
+      "gist": "read the render queue"
+    },
+    "hint": "output = the MP4 (or the frames' folder when encode:false; the contact sheet for stills), outputs = the stills. waiting = why a queued job has not started (the director plays something else). Example: director_renders({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_render_enqueue",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-1306 R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — QUEUE a render (or several: renders:[…]): a movie of a take or a reel (the /director/play capture, to MP4), or a take's stills + contact sheet (kind:\"stills\", the /director/stills job). Renders run ONE AFTER ANOTHER in the background of this host through its one director; each job's recording (recording=) is opened at ITS turn. On the Replay Browser a render SEEKS the recording; on the editor it runs the scenario live (paced by the take). Refused on a headless host (no renderer).",
+    "http": {
+      "method": "POST",
+      "path": "/director/renders"
+    },
+    "params": [
+      {
+        "name": "kind",
+        "type": "string",
+        "required": false,
+        "description": "movie (default: one MP4 of the take or the reel) or stills (a take's stills and contact sheet)",
+        "enum": [
+          "movie",
+          "stills"
+        ]
+      },
+      {
+        "name": "recording",
+        "type": "string",
+        "required": false,
+        "description": "⭐ the Replay Browser only: a recording (a node_N.fdp path, its folder, or an exercise id) opened when THIS job starts, through the same open POST /replay makes; 400 on a host that opens no recordings (the editor)"
+      },
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "The take's scenario (default: the one the open recording names, or the editor's loaded scenario)"
+      },
+      {
+        "name": "take",
+        "type": "string",
+        "required": false,
+        "description": "The take (default main)"
+      },
+      {
+        "name": "reel",
+        "type": "string",
+        "required": false,
+        "description": "A saved reel (films/<name>.reel.json) instead of one take — a movie only"
+      },
+      {
+        "name": "capture",
+        "type": "object",
+        "required": false,
+        "description": "A movie's capture: { dir?, fps? (1…60, default 30), size? (\"WxH\", default 1280x720), supersample?, captions? (default true), movie? (the MP4's path), encode? (false: frames only) }"
+      },
+      {
+        "name": "times",
+        "type": "array",
+        "required": false,
+        "description": "Stills: the film seconds to still (else everyKey, else the take's still keys — a documentation take)",
+        "items": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "everyKey",
+        "type": "boolean",
+        "required": false,
+        "description": "Stills: a still at every camera key once its camera is on screen"
+      },
+      {
+        "name": "width",
+        "type": "integer",
+        "required": false,
+        "description": "Stills: each still's width (default 1280)"
+      },
+      {
+        "name": "height",
+        "type": "integer",
+        "required": false,
+        "description": "Stills: each still's height (default 720)"
+      },
+      {
+        "name": "dir",
+        "type": "string",
+        "required": false,
+        "description": "Stills: where the PNGs and contact-sheet.png go (default takes/<take>.stills/<id>/)"
+      },
+      {
+        "name": "renders",
+        "type": "array",
+        "required": false,
+        "description": "Several renders at once, each an object with the fields above (queued in order; each refusal named in refused[])",
+        "items": {
+          "type": "object"
+        }
+      }
+    ],
+    "returns": "{ running, queued, refusal, jobs[{ id, state (queued · opening · running · done · failed · cancelled), kind, what, recording, scenario, take, reel, size, fps, dir, output, outputs[], frames, item, items, waiting, problems[], enqueuedAt, startedAt, finishedAt, wallSeconds }], queuedIds[], refused[{ index, error }] }",
+    "notes": [
+      "docs/DESIGN_Director_Timeline_Editor.md §11u (R4: the reel composer and the render queue); §11r (stills, MP4 in the RB); docs/DESIGN_Film_Production.md §4a (CE-4060: a night run queues one stills job per recorded scenario).",
+      "Needs a window: on a server run the Replay Browser (or the editor) under Xvfb (DISPLAY=:99)."
+    ],
+    "example": {
+      "args": {
+        "take": "main",
+        "capture": {
+          "size": "640x360",
+          "fps": 15
+        }
+      },
+      "gist": "queue a render of the main take"
+    },
+    "hint": "Answers at once; poll GET /director/renders (director_renders) until each job is done / failed. A failed job (an unknown take, a recording that does not open) does not stop the queue. While a render runs, /director/play and /director/stills answer 409. Default folder: a folder of the job's own beside the take (takes/<take>.render/<id>/, takes/<take>.stills/<id>/), a reel's under the scenarios root (.renders/<reel>/<id>/). Example: director_render_enqueue({renders:[{recording:\"/…/a/node_1.fdp\", take:\"main\", capture:{size:\"1280x720\", fps:30}}, {recording:\"/…/b/node_1.fdp\", kind:\"stills\", take:\"_doc\"}]})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_render_cancel",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-1306 R4 (§11u) — CANCEL a render: a queued one never runs; the running one stops the director (or the stills job) and the queue goes on with the next.",
+    "http": {
+      "method": "DELETE",
+      "path": "/director/renders/{id}"
+    },
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The render's id (r1, r2, …)"
+      }
+    ],
+    "returns": "the queue ({ running, queued, refusal, jobs[] }) — the job cancelled; 404 no such render; 409 it had already ended",
+    "example": {
+      "args": {
+        "id": "r1"
+      },
+      "gist": "cancel render r1"
+    },
+    "hint": "Req: id (r1, r2, … from director_render_enqueue / director_renders). Example: director_render_cancel({id:\"r2\"})",
     "manualVerify": false
   },
 

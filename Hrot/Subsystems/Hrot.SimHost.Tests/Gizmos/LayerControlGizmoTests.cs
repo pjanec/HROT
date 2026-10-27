@@ -347,6 +347,27 @@ namespace Hrot.SimHost.Tests.Gizmos
             finally { System.IO.File.Delete(file); }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1420</c> — a take that starts clean keeps the 2-D grid AS THE PERSON HAS IT (it is the scene, the only thing on open
+        /// ground), and the take can still turn the grid off. 🔴 Mutation: drop <c>"Map.Grid"</c> from <c>LayerControlSets.SceneRows</c> ⇒ the first assertion.
+        /// </summary>
+        [Fact]
+        public void CE1420_ACleanTake_KeepsTheGrid_AsThePersonHasIt()
+        {
+            var gizmo = new LayerControlGizmo(9, new FdpEventBus(), MakeEditService());
+            Assert.Empty(gizmo.SetOverride(System.Array.Empty<string>(), System.Array.Empty<string>()));
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Grid), "a clean take keeps the person's grid (on by default)");
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels), "while the overlays are cleaned away");
+
+            gizmo.SetOverride(System.Array.Empty<string>(), new[] { "Map.Grid" });
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Grid), "a take may switch the grid off");
+            gizmo.ClearOverride();
+
+            gizmo.SetRows(is3D: false, System.Array.Empty<string>(), new[] { "Map.Grid" });
+            gizmo.SetOverride(System.Array.Empty<string>(), System.Array.Empty<string>());
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Grid), "a person who has the grid off does not get it in a film");
+        }
+
         // ⭐ CE-4038 B10 (docs/DESIGN_Film_Director.md §4b, R-4060) — a film take's layers are a TRANSIENT override: the mask follows it (the
         // take starts clean — overlays off, the scene kept as the user has it — then its own layers on), but ⛔ NOTHING reaches the user's
         // settings or file; clearing it gives the user's set back. And POST /map/layers IS the user's click: written and saved.

@@ -1,0 +1,17 @@
+asset a2108000-0000-0000-0000-000000000001
+group Library/Tactics
+sop-orders no
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+variable Tactics Hrot.AI.Behaviors.Brains.EqsTacticsParams = {"SearchRadius":40,"MinRepositionMetres":5,"Speed":3,"ArrivalRadius":1.5,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":1,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+variable Engage Hrot.AI.Behaviors.Brains.EngageParams = {"CooldownSeconds":1}
+parse (empty) -> ok
+  c2108000-0000-0000-0000-000000000003 {"SearchRadius":40,"MinRepositionMetres":5,"Speed":3,"ArrivalRadius":1.5,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":1,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+  c2108000-0000-0000-0000-000000000004 {"CooldownSeconds":1}
+parse {} -> ok
+parse {"bogus":1} -> refused InvalidOperationException
+Sequence c2108000-0000-0000-0000-000000000002 "Move to a flank on the top threat, then fire"
+  Action c2108000-0000-0000-0000-000000000003 call Hrot.AI.Behaviors.Brains.EqsTacticsNodes.Flank p:EqsTacticsParams={"SearchRadius":40,"MinRepositionMetres":5,"Speed":3,"ArrivalRadius":1.5,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":1,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0} state:EqsTacticsState "Move to a flank on the top threat"
+    # CE-2108 — docs/DESIGN_Eqs_Consuming_Behaviours.md §9. FindFlankingPosition (sees the threat, side-on); re-positions while moving; Success on arrival. Fails when no threat is identified.
+  Action c2108000-0000-0000-0000-000000000004 call Hrot.AI.Behaviors.Brains.PostureNodes.Engage p:EngageParams={"CooldownSeconds":1} state:EngageState "Engage the top threat"
+    # Fires at the top threat until the parent ends the run (the ROE gates every shot).

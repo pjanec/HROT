@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
@@ -89,7 +90,111 @@ public class LiveBlackboardValueProviderTests
         return boxed;
     }
 
+    /// <summary>The same store, holding raw <paramref name="bytes"/> in the root params slot (a real definition's parse output).</summary>
+    private static unsafe object MakeStoreWithRootParamsBytes(int behaviourHash, byte[] bytes)
+    {
+        object boxed = new Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024();
+        var handle = GCHandle.Alloc(boxed, GCHandleType.Pinned);
+        try
+        {
+            byte* mem = (byte*)handle.AddrOfPinnedObject();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.Initialize(
+                mem,
+                Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.TotalSize,
+                Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.MaxSlots);
+            int key = RootParamsAccess.KeyForBehaviour(behaviourHash);
+            Assert.True(Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryAttach(
+                mem, key, bytes.Length, unchecked((ulong)bytes.Length),
+                Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.BTree, out int offset));
+            Marshal.Copy(bytes, 0, (IntPtr)(mem + offset), bytes.Length);
+        }
+        finally { handle.Free(); }
+        return boxed;
+    }
+
     // ── Tests ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1412</c> — a SHIPPED C#-built tree (<c>BasicSquadSop</c>, a JSON asset until CE-1410) shows live values: its PRODUCTION
+    /// definition publishes the variables manifest (<c>SharedNodeBinder.VariablesOf</c>), and the provider reads each variable out of the
+    /// root params slot its own parse filled (the bake: the block's constructor). ⛔ Before CE-1412 the manifest was null and the map EMPTY.
+    /// <para>✅ Red-proof: drop the <c>ManagedBlackboardVariables</c> line from <c>CuratedBehaviorGenerator</c> ⇒ "Expected 'UnderFire'".</para>
+    /// </summary>
+    [Fact]
+    public unsafe void CE1412_ARunningShippedCSharpSop_ShowsLiveValues()
+    {
+        var registry = new BehaviorRegistry();
+        Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+        Assert.True(registry.TryGetId("BasicSquadSop", out int id));
+        Assert.True(registry.TryGetDefinition(id, out var def));
+
+        int bytes = RootParamsAccess.RootParamsBytes(def!);
+        var region = new byte[bytes];
+        using (var world = new EntityRepository())
+            fixed (byte* p = region) def!.ParseParams!("{}", p, bytes, world, default);   // what ingress writes at attach
+
+        var entity = new Entity(1, 1);
+        var store = new EditorSelectionStore { SelectedEntity = entity };
+        var provider = new LiveBlackboardValueProvider(
+            sessionFactory:  () => new FakeSession(entity, behaviorHash: id, store: MakeStoreWithRootParamsBytes(id, region)),
+            registryFactory: () => registry,
+            store:           store);
+
+        var values = provider.GetLiveVariableValues(MakeAsset("BasicSquadSop"));
+
+        Assert.Equal(new[] { "UnderFire", "LeaderDown", "Contact", "MemberDown", "AreaAhead" }, values.Keys.ToArray());
+        Assert.Contains("Kind=SquadUnderFire", values["UnderFire"]);
+        Assert.Contains("Seconds=3", values["UnderFire"]);
+        Assert.Contains("Kind=SquadMemberDown", values["MemberDown"]);
+        Assert.Contains("WithinMetres=30", values["AreaAhead"]);
+        Assert.Equal(5, provider.GetLiveBytes(MakeAsset("BasicSquadSop"))!.Count);   // the byte arm (the Details cells) too
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1430</c> — the EDITOR'S OWN asset for a C#-built tree (<c>BTreeAssetContributor</c>'s projection of <c>BasicSquadSop</c>, not
+    /// a fake) draws its Variables rows with LIVE values for a running unit: the Details row source over that asset, wired to the provider's
+    /// byte arm as <c>PerspectiveWorkspaceRegistrar</c> wires it, and each cell rendered by the formatter the control calls.
+    /// ⛔ Before CE-1430 the projected asset had no variables, so there were no rows to show the provider's values in.
+    /// <para>✅ Red-proof: the projector's <c>SetBlackboardVariables</c> call removed ⇒ "Expected: 5, Actual: 0" (no rows).</para>
+    /// </summary>
+    [Fact]
+    public unsafe void CE1430_TheProjectedCodeBuiltSop_ShowsItsLiveValuesInItsRows()
+    {
+        var aiAssembly = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly;
+        var registry = new BehaviorRegistry();
+        Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+        Assert.True(registry.TryGetId("BasicSquadSop", out int id));
+        Assert.True(registry.TryGetDefinition(id, out var def));
+
+        var contributor = new Hrot.BTree.Editor.Catalog.BTreeAssetContributor();
+        contributor.LoadFrom(aiAssembly);
+        var asset = contributor.Enumerate().OfType<Hrot.BTree.Editor.Model.BehaviorTreeAsset>().Single(a => a.Name == "BasicSquadSop");
+
+        int bytes = RootParamsAccess.RootParamsBytes(def!);
+        var region = new byte[bytes];
+        using (var world = new EntityRepository())
+            fixed (byte* p = region) def!.ParseParams!("{}", p, bytes, world, default);   // what ingress writes at attach
+
+        var entity = new Entity(1, 1);
+        var store = new EditorSelectionStore { SelectedEntity = entity };
+        var provider = new LiveBlackboardValueProvider(
+            sessionFactory:  () => new FakeSession(entity, behaviorHash: id, store: MakeStoreWithRootParamsBytes(id, region)),
+            registryFactory: () => registry,
+            store:           store);
+
+        var rows = new Hrot.Editor.AiShared.Variables.BlackboardSectionRowSource(
+            () => asset, asset.AssetId, Hrot.Editor.AiShared.Variables.BlackboardMyBlueprintModel.SectionInputs, entity,
+            readRaw: name => provider.GetLiveBytes(asset) is { } live && live.TryGetValue(name, out var b) ? b : Array.Empty<byte>())
+            .GetRows();
+        var formatter = new Hrot.Editor.AiShared.Variables.VariableValueFormatter(Hrot.Editor.AiShared.Variables.RawValueDecoder.Instance);
+
+        Assert.Equal(5, rows.Count);
+        Assert.Equal(new[] { "UnderFire", "LeaderDown", "Contact", "MemberDown", "AreaAhead" }, rows.Select(r => r.ShortName).ToArray());
+        Assert.All(rows, r => Assert.True(r.HasEverBeenWritten, $"{r.ShortName} has a live value"));
+        Assert.Contains("SquadUnderFire", formatter.Cell(rows[0], width: 200));
+        Assert.Contains("SquadMemberDown", formatter.Cell(rows[3], width: 200));
+        Assert.Contains("30", formatter.Cell(rows[4], width: 200));
+    }
 
     /// <summary>
     /// ⭐⭐⭐ <b>A POSITIVE rail: known values written into a REAL root params slot read back through

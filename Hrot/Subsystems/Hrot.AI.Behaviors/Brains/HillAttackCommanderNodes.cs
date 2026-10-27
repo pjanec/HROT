@@ -754,36 +754,54 @@ namespace Hrot.AI.Behaviors.Brains
         ///       Condition_IsWaveCompleted
         /// </code>
         /// </summary>
-        [BTreeDefinition("PlatoonHillAttack")]
+        // ⭐⭐ CE-1410 (R-1042) — the REGISTERED PlatoonHillAttack: node for node the retired Demos/HillAttack/PlatoonHillAttack.btree.json
+        //   (ids, titles, comments kept; equal to its registration, ShippedTreesAreCSharpTests). Before CE-1410 this was an unregistered
+        //   catalog-only twin of the asset (CE-430).
+        [BTreeDefinition(BehaviorNames.PlatoonHillAttack, AssetId = "1a000000-0000-0000-0000-0000000000dd", Curated = true, PublishesVariables = true, Group = "Demos/HillAttack",
+            ParamsType = typeof(PlatoonHillAttackBlackboard))]
         public static BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext> BuildPlatoonHillAttackTree()
-        {
-            // ⭐ CE-430 (Q76 §12.23): the six mutable-state nodes project BOTH fields of the one block —
-            //   bb.Params and bb.State — so all six share one State by construction, with no slot key,
-            //   scope or manifest. Condition_AreAllAtBaseline touches no working state (3-param form).
-            return new BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext>()
-                .Sequence(seq => seq
-                    .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                        bb => bb.Params, bb => bb.State, Action_CalculateSegments, new Guid("1a000000-0000-0000-0000-0000000000a1"))
-                    .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                        bb => bb.Params, bb => bb.State, Action_DispatchAllToBaseline, new Guid("1a000000-0000-0000-0000-0000000000a2"))
-                    .Action(bb => bb.Params, Condition_AreAllAtBaseline)
-                    // ⭐ CE-459: area clear ends the wave loop with Failure; ForceSuccess lets the sequence go on to
-                    //   return the platoon to the baseline (mirrors PlatoonHillAttack.btree.json).
-                    .ForceSuccess(fs => fs
-                        .Repeater(-1, rep => rep
-                            .Sequence(wseq => wseq
-                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                    bb => bb.Params, bb => bb.State, Action_RequestAreaQuery, new Guid("1a000000-0000-0000-0000-0000000000b1"))
-                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                    bb => bb.Params, bb => bb.State, Condition_IsAreaQueryResolved, new Guid("1a000000-0000-0000-0000-0000000000b2"))
-                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                    bb => bb.Params, bb => bb.State, Action_DispatchWaveWithTargets, new Guid("1a000000-0000-0000-0000-0000000000b3"))
-                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                    bb => bb.Params, bb => bb.State, Condition_IsWaveCompleted, new Guid("1a000000-0000-0000-0000-0000000000b4")))))
-                    .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                        bb => bb.Params, bb => bb.State, Action_DispatchAllToBaseline, new Guid("1a000000-0000-0000-0000-0000000000a4"))
-                    .Action(bb => bb.Params, Condition_AreAllAtBaseline));
-        }
+            => new BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext>()
+            .Sequence(run => run
+                .StatefulAction(bb => bb.Params, bb => bb.State, HillAttackCommanderNodes.Action_CalculateSegments, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000a1"))
+                    .Label("CalculateSegments")
+                    .Comment("Compute firing-line slot count; zero all masks.")
+                .StatefulAction(bb => bb.Params, bb => bb.State, HillAttackCommanderNodes.Action_DispatchAllToBaseline, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000a2"))
+                    .Label("DispatchAllToBaseline")
+                    .Comment("Publish MoveToLocation intents so every subordinate moves to its baseline slot.")
+                .Action(bb => bb.Params, HillAttackCommanderNodes.Condition_AreAllAtBaseline, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000a3"))
+                    .Label("AreAllAtBaseline")
+                    .Comment("Running until every alive subordinate has arrived (dead/blocked count as arrived).")
+                .ForceSuccess(areaClear => areaClear
+                    .Repeater(-1, waves => waves
+                        .Sequence(wave => wave
+                            .StatefulAction(bb => bb.Params, bb => bb.State, HillAttackCommanderNodes.Action_RequestAreaQuery, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000b1"))
+                                .Label("RequestAreaQuery")
+                                .Comment("Submit an EQS area query over the target polygon for hostiles.")
+                            .StatefulAction(bb => bb.Params, bb => bb.State, HillAttackCommanderNodes.Condition_IsAreaQueryResolved, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000b2"))
+                                .Label("IsAreaQueryResolved")
+                                .Comment("Running while pending; Failure when the area is clear (breaks the repeater → behavior ends); Success with targets.")
+                            .StatefulAction(bb => bb.Params, bb => bb.State, HillAttackCommanderNodes.Action_DispatchWaveWithTargets, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000b3"))
+                                .Label("DispatchWaveWithTargets")
+                                .Comment("Select this wave's tanks (Entity.Index parity), assign firing/baseline slots + round-robin targets, publish HullDownAttack intents.")
+                            .StatefulAction(bb => bb.Params, bb => bb.State, HillAttackCommanderNodes.Condition_IsWaveCompleted, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000b4"))
+                                .Label("IsWaveCompleted")
+                                .Comment("Running until all attackers return/die; burns the firing slot of any tank that dies."),
+                            TreeNodeIds.Id("1a000000-0000-0000-0000-000000000003"))
+                            .Label("WaveLoop")
+                            .Comment("One wave: EQS scan → resolve → dispatch half the platoon → wait for the wave to return. Repeater(-1) repeats until IsAreaQueryResolved returns Failure (area clear)."),
+                        TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000f1"))
+                        .Comment("Repeat waves forever; the loop exits when IsAreaQueryResolved returns Failure (area clear)."),
+                    TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000f2"))
+                    .Comment("CE-459: area clear is the loop's normal exit (Failure) — turn it into Success so the sequence goes on to return the platoon to the baseline.")
+                .StatefulAction(bb => bb.Params, bb => bb.State, HillAttackCommanderNodes.Action_DispatchAllToBaseline, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000a4"))
+                    .Label("ReturnToBaseline")
+                    .Comment("CE-459: area clear — send every subordinate back to its baseline staging slot (the platoon ends on the baseline, abreast).")
+                .Action(bb => bb.Params, HillAttackCommanderNodes.Condition_AreAllAtBaseline, TreeNodeIds.Id("1a000000-0000-0000-0000-0000000000a5"))
+                    .Label("AreAllBackAtBaseline")
+                    .Comment("CE-459: Running until every alive subordinate is back on the baseline; then the behaviour finishes (Success)."),
+                TreeNodeIds.Id("1a000000-0000-0000-0000-000000000002"))
+                .Label("Sequence")
+                .Comment("Setup (calc slots → move to baseline → wait for arrival) then the repeating wave loop.");
 
         // ── Private helpers ───────────────────────────────────────────────────────
 
@@ -863,8 +881,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// resolver — no registration-time closure over geo/entity-map is needed.
         /// </summary>
         [Behavior(BehaviorNames.PlatoonHillAttack, Params = typeof(global::Hrot.Map.Definitions.Behavior.PlatoonHillAttackParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the resolver is this behaviour's C#; the asset owns its topology
-        [Fdp.Toolkit.Behavior.BehaviorResolver("PlatoonHillAttack",
-            ParamsType = typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams))]
+        // ⭐ CE-1410 — no ParamsType: the C#-built tree's block (PlatoonHillAttack.Blackboard: these params at 0, then the shared State)
+        //   is the layout; a resolver type would replace it and leave the State no room (CE-437, ApplyResolverOverlay).
+        [Fdp.Toolkit.Behavior.BehaviorResolver("PlatoonHillAttack")]
         public static unsafe void ResolvePlatoonHillAttackParams(
             string json, byte* ptr, int capacity, Fdp.Core.EntityRepository world, Entity self)
         {

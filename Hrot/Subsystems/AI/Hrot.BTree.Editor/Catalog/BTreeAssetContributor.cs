@@ -68,7 +68,14 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
                 var layout = LayoutDiscovery.TryGetLayout<BTreeLayoutAttribute, BTreeEditorLayout>(
                     assembly, assetId);
 
-                RegisterBlobCore(blob, defAttr.TreeName, assetId, layout, type.Namespace ?? string.Empty, codeBuilt: returnsBuilder);
+                // ⭐ CE-1430 — the variables the runtime publishes for this tree (the same rule and the same derivation the curated
+                //   registrar uses), so its Variables rows are the registry's manifest.
+                IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? variables = null;
+                try { variables = Fdp.Toolkit.Behavior.SharedNodeBinder.PublishedVariablesOf(blob, defAttr); }
+                catch { variables = null; }   // a block the layout reader refuses shows no rows rather than hiding the tree
+
+                RegisterBlobCore(blob, defAttr.TreeName, assetId, layout, type.Namespace ?? string.Empty, codeBuilt: returnsBuilder,
+                    variables: variables, paramsBlock: defAttr.ParamsType);
             }
         }
         ContributorChanged?.Invoke();
@@ -89,7 +96,7 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
     }
 
     private void RegisterBlobCore(BehaviorTreeBlob blob, string treeName, Guid assetId, BTreeEditorLayout? layout, string ns,
-        bool codeBuilt = false)
+        bool codeBuilt = false, IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? variables = null, Type? paramsBlock = null)
     {
         var asset = BehaviorTreeAssetProjector.Project(
             blob,
@@ -101,7 +108,9 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
             false,
             string.Empty,
             string.Empty,
-            ns);
+            ns,
+            variables,
+            paramsBlock);
         asset.IsCodeBuilt = codeBuilt;   // ⭐ CE-1252 — a C#-built tree (CE-3160) opens read-only
 
         _assets.Add(asset);

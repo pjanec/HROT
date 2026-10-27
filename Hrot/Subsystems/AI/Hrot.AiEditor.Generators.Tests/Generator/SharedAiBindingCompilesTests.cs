@@ -111,7 +111,9 @@ namespace Probe
             all.Should().Contain("Probe.ProbeNodes.SharedAction(ref dto, ctx.Self, ctx.World);");
             all.Should().Contain("Probe.ProbeNodes.SharedCheck(ref dto, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;");
             all.Should().Contain("Probe.ProbeNodes.SharedMover(ref dto, ctx.Self, ctx.World);");
-            all.Should().Contain("LocomotionChannel>(ctx.Self)", "a [WritesChannel] action releases its channel on Failure");
+            // ⭐ CE-1411 — through the ONE runtime release a C#-built tree's binder calls too (ChannelRelease.OnFailure)
+            all.Should().Contain("global::Fdp.Toolkit.Behavior.ChannelRelease.OnFailure(status, ctx.World, ctx.Self, (global::Fbt.Kernel.ChannelKind)0);",
+                "a [WritesChannel] action releases its channel on Failure");
 
             // ⭐ keyed at the HOST offset (the sentinel sits at 0), never the attribute DTO's offset
             var keys = Regex.Matches(all, @"""Probe\.ProbeNodes\.Shared\w+@(\d+)""").Select(m => m.Groups[1].Value).Distinct().ToList();

@@ -13,6 +13,9 @@ public sealed record Loaded<T>(T? Value, IReadOnlyList<string> Problems) where T
     public bool Ok => Value is not null && Problems.Count == 0;
 }
 
+/// <summary>⭐ <c>CE-1304</c> P4 — the scenario a store beside a recording belongs to, and that scenario's OWN takes (the scenarios root's store).</summary>
+public sealed record ScenarioTakesSource(Func<string?> Scenario, Func<TakeStore?> Store);
+
 /// <summary>
 /// ⭐ <c>CE-4038</c> (docs/DESIGN_Film_Director.md §2, §4, D-2) — where takes and reels live: a take BESIDE its scenario
 /// (<c>&lt;scenarios&gt;/&lt;scenario&gt;/takes/&lt;take&gt;.take.json</c>, so a variant carries its own and "Save As" copies them), a reel under
@@ -37,12 +40,26 @@ public sealed class TakeStore
     /// <param name="scenarioHash">⭐ <c>CE-1303</c> P2a (docs/DESIGN_Director_Timeline_Editor.md §11m D8) — where a scenario's hash comes from when
     /// this store holds no scenario file: the Replay Browser's store sits BESIDE A RECORDING (TE-1), whose meta names the scenario's hash
     /// (<c>RecordingMetadata.ScenarioHash</c>, the one rule <c>ScenarioDescription.HashOf</c>). Null, or a null answer: the file under the root.</param>
-    public TakeStore(Func<string> scenariosRoot, Func<string?> filmsRoot, Func<string, string?>? scenarioHash = null)
+    /// <param name="scenarioTakes">⭐ <c>CE-1304</c> P4 (docs/DESIGN_Director_Timeline_Editor.md §11s D7; TE-1 "the reverse needs no operation") — a store BESIDE A
+    /// RECORDING also shows its scenario's OWN takes (a promoted take plays on every later recording of it): read where this store has no take of that
+    /// name; ⛔ never written — a save writes beside the recording (an adjustment on a recording is a recording take until promoted).</param>
+    public TakeStore(Func<string> scenariosRoot, Func<string?> filmsRoot, Func<string, string?>? scenarioHash = null, ScenarioTakesSource? scenarioTakes = null)
     {
         _scenariosRoot = scenariosRoot ?? throw new ArgumentNullException(nameof(scenariosRoot));
         _filmsRoot = filmsRoot ?? throw new ArgumentNullException(nameof(filmsRoot));
         _scenarioHash = scenarioHash;
+        _scenarioTakes = scenarioTakes;
     }
+
+    private readonly ScenarioTakesSource? _scenarioTakes;
+
+    /// <summary>⭐ CE-1304 — the scenario's own store for <paramref name="scenario"/> when this store reads through to it (the recording's scenario only).</summary>
+    private TakeStore? ScenarioStoreFor(string scenario)
+        => _scenarioTakes is { } s && s.Scenario() is { } name && string.Equals(name, scenario, StringComparison.Ordinal) && s.Store() is { } st
+           && !string.Equals(Path.GetFullPath(st.ScenariosRoot), Path.GetFullPath(ScenariosRoot), StringComparison.Ordinal) ? st : null;
+
+    /// <summary>Whether <paramref name="take"/> of <paramref name="scenario"/> is a file of THIS store (not one read through from the scenario's own takes).</summary>
+    public bool HasOwn(string scenario, string take) => File.Exists(TakePath(scenario, take));
 
     public string ScenariosRoot => _scenariosRoot();
     public string? FilmsRoot => _filmsRoot();
@@ -66,9 +83,11 @@ public sealed class TakeStore
     public IReadOnlyList<string> TakesOf(string scenario)
     {
         var dir = Path.Combine(ScenariosRoot, scenario, TakesFolder);
-        if (!Directory.Exists(dir)) return Array.Empty<string>();
-        return Directory.EnumerateFiles(dir, "*" + TakeSuffix)
-            .Select(f => Path.GetFileName(f)[..^TakeSuffix.Length])
+        var own = Directory.Exists(dir)
+            ? Directory.EnumerateFiles(dir, "*" + TakeSuffix).Select(f => Path.GetFileName(f)[..^TakeSuffix.Length])
+            : Enumerable.Empty<string>();
+        var shared = ScenarioStoreFor(scenario)?.TakesOf(scenario) ?? Array.Empty<string>();   // ⭐ CE-1304 — the scenario's own takes too
+        return own.Concat(shared).Distinct(StringComparer.Ordinal)
             .OrderBy(n => n == "main" ? 0 : 1).ThenBy(n => n, StringComparer.Ordinal).ToList();
     }
 
@@ -76,20 +95,24 @@ public sealed class TakeStore
     public IReadOnlyList<(string Scenario, IReadOnlyList<string> Takes)> AllTakes()
     {
         var root = ScenariosRoot;
-        if (!Directory.Exists(root)) return Array.Empty<(string, IReadOnlyList<string>)>();
         var list = new List<(string, IReadOnlyList<string>)>();
-        foreach (var dir in Directory.EnumerateDirectories(root, TakesFolder, SearchOption.AllDirectories))
-        {
-            var scenario = Path.GetRelativePath(root, Path.GetDirectoryName(dir)!).Replace('\\', '/');
-            var takes = TakesOf(scenario);
-            if (takes.Count > 0) list.Add((scenario, takes));
-        }
+        if (Directory.Exists(root))
+            foreach (var dir in Directory.EnumerateDirectories(root, TakesFolder, SearchOption.AllDirectories))
+            {
+                var scenario = Path.GetRelativePath(root, Path.GetDirectoryName(dir)!).Replace('\\', '/');
+                var takes = TakesOf(scenario);
+                if (takes.Count > 0) list.Add((scenario, takes));
+            }
+        // ⭐ CE-1304 — the recording's scenario, when only its own (promoted) takes exist
+        if (_scenarioTakes?.Scenario() is { } named && !list.Any(x => x.Item1 == named) && TakesOf(named) is { Count: > 0 } sharedOnly)
+            list.Add((named, sharedOnly));
         return list.OrderBy(x => x.Item1, StringComparer.Ordinal).ToList();
     }
 
     public Loaded<Take> Load(string scenario, string take)
     {
         var path = TakePath(scenario, take);
+        if (!File.Exists(path) && ScenarioStoreFor(scenario) is { } shared && shared.HasOwn(scenario, take)) return shared.Load(scenario, take);   // ⭐ CE-1304 (TE-1)
         if (!File.Exists(path)) return new Loaded<Take>(null, new[] { $"no take '{take}' for scenario '{scenario}' ({path})" });
         try
         {
@@ -136,6 +159,24 @@ public sealed class TakeStore
         {
             return new Loaded<Reel>(null, new[] { $"{path}: {ex.Message}" });
         }
+    }
+
+    /// <summary>⭐ <c>CE-1306</c> R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the file of reel <paramref name="name"/> (<c>films/&lt;name&gt;.reel.json</c>); null with no films folder.</summary>
+    public string? ReelPath(string name) => FilmsRoot is { } root ? Path.Combine(root, name + ReelSuffix) : null;
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D2) — writes <paramref name="reel"/> to <c>films/&lt;name&gt;.reel.json</c> (the file <see cref="LoadReel"/> reads; the reel
+    /// composer's Save). Returns the path, or throws <see cref="InvalidOperationException"/> when there is no films folder or the name is not a file name.
+    /// </summary>
+    public string SaveReel(Reel reel)
+    {
+        if (reel == null) throw new ArgumentNullException(nameof(reel));
+        if (string.IsNullOrWhiteSpace(reel.Name) || reel.Name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || reel.Name.Contains('/'))
+            throw new InvalidOperationException($"'{reel.Name}' is not a reel name (a file name: letters, digits, '-', '_')");
+        var path = ReelPath(reel.Name) ?? throw new InvalidOperationException("no films/ folder to save the reel in");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, TakeJson.WriteReel(reel).ToJsonString(Indented) + "\n");
+        return path;
     }
 
     /// <summary>⭐ <c>CE-4042</c> (docs/DESIGN_Scenario_Regression.md §4) — a scenario's own JSON beside it (<c>checks.json</c>, <c>golden.json</c>).</summary>

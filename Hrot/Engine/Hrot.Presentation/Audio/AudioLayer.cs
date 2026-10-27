@@ -141,6 +141,9 @@ namespace Hrot.UI.Common.Audio
             if (State != AudioState.Active || _output == null || _ear() is not { } ear) return;
             Keys();
             ApplySettings();   // ⭐ CE-4038 B11 — POST /audio changes the shared settings; they reach the output on the next frame
+            // ⭐ CE-1305 TE-11 (§11v A2) — the director's playback rate rules what is heard; ⛔ not while a film is captured: then every sound is logged at its
+            //   natural level and the offline track applies the same rule per pass (a captured frame takes ~0.8 s of wall time, so live hearing means nothing)
+            Mixer.Rate = AudioDirector.Recorder != null ? 1d : AudioDirector.Rate ?? 1d;
             Sources.Collect(w, unit, ear, _now, dt, _output);
             Test(ear);
             Mixer.Update(_output, _now, ear);
@@ -165,6 +168,7 @@ namespace Hrot.UI.Common.Audio
         {
             if (AudioDirector.Recorder is { } track)
             {
+                track.CategoryOf ??= clip => SoundTkbCatalog.SoundOf(_tkb(), clip)?.Category;   // ⭐ CE-1305 TE-11 — the track's rule needs each cue's kind
                 if (_output is RecordingAudioOutput r && ReferenceEquals(r.Track, track)) return;
                 if (State == AudioState.Idle) return;
                 if (_output != null) Mixer.Clear(_output);

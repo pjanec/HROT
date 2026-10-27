@@ -30,6 +30,10 @@ namespace Hrot.UI.Common.Map3D.Director
             _store = store; _runner = runner; _pilot = pilot; _eventAt = eventAt;
         }
 
+        /// <summary>⭐ <c>CE-1305</c> (§11v T2) — a shot template's camera for a key hung on an event (<see cref="DirectorDrafts.TemplateCamera"/>); set by
+        /// <see cref="DirectorPack.Attach"/> where the host has a drafter, null otherwise (no templates offered).</summary>
+        public Func<EventAnchor, ShotTemplate, double, CameraSpec?>? Templates { get; set; }
+
         /// <summary>The editor's undo stack for take edits.</summary>
         public GizmoUndoStack UndoStack { get; } = new();
 
@@ -101,7 +105,8 @@ namespace Hrot.UI.Common.Map3D.Director
             Editor = editor;
             // CR-7 (§11q K3) — the segment on screen while the runner plays THIS take (K / update key from view scope a key to a replay)
             _tracks = new DirectorTracks(editor, _pilot, StepRate, _eventAt,
-                () => _runner() is { } r && Editor is { } e ? r.SegmentOf(e.Take.Scenario, e.Take.Name) : null);
+                () => _runner() is { } r && Editor is { } e ? r.SegmentOf(e.Take.Scenario, e.Take.Name) : null,
+                (anchor, template, sim) => Templates?.Invoke(anchor, template, sim));
             Opened++;
         }
 

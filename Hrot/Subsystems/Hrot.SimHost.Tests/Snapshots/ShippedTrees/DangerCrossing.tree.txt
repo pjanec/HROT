@@ -1,0 +1,48 @@
+asset a3079000-0000-0000-0000-000000000002
+group Library/Tactics
+sop-orders no
+writes-channels []
+json-params Hrot.AI.Behaviors.Brains.DangerCrossingParams
+variable Params Hrot.AI.Behaviors.Brains.DangerCrossingConfig = {"sensor":{"RouteTo":[0, 0, 0],"CorridorHalfWidth":0,"RefreshSeconds":0,"MaxAreas":0},"holdAhead":{"MinThreat":0.5,"WithinMetres":60,"KindMask":0},"hold":{"MinThreat":0.5,"Speed":1.5,"ArrivalRadius":1.5},"crossAhead":{"MinThreat":0,"WithinMetres":15,"KindMask":14},"cross":{"Speed":4.5,"ArrivalRadius":1.5},"walk":{"X":0,"Y":0,"Speed":1.5,"ArrivalRadius":3,"RoadUse":"Unspecified"}}
+parse (empty) -> ok
+  c3079100-0000-0000-0000-000000000003 {"RouteTo":[0, 0, 0],"CorridorHalfWidth":0,"RefreshSeconds":0,"MaxAreas":0}
+  c3079100-0000-0000-0000-000000000006 {"MinThreat":0.5,"WithinMetres":60,"KindMask":0}
+  c3079100-0000-0000-0000-000000000007 {"MinThreat":0.5,"Speed":1.5,"ArrivalRadius":1.5}
+  c3079100-0000-0000-0000-000000000009 {"MinThreat":0,"WithinMetres":15,"KindMask":14}
+  c3079100-0000-0000-0000-000000000010 {"Speed":4.5,"ArrivalRadius":1.5}
+  c3079100-0000-0000-0000-000000000011 {"X":0,"Y":0,"Speed":1.5,"ArrivalRadius":3,"RoadUse":"Unspecified"}
+parse {} -> ok
+parse {"bogus":1} -> ok
+  c3079100-0000-0000-0000-000000000003 {"RouteTo":[0, 0, 0],"CorridorHalfWidth":0,"RefreshSeconds":0,"MaxAreas":0}
+  c3079100-0000-0000-0000-000000000006 {"MinThreat":0.5,"WithinMetres":60,"KindMask":0}
+  c3079100-0000-0000-0000-000000000007 {"MinThreat":0.5,"Speed":1.5,"ArrivalRadius":1.5}
+  c3079100-0000-0000-0000-000000000009 {"MinThreat":0,"WithinMetres":15,"KindMask":14}
+  c3079100-0000-0000-0000-000000000010 {"Speed":4.5,"ArrivalRadius":1.5}
+  c3079100-0000-0000-0000-000000000011 {"X":0,"Y":0,"Speed":1.5,"ArrivalRadius":3,"RoadUse":"Unspecified"}
+parse {"Objective":[10,20,0],"WalkSpeed":2,"RushSpeed":5,"CrossWithin":9} -> ok
+  c3079100-0000-0000-0000-000000000003 {"RouteTo":[10, 20, 0],"CorridorHalfWidth":0,"RefreshSeconds":0,"MaxAreas":0}
+  c3079100-0000-0000-0000-000000000006 {"MinThreat":0.5,"WithinMetres":60,"KindMask":0}
+  c3079100-0000-0000-0000-000000000007 {"MinThreat":0.5,"Speed":2,"ArrivalRadius":1.5}
+  c3079100-0000-0000-0000-000000000009 {"MinThreat":0,"WithinMetres":9,"KindMask":14}
+  c3079100-0000-0000-0000-000000000010 {"Speed":5,"ArrivalRadius":1.5}
+  c3079100-0000-0000-0000-000000000011 {"X":10,"Y":20,"Speed":2,"ArrivalRadius":3,"RoadUse":"Unspecified"}
+Sequence c3079100-0000-0000-0000-000000000002 "Watch the route, then go"
+  # CE-3079 H5 — docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.4. The objective is set TWICE in the order's params: sensor.RouteTo (the route watched) and walk.X/Y (where it walks).
+  Action c3079100-0000-0000-0000-000000000003 call Hrot.AI.Behaviors.Brains.DangerAreaNodes.EnsureSensor p:DangerSensorParams={"RouteTo":[0, 0, 0],"CorridorHalfWidth":0,"RefreshSeconds":0,"MaxAreas":0} state:DangerSensorState "Danger sensor: me → objective"
+    # Route source ③ (to a point): the route is ALWAYS unit → objective, never the unit's own move. The run's end releases it.
+  ObserverSelector c3079100-0000-0000-0000-000000000004 "React to the next area ahead"
+    # While a lower branch runs, the HIGHER guards are re-checked every tick; a running branch's own guard is not (HoldShort's hysteresis works because of that).
+    Sequence c3079100-0000-0000-0000-000000000005 "Hold short of a watched area"
+      Condition c3079100-0000-0000-0000-000000000006 call Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead p:DangerAheadParams={"MinThreat":0.5,"WithinMetres":60,"KindMask":0} "A threatened area within 60 m"
+      ForceFailure c3079100-0000-0000-0000-000000000107
+        # a released hold falls through to the crossing / the walk, never ends the run
+        Action c3079100-0000-0000-0000-000000000007 call Hrot.AI.Behaviors.Brains.DangerAreaNodes.HoldShort p:HoldShortParams={"MinThreat":0.5,"Speed":1.5,"ArrivalRadius":1.5} state:HoldShortState "Hold at its near side"
+          # Ends when the threat falls below MinThreat − 0.1, or no area is ahead.
+    Sequence c3079100-0000-0000-0000-000000000008 "Rush across an exposed area"
+      Condition c3079100-0000-0000-0000-000000000009 call Hrot.AI.Behaviors.Brains.DangerAreaNodes.DangerAhead p:DangerAheadParams={"MinThreat":0,"WithinMetres":15,"KindMask":14} "A crossing / intersection / open ground within 15 m"
+      ForceFailure c3079100-0000-0000-0000-000000000110
+        # a finished crossing falls through to the walk, never ends the run
+        Action c3079100-0000-0000-0000-000000000010 call Hrot.AI.Behaviors.Brains.DangerAreaNodes.Cross p:CrossParams={"Speed":4.5,"ArrivalRadius":1.5} state:CrossState "Cross: near → far side"
+          # Never re-crosses the area it just crossed (a stale answer can still list it).
+    Action c3079100-0000-0000-0000-000000000011 call Hrot.AI.Behaviors.Brains.CgfNodes.Action_WriteMoveToChannel p:MoveToLocationParams={"X":0,"Y":0,"Speed":1.5,"ArrivalRadius":3,"RoadUse":"Unspecified"} "Walk to the objective"
+      # Success on arrival ends the run.

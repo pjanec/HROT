@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Vis2D.Layers;
 /// <para>Visibility is the <c>isVisible</c> delegate; the shared map attach binds it to the "Grid" row of the layer panel
 /// (<c>DebugTraceLayers.Grid</c>). The steps and the line set are the pure <see cref="GridSteps"/>.</para>
 /// </summary>
-public sealed class GridMapLayer : IMapLayer
+public sealed class GridMapLayer : ISceneLayer   // ⭐ CE-1380 — filmed when the film's layer set turns its row on (off by default: a helper)
 {
     /// <summary>Minor line width on screen, pixels.</summary>
     public const float MinorWidthPixels = 1f;
@@ -61,10 +61,12 @@ public sealed class GridMapLayer : IMapLayer
         LinesDrawn = 0;
         if (!_isVisible()) return;
         var camera = _camera();
-        if (camera == null || !Raylib.IsWindowReady()) return;
+        // ⭐ CE-1383 — the view is the TARGET being drawn (ctx.TargetSize: the window's, or a film's render texture — larger or smaller than the window)
+        var size = ctx.TargetSize;
+        if (camera == null || size.X <= 0f || size.Y <= 0f) return;
 
         float zoom = camera.Zoom;
-        var (min, max) = ViewBounds(camera, Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+        var (min, max) = ViewBounds(camera, size.X, size.Y);
         var steps = GridSteps.For(zoom);
         if (!steps.IsValid) return;
 

@@ -24,8 +24,12 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
     private void AttachDirector()
     {
         // ⭐ D8 (TE-1) — the takes of a recording live BESIDE it, keyed by the scenario it names; the bake's scenario hash is the recording's
+        // ⭐ CE-1304 P4 (§11s D7) — the scenario's OWN takes (the shared scenarios root): promote copies there, and the store beside the recording reads
+        //   them through (TE-1's reverse: a promoted take plays on every later recording of its scenario)
+        var scenarioTakes = new TakeStore(() => DirectorScenariosRoot, TakeStore.FindFilmsDirectory);
         var takes = new TakeStore(() => DirectorTakesRoot, TakeStore.FindFilmsDirectory,
-                                  scenario => PrimaryMetadata is { } m && m.ScenarioName == scenario ? m.ScenarioHash : null);
+                                  scenario => PrimaryMetadata is { } m && m.ScenarioName == scenario ? m.ScenarioHash : null,
+                                  new ScenarioTakesSource(() => PrimaryMetadata?.ScenarioName, () => scenarioTakes));
         var host = new ReplayDirectorHost(
             world:         () => _activeRepo,
             open:          () => ReplayState == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
@@ -48,8 +52,20 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
             // ⭐ CE-4059 (§11q D1) — the drafter over the recording's index, a take of the scenario the recording names (beside it, TE-1)
             // ⭐ CE-4059 §11r — synced first: a recording= open in the same request reads ITS index (empty while scanned), never the last one's
             Index:         () => { SyncTimelineSource(); return _timelineSource?.Index; },
-            Scenario:      () => PrimaryMetadata?.ScenarioName));
+            Scenario:      () => PrimaryMetadata?.ScenarioName,
+            // ⭐ CE-1304 P4 (§11s) — promote copies a take from beside the recording into the SHARED scenarios root (the one every host lists)
+            ScenarioTakes: () => scenarioTakes,
+            // ⭐⭐ CE-1391 (§11u "as built: CE-1391") — THE opener (the one POST /replay ends in): render jobs and reel items open their recordings through
+            //   it, with or without the debug HTTP host (HROT_DEBUG_API_PORT)
+            Recordings:    BrowserControl));
     }
+
+    /// <summary>⭐ CE-1304 P4 — the scenarios root a promoted take goes to: the shared one (<c>{shared}/scenarios</c>, the editor's working root too).</summary>
+    internal string DirectorScenariosRoot
+        => _directorScenariosRoot ?? Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(RecordingsRoot);
+
+    /// <summary>Test seam: another scenarios root (a rail's temp folder).</summary>
+    internal string? _directorScenariosRoot;
 
     /// <summary>The primary node's recording meta (its scenario's name and hash), or null.</summary>
     private Fdp.Core.FlightRecorder.Metadata.RecordingMetadata? PrimaryMetadata
