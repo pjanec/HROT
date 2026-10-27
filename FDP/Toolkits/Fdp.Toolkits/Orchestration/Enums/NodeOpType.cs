@@ -7,6 +7,9 @@ namespace Fdp.Toolkit.Orchestration
     /// </summary>
     public enum NodeOpType : int
     {
+        /// <summary>⭐ AQ107 / CycloneDDS.NET 0.4: a default-initialised message carries 0, and Cyclone DDS 11 refuses to serialize an enum value
+        /// the enum does not declare (DdsWriter.Write → BadParameter). Never sent on purpose; module-unique name (IDL scopes enum members by module).</summary>
+        NodeOpNone = 0,
         PrepareState = 1,
         CommitState = 2,
         AbortTransaction = 3,

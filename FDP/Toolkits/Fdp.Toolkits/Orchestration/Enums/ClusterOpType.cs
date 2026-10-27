@@ -7,6 +7,9 @@ namespace Fdp.Toolkit.Orchestration
     /// </summary>
     public enum ClusterOpType : int
     {
+        /// <summary>⭐ AQ107 / CycloneDDS.NET 0.4: a default-initialised message carries 0, and Cyclone DDS 11 refuses to serialize an enum value
+        /// the enum does not declare (DdsWriter.Write → BadParameter). Never sent on purpose; module-unique name (IDL scopes enum members by module).</summary>
+        ClusterOpNone = 0,
         TransitionState = 1,
         // 2 — RESERVED gap: the legacy SaveScenario op (CE-278) was retired; wire value 2 is not reused.
         LoadZone = 3,
