@@ -1744,4 +1744,145 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(Path.Combine(keptDir, "node_1.fdp"), provider.ReplayRecordingPath);
         Assert.True(pack.Takes.Load("s-film", "main").Ok);                                    // the take is still there
     }
+
+    // ── CE-1303 P2 LIVE PROOF (docs/DESIGN_Director_Timeline_Editor.md §11o "live proof") — a WINDOWED browser, a real recording, one key moved ──
+
+    /// <summary>Runs only with <c>HROT_FILM_PROOF=1</c> (it opens a window: run it under Xvfb, <c>DISPLAY=:99</c>).</summary>
+    private sealed class FilmProofFactAttribute : FactAttribute
+    {
+        public FilmProofFactAttribute()
+        {
+            if (Environment.GetEnvironmentVariable("HROT_FILM_PROOF") != "1")
+                Skip = "the P2 live proof: set HROT_FILM_PROOF=1, HROT_FILM_PROOF_RECORDING=<node_N.fdp> and DISPLAY (Xvfb)";
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2 live proof (the coordinator's gate: <i>"a screenshot pair of one adjusted key, before and after, from the RB"</i>). A WINDOWED
+    /// Replay Browser (the same subsystem the runner's <c>-m replaybrowser</c> builds, drawn by a minimal raylib + ImGui loop — the runner's shell is
+    /// internal to <c>Hrot.ClusterRunner</c>) opens a REAL recording (<c>HROT_FILM_PROOF_RECORDING</c>); the scenario's seeded take is put BESIDE it
+    /// (TE-1); the pack's runner plays from film time t (<c>PlayFrom</c>), pauses on the first playing frame and the film frame is captured
+    /// (<see cref="Hrot.UI.Common.Map3D.FilmStudio.Capture"/> — the capture path <c>POST /film/capture</c> uses). Then ONE key's camera is moved in
+    /// the OPEN take (<c>TakeEdit.SetKeyCamera</c>, not saved), played from t again and captured again. Writes <c>before.png</c> / <c>after.png</c>
+    /// into <c>HROT_FILM_PROOF_OUT</c>. ⛔ Not a rail: the pixels are judged by a person (the design's §11o live proof).
+    /// </summary>
+    [FilmProofFact]
+    [Trait("Category", "Manual")]
+    public void CE1303_P2_LiveProof_OneAdjustedKey_BeforeAndAfter_InAWindowedReplayBrowser()
+    {
+        string recording = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_RECORDING") ?? throw new InvalidOperationException("HROT_FILM_PROOF_RECORDING");
+        string scenario = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_SCENARIO") ?? "ua-tank-ammo";
+        string takeName = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_TAKE") ?? "main";
+        double t = double.Parse(Environment.GetEnvironmentVariable("HROT_FILM_PROOF_AT") ?? "9.1", System.Globalization.CultureInfo.InvariantCulture);
+        int keyIndex = int.Parse(Environment.GetEnvironmentVariable("HROT_FILM_PROOF_KEY") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        string outDir = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_OUT") ?? Path.Combine(Path.GetTempPath(), "hrot-film-proof");
+        Directory.CreateDirectory(outDir);
+        var log = new List<string>();
+        void Log(string line) { log.Add(line); Console.WriteLine("[film-proof] " + line); File.WriteAllLines(Path.Combine(outDir, "proof.log"), log); }
+
+        Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.Msaa4xHint);
+        Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser — P2 live proof");
+        try
+        {
+            rlImGui_cs.rlImGui.Setup(true);
+            Hrot.UI.Common.Map3D.FilmStudio.Reset();
+            // ⚠ The runner process has touched every recorded assembly by now (its boot registers them); a bare test process has not, and
+            //   SchemaValidator asks the REGISTERED ids (CE-1372) ⇒ load the recording's assemblies before Initialize's component discovery runs.
+            var missing = Fdp.Core.FlightRecorder.RecordedAssemblies.EnsureLoaded(
+                Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(recording + ".meta.json")));
+            Log($"recorded assemblies not carried: [{string.Join(", ", missing)}]");
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+
+            void Frame()
+            {
+                _subsystem.Update(1f / 60f);
+                Raylib_cs.Raylib.BeginDrawing();
+                Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+                _subsystem.DrawWorld();
+                rlImGui_cs.rlImGui.Begin();
+                _subsystem.DrawUI();
+                rlImGui_cs.rlImGui.End();
+                Raylib_cs.Raylib.EndDrawing();
+            }
+
+            Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { recording }, 0));
+            for (int i = 0; i < 30; i++) Frame();                                       // the group binds, the terrain commits
+            var pack = _subsystem.Director!;
+            Log($"recording {recording}; takes root {_subsystem.DirectorTakesRoot}; resident terrain {_subsystem.ResidentTerrainName ?? "none"}");
+
+            // TE-1 — the scenario's seeded take, beside the recording, keyed by the scenario the recording names
+            string root = AppContext.BaseDirectory;
+            while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+            string seeded = Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json");
+            string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
+            File.Copy(seeded, beside, overwrite: true);
+            Log($"take {seeded} -> {beside}");
+            void World(string when)
+            {
+                var w = _subsystem.ActiveRepo;
+                int all = 0, named = 0; var names = new List<string>();
+                if (w != null)
+                    foreach (var e in w.Query().With<EntityInfo>().Build())
+                    {
+                        all++;
+                        if (w.HasComponent<NetworkIdentity>(e)) { named++; if (names.Count < 12) names.Add(w.GetComponentRO<EntityInfo>(e).Name.ToString()); }
+                    }
+                Log($"{when}: sim {_subsystem.DirectorSimSeconds:0.###}, world {(w == null ? "null" : w.GetHashCode().ToString())}: " +
+                    $"{all} with EntityInfo, {named} also NetworkIdentity [{string.Join(", ", names)}]; terrain {_subsystem.ResidentTerrainName ?? "none"}");
+            }
+            World("opened");
+            try { using var probe = new Fdp.Core.FlightRecorder.PlaybackController(recording); Log($"probe: {probe.TotalFrames} frames"); }
+            catch (Exception ex) { Log("probe: " + ex); }
+            Log("status " + _subsystem.CreateDebugProvider()!.ReplayBrowser!.Status().ToJsonString());
+            _subsystem.MoveDirectorPlayhead(t);
+            for (int i = 0; i < 10; i++) Frame();
+            World($"at {t}");
+
+            Assert.Empty(pack.Session.Open(scenario, takeName));
+            var runner = pack.Runner;
+            var request = new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of(scenario, takeName), Speed: 1000d, Cinema: false);
+
+            string Shoot(string name)
+            {
+                var problems = runner.PlayFrom(request, t);
+                Assert.True(problems.Count == 0, string.Join("; ", problems));
+                for (int i = 0; i < 600 && runner.Phase != Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing && runner.Busy; i++) Frame();
+                if (runner.Phase != Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing)
+                    Log($"{name}: not playing ({runner.Phase}) — error {runner.Error}; report {string.Join(" | ", runner.Reports.Select(r => r.Status + ": " + string.Join("; ", r.Problems)))}");
+                Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing, runner.Phase);
+                Frame();                                                                 // the first playing frame sets the shot of t
+                runner.Pause();
+                for (int i = 0; i < 20; i++) Frame();                                    // the camera settles on the held shot
+                var capture = Hrot.UI.Common.Map3D.FilmStudio.Capture(new Hrot.UI.Common.Map3D.FilmCaptureRequest(Path.Combine(outDir, name + ".png"), 1280, 720, 1));
+                for (int i = 0; i < 120 && !capture.IsCompleted; i++) Frame();
+                var frame = capture.GetAwaiter().GetResult();
+                var shot = Hrot.UI.Common.Map3D.FilmStudio.Shot;
+                Log($"{name}: {frame.Path} sim {frame.SimTime:0.###} director sim {_subsystem.DirectorSimSeconds:0.###} status {runner.Status().ToJsonString()} " +
+                    $"pose {shot?.Pose} follow {shot?.Follow}");
+                runner.Stop();
+                for (int i = 0; i < 5; i++) Frame();
+                return frame.Path;
+            }
+
+            Shoot("before");
+
+            // ONE key's camera moved in the OPEN take — further back and higher (unsaved: CR-4, the next play shows it)
+            var take = pack.Session.Editor!.Take;
+            var keys = Hrot.UI.Common.Map3D.Director.CameraKeys.Of(take);
+            var cam = keys[keyIndex].Camera;
+            var moved = cam with { Back = cam.Back * 3f, Height = cam.Height * 4f, Distance = cam.Distance * 2.5f, Pitch = cam.Pitch - 15f };
+            Log($"key {keyIndex} at {keys[keyIndex].At}: {cam} -> {moved}");
+            Assert.True(pack.Session.Editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.SetKeyCamera(keyIndex, moved)));
+            Assert.True(pack.Session.Editor.Dirty);
+
+            Shoot("after");
+            Assert.True(File.Exists(Path.Combine(outDir, "before.png")) && File.Exists(Path.Combine(outDir, "after.png")));
+        }
+        finally
+        {
+            try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
+            Raylib_cs.Raylib.CloseWindow();
+        }
+    }
 }
