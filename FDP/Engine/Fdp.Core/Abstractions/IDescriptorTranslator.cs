@@ -74,6 +74,14 @@ namespace Fdp.Interfaces
     {
         /// <summary>True while the node restores its own recording for the current replay moment.</summary>
         System.Func<bool>? IsReplayRestoring { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — the exit of a replay or a review is RELEASED: before this system
+        /// takes anything in again it throws away the world STATE and EVENTS its readers hold — the replay-era samples and the entry's
+        /// disposes. The node already has its world (its checkpoint, or the replay it branches from); the owners republish.
+        /// ⭐ Called by the record/replay controller at the exit's release; the drain runs on the system's own next Execute.
+        /// </summary>
+        void DiscardAtReplayExit() { }
     }
 
     /// <summary>

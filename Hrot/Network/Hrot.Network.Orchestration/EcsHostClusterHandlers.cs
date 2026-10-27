@@ -115,7 +115,8 @@ namespace Hrot.SimHost.Modules.Orchestration
             //     load's), the checkpoint's return (PutBack) — every dependency a restore touches, handed over (the silent-default rule).
             slave.RegisterHandler(new ReferenceReviewHandler(
                 controller, () => controller.ActiveRecordingModule, replayLoad, h.World, h.EventAccumulator, worldReplaced,
-                resumeSchedule: h.Kernel.ResumeAfterRestore, storageDirectory: h.StagingRoot));
+                resumeSchedule: h.Kernel.ResumeAfterRestore, storageDirectory: h.StagingRoot,
+                episodeRecorders: () => controller.EpisodeRecorders));   // ⭐ CE-3329 row 44 — a review suspends them too
 
             // 3. Dry run (D14) — this node puts back its OWN world, id pool, entity map and ELM queues (HN-017/HN-018).
             var rewindables = new List<IPreviewRewindable>();

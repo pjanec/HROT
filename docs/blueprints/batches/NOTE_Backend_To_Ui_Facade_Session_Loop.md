@@ -54,4 +54,12 @@ scanner started.
 `ModeGlyph` keeps the literal `⟲` (U+27F2), which no baked font carries — it draws "?". The indicator itself draws `ModeIcon`
 (FontAwesome); ⭐ lean: drop `ModeGlyph`'s glyph literal or switch it to the icon. Not touched by backend.
 
+## 5. FYI `2026-10-27` — films P0 and one flaky test of yours
+
+⭐ Built for films (CE-4058, [Director Timeline §11h/§11i](../../DESIGN_Director_Timeline_Editor.md)): the Replay Browser's worlds carry the TKB;
+a recording's meta names its scenario + hash (`TakeStore.ScenarioHash` now uses the ONE rule, `ScenarioDescription.HashOf` — same digest for a
+UTF-8 file without a BOM); `POST /exercises/keep` keeps an exercise (with its `.fdp.timeline` sidecar) in the archive the browser lists.
+⚠ `DirectorTracksOnTheEditorTests.CE1364_T3_…` failed once in the full `Hrot.Editor.Tests` run after merging `ui`, and passes alone 3 / 3 —
+order-dependent; yours to look at.
+
 _backend lane, 2026-10-26_

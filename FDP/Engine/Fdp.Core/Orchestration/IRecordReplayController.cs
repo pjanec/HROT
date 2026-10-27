@@ -110,6 +110,14 @@ namespace Fdp.Core.Orchestration
         Task TeardownReplayAsync();
 
         /// <summary>
+        /// ⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — the exit's RELEASE: from <see cref="TeardownReplayAsync"/> until this
+        /// call the node's ingress stays gated as if it still restored (state left in the readers, events dropped); here every gated
+        /// ingress system is told to discard what its readers hold before it takes anything in again. Called by the ONE gate set
+        /// (<c>ReferenceReplayLoadHandler.LeaveReplayGates</c>) and by a branch to live. ⭐ A controller with no ingress does nothing.
+        /// </summary>
+        void ReleaseReplayExit() { }
+
+        /// <summary>
         /// Returns <see langword="true"/> when a replay session is currently active
         /// (i.e. <see cref="PrepareReplayAsync"/> has completed and
         /// <see cref="TeardownReplayAsync"/> has not yet been called).

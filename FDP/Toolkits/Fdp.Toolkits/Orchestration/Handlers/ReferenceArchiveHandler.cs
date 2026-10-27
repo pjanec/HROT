@@ -93,6 +93,14 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
                 RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, fileName + ".meta.json")));
         }
 
+        // ⭐ CE-4058 ③ — the recording's timeline sidecar (its event index) is kept with it, so a kept film recording opens indexed
+        var timeline = Fdp.Toolkit.ReplayBrowser.Timeline.TimelineSidecar.PathFor(file);
+        if (File.Exists(timeline))
+        {
+            manifest.Add(new FileManifestResult(
+                SourceUnc:    timeline,
+                RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, Path.GetFileName(timeline))));
+        }
         return Task.FromResult<object?>(manifest.ToArray());
     }
 

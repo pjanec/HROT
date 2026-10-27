@@ -87,6 +87,39 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// ⭐ <c>CE-4058</c> ③ (Director Timeline TE-13) — <c>POST /exercises/keep {exerciseId?}</c>: "Keep for films" — the exercise is
+        /// ARCHIVED: every node's recording, its meta and timeline sidecar pulled into <c>{shared}/exercises/&lt;id&gt;/</c> with the scenario
+        /// as it was loaded and <c>Orchestrator.json</c>. ⭐ The cluster's existing Export op (CE-278 §5), not a second copier. When no
+        /// exercise is named, the newest in the inventory.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) KeepExercise(JsonNode? body)
+        {
+            var master = MasterOrNull;
+            if (master is null) return (null, NoMaster, DebugApiHints.Panel);
+            Guid id;
+            if (body?["exerciseId"] is JsonValue v && v.TryGetValue(out string? text))
+            {
+                if (!Guid.TryParse(text, out id))
+                    return (null, $"exerciseId '{text}' is not an exercise id (list_exercises names them).", DebugApiHints.Scenario);
+            }
+            else
+            {
+                var items = (_editorExercises?.Invoke() ?? _dispatcher?.ExercisesAnyNode)?.OrderByDescending(x => x.StartTimeUtc).ToList();
+                if (items is not { Count: > 0 }) return (null, "No exercise to keep: the inventory is empty (list_exercises).", DebugApiHints.Scenario);
+                id = items[0].ExerciseId;
+            }
+            var intent = new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Export, ExerciseId = id };
+            master.Storage(intent);
+            return (new JsonObject
+            {
+                ["published"]  = true,
+                ["requestId"]  = intent.RequestId.ToString(),
+                ["exerciseId"] = id.ToString(),
+                ["archive"]    = System.IO.Path.Combine(OrchestrationConstants.GetSharedRoot(), OrchestrationConstants.ExercisesDirectoryName, id.ToString()),
+            }, null, null);
+        }
+
+        /// <summary>
         /// ⭐ <c>POST /replay {exerciseId?, atSeconds?}</c> — enter a replay of the exercise (when none is named the MASTER picks: the live
         /// run in progress, else the newest finished one), at
         /// <c>atSeconds</c> after its start (else the start), from ANY state: ONE request — the planner unloads first when it must.

@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -229,5 +230,84 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
         int wired = CycloneNetworkIngressSystem.WireJoinGate(new object[] { a, "not a system", b }, () => true);
         Assert.Equal(2, wired);
         Assert.True(a.IsJoinFrozen!() && b.IsJoinFrozen!());
+    }
+
+    // ── CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — the exit of a replay / review DISCARDS what the readers hold ──────
+
+    /// <summary>A world-STATE translator the way ~170 real ones are: no discard of its own, its reader a private field — here on a
+    /// BASE class, so the drain has to walk the hierarchy.</summary>
+    private abstract class ReaderOwningBase
+    {
+        private readonly CycloneDDS.Runtime.DdsReader<Fdp.Network.Cyclone.Topics.EntityMasterTopic> _reader;
+        protected ReaderOwningBase(CycloneDDS.Runtime.DdsParticipant p, string topic)
+            => _reader = new CycloneDDS.Runtime.DdsReader<Fdp.Network.Cyclone.Topics.EntityMasterTopic>(p, topic);
+        protected int TakeAll()
+        {
+            int n = 0;
+            while (true) { using var loan = _reader.Take(); if (loan.Count == 0) return n; n += loan.Count; }
+        }
+        public int Peek() { using var loan = _reader.Read(); return loan.Count; }
+    }
+
+    private sealed class StateTranslator : ReaderOwningBase, INetworkTranslator
+    {
+        public StateTranslator(CycloneDDS.Runtime.DdsParticipant p, string topic) : base(p, topic) => TopicName = topic;
+        public int Applied { get; private set; }
+        public string TopicName { get; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+        public long ReceivedSampleCount => Applied;
+        public long SentSampleCount => 0;
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) => Applied += TakeAll();
+        public void ScanAndPublish(ISimulationView view) { }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-3329 W5 — what the readers kept through a replay (the newest state per instance, the entry's disposes) is DROPPED when
+    /// the exit is released, before the first poll; nothing is dropped while the exit is still held; the control plane is never
+    /// touched; what arrives AFTER the release is applied as usual.
+    /// 🔴 Without the drain the three replay-era samples land on the world the node just put back.
+    /// </summary>
+    [Fact(Timeout = 30_000)]
+    public async Task CE3329_W5_TheReleasedExitDropsTheReplayEraState_ThenIngressResumes()
+    {
+        using var participant = new CycloneDDS.Runtime.DdsParticipant(0);
+        string topic = "ce3329-w5-" + System.Guid.NewGuid().ToString("N");
+        var state   = new StateTranslator(participant, topic);
+        var events  = new EventSpy();
+        var control = new SpyTranslator("time-mode", TranslatorClass.ControlPlane);
+        bool held = true;   // the controller's gate: restoring, then held from the teardown until the release
+        var system = new CycloneNetworkIngressSystem(new INetworkTranslator[] { state, events, control }) { IsReplayRestoring = () => held };
+
+        using var writer = new CycloneDDS.Runtime.DdsWriter<Fdp.Network.Cyclone.Topics.EntityMasterTopic>(participant, topic);
+        for (long id = 1; id <= 3; id++) writer.Write(new Fdp.Network.Cyclone.Topics.EntityMasterTopic { EntityId = id });
+        await WaitFor(() => state.Peek() == 3);
+
+        system.DiscardAtReplayExit();          // ⚠ asked while still held: nothing may be drained yet
+        system.Execute(View(), 1f / 60f);
+        Assert.Equal((0, 0, 3), (system.ExitDiscards, state.Applied, state.Peek()));
+
+        held = false;                          // the release
+        system.Execute(View(), 1f / 60f);
+        Assert.Equal(1, system.ExitDiscards);
+        Assert.Equal(3, system.LastExitDiscardedSamples);
+        Assert.Equal(0, state.Applied);        // ⭐ dropped, never applied
+        Assert.Equal(2, events.Discards);      // the event translator discards itself (once at the hold, once at the release)
+        Assert.Equal(2, control.Polls);        // the control plane polled through it all
+
+        writer.Write(new Fdp.Network.Cyclone.Topics.EntityMasterTopic { EntityId = 4 });
+        await WaitFor(() => state.Peek() == 1);
+        system.Execute(View(), 1f / 60f);
+        Assert.Equal((1, 1), (state.Applied, system.ExitDiscards));   // ⭐ the owners' republish is taken in; the drain ran once
+        Assert.Equal(1, IngressReaderDrain.ReaderFieldCount(typeof(StateTranslator)));
+    }
+
+    private static async Task WaitFor(System.Func<bool> condition)
+    {
+        var started = System.DateTime.UtcNow;
+        while (!condition())
+        {
+            if (System.DateTime.UtcNow - started > System.TimeSpan.FromSeconds(10)) throw new System.TimeoutException("DDS loopback");
+            await Task.Delay(20);
+        }
     }
 }

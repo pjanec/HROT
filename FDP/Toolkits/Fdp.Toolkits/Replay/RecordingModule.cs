@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Replay
     /// </para>
     /// </summary>
     [TickMode(TickPolicy.WhenTimeAdvances)]
-    public sealed class RecordingModule : IEcsModule, IDisposable
+    public sealed class RecordingModule : IReviewSuspendable, IEcsModule, IDisposable
     {
         private readonly RecordingConfiguration _config;
         private AsyncRecorder? _recorder;
@@ -103,15 +103,30 @@ namespace Fdp.Toolkit.Replay
         /// <summary>⭐ B4 — waits until every frame captured so far is on disk (<see cref="AsyncRecorder.WaitForWrites"/>).</summary>
         public void WaitForWrites() => _recorder?.WaitForWrites();
 
-        /// <summary>⭐ CE-3329 P3 (R8) — suspend the recording for a review (nothing written, the file stays open) and flush.</summary>
-        public void SuspendForReview()
+        /// <summary>⭐ CE-3329 P3 (R8) — suspend the recording for a review (nothing written, the file stays open) and flush; the review
+        /// is noted in <c>Reviews[]</c> (row 17) when it is named.</summary>
+        public void SuspendForReview(string? label = null, double atSimSeconds = 0)
         {
             _tick?.Suspend();
             _recorder?.WaitForWrites();
+            if (label != null && _recorder != null)
+                _recorder.Metadata.Reviews.Add(new Fdp.Core.FlightRecorder.Metadata.ReviewMark
+                {
+                    Label = label, AtSimSeconds = atSimSeconds, AtWallTicks = _tick?.LastWallTicks ?? 0, StartedUtc = DateTime.UtcNow,
+                });
         }
 
-        /// <summary>⭐ CE-3329 P3 — resume the SAME recording after a review (a keyframe first, the review's destructions dropped).</summary>
-        public void ResumeAfterReview(double? atSimSeconds = null) => _tick?.Resume(atSimSeconds);
+        /// <summary>⭐ CE-3329 P3 — resume the SAME recording after a review (a keyframe first, the review's destructions dropped); the open
+        /// <c>Reviews[]</c> entry is closed and the meta rewritten, so a node killed later still names it.</summary>
+        public void ResumeAfterReview(double? atSimSeconds = null)
+        {
+            _tick?.Resume(atSimSeconds);
+            if (_recorder?.Metadata.Reviews is { Count: > 0 } reviews && reviews[^1].EndedUtc == null)
+            {
+                reviews[^1].EndedUtc = DateTime.UtcNow;
+                _recorder.WriteMetadata();
+            }
+        }
 
         /// <summary>⭐ CE-3329 — labelled checkpoints this recording still owes (a forced <c>review-&lt;n&gt;</c> waits for its frame).</summary>
         public int PendingCheckpoints => _tick?.PendingCheckpoints ?? 0;

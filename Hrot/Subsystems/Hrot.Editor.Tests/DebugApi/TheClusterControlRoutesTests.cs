@@ -44,6 +44,26 @@ public sealed class TheClusterControlRoutesTests
         Assert.Equal("folder/my-scenario", save.ScenarioName);
     }
 
+    /// <summary>⭐ CE-4058 ③ — "Keep for films" is the cluster's Export op for one exercise (the newest when none is named): one storage
+    /// intent to the master, never a host-side copy.</summary>
+    [Fact]
+    public void Keep_for_films_is_the_masters_export_of_one_exercise()
+    {
+        var svc = Host();
+        Assert.Null(svc.KeepExercise(new JsonObject { ["exerciseId"] = Older.ExerciseId.ToString() }).Error);
+        var named = Assert.IsType<ExecuteStorageOpIntent>(Assert.Single(_master.Sent));
+        Assert.Equal(StorageOpType.Export, named.Operation);
+        Assert.Equal(Older.ExerciseId, named.ExerciseId);
+
+        Assert.Null(svc.KeepExercise(null).Error);
+        Assert.Equal(Newer.ExerciseId, Assert.IsType<ExecuteStorageOpIntent>(_master.Sent[^1]).ExerciseId);   // the newest
+
+        int sent = _master.Sent.Count;
+        Assert.NotNull(svc.KeepExercise(new JsonObject { ["exerciseId"] = "not-a-guid" }).Error);
+        Assert.Equal(sent, _master.Sent.Count);
+        Assert.NotNull(Host(withMaster: false).KeepExercise(null).Error);
+    }
+
     [Fact]
     public void Preview_is_the_clusters_dry_run_entered_and_left_through_the_master()
     {

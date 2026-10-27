@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -85,6 +86,29 @@ public sealed class ReferenceArchiveHandlerTests
         {
             Directory.Delete(tempRoot, recursive: true);
         }
+    }
+
+    /// <summary>⭐ CE-4058 ③ (TE-13) — "Keep for films" archives the recording WITH its meta and its timeline sidecar (the event index), so
+    /// a kept recording opens indexed after the temp root is gone. ⛔ Before: the sidecar stayed behind.</summary>
+    [Fact]
+    public void CE4058_The_archive_takes_the_recordings_meta_and_timeline_sidecar()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var exerciseId = Guid.NewGuid();
+        var dir = Path.Combine(tempRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString());
+        var fdp = Path.Combine(dir, "node_3.fdp");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(fdp, "fdp");
+        File.WriteAllText(fdp + ".meta.json", "{}");
+        File.WriteAllText(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineSidecar.PathFor(fdp), "index");
+        try
+        {
+            var handler = new ReferenceArchiveHandler(tempRoot, 3);
+            var result = handler.PrepareAsync(MakeCmd(exerciseId, Guid.NewGuid()), default).GetAwaiter().GetResult();
+            var dests = Assert.IsType<FileManifestResult[]>(result).Select(e => Path.GetFileName(e.RelativeDest)).ToArray();
+            Assert.Equal(new[] { "node_3.fdp", "node_3.fdp.meta.json", "node_3.fdp.timeline" }, dests);
+        }
+        finally { Directory.Delete(tempRoot, recursive: true); }
     }
 
     // ── CGF1-S0505 Success Condition 3 ────────────────────────────────────────
