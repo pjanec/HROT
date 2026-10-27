@@ -20,8 +20,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         private readonly Dictionary<string, SharedList<TimelineEvent>> _lanes;
 
         public TimelineIndex(IReadOnlyDictionary<string, TimelineEvent[]> lanes, long[] frameTicks, int scannedFrames, int totalFrames,
-            IReadOnlyDictionary<string, string>? laneErrors = null)
+            IReadOnlyDictionary<string, string>? laneErrors = null, PositionTrack? positions = null)
         {
+            Positions = positions ?? PositionTrack.Empty;
             _lanes = new Dictionary<string, SharedList<TimelineEvent>>(lanes.Count, StringComparer.Ordinal);
             foreach (var (id, events) in lanes) _lanes[id] = new SharedList<TimelineEvent>(events);
             FrameTicks = new SharedList<long>(frameTicks);
@@ -33,8 +34,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
 
         /// <summary>⭐ <c>CE-1361</c> ② — an index over SHARED lane and frame views (no copy): the live source's snapshots.</summary>
         public TimelineIndex(IReadOnlyDictionary<string, SharedList<TimelineEvent>> lanes, SharedList<long> frameTicks, int scannedFrames, int totalFrames,
-            IReadOnlyDictionary<string, string>? laneErrors = null, SharedList<double>? frameSim = null)
+            IReadOnlyDictionary<string, string>? laneErrors = null, SharedList<double>? frameSim = null, PositionTrack? positions = null)
         {
+            Positions = positions ?? PositionTrack.Empty;
             FrameSim = frameSim ?? SharedList<double>.Empty;
             _lanes = new Dictionary<string, SharedList<TimelineEvent>>(lanes, StringComparer.Ordinal);
             FrameTicks = frameTicks;
@@ -46,7 +48,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public static readonly TimelineIndex Empty = new(new Dictionary<string, TimelineEvent[]>(), Array.Empty<long>(), 0, 0);
 
         /// <summary>This index with other frame times (an axis's), its lanes shared as they are.</summary>
-        public TimelineIndex WithFrameTicks(long[] frameTicks) => new(_lanes, new SharedList<long>(frameTicks), ScannedFrames, TotalFrames, LaneErrors, FrameSim);
+        public TimelineIndex WithFrameTicks(long[] frameTicks) => new(_lanes, new SharedList<long>(frameTicks), ScannedFrames, TotalFrames, LaneErrors, FrameSim, Positions);
 
         /// <summary>Wall-clock ticks of each scanned frame (index = frame).</summary>
         public IReadOnlyList<long> FrameTicks { get; }
@@ -55,6 +57,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// (a v6 recording, a world without a clock) — a reader checks <c>Count</c> before indexing.
         /// </summary>
         public SharedList<double> FrameSim { get; }
+        /// <summary>⭐ <c>CE-4059</c> — the networked units' sampled positions (empty when the world carried none).</summary>
+        public PositionTrack Positions { get; }
+
+        /// <summary>The unit's samples in frames [<paramref name="from"/>, <paramref name="to"/>) — see <see cref="PositionTrack.Between"/>.</summary>
+        public ReadOnlySpan<PositionSample> PositionsOf(long unit, int from, int to) => Positions.Between(unit, from, to);
+
+        /// <summary>The unit's place at <paramref name="frame"/>, interpolated between its samples — see <see cref="PositionTrack.At"/>.</summary>
+        public PositionSample? PositionAt(long unit, int frame) => Positions.At(unit, frame);
+
         /// <summary>Frames scanned so far (== <see cref="TotalFrames"/> when complete).</summary>
         public int ScannedFrames { get; }
         public int TotalFrames { get; }

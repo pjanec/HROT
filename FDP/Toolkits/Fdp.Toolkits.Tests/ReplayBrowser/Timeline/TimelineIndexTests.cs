@@ -328,6 +328,228 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.True(chunks[^1].IsComplete && !chunks[0].IsComplete);
         }
 
+        // ───────────────────────── CE-4059 — the position track ─────────────────────────
+
+        private const long Mover = 201, Leaver = 202, Arriver = 203;
+
+        /// <summary>
+        /// ⭐ <c>CE-4059</c> — nine frames of a sim clock at 0.5 + 0.25·n s (so a 0.5 s sample interval lands on every SECOND frame: 0 2 4 6 8):
+        /// the <see cref="Mover"/> runs east 10 m a frame (heading 0.1·n rad), the <see cref="Leaver"/> stands at (100, 100) and is destroyed
+        /// before frame 4, the <see cref="Arriver"/> appears at frame 6. <paramref name="afterFrame"/> runs after each frame is recorded.
+        /// </summary>
+        private static string RecordMovers(FdpRecordingHarness harness, Action<long>? afterFrame = null)
+        {
+            var repo = harness.Repository;
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<SimTransform>();
+            var mover = repo.CreateEntity();
+            repo.AddComponent(mover, new NetworkIdentity(Mover));
+            repo.AddComponent(mover, default(SimTransform));
+            var leaver = repo.CreateEntity();
+            repo.AddComponent(leaver, new NetworkIdentity(Leaver));
+            repo.AddComponent(leaver, new SimTransform { Position = new Vector3(100, 100, 0), Rotation = Quaternion.Identity });
+            for (int n = 0; n < 9; n++)
+            {
+                harness.MutateComponent<SimTransform>(mover, _ => new SimTransform
+                {
+                    Position = new Vector3(10 * n, 5, 1),
+                    Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.1f * n),
+                });
+                if (n == 4) harness.DestroyEntity(leaver);
+                if (n == 6)
+                {
+                    var arriver = repo.CreateEntity();
+                    repo.AddComponent(arriver, new NetworkIdentity(Arriver));
+                    repo.AddComponent(arriver, new SimTransform { Position = new Vector3(0, 50, 0), Rotation = Quaternion.Identity });
+                }
+                repo.SetSingleton(new GlobalTime { FrameNumber = n + 1, TotalTime = 0.5 + 0.25 * n });
+                long ticks = 100_000L * (n + 1);
+                harness.Tick();
+                if (n == 0) harness.RecordKeyframe(ticks); else harness.RecordDelta(ticks);
+                afterFrame?.Invoke(ticks);
+            }
+            return harness.BuildToTempFile();
+        }
+
+        private static int[] FramesOf(PositionTrack track, long unit) => track.Samples(unit).Select(s => s.Frame).ToArray();
+
+        /// <summary>
+        /// ⭐ <c>CE-4059</c> — the position track of a recording: one sample per networked unit every 0.5 s of SIM time (the frames of a 0.25 s clock
+        /// that start a new bucket), carrying the unit's <see cref="SimTransform"/> place; <c>PositionAt</c> interpolates linearly between two
+        /// samples and answers nothing outside a unit's span; a unit that is destroyed is not sampled again, one that arrives starts late;
+        /// <c>PositionsOf</c> slices a frame window; <c>UnitsWithin</c> finds who is near a point at a frame.
+        /// 🔴 Red-proofs (each compiles): the bucket check never skipping (`&amp;&amp; DateTime.UtcNow.Ticks &lt; 0`) ⇒ a sample every frame;
+        /// the interpolation fraction forced to 0 ⇒ frame 3 reads x=20; the writer re-adding a departed unit's last sample ⇒ the Leaver's frames grow.
+        /// </summary>
+        [Fact]
+        public void CE4059_TheTrack_SamplesEachUnitAtTheRate_InterpolatesBetweenSamples_AndStopsForAUnitThatLeft()
+        {
+            using var harness = new FdpRecordingHarness();
+            string path = RecordMovers(harness);
+            var index = TimelineIndexBuilder.Build(path, Lanes, Compiler());
+            var track = index.Positions;
+
+            Assert.Equal(new[] { 0, 2, 4, 6, 8 }, FramesOf(track, Mover));                        // the rate: every second frame (0.5 s of sim)
+            Assert.Equal(new[] { 0, 2 }, FramesOf(track, Leaver));                                 // destroyed before frame 4: never sampled again
+            Assert.Equal(new[] { 6, 8 }, FramesOf(track, Arriver));                                // arrived at frame 6
+            Assert.Equal(3, track.UnitCount);
+            foreach (var s in track.Samples(Mover))                                                // the right positions
+            {
+                Assert.Equal(10f * s.Frame, s.X); Assert.Equal(5f, s.Y); Assert.Equal(1f, s.Z);
+                Assert.Equal(0.1f * s.Frame, s.Heading, 4);
+            }
+            Assert.Equal((100f, 100f), (track.Samples(Leaver)[1].X, track.Samples(Leaver)[1].Y));
+
+            var at3 = index.PositionAt(Mover, 3)!.Value;                                            // between the samples of frames 2 and 4
+            Assert.Equal(30f, at3.X, 3); Assert.Equal(5f, at3.Y, 3); Assert.Equal(0.3f, at3.Heading, 4); Assert.Equal(3, at3.Frame);
+            Assert.Equal(40f, index.PositionAt(Mover, 4)!.Value.X);                                 // on a sample: the sample
+            Assert.Null(index.PositionAt(Leaver, 4));                                               // after its last sample: it is gone, not extrapolated
+            Assert.Null(index.PositionAt(Arriver, 5));                                              // before its first
+            Assert.Null(index.PositionAt(999, 3));                                                  // never seen
+            Assert.Equal(new[] { 2, 4, 6 }, index.PositionsOf(Mover, 2, 7).ToArray().Select(s => s.Frame).ToArray());   // [from, to)
+            Assert.True(index.PositionsOf(Mover, 100, 200).IsEmpty);
+
+            var near = new List<long>();
+            track.UnitsWithin(3, 30, 5, 2, near);                                                   // the mover is at (30, 5) at frame 3
+            Assert.Equal(new[] { Mover }, near.ToArray());
+            near.Clear();
+            track.UnitsWithin(1, 100, 100, 1, near);                                                // the leaver stood there until it left
+            Assert.Equal(new[] { Leaver }, near.ToArray());
+            near.Clear();
+            track.UnitsWithin(7, 0, 0, 1000, near);                                                 // mover + arriver (ascending); the leaver is gone
+            Assert.Equal(new[] { Mover, Arriver }, near.ToArray());
+        }
+
+        /// <summary>⭐ <c>CE-4059</c> — a heading interpolates along the SHORTER arc (π → −π is a hair, not a full turn).
+        /// 🔴 Red-proof: the arc normalisation skipped (`DateTime.UtcNow.Ticks &gt; 0`) ⇒ the midpoint reads 0.</summary>
+        [Fact]
+        public void CE4059_AHeading_InterpolatesAlongTheShorterArc()
+        {
+            var track = new PositionTrack(new Dictionary<long, PositionSample[]>
+            {
+                [1] = new[] { new PositionSample(0, 0, 0, 0, 3.0f), new PositionSample(2, 0, 0, 0, -3.0f) },
+            });
+            float mid = track.At(1, 1)!.Value.Heading;
+            Assert.True(Math.Abs(Math.Abs(mid) - MathF.PI) < 0.2f, $"heading at the midpoint {mid}");   // near ±π, not 0
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4059</c> (R-4089: ONE per-frame step) — the live index and the index rebuilt from its recording carry the SAME position samples,
+        /// unit by unit and in the same order: the track is sampled by <see cref="TimelineFrameScanner"/>, which both run.
+        /// 🔴 Red-proof: the live path's sim time shifted (`clearDestructionLog ? sim : sim + 0.3` in the scanner's sample call) ⇒ other buckets.
+        /// </summary>
+        [Fact]
+        public void CE4059_ALiveIndex_CarriesTheSamePositionSamples_AsTheIndexRebuiltFromItsRecording()
+        {
+            using var harness = new FdpRecordingHarness();
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            string path = RecordMovers(harness, ticks => live.Step(harness.Repository, ticks, force: true));
+            var rebuilt = TimelineIndexBuilder.Build(path, Lanes, Compiler());
+
+            Assert.Equal(9, live.Frames);
+            Assert.Equal(3, live.Index.Positions.UnitCount);
+            Assert.Equal(rebuilt.Positions.UnitIds.OrderBy(i => i), live.Index.Positions.UnitIds.OrderBy(i => i));
+            foreach (var unit in rebuilt.Positions.UnitIds)
+                Assert.Equal(rebuilt.Positions.Samples(unit).ToArray(), live.Index.Positions.Samples(unit).ToArray());
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4059</c> — the track shares its buffers like the lanes (CE-1361): a snapshot taken early keeps its samples while hundreds more
+        /// frames grow the per-unit buffers (several doublings); a publish between sample rounds hands out the SAME track object (no copy).
+        /// 🔴 Red-proof: the buffer's snapshot reporting its capacity instead of its count (`DateTime.UtcNow.Ticks &gt; 0 ? _items.Length : Count`) ⇒ the old one grows.
+        /// </summary>
+        [Fact]
+        public void CE4059_AnOldSnapshotOfTheTrack_IsUnchanged_WhileTheLiveIndexKeepsSampling()
+        {
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            using var world = new EntityRepository();
+            world.RegisterComponent<NetworkIdentity>();
+            world.RegisterComponent<SimTransform>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new NetworkIdentity(7));
+            world.AddComponent(unit, new SimTransform { Rotation = Quaternion.Identity });
+            void Frame(int n)
+            {
+                world.SetComponent(unit, new SimTransform { Position = new Vector3(n, 0, 0), Rotation = Quaternion.Identity });
+                world.SetSingleton(new GlobalTime { FrameNumber = n, TotalTime = n * 0.5 });   // one sample a frame
+                live.Step(world, 1_000 + n * 10L, force: true);
+            }
+            for (int n = 1; n <= 5; n++) Frame(n);
+            var old = live.Index.Positions;
+            var oldSamples = old.Samples(7).ToArray();
+            Assert.Equal(5, oldSamples.Length);
+
+            for (int n = 6; n <= 700; n++) Frame(n);                                              // 16 → 32 → … → 1024
+            var now = live.Index.Positions;
+
+            Assert.Equal(5, old.Samples(7).Count);                                                // the old snapshot did not grow...
+            Assert.Equal(oldSamples, old.Samples(7).ToArray());                                   // ...nor change
+            Assert.Null(old.At(7, 6));                                                            // it knows nothing of the later frames
+            Assert.Equal(700, now.Samples(7).Count);
+            Assert.Equal(oldSamples, now.Samples(7).Take(5).ToArray());                           // the new one holds old + new
+            Assert.Throws<ArgumentOutOfRangeException>(() => old.Samples(7)[5]);
+
+            // two forced publishes in the SAME sample interval: nothing was sampled between them, so the track object is reused
+            world.SetSingleton(new GlobalTime { FrameNumber = 701, TotalTime = 700 * 0.5 + 0.1 });
+            live.Step(world, 99_000, force: true);
+            var a = live.Index.Positions;
+            world.SetSingleton(new GlobalTime { FrameNumber = 702, TotalTime = 700 * 0.5 + 0.2 });
+            live.Step(world, 99_010, force: true);
+            Assert.Same(a, live.Index.Positions);
+        }
+
+        /// <summary>⭐ <c>CE-4059</c> — a world with no sim clock (a v6 recording, a bare host) is sampled every
+        /// <see cref="PositionTrackWriter.FallbackFrameStride"/> frames instead. 🔴 Red-proof: the stride forced to 1 (`DateTime.UtcNow.Ticks &gt; 0`) ⇒ every frame.</summary>
+        [Fact]
+        public void CE4059_WithoutASimClock_TheTrackSamplesEveryFallbackStride()
+        {
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            using var world = new EntityRepository();
+            world.RegisterComponent<NetworkIdentity>();
+            world.RegisterComponent<SimTransform>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new NetworkIdentity(9));
+            world.AddComponent(unit, new SimTransform { Rotation = Quaternion.Identity });
+            for (int n = 0; n < 31; n++) live.Step(world, 1_000 + n * 10L, force: true);          // no GlobalTime: the source counts the frames itself
+            Assert.Equal(new[] { 0, 15, 30 }, FramesOf(live.Index.Positions, 9));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4059</c> — the sidecar keeps the track: a second open reads it back (no pass) sample for sample; a sidecar of the OLD schema
+        /// (the version int patched to 2) is not reused and the open rebuilds the track.
+        /// 🔴 Red-proofs: the writer's unit list cleared (`DateTime.UtcNow.Ticks &gt; 0`) ⇒ the round trip is empty; the schema check bypassed ⇒ the patched file is reused.
+        /// </summary>
+        [Fact]
+        public void CE4059_TheSidecar_RoundTripsTheTrack_AndAnOldSchemaSidecarRebuilds()
+        {
+            using var harness = new FdpRecordingHarness();
+            string path = RecordMovers(harness);
+            try
+            {
+                using var first = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
+                Assert.False(first.FromSidecar);
+                Assert.Equal(3, first.Index.Positions.UnitCount);
+
+                using var second = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
+                Assert.True(second.FromSidecar);
+                foreach (var unit in first.Index.Positions.UnitIds)
+                    Assert.Equal(first.Index.Positions.Samples(unit).ToArray(), second.Index.Positions.Samples(unit).ToArray());
+                Assert.Equal(first.Index.Positions.UnitCount, second.Index.Positions.UnitCount);
+
+                string sidecar = TimelineSidecar.PathFor(path);
+                var bytes = File.ReadAllBytes(sidecar);
+                BitConverter.GetBytes(2).CopyTo(bytes, 4);                                         // magic (4 bytes), then the schema version
+                File.WriteAllBytes(sidecar, bytes);
+                using var third = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
+                Assert.False(third.FromSidecar);                                                   // an old schema is not reused...
+                Assert.Equal(first.Index.Positions.Samples(Mover).ToArray(), third.Index.Positions.Samples(Mover).ToArray());   // ...and the rebuild has the track
+            }
+            finally
+            {
+                try { File.Delete(TimelineSidecar.PathFor(path)); } catch { /* best effort */ }
+            }
+        }
+
         [Fact]
         public void CE1302_TheSecondOpen_ReadsTheSidecar_AndAChangedRecordingRebuilds()
         {

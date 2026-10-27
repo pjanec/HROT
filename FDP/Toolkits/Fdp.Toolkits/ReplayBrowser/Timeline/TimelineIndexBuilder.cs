@@ -67,7 +67,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             foreach (var (k, v) in fresh.LaneErrors) errors[k] = v;
             var ticks = new long[fresh.FrameTicks.Count];
             for (int i = 0; i < ticks.Length; i++) ticks[i] = fresh.FrameTicks[i];
-            return new TimelineIndex(lanes, new SharedList<long>(ticks), fresh.ScannedFrames, fresh.TotalFrames, errors, fresh.FrameSim);
+            return new TimelineIndex(lanes, new SharedList<long>(ticks), fresh.ScannedFrames, fresh.TotalFrames, errors, fresh.FrameSim,
+                cached.Positions.UnitCount > 0 ? cached.Positions : fresh.Positions);   // ⭐ CE-4059 — a sidecar's track is complete; a chunk's is partial
         }
     }
 }
