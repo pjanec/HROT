@@ -1897,6 +1897,62 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.All(own, s => Assert.Equal(ReplayKeyAt, s.Camera));                                         // … and its own key took over at 1.5
     }
 
+    // ── ⭐ CE-1304 / CE-1305 P6 (docs/DESIGN_Director_Timeline_Editor.md §11t) — the View track and the Graphics track on a recording ─────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> / <c>CE-1305</c> P6 (§11t, success conditions 1 and 2 — the RB rail): on a REAL recording in the Replay Browser, the two-shot take with a View
+    /// track (3-D + cards from 0, the 2-D map + labels from 2 s, the 3-D map from 4 s) and a label graphic (1.5–3.5 s) plays through the PACK's own seams — the layer
+    /// set reaches the pack's <see cref="Hrot.UI.Common.Map3D.Director.MapLayerOverride"/> (the one override every host builds), the map reaches
+    /// <see cref="Hrot.UI.Common.Map3D.FilmStudio.TwoD"/>, the graphic <see cref="Hrot.UI.Common.Map3D.FilmStudio.Graphics"/> — each at the recording's sim second.
+    /// 🔴 Mutation: <c>ApplyView</c> not calling <c>_layers.Apply</c> ⇒ the pack's override is never handed the view's set ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_OnARecording_TheViewTrack_AndAGraphic_PlayThroughThePacksOwnSeams()
+    {
+        var (pack, _) = OpenFilmRecording("p6");
+        static Hrot.UI.Common.Map3D.Director.LayerChange L(string on, string? off = null)
+            => new(new[] { on }, off == null ? Array.Empty<string>() : new[] { off });
+        pack.Takes.Save(TwoShotTake() with
+        {
+            Views = new[]
+            {
+                new Hrot.UI.Common.Map3D.Director.ViewChange { At = new Hrot.UI.Common.Map3D.Director.AtExpr(0d), TwoD = false, Layers = L("Units.Cards") },
+                new Hrot.UI.Common.Map3D.Director.ViewChange { At = new Hrot.UI.Common.Map3D.Director.AtExpr(2d), TwoD = true, Layers = L("Units.Labels", "Map.Roads") },
+                new Hrot.UI.Common.Map3D.Director.ViewChange { At = new Hrot.UI.Common.Map3D.Director.AtExpr(4d), TwoD = false },
+            },
+            Graphics = new[]
+            {
+                new Hrot.UI.Common.Map3D.Director.FilmGraphic
+                {
+                    At = new Hrot.UI.Common.Map3D.Director.AtExpr(1.5), Until = new Hrot.UI.Common.Map3D.Director.AtExpr(3.5),
+                    Kind = Hrot.UI.Common.Map3D.Director.GraphicKind.Label, Points = new[] { Key1At }, Text = "Phase line BLUE",
+                },
+            },
+        });
+        var runner = pack.Runner;
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d, Cinema: false)));
+        UntilPlaying(runner);
+        var seen = new List<(double Sim, bool TwoD, string On, string Off, int Graphics)>();
+        for (int i = 0; i < 600 && runner.Busy; i++)
+        {
+            double sim = Frame();
+            if (runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing && pack.Layers.Applied is { } applied)
+                seen.Add((sim, Hrot.UI.Common.Map3D.FilmStudio.TwoD, string.Join(",", applied.On), string.Join(",", applied.Off), Hrot.UI.Common.Map3D.FilmStudio.Graphics.Count));
+        }
+        var report = runner.Reports[0];
+        Assert.True(report.Status == "ok", $"{report.Status}: {string.Join("; ", report.Problems)}");
+        const double step = 1d / 60;
+        Assert.True(seen.Count > 200, $"{seen.Count} playing frames");
+        Assert.All(seen.Where(s => s.Sim < 2 - step), s => Assert.Equal((false, "Units.Cards", ""), (s.TwoD, s.On, s.Off)));
+        Assert.All(seen.Where(s => s.Sim > 2 + step && s.Sim < 4 - step), s => Assert.Equal((true, "Units.Labels", "Map.Roads"), (s.TwoD, s.On, s.Off)));
+        Assert.All(seen.Where(s => s.Sim > 4 + step), s => Assert.Equal((false, "Units.Labels", "Map.Roads"), (s.TwoD, s.On, s.Off)));
+        Assert.Contains(seen, s => s.TwoD);
+        Assert.All(seen.Where(s => s.Sim > 1.5 + step && s.Sim < 3.5 - step), s => Assert.Equal(1, s.Graphics));
+        Assert.All(seen.Where(s => s.Sim < 1.5 - step || s.Sim > 3.5 + step), s => Assert.Equal(0, s.Graphics));
+        Assert.Null(pack.Layers.Applied);                                                 // the film's end: the user's own layers, the 3-D map
+        Assert.False(Hrot.UI.Common.Map3D.FilmStudio.TwoD);
+    }
+
     // ── ⭐ CE-1304 P4 (docs/DESIGN_Director_Timeline_Editor.md §11s) — CR-5 one resolver, promote ─────────────────────────────────────────────
 
     private static readonly Vector3 Key3At = new(-20f, 5f, 0f);
@@ -2517,6 +2573,112 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
             Shoot("after");
             Assert.True(File.Exists(Path.Combine(outDir, "before.png")) && File.Exists(Path.Combine(outDir, "after.png")));
+        }
+        finally
+        {
+            try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
+            Raylib_cs.Raylib.CloseWindow();
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1304</c> / <c>CE-1305</c> P6 live proof (docs/DESIGN_Director_Timeline_Editor.md §11t) — the same WINDOWED browser and REAL recording as the P2 proof; the
+    /// scenario's seeded take is opened and, in the OPEN take (unsaved), given a ring + arrow + label (the Graphics track) and a View item that switches to the
+    /// 2-D map 0.3 s after t (with a key pulling the camera up). Played from t: <c>3d.png</c> (the 3-D film with the graphics); from t + 0.8: <c>2d.png</c> (the 2-D map, the same graphics). Each
+    /// still is captured through the director's own sink with the runner's overlay (<c>FilmFrameSink.Frame(…, runner.OverlayNow)</c> — the stills' path).
+    /// ⛔ Not a rail: a person judges the pixels.
+    /// </summary>
+    [FilmProofFact]
+    [Trait("Category", "Manual")]
+    public void CE1305_P6_LiveProof_AGraphicAndAViewSwitch_InAWindowedReplayBrowser()
+    {
+        string recording = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_RECORDING") ?? throw new InvalidOperationException("HROT_FILM_PROOF_RECORDING");
+        string scenario = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_SCENARIO") ?? "ua-tank-ammo";
+        string takeName = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_TAKE") ?? "main";
+        double t = double.Parse(Environment.GetEnvironmentVariable("HROT_FILM_PROOF_AT") ?? "9.1", System.Globalization.CultureInfo.InvariantCulture);
+        string outDir = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_OUT") ?? Path.Combine(Path.GetTempPath(), "hrot-film-proof-p6");
+        string who = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_UNIT") ?? "Enemy Tank";
+        string from = Environment.GetEnvironmentVariable("HROT_FILM_PROOF_FROM") ?? "Tank";
+        Directory.CreateDirectory(outDir);
+        var log = new List<string>();
+        void Log(string line) { log.Add(line); Console.WriteLine("[film-proof-p6] " + line); File.WriteAllLines(Path.Combine(outDir, "proof.log"), log); }
+
+        Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.Msaa4xHint);
+        Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser — P6 live proof");
+        try
+        {
+            rlImGui_cs.rlImGui.Setup(true);
+            Hrot.UI.Common.Map3D.FilmStudio.Reset();
+            Fdp.Core.FlightRecorder.RecordedAssemblies.EnsureLoaded(
+                Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(recording + ".meta.json")));
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            void Frame()
+            {
+                _subsystem.Update(1f / 60f);
+                Raylib_cs.Raylib.BeginDrawing();
+                Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+                _subsystem.DrawWorld();
+                rlImGui_cs.rlImGui.Begin();
+                _subsystem.DrawUI();
+                rlImGui_cs.rlImGui.End();
+                Raylib_cs.Raylib.EndDrawing();
+            }
+            Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { recording }, 0));
+            for (int i = 0; i < 30; i++) Frame();
+            var pack = _subsystem.Director!;
+            string root = AppContext.BaseDirectory;
+            while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+            string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
+            File.Copy(Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json"), beside, overwrite: true);
+            _subsystem.MoveDirectorPlayhead(t);
+            for (int i = 0; i < 10; i++) Frame();
+
+            Assert.Empty(pack.Session.Open(scenario, takeName));
+            var editor = pack.Session.Editor!;
+            var at = new Hrot.UI.Common.Map3D.Director.AtExpr(t - 1d);
+            var until = new Hrot.UI.Common.Map3D.Director.AtExpr(t + 8d);
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddGraphic(new Hrot.UI.Common.Map3D.Director.FilmGraphic
+                { At = at, Until = until, Kind = Hrot.UI.Common.Map3D.Director.GraphicKind.Ring, Who = who, Radius = 10, Text = "Target", Colour = 0xFF4030 })));
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddGraphic(new Hrot.UI.Common.Map3D.Director.FilmGraphic
+                { At = at, Until = until, Kind = Hrot.UI.Common.Map3D.Director.GraphicKind.Arrow, Who = from, Toward = who })));
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddGraphic(new Hrot.UI.Common.Map3D.Director.FilmGraphic
+                { At = at, Until = until, Kind = Hrot.UI.Common.Map3D.Director.GraphicKind.Label, Who = from, Text = "M1 Abrams", Colour = 0x60C0FF })));
+            // the View track: the 2-D map from t + 0.3 (inside the take's first shot — in a gap the camera is the NEXT shot's), layers as the take played
+            // them, and a key there pulling the camera up so the 2-D map frames both tanks
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddView(new Hrot.UI.Common.Map3D.Director.ViewChange
+                { At = new Hrot.UI.Common.Map3D.Director.AtExpr(t + 0.3), TwoD = true })));
+            Assert.True(editor.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddKey(new Hrot.UI.Common.Map3D.Director.CameraKey
+            {
+                At = new Hrot.UI.Common.Map3D.Director.AtExpr(t + 0.3),
+                Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { Follow = from, Distance = 900f, Pitch = -89f },
+            })));
+            var runner = pack.Runner;
+            var request = new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of(scenario, takeName), Speed: 1000d, Cinema: false);
+            var sink = new Hrot.UI.Common.Map3D.Director.FilmFrameSink();
+
+            string Shoot(string name, double from)
+            {
+                Assert.Empty(runner.PlayFrom(request, from));
+                for (int i = 0; i < 600 && runner.Phase != Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing && runner.Busy; i++) Frame();
+                Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing, runner.Phase);
+                Frame();
+                runner.Pause();
+                for (int i = 0; i < 90; i++) Frame();                                   // the camera settles; a 2-D switch lands
+                var overlay = runner.OverlayNow(true);
+                var capture = sink.Frame(Path.Combine(outDir, name + ".png"), 1280, 720, 1, overlay);
+                for (int i = 0; i < 120 && !capture.IsCompleted; i++) Frame();
+                capture.GetAwaiter().GetResult();
+                Log($"{name}: from {from}, director sim {_subsystem.DirectorSimSeconds:0.###}, 2-D {Hrot.UI.Common.Map3D.FilmStudio.TwoD}, view {runner.ViewNow}, " +
+                    $"graphics [{string.Join("; ", overlay.Graphics.Select(g => $"{g.Kind} {string.Join(" ", g.Points)} a={g.Alpha:0.##}"))}], subtitle {overlay.Subtitle?.Text}");
+                runner.Stop();
+                for (int i = 0; i < 5; i++) Frame();
+                return name;
+            }
+
+            Shoot("3d", t);
+            Shoot("2d", t + 0.8);
+            Assert.True(File.Exists(Path.Combine(outDir, "3d.png")) && File.Exists(Path.Combine(outDir, "2d.png")));
         }
         finally
         {

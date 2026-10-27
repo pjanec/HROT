@@ -42,7 +42,9 @@ public sealed class DirectorTracksOnTheEditorTests
 
             Assert.Empty(session!.Open(scenario, "main"));
             var tracks = panel.Tracks!();
-            Assert.Equal(new[] { DirectorTracksIds.Camera, DirectorTracksIds.Time, DirectorTracksIds.Subtitles }, tracks.Select(t => t.Id));   // CE-1303 P2b: + Subtitles
+            Assert.Equal(new[] { DirectorTracksIds.Camera, DirectorTracksIds.Time, DirectorTracksIds.Subtitles,
+                                 Hrot.UI.Common.Map3D.Director.DirectorTracks.ViewId, Hrot.UI.Common.Map3D.Director.DirectorTracks.GraphicsId },
+                         tracks.Select(t => t.Id));   // CE-1303 P2b: + Subtitles · CE-1304 / CE-1305 P6: + View, Graphics
             var camera = tracks.Single(t => t.Id == DirectorTracksIds.Camera);
             Assert.Equal(new[] { 2d, 5d }, camera.Items.Select(i => i.From));
             Assert.Single(tracks.Single(t => t.Id == DirectorTracksIds.Time).Items);

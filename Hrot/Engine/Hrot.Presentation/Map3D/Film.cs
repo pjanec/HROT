@@ -7,6 +7,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis3D;
 using Raylib_cs;
 
@@ -41,8 +42,9 @@ public sealed record FilmShot
 
 /// <summary>A capture asked for: the PNG's path and size; <see cref="Supersample"/> renders that many times larger and scales down.
 /// ⭐ CE-4038 B8/B9 — <see cref="Caption"/> is burned in under the picture; a <see cref="Card"/> is a title card (its text on black) instead
-/// of the scene.</summary>
-public sealed record FilmCaptureRequest(string Path, int Width, int Height, int Supersample = 1, Director.SubtitleFrame? Subtitle = null, string? Card = null);
+/// of the scene. ⭐ CE-1305 — <see cref="Graphics"/> are the film graphics burned over the scene (under the subtitle), laid out as the screen lays them out.</summary>
+public sealed record FilmCaptureRequest(string Path, int Width, int Height, int Supersample = 1, Director.SubtitleFrame? Subtitle = null, string? Card = null,
+                                        IReadOnlyList<Director.GraphicFrame>? Graphics = null);
 
 /// <summary>A captured frame: where it was written, its size, and the sim time it shows.</summary>
 public readonly record struct FilmFrame(string Path, int Width, int Height, double SimTime);
@@ -70,8 +72,31 @@ public static class FilmStudio
     /// </summary>
     public static float Fade { get { lock (Gate) return _fade; } set { lock (Gate) _fade = Math.Clamp(value, 0f, 1f); } }
 
-    /// <summary>Gives the view back (the free camera keeps the last pose; the black clears).</summary>
-    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; } }
+    private static bool _twoD, _animateViewSwitch = true;
+    private static IReadOnlyList<Director.GraphicFrame> _graphics = Array.Empty<Director.GraphicFrame>();
+
+    /// <summary>
+    /// ⭐ <c>CE-1304</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t V5) — the PROGRAM view's map: true = the 2-D map, false (the default) = the 3-D one. Set by the
+    /// director from the take's View track; honoured by the map on screen while it holds the film camera (<see cref="FilmCaptureLayer"/>: in 2-D the map is
+    /// centred on the shot's look-at at the shot's scale). Cleared by <see cref="Release"/>.
+    /// </summary>
+    public static bool TwoD { get { lock (Gate) return _twoD; } set { lock (Gate) _twoD = value; } }
+
+    /// <summary>⭐ CE-1304 P6 (§11t V5) — the map's 2-D ⇄ 3-D switch animates (the existing animated switch) — false: it cuts (a capture: its frames are film frames).</summary>
+    public static bool AnimateViewSwitch { get { lock (Gate) return _animateViewSwitch; } set { lock (Gate) _animateViewSwitch = value; } }
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> P6 (§11t G3) — the film graphics on screen now (world points resolved by the director this frame), drawn over the map by its screen pass
+    /// (<see cref="FilmCaptureLayer"/>) through <see cref="FilmText.Graphics"/> — the painter a captured frame uses too. Cleared by <see cref="Release"/>.
+    /// </summary>
+    public static IReadOnlyList<Director.GraphicFrame> Graphics
+    {
+        get { lock (Gate) return _graphics; }
+        set { lock (Gate) _graphics = value ?? Array.Empty<Director.GraphicFrame>(); }
+    }
+
+    /// <summary>Gives the view back (the free camera keeps the last pose; the black clears; ⭐ CE-1304 / CE-1305 — the 3-D map and no graphics again).</summary>
+    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; _twoD = false; _graphics = Array.Empty<Director.GraphicFrame>(); } }
 
     private static bool _pilot;
 
@@ -118,6 +143,9 @@ public static class FilmStudio
             _shot = null;
             _fade = 0f;
             _pilot = false;
+            _twoD = false;
+            _animateViewSwitch = true;
+            _graphics = Array.Empty<Director.GraphicFrame>();
             while (Waiting.Count > 0) Waiting.Dequeue().Done.TrySetCanceled();
         }
     }
@@ -221,31 +249,64 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
         while (FilmStudio.TryTake(out var request, out var done)) Serve(request, done);
     }
 
-    /// <summary>Hands the camera to the director while a shot is held, back when released.</summary>
+    private bool _directing, _capturing;
+
+    /// <summary>
+    /// Hands the camera to the director while a shot is held, back when released. ⭐ <c>CE-1304</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t V5) — the
+    /// program's MAP is <see cref="FilmStudio.TwoD"/>'s: in 3-D the film camera drives the 3-D camera (as before); in 2-D the map is put in 2-D through the ONE
+    /// switch (<see cref="MapViewSwitch"/>, animated unless <see cref="FilmStudio.AnimateViewSwitch"/> is off) and held on the shot — its look-at the centre,
+    /// its distance the scale (<see cref="MapViewSwitch.ShowPose"/> of the overhead pose). The first held frame of a film snaps, as before.
+    /// </summary>
     private void Direct()
     {
         var camera = _view.Camera3D;
         if (FilmStudio.Shot is { } shot && !FilmStudio.Pilot)   // ⭐ CE-1303 P2b — the pilot view leaves the camera to the operator
         {
             _director.Shot = shot;
-            if (!_view.Is3D && !_view.IsSwitching)
+            bool animate = _directing && FilmStudio.AnimateViewSwitch;
+            _directing = true;
+            if (_view.IsSwitching) return;   // ⚠ the switch finishes its move through the camera's own Update — no driver may hold it
+            if (FilmStudio.TwoD)
             {
-                camera.Driver = null;                // ⚠ Set finishes its tilt through the camera's own Update — no driver may hold it
-                _view.Set(true, animate: false);
+                if (ReferenceEquals(camera.Driver, _director)) camera.Driver = null;   // the 2-D map has no driver
+                if (_view.Is3D) _view.Set(false, animate);
+                else if (_director.Place(camera))
+                    _view.ShowPose(camera.Pose with { Yaw = MapCamera3D.NorthUpYaw, Pitch = MapCamera3D.OverheadPitch });
+                return;
             }
-            if (_view.Is3D && !ReferenceEquals(camera.Driver, _director)) camera.Driver = _director;
+            if (!_view.Is3D)
+            {
+                camera.Driver = null;
+                _view.Set(true, animate);
+                if (_view.IsSwitching) return;
+            }
+            if (!ReferenceEquals(camera.Driver, _director)) camera.Driver = _director;
         }
-        else if (ReferenceEquals(camera.Driver, _director))
+        else
         {
-            camera.Driver = null;
+            _directing = false;
+            if (ReferenceEquals(camera.Driver, _director)) camera.Driver = null;
         }
+    }
+
+    /// <summary>World → this map's pixels: the 3-D camera's projection (null behind it) or the 2-D map's.</summary>
+    private Func<Vector3, Vector2?> Projector()
+    {
+        if (_view.Is3D)
+        {
+            var cam = _view.Camera3D;
+            return p => cam.WorldToScreen(p) is var s && s.X > -1e5f ? s : null;
+        }
+        var cam2 = _canvas.Camera;
+        return p => cam2.WorldToScreen(new Vector2(p.X, p.Y));
     }
 
     private void Serve(FilmCaptureRequest request, TaskCompletionSource<FilmFrame> done)
     {
         try
         {
-            if (!_view.Is3D && request.Card == null) throw new InvalidOperationException("the map is in 2-D — hold a shot (POST /film/shot) or switch the map to 3-D first");
+            // ⭐ CE-1304 P6 (§11t V6) — a 2-D map is filmed too (the 2-D map as the screen draws it, its layers the take's); ⛔ not half way through the switch
+            if (_view.IsSwitching && request.Card == null) throw new InvalidOperationException("the map is switching between 2-D and 3-D — capture when it has landed");
             int ss = Math.Clamp(request.Supersample, 1, 4);
             int w = request.Width * ss, h = request.Height * ss;
             if (request.Width < 16 || request.Height < 16 || w > MaxSide || h > MaxSide)
@@ -262,20 +323,38 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
             }
             var viewport = camera.ViewportOverride;
             camera.ViewportOverride = new Vector2(w, h);   // the projection and every pixel-sized thing, at the frame's size
+            var camera2D = _view.Is3D ? null : _canvas.Camera;
+            var view2D = camera2D?.GetCameraView();
             try
             {
+                _capturing = true;
+                if (camera2D != null && view2D is { } v2)
+                {
+                    // ⭐ CE-1304 P6 (§11t V6) — the 2-D map at the frame's size: the screen's centre at the frame's centre, the same ground height in view
+                    var screen = new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+                    var centre = camera2D.ScreenToWorld(screen / 2f);
+                    float zoom = v2.Zoom * h / MathF.Max(1f, screen.Y);
+                    camera2D.ApplyCameraView(new MapCameraView { Target = centre, Offset = new Vector2(w / 2f, h / 2f), Zoom = zoom, SmoothTarget = centre, SmoothZoom = zoom });
+                }
                 Raylib.BeginTextureMode(_target);
                 Raylib.ClearBackground(Color.Black);
                 if (request.Card != null) FilmText.Card(request.Card, w, h);
                 else
                 {
-                    _canvas.DrawScene();
+                    if (camera2D != null) _canvas.Draw(); else _canvas.DrawScene();
+                    // ⭐ CE-1305 (§11t G3) — the film graphics, laid out through THIS frame's camera, under the subtitle
+                    if (request.Graphics is { Count: > 0 } graphics) FilmText.Graphics(graphics, Projector(), h);
                     if (request.Subtitle is { } sub && !string.IsNullOrWhiteSpace(sub.Text)) FilmText.Caption(sub, w, h);
                     if (FilmStudio.Fade is > 0f and var fade) Raylib.DrawRectangle(0, 0, w, h, new Color((byte)0, (byte)0, (byte)0, (byte)Math.Round(fade * 255f)));
                 }
                 Raylib.EndTextureMode();
             }
-            finally { camera.ViewportOverride = viewport; }
+            finally
+            {
+                _capturing = false;
+                camera.ViewportOverride = viewport;
+                if (camera2D != null && view2D is { } restore) camera2D.ApplyCameraView(restore);
+            }
 
             var image = Raylib.LoadImageFromTexture(_target.Texture);
             try
@@ -298,7 +377,13 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
 
     public void Draw(RenderContext ctx) => _drawn = true;
     public void Draw3D(RenderContext ctx) => _drawn = true;
-    public void DrawOverlay(RenderContext ctx) { }
+    /// <summary>⭐ <c>CE-1305</c> P6 (§11t G3) — the film graphics on screen, over the finished map (2-D or 3-D), through the painter a captured frame uses.</summary>
+    public void DrawOverlay(RenderContext ctx)
+    {
+        if (_capturing || FilmStudio.Graphics is not { Count: > 0 } graphics) return;
+        FilmText.Graphics(graphics, Projector(), _view.Camera3D.Viewport.Y);
+    }
+
     public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
     public Entity? PickEntity(Vector2 worldPos) => null;
 
@@ -351,6 +436,41 @@ public static class FilmText
             Raylib.DrawText(lines[i], (w - tw) / 2, y, size, color);
             y += (int)(size * 1.4f);
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t G3) — the film graphics on a picture <paramref name="h"/> pixels tall, each laid out by
+    /// <see cref="Director.GraphicLayout"/> through <paramref name="project"/> (the camera drawing the picture): a translucent fill, the line, the arrow head,
+    /// the text on a dark box. ONE painter for the map's screen pass and a captured frame (the <see cref="Caption"/> pattern, CE-1370).
+    /// </summary>
+    public static void Graphics(IReadOnlyList<Director.GraphicFrame> graphics, Func<Vector3, Vector2?> project, float h)
+    {
+        Rlgl.DisableBackfaceCulling();   // a projected triangle's winding is whatever the camera makes it
+        try
+        {
+            foreach (var g in graphics)
+            {
+                if (Director.GraphicLayout.Of(g, project, h) is not { } plot || plot.Alpha == 0) continue;
+                byte r = (byte)(plot.Colour >> 16), gr = (byte)(plot.Colour >> 8), b = (byte)plot.Colour;
+                var colour = new Color(r, gr, b, plot.Alpha);
+                var fill = new Color(r, gr, b, (byte)(plot.Alpha / 4));
+                for (int i = 0; i + 2 < plot.Fill.Count; i += 3) Raylib.DrawTriangle(plot.Fill[i], plot.Fill[i + 1], plot.Fill[i + 2], fill);
+                int n = plot.Line.Count;
+                for (int i = 0; i + 1 < n; i++) Raylib.DrawLineEx(plot.Line[i], plot.Line[i + 1], plot.Thickness, colour);
+                if (plot.Closed && n > 2) Raylib.DrawLineEx(plot.Line[n - 1], plot.Line[0], plot.Thickness, colour);
+                if (plot.Head.Count == 3) Raylib.DrawTriangle(plot.Head[0], plot.Head[1], plot.Head[2], colour);
+                if (plot.TextAt is { } at && !string.IsNullOrEmpty(plot.Text))
+                {
+                    int size = (int)plot.TextSize;
+                    int tw = Raylib.MeasureText(plot.Text, size);
+                    int pad = size / 3;
+                    Raylib.DrawRectangle((int)(at.X - tw / 2f) - pad, (int)(at.Y - size / 2f) - pad, tw + 2 * pad, size + 2 * pad,
+                                         new Color((byte)0, (byte)0, (byte)0, (byte)(plot.Alpha * 0.6f)));
+                    Raylib.DrawText(plot.Text, (int)(at.X - tw / 2f), (int)(at.Y - size / 2f), size, colour);
+                }
+            }
+        }
+        finally { Rlgl.EnableBackfaceCulling(); }
     }
 
     private static List<string> Wrap(string text, int size, int width)

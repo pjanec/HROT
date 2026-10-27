@@ -109,8 +109,21 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>Names the last <see cref="Apply"/> did not know.</summary>
         public IReadOnlyList<string> Unknown { get; private set; } = Array.Empty<string>();
 
-        public void Apply(IReadOnlyList<string> on, IReadOnlyList<string> off) => Unknown = _layers()?.SetOverride(on, off) ?? Array.Empty<string>();
-        public void Clear() => _layers()?.ClearOverride();
+        /// <summary>⭐ <c>CE-1304</c> P6 — the set last applied (null: cleared, or never) — what the take asked of the map, even on a host with no layer control
+        /// (a headless browser): the model a rail reads, as <see cref="WindowCinema.Shown"/> is for the subtitle.</summary>
+        public LayerChange? Applied { get; private set; }
+
+        public void Apply(IReadOnlyList<string> on, IReadOnlyList<string> off)
+        {
+            Applied = new LayerChange(on, off);
+            Unknown = _layers()?.SetOverride(on, off) ?? Array.Empty<string>();
+        }
+
+        public void Clear()
+        {
+            Applied = null;
+            _layers()?.ClearOverride();
+        }
     }
 
     /// <summary>⭐ <c>CE-4038</c> B8 — frames through the film's mailbox: the map on screen writes the scene (or a card) in its own update.</summary>
@@ -118,6 +131,10 @@ namespace Hrot.UI.Common.Map3D.Director
     {
         public Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle)
             => FilmStudio.Capture(new FilmCaptureRequest(path, width, height, supersample, subtitle));
+
+        /// <summary>⭐ CE-1305 — the subtitle and the film graphics, burned in by the map that films (<c>FilmText.Graphics</c>).</summary>
+        public Task Frame(string path, int width, int height, int supersample, FilmOverlay overlay)
+            => FilmStudio.Capture(new FilmCaptureRequest(path, width, height, supersample, overlay.Subtitle, Graphics: overlay.Graphics));
 
         public Task Card(string path, int width, int height, string text)
             => FilmStudio.Capture(new FilmCaptureRequest(path, width, height, 1, Card: text));

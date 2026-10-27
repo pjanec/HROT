@@ -273,6 +273,82 @@ namespace Hrot.UI.Common.Map3D.Director
                 ImGui.SliderFloat("Fade", ref fade, 0f, 2f, "%.1f s");
                 if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Fade = Math.Round(fade, 2) }));
             }
+            else if (tracks.SelectedView is { } vi && TakeViews.Of(take, TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null)) is { } views && vi < views.Count)
+                DrawSelectedView(editor, vi, views[vi]);
+            else if (tracks.SelectedGraphic is { } gi && gi < take.Graphics.Count)
+                DrawSelectedGraphic(editor, tracks, gi, take.Graphics[gi]);
+        }
+
+        /// <summary>⭐ CE-1304 P6 (§11t V3) — the selected view item: its map (2-D / 3-D / as before) and its layer set — one checkbox per layer the Layers panel has
+        /// (the rows a film keeps from the user's set are ticked unless the item turns them off). Each change one undo step.</summary>
+        private static void DrawSelectedView(TakeEditor editor, int index, ViewChange view)
+        {
+            int map = view.TwoD is null ? 0 : view.TwoD.Value ? 1 : 2;
+            ImGui.SetNextItemWidth(140f);
+            if (ImGui.Combo("Map", ref map, ViewMaps, ViewMaps.Length))
+                editor.Apply(new TakeEdit.SetView(index, view with { TwoD = map == 0 ? null : map == 1 }));
+            ImGui.SameLine();
+            bool own = view.Layers != null;
+            if (ImGui.Checkbox("Sets layers", ref own))
+                editor.Apply(new TakeEdit.SetView(index, view with { Layers = own ? LayerChange.None : null }));
+            if (view.Layers is not { } layers) return;
+            var scene = Hrot.Common.Diagnostics.Gizmos.LayerControlSets.SceneRows;
+            int column = 0;
+            foreach (var (name, display, _) in Hrot.Common.Diagnostics.Gizmos.LayerControlSets.RowNames)
+            {
+                bool isScene = scene.Contains(name, StringComparer.OrdinalIgnoreCase);
+                bool on = isScene ? !layers.Off.Contains(name, StringComparer.OrdinalIgnoreCase) : layers.On.Contains(name, StringComparer.OrdinalIgnoreCase);
+                if (column++ % 4 != 0) ImGui.SameLine();
+                if (!ImGui.Checkbox(display + "##view-" + name, ref on)) continue;
+                var onList = layers.On.Where(n => !string.Equals(n, name, StringComparison.OrdinalIgnoreCase)).ToList();
+                var offList = layers.Off.Where(n => !string.Equals(n, name, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (on && !isScene) onList.Add(name);
+                if (!on && isScene) offList.Add(name);
+                editor.Apply(new TakeEdit.SetView(index, view with { Layers = new LayerChange(onList, offList) }));
+            }
+        }
+
+        private static readonly string[] ViewMaps = { "as before", "2-D map", "3-D map" };
+        private static readonly string[] GraphicKinds = Enum.GetNames(typeof(GraphicKind)).Select(n => n.ToLowerInvariant()).ToArray();
+        private (int Index, int Version, string Text, string Who, string Toward)? _graphicEdit;
+
+        /// <summary>⭐ CE-1305 P6 (§11t G4) — the selected graphic: kind, the units it is on, its text, radius and fade; its points from the pilot camera's look-at.</summary>
+        private void DrawSelectedGraphic(TakeEditor editor, DirectorTracks tracks, int index, FilmGraphic g)
+        {
+            int kind = (int)g.Kind;
+            ImGui.SetNextItemWidth(110f);
+            if (ImGui.Combo("Kind", ref kind, GraphicKinds, GraphicKinds.Length)) editor.Apply(new TakeEdit.SetGraphic(index, g with { Kind = (GraphicKind)kind }));
+            if (_graphicEdit?.Index != index || _graphicEdit.Value.Version != editor.Version)
+                _graphicEdit = (index, editor.Version, g.Text ?? "", g.Who ?? "", g.Toward ?? "");
+            var (_, version, text, who, toward) = _graphicEdit.Value;
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(140f);
+            if (ImGui.InputText("Unit", ref who, 128)) _graphicEdit = (index, version, text, who, toward);
+            if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Who = who.Length == 0 ? null : who }));
+            if (g.Kind == GraphicKind.Arrow)
+            {
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(140f);
+                if (ImGui.InputText("Toward", ref toward, 128)) _graphicEdit = (index, version, text, who, toward);
+                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Toward = toward.Length == 0 ? null : toward }));
+            }
+            ImGui.SetNextItemWidth(260f);
+            if (ImGui.InputText("Text", ref text, 256)) _graphicEdit = (index, version, text, who, toward);
+            if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Text = text.Length == 0 ? null : text }));
+            float radius = g.Radius, fade = (float)g.Fade;
+            ImGui.SetNextItemWidth(120f);
+            ImGui.SliderFloat("Radius", ref radius, 1f, 100f, "%.0f m");
+            if (ImGui.IsItemDeactivatedAfterEdit() && radius > 0f) editor.Apply(new TakeEdit.SetGraphic(index, g with { Radius = MathF.Round(radius, 1) }));
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(120f);
+            ImGui.SliderFloat("Fade##gfx", ref fade, 0f, 2f, "%.1f s");
+            if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Fade = Math.Round(fade, 2) }));
+            ImGui.Text($"{g.Points.Count} point(s)");
+            ImGui.SameLine();
+            if (ImGui.Button("Add the camera's look-at as a point") && tracks.PilotLookAt is { } look)
+                editor.Apply(new TakeEdit.SetGraphic(index, g with { Points = g.Points.Append(look).ToList() }));
+            ImGui.SameLine();
+            if (ImGui.Button("Clear points") && g.Points.Count > 0) editor.Apply(new TakeEdit.SetGraphic(index, g with { Points = Array.Empty<System.Numerics.Vector3>() }));
         }
 
         private static readonly string[] SubtitlePositions = { "bottom", "top", "middle" };

@@ -179,6 +179,11 @@ namespace Hrot.UI.Common.Map3D.Director
         // ⭐ CR-11 — the take's subtitles (its captions read as subtitles when it has none) and the one on screen
         private IReadOnlyList<Subtitle> _subs = Array.Empty<Subtitle>();
         private SubtitleFrame? _subNow;
+        // ⭐ CE-1304 P6 (§11t V4) — the View track (its layers read as views when it has none) and the view in force; ⭐ CE-1305 (§11t G2) — the graphics
+        private IReadOnlyList<ViewChange> _views = Array.Empty<ViewChange>();
+        private ViewFrame? _viewNow;
+        private IReadOnlyList<FilmGraphic> _graphics = Array.Empty<FilmGraphic>();
+        private IReadOnlyList<GraphicFrame> _graphicsNow = Array.Empty<GraphicFrame>();
         // capture
         private int _frameNo;
         private double _nextFrameAt;
@@ -299,6 +304,8 @@ namespace Hrot.UI.Common.Map3D.Director
             MoviePath = null;
             _paused = false;
             if (request.Capture != null) { Directory.CreateDirectory(FramesDir); FilmStudio.Pilot = false; }   // ⭐ P2b — a capture films the program
+            // ⭐ CE-1304 P6 (§11t V5) — the map's 2-D ⇄ 3-D switch animates on screen; a capture CUTS (its frames are film frames, not wall-clock ones)
+            FilmStudio.AnimateViewSwitch = request.Capture == null;
             if (request.Mode == DirectorMode.Capture) _sound?.BeginLog();
             // ⭐ an extension's run (verify) leaves the editor as it is: no camera, no cinema; ⭐ CE-1303 D7 — nor does an iteration pass
             if (request.Mode != DirectorMode.Plan && request.Cinema) _cinema.Enter();
@@ -346,6 +353,16 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>⭐ CR-11 — the subtitle on screen now (null: none) — what the cinema was handed this frame.</summary>
         public SubtitleFrame? SubtitleNow => _subNow;
+
+        /// <summary>⭐ <c>CE-1304</c> P6 — the view in force now (null: no item playing yet) — what the layer override and <see cref="FilmStudio.TwoD"/> were handed.</summary>
+        public ViewFrame? ViewNow => _viewNow;
+
+        /// <summary>⭐ <c>CE-1305</c> P6 — the film graphics on screen now (their world points resolved this frame).</summary>
+        public IReadOnlyList<GraphicFrame> GraphicsNow => _graphicsNow;
+
+        /// <summary>⭐ CE-1305 — what a captured frame burns in now: the subtitle (when <paramref name="captions"/>) and the graphics — one value for the
+        /// capture of a film and a still (<see cref="DirectorStills"/>).</summary>
+        public FilmOverlay OverlayNow(bool captions) => new(captions ? _subNow : null, _graphicsNow);
 
         /// <summary>
         /// ⭐ <c>CE-4059</c> / CR-7 (§11q K3) — the segment on screen while the runner PLAYS <paramref name="scenario"/>/<paramref name="take"/> (null: another take, not
@@ -453,6 +470,7 @@ namespace Hrot.UI.Common.Map3D.Director
             _loopRefused = false;
             _film = FilmTimeMap.Identity; _seg = -1; _filmOver = false; _fastForwarding = false; _gapCard = false; _skippedBack.Clear();
             _subs = Array.Empty<Subtitle>(); _subNow = null;
+            _views = Array.Empty<ViewChange>(); _viewNow = null; _graphics = Array.Empty<FilmGraphic>(); _graphicsNow = Array.Empty<GraphicFrame>();
             _ext?.Reset();
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
@@ -519,8 +537,9 @@ namespace Hrot.UI.Common.Map3D.Director
             Replan();
             Report.SkippedReplays.AddRange(_timeline!.SkippedReplays);
             _clock = new PacedClock(take.TickHz, _request!.Speed);
-            if (take.Layers != null) _layers.Apply(take.Layers.On, take.Layers.Off);
-            else _layers.Apply(Array.Empty<string>(), Array.Empty<string>());
+            // ⭐ CE-1304 P6 (§11t V4) — the view of the take's start: through the View track (a take without one: its layers read as views — the same set as before)
+            _viewNow = null;
+            ApplyView(Rel);
             _sound?.SetTakeSound(take.Sound);
             if (_request.Mode == DirectorMode.Capture && Item.Title != null) _chapters.Add((_frameNo, Item.Title));
             else if (_request.Mode == DirectorMode.Capture) _chapters.Add((_frameNo, Item.Scenario));
@@ -607,6 +626,8 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_seg >= _film.Segments.Count) _seg = _film.Segments.Count - 1;
             if (!_film.IsIdentity && _seg < 0 && Phase == DirectorPhase.Playing) _seg = 0;
             _subs = TakeSubtitles.Of(_take!, _timeline);   // ⭐ CR-11
+            _views = TakeViews.Of(_take!, _timeline);      // ⭐ CE-1304 P6 (§11t V2)
+            _graphics = _take!.Graphics;                   // ⭐ CE-1305 P6 (§11t G2)
             Report.Unresolved.Clear();
             Report.Unresolved.AddRange(_timeline.Unresolved);
             Report.Unresolved.AddRange(_film.Unresolved);
@@ -694,10 +715,17 @@ namespace Hrot.UI.Common.Map3D.Director
 
             var shot = _timeline!.At(rel);
             if (!ReferenceEquals(shot, _shot) || (shot == null) != _inGap) EnterShot(shot);
+            ApplyView(rel);   // ⭐ CE-1304 P6 (§11t V4) — the view of this source second (applied only when it changes)
             DirectUpcoming(rel);
             // ⭐ CE-1303 P2b — CR-11 (§11o S9): the subtitle of this source second, to the cinema every frame (its text is also what a capture burns in)
             _subNow = TakeSubtitles.At(_subs, a => _book!.TimeOf(a), rel);
             _cinema.Subtitle(_subNow);
+            // ⭐ CE-1305 P6 (§11t G2) — the film graphics of this source second, their units read now: to the map's screen pass every frame (a capture burns the same in)
+            if (mode != DirectorMode.Plan)
+            {
+                _graphicsNow = FilmGraphics.At(_graphics, a => _book!.TimeOf(a), rel, _units);
+                FilmStudio.Graphics = _graphicsNow;
+            }
             if (!_film.IsIdentity) FilmStudio.Fade = Math.Max(FilmStudio.Fade, _film.GapFade(FilmAt(rel)));   // ⭐ CR-7 S3 — a dip gap's black
 
             if (_paused) return;
@@ -774,13 +802,26 @@ namespace Hrot.UI.Common.Map3D.Director
             var s = shot.Shot;
             if (_host.World is { } world)
                 Report.Cuts.Add(CutSnapshot.Of(world, shot.Number, Rel, RoundsFired(world)));
-            var on = new List<string>(take.Layers?.On ?? Array.Empty<string>());
-            var off = new List<string>(take.Layers?.Off ?? Array.Empty<string>());
-            if (s.Layers != null) { on.AddRange(s.Layers.On); off.AddRange(s.Layers.Off); on.RemoveAll(s.Layers.Off.Contains); }
-            _layers.Apply(on, off);
+            // ⭐ CE-1304 P6 (§11t V2) — a shot's layers are no longer applied here: TakeViews reads them as view items at the shot's start (ApplyView)
             _sound?.SetTakeSound(s.Sound ?? take.Sound);
             ApplyRate();   // ⭐ P2b — request × shot × segment
             _nextFrameAt = Math.Max(shot.Start, Rel);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1304</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t V4) — the view of SOURCE second <paramref name="rel"/> (<see cref="TakeViews.At"/>), handed on only
+        /// when it changes: its layer set to the ONE <see cref="ILayerOverride"/> (R-4060 — the same call a take's and a shot's layers always made), its map to the film's
+        /// mailbox (<see cref="FilmStudio.TwoD"/>, which the map on screen honours while it holds the film camera — <see cref="FilmCaptureLayer"/>).
+        /// </summary>
+        private void ApplyView(double rel)
+        {
+            // ⛔ an extension's run (verify) leaves the editor's layers and map as they are (CE-4061, StartPlan) — a verify take with no shots never touched them
+            if (_request?.Mode == DirectorMode.Plan) return;
+            var view = TakeViews.At(_views, a => _book?.TimeOf(a), rel);
+            if (view.Same(_viewNow)) return;
+            _viewNow = view;
+            _layers.Apply(view.Layers.On, view.Layers.Off);
+            FilmStudio.TwoD = view.TwoD;
         }
 
         /// <summary>
@@ -806,8 +847,8 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             var c = _request!.Capture!;
             var path = Path.Combine(FramesDir, $"{_frameNo:D6}.png");
-            var subtitle = c.BurnCaptions ? _subNow : null;   // ⭐ CE-1303 P2b / CE-1370 — the subtitle on screen, with its position and fade
-            _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, subtitle);
+            // ⭐ CE-1303 P2b / CE-1370 — the subtitle on screen, with its position and fade; ⭐ CE-1305 — and the film graphics (always: they are the film's content)
+            _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, OverlayNow(c.BurnCaptions));
             _manifest.Add((_frameNo, _item, shot.Number, rel));
             _frameNo++;
             Report.Frames++;

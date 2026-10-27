@@ -23,7 +23,7 @@ public static class TakeJson
     private static readonly HashSet<string> ToKeys = new(StringComparer.Ordinal) { "distance", "yaw", "pitch", "lift", "back", "height", "ahead", "fov" };
 
     private static readonly HashSet<string> TakeKeys = new(StringComparer.Ordinal)
-        { "title", "caption", "tickHz", "endAt", "anchors", "baked", "shots", "keys", "segments", "subtitles", "layers", "sound" };
+        { "title", "caption", "tickHz", "endAt", "anchors", "baked", "shots", "keys", "segments", "subtitles", "views", "graphics", "layers", "sound" };
 
     /// <summary>⭐ <c>TE-2</c> — a camera key's keys: a shot's camera keys at its top level, plus <c>in</c> and <c>still</c>.</summary>
     private static readonly HashSet<string> KeyKeys = new(StringComparer.Ordinal)
@@ -36,6 +36,13 @@ public static class TakeJson
 
     /// <summary>⭐ <c>CE-1303</c> P2b — CR-11 (§5, §11o) — a subtitle's keys.</summary>
     private static readonly HashSet<string> SubtitleKeys = new(StringComparer.Ordinal) { "at", "until", "text", "position", "fade" };
+
+    /// <summary>⭐ <c>CE-1304</c> P6 (§5, §11t V1) — a view item's keys.</summary>
+    private static readonly HashSet<string> ViewKeys = new(StringComparer.Ordinal) { "at", "map", "layers" };
+
+    /// <summary>⭐ <c>CE-1305</c> P6 (§5, §11t G1) — a graphic's keys.</summary>
+    private static readonly HashSet<string> GraphicKeys = new(StringComparer.Ordinal)
+        { "at", "until", "kind", "who", "toward", "points", "text", "radius", "color", "fade" };
 
     /// <summary>Kept, not read: what <c>clips.json</c> carries per clip, and a file's own note.</summary>
     private static readonly HashSet<string> ExtraKeys = new(StringComparer.Ordinal)
@@ -83,6 +90,18 @@ public static class TakeJson
                 if (tarr[i] is JsonObject u) { if (ParseSubtitle(u, i + 1, problems) is { } sub) subtitles.Add(sub); }
                 else problems.Add($"subtitle {i + 1} is not an object");
 
+        var views = new List<ViewChange>();
+        if (json["views"] is JsonArray varr)
+            for (int i = 0; i < varr.Count; i++)
+                if (varr[i] is JsonObject v) { if (ParseView(v, i + 1, problems) is { } view) views.Add(view); }
+                else problems.Add($"view {i + 1} is not an object");
+
+        var graphics = new List<FilmGraphic>();
+        if (json["graphics"] is JsonArray garr)
+            for (int i = 0; i < garr.Count; i++)
+                if (garr[i] is JsonObject g) { if (ParseGraphic(g, i + 1, problems) is { } graphic) graphics.Add(graphic); }
+                else problems.Add($"graphic {i + 1} is not an object");
+
         JsonObject? extra = null;
         foreach (var (key, node) in json)
         {
@@ -102,7 +121,7 @@ public static class TakeJson
             EndAt = TryAt(json["endAt"], "endAt", problems),
             Anchors = anchors,
             Baked = json["baked"] is JsonObject b ? ParseBaked(b) : null,
-            Shots = shots, Keys = keys, Segments = segments, Subtitles = subtitles,
+            Shots = shots, Keys = keys, Segments = segments, Subtitles = subtitles, Views = views, Graphics = graphics,
             Layers = json["layers"] is JsonObject l ? ParseLayers(l, "the take", problems) : null,
             Sound = Bool(json["sound"]),
             Extra = extra,
@@ -282,6 +301,68 @@ public static class TakeJson
         };
     }
 
+    /// <summary>⭐ <c>CE-1304</c> P6 (§11t V1): one view item — <c>at</c>, optional <c>map</c> (<c>"2d"</c> | <c>"3d"</c>) and <c>layers</c> (<c>{on, off}</c>,
+    /// the take's own shape). Null (and a problem) without <c>at</c>; a problem when it names neither.</summary>
+    public static ViewChange? ParseView(JsonObject v, int number, List<string> problems)
+    {
+        var where = $"view {number}";
+        foreach (var (key, _) in v)
+            if (!ViewKeys.Contains(key)) problems.Add($"{where}: unknown key '{key}'");
+        var at = TryAt(v["at"], $"{where} at", problems);
+        if (v["at"] is null) problems.Add($"{where}: needs at");
+        bool? twoD = null;
+        if (Str(v["map"]) is { } map)
+        {
+            if (string.Equals(map, "2d", StringComparison.OrdinalIgnoreCase)) twoD = true;
+            else if (string.Equals(map, "3d", StringComparison.OrdinalIgnoreCase)) twoD = false;
+            else problems.Add($"{where}: map '{map}' (2d, 3d)");
+        }
+        LayerChange? layers = null;
+        if (v["layers"] is JsonObject l) layers = ParseLayers(l, where, problems);
+        else if (v["layers"] is not null) problems.Add($"{where}: layers is not an object");
+        if (v["map"] is null && v["layers"] is null) problems.Add($"{where}: names neither map nor layers");
+        if (at is not { } a) return null;
+        return new ViewChange { At = a, TwoD = twoD, Layers = layers };
+    }
+
+    /// <summary>⭐ <c>CE-1305</c> P6 (§11t G1): one graphic — <c>at</c>, <c>until</c>, <c>kind</c> (<c>ring</c> | <c>arrow</c> | <c>route</c> | <c>area</c> |
+    /// <c>label</c>), and where: <c>who</c> / <c>toward</c> (units) or <c>points</c> (<c>[[x, y], …]</c>, z optional); <c>text</c>, <c>radius</c> (m),
+    /// <c>color</c> (<c>"#rrggbb"</c>), <c>fade</c> (s). Null (and a problem) without <c>at</c> / <c>until</c> / a known kind.</summary>
+    public static FilmGraphic? ParseGraphic(JsonObject g, int number, List<string> problems)
+    {
+        var where = $"graphic {number}";
+        foreach (var (key, _) in g)
+            if (!GraphicKeys.Contains(key)) problems.Add($"{where}: unknown key '{key}'");
+        var at = TryAt(g["at"], $"{where} at", problems);
+        var until = TryAt(g["until"], $"{where} until", problems);
+        if (g["at"] is null) problems.Add($"{where}: needs at");
+        if (g["until"] is null) problems.Add($"{where}: needs until");
+        GraphicKind kind = GraphicKind.Ring;
+        bool kindOk = Str(g["kind"]) is { } k && Enum.TryParse(k, ignoreCase: true, out kind) && Enum.IsDefined(kind) && !int.TryParse(k, out _);
+        if (!kindOk) problems.Add($"{where}: kind '{Str(g["kind"])}' (ring, arrow, route, area, label)");
+        var points = new List<Vector3>();
+        if (g["points"] is JsonArray parr)
+            for (int i = 0; i < parr.Count; i++)
+                if (Vec(parr[i], $"{where} point {i + 1}", problems) is { } p) points.Add(p);
+        uint colour = FilmGraphic.DefaultColour;
+        if (Str(g["color"]) is { } c)
+        {
+            var hex = c.TrimStart('#');
+            if (hex.Length != 6 || !uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out colour))
+            { problems.Add($"{where}: color '{c}' (#rrggbb)"); colour = FilmGraphic.DefaultColour; }
+        }
+        double fade = Double(g["fade"]) ?? 0d;
+        if (fade < 0) problems.Add($"{where}: fade must not be negative");
+        float radius = Float(g["radius"]) ?? FilmGraphic.DefaultRadius;
+        if (!(radius > 0f)) { problems.Add($"{where}: radius must be positive"); radius = FilmGraphic.DefaultRadius; }
+        if (at is not { } a || until is not { } t || !kindOk) return null;
+        return new FilmGraphic
+        {
+            At = a, Until = t, Kind = kind, Who = Name(g["who"]), Toward = Name(g["toward"]), Points = points, Text = Str(g["text"]),
+            Radius = radius, Colour = colour, Fade = Math.Max(fade, 0d),
+        };
+    }
+
     public static LayerChange ParseLayers(JsonObject l, string where, List<string> problems)
     {
         foreach (var (k, _) in l)
@@ -310,6 +391,8 @@ public static class TakeJson
         if (take.Keys.Count > 0) o["keys"] = new JsonArray(take.Keys.Select(k => (JsonNode?)WriteKey(k)).ToArray());
         if (take.Segments.Count > 0) o["segments"] = new JsonArray(take.Segments.Select(g => (JsonNode?)WriteSegment(g)).ToArray());
         if (take.Subtitles.Count > 0) o["subtitles"] = new JsonArray(take.Subtitles.Select(u => (JsonNode?)WriteSubtitle(u)).ToArray());
+        if (take.Views.Count > 0) o["views"] = new JsonArray(take.Views.Select(v => (JsonNode?)WriteView(v)).ToArray());
+        if (take.Graphics.Count > 0) o["graphics"] = new JsonArray(take.Graphics.Select(g => (JsonNode?)WriteGraphic(g)).ToArray());
         if (take.Extra != null)
             foreach (var (k, v) in take.Extra) o[k] = v?.DeepClone();
         return o;
@@ -388,6 +471,29 @@ public static class TakeJson
         var o = new JsonObject { ["at"] = u.At.ToJson(), ["until"] = u.Until.ToJson(), ["text"] = u.Text };
         if (u.Position != SubtitlePosition.Bottom) o["position"] = u.Position == SubtitlePosition.Top ? "top" : "middle";
         if (u.Fade > 0d) o["fade"] = u.Fade;
+        return o;
+    }
+
+    /// <summary>⭐ CE-1304 P6 — a view item as written (<c>map</c> / <c>layers</c> only when it sets them).</summary>
+    public static JsonObject WriteView(ViewChange v)
+    {
+        var o = new JsonObject { ["at"] = v.At.ToJson() };
+        if (v.TwoD is { } t) o["map"] = t ? "2d" : "3d";
+        if (v.Layers != null) o["layers"] = WriteLayers(v.Layers);
+        return o;
+    }
+
+    /// <summary>⭐ CE-1305 P6 — a graphic as written (each optional key only when it differs from the default).</summary>
+    public static JsonObject WriteGraphic(FilmGraphic g)
+    {
+        var o = new JsonObject { ["at"] = g.At.ToJson(), ["until"] = g.Until.ToJson(), ["kind"] = g.Kind.ToString().ToLowerInvariant() };
+        if (g.Who != null) o["who"] = g.Who;
+        if (g.Toward != null) o["toward"] = g.Toward;
+        if (g.Points.Count > 0) o["points"] = new JsonArray(g.Points.Select(p => (JsonNode?)V(p)).ToArray());
+        if (g.Text != null) o["text"] = g.Text;
+        if (g.Radius != FilmGraphic.DefaultRadius) o["radius"] = g.Radius;
+        if (g.Colour != FilmGraphic.DefaultColour) o["color"] = "#" + g.Colour.ToString("x6", CultureInfo.InvariantCulture);
+        if (g.Fade > 0d) o["fade"] = g.Fade;
         return o;
     }
 

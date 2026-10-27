@@ -245,10 +245,7 @@ public static class TakeSubtitles
             var s = subtitles[i];
             if (s.At.Resolve(anchorTime) is not { } from || s.Until.Resolve(anchorTime) is not { } until) continue;
             if (sourceSim < from - 1e-9 || sourceSim >= until - 1e-9 || string.IsNullOrEmpty(s.Text)) continue;
-            double alpha = 1d;
-            if (s.Fade > 0d)
-                alpha = Math.Min(Math.Min((sourceSim - from) / s.Fade, (until - sourceSim) / s.Fade), 1d);
-            return new SubtitleFrame(s.Text, s.Position, (float)Math.Clamp(alpha, 0d, 1d));
+            return new SubtitleFrame(s.Text, s.Position, FilmFade.Alpha(from, until, s.Fade, sourceSim));   // ⭐ CE-1305 — the one fade rule (graphics too)
         }
         return null;
     }
@@ -396,6 +393,11 @@ public sealed record Take
     public IReadOnlyList<TimeSegment> Segments { get; init; } = Array.Empty<TimeSegment>();
     /// <summary>⭐ <c>CE-1303</c> P2b — CR-11: the take's subtitles (empty = its captions are read as subtitles — <see cref="TakeSubtitles.Of"/>).</summary>
     public IReadOnlyList<Subtitle> Subtitles { get; init; } = Array.Empty<Subtitle>();
+    /// <summary>⭐ <c>CE-1304</c> P6 (§11t V1) — the View track: 2-D / 3-D and the layer set from a time (empty = <see cref="Layers"/> and the shots' layers are
+    /// read as views — <see cref="TakeViews.Of"/>).</summary>
+    public IReadOnlyList<ViewChange> Views { get; init; } = Array.Empty<ViewChange>();
+    /// <summary>⭐ <c>CE-1305</c> P6 — TE-9 / R-4070 (§11t G1): the film-only graphics (ring, arrow, route, area, label).</summary>
+    public IReadOnlyList<FilmGraphic> Graphics { get; init; } = Array.Empty<FilmGraphic>();
     public LayerChange? Layers { get; init; }
     public bool? Sound { get; init; }
     /// <summary>Keys the director does not read but keeps (the clip id, its chapter, its state, what it needs).</summary>

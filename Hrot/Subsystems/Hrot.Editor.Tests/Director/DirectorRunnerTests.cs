@@ -338,9 +338,11 @@ public sealed class DirectorRunnerTests : IDisposable
     private sealed class Layers : ILayerOverride
     {
         public readonly List<string> Applied = new();
+        /// <summary>⭐ CE-1304 — the set in force (on, off) after the last call; null after a clear.</summary>
+        public (IReadOnlyList<string> On, IReadOnlyList<string> Off)? Now;
         public int Clears;
-        public void Apply(IReadOnlyList<string> on, IReadOnlyList<string> off) => Applied.Add(string.Join(",", on));
-        public void Clear() => Clears++;
+        public void Apply(IReadOnlyList<string> on, IReadOnlyList<string> off) { Applied.Add(string.Join(",", on)); Now = (on, off); }
+        public void Clear() { Clears++; Now = null; }
     }
 
     private sealed class Sink : IFrameSink
@@ -348,7 +350,14 @@ public sealed class DirectorRunnerTests : IDisposable
         public readonly List<string> Frames = new();
         public readonly List<string> Cards = new();
         public readonly List<SubtitleFrame?> Subtitles = new();
+        /// <summary>⭐ CE-1305 — each frame's overlay as the runner handed it (only through the overlay overload — the subtitle-only one records none).</summary>
+        public readonly List<FilmOverlay> Overlays = new();
         public Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle) { Frames.Add(path); Subtitles.Add(subtitle); return Task.CompletedTask; }
+        public Task Frame(string path, int width, int height, int supersample, FilmOverlay overlay)
+        {
+            Overlays.Add(overlay);
+            return Frame(path, width, height, supersample, overlay.Subtitle);
+        }
         public Task Card(string path, int width, int height, string text) { Cards.Add(text); File.WriteAllText(path, ""); return Task.CompletedTask; }
     }
 
@@ -511,6 +520,138 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Contains(shown, s => s.Alpha is > 0.2f and < 0.8f);   // mid-fade, in or out
         Assert.Contains(shown, s => s.Alpha >= 0.999f);              // and fully opaque between
         Assert.True(shown[0].Alpha < 0.2f && shown[^1].Alpha < 0.2f, $"the ends fade: {shown[0].Alpha} … {shown[^1].Alpha}");
+    }
+
+    // ── ⭐ CE-1304 / CE-1305 P6 (docs/DESIGN_Director_Timeline_Editor.md §11t) — the View track and the Graphics track, played ──────────────────────
+
+    /// <summary>A keys take of 3 s on the moving "Runner" with a View track (3-D + cards from 0, the 2-D map + labels from 1, the 3-D map from 2 — layers kept) and
+    /// a ring on the Runner from 0.6 to 1.2 s that fades over 0.2 s.</summary>
+    private static Take ViewAndGraphicsTake() => new()
+    {
+        Scenario = "s-a", Name = "p6", TickHz = 60, EndAt = new AtExpr(3),
+        Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { Follow = "Runner", Distance = 20 } } },
+        Views = new[]
+        {
+            new ViewChange { At = new AtExpr(0), TwoD = false, Layers = new LayerChange(new[] { "Units.Cards" }, Array.Empty<string>()) },
+            new ViewChange { At = new AtExpr(1), TwoD = true, Layers = new LayerChange(new[] { "Units.Labels" }, new[] { "Map.Roads" }) },
+            new ViewChange { At = new AtExpr(2), TwoD = false },
+        },
+        Graphics = new[] { new FilmGraphic { At = new AtExpr(0.6), Until = new AtExpr(1.2), Kind = GraphicKind.Ring, Who = "Runner", Text = "Runner", Fade = 0.2 } },
+    };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P6 (§11t V4, success condition 1 — the fake host): at film second t the runner applies the take's VIEW through the EXISTING seams — the
+    /// layer set through <see cref="ILayerOverride"/> (the cards before 1 s; labels on and roads off from 1 s; the same set after the 2 s item, which switches only
+    /// the map) and the map through <see cref="FilmStudio.TwoD"/> (3-D, 2-D in [1, 2), 3-D again) — each change applied ONCE, not every frame; the film's end clears
+    /// the override and gives the 3-D map back. 🔴 Mutation: <c>ApplyView</c> not setting <c>FilmStudio.TwoD</c> ⇒ the 2-D stretch reads 3-D ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_TheRunner_AppliesTheViewTrack_ThroughTheLayerOverride_AndTheMapMode()
+    {
+        var host = new FakeEditor(Store());
+        var layers = new Layers();
+        var runner = new DirectorRunner(host, new Cinema(), layers);
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "p6" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Inline: new Dictionary<string, Take> { ["s-a/p6"] = ViewAndGraphicsTake() })));
+
+        var samples = new List<(double Rel, bool TwoD, string On, string Off)>();
+        double? t0 = null;
+        int appliedBefore = 0;
+        for (int f = 0; f < 20000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing && layers.Now is { } now)
+            {
+                t0 ??= host.SimTime;
+                appliedBefore = appliedBefore == 0 ? layers.Applied.Count : appliedBefore;
+                samples.Add((host.SimTime - t0.Value, FilmStudio.TwoD, string.Join(",", now.On), string.Join(",", now.Off)));
+            }
+            host.EndFrame();
+        }
+        Assert.Equal("ok", runner.Reports[0].Status);
+        Assert.True(samples.Count > 150, $"{samples.Count} playing frames");
+        Assert.All(samples.Where(s => s.Rel < 1 - 0.02), s => Assert.Equal((false, "Units.Cards", ""), (s.TwoD, s.On, s.Off)));
+        Assert.All(samples.Where(s => s.Rel > 1 + 0.02 && s.Rel < 2 - 0.02), s => Assert.Equal((true, "Units.Labels", "Map.Roads"), (s.TwoD, s.On, s.Off)));
+        Assert.All(samples.Where(s => s.Rel > 2 + 0.02), s => Assert.Equal((false, "Units.Labels", "Map.Roads"), (s.TwoD, s.On, s.Off)));   // the map only
+        Assert.True(layers.Applied.Count <= appliedBefore + 3, $"applied {layers.Applied.Count} times — a view is applied when it changes, not every frame");
+        Assert.Null(layers.Now);                                                       // the film's end: the user's own layers …
+        Assert.False(FilmStudio.TwoD);                                                 // … and the 3-D map
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> P6 (§11t G2, success condition 2 — the play rail): at film second t the runner puts the take's GRAPHICS on screen
+    /// (<see cref="FilmStudio.Graphics"/>, the map's screen pass reads it): none before 0.6 s, the ring ON THE RUNNER as it moves (its x = its position that
+    /// frame), fading in over 0.2 s and out before 1.2 s, none after; released with the film. 🔴 Mutation: the runner skipping the per-frame
+    /// <c>FilmStudio.Graphics = _graphicsNow</c> ⇒ the screen never gets the ring ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_P6_TheRunner_PutsTheGraphicsOnScreen_AtTheirFilmTime_OnTheirUnit()
+    {
+        var host = new FakeEditor(Store());
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "p6" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Inline: new Dictionary<string, Take> { ["s-a/p6"] = ViewAndGraphicsTake() })));
+        var samples = new List<(double Rel, IReadOnlyList<GraphicFrame> Shown, float RunnerX)>();
+        double? t0 = null;
+        for (int f = 0; f < 20000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing)
+            {
+                t0 ??= host.SimTime;
+                float runnerAt = float.NaN;
+                foreach (var e in host.Repo.Query().With<SimTransform>().With<EntityInfo>().Build())
+                    if (host.Repo.GetComponentRO<EntityInfo>(e).Name.ToString() == "Runner") runnerAt = host.Repo.GetComponentRO<SimTransform>(e).Position.X;
+                samples.Add((host.SimTime - t0.Value, FilmStudio.Graphics, runnerAt));
+            }
+            host.EndFrame();
+        }
+        Assert.Equal("ok", runner.Reports[0].Status);
+        Assert.All(samples.Where(s => s.Rel < 0.6 - 0.02 || s.Rel > 1.2 + 0.02), s => Assert.Empty(s.Shown));
+        var on = samples.Where(s => s.Rel > 0.6 + 0.02 && s.Rel < 1.2 - 0.02).ToList();
+        Assert.True(on.Count > 30, $"{on.Count} frames with the ring");
+        Assert.All(on, s =>
+        {
+            var g = Assert.Single(s.Shown);
+            Assert.Equal((GraphicKind.Ring, "Runner"), (g.Kind, g.Text));
+            Assert.Equal(s.RunnerX, g.Points[0].X, 0.001f);                             // on the unit, where it is this frame
+        });
+        Assert.Contains(on, s => s.Shown[0].Alpha is > 0.2f and < 0.8f);              // fading
+        Assert.Contains(on, s => s.Shown[0].Alpha >= 0.999f);
+        Assert.True(on[^1].RunnerX - on[0].RunnerX > 0.4f, "the Runner moved, and the ring with it");
+        Assert.Empty(FilmStudio.Graphics);                                              // released with the film
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> P6 (§11t G3, success condition 2 — the capture rail, as CE-1370's): a captured frame is handed the graphics WITH the subtitle in ONE
+    /// <see cref="FilmOverlay"/> — the frames in [0.6, 1.2) carry the ring on the Runner with its fade, the others none, and the subtitle still rides along.
+    /// 🔴 Mutation: the runner's capture calling the subtitle-only <c>Frame(path, w, h, ss, _subNow)</c> (as before CE-1305) ⇒ the sink gets no overlay ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_ACapturedFrame_IsHandedTheGraphics_WithTheSubtitle()
+    {
+        var store = Store();
+        store.Save(ViewAndGraphicsTake() with
+        {
+            Subtitles = new[] { new Subtitle { At = new AtExpr(0.5), Until = new AtExpr(1.5), Text = "Contact" } },
+        });
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "p6"), Capture: new CaptureOptions(Path.Combine(_root, "film-p6"), Fps: 30, Encode: false))));
+        Run(runner, host);
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.Equal(sink.Frames.Count, sink.Overlays.Count);                          // ⭐ every frame through the overlay
+        var withRing = sink.Overlays.Where(o => o.Graphics.Count > 0).ToList();
+        Assert.InRange(withRing.Count, 15, 20);                                        // 0.6 s at 30 fps
+        Assert.All(withRing, o =>
+        {
+            var g = Assert.Single(o.Graphics);
+            Assert.Equal((GraphicKind.Ring, "Runner"), (g.Kind, g.Text));
+            Assert.Equal("Contact", o.Subtitle?.Text);
+        });
+        Assert.Contains(withRing, o => o.Graphics[0].Alpha is > 0.2f and < 0.8f);
+        Assert.Contains(sink.Overlays, o => o.Graphics.Count == 0 && o.Subtitle?.Text == "Contact");   // 0.5–0.6 and 1.2–1.5: the subtitle alone
     }
 
     /// <summary>B8 — capture: one frame per film frame of each shot (30 fps, so every other 60 Hz step), card frames before each item, one

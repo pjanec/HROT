@@ -943,6 +943,217 @@ public sealed class FilmDirectorTests
         Assert.Null(TakeSubtitles.At(own.Subtitles, _ => null, 3.0));   // until is exclusive
     }
 
+    // ── ⭐ CE-1304 / CE-1305 P6 (docs/DESIGN_Director_Timeline_Editor.md §11t) — the View track and the Graphics track ─────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1304</c> P6 (§11t V1, success condition 1): a take's <c>views[]</c> read — a map switch, a layer set, both, an anchored time — write and read back
+    /// equal; a bad map, an item naming neither, a missing at are named problems; and the 55 seeded takes read with no views and no graphics and write neither
+    /// key (old takes load and save unchanged). 🔴 Mutation: <c>WriteView</c> not writing <c>map</c> ⇒ the read-back items lose their 2-D / 3-D ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_Views_RoundTrip_AndOldTakesStayWithout()
+    {
+        var json = JsonNode.Parse("""
+            {"anchors":{"fire":{"on":"shot","who":"Tank 1","n":1}},
+             "views":[{"at":0,"map":"2d","layers":{"on":["Units.Cards"]}},
+                      {"at":"fire-5","map":"3d"},
+                      {"at":9,"layers":{"on":[],"off":["Map.Roads"]}}]}
+            """)!.AsObject();
+        var problems = new List<string>();
+        var take = TakeJson.ParseTake(json, "s", "main", problems);
+        Assert.Empty(problems);
+        Assert.Equal(3, take.Views.Count);
+        Assert.True(take.Views[0].TwoD);
+        Assert.Equal(new[] { "Units.Cards" }, take.Views[0].Layers!.On);
+        Assert.Equal((new AtExpr(-5, "fire"), (bool?)false, (LayerChange?)null), (take.Views[1].At, take.Views[1].TwoD, take.Views[1].Layers));
+        Assert.Null(take.Views[2].TwoD);
+        Assert.Equal(new[] { "Map.Roads" }, take.Views[2].Layers!.Off);
+        var written = TakeJson.WriteTake(take);
+        var again = TakeJson.ParseTake(written, "s", "main", problems);
+        Assert.Empty(problems);
+        for (int i = 0; i < 3; i++)
+        {
+            Assert.Equal((take.Views[i].At, take.Views[i].TwoD), (again.Views[i].At, again.Views[i].TwoD));
+            Assert.Equal(take.Views[i].Layers is null, again.Views[i].Layers is null);
+            if (take.Views[i].Layers is { } l) Assert.True(TakeViews.Same(l, again.Views[i].Layers!));
+        }
+        Assert.Equal(written.ToJsonString(), TakeJson.WriteTake(again).ToJsonString());
+
+        TakeJson.ParseTake(JsonNode.Parse("""{"views":[{"at":1,"map":"4d"},{"at":2},{"map":"2d"},{"at":3,"map":"2d","zoom":2}]}""")!.AsObject(), "s", "bad", problems);
+        Assert.Contains("view 1: map '4d' (2d, 3d)", problems);
+        Assert.Contains("view 2: names neither map nor layers", problems);
+        Assert.Contains("view 3: needs at", problems);
+        Assert.Contains("view 4: unknown key 'zoom'", problems);
+
+        int count = 0;
+        foreach (var (store, scenario, n) in SeededTakes())
+        {
+            var loaded = store.Load(scenario, n).Value!;
+            Assert.Empty(loaded.Views);
+            Assert.Empty(loaded.Graphics);
+            var w = TakeJson.WriteTake(loaded);
+            Assert.False(w.ContainsKey("views") || w.ContainsKey("graphics"), $"{scenario}/{n} wrote a view or a graphic");
+            count++;
+        }
+        Assert.True(count >= 55, $"{count} seeded takes");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P6 (§11t V2) — NO SECOND LAYER MECHANISM: a take without views has the layers it already plays READ as views, and at every quarter second
+    /// the set <see cref="TakeViews.At"/> gives is exactly the one the runner applied before the View track (the take's layers from its start; at each laid-out
+    /// shot's start the take's with that shot's laid over — B10's rule; a gap keeps the last) — over a take with take-level layers, two shots with their own, a
+    /// shot with none and a gap; the seeded takes read as ONE clean item at 0 (what they applied). A take's own views win, and an item naming only the map keeps
+    /// the layers before it. 🔴 Mutation: <c>TakeViews.Of</c> reading only the take's layers (no per-shot item) ⇒ the shot-layer samples differ ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1304_P6_TheTakesLayers_ReadAsViews_AreWhatPlayedBefore()
+    {
+        var take = new Take
+        {
+            Layers = new LayerChange(new[] { "Ai.VisionCones" }, new[] { "Map.Roads" }),
+            Shots = new[]
+            {
+                Shot("""{"at":1,"seconds":2,"lookAt":[0,0,0],"layers":{"on":["Units.Cards"]}}"""),
+                Shot("""{"at":3,"seconds":1,"lookAt":[0,0,0]}"""),
+                Shot("""{"at":6,"seconds":2,"lookAt":[0,0,0],"layers":{"on":["Units.Labels"],"off":["Ai.VisionCones"]}}"""),
+            },
+        };
+        var plan = TakeTimeline.Plan(take, _ => null);
+        var views = TakeViews.Of(take, plan);
+        LayerChange? before = take.Layers;   // the old runner: the take's at its start, then EnterShot's set at each shot; a gap keeps it
+        int differs = 0;
+        for (double t = 0; t <= 9; t += 0.25)
+        {
+            if (plan.At(t) is { } shot) before = TakeViews.OfShot(take.Layers, shot.Shot.Layers);
+            var now = TakeViews.At(views, _ => null, t);
+            Assert.False(now.TwoD);                                                    // read views never switch the map: the film's 3-D, as before
+            Assert.True(TakeViews.Same(before!, now.Layers), $"t={t}: [{string.Join(",", now.Layers.On)}] / [{string.Join(",", now.Layers.Off)}]");
+            if (!TakeViews.Same(take.Layers!, now.Layers)) differs++;
+        }
+        Assert.True(differs >= 12, $"only {differs} samples differ from the take's own layers — the shots' layers went unexercised");
+
+        foreach (var (store, scenario, n) in SeededTakes())
+        {
+            var seeded = store.Load(scenario, n).Value!;
+            var read = TakeViews.Of(seeded, TakeTimeline.Plan(seeded, a => 5d));
+            var only = Assert.Single(read);
+            Assert.True(TakeViews.Same(LayerChange.None, only.Layers!) && only.At == new AtExpr(0d), $"{scenario}/{n}");
+        }
+
+        var own = take with { Views = new[] { new ViewChange { At = new AtExpr(2), TwoD = true, Layers = new LayerChange(new[] { "Units.Cards" }, Array.Empty<string>()) },
+                                              new ViewChange { At = new AtExpr(4), TwoD = false } } };
+        var ownViews = TakeViews.Of(own, TakeTimeline.Plan(own, _ => null));
+        Assert.Same(own.Views, ownViews);
+        Assert.Equal(ViewFrame.Start, TakeViews.At(ownViews, _ => null, 1.9));
+        Assert.True(TakeViews.At(ownViews, _ => null, 2.0) is { TwoD: true } v2 && v2.Layers.On.SequenceEqual(new[] { "Units.Cards" }));
+        Assert.True(TakeViews.At(ownViews, _ => null, 5.0) is { TwoD: false } v3 && v3.Layers.On.SequenceEqual(new[] { "Units.Cards" }));   // only the map changed
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> P6 (§11t G1, success condition 2): a take's <c>graphics[]</c> — a ring on a unit with a caption and a colour, an arrow between two units,
+    /// a route of points, an area, a label — read, write and read back equal (points, radius, colour, fade, anchored times); a bad kind, a bad colour, a missing
+    /// until and an unknown key are named problems. 🔴 Mutation: <c>WriteGraphic</c> not writing <c>points</c> (<c>Count &gt; 99</c>) ⇒ the route reads back with none ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_P6_Graphics_RoundTrip_AndBadOnesAreNamed()
+    {
+        var json = JsonNode.Parse("""
+            {"anchors":{"fire":{"on":"shot","who":"Tank 1","n":1}},
+             "graphics":[{"at":"fire-1","until":"fire+3","kind":"ring","who":"Enemy","text":"Target","radius":12,"color":"#ff3020","fade":0.5},
+                         {"at":2,"until":4,"kind":"arrow","who":"Tank 1","toward":"Enemy"},
+                         {"at":2,"until":6,"kind":"route","points":[[0,0],[50,10],[80,40,2]]},
+                         {"at":3,"until":5,"kind":"area","points":[[0,0],[10,0],[10,10],[0,10]],"text":"OBJ GOLD"},
+                         {"at":1,"until":2,"kind":"label","points":[[5,5,0]],"text":"Phase line BLUE"}]}
+            """)!.AsObject();
+        var problems = new List<string>();
+        var take = TakeJson.ParseTake(json, "s", "main", problems);
+        Assert.Empty(problems);
+        Assert.Equal(new[] { GraphicKind.Ring, GraphicKind.Arrow, GraphicKind.Route, GraphicKind.Area, GraphicKind.Label }, take.Graphics.Select(g => g.Kind));
+        var ring = take.Graphics[0];
+        Assert.Equal((new AtExpr(-1, "fire"), new AtExpr(3, "fire"), "Enemy", "Target", 12f, 0xFF3020u, 0.5),
+                     (ring.At, ring.Until, ring.Who, ring.Text, ring.Radius, ring.Colour, ring.Fade));
+        Assert.Equal(("Tank 1", "Enemy"), (take.Graphics[1].Who, take.Graphics[1].Toward));
+        Assert.Equal(new[] { new Vector3(0, 0, 0), new Vector3(50, 10, 0), new Vector3(80, 40, 2) }, take.Graphics[2].Points);
+        var written = TakeJson.WriteTake(take);
+        var again = TakeJson.ParseTake(written, "s", "main", problems);
+        Assert.Empty(problems);
+        for (int i = 0; i < take.Graphics.Count; i++)
+        {
+            var (a, b) = (take.Graphics[i], again.Graphics[i]);
+            Assert.Equal(a with { Points = Array.Empty<Vector3>() }, b with { Points = Array.Empty<Vector3>() });
+            Assert.Equal(a.Points, b.Points);
+        }
+        Assert.Equal(written.ToJsonString(), TakeJson.WriteTake(again).ToJsonString());
+
+        TakeJson.ParseTake(JsonNode.Parse("""
+            {"graphics":[{"at":1,"until":2,"kind":"star"},{"at":1,"kind":"ring","who":"A"},{"at":1,"until":2,"kind":"ring","color":"red","size":3}]}
+            """)!.AsObject(), "s", "bad", problems);
+        Assert.Contains("graphic 1: kind 'star' (ring, arrow, route, area, label)", problems);
+        Assert.Contains("graphic 2: needs until", problems);
+        Assert.Contains("graphic 3: color 'red' (#rrggbb)", problems);
+        Assert.Contains("graphic 3: unknown key 'size'", problems);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> P6 (§11t G2 / G3) — the overlay MODEL at a source second: which graphics are on (at ≤ t &lt; until), WHERE (a ring on its unit as the unit
+    /// moves, an arrow from one unit to the other lifted 1.5 m, a route's own points), how opaque (the ONE fade rule of a subtitle), and a graphic whose unit is
+    /// not here not drawn; then the LAYOUT on a 1000×500 picture through a stated projection (x, −y, 5 px per metre around (500, 250)): the ring is a closed
+    /// circle of 12 m = 60 px radius around its unit with its caption above it, the arrow ends on the head unit with its head there, a point behind the camera
+    /// drops the graphic. 🔴 Mutation: <c>FilmGraphics.At</c> keeping a graphic through its <c>until</c> (<c>sourceSim &gt; until</c>) ⇒ the ring is still on at 5 s ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_P6_TheGraphicsAtATime_AndTheirLayoutOnAPicture()
+    {
+        var units = new Units();
+        units.Ids["Enemy"] = 7; units.Ids["Tank 1"] = 3;
+        units.At[7] = new Vector3(20, 10, 0); units.At[3] = new Vector3(-10, 0, 0);
+        var graphics = new[]
+        {
+            new FilmGraphic { At = new AtExpr(1), Until = new AtExpr(5), Kind = GraphicKind.Ring, Who = "Enemy", Radius = 12, Text = "Target", Fade = 1 },
+            new FilmGraphic { At = new AtExpr(2), Until = new AtExpr(4), Kind = GraphicKind.Arrow, Who = "Tank 1", Toward = "Enemy" },
+            new FilmGraphic { At = new AtExpr(2), Until = new AtExpr(6), Kind = GraphicKind.Route, Points = new[] { new Vector3(0, 0, 0), new Vector3(30, 0, 0), new Vector3(30, 30, 0) } },
+            new FilmGraphic { At = new AtExpr(0), Until = new AtExpr(9), Kind = GraphicKind.Ring, Who = "Ghost" },
+        };
+        Assert.Empty(FilmGraphics.At(graphics, _ => null, 0.5, units));                       // the ghost's unit is not here; nothing else yet
+        var at15 = FilmGraphics.At(graphics, _ => null, 1.5, units);
+        var r = Assert.Single(at15);
+        Assert.Equal((GraphicKind.Ring, new Vector3(20, 10, 0), "Target"), (r.Kind, r.Points[0], r.Text));
+        Assert.InRange(r.Alpha, 0.49f, 0.51f);                                                 // half way through its 1 s fade in
+        units.At[7] = new Vector3(40, 20, 0);                                                  // the unit moves …
+        var at3 = FilmGraphics.At(graphics, _ => null, 3.0, units);
+        Assert.Equal(new[] { GraphicKind.Ring, GraphicKind.Arrow, GraphicKind.Route }, at3.Select(g => g.Kind));
+        Assert.Equal(new Vector3(40, 20, 0), at3[0].Points[0]);                                // … and the ring with it
+        Assert.Equal(1f, at3[0].Alpha);
+        Assert.Equal(new[] { new Vector3(-10, 0, 1.5f), new Vector3(40, 20, 1.5f) }, at3[1].Points);
+        Assert.Equal(graphics[2].Points, at3[2].Points);
+        Assert.Equal(new[] { GraphicKind.Route }, FilmGraphics.At(graphics, _ => null, 5.0, units).Select(g => g.Kind));   // until is exclusive
+
+        Func<Vector3, Vector2?> project = p => p.Z > 100 ? null : new Vector2(500 + p.X * 5, 250 - p.Y * 5);
+        var ringPlot = GraphicLayout.Of(at3[0], project, 500)!;
+        Assert.True(ringPlot.Closed);
+        Assert.Equal(GraphicLayout.RingSegments, ringPlot.Line.Count);
+        var centre = new Vector2(700, 150);
+        Assert.All(ringPlot.Line, p => Assert.InRange(Vector2.Distance(p, centre), 59.9f, 60.1f));   // 12 m at 5 px/m
+        Assert.Equal("Target", ringPlot.Text);
+        Assert.True(ringPlot.TextAt!.Value.Y < 150 - 60, $"the caption sits above the ring: {ringPlot.TextAt}");
+        Assert.Equal(255, ringPlot.Alpha);
+        var arrow = GraphicLayout.Of(at3[1], project, 500)!;
+        Assert.Equal(new Vector2(700, 150), arrow.Line[^1]);
+        Assert.Equal(new Vector2(700, 150), arrow.Head[0]);                                    // the head's tip is on the head unit
+        Assert.Null(GraphicLayout.Of(at3[2] with { Points = new[] { new Vector3(0, 0, 0), new Vector3(0, 0, 500) } }, project, 500));   // behind the camera
+    }
+
+    private static IEnumerable<(TakeStore Store, string Scenario, string Name)> SeededTakes()
+    {
+        var repo = RepoRoot();
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        {
+            var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
+            foreach (var (scenario, names) in store.AllTakes())
+                foreach (var n in names) yield return (store, scenario, n);
+        }
+    }
+
     private static string RepoRoot()
     {
         var dir = AppContext.BaseDirectory;

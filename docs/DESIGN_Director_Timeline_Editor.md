@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-27 (§11s — P4: ONE anchor resolver (CR-5: event cues are queries on the run's index — live or the recording's — through EventAnchors' one naming switch; ShotLog / DetonationLog reads leave AnchorBook, the logs keep their other readers; on a recording the index leads over a bake), promote = a copy (POST /director/promote, the Director window's button; the bake kept iff made for the scenario file as it is), TE-1's reverse (a recording's store reads its scenario's own takes) — BUILT) · 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §11s P4 — ONE ANCHOR RESOLVER, PROMOTE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11t — P6: the View track (views[]: 2-D / 3-D + a layer set from a time; a take's layers and shot layers READ as views — one path through the ONE ILayerOverride; the map through FilmStudio.TwoD, honoured and filmed by the capture layer on every map host) and the Graphics track (graphics[]: ring, arrow, route, area, label on units or points, fade; ONE layout + ONE painter for the screen pass and every captured frame; FilmOverlay through IFrameSink) — BUILT, live still docs/img/film-p6-graphics.jpg) · 2026-10-27 (§11s — P4: ONE anchor resolver (CR-5: event cues are queries on the run's index — live or the recording's — through EventAnchors' one naming switch; ShotLog / DetonationLog reads leave AnchorBook, the logs keep their other readers; on a recording the index leads over a bake), promote = a copy (POST /director/promote, the Director window's button; the bake kept iff made for the scenario file as it is), TE-1's reverse (a recording's store reads its scenario's own takes) — BUILT) · 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11t P6 — THE VIEW TRACK AND THE GRAPHICS TRACK (ui, 2026-10-27, BUILT; the as-built and the live still at its end) · ⭐ §11s P4 — ONE ANCHOR RESOLVER, PROMOTE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -2859,3 +2859,181 @@ passes it: a cut placed BEFORE a state cue still needs a bake (as live).
 **Rails** (each red-proved by a compiling mutation; the report lists mutation and message): `ReplayBrowserSubsystemTests.CE1304_CR5_OnARecording_EventAnchors_ResolveFromItsIndex_NoBeatMissing`
 · `ReplayBrowserSubsystemTests.CE1304_P4_ATakeAdjustedOnRecordingA_IsPromoted_AndPlaysItsBeatsOnRecordingB_AtBsTimes` · `DirectorPackTests.CE1304_CR5_OnALiveHost_AnEventAnchor_ResolvesWhenItsEventAppearsInTheLiveIndex`
 · `EventAnchoredKeysTests.CE1304_CR5_EveryNamedEvent_IsFoundAgain_ByTheResolver_AtItsOwnTime` · `DirectorDraftRoutesTests.CE1304_P4_Promote_CopiesTheRecordingsTake_RefusesAnOverwrite_UnlessAsked`.
+
+### 11t. P6 — the View track and the Graphics track *(ui, `2026-10-27`, CE-1304 (View) + CE-1305 (Graphics, TE-9); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ Two of P6's items (§11f): a **View** track (the film switches the map 2-D ⇄ 3-D and the layer set at film times — §2's View row) and a **Graphics**
+track (TE-9 / R-4070: film-only arrow, ring, route, area, label, in/out and fade, drawn by the film). ⛔ The brief's fence: the View track EDITS what a take
+already plays (no second layer mechanism); graphics are drawn by the film's own overlay path and captured into stills and movies.
+
+**INVENTORY** *(graph + grep; this worktree indexed fresh; ⚠ `check_index_coverage` is not available through the CLI, so no absence below is proven complete)*
+
+| query | result ⇒ |
+|---|---|
+| `search_graph name_pattern=(.*LayerOverride.*\|.*LayerControl.*\|.*ViewSwitch.*\|.*LayerChange.*)` (95, paged) | `ILayerOverride` · `MapLayerOverride` · `LayerControlGizmo` (`SetOverride` / `ClearOverride`, `Is3D`) · `LayerControlSets` (`RowNames`, `SceneRows`) · `LayerChange` (the take's) · `MapViewSwitch` · `MapInteractionPack.LayerControlFor` ⇒ **ONE layer override** (R-4060) and **ONE 2-D ⇄ 3-D switch** exist; a take already carries `LayerChange` at take level AND per shot |
+| `search_graph name_pattern=.*(Overlay\|Cinema\|Subtitle\|Film).* label=Class` (52) | `WindowCinema` · `FilmCaptureLayer` · `FilmText` · `FilmStudio` · `FilmFrameSink` · `SubtitleBand` / `SubtitleFrame` / `TakeSubtitles` · `FilmCaptureRequest` (+ unrelated overlays: `MapStatsOverlay`, `LabelOverlay3D`, `NotificationOverlay`, the BTree/HSM runtime overlays, `MapOverlayGizmo`, …) ⇒ the film's overlay = cinema (screen, ImGui) + `FilmText` (capture, raylib), unified by `SubtitleBand` (CE-1370) |
+| `search_graph name_pattern=.*(Tactical\|Graphic).* label=Class` (31) + `.*(Tactical\|Arrow\|Callout\|Route\|Area)Gizmo.*\|.*LabelOverlay.*` (6) | `MapGraphic` / `MapGraphicDef` (a scenario entity kind), `TacticalAreaGizmo`, `RouteGizmo`, `AuthoredRouteGizmo`, `DangerAreaGizmo`, `LabelOverlay3D` ⇒ **R0 ⑥ answered:** tactical graphics are SCENARIO ENTITIES drawn by stateless gizmos into the debug draw buffer (`MapOverlayGizmo`: `DrawLine` / `DrawFilledTriangle` on `DebugTraceLayers.TacticalGraphics`); no film graphic exists |
+| `grep -rn "Is3D\|MapViewSwitch\|\.Set(true\|ShowPose"` over `Hrot/Engine/Hrot.Presentation` | the film camera FORCES 3-D (`FilmCaptureLayer.Direct`: `_view.Set(true, animate: false)`) and a capture in 2-D THROWS (`Serve`); `MapCanvas.DrawScene` draws nothing in 2-D ⇒ a 2-D film needs the capture layer to honour a program map |
+| `grep -rn "_layers.Apply" DirectorRunner.cs` | two callers: item start (`take.Layers`) and `EnterShot` (take ∪ shot layers, B10's rule) ⇒ the View track must reproduce exactly these sets |
+| `grep -l '"layers"' scenarios/**/*.take.json` | **0** of the 55 seeded takes carry layers ⇒ they all play a clean set |
+
+```mermaid
+classDiagram
+  direction LR
+  class Take { <<exists, grown>> Layers · Shots[].Layers · Views NEW · Graphics NEW }
+  class LayerChange { <<exists>> On · Off }
+  class ViewChange { <<NEW>> At · TwoD? · Layers? }
+  class TakeViews { <<NEW>> Of(take, laidOut) · At(views, t) · OfShot }
+  class FilmGraphic { <<NEW>> At · Until · Kind · Who · Toward · Points · Text · Radius · Colour · Fade }
+  class FilmGraphics { <<NEW>> At(graphics, t, IShotWorld) }
+  class GraphicLayout { <<NEW>> Of(frame, project, h) the ONE layout }
+  class FilmFade { <<NEW>> Alpha — subtitles and graphics }
+  class FilmOverlay { <<NEW>> Subtitle · Graphics }
+  class TakeSubtitles { <<exists>> At uses FilmFade }
+  class DirectorRunner { <<exists, grown>> ApplyView(rel) · GraphicsNow · OverlayNow }
+  class ILayerOverride { <<exists>> Apply(on, off) · Clear }
+  class MapLayerOverride { <<exists>> Applied NEW }
+  class FilmStudio { <<exists, grown>> TwoD NEW · AnimateViewSwitch NEW · Graphics NEW }
+  class FilmCaptureLayer { <<exists, grown>> Direct honours TwoD · DrawOverlay paints graphics · Serve films 2-D }
+  class FilmText { <<exists, grown>> Caption · Card · Graphics NEW }
+  class IFrameSink { <<exists, grown>> Frame(…, FilmOverlay) default member }
+  class MapViewSwitch { <<exists>> Set · ShowPose }
+  class DirectorTracks { <<exists, grown>> View NEW · Graphics NEW }
+  class TakeEditor { <<exists, grown>> Add/Move/Remove/SetView · …Graphic }
+  Take --> ViewChange
+  Take --> FilmGraphic
+  ViewChange --> LayerChange
+  TakeViews ..> Take : reads Layers and shot layers when Views is empty
+  DirectorRunner --> TakeViews
+  DirectorRunner --> ILayerOverride : the view's set
+  DirectorRunner --> FilmStudio : TwoD · Graphics
+  DirectorRunner --> FilmGraphics
+  DirectorRunner --> IFrameSink : FilmOverlay
+  MapLayerOverride ..|> ILayerOverride
+  FilmCaptureLayer --> MapViewSwitch
+  FilmCaptureLayer --> FilmText
+  FilmText --> GraphicLayout
+  FilmGraphics --> FilmFade
+  TakeSubtitles --> FilmFade
+  DirectorTracks --> TakeEditor
+```
+*What the picture shows that prose hid:* nothing new talks to the map — the view reaches it through the two seams that already existed (the layer override
+and the film mailbox the capture layer already reads for the camera), and the graphics through the painter that already burns the subtitle. The ONLY new
+reader of the take's old layers is `TakeViews`, and the runner's two old `_layers.Apply` sites are gone — one path, not two.
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (Tick, source second t)
+  participant V as TakeViews / FilmGraphics
+  participant L as ILayerOverride (MapLayerOverride)
+  participant S as FilmStudio (mailbox)
+  participant C as FilmCaptureLayer (the map on screen)
+  participant W as MapViewSwitch
+  participant K as IFrameSink (FilmFrameSink)
+  R->>V: At(views, t) → 2-D + {Units.Labels}
+  R->>L: Apply(on, off) — only when the view changed
+  R->>S: TwoD = true
+  R->>V: At(graphics, t, units) → lower ring on Enemy at its position now
+  R->>S: Graphics = [ring]
+  C->>S: Direct(): Shot held, TwoD
+  C->>W: Set(false, animate) once, then ShowPose(overhead of the shot) each frame
+  C->>C: DrawOverlay: FilmText.Graphics(ring, 2-D projection)
+  Note over R,K: the same frame captured (a film or a still)
+  R->>K: Frame(path, w, h, ss, FilmOverlay(subtitle, [ring]))
+  K->>C: FilmCaptureRequest(… Graphics)
+  C->>C: Serve: the 2-D map at the frame's size · FilmText.Graphics · FilmText.Caption · the dip's black
+```
+
+```mermaid
+graph TD
+  subgraph ED["Editor — EditorSubsystem.Update"]
+    EP["DirectorPack.Tick → DirectorRunner.Tick"]
+    EM["map host: MapInteractionPack.AttachMapLayers → FilmCaptureLayer"]
+  end
+  subgraph RB["Replay Browser — ReplayBrowserSubsystem.Update (windowed)"]
+    RP["DirectorPack.Tick → DirectorRunner.Tick"]
+    RM["map host: MapInteractionPack.AttachMapLayers → FilmCaptureLayer"]
+  end
+  RBH["Replay Browser — headless (no map)"]
+  RBH -.->|"layers to a null control · TwoD / Graphics unread"| RP
+  EP --> LO["MapLayerOverride → LayerControlGizmo.SetOverride"]
+  RP --> LO
+  EP --> FS["FilmStudio: Shot · Fade · TwoD · Graphics"]
+  RP --> FS
+  FS --> EM
+  FS --> RM
+  CGF["CGF / IG / BDC — a map, no director"]:::dead
+  CGF -.->|"FilmStudio never set: Direct and DrawOverlay do nothing"| FS
+  classDef dead fill:#f6d6d6,stroke:#a33
+```
+*What the picture shows that prose hid:* the 2-D switch and the graphics live in the capture layer that `AttachMapLayers` gives EVERY map host, so no host
+can lack them; on a host with no map (a headless browser, a rail) the runner still hands the view and the graphics on, and only nobody draws them — which
+is why the rails assert on the seams (`MapLayerOverride.Applied`, `FilmStudio.TwoD` / `.Graphics`, the sink's `FilmOverlay`), not on pixels.
+
+**Claim table**
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a take's layers already play through ONE override | ✅ `DirectorRunner` item start + `EnterShot` → `_layers.Apply` (before P6); `MapLayerOverride` → `LayerControlGizmo.SetOverride` (`LayerControlGizmo.cs:391`) | ✅ R-4060 · §2 View row *"through the transient override"* · Film Director §4b |
+| the override's set is ABSOLUTE (start clean, on, off) | ✅ `SetOverride`: every row off, `SceneRows` as the user has them, then on / off | ✅ `ILayerOverride.Apply` doc · Film Director §4b ("Default is off") |
+| the 2-D ⇄ 3-D switch is one class, animated, with a pose restore | ✅ `MapViewSwitch.Set(on, animate)` / `ShowPose` (2-D = the overhead pose, `IsTwoDPose`) | ✅ Map 3-D Mode M10 / M12, CE-1342 |
+| the film camera forced 3-D and refused a 2-D capture | ✅ `Film.cs` `Direct` (`Set(true, animate: false)`) / `Serve` (throw) before P6 | ⛔ searched `docs/` + `.dev/` (`2-D.*film\|film.*2-D`, Map 3-D §6ab): no ruling that a film is 3-D-only — §2's View row asks for the switch |
+| tactical graphics have a drawer to reuse | ⚠ `MapOverlayGizmo` → debug draw buffer (`DebugTraceLayers.TacticalGraphics`); the buffer is a gizmo pass, not an `ISceneLayer`, so `DrawScene` (a capture) never draws it | ⚠ TE-9 *"reuses the tactical-graphic drawing"* — measured not to reach a captured frame ⇒ G3 below |
+| the subtitle's band is ONE computation for screen and capture | ✅ `SubtitleBand.Of` in `WindowCinema.DrawSubtitle` and `FilmText.Caption` (CE-1370) | ✅ §11o S9, CE-1370 |
+| a graphic's unit can be found by name every frame | ✅ `WorldUnits` / `IShotWorld` (the camera's lookup) | ✅ §5 `"who": "Enemy"` |
+| graphics are film-only | ✅ stored in `Take.Graphics`, drawn from `FilmStudio` / the capture request only | ✅ R-4070 |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **V1** | a View item = `ViewChange { at, map?: 2d \| 3d, layers?: {on, off} }` — `layers` is the take's own `LayerChange`, an ABSOLUTE set (the override's semantics); a null field keeps the item before. JSON `views[]` (§5's shape), written only when present | a delta set (`on` adds, `off` removes) — the override starts clean every call; a delta would need a second accumulation rule beside it |
+| **V2** | ⭐ **no second layer mechanism:** a take without views has its layers READ as views (`TakeViews.Of`: the take's at 0, at each laid-out shot's start the take's ∪ that shot's — B10's rule, equal neighbours merged); the runner plays ONLY views; the first view edit writes them (one undo step) — the `TakeSubtitles` pattern (S8) | keep `EnterShot`'s apply and add views beside it — two writers of one override, the later wins by frame order |
+| **V3** | the View track: POINT items on the panel (`TimelineTrackItemKind.Key`); empty space *"2-D map here"* / *"3-D map here"*; an item *Delete* / *Switch to the other map*; drag moves it; the Director window edits its map and its layers (a checkbox per `LayerControlSets.RowNames` row — the Layers panel's names) | a span row like subtitles — a view holds until the next item; it has no end |
+| **V4** | the runner applies the view every frame it plays but hands it on only when it CHANGES (`ViewFrame.Same`); ⛔ not in an extension's run (verify leaves the editor's layers alone — `StartPlan`'s intent) | apply on shot entry only — a View item between two shots would never fire |
+| **V5** | the program's map is the film mailbox's `FilmStudio.TwoD` (beside `Shot` and `Fade`); `FilmCaptureLayer.Direct` honours it: 3-D as before; 2-D through `MapViewSwitch.Set(false, animate)` then `ShowPose(overhead of the shot)` each frame (the shot's look-at = the centre, its distance = the scale); the first held frame snaps, later switches animate unless `FilmStudio.AnimateViewSwitch` is off (a capture: frames are film frames, not wall time) | a new `IMapMode` seam on `IDirectorHost` — every host would wire it; the capture layer already owns the program camera on every map host |
+| **V6** | a 2-D film frame is the 2-D map as the screen draws it (`MapCanvas.Draw`, its layers the take's), the 2-D camera re-centred at the frame's size for the capture; a capture during an animated switch is refused | `DrawScene` for 2-D (scene layers only) — the 2-D map's units and cards are not `ISceneLayer`s; it would film an empty ground |
+| **G1** | a graphic = `FilmGraphic { at, until, kind: ring \| arrow \| route \| area \| label, who / toward (units) or points, text, radius, color, fade }` — TE-9's five kinds; JSON `graphics[]`, written only when present | title cards / lower thirds as graphics — §2 puts them on the Subtitles row (caption · title card · unit label) |
+| **G2** | `FilmGraphics.At(graphics, t, units)` resolves the world points EVERY frame through `IShotWorld` (a ring follows its unit; a unit not here is not drawn); the fade is `FilmFade.Alpha`, now also the subtitle's (one rule) | resolving once at the graphic's start — a ring on a moving tank would stay behind |
+| **G3** | ⭐ **one layout, one painter:** `GraphicLayout.Of(frame, project, h)` (pixels, from the picture's height — the `SubtitleBand` pattern) painted by `FilmText.Graphics` in BOTH the map's screen pass (`FilmCaptureLayer.DrawOverlay`, from `FilmStudio.Graphics`) and a captured frame (`Serve`, from the request), under the subtitle | the cinema (`WindowCinema`, ImGui) draws them on screen — it has no camera to project a world point and draws over the window, not the map; the debug draw buffer (the tactical graphics' path) — never reaches a captured frame (claim table) |
+| **G4** | the capture carries the overlay as ONE value: `IFrameSink.Frame(…, FilmOverlay)` (a default member, so a text-only sink keeps working); the runner and the stills (`DirectorStills`) call it with `runner.OverlayNow(captions)` | a second `IFrameSink` method per overlay kind — every new overlay would grow every sink |
+| **G5** | the Graphics track is the subtitle's span row (`SpanTrack`): *"Add a graphic here"* = a ring on the unit the pilot camera follows, else a label at its look-at; the Director window edits kind, unit(s), text, radius, fade and adds the pilot's look-at as a point | a graphic editor of its own — the span row already does add / move / resize / delete with one undo step each |
+
+**As built.** `TakeViews.cs` (`ViewChange`, `ViewFrame`, `TakeViews`) · `FilmGraphics.cs` (`FilmGraphic`, `GraphicFrame`, `FilmOverlay`, `FilmFade`, `FilmGraphics`,
+`GraphicPlot`, `GraphicLayout`) · `Take` (`Views`, `Graphics`; `TakeSubtitles.At` uses `FilmFade`) · `TakeJson` (`views[]`, `graphics[]`, `ParseView` / `ParseGraphic`,
+`WriteView` / `WriteGraphic`) · `TakeEditor` (`Add/Move/Remove/SetView`, `…Graphic`; `WithViews`) · `DirectorTracks` (`View`, `Graphics`, `SelectedView` /
+`SelectedGraphic`, `NewGraphic`, `PilotLookAt`) · `DirectorWindow` (the selected view's map + layers, the selected graphic's fields) · `DirectorRunner` (`ApplyView`,
+`ViewNow`, `GraphicsNow`, `OverlayNow`; the two old `_layers.Apply` sites gone) · `IFrameSink.Frame(…, FilmOverlay)` · `FilmFrameSink` · `DirectorStills` ·
+`MapLayerOverride.Applied` · `FilmStudio` (`TwoD`, `AnimateViewSwitch`, `Graphics`; `Release` clears the first and the last) · `FilmCaptureRequest.Graphics` ·
+`FilmCaptureLayer` (`Direct` honours `TwoD`, `DrawOverlay` paints, `Serve` films 2-D and paints) · `FilmText.Graphics`. **Deviations:** (1) the brief named
+`WindowCinema` as the graphics' screen painter; it is the capture layer's screen pass instead (G3: the cinema cannot project a world point) — the SAME painter
+as the capture, which is the brief's intent. (2) An extension's (verify) run no longer applies a shot's layers (V4) — before P6 `EnterShot` did, against
+`StartPlan`'s stated intent; no rail or seeded take relied on it.
+
+**Known edges.** (1) A film that ends in 2-D leaves the map in 2-D (the release gives the camera back; the user's Ctrl+M switches). (2) A 2-D frame lacks the units' 2-D symbols and the terrain's colour — the gizmo buffer is not in the capture (CE-1380, CE-1379); layers with no
+layer bit (the cursor, the rubber band) would be filmed — the live still shows none. (3) An area's fill is a fan from its
+centre (right for convex and star-shaped areas). (4) The graphics' text is raylib's font in both passes (the subtitle's on-screen text is ImGui's).
+
+**§11t live still** *(`2026-10-27`, ui — success condition 5)*
+
+![P6: the same take, 3-D then the View track's 2-D map, with the film's graphics](img/film-p6-graphics.jpg)
+
+*What it shows:* `ua-tank-ammo/main` played by the ONE pack's runner over a REAL live recording (`node_1.fdp`, 3607 frames, the take's scenario hash) in a
+WINDOWED Replay Browser, both frames captured through the director's own sink with the runner's overlay (`FilmFrameSink.Frame(…, runner.OverlayNow)` —
+the stills' path). The OPEN take (unsaved) was given three graphics from t − 1 (a red ring + *Target* on the Enemy Tank, a yellow arrow Tank → Enemy
+Tank, a blue *M1 Abrams* label on the Tank) and a View item switching to the 2-D map at 9.4 s with a key pulling the camera up (follow Tank, 900 m).
+**Left** (source 9.117 s): the 3-D over-the-shoulder shot — the M1's body, the T-72 on the horizon with its ring and caption, the arrow along the line of
+fire, the label on the M1, the take's caption as the subtitle. **Right** (source 9.917 s): the 2-D map, centred on the Tank at the key's scale — the SAME
+three graphics laid out through the 2-D camera (the ring small at 900 m, the arrow running north to it), the subtitle. *What looked wrong:* the 2-D
+frame's ground is black and the units' 2-D symbols are missing — the capture does not see the gizmo buffer (CE-1380, with CE-1379); the first harness
+run put the View item in a GAP between shots, where the camera is the next shot's, and filmed a 2-D map 50 px/m on the Enemy Tank — the harness now
+places it inside shot 1. *How:* `DISPLAY=:99 HROT_FILM_PROOF=1 HROT_FILM_PROOF_RECORDING=<node_1.fdp> HROT_FILM_PROOF_OUT=<dir> dotnet test
+Hrot/Subsystems/Hrot.ReplayBrowser.Tests --no-build --filter FullyQualifiedName~CE1305_P6_LiveProof` (`[Trait Category Manual]`).
+
+**Rails** (each red-proved by a compiling mutation; the report lists mutation and message): `FilmDirectorTests.CE1304_P6_Views_RoundTrip_AndOldTakesStayWithout`
+· `FilmDirectorTests.CE1304_P6_TheTakesLayers_ReadAsViews_AreWhatPlayedBefore` · `FilmDirectorTests.CE1305_P6_Graphics_RoundTrip_AndBadOnesAreNamed`
+· `FilmDirectorTests.CE1305_P6_TheGraphicsAtATime_AndTheirLayoutOnAPicture` · `DirectorTracksTests.CE1304_P6_TheViewTrack_ShowsTheLayersPlayed_AddsMovesFlipsDeletes_AndUndoes`
+· `DirectorTracksTests.CE1305_P6_TheGraphicsTrack_AddsMovesResizesDeletes_AndUndoes` · `DirectorRunnerTests.CE1304_P6_TheRunner_AppliesTheViewTrack_ThroughTheLayerOverride_AndTheMapMode`
+· `DirectorRunnerTests.CE1305_P6_TheRunner_PutsTheGraphicsOnScreen_AtTheirFilmTime_OnTheirUnit` · `DirectorRunnerTests.CE1305_ACapturedFrame_IsHandedTheGraphics_WithTheSubtitle`
+· `ReplayBrowserSubsystemTests.CE1304_P6_OnARecording_TheViewTrack_AndAGraphic_PlayThroughThePacksOwnSeams`. Unchanged and green: `CE1364_T4_*`, `CE1370_*`,
+the CE-4038 reel rail (a take's `layers` still reach the override).

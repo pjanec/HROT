@@ -63,7 +63,8 @@ public static class PilotCamera
 /// </summary>
 public sealed class DirectorTracks
 {
-    public const string CameraId = "director.camera", TimeId = "director.time", SubtitlesId = "director.subtitles";
+    public const string CameraId = "director.camera", TimeId = "director.time", SubtitlesId = "director.subtitles",
+                        ViewId = "director.view", GraphicsId = "director.graphics";
 
     private readonly TakeEditor _editor;
     private readonly Func<CameraSpec?> _pilot;
@@ -92,13 +93,19 @@ public sealed class DirectorTracks
         Camera = new CameraTrack(this);
         Time = MakeTimeTrack();
         Subtitles = MakeSubtitleTrack();
-        Tracks = new ITimelineTrack[] { Camera, Time, Subtitles };
+        View = new ViewTrack(this);
+        Graphics = MakeGraphicsTrack();
+        Tracks = new ITimelineTrack[] { Camera, Time, Subtitles, View, Graphics };
     }
 
     public ITimelineTrack Camera { get; }
     public ITimelineTrack Time { get; }
     /// <summary>⭐ <c>CE-1303</c> P2b — CR-11: the take's subtitles (its captions read as subtitles until the first subtitle edit — S8).</summary>
     public ITimelineTrack Subtitles { get; }
+    /// <summary>⭐ <c>CE-1304</c> P6 (§11t V3): the View track — 2-D / 3-D and the layer set from a time (the take's layers read as views until the first view edit).</summary>
+    public ITimelineTrack View { get; }
+    /// <summary>⭐ <c>CE-1305</c> P6 (§11t G4): the film-only graphics (TE-9).</summary>
+    public ITimelineTrack Graphics { get; }
     public IReadOnlyList<ITimelineTrack> Tracks { get; }
     public TakeEditor Editor => _editor;
 
@@ -248,6 +255,78 @@ public sealed class DirectorTracks
     /// <summary>⭐ P2b — the selected item's index into the take's segments / subtitles (the Director window edits its speed, gap, text, position, fade).</summary>
     public int? SelectedSegment => _selected is { } s ? SpanTrack.IndexOf(s, "seg:") : null;
     public int? SelectedSubtitle => _selected is { } s ? SpanTrack.IndexOf(s, "sub:") : null;
+    /// <summary>⭐ CE-1304 / CE-1305 P6 — the selected view item / graphic (the Director window edits its map and layers / its kind, text, radius, fade).</summary>
+    public int? SelectedView => _selected is { } s ? SpanTrack.IndexOf(s, "view:") : null;
+    public int? SelectedGraphic => _selected is { } s ? SpanTrack.IndexOf(s, "gfx:") : null;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1304</c> P6 (docs/DESIGN_Director_Timeline_Editor.md §11t V3) — the View track: one POINT item per <see cref="ViewChange"/> (2-D / 3-D and its layer set
+    /// from that source second). The items are <see cref="TakeViews.Of"/> — a take with no views shows the layers it already plays — and the first edit writes
+    /// them (one undo step). Empty space offers "2-D map here" / "3-D map here"; an item offers delete and the other map; a drag moves it. Its layers are
+    /// edited in the Director window.
+    /// </summary>
+    private sealed class ViewTrack : ITimelineTrack
+    {
+        private readonly DirectorTracks _d;
+        public ViewTrack(DirectorTracks d) => _d = d;
+        public string Id => ViewId;
+        public string Label => "View";
+
+        public IReadOnlyList<TimelineTrackItem> Items
+        {
+            get
+            {
+                var views = Views(_d._editor.Take);
+                var list = new List<TimelineTrackItem>(views.Count);
+                for (int i = 0; i < views.Count; i++)
+                {
+                    if (_d._editor.Resolve(views[i].At) is not { } at) continue;
+                    string id = ItemId(i);
+                    list.Add(new TimelineTrackItem(id, _d.Shown(id, at), null, TakeViews.Describe(views[i]), TimelineTrackItemKind.Key, id == _d._selected));
+                }
+                return list;
+            }
+        }
+
+        public void Select(string itemId) => _d._selected = itemId;
+
+        public void Move(string itemId, double toSimSeconds, bool commit)
+        {
+            if (SpanTrack.IndexOf(itemId, "view:") is not { } i) return;
+            if (!commit) { _d._editor.SetPreview(itemId, toSimSeconds); return; }
+            _d._editor.ClearPreview();
+            _d._editor.Apply(new TakeEdit.MoveView(i, toSimSeconds));
+        }
+
+        public bool Key(char key, double atSimSeconds) => false;
+
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => MenuItems(itemId, 0d);
+
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId, double atSimSeconds)
+        {
+            if (itemId != null)
+            {
+                var views = Views(_d._editor.Take);
+                if (SpanTrack.IndexOf(itemId, "view:") is not { } i || i >= views.Count) yield break;
+                var v = views[i];
+                yield return new TimelineMenuItem("Delete view change", () => { if (_d._editor.Apply(new TakeEdit.RemoveView(i))) _d._selected = null; });
+                bool twoD = v.TwoD == true;
+                yield return new TimelineMenuItem(twoD ? "Switch to the 3-D map" : "Switch to the 2-D map",
+                    () => _d._editor.Apply(new TakeEdit.SetView(i, v with { TwoD = !twoD })));
+                yield break;
+            }
+            double from = Math.Max(atSimSeconds, 0d);
+            foreach (var (label, twoD) in new[] { ("2-D map here", true), ("3-D map here", false) })
+                yield return new TimelineMenuItem(label, () =>
+                {
+                    if (_d._editor.Apply(new TakeEdit.AddView(new ViewChange { At = new AtExpr(from), TwoD = twoD })))
+                        _d._selected = ItemId(_d._editor.Take.Views.Count - 1);
+                });
+        }
+
+        private static IReadOnlyList<ViewChange> Views(Take take) => TakeViews.Of(take, Layout(take));
+        private static string ItemId(int i) => "view:" + i.ToString(CultureInfo.InvariantCulture);
+    }
 
     /// <summary>
     /// ⭐ <c>CE-1364</c> / <c>CE-1303</c> P2b (§11o S10) — THE one span row: the Time track (segments) and the Subtitles track are this class with their own
@@ -381,6 +460,32 @@ public sealed class DirectorTracks
             ? new[] { new TimelineMenuItem("Add the shot's note as a subtitle", () =>
                 _editor.Apply(new TakeEdit.AddSubtitle(new Subtitle { At = new AtExpr(shot.Start), Until = new AtExpr(shot.End), Text = why }))) }
             : Enumerable.Empty<TimelineMenuItem>());
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> P6 (§11t G4) — the Graphics track: the subtitle's span row over <see cref="Take.Graphics"/>. "Add a graphic here" puts a RING on the
+    /// unit the pilot camera follows (a LABEL at its look-at when it follows none) for <see cref="DefaultGraphicSeconds"/>; the window edits the rest.
+    /// </summary>
+    private SpanTrack MakeGraphicsTrack() => new(this, GraphicsId, "Graphics", "gfx:", "graphic",
+        take => take.Graphics.Select(g => (g.At, g.Until, FilmGraphics.Describe(g))).ToList(),
+        (i, edge, sim) => new TakeEdit.MoveGraphic(i, edge, sim),
+        i => new TakeEdit.RemoveGraphic(i),
+        sim => new TakeEdit.AddGraphic(NewGraphic(sim)),
+        (take, _) => take.Graphics.Count - 1);
+
+    /// <summary>⭐ CE-1305 — the graphic "Add a graphic here" makes at <paramref name="sim"/>: a ring on the pilot's unit, else a label where it looks.</summary>
+    public FilmGraphic NewGraphic(double sim)
+    {
+        var pilot = _pilot();
+        var g = new FilmGraphic { At = new AtExpr(sim), Until = new AtExpr(sim + DefaultGraphicSeconds), Fade = 0.3 };
+        if (pilot?.Follow is { } unit) return g with { Kind = GraphicKind.Ring, Who = unit };
+        return g with { Kind = GraphicKind.Label, Points = new[] { pilot?.LookAt ?? Vector3.Zero }, Text = DefaultGraphicText };
+    }
+
+    /// <summary>⭐ CE-1305 — where the pilot camera looks (a look-at camera's point; null when it follows a unit or there is none): a graphic's next point.</summary>
+    public Vector3? PilotLookAt => _pilot()?.LookAt;
+
+    public const double DefaultGraphicSeconds = 3d;
+    public const string DefaultGraphicText = "Label";
 
     /// <summary>CE-1303 P2b: a subtitle added from the menu — 3 sim seconds long, with a placeholder the window's text field replaces.</summary>
     public const double DefaultSubtitleSeconds = 3d;

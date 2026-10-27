@@ -90,6 +90,10 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>Asks the map on screen for this frame's scene; completes when it is written.</summary>
         Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle);
 
+        /// <summary>⭐ <c>CE-1305</c> — the same frame with everything the film burns over the scene: the subtitle AND the film graphics (<see cref="FilmOverlay"/>).
+        /// A sink that draws only text keeps the default: the subtitle alone.</summary>
+        Task Frame(string path, int width, int height, int supersample, FilmOverlay overlay) => Frame(path, width, height, supersample, overlay.Subtitle);
+
         /// <summary>A card frame: <paramref name="text"/> on black.</summary>
         Task Card(string path, int width, int height, string text);
     }
