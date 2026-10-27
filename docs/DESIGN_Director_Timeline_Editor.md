@@ -1461,7 +1461,7 @@ sequenceDiagram
 | the runner plays the saved file; segments never play | ✅ §10 T3 as built; grep over `Hrot/` (re-run) | ✅ TE-6 / TE-7 say the program plays them |
 | rendering from the RB is cheaper than stepping the editor | ✅ **measured `2026-10-27`**: 0.26 s vs 0.32 s per 1280×720 frame (~20 % cheaper; the renderer dominates) — the gain of CR-12 is the iteration, not the render time | — |
 
-### 11h. CR-1 — the verify seam *(coordinator, `2026-10-27`, CE-4061; build-state: BUILDING)*
+### 11h. CR-1 — the verify seam *(coordinator, `2026-10-27`, CE-4061; build-state: ✅ BUILT `2026-10-27` — as built below)*
 
 ⭐ What the runner keeps: **load → enter → play → capture → encode** (film, scout, capture). What leaves: every verify field, method and
 phase, into the editor's **`ScenarioVerifyRun`**, which plugs in through ONE seam; the verify-only host members leave `IDirectorHost` for an
@@ -1521,6 +1521,16 @@ sequenceDiagram
     R->>X: Tick — then X calls ctx.EndItem() or ctx.ResumePlaying()
   end
 ```
+
+
+**As built** *(CE-4061)* — exactly the diagrams above. Files: `Director/RunExtension.cs` (`RunPlan`, `IRunResult`, `RunStart`, `IRunContext`,
+`IRunExtension`) · `Director/ScenarioVerifyRun.cs` (the verifier; `VerifyOptions`, `ReviewCheck`, `RestoreCheck`; `ItemReport.Verify()`) ·
+`DirectorHost.cs` (`IVerifyHost` split out; `EditorDirectorHost` implements both) · `DirectorRunner.cs` **1185 → 800 lines**, no verify name.
+Deviations: none of substance — `IRunContext.ResumePlaying` also pauses the host first (what the H5 return did inline). Callers moved to
+`Plan:` / `r.Verify()` (Director window, command-line verify, `/director/verify`, `VerifyCommand`). Rails: all 29 director tests green (the 12
+verifier rails now run THROUGH the seam) + `CE4061_TheFilmRunner_NamesNoVerifyType_TheVerifierIsAnExtension` (reflection over the runner, the film
+host, the request, the report, the seam), 🔴 red-proved: a `VerifyResult` property planted in the runner ⇒ *"DirectorRunner names VerifyResult"*.
+⭐ **P1 is unblocked** — the film runner, its host contract and the seam can move to `Hrot.Presentation`; `ScenarioVerifyRun` and `IVerifyHost` stay in the editor.
 
 | decision | rejected — the one fact |
 |---|---|

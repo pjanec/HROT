@@ -227,7 +227,7 @@ namespace Hrot.Editor.DebugApi
             if (body?["fresh"] is JsonValue fv && fv.TryGetValue<bool>(out var fresh) && fresh)
                 return Ok(_freshVerify.Start(names, capture, replay));
             var reel = new Reel { Name = "verify", Items = names.Select(n => new ReelItem { Scenario = n, Take = "_verify" }).ToList() };
-            var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(capture, Replay: replay)));
+            var refused = director.Play(new PlayRequest(reel, Plan: new VerifyOptions(capture, Replay: replay)));
             if (refused.Count > 0) return Fail(400, "not started: " + string.Join("; ", refused));
             var status = director.Status();
             // ⚠ R-4065: one process per scenario is the regression rule (a reload still leaks, CE-3294) — said, not refused

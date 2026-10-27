@@ -10,34 +10,8 @@ using Hrot.UI.Common.Map3D.Director;
 namespace Hrot.Editor.Director
 {
     /// <summary>How the director runs a reel: on screen in real time, frame by frame to files, as a scout that bakes anchor times, or as
-    /// a VERIFY run that judges each scenario's checks and compares it with its golden (CE-4042, docs/DESIGN_Scenario_Regression.md).</summary>
-    public enum DirectorMode { Live, Capture, Scout, Verify }
-
-    /// <summary>⭐ <c>CE-4042</c> — a verify run: <see cref="Capture"/> re-records each scenario's golden (refused for a failing run).
-    /// ⭐ <c>CE-4045</c> H1a — <see cref="Replay"/>: the run is LIVE (it records), and its recording, played back, must hold the world the run
-    /// had at every snapshot (docs/DESIGN_Scenario_Regression.md §10-1, R-4085). ⭐ H1b — then the PRODUCT's cluster replay of that run
-    /// (entered and sought through the master, by recorded sim time) must show the same world (§10-2 ②).</summary>
-    public sealed record VerifyOptions(bool Capture = false, RestoreCheck? R1 = null, bool Replay = false, ReviewCheck? Review = null);
-
-    /// <summary>
-    /// ⭐ <c>CE-4045</c> H5 (docs/DESIGN_Scenario_Regression.md §10-3, R-4086) — one half of the review check. Both halves run LIVE and write
-    /// their full snapshots (every <see cref="Every"/> s) to <see cref="RunOut"/>. <see cref="Straight"/>: just that. Otherwise: at
-    /// <see cref="At"/> the run enters a During Action Review, seeks every earlier snapshot time and compares it with the live one, returns
-    /// to live, compares the world with the one it left, and runs on; the command line compares the two halves from <see cref="At"/>.
-    /// </summary>
-    public sealed record ReviewCheck(double At, bool Straight, string RunOut, double Every = 1d);
-
-    /// <summary>
-    /// ⭐ <c>CE-3299</c> B5 — one half of R1, the restore-equivalence oracle (restore design §1k). <see cref="Restore"/> false: run from 0 and
-    /// write checkpoint <c>r1</c> to <see cref="File"/> at <see cref="At"/> (after that moment's snapshot, before its actions). True: put
-    /// <see cref="File"/> back at the start and run on from <see cref="At"/>. Both snapshot every <see cref="Every"/> s, every component in
-    /// full, and write the run to <see cref="RunOut"/>; the command line compares the two from <see cref="At"/>.
-    /// </summary>
-    public sealed record RestoreCheck(double At, string File, bool Restore, string RunOut, double Every = 1d)
-    {
-        /// <summary>Beside the checkpoint: the time it was written and the actions already applied (the restored run must not repeat them).</summary>
-        public string SidecarPath => File + ".r1.json";
-    }
+    /// an extension's <see cref="RunPlan"/> (the editor's verifier — CE-4042, CE-4061).</summary>
+    public enum DirectorMode { Live, Capture, Scout, Plan }
 
     /// <summary>Where and how a capture writes: frames under <see cref="Dir"/>, one movie at <see cref="Movie"/> (§4a: a reel is ONE movie).</summary>
     public sealed record CaptureOptions(string Dir, int Fps = 30, int Width = 1280, int Height = 720, int Supersample = 1,
@@ -45,17 +19,17 @@ namespace Hrot.Editor.Director
 
     /// <summary>A reel to play, at <see cref="Speed"/> (live only), live / to files (<see cref="Capture"/>) / as a scout.</summary>
     /// <remarks><see cref="Inline"/>: takes given with the request (by <c>scenario/take</c>), not read from a file — film.py's one-off
-    /// plans (D-9). A scout of an inline take bakes nothing.</remarks>
+    /// plans (D-9). A scout of an inline take bakes nothing. ⭐ <c>CE-4061</c> — <see cref="Plan"/>: run by the runner's
+    /// <see cref="IRunExtension"/> instead of takes.</remarks>
     public sealed record PlayRequest(Reel Reel, double Speed = 1d, bool Loop = false, CaptureOptions? Capture = null, bool Scout = false,
-                                     IReadOnlyDictionary<string, Take>? Inline = null, bool Bake = true, VerifyOptions? Verify = null)
+                                     IReadOnlyDictionary<string, Take>? Inline = null, bool Bake = true, RunPlan? Plan = null)
     {
-        public DirectorMode Mode => Verify != null ? DirectorMode.Verify : Scout ? DirectorMode.Scout : Capture != null ? DirectorMode.Capture : DirectorMode.Live;
+        public DirectorMode Mode => Plan != null ? DirectorMode.Plan : Scout ? DirectorMode.Scout : Capture != null ? DirectorMode.Capture : DirectorMode.Live;
     }
 
-    /// <remarks><see cref="Checking"/>: ⭐ CE-4045 H1a — a verify run's live part is over and its recording is compared.</remarks>
-    /// <remarks><see cref="Reviewing"/> / <see cref="Returning"/>: ⭐ CE-4045 H5 / H1b — a verify run looks back (in a review of the live run, or
-    /// in a replay of the finished one), then comes back (to live, or to Idle).</remarks>
-    public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Checking, Reviewing, Returning }
+    /// <remarks><see cref="Extension"/>: ⭐ CE-4061 — the runner's extension has the frames (its own phases, named by
+    /// <see cref="IRunExtension.PhaseName"/>).</remarks>
+    public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Extension }
 
     /// <summary>⭐ What one reel item did — the per-take report of §3a (missing beats, anchor mismatches, the realtime factor) and the
     /// stepping rule's own evidence (the most steps taken in one frame, steps the master had not retired by the next frame).</summary>
@@ -88,15 +62,15 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ B0′ (R-3038) — the world at every cut: each named unit's position and health, and the rounds fired so far — what two
         /// runs of one take must agree on once stepped runs repeat (CE-3293 S5).</summary>
         public List<CutSnapshot> Cuts { get; } = new();
-        /// <summary>⭐ CE-4042 — a verify run's verdicts and golden (null on a film or a scout).</summary>
-        public VerifyResult? Verify { get; set; }
+        /// <summary>⭐ CE-4061 — what the runner's extension judged the item to be (the verifier's verdicts and golden); null on a film or a scout.</summary>
+        public IRunResult? Result { get; set; }
 
         public JsonObject ToJson()
         {
             static JsonArray A(IEnumerable<string> xs) => new(xs.Select(x => (JsonNode?)x).ToArray());
             var found = new JsonObject();
             foreach (var (k, v) in Found.OrderBy(kv => kv.Value)) found[k] = Math.Round(v, 3);
-            return new JsonObject
+            var o = new JsonObject
             {
                 ["scenario"] = Scenario, ["take"] = Take, ["title"] = Title, ["status"] = Status,
                 ["problems"] = A(Problems), ["missing"] = A(Missing), ["mismatches"] = A(Mismatches),
@@ -106,8 +80,9 @@ namespace Hrot.Editor.Director
                 ["waitFrames"] = WaitFrames, ["maxStepsInAFrame"] = MaxStepsInAFrame, ["maxRetiredInAFrame"] = MaxRetiredInAFrame, ["frames"] = Frames,
                 ["simEnd"] = Math.Round(SimEnd, 3), ["wallSeconds"] = Math.Round(WallSeconds, 2),
                 ["cuts"] = new JsonArray(Cuts.Select(c => (JsonNode?)c.ToJson()).ToArray()),
-                ["verify"] = Verify?.ToJson(),
             };
+            if (Result != null) o[Result.Kind] = Result.ToJson();
+            return o;
         }
     }
 
@@ -158,7 +133,7 @@ namespace Hrot.Editor.Director
     /// <para>⭐ Every system it adds runs every frame, paused or not (it is the director, and the preview is paused): intended
     /// <c>[TickMode(EveryFrame)]</c> once CE-3293 S1 lands — it is not a kernel system today, it is called by the editor's update.</para>
     /// </summary>
-    public sealed class DirectorRunner
+    public sealed class DirectorRunner : IRunContext
     {
         public const double LoadTimeoutSeconds = 30d;
         /// <summary>How long a scout or a take with an unseen anchor runs before it gives up (sim seconds).</summary>
@@ -169,14 +144,9 @@ namespace Hrot.Editor.Director
         private readonly ILayerOverride _layers;
         private readonly IFrameSink? _sink;
         private readonly IDirectorSound? _sound;
-        private readonly IVerifyWorld? _verifyWorld;
+        /// <summary>⭐ CE-4061 (§11h) — the one seam a host adds a kind of run through (the editor: the scenario verifier).</summary>
+        private readonly IRunExtension? _ext;
         private readonly WorldUnits _units;
-        private ScenarioVerification? _verification;
-        private bool _firstLoad;
-        // ⭐ CE-3299 B5 — R1: the clock a restored checkpoint moves to, the frames waited for it, and whether the checkpoint was written
-        private double _r1Target = double.NaN;
-        private int _r1Frames;
-        private bool _r1Written;
 
         private PlayRequest? _request;
         private int _item;
@@ -203,36 +173,11 @@ namespace Hrot.Editor.Director
         private readonly List<(int Frame, int Item, int Shot, double SimTime)> _manifest = new();
         private readonly List<(int FirstFrame, string Title)> _chapters = new();
         private Task<string?>? _encoding;
-        // ⭐ CE-4045 H1a — the live run's recording: its file, the sim frame the run began on, and the comparison in progress
-        private string? _liveRecording;
-        private long _simFrame0;
-        private VerifyResult? _pendingVerify;
-        private IRecordedRun? _recorded;
-        private ScenarioGolden? _recordedSnapshots;
-        private int _checkIndex;
-        // ⭐ CE-4045 H5 / H1b — the LOOK-BACK, one loop for both: a review of the live run (H5) or a replay of the finished one (H1b). The live
-        //   snapshots to look back at, the one being looked at, how long the clock has stood there
-        private enum LookMode { Review, Replay }
-        private LookMode _look;
-        private bool _reviewDone;   // H5: the run's review happened (or could not)
-        private bool _lookEntered;  // the product is in the review / replay (a replay is entered from Idle, so it waits for it)
-        private List<double>? _lookTimes;
-        private JsonArray? _lookLive;
-        private int _lookIndex;
-        private double _lookTarget, _liveAtRel;
-        private int _standing;
-        private ScenarioGolden? _lookSnapshots, _atLive;
-        // the outcomes, kept until the run's result exists (FinishItem for the review, EndPlayback for the replay)
-        private LookBackResult? _review, _playback;
-        private readonly List<string> _returnDiff = new();
-        private LookBackResult Look => _look == LookMode.Review ? _review! : _playback!;
-        private string LookTag => _look == LookMode.Review ? "H5" : "H1b";
-        private string LookNoun => _look == LookMode.Review ? "review" : "replay";
 
-        /// <param name="verifyWorld">⭐ CE-4042 — what a verify run reads and edits (the editor's entity dump, combat rows and component edit);
-        /// a host without one refuses a verify run.</param>
+        /// <param name="extension">⭐ CE-4061 — a kind of run the host adds (the editor: <c>ScenarioVerifyRun</c>); a request with a
+        /// <see cref="PlayRequest.Plan"/> is refused without one.</param>
         public DirectorRunner(IDirectorHost host, ICinema cinema, ILayerOverride layers, IFrameSink? sink = null, IDirectorSound? sound = null,
-                              Func<IShotWorld, IVerifyWorld?>? verifyWorld = null)
+                              IRunExtension? extension = null)
         {
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _cinema = cinema ?? throw new ArgumentNullException(nameof(cinema));
@@ -240,13 +185,34 @@ namespace Hrot.Editor.Director
             _sink = sink;
             _sound = sound;
             _units = new WorldUnits(() => _host.World);
-            _verifyWorld = verifyWorld?.Invoke(_units);
+            _ext = extension;
+            _ext?.Attach(this);
         }
 
         public DirectorPhase Phase { get; private set; } = DirectorPhase.Idle;
         public DirectorMode Mode => _request?.Mode ?? DirectorMode.Live;
         public bool Busy => Phase is DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing or DirectorPhase.Encoding
-                                  or DirectorPhase.Checking or DirectorPhase.Reviewing or DirectorPhase.Returning;
+                                  or DirectorPhase.Extension;
+
+        // ── ⭐ CE-4061 — IRunContext: what the extension reads and asks ─────────────────────────────
+        IDirectorHost IRunContext.Host => _host;
+        WorldUnits IRunContext.Units => _units;
+        PlayRequest IRunContext.Request => _request!;
+        ReelItem IRunContext.Item => Item;
+        ItemReport IRunContext.Report => Report;
+        double IRunContext.Rel => Rel;
+        void IRunContext.Fail(string why) => Fail(why);
+        void IRunContext.EndItem() => EndItem();
+        void IRunContext.EnterExtensionPhase() => Phase = DirectorPhase.Extension;
+        void IRunContext.ResumePlaying()
+        {
+            if (!_host.Paused) _host.Pause();
+            Phase = DirectorPhase.Playing;
+            _clock?.Start(_host.WallNow);
+        }
+
+        /// <summary>The item runs LIVE through the extension (it records) rather than in the preview.</summary>
+        private bool LiveRun => _ext != null && _request!.Mode == DirectorMode.Plan && _ext.LoadsLive(_request);
         public IReadOnlyList<ItemReport> Reports => _reports;
         private readonly List<ItemReport> _reports = new();
         public string? Error { get; private set; }
@@ -262,22 +228,18 @@ namespace Hrot.Editor.Director
             if (request is null) throw new ArgumentNullException(nameof(request));
             var problems = new List<string>();
             if (request.Reel.Items.Count == 0) problems.Add("the reel has no items");
-            foreach (var it in request.Reel.Items)
+            if (request.Mode == DirectorMode.Plan)   // ⭐ CE-4061 — the extension's plan, judged by the extension
             {
-                if (request.Mode == DirectorMode.Verify)
-                {
-                    foreach (var p in LoadChecks(it.Scenario).Problems) problems.Add($"{it.Scenario}: {p}");
-                    continue;
-                }
-                var t = LoadTake(request, it);
-                foreach (var p in t.Problems) problems.Add($"{it.Scenario}/{it.Take}: {p}");
+                if (_ext == null) problems.Add($"this host has no extension to run a {request.Plan!.GetType().Name}");
+                else problems.AddRange(_ext.Validate(request));
             }
+            else
+                foreach (var it in request.Reel.Items)
+                {
+                    var t = LoadTake(request, it);
+                    foreach (var p in t.Problems) problems.Add($"{it.Scenario}/{it.Take}: {p}");
+                }
             if (request.Capture != null && _sink == null) problems.Add("this host cannot capture (no map to film)");
-            if (request.Mode == DirectorMode.Verify && _verifyWorld == null) problems.Add("this host cannot verify (no entity dump / component edit wired)");
-            if (request.Verify is { Replay: true } rv && (rv.Capture || rv.R1 != null))
-                problems.Add("a replay check runs LIVE: it records no golden and writes no checkpoint (drop capture / R1)");
-            if (request.Verify is { Review: not null } rw && (rw.Capture || rw.R1 != null || rw.Replay))
-                problems.Add("a review check runs LIVE on its own: no capture, no R1, no replay check in the same run");
             if (problems.Count > 0) return problems;
 
             if (Busy) Stop();
@@ -293,7 +255,7 @@ namespace Hrot.Editor.Director
             _paused = false;
             if (request.Capture != null) Directory.CreateDirectory(FramesDir);
             if (request.Mode == DirectorMode.Capture) _sound?.BeginLog();
-            if (request.Mode != DirectorMode.Verify) _cinema.Enter();   // ⭐ a verify run leaves the editor as it is: no camera, no cinema
+            if (request.Mode != DirectorMode.Plan) _cinema.Enter();   // ⭐ an extension's run (verify) leaves the editor as it is: no camera, no cinema
             BeginItem(0);
             return Array.Empty<string>();
         }
@@ -301,7 +263,7 @@ namespace Hrot.Editor.Director
         public void Stop()
         {
             if (!Busy) return;
-            CloseRecorded();
+            _ext?.Stop();
             if (_item < _reports.Count && _reports[_item].Status is "loading" or "playing") _reports[_item].Status = "stopped";
             EndRun();
             Phase = DirectorPhase.Stopped;
@@ -350,9 +312,7 @@ namespace Hrot.Editor.Director
                     case DirectorPhase.Entering: TickEntering(); break;
                     case DirectorPhase.Playing: TickPlaying(); break;
                     case DirectorPhase.Encoding: TickEncoding(); break;
-                    case DirectorPhase.Checking: TickChecking(); break;
-                    case DirectorPhase.Reviewing: TickReviewing(); break;
-                    case DirectorPhase.Returning: TickReturning(); break;
+                    case DirectorPhase.Extension: _ext!.Tick(); break;
                 }
             }
             catch (Exception ex) when (ex is not DirectorSteppingException)
@@ -361,7 +321,7 @@ namespace Hrot.Editor.Director
                 // ⭐ the report keeps the message only; the stack goes to the log so a failed run says WHERE (2026-10-23: six verify runs
                 //   failed on "infinity cannot be written as JSON" with no trace to follow).
                 Console.Error.WriteLine($"[Director] the run stopped on an exception:\n{ex}");
-                CloseRecorded();
+                _ext?.Stop();
                 if (_item < _reports.Count) { _reports[_item].Status = "failed"; _reports[_item].Problems.Add(Error); }
                 EndRun();
                 Phase = DirectorPhase.Stopped;
@@ -383,11 +343,8 @@ namespace Hrot.Editor.Director
         {
             _item = index;
             _take = null; _book = null; _timeline = null; _clock = null; _probe = null; _shot = null; _inGap = true;
-            _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0; _verification = null;
-            _r1Target = double.NaN; _r1Frames = 0; _r1Written = false;
-            _liveRecording = null; _pendingVerify = null; _recordedSnapshots = null; _checkIndex = 0; CloseRecorded();
-            _reviewDone = false; _lookEntered = false; _lookTimes = null; _lookLive = null; _lookIndex = 0; _standing = 0; _lookSnapshots = null; _atLive = null;
-            _review = null; _playback = null; _returnDiff.Clear();
+            _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0;
+            _ext?.Reset();
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -397,31 +354,23 @@ namespace Hrot.Editor.Director
             if (_request!.Mode == DirectorMode.Capture) WriteCard(card);
         }
 
-        /// <summary>⭐ CE-4045 H1a — this item runs LIVE and is compared with its recording.</summary>
-        private bool ReplayCheck => _request!.Verify?.Replay == true;
-
-        /// <summary>⭐ CE-4045 — this item runs LIVE (it records): a replay check (H1a) or either half of a review check (H5).</summary>
-        private bool LiveRun => ReplayCheck || _request!.Verify?.Review != null;
-
         private void TickLoading()
         {
             if (_probe == null)
             {
                 // ⛔ never a rewind as a run (R-3034): leave the last preview, then open the file again
-                // ⚠ H1a: a live run can read as "in preview" (CE-4054) — never left as a preview (that is a rewind); the live load stops it
+                // ⚠ a live run can read as "in preview" (CE-4054) — never left as a preview (that is a rewind); the live load stops it
                 if (_host.InPreview && !_exitedForLoad && !LiveRun) { _host.ExitPreview(); _exitedForLoad = true; return; }
                 int? before = _host.EntityCount;
-                // ⭐ a first load in a fresh process: nothing loaded by a runner yet and no scenario open (the editor's own load leaves it
-                //   OperatingEdit) — the only run a golden may be recorded from (Regression_Net §6 ④, CE-3294)
-                _firstLoad = !_host.HasLoadedAScenario;
-                if (LiveRun) _host.LoadLive(Item.Scenario);   // ⭐ H1a — a live run records (R-3053); the preview never does
+                if (_request!.Mode == DirectorMode.Plan) _ext!.BeforeLoad();
+                if (LiveRun) _ext!.Load(Item.Scenario);   // ⭐ a live run records (R-3053); the preview never does
                 else _host.LoadScenario(Item.Scenario);
                 _probe = new ScenarioReadyProbe(before);
                 _phaseStartWall = _host.WallNow;
                 return;
             }
             double waited = _host.WallNow - _phaseStartWall;
-            if (_probe.Observe(LiveRun ? _host.IsOperatingLive : _host.IsOperatingEdit, _host.EntityCount, waited))
+            if (_probe.Observe(LiveRun ? _ext!.IsLoaded : _host.IsOperatingEdit, _host.EntityCount, waited))
             {
                 Phase = DirectorPhase.Entering;
                 if (!LiveRun) _host.EnterPreview(startPaused: true);
@@ -435,7 +384,11 @@ namespace Hrot.Editor.Director
             if (!LiveRun && !_host.InPreview) { if (++_enterFrames > 120) Fail("the preview did not start"); return; }
             if (!_host.Paused) { _host.Pause(); return; }
 
-            if (_request!.Mode == DirectorMode.Verify) { if (!RestoringCheckpoint()) BeginVerify(); return; }
+            if (_request!.Mode == DirectorMode.Plan)   // ⭐ CE-4061 — the extension prepares its item, then hands back the take it runs
+            {
+                if (_ext!.BeginItem() is { } start) StartPlan(start);
+                return;
+            }
             var loaded = LoadTake(_request!, Item);
             if (loaded.Value is not { } take) { Fail(string.Join("; ", loaded.Problems)); return; }
             _units.Reset();
@@ -468,85 +421,20 @@ namespace Hrot.Editor.Director
             _clock.Start(_host.WallNow);
         }
 
-        /// <summary>⭐ CE-4042 — the scenario's checks (and its golden): no take, no camera; the run lasts <c>runFor</c>, one step per frame.</summary>
-        private void BeginVerify()
+        /// <summary>⭐ CE-4061 — the extension's item: its take (no camera, no layers, no sound — a verify run leaves the editor as it is),
+        /// one step per frame from <see cref="RunStart.T0"/>.</summary>
+        private void StartPlan(RunStart start)
         {
-            var loaded = LoadChecks(Item.Scenario);
-            if (loaded.Value is not { } checks) { Fail(string.Join("; ", loaded.Problems)); return; }
-            _units.Reset();
-            var missing = ScenarioVerification.MissingNames(checks, _units);
-            if (missing.Count > 0) { Report.Problems.AddRange(missing); Fail("the checks name what this scenario does not have"); return; }
-            // ⭐ CE-4045 H1a — a replay check compares the run with its own recording, not with golden.json (a live run is not the preview
-            //   the golden was recorded from — RH-2), every component in full, every second at least (📐 ua-tank-ammo's 10 s grid gave 7
-            //   points for 60 s — too coarse to say WHEN a recording first drops something)
-            bool replay = ReplayCheck;
-            var review = _request!.Verify?.Review;
-            var golden = checks.GoldenEvery is null || LiveRun ? null : _host.Takes.LoadScenarioJson(Item.Scenario, ScenarioGolden.FileName).Value;
-            _take = new Take { Scenario = Item.Scenario, Name = "_verify", TickHz = 60, EndAt = new AtExpr(checks.RunFor) };
-            Report.TickHz = 60;
-            _book = new AnchorBook(_take.Anchors, null, _host.BehaviourName);
-            var r1 = _request!.Verify!.R1;
-            bool restored = r1 is { Restore: true };
-            double at = restored ? ReadSidecar(r1!).At ?? r1!.At : 0d;   // ⭐ CE-3316 — where A really wrote it (on a quiet step)
-            _t0 = restored ? _host.SimTime - at : _host.SimTime;   // ⭐ B5 — a restored run goes on from there, on the same grid
+            _take = start.Take;
+            Report.TickHz = start.Take.TickHz;
+            _book = new AnchorBook(start.Take.Anchors, null, _host.BehaviourName);
+            _t0 = start.T0;
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
-            _simFrame0 = SimFrameNow();
-            _verification = new ScenarioVerification(checks, golden, _request!.Verify!.Capture, _verifyWorld!, _t0,
-                startAt: at, snapshotEvery: r1?.Every ?? review?.Every ?? (replay ? Math.Min(checks.GoldenEvery ?? 1d, 1d) : null));
-            if (restored) _verification.MarkDone(ReadSidecar(r1!).Done);
             Replan();
-            _clock = new PacedClock(60, 1d);
+            _clock = new PacedClock(start.Take.TickHz, 1d);
             Phase = DirectorPhase.Playing;
             Report.Status = "playing";
             _clock.Start(_host.WallNow);
-        }
-
-        /// <summary>
-        /// ⭐ <c>CE-3299</c> B5 — R1's restoring half: the checkpoint is put back (the cluster restore's own sequence) and the clock asked to
-        /// its mark, then the run waits until the clock is there. True while that is still going on.
-        /// </summary>
-        private bool RestoringCheckpoint()
-        {
-            if (_request!.Verify?.R1 is not { Restore: true } r1) return false;
-            if (double.IsNaN(_r1Target))
-            {
-                try { _r1Target = _host.RestoreCheckpoint(r1.File); }
-                catch (Exception ex) { Fail($"R1: the checkpoint {r1.File} could not be restored — {ex.Message}"); }
-                return true;
-            }
-            if (Math.Abs(_host.SimTime - _r1Target) <= 1e-6) return false;
-            if (++_r1Frames > 120) Fail($"R1: the clock did not reach the checkpoint's {_r1Target} s (at {_host.SimTime} s)");
-            return true;
-        }
-
-        // ⭐ B5 — R1's writing half: the world at At, and beside it the actions already applied
-        private void WriteCheckpoint(RestoreCheck r1, double rel)
-        {
-            _r1Written = true;
-            if (File.Exists(r1.File)) File.Delete(r1.File);
-            if (File.Exists(r1.File + ".meta.json")) File.Delete(r1.File + ".meta.json");
-            _host.WriteCheckpoint(r1.File, "r1");
-            var done = new System.Text.Json.Nodes.JsonArray(_verification!.DoneActions.Select(i => (System.Text.Json.Nodes.JsonNode?)i).ToArray());
-            File.WriteAllText(r1.SidecarPath, new System.Text.Json.Nodes.JsonObject { ["at"] = rel, ["doneActions"] = done }.ToJsonString());
-        }
-
-        /// <summary>⭐ B5 / CE-3316 — the checkpoint's sidecar: the run time it was written at, and the actions applied by then.</summary>
-        public static (double? At, IReadOnlyList<int> Done) ReadSidecar(RestoreCheck r1)
-        {
-            if (!File.Exists(r1.SidecarPath)) return (null, Array.Empty<int>());
-            var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(r1.SidecarPath));
-            var done = (node?["doneActions"] as System.Text.Json.Nodes.JsonArray ?? new System.Text.Json.Nodes.JsonArray())
-                .Select(n => (int?)n ?? -1).Where(i => i >= 0).ToList();
-            return ((double?)node?["at"], done);
-        }
-
-        private Loaded<ScenarioChecks> LoadChecks(string scenario)
-        {
-            var json = _host.Takes.LoadScenarioJson(scenario, ChecksJson.FileName);
-            if (json.Value is null) return new Loaded<ScenarioChecks>(null, json.Problems);
-            var problems = new List<string>();
-            var checks = ChecksJson.Parse(json.Value, scenario, problems);
-            return new Loaded<ScenarioChecks>(problems.Count == 0 ? checks : null, problems);
         }
 
         private Loaded<Take> LoadTake(PlayRequest request, ReelItem item)
@@ -574,8 +462,8 @@ namespace Hrot.Editor.Director
             bool masterBehind = _issued - retired >= 2;
 
             _book!.Observe(_host.World!, _units, rel);
-            _verification?.Observe(rel);
-            if (LiveRun) _liveRecording ??= _host.LiveRecordingPath;   // ⭐ H1a — named while it records (the recorder forgets it on close)
+            bool plan = mode == DirectorMode.Plan;
+            if (plan) _ext!.OnFrame(rel);
             if (_book.Live.Count != _liveCount)
             {
                 _liveCount = _book.Live.Count;
@@ -583,12 +471,7 @@ namespace Hrot.Editor.Director
             }
 
             if (Finished(rel)) { FinishItem(); return; }
-            // ⭐ CE-4045 H5 — at the review's time: no step more; once the master has taken every step asked for, look back
-            if (_request.Verify?.Review is { Straight: false } rc && !_reviewDone && rel + 1e-9 >= rc.At)
-            {
-                if (retired >= _issued) BeginReview(rel);
-                return;
-            }
+            if (plan && _ext!.HoldsStep(rel, retired, _issued)) return;   // ⭐ CE-4061 — the extension holds the step (the H5 review takes over)
 
             var shot = _timeline!.At(rel);
             if (!ReferenceEquals(shot, _shot) || (shot == null) != _inGap) EnterShot(shot);
@@ -607,11 +490,7 @@ namespace Hrot.Editor.Director
             {
                 _host.Hold(_clock!.HoldFor(_host.WallNow));
             }
-            // ⭐ CE-3316 — on a step with no slot run in flight (as the recorder writes one), a few steps late at most
-            if (_request.Verify?.R1 is { Restore: false } r1 && !_r1Written && rel + 1e-9 >= r1.At
-                && (!_host.SlotRunInFlight || ++_r1Frames > Fdp.Toolkit.Replay.RecorderTickSystem.MaxCheckpointDeferSteps))
-                WriteCheckpoint(r1, rel);
-            _verification?.ApplyDue(rel);   // ⭐ an action lands on its exact step (every frame is a step boundary)
+            if (plan) _ext!.BeforeStep(rel);   // ⭐ CE-4061 — e.g. R1's checkpoint, an action due on this exact step
             StepOnce();
         }
 
@@ -632,7 +511,7 @@ namespace Hrot.Editor.Director
         private bool Finished(double rel)
         {
             double cap = _take!.EndAt is { IsFixed: true } end ? end.Offset : CapSeconds;
-            if (_request!.Mode == DirectorMode.Verify) return rel >= cap - 1e-9;
+            if (_request!.Mode == DirectorMode.Plan) return rel >= cap - 1e-9;
             if (rel >= cap) return true;
             if (_request!.Mode == DirectorMode.Scout) return !_book!.Unseen.Any() && rel >= _timeline!.End;
             if (_timeline!.Unresolved.Count > 0) return rel >= _timeline.End + UnseenGraceSeconds;
@@ -734,33 +613,8 @@ namespace Hrot.Editor.Director
             if (_clock != null) { r.RealtimeFactor = _clock.RealtimeFactor; r.LateFrames += _clock.LateFrames; }
             r.SimEnd = _take != null ? Rel : 0d;
             r.WallSeconds = _host.WallNow - _itemStartWall;
-            if (_verification != null && r.Status == "playing")
-            {
-                var v = _verification.Finish(Rel, r.Steps);
-                if (!_firstLoad) v.MarkReload();
-                if (_request!.Verify?.R1 is { } r1)   // ⭐ B5 — the run goes to the command line, which compares the two halves
-                {
-                    if (!r1.Restore && !_r1Written) v.Problems.Add($"R1: the run ended before the checkpoint time {r1.At} s");
-                    if (v.GoldenJson != null) { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(r1.RunOut))!); File.WriteAllText(r1.RunOut, v.GoldenJson.ToJsonString()); }
-                }
-                if (v.Golden == "captured" && v.GoldenJson != null)
-                    v.Written.AddRange(_host.Takes.SaveScenarioJson(Item.Scenario, ScenarioGolden.FileName, v.GoldenJson));
-                if (_request.Verify?.Review is { } rc)   // ⭐ H5 — the half goes to the command line, which compares the two from At
-                {
-                    v.Golden = "none";
-                    if (v.GoldenJson != null) { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(rc.RunOut))!); File.WriteAllText(rc.RunOut, v.GoldenJson.ToJsonString()); }
-                    if (!rc.Straight)
-                    {
-                        if (!_reviewDone) v.Problems.Add($"H5: the run ended before the review time {rc.At} s");
-                        v.Review = _review;
-                        v.ReturnDiff.AddRange(_returnDiff);
-                    }
-                }
-                _verification = null;
-                if (ReplayCheck) { BeginReplayCheck(v); return; }
-                r.Verify = v;
-                r.Status = v.Passed ? "pass" : "fail";
-            }
+            // ⭐ CE-4061 — the extension judges its item; it may take the end over (its own phases, then EndItem)
+            if (_request!.Mode == DirectorMode.Plan && r.Status == "playing" && _ext!.Finish(r)) return;
             EndItem();
         }
 
@@ -793,245 +647,6 @@ namespace Hrot.Editor.Director
             }
             EndRun();
             Phase = DirectorPhase.Done;
-        }
-
-        // ── ⭐ CE-4045 H1a — the live run against its own recording (docs/DESIGN_Scenario_Regression.md §10-1, R-4085) ─────────────
-
-        /// <summary>The live part is over: the run's own snapshots are the reference. Stop the run, so the recorder closes the file.</summary>
-        private void BeginReplayCheck(VerifyResult v)
-        {
-            _pendingVerify = v;
-            v.Golden = "none";   // ⭐ RH-2 — a live run is not the preview a golden was recorded from: not compared here
-            if (_liveRecording == null) { EndReplayCheck("failed", "the live run recorded nothing (no recording file was named while it ran)"); return; }
-            _host.StopLive();
-            Phase = DirectorPhase.Checking;
-            _phaseStartWall = _host.WallNow;
-        }
-
-        /// <summary>⭐ Once per frame: wait for the file to close, then match ONE live snapshot per frame to its recorded sim frame.</summary>
-        private void TickChecking()
-        {
-            var v = _pendingVerify!;
-            var live = (v.GoldenJson?["snapshots"] as JsonArray) ?? new JsonArray();
-            if (_recorded == null)
-            {
-                if (!(_host.IsIdle && _host.LiveRecordingPath == null))
-                {
-                    if (_host.WallNow - _phaseStartWall > LoadTimeoutSeconds)
-                        EndReplayCheck("failed", $"the live run did not stop, or its recording did not close, within {LoadTimeoutSeconds:0} s");
-                    return;
-                }
-                if (!File.Exists(_liveRecording)) { EndReplayCheck("failed", $"the recording {_liveRecording} is not on disk"); return; }
-                _recorded = _host.OpenRecording(_liveRecording!);
-                _recordedSnapshots = new ScenarioGolden(_recorded.World, full: true);
-                _checkIndex = 0;
-                return;
-            }
-            if (_checkIndex < live.Count)
-            {
-                double t = ConditionBook.Num(live[_checkIndex]?["t"]) ?? 0d;
-                long frame = SimFrameAt(t);
-                if (!_recorded.AdvanceToSimFrame(frame))
-                {
-                    EndReplayCheck("failed", $"the recording has no sim frame {frame} (t {t} s): it stands at {_recorded.SimFrame} — "
-                                             + $"{_checkIndex} of {live.Count} snapshots matched");
-                    return;
-                }
-                _recordedSnapshots!.Snapshot(t);
-                _checkIndex++;
-                return;
-            }
-            var carried = ScenarioGolden.CarriedBy(_liveRecording!);
-            var liveJson = new JsonObject { ["snapshots"] = live.DeepClone() };
-            var recorded = _recordedSnapshots!.SnapshotsJson();
-            var diff = ScenarioGolden.CompareFrom(liveJson, recorded, 0d, carried);
-            v.ReplaySnapshots = _checkIndex;
-            if (carried == null) v.ReplayNotCarried.Add($"⚠ the recording has no schema manifest ({_liveRecording}.meta.json) — every component compared");
-            else v.ReplayNotCarried.AddRange(ScenarioGolden.CompareNotCarried(liveJson, recorded, 0d, carried));
-            v.ReplayDiff.AddRange(diff);
-            EndReplayCheck(diff.Count == 0 ? "same" : "different", null);
-        }
-
-        private void EndReplayCheck(string verdict, string? why)
-        {
-            CloseRecorded();
-            var v = _pendingVerify!;
-            v.Replay = verdict;
-            if (why != null) v.ReplayDiff.Insert(0, why);
-            BeginPlayback(v);   // ⭐ H1b — the product's replay of the same run, whatever H1a found (a failed H1a is not a reason to skip it)
-        }
-
-        // ── ⭐ CE-4045 H1b — the product's cluster REPLAY of the finished run (docs/DESIGN_Scenario_Regression.md §10-2 ②) ──────────
-
-        /// <summary>The recording is judged (H1a): look back at EVERY live snapshot through the master's replay — the same loop as the review
-        /// (<see cref="TickReviewing"/>), entered from Idle and left to Idle.</summary>
-        private void BeginPlayback(VerifyResult v)
-        {
-            _look = LookMode.Replay;
-            _playback = new LookBackResult();
-            if (!_host.IsIdle) _host.StopLive();   // ⚠ a replay is entered from Idle; a run that did not stop (H1a failed) is stopped, never left behind
-            var live = (v.GoldenJson?["snapshots"] as JsonArray) ?? new JsonArray();
-            if (!BeginLookBack(live, double.PositiveInfinity)) { EndPlayback(); return; }
-            _phaseStartWall = _host.WallNow;   // the wait for Idle is timed from here, not from H1a's check
-            Phase = DirectorPhase.Reviewing;
-        }
-
-        /// <summary>The replay is left (Idle) and compared: the item is judged.</summary>
-        private void EndPlayback()
-        {
-            var v = _pendingVerify!;
-            _pendingVerify = null;
-            v.Playback = _playback;
-            var r = Report;
-            r.Verify = v;
-            r.Status = v.Passed ? "pass" : "fail";
-            EndItem();
-        }
-
-        private void CloseRecorded()
-        {
-            _recorded?.Dispose();
-            _recorded = null;
-        }
-
-        /// <summary>The sim frame a live snapshot at run time <paramref name="t"/> was taken on — the frame the run began on, plus one per
-        /// step of 1/60 s (a verify run steps at 60 Hz — <see cref="BeginVerify"/>).</summary>
-        private long SimFrameAt(double t) => _simFrame0 + (long)Math.Round(t * Report.TickHz);
-
-        private long SimFrameNow() => _host.World is { } w && w.HasSingletonUnmanaged<Fdp.Core.GlobalTime>()
-            ? w.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().FrameNumber : 0;
-
-        // ── ⭐ CE-4045 H5 / H1b — the LOOK-BACK: ONE loop for a During Action Review of the live run (docs/DESIGN_Scenario_Regression.md
-        //    §10-3) and for the cluster REPLAY of the finished one (§10-2 ②). Enter, then for each live snapshot time wait until the world's
-        //    clock STANDS there, snapshot, seek on; then come back (review: to live · replay: to Idle) and compare. The mode decides only the
-        //    state it waits for, the entry call and the way back ───────────────────────────────────────────────────────────────────────────
-
-        private double HalfStep => 0.5 / Math.Max(1, Report.TickHz);
-
-        /// <summary>The live run stands at the review's time with nothing in flight: remember the world, review back to the start.</summary>
-        private void BeginReview(double rel)
-        {
-            _look = LookMode.Review;
-            _review = new LookBackResult();
-            _liveAtRel = rel;
-            _atLive = new ScenarioGolden(_verifyWorld!, full: true);
-            _atLive.Snapshot(rel);
-            var live = (_verification!.Run?.SnapshotsJson()["snapshots"] as JsonArray) ?? new JsonArray();
-            if (!BeginLookBack(live, rel + 1e-6)) { _reviewDone = true; return; }
-            _host.EnterReview(_lookTarget);
-            _lookEntered = true;
-            Phase = DirectorPhase.Reviewing;
-        }
-
-        /// <summary>The live snapshots up to <paramref name="upTo"/> are the moments to look back at; false when there are none.</summary>
-        private bool BeginLookBack(JsonArray live, double upTo)
-        {
-            _lookLive = live;
-            _lookTimes = live.Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).Where(t => t <= upTo).ToList();
-            if (_lookTimes.Count == 0) { Look.Problems.Add($"{LookTag}: no live snapshot to look back at"); return false; }
-            _lookSnapshots = new ScenarioGolden(_verifyWorld!, full: true);
-            _lookIndex = 0;
-            _lookTarget = _t0 + _lookTimes[0];
-            _lookEntered = false;
-            _standing = 0;
-            _phaseStartWall = _host.WallNow;
-            return true;
-        }
-
-        /// <summary>⭐ Once per frame: wait until the clock STANDS at the target (a seek lands on a later frame), snapshot, seek on.</summary>
-        private void TickReviewing()
-        {
-            if (!_lookEntered)   // ⭐ H1b — a replay is entered from Idle: once the master has stopped the live run
-            {
-                if (_host.IsIdle) { _host.EnterReplay(_lookTarget); _lookEntered = true; _phaseStartWall = _host.WallNow; }
-                else if (_host.WallNow - _phaseStartWall > LoadTimeoutSeconds)
-                {
-                    Look.Problems.Add($"{LookTag}: the live run did not stop (Idle) within {LoadTimeoutSeconds:0} s — no replay to look at");
-                    CompareLookBack();
-                    EndPlayback();
-                }
-                return;
-            }
-            bool inLook = _look == LookMode.Review ? _host.IsOperatingReview : _host.IsOperatingReplay;
-            if (!inLook || Math.Abs(_host.SimTime - _lookTarget) > HalfStep) _standing = 0;
-            else _standing++;
-            double t = _lookTimes![_lookIndex];
-            if (_standing >= 3)
-            {
-                _lookSnapshots!.Snapshot(t);
-                _lookIndex++;
-            }
-            else if (_host.WallNow - _phaseStartWall > LoadTimeoutSeconds)
-            {
-                Look.Problems.Add($"{LookTag}: the {LookNoun} did not stand at {t} s within {LoadTimeoutSeconds:0} s (state {(inLook ? LookNoun : "not " + LookNoun)}, clock {_host.SimTime - _t0:0.####} s)");
-                _lookIndex++;
-            }
-            else return;
-            if (_lookIndex < _lookTimes.Count)
-            {
-                _lookTarget = _t0 + _lookTimes[_lookIndex];
-                _standing = 0;
-                _phaseStartWall = _host.WallNow;
-                if (inLook) _host.SeekReview(_lookTarget);   // ⭐ the same SeekReplayIntent for a review and a replay
-                return;
-            }
-            if (_look == LookMode.Review) { _host.ExitReview(); _lookTarget = _t0 + _liveAtRel; }
-            else _host.StopLive();   // ⭐ H1b — leave the replay: an Idle transition, nothing is left running
-            _standing = 0;
-            _phaseStartWall = _host.WallNow;
-            Phase = DirectorPhase.Returning;
-        }
-
-        /// <summary>⭐ Once per frame: a review waits until live stands at the point it left and compares the world; a replay waits for Idle.
-        /// Then the look-back is compared with the live run.</summary>
-        private void TickReturning()
-        {
-            if (_look == LookMode.Replay)   // ⭐ H1b — back to Idle, then the item is judged
-            {
-                if (!_host.IsIdle)
-                {
-                    if (_host.WallNow - _phaseStartWall <= LoadTimeoutSeconds) return;
-                    Look.Problems.Add($"H1b: the replay did not stop (Idle) within {LoadTimeoutSeconds:0} s");
-                }
-                CompareLookBack();
-                EndPlayback();
-                return;
-            }
-            if (!_host.IsOperatingLive || Math.Abs(_host.SimTime - _lookTarget) > HalfStep) _standing = 0;
-            else _standing++;
-            if (_standing < 3)
-            {
-                if (_host.WallNow - _phaseStartWall <= LoadTimeoutSeconds) return;
-                _review!.Problems.Add($"H5: live did not come back to {_liveAtRel} s within {LoadTimeoutSeconds:0} s (clock {_host.SimTime - _t0:0.####} s)");
-            }
-            var after = new ScenarioGolden(_verifyWorld!, full: true);
-            after.Snapshot(_liveAtRel);
-            _returnDiff.AddRange(ScenarioGolden.CompareFrom(_atLive!.SnapshotsJson(), after.SnapshotsJson(), _liveAtRel));
-            CompareLookBack();
-            _reviewDone = true;
-            if (!_host.Paused) _host.Pause();
-            Phase = DirectorPhase.Playing;
-            _clock?.Start(_host.WallNow);
-        }
-
-        /// <summary>
-        /// The look-back against the live run, on what the recording carries (what a review or a replay can show).
-        /// ⚠ The comparator pairs snapshots by INDEX: compare only the live snapshots at the times the product actually STOOD at
-        /// (📐 measured: a review that never reached 0 s shifted every later pair by one second).
-        /// </summary>
-        private void CompareLookBack()
-        {
-            var result = Look;
-            var seen = _lookSnapshots!.SnapshotsJson();
-            var seenTimes = ((seen["snapshots"] as JsonArray) ?? new JsonArray()).Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).ToList();
-            var live = new JsonObject { ["snapshots"] = new JsonArray((_lookLive ?? new JsonArray())
-                .Where(n => ConditionBook.Num(n?["t"]) is { } t && seenTimes.Any(st => Math.Abs(st - t) < 1e-4)).Select(n => n!.DeepClone()).ToArray()) };
-            var carried = _liveRecording is { } path ? ScenarioGolden.CarriedBy(path) : null;
-            result.Snapshots = _lookSnapshots.Snapshots;
-            result.Diff.AddRange(ScenarioGolden.CompareFrom(live, seen, 0d, carried));
-            if (carried != null) result.NotCarried.AddRange(ScenarioGolden.CompareNotCarried(live, seen, 0d, carried));
-            else result.NotCarried.Add("⚠ no recording manifest was found — every component compared");
-            result.Verdict = result.Diff.Count == 0 && result.Problems.Count == 0 ? "same" : "different";
         }
 
         /// <summary>⭐ B7 — the scout's run becomes the take's baked anchors (its step rate, the scenario's hash), saved to the take's file.</summary>
@@ -1122,8 +737,8 @@ namespace Hrot.Editor.Director
         {
             var o = new JsonObject
             {
-                ["phase"] = Phase.ToString(),
-                ["mode"] = _request?.Mode.ToString(),
+                ["phase"] = Phase == DirectorPhase.Extension ? _ext!.PhaseName : Phase.ToString(),
+                ["mode"] = _request?.Mode == DirectorMode.Plan ? _ext?.ModeName : _request?.Mode.ToString(),
                 ["reel"] = _request?.Reel.Name,
                 ["item"] = _request == null ? null : _item,
                 ["items"] = _request?.Reel.Items.Count,

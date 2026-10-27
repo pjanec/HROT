@@ -591,7 +591,7 @@ namespace Hrot.Editor.Director
     }
 
     /// <summary>What one verification found.</summary>
-    public sealed class VerifyResult
+    public sealed class VerifyResult : IRunResult
     {
         public List<Verdict> Verdicts { get; } = new();
         /// <summary>none (a demo) · same · different · missing · captured · not-captured</summary>
@@ -622,6 +622,9 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ <c>CE-4045</c> H1b — the product's cluster REPLAY of the finished run (entered, sought by recorded sim time) against the
         /// live run: null (not asked) · same · different.</summary>
         public LookBackResult? Playback { get; set; }
+
+        /// <summary>⭐ CE-4061 — the key a director report writes this under.</summary>
+        public string Kind => "verify";
 
         public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is ("none" or "same" or "captured") && Replay is (null or "same")
                               && Review is (null or { Verdict: "same" }) && ReturnDiff.Count == 0 && Playback is (null or { Verdict: "same" });

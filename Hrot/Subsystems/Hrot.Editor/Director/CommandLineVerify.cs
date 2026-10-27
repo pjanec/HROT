@@ -88,7 +88,7 @@ namespace Hrot.Editor.Director
                     Name = "verify",
                     Items = _scenarios.Select(s => new ReelItem { Scenario = s, Take = "_verify" }).ToList(),
                 };
-                var refused = director.Play(new PlayRequest(reel, Verify: new VerifyOptions(_capture, _r1, _replay, _review)));
+                var refused = director.Play(new PlayRequest(reel, Plan: new VerifyOptions(_capture, _r1, _replay, _review)));
                 if (refused.Count > 0) { Finish(2, "not started: " + string.Join("; ", refused), null, exit); return; }
                 _started = true;
                 return;
@@ -101,7 +101,7 @@ namespace Hrot.Editor.Director
 
         private static JsonObject Item(ItemReport r)
         {
-            var o = r.Verify?.ToJson() ?? new JsonObject();
+            var o = r.Verify()?.ToJson() ?? new JsonObject();
             o["scenario"] = r.Scenario;
             o["status"] = r.Status;
             o["steps"] = r.Steps;
