@@ -161,12 +161,12 @@ take is ordinary, and rendering its still keys is ui's `/director/stills` — th
 |---|---|
 | a name with a wildcard (`"*Rifleman"`) | the first unit, by name order, that matches — the same order the checks resolve it in |
 | a name that resolves to no unit | the moment has no actor/subject from it; with neither, the still frames the scenario's units centre (the drafter's midpoint over all units) — ⚠ say so in the key's caption |
-| the take | ONE take per scenario, `name = "_doc"`, a key per moment in time order, each `Still = "<nn>-<slug of the check's name>"`, `Caption` = the check's name + ✅/⛔; fixed times (a documentation take is of THIS recording, never promoted) |
+| the take | ONE take per scenario, `name = "_doc"`, a key per moment in time order, each `Still = "<nn>-<slug of the check's name>"`, `Caption` = the check's name + ✓/✗ (CE-1374: the baked fonts carry ✓/✗, not ✅/⛔); fixed times (a documentation take is of THIS recording, never promoted) |
 | what renders it | ui's `/director/stills {recording, take}` (P3) into the verify report's folder, then a contact sheet (CE-4060's second half) |
 
 **Acceptance (rails, `DocumentationTakesTests`, Hrot.Editor.Tests):** a synthetic `ua-tank-ammo`-shaped check set (a shot by Tank at Enemy
 Tank passing at 8.9 s; a `field` health check failing with no time, `before: 40`; a `never` passing; an `atEnd`) over a synthetic index ⇒ three
-keys at 8.9, 40 and `RunFor`, in order, each with a `Still` and a caption carrying ✅/⛔; the first key's camera is the drafter's ③ for that
+keys at 8.9, 40 and `RunFor`, in order, each with a `Still` and a caption carrying ✓/✗; the first key's camera is the drafter's ③ for that
 moment (equal to `Drafter.Draft(...)`'s ③); the `never` makes no key; a wildcard resolves to the first match by name.
 
 **As built** *(`2026-10-27`, coordinator via a Sonnet build, reviewed)* — `Hrot.Editor/Director/DocumentationTakes.From(checks, verdicts, index,

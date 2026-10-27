@@ -92,7 +92,7 @@ namespace Hrot.Editor.Director
                 captions.Add(new JsonObject
                 {
                     ["still"] = still,
-                    ["caption"] = check.Name + (wholeScene ? " (no unit of this check found: the whole scenario)" : "") + (verdict.Ok ? " ✅" : " ⛔"),
+                    ["caption"] = check.Name + (wholeScene ? " (no unit of this check found: the whole scenario)" : "") + (verdict.Ok ? " ✓" : " ✗")   // ✓ / ✗: glyphs the baked fonts carry (CE-1374 — ✅ / ⛔ drew "?"),
                 });
             }
 

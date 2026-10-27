@@ -94,8 +94,8 @@ public sealed class DocumentationTakesTests
         Assert.All(take.Keys, k => Assert.True(k.At.IsFixed));
     }
 
-    /// <summary>Each key's still is <c>nn-slug</c> of its check's name in time order, and its caption is the name ending ✅ (passed) or ⛔ (failed).
-    /// 🔴 Mutation: the caption's <c>verdict.Ok ? " ✅" : " ⛔"</c> inverted ⇒ the first caption ends ⛔.</summary>
+    /// <summary>Each key's still is <c>nn-slug</c> of its check's name in time order, and its caption is the name ending ✓ (passed) or ✗ (failed).
+    /// 🔴 Mutation: the caption's <c>verdict.Ok ? " ✓" : " ✗"</c> inverted ⇒ the first caption ends ✗.</summary>
     [Fact]
     public void CE4060_EachKeyIsAStillNamedFromItsCheck_WithACaptionEndingInItsVerdictMark()
     {
@@ -105,7 +105,7 @@ public sealed class DocumentationTakesTests
         Assert.Equal(new[] { "00-tank-fires-on-the-enemy", "01-enemy-tank-is-wounded", "02-tank-alive-at-end" }, take.Keys.Select(k => k.Still).ToArray());
         var captions = Captions(take);
         Assert.Equal(take.Keys.Select(k => k.Still!).ToArray(), captions.Select(c => c.Still).ToArray());
-        Assert.Equal(new[] { "Tank fires on the enemy ✅", "Enemy tank is wounded ⛔", "Tank alive at end ✅" }, captions.Select(c => c.Caption).ToArray());
+        Assert.Equal(new[] { "Tank fires on the enemy ✓", "Enemy tank is wounded ✗", "Tank alive at end ✓" }, captions.Select(c => c.Caption).ToArray());
     }
 
     /// <summary>The first key's camera IS the drafter's ③ for the same moment (Tank → Enemy Tank at 8.9): the third key of <see cref="Drafter.Draft"/> — not a copy of its math.
@@ -138,7 +138,7 @@ public sealed class DocumentationTakesTests
         var key = Assert.Single(failed.Keys);
         Assert.Equal(12d, key.At.Offset);
         Assert.Equal("00-no-friendly-fire", key.Still);
-        Assert.Equal("No friendly fire ⛔", Captions(failed).Single().Caption);
+        Assert.Equal("No friendly fire ✗", Captions(failed).Single().Caption);
     }
 
     /// <summary>A wildcard <c>"*Rifleman"</c> is the first unit by ORDINAL name order that contains the part — "Rifleman A", although "Rifleman B" is listed first — so the key's
@@ -157,7 +157,7 @@ public sealed class DocumentationTakesTests
         Assert.Equal(ThirdFor(RiflemanA), Assert.Single(take.Keys).Camera);
     }
 
-    /// <summary>A failed check whose cue DID hold, but outside its window (Outside 25), is filmed where it happened — 25, not the window's end (40) — and still named ⛔.
+    /// <summary>A failed check whose cue DID hold, but outside its window (Outside 25), is filmed where it happened — 25, not the window's end (40) — and still named ✗.
     /// 🔴 Mutation: <c>v.Outside ?? e.Before?.Resolve(namedTime) ?? runFor</c> reordered to put <c>Before</c> first ⇒ the key is at 40.</summary>
     [Fact]
     public void CE4060_ACheckThatHeldOutsideItsWindow_IsFilmedWhereItHappened()
@@ -167,7 +167,7 @@ public sealed class DocumentationTakesTests
 
         var key = Assert.Single(take.Keys);
         Assert.Equal(25d, key.At.Offset);
-        Assert.EndsWith(" ⛔", Captions(take).Single().Caption);
+        Assert.EndsWith(" ✗", Captions(take).Single().Caption);
     }
 
     /// <summary>A check whose units resolve to nothing is framed over the whole scenario (the drafter's group camera) and its caption SAYS so, the verdict mark still last.
@@ -184,6 +184,6 @@ public sealed class DocumentationTakesTests
         Assert.True(look.X > 20f);
         var caption = Captions(take).Single().Caption;
         Assert.Contains("whole scenario", caption);
-        Assert.EndsWith(" ✅", caption);
+        Assert.EndsWith(" ✓", caption);
     }
 }
