@@ -1,3 +1,8 @@
+<!--STATUS
+related-designs:
+  - ../../../reference/NED_DDS_Protocol.md — OWNS the current wire inventory (all [DdsTopic] types, keys, QoS), the protocol concepts and the DIS/HLA gateway mapping; THIS overview (2026-05) lacks ~100 of those topics and still lists the retired AreaQuery topics
+-->
+
 # Hrot.Network.NED
 
 **Project path**: `Hrot/Network/Hrot.Network.NED/Hrot.Network.NED.csproj`
