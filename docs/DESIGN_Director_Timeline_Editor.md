@@ -3156,7 +3156,7 @@ Rails (`FilmFrameRail`): `CE1382_AFilmFrame_NeverDrawsAnActiveToolsHandles_ButDr
 
 ![The 2-D window (left) and the 2-D film frame (right) at the same moment](img/film-p6-2d-window-vs-film.jpg)
 
-#### CE-1381 sample / CE-1420 as built *(ui, `2026-10-27` — the grid in 2-D films; the 2-D ground colour as an OFF option, awaiting the user's pick)*
+#### CE-1381 sample / CE-1420 as built *(ui, `2026-10-27` — the grid in 2-D films; the 2-D ground colour option WITHDRAWN the same day)*
 
 🔒 User, 2026-10-27: *"Ad black 2d map - there should have been the grid at least. Muted color is ok just need to see a sample first."*
 
@@ -3167,7 +3167,7 @@ and SimHost alike (the editor's Config "Grid" tick can only add to it); only a p
 is built from the set of the view the take STARTS in (the 3-D set for a 3-D→2-D film) and held across the switch, so a person's 2-D-only tick is not what such a film
 holds; the two sets start equal (the 3-D set is a copy of the 2-D defaults).
 
-**Ground colour — a SAMPLE, off by default.** New row `Map.GroundFill` ("Ground colour (2-D)", `DebugTraceLayers.GroundFill = 29`, `FirstUntoggledLayer` 29 → 30), **default
+**Ground colour — ⛔ WITHDRAWN `2026-10-27`, removed from the code.** 🔒 User, after seeing the samples: *"is the green color on 2d map shown only where 3d terrain has its green gound (so 2d then matches 3d) or is it just all-black to all-dark-green switch? (that would not be needed, black is as good as dark green)"*. It WAS a flat whole-view switch (one rectangle over the view): the 3-D open ground is one colour, and water and forest already come from the terrain's surface polygons in BOTH maps (`TerrainPlan2D.Emit`, `TerrainWorldMesh`), so the user's own condition says it is not needed. Removed: the `Map.GroundFill` row, `DebugTraceLayers.GroundFill` (`FirstUntoggledLayer` back to 29), `TerrainLayer2D.DrawGround`, `TerrainPlan2D.MutedGround`, the ground rails and the `HROT_FILM_PROOF_GROUND` live-proof hook. KEPT: the grid (`Map.Grid` in `SceneRows`) and its rail. The text below is HISTORY (what the sample was); the sample image stays as the record of what was rejected.
 off**, remembered per view like every row and a scene row (a clean take keeps the person's tick). `TerrainLayer2D.DrawGround` draws ONE rectangle over the VIEW, first in the
 layer (under the plan's fills, the grid and every gizmo), in `TerrainPlan2D.MutedGround(TerrainLayer3D.GroundColor, GroundFillFactor)` — the 3-D ground colour × a share
 (default `TerrainPlan2D.DefaultGroundFillFactor = 0.35` → (39,50,30)): ONE ground colour for both maps. ⭐ The view, not the terrain's bounds (CE-1381's lean): measured on the

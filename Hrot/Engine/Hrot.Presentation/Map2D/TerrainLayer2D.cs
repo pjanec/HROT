@@ -40,9 +40,6 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     private readonly Func<EntityRepository?> _world;
     private readonly Func<bool> _visible;
     private readonly Func<MapCamera?> _camera;
-    private readonly Func<bool> _groundFill;
-    private bool _groundDrawn;
-    private float _groundFactor = TerrainPlan2D.DefaultGroundFillFactor;
     private readonly Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D _renderer = new();
 
     private TerrainWorld? _built;
@@ -57,31 +54,14 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     /// <param name="world">The world whose <see cref="TerrainWorld"/> singleton is drawn.</param>
     /// <param name="visible">The "Terrain (2-D)" checkbox — the map buffer's <see cref="DebugTraceLayers.Terrain2D"/> bit.</param>
     /// <param name="camera">The map camera, for culling to the view; <c>null</c> ⇒ nothing is culled.</param>
-    /// <param name="groundFill">⭐ CE-1420 — the "Ground colour (2-D)" row: the open ground filled in a muted colour (<see cref="GroundFillFactor"/> of the 3-D
-    /// ground's); <c>null</c> ⇒ never (the default look: black ground).</param>
-    public TerrainLayer2D(Func<EntityRepository?> world, Func<bool> visible, Func<MapCamera?>? camera = null, Func<bool>? groundFill = null)
+    public TerrainLayer2D(Func<EntityRepository?> world, Func<bool> visible, Func<MapCamera?>? camera = null)
     {
-        _groundFill = groundFill ?? (() => false);
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _visible = visible ?? throw new ArgumentNullException(nameof(visible));
         _camera = camera ?? (() => null);
     }
 
     public string Name => "Terrain (2-D)";
-
-    /// <summary>⭐ CE-1420 — how much of the 3-D ground colour the filled ground keeps; read each frame.</summary>
-    public float GroundFillFactor
-    {
-        get => _groundFactor;
-        set => _groundFactor = value;
-    }
-
-    /// <summary>⭐ CE-1420 — the open ground's fill colour now (the 3-D ground colour × <see cref="GroundFillFactor"/>).</summary>
-    public Rgba32 GroundFillColor => TerrainPlan2D.MutedGround(
-        new Rgba32(Fdp.Toolkit.Vis3D.TerrainLayer3D.GroundColor.R, Fdp.Toolkit.Vis3D.TerrainLayer3D.GroundColor.G, Fdp.Toolkit.Vis3D.TerrainLayer3D.GroundColor.B, 255), _groundFactor);
-
-    /// <summary>⭐ CE-1420 — whether the last frame drew the open-ground fill (the rail reads it).</summary>
-    public bool GroundFilled => _groundDrawn;
 
     /// <summary>Always drawn by the canvas; the layer gates itself by the gizmo layer mask (<see cref="DebugTraceLayers.Terrain2D"/>).</summary>
     public int LayerBitIndex => -1;
@@ -105,7 +85,6 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     public void Draw(RenderContext ctx)
     {
         StrokesDrawn = 0;
-        DrawGround(ctx);
         var terrain = TerrainOf(_world());
         if (!ReferenceEquals(terrain, _built)) Rebuild(terrain);
         if (terrain == null || !_visible()) return;
@@ -128,20 +107,6 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         _inView = new DebugPrimitive[_plan.Strokes.Length];
         _meshDirty = true;
         Builds++;
-    }
-
-    /// <summary>⭐ <c>CE-1420</c> — the open ground: ONE rectangle over the view, first in the layer (under the plan's fills, the grid and every gizmo). The view, not the
-    /// terrain's bounds: the 3-D map has a ground plane with or without a loaded terrain (a recording without a <see cref="TerrainWorld"/> still shows green in 3-D), so
-    /// the 2-D ground must not depend on one.</summary>
-    private void DrawGround(RenderContext ctx)
-    {
-        _groundDrawn = false;
-        var camera = _camera();
-        if (camera == null || !_groundFill()) return;
-        var (min, max) = ViewOf(camera, ctx.TargetSize);
-        var c = GroundFillColor;
-        Raylib.DrawRectangleV(min, max - min, new Color(c.R, c.G, c.B, c.A));
-        _groundDrawn = true;
     }
 
     private void DrawFills()

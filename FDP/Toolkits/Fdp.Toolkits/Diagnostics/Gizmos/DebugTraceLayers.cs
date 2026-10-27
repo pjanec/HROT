@@ -68,10 +68,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// breaking point, a civilian's fear (<c>MindStateGizmo</c>). The last toggled bit (<c>LayerControlDto.FirstUntoggledLayer</c> 28 → 29).
         /// Off by default.</summary>
         public const byte MindState = 28;
-        /// <summary>⭐ <c>CE-1420</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1381 sample") — the 2-D map's open-ground FILL ("Ground colour (2-D)"):
-        /// the bounds of the terrain in a muted ground colour, drawn by <c>TerrainLayer2D</c> under the plan. The last toggled bit
-        /// (<c>LayerControlDto.FirstUntoggledLayer</c> 29 → 30). OFF by default — a sample awaiting the user's pick.</summary>
-        public const byte GroundFill = 29;
         /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): above every bit a layer toggle owns
         /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. ⭐ <c>CE-1225</c> (§8 S-4): moved from 14 to the TOP bit, so the
         /// toggles stay one range from 0 and a new toggle never lands on it. 🔒 User, 2026-10-16: <i>"I need the entity selection and right

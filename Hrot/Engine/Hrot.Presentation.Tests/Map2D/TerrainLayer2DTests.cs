@@ -106,18 +106,4 @@ public sealed class TerrainLayer2DTests
         // zoom 40: the 0.1 m piece is 4 px now — drawn
         Assert.Equal(3, TerrainLayer2D.Cull(plan, view, 40f, into));
     }
-
-    /// <summary>
-    /// ⭐ <c>CE-1420</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1381 sample") — the 2-D open ground is ONE colour: the 3-D ground colour darkened to a share of its brightness (one ground colour for both maps). 🔴 Mutations: the colour not derived from <c>TerrainLayer3D.GroundColor</c>
-    /// ⇒ the colour assertion.
-    /// </summary>
-    [Fact]
-    public void CE1420_TheGroundFill_IsThe3DGroundColour_Darkened()
-    {
-        var g3 = Fdp.Toolkit.Vis3D.TerrainLayer3D.GroundColor;
-        var muted = Hrot.ScenarioEditor.Gizmos.TerrainPlan2D.MutedGround(new Rgba32(g3.R, g3.G, g3.B, 255), 0.35f);
-        Assert.Equal((39, 50, 30, 255), ((int)muted.R, (int)muted.G, (int)muted.B, (int)muted.A));   // (112,142,86) × 0.35
-        var light = Hrot.ScenarioEditor.Gizmos.TerrainPlan2D.MutedGround(new Rgba32(g3.R, g3.G, g3.B, 255), 0.55f);
-        Assert.True(light.G > muted.G && light.G < g3.G, "a lighter share lies between the muted colour and the 3-D ground");
-    }
 }
