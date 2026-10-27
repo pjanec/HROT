@@ -26,7 +26,8 @@ public sealed class LiveBranchProcessManager
     private readonly ITimeCommands        _time;   // Q86 §4-C: commands, never the clock itself
     private readonly Func<Fdp.Core.FlightRecorder.ReplayTimeMap>? _map;      // ⭐ CE-4065 — the cluster's replay map (the session's)
     private readonly Func<long>?                                 _anchorWallTicks;
-    private (Fdp.Core.FlightRecorder.ReplayTimeMap Map, long Anchor)? _branchFrom;   // taken when the branch starts, while the cluster replays
+    private (Fdp.Core.FlightRecorder.ReplayTimeMap Map, long Anchor)? _branchFrom;
+    private readonly Func<float>? _operatorRate;   // ⭐ CE-4067 — the rate the operator chose (the replay clock's owner holds it)   // taken when the branch starts, while the cluster replays
 
     // Last known DSM state, updated each tick from ClusterStateTransitionedEvent.
     private HrotClusterState _lastKnownDsmState;
@@ -36,8 +37,10 @@ public sealed class LiveBranchProcessManager
         ReplayMasterModule   replayMasterModule,
         ITimeCommands        time,
         Func<Fdp.Core.FlightRecorder.ReplayTimeMap>? map = null,
-        Func<long>?          anchorWallTicks = null)
+        Func<long>?          anchorWallTicks = null,
+        Func<float>?         operatorRate = null)
     {
+        _operatorRate    = operatorRate;
         _map             = map;
         _anchorWallTicks = anchorWallTicks;
         _bus                = bus                ?? throw new ArgumentNullException(nameof(bus));
@@ -66,7 +69,7 @@ public sealed class LiveBranchProcessManager
                                   || intent.TargetState == fdpOpLive;
             if (passesLoadingLive && _lastKnownDsmState == HrotClusterState.OperatingReplay)
             {
-                _replayMasterModule.FreezeTime();
+                _replayMasterModule.FreezeTime(_operatorRate?.Invoke());   // ⭐ CE-4067 — the live run resumes at the operator's rate
                 _branchFrom = _map is null || _anchorWallTicks is null ? null : (_map(), _anchorWallTicks());
             }
         }

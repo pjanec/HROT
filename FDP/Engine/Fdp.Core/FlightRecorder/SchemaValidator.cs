@@ -58,13 +58,15 @@ namespace Fdp.Core.FlightRecorder
             foreach (var (componentId, recorded) in meta.SchemaManifest)
             {
                 // Resolve the current type for this component ID.
-                var currentType = ComponentTypeRegistry.GetType(componentId);
+                // ⭐ CE-1372 — the type the id names in the loaded assemblies, registered here or not (FindType: the [ComponentId] scan,
+                //   which the playback uses too). A type no loaded assembly declares is NOT a reason to refuse the recording: the playback
+                //   skips it (CE-4050, UnresolvedTypes). ⛔ Was: refused when this process had merely not REGISTERED it yet — an empty world.
+                var currentType = ComponentTypeRegistry.FindType(componentId);
                 if (currentType == null)
                 {
-                    throw new InvalidOperationException(
-                        $"Schema mismatch: component ID {componentId} " +
-                        $"(recorded as '{recorded.Name}') is not registered in the current binary. " +
-                        "Ensure all required assemblies are loaded before playback.");
+                    FdpLog<PlaybackController>.Warn(
+                        "Recording component ID {0} ('{1}') is in no loaded assembly — it is skipped in playback.", componentId, recorded.Name);
+                    continue;
                 }
 
                 if (currentType.IsValueType && !currentType.IsEnum)
@@ -108,12 +110,14 @@ namespace Fdp.Core.FlightRecorder
             {
                 foreach (var (eventId, recorded) in meta.EventManifest)
                 {
-                    var currentType = EventTypeRegistry.GetType(eventId);
+                    // ⭐ CE-1372 — as for components: found by its [EventId] when not registered; an event no loaded assembly declares is
+                    //   carried untyped by the playback (InjectIntoCurrentBySize), so it is skipped here, never a refusal.
+                    var currentType = EventTypeRegistry.FindType(eventId);
                     if (currentType == null)
                     {
-                        throw new InvalidOperationException(
-                            $"Schema mismatch: event ID {eventId} (recorded as '{recorded.Name}') is not registered in the current binary. " +
-                            "Ensure all required event types are registered via EventTypeRegistry before playback.");
+                        FdpLog<PlaybackController>.Warn(
+                            "Recording event ID {0} ('{1}') is in no loaded assembly — it is carried untyped in playback.", eventId, recorded.Name);
+                        continue;
                     }
 
                     if (currentType.IsValueType && !currentType.IsEnum)

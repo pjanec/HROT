@@ -100,10 +100,14 @@ public sealed partial class ClusterMaster
     /// cluster map's wall time (a paused instant lands at the stretch's END, so its changes show). <see langword="null"/> when the
     /// replay has no sim axis (a v6 recording, or no map yet).
     /// </summary>
-    internal long? RelativeTicksForSim(double simSeconds)
+    /// <param name="landOnFrame">⭐ CE-4066 — true for a SEEK (the entry, a seek round): resolved through
+    /// <see cref="Fdp.Core.FlightRecorder.ReplayTimeMap.SeekWallAt"/> so an on-or-before landing is ON the frame recorded at that sim
+    /// time; false for a loop's bounds, which are a range (exact).</param>
+    internal long? RelativeTicksForSim(double simSeconds, bool landOnFrame = false)
     {
         if (!_replayTimeMap.HasSimTime || _replayAnchorWallTicks <= 0) return null;
-        return Math.Max(0, _replayTimeMap.WallAt(simSeconds) - _replayAnchorWallTicks);
+        long wall = landOnFrame ? _replayTimeMap.SeekWallAt(simSeconds) : _replayTimeMap.WallAt(simSeconds);
+        return Math.Max(0, wall - _replayAnchorWallTicks);
     }
 
     /// <summary>⭐ C9 — the replay timeline's zero the master sends on every seek; 0 until a replay has been prepared.</summary>
@@ -155,7 +159,7 @@ public sealed partial class ClusterMaster
         // ⭐ CE-3329 R11 — an entry named in sim time resolves now that the nodes' maps are in
         if (_replayEntrySimSeconds is { } entrySim)
         {
-            if (RelativeTicksForSim(entrySim) is { } rel) _replayEntryRelTicks = rel;
+            if (RelativeTicksForSim(entrySim, landOnFrame: true) is { } rel) _replayEntryRelTicks = rel;
             else FdpLog<ClusterMaster>.Warn("[Orchestrator] CE-3329: the replay has no sim axis (a v6 recording) — atSimSeconds {0} ignored, entering at {1} ticks.",
                      entrySim, _replayEntryRelTicks);
             _replayEntrySimSeconds = null;

@@ -119,5 +119,33 @@ namespace Fdp.Toolkits.Tests.Replay
             Assert.True(map.Points.Count <= 8, $"{map.Points.Count} keypoints");
             Assert.Single(map.Stretches);
         }
+        /// <summary>
+        /// ⭐⭐ CE-4066 — a sim seek to a RECORDED frame's own sim time lands ON that frame: on a run with uneven wall spacing (an HTTP-stepped
+        /// one) the fitted line passes some frames up to the tolerance early, and the inverted wall must still not fall before the frame — nor
+        /// reach the next. 🔴 Before: inverted at the exact sim, a frame standing after the line was missed and the seek landed one frame short.
+        /// </summary>
+        [Fact]
+        public void CE4066_A_sim_seek_to_a_recorded_frames_sim_lands_on_that_frame_however_uneven_the_wall_spacing()
+        {
+            var rng = new System.Random(4066);
+            int n = 3000;
+            var wall = new long[n]; var sim = new double[n]; var flags = new Fdp.Core.FlightRecorder.FrameFlags[n];
+            long w = 10_000_000;
+            for (int i = 0; i < n; i++)
+            {
+                sim[i] = i / 60d;
+                w += System.TimeSpan.TicksPerSecond / 60 + rng.Next(-30_000, 30_000);   // ±3 ms of wall jitter per frame
+                wall[i] = w;
+            }
+            var map = Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(wall, sim, flags);
+            int missed = 0;
+            for (int i = 1; i < n - 1; i++)
+            {
+                long at = map.SeekWallAt(sim[i]);
+                if (at < wall[i] || at >= wall[i + 1]) missed++;   // on-or-before at `at` must be frame i
+            }
+            Assert.Equal(0, missed);
+        }
+
     }
 }

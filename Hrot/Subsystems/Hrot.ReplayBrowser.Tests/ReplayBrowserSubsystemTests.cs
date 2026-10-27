@@ -1493,8 +1493,12 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// context's own bus, and the step hands them to the shown world's. 🔴 Before: nothing carried them — the swing was never drawn
     /// (measured by the coordinator in the windowed browser after the spawner fix alone).
     /// </summary>
-    [Fact]
-    public void CE4062_A_blow_recorded_on_a_frame_reaches_the_drawn_world_when_the_frame_is_stepped_onto()
+    /// <param name="steppedRun">⭐ the run was STEPPED (as over HTTP): four paused frames between every sim step, so on the sim axis every
+    /// step of the browser is a jump — the coordinator's case, which a seek onto the target frame lost.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE4062_A_blow_recorded_on_a_frame_reaches_the_drawn_world_when_the_frame_is_stepped_onto(bool steppedRun)
     {
         string dir = Path.Combine(_tempDir, "melee-run");
         Directory.CreateDirectory(dir);
@@ -1512,11 +1516,21 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             long t0 = TimeSpan.FromSeconds(1).Ticks;
             repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0d, DeltaTime = 1f / 60f, TimeScale = 1f });
             rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
+            int frame = 0;
             for (int f = 1; f <= 5; f++)
             {
+                int held = steppedRun ? 4 : 0;   // paused frames before this sim step: the clock stands at the previous step
+                for (int h = 0; h < held; h++)
+                {
+                    repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = (f - 1) / 60d, DeltaTime = 0f, TimeScale = 1f });
+                    frame++;
+                    rec.CaptureFrame(repo, (uint)(frame - 1), t0 + frame * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+                    repo.Bus.SwapBuffers();
+                }
                 repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f / 60d, DeltaTime = 1f / 60f, TimeScale = 1f });
                 if (f == 3) repo.Bus.Publish(new Fdp.Toolkit.Combat.StrikeNotification { Striker = striker, Target = victim, Weapon = Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist });
-                rec.CaptureFrame(repo, (uint)(f - 1), t0 + f * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+                frame++;
+                rec.CaptureFrame(repo, (uint)(frame - 1), t0 + frame * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
                 repo.Bus.SwapBuffers();
             }
         }
@@ -1524,13 +1538,15 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         _subsystem.Initialize(HeadlessConfig());
         var provider = _subsystem.CreateDebugProvider()!;
         Assert.Null(provider.ReplayBrowser!.Open(new[] { path }, 0));
-        provider.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = 2 * TimeSpan.TicksPerSecond / 60 });
+        int stepFrame(int f) => steppedRun ? f * 5 : f;                          // the recorded frame of sim step f
+        provider.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = stepFrame(2) * TimeSpan.TicksPerSecond / 60 });
+        Assert.Equal(stepFrame(2), _subsystem.PrimaryNodeCurrentFrame());
         _subsystem.Update(1f / 60f);
         Assert.False(Hrot.UI.Common.Effects.StrikeTracker.Of(_subsystem.ActiveRepo!)?.StruckWithin(striker, 3 / 60d, 1.0, out _, out _) == true,
                      "no blow before its frame");
 
-        provider.Drive!.Step();                                                  // onto frame 3, the blow's
-        Assert.Equal(3, _subsystem.PrimaryNodeCurrentFrame());
+        provider.Drive!.Step();                                                  // onto sim step 3, the blow's (a jump in a stepped run)
+        Assert.Equal(stepFrame(3), _subsystem.PrimaryNodeCurrentFrame());
         _subsystem.Update(1f / 60f);                                             // one frame of the browser: swap, then the map's systems
         var tracker = Hrot.UI.Common.Effects.StrikeTracker.Of(_subsystem.ActiveRepo!);
         Assert.NotNull(tracker);

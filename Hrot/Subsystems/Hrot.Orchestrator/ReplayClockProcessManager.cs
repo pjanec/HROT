@@ -144,7 +144,9 @@ public sealed class ReplayClockProcessManager
     private void LeaveReplay()
     {
         if (!_inReplay) return;
-        if (!_isReview && _rateChanged) _time.SetTimeScale(_operatorRate);
+        // ⭐ CE-4067 — a FROZEN clock (0) is a live branch in flight: its restore resumes at the operator's rate; ⛔ setting it here would
+        //   unfreeze the cluster while the nodes prepare the live run.
+        if (!_isReview && _rateChanged && _clock.GetTimeScale() != 0f) _time.SetTimeScale(_operatorRate);
         _inReplay = _rateChanged = _endPaused = false;
         _lastIssuedRate = float.NaN;
     }
