@@ -135,6 +135,63 @@ public sealed class DirectorTracksOnTheEditorTests
             if (Directory.Exists(dir)) Directory.Delete(dir, true);
         }
     }
+
+    /// <summary>
+    /// ⭐ CR-6 — K on the EDITOR's timeline hangs the new key on the editor's OWN live index: a unit "Tank" fires in the editor's world, the node's live timeline source indexes
+    /// the round (the same step the panel draws), and K 0.4 s later stores <c>shot:Tank#1</c> + 0.4 — the unit's name from the world, the sim time from the index's clock.
+    /// 🔴 Mutation: <c>EventAnchorAt</c> reading no index (null) ⇒ the key is a fixed time and the anchor assertion fails.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1303_CR6_K_OnTheEditorsTimeline_UsesTheEditorsLiveIndex()
+    {
+        var scenario = "ce1303cr6_" + Guid.NewGuid().ToString("N");
+        var dir = Path.Combine(EditorBootstrap.ScenariosRoot, scenario);
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true });
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "takes"));
+            File.WriteAllText(Path.Combine(dir, "takes", "main.take.json"), Take);
+            editor.SetMapCameraForTest(new Fdp.Toolkit.Vis3D.MapCamera3D());
+            var world = editor.NodeForTest!.World;
+            var live = editor.LiveTimeline!;
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            if (!world.IsComponentTypeRegistered<Fdp.Core.EntityInfo>()) world.RegisterComponent<Fdp.Core.EntityInfo>();
+            var tank = world.CreateEntity();
+            world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.NetworkIdentity(77));
+            world.AddComponent(tank, new Fdp.Core.EntityInfo { Name = new Fdp.Core.FixedString64("Tank") });
+
+            // frame 1 (1.0 s): Tank fires; frames 2, 3 (1.2 s, 1.4 s): quiet. Each is one live-index step, as the editor's frame does.
+            long ticks = 1_000_000;
+            world.SetSingleton(new Fdp.Core.GlobalTime { FrameNumber = 1, TotalTime = 1.0, TotalWallTicks = ticks });
+            world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = tank, Quantity = 1 });
+            world.Bus.SwapBuffers();
+            live.Step(world, ticks, force: true);
+            foreach (var (frame, sim) in new[] { (2, 1.2), (3, 1.4) })
+            {
+                ticks += 2_000_000;
+                world.SetSingleton(new Fdp.Core.GlobalTime { FrameNumber = frame, TotalTime = sim, TotalWallTicks = ticks });
+                world.Bus.SwapBuffers();
+                live.Step(world, ticks, force: true);
+            }
+            Assert.True(live.Index.Lane("combat.shot").Count == 1, $"lanes [{string.Join(",", live.Index.LaneIds)}] errors [{string.Join(";", live.Index.LaneErrors.Select(e => e.Key + "=" + e.Value))}] frames {live.Index.ScannedFrames} sim {live.Index.FrameSim.Count}");   // the editor's index saw the round
+
+            var session = editor.DirectorTakesForTest!;
+            Assert.Empty(session.Open(scenario, "main"));
+            var camera = editor.EventTimelineForTest.Tracks!().Single(t => t.Id == DirectorTracksIds.Camera);
+            Assert.True(camera.Key('K', 1.4));
+
+            var added = session.Editor!.Take.Keys[^1];
+            Assert.Equal("shot:Tank#1", added.At.Anchor);
+            Assert.Equal(0.4, added.At.Offset, 6);
+            Assert.Equal(1.0, session.Editor.Take.Baked!.Times["shot:Tank#1"], 6);
+        }
+        finally
+        {
+            editor.Shutdown();
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+        }
+    }
 }
 
 /// <summary>The track ids the editor rail names (the product's are <c>DirectorTracks.CameraId</c> / <c>TimeId</c>).</summary>
