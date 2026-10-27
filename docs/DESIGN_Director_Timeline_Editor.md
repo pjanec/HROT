@@ -7,6 +7,7 @@ stale-below: none
 known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
 related-designs:
+  - DESIGN_Film_Production.md — OWNS the INTENT of the whole film process (the workflow, its principles, the overnight documentation); §11 here is its build plan
   - DESIGN_Replay_Time_Axis_And_Review.md — OWNS the SIM axis (FrameSimTime in the frame index, paused stretches), the review (DAR) a live host's right-click seek enters, and §10 the panel's defects and input map (CE-3330); amended here in §2c (R-4087)
   - DESIGN_Replay_Browser_Debug_Http.md — GET /timeline/lanes, /timeline/events, POST /timeline/lanes over this design's index (RB-6), and seek to the next event in a lane
   - docs/DESIGN_Unit_Camera.md — the follow camera (orbit → shoulder → eyes) is a candidate shot type for the camera track
@@ -1300,62 +1301,11 @@ timing or conditions change. This feature is not just for demonstrating, but als
 are running overnight … snapshots or short movie clips. … The adjusting phase in the replay browser is critical … in the replay browser I can
 simply seek to any time and start the replay of the take from whatever time. So it's easy to iterate."*
 
-### 11a. The fresh look — what the new infrastructure changes
+### 11a / 11b. The intent and the workflow — MOVED
 
-⭐ **One idea carries the rest: a recording is the film's SOURCE; a live run only PRODUCES recordings.** When this design and Film Director
-were written, a film was cut by stepping a live run (R-3038): leads needed a scout, slow motion meant stepping less sim per frame, an instant
-replay meant a second pass, and every iteration re-ran the scenario. Since then the recording has become complete enough to cut from:
-
-| what exists now | file | what it makes easy |
-|---|---|---|
-| the **timeline index** of a recording: shots, hits, blasts, spawns, deaths, behaviour changes, orders, reports, decisions — per frame, with the frame's **sim time**; one pass at **12.9× real time**, cached (1.1 ms reopen) | `Fdp.Toolkits/ReplayBrowser/Timeline/` (§9a); `TimelineIndex.FrameSim` | ⭐ **the interesting points of a run are a QUERY, not a scout** — for the agent and for the person |
-| the **same index LIVE** — `LiveTimelineSource` runs the ONE per-frame step on the live world | `LiveTimelineSource.cs:19`; `TimelineFrameScanner` | ⭐ one way to find an anchor on a live run AND on a recording (CR-5) |
-| the Replay Browser seeks by **sim time** through the session's map; plays at any rate; loops | `ReplayBrowserSubsystem.DebugSurface.cs:418-497` | ⭐ *"seek to any time and play the take from there"* is a seek |
-| the **3-D effects are driven by the recorded events** (`WeaponFireNotification`, `DetonationNotification`) and the RB schedules `EffectSpawnSystem` through the shared map | `EffectSystems.cs:67-136`; `MapInteraction.cs:245` | ⭐ a replayed fight should LOOK like the live one — ⚠ to be measured (R0 ①), and the RB has no TKB yet |
-| the film camera + capture on EVERY map host | `MapInteractionPack.cs:581`; `Film.cs:54-231` | ⭐ the RB renders stills and frames with nothing new |
-| the **scenario checks** (`checks.json`) — each condition's verdict carries its TIME and its units; a verify run can record its own run (`--verify-replay`) | `ScenarioVerification.cs`; `DirectorRunner.cs:401` | ⭐ **the regression scenario's beats are ALREADY written down** — they are the documentation's shot list (CR-10) |
-| the director's v2 take: keys (cut / fly / dip), time segments, the Camera and Time tracks on the shared panel, K, undo | §10 | ⭐ the editing surface exists — it needs a seekable host |
-
-⭐ **What a recording makes possible that a live run never could — the "more attractive" part:**
-
-| | from a recording | why live cannot |
-|---|---|---|
-| **anticipation** | the camera is already framed where the action WILL be: it knows the shooter and the target before the shot, and every unit's path in the shot's window ⇒ both fit the frame for the whole shot, with lead room in the direction of motion | live does not know the future — today's leads needed a baked scout |
-| **instant and multi-angle replay** | the moment again from the reverse angle or from above, slowed — a segment that goes BACK in source time (CR-7) | a live run cannot go back (R-3034) |
-| **true slow motion and speed ramps** | 4× through the approach with an on-screen clock, 1× into the beat, 0.25× on the impact | live slow motion steps less sim per frame; skipping is impossible |
-| **smooth camera paths** | a follow camera damped over the KNOWN path (no jitter), eased fly keys | live follow cameras react after the fact |
-| **cheap iteration** | change a key, seek 2 s before it, play — seconds | each change re-runs the scenario from 0 |
-| **cheap documentation** | a still is ONE seek and ONE frame | live, every still steps the whole run |
-
-### 11b. The workflow
-
-```mermaid
-graph LR
-  RUN["① a RECORDED run — editor live run, or an overnight verify run (--verify-replay)"] --> IDX["② the INDEX — events + sim time + a position track (NEW)"]
-  IDX --> DRF["③ DRAFT — the drafter: the feature list (takes, reels, captions) + the grammar (PLAN_Feature_Films §1a) + the index"]
-  DRF --> LOOK["④ LOOK — contact sheet of stills (agent) · play in the RB from any time (person)"]
-  LOOK --> ADJ["⑤ ADJUST in the RB — keys, cuts, angles, time segments, subtitles; loop a shot; edits play at once"]
-  ADJ --> LOOK
-  ADJ --> SAVE["⑥ SAVE beside the recording — takes + reels"]
-  SAVE --> REN["⑦ RENDER — stills / MP4 from the recording"]
-  SAVE --> PRO["⑧ PROMOTE — the take to its scenario; anchors are EVENTS, so it holds on any run"]
-  PRO --> RUN
-```
-*What the picture shows that prose hid:* the loop ④ ⇄ ⑤ never touches a live run — that is where the time goes, so that is what the recording
-buys. A live run appears twice only: to make the recording (①) and, after a promote, to make the NEXT recording, on which the same take
-resolves again (⑧ → ①). A deterministic editor run stays available for watching a promoted take live (the existing director), ⛔ but it is
-no longer the way films are cut or rendered.
-
-| step | the agent (HTTP / MCP) | the person (Replay Browser) |
-|---|---|---|
-| ① record | `--verify <s> --verify-replay` or `POST /scenario/load/live` + play | the editor's live run, or open an overnight one |
-| ② index | `GET /timeline/lanes`, `/timeline/events` (exist) + `/timeline/track` (NEW, positions) | the Event Timeline (exists) |
-| ③ draft | `POST /director/draft {recording, feature}` (NEW) → a take; then edits it with its own judgement | right-click an event → *"Draft a shot sequence here"* (the §2 shot template) |
-| ④ look | `POST /director/stills {recording, take, at: per-shot}` (NEW) → PNGs it reads | Play from the cursor; loop a shot |
-| ⑤ adjust | `POST /director/take` (exists, grows `recording=`) | the tracks, K, *"update key from view"*, drag, the inspector |
-| ⑥ save | the same route | Save (beside the recording) |
-| ⑦ render | `POST /director/play {recording, take or reel, capture}` | Render… |
-| ⑧ promote | `POST /director/promote` (TE-15) | Promote… (lists what it re-anchored) |
+⭐ The intent of the whole process — the workflow (record → index → draft → look ⇄ adjust in the Replay Browser → save → render → promote),
+its principles, what a recording makes possible, who does what, and the overnight documentation — lives in its own design,
+[`DESIGN_Film_Production.md`](DESIGN_Film_Production.md) (R-4091). This section keeps the BUILD plan: what exists, the shape, the leans, the phases.
 
 ### 11c. INVENTORY — measured `2026-10-27`
 

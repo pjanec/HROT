@@ -5,6 +5,7 @@ current-answer: §1 the clip list · §2 the gaps (features no clip can show yet
 stale-below: none
 known-rot: event times are from the scenario docs and the description sweep (2026-10-21) — the scout pass (§3) re-measures every one before filming
 related-designs:
+  - DESIGN_Film_Production.md — OWNS how a film is made now (record → index → draft → adjust in the Replay Browser → render → promote); this plan says WHAT to film and the grammar the drafter follows
   - DESIGN_Film_Director.md — OWNS HOW the clips are played and filmed (the editor's director: takes, reels, live and capture); supersedes §3's film-batch runner shape
   - CAPABILITIES.md — OWNS the feature list this plan films (one clip per chapter bullet that can be seen)
   - RUNBOOK_Filming.md — OWNS how film.py / film-events.py work (shots, plans, traps)
