@@ -215,6 +215,62 @@ namespace Hrot.SimHost.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
+        /// <summary>An ingress-shaped system: gated like the real one, counting the exit discards it is told about.</summary>
+        [Fdp.ModuleHost.Abstractions.UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.Input)]
+        [Fdp.ModuleHost.Abstractions.TickMode(Fdp.ModuleHost.Abstractions.TickPolicy.EveryFrame)]
+        private sealed class GatedSpy : Fdp.ModuleHost.Abstractions.IEcsModuleSystem, Fdp.Interfaces.IReplayRestoreGated
+        {
+            public Func<bool>? IsReplayRestoring { get; set; }
+            public int ExitDiscards { get; private set; }
+            public void DiscardAtReplayExit() => ExitDiscards++;
+            public void Execute(Fdp.ModuleHost.Abstractions.ISimulationView view, float dt) { }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — from the replay's teardown until the exit's RELEASE the ingress stays
+        /// gated (nothing is polled while the world is being put back); the release tells every gated system to discard what its readers
+        /// hold, once, and lifts the gate. A node that starts a live recording lifts a hold an aborted exit left behind.
+        /// 🔴 Without the hold the first frame after the teardown polls the replay-era readers into the world.
+        /// </summary>
+        [Fact(Timeout = 15_000)]
+        public async Task CE3329_W5_TheIngressStaysGatedFromTheTeardownUntilTheRelease_WhichDiscardsOnce()
+        {
+            using var world = new EntityRepository();
+            using var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var spy = new GatedSpy();
+            kernel.RegisterGlobalSystem(spy);
+            kernel.InitializeForTest();
+            var controller = new EcsRecordReplayController(kernel, nodeId: 1, world);
+
+            using var cts = new CancellationTokenSource();
+            var loopTask = RunKernelLoop(kernel, cts.Token);
+
+            await controller.PrepareReplayAsync(Guid.NewGuid(), _tempDir);   // no recording here: a listener — it polls the wire
+            Assert.False(spy.IsReplayRestoring!());
+
+            await controller.TeardownReplayAsync();
+            Assert.True(spy.IsReplayRestoring!());      // ⭐ held: the world is being put back
+            Assert.Equal(0, spy.ExitDiscards);
+
+            controller.ReleaseReplayExit();
+            Assert.False(spy.IsReplayRestoring!());
+            Assert.Equal(1, spy.ExitDiscards);
+            controller.ReleaseReplayExit();             // nothing held: nothing to discard
+            Assert.Equal(1, spy.ExitDiscards);
+
+            // an exit that never released (an abort): the next live recording lifts it
+            await controller.PrepareReplayAsync(Guid.NewGuid(), _tempDir);
+            await controller.TeardownReplayAsync();
+            Assert.True(spy.IsReplayRestoring!());
+            await controller.PrepareRecordingAsync(Guid.NewGuid(), _tempDir);
+            Assert.False(spy.IsReplayRestoring!());
+            Assert.Equal(2, spy.ExitDiscards);
+            await controller.FinalizeRecordingAsync();
+
+            cts.Cancel();
+            await loopTask;
+        }
+
         private static Task RunKernelLoop(ModuleHostKernel kernel, CancellationToken ct) =>
             Task.Run(() =>
             {

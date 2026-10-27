@@ -57,6 +57,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <summary>True while this node holds a review's checkpoint of the live point.</summary>
         public bool InReview => _livePoint != null;
 
+        /// <summary>⭐ F6 — how many paused frames the entry lets pass before it captures the live point (§12u).</summary>
+        public const int QuiesceFrames = 3;
+
         /// <summary>The label of the keyframe the last review forced at its live point (D-C).</summary>
         public string? LastReviewLabel { get; private set; }
 
@@ -100,6 +103,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             // F5 — capture on the PAUSED step: the master's barrier pause lands here within its look-ahead
             await WaitUntil(() => _world.HasSingletonUnmanaged<GlobalTime>() && _world.GetSingletonUnmanaged<GlobalTime>().IsHalted, "the pause", ct)
                 .ConfigureAwait(false);
+
+            // ⭐⭐ F6 (DESIGN_Replay_Time_Axis_And_Review §12u) — the QUIESCE: a few paused frames before anything is captured, so what was
+            //   already in flight when the cluster paused (a hand-over, an attribute write, a hit) lands in the live point instead of on the
+            //   world after the return. The node's ingress and protocols keep running on the paused step; the gates close only at Commit.
+            uint quiesceFrom = _world.GlobalVersion;
+            await WaitUntil(() => unchecked(_world.GlobalVersion - quiesceFrom) >= QuiesceFrames, "the quiesce", ct).ConfigureAwait(false);
 
             // D-C — the live point as a labelled keyframe of the recording: a review lost to a failure is restorable from it
             LastReviewLabel = $"review-{++_reviews}";

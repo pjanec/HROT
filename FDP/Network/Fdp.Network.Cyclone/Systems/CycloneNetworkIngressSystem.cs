@@ -60,6 +60,18 @@ namespace Fdp.Network.Cyclone.Modules
         /// <inheritdoc />
         public System.Func<bool>? IsReplayRestoring { get; set; }
 
+        // ⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — set at the exit's release, consumed by the next Execute that is not gated.
+        private volatile bool _exitDiscardPending;
+
+        /// <summary>⭐ CE-3329 W5 — how many exits this system has drained, and how many samples the last one threw away.</summary>
+        public int ExitDiscards { get; private set; }
+
+        /// <inheritdoc cref="ExitDiscards"/>
+        public int LastExitDiscardedSamples { get; private set; }
+
+        /// <inheritdoc />
+        public void DiscardAtReplayExit() => _exitDiscardPending = true;
+
         /// <summary>
         /// ⭐⭐ <c>R-4007</c> — wires <paramref name="isJoinFrozen"/> onto every ingress system among <paramref name="systems"/>
         /// (the kernel's scheduled systems, swept once after composition — the shape CGF's debugger gate already uses).
@@ -90,6 +102,20 @@ namespace Fdp.Network.Cyclone.Modules
             bool frozen  = IsWorldStateFrozen?.Invoke() ?? false;
             // ⭐ R-4012 — restoring a replay from its own recording is treated like a join: the node builds the world itself.
             bool joining = (IsJoinFrozen?.Invoke() ?? false) || (IsReplayRestoring?.Invoke() ?? false);
+
+            // ⭐⭐ CE-3329 W5 — the first frame after a replay's / review's exit is released: every world translator's readers are
+            //   emptied BEFORE anything is polled. The node already holds its world; what the readers kept is the replay era's (the
+            //   newest state per instance, the entry's disposes) and would land on top of it. The owners' republish refills them.
+            if (_exitDiscardPending && !joining)
+            {
+                _exitDiscardPending = false;
+                int discarded = 0;
+                for (int i = 0; i < _translators.Length; i++)
+                    if (_translators[i].Category != Fdp.Interfaces.TranslatorClass.ControlPlane)
+                        discarded += IngressReaderDrain.Discard(_translators[i]);
+                ExitDiscards++;
+                LastExitDiscardedSamples = discarded;
+            }
 
             var cmd = view.GetCommandBuffer();
             for(int i=0; i<_translators.Length; i++)
