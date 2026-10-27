@@ -32,11 +32,16 @@ public sealed class TakeStore
 
     private readonly Func<string> _scenariosRoot;
     private readonly Func<string?> _filmsRoot;
+    private readonly Func<string, string?>? _scenarioHash;
 
-    public TakeStore(Func<string> scenariosRoot, Func<string?> filmsRoot)
+    /// <param name="scenarioHash">⭐ <c>CE-1303</c> P2a (docs/DESIGN_Director_Timeline_Editor.md §11m D8) — where a scenario's hash comes from when
+    /// this store holds no scenario file: the Replay Browser's store sits BESIDE A RECORDING (TE-1), whose meta names the scenario's hash
+    /// (<c>RecordingMetadata.ScenarioHash</c>, the one rule <c>ScenarioDescription.HashOf</c>). Null, or a null answer: the file under the root.</param>
+    public TakeStore(Func<string> scenariosRoot, Func<string?> filmsRoot, Func<string, string?>? scenarioHash = null)
     {
         _scenariosRoot = scenariosRoot ?? throw new ArgumentNullException(nameof(scenariosRoot));
         _filmsRoot = filmsRoot ?? throw new ArgumentNullException(nameof(filmsRoot));
+        _scenarioHash = scenarioHash;
     }
 
     public string ScenariosRoot => _scenariosRoot();
@@ -191,6 +196,7 @@ public sealed class TakeStore
     /// <summary>The SHA-256 of the scenario's file (the scout's bake records it; a changed scenario re-scouts). Empty when there is no file.</summary>
     public string ScenarioHash(string scenario)
     {
+        if (_scenarioHash?.Invoke(scenario) is { Length: > 0 } known) return known;   // ⭐ CE-1303 D8 — a recording's
         var path = Path.Combine(ScenariosRoot, scenario, "scenario.json");
         if (!File.Exists(path)) return "";
         return Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(path));   // ⭐ CE-4058 ② — the ONE rule, a recording's meta too

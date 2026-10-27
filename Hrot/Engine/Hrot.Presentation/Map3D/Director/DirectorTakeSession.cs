@@ -37,6 +37,11 @@ namespace Hrot.UI.Common.Map3D.Director
         public string? Scenario => Editor?.Take.Scenario;
         public string? TakeName => Editor?.Take.Name;
 
+        /// <summary>⭐ <c>CE-1303</c> P2a — CR-4: the open take as it stands NOW (unsaved edits included) when it is <paramref name="scenario"/>/<paramref name="take"/>;
+        /// null otherwise. The runner plays this instead of the file (<see cref="DirectorRunner.OpenTake"/>).</summary>
+        public Take? OpenTakeOf(string scenario, string take)
+            => Editor is { } e && e.Take.Scenario == scenario && e.Take.Name == take ? e.Take : null;
+
         /// <summary>The Camera and Time tracks of the open take; empty when none is open. (The panel's <c>Tracks</c> func.)</summary>
         public IReadOnlyList<ITimelineTrack> Tracks => _tracks?.Tracks ?? Array.Empty<ITimelineTrack>();
 

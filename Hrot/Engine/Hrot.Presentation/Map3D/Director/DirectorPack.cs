@@ -21,6 +21,7 @@ namespace Hrot.UI.Common.Map3D.Director
     /// <param name="WindowTabs">Tabs the Director window draws after its film tabs.</param>
     /// <param name="EventAt">CR-6: the nearest event of THIS host's timeline index (K hangs the key on it); null = no index.</param>
     /// <param name="TitleBarColor">The host's title-bar colour for the window.</param>
+    /// <param name="Perspective">⭐ CE-1303 P2a (§11m D11) — the perspective the Director window belongs to (the editor's "Scenario", the RB's "ReplayBrowser").</param>
     public sealed record DirectorPackHost(
         IDirectorHost Host,
         Func<WindowManager?> Wm,
@@ -31,7 +32,8 @@ namespace Hrot.UI.Common.Map3D.Director
         IRunExtension? Extension = null,
         IReadOnlyList<IDirectorWindowTab>? WindowTabs = null,
         Func<double, EventAnchor?>? EventAt = null,
-        Vector4? TitleBarColor = null);
+        Vector4? TitleBarColor = null,
+        string Perspective = "Scenario");
 
     /// <summary>
     /// ⭐ <c>CE-1303</c> P1 (§11j, CR-2) — the ONE registrar of the film director: builds the runner (with the window / layer / audio / frame
@@ -70,7 +72,10 @@ namespace Hrot.UI.Common.Map3D.Director
             h.Timeline.Tracks = () => session.Tracks;
             h.Timeline.Undo = () => session.UndoLast();
             h.Timeline.Redo = () => session.RedoLast();
-            var window = new DirectorWindow(() => runner, () => h.Host.Takes, session, h.WindowTabs, h.TitleBarColor);
+            // ⭐ CE-1303 P2a — CR-4 (§11m D4): the runner plays the OPEN take, unsaved edits included (the same take the tracks edit)
+            runner.OpenTake = session.OpenTakeOf;
+            var window = new DirectorWindow(() => runner, () => h.Host.Takes, session, h.WindowTabs, h.TitleBarColor, h.Perspective,
+                                            playhead: () => h.Host.SimTime);
             return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes);
         }
 

@@ -178,7 +178,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         // ⭐ CE-1150 + CE-1244 — the shared Details panel (rb_details) and the shared diagnostics bundle's inspector / event browser
         //   (rb_fdp_inspector / rb_fdp_events, which replaced this host's own rb_inspector / rb_events copies).
         // ⭐ CE-1302 R1-c — and the event timeline (rb_event_timeline) over the primary node's recording.
-        Assert.Equal(new[] { "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline" }, windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
+        // ⭐ CE-1303 P2a — and the ONE film director's window (DirectorPack's, in this host's perspective — §11m D11).
+        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline" },
+                     windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
 
         foreach (var (_, win) in windows)
         {
@@ -219,7 +221,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
 
-        Assert.Equal(7, windows.Count);   // ⭐ CE-1150 / CE-1244 / CE-1302 — see the rail above
+        Assert.Equal(8, windows.Count);   // ⭐ CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a (the Director) — see the rail above
         Assert.False(windows.ContainsKey("rb_federation"));
     }
 
@@ -1382,5 +1384,248 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Frames(2);
         Assert.Equal(100, Primary());
         Assert.NotNull(p.ReplayBrowser.SelectionHistory(back: true));                  // nothing before the first
+    }
+
+    // ── CE-1303 P2a (docs/DESIGN_Director_Timeline_Editor.md §11m) — the ONE film director, in the Replay Browser, over a recording ──────────
+
+    private static readonly Vector3 Key1At = new(10f, 0f, 0f), Key2At = new(0f, 30f, 0f);
+
+    /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the
+    /// keyframe) whose meta names its scenario <c>s-film</c>, under <paramref name="dir"/>.</summary>
+    private static string RecordFilmRun(string dir, double seconds)
+    {
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, "node_1.fdp");
+        var meta = new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1, ScenarioName = "s-film", ScenarioHash = "0123456789abcdef" };
+        using var repo = new EntityRepository();
+        repo.RegisterComponent<NetworkIdentity>();
+        repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
+        using (var rec = new AsyncRecorder(path, meta))
+        {
+            long t0 = TimeSpan.FromSeconds(1).Ticks;
+            repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0d });
+            rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
+            int n = (int)Math.Round(seconds * 60d);
+            for (int f = 1; f <= n; f++)
+            {
+                repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f / 60d });
+                rec.CaptureFrame(repo, (uint)(f - 1), t0 + f * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+            }
+        }
+        return path;
+    }
+
+    /// <summary>A two-shot take (v2 keys): key 1 at 1 s looks at <see cref="Key1At"/>, key 2 — the cut — at 3 s looks at <see cref="Key2At"/>; it ends at 5 s.</summary>
+    private static Hrot.UI.Common.Map3D.Director.Take TwoShotTake() => new()
+    {
+        Scenario = "s-film", Name = "main", Title = "Two shots",
+        Keys = new[]
+        {
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(1d), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key1At, Distance = 20f } },
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(3d), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key2At, Distance = 20f } },
+        },
+        EndAt = new Hrot.UI.Common.Map3D.Director.AtExpr(5d),
+    };
+
+    /// <summary>Opens a 6 s recording on a headless browser and saves <see cref="TwoShotTake"/> BESIDE it (TE-1) through the pack's store.</summary>
+    private (Hrot.UI.Common.Map3D.Director.DirectorPack Pack, string Dir) OpenFilmRecording(string name)
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string dir = Path.Combine(_tempDir, name, "exercises", Guid.NewGuid().ToString());
+        string path = RecordFilmRun(dir, 6d);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { path }, 0));
+        var pack = _subsystem.Director!;
+        pack.Takes.Save(TwoShotTake());
+        return (pack, dir);
+    }
+
+    /// <summary>One frame of the browser; returns the recording's sim second the director's camera was set for this frame (the step comes after).</summary>
+    private double Frame()
+    {
+        double before = _subsystem.DirectorSimSeconds;
+        _subsystem.Update(1f / 60f);
+        return before;
+    }
+
+    private static Vector3? Camera() => Hrot.UI.Common.Map3D.FilmStudio.Shot?.Pose?.LookAt;
+
+    /// <summary>Frames until the runner plays (load → enter → play), at most 20.</summary>
+    private void UntilPlaying(Hrot.UI.Common.Map3D.Director.DirectorRunner runner)
+    {
+        for (int i = 0; i < 20 && runner.Phase != Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing; i++) _subsystem.Update(1f / 60f);
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing, runner.Phase);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2a (§11m D1, success condition 1) — on a REAL recording opened in the Replay Browser, the pack's runner plays a two-shot take
+    /// through <c>ReplayDirectorHost</c>: the take is read from beside the recording (TE-1), the recording's playhead advances one step per frame,
+    /// and the camera at every film second is the key of the shot on screen — key 1 in [1, 3), key 2 (the cut) in [3, 5) — then the item ends.
+    /// 🔴 Mutation: <c>ReplayDirectorHost.StepBy</c> not moving the playhead ⇒ the sim never reaches the cut; the second-shot frames are empty.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2a_TheDirector_PlaysATake_OverARecording()
+    {
+        var (pack, dir) = OpenFilmRecording("plays");
+        Assert.True(File.Exists(Path.Combine(dir, "s-film", "takes", "main.take.json")));   // TE-1 — beside the recording, keyed by its scenario
+        var runner = pack.Runner;
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d)));
+
+        var seen = new List<(double Sim, Vector3? Camera)>();
+        for (int i = 0; i < 400 && runner.Busy; i++)
+        {
+            double sim = Frame();
+            if (runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing) seen.Add((sim, Camera()));
+        }
+        Assert.False(runner.Busy);
+        var report = runner.Reports[0];
+        Assert.True(report.Status == "ok", $"{report.Status}: {string.Join("; ", report.Problems)}");
+        var first = seen.Where(s => s.Sim > 1.02 && s.Sim < 2.98).ToList();
+        var second = seen.Where(s => s.Sim > 3.02 && s.Sim < 4.98).ToList();
+        Assert.True(first.Count > 60, $"frames in shot 1: {first.Count}");
+        Assert.True(second.Count > 60, $"frames in shot 2: {second.Count}");
+        Assert.All(first, s => Assert.Equal(Key1At, s.Camera));
+        Assert.All(second, s => Assert.Equal(Key2At, s.Camera));
+        Assert.Equal(new[] { 1, 2 }, report.Cuts.Select(c => c.Shot).ToArray());   // two cuts, in order
+        Assert.InRange(report.SimEnd, 4.98, 5.04);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2a (§11m D5, success condition 2) — <c>PlayFrom(t)</c> on the Replay Browser SEEKS the recording: the frame it starts playing,
+    /// the playhead (the director's sim and the transport's seconds) stands at t within one step, and the first frame shows the shot of t (shot 2's
+    /// key). 🔴 Mutation: the runner not seeking on <c>StartAt</c> (the <c>SeekSource(_startAt)</c> call removed) ⇒ the playhead is at 0 and the
+    /// camera is none / key 1.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2a_PlayFrom_SeeksTheRecording_ToTheShot()
+    {
+        var (pack, _) = OpenFilmRecording("from");
+        var runner = pack.Runner;
+        Assert.Empty(runner.PlayFrom(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d), 3.5));
+        UntilPlaying(runner);
+
+        Assert.InRange(_subsystem.DirectorSimSeconds, 3.5 - 1d / 60, 3.5 + 1d / 60);
+        Assert.InRange(_subsystem.Transport.TotalTime, 3.5 - 1d / 60, 3.5 + 1d / 60);   // the recording's own transport stands there too
+        double sim = Frame();
+        Assert.InRange(sim, 3.5 - 1d / 60, 3.5 + 1d / 60);
+        Assert.Equal(2, runner.Status()["shot"]!.GetValue<int>());
+        Assert.Equal(Key2At, Camera());
+        Assert.True(_subsystem.DirectorSimSeconds > sim);                              // and it plays on from there
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2a (§11m D4, success condition 3) — CR-4 on the Replay Browser: an edit of the OPEN take (the cut moved from 3 s to 2 s through
+    /// <c>TakeEditor</c>, not saved) is what the NEXT play shows — at 2.5 s the camera is key 2 — while the file still says 3 s. 🔴 Mutation: the pack
+    /// not wiring <c>Runner.OpenTake</c> ⇒ the second play reads the file and shows key 1 at 2.5 s.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2a_TheNextPlay_ShowsTheUnsavedEdit()
+    {
+        var (pack, dir) = OpenFilmRecording("edit");
+        var runner = pack.Runner;
+        Assert.Empty(pack.Session.Open("s-film", "main"));
+        var request = new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d, Cinema: false);
+
+        Vector3? CameraAt(double t)
+        {
+            Assert.Empty(runner.PlayFrom(request, t));
+            UntilPlaying(runner);
+            Frame();
+            var cam = Camera();
+            runner.Stop();
+            return cam;
+        }
+
+        Assert.Equal(Key1At, CameraAt(2.5));                                            // as saved: the cut at 3 s
+        Assert.True(pack.Session.Editor!.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.MoveKey(1, 2d)));
+        Assert.True(pack.Session.Editor.Dirty);
+        Assert.Equal(Key2At, CameraAt(2.5));                                            // the unsaved edit: the cut at 2 s
+        Assert.True(File.Exists(Path.Combine(dir, "s-film", "takes", "main.take.json")));
+        Assert.Equal(3d, pack.Takes.Load("s-film", "main").Value!.Keys[1].At.Offset);    // the file is untouched
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2a (§11m D6, success condition 4) — Loop shot on the Replay Browser: played from 1.5 s (shot 1, [1, 3)), the playhead goes
+    /// back to the shot's START when it reaches the shot's end — never into shot 2 — and the take is read again at the wrap, so the cut moved to
+    /// 2 s mid-pass makes the NEXT pass wrap at 2 s. 🔴 Mutation: the loop's <c>SeekSource(again.Start)</c> removed ⇒ the playhead runs on past 3 s
+    /// into shot 2.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2a_LoopShot_ReturnsToTheShotStart()
+    {
+        var (pack, _) = OpenFilmRecording("loop");
+        var runner = pack.Runner;
+        Assert.Empty(pack.Session.Open("s-film", "main"));
+        runner.LoopShot = true;
+        Assert.Empty(runner.PlayFrom(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d, Cinema: false), 1.5));
+        UntilPlaying(runner);
+
+        var wraps = new List<(double From, double To)>();
+        double last = Frame();
+        bool edited = false;
+        for (int i = 0; i < 400 && wraps.Count < 3; i++)
+        {
+            double sim = Frame();
+            Assert.Equal(Key1At, Camera());                                              // never shot 2's camera
+            if (sim < last - 0.5) wraps.Add((last, sim));
+            if (wraps.Count == 1 && !edited && sim > 1.5)                                // mid-pass: the cut to 2 s, unsaved
+            {
+                Assert.True(pack.Session.Editor!.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.MoveKey(1, 2d)));
+                edited = true;
+            }
+            last = sim;
+        }
+        Assert.True(wraps.Count >= 3, $"wraps: {wraps.Count}");
+        const double step = 1d / 60;
+        Assert.InRange(wraps[0].From, 3d - step, 3d + 1e-3);                              // the end of shot 1 …
+        Assert.InRange(wraps[0].To, 1d, 1d + 2 * step);                                   // … back to its start (and the frame's one step)
+        Assert.InRange(wraps[1].From, 3d - step, 3d + 1e-3);                              // the pass the edit was made in ends as planned
+        Assert.InRange(wraps[2].From, 2d - step, 2d + 1e-3);                              // the next pass plays the edit: the cut at 2 s
+        Assert.InRange(wraps[2].To, 1d, 1d + 2 * step);
+        Assert.True(runner.Busy);
+        runner.Stop();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2a (§11m D1) — a take LONGER than its recording (ends at 8 s, the recording at 6 s) ends where the recording does, and the
+    /// report says so — ⛔ not a run that waits forever on a playhead that cannot advance. 🔴 Mutation: the runner's "the source did not move"
+    /// check removed ⇒ the runner is still busy after 600 frames.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2a_ATakeLongerThanItsRecording_EndsWhereTheRecordingEnds()
+    {
+        var (pack, _) = OpenFilmRecording("long");
+        pack.Takes.Save(TwoShotTake() with { EndAt = new Hrot.UI.Common.Map3D.Director.AtExpr(8d) });
+        var runner = pack.Runner;
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d)));
+        for (int i = 0; i < 600 && runner.Busy; i++) Frame();
+        Assert.False(runner.Busy);
+        Assert.Contains(runner.Reports[0].Problems, p => p.Contains("the source ends at 6"));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2a (§11m, success condition 5; R-4068 / CR-2) — the Replay Browser builds NO director of its own: its source calls only
+    /// <c>DirectorPack.Attach</c> (no runner, session or window constructed), and the attached pack is the films-only one — no extension, no tabs,
+    /// the window in this host's perspective — wired to THIS host's Event Timeline. 🔴 Mutation: a hand-built <c>new DirectorRunner(</c> in the
+    /// subsystem ⇒ the source half fails.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2a_TheReplayBrowser_AttachesTheDirectorThroughThePack_Only()
+    {
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+        string text = string.Concat(Directory.EnumerateFiles(Path.Combine(root, "Hrot/Subsystems/Hrot.ReplayBrowser"), "*.cs").Select(File.ReadAllText));
+        Assert.Contains("DirectorPack.Attach(", text);
+        foreach (var built in new[] { "new DirectorRunner(", "new DirectorTakeSession(", "new DirectorWindow(", "new WindowCinema(", "new MapLayerOverride(" })
+            Assert.DoesNotContain(built, text);
+
+        var (pack, _) = OpenFilmRecording("pack");
+        Assert.Null(pack.Runner.Extension);
+        Assert.Empty(pack.Window.Tabs);
+        Assert.Equal("ReplayBrowser", pack.Window.OwningPerspective);
+        Assert.Empty(pack.Session.Open("s-film", "main"));
+        Assert.NotEmpty(_subsystem.EventTimeline.Tracks!());                             // the RB's Event Timeline shows the open take's tracks
+        Assert.True(pack.Runner.OpenTake!("s-film", "main") is { } open && ReferenceEquals(open, pack.Session.Editor!.Take));
     }
 }

@@ -35,10 +35,16 @@ namespace Hrot.UI.Common.Map3D.Director
         // ⭐ CE-1364 T3 — the playback rate is the session's (the timeline's J / L change the same number)
         private float _speed { get => _takes.Speed; set => _takes.Speed = value; }
 
+        private readonly Func<double>? _playhead;
+
+        /// <param name="perspective">⭐ CE-1303 P2a (§11m D11) — the host's perspective ("Scenario" in the editor, "ReplayBrowser" in the RB).</param>
+        /// <param name="playhead">⭐ CE-1303 P2a — the source's sim second now (the host's playhead): <i>Play from playhead</i> starts the take there.</param>
         public DirectorWindow(Func<DirectorRunner?> runner, Func<TakeStore?> store, DirectorTakeSession takes,
-                              IReadOnlyList<IDirectorWindowTab>? tabs = null, System.Numerics.Vector4? titleBarColor = null)
-            : base(WindowId, "Director", "Scenario", WindowScope.PerspectiveBound)
+                              IReadOnlyList<IDirectorWindowTab>? tabs = null, System.Numerics.Vector4? titleBarColor = null,
+                              string perspective = "Scenario", Func<double>? playhead = null)
+            : base(WindowId, "Director", perspective, WindowScope.PerspectiveBound)
         {
+            _playhead = playhead;
             _runner = runner;
             _store = store;
             _takes = takes ?? throw new ArgumentNullException(nameof(takes));
@@ -112,7 +118,19 @@ namespace Hrot.UI.Common.Map3D.Director
             ImGui.SameLine();
             if (ImGui.Button("Prepare (scout)")) Start(runner, new PlayRequest(chosen!, Scout: true));
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Runs each take once, stepped as the film will be, and bakes its anchor times into the take.");
+            // ⭐ CE-1303 P2a — CR-4 (§11m D5–D7): iterate on the take — play it from the playhead, the panels kept on screen to edit it, and loop the
+            //   shot so the next pass shows the edit (a recording seeks; the editor fast-forwards to the playhead and cannot loop)
+            if (_pick == PickTake && _playhead != null)
+            {
+                ImGui.SameLine();
+                if (ImGui.Button("Play from playhead"))
+                    StartFrom(runner, new PlayRequest(chosen!, _speed, Cinema: false), _playhead());
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Plays this take from the playhead's time, the timeline kept on screen: the open take's unsaved edits are played.");
+            }
             ImGui.EndDisabled();
+            bool loop = runner.LoopShot;
+            if (ImGui.Checkbox("Loop shot", ref loop)) runner.LoopShot = loop;
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("At the end of the shot on screen, go back to its start (a recording only) — an edit shows on the next pass.");
             ImGui.SameLine();
             ImGui.BeginDisabled(!runner.Busy);
             if (ImGui.Button("Stop")) runner.Stop();
@@ -135,7 +153,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 if (ImGui.Button("Edit on the timeline")) _message = _takes.Open(scenario, take) is { Count: > 0 } p ? string.Join("\n", p) : null;
                 return;
             }
-            ImGui.TextUnformatted($"Editing {scenario}/{take}{(editor!.Dirty ? " * (unsaved - Play runs the saved file)" : "")} - Event Timeline: K adds a key, drag to move, Ctrl+Z undoes");
+            ImGui.TextUnformatted($"Editing {scenario}/{take}{(editor!.Dirty ? " * (unsaved - Play plays these edits)" : "")} - Event Timeline: K adds a key, drag to move, Ctrl+Z undoes");
             ImGui.BeginDisabled(!editor.Dirty);
             if (ImGui.Button("Save")) _message = _takes.Save() is not null ? null : "nothing to save";
             ImGui.EndDisabled();
@@ -213,6 +231,12 @@ namespace Hrot.UI.Common.Map3D.Director
         private void Start(DirectorRunner runner, PlayRequest request)
         {
             var problems = runner.Play(request);
+            _message = problems.Count == 0 ? null : string.Join("\n", problems.Take(6));
+        }
+
+        private void StartFrom(DirectorRunner runner, PlayRequest request, double filmTime)
+        {
+            var problems = runner.PlayFrom(request, filmTime);
             _message = problems.Count == 0 ? null : string.Join("\n", problems.Take(6));
         }
     }

@@ -251,6 +251,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             // Search panel is created after WireDelegates so it receives the wired
             // seek/select intents.
         }
+
+        // ⭐ CE-1303 P2a (DESIGN_Director_Timeline_Editor.md §11m) — the ONE film director, through the pack (windowed and headless)
+        AttachDirector();
     }
 
     /// <summary>
@@ -395,6 +398,14 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         }
 
         SyncTimelineSource();   // ⭐ RB-6 — a headless host keeps the index too (GET /timeline/*)
+
+        // ⭐ CE-1303 P2a (§11m) — the director's frame FIRST, so everything below draws the world its step moved to. ⚠ While it plays it owns
+        //   the playhead: the viewer's own playback stays paused (two advancing would be two steppers).
+        if (_directorPack is { } director)
+        {
+            director.Tick();
+            if (director.Runner.Busy) IsPlaying = false;
+        }
 
         // ⭐ RB-1 — playback runs on a headless host too (POST /sim/play): the one play state, the panel's or the headless host's.
         if (IsPlaying)
@@ -927,6 +938,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
         if (federationPanel != null)
             RegisterFederationWindow(windowManager, federationPanel);
+
+        // ⭐ CE-1303 P2a — the Director window (View › Director), the pack's own (film tabs only: no verifier here)
+        _directorPack?.RegisterWindow(windowManager);
 
         // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds: the
         //   Components view over the replayed world, and Properties… / View ▸ Details on this host's actions. 📐 Before: none here.
