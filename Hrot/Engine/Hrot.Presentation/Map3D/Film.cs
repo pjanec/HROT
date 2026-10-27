@@ -357,7 +357,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
                     // ⭐ CE-1379 / CE-1380 (§11t "as built") — ONE film pass in both modes: the scene layers through the screen's own layer passes, the
                     //   gizmo buffer's film layers among them (the scenario's tactical graphics, the unit symbols — as the set in force shows them).
                     //   ⛔ Was: 2-D took the WHOLE screen pass (cursor readout, HUD, selection ring, panels), 3-D no gizmo at all.
-                    _canvas.DrawScene();
+                    _canvas.DrawScene(new Vector2(w, h));   // ⭐ CE-1383 — the layers that cull cull to THIS target, not the window
                     // ⭐ CE-1305 (§11t G3) — the film graphics, laid out through THIS frame's camera, under the subtitle
                     if (request.Graphics is { Count: > 0 } graphics) FilmText.Graphics(graphics, Projector(), h);
                     if (request.Subtitle is { } sub && !string.IsNullOrWhiteSpace(sub.Text)) FilmText.Caption(sub, w, h);

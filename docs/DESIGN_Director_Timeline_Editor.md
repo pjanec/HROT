@@ -3138,6 +3138,20 @@ film's *M1 Abrams* label and the T-72 under the film's ring; no cursor readout, 
 (CE-1381). ⭐ **The window vs the film, the same 2-D moment** (`docs/img/film-p6-2d-window-vs-film.jpg`, the harness's `2d-screen.png` beside `2d.png`): the
 same pixels but for the subtitle (the run plays without the cinema) and the graphics' text boxes, which are dark on black.
 
+#### CE-1382 / CE-1383 as built *(ui, `2026-10-27` — F2's known edges 1 and 2 closed; they supersede those two edges above)*
+
+**CE-1382 — a tool's drawing has its own always-on layer.** `DebugTraceLayers.ToolHandles = 254` (above `LayerControlDto.FirstUntoggledLayer`, beside the
+selection's 255): always drawn on screen, outside `LayerControlSets.FilmLayers`, so never filmed. ⭐ Not emitted by 14 tool gizmos: the two arbiters that
+run every one of them (`GlobalGizmoManager.Execute`, `DataDrivenGizmoSystem.StampSince`) call `DebugPrimitiveBuffer.MoveDefaultLayer(mark, ToolHandles)` right
+beside the existing `StampGizmoTypeId(mark, …)` — what a tool left on layer 0 moves, meta primitives and a tool's own explicit layer do not. Side effect, the
+intended one (CE-1160's comment): a handle now beats an entity pick box by LAYER, not by emission order. Rejected: a per-tool constant (14 emit sites, the next
+tool forgets it); the pick-box anchor id ≥ `ToolAnchorIdBase` (only Box2D carries one — crosshair lines and previews have none).
+**CE-1383 — one size source.** `RenderContext.ViewSize` is the size of the TARGET being drawn (`MapCanvas.NewContext`: the window's on screen, the film's
+capture size via `DrawScene(targetSize)` from `FilmCaptureLayer.Serve`); `RenderContext.TargetSize` falls back to the window for a hand-built context.
+`TerrainLayer2D.ViewOf` and `GridMapLayer.Draw` read it — no layer reads `GetScreenWidth/Height` any more (the 3-D camera already had `ViewportOverride`).
+Rails (`FilmFrameRail`): `CE1382_AFilmFrame_NeverDrawsAnActiveToolsHandles_ButDrawsTheUnitSymbol` (a real `MeasureGizmo` through `GlobalGizmoManager`) ·
+`CE1383_ACaptureLargerThanTheWindow_KeepsThe2DOutlinesAndGridInItsFarQuadrant` (2560×1600 from a 1280×800 window).
+
 ![P6 after CE-1380 / CE-1379: the 3-D frame with the road and the unit's symbol, the 2-D frame as the window draws it](img/film-p6-graphics.jpg)
 
 ![The 2-D window (left) and the 2-D film frame (right) at the same moment](img/film-p6-2d-window-vs-film.jpg)

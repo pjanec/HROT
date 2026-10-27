@@ -92,7 +92,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         if (_plan.FillTriangles > 0) DrawFills();
 
         var camera = _camera();
-        int n = camera != null ? Cull(_plan, ViewOf(camera), camera.Zoom, _inView) : CopyAll(_plan, _inView);
+        int n = camera != null ? Cull(_plan, ViewOf(camera, ctx.TargetSize), camera.Zoom, _inView) : CopyAll(_plan, _inView);
         StrokesDrawn = n;
         if (n == 0) return;
         _renderer.Camera = camera;
@@ -160,12 +160,11 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         world != null && world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
 
     /// <summary>The world rectangle the camera shows (min, max), from the screen's corners — north-up flips Y, so both are taken.</summary>
-    private static (Vector2 Min, Vector2 Max) ViewOf(MapCamera camera)
+    private static (Vector2 Min, Vector2 Max) ViewOf(MapCamera camera, Vector2 size)
     {
-        float w = Raylib.IsWindowReady() ? Raylib.GetScreenWidth() : 0f;
-        float h = Raylib.IsWindowReady() ? Raylib.GetScreenHeight() : 0f;
+        // ⭐ CE-1383 — the TARGET being drawn (RenderContext.TargetSize: the window's, or a film's render texture), never the window by default
         var a = camera.ScreenToWorld(Vector2.Zero);
-        var b = camera.ScreenToWorld(new Vector2(w, h));
+        var b = camera.ScreenToWorld(size);
         return (Vector2.Min(a, b), Vector2.Max(a, b));
     }
 

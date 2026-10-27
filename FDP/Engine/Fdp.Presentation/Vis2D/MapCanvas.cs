@@ -131,9 +131,11 @@ namespace Fdp.Toolkit.Vis2D
         /// 2-D film frame took the whole screen pass, cursor readout and HUD included), with the scene layers' screen-space pass (the cards and
         /// labels the film's layer set turns on), and <see cref="RenderContext.Film"/> set so the gizmo layer draws its film layers only.</para>
         /// </summary>
-        public void DrawScene()
+        /// <param name="targetSize">⭐ <c>CE-1383</c> — the size of the render target being drawn into (the film's capture size); it becomes
+        /// <see cref="RenderContext.ViewSize"/>, so the layers that cull cull to the target, not the window. Null: the window's.</param>
+        public void DrawScene(Vector2? targetSize = null)
         {
-            var ctx = Camera.Is3D ? DrawLayers3D(sceneOnly: true) : DrawLayers2D(sceneOnly: true);
+            var ctx = Camera.Is3D ? DrawLayers3D(sceneOnly: true, targetSize) : DrawLayers2D(sceneOnly: true, targetSize);
             DrawOverlays(ctx, sceneOnly: true);
         }
 
@@ -148,8 +150,9 @@ namespace Fdp.Toolkit.Vis2D
             }
         }
 
-        private RenderContext NewContext(bool film) => new()
+        private RenderContext NewContext(bool film, Vector2? targetSize = null) => new()
         {
+            ViewSize          = targetSize ?? (Raylib.IsWindowReady() ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()) : Vector2.Zero),   // ⭐ CE-1383
             Zoom              = Camera.Zoom,
             MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
             DeltaTime         = GetFrameTime(),
@@ -160,10 +163,10 @@ namespace Fdp.Toolkit.Vis2D
         };
 
         /// <summary>The 2-D layer pass (0 → N, bottom to top) both <see cref="Draw"/> and <see cref="DrawScene"/> run (one loop).</summary>
-        private RenderContext DrawLayers2D(bool sceneOnly)
+        private RenderContext DrawLayers2D(bool sceneOnly, Vector2? targetSize = null)
         {
             Camera.BeginMode();
-            var ctx = NewContext(sceneOnly);
+            var ctx = NewContext(sceneOnly, targetSize);
             foreach (var layer in _layers)
                 if (IsLayerVisible(layer) && (!sceneOnly || layer is ISceneLayer)) layer.Draw(ctx);
             Camera.EndMode();
@@ -171,10 +174,10 @@ namespace Fdp.Toolkit.Vis2D
         }
 
         /// <summary>The 3-D layer pass both <see cref="Draw"/> and <see cref="DrawScene"/> run (one loop).</summary>
-        private RenderContext DrawLayers3D(bool sceneOnly)
+        private RenderContext DrawLayers3D(bool sceneOnly, Vector2? targetSize = null)
         {
             Camera.BeginMode();
-            var ctx = NewContext(sceneOnly);
+            var ctx = NewContext(sceneOnly, targetSize);
             int without = 0;
             foreach (var layer in _layers)
             {

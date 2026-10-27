@@ -61,10 +61,12 @@ public sealed class GridMapLayer : ISceneLayer   // ⭐ CE-1380 — filmed when 
         LinesDrawn = 0;
         if (!_isVisible()) return;
         var camera = _camera();
-        if (camera == null || !Raylib.IsWindowReady()) return;
+        // ⭐ CE-1383 — the view is the TARGET being drawn (ctx.TargetSize: the window's, or a film's render texture — larger or smaller than the window)
+        var size = ctx.TargetSize;
+        if (camera == null || size.X <= 0f || size.Y <= 0f) return;
 
         float zoom = camera.Zoom;
-        var (min, max) = ViewBounds(camera, Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+        var (min, max) = ViewBounds(camera, size.X, size.Y);
         var steps = GridSteps.For(zoom);
         if (!steps.IsValid) return;
 

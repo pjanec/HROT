@@ -160,7 +160,8 @@ public sealed class FilmFrameRail
     /// <summary>The production map (<c>MapInteractionPack.AttachMapLayers</c>) over test-town with a unit at its middle — its symbol drawn by the production
     /// projector (<see cref="Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo"/>) — a cyan SELECTION box (layer 255) beside it, a pink tactical AREA
     /// (<c>DebugTraceLayers.TacticalGraphics</c>) east of it, and the non-scene clutter.</summary>
-    private static (MapCanvas Canvas, Hrot.ScenarioEditor.Map.MapLayers Layers, FilmCaptureLayer Film, Vector3 Unit, Vector3 Area, EntityRepository World) FilmSet()
+    private static (MapCanvas Canvas, Hrot.ScenarioEditor.Map.MapLayers Layers, FilmCaptureLayer Film, Vector3 Unit, Vector3 Area, EntityRepository World) FilmSet(
+        Action<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer, EntityRepository, Vector3>? alsoEmit = null)
     {
         var terrain = Map3DTests.TestTown();
         var world = Map3DTests.WorldWith(terrain);
@@ -191,11 +192,12 @@ public sealed class FilmFrameRail
         var d = new Vector2(areaAt.X - 10f, areaAt.Y + 10f);
         buffer.DrawFilledTriangle(a, b, c, Pink, layer: Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.TacticalGraphics);
         buffer.DrawFilledTriangle(a, c, d, Pink, layer: Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.TacticalGraphics);
+        alsoEmit?.Invoke(buffer, world, unitAt);
         return (canvas, layers, film, unitAt, areaAt, world);
     }
 
     /// <summary>Holds the shot, draws the window's frame (returned as an image, the caller unloads it), then captures the same frame size.</summary>
-    private static (Image Window, Image Film) WindowAndFilm(UiFrameSession frame, MapCanvas canvas, FilmCaptureLayer film, string path)
+    private static (Image Window, Image Film) WindowAndFilm(UiFrameSession frame, MapCanvas canvas, FilmCaptureLayer film, string path, int scale = 1)
     {
         for (int i = 0; i < 3; i++)
         {
@@ -207,7 +209,7 @@ public sealed class FilmFrameRail
         if (File.Exists(path)) File.Delete(path);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         Raylib.ExportImage(window, Path.ChangeExtension(path, null) + "-window.png");   // evidence: the window beside the film
-        var capture = FilmStudio.Capture(new FilmCaptureRequest(path, Raylib.GetScreenWidth(), Raylib.GetScreenHeight()));
+        var capture = FilmStudio.Capture(new FilmCaptureRequest(path, Raylib.GetScreenWidth() * scale, Raylib.GetScreenHeight() * scale));
         film.Update(0.016f);
         Assert.True(capture.IsCompletedSuccessfully, capture.Exception?.ToString() ?? "the capture was not served");
         return (window, Raylib.LoadImage(path));
@@ -298,5 +300,90 @@ public sealed class FilmFrameRail
             finally { Raylib.UnloadImage(window2); Raylib.UnloadImage(film2); }
         }
         finally { FilmStudio.Reset(); film.Dispose(); world.Dispose(); }
+    }
+    /// <summary>
+    /// ⭐ <c>CE-1382</c> — an ACTIVE tool's handles are on the window's screen and never in a film frame, while the unit's symbol is in both. The tool is a
+    /// REAL one (<c>MeasureGizmo</c>: its cyan crosshair at the cursor) driven by the production arbiter (<c>GlobalGizmoManager.Execute</c> — what moves a
+    /// tool's drawing onto <c>DebugTraceLayers.ToolHandles</c>, above the toggled rows a film shows). 🔴 Mutation: drop the
+    /// <c>MoveDefaultLayer</c> call from <c>GlobalGizmoManager.Execute</c> (the handles stay on layer 0 with the symbols) ⇒ the crosshair is filmed ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE1382_AFilmFrame_NeverDrawsAnActiveToolsHandles_ButDrawsTheUnitSymbol()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        FilmStudio.Reset();
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        Vector3 cursor = default;
+        var (canvas, layers, film, unit, _, world) = FilmSet((buffer, w, unitAt) =>
+        {
+            cursor = unitAt + new Vector3(30f, 30f, 0f);
+            var measure = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo();
+            measure.OnDragUpdate(cursor);
+            var arbiter = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer);
+            arbiter.Register(Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId(), measure);
+            arbiter.Execute(w, 0.016f);
+        });
+        try
+        {
+            FilmStudio.TwoD = true;
+            FilmStudio.Direct(new FilmShot { Pose = new CameraPose(unit, 160f, 0f, -0.6f) });
+            var (window, image) = WindowAndFilm(frame, canvas, film, Path.Combine(Path.GetTempPath(), "hrot-film-rail", "film-2d-tool.png"));
+            try
+            {
+                var tool = canvas.Camera.WorldToScreen(new Vector2(cursor.X, cursor.Y));
+                var toolAt = ((int)tool.X, (int)tool.Y);
+                var s = canvas.Camera.WorldToScreen(new Vector2(unit.X, unit.Y));
+                var unitScreen = ((int)s.X, (int)s.Y);
+                Assert.True(Count(window, IsCyan, toolAt, 18) > 10, $"anti-vacuity: the WINDOW shows the tool's crosshair at {toolAt}");
+                Assert.True(Count(image, IsMagenta, unitScreen, 24) > 6, $"the unit's symbol is in the film at {unitScreen}");
+                Assert.Equal(0, Count(image, IsCyan, toolAt, 18));   // the tool's handles are not filmed
+            }
+            finally { Raylib.UnloadImage(window); Raylib.UnloadImage(image); }
+        }
+        finally { FilmStudio.Reset(); film.Dispose(); world.Dispose(); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1383</c> — a capture TWICE the window's size has the 2-D plan's outlines and the grid's lines in its bottom-right quadrant, which the
+    /// window-sized cull (<c>GetScreenWidth/Height</c>) lost. 🔴 Mutation: <c>FilmCaptureLayer.Serve</c> calls <c>DrawScene()</c> without the target size
+    /// (the layers cull to the window again) ⇒ no outline or grid pixels in the quadrant ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE1383_ACaptureLargerThanTheWindow_KeepsThe2DOutlinesAndGridInItsFarQuadrant()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        FilmStudio.Reset();
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var (canvas, layers, film, unit, _, world) = FilmSet();
+        try
+        {
+            FilmStudio.TwoD = true;
+            FilmStudio.Direct(new FilmShot { Pose = new CameraPose(unit, 160f, 0f, -0.6f) });
+            var (window, image) = WindowAndFilm(frame, canvas, film, Path.Combine(Path.GetTempPath(), "hrot-film-rail", "film-2d-big.png"), scale: 2);
+            try
+            {
+                Assert.Equal((2560, 1600), (image.Width, image.Height));
+                int far = QuadrantCount(image, IsOutlineOrGrid, image.Width / 2, image.Height / 2);
+                int near = QuadrantCount(image, IsOutlineOrGrid, 0, 0);
+                Assert.True(near > 200, $"anti-vacuity: the film's top-left quadrant has outline / grid pixels ({near})");
+                Assert.True(far > 200, $"the film's bottom-right quadrant has outline / grid pixels ({far}; top-left {near})");
+            }
+            finally { Raylib.UnloadImage(window); Raylib.UnloadImage(image); }
+        }
+        finally { FilmStudio.Reset(); film.Dispose(); world.Dispose(); }
+    }
+
+    // grey-ish, neutral pixels over the black ground: the grid's translucent grey lines (and the plan's neutral outlines) — never a coloured fill
+    private static bool IsOutlineOrGrid(Color c) => c.R + c.G + c.B > 30 && Math.Abs(c.R - c.G) < 12 && Math.Abs(c.G - c.B) < 12;
+
+    private static int QuadrantCount(Image image, Func<Color, bool> what, int x0, int y0)
+    {
+        int n = 0;
+        for (int y = y0; y < y0 + image.Height / 2; y++)
+            for (int x = x0; x < x0 + image.Width / 2; x++)
+                if (what(Raylib.GetImageColor(image, x, y))) n++;
+        return n;
     }
 }

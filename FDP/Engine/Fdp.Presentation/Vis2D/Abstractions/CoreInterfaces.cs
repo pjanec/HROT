@@ -36,6 +36,20 @@ public struct RenderContext
     /// layer) draws only what a film shows. False on screen.
     /// </summary>
     public bool Film;
+
+    /// <summary>
+    /// ⭐ <c>CE-1383</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1382 / CE-1383 as built") — the size in pixels of the TARGET this pass
+    /// draws into: the window's on screen, the render texture's in a film's pass (<see cref="Fdp.Toolkit.Vis2D.MapCanvas.DrawScene"/>) — ONE
+    /// source for every layer that culls to what is visible (the 2-D plan's outlines and labels, the grid). Zero when unknown (no window,
+    /// a headless rail): a layer then does not cull.
+    /// </summary>
+    public Vector2 ViewSize;
+
+    /// <summary><see cref="ViewSize"/>, or — for a context built by hand (a rail) with none — the window's size; zero with no window.</summary>
+    public readonly Vector2 TargetSize =>
+        ViewSize.X > 0f && ViewSize.Y > 0f ? ViewSize
+        : Raylib_cs.Raylib.IsWindowReady() ? new Vector2(Raylib_cs.Raylib.GetScreenWidth(), Raylib_cs.Raylib.GetScreenHeight())
+        : Vector2.Zero;
 }
 
 /// <summary>
