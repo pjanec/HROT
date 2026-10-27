@@ -197,6 +197,8 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
             var rel = System.IO.Path.GetRelativePath(root, path).Replace('\\', '/');
             if (rel.Contains("/obj/", StringComparison.Ordinal)) continue;
             if (rel.Contains("/bin/", StringComparison.Ordinal)) continue;
+            // the tooling's own trees (agent worktrees are full copies of the repo) are not the code base
+            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;
             if (rel.EndsWith("ComponentEditDrawer.cs",     StringComparison.Ordinal)) continue;
             if (rel.EndsWith("ImGuiPropertyTreeAdapter.cs", StringComparison.Ordinal)) continue;
             if (rel.Contains(".Tests/", StringComparison.Ordinal)) continue;
