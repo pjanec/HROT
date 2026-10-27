@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-18
 current-answer: the whole file — a MEASURED reference, re-check a row before building on it (code moves)
 stale-below: nothing.
-known-rot: none.
+known-rot: none — §5's SOP row re-measured 2026-10-27 (CE-1410: the shipped SOPs are C#-built).
 known-conflict: none — the 2026-10-18 "everything in the blackboard" rule was corrected the same day (R-2042: choose by scope; AQ87 §4 stands)
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the attack / defence / clearing plays built from these blocks
@@ -82,7 +82,7 @@ References are **symbols**, never line numbers. ⚠ A row is true as of the date
 
 | block | symbols | facts |
 |---|---|---|
-| asset | `BasicSquadSop.btree.json` (`AI.Behaviors/Assets/BTrees/Library/Sop`) | a BTree: Selector over Sequences of `Condition → SopOrder{Kind: React, BehaviorName, Urgency}`; blackboard of `SopSenseParams` / `SopAreaParams` |
+| asset | `BasicSquadSop` — C#-built (`AI.Behaviors/Brains/BasicSquadSop.cs`, CE-1410, R-1042; was `Assets/BTrees/Library/Sop/BasicSquadSop.btree.json`) | a BTree: Selector over Sequences of `Condition → React(BehaviorName, Urgency)` (the SOP order verbs `.React` / `.DoWhenIdle`; a JSON asset's `SopOrder` node binds the same key); blackboard of `SopSenseParams` / `SopAreaParams` |
 | wake | `BrainTickSystem.TickSopSlots` | any `SensorChangedEvent` whose `Unit` is this unit wakes its SOP; otherwise periodic; edges recorded by `RecentSensesSystem` |
 | react | `SopActions.React` | asks the gate first, then publishes `AssignBehaviorEvent{Origin = Reaction, Urgency}` |
 | conditions | `[SharedAiCondition] bool X(ref P p, Entity self, EntityRepository world)` | `SopConditions.SensedFresh` (reads `RecentSenses` + `BehaviorState.RunSince`) · `SquadSopConditions.DangerAreaAhead` (reads the commander's `DangerAreaCognitiveBuffer` via `DangerCrossingPlay.NextArea` → `UnitSensors.TryGetResults`) |

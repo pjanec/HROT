@@ -242,30 +242,21 @@ public sealed class CuratedBehaviorRegistrarTests
     /// reddened, correctly. ⭐ Planting the topology afterwards is both the honest assertion and the
     /// production order: the JSON registrar and this one run in the same scan, in either order.</para>
     /// </summary>
+    /// <para>⛔ <b>SUPERSEDED by <c>CE-1410</c> (R-1042):</b> <c>PlatoonHillAttack</c>'s topology is a curated C# tree now, so no resolver
+    /// overlays a topology this registrar does not own, and its <c>[BehaviorResolver]</c> carries NO params type (one would demote the block,
+    /// <c>CE-437</c>). ⭐ The rail now pins that: the ONE registration carries the topology, the parse and the BLOCK as its layout.</para>
     [Fact]
-    public void SR_R5b_TheOverlayParamsType_ReachesATopologyItDoesNotOwn()
+    public void SR_R5b_PlatoonHillAttack_IsOneCuratedRegistration_ItsBlockStaysTheLayout()
     {
         var beh = new BehaviorRegistry();
         CuratedBehaviorRegistrar.Register(beh, NodeLogic());
 
-        const string name = "PlatoonHillAttack";
-        beh.TryGetId(name, out _).Should().BeFalse(
-            "this registrar supplies only the RESOLVER for it — registering a topology would " +
-            "hard-error against the generated JSON registrar's");
-
-        // The generated JSON registrar's arrival, stood in for.
-        beh.Register(name, new BehaviorDefinition
-        {
-            Name      = name,
-            BrainTier = BehaviorConstants.BrainTierBTree,
-        });
-
-        beh.TryGetId(name, out int id).Should().BeTrue();
+        beh.TryGetId("PlatoonHillAttack", out int id).Should().BeTrue();
         beh.TryGetDefinition(id, out var def).Should().BeTrue();
-
-        def!.ParseParams.Should().NotBeNull("the pending overlay must bind when the topology arrives");
-        def.BlackboardLayoutType.Should()
-            .Be(typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams));
+        def!.BTreeInterpreter.Should().NotBeNull("the topology is curated (CE-1410)");
+        def.ParseParams.Should().NotBeNull("its resolver binds to the same name");
+        def.BlackboardLayoutType.Should().Be(typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackBlackboard),
+            "the resolver writes the params at offset 0 of the block; a params-typed overlay would leave the State no room (CE-437)");
     }
 
     // ── SR_R6 / SR_R7 ─────────────────────────────────────────────────────────
@@ -327,14 +318,13 @@ public sealed class CuratedBehaviorRegistrarTests
         names.Should().NotContain("HideInCover_BT");
         names.Should().NotContain("HideInCover_BT_v2");
 
-        // ⚠ These two ARE present as resolver overlays; what must be absent is a TOPOLOGY.
+        // ⭐ CE-1410 (R-1042): HullDownAttackRun / PlatoonHillAttack were the other two non-curated cases (their topology was a JSON
+        //   asset's); they are curated C# trees now — opted in, so present WITH a topology.
         foreach (var name in new[] { "HullDownAttackRun", "PlatoonHillAttack" })
         {
-            if (!beh.TryGetId(name, out int id)) continue;
+            beh.TryGetId(name, out int id).Should().BeTrue();
             beh.TryGetDefinition(id, out var def).Should().BeTrue();
-            def!.BTreeInterpreter.Should().BeNull(
-                $"'{name}' topology is owned by its GENERATED registrar — registering it here would " +
-                "hard-error on a duplicate name");
+            def!.BTreeInterpreter.Should().NotBeNull($"'{name}' is a curated C# tree since CE-1410");
         }
     }
 }

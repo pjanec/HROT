@@ -148,10 +148,11 @@ namespace Hrot.SimHost.Tests
             //   (St.State, R-151), not in a side slot keyed FNV(assetId, "State"). ⛔ S3-G's partition slot,
             //   read here before, is no longer provisioned. Found by the behaviour's OWN identity, exactly
             //   as the generated thunks find it.
-            if (!RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(
+            // ⭐ CE-1410 — the C#-built tree's block (params at 0, then the shared State).
+            if (!RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackBlackboard>(
                     repo, entity, BehaviorHash.FromName("PlatoonHillAttack"), out var blk))
                 throw new InvalidOperationException("PlatoonHillAttack's block is not allocated (CE-437/CE-429)");
-            return ref blk->St.State;
+            return ref blk->State;
         }
 
         private static unsafe void AddRoster(EntityRepository repo, Entity commander,

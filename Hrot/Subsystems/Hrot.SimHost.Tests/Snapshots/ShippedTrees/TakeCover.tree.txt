@@ -1,0 +1,14 @@
+asset a2092000-0000-0000-0000-000000000001
+group Library/Tactics
+sop-orders no
+writes-channels []
+json-params Hrot.AI.Behaviors.Brains.EqsTacticsParams
+parse (empty) -> ok
+  c2092000-0000-0000-0000-000000000002 {"SearchRadius":60,"MinRepositionMetres":5,"Speed":2.5,"ArrivalRadius":1,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+parse {} -> ok
+parse {"bogus":1} -> ok
+  c2092000-0000-0000-0000-000000000002 {"SearchRadius":60,"MinRepositionMetres":5,"Speed":2.5,"ArrivalRadius":1,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+parse {"Speed":7,"SearchRadius":33} -> ok
+  c2092000-0000-0000-0000-000000000002 {"SearchRadius":33,"MinRepositionMetres":5,"Speed":7,"ArrivalRadius":1,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0}
+Action c2092000-0000-0000-0000-000000000002 call Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCover p:EqsTacticsParams={"SearchRadius":60,"MinRepositionMetres":5,"Speed":2.5,"ArrivalRadius":1,"ScoreDeltaThreshold":0.05,"FactionFilter":0,"FireCooldownSeconds":0,"FireWhileMoving":0,"Anchor":[0, 0, 0],"AnchorRadius":0} state:EqsTacticsState "Take cover from the top threat"
+  # CE-2092 — docs/DESIGN_Eqs_Consuming_Behaviours.md §2. Running while the unit remembers a threat: its own FindCoverFromTarget sensor pointed at the top threat; each new answer moves the unit only when the best point is MinRepositionMetres or more from the current goal. Success when nothing is left to hide from.

@@ -1,0 +1,15 @@
+asset a1118000-0000-0000-0000-000000000001
+group Library/Sop
+sop-orders yes
+writes-channels []
+json-params Hrot.Map.Definitions.Behavior.NoParams
+parse (empty) -> no params region
+parse {} -> no params region
+parse {"bogus":1} -> no params region
+Selector c1118000-0000-0000-0000-000000000002 "Rows — first true wins"
+  # CE-1118 H-3 (Airborne Insertion §6.5 D-23): the standing orders of a SPAWNED pilot — nothing in a scenario gives him a task, so his type's SOP does.
+  Sequence c1118000-0000-0000-0000-000000000010 "Down on the ground → evade"
+    # Out of his harness: away from the enemy, into cover, down, and wait for the rescue (Air Ops §4c / §9).
+    Condition c1118000-0000-0000-0000-000000000011 call Hrot.AI.Behaviors.Brains.AirborneIndividualNodes.OnTheGround "On the ground (no descent, not aboard)"
+    Action c1118000-0000-0000-0000-000000000012 sop React:EvadeAndSignal:Alert "React: EvadeAndSignal"
+      # Never ends on its own: he stays down.

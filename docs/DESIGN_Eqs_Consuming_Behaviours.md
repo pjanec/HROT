@@ -4,7 +4,7 @@ updated: 2026-10-05
 build-state: BUILDING — §9 (Flank / FiringPosition) F1–F6 approved, CE-2108 + CE-2109 BUILT (as-built §9.8, live); §8 (CE-2103) E1–E5 approved, PARKED on demand; D1–D6 approved 2026-10-05 (D2 = BTree with shared C# actions, R-204 (behaviors)); CE-2092 / CE-2093 BUILT (as-built §6); CE-2094 BUILT for the in-process cluster and CE-2100 verified on the editor host (§7).
 current-answer: §9 (Flank / FiringPosition — §9.2–9.7 as amended by the as-built §9.8); §8 (CE-2103, EQS in a blueprint ACTION — PARKED; use a hosted Behaviour blueprint); §2 diagrams (BTree variant) with §6–§7 as-built, §3 claim table, §4 decisions as amended by §4.1–§4.3, §5 build plan.
 stale-below: the ⛔ HISTORY section (the blueprint variant's diagrams) and the D2–D4 rows of the §4 table as first written (the blueprint wording) — §4.3 says what replaced them.
-known-rot: none.
+known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · none.
 known-conflict:
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — D1 (one "cover, fall back if overrun" loop), D3 (re-point "with an epoch bump") and D5 (extend tt-nav-los) are adjusted here, each with the measured reason (§4).
 related-designs:

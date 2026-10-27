@@ -25,7 +25,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
     /// than assumed: Hrot.AI.Behaviors carries nine <c>[BTreeDefinition]</c> methods and only five
     /// are curated topologies. <c>HideInCover_BT</c>/<c>_v2</c> are registered as behaviours nowhere,
     /// and <c>PlatoonHillAttack</c>/<c>HullDownAttackRun</c> have their topology owned by generated
-    /// JSON registrars -- registering those here would hard-error on a duplicate name.
+    /// JSON registrars -- registering those here would hard-error on a duplicate name. (⛔ HISTORY — since
+    /// CE-1410 (R-1042) every shipped library tree, those two included, is a curated C# tree; this generator
+    /// also publishes what their JSON registrars did: CarriesSopOrders, WritesChannels, BakeDefaults —
+    /// DESIGN_Behavior_Self_Registration.md §10d.)
     /// </para>
     ///
     /// <para>
@@ -317,10 +320,16 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     sb.AppendLine("                BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,");
                     sb.AppendLine("                BTreeInterpreter = __interp" + safe + ",");
                     sb.AppendLine("                StatefulWorkingSlots = __plan" + safe + ".Slots,");
+                    // ⭐ CE-1410 (R-1042) — what the JSON registrar publishes for an asset, read off the compiled blob here: an SOP is a
+                    //   tree that carries SOP orders (CE-1019), and its channel set is the union of its bound methods' [WritesChannel].
+                    sb.AppendLine("                CarriesSopOrders = global::Fdp.Toolkit.Behavior.SharedNodeBinder.CarriesSopOrders(__blob" + safe + "),");
+                    sb.AppendLine("                WritesChannels = global::Fdp.Toolkit.Behavior.SharedNodeBinder.WritesChannelsOf(__blob" + safe + "),");
                 }
                 if (t.ParamsType != null)
                 {
                     sb.AppendLine("                BlackboardLayoutType = typeof(global::" + t.ParamsType + "),");
+                    // ⭐ CE-1410 (R-3002) — stage 1: the params struct's own default (its constructor), composed in front of a resolver.
+                    sb.AppendLine("                BakeDefaults = global::Fdp.Toolkit.Behavior.BehaviorParams.BakeNew<global::" + t.ParamsType + ">(),");
                     // ⭐⭐ CE-416 ② / Q75 decision D, state ② — a curated behaviour whose JSON contract IS its layout
                     //   needs no resolver: the IDENTITY parse is generated. ⛔ Decided HERE, at generation time, and
                     //   only when no [BehaviorResolver] names this behaviour (Q75 D.1, R-132/R-149) — never by

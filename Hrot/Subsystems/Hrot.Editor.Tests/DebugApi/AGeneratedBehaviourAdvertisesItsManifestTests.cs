@@ -147,7 +147,8 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
                 : manifest.Select(v => v.Name).ToArray();
             Assert.Equal(expected, PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
         }
-        Assert.Contains(generated, d => d.Name == "Sentry");   // a flat one is in the set (anti-vacuity for the CE-2133 arm)
+        // a flat one is in the set (anti-vacuity for the CE-2133 arm). ⭐ CE-1410: it named Sentry, C#-built since — any flat one counts
+        Assert.Contains(generated, d => d.ManagedBlackboardVariables!.Count == 1 && d.ManagedBlackboardVariables[0].Type == d.JsonParamsDtoType);
     }
 
     /// <summary>
@@ -348,13 +349,19 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     /// <summary>
     /// ⛔ <c>R-132</c> — <i>"a curated (hand-authored) artefact outranks a generated one"</i>. When both a
     /// curated authored contract and a generated manifest exist, the authored DTO wins and the two are
-    /// NOT unioned. <c>HullDownAttackRun</c> is the real instance: its topology is generated, its
-    /// resolver comes from the curated registrar's overlay.
+    /// NOT unioned. ⛔ <c>HullDownAttackRun</c> was the real instance (generated topology + a curated overlay) until <c>CE-1410</c> made
+    /// it a curated C# tree, which publishes no manifest; no shipped behaviour has both now, so the rule is pinned on a definition of
+    /// that same shape (its contract, its old manifest entry).
     /// </summary>
     [Fact]
     public void WhenBothExistTheAuthoredContractWins()
     {
-        BehaviorDefinition def = Definition(LoadProductionRegistry(), "HullDownAttackRun");
+        var def = new BehaviorDefinition
+        {
+            Name = "BothShapes",
+            JsonParamsDtoType = typeof(Hrot.AI.Behaviors.Brains.HullDownAttackParams),
+            ManagedBlackboardVariables = new[] { new ManagedBlackboardVariable("fight", typeof(Hrot.AI.Behaviors.Brains.VehicleFightFromCoverParams), 0) },
+        };
 
         Assert.NotNull(def.JsonParamsDtoType);
         Assert.NotNull(def.ManagedBlackboardVariables);   // both present — the interesting case

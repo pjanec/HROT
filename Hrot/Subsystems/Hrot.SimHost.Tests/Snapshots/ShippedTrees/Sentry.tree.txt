@@ -1,0 +1,19 @@
+asset a3079000-0000-0000-0000-000000000001
+group Library/Tactics
+sop-orders no
+writes-channels []
+json-params Fdp.Toolkit.Behavior.ThreatCountParams
+parse (empty) -> ok
+  c3079000-0000-0000-0000-000000000004 {"Count":1,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":90}
+parse {} -> ok
+parse {"bogus":1} -> ok
+  c3079000-0000-0000-0000-000000000004 {"Count":1,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":90}
+parse {"WithinMetres":33,"Count":2} -> ok
+  c3079000-0000-0000-0000-000000000004 {"Count":2,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":33}
+Sequence c3079000-0000-0000-0000-000000000002 "Watch, then hold on"
+  # CE-3079 H2 — docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.5. Ends ITSELF (Success) once a dangerous contact is within WithinMetres and the wait has run, so a mission task running it hands over on BehaviorFinished. No fire node, no SOP: it never shoots.
+  UntilSuccess c3079000-0000-0000-0000-000000000006
+    # Keep watching until a threat is near.
+    Condition c3079000-0000-0000-0000-000000000004 call Fdp.Toolkit.Behavior.SensorNodes.ThreatsAtLeast p:ThreatCountParams={"Count":1,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":90} "A dangerous contact within range"
+  Wait c3079000-0000-0000-0000-000000000005 seconds=15
+    # The kernel Wait takes a constant; 15 s is §10.5's value (see §10.5 as-built: WaitSeconds is not a param).

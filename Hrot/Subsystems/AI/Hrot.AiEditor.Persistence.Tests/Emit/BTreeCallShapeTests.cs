@@ -113,101 +113,34 @@ public sealed class BTreeCallShapeTests
         ("BTreeRenderShowcase.btree.json", "bb080000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("CombatShowcase.btree.json", "50000000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2080 — the shipped SOP: its four SOP-order rows (DoWhenIdle / React) are plain actions.
-        ("TakeCover.btree.json", "c2092000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),   // CE-2092
-        ("FallBack.btree.json", "c2093000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.Stateful),    // CE-2093
         // ⛔ CE-2073's CombatPosture rows and CE-3083's Posture* wrapper rows went with those assets — CE-3160 (R-266): CombatPosture is C#-built.
-        ("Flank.btree.json", "c2108000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),            // CE-2108
-        ("Flank.btree.json", "c2108000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Stateful),
-        ("FiringPosition.btree.json", "c2108000-0000-0000-0000-000000000103", BTreeDelegateShapeDto.Stateful),
-        ("FiringPosition.btree.json", "c2108000-0000-0000-0000-000000000104", BTreeDelegateShapeDto.Stateful),
-        ("Sentry.btree.json", "c3079000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Plain),              // CE-3079 H2
-        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),    // CE-3079 H5
-        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000006", BTreeDelegateShapeDto.Plain),
-        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000007", BTreeDelegateShapeDto.Stateful),
-        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000009", BTreeDelegateShapeDto.Plain),
-        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000010", BTreeDelegateShapeDto.Stateful),
-        ("DangerCrossing.btree.json", "c3079100-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.Plain),
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000031", BTreeDelegateShapeDto.Plain),
         // ⭐ CE-3189 (CE-2123 S2's squad SOP, never recorded) — shapes read from the SOURCE signatures, not the classifier:
         //   SopConditions.SensedFresh (SopConditions.cs:55) and SquadSopConditions.SensedFreshAboard (SquadDismountBehavior.cs:145)
         //   are both (ref SopSenseParams, Entity, EntityRepository) ⇒ the plain three-param shared form, as BasicInfantrySop records.
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000031", BTreeDelegateShapeDto.Plain),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000041", BTreeDelegateShapeDto.Plain),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000051", BTreeDelegateShapeDto.Plain),   // ⭐ CE-2152 C-c — the member-down row
         // ⭐ CE-2165 V8 — the vehicle SOP's three SensedFresh rows (air threat, hit, first threat): the plain shared form, as above.
-        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
-        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
-        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000031", BTreeDelegateShapeDto.Plain),
         // ⭐ CE-2191 (Air Ops §7f) — the air-defence row of both SOPs: SensedFresh (air threat) and AirDefenceNodes.CanEngageAir
         //   (AirDefenceBehaviors.cs:118, (ref EngageAircraftParams, Entity, EntityRepository)) ⇒ both the plain three-param shared form.
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
-        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
-        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
         // ⭐ CE-2307 (Squad Tactics §5b CH-1) — the push-through row: SensedFresh (hit) is plain; ConvoyConditions.CanPushThrough is
         //   (Entity, EntityRepository) ⇒ NoParams.
-        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000051", BTreeDelegateShapeDto.Plain),
-        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000052", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000061", BTreeDelegateShapeDto.Plain),   // ⭐ CE-2159 X-c — the danger-area row
         // ⭐ CE-2294 CC-D — the platoon's SOP row: SopConditions.SensedFresh and PictureConditions.ElementReported are both
         //   (ref TParams, Entity, EntityRepository) ⇒ the plain three-param shared form.
-        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
-        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000012", BTreeDelegateShapeDto.Plain),
         // ⭐ CE-2276 DA-55 — the hold row's first guard: PlatoonDefendBehavior.NotDefending is (Entity, EntityRepository) ⇒ NoParams.
-        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000014", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2277 AT-13 — the same row's second guard: PlatoonAttackBehavior.NotAttacking is (Entity, EntityRepository) ⇒ NoParams.
-        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000015", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2314 — and its third: SupportCommandBehavior.NotCommandingSupport is (Entity, EntityRepository) ⇒ NoParams.
-        ("BasicPlatoonSop.btree.json", "c2294000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2173 slice 3 (Air Operations §9b) — SquadSopConditions.CarrierUnloading and .Riding are (Entity, EntityRepository) ⇒ NoParams.
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000071", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000081", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-1118 H-1 (Airborne Insertion §6) — SquadSopConditions.CarrierRoping / .CarrierDropping are (Entity, EntityRepository) ⇒ NoParams.
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000091", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000094", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-1118 H-3 (D-23) — the pilot's SOP row: AirborneIndividualNodes.OnTheGround is (Entity, EntityRepository) ⇒ NoParams.
-        ("PilotSop.btree.json", "c1118000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2322 (AQ97) — the soldier's gates SopConditions.UnderCommand / .Aboard are (Entity, EntityRepository) ⇒ NoParams; the
         //   near-miss row's SensedFresh is plain; the civilian SOP's CivilianBehavior.NotOnHisRoutine / .FrightenedOrHurt are NoParams.
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000c1", BTreeDelegateShapeDto.NoParams),
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000c2", BTreeDelegateShapeDto.NoParams),
-        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-000000000016", BTreeDelegateShapeDto.Plain),
         // ⭐ CE-2331 (AQ98 rows), CE-2347 (the convoy's squad SOP rows), CE-2284 U-2 (the platoon's react-to-fire row) — recorded 2026-10-22
-        ("BasicInfantrySop.btree.json", "c2331000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.NoParams),
-        ("BasicInfantrySop.btree.json", "c2331000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.NoParams),
-        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.NoParams),
-        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000022", BTreeDelegateShapeDto.NoParams),
-        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000023", BTreeDelegateShapeDto.NoParams),
-        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000024", BTreeDelegateShapeDto.Plain),
-        ("BasicPlatoonSop.btree.json", "c2284000-0000-0000-0000-000000000025", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-3306 — the enemy-in-sight row's CoverFightConditions.MayFire · ⭐ CE-2358 (AQ102 G) — the squad's SopConditions.UnderCommand
         //   guard: both (Entity, EntityRepository) ⇒ NoParams
-        ("BasicInfantrySop.btree.json", "c2331000-0000-0000-0000-000000000005", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-0000000000c1", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-2359 — the contact rows' SquadDefendBehavior.NotDefending guards (Entity, EntityRepository) ⇒ NoParams
-        ("BasicSquadSop.btree.json", "c2359000-0000-0000-0000-0000000000d1", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2359000-0000-0000-0000-0000000000d2", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2359000-0000-0000-0000-0000000000d3", BTreeDelegateShapeDto.NoParams),
-        ("BasicSquadSop.btree.json", "c2359000-0000-0000-0000-0000000000d4", BTreeDelegateShapeDto.NoParams),
-        ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
-        ("CivilianSop.btree.json", "c2322002-0000-0000-0000-000000000012", BTreeDelegateShapeDto.NoParams),
         // CE-2230: the run's ONE node is the vehicle exposure cycle (lane mode) — its a1..a4 bespoke nodes are retired.
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.Stateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Stateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Stateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.Stateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b2", BTreeDelegateShapeDto.Stateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b3", BTreeDelegateShapeDto.Stateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b4", BTreeDelegateShapeDto.Stateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a4", BTreeDelegateShapeDto.Stateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a5", BTreeDelegateShapeDto.Plain),
+        // ⭐ CE-1410 (R-1042): every row above that named a Library/Sop, Library/Tactics or Demos/HillAttack asset went with the asset (the
+        //   trees are C#-built). CE-1413 — the fixture that keeps the SOP-order and deactivator emit in the corpus: SensedFresh is the plain
+        //   shared form; EqsTacticsNodes.TakeCover (ref P, ref WS, Entity, EntityRepository) the stateful one.
+        ("T42_SopOrdersAndDeactivator.btree.json", "b4200000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
+        ("T42_SopOrdersAndDeactivator.btree.json", "b4200000-0000-0000-0000-000000000020", BTreeDelegateShapeDto.Stateful),
     };
 }
