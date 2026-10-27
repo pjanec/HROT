@@ -1184,11 +1184,12 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         {
             int target = NextFrameWhoseSimMoves(ctx.Playback, ctx.CurrentFrame);
             if (target < 0) return false;   // paused to the end: nothing on the sim axis is left
+            // ⭐ CE-4062 — the jump lands on the frame BEFORE the target and STEPS onto it, so the target frame's events (a blow struck on a
+            //   step of an HTTP-stepped run, whose every step is a jump over paused frames) are delivered like any step's. ⛔ Was a seek
+            //   straight onto the target: a seek delivers no events, so a stepped recording never showed the swing. The paused frames
+            //   jumped over carry no sim events (the clock stood).
             if (target > nextFrame)
-            {
-                _manager.SetBaseWallTicks(ctx.Playback.GetFrameMetadata(target).WallClockTicks);
-                return true;
-            }
+                _manager.SetBaseWallTicks(ctx.Playback.GetFrameMetadata(target - 1).WallClockTicks);
         }
         _manager.StepForwardAll();
         DeliverTheSteppedFrameEvents();

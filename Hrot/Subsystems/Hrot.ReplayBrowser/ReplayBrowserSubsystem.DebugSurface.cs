@@ -375,7 +375,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
                 var map = _host.TimeMap;
                 if (!map.HasSimTime || _host.ReplayZeroTicks is not { } zero)
                     throw new InvalidOperationException("These recordings have no sim axis (format v6): seek with atSeconds.");
-                _host.SeekToSeconds((map.WallAt(sim) - zero) / (double)TimeSpan.TicksPerSecond);
+                _host.SeekToSeconds((map.SeekWallAt(sim) - zero) / (double)TimeSpan.TicksPerSecond);
                 return;
             }
             _host.SeekToSeconds(intent.TargetWallTicks / (double)TimeSpan.TicksPerSecond);

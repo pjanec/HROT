@@ -1972,7 +1972,7 @@ public sealed partial class ClusterMaster : IDisposable
         // ⭐ CE-3329 P1 (R11) — a target in RECORDED sim time becomes wall ticks here, with the cluster's map; nodes are unchanged
         if (intent.TargetSimSeconds is { } sim)
         {
-            if (RelativeTicksForSim(sim) is not { } rel)
+            if (RelativeTicksForSim(sim, landOnFrame: true) is not { } rel)
             {
                 FdpLog<ClusterMaster>.Warn("[Orchestrator] seek {0} REJECTED — atSimSeconds {1}, but this replay has no sim axis (a v6 recording).",
                     intent.RequestId, sim);

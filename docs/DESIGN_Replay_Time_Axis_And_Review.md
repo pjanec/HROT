@@ -1516,3 +1516,19 @@ the decode case. Rail `ClusterMasterCheckpointTests.CE3312_TheBranchAggregator_R
 sim time to a wall moment between frames and every node lands on its last frame at or before it, so the landed sim can be up to ONE frame
 early (the route docs say so: *"measured: 10 → 9.895"*). It is the state that holds at that time, the same rule as a wall seek. ⇒ a check
 compares at the landed `simSeconds` the status reports, or allows `[t − 1 frame, t]`.
+
+### 12x. ✅ FIXED `2026-10-27` — the branch's rate (CE-4067), a stepped recording's events (CE-4062), a sim seek ON a frame (CE-4066), a recording opened unregistered (CE-1372)
+
+From the coordinator's [handoff](blueprints/batches/HANDOFF_Coordinator_To_Backend_Replay_Fixes.md):
+
+| row | cause (measured / read) | fix |
+|---|---|---|
+| **CE-4067** — after a branch every 1/60 s step advanced 0.023 s | `ReplayMasterModule.FreezeTime` saved the clock's CURRENT scale; inside a replay that is the per-segment rate (§12t: operator ÷ recorded rate — 1.39 on a run recorded at 0.72×), and `RestoreTime` resumed the LIVE run at it | `FreezeTime(resumeAt)`: the branch passes the operator's rate (`ReplayClockProcessManager.OperatorRate`); the clock owner's `LeaveReplay` no longer sets a rate while the clock is frozen (a branch in flight) |
+| **CE-4062** — still no swing when an HTTP-stepped recording is stepped | an HTTP-stepped run has paused frames between its steps, so on the Sim axis every browser step is a JUMP (§12v) — and the jump was a SEEK onto the target, which delivers no events | the jump seeks to the frame BEFORE the target and STEPS onto it, so the target frame's events go through the same hand-over as any step (the paused frames jumped over carry no sim events) |
+| **CE-4066** — a seek to 20 s stood at 19.983 s | the map's fitted line passes each frame within ±`SimToleranceSeconds`; inverting the EXACT sim could put the wall a hair before the frame recorded at that sim | a SEEK resolves through `SeekWallAt` (sim + the tolerance, never past the next paused stretch's start; a paused instant exact) — on-or-before lands ON the frame; frames are ~16 ms apart, the tolerance 0.5 ms. ⛔ `WallAt` itself stays EXACT: biasing it (first attempt) broke the director's continuous mapping (`CE1303_P2a/P2b` red) — the seeks are the master's `RelativeTicksForSim` and the Replay Browser's sim seek |
+| **CE-1372** — a process that had not REGISTERED a recorded type refused the whole recording | `SchemaValidator` asked registered ids only, though playback already resolves by attribute (`FindType`) and skips the unknown (CE-4050) | the validator resolves components by `[ComponentId]` and events by `[EventId]` (ONE scan, `AttributeIdScan`, now shared by both registries) and still checks the layout of what it finds; an id NO loaded assembly declares is skipped (playback skips / carries it untyped), never a refusal |
+
+Rails: `LiveBranchProcessManagerTests.CE4067_*` · `ReplayBrowserSubsystemTests.CE4062_*` (now a theory: real-time AND stepped recording) ·
+`ReplayTimeMapTests.CE4066_*` (3000 frames, ±3 ms wall jitter: every frame's own sim lands on it) · `FlightRecorderSchemaTests.CE1372_*` ×2
+(⛔ `SchemaValidator_ThrowsOnUnregisteredComponentId` SUPERSEDED by them). ⭐ CE-4067's acceptance is the coordinator's H3:
+`--verify ua-civ-melee --verify-branch-at 5` → BRANCH `same`.
