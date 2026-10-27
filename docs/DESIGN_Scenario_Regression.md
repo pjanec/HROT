@@ -734,6 +734,20 @@ same. The comparison sorts the visited snapshots by time first (the comparator p
 a shuffled permutation of the four moments; SEEK same) · `CE4045_H2_ShuffledSeeks_CatchASeekBackThatStandsOneSeekBehind` (a fake replay
 whose backward seek shows the last seek's world under the new clock: H1a same, H1b same, **H2 different**, the item fails).
 
+### 10-6. H3 step 0 — the branch, measured `2026-10-27` *(RH-7; before building H3)*
+
+📐 `--mode editor --headless`, `ua-civ-melee`: live to 10 s → Idle → `OperatingReplay` → seek `atSimSeconds: 5` (lands) →
+`POST /cluster/transition {target: "OperatingLive"}` (the D18 branch, `LiveBranchProcessManager`).
+
+| question | measured | verdict |
+|---|---|---|
+| does the branch come live? | ✅ OperatingLive in < 1 s; the node: *"Live-from-Replay branch complete (branchedExerciseId=…, history 1465 frame(s))"*; steps run (+1.0 s per 60) | ✅ |
+| does it come live at the branch point's SIM time? | ⛔ the clock reads **12.71 s** for a branch at sim 5 s — the WALL seconds of that point (the run was stepped over HTTP: 23.7 s of wall for 10 s of sim) | ⛔ **CE-4065** (backend) |
+| `target: "LoadingLive"` | ⚠ accepted, and the cluster PARKS in `LoadingLive` (30 s, clock frozen) — an intermediate state as a target | ⚠ in CE-4065 |
+
+⇒ H3's intent is `TransitionStateIntent(OperatingLive)` from a replay. ⭐ H3 will run its comparison from T on the BRANCH's own run time
+(`t0 = clock at the branch − T`), so a clock offset alone does not fail it — what it measures is whether the WORLD goes on as the straight run did.
+
 ### 10a. Claim table — what the leans rest on
 
 | claim | code — how it IS | design — how it was MEANT |
