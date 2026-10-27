@@ -20,7 +20,7 @@
     <!-- ⭐ CE-3330 — the node's live event timeline compiles its lanes with StructEdit's reflection edit service (as the editor's does) -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
     <!-- CycloneDDS.Runtime: DdsParticipant can be accepted/stored in HrotNodeConfig -->
-    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />
   </ItemGroup>
   <ItemGroup>
     <!-- From Hrot.Common.csproj -->

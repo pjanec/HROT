@@ -10,6 +10,13 @@
     <!-- InformationalVersion is extended with the git commit hash by Directory.Build.targets. -->
   </PropertyGroup>
 
+  <!-- ⭐ The ONE place the CycloneDDS.NET package version is set (was pinned in 26 project files). Try a local build without
+       editing anything: drop its .nupkg into nugets/ (the gitignored LocalFeed) and restore with
+       -p:CycloneDdsNetVersion=<that version>. 📄 docs/reference/NED_DDS_Protocol.md §1. -->
+  <PropertyGroup>
+    <CycloneDdsNetVersion Condition="'$(CycloneDdsNetVersion)' == ''">0.3.2</CycloneDdsNetVersion>
+  </PropertyGroup>
+
   <!-- ⭐⭐⭐ CE-217 / §16 Tier 1 — WHAT LETS THE STRIDE TREE LIVE IN THE MAIN SOLUTION.
        📐 Off Windows a net8.0-windows project fails restore with
           NETSDK1073: The FrameworkReference 'Microsoft.WindowsDesktop.App' was not recognized.

@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — A, B, D ✅ RULED by the user 2026-10-27 (R-4092); C, E, F, G, H, I are leans awaiting approval
+state: LIVE — ✅ ALL APPROVED 2026-10-27: A, B, D ruled (R-4092); C, E, F, G, H, I approved as leaned (R-4093)
 updated: 2026-10-27
-build-state: DESIGN — nothing built; the order is §5
+build-state: BUILDING — §5 the order; step 1 (CycloneDDS.NET 0.4) under test from a local build
 current-answer: §4 the sub-questions with leans and verdicts · §3 the diagrams (the wire AFTER) · §2 the claims · §5 the order
 stale-below: nothing
 known-rot: none yet
@@ -25,7 +25,7 @@ topic for publishing the geo conversion origin). How could we resolve the situat
 the terrain geo origin so the gateway can conver to whatever coordinate system the other side needs (DIS/HLA...) pls suggest"* ·
 *"cyclonedds.net likely has a good automatic default for topic names, i bet we simply do not need to specify topic name and problem will be solved.
 no one speeks NED besides HROT so changes are allowed."* · *"pls keep the name WorldPos for the topic is possible."* · *"go with quaternion, write
-architect question, file the vertical heading bug for backend"*
+architect question, file the vertical heading bug for backend"* · *"if ok then lets go to aq 107 - approved, use sonnet subagent to do the refactors where possible"*
 
 Why it matters: a DIS/HLA gateway ([SimNetGateway](https://github.com/pjanec/SimNetGateway)) must convert every NED position. Today it cannot —
 state is geodetic, events are local metres, and nothing on the wire says where the local frame is.
@@ -164,4 +164,4 @@ a gateway-side conversion (`origin + R · local`) agrees with `WGS84Transform.To
 | # | verdict | date | by |
 |---|---|---|---|
 | A, B, D | ✅ ruled (quotes in the header) | 2026-10-27 | user |
-| C, E, F, G, H, I | ⏳ leans — awaiting approval | — | — |
+| C, E, F, G, H, I | ✅ approved as leaned | 2026-10-27 | user |
