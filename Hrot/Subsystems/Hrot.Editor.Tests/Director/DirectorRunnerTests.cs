@@ -67,7 +67,7 @@ public sealed class DirectorRunnerTests : IDisposable
         }
 
         public EntityRepository? World => Repo;
-        public void LoadScenario(string scenario) { Loads.Add(scenario); _pending = scenario; _loadFrames = 3; IsOperatingEdit = false; }
+        public void LoadScenario(string scenario) { Loads.Add(scenario); _pending = scenario; _loadFrames = 3; IsOperatingEdit = false; _clockOffset = 0d; }
         public bool IsOperatingEdit { get; private set; } = true;
         public bool HasLoadedAScenario => Loads.Count > 0;
         public int? EntityCount => Repo.EntityCount;
@@ -124,7 +124,8 @@ public sealed class DirectorRunnerTests : IDisposable
 
         public void LoadLive(string scenario) { LoadScenario(scenario); _liveLoad = true; LiveLoads++; }
         public bool IsOperatingLive { get; private set; }
-        public void StopLive() { if (IsOperatingReplay) ReplayStops++; else LiveStops++; _stopFrames = 2; }
+        public void StopLive() { if (IsOperatingReplay) ReplayStops++; else if (_branched) BranchStops++; else LiveStops++; _stopFrames = 2; }
+        public int BranchStops;
         public bool IsIdle { get; private set; } = true;
         public string? LiveRecordingPath => _recording ? _recordingFile : null;
         public IRecordedRun OpenRecording(string path) { RecordingsOpened++; return Opened = new FakeRecordedRun(path); }
@@ -155,6 +156,18 @@ public sealed class DirectorRunnerTests : IDisposable
         private double? _replayAsk;
         public void EnterReplay(double simSeconds) { Replays++; ReplayEntries.Add(simSeconds); _replayAsk = simSeconds; }
         public void ExitReview() { ReviewExits++; _exitAsk = true; }
+
+        // ⭐ CE-4045 H3 — the D18 branch: from the replay, a frame after it is asked, a new LIVE run from the world the replay shows, on a clock
+        //   BranchClockOffset seconds off the replay's (📐 CE-4065: the branch came up on the wall seconds); the world moves on from where it
+        //   was, not from the clock
+        public double BranchClockOffset;
+        /// <summary>A branch that does not carry the health (the world is rebuilt without it) — what H3 exists to catch.</summary>
+        public bool BranchLosesHealth;
+        public int Branches;
+        private bool _branchAsk, _branched;
+        private double _clockOffset;
+        public void BranchLive() { Branches++; _branchAsk = true; }
+        private float X => (float)(SimTime - _clockOffset);
 
         private void ShowRecorded(double simSeconds)
         {
@@ -193,6 +206,16 @@ public sealed class DirectorRunnerTests : IDisposable
                     SimTime = landed;       // … under the clock of this one
                 }
             }
+            if (_branchAsk && IsOperatingReplay)
+            {
+                _branchAsk = false;
+                IsOperatingReplay = false;
+                IsOperatingLive = true;
+                _branched = true;
+                SimTime += BranchClockOffset;
+                _clockOffset = BranchClockOffset;
+                if (BranchLosesHealth) Verifier!.Health.Clear();
+            }
             if (_exitAsk && _checkpoint is { } cp)
             {
                 _exitAsk = false;
@@ -200,7 +223,7 @@ public sealed class DirectorRunnerTests : IDisposable
                 IsOperatingLive = true;
                 SimTime = cp.SimTime;
                 if (Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
-                    Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
+                    Repo.GetComponentRW<SimTransform>(e).Position = new Vector3(X, 0f, 0f);
                 Verifier!.Health.Clear();
                 if (!ReturnLosesHealth) foreach (var (id, hp) in cp.Health) Verifier.Health[id] = hp;
             }
@@ -258,7 +281,7 @@ public sealed class DirectorRunnerTests : IDisposable
                     Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
             }
             if (retired > 0 && Moves) foreach (var e in Repo.Query().With<SimTransform>().Build())
-                Repo.GetComponentRW<SimTransform>(e).Position = new Vector3((float)SimTime, 0f, 0f);
+                Repo.GetComponentRW<SimTransform>(e).Position = new Vector3(X, 0f, 0f);
             _frame++;
             if (_loadFrames > 0 && --_loadFrames == 1)
             {
@@ -293,6 +316,7 @@ public sealed class DirectorRunnerTests : IDisposable
             if (_stopFrames > 0 && --_stopFrames == 0)
             {
                 if (IsOperatingReplay) { IsOperatingReplay = false; IsIdle = true; }   // ⭐ H1b — a replay is left for Idle
+                else if (_branched) { _branched = false; IsOperatingLive = false; IsIdle = true; }   // ⭐ H3 — so is the branch
                 else CloseRecording();
             }
             Wall += FrameSeconds;
@@ -1079,6 +1103,68 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Contains(r.Verify()!.Seek!.Diff, d => d.StartsWith("FIRST differing snapshot"));
         Assert.Equal("fail", r.Status);
         Assert.True(host.IsIdle);                                     // the replay is left, nothing runs on
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4045</c> H3 (docs/DESIGN_Scenario_Regression.md §10-7, RH-7) — after H1b and H2 the SAME replay is sought to T, BRANCHED live
+    /// there (the D18 go-live, once) and run on to runFor, one step per frame, on the branch's OWN clock (📐 CE-4065: it comes up 7.71 s off),
+    /// and the run from T is compared with the straight live run from T. ① a branch that carries the world: SAME at 2 and 3 s; the action
+    /// at 1.5 s (applied before T) is NOT applied again (one edit in all); the clock it came up on is reported; Idle at the end; the item
+    /// passes. ② a branch that drops the health: DIFFERENT from t=2 s naming the Health — and the item fails, while H1a, H1b and H2 stay same.
+    /// 🔴 Red-proof: ① resume without the new clock (<c>_ctx.ResumePlaying()</c>) ⇒ the branch's run time starts 7.71 s late, past runFor:
+    /// one snapshot, DIFFERENT; ② drop <c>MarkDone</c> ⇒ the action lands again in the branch (two edits).
+    /// </summary>
+    [Fact]
+    public void CE4045_H3_TheReplay_BranchedLiveAtT_RunsOnAsTheStraightRun()
+    {
+        var store = Store();
+        File.WriteAllText(Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
+        var rec = Path.Combine(_root, "rec");
+        Directory.CreateDirectory(rec);
+        (DirectorRunner Runner, FakeEditor Host, Func<FakeVerifyWorld> World) Fresh()
+        {
+            var h = new FakeEditor(store) { Lag = 1, RecordDir = rec, BranchClockOffset = 7.71 };
+            FakeVerifyWorld? w = null;
+            return (new DirectorRunner(h, new Cinema(), new Layers(), extension: new ScenarioVerifyRun(h, u => h.Verifier = w = new FakeVerifyWorld(h, u))), h, () => w!);
+        }
+        var branch = new VerifyOptions(Replay: true, BranchAt: 2d);
+
+        // ① a branch that carries the world
+        var (runner, host, world) = Fresh();
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: branch)));
+        Run(runner, host);
+        var r = runner.Reports.Single();
+        var v = r.Verify()!;
+        Assert.Equal(("same", "same", "same"), (v.Replay, v.Playback!.Verdict, v.Seek!.Verdict));   // H1a, H1b, H2 unchanged
+        var b = v.Branch!;
+        Assert.True(b.Verdict == "same", string.Join("\n", b.Diff.Concat(b.Problems)));
+        Assert.Equal(2, b.Snapshots);                                                   // t = 2, 3 — the branch's own run from T
+        Assert.Equal(1, host.Branches);                                                 // ONE go-live, from the replay
+        Assert.Equal(2d, host.SeekAsks.Last());                                         // the replay was sought to T before it
+        Assert.Single(world().Edits);                                                   // ⭐ the action at 1.5 s ran in the straight run only
+        Assert.Equal(2d, v.BranchAt);
+        Assert.Equal(9.71, v.BranchClock!.Value, 3);                                    // 📐 the clock it came up on (CE-4065's offset)
+        Assert.Equal(1, host.BranchStops);
+        Assert.True(host.IsIdle);
+        Assert.Equal("pass", r.Status);
+        Assert.Equal("same", v.ToJson()["branch"]!["verdict"]!.ToString());
+
+        // ② a branch that drops the health
+        var (bad, badHost, _) = Fresh();
+        badHost.BranchLosesHealth = true;
+        Assert.Empty(bad.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: branch)));
+        Run(bad, badHost);
+        var bv = bad.Reports.Single().Verify()!;
+        Assert.Equal(("same", "same", "same"), (bv.Replay, bv.Playback!.Verdict, bv.Seek!.Verdict));
+        Assert.Equal("different", bv.Branch!.Verdict);
+        Assert.StartsWith("FIRST differing snapshot at t=2 s", bv.Branch.Diff[0]);
+        Assert.Contains(bv.Branch.Diff, d => d.Contains("Health"));
+        Assert.Equal("fail", bad.Reports.Single().Status);
+        Assert.True(badHost.IsIdle);
+
+        // a branch outside the replay check, or at 0, is refused
+        var (refused, _, _) = Fresh();
+        Assert.Contains(refused.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(BranchAt: 2d))), p => p.Contains("H3"));
     }
 
     /// <summary>

@@ -12,8 +12,11 @@ namespace Hrot.Editor.Director
     /// ⭐ <c>CE-4045</c> H1a — <see cref="Replay"/>: the run is LIVE (it records), and its recording, played back, must hold the world the run
     /// had at every snapshot (docs/DESIGN_Scenario_Regression.md §10-1, R-4085). ⭐ H1b — then the PRODUCT's cluster replay of that run
     /// (entered and sought through the master, by recorded sim time) must show the same world (§10-2 ②).
-    /// ⭐ <c>CE-4061</c> — a <see cref="RunPlan"/>: the runner hands it to <see cref="ScenarioVerifyRun"/>.</summary>
-    public sealed record VerifyOptions(bool Capture = false, RestoreCheck? R1 = null, bool Replay = false, ReviewCheck? Review = null) : RunPlan;
+    /// ⭐ <c>CE-4061</c> — a <see cref="RunPlan"/>: the runner hands it to <see cref="ScenarioVerifyRun"/>.
+    /// ⭐ H3 — <see cref="BranchAt"/> (with <see cref="Replay"/>): after H1b / H2, the replay is sought to that run time, BRANCHED live there and
+    /// run on to <c>runFor</c>; the branch must go on as the straight live run did (§10-7).</summary>
+    public sealed record VerifyOptions(bool Capture = false, RestoreCheck? R1 = null, bool Replay = false, ReviewCheck? Review = null,
+                                       double? BranchAt = null) : RunPlan;
 
     /// <summary>
     /// ⭐ <c>CE-4045</c> H5 (docs/DESIGN_Scenario_Regression.md §10-3, R-4086) — one half of the review check. Both halves run LIVE and write
@@ -77,7 +80,7 @@ namespace Hrot.Editor.Director
         private int _checkIndex;
         // ⭐ CE-4045 H5 / H1b — the LOOK-BACK, one loop for both: a review of the live run (H5) or a replay of the finished one (H1b). The live
         //   snapshots to look back at, the one being looked at, how long the clock has stood there
-        private enum LookMode { Review, Replay, Seek }
+        private enum LookMode { Review, Replay, Seek, Branch }
         private LookMode _look;
         private bool _reviewDone;   // H5: the run's review happened (or could not)
         private bool _lookEntered;  // the product is in the review / replay (a replay is entered from Idle, so it waits for it)
@@ -88,11 +91,16 @@ namespace Hrot.Editor.Director
         private int _standing;
         private ScenarioGolden? _lookSnapshots, _atLive;
         // the outcomes, kept until the run's result exists (Finish for the review, EndPlayback for the replay)
-        private LookBackResult? _review, _playback, _seek;   // ⭐ H2 — _seek: the replay sought again, shuffled
+        private LookBackResult? _review, _playback, _seek, _branch;   // ⭐ H2 — _seek: the replay sought again, shuffled · H3 — _branch
         private readonly List<string> _returnDiff = new();
-        private LookBackResult Look => _look switch { LookMode.Review => _review!, LookMode.Replay => _playback!, _ => _seek! };
-        private string LookTag => _look switch { LookMode.Review => "H5", LookMode.Replay => "H1b", _ => "H2" };
-        private string LookNoun => _look switch { LookMode.Review => "review", LookMode.Replay => "replay", _ => "seek" };
+        private LookBackResult Look => _look switch { LookMode.Review => _review!, LookMode.Replay => _playback!, LookMode.Seek => _seek!, _ => _branch! };
+        private string LookTag => _look switch { LookMode.Review => "H5", LookMode.Replay => "H1b", LookMode.Seek => "H2", _ => "H3" };
+        private string LookNoun => _look switch { LookMode.Review => "review", LookMode.Replay => "replay", LookMode.Seek => "seek", _ => "branch" };
+        // ⭐ CE-4045 H3 — the branch: its run time (on the snapshot grid), the actions the live run had applied by then, the snapshot step,
+        //   where the branch stands (0 = seeking the replay there · 1 = asked to go live · 2 = running on), and the clock it came live on
+        private double _branchT = double.NaN, _every = 1d, _branchClock = double.NaN;
+        private IReadOnlyList<int>? _doneAtBranch;
+        private int _branchStage;
         /// <summary>⭐ H2 — the shuffle's seed: one order, the same on every run (a difference repeats).</summary>
         public const int SeekShuffleSeed = 4045;
 
@@ -134,6 +142,8 @@ namespace Hrot.Editor.Director
                 problems.Add("a replay check runs LIVE: it records no golden and writes no checkpoint (drop capture / R1)");
             if (o.Review != null && (o.Capture || o.R1 != null || o.Replay))
                 problems.Add("a review check runs LIVE on its own: no capture, no R1, no replay check in the same run");
+            if (o.BranchAt is { } bt && (!o.Replay || !(bt > 0)))
+                problems.Add("a branch (H3) is part of the replay check, at a run time after 0 (replay + branchAt > 0)");
             return problems;
         }
 
@@ -173,11 +183,16 @@ namespace Hrot.Editor.Director
             if (Options.R1 is { Restore: false } r1 && !_r1Written && rel + 1e-9 >= r1.At
                 && (!_vhost.SlotRunInFlight || ++_r1Frames > Fdp.Toolkit.Replay.RecorderTickSystem.MaxCheckpointDeferSteps))
                 WriteCheckpoint(r1, rel);
+            // ⭐ CE-4045 H3 — the actions the straight run has applied when it stands at the branch time (as R1's checkpoint keeps them): the
+            //   branch must not apply them again
+            if (_look != LookMode.Branch && !double.IsNaN(_branchT) && _doneAtBranch == null && _verification != null && rel + 1e-9 >= _branchT)
+                _doneAtBranch = _verification.DoneActions;
             _verification?.ApplyDue(rel);   // ⭐ an action lands on its exact step (every frame is a step boundary)
         }
 
         public bool Finish(ItemReport r)
         {
+            if (_look == LookMode.Branch && _branchStage == 2) { FinishBranch(r); return true; }   // ⭐ H3 — the branch ran to runFor
             if (_verification == null) return false;
             var v = _verification.Finish(_ctx.Rel, r.Steps);
             if (!_firstLoad) v.MarkReload();
@@ -213,6 +228,7 @@ namespace Hrot.Editor.Director
                 case "Checking": TickChecking(); break;
                 case "Reviewing": TickReviewing(); break;
                 case "Returning": TickReturning(); break;
+                case "Branching": TickBranching(); break;
             }
         }
 
@@ -222,7 +238,8 @@ namespace Hrot.Editor.Director
             _r1Target = double.NaN; _r1Frames = 0; _r1Written = false;
             _liveRecording = null; _pendingVerify = null; _recordedSnapshots = null; _checkIndex = 0; CloseRecorded();
             _reviewDone = false; _lookEntered = false; _lookTimes = null; _lookLive = null; _lookIndex = 0; _standing = 0; _lookSnapshots = null; _atLive = null;
-            _review = null; _playback = null; _seek = null; _returnDiff.Clear();
+            _review = null; _playback = null; _seek = null; _branch = null; _returnDiff.Clear();
+            _branchT = double.NaN; _branchClock = double.NaN; _doneAtBranch = null; _branchStage = 0; _look = LookMode.Review;
         }
 
         public void Stop() => CloseRecorded();
@@ -256,8 +273,11 @@ namespace Hrot.Editor.Director
             double at = restored ? ReadSidecar(r1!).At ?? r1!.At : 0d;   // ⭐ CE-3316 — where A really wrote it (on a quiet step)
             _t0 = restored ? H.SimTime - at : H.SimTime;   // ⭐ B5 — a restored run goes on from there, on the same grid
             _simFrame0 = SimFrameNow();
-            _verification = new ScenarioVerification(checks, golden, Options.Capture, _verifyWorld!, _t0,
-                startAt: at, snapshotEvery: r1?.Every ?? review?.Every ?? (replay ? Math.Min(checks.GoldenEvery ?? 1d, 1d) : null));
+            double? every = r1?.Every ?? review?.Every ?? (replay ? Math.Min(checks.GoldenEvery ?? 1d, 1d) : null);
+            _every = every ?? 1d;
+            // ⭐ H3 — the branch time on the snapshot grid (a live snapshot there is what the branch starts from)
+            if (Options.BranchAt is { } bt) _branchT = Math.Ceiling(bt / _every - 1e-4) * _every;
+            _verification = new ScenarioVerification(checks, golden, Options.Capture, _verifyWorld!, _t0, startAt: at, snapshotEvery: every);
             if (restored) _verification.MarkDone(ReadSidecar(r1!).Done);
             return new RunStart(take, _t0);
         }
@@ -398,6 +418,8 @@ namespace Hrot.Editor.Director
             _pendingVerify = null;
             v.Playback = _playback;
             v.Seek = _seek;
+            v.Branch = _branch;
+            if (_branch != null) { v.BranchAt = _branchT; v.BranchClock = double.IsNaN(_branchClock) ? null : _branchClock; }
             var r = Report;
             r.Result = v;
             r.Status = v.Passed ? "pass" : "fail";
@@ -492,6 +514,7 @@ namespace Hrot.Editor.Director
                 return;
             }
             if (_look == LookMode.Replay && BeginSeekCheck()) return;   // ⭐ H2 — the same replay, sought again in a shuffled order
+            if (_look != LookMode.Review && BeginBranch()) return;      // ⭐ H3 — then the same replay, branched live
             if (_look == LookMode.Review) { _vhost.ExitReview(); _lookTarget = _t0 + _liveAtRel; }
             else _vhost.StopLive();   // ⭐ H1b / H2 — leave the replay: an Idle transition, nothing is left running
             _standing = 0;
@@ -503,14 +526,14 @@ namespace Hrot.Editor.Director
         /// Then the look-back is compared with the live run.</summary>
         private void TickReturning()
         {
-            if (_look != LookMode.Review)   // ⭐ H1b / H2 — back to Idle, then the item is judged
+            if (_look != LookMode.Review)   // ⭐ H1b / H2 / H3 — back to Idle, then the item is judged
             {
                 if (!_vhost.IsIdle)
                 {
                     if (H.WallNow - _phaseStartWall <= LoadTimeoutSeconds) return;
-                    Look.Problems.Add($"{LookTag}: the replay did not stop (Idle) within {LoadTimeoutSeconds:0} s");
+                    Look.Problems.Add($"{LookTag}: the {LookNoun} did not stop (Idle) within {LoadTimeoutSeconds:0} s");
                 }
-                CompareLookBack();
+                if (_look != LookMode.Branch) CompareLookBack();   // H3 is compared when its run ends (FinishBranch)
                 EndPlayback();
                 return;
             }
@@ -558,6 +581,97 @@ namespace Hrot.Editor.Director
             _phaseStartWall = H.WallNow;
             _vhost.SeekReview(_lookTarget);
             return true;
+        }
+
+        // ── ⭐ CE-4045 H3 — the BRANCH: the replay, sought to T and branched LIVE (D18), runs on as the straight run did (docs/DESIGN_Scenario_
+        //    Regression.md §10-7, RH-7). R1's oracle on the replay path: the straight run from T against the branch from T, on what the
+        //    recording carries (the branch is rebuilt from it) ─────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>The look-back is over (in the replay): judge it, then seek the replay to T for the branch. False when no branch is asked.</summary>
+        private bool BeginBranch()
+        {
+            if (Options.BranchAt is null) return false;
+            CompareLookBack();   // H1b / H2 first
+            _look = LookMode.Branch;
+            _branch = new LookBackResult();
+            if (_doneAtBranch == null)
+            {
+                _branch.Problems.Add($"H3: the live run never stood at the branch time {_branchT} s (runFor is shorter)");
+                return false;
+            }
+            _branchStage = 0;
+            _lookTarget = _t0 + _branchT;
+            _standing = 0;
+            _phaseStartWall = H.WallNow;
+            _vhost.SeekReview(_lookTarget);
+            Enter("Branching");
+            return true;
+        }
+
+        /// <summary>⭐ Once per frame: stand at T in the replay, branch, then wait until the branch is live with its clock STANDING (paused) —
+        /// and run on from there, its run time counted from the clock it came up on (📐 CE-4065: not T's sim time yet).</summary>
+        private void TickBranching()
+        {
+            if (_branchStage == 0)
+            {
+                if (!_vhost.IsOperatingReplay || Math.Abs(H.SimTime - _lookTarget) > HalfStep) _standing = 0;
+                else _standing++;
+                if (_standing < 3) { BranchTimeout($"the replay did not stand at {_branchT} s (clock {H.SimTime - _t0:0.####} s)"); return; }
+                _vhost.BranchLive();
+                _branchStage = 1;
+                _standing = 0;
+                _branchClock = double.NaN;
+                _phaseStartWall = H.WallNow;
+                return;
+            }
+            if (!_vhost.IsOperatingLive) { BranchTimeout("the branch did not come live"); return; }
+            if (!H.Paused) H.Pause();
+            if (double.IsNaN(_branchClock) || Math.Abs(H.SimTime - _branchClock) > 1e-9) { _branchClock = H.SimTime; _standing = 0; return; }
+            if (++_standing < 3) return;
+            // the branch stands still on its own clock: the straight run's world at T must be what it holds — run on from here
+            if (LoadChecks(Item.Scenario).Value is not { } checks) { _branch!.Problems.Add("H3: the checks could not be read again"); LeaveBranch(); return; }
+            double t0 = H.SimTime - _branchT;
+            _verification = new ScenarioVerification(checks, null, false, _verifyWorld!, t0, startAt: _branchT, snapshotEvery: _every);
+            _verification.MarkDone(_doneAtBranch!);
+            _branchStage = 2;
+            _phase = "";
+            _ctx.ResumePlaying(t0);
+        }
+
+        private void BranchTimeout(string why)
+        {
+            if (H.WallNow - _phaseStartWall <= LoadTimeoutSeconds) return;
+            _branch!.Problems.Add($"H3: {why} within {LoadTimeoutSeconds:0} s");
+            LeaveBranch();
+        }
+
+        /// <summary>The branch ran to <c>runFor</c>: compare it with the straight run from T, then leave it (Idle).</summary>
+        private void FinishBranch(ItemReport r)
+        {
+            var vb = _verification!.Finish(_ctx.Rel, r.Steps);
+            _verification = null;
+            var live = new JsonObject { ["snapshots"] = ((_pendingVerify!.GoldenJson?["snapshots"] as JsonArray) ?? new JsonArray()).DeepClone() };
+            var branch = new JsonObject { ["snapshots"] = ((vb.GoldenJson?["snapshots"] as JsonArray) ?? new JsonArray()).DeepClone() };
+            var carried = _liveRecording is { } path ? ScenarioGolden.CarriedBy(path) : null;
+            var result = _branch!;
+            result.Snapshots = (branch["snapshots"] as JsonArray)!.Count;
+            result.Diff.AddRange(ScenarioGolden.CompareFrom(live, branch, _branchT, carried));
+            if (carried != null) result.NotCarried.AddRange(ScenarioGolden.CompareNotCarried(live, branch, _branchT, carried));
+            else result.NotCarried.Add("⚠ no recording manifest was found — every component compared");
+            result.Problems.AddRange(vb.Problems.Select(p => "H3 run: " + p));   // e.g. an action anchored on a moment before T (never seen here)
+            LeaveBranch();
+        }
+
+        /// <summary>The branch is judged (or could not be): leave whatever runs for Idle, then the item is judged.</summary>
+        private void LeaveBranch()
+        {
+            _branchStage = 3;
+            var result = _branch!;
+            result.Verdict = result.Diff.Count == 0 && result.Problems.Count == 0 ? "same" : "different";
+            if (!_vhost.IsIdle) _vhost.StopLive();
+            _standing = 0;
+            _phaseStartWall = H.WallNow;
+            Enter("Returning");
         }
 
         /// <summary>The snapshots in time order (a look-back may visit them in another).</summary>

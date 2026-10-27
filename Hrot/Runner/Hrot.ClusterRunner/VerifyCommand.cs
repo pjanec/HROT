@@ -33,15 +33,18 @@ internal static class VerifyCommand
 
     /// <summary>This process verifies <paramref name="scenario"/>: the editor reads the request, and a debug port is set when none is (the
     /// verifier reads the world through the debug service — <see cref="EditorVerifyWorld"/>).</summary>
-    public static void PrepareThisProcess(string scenario, bool capture, string report, bool replay = false)
+    public static void PrepareThisProcess(string scenario, bool capture, string report, bool replay = false, double branchAt = 0)
     {
+        replay |= branchAt > 0;   // ⭐ H3 is part of the replay check
         Environment.SetEnvironmentVariable(CommandLineVerify.ReplayVariable, replay ? "1" : null);
+        Environment.SetEnvironmentVariable(CommandLineVerify.BranchAtVariable,
+            branchAt > 0 ? branchAt.ToString(System.Globalization.CultureInfo.InvariantCulture) : null);
         Environment.SetEnvironmentVariable(CommandLineVerify.ScenariosVariable, scenario);
         Environment.SetEnvironmentVariable(CommandLineVerify.CaptureVariable, capture ? "1" : null);
         Environment.SetEnvironmentVariable(CommandLineVerify.ReportVariable, string.IsNullOrWhiteSpace(report) ? null : Path.GetFullPath(report));
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")))
             Environment.SetEnvironmentVariable("HROT_DEBUG_API_PORT", FreePort().ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Console.WriteLine($"[Verify] {scenario}{(capture ? " (capturing the golden)" : "")}{(replay ? " (live, against its own recording)" : "")} — the debug API on port {Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")}");
+        Console.WriteLine($"[Verify] {scenario}{(capture ? " (capturing the golden)" : "")}{(replay ? " (live, against its own recording)" : "")}{(branchAt > 0 ? $" (branched live at {branchAt} s)" : "")} — the debug API on port {Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT")}");
     }
 
     /// <param name="outDir">⭐ the nightly's folder (<c>--verify-out</c>): a log and a report per scenario, <c>summary.json</c>, <c>junit.xml</c>;
@@ -128,12 +131,13 @@ internal static class VerifyCommand
                 foreach (var d in (c.Item?["goldenDiff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
                 if (c.Item?["replay"]?.ToString() is { } rp && rp != "same") lines.Add($"replay {rp}");
                 foreach (var d in (c.Item?["replayDiff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
-                if (c.Item?["playback"] is JsonObject pb && pb["verdict"]?.ToString() is { } pv && pv != "same")   // ⭐ H1b
-                {
-                    lines.Add($"playback {pv}");
-                    foreach (var d in (pb["diff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
-                    foreach (var d in (pb["problems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {d}");
-                }
+                foreach (var look in new[] { "playback", "seek", "branch" })   // ⭐ H1b · H2 · H3 — one look-back shape
+                    if (c.Item?[look] is JsonObject pb && pb["verdict"]?.ToString() is { } pv && pv != "same")
+                    {
+                        lines.Add($"{look} {pv}");
+                        foreach (var d in (pb["diff"] as JsonArray ?? new JsonArray()).Take(10)) lines.Add($"  {d}");
+                        foreach (var d in (pb["problems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {d}");
+                    }
                 foreach (var p in (c.Item?["problems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {p}");
                 foreach (var p in (c.Item?["runProblems"] as JsonArray ?? new JsonArray())) lines.Add($"PROBLEM {p}");
                 if (lines.Count == 0) lines.Add($"exit {c.Code} — {c.Item?["status"]}");

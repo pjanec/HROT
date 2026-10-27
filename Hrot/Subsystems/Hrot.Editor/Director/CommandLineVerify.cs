@@ -21,6 +21,8 @@ namespace Hrot.Editor.Director
         public const string RestoreCheckVariable = "HROT_VERIFY_R1";
         /// <summary>⭐ <c>CE-4045</c> H1a — "1": the run is LIVE and compared with its own recording (Scenario Regression §10-1).</summary>
         public const string ReplayVariable = "HROT_VERIFY_REPLAY";
+        /// <summary>⭐ <c>CE-4045</c> H3 — with the replay check: branch the replay live at this run time (s) and run on (§10-7).</summary>
+        public const string BranchAtVariable = "HROT_VERIFY_BRANCH_AT";
         /// <summary>⭐ <c>CE-4045</c> H5 — this child is one half of the review check: a <see cref="ReviewCheck"/> as JSON.</summary>
         public const string ReviewVariable = "HROT_VERIFY_REVIEW";
         /// <summary>Frames to wait in Idle before the first load (the editor's own start-up settles first).</summary>
@@ -34,11 +36,13 @@ namespace Hrot.Editor.Director
         private readonly RestoreCheck? _r1;
         private readonly bool _replay;
         private readonly ReviewCheck? _review;
+        private readonly double? _branchAt;
         private int _frames, _idleFrames;
         private bool _started, _done;
 
-        private CommandLineVerify(string[] scenarios, bool capture, string? report, RestoreCheck? r1, bool replay, ReviewCheck? review)
+        private CommandLineVerify(string[] scenarios, bool capture, string? report, RestoreCheck? r1, bool replay, ReviewCheck? review, double? branchAt)
         {
+            _branchAt = branchAt;
             _replay = replay;
             _review = review;
             _scenarios = scenarios;
@@ -66,7 +70,9 @@ namespace Hrot.Editor.Director
             if (string.IsNullOrWhiteSpace(s)) return null;
             return new CommandLineVerify(s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                 Environment.GetEnvironmentVariable(CaptureVariable) == "1", Environment.GetEnvironmentVariable(ReportVariable),
-                RestoreCheckFromEnvironment(), Environment.GetEnvironmentVariable(ReplayVariable) == "1", ReviewCheckFromEnvironment());
+                RestoreCheckFromEnvironment(), Environment.GetEnvironmentVariable(ReplayVariable) == "1", ReviewCheckFromEnvironment(),
+                double.TryParse(Environment.GetEnvironmentVariable(BranchAtVariable), System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture, out var b) && b > 0 ? b : null);
         }
 
         /// <param name="ready">The editor can load a scenario now (its cluster is Idle).</param>
@@ -88,7 +94,7 @@ namespace Hrot.Editor.Director
                     Name = "verify",
                     Items = _scenarios.Select(s => new ReelItem { Scenario = s, Take = "_verify" }).ToList(),
                 };
-                var refused = director.Play(new PlayRequest(reel, Plan: new VerifyOptions(_capture, _r1, _replay, _review)));
+                var refused = director.Play(new PlayRequest(reel, Plan: new VerifyOptions(_capture, _r1, _replay, _review, _branchAt)));
                 if (refused.Count > 0) { Finish(2, "not started: " + string.Join("; ", refused), null, exit); return; }
                 _started = true;
                 return;
@@ -144,6 +150,7 @@ namespace Hrot.Editor.Director
             psi.Environment.Remove(ScenariosVariable);
             psi.Environment.Remove(RestoreCheckVariable);   // ⭐ B5 — set per child by the parent that wants one
             psi.Environment.Remove(ReplayVariable);   // ⭐ H1a — a child's own --verify-replay sets it
+            psi.Environment.Remove(BranchAtVariable);   // ⭐ H3 — a child's own --verify-branch-at sets it
             psi.Environment.Remove(ReviewVariable);   // ⭐ H5 — set per child by the parent that wants one
             return psi;
         }
@@ -164,6 +171,8 @@ namespace Hrot.Editor.Director
             foreach (var d in (item["returnDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    RETURN {d}");
             PrintLookBack(item["playback"] as JsonObject, "PLAYBACK", w, indent);   // ⭐ H1b — the product's replay of the run
             PrintLookBack(item["seek"] as JsonObject, "SEEK", w, indent);           // ⭐ H2 — the replay sought in a shuffled order
+            if (item["branch"] is JsonObject br)                                     // ⭐ H3 — the replay branched live at T, run on
+                PrintLookBack(br, $"BRANCH at {item["branchAt"]} s (came live on clock {item["branchClock"]} s)", w, indent);
             foreach (var p in (item["written"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  wrote {p}");
             foreach (var p in (item["problems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");
             foreach (var p in (item["runProblems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");

@@ -67,5 +67,9 @@ namespace Hrot.Editor.Director
         void EnterReplay(double simSeconds) => throw new NotSupportedException("this host cannot replay");
 
         bool IsOperatingReplay => false;
+
+        /// <summary>⭐ <c>CE-4045</c> H3 (docs/DESIGN_Scenario_Regression.md §10-6, RH-7) — from the replay, a new LIVE run from the moment it
+        /// stands at (the master's D18 branch, <c>LiveBranchProcessManager</c>); <see cref="IsOperatingLive"/> says when it is there.</summary>
+        void BranchLive() => throw new NotSupportedException("this host cannot branch a replay");
     }
 }

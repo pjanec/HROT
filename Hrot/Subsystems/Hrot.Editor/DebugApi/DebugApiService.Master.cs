@@ -327,7 +327,7 @@ namespace Hrot.Editor.DebugApi
         {
             if (CurrentClusterStateOrNull() is { } s && s != ClusterState.OperatingReview)
                 return (new JsonObject { ["published"] = false, ["target"] = nameof(ClusterState.OperatingLive), ["note"] = "Not in a review." }, null, null);
-            return PublishTransition(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.OperatingLive });
+            return PublishTransition(Hrot.UI.Common.Facades.ReplaySessionIntents.ExitReview());   // ⭐ the ONE construction (was an inline copy)
         }
 
         private ClusterState? CurrentClusterStateOrNull()

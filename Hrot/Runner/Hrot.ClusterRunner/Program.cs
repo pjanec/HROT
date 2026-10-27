@@ -139,7 +139,7 @@ class Program
                 return Hrot.ClusterRunner.VerifyCommand.RunRestoreChecks(args, verify, config.VerifyRestoreAt, config.VerifyReport, config.VerifyOut, config.VerifyRestoreEvery, config.VerifyTimeout);
             if (verify.Count > 1 || !string.IsNullOrWhiteSpace(config.VerifyOut))
                 return Hrot.ClusterRunner.VerifyCommand.RunChildren(args, verify, config.VerifyCapture, config.VerifyReport, config.VerifyOut, config.VerifyTimeout);
-            Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport, config.VerifyReplay);
+            Hrot.ClusterRunner.VerifyCommand.PrepareThisProcess(verify[0], config.VerifyCapture, config.VerifyReport, config.VerifyReplay, config.VerifyBranchAt);
         }
 
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");

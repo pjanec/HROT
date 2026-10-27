@@ -34,7 +34,14 @@ public static class ReplaySessionIntents
     };
 
     /// <summary>Back to the live run, where it paused.</summary>
-    public static TransitionStateIntent ExitReview() => new()
+    public static TransitionStateIntent ExitReview() => GoLive();
+
+    /// <summary>⭐ CE-4045 H3 — from a REPLAY: a new live run from the moment the replay stands at (D18, <c>LiveBranchProcessManager</c>).
+    /// ⚠ The target is <see cref="ClusterState.OperatingLive"/> — 📐 <c>LoadingLive</c> is accepted and parks the cluster there (CE-4065).</summary>
+    public static TransitionStateIntent BranchLive() => GoLive();
+
+    /// <summary>One request, two meanings by the state it is sent from: a review returns, a replay branches (the master decides).</summary>
+    private static TransitionStateIntent GoLive() => new()
     {
         TransactionId = Guid.NewGuid(),
         TargetState   = ClusterState.OperatingLive,

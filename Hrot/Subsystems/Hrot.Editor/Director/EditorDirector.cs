@@ -93,6 +93,8 @@ namespace Hrot.Editor.Director
         // ⭐ CE-4045 H1b — the cluster replay of the finished run (the master picks the newest exercise); a seek is SeekReview's
         public void EnterReplay(double simSeconds) => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(Guid.Empty, simSeconds: simSeconds));
         public bool IsOperatingReplay => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay;
+        // ⭐ CE-4045 H3 — the D18 branch from the replay, through the same construction as every other go-live
+        public void BranchLive() => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.BranchLive());
         public bool IsIdle => _state() == Fdp.Toolkit.Orchestration.ClusterState.Idle;
         public string? LiveRecordingPath => _recordingPath();
         public IRecordedRun OpenRecording(string path) => _openRecording(path);

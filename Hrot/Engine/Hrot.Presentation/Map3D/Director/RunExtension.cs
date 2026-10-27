@@ -41,8 +41,9 @@ namespace Hrot.UI.Common.Map3D.Director
         void EndItem();
         /// <summary>The runner hands its frames to <see cref="IRunExtension.Tick"/> until <see cref="ResumePlaying"/> or <see cref="EndItem"/>.</summary>
         void EnterExtensionPhase();
-        /// <summary>Back to stepping the item (its clock restarts).</summary>
-        void ResumePlaying();
+        /// <summary>Back to stepping the item (its clock restarts). ⭐ <c>CE-4045</c> H3 — <paramref name="t0"/>: the run time counts from
+        /// this sim time from here on (a live run branched from a replay stands on a clock of its own), the stepping bookkeeping with it.</summary>
+        void ResumePlaying(double? t0 = null);
     }
 
     /// <summary>
