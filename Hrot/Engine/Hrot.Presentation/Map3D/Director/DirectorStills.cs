@@ -43,6 +43,8 @@ namespace Hrot.UI.Common.Map3D.Director
         public const int WaitFrames = 600;
         public const int MaxStills = 64;
         public const string NoRenderer = "stills need a renderer: this host is headless (no map is drawn, so there is no frame to capture) — run the Replay Browser with a window (on a server: Xvfb, DISPLAY=:99)";
+        /// <summary>⭐ <c>CE-1305</c> — an anchor not found while the open recording's index is still being read (ask again; a render job waits for it).</summary>
+        public const string IndexStillReading = "the recording's timeline index is still being read — an anchor may not be found yet (ask again in a moment)";
         public const string CannotSeek = "stills need a source that seeks (a recording): this host plays a live run, where each still would reload and re-run the scenario — open the recording in the Replay Browser (POST /director/stills {recording})";
 
         private readonly DirectorRunner _runner;
@@ -80,14 +82,17 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>
         /// The stills of <paramref name="take"/>: at <paramref name="filmTimes"/>; else, with <paramref name="everyKey"/>, at each camera key once its camera is on
         /// screen (its cut, or the end of its fly / dip-in); else at the keys that name a <see cref="CameraKey.Still"/> (the documentation take's, CE-4060).
-        /// Each film second is mapped to the source second it shows through the take's segments (<see cref="FilmTimeMap"/>, its baked anchor times).
+        /// Each film second is mapped to the source second it shows through the take's segments (<see cref="FilmTimeMap"/>) and its anchors' times:
+        /// <paramref name="anchors"/> — ⭐ <c>CE-1305</c> TE-10 (§11v S1) the run's own (<see cref="DirectorRunner.AnchorTimesOf"/>, what <see cref="Prepare"/> passes) —
+        /// else the take's baked ones.
         /// </summary>
-        public static (IReadOnlyList<StillPlan> Plan, IReadOnlyList<string> Problems) PlanOf(Take take, IReadOnlyList<double>? filmTimes, bool everyKey)
+        public static (IReadOnlyList<StillPlan> Plan, IReadOnlyList<string> Problems) PlanOf(Take take, IReadOnlyList<double>? filmTimes, bool everyKey,
+                                                                                             Func<string, double?>? anchors = null)
         {
             if (take == null) throw new ArgumentNullException(nameof(take));
             var problems = new List<string>();
             var times = take.Baked?.Times;
-            Func<string, double?> anchors = n => times != null && times.TryGetValue(n, out var t) ? t : null;
+            anchors ??= n => times != null && times.TryGetValue(n, out var t) ? t : null;
             var film = FilmTimeMap.Of(take, anchors);
             var wanted = new List<(double Film, string? Name)>();
             if (filmTimes is { Count: > 0 })
@@ -104,7 +109,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 {
                     n++;
                     if (!everyKey && k.Still == null) continue;
-                    if (k.At.Resolve(anchors) is not { } at) { problems.Add($"key {n}: its time '{k.At}' needs an anchor that is not baked (scout the take, or ask for times)"); continue; }
+                    if (k.At.Resolve(anchors) is not { } at) { problems.Add($"key {n}: its time '{k.At}' names an anchor this run does not show (nor a bake) — scout the take, or ask for times"); continue; }
                     double settle = k.In.Kind switch { KeyTransitionKind.Fly => k.In.Seconds, KeyTransitionKind.Dip => k.In.InSeconds, _ => 0d };
                     int from = k.Segment is { } id ? Math.Max(0, IndexOfSegment(film, id)) : 0;
                     wanted.Add((film.FilmOf(at + settle, from), k.Still));
@@ -138,7 +143,10 @@ namespace Hrot.UI.Common.Map3D.Director
             var play = new PlayRequest(Reel.Of(scenario!, takeName), Cinema: false);
             var loaded = runner.TakeOf(play);
             if (loaded.Value is not { } take) return (null, 404, string.Join("; ", loaded.Problems));
-            var (plan, problems) = PlanOf(take, request.Times, request.EveryKey);
+            // ⭐ CE-1305 TE-10 (§11v S1) — the keys at the times THIS run places them (the one resolver), not only the take's bake: a verify run's recording
+            var (plan, problems) = PlanOf(take, request.Times, request.EveryKey, runner.AnchorTimesOf(take));
+            if (runner.Index?.Invoke() is { IsComplete: false } && problems.Count > 0)
+                problems = problems.Append(IndexStillReading).ToList();
             if (plan.Count == 0) return (null, 400, "no stills: " + string.Join("; ", problems));
             var dir = string.IsNullOrWhiteSpace(request.Dir)
                 ? Path.Combine(Path.GetDirectoryName(store.TakePath(scenario!, takeName))!, takeName + ".stills")

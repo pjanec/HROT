@@ -118,7 +118,8 @@ namespace Hrot.UI.Common.Audio
         /// <summary>⭐ CE-1141 — the operator's OWN movement (his footsteps, his engine) at this share (was 0.6): it is under him all the time.</summary>
         public const float OwnMoverShare = 0.5f;
 
-        private float Volume(SoundDto s) => Spatializer.Db(s.VolumeDb) * _mixer.CategoryVolume[(int)s.Category];
+        /// <summary>A sound's level: its dB, the operator's category volume and ⭐ <c>CE-1305</c> TE-11 the playback rate's rule (<see cref="SoundMixer.RateGain"/>).</summary>
+        private float Volume(SoundDto s) => Spatializer.Db(s.VolumeDb) * _mixer.CategoryVolume[(int)s.Category] * _mixer.RateGain(s.Category);
 
         private float Jitter(SoundDto s) => 1f + s.PitchJitter * (float)(_jitter.NextDouble() * 2.0 - 1.0);
 
@@ -210,7 +211,9 @@ namespace Hrot.UI.Common.Audio
                 if (a == null) continue;
                 float d = Vector3.Distance(at, ear.Position);
                 if (d >= a.MovingAudibleRange) continue;
-                var vel = had ? (at - before) / dt : Vector3.Zero;
+                // ⭐ CE-1305 TE-11 — the velocity per SIM second (dt is the frame's wall time): an engine keeps its natural pitch in slow motion
+                double rate = _mixer.Rate;
+                var vel = had && rate > 1e-9 && double.IsFinite(rate) ? (at - before) / (dt * (float)rate) : Vector3.Zero;
                 float speed = vel.Length();
                 bool airborne = flight && w.HasComponent<Fdp.Toolkit.Motion.FlightState>(e) && w.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e).Airborne != 0;
                 float reference = a.ReferenceSpeed > 0f ? a.ReferenceSpeed : 5f;

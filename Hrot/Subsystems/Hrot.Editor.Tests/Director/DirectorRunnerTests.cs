@@ -526,6 +526,67 @@ public sealed class DirectorRunnerTests : IDisposable
 
     /// <summary>A keys take of 3 s on the moving "Runner" with a View track (3-D + cards from 0, the 2-D map + labels from 1, the 3-D map from 2 — layers kept) and
     /// a ring on the Runner from 0.6 to 1.2 s that fades over 0.2 s.</summary>
+    /// <summary>⭐ CE-1305 TE-11 — the sound seam, faked: every rate the runner hands it, and its resets.</summary>
+    private sealed class Sound : IDirectorSound
+    {
+        public readonly List<double> Rates = new();
+        public int Resets;
+        public void SetTakeSound(bool? on) { }
+        public void BeginLog() { }
+        public bool EndLog(string wavPath, IReadOnlyList<double> frameSimTimes, int fps) { Resets++; return false; }
+        public void Reset() => Resets++;
+        public void SetRate(double rate) => Rates.Add(rate);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> TE-11 (docs/DESIGN_Director_Timeline_Editor.md §11v A2, success condition 1 — the live half): while a take plays, the runner hands the
+    /// sound seam the film's rate EVERY playing frame — a 0.5× segment, then a 4× one, each × the request's speed (what <see cref="DirectorRunner.Rate"/> says that
+    /// frame), 0 while paused — and resets it when the film ends. 🔴 Mutation: the runner's per-frame <c>_sound?.SetRate(…)</c> removed ⇒ no rate reaches the
+    /// sound ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_TE11_TheSceneIsHeard_AtTheRunnersRate_FrameByFrame_SilentWhilePaused()
+    {
+        var host = new FakeEditor(Store());
+        var sound = new Sound();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink: null, sound: sound);
+        var take = new Take
+        {
+            Scenario = "s-a", Name = "te11", TickHz = 60, EndAt = new AtExpr(2),
+            Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { Follow = "Runner", Distance = 20 } } },
+            Segments = new[]
+            {
+                new TimeSegment { From = new AtExpr(0), To = new AtExpr(1), Speed = 0.5 },
+                new TimeSegment { From = new AtExpr(1), To = new AtExpr(2), Speed = 4 },
+            },
+        };
+        var reel = new Reel { Name = "r", Items = new[] { new ReelItem { Scenario = "s-a", Take = "te11" } } };
+        Assert.Empty(runner.Play(new PlayRequest(reel, Speed: 1d, Inline: new Dictionary<string, Take> { ["s-a/te11"] = take })));
+        var heard = new List<(double Rate, double Sound)>();
+        bool paused = false;
+        for (int f = 0; f < 40000 && runner.Busy; f++)
+        {
+            runner.Tick();
+            if (runner.Phase == DirectorPhase.Playing && sound.Rates.Count > 0)
+            {
+                if (paused) { Assert.Equal(0d, sound.Rates[^1]); runner.Resume(); paused = false; }
+                else
+                {
+                    heard.Add((runner.Rate, sound.Rates[^1]));
+                    if (heard.Count == 20) { runner.Pause(); paused = true; }   // once: the next frame must be silent
+                }
+            }
+            host.EndFrame();
+        }
+        Assert.False(runner.Busy, $"{heard.Count} heard; " + runner.Status().ToJsonString());
+        Assert.True(heard.Count > 30, $"{heard.Count} playing frames");
+        Assert.All(heard, h => Assert.Equal(h.Rate, h.Sound, 6));                    // the rate of THIS frame
+        Assert.Contains(heard, h => Math.Abs(h.Sound - 0.5) < 1e-6);                 // the slow segment …
+        Assert.Contains(heard, h => Math.Abs(h.Sound - 4d) < 1e-6);                  // … then the fast one
+        Assert.Contains(0d, sound.Rates);                                             // paused: silent
+        Assert.True(sound.Resets > 0);                                                // the film's end hands the sound back
+    }
+
     private static Take ViewAndGraphicsTake() => new()
     {
         Scenario = "s-a", Name = "p6", TickHz = 60, EndAt = new AtExpr(3),
@@ -1487,6 +1548,35 @@ public sealed class DirectorRunnerTests : IDisposable
         }
         Assert.False(q.Renders.Busy || q.Renders.Queued > 0, $"the queue is not idle after {maxFrames} frames");
         return holding;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> TE-10 (docs/DESIGN_Director_Timeline_Editor.md §11v S2, success condition 3): a STILLS render of a recording waits, after the open, until the
+    /// recording's timeline index is read — its keys are planned through that index (the one resolver), so planning on a half-scanned index would miss anchors —
+    /// and goes on the frame it is complete. 🔴 Mutation: the wait in <c>DirectorRenders.Watch</c> removed ⇒ the job leaves Opening after the two settle frames ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_TE10_AStillsRenderOfARecording_WaitsForItsIndex_BeforeItPlans()
+    {
+        var store = Store();
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        var stills = new DirectorStills(runner, sink, () => true);
+        var renders = new DirectorRenders(runner, stills, sink, () => true, () => store, () => "s-a") { OpenRecording = _ => null };
+        var reading = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[]>(), new long[10], 10, 600);
+        var read = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[]>(), new long[600], 600, 600);
+        var index = reading;
+        runner.Index = () => index;
+        var (job, why) = renders.Enqueue(new RenderRequest { Kind = RenderKind.Stills, Recording = "night/verify-1/node_1.fdp", Scenario = "s-a", Take = "main", Width = 320, Height = 180 });
+        Assert.True(job != null, why);
+
+        for (int f = 0; f < DirectorRenders.OpenSettleFrames + 30; f++) renders.Tick();
+        Assert.Equal(RenderState.Opening, job!.State);                    // the index is still being read: not planned yet
+
+        index = read;
+        renders.Tick();
+        Assert.NotEqual(RenderState.Opening, job.State);                  // read: it plans (and goes on)
     }
 
     /// <summary>

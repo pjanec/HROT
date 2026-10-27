@@ -113,5 +113,9 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>The user's own sound again, and no log (a run stopped part way).</summary>
         void Reset();
+
+        /// <summary>⭐ <c>CE-1305</c> TE-11 (§11v A2) — the playback rate the film plays at NOW (sim seconds per film second; 0 paused; +∞ a fast-forward): what the
+        /// scene is heard at (<see cref="Hrot.UI.Common.Audio.SoundAtRate"/>). Called every playing frame; <see cref="Reset"/> and <see cref="EndLog"/> clear it.</summary>
+        void SetRate(double rate) { }
     }
 }

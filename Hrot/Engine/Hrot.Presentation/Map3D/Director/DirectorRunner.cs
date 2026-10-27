@@ -229,6 +229,22 @@ namespace Hrot.UI.Common.Map3D.Director
         private AnchorBook NewBook(Take take, IReadOnlyDictionary<string, double>? baked)
             => new(take.Anchors, baked, _host.BehaviourName, Index, _t0, indexIsTheRun: _host.CanSeek);
 
+        /// <summary>
+        /// ⭐ <c>CE-1305</c> TE-10 (docs/DESIGN_Director_Timeline_Editor.md §11v S1) — where <paramref name="take"/>'s anchors fall on the run THIS host shows, the way a
+        /// play of it places them: the ONE resolver (<see cref="AnchorBook"/>: a bake made for this scenario file, the index's events — leading on a recording, CR-5).
+        /// ⭐ What a stills plan maps keys through, so a verify run's recording gets its still keys at ITS events (a promoted take carries no bake, or another run's).
+        /// </summary>
+        public Func<string, double?> AnchorTimesOf(Take take)
+        {
+            if (take is null) throw new ArgumentNullException(nameof(take));
+            if (!Busy) _units.Reset();   // a run that is not playing: the names are read from the world as it is now (another recording may be open)
+            bool fresh = take.Baked is { } baked && !baked.IsStaleFor(_host.Takes.ScenarioHash(take.Scenario), "", take.TickHz);
+            var book = new AnchorBook(take.Anchors, fresh ? take.Baked!.Times : null, _host.BehaviourName, Index, _host.CanSeek ? 0d : _host.SimTime,
+                                      indexIsTheRun: _host.CanSeek);
+            book.ObserveEvents(_units);
+            return book.TimeOf;
+        }
+
         /// <summary>⭐ CE-1303 P2a (§11m D6) — at the end of the shot on screen the source goes back to the shot's start (a seekable host) and the
         /// take is read again (D4), so an edit shows on the next pass. A host that cannot seek reports it once and plays on.</summary>
         public bool LoopShot { get; set; }
@@ -730,6 +746,8 @@ namespace Hrot.UI.Common.Map3D.Director
                 FilmStudio.Graphics = _graphicsNow;
             }
             if (!_film.IsIdentity) FilmStudio.Fade = Math.Max(FilmStudio.Fade, _film.GapFade(FilmAt(rel)));   // ⭐ CR-7 S3 — a dip gap's black
+            // ⭐ CE-1305 TE-11 (§11v A2) — the scene is heard at the film's rate: request × shot × segment; paused silent; a fast-forward far past 2×
+            if (!plan) _sound?.SetRate(_paused ? 0d : fastForward ? double.PositiveInfinity : Rate);
 
             if (_paused) return;
             if (masterBehind) { Report.WaitFrames++; return; }

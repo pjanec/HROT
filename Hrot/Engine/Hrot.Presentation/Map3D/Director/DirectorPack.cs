@@ -123,6 +123,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 drafts = new DirectorDrafts(h.Index, id => DirectorUnits.NameOf(h.Host.World, id), id => DirectorUnits.KindOf(h.Host.World, id),
                                             h.Scenario ?? (() => null), session);
                 h.Timeline.EventMenu = drafts.MenuItems;
+                session.Templates = drafts.TemplateCamera;   // ⭐ CE-1305 (§11v T2) — the shot templates: the drafter's rule, through the ONE drafts object
             }
             return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts, stills, promotion, renders, composer);
         }

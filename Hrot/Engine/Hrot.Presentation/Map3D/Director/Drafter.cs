@@ -16,6 +16,14 @@ public enum SubjectKind { Person, Vehicle, Aircraft, Group, Unknown }
 /// </summary>
 public sealed record DraftMoment(string Lane, int EventIndex, int Frame, double Sim, long Actor, long? Subject, double Score);
 
+/// <summary>
+/// ⭐ <c>CE-1305</c> (docs/DESIGN_Director_Timeline_Editor.md §11v T1; §2 "shot templates from a marker") — ONE camera of the drafter's grammar, picked by the person
+/// when adding a key: the five beats <see cref="Drafter.Draft"/> films a moment with (establish · over the shoulder · the moment · consequence · the reverse
+/// angle) and two more framings of the same rules (follow · top-down). <see cref="Drafter.TemplateCamera"/> computes each — the SAME private framing
+/// <see cref="Drafter.Draft"/> uses for its keys (no second camera logic).
+/// </summary>
+public enum ShotTemplate { Establish, OverTheShoulder, Moment, Consequence, Reverse, Follow, TopDown }
+
 /// <summary>⭐ <c>CE-4059</c> / <c>CR-8</c> — what the drafted take is called and how it is framed.</summary>
 public sealed record DraftOptions
 {
@@ -50,7 +58,9 @@ public static class Drafter
     private const double ReplayFrom = -1d, ReplayTo = 1.5d, ReplaySpeed = 0.4d;
     private const double MergeWithin = 2d, ShooterLookback = 5d;
     private const double TelephotoMetres = 100d;
-    private const float TelephotoFov = 18f, EstablishPitch = -40f, ConsequencePitch = -35f;
+    private const float TelephotoFov = 18f, EstablishPitch = -40f, ConsequencePitch = -35f, TopDownPitch = -85f;
+    private const float SetUpFollowDistance = 12f;
+    private const double TemplateHold = 4d;
     private const float AcrossEstablish = 20f, AcrossMoment = 20f, AcrossTelephoto = 60f, AcrossConsequence = 45f;
     private const double Margin = 1.3d, MinDistance = 8d, MaxDistance = 600d;
     /// <summary>The half-width (m) a lone unit takes in the frame, so a unit that does not move still gets a sensible distance.</summary>
@@ -145,12 +155,7 @@ public static class Drafter
         double t = moment.Sim;
         var anchor = EventAnchors.Of(index, moment.Lane, moment.EventIndex, unitName);
         var framing = new Framing(index, moment, unitName, options, null);
-        var scene = framing.Scene;
         long focusId = moment.Subject ?? moment.Actor;
-        string? actorName = framing.ActorName, subjectName = framing.SubjectName;
-        string? focusName = subjectName ?? (moment.Subject is null ? actorName : null);
-        float momentPitch = framing.MomentPitch;
-        float Across(float alphaDeg) => framing.Across(alphaDeg);
 
         // time: a key is `t + offset` on the moment's anchor; ① and ③ that would fall before the run's start are a FIXED time 0 (nothing earlier to hang on)
         AtExpr Key(double offset) => t + offset < 0d || anchor is null ? new AtExpr(Math.Max(t + offset, 0d)) : new AtExpr(offset, anchor.Name);
@@ -166,29 +171,21 @@ public static class Drafter
         var keys = new List<CameraKey>();
         CameraKey Cut(AtExpr at, CameraSpec camera) => new() { At = at, Camera = camera with { Fov = camera.Fov ?? options.FovDeg }, Fov = camera.Fov ?? options.FovDeg, In = KeyTransition.Cut };
 
+        // ⭐ CE-1305 (§11v T1) — every beat's camera is `TemplateShot(framing, template, window)`: the ONE place a template is framed (TemplateCamera calls it too)
         if (hasEstablish)
         {
             double until = hasSetUp ? off2 : off3;
-            keys.Add(Cut(t - EstablishBefore < 0d ? new AtExpr(0d) : Key(off1), Midpoint(scene, t + off1, t + until, Across(AcrossEstablish), EstablishPitch, options)));
+            keys.Add(Cut(t - EstablishBefore < 0d ? new AtExpr(0d) : Key(off1), TemplateShot(framing, ShotTemplate.Establish, t + off1, t + until, options)));
         }
 
         if (hasSetUp)
-        {
-            keys.Add(Cut(Key(off2), subjectName is not null && actorName is not null
-                ? new CameraSpec { Over = actorName, Toward = subjectName }
-                : actorName is not null
-                    ? new CameraSpec { Follow = actorName, Distance = 12f, Yaw = Across(AcrossMoment), Pitch = momentPitch }
-                    : Midpoint(scene, t + off2, t + off3, Across(AcrossMoment), momentPitch, options)));
-        }
+            keys.Add(Cut(Key(off2), TemplateShot(framing, ShotTemplate.OverTheShoulder, t + off2, t + off3, options)));
 
         // ③ the moment — the same framing is the replay's (from the other side); `Framing.TheMoment` is also `MomentCamera`'s
-        CameraSpec TheMoment(double from, double to, float yaw) => framing.TheMoment(from, to, yaw);
-        keys.Add(Cut(t - MomentBefore < 0d ? new AtExpr(0d) : Key(off3), framing.Moment()));
+        keys.Add(Cut(t - MomentBefore < 0d ? new AtExpr(0d) : Key(off3), TemplateShot(framing, ShotTemplate.Moment, t - Math.Min(MomentBefore, t), t + MomentAfter, options)));
 
         // ④ the consequence — the subject from above, on the same side
-        keys.Add(Cut(Key(off4), focusName is not null
-            ? Followed(scene, focusName, t + off4, t + end4, Across(AcrossConsequence), ConsequencePitch, null, options)
-            : Midpoint(scene, t + off4, t + end4, Across(AcrossConsequence), ConsequencePitch, options)));
+        keys.Add(Cut(Key(off4), TemplateShot(framing, ShotTemplate.Consequence, t + off4, t + end4, options)));
 
         var segments = new List<TimeSegment>();
         if (options.Replay && moment.Lane is Shot or Hit or Blast)
@@ -196,7 +193,7 @@ public static class Drafter
             // ⭐ CE-4059 / CR-7 (§11q K5) — the reverse angle is a key OF THE REPLAY at its real source time (t−1, the replay's first frame): the main pass never
             //   sees it (it would cut ③ and ④), the replay sees it from its start. Segments PLAY ONLY when listed, so the main pass is listed too.
             //   ⛔ SUPERSEDED: the key parked at ④'s end (§11n as built) — a key placed by source time alone could not sit inside the main pass.
-            keys.Add(Cut(Key(ReplayFrom), TheMoment(t + ReplayFrom, t + ReplayTo, Wrap(Across(AcrossMoment) + 180f))) with { Segment = ReplaySegmentId });
+            keys.Add(Cut(Key(ReplayFrom), TemplateShot(framing, ShotTemplate.Reverse, t + ReplayFrom, t + ReplayTo, options)) with { Segment = ReplaySegmentId });
             segments.Add(new TimeSegment { Id = MainSegmentId, From = keys[0].At, To = Key(end4) });
             segments.Add(new TimeSegment { Id = ReplaySegmentId, From = Key(ReplayFrom), To = Key(ReplayTo), Speed = ReplaySpeed });
         }
@@ -238,6 +235,78 @@ public static class Drafter
     }
 
     private static CameraSpec WithLens(CameraSpec camera, DraftOptions options) => camera with { Fov = camera.Fov ?? options.FovDeg };
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> (docs/DESIGN_Director_Timeline_Editor.md §11v T1) — the camera of <paramref name="template"/> for a key at <paramref name="keySim"/> filming
+    /// <paramref name="moment"/> (its actor and subject, its 180° line and side, the height by the actor's kind): the SAME rule <see cref="Draft"/> puts on the beat
+    /// of that name, framed over the window the beat would hold from the key (<see cref="HoldOf"/>), lens included. ⇒ a template key at a drafted key's time
+    /// IS that key's camera.
+    /// </summary>
+    public static CameraSpec TemplateCamera(TimelineIndex index, DraftMoment moment, Func<long, string?> unitName, DraftOptions options, ShotTemplate template, double keySim)
+        => WithLens(TemplateShot(new Framing(index, moment, unitName, options, null), template, keySim, keySim + HoldOf(template), options), options);
+
+    /// <summary>The source seconds a template's camera is framed over from its key: the beat's own hold in <see cref="Draft"/> (③ 2.7 s, ⑤ 2.5 s), else 4 s.</summary>
+    public static double HoldOf(ShotTemplate template) => template switch
+    {
+        ShotTemplate.Moment => MomentBefore + MomentAfter,
+        ShotTemplate.Reverse => ReplayTo - ReplayFrom,
+        _ => TemplateHold,
+    };
+
+    /// <summary>What a template is called in a menu.</summary>
+    public static string LabelOf(ShotTemplate template) => template switch
+    {
+        ShotTemplate.Establish => "Establish (wide, high)",
+        ShotTemplate.OverTheShoulder => "Over the shoulder",
+        ShotTemplate.Moment => "The moment (across the line)",
+        ShotTemplate.Consequence => "Consequence (the target, from above)",
+        ShotTemplate.Reverse => "Reverse angle",
+        ShotTemplate.Follow => "Follow",
+        ShotTemplate.TopDown => "Top-down",
+        _ => template.ToString(),
+    };
+
+    /// <summary>The templates, in menu order.</summary>
+    public static readonly IReadOnlyList<ShotTemplate> Templates = Enum.GetValues<ShotTemplate>();
+
+    /// <summary>
+    /// ⭐ The ONE place a template is framed — over [<paramref name="from"/>, <paramref name="to"/>] on the moment's line (<see cref="Draft"/>'s beats and
+    /// <see cref="TemplateCamera"/> both call it).
+    /// </summary>
+    private static CameraSpec TemplateShot(Framing framing, ShotTemplate template, double from, double to, DraftOptions options)
+    {
+        var scene = framing.Scene;
+        string? actorName = framing.ActorName, subjectName = framing.SubjectName;
+        string? focusName = subjectName ?? (scene.HasSubject ? null : actorName);
+        float pitch = framing.MomentPitch;
+        switch (template)
+        {
+            case ShotTemplate.Establish:
+                return Midpoint(scene, from, to, framing.Across(AcrossEstablish), EstablishPitch, options);
+            case ShotTemplate.OverTheShoulder:
+                return subjectName is not null && actorName is not null
+                    ? new CameraSpec { Over = actorName, Toward = subjectName }
+                    : actorName is not null
+                        ? new CameraSpec { Follow = actorName, Distance = SetUpFollowDistance, Yaw = framing.Across(AcrossMoment), Pitch = pitch }
+                        : Midpoint(scene, from, to, framing.Across(AcrossMoment), pitch, options);
+            case ShotTemplate.Moment:
+                return framing.TheMoment(from, to, framing.Across(AcrossMoment));
+            case ShotTemplate.Reverse:
+                return framing.TheMoment(from, to, Wrap(framing.Across(AcrossMoment) + 180f));
+            case ShotTemplate.Consequence:
+                return focusName is not null
+                    ? Followed(scene, focusName, from, to, framing.Across(AcrossConsequence), ConsequencePitch, null, options)
+                    : Midpoint(scene, from, to, framing.Across(AcrossConsequence), ConsequencePitch, options);
+            case ShotTemplate.Follow:
+                return focusName is not null
+                    ? Followed(scene, focusName, from, to, framing.Across(AcrossMoment), pitch, null, options)
+                    : Midpoint(scene, from, to, framing.Across(AcrossMoment), pitch, options);
+            case ShotTemplate.TopDown:
+                return Midpoint(scene, from, to, framing.Across(AcrossMoment), TopDownPitch, options);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(template), template, null);
+        }
+    }
 
     /// <summary>Height by the actor's kind (degrees): a person at eye level, a vehicle low, a group from above, an aircraft from below.</summary>
     private static float PitchOf(SubjectKind kind) => kind switch
@@ -367,7 +436,7 @@ public static class Drafter
         public float Across(float alphaDeg) => Wrap((float)(_side > 0 ? _lineDeg + 90d - alphaDeg : _lineDeg - 90d + alphaDeg));
 
         /// <summary>③ — the moment, over <c>[t−0.7, t+2]</c> framed across the line (a telephoto follow past 100 m); the lens is left to the caller.</summary>
-        public CameraSpec Moment() => TheMoment(_t - Math.Min(MomentBefore, _t), _t + MomentAfter, Across(AcrossMoment));
+        public CameraSpec Moment() => TemplateShot(this, ShotTemplate.Moment, _t - Math.Min(MomentBefore, _t), _t + MomentAfter, _options);
 
         /// <summary>The moment's framing over any window and yaw — ⑤ the replay frames it again from the other side.</summary>
         public CameraSpec TheMoment(double from, double to, float yaw)

@@ -431,6 +431,78 @@ public sealed class FilmDirectorTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> TE-11 (docs/DESIGN_Director_Timeline_Editor.md §11v A1, success condition 1 — the offline track): a film at 30 fps plays sim 0–1 s at 1×,
+    /// sim 1–2 s at 0.5× (film 1–3 s) and sim 2–6 s at 4× (film 3–4 s). A shot logged at sim 1.25 lands at film 1.5 s (the slow stretch's own time) and is
+    /// rendered at its NATURAL pitch and length — sample for sample the clip's square wave (a flip every 100 samples, 4 800 samples long), never stretched to the
+    /// film's rate; in the 4× stretch a shot is silent and a blast sounds ducked (half the shot's amplitude); an engine loop sounds through 1× and 0.5× and stops
+    /// past 2×. 🔴 Mutations: ① <c>Mix</c>'s step × the film's rate (resampling, rejected by TE-11) ⇒ the wave flips every 200 samples and outlasts 4 800 ⇒ red;
+    /// ② <c>RenderWav</c> ignoring <c>SoundAtRate</c> (gain 1 everywhere) ⇒ the 4× shot sounds ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_TE11_ASoundInSlowMotion_StartsAtItsFilmTime_AtNaturalPitch_AndPast2x_OnlyABlastSounds_Ducked()
+    {
+        const int fps = 30;
+        var sim = Enumerable.Range(0, 30).Select(i => i / 30d)                        // film 0–1 s: 1×
+            .Concat(Enumerable.Range(0, 60).Select(i => 1d + i / 60d))                  // film 1–3 s: 0.5×
+            .Concat(Enumerable.Range(0, 30).Select(i => 2d + i * 4d / 30d)).ToList();   // film 3–4 s: 4×
+        Assert.Equal(0.5d, SoundTrack.RateAt(sim, 45, fps), 6);
+        Assert.Equal(4d, SoundTrack.RateAt(sim, 100, fps), 6);
+        Assert.Equal(1.5d, Assert.Single(SoundTrack.FilmTimes(sim, 1.25, fps)), 6);   // the cue at the slow stretch's own film time
+
+        const long shot = 9, blast = 8, engine = 7;
+        double now = 0d;
+        var track = new SoundTrack(() => now)
+        {
+            CategoryOf = c => c switch
+            {
+                shot => Fdp.Toolkit.Tkb.Domain.SoundCategory.Weapons,
+                blast => Fdp.Toolkit.Tkb.Domain.SoundCategory.Explosions,
+                _ => Fdp.Toolkit.Tkb.Domain.SoundCategory.Vehicles,
+            },
+        };
+        var output = new RecordingAudioOutput(new NullAudioOutput(), track);
+        output.Open();
+        static short Square(int k) => (short)((k / 100) % 2 == 0 ? 20000 : -20000);
+        var wave = Enumerable.Range(0, 4800).Select(Square).ToArray();
+        output.Define(shot, wave, SoundTrack.SampleRate);
+        output.Define(blast, wave, SoundTrack.SampleRate);
+        output.Define(engine, Enumerable.Repeat((short)10000, 4800).ToArray(), SoundTrack.SampleRate);
+        now = 0.5d; output.Loop(engine, 1f, 0f, 1f);     // an engine from film 0.5 s, never stopped
+        now = 1.25d; output.Play(shot, 1f, 0f, 1f);      // film 1.5 s (0.5×)
+        now = 3.0d; output.Play(blast, 1f, 0f, 1f);      // film 3.25 s (4×)
+        now = 4.0d; output.Play(shot, 1f, 0f, 1f);       // film 3.5 s (4×)
+        Assert.Equal(Fdp.Toolkit.Tkb.Domain.SoundCategory.Weapons, track.Cues[1].Category);
+
+        var wav = Path.Combine(Path.GetTempPath(), $"ce1305-te11-{Guid.NewGuid():N}.wav");
+        try
+        {
+            Assert.True(track.RenderWav(wav, sim, fps));
+            var bytes = File.ReadAllBytes(wav);
+            int L(int sample) => BitConverter.ToInt16(bytes, 44 + sample * 4);
+            int At(double film) => (int)Math.Round(film * SoundTrack.SampleRate);
+            int engineLevel = L(At(1.2));                                                                  // the loop alone, before the shot
+            Assert.NotEqual(0, engineLevel);
+
+            // natural pitch and length: the shot's samples ARE the clip's, from its film time on, for exactly 4 800 samples
+            int start = At(1.5);
+            for (int k = 0; k < 4800; k++)
+            {
+                if (k % 100 is < 5 or > 95) continue;                                                      // clear of each flip
+                int s = L(start + k) - engineLevel;
+                Assert.True(Math.Sign(s) == Math.Sign(Square(k)), $"sample {k} after the shot's start: {s}, the clip's sign {Math.Sign(Square(k))}");
+            }
+            Assert.Equal(engineLevel, L(start + 4800 + 50));                                               // and then it is over (the loop goes on)
+
+            // past 2×: the engine and the shot are silent, the blast is heard at half the shot's level
+            Assert.Equal(0, L(At(3.5) + 50));
+            Assert.Equal(0, L(At(3.9)));
+            double shotAmp = Math.Abs(L(start + 50) - engineLevel), blastAmp = Math.Abs(L(At(3.25) + 50));
+            Assert.InRange(blastAmp / shotAmp, SoundAtRate.Ducked - 0.02, SoundAtRate.Ducked + 0.02);
+        }
+        finally { File.Delete(wav); }
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-1370</c> — the subtitle band is ONE computation for the cinema overlay and a captured frame: top / middle / bottom sit where the overlay put them
     /// (1/18 of the height from the edge, or centred), and the fade scales the text's alpha and the band's together (the band at 150/255 of the text's).
     /// 🔴 Mutation: <c>SubtitlePosition.Top</c> falling through to the bottom case ⇒ the top band lands at the bottom ⇒ red.
