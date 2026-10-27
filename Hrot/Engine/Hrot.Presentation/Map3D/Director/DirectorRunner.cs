@@ -19,9 +19,12 @@ namespace Hrot.UI.Common.Map3D.Director
     /// <summary>A reel to play, at <see cref="Speed"/> (live only), live / to files (<see cref="Capture"/>) / as a scout.</summary>
     /// <remarks><see cref="Inline"/>: takes given with the request (by <c>scenario/take</c>), not read from a file — film.py's one-off
     /// plans (D-9). A scout of an inline take bakes nothing. ⭐ <c>CE-4061</c> — <see cref="Plan"/>: run by the runner's
-    /// <see cref="IRunExtension"/> instead of takes.</remarks>
+    /// <see cref="IRunExtension"/> instead of takes. ⭐ <c>CE-1303</c> P2a (§11m D5, D7) — <see cref="StartAt"/>: the first item starts at that
+    /// film second (a seekable source seeks there; the editor fast-forwards); <see cref="Cinema"/> false keeps the panels on screen (an
+    /// iteration pass, not a film).</remarks>
     public sealed record PlayRequest(Reel Reel, double Speed = 1d, bool Loop = false, CaptureOptions? Capture = null, bool Scout = false,
-                                     IReadOnlyDictionary<string, Take>? Inline = null, bool Bake = true, RunPlan? Plan = null)
+                                     IReadOnlyDictionary<string, Take>? Inline = null, bool Bake = true, RunPlan? Plan = null,
+                                     double StartAt = 0d, bool Cinema = true)
     {
         public DirectorMode Mode => Plan != null ? DirectorMode.Plan : Scout ? DirectorMode.Scout : Capture != null ? DirectorMode.Capture : DirectorMode.Live;
     }
@@ -165,6 +168,9 @@ namespace Hrot.UI.Common.Map3D.Director
         private long _issued, _retiredSeen;
         private bool _paused;
         private int _liveCount;
+        // ⭐ CE-1303 P2a — play from a film second (D5) · loop refused once on a host that cannot seek (D6)
+        private double _startAt;
+        private bool _loopRefused;
         // capture
         private int _frameNo;
         private double _nextFrameAt;
@@ -189,6 +195,18 @@ namespace Hrot.UI.Common.Map3D.Director
         }
 
         public DirectorPhase Phase { get; private set; } = DirectorPhase.Idle;
+
+        /// <summary>
+        /// ⭐ <c>CE-1303</c> P2a — CR-4 (docs/DESIGN_Director_Timeline_Editor.md §11m D4): the take OPEN for editing, by scenario and take (null =
+        /// none open). A film or a capture plays it instead of the saved file, so an unsaved edit is what the next play — and the next pass of a
+        /// looped shot — shows. ⛔ Never a scout: a scout bakes and SAVES its take, which would write the unsaved edits. Set by
+        /// <see cref="DirectorPack"/> from its <see cref="DirectorTakeSession"/>.
+        /// </summary>
+        public Func<string, string, Take?>? OpenTake { get; set; }
+
+        /// <summary>⭐ CE-1303 P2a (§11m D6) — at the end of the shot on screen the source goes back to the shot's start (a seekable host) and the
+        /// take is read again (D4), so an edit shows on the next pass. A host that cannot seek reports it once and plays on.</summary>
+        public bool LoopShot { get; set; }
 
         /// <summary>⭐ CE-1303 — the host's one extension (the editor's verifier); null on a films-only host.</summary>
         public IRunExtension? Extension => _ext;
@@ -257,10 +275,22 @@ namespace Hrot.UI.Common.Map3D.Director
             _paused = false;
             if (request.Capture != null) Directory.CreateDirectory(FramesDir);
             if (request.Mode == DirectorMode.Capture) _sound?.BeginLog();
-            if (request.Mode != DirectorMode.Plan) _cinema.Enter();   // ⭐ an extension's run (verify) leaves the editor as it is: no camera, no cinema
+            // ⭐ an extension's run (verify) leaves the editor as it is: no camera, no cinema; ⭐ CE-1303 D7 — nor does an iteration pass
+            if (request.Mode != DirectorMode.Plan && request.Cinema) _cinema.Enter();
             BeginItem(0);
             return Array.Empty<string>();
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1303</c> P2a — CR-4 (§11m D5): plays <paramref name="request"/> from film second <paramref name="filmTime"/> of its first item —
+        /// the shot, camera and layers of that moment. A seekable source (a recording) is SOUGHT there; a live one (the editor) is fast-forwarded:
+        /// stepped one step per frame with no hold and no capture until it gets there (R-3038 — never two steps in a frame).
+        /// </summary>
+        public IReadOnlyList<string> PlayFrom(PlayRequest request, double filmTime)
+            => Play((request ?? throw new ArgumentNullException(nameof(request))) with { StartAt = Math.Max(0d, filmTime) });
+
+        /// <summary>The film second the item playing starts at (0 = its start); on a live host, until the fast-forward reaches it.</summary>
+        public double StartAt => _startAt;
 
         public void Stop()
         {
@@ -346,6 +376,8 @@ namespace Hrot.UI.Common.Map3D.Director
             _item = index;
             _take = null; _book = null; _timeline = null; _clock = null; _probe = null; _shot = null; _inGap = true;
             _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0;
+            _startAt = index == 0 && _request!.Mode is DirectorMode.Live or DirectorMode.Capture ? Math.Max(0d, _request.StartAt) : 0d;
+            _loopRefused = false;
             _ext?.Reset();
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
@@ -400,13 +432,13 @@ namespace Hrot.UI.Common.Map3D.Director
             Report.TickHz = take.TickHz;
 
             var baked = take.Baked;
-            bool fresh = baked != null && _request!.Mode != DirectorMode.Scout
-                         && !baked.IsStaleFor(_host.Takes.ScenarioHash(take.Scenario), "", take.TickHz);
+            bool fresh = BakeIsFresh(take);
             if (baked != null && !fresh && _request!.Mode != DirectorMode.Scout)
                 Report.Problems.Add($"the baked anchors are stale (scouted at {baked.TickHz} Hz for scenario {baked.ScenarioHash}) — re-scout; cutting on live cues");
             Report.UsedBake = fresh;
             _book = new AnchorBook(take.Anchors, fresh ? baked!.Times : null, _host.BehaviourName);
-            _t0 = _host.SimTime;
+            // ⭐ CE-1303 D3 — a seekable source's sim clock IS the run's (a recording of it), so a take's times mean the same there as in the editor
+            _t0 = _host.CanSeek ? 0d : _host.SimTime;
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             Replan();
             Report.SkippedReplays.AddRange(_timeline!.SkippedReplays);
@@ -416,7 +448,10 @@ namespace Hrot.UI.Common.Map3D.Director
             _sound?.SetTakeSound(take.Sound);
             if (_request.Mode == DirectorMode.Capture && Item.Title != null) _chapters.Add((_frameNo, Item.Title));
             else if (_request.Mode == DirectorMode.Capture) _chapters.Add((_frameNo, Item.Scenario));
-            DirectUpcoming(0d);
+            // ⭐ CE-1303 D5 — play from a film second: a recording is sought there (the shot, camera and layers of that moment follow from the
+            //   first frame's EnterShot); a live run fast-forwards (TickPlaying)
+            if (_startAt > 0d && _host.CanSeek) { SeekSource(_startAt); _startAt = 0d; }
+            DirectUpcoming(Rel);
             _cinema.Card(null);
             Phase = DirectorPhase.Playing;
             Report.Status = "playing";
@@ -440,9 +475,42 @@ namespace Hrot.UI.Common.Map3D.Director
         }
 
         private Loaded<Take> LoadTake(PlayRequest request, ReelItem item)
-            => request.Inline != null && request.Inline.TryGetValue(item.Scenario + "/" + item.Take, out var inline)
-                ? new Loaded<Take>(inline, Array.Empty<string>())
-                : _host.Takes.Load(item.Scenario, item.Take);
+        {
+            if (request.Inline != null && request.Inline.TryGetValue(item.Scenario + "/" + item.Take, out var inline))
+                return new Loaded<Take>(inline, Array.Empty<string>());
+            // ⭐ CE-1303 CR-4 (§11m D4) — the OPEN take, edits and all (a film or a capture; ⛔ never a scout, which saves what it bakes)
+            if (OpenTakeFor(request, item) is { } open) return new Loaded<Take>(open, Array.Empty<string>());
+            return _host.Takes.Load(item.Scenario, item.Take);
+        }
+
+        private Take? OpenTakeFor(PlayRequest request, ReelItem item)
+            => request.Mode is DirectorMode.Live or DirectorMode.Capture && request.Inline?.ContainsKey(item.Scenario + "/" + item.Take) != true
+                ? OpenTake?.Invoke(item.Scenario, item.Take) : null;
+
+        private bool BakeIsFresh(Take take)
+            => take.Baked is { } baked && _request!.Mode != DirectorMode.Scout
+               && !baked.IsStaleFor(_host.Takes.ScenarioHash(take.Scenario), "", take.TickHz);
+
+        /// <summary>⭐ CE-1303 D4 — at a loop wrap: the open take again, if it was edited since this pass began (its anchors' book with it).</summary>
+        private void RefreshOpenTake()
+        {
+            if (OpenTakeFor(_request!, Item) is not { } now || ReferenceEquals(now, _take)) return;
+            bool anchorsMoved = !ReferenceEquals(now.Anchors, _take!.Anchors) || !ReferenceEquals(now.Baked, _take.Baked);
+            _take = now;
+            if (anchorsMoved) _book = new AnchorBook(now.Anchors, BakeIsFresh(now) ? now.Baked!.Times : null, _host.BehaviourName);
+            Replan();
+        }
+
+        /// <summary>
+        /// ⭐ CE-1303 D5 / D6 — the source to film second <paramref name="rel"/> of this item (a seekable host only), and the stepping rule's
+        /// bookkeeping rebased on it: the steps "retired" are counted from the sim clock, which a seek moves backwards or far forwards.
+        /// </summary>
+        private void SeekSource(double rel)
+        {
+            _host.Seek(_t0 + rel);
+            _issued = _retiredSeen = (long)Math.Round(Rel / _clock!.StepSeconds);
+            _clock.Start(_host.WallNow);
+        }
 
         private void Replan()
         {
@@ -456,6 +524,27 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             var mode = _request!.Mode;
             double rel = Rel;
+
+            // ⭐ CE-1303 D6 — loop the shot: past its end, back to its start (the take read again — D4); ⛔ a live run never rewinds (R-3034)
+            if (LoopShot && mode == DirectorMode.Live && _shot != null && rel >= _shot.End - 1e-6)
+            {
+                if (_host.CanSeek)
+                {
+                    int number = _shot.Number;
+                    RefreshOpenTake();
+                    var again = _timeline!.Shots.FirstOrDefault(s => s.Number == number) ?? _timeline.At(_shot.Start) ?? _shot;
+                    SeekSource(again.Start);
+                    rel = Rel;
+                }
+                else if (!_loopRefused)
+                {
+                    _loopRefused = true;
+                    Report.Problems.Add("Loop shot needs a source that seeks (a recording): a live run plays on (R-3034)");
+                }
+            }
+            // ⭐ CE-1303 D5 — a live run's fast-forward is over: real time from here
+            bool fastForward = _startAt > 0d && rel + 1e-9 < _startAt;
+            if (_startAt > 0d && !fastForward) { _startAt = 0d; _clock!.Start(_host.WallNow); _nextFrameAt = Math.Max(_nextFrameAt, rel); }
 
             // ⭐ the master takes a step a frame after it is asked (one is in flight); with TWO outstanding it would take both at once
             long retired = (long)Math.Round(rel / _clock!.StepSeconds);
@@ -482,7 +571,8 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_paused) return;
             if (masterBehind) { Report.WaitFrames++; return; }
 
-            if (mode == DirectorMode.Capture)
+            if (fastForward) { }   // ⭐ CE-1303 D5 — no hold, no capture: one step per frame, as fast as frames come
+            else if (mode == DirectorMode.Capture)
             {
                 if (_pendingCapture is { IsCompleted: false }) { Report.LateFrames++; return; }   // the map has not served it yet: hold
                 if (_pendingCapture is { IsFaulted: true } faulted) throw new InvalidOperationException("capture failed: " + faulted.Exception!.GetBaseException().Message);
@@ -494,6 +584,13 @@ namespace Hrot.UI.Common.Map3D.Director
             }
             if (plan) _ext!.BeforeStep(rel);   // ⭐ CE-4061 — e.g. R1's checkpoint, an action due on this exact step
             StepOnce();
+            // ⭐ CE-1303 P2a — a seekable source steps at once; one that did not move has ENDED (a take longer than its recording): the item ends
+            //   there, said in the report — ⛔ not a run that waits forever on a clock that cannot advance
+            if (_host.CanSeek && Rel <= rel + 1e-9)
+            {
+                Report.Problems.Add($"the source ends at {rel:0.###} s, before the take does ({_timeline!.End:0.###} s)");
+                FinishItem();
+            }
         }
 
         /// <summary>The ONE place a step is taken. ⛔ A second in the same frame is a defect of the director, not of the run.</summary>
@@ -746,6 +843,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 ["items"] = _request?.Reel.Items.Count,
                 ["paused"] = _paused,
                 ["speed"] = _request?.Speed,
+                ["loopShot"] = LoopShot,   // ⭐ CE-1303 D6
                 ["shot"] = _shot?.Number,
                 ["simTime"] = Phase == DirectorPhase.Playing ? Math.Round(Rel, 3) : null,
                 ["realtimeFactor"] = _clock is { Started: true } ? Math.Round(_clock.RealtimeFactor, 3) : null,

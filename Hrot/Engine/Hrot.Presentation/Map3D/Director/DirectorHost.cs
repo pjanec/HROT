@@ -43,6 +43,14 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>The scenarios root's takes and reels.</summary>
         TakeStore Takes { get; }
+
+        /// <summary>⭐ <c>CE-1303</c> P2a (CR-3, docs/DESIGN_Director_Timeline_Editor.md §11m D2) — the source can JUMP in sim time (a recording).
+        /// ⛔ A live run cannot (R-3034): the editor's is false. On a seekable host the take's clock is the source's own (t0 = 0, D3).</summary>
+        bool CanSeek => false;
+
+        /// <summary>⭐ CR-3 — puts the source at sim second <paramref name="sourceSim"/>, through the host's ONE seek path (R-3059). Only when
+        /// <see cref="CanSeek"/>.</summary>
+        void Seek(double sourceSim) => throw new System.NotSupportedException("this host's source cannot seek (a live run)");
     }
 
     /// <summary>
