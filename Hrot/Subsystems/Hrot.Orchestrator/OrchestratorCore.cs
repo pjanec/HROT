@@ -168,7 +168,10 @@ public sealed class OrchestratorCore : IDisposable
             axis:            () => _master.ReplayAxis,
             map:             () => _master.ReplayTimeMap,
             anchorWallTicks: () => _master.ReplayAnchorWallTicks,
-            loop:            () => _master.ReplayLoop);   // ⭐ CE-3329 §12n — the loop range wraps the playhead on either axis
+            loop:            () => _master.ReplayLoop,   // ⭐ CE-3329 §12n — the loop range wraps the playhead on either axis
+            durationSeconds: () => _master.ReplayDurationSeconds,   // ⭐ row 9 — the end pause (absorbed from ReplayProcessManager)
+            reviewing:       () => Fdp.Toolkit.Orchestration.ClusterStates.IsReview((Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState),
+            bus:             bus);                                   // ⭐ row 9 — the operator's rate requests
 
         // ⭐ CE-3299 B2 / D5 — a cluster dry run puts the clock back with the world (the editor's own Play/Stop already does, CE-3156).
         _previewClock = new PreviewClockProcessManager(bus, timeReads, time);
@@ -199,7 +202,6 @@ public sealed class OrchestratorCore : IDisposable
         _globalContext.Tick();
         _prefetch.Tick();
         _master.Tick();
-        _replay.Tick();
         _replayClock.Tick();   // CE-3329
         _session.Tick();       // CE-3329 — after the master: a round that completed this frame has updated the zero, map and marks
         _storage.Tick();

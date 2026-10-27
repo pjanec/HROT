@@ -157,6 +157,20 @@ namespace Fdp.Core.FlightRecorder
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3329</c> row 9 — the recorded RATE at <paramref name="wallTicks"/>: sim seconds per wall second of the segment it lies
+        /// in (2 for a run recorded at 2×, 0 inside a flat run). 1 without a sim axis or outside the recording (neutral).
+        /// </summary>
+        public double RateAt(long wallTicks)
+        {
+            if (!HasSimTime || wallTicks < Points[0].WallTicks || wallTicks >= Points[^1].WallTicks) return 1.0;
+            int hi = UpperPoint(wallTicks);
+            var a = Points[hi - 1];
+            var b = Points[hi];
+            if (b.WallTicks == a.WallTicks) return 1.0;
+            return (b.SimSeconds - a.SimSeconds) / ((b.WallTicks - a.WallTicks) / (double)TimeSpan.TicksPerSecond);
+        }
+
+        /// <summary>
         /// The wall time of sim time <paramref name="simSeconds"/> (clamped). A sim time that is a flat instant (a pause) resolves to its
         /// first frame or — <see cref="Edge.AfterStretch"/>, the default — its end, so what changed during it is shown.
         /// </summary>

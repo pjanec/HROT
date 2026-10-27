@@ -9,35 +9,15 @@ using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
 namespace Hrot.Orchestrator;
 
 /// <summary>
-/// Process Manager (Saga) that auto-pauses the master clock when the active replay
-/// session has advanced past the recorded duration.
-///
-/// <para>
-/// On each <see cref="Tick"/> call the manager reads <see cref="ClusterOpCompletedEvent"/>
-/// from the bus.  When a successful completion arrives that carries a
-/// <see cref="ReplayPrepareResult"/> with a positive <c>DurationSeconds</c>, the manager
-/// records the end time as <c>currentSimTime + DurationSeconds</c>.  Subsequent ticks
-/// compare the master sim time against this threshold and publish a
-/// <see cref="PauseTimeIntent"/> exactly once when the threshold is crossed.
-/// </para>
-///
-/// <para>
-/// Wired into <see cref="OrchestratorSubsystem"/> after <see cref="ClusterMaster"/>
-/// and before <see cref="Panels.ClusterUiCache"/>.  The included
-/// <see cref="ReplayConsensusAggregator"/> must be registered with
-/// <see cref="ClusterMaster.RegisterAggregator"/> so that the
-/// <see cref="ClusterOpCompletedEvent.ResultPayload"/> carries a typed
-/// <see cref="ReplayPrepareResult"/> rather than <c>null</c>.
-/// </para>
+/// The replay's prepare AGGREGATORS: <see cref="ReplayConsensusAggregator"/> (a replay's prepare round) and its review variant, which make
+/// the round's <see cref="ClusterOpCompletedEvent.ResultPayload"/> a typed <see cref="ReplayPrepareResult"/>.
+/// <para>⛔ SUPERSEDED <c>2026-10-27</c> (CE-3329 row 9): this manager also paused the master clock at the replay's end — that moved into
+/// <see cref="ReplayClockProcessManager"/>, the ONE owner of the replay clock (loop, sim-axis jumps, per-segment rate, the end).</para>
 /// </summary>
 public sealed class ReplayProcessManager
 {
     private readonly FdpEventBus     _bus;
     private readonly ITimeController _timeController;
-
-    // sim-time threshold past which the master clock should be paused
-    private double _replayEndSimTime = double.MaxValue;
-    private bool   _triggered;
 
     /// <param name="bus">Shared event bus.</param>
     /// <param name="timeController">
@@ -59,45 +39,4 @@ public sealed class ReplayProcessManager
     /// <summary>⭐ CE-3329 P3 — a review's prepare round: the same aggregate, ending at the live point (F13).</summary>
     public INodeResponseAggregator CreateReviewAggregator() => new ReplayConsensusAggregator(NodeOpType.PrepareReview, endAtEarliestLast: true);
 
-    /// <summary>
-    /// Checks whether the replay has ended and publishes <see cref="PauseTimeIntent"/> if so.
-    /// Call once per frame in Phase 3, after <see cref="ClusterMaster.Tick"/>.
-    /// </summary>
-    public void Tick()
-    {
-        // Read ClusterOpCompletedEvent from the previous frame's back buffer (now front).
-        foreach (var ev in _bus.ReadManaged<ClusterOpCompletedEvent>())
-        {
-            if (ev.StatusCode != OrchestrationStatusCode.Success) continue;
-            if (ev.ResultPayload is ReplayPrepareResult rpr && rpr.DurationSeconds > 0f)
-            {
-                // ⭐ C9 (Q91 §4-P P7) — the playhead is seconds after the replay's zero (entering a replay seeks every node
-                //   there), so the end IS the duration. ⛔ Was "now + duration": the clock entered at the live clock's time.
-                _replayEndSimTime = rpr.DurationSeconds;
-                _triggered        = false;
-            }
-            else if (ev.ResultPayload is ReplaySeekResult)
-            {
-                _triggered = false;   // ⭐ C9 — a seek back from the end plays to the end again
-            }
-        }
-
-        // Reset end time when the cluster leaves OperatingReplay.
-        foreach (var ev in _bus.ReadManaged<ClusterStateUpdateEvent>())
-        {
-            if (!ClusterStates.IsReplaying((FdpClusterState)(int)ev.CurrentState))   // ⭐ CE-3329 — a review pauses at the live point too
-            {
-                _replayEndSimTime = double.MaxValue;
-                _triggered        = false;
-            }
-        }
-
-        if (_triggered || _replayEndSimTime >= double.MaxValue) return;
-
-        if (_timeController.GetCurrentState().TotalTime >= _replayEndSimTime)
-        {
-            _bus.PublishManaged(new PauseTimeIntent());
-            _triggered = true;
-        }
-    }
 }

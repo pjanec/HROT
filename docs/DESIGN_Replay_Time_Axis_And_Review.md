@@ -908,7 +908,7 @@ perform, and every jump becomes the resume they already follow. The only new nod
 |---|---|---|
 | 7 | `ReplayTimeMap` — piecewise-linear keypoints (O(n) slope-window fit, ≤ 0.5 ms sim error), operator `Stretches`, `SimAt`, `WallAt(sim, Edge)`, `NextUnpause`, `Intersect`, `FromRecording` | ⚠ **in `Fdp.Core.FlightRecorder`, not `Fdp.Toolkits/Replay`**: it crosses `IRecordReplayController` (Fdp.Core). ⚠ **D-H drawn from the frame pattern** (§12g): a flat run that follows a ≤ 2-frame step that followed a flat run is a step gap. ⚠ Sim matches use the tolerance (10 × 0.1 ≠ 1.0) |
 | 8 | `ReplayPrepareResult.TimeMap` (each node's `ReplayModule.TimeMap`, via `IRecordReplayController.ActiveReplayTimeMap`); `ReplayConsensusAggregator` intersects, the earliest-starting node's sim times; `ClusterMaster.ReplayTimeMap` | — |
-| 9 | `ReplayClockProcessManager` (master): on the Sim axis, while `OperatingReplay` and the clock runs, a playhead inside a flat run → `ITimeCommands.JumpTo(end)` → `JumpTimeIntent` → `MasterSyncController.JumpWhileRunning` (no pause, no `TimelineEpoch` move, slaves follow a Continuous `SwitchTimeModeEvent`) | ⚠ **not yet**: the per-segment RATE (a run recorded at 2× plays its sim at 2×) and absorbing `ReplayProcessManager`'s end pause — both still with `ReplayProcessManager` |
+| 9 | `ReplayClockProcessManager` (master): on the Sim axis, while `OperatingReplay` and the clock runs, a playhead inside a flat run → `ITimeCommands.JumpTo(end)` → `JumpTimeIntent` → `MasterSyncController.JumpWhileRunning` (no pause, no `TimelineEpoch` move, slaves follow a Continuous `SwitchTimeModeEvent`) | ✅ **built `2026-10-27`** (§12t): the per-segment RATE and the end pause — `ReplayProcessManager` keeps only the prepare aggregators |
 | 10 | `SeekReplayIntent.TargetSimSeconds`, `TransitionStateIntent.TargetSimSeconds` (wins over wall); the master resolves (`RelativeTicksForSim`), refuses a sim seek on a replay with no sim axis (v6); `SetReplayAxisIntent` + `ReplayAxis {Sim, Wall}` (R2: Sim by default); the axis on `ClusterStateTopic.ReplayAxis` → `ClusterStateUpdateEvent` → `ClusterSlave.ReplayAxis` / `ClusterUiCache.ReplayAxis` | ⚠ **the axis rides the cluster-state broadcast, not a new `ReplaySessionTopic`** (row 32): every node already follows that broadcast, so the axis is the same on every host with no new topic; the session layer's map / live point / checkpoints are P4's (ui) need and get the topic then |
 | 12 | HTTP: `atSimSeconds` on `POST /replay` and `/replay/seek`; `POST /replay/axis {axis}`; `/replay/status` `axis` (+ `simSeconds`, P0); route docs; MCP catalog regenerated (`set_replay_axis`; `seek_replay` forwards every form; `enter_replay` forwards `atSimSeconds`, `path(s)`) | — |
 | 13 | Replay Browser: its group's map (`TimeMap`, the same intersection), `atSimSeconds` seeks, `simSeconds` in its position, its OWN axis (the viewer's, R2) | ⏭ the timeline / S-W icon is row 34 (ui) |
@@ -1384,3 +1384,31 @@ identical, sought or stepped. The comparison resets at a keyframe, so every delt
 
 Rail: `FlightRecorderTests.CE4058_A_quiet_frame_writes_no_chunk_and_the_replay_stays_exact` (red-proved: write every chunk ⇒ the quiet frame
 is as large as the first). 📐 **Measured live** (`scratchpad/run-4058.sh`, the editor, demo-city, 10 s running then 10 s paused): **89 KB/s running · 15 KB/s paused** (~6× smaller; what remains is the entity index, managed tables and the frame headers). ⏭ Not re-measured: the coordinator's stepped `ua-tank-ammo` run (75 MB / 14 268 frames before).
+
+### 12t. ✅ BUILT `2026-10-27` — the per-segment replay RATE and the end pause, in the ONE replay clock (row 9; After-DAR item 6)
+
+🔒 User: *"Yes go ahead"* on the lean — keep the operator's rate apart and run the clock at operator ÷ the segment's recorded rate.
+
+```mermaid
+stateDiagram-v2
+  [*] --> NotReplaying
+  NotReplaying --> Replaying: the cluster enters a replay or review / operator rate = the clock's
+  Replaying --> Replaying: each tick — loop wrap, else end pause, else rate = operator ÷ RateAt(playhead) on Sim (operator on Wall), then the sim jump
+  Replaying --> Replaying: a SetTimeScaleIntent the manager did not issue / it becomes the operator rate
+  Replaying --> NotReplaying: a replay ends / the operator rate given back
+  Replaying --> NotReplaying: a review ends / nothing given back (the return restores the live rate, F19)
+```
+*What the picture shows that the prose hid:* the operator's rate and the clock's rate are two values on the Sim axis, and the manager is
+the only thing that turns one into the other — so a speed request during a replay changes what the operator chose, never a per-segment
+value the manager computed.
+
+| piece | as built |
+|---|---|
+| `ReplayTimeMap.RateAt(wall)` | sim seconds per wall second of the segment under the playhead (2 for a run recorded at 2×; 0 inside a flat run — jumped, not slowed; 1 outside) |
+| `ReplayClockProcessManager` | `OperatorRate` (taken from the clock when a replay starts, then from every `SetTimeScaleIntent` it did not issue); `TickRate` sets the clock to operator ÷ `RateAt` on Sim, operator on Wall (clamped 0.01–64); `TickEnd` pauses once per arrival at the duration (a review's live point), a seek back re-arms; a REPLAY's end gives the operator's rate back, a review's does not |
+| `ReplayProcessManager` | ⛔ its end-pause `Tick` SUPERSEDED — it keeps only `CreateAggregator` / `CreateReviewAggregator` |
+
+Rails (`ClusterMasterSeekTests`): `CE3329_The_sim_axis_plays_each_segment_at_the_operators_rate` (a 2× segment at ½; the manager's own
+echo is not the operator; an operator 2× gives 1 on a 2× segment, 2 on Wall; given back at a replay's end, not a review's) ·
+`C9_The_replay_end_is_the_duration_…` (moved here) — each red-proved by a compiling mutation. ⏭ Not exercised live: a recording with a
+rate change (the editor's runs are recorded at 1×).
