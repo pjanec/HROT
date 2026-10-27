@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -739,7 +739,9 @@ sequenceDiagram
 }
 ```
 
-A scenario take is the same with `source` absent. ⭐ `shots[]` is still read; the editor writes `keys[]`. ⭐ `"on": "shot"` is a shorthand that lowers to a predicate (TE-3b); `when` holds any predicate, written by the existing editor (R-4072). A line crossing is the extension TE-3 names; until it exists, an area entry is the box above.
+A scenario take is the same with `source` absent. ⭐ `shots[]` is still read; the editor writes `keys[]`. ⭐ CE-4059 (§11q K1): a segment may carry an
+`"id"` and a key a `"segment"` naming it — that key plays only in that segment (a replay's own angle, `{"at": "fire-1", "segment": "replay", …}`); a key
+with no `segment` plays in every pass, as before. ⭐ `"on": "shot"` is a shorthand that lowers to a predicate (TE-3b); `when` holds any predicate, written by the existing editor (R-4072). A line crossing is the extension TE-3 names; until it exists, an area entry is the box above.
 
 ## 6. Phases and acceptance
 
@@ -1723,7 +1725,7 @@ sequenceDiagram
 | ② set-up | `t − 4` | `Over` the actor, `Toward` the subject (the existing over-the-shoulder camera); a subject-less moment: `Follow` the actor | the actor's view |
 | ③ the moment | `t − 0.7` | `LookAt` the actor–subject midpoint over `[t−0.7, t+2]`, `Yaw` across the line on the clip's side, distance to fit; **past 100 m between them**: `Follow` the subject from the actor's side with `Fov` 18° (telephoto) | cut on anticipation, never after |
 | ④ consequence | `t + 2` for 4 s — or from the NEXT hit / blast on the subject within 5 s of t, then `−0.3` | `Follow` the subject, `Pitch −35°` (from above, the same side) | the result |
-| ⑤ replay *(DraftOptions.Replay; a fast beat only: shot, hit, blast)* | a time segment going BACK: `[t − 1, t + 1.5]` at speed 0.4 after ④, its key across the line (the reverse angle) | `LookAt` as ③, `Yaw + 180°` | the one crossing of the line; slow motion — ⚠ plays once segments play (P2b, CR-7) |
+| ⑤ replay *(DraftOptions.Replay; a fast beat only: shot, hit, blast)* | a time segment going BACK: `[t − 1, t + 1.5]` at speed 0.4 after ④, its key across the line (the reverse angle) — ⭐ a key OF the replay at t−1 (§11q K5) | `LookAt` as ③, `Yaw + 180°` | the one crossing of the line; slow motion |
 | end | ④'s end | — | 15–30 s of film |
 
 | craft rule | as a rule |
@@ -1756,9 +1758,10 @@ merges a hit 0.8 s after a shot into one moment. Each red-proved by a mutation t
 - **the side of the line** — chosen by "the camera looks north-ish" (the map stays the way up), not by visibility; ⏭ a visibility rule needs
   occlusion the index does not carry.
 - **framing** — depth-aware: a unit nearer the camera than the look-at point pushes the camera out further (it sat at the frame's edge).
-- **⑤ the replay** — keys are placed by SOURCE time, so the reverse-angle key is parked at ④'s end and the take lists TWO segments (the main
-  pass, then `[t−1, t+1.5]` at 0.4) — a take with segments plays only those listed (`Take.cs:268-269`). ⚠ The replay shows its reverse angle
-  only once keys are looked up per segment (P2b, CR-7) — ⏭ for ui's CR-7 design: a key belongs to a SEGMENT, not only to a source time.
+- **⑤ the replay** — ⛔ SUPERSEDED `2026-10-27` by §11q K5: the reverse-angle key is a key OF the replay segment (`"segment": "replay"`) at its real
+  source time t−1, and the two segments are named `main` / `replay`. *(Was: keys are placed by SOURCE time, so the reverse-angle key was parked at ④'s
+  end and the replay never showed it.)* The take still lists TWO segments (the main pass, then `[t−1, t+1.5]` at 0.4) — a take with segments plays
+  only those listed.
 - **film length** — ~12–14 s (more with the replay), under §1a's 15–30 s; no beat stretched to reach it.
 - a moment with no expressible anchor falls back to fixed times (no anchor, no bake); a unit with no samples sits at the event's X/Y.
 - ⭐ `2026-10-27` (CE-4060): the framing of one moment is a private `Framing`, used by `Draft` and by the new public `MomentCamera` (③ alone — the documentation stills); `GroupCamera` frames a set of units from high (a check that names no unit). [Film Production §4a](DESIGN_Film_Production.md).
@@ -2344,3 +2347,184 @@ named 'Tank'"*): the schema check refuses a recorded component this process has 
 ([CE-1372](blueprints/Blueprint_Issues_Tracker.md); the runner's RB process is not affected — measured, the same file opens there). The
 capture called directly burns no subtitle (the runner's capture path does). Nothing else: the follow framing held across both plays, the time
 was right, the bodies were models.
+
+### 11q. P3 wiring + keys per segment *(ui, `2026-10-27`, CE-4059 P3 (ui half) + CE-1303 CR-7 input; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ Frame: [NOTE_Coordinator_To_Ui_Drafter_Core_Ready](blueprints/batches/NOTE_Coordinator_To_Ui_Drafter_Core_Ready.md) — two items: **A.** a key belongs
+to a SEGMENT (the CR-7 input: §11n's replay key had to be parked at ④'s end because a key placed by source time alone would cut the main pass) and
+**B.** the drafter wired (P3, the non-RB-HTTP part): *"Draft a shot sequence here"* on an event, the draft opened in the take session, `DraftOptions.Kind`
+from the world, `GET /director/moments` + `POST /director/draft` on the editor's routes. ⛔ Fence: no route on the Replay Browser's HTTP (backend's lane).
+
+**INVENTORY** *(`2026-10-27`; graph of this worktree, 279 088 nodes, + grep)*
+
+```
+search_graph name_pattern=".*(Draft|Moment).*" label=Class      → 5, has_more false: DraftMoment, DraftOptions, Drafter (§11n), DrafterTests,
+   OrderDraft (orders, unrelated) — no drafting service, no host wiring
+search_graph name_pattern=".*(Draft|Moments).*" label=Method    → 25: Drafter.Draft / Moments + rails; DocumentationTakes (CE-4060) calls
+   Drafter.MomentCamera / GroupCamera; MissionPanel drafts (unrelated) — no route, no menu
+search_graph name_pattern=".*(Segment|Scope).*" label=Class     → 52: the director's TimeSegment, FilmSegment and the TakeEdit segment records;
+   nothing scopes a key — every other hit is unrelated (roads, JsonPath, StructEdit scopes, pedestrians)
+search_graph name_pattern=".*(MenuItems|RowMenu|EventMenu|ContextMenu).*" label=Method → 60 (the cap): node-editor / BTree / HSM / IG menus;
+   the timeline's are TimelinePanel.MenuItems (pure, the mode's items) and TimelineLaneCatalog.MenuItems (RowMenu = the lane provider's)
+search_graph name_pattern=".*(IsVehicle|IsPerson|IsAircraft).*" label=Method → 6: Locomotions.IsAircraft, AircraftPart.IsAircraft,
+   PhysicsColliderReaders.IsPerson, VehicleCover.IsVehicle, PathRequests.IsVehicle — all read Locomotion / VehicleParams
+search_graph name_pattern=".*Director.*" label=Interface        → 4: IDirectorHost, IDirectorSound, IDirectorTabContext, IDirectorWindowTab
+grep "RowMenu =\|rowMenu:" → EventTimelineWindow sets panel.RowMenu from the host's lane catalogue (editor, RB) — a second writer would
+   overwrite it ⇒ the director needs its OWN seam on the panel
+grep "NetworkIdResolver.ResolveNetworkId" director → EditorSubsystem.UnitNameOf and ReplayBrowserSubsystem.DirectorUnitName: the SAME 7 lines
+grep "Locomotions.Of" → the ONE body-class reading (descent → Locomotion → VehicleParams preset), MD-A
+grep "director/" Hrot.Editor.Tests → no route rail for /director/*; the HTTP pattern is DebugApiFoundationTests (a real host, the queue drained)
+check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
+```
+
+```mermaid
+classDiagram
+  direction LR
+  class CameraKey { <<exists, grown>> At · Camera · In · Fov · Still · Segment? }
+  class TimeSegment { <<exists, grown>> Id? · From · To · Speed · Gap }
+  class FilmSegment { <<exists, grown>> Number · From · To · Speed · Back · Id? }
+  class CameraKeys { <<exists, grown>> Of · Played · OnScreenIn(keys, segmentId) }
+  class TakeJson { <<exists, grown>> key segment · segment id · names a dangling or doubled id }
+  class TakeEditor { <<exists, grown>> AddKey with a segment index · RemoveSegment takes its keys · a replay copy has no id · unsaved ctor }
+  class DirectorRunner { <<exists, grown>> camera over OnScreenIn · SegmentOf(scenario, take) }
+  class DirectorTracks { <<exists, grown>> segmentNow · K and U scope to a replay · a scoped key coloured and labelled }
+  class Drafter { <<exists, grown>> MomentAt(lane, eventIndex) · Lanes · the reverse key OF the replay at t-1 }
+  class DirectorUnits { <<NEW, static>> NameOf(world, id) · KindOf(world, id) }
+  class DirectorDrafts { <<NEW>> Moments · Draft(lane, eventIndex) opens it · MenuItems(index, ctx) }
+  class DirectorTakeSession { <<exists, grown>> OpenDraft(take) unsaved · Store · Opened }
+  class DirectorPack { <<exists, grown>> Drafts · sets Timeline.EventMenu }
+  class DirectorPackHost { <<exists, grown>> Index · Scenario }
+  class TimelinePanel { <<exists, grown>> EventMenu(index, ctx) beside RowMenu }
+  class TimelineTrackItem { <<exists, grown>> Colour? }
+  class DebugApiHost { <<exists, grown>> GET /director/moments · POST /director/draft }
+  class Locomotions { <<exists>> Of(world, e) }
+  CameraKey --> TimeSegment : Segment names Id
+  FilmSegment ..> TimeSegment : laid out from
+  DirectorRunner --> CameraKeys : OnScreenIn
+  DirectorRunner --> FilmSegment : the one on screen
+  DirectorTracks --> DirectorRunner : segmentNow via the session
+  DirectorTracks --> TakeEditor : AddKey with a segment
+  DirectorPack --> DirectorDrafts : builds once
+  DirectorPack --> TimelinePanel : EventMenu
+  DirectorDrafts --> Drafter : MomentAt, Draft
+  DirectorDrafts --> DirectorUnits : names, kinds
+  DirectorDrafts --> DirectorTakeSession : OpenDraft
+  DirectorUnits --> Locomotions : the body's class
+  DebugApiHost --> DirectorDrafts : the pack's
+```
+*What the picture shows that prose hid:* TWO new types only — `DirectorUnits` (which REPLACES two identical host copies) and `DirectorDrafts` (the one
+place the drafter meets a host: index, names, kinds, session). The key's scope is a field on an existing record read by ONE function (`OnScreenIn`)
+that the runner and the tracks both call; the menu and the route reach the same `Draft`.
+
+```mermaid
+sequenceDiagram
+  actor U as Operator (editor or RB)
+  participant P as TimelinePanel (Event Timeline)
+  participant D as DirectorDrafts
+  participant F as Drafter
+  participant S as DirectorTakeSession
+  participant R as DirectorRunner
+  U->>P: right-click the shot event
+  P->>D: EventMenu(the index drawn, ctx with the event)
+  D-->>P: Draft a shot sequence here
+  U->>P: choose it
+  P->>D: Draft(lane, eventIndex, index)
+  D->>F: MomentAt, then Draft(Kind = DirectorUnits.KindOf)
+  F-->>D: keys 1-4 unscoped, the reverse key of segment replay at t-1, segments main + replay
+  D->>S: OpenDraft(take) - a new take draft, unsaved, a fresh undo history
+  U->>R: Play (the open take, CR-4)
+  loop the main pass
+    R->>R: OnScreenIn(keys, main) = the unscoped keys, ProgramAt(source)
+  end
+  R->>R: the next segment goes back: Seek(t-1) (live: skipped, R-3034)
+  loop the replay, source t-1 to t+1.5 at 0.4
+    R->>R: OnScreenIn(keys, replay) = unscoped before t-1 + its own key = the reverse angle throughout
+  end
+```
+
+```mermaid
+graph TD
+  subgraph ED["Editor - EditorSubsystem"]
+    EDA["DirectorPack.Attach with Index = ShownTimeline.Index, Scenario = LoadedScenarioName"]
+    EDR["DebugApiHost.AttachDirector with pack.Drafts"]
+  end
+  subgraph RB["Replay Browser - ReplayBrowserSubsystem"]
+    RBA["DirectorPack.Attach with Index = the recording's index, Scenario = its meta's ScenarioName"]
+  end
+  PK["DirectorPack: DirectorDrafts, once"]:::new
+  EDA --> PK
+  RBA --> PK
+  PK -->|"Timeline.EventMenu"| PAN["the host's Event Timeline: right-click an event"]:::new
+  EDR --> RT["/director/moments, /director/draft"]:::new
+  RT --> PK
+  RBH["RB HTTP /director/*"] -.->|"not reached: backend's lane (fence)"| PK
+  PK --> SES["DirectorTakeSession.OpenDraft"]
+  RUN["DirectorRunner.Tick (both hosts)"] -->|"camera: OnScreenIn(keys, the segment on screen)"| FS["FilmStudio"]
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+  linkStyle 5 stroke:#c33,stroke-dasharray:4 3
+```
+*Caption:* both hosts reach the drafter through the ONE pack (the menu cannot be on one host and not the other); the routes are the editor's only — the
+dashed red edge is the Replay Browser's HTTP, which this slice does not reach (the user's fence; a lane question is open with the coordinator).
+
+**Claim table** *(load-bearing rows)*
+
+| the plan rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a key placed by source time cannot sit inside the main pass for a replay | ✅ `Drafter.cs` (§11n as built: parked at ④'s end); `TakeTimeline.ProgramAt` takes the LAST key at or before the source second | ✅ §11n deviation ⑤ · the note's CR-7 input |
+| the runner knows the segment on screen every frame | ✅ `DirectorRunner.Segment` (`_seg` into `FilmTimeMap.Segments`), advanced in `AdvanceSegments` | ✅ §11o S1 / S2 |
+| segment list positions move | ✅ `TakeEditor.AddSegment` inserts in source order, `ReplaySegment` inserts after | ✅ §11o S12 ⇒ an index is not a stable name |
+| the panel's `RowMenu` has ONE writer, the host's window | ✅ `EventTimelineWindow` ctor sets it from the lane catalogue | ✅ §2d (addendum 4: the row's provider's items) |
+| the panel hands its menu the event, not its position in the lane | ✅ `TimelineMenuContext(LaneId, Ticks, Frame, Event)`; lanes are frame-ordered (`TimelineIndex.Before`) | ⛔ searched §2d / §9c: none — the position is found by frame + equality |
+| a unit's body class is read ONE way | ✅ `Locomotions.Of` (descent → `Locomotion` → `VehicleParams`) | ✅ MD-A (`DESIGN_Motion_Domains`) |
+| a squad is an entity with `SquadStateMarker` (recorded) | ✅ `SquadCognitiveState.cs` `SquadStateMarker` `[DataPolicy(Default)]` | ⛔ searched for a "group kind" rule: none |
+| the open take is what Play plays, unsaved | ✅ `DirectorRunner.LoadTake` → `OpenTake` | ✅ CR-4, §11m D4 |
+| `TakeEditor.Dirty` is "differs from the file" | ✅ `ReferenceEquals(Take, _saved)` | ✅ T-L4 — a draft has no file ⇒ dirty from the start |
+
+**Decisions** *(the lean; the rejected alternatives one line each)*
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **K1** | **a key names its segment by a stable `id`** (`"segment": "replay"`; the segment `"id": "replay"`); none = every pass (every take before this). While segment X plays the camera is looked up among the UNSCOPED keys and X's OWN — which take over from the first of them for the rest of X (`CameraKeys.OnScreenIn`); a key of another segment is never seen; no segment playing (identity, scout, verify) = unscoped only | `segment: n` (a list position) — S12 inserts segments: every scoped key would move to another segment · unscoped ∪ own by time — the drafter's moment key (t−0.7) is later than the replay's (t−1): the union cuts back to the main angle 0.3 s into the replay · a key list per segment — two places a key lives, two Camera rows |
+| **K2** | **a scoped key is drawn on the Camera track at its SOURCE time** (the one axis, §2c row 10), in its own colour (`DirectorTracks.ScopedKeyColour` through the new `TimelineTrackItem.Colour`) with *"\| segment &lt;id&gt;"* ending its label | a Camera row per replay — the panel has no per-segment axis; the replay is the same source stretch |
+| **K3** | **K and *update key from view* scope a NEW key to the segment on screen when it is a REPLAY** (`FilmSegment.Back`, via `DirectorRunner.SegmentOf(the open take)`); U in a replay on a key that is not the replay's own ADDS the replay's own key with the view (where that key took the screen, not before the replay's start) instead of changing the main pass's; the segment gets an id `s<n>` in the same undo step | scoping every K to the segment on screen — a key made while the main pass plays would leave every other pass · U changing the unscoped key in place — the main pass changes too, the bug CR-7 exists to stop |
+| **K4** | **deleting a segment deletes its keys** (one undo step); a *Replay this segment* copy has NO id (the original's keys stay the original's); a key naming a segment the take does not have, or an id used twice, is a named read problem | keeping orphaned keys — no pass could ever show them |
+| **K5** | **the drafter's reverse-angle key is a key OF the replay at its real source time** (t−1, the replay's first frame); the segments are `main` and `replay` (`Drafter.MainSegmentId` / `ReplaySegmentId`) | parking it at ④'s end (§11n as built) — the replay never showed it; ⛔ SUPERSEDED |
+| **D1** | **the drafter is wired ONCE, in the pack**: `DirectorPackHost.Index` / `Scenario` → `DirectorDrafts` (names and kinds from `Host.World`), and the panel's NEW `EventMenu` seam (`TimelinePanel`, handed the index it draws) offers *"Draft a shot sequence here"* on a shot / hit / blast event (`Drafter.Lanes`); `Drafter.MomentAt` is the ONE event → moment rule (`Moments` now calls it) | the panel's `RowMenu` — one writer (the window): the director would overwrite the lane catalogue's items · each host wiring its own item — two wirings drift (CR-2) |
+| **D2** | **a draft opens as a NEW, unsaved take** (`draft`, `draft-2`, … in the shown scenario; `TakeEditor(unsaved: true)` — dirty, Save writes it; a fresh undo history); refused while another take has unsaved edits (as Open is); **undoing the draft is closing it**; the Director window lists the open take and moves its pick to it | one undo step over the open take — a draft replaces every key AND the name: an undo would silently change which file Save writes · saving at once — a draft is a starting point; the person adjusts it first (CR-4) |
+| **D3** | **`DraftOptions.Kind` = `DirectorUnits.KindOf`**: a squad (`SquadStateMarker`) → Group; else `Locomotions.Of`: pedestrian / rope / parachute → Person, rotorcraft / fixed-wing → Aircraft, wheeled / tracked / amphibious / surface → Vehicle, else Unknown. ⭐ `DirectorUnits.NameOf` is the ONE network-id → name reading (the editor's and the RB's copies now call it) | the TKB's entity class (`EntityClassTable`) — the RB has no TKB yet (P0) and the class tree has no "person" node; `Locomotion` is stamped from the TKB on every node and recorded |
+| **D4** | **`GET /director/moments`, `POST /director/draft {lane, eventIndex, replay?}` on the EDITOR's routes**, calling the pack's `DirectorDrafts` (the menu's code): 409 with no index shown or with an unsaved open take; `recording=` refused (*"that is the Replay Browser's route"*); the MCP catalog regenerated (`director_moments`, `director_draft`) | a route that drafts without opening — the agent's draft and the person's would land in different places · routes on the RB — the user's fence (backend's lane) |
+| **D5** | the draft's **title** names the moment (*"Draft: Alpha, shot, Bravo"*); its **caption stays empty** | the caption — a take's caption is READ AS its subtitle (§11o S8): it would be on screen for the whole film |
+
+**✅ As built `2026-10-27`** — the diagrams above are true. Files, in `Hrot.Presentation/Map3D/Director` unless named: `Take.cs` (`CameraKey.Segment`,
+`TimeSegment.Id`, `CameraKeys.OnScreenIn`) · `TakeTimeline.cs` (`FilmSegment.Id`) · `TakeJson.cs` (`segment` / `id` read and written; the two named
+problems) · `TakeEditor.cs` (`TakeEdit.AddKey(.., Segment)`, the id `s<n>` given in the same step, `RemoveSegment` takes its keys, a replay copy has no id,
+`TakeEditor(.., unsaved)`) · `DirectorRunner.cs` (`DirectUpcoming` over `OnScreenIn`; `SegmentOf`) · `DirectorTracks.cs` (`segmentNow`, `ReplayOnScreen`,
+K / U scoping, `ScopedKeyColour`, the label) · `Drafter.cs` (`Lanes`, `MomentAt` — `Moments` now calls it, `MainSegmentId` / `ReplaySegmentId`, the reverse
+key of the replay) · `DirectorDrafts.cs` (new: `DirectorUnits`, `DirectorDrafts`) · `DirectorTakeSession.cs` (`OpenDraft`, `Store`, `Opened`) ·
+`DirectorPack.cs` (`DirectorPackHost.Index` / `Scenario`, `Drafts`, `Timeline.EventMenu`) · `DirectorWindow.cs` (the open take listed and followed) ·
+`Fdp.Presentation/.../Timeline/TimelinePanel.cs` (`EventMenu`; a track item's own colour) and `ITimelineTrack.cs` (`TimelineTrackItem.Colour`) ·
+`Hrot.Editor/EditorSubsystem.cs` (the pack gets `Index` / `Scenario`; `UnitNameOf` calls `DirectorUnits.NameOf`; the debug host gets `pack.Drafts`) ·
+`Hrot.Editor/DebugApi/DebugApiHost.Director.cs` + `DebugApiRouteDocs.cs` (the two routes) · `tools/ai-debug-mcp/tool-catalog.mjs` + `SKILL.md`
+(regenerated, purely additive: `director_moments`, `director_draft`) · `Hrot.ReplayBrowser/ReplayBrowserSubsystem.Director.cs` (`Index` / `Scenario`;
+`DirectorUnitName` calls `DirectorUnits.NameOf`).
+
+**Deviations:** none of substance. Two things the diagrams do not say: the stretches a keys-only take is laid out in (`TakeTimeline.Plan`, the gating
+of captions / layers / capture) still count every key, scoped or not — a scoped key inside the main pass adds a cut entry to its report, never a camera;
+and a rail needed a SEEKING fake host (`DirectorPackTests.SeekHost`) — a live one skips a back segment, so a replay's own key never plays on the editor
+(R-3034, §11o S4), as designed.
+
+**Known edges:** the draft's names and kinds come from the host's world AT THE PLAYHEAD (the RB's world is the recording at the playhead): a unit not yet
+spawned, or gone, has no name there — the menu item is then disabled (*"the drafter cannot name it"*); K / U scope a key to a replay only while the
+runner PLAYS the open take (`SegmentOf`), so a key added with the director stopped is unscoped; the RB has no `/director/*` routes (the fence; the lane
+question is with the coordinator) — its agent path waits for it.
+
+**Rails** (each red-proved by a compiling mutation; the report lists mutation and message):
+`DirectorPackTests.CE4059_CR7_AKeyOfTheReplay_IsSeenOnlyInTheReplay_OnASeekingHost` and
+`ReplayBrowserSubsystemTests.CE4059_CR7_AKeyOfTheReplay_IsSeenOnlyInTheReplay_OverARecording` (main pass never shows the replay's key; the replay shows
+key 1 until 1.5 s, then its own) · `FilmDirectorTests.CE4059_CR7_AKeyOfASegment_RoundTrips_AndTheSeededTakesStayUnscoped` (+ the 55 seeded takes: no
+scope, the lookup hands each its own list) · `DirectorTracksTests.CE4059_CR7_DuringAReplay_KAndU_GiveTheReplayItsOwnKeys` ·
+`DrafterTests.CE4059_CR7_TheReplaysReverseAngle_IsAKeyOfTheReplay_AtItsRealSourceTime` · `DirectorPackTests.CE4059_P3_DraftHere_OnAnEvent_OpensTheDraftersTake_InTheSession`
+(the shared panel model) · `ReplayBrowserSubsystemTests.CE4059_P3_DraftHere_OnTheReplayBrowsersTimeline_OpensTheDraft` (the RB host) ·
+`DirectorDraftRoutesTests.CE4059_P3_TheEditorsDraftRoutes_ListTheMoments_AndOpenTheDraft` (Hrot.Editor.Tests, a real `DebugApiHost`). One existing rail
+changed deliberately: `DrafterTests.CE4059_CR8_TheLine_IsCrossedOnlyByTheReplay` keeps its assertions (five keys, the sides, the two segments); the reverse
+key's new scope and time are asserted by the new `CE4059_CR7_*` rail beside it.

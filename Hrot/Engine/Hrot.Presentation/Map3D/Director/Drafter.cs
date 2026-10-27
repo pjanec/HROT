@@ -69,34 +69,10 @@ public static class Drafter
         var shots = index.Lane(Shot);
         var seen = new HashSet<(long, long)>();
         for (int i = 0; i < shots.Count; i++)
-        {
-            var e = shots[i];
-            if (!seen.Add((e.Subject, e.Other))) continue;
-            if (EventAnchors.Of(index, Shot, i, unitName) is not { } anchor) continue;
-            found.Add(new DraftMoment(Shot, i, e.Frame, anchor.EventSim, e.Subject, e.Other > 0 ? e.Other : null, 1d));
-        }
-
-        var hits = index.Lane(Hit);
-        for (int i = 0; i < hits.Count; i++)
-        {
-            var e = hits[i];
-            if (EventAnchors.Of(index, Hit, i, unitName) is not { } anchor) continue;
-            long shooter = ShooterOf(index, e.Subject, e.Frame, anchor.EventSim);
-            found.Add(shooter > 0
-                ? new DraftMoment(Hit, i, e.Frame, anchor.EventSim, shooter, e.Subject, 2d)
-                : new DraftMoment(Hit, i, e.Frame, anchor.EventSim, e.Subject, null, 2d));
-        }
-
-        var blasts = index.Lane(Blast);
-        for (int i = 0; i < blasts.Count; i++)
-        {
-            var e = blasts[i];
-            if (EventAnchors.Of(index, Blast, i, unitName) is not { } anchor) continue;
-            double score = 3d + e.Value / 100d;
-            found.Add(e.Subject > 0
-                ? new DraftMoment(Blast, i, e.Frame, anchor.EventSim, e.Subject, e.Other > 0 ? e.Other : null, score)
-                : new DraftMoment(Blast, i, e.Frame, anchor.EventSim, Math.Max(e.Other, 0L), null, score));
-        }
+            if (seen.Add((shots[i].Subject, shots[i].Other)) && MomentAt(index, Shot, i, unitName) is { } m) found.Add(m);
+        foreach (var lane in new[] { Hit, Blast })
+            for (int i = 0; i < index.Lane(lane).Count; i++)
+                if (MomentAt(index, lane, i, unitName) is { } m) found.Add(m);
 
         var merged = new List<DraftMoment>();
         foreach (var moment in found.OrderBy(m => m.Sim))   // stable: events at one time keep their lane order
@@ -108,6 +84,43 @@ public static class Drafter
         }
         return merged;
     }
+
+    /// <summary>The lanes a moment can be drafted from (<see cref="MomentAt"/>): the combat lanes whose events <see cref="EventAnchors"/> can name.</summary>
+    public static readonly IReadOnlyList<string> Lanes = new[] { Shot, Hit, Blast };
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> (docs/DESIGN_Director_Timeline_Editor.md §11q D1) — the moment of ONE event (<paramref name="lane"/>, <paramref name="eventIndex"/>), unmerged:
+    /// what the person right-clicked and what <c>POST /director/draft</c> names. Its actor and subject as <see cref="Moments"/> reads them (a hit's actor is the last
+    /// unit that shot at it within 5 s; a blast with no shooter is about what it hit); null when the event is not one <see cref="EventAnchors"/> can name. ⭐ The ONE
+    /// event → moment rule: <see cref="Moments"/> calls it for every candidate.
+    /// </summary>
+    public static DraftMoment? MomentAt(TimelineIndex index, string lane, int eventIndex, Func<long, string?> unitName)
+    {
+        var events = index.Lane(lane);
+        if ((uint)eventIndex >= (uint)events.Count) return null;
+        if (EventAnchors.Of(index, lane, eventIndex, unitName) is not { } anchor) return null;
+        var e = events[eventIndex];
+        switch (lane)
+        {
+            case Shot:
+                return new DraftMoment(Shot, eventIndex, e.Frame, anchor.EventSim, e.Subject, e.Other > 0 ? e.Other : null, 1d);
+            case Hit:
+                long shooter = ShooterOf(index, e.Subject, e.Frame, anchor.EventSim);
+                return shooter > 0
+                    ? new DraftMoment(Hit, eventIndex, e.Frame, anchor.EventSim, shooter, e.Subject, 2d)
+                    : new DraftMoment(Hit, eventIndex, e.Frame, anchor.EventSim, e.Subject, null, 2d);
+            case Blast:
+                double score = 3d + e.Value / 100d;
+                return e.Subject > 0
+                    ? new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, e.Subject, e.Other > 0 ? e.Other : null, score)
+                    : new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, Math.Max(e.Other, 0L), null, score);
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>The ids a drafted replay's two segments carry (⭐ §11q K5): the reverse-angle key names <see cref="ReplaySegmentId"/>.</summary>
+    public const string MainSegmentId = "main", ReplaySegmentId = "replay";
 
     /// <summary>The unit that last shot at <paramref name="target"/> within 5 s before <paramref name="sim"/> (0 when none): who a hit was by.</summary>
     private static long ShooterOf(TimelineIndex index, long target, int frame, double sim)
@@ -180,11 +193,12 @@ public static class Drafter
         var segments = new List<TimeSegment>();
         if (options.Replay && moment.Lane is Shot or Hit or Blast)
         {
-            // ⚠ a key is placed by SOURCE time, so the replay's key (the reverse angle over [t−1, t+1.5]) cannot sit at its own source time — it would cut ③ and ④
-            // short; it is parked at ④'s end (after ④ in the film). Segments PLAY ONLY when listed, so the main pass is listed too.
-            keys.Add(Cut(Key(end4), TheMoment(t + ReplayFrom, t + ReplayTo, Wrap(Across(AcrossMoment) + 180f))));
-            segments.Add(new TimeSegment { From = keys[0].At, To = Key(end4) });
-            segments.Add(new TimeSegment { From = Key(ReplayFrom), To = Key(ReplayTo), Speed = ReplaySpeed });
+            // ⭐ CE-4059 / CR-7 (§11q K5) — the reverse angle is a key OF THE REPLAY at its real source time (t−1, the replay's first frame): the main pass never
+            //   sees it (it would cut ③ and ④), the replay sees it from its start. Segments PLAY ONLY when listed, so the main pass is listed too.
+            //   ⛔ SUPERSEDED: the key parked at ④'s end (§11n as built) — a key placed by source time alone could not sit inside the main pass.
+            keys.Add(Cut(Key(ReplayFrom), TheMoment(t + ReplayFrom, t + ReplayTo, Wrap(Across(AcrossMoment) + 180f))) with { Segment = ReplaySegmentId });
+            segments.Add(new TimeSegment { Id = MainSegmentId, From = keys[0].At, To = Key(end4) });
+            segments.Add(new TimeSegment { Id = ReplaySegmentId, From = Key(ReplayFrom), To = Key(ReplayTo), Speed = ReplaySpeed });
         }
 
         return new Take

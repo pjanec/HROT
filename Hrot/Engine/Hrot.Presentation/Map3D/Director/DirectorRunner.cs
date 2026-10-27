@@ -327,6 +327,14 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>⭐ CR-11 — the subtitle on screen now (null: none) — what the cinema was handed this frame.</summary>
         public SubtitleFrame? SubtitleNow => _subNow;
 
+        /// <summary>
+        /// ⭐ <c>CE-4059</c> / CR-7 (§11q K3) — the segment on screen while the runner PLAYS <paramref name="scenario"/>/<paramref name="take"/> (null: another take, not
+        /// playing, or a take with no segments). K and <i>update key from view</i> scope a new key to it when it is a replay (<see cref="FilmSegment.Back"/>).
+        /// </summary>
+        public FilmSegment? SegmentOf(string scenario, string take)
+            => Phase == DirectorPhase.Playing && _request != null && _item < _request.Reel.Items.Count
+               && Item.Scenario == scenario && Item.Take == take ? Segment : null;
+
         /// <summary>The segment playing (null: the take has none, or none plays).</summary>
         private FilmSegment? Segment => _seg >= 0 && _seg < _film.Segments.Count ? _film.Segments[_seg] : null;
 
@@ -753,9 +761,11 @@ namespace Hrot.UI.Common.Map3D.Director
             if (target == null) return;
             Func<string, double?> anchors = a => _book!.TimeOf(a);
             double at = inShot != null ? rel : target.Start;
-            var frame = TakeTimeline.ProgramAt(_keys, anchors, at);
+            // ⭐ CE-4059 / CR-7 (§11q K1) — the keys of the segment on screen: the unscoped ones, and its own from its first on (none playing: unscoped only)
+            var keys = CameraKeys.OnScreenIn(_keys, Segment?.Id, anchors);
+            var frame = TakeTimeline.ProgramAt(keys, anchors, at);
             if (frame != null && ShotEvaluator.Evaluate(frame, _units) is { } fs) FilmStudio.Direct(fs);
-            FilmStudio.Fade = (at == rel ? frame : TakeTimeline.ProgramAt(_keys, anchors, rel))?.Fade ?? 0f;   // the black is of NOW, the camera may be the next shot's
+            FilmStudio.Fade = (at == rel ? frame : TakeTimeline.ProgramAt(keys, anchors, rel))?.Fade ?? 0f;   // the black is of NOW, the camera may be the next shot's
         }
 
         private void Capture(TimelineShot shot, double rel)

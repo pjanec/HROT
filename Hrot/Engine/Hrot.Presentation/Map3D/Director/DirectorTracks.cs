@@ -69,15 +69,23 @@ public sealed class DirectorTracks
     private readonly Func<CameraSpec?> _pilot;
     private readonly Action<int>? _stepRate;
     private readonly Func<double, EventAnchor?>? _eventAt;
+    private readonly Func<FilmSegment?>? _segmentNow;
     private string? _selected;
+
+    /// <summary>⭐ <c>CE-4059</c> / CR-7 (§11q K2) — a key scoped to a segment is drawn in this colour (ABGR) and its label names the segment.</summary>
+    public const uint ScopedKeyColour = 0xFFE070D0;
 
     /// <param name="pilot">The pilot camera as a key's camera (<see cref="PilotCamera.Of"/>), null when there is none.</param>
     /// <param name="stepRate">J (−1) / L (+1): the playback rate seam; null = this host has none (J / L are then not taken).</param>
     /// <param name="eventAt">⭐ CR-6: the nearest index event at or before a sim second (<see cref="EventAnchors.NearestBefore"/> over the host's index), null when none
     /// precedes it — K then stores the key as that event + an offset; null function = this host has no index (K stores a fixed time).</param>
-    public DirectorTracks(TakeEditor editor, Func<CameraSpec?> pilot, Action<int>? stepRate = null, Func<double, EventAnchor?>? eventAt = null)
+    /// <param name="segmentNow">⭐ <c>CE-4059</c> / CR-7 (§11q K3) — the segment on screen while the runner plays THIS take (<see cref="DirectorRunner.SegmentOf"/>); during a
+    /// replay (<see cref="FilmSegment.Back"/>) K and <i>update key from view</i> scope the new key to it. Null = this host never plays segments.</param>
+    public DirectorTracks(TakeEditor editor, Func<CameraSpec?> pilot, Action<int>? stepRate = null, Func<double, EventAnchor?>? eventAt = null,
+                          Func<FilmSegment?>? segmentNow = null)
     {
         _eventAt = eventAt;
+        _segmentNow = segmentNow;
         _editor = editor ?? throw new ArgumentNullException(nameof(editor));
         _pilot = pilot ?? throw new ArgumentNullException(nameof(pilot));
         _stepRate = stepRate;
@@ -113,7 +121,9 @@ public sealed class DirectorTracks
                 {
                     if (_d._editor.Resolve(keys[i].At) is not { } at) continue;   // an anchor with no baked time: nowhere to draw it
                     string id = KeyId(i);
-                    list.Add(new TimelineTrackItem(id, _d.Shown(id, at), null, Describe(keys[i]), TimelineTrackItemKind.Key, id == _d._selected));
+                    // ⭐ CR-7 (§11q K2) — a key of one segment: its own colour, and the label says which
+                    list.Add(new TimelineTrackItem(id, _d.Shown(id, at), null, Describe(keys[i]), TimelineTrackItemKind.Key, id == _d._selected,
+                                                   keys[i].Segment != null ? ScopedKeyColour : null));
                 }
                 return list;
             }
@@ -144,7 +154,8 @@ public sealed class DirectorTracks
                         double basis = _d._editor.Take.Baked is { } baked && baked.Times.TryGetValue(anchor.Name, out var t) ? t : anchor.EventSim;
                         at = new AtExpr(Math.Round(sim - basis, 3), anchor.Name);
                     }
-                    if (!_d._editor.Apply(new TakeEdit.AddKey(new CameraKey { At = at, Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut }, anchor)))
+                    // ⭐ CR-7 (§11q K3) — K during a replay pass: the key belongs to that replay (at its real source time), never to the main pass
+                    if (!_d._editor.Apply(new TakeEdit.AddKey(new CameraKey { At = at, Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut }, anchor, _d.ReplayOnScreen())))
                         return false;
                     _d._selected = KeyId(count);
                     return true;
@@ -186,7 +197,8 @@ public sealed class DirectorTracks
                 KeyTransitionKind.Dip => $"{what} (dip)",
                 _ => what,
             };
-            return EventAnchors.Label(k.At) is { } anchor ? text + " @ " + anchor : text;   // ⭐ CR-6: the key shows what it is tied to
+            if (EventAnchors.Label(k.At) is { } anchor) text += " @ " + anchor;   // ⭐ CR-6: the key shows what it is tied to
+            return k.Segment is { } seg ? text + " | segment " + seg : text;    // ⭐ CR-7 (§11q K2): and the one segment it plays in
         }
     }
 
@@ -196,14 +208,41 @@ public sealed class DirectorTracks
     {
         if (_pilot() is not { } camera) return false;
         var keys = CameraKeys.Of(_editor.Take);
+        int? replay = ReplayOnScreen();
+        string? replayId = replay is { } r ? _editor.Take.Segments[r].Id : null;
         int? index = _selected is { } sel && SpanTrack.IndexOf(sel, "key:") is { } i && i < keys.Count ? i : null;
         if (index is null)
         {
+            // the key on screen: among the keys the segment playing shows (§11q K1) — in a replay its own once they start, else the unscoped ones
+            var visible = CameraKeys.OnScreenIn(keys, replay is null ? null : replayId ?? "", n => _editor.Resolve(new AtExpr(0d, n)));
             double best = double.NegativeInfinity;
             for (int k = 0; k < keys.Count; k++)
-                if (_editor.Resolve(keys[k].At) is { } at && at <= playheadSim + 1e-9 && at >= best) { best = at; index = k; }
+                if (visible.Contains(keys[k]) && _editor.Resolve(keys[k].At) is { } at && at <= playheadSim + 1e-9 && at >= best) { best = at; index = k; }
+        }
+        // ⭐ CR-7 (§11q K3) — during a replay, a key that is not the replay's own is NOT changed (the main pass would change too): the replay gets its own key
+        //   with the view, where that key took the screen (not before the replay's start), or at the playhead when none did
+        if (replay is { } seg && (index is null || keys[index.Value].Segment is null || keys[index.Value].Segment != replayId))
+        {
+            double from = _editor.Take.Segments[seg].From is var f && _editor.Resolve(f) is { } fs ? fs : playheadSim;
+            double sim = index is { } k0 && _editor.Resolve(keys[k0].At) is { } ka ? Math.Max(ka, from) : Math.Max(playheadSim, from);
+            var at = keys.Count > 0 && index is { } k1 && keys[k1].At.Anchor is { } a && _editor.Take.Baked is { } b && b.Times.TryGetValue(a, out var t)
+                ? new AtExpr(Math.Round(sim - t, 3), a) : new AtExpr(sim);
+            return _editor.Apply(new TakeEdit.AddKey(new CameraKey { At = at, Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut }, null, seg));
         }
         return index is { } target && _editor.Apply(new TakeEdit.SetKeyCamera(target, camera));
+    }
+
+    /// <summary>⭐ CR-7 (§11q K3) — the index into the open take's segments of the REPLAY on screen (the runner plays this take, in a segment that goes back); else null.</summary>
+    internal int? ReplayOnScreen()
+    {
+        if (_segmentNow?.Invoke() is not { Back: true } seg) return null;
+        var segments = _editor.Take.Segments;
+        if (seg.Id != null)
+        {
+            for (int i = 0; i < segments.Count; i++) if (segments[i].Id == seg.Id) return i;
+            return null;
+        }
+        return seg.Number - 1 < segments.Count ? seg.Number - 1 : null;
     }
 
     /// <summary>⭐ P2b — the selected item's index into the take's segments / subtitles (the Director window edits its speed, gap, text, position, fade).</summary>

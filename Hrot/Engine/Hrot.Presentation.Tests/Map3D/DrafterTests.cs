@@ -113,7 +113,7 @@ public sealed class DrafterTests
         Assert.Empty(plain.Segments);
 
         var replayed = Draft(index, new DraftOptions { Scenario = "sc", Replay = true });
-        Assert.Equal(5, replayed.Keys.Count);
+        Assert.Equal(5, replayed.Keys.Count);   // ⭐ CE-4059 §11q: the fifth is the replay's own key (CE4059_CR7_TheReplaysReverseAngle_* — scope and time)
         Assert.Equal(sides, new[] { 0, 2, 3 }.Select(i => SideOf(index, 10d, replayed.Keys[i])).ToArray());
         Assert.Equal(-sides[0], SideOf(index, 10d, replayed.Keys[4]));
         Assert.Equal(2, replayed.Segments.Count);
@@ -123,6 +123,36 @@ public sealed class DrafterTests
         Assert.Equal(11.5, Resolve(replayed, back.To)!.Value, 6);
         Assert.Equal(Resolve(replayed, replayed.Segments[0].To)!.Value, Resolve(replayed, replayed.EndAt!.Value)!.Value, 6);
         Assert.Equal(Resolve(replayed, replayed.Keys[0].At)!.Value, Resolve(replayed, replayed.Segments[0].From)!.Value, 6);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> / CR-7 (docs/DESIGN_Director_Timeline_Editor.md §11q K5, success condition 3): the replay's reverse-angle key BELONGS TO the replay segment and
+    /// sits at its REAL source time — the replay's first frame, t−1 = 9 s (⛔ SUPERSEDED: parked at ④'s end, 14.5 s, §11n as built) — on the moment's anchor; the two
+    /// segments are named <c>main</c> and <c>replay</c>. Played through the per-segment lookup: at source 9.2 the main pass shows ② (the set-up — the reverse key is
+    /// not its), the replay shows the reverse key; at 9.6 / 10.6 the main pass shows ③ / ④, the replay still the reverse key (③ and ④ do not cut it). 🔴 Mutation:
+    /// the reverse key without <c>Segment = ReplaySegmentId</c> ⇒ the main pass at 9.2 shows it ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4059_CR7_TheReplaysReverseAngle_IsAKeyOfTheReplay_AtItsRealSourceTime()
+    {
+        var index = ShotThenHit();
+        var take = Draft(index, new DraftOptions { Scenario = "sc", Replay = true });
+        var reverse = take.Keys[4];
+        Assert.Equal(Drafter.ReplaySegmentId, reverse.Segment);
+        Assert.Equal(new AtExpr(-1d, "shot:Alpha#1"), reverse.At);
+        Assert.Equal(9d, Resolve(take, reverse.At)!.Value, 6);
+        Assert.Equal(new[] { Drafter.MainSegmentId, Drafter.ReplaySegmentId }, take.Segments.Select(s => s.Id));
+        Assert.All(take.Keys.Take(4), k => Assert.Null(k.Segment));
+
+        Func<string, double?> anchors = n => take.Baked!.Times.TryGetValue(n, out var t) ? t : null;
+        CameraKey? On(string segment, double sim) => TakeTimeline.ProgramAt(CameraKeys.OnScreenIn(take.Keys, segment, anchors), anchors, sim)?.Key;
+        Assert.Same(take.Keys[1], On(Drafter.MainSegmentId, 9.2));     // ② the set-up (6 s) — the reverse key (9 s) is not the main pass's
+        Assert.Same(reverse, On(Drafter.ReplaySegmentId, 9.2));
+        Assert.Same(take.Keys[2], On(Drafter.MainSegmentId, 9.6));     // ③ the moment (9.3 s)
+        Assert.Same(reverse, On(Drafter.ReplaySegmentId, 9.6));         // … does not cut the replay
+        Assert.Same(take.Keys[3], On(Drafter.MainSegmentId, 10.6));    // ④ the consequence (10.5 s)
+        Assert.Same(reverse, On(Drafter.ReplaySegmentId, 10.6));
+        Assert.Same(reverse, On(Drafter.ReplaySegmentId, 11.4));
     }
 
     /// <summary>③ frames BOTH units at every position sample of its window [t−0.7, t+2]: seen from the camera pose its LookAt / Distance / Yaw / Pitch imply, each stays

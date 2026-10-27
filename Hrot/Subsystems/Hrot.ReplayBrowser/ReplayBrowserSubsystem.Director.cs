@@ -44,7 +44,10 @@ public sealed partial class ReplayBrowserSubsystem
             Timeline:      _eventTimeline,
             EventAt:       DirectorEventAt,     // ⭐ D10 — CR-6 over the shown recording's index
             TitleBarColor: TitleBarColor,
-            Perspective:   "ReplayBrowser"));   // ⭐ D11
+            Perspective:   "ReplayBrowser",     // ⭐ D11
+            // ⭐ CE-4059 (§11q D1) — the drafter over the recording's index, a take of the scenario the recording names (beside it, TE-1)
+            Index:         () => _timelineSource?.Index,
+            Scenario:      () => PrimaryMetadata?.ScenarioName));
     }
 
     /// <summary>The primary node's recording meta (its scenario's name and hash), or null.</summary>
@@ -97,12 +100,6 @@ public sealed partial class ReplayBrowserSubsystem
     private EventAnchor? DirectorEventAt(double sim)
         => _timelineSource?.Index is { } index ? EventAnchors.NearestBefore(index, sim, DirectorUnitName) : null;
 
-    private string? DirectorUnitName(long networkId)
-    {
-        if (_activeRepo is not { } world) return null;
-        var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, networkId);
-        if (e.IsNull || !world.IsAlive(e) || !world.HasComponent<EntityInfo>(e)) return null;
-        var name = world.GetComponentRO<EntityInfo>(e).Name.ToString();
-        return name.Length > 0 ? name : null;
-    }
+    // ⭐ CE-4059 (§11q D3) — the ONE network-id → name reading, shared with the editor
+    private string? DirectorUnitName(long networkId) => DirectorUnits.NameOf(_activeRepo, networkId);
 }

@@ -71,10 +71,38 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_store() is not { } store) return new[] { "no take store on this host" };
             var loaded = store.Load(scenario, take);
             if (loaded.Value is null) return loaded.Problems;
-            UndoStack.Clear();
-            Editor = new TakeEditor(store, loaded.Value, UndoStack);
-            _tracks = new DirectorTracks(Editor, _pilot, StepRate, _eventAt);
+            OpenEditor(new TakeEditor(store, loaded.Value, UndoStack));
             return Array.Empty<string>();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4059</c> (docs/DESIGN_Director_Timeline_Editor.md §11q D2) — opens <paramref name="draft"/> (a take never written: the drafter's) for editing as a NEW
+        /// take: unsaved (<see cref="TakeEditor.Dirty"/> from the start, Save writes it), a fresh undo history; refused while another take has unsaved edits, as
+        /// <see cref="Open"/> is. Undoing the draft is closing it.
+        /// </summary>
+        public IReadOnlyList<string> OpenDraft(Take draft)
+        {
+            if (draft is null) throw new ArgumentNullException(nameof(draft));
+            if (Editor is { Dirty: true } open)
+                return new[] { $"'{open.Take.Scenario}/{open.Take.Name}' has unsaved edits — save or close it first" };
+            OpenEditor(new TakeEditor(_store(), draft, UndoStack, unsaved: true));
+            return Array.Empty<string>();
+        }
+
+        /// <summary>The host's take store (null: none).</summary>
+        public TakeStore? Store => _store();
+
+        /// <summary>Counts every take opened (§11q: the Director window follows the session to a newly opened draft).</summary>
+        public int Opened { get; private set; }
+
+        private void OpenEditor(TakeEditor editor)
+        {
+            UndoStack.Clear();
+            Editor = editor;
+            // CR-7 (§11q K3) — the segment on screen while the runner plays THIS take (K / update key from view scope a key to a replay)
+            _tracks = new DirectorTracks(editor, _pilot, StepRate, _eventAt,
+                () => _runner() is { } r && Editor is { } e ? r.SegmentOf(e.Take.Scenario, e.Take.Name) : null);
+            Opened++;
         }
 
         /// <summary>The path written, or null when nothing was open or edited (a take that was not edited is never re-written, T-L4).</summary>

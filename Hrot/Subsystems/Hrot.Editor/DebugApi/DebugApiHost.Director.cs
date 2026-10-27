@@ -18,12 +18,16 @@ namespace Hrot.Editor.DebugApi
         private DirectorRunner? _director;
         private TakeStore? _takes;
         private Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?>? _layerControl;
+        private DirectorDrafts? _drafts;
         /// <summary>⭐ CE-4042 — verifies run in a FRESH child process (<c>{fresh: true}</c>).</summary>
         private readonly FreshVerifyJobs _freshVerify = new();
 
-        /// <summary>⭐ CE-4038 — hands the host the editor's director, its take store and the map's layer control (held by the editor).</summary>
-        public void AttachDirector(DirectorRunner director, TakeStore takes, Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl)
+        /// <summary>⭐ CE-4038 — hands the host the editor's director, its take store and the map's layer control (held by the editor).
+        /// ⭐ CE-4059 (§11q) — and the pack's drafter (<c>/director/moments</c>, <c>/director/draft</c>; null: those answer 503).</summary>
+        public void AttachDirector(DirectorRunner director, TakeStore takes, Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl,
+                                   DirectorDrafts? drafts = null)
         {
+            _drafts = drafts;
             _director = director ?? throw new ArgumentNullException(nameof(director));
             _takes = takes ?? throw new ArgumentNullException(nameof(takes));
             _layerControl = layerControl ?? throw new ArgumentNullException(nameof(layerControl));
@@ -44,6 +48,9 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/director/pause", _ => Main(() => Transport(d => d.Pause()))));
             _routes.Add(new("POST", "/director/resume", _ => Main(() => Transport(d => d.Resume()))));
             _routes.Add(new("GET", "/director/status", _ => Main(() => _director is { } d ? Ok(d.Status()) : Fail(503, NoDirector))));
+            // ⭐ CE-4059 P3 (docs/DESIGN_Director_Timeline_Editor.md §11q) — the drafter: the moments of the shown index, and a draft opened in the take session
+            _routes.Add(new("GET", "/director/moments", _ => Main(DirectorMoments)));
+            _routes.Add(new("POST", "/director/draft", ctx => Main(() => DirectorDraft(ctx.Body))));
             // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md) — the scenario regression check: author a scenario's checks, verify it
             _routes.Add(new("GET", "/director/checks/{scenario}", ctx => Main(() => ChecksRead(ctx.RouteValue("scenario")!))));
             _routes.Add(new("PUT", "/director/checks/{scenario}", ctx => Main(() => ChecksWrite(ctx.RouteValue("scenario")!, ctx.Body))));
@@ -109,6 +116,43 @@ namespace Hrot.Editor.DebugApi
             if (problems.Count > 0) return Fail(400, "the take is not valid: " + string.Join("; ", problems));
             var path = store.Save(parsed);
             return Ok(new JsonObject { ["saved"] = path, ["shots"] = parsed.Shots.Count, ["anchors"] = parsed.Anchors.Count });
+        }
+
+        // ── ⭐ CE-4059 — the drafter ──────────────────────────────────────────────────────────────
+
+        private RouteResult DirectorMoments()
+        {
+            if (_drafts is not { } drafts) return Fail(503, NoDirector);
+            if (drafts.Index is null) return Fail(409, "no timeline index is shown yet (run the scenario: the live index fills as it plays)");
+            var arr = new JsonArray();
+            foreach (var m in drafts.Moments())
+                arr.Add(new JsonObject
+                {
+                    ["lane"] = m.Lane, ["eventIndex"] = m.EventIndex, ["frame"] = m.Frame, ["sim"] = Math.Round(m.Sim, 3),
+                    ["actor"] = m.Actor, ["actorName"] = drafts.NameOf(m.Actor),
+                    ["subject"] = m.Subject, ["subjectName"] = m.Subject is { } s ? drafts.NameOf(s) : null, ["score"] = Math.Round(m.Score, 3),
+                });
+            return Ok(new JsonObject { ["scenario"] = drafts.Scenario, ["count"] = arr.Count, ["moments"] = arr });
+        }
+
+        private RouteResult DirectorDraft(JsonNode? body)
+        {
+            if (_drafts is not { } drafts) return Fail(503, NoDirector);
+            if (body?["recording"] is not null)
+                return Fail(400, "recording= drafts from a recording's index: that is the Replay Browser's route (not on this host); the editor drafts from the index its Event Timeline shows");
+            var lane = body?["lane"]?.ToString();
+            if (string.IsNullOrWhiteSpace(lane) || body?["eventIndex"] is not JsonValue ev || !ev.TryGetValue<int>(out var eventIndex))
+                return Fail(400, "name the event: {lane, eventIndex} (GET /director/moments lists them)");
+            bool replay = body?["replay"] is JsonValue r && r.TryGetValue<bool>(out var rb) ? rb : true;
+            if (drafts.Index is null) return Fail(409, "no timeline index is shown yet (run the scenario: the live index fills as it plays)");
+            var (take, problems) = drafts.Draft(lane!, eventIndex, replay);
+            if (take is null) return Fail(problems.Any(p => p.Contains("unsaved", StringComparison.Ordinal)) ? 409 : 400, string.Join("; ", problems));
+            return Ok(new JsonObject
+            {
+                ["scenario"] = take.Scenario, ["take"] = take.Name, ["opened"] = true, ["saved"] = false,
+                ["keys"] = take.Keys.Count, ["segments"] = take.Segments.Count,
+                ["json"] = TakeJson.WriteTake(take),
+            });
         }
 
         // ── play / scout / transport ──────────────────────────────────────────────────────────

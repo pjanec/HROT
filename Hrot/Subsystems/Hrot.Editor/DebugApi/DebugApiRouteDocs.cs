@@ -671,6 +671,28 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[] { new("job", "string", true, "The job id") },
             ExampleArgsJson: "{\"job\":\"v1-101500\"}",
             ExampleGist: "read a fresh verify job's report"),
+        [("GET", "/director/moments")] = new RouteDoc(
+            Tool:    "director_moments",
+            Group:   "Y — node diagnostics",
+            Summary: "⭐ CE-4059 (CR-8) — the moments the drafter can film in the index the Event Timeline shows: every first shot of a shooter at a target, every hit, every blast, scored (blast 3 + damage/100, hit 2, shot 1), a moment within 2 s after another merged into it, in time order.",
+            Returns: "{ scenario, count, moments[{ lane, eventIndex, frame, sim, actor, actorName, subject, subjectName, score }] }",
+            Hint:    "Pick one and POST /director/draft {lane, eventIndex}. 409 while no index is shown (run the scenario first). Example: director_moments({})",
+            ExampleArgsJson: "{}",
+            ExampleGist: "list the moments the drafter can film"),
+        [("POST", "/director/draft")] = new RouteDoc(
+            Tool:    "director_draft",
+            Group:   "Y — node diagnostics",
+            Summary: "⭐ CE-4059 (CR-8) — draft a shot sequence on one event of the shown index (establish, set-up, the moment, consequence, and a slow replay from the reverse angle) and OPEN it in the take session as a new, unsaved take — exactly what right-clicking the event and choosing \"Draft a shot sequence here\" does.",
+            Returns: "{ scenario, take, opened, saved: false, keys, segments, json }",
+            Hint:    "Then play it (director_play {scenario, take}: the open take is played, unsaved), adjust it, and save it from the Director window. 409 when another open take has unsaved edits. Example: director_draft({lane:\"combat.shot\", eventIndex:0})",
+            Params: new RouteParam[]
+            {
+                new("lane", "string", true, "The event's lane: combat.shot, combat.hit or combat.blast"),
+                new("eventIndex", "integer", true, "The event's position in its lane (GET /director/moments)"),
+                new("replay", "boolean", false, "Add the slow replay from the reverse angle (default true)"),
+            },
+            ExampleArgsJson: "{\"lane\":\"combat.shot\",\"eventIndex\":0}",
+            ExampleGist: "draft a take on the first shot"),
         [("GET", "/director/status")] = new RouteDoc(
             Tool:    "director_status",
             Group:   "Y — node diagnostics",

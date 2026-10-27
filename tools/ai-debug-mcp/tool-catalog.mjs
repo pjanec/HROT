@@ -5941,6 +5941,64 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "director_draft",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4059 (CR-8) — draft a shot sequence on one event of the shown index (establish, set-up, the moment, consequence, and a slow replay from the reverse angle) and OPEN it in the take session as a new, unsaved take — exactly what right-clicking the event and choosing \"Draft a shot sequence here\" does.",
+    "http": {
+      "method": "POST",
+      "path": "/director/draft"
+    },
+    "params": [
+      {
+        "name": "lane",
+        "type": "string",
+        "required": true,
+        "description": "The event's lane: combat.shot, combat.hit or combat.blast"
+      },
+      {
+        "name": "eventIndex",
+        "type": "integer",
+        "required": true,
+        "description": "The event's position in its lane (GET /director/moments)"
+      },
+      {
+        "name": "replay",
+        "type": "boolean",
+        "required": false,
+        "description": "Add the slow replay from the reverse angle (default true)"
+      }
+    ],
+    "returns": "{ scenario, take, opened, saved: false, keys, segments, json }",
+    "example": {
+      "args": {
+        "lane": "combat.shot",
+        "eventIndex": 0
+      },
+      "gist": "draft a take on the first shot"
+    },
+    "hint": "Then play it (director_play {scenario, take}: the open take is played, unsaved), adjust it, and save it from the Director window. 409 when another open take has unsaved edits. Example: director_draft({lane:\"combat.shot\", eventIndex:0})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "director_moments",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-4059 (CR-8) — the moments the drafter can film in the index the Event Timeline shows: every first shot of a shooter at a target, every hit, every blast, scored (blast 3 + damage/100, hit 2, shot 1), a moment within 2 s after another merged into it, in time order.",
+    "http": {
+      "method": "GET",
+      "path": "/director/moments"
+    },
+    "params": [],
+    "returns": "{ scenario, count, moments[{ lane, eventIndex, frame, sim, actor, actorName, subject, subjectName, score }] }",
+    "example": {
+      "args": {},
+      "gist": "list the moments the drafter can film"
+    },
+    "hint": "Pick one and POST /director/draft {lane, eventIndex}. 409 while no index is shown (run the scenario first). Example: director_moments({})",
+    "manualVerify": false
+  },
+
+  {
     "name": "director_next",
     "group": "Y — node diagnostics",
     "summary": "⭐ CE-4038 — end this reel item (reported as stopped) and go on to the next.",

@@ -12,7 +12,8 @@ public enum TimelineTrackItemKind : byte { Key, Segment }
 /// places them on the active axis through the session's time map, the track never sees a tick.
 /// </summary>
 /// <param name="To">The end of a segment, else null (a key).</param>
-public sealed record TimelineTrackItem(string Id, double From, double? To, string Label, TimelineTrackItemKind Kind, bool Selected);
+/// <param name="Colour">⭐ <c>CE-4059</c> — the item's own colour (ABGR; null = the row's): the director draws a key scoped to one segment apart.</param>
+public sealed record TimelineTrackItem(string Id, double From, double? To, string Label, TimelineTrackItemKind Kind, bool Selected, uint? Colour = null);
 
 /// <summary>⭐ <c>CE-1364</c> — which part of an item a gesture grabbed: the body (moves the whole item) or, on a segment, one of its two edges.</summary>
 public enum TrackItemPart : byte { Body, StartEdge, EndEdge }
