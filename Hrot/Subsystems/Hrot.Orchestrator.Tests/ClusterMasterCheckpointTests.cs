@@ -356,6 +356,19 @@ public sealed class ClusterMasterCheckpointTests
         var result = Assert.IsType<LiveBranchResult>(new LiveBranchAggregator().Aggregate(answers));
         Assert.Equal(119_500_000L, result.HistoricalTime.TotalWallTicks);
         Assert.Equal(11.95, result.HistoricalTime.TotalTime, 6);   // TotalTime survives the wire (OnTheSimClock reads it)
+
+        // ⭐ CE-3337 — a recording node's answer wins over an earlier listener's: its FrameNumber is the recorded step count
+        string Rec(long ticks, long frame, bool fromRecording) => System.Text.Json.JsonSerializer.Serialize(
+            new LiveBranchResult(new GlobalTime { TotalWallTicks = ticks, FrameNumber = frame }, fromRecording),
+            Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
+        var mixed = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<FdpNodeOpType, string>>
+        {
+            [1] = new() { [FdpNodeOpType.PrepareLive] = Rec(119_000_000, 9999, fromRecording: false) },   // a listener, earlier
+            [2] = new() { [FdpNodeOpType.PrepareLive] = Rec(120_000_000, 300, fromRecording: true) },
+        };
+        var chosen = Assert.IsType<LiveBranchResult>(new LiveBranchAggregator().Aggregate(mixed));
+        Assert.True(chosen.FromRecording);
+        Assert.Equal(300, chosen.HistoricalTime.FrameNumber);
     }
 
     /// <summary>

@@ -111,9 +111,12 @@ namespace Fdp.Network.Cyclone.Modules
                 _exitDiscardPending = false;
                 int discarded = 0;
                 for (int i = 0; i < _translators.Length; i++)
-                    if (_translators[i].Category != Fdp.Interfaces.TranslatorClass.ControlPlane
+                {
+                    var kind = _translators[i].Category;   // ⚠ read apart: OnlyTheThreeTimeTranslatorsDeclareThemselvesControlPlane scans for declarations by text
+                    if (kind != Fdp.Interfaces.TranslatorClass.ControlPlane
                         && _translators[i] is Fdp.Interfaces.IDiscardableIngress discardable)   // ⭐ every one is — the sweep rail (§12u) holds it
                         discarded += discardable.DiscardIngress();
+                }
                 ExitDiscards++;
                 LastExitDiscardedSamples = discarded;
             }

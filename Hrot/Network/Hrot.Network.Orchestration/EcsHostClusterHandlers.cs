@@ -101,7 +101,8 @@ namespace Hrot.SimHost.Modules.Orchestration
                 suspendGlobalTimePush: h.Kernel.SuspendGlobalTimePush,
                 resumeGlobalTimePush:  h.Kernel.ResumeGlobalTimePush,
                 // §2.1m step 3 — the ELM's bookkeeping is discarded at EVERY world replacement.
-                worldReplaced:         worldReplaced);
+                worldReplaced:         worldReplaced,
+                world:                 h.World);   // ⭐ CE-3337 — a branch's after-restore step runs on it
             slave.RegisterHandler(replayLoad);
 
             // 2. Checkpoint — ⭐ CE-3299 B3 (R-3044): a keyframe the node's LIVE recording writes on request, on EVERY host (the
