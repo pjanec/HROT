@@ -162,6 +162,9 @@ public sealed class TheHaltCannotStopTheClockTests
                 // ⚠ A DECLARATION, not a mention: the enum's own definition and the ingress system's
                 //   doc comment both name the value without any translator claiming it.
                 if (!line.Contains("Category", StringComparison.Ordinal)) continue;
+                // ⚠ And not a COMPARISON: CE-3329 W5's ingress system tests `Category != TranslatorClass.ControlPlane`
+                //   (CycloneNetworkIngressSystem) — a reader of the value, not a translator claiming it.
+                if (line.Contains("!=", StringComparison.Ordinal) || line.Contains("==", StringComparison.Ordinal)) continue;
                 // ⚠⚠ And not a COMMENTED-OUT declaration. 📌 Found by this batch's own revert-goes-red
                 //    proof: commenting the member out left the text intact, so the rail stayed green
                 //    while the translator had silently fallen back to the WorldState default.
