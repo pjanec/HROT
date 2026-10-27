@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
+using Hrot.NED.Descriptors.Orchestration;   // ⭐ AQ107 I — WireUnits
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -64,19 +65,21 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             var s = new EntityWeather
             {
-                EntityId = netId, GroundTemperatureC = w.GroundTemperatureC, LapseRateKPerKm = w.LapseRateKPerKm,
-                SeaLevelPressureHpa = w.SeaLevelPressureHpa, RelativeHumidity = w.RelativeHumidity, VisibilityM = w.VisibilityM,
+                // ⭐ AQ107 I — SI on the wire; the ECS WeatherConditions keeps °C / K per km / hPa / mm per h / compass degrees
+                EntityId = netId, GroundTemperature = WireUnits.CelsiusToKelvin(w.GroundTemperatureC),
+                LapseRate = WireUnits.PerKilometreToPerMetre(w.LapseRateKPerKm),
+                SeaLevelPressure = WireUnits.HectopascalToPascal(w.SeaLevelPressureHpa), RelativeHumidity = w.RelativeHumidity, VisibilityM = w.VisibilityM,
                 FogTopM = w.FogTopM, FogVisibilityM = w.FogVisibilityM, Precipitation = w.Precipitation,
-                PrecipitationMmPerHour = w.PrecipitationMmPerHour, FeatherM = w.FeatherM, WindCount = w.WindCount, CloudCount = w.CloudCount,
+                PrecipitationRate = WireUnits.MillimetresPerHourToMetresPerSecond(w.PrecipitationMmPerHour), FeatherM = w.FeatherM, WindCount = w.WindCount, CloudCount = w.CloudCount,
             };
-            s.W0Alt = w.WindAltitudeM[0]; s.W0From = w.WindFromDeg[0]; s.W0Speed = w.WindSpeedMps[0]; s.W0Gust = w.WindGustMps[0];
-            s.W1Alt = w.WindAltitudeM[1]; s.W1From = w.WindFromDeg[1]; s.W1Speed = w.WindSpeedMps[1]; s.W1Gust = w.WindGustMps[1];
-            s.W2Alt = w.WindAltitudeM[2]; s.W2From = w.WindFromDeg[2]; s.W2Speed = w.WindSpeedMps[2]; s.W2Gust = w.WindGustMps[2];
-            s.W3Alt = w.WindAltitudeM[3]; s.W3From = w.WindFromDeg[3]; s.W3Speed = w.WindSpeedMps[3]; s.W3Gust = w.WindGustMps[3];
-            s.W4Alt = w.WindAltitudeM[4]; s.W4From = w.WindFromDeg[4]; s.W4Speed = w.WindSpeedMps[4]; s.W4Gust = w.WindGustMps[4];
-            s.W5Alt = w.WindAltitudeM[5]; s.W5From = w.WindFromDeg[5]; s.W5Speed = w.WindSpeedMps[5]; s.W5Gust = w.WindGustMps[5];
-            s.W6Alt = w.WindAltitudeM[6]; s.W6From = w.WindFromDeg[6]; s.W6Speed = w.WindSpeedMps[6]; s.W6Gust = w.WindGustMps[6];
-            s.W7Alt = w.WindAltitudeM[7]; s.W7From = w.WindFromDeg[7]; s.W7Speed = w.WindSpeedMps[7]; s.W7Gust = w.WindGustMps[7];
+            s.W0Alt = w.WindAltitudeM[0]; s.W0From = WireUnits.DegToRad(w.WindFromDeg[0]); s.W0Speed = w.WindSpeedMps[0]; s.W0Gust = w.WindGustMps[0];
+            s.W1Alt = w.WindAltitudeM[1]; s.W1From = WireUnits.DegToRad(w.WindFromDeg[1]); s.W1Speed = w.WindSpeedMps[1]; s.W1Gust = w.WindGustMps[1];
+            s.W2Alt = w.WindAltitudeM[2]; s.W2From = WireUnits.DegToRad(w.WindFromDeg[2]); s.W2Speed = w.WindSpeedMps[2]; s.W2Gust = w.WindGustMps[2];
+            s.W3Alt = w.WindAltitudeM[3]; s.W3From = WireUnits.DegToRad(w.WindFromDeg[3]); s.W3Speed = w.WindSpeedMps[3]; s.W3Gust = w.WindGustMps[3];
+            s.W4Alt = w.WindAltitudeM[4]; s.W4From = WireUnits.DegToRad(w.WindFromDeg[4]); s.W4Speed = w.WindSpeedMps[4]; s.W4Gust = w.WindGustMps[4];
+            s.W5Alt = w.WindAltitudeM[5]; s.W5From = WireUnits.DegToRad(w.WindFromDeg[5]); s.W5Speed = w.WindSpeedMps[5]; s.W5Gust = w.WindGustMps[5];
+            s.W6Alt = w.WindAltitudeM[6]; s.W6From = WireUnits.DegToRad(w.WindFromDeg[6]); s.W6Speed = w.WindSpeedMps[6]; s.W6Gust = w.WindGustMps[6];
+            s.W7Alt = w.WindAltitudeM[7]; s.W7From = WireUnits.DegToRad(w.WindFromDeg[7]); s.W7Speed = w.WindSpeedMps[7]; s.W7Gust = w.WindGustMps[7];
             s.C0Base = w.CloudBaseM[0]; s.C0Thick = w.CloudThicknessM[0]; s.C0Octas = w.CloudOctas[0]; s.C0Kind = w.CloudKind[0];
             s.C1Base = w.CloudBaseM[1]; s.C1Thick = w.CloudThicknessM[1]; s.C1Octas = w.CloudOctas[1]; s.C1Kind = w.CloudKind[1];
             s.C2Base = w.CloudBaseM[2]; s.C2Thick = w.CloudThicknessM[2]; s.C2Octas = w.CloudOctas[2]; s.C2Kind = w.CloudKind[2];
@@ -89,19 +92,20 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             var w = new WeatherConditions
             {
-                GroundTemperatureC = s.GroundTemperatureC, LapseRateKPerKm = s.LapseRateKPerKm, SeaLevelPressureHpa = s.SeaLevelPressureHpa,
+                GroundTemperatureC = WireUnits.KelvinToCelsius(s.GroundTemperature), LapseRateKPerKm = WireUnits.PerMetreToPerKilometre(s.LapseRate),
+                SeaLevelPressureHpa = WireUnits.PascalToHectopascal(s.SeaLevelPressure),
                 RelativeHumidity = s.RelativeHumidity, VisibilityM = s.VisibilityM, FogTopM = s.FogTopM, FogVisibilityM = s.FogVisibilityM,
-                Precipitation = s.Precipitation, PrecipitationMmPerHour = s.PrecipitationMmPerHour, FeatherM = s.FeatherM,
+                Precipitation = s.Precipitation, PrecipitationMmPerHour = WireUnits.MetresPerSecondToMillimetresPerHour(s.PrecipitationRate), FeatherM = s.FeatherM,
                 WindCount = s.WindCount, CloudCount = s.CloudCount,
             };
-            w.WindAltitudeM[0] = s.W0Alt; w.WindFromDeg[0] = s.W0From; w.WindSpeedMps[0] = s.W0Speed; w.WindGustMps[0] = s.W0Gust;
-            w.WindAltitudeM[1] = s.W1Alt; w.WindFromDeg[1] = s.W1From; w.WindSpeedMps[1] = s.W1Speed; w.WindGustMps[1] = s.W1Gust;
-            w.WindAltitudeM[2] = s.W2Alt; w.WindFromDeg[2] = s.W2From; w.WindSpeedMps[2] = s.W2Speed; w.WindGustMps[2] = s.W2Gust;
-            w.WindAltitudeM[3] = s.W3Alt; w.WindFromDeg[3] = s.W3From; w.WindSpeedMps[3] = s.W3Speed; w.WindGustMps[3] = s.W3Gust;
-            w.WindAltitudeM[4] = s.W4Alt; w.WindFromDeg[4] = s.W4From; w.WindSpeedMps[4] = s.W4Speed; w.WindGustMps[4] = s.W4Gust;
-            w.WindAltitudeM[5] = s.W5Alt; w.WindFromDeg[5] = s.W5From; w.WindSpeedMps[5] = s.W5Speed; w.WindGustMps[5] = s.W5Gust;
-            w.WindAltitudeM[6] = s.W6Alt; w.WindFromDeg[6] = s.W6From; w.WindSpeedMps[6] = s.W6Speed; w.WindGustMps[6] = s.W6Gust;
-            w.WindAltitudeM[7] = s.W7Alt; w.WindFromDeg[7] = s.W7From; w.WindSpeedMps[7] = s.W7Speed; w.WindGustMps[7] = s.W7Gust;
+            w.WindAltitudeM[0] = s.W0Alt; w.WindFromDeg[0] = WireUnits.RadToDeg(s.W0From); w.WindSpeedMps[0] = s.W0Speed; w.WindGustMps[0] = s.W0Gust;
+            w.WindAltitudeM[1] = s.W1Alt; w.WindFromDeg[1] = WireUnits.RadToDeg(s.W1From); w.WindSpeedMps[1] = s.W1Speed; w.WindGustMps[1] = s.W1Gust;
+            w.WindAltitudeM[2] = s.W2Alt; w.WindFromDeg[2] = WireUnits.RadToDeg(s.W2From); w.WindSpeedMps[2] = s.W2Speed; w.WindGustMps[2] = s.W2Gust;
+            w.WindAltitudeM[3] = s.W3Alt; w.WindFromDeg[3] = WireUnits.RadToDeg(s.W3From); w.WindSpeedMps[3] = s.W3Speed; w.WindGustMps[3] = s.W3Gust;
+            w.WindAltitudeM[4] = s.W4Alt; w.WindFromDeg[4] = WireUnits.RadToDeg(s.W4From); w.WindSpeedMps[4] = s.W4Speed; w.WindGustMps[4] = s.W4Gust;
+            w.WindAltitudeM[5] = s.W5Alt; w.WindFromDeg[5] = WireUnits.RadToDeg(s.W5From); w.WindSpeedMps[5] = s.W5Speed; w.WindGustMps[5] = s.W5Gust;
+            w.WindAltitudeM[6] = s.W6Alt; w.WindFromDeg[6] = WireUnits.RadToDeg(s.W6From); w.WindSpeedMps[6] = s.W6Speed; w.WindGustMps[6] = s.W6Gust;
+            w.WindAltitudeM[7] = s.W7Alt; w.WindFromDeg[7] = WireUnits.RadToDeg(s.W7From); w.WindSpeedMps[7] = s.W7Speed; w.WindGustMps[7] = s.W7Gust;
             w.CloudBaseM[0] = s.C0Base; w.CloudThicknessM[0] = s.C0Thick; w.CloudOctas[0] = s.C0Octas; w.CloudKind[0] = s.C0Kind;
             w.CloudBaseM[1] = s.C1Base; w.CloudThicknessM[1] = s.C1Thick; w.CloudOctas[1] = s.C1Octas; w.CloudKind[1] = s.C1Kind;
             w.CloudBaseM[2] = s.C2Base; w.CloudThicknessM[2] = s.C2Thick; w.CloudOctas[2] = s.C2Octas; w.CloudKind[2] = s.C2Kind;

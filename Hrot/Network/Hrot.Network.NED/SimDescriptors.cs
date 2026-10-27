@@ -166,8 +166,9 @@ namespace Hrot.NED.Descriptors
         /// <summary>UTC ticks at sim time 0 (<c>ScenarioClock.StartUtcTicks</c>).</summary>
         public long StartUtcTicks;
 
-        /// <summary>The display offset from UTC, minutes (<c>ScenarioClock.DisplayUtcOffsetMinutes</c>).</summary>
-        public short DisplayUtcOffsetMinutes;
+        /// <summary>⭐ AQ107 I — the display offset from UTC, SECONDS (the ECS <c>ScenarioClock.DisplayUtcOffsetMinutes</c> × 60; a zone is up to ±14 h =
+        /// ±50 400 s, so it is an <c>int</c>).</summary>
+        public int DisplayUtcOffsetSeconds;
     }
 
     // ⭐ CE-3216 S1 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md §1, W-0…W-3) — AUTHORED weather (WeatherConditions): the global
@@ -182,18 +183,24 @@ namespace Hrot.NED.Descriptors
         [DdsKey]
         public long EntityId;
 
-        public float GroundTemperatureC;
-        public float LapseRateKPerKm;
-        public float SeaLevelPressureHpa;
+        // ⭐ AQ107 I — SI on the wire (the ECS WeatherConditions keeps °C / K per km / hPa / mm per h; the translator converts):
+        /// <summary>The daily mean air temperature at the ground, KELVIN.</summary>
+        public float GroundTemperature;
+        /// <summary>Temperature fall with height, kelvin per METRE (ICAO standard 0.0065).</summary>
+        public float LapseRate;
+        /// <summary>Sea-level pressure, PASCAL (standard 101 325).</summary>
+        public float SeaLevelPressure;
+        /// <summary>Relative humidity, 0…1.</summary>
         public float RelativeHumidity;
         public float VisibilityM;
         public float FogTopM;
         public float FogVisibilityM;
         public byte Precipitation;
-        public float PrecipitationMmPerHour;
+        /// <summary>⭐ AQ107 I — the precipitation rate, metres per SECOND (ECS: mm per hour; 1 mm/h = 2.78e-7 m/s).</summary>
+        public float PrecipitationRate;
         public float FeatherM;
 
-        /// <summary>Wind levels used (≤ 8): altitude MSL m · from ° · speed m/s · gust m/s.</summary>
+        /// <summary>Wind levels used (≤ 8): altitude MSL m · from RADIANS (compass: 0 = from the north, clockwise; ⭐ AQ107 I — was degrees) · speed m/s · gust m/s.</summary>
         public byte WindCount;
         public float W0Alt; public float W0From; public float W0Speed; public float W0Gust;
         public float W1Alt; public float W1From; public float W1Speed; public float W1Gust;
@@ -375,12 +382,13 @@ namespace Hrot.NED.Descriptors
         public byte Busy;
         // ⭐ CE-3232 (B-10, appended) — bit i: mount i is LAID DOWN (cannot fire, arms nobody)
         public byte LaidDown;
-        // ⭐ CE-1358 (appended; DESIGN_Weapon_Layers §5k) — bit i: mount i's barrel is too hot; each barrel's heat, percent
+        // ⭐ CE-1358 (appended; DESIGN_Weapon_Layers §5k) — bit i: mount i's barrel is too hot; each barrel's heat as a 0…1 FRACTION of "too hot"
+        //   (⭐ AQ107 I — was a byte percent 0..100; the ECS WeaponAmmo keeps the percent byte, the translator converts)
         public byte Hot;
-        public byte Heat0;
-        public byte Heat1;
-        public byte Heat2;
-        public byte Heat3;
+        public float Heat0;
+        public float Heat1;
+        public float Heat2;
+        public float Heat3;
     }
 
     // ⭐ CE-1153 (docs/DESIGN_Entity_Control.md §8h.6) — the brain's verdict on the operator's last use press, Brain → every node, keyed by
@@ -483,11 +491,14 @@ namespace Hrot.NED.Descriptors
         public float ArcOriginX;
         public float ArcOriginY;
         public float ArcOriginZ;
+        /// <summary>⭐ AQ107 I — compass bearings in RADIANS (0 = north, clockwise; was degrees). The ECS <c>EngagementArea</c> keeps degrees; the
+        /// translator converts, so a bearing is NOT normalised on the wire (−45° is −π/4).</summary>
         public float LeftBearing;
         public float RightBearing;
         public float MinRange;
         public float MaxRange;
         public long AllowArea;
+        /// <summary>Radians, compass (see <see cref="LeftBearing"/>).</summary>
         public float WatchBearing;
         public byte WatchSet;
         public int NoFireCount;
@@ -907,7 +918,8 @@ namespace Hrot.NED.Descriptors
         [DdsKey] public long  EntityId;
         public float          VisionRange;
         public float          HearingRange;
-        public float          FovDegrees;
+        /// <summary>⭐ AQ107 I — the full field of view, RADIANS (was degrees).</summary>
+        public float          FovRad;
     }
 
     /// <summary>One tracked target entry in a <see cref="SensorTargets"/> sample.</summary>
@@ -917,7 +929,8 @@ namespace Hrot.NED.Descriptors
         public long  TargetEntityId;
         public float ThreatScore;
         public float Distance;
-        public float BearingDegrees;
+        /// <summary>⭐ AQ107 I — the bearing to the target, RADIANS (was degrees).</summary>
+        public float BearingRad;
     }
 
     /// <summary>Per-observer snapshot of currently detected targets. Best-effort, volatile.</summary>

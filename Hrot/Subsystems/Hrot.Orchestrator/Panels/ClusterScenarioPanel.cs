@@ -437,7 +437,7 @@ public sealed class ClusterScenarioPanel
                     ImGui.TableNextColumn(); ImGui.Text(hb.SubsystemName ?? "—");
                     ImGui.TableNextColumn(); ImGui.Text(msAgo >= 0 ? msAgo.ToString() : "—");
                     ImGui.TableNextColumn(); ImGui.Text(hb.LocalClusterState.ToString());
-                    ImGui.TableNextColumn(); ImGui.Text($"{hb.CpuUsagePercent:F1}");
+                    ImGui.TableNextColumn(); ImGui.Text($"{Hrot.NED.Descriptors.Orchestration.WireUnits.FractionToPercent(hb.CpuUsage):F1}");   // ⭐ AQ107 I — the wire carries a 0…1 fraction
                     ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
                 }
             }

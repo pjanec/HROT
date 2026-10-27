@@ -340,7 +340,7 @@ from `CycloneDDS.Schema`.
 | `SubsystemName` | `string` | Human-readable subsystem label |
 | `LocalClusterState` | `ClusterState` | Node's local view of cluster state |
 | `WallTicksUtc` | `long` | UTC wall-clock ticks at publish time |
-| `CpuUsagePercent` | `float` | CPU load (informational) |
+| `CpuUsage` | `float` | CPU load as a 0…1 fraction (informational; AQ107 I — was `CpuUsagePercent`, percent) |
 | `RamUsedBytes` | `long` | RAM usage (informational) |
 | `SimTickAdvancing` | `bool` | Whether the sim loop is actively ticking |
 | `SubsystemsJson` | `string` | JSON subsystem status details |

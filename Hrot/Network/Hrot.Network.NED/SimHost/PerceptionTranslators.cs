@@ -26,7 +26,7 @@ namespace Hrot.Network.NED.SimHost
 
     /// <summary>
     /// Egress translator. Publishes <c>SensorConfig</c> for owned entities (Brain -> Solver).
-    /// Converts the FDP cosine-based FOV back to wire-format degrees, applies SmartEgress
+    /// Converts the FDP cosine-based FOV back to wire-format radians, applies SmartEgress
     /// dirty-tracking so configs are only re-sent when they change.
     /// </summary>
     public sealed class SensorConfigEgressTranslator : IDescriptorTranslator
@@ -70,22 +70,24 @@ namespace Hrot.Network.NED.SimHost
                 ref readonly var perc    = ref view.GetComponentRO<PerceptionReceptor>(entity);
                 ref readonly var netId   = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                // Convert precomputed cosine of half-angle back to full FOV degrees for the wire schema.
-                float halfFovRad = MathF.Acos(Math.Clamp(perc.FieldOfViewCos, -1f, 1f));
-                float fovDegrees = halfFovRad * 2f * (180f / MathF.PI);
+                // Convert precomputed cosine of half-angle back to the full FOV (radians — SI on the wire, ⭐ AQ107 I).
+                float fovRad = FovRadOf(perc.FieldOfViewCos);
 
                 _writer.Write(new SensorConfig
                 {
                     EntityId     = netId.Value,
                     VisionRange  = perc.VisionRange,
                     HearingRange = perc.HearingRange,
-                    FovDegrees   = fovDegrees,
+                    FovRad       = fovRad,
                 });
                 SentSampleCount++;
 
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
         }
+
+        /// <summary>⭐ AQ107 I — the wire's full field of view (RADIANS) of a receptor's precomputed cosine of the half angle (the test seam).</summary>
+        internal static float FovRadOf(float fieldOfViewCos) => MathF.Acos(Math.Clamp(fieldOfViewCos, -1f, 1f)) * 2f;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
@@ -332,7 +334,7 @@ namespace Hrot.Network.NED.SimHost
     /// <summary>
     /// Ingress translator. Receives <c>SensorConfig</c> from the Brain node and applies it
     /// to the local <c>PerceptionReceptor</c> component on the
-    /// Perception Solver.  Performs the FovDegrees -> FovCos conversion at the network boundary
+    /// Perception Solver.  Performs the FovRad -> FovCos conversion at the network boundary
     /// so the spatial-hash solver never executes trigonometry on the hot path.
     /// </summary>
     public sealed class SensorConfigIngressTranslator : IDescriptorTranslator, IDiscardableIngress
@@ -387,8 +389,7 @@ namespace Hrot.Network.NED.SimHost
                     continue;
 
                 // ACL transformation: precompute FovCos once at the network boundary.
-                float halfFovRad = data.FovDegrees * 0.5f * (MathF.PI / 180f);
-                float fovCos = MathF.Cos(halfFovRad);
+                float fovCos = FovCosOf(data.FovRad);
 
                 cmd.SetComponent(entity, new PerceptionReceptor
                 {
@@ -399,6 +400,9 @@ namespace Hrot.Network.NED.SimHost
 
             }
         }
+
+        /// <summary>⭐ AQ107 I — the receptor's precomputed cosine of the half angle from the wire's full field of view in RADIANS (the test seam).</summary>
+        internal static float FovCosOf(float fovRad) => MathF.Cos(fovRad * 0.5f);
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

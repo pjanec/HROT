@@ -108,7 +108,7 @@ namespace Hrot.Network.Routing
                     NodeId             = sample.Data.NodeId,
                     Role               = NodeRoleTokens.MaskFromTokens(tokens),
                     Capabilities       = new HashSet<string>(tokens),
-                    CpuUsagePercent    = sample.Data.CpuUsagePercent,
+                    CpuUsagePercent    = Hrot.NED.Descriptors.Orchestration.WireUnits.FractionToPercent(sample.Data.CpuUsage),   // ⭐ AQ107 I — the wire carries a fraction
                     RamUsedBytes       = sample.Data.RamUsedBytes,
                     LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
                 });

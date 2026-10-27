@@ -138,7 +138,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 SubsystemName     = hb.SubsystemName ?? string.Empty,
                 LocalClusterState = (NedClusterState)hb.LocalStateId,
                 WallTicksUtc      = hb.WallTicksUtc,
-                CpuUsagePercent   = 0f,
+                CpuUsage          = 0f,
                 RamUsedBytes      = 0L,
                 SimTickAdvancing  = false,
                 SubsystemsJson    = string.Empty,

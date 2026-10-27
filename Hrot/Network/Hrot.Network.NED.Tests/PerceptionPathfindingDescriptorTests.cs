@@ -65,10 +65,26 @@ namespace Hrot.DDS.DataModel.Tests
                 EntityId     = 1001L,
                 VisionRange  = 500f,
                 HearingRange = 100f,
-                FovDegrees   = 60f,
+                FovRad       = System.MathF.PI / 3f,   // 60° — AQ107 I: radians on the wire
             };
             Assert.Equal(1001L, cfg.EntityId);
             Assert.Equal(500f, cfg.VisionRange);
+        }
+
+        /// <summary>
+        /// ⭐ AQ107 I — the field of view is RADIANS on the wire. A 90° field of view (the receptor holds cos 45°) leaves the egress as π/2
+        /// and the ingress turns it back into the same cosine. ✅ Red-proof: the old <c>* 180/π</c> left in the egress ⇒ 90 on the wire ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ107I_AFieldOfViewOf90Degrees_LeavesTheEgressAsHalfPiRadians_AndComesBackAsTheSameCosine()
+        {
+            float cos45 = System.MathF.Cos(System.MathF.PI / 4f);   // what PerceptionReceptor.FieldOfViewCos holds for a 90° field of view
+
+            float onTheWire = global::Hrot.Network.NED.SimHost.SensorConfigEgressTranslator.FovRadOf(cos45);
+            Assert.Equal(System.MathF.PI / 2f, onTheWire, 1e-5f);
+
+            float back = global::Hrot.Network.NED.SimHost.SensorConfigIngressTranslator.FovCosOf(onTheWire);
+            Assert.Equal(cos45, back, 1e-6f);
         }
 
         // ── Pathfinding pipeline ──────────────────────────────────────────────

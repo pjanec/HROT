@@ -483,7 +483,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
                 // node reads None, the correct "unknown role"; multi-role [Flags] masks survive.
                 Role               = NodeRoleTokens.MaskFromTokens(tokens),
                 Capabilities       = new System.Collections.Generic.HashSet<string>(tokens),
-                CpuUsagePercent    = sample.Data.CpuUsagePercent,
+                CpuUsagePercent    = Hrot.NED.Descriptors.Orchestration.WireUnits.FractionToPercent(sample.Data.CpuUsage),   // ⭐ AQ107 I — the wire carries a fraction
                 RamUsedBytes       = sample.Data.RamUsedBytes,
                 LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
             });
