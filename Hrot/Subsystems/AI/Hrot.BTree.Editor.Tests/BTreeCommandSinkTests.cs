@@ -955,4 +955,23 @@ public sealed class BTreeCommandSinkTests
         Assert.Equal(moved, asset.FindNode(parent.Value)!.Position);
         Assert.False(asset.IsDirty);
     }
+
+    /// <summary>⭐ <c>CE-1276</c> — the host reports a code-built tree as read-only (the one gate, <c>CE-1252</c>) so the canvas hides its
+    /// authoring affordances, and the node menu offers no "Add Decorator" there while a writable tree still does.
+    /// 🔴 Red-proof: the provider's code-built early return made conditional on a false runtime condition ⇒ "Add Decorator" shows.</summary>
+    [Fact]
+    public void CE1276_ACodeBuiltTree_IsReportedReadOnly_AndOffersNoAddDecorator()
+    {
+        var (asset, graph, sink) = Build();
+        var node = NodeId.NewId();
+        sink.Apply(new GraphCommand.AddNode(node, new NodeKindKey(BTreeKinds.Action), Vector2.Zero, null));
+        var provider = new BTreeNodeContextMenuProvider(sink, graph, asset);
+
+        Assert.False(sink.IsReadOnly);
+        Assert.Contains(provider.GetItemsFor(node, new[] { node }), i => i.Label == "Add Decorator");
+
+        asset.IsCodeBuilt = true;
+        Assert.True(sink.IsReadOnly);
+        Assert.DoesNotContain(provider.GetItemsFor(node, new[] { node }), i => i.Label == "Add Decorator");
+    }
 }
