@@ -1502,6 +1502,16 @@ Rails: `LiveBranchProcessManagerTests.CE4065_A_branch_resumes_on_the_frames_sim_
 `ClusterMasterBranchTests.CE4065_LoadingLive_asked_for_from_a_replay_is_refused_and_fans_nothing_out`. ⭐ Acceptance: the coordinator's H3,
 `Hrot.ClusterRunner.dll --mode editor --headless --verify ua-civ-melee --verify-branch-at 5`.
 
+📐 **H3 live `2026-10-27` (backend, after the fix):** the branch *"came live on clock 5 s"* (was 9.29 / 12.71) and the second hit on the
+policeman is GONE — REPLAY, PLAYBACK and SEEK `same`. ⚠ H3 still reports BRANCH `different` from t = 6 s: every differing value is the
+run sampled ONE FRAME late (`t: golden 6 run 6.016`; each time stamp +0.016 s) plus the rioter ~0.1 m apart — a one-frame phase between the
+branched run's step grid and the straight run's, not a shifted clock. ⏭ For the coordinator (H3's owner): align on the landed frame (the
+on-or-before seek of CE-4066 puts the branch up to a frame early), then see whether anything is left.
+
+⭐ **CE-3312 (same family, multi-process):** a node's `LiveBranchResult` was never decoded (`NodeOpMasterTranslator`) nor aggregated, so on a
+real cluster the branch never restored time nor snapped the clock — `LiveBranchAggregator` (the earliest node clock, as the restore's) +
+the decode case. Rail `ClusterMasterCheckpointTests.CE3312_TheBranchAggregator_ReportsTheEarliestNodeClock`.
+
 ⭐ **CE-4066 (a seek to 20 s stood at 19.983 s) is the documented rule, not a defect:** a sim seek lands ON OR BEFORE — the master maps the
 sim time to a wall moment between frames and every node lands on its last frame at or before it, so the landed sim can be up to ONE frame
 early (the route docs say so: *"measured: 10 → 9.895"*). It is the state that holds at that time, the same rule as a wall seek. ⇒ a check

@@ -102,6 +102,7 @@ public sealed class OrchestratorCore : IDisposable
         // Aggregators — one per node-op whose ACKs carry a result.
         _master.RegisterAggregator(new ReplaySeekAggregator());                                   // TASK-T002
         _master.RegisterAggregator(new CheckpointRestoreAggregator());                            // CE-3299 B4 (D5)
+        _master.RegisterAggregator(new LiveBranchAggregator());                                   // CE-3312 — the branch's clock reaches the master
         _replay = new ReplayProcessManager(bus, o.TimeReads);
         _master.RegisterAggregator(_replay.CreateAggregator());
         _master.RegisterAggregator(_replay.CreateReviewAggregator());                             // ⭐ CE-3329 P3
