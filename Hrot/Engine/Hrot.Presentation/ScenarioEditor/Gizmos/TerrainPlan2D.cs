@@ -34,6 +34,18 @@ public sealed class TerrainPlan2D
     private static readonly Rgba32 SlabOutline = new(40, 90, 170, 220);
     private static readonly Rgba32 LabelColor  = new(20, 20, 20, 255);
 
+    /// <summary>⭐ <c>CE-1420</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1381 sample") — how much of the 3-D ground colour the 2-D ground keeps (0 = black,
+    /// 1 = the 3-D ground): dark enough that the grid, the roads, the units' symbols and the graphics keep their contrast. A SAMPLE value awaiting the user's pick.</summary>
+    public const float DefaultGroundFillFactor = 0.35f;
+
+    /// <summary>⭐ CE-1420 — the 2-D open ground: <paramref name="ground3D"/> (the 3-D map's ground colour — ONE ground colour for both maps) darkened to
+    /// <paramref name="factor"/> of its brightness, opaque.</summary>
+    public static Rgba32 MutedGround(Rgba32 ground3D, float factor = DefaultGroundFillFactor)
+    {
+        factor = Math.Clamp(factor, 0f, 1f);
+        return new Rgba32((byte)(ground3D.R * factor + 0.5f), (byte)(ground3D.G * factor + 0.5f), (byte)(ground3D.B * factor + 0.5f), 255);
+    }
+
     /// <summary>Emits the plan of the terrain <paramref name="view"/> holds; nothing when it holds none.</summary>
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {

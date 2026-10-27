@@ -3112,7 +3112,7 @@ sequenceDiagram
 | **F2** | the gizmo layer is a scene layer that, in a film's pass (`RenderContext.Film`), draws only `InFilm` primitives: anchors and the mask always, the UI (panels, menus, capture bindings) never, a drawn shape iff its layer bit is in `FilmLayers` | a per-gizmo "filmable" flag — 60+ projectors to touch; drawing the buffer from `FilmCaptureLayer` (the tracker's lean) — a second reader of the buffer beside the one that already resolves anchors, sorts and drapes |
 | **F3** | `FilmLayers` = the bits the Layers panel toggles (`0 … LayerControlDto.FirstUntoggledLayer − 1`), set once in `AttachMapLayers` for every host; which of them a frame shows is the set in force (a take's start-clean override, or the person's) | the active mask alone — the selection (255) and the always-on bits sit above every row, so they would always be filmed |
 | **F4** | the scenario's own drawing is SCENE: `SceneRows` + `Map.TacticalGraphics` (areas, overlay lines) + `Command.Routes` (route entities) — kept as the person has them when a take starts clean | leave them overlays — a take would have to name them to film the scenario's own picture (CE-1379's complaint) |
-| **F5** | the 2-D plan (`TerrainLayer2D`) and grid (`GridMapLayer`) are scene layers, each still gated by its own row | grid always filmed — it is a helper; off in a clean take unless the take turns `Map.Grid` on |
+| **F5** | the 2-D plan (`TerrainLayer2D`) and grid (`GridMapLayer`) are scene layers, each still gated by its own row | grid always filmed — it is a helper; off in a clean take unless the take turns `Map.Grid` on · ⛔ **SUPERSEDED `2026-10-27` (CE-1420, below): `Map.Grid` IS a scene row — a clean take keeps the person's grid** |
 | **F6** | the gizmo layer is attached AFTER the 3-D terrain (`AttachMapLayers`; the 2-D order is unchanged — the 3-D terrain draws nothing in 2-D): its ground fills draw with depth writes off (CE-1196 CA-4), so before the terrain they were painted over on every host's 3-D map — and so in every 3-D film (**CE-1384**, measured by the CE-1379 rail's anti-vacuity: the WINDOW showed no area) | depth writes on for fills — the CE-1196 flicker CA-4 removed |
 | **V7** | ⭐ the person's map mode is taken when the film first holds the view and given back through the ONE switch when the mailbox is released — at the film's end and on Stop, the place the runner already clears the layer override; ⛔ not while the pilot view flies; a switch still landing finishes first | the runner remembering the mode — it never sees the map (`IDirectorHost` has no map), and a second owner of "which mode" beside the switch |
 | **G6** | ⛔ the 2-D map's black ground is NOT a film defect — the window shows the same; a ground colour for the 2-D map is a look decision for every host → **CE-1381** | a film-only ground fill — a 2-D film would then differ from the 2-D map on screen |
@@ -3155,6 +3155,34 @@ Rails (`FilmFrameRail`): `CE1382_AFilmFrame_NeverDrawsAnActiveToolsHandles_ButDr
 ![P6 after CE-1380 / CE-1379: the 3-D frame with the road and the unit's symbol, the 2-D frame as the window draws it](img/film-p6-graphics.jpg)
 
 ![The 2-D window (left) and the 2-D film frame (right) at the same moment](img/film-p6-2d-window-vs-film.jpg)
+
+#### CE-1381 sample / CE-1420 as built *(ui, `2026-10-27` — the grid in 2-D films; the 2-D ground colour as an OFF option, awaiting the user's pick)*
+
+🔒 User, 2026-10-27: *"Ad black 2d map - there should have been the grid at least. Muted color is ok just need to see a sample first."*
+
+**Grid.** ⛔ F5's "off in a clean take" is SUPERSEDED: `LayerControlSets.SceneRows` (the ONE place the clean-take rule lives) now holds `Map.Grid` — a clean take keeps the
+grid as the person has it (a take may still turn it off), so a 2-D film frame shows the grid like the screen. Every map host reaches ONE `LayerControlGizmo`
+construction (`MapInteractionPack.Build`) and `LayerControlDto.Map.Grid` defaults **on**, so the 2-D map shows the grid by default on the editor, the Replay Browser, CGF, IG
+and SimHost alike (the editor's Config "Grid" tick can only add to it); only a person's saved layer file can turn it off. ⚠ Measured edge (not changed): a take's layer set
+is built from the set of the view the take STARTS in (the 3-D set for a 3-D→2-D film) and held across the switch, so a person's 2-D-only tick is not what such a film
+holds; the two sets start equal (the 3-D set is a copy of the 2-D defaults).
+
+**Ground colour — a SAMPLE, off by default.** New row `Map.GroundFill` ("Ground colour (2-D)", `DebugTraceLayers.GroundFill = 29`, `FirstUntoggledLayer` 29 → 30), **default
+off**, remembered per view like every row and a scene row (a clean take keeps the person's tick). `TerrainLayer2D.DrawGround` draws ONE rectangle over the VIEW, first in the
+layer (under the plan's fills, the grid and every gizmo), in `TerrainPlan2D.MutedGround(TerrainLayer3D.GroundColor, GroundFillFactor)` — the 3-D ground colour × a share
+(default `TerrainPlan2D.DefaultGroundFillFactor = 0.35` → (39,50,30)): ONE ground colour for both maps. ⭐ The view, not the terrain's bounds (CE-1381's lean): measured on the
+`ua-tank-ammo` recording the 3-D map has a green ground plane with NO `TerrainWorld` loaded, and a bounds-based fill drew nothing there (the first attempt — a rectangle of
+`TerrainWorld` bounds — was visible in the rail over test-town and absent in the real recording). Rejected: a film-only fill (G6: a 2-D film would differ from the screen).
+
+![The same 2-D film frame of the recording: (a) today + grid, (b) 35 % muted ground + grid, (c) 55 % ground + grid](img/map2d-ground-samples.jpg)
+
+*Samples* (`docs/img/map2d-ground-samples.jpg`; the live-proof harness, take `main` of `ua-tank-ammo`, source 9.9 s, the 2-D film frame; `HROT_FILM_PROOF_GROUND` unset / 0.35 / 0.55).
+**(a)** black ground, the grid's grey lines and the symbols as the film now shows them. **(b)** dark olive ground (39,50,30): the grid still reads, the road, the orange and
+sand symbols, the red marks and the film's labels keep their contrast — the quietest. **(c)** a lighter olive (62,78,47): reads as grass, the grid is a little less
+distinct, the dark text boxes of the graphics stand out less. ⭐ Lean: **(b)**, as the muted look the user named; awaiting the user's pick (a / b / c) — the pick sets the default
+and `DefaultGroundFillFactor`. Rails: `FilmFrameRail.CE1420_A2DFilmFrame_OfACleanTake_HasTheGrid_AndATakeThatTurnsItOff_HasNone` ·
+`FilmFrameRail.CE1420_The2DGroundColour_IsOffByDefault_AndWhenTickedFillsTheOpenGround_InTheWindowAndInTheFilm` · `TerrainLayer2DTests.CE1420_TheGroundFill_IsThe3DGroundColour_Darkened` ·
+`LayerControlGizmoTests.CE1420_*` (two).
 
 ### 11u. R4 — the reel composer and the render queue *(ui, `2026-10-27`, CE-1306; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 

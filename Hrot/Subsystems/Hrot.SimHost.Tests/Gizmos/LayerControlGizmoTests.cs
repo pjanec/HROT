@@ -347,6 +347,49 @@ namespace Hrot.SimHost.Tests.Gizmos
             finally { System.IO.File.Delete(file); }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1420</c> (docs/DESIGN_Director_Timeline_Editor.md §11t "CE-1381 sample") — the 2-D ground colour is a row of the layer panel ("Ground colour (2-D)",
+        /// Map group): its own bit, OFF by default, inside the toggled range; ticking it sets only its bit. 🔴 Red-proofs: <c>mask.SetBit</c> line dropped ⇒ the
+        /// second assertion; the property default <c>= true</c> ⇒ the first.
+        /// </summary>
+        [Fact]
+        public void CE1420_TheGroundColourIsALayerPanelRow_OffByDefault_WithItsOwnBit()
+        {
+            var all = new LayerControlDto().ToMask();
+            Assert.False(all.IsSet(DebugTraceLayers.GroundFill), "off by default (a sample awaiting the user's pick)");
+            Assert.True(DebugTraceLayers.GroundFill < LayerControlDto.FirstUntoggledLayer, "it lies below the always-on range");
+            Assert.True(DebugTraceLayers.Selection >= LayerControlDto.FirstUntoggledLayer, "the selection ring stays above every toggle");
+            var on = new LayerControlDto { Map = { GroundFill = true } }.ToMask();
+            Assert.True(on.IsSet(DebugTraceLayers.GroundFill), "ticking the row sets the bit");
+            for (int other = 0; other < 256; other++)
+                if (other != DebugTraceLayers.GroundFill) Assert.Equal(all.IsSet(other), on.IsSet(other));   // and nothing else
+            Assert.Contains(LayerControlSets.RowNames, r => r.Name == "Map.GroundFill" && r.Display == "Ground colour (2-D)" && r.Doc.Length > 0);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1420</c> — a take that starts clean keeps the 2-D grid and the ground colour AS THE PERSON HAS THEM (they are the scene, the only things on open
+        /// ground), and the take can still turn the grid off. 🔴 Mutation: drop <c>"Map.Grid"</c> from <c>LayerControlSets.SceneRows</c> ⇒ the first assertion.
+        /// </summary>
+        [Fact]
+        public void CE1420_ACleanTake_KeepsTheGridAndTheGroundColour_AsThePersonHasThem()
+        {
+            var gizmo = new LayerControlGizmo(9, new FdpEventBus(), MakeEditService());
+            gizmo.SetRows(is3D: false, new[] { "Map.GroundFill" }, System.Array.Empty<string>());
+            Assert.Empty(gizmo.SetOverride(System.Array.Empty<string>(), System.Array.Empty<string>()));
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Grid), "a clean take keeps the person's grid (on by default)");
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.GroundFill), "and the ground colour the person ticked");
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels), "while the overlays are cleaned away");
+
+            gizmo.SetOverride(System.Array.Empty<string>(), new[] { "Map.Grid" });
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Grid), "a take may switch the grid off");
+            gizmo.ClearOverride();
+
+            gizmo.SetRows(is3D: false, System.Array.Empty<string>(), new[] { "Map.Grid", "Map.GroundFill" });
+            gizmo.SetOverride(System.Array.Empty<string>(), System.Array.Empty<string>());
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Grid), "a person who has the grid off does not get it in a film");
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.GroundFill));
+        }
+
         // ⭐ CE-4038 B10 (docs/DESIGN_Film_Director.md §4b, R-4060) — a film take's layers are a TRANSIENT override: the mask follows it (the
         // take starts clean — overlays off, the scene kept as the user has it — then its own layers on), but ⛔ NOTHING reaches the user's
         // settings or file; clearing it gives the user's set back. And POST /map/layers IS the user's click: written and saved.
