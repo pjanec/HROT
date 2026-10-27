@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         private readonly GrowOnlyBuffer<long> _ticks = new();
         private readonly GrowOnlyBuffer<double> _sim = new();   // ⭐ CE-3330 E1 — each frame's sim seconds (NaN when unknown), beside its ticks
         private bool _anySim;
+        private readonly PositionTrackWriter _positions = new();   // ⭐ CE-4059 — the position track: sampled by THIS step, for both timelines
 
         public TimelineFrameScanner(IReadOnlyList<IndexedLaneDefinition> lanes, TimelineLaneCompiler compiler)
         {
@@ -49,6 +50,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             if (!double.IsNaN(sim)) _anySim = true;
             if (_ticks.Count <= frame) { while (_ticks.Count <= frame) { _ticks.Add(ticks); _sim.Add(sim); } }
             else { _ticks[frame] = ticks; _sim[frame] = sim; }   // a re-step of an existing frame (never the live source's: it only appends, so no published slot is written)
+            _positions.Step(repo, frame, sim);   // ⭐ CE-4059 — a sample round when this frame starts a new interval of sim time
             foreach (var (laneId, scan) in _scans)
             {
                 _results.Clear();
@@ -79,7 +81,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var sim = !_anySim ? SharedList<double>.Empty
                 : scannedFrames >= _sim.Count ? _sim.Snapshot()
                 : new SharedList<double>(_sim.Snapshot().Memory.Slice(0, scannedFrames).ToArray());
-            return new TimelineIndex(lanes, ticks, scannedFrames, totalFrames, new Dictionary<string, string>(_errors), sim);
+            return new TimelineIndex(lanes, ticks, scannedFrames, totalFrames, new Dictionary<string, string>(_errors), sim, _positions.Snapshot());
         }
 
         /// <summary>The frame → ticks table so far (a copy).</summary>

@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                 else missing.Add(lane);
             }
             TimelineIndex? kept = cached is { } k
-                ? new TimelineIndex(reused, new SharedList<long>(k.Index.FrameTicks.ToArray()), k.Index.ScannedFrames, k.Index.TotalFrames)
+                ? new TimelineIndex(reused, new SharedList<long>(k.Index.FrameTicks.ToArray()), k.Index.ScannedFrames, k.Index.TotalFrames, positions: k.Index.Positions)
                 : null;
             source.ScannedLanes = missing.Select(l => l.Lane.Id).ToArray();
             if (missing.Count == 0 && kept != null)
