@@ -104,6 +104,37 @@ public sealed class DirectorTracksOnTheEditorTests
             if (Directory.Exists(dir)) Directory.Delete(dir, true);
         }
     }
+
+    /// <summary>CE-1364 — K on the Camera track stores the editor's map camera lens: the key's <c>Fov</c> is the 3-D camera's <c>FovyDegrees</c> (the one field of view the map
+    /// has — the film default is only what a key WITHOUT a lens plays at). 🔴 Mutation: <c>PilotCameraSpec</c> not passing <c>cam.FovyDegrees</c> ⇒ the key's Fov is null.</summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1364_K_OnTheEditorsTimeline_StoresTheMapCamerasFov()
+    {
+        var scenario = "ce1364fov_" + Guid.NewGuid().ToString("N");
+        var dir = Path.Combine(EditorBootstrap.ScenariosRoot, scenario);
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true });
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "takes"));
+            File.WriteAllText(Path.Combine(dir, "takes", "main.take.json"), Take);
+            editor.SetMapCameraForTest(new Fdp.Toolkit.Vis3D.MapCamera3D { FovyDegrees = 31f });
+            var session = editor.DirectorTakesForTest!;
+            Assert.Empty(session.Open(scenario, "main"));
+
+            var camera = editor.EventTimelineForTest.Tracks!().Single(t => t.Id == DirectorTracksIds.Camera);
+            Assert.True(camera.Key('K', 7d));
+
+            var added = session.Editor!.Take.Keys[^1];
+            Assert.Equal(7d, added.At.Offset);
+            Assert.Equal(31f, added.Fov);
+        }
+        finally
+        {
+            editor.Shutdown();
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+        }
+    }
 }
 
 /// <summary>The track ids the editor rail names (the product's are <c>DirectorTracks.CameraId</c> / <c>TimeId</c>).</summary>

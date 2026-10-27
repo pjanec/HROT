@@ -429,6 +429,11 @@ public sealed class TimelinePanel
                 var b = new Vector2(p.X + Math.Max(s.X1, s.X0 + 2f), p.Y + RowHeight - 2);
                 dl.AddRectFilled(a, b, TrackSegmentColour);
                 dl.AddRect(a, b, it.Selected ? 0xFFFFFFFF : 0xFFC09050);
+                if (b.X - a.X >= 6f)   // CE-1364: the two edge handles
+                {
+                    dl.AddRectFilled(a, new Vector2(a.X + 3f, b.Y), 0xFFE0B070);
+                    dl.AddRectFilled(new Vector2(b.X - 3f, a.Y), b, 0xFFE0B070);
+                }
             }
             else
             {
@@ -445,6 +450,8 @@ public sealed class TimelinePanel
         if (!hovered) return;
         _hoverX = mx;
         int hit = drawable ? TrackLayout.HitTest(items, w, width, axis, map, mx) : -1;
+        var part = hit >= 0 ? TrackLayout.HitPart(items[hit], w, width, axis, map, mx) : TrackItemPart.Body;
+        if (part != TrackItemPart.Body) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEW);
         if (!drawable)
         {
             ImGui.BeginTooltip();
@@ -459,13 +466,14 @@ public sealed class TimelinePanel
         }
         if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))   // §2c row 2: a click SELECTS, a drag moves, empty space does nothing — ⛔ never a seek
         {
-            _gesture.Press(track, hit >= 0 ? items[hit] : null, mx, hit >= 0 && TrackLayout.SpanOf(items[hit], w, width, axis, map) is { } sp ? sp.X0 : mx);
+            _gesture.Press(track, hit >= 0 ? items[hit] : null, mx,
+                hit >= 0 && TrackLayout.SpanOf(items[hit], w, width, axis, map) is { } sp ? (part == TrackItemPart.EndEdge ? sp.X1 : sp.X0) : mx, part);
         }
         if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
         {
             if (hit >= 0) track.Select(items[hit].Id);
             _trackMenu.Clear();
-            _trackMenu.AddRange(track.MenuItems(hit >= 0 ? items[hit].Id : null));
+            _trackMenu.AddRange(track.MenuItems(hit >= 0 ? items[hit].Id : null, TrackLayout.SimAtX(mx, w, width, axis, map) ?? 0d));
             OpenMenu(index, cursor, null, w.TicksAt(mx, width), null, _trackMenu);
         }
     }

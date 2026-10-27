@@ -13,24 +13,25 @@ namespace Hrot.UI.Common.Map3D.Director;
 /// ⭐ <c>CE-1364</c> T3 (docs/DESIGN_Director_Timeline_Editor.md §10, TE-2) — the camera of a new key from the pilot's view: the map camera's pose as a
 /// look-at camera, or — when a unit is selected — a FOLLOW camera on that unit that keeps the SAME eye and now looks at the unit (the film's follow
 /// camera looks at <c>unit + lift</c>, <see cref="FilmCaptureLayer"/>), so a key made "relative to a selected unit" still moves with it.
+/// <paramref name="fov"/> (CE-1364) is the map camera's lens (<c>MapCamera3D.FovyDegrees</c>), stored in the key's <see cref="CameraSpec.Fov"/>.
 /// </summary>
 public static class PilotCamera
 {
     private const float Deg = 180f / MathF.PI;
 
-    public static CameraSpec Of(CameraPose pose, string? unit = null, Vector3? unitAt = null, float lift = 1.5f)
+    public static CameraSpec Of(CameraPose pose, string? unit = null, Vector3? unitAt = null, float lift = 1.5f, float? fov = null)
     {
         if (unit is null || unitAt is not { } at)
-            return new CameraSpec { LookAt = pose.LookAt, Distance = pose.Distance, Yaw = pose.Yaw * Deg, Pitch = pose.Pitch * Deg };
+            return new CameraSpec { LookAt = pose.LookAt, Distance = pose.Distance, Yaw = pose.Yaw * Deg, Pitch = pose.Pitch * Deg, Fov = fov };
         var forward = new Vector3(MathF.Cos(pose.Pitch) * MathF.Cos(pose.Yaw), MathF.Cos(pose.Pitch) * MathF.Sin(pose.Yaw), MathF.Sin(pose.Pitch));
         var eye = pose.LookAt - forward * pose.Distance;
         var toUnit = at + new Vector3(0f, 0f, lift) - eye;
         float distance = toUnit.Length();
-        if (!(distance > 1e-3f)) return new CameraSpec { Follow = unit, Distance = pose.Distance, Yaw = pose.Yaw * Deg, Pitch = pose.Pitch * Deg, Lift = lift };
+        if (!(distance > 1e-3f)) return new CameraSpec { Follow = unit, Distance = pose.Distance, Yaw = pose.Yaw * Deg, Pitch = pose.Pitch * Deg, Lift = lift, Fov = fov };
         return new CameraSpec
         {
             Follow = unit, Lift = lift, Distance = distance,
-            Yaw = MathF.Atan2(toUnit.Y, toUnit.X) * Deg, Pitch = MathF.Asin(Math.Clamp(toUnit.Z / distance, -1f, 1f)) * Deg,
+            Yaw = MathF.Atan2(toUnit.Y, toUnit.X) * Deg, Pitch = MathF.Asin(Math.Clamp(toUnit.Z / distance, -1f, 1f)) * Deg, Fov = fov,
         };
     }
 }
@@ -165,8 +166,15 @@ public sealed class DirectorTracks
                 {
                     if (_d._editor.Resolve(segments[i].From) is not { } from || _d._editor.Resolve(segments[i].To) is not { } to) continue;
                     string id = SegId(i);
-                    double start = _d.Shown(id, from);
-                    list.Add(new TimelineTrackItem(id, start, start + (to - from),
+                    double start = from, end = to;
+                    if (_d._editor.Preview is { } pv && pv.ItemId == id)
+                        switch (pv.Edge)
+                        {
+                            case SegmentEdge.From: start = Math.Min(pv.Sim, to - TakeEditor.MinSegmentSeconds); break;
+                            case SegmentEdge.To: end = Math.Max(pv.Sim, from + TakeEditor.MinSegmentSeconds); break;
+                            default: start = pv.Sim; end = pv.Sim + (to - from); break;
+                        }
+                    list.Add(new TimelineTrackItem(id, start, end,
                         segments[i].Speed == 1d ? "segment" : $"segment x{segments[i].Speed:0.##}", TimelineTrackItemKind.Segment, id == _d._selected));
                 }
                 return list;
@@ -175,19 +183,46 @@ public sealed class DirectorTracks
 
         public void Select(string itemId) => _d._selected = itemId;
 
-        public void Move(string itemId, double toSimSeconds, bool commit)
+        public void Move(string itemId, double toSimSeconds, bool commit) => Move(itemId, toSimSeconds, commit, TrackItemPart.Body);
+
+        /// <summary>CE-1364: the body moves the whole segment, an edge only that edge (it cannot cross the other: <see cref="TakeEditor.MinSegmentSeconds"/>).</summary>
+        public void Move(string itemId, double toSimSeconds, bool commit, TrackItemPart part)
         {
-            if (!itemId.StartsWith("seg:", StringComparison.Ordinal)
-                || !int.TryParse(itemId.AsSpan(4), NumberStyles.None, CultureInfo.InvariantCulture, out var i)) return;
-            if (!commit) { _d._editor.SetPreview(itemId, toSimSeconds); return; }
+            if (IndexOf(itemId) is not { } i) return;
+            var edge = part switch { TrackItemPart.StartEdge => SegmentEdge.From, TrackItemPart.EndEdge => SegmentEdge.To, _ => SegmentEdge.Whole };
+            if (!commit) { _d._editor.SetPreview(itemId, toSimSeconds, edge); return; }
             _d._editor.ClearPreview();
-            _d._editor.Apply(new TakeEdit.MoveSegment(i, SegmentEdge.Whole, toSimSeconds));
+            _d._editor.Apply(new TakeEdit.MoveSegment(i, edge, toSimSeconds));
         }
 
         // K adds a CAMERA key and J / L are the film's rate: both are the camera track's (OfferKey tries the other tracks when the selected one declines)
         public bool Key(char key, double atSimSeconds) => false;
 
         public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => Enumerable.Empty<TimelineMenuItem>();
+
+        /// <summary>CE-1364: a segment offers "Delete segment"; empty track space offers "Add a segment here" (<see cref="TakeEditor.DefaultSegmentSeconds"/> long, speed 1, a cut gap).</summary>
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId, double atSimSeconds)
+        {
+            if (itemId != null)
+            {
+                if (IndexOf(itemId) is { } i)
+                    yield return new TimelineMenuItem("Delete segment", () =>
+                    {
+                        if (_d._editor.Apply(new TakeEdit.RemoveSegment(i))) _d._selected = null;
+                    });
+                yield break;
+            }
+            double from = Math.Max(atSimSeconds, 0d);
+            yield return new TimelineMenuItem("Add a segment here", () =>
+            {
+                int count = _d._editor.Take.Segments.Count;
+                if (_d._editor.Apply(new TakeEdit.AddSegment(new TimeSegment { From = new AtExpr(from), To = new AtExpr(from + TakeEditor.DefaultSegmentSeconds) })))
+                    _d._selected = SegId(count);
+            });
+        }
+
+        private static int? IndexOf(string id) =>
+            id.StartsWith("seg:", StringComparison.Ordinal) && int.TryParse(id.AsSpan(4), NumberStyles.None, CultureInfo.InvariantCulture, out var i) ? i : null;
         private static string SegId(int i) => "seg:" + i.ToString(CultureInfo.InvariantCulture);
     }
 }

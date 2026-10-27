@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -284,5 +285,41 @@ public sealed class BlackboardAddRemoveTests
         Assert.Contains(vm.KnownTypeNames, c => c.Display == "float"   && c.Type == typeof(float));
         Assert.Contains(vm.KnownTypeNames, c => c.Display == "int"     && c.Type == typeof(int));
         Assert.Contains(vm.KnownTypeNames, c => c.Display == "Vector3" && c.Type == typeof(System.Numerics.Vector3));
+    }
+
+    // ---- CE-1277 — a code-built (read-only) graph takes no new variables ------------------------------------
+
+    private sealed class CodeBuiltBbAsset : FakeBlackboardAsset, IEditableAsset
+    {
+        bool IEditableAsset.IsCodeBuilt => true;   // ⭐ CE-1252 — the one read-only gate
+    }
+
+    /// <summary>⭐ <c>CE-1277</c> (user: "blackboard variable window allows me to add variables for read only opened graph") — a
+    /// code-built graph's variables table is READ-ONLY: it offers no Add, and the add / remove / rename / reorder paths themselves refuse
+    /// (the asset is untouched); a writable graph still adds. 🔴 Red-proof: <c>IsReadOnlyAsset</c> without the code-built clause ⇒ the
+    /// first assertion fails; <c>BTreeHsmSchemaSource.AddVariable</c> without the read-only guard ⇒ the refusal assertion fails.</summary>
+    [Fact]
+    public void CE1277_ACodeBuiltGraph_OffersNoAdd_AndRefusesTheAddPath()
+    {
+        var codeBuilt = new CodeBuiltBbAsset();
+        codeBuilt.SetBlackboardVariables(new[] { new BlackboardVariableEntry("Counter", typeof(int), null) });
+        var vm = BlackboardAuthoringWindow.BuildViewModel(codeBuilt);
+
+        Assert.True(BlackboardAuthoringWindow.IsReadOnlyAsset(codeBuilt));
+        var schema = new BTreeHsmSchemaSource(codeBuilt, vm, BlackboardAuthoringWindow.IsReadOnlyAsset(codeBuilt));
+        Assert.False(VariablesPanelControl.AddOffered(schema));
+
+        schema.AddVariable(new BlackboardVariableEntry("Sneaky", typeof(float), null));
+        schema.RenameVariable("Counter", "Renamed");
+        schema.RemoveVariable("Counter");
+        schema.MoveVariable(0, 0);
+        Assert.Equal(new[] { "Counter" }, codeBuilt.BlackboardVariables.Select(v => v.Name).ToArray());   // viewing stays, nothing changed
+
+        var writable = new FakeBlackboardAsset();
+        Assert.False(BlackboardAuthoringWindow.IsReadOnlyAsset(writable));
+        var wSchema = new BTreeHsmSchemaSource(writable, BlackboardAuthoringWindow.BuildViewModel(writable), isReadOnly: false);
+        Assert.True(VariablesPanelControl.AddOffered(wSchema));
+        wSchema.AddVariable(new BlackboardVariableEntry("Fresh", typeof(int), null));
+        Assert.Contains(writable.BlackboardVariables, v => v.Name == "Fresh");
     }
 }

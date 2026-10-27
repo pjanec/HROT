@@ -84,14 +84,16 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     // ⭐ CE-1302 R1-c (DESIGN_Director_Timeline_Editor.md §9) — the event timeline over the primary node's recording: its index comes from
     //   the sidecar or a background pass on its own playback (TL-7), its clicks seek through the manager (D1, FederatedReplayCursor).
     private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
-    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? _timelineSource;
-    private string? _timelineFor;
-    private int _timelineLanesVersion = -1;
+    // ⭐ CE-3330 E6 — the ONE reopen-on-path-or-catalogue-change holder (shared with every ECS node's cluster-replay timeline)
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot? _timelineSlotField;
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot _timelineSlot => _timelineSlotField ??=
+        new(_timelineLanes, TimelineContext, () => new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
+            new EventScannerCompiler(new ComponentEditServiceBuilder().Build())));
+    private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? _timelineSource => _timelineSlot.Source;
     // ⭐ R-4078 / R-4079 (DESIGN_Director_Timeline_Editor.md §9c) — the lanes are REGISTERED by the toolkits that own their data; this host
     //   only composes them (as the editor's §15.2 registers its trace providers) and hands the catalogue to the index and the panel.
     private readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog _timelineLanes = Fdp.Toolkit.ReplayBrowser.Timeline.ShippedTimelineLanes.Catalog();
     private static readonly Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext = new(Recording: true);
-    private Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler? _timelineCompiler;
     internal Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog TimelineLanes => _timelineLanes;
     internal Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource? TimelineSource => _timelineSource;
     private IFileDialogService? _fileDialogService;
@@ -525,22 +527,11 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     }
 
     /// <summary>⭐ CE-1302 R1-c — re-opens the timeline's index when the primary node's recording changes (a new group, another node).</summary>
-    internal void SyncTimelineSource()
-    {
-        string? path = PrimaryNodeCurrentFdpPath();
-        if (path == _timelineFor && _timelineLanes.Version == _timelineLanesVersion) return;
-        _timelineSource?.Dispose();
-        _timelineCompiler ??= new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCompiler(
-            new EventScannerCompiler(new ComponentEditServiceBuilder().Build()));
-        _timelineSource = path == null ? null
-            : Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource.Open(path, _timelineLanes.Indexed(TimelineContext), _timelineCompiler);
-        _timelineFor = path;
-        _timelineLanesVersion = _timelineLanes.Version;
-    }
+    internal void SyncTimelineSource() => _timelineSlot.Sync(PrimaryNodeCurrentFdpPath());   // ⭐ CE-3330 E6 — the one reopen rule
 
     public void Shutdown()
     {
-        _timelineSource?.Dispose();
+        _timelineSlot.Dispose();
         _manager?.Dispose();
         _transientMaster?.Dispose();
         _terrain?.Unload(_terrainCarrier);   // CE-3118 — the holder frees the road graph

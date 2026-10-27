@@ -258,7 +258,8 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.True(editor.Apply(new TakeEdit.MoveSegment(0, SegmentEdge.To, 6)));
         Assert.Equal((0d, 6d), (tracks.Time.Items[0].From, tracks.Time.Items[0].To!.Value));
         Assert.True(editor.Apply(new TakeEdit.MoveSegment(0, SegmentEdge.From, 9)));
-        Assert.Equal((6d, 6d), (tracks.Time.Items[0].From, tracks.Time.Items[0].To!.Value));   // an edge never crosses the other
+        Assert.Equal(6d - TakeEditor.MinSegmentSeconds, tracks.Time.Items[0].From, 9);   // an edge never crosses the other (CE-1364: it stops one minimum length short)
+        Assert.Equal(6d, tracks.Time.Items[0].To!.Value);
         undo.Undo(null!); undo.Undo(null!); undo.Undo(null!);
         Assert.Equal((8d, 12d), (tracks.Time.Items[1].From, tracks.Time.Items[1].To!.Value));
     }
@@ -273,5 +274,114 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.False(editor.Apply(new TakeEdit.RemoveKey(-1)));
         Assert.False(editor.Dirty);
         Assert.False(undo.CanUndo);
+    }
+
+    // ── CE-1364 leftovers: segment edges, add / delete a segment, K's lens ─────────────────────────────────────────
+
+    /// <summary>An EDGE drag previews (the take untouched, only the grabbed edge shown moved) and commits ONE edit that moves just that edge; Undo puts it back.
+    /// 🔴 Mutation: the 4-argument <c>Move</c> mapping both edges to <c>SegmentEdge.Whole</c> ⇒ the other edge moves too and the assertions fail.</summary>
+    [Fact]
+    public void CE1364_AnEdgeDrag_PreviewsThenCommits_MovingOnlyThatEdge()
+    {
+        Write("main", V2);
+        var (editor, tracks, undo) = Open("main");
+
+        tracks.Time.Move("seg:1", 9, commit: false, TrackItemPart.StartEdge);
+        Assert.False(editor.Dirty);
+        Assert.False(undo.CanUndo);
+        Assert.Equal((9d, 12d), (tracks.Time.Items[1].From, tracks.Time.Items[1].To!.Value));   // only the start moved, on screen
+        Assert.Equal((8d, 12d), (editor.Take.Segments[1].From.Offset, editor.Take.Segments[1].To.Offset));   // the take did not
+
+        tracks.Time.Move("seg:1", 9, commit: true, TrackItemPart.StartEdge);
+        Assert.Null(editor.Preview);
+        Assert.Equal((9d, 12d), (tracks.Time.Items[1].From, tracks.Time.Items[1].To!.Value));
+        tracks.Time.Move("seg:0", 7, commit: true, TrackItemPart.EndEdge);
+        Assert.Equal((0d, 7d), (tracks.Time.Items[0].From, tracks.Time.Items[0].To!.Value));
+
+        undo.Undo(null!); undo.Undo(null!);
+        Assert.Equal(new[] { (0d, 4d), (8d, 12d) }, tracks.Time.Items.Select(i => (i.From, i.To!.Value)));
+    }
+
+    /// <summary>An edge cannot cross the other: dragged past it, it stops <see cref="TakeEditor.MinSegmentSeconds"/> short — in the preview AND in the commit; the body drag
+    /// still moves the segment whole (length kept). 🔴 Mutation: no minimum (<c>Math.Min(s.ToSim, to)</c>) ⇒ a zero-length segment and the first assertion fails.</summary>
+    [Fact]
+    public void CE1364_TheEdges_CannotCross_AndTheBodyStillMovesWhole()
+    {
+        Write("main", V2);
+        var (editor, tracks, _) = Open("main");
+
+        tracks.Time.Move("seg:1", 99, commit: false, TrackItemPart.StartEdge);
+        Assert.Equal(12d - TakeEditor.MinSegmentSeconds, tracks.Time.Items[1].From, 9);
+        tracks.Time.Move("seg:1", 99, commit: true, TrackItemPart.StartEdge);
+        Assert.Equal(12d - TakeEditor.MinSegmentSeconds, tracks.Time.Items[1].From, 9);
+        Assert.Equal(12d, tracks.Time.Items[1].To!.Value);
+
+        tracks.Time.Move("seg:0", -5, commit: true, TrackItemPart.EndEdge);
+        Assert.Equal(TakeEditor.MinSegmentSeconds, tracks.Time.Items[0].To!.Value, 9);
+        Assert.Equal(0d, tracks.Time.Items[0].From);
+
+        tracks.Time.Move("seg:0", 20, commit: true, TrackItemPart.Body);   // the body: whole, length kept
+        Assert.Equal(20d, tracks.Time.Items[0].From);
+        Assert.Equal(20d + TakeEditor.MinSegmentSeconds, tracks.Time.Items[0].To!.Value, 9);
+    }
+
+    /// <summary>The Time track's right-click on EMPTY space offers "Add a segment here": a default-length segment, speed 1, no gap, at the CLICKED sim time, selected;
+    /// Undo removes it. A segment's own menu has no "add". 🔴 Mutation: the item adding at 0 instead of the clicked time ⇒ the From assertion fails.</summary>
+    [Fact]
+    public void CE1364_AddASegmentHere_AddsAtTheClickedTime_AndUndoRemovesIt()
+    {
+        Write("main", V2);
+        var (editor, tracks, undo) = Open("main");
+
+        Assert.Empty(tracks.Time.MenuItems(null));   // the plain menu knows no time: nothing to add at
+        var add = Assert.Single(tracks.Time.MenuItems(null, 5.5));
+        Assert.Equal("Add a segment here", add.Label);
+        add.Run();
+
+        Assert.Equal(3, editor.Take.Segments.Count);
+        var seg = editor.Take.Segments[2];
+        Assert.Equal((5.5, 5.5 + TakeEditor.DefaultSegmentSeconds, 1d, SegmentGap.Cut), (seg.From.Offset, seg.To.Offset, seg.Speed, seg.Gap));
+        Assert.True(tracks.Time.Items[2].Selected);
+        Assert.Equal("Add time segment", undo.UndoDescription);
+
+        undo.Undo(null!);
+        Assert.Equal(2, editor.Take.Segments.Count);
+        Assert.Equal(2, tracks.Time.Items.Count);
+        Assert.DoesNotContain(tracks.Time.MenuItems("seg:0", 1.0), m => m.Label.StartsWith("Add", StringComparison.Ordinal));
+    }
+
+    /// <summary>"Delete segment" (on a segment) removes THAT segment, and Undo restores it in place. 🔴 Mutation: the item removing index + 1 ⇒ the wrong segment goes.</summary>
+    [Fact]
+    public void CE1364_DeleteSegment_RemovesIt_AndUndoRestoresIt()
+    {
+        Write("main", V2);
+        var (editor, tracks, undo) = Open("main");
+
+        var del = Assert.Single(tracks.Time.MenuItems("seg:0", 1.0));
+        Assert.Equal("Delete segment", del.Label);
+        del.Run();
+
+        Assert.Equal(new[] { (8d, 12d) }, tracks.Time.Items.Select(i => (i.From, i.To!.Value)));
+        Assert.Equal("Delete time segment", undo.UndoDescription);
+        undo.Undo(null!);
+        Assert.Equal(new[] { (0d, 4d), (8d, 12d) }, tracks.Time.Items.Select(i => (i.From, i.To!.Value)));
+        Assert.Equal(3, editor.Take.Keys.Count);   // the camera keys were never touched
+    }
+
+    /// <summary>K stores the pilot camera's lens: <see cref="PilotCamera.Of"/> carries the map camera's field of view into the camera (look-at AND follow), and the key
+    /// K adds holds it in <see cref="CameraKey.Fov"/>. 🔴 Mutation: <c>Of</c> dropping <c>fov</c> ⇒ the key's lens is null and the assertions fail.</summary>
+    [Fact]
+    public void CE1364_K_StoresThePilotsLens_InTheKeysFov()
+    {
+        Write("main", V2);
+        var pose = new CameraPose(new Vector3(1, 2, 3), 40f, 0.5f, -0.4f);
+        Assert.Equal(38f, PilotCamera.Of(pose, fov: 38f).Fov);
+        Assert.Equal(38f, PilotCamera.Of(pose, "Tank 1", new Vector3(9, 9, 0), fov: 38f).Fov);
+        Assert.Null(PilotCamera.Of(pose).Fov);
+
+        var (editor, tracks, _) = Open("main", () => PilotCamera.Of(pose, fov: 38f));
+        Assert.True(tracks.Camera.Key('K', 6.5));
+        Assert.Equal(38f, editor.Take.Keys[^1].Fov);
+        Assert.Equal(38f, editor.Take.Keys[^1].Camera.Fov);
     }
 }

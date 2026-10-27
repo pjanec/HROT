@@ -31,6 +31,9 @@ public sealed class GraphView
     /// <summary>Host services bag (clipboard, icons, diagnostics, debug session, theme, picker registry, input).</summary>
     public IEditorHostServices Host { get; }
 
+    /// <summary>⭐ CE-1276 — the host marked this document read-only (<see cref="IEditorHostServices.IsReadOnly"/>).</summary>
+    public bool IsReadOnly => Host.IsReadOnly;
+
     /// <summary>Viewport (pan/zoom).</summary>
     public ViewportState Viewport { get; }
 

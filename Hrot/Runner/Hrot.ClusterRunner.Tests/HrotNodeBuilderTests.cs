@@ -454,4 +454,117 @@ public sealed class HrotNodeBuilderTests
         Assert.Equal(1, ctx.Timeline.Frames);
         Assert.Equal(0.4, ctx.Timeline.Index.FrameSim[0], 6);
     }
+
+    // -- CE-3330 E6 (docs/DESIGN_Director_Timeline_Editor.md 2e) - a cluster replay shows the node's OWN recording -----------------------
+
+    /// <summary>The slice of <see cref="Fdp.Core.Orchestration.IRecordReplayController"/> the replay handler's <c>ReplayFilePath</c> reads: a fixed path.</summary>
+    private sealed class FixedPathController : Fdp.Core.Orchestration.IRecordReplayController
+    {
+        public FixedPathController(string? path) { ActiveReplayFilePath = path; }
+        public string? ActiveReplayFilePath { get; }
+        public long ActiveRecordingStartWallTicks => 0;
+        public long ActiveRecordingEndWallTicks => 0;
+        public long ReplayAnchorWallTicks { get; set; }
+        public bool IsRestoringReplay => false;
+        public System.Threading.Tasks.Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => System.Threading.Tasks.Task.FromResult(default(GlobalTime));
+        public System.Threading.Tasks.Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => System.Threading.Tasks.Task.CompletedTask;
+        public System.Threading.Tasks.Task FinalizeRecordingAsync(long maxNetworkId = 0) => System.Threading.Tasks.Task.CompletedTask;
+        public System.Threading.Tasks.Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => System.Threading.Tasks.Task.CompletedTask;
+        public void ProcessPlaybackTick(GlobalTime currentTime) { }
+        public System.Threading.Tasks.Task TeardownReplayAsync() => System.Threading.Tasks.Task.CompletedTask;
+        public bool IsReplayActive => true;
+        public GlobalTime GetCurrentReplayTime() => default;
+        public float ActiveReplayDurationSeconds => 0f;
+        public long ActiveMaxNetworkId => 0;
+    }
+
+    private static void RegisterReplayHandler(HrotNodeContext ctx, string? path)
+        => ctx.ClusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
+            new FixedPathController(path), null, null, null, null, null, System.IO.Path.GetTempPath()));
+
+    /// <summary>One keyframe, written with the engine's own recorder: a real, readable recording.</summary>
+    private static string WriteTinyRecording()
+    {
+        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"e6-{Guid.NewGuid():N}.fdp");
+        using var repo = new Fdp.Core.EntityRepository();
+        using (var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+            recorder.CaptureKeyframe(repo, 100_000L, blocking: true, eventBus: repo.Bus);
+        return path;
+    }
+
+    private static void DeleteRecording(string path)
+    {
+        foreach (var f in new[] { path, path + ".meta.json", Fdp.Toolkit.ReplayBrowser.Timeline.TimelineSidecar.PathFor(path) })
+            try { System.IO.File.Delete(f); } catch { /* best effort */ }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E6 — what the node SHOWS follows its cluster state: in a REPLAY (loading, operating, unloading) it is a recording source
+    /// over the node's OWN replay handler's file, lanes in the <c>Recording</c> context; in live, edit and REVIEW (the frozen live source, DAR 9e) it
+    /// is the live <c>Timeline</c>; and the ONE debug access (<c>EcsNodeDebugProvider.TimelineOf</c>) serves whichever is shown, source and context
+    /// together. Leaving the replay disposes the recording source.
+    /// 🔴 Red-proof: <c>IsRecordingShown</c> returning false behind a runtime-true guard (<c>DateTime.UtcNow.Ticks &gt; 0 ? false : ...</c>) ⇒ the
+    /// replay still shows the live timeline.
+    /// </summary>
+    [Fact]
+    public void CE3330_E6_Node_ShownTimeline_IsTheOwnRecording_InAClusterReplay_AndTheLiveOneOtherwise()
+    {
+        string recording = WriteTinyRecording();
+        try
+        {
+            using var ctx = InitialisedNode(91);
+            RegisterReplayHandler(ctx, recording);
+            var access = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx);
+            Assert.Equal(recording, ctx.ReplayRecordingPath);
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+            SimFrame(ctx, 1);
+            Assert.Same(ctx.Timeline, ctx.ShownTimeline);
+            Assert.True(ctx.ShownTimelineContext.Live);
+            Assert.Same(ctx.Timeline, access.Source());
+            Assert.True(access.Context.Live);
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay);
+            SimFrame(ctx, 2);
+            var shown = Assert.IsType<Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSource>(ctx.ShownTimeline);
+            Assert.Equal(recording, shown.Path);
+            Assert.True(ctx.ShownTimelineContext.Recording);
+            Assert.False(ctx.ShownTimelineContext.Live);
+            Assert.Same(shown, access.Source());                                      // the served access follows the mode
+            Assert.True(access.Context.Recording);
+            SimFrame(ctx, 3);
+            Assert.Same(shown, ctx.ShownTimeline);                                    // synced every frame, opened once
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReplay);
+            Assert.Same(shown, ctx.ShownTimeline);
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+            SimFrame(ctx, 4);
+            Assert.Same(ctx.Timeline, ctx.ShownTimeline);
+            Assert.True(shown.IsDisposed);
+
+            CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+            SimFrame(ctx, 2);
+            Assert.Same(ctx.Timeline, ctx.ShownTimeline);                             // a review shows the frozen live source, not a recording
+            Assert.Same(ctx.Timeline, access.Source());
+            Assert.True(access.Context.Live);
+        }
+        finally { DeleteRecording(recording); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3330</c> E6 — in a replay with no recording loaded yet (the handler has no file) there is NOTHING to show, not the live index of a
+    /// world that is not running. 🔴 Red-proof: the replay arm falling back to <c>Timeline</c> ⇒ the source is non-null.
+    /// </summary>
+    [Fact]
+    public void CE3330_E6_Node_ShownTimeline_InAReplayWithNoRecordingYet_IsNull()
+    {
+        using var ctx = InitialisedNode(90);
+        RegisterReplayHandler(ctx, null);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay);
+        SimFrame(ctx, 1);
+        Assert.Null(ctx.ReplayRecordingPath);
+        Assert.Null(ctx.ShownTimeline);
+        Assert.Null(Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx).Source());
+    }
 }

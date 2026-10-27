@@ -18,6 +18,9 @@ public abstract record TakeEdit
     public sealed record RemoveKey(int Index) : TakeEdit;
     /// <summary>Segment <paramref name="Index"/>: <paramref name="Edge"/> now at <paramref name="ToSim"/> (<see cref="SegmentEdge.Whole"/>: its start, same length).</summary>
     public sealed record MoveSegment(int Index, SegmentEdge Edge, double ToSim) : TakeEdit;
+    /// <summary>A new segment (CE-1364): appended, speed and gap as <paramref name="Segment"/> says.</summary>
+    public sealed record AddSegment(TimeSegment Segment) : TakeEdit;
+    public sealed record RemoveSegment(int Index) : TakeEdit;
 }
 
 /// <summary>
@@ -46,6 +49,11 @@ public sealed class TakeEditRecord : IGizmoUndoRecord
 /// </summary>
 public sealed class TakeEditor
 {
+    /// <summary>CE-1364: the shortest a time segment may be (sim seconds) — an edge cannot cross the other edge.</summary>
+    public const double MinSegmentSeconds = 0.1d;
+    /// <summary>CE-1364: the length of a segment added from the menu (sim seconds).</summary>
+    public const double DefaultSegmentSeconds = 2d;
+
     private readonly TakeStore? _store;
     private readonly GizmoUndoStack _undo;
     private Take _saved;
@@ -71,9 +79,9 @@ public sealed class TakeEditor
     public bool Dirty => !ReferenceEquals(Take, _saved);
 
     /// <summary>A drag in progress: the item id and where it is shown. ⛔ Not in <see cref="Take"/>, not undoable.</summary>
-    public (string ItemId, double Sim)? Preview { get; private set; }
+    public (string ItemId, double Sim, SegmentEdge Edge)? Preview { get; private set; }
 
-    public void SetPreview(string itemId, double sim) => Preview = (itemId, sim);
+    public void SetPreview(string itemId, double sim, SegmentEdge edge = SegmentEdge.Whole) => Preview = (itemId, sim, edge);
     public void ClearPreview() => Preview = null;
 
     /// <summary>A fixed time, or an anchor's baked time plus the offset; null when the anchor has no time.</summary>
@@ -86,7 +94,7 @@ public sealed class TakeEditor
     public bool Apply(TakeEdit edit)
     {
         var before = Take;
-        var basis = before.Keys.Count > 0 || edit is TakeEdit.MoveSegment ? before : WithKeys(before);
+        var basis = before.Keys.Count > 0 || edit is TakeEdit.MoveSegment or TakeEdit.AddSegment or TakeEdit.RemoveSegment ? before : WithKeys(before);
         Take? after;
         string what;
         switch (edit)
@@ -95,6 +103,8 @@ public sealed class TakeEditor
             case TakeEdit.AddKey a: after = basis with { Keys = basis.Keys.Append(a.Key).ToList() }; what = "Add camera key"; break;
             case TakeEdit.RemoveKey r: after = RemoveKey(basis, r); what = "Delete camera key"; break;
             case TakeEdit.MoveSegment s: after = MoveSegment(basis, s); what = "Move time segment"; break;
+            case TakeEdit.AddSegment a: after = basis with { Segments = basis.Segments.Append(a.Segment).ToList() }; what = "Add time segment"; break;
+            case TakeEdit.RemoveSegment r: after = RemoveSegment(basis, r); what = "Delete time segment"; break;
             default: return false;
         }
         if (after is null || ReferenceEquals(after, before)) return false;
@@ -175,6 +185,14 @@ public sealed class TakeEditor
         return take with { Keys = keys };
     }
 
+    private static Take? RemoveSegment(Take take, TakeEdit.RemoveSegment r)
+    {
+        if ((uint)r.Index >= (uint)take.Segments.Count) return null;
+        var segments = take.Segments.ToList();
+        segments.RemoveAt(r.Index);
+        return take with { Segments = segments };
+    }
+
     private static Take? MoveSegment(Take take, TakeEdit.MoveSegment s)
     {
         if ((uint)s.Index >= (uint)take.Segments.Count) return null;
@@ -189,10 +207,10 @@ public sealed class TakeEditor
                 moved = seg with { From = Retimed(take, seg.From, s.ToSim), To = Retimed(take, seg.To, s.ToSim + (to.Value - from.Value)) };
                 break;
             case SegmentEdge.From:
-                moved = seg with { From = Retimed(take, seg.From, Math.Min(s.ToSim, to.Value)) };
+                moved = seg with { From = Retimed(take, seg.From, Math.Min(s.ToSim, to.Value - MinSegmentSeconds)) };
                 break;
             default:
-                moved = seg with { To = Retimed(take, seg.To, Math.Max(s.ToSim, from.Value)) };
+                moved = seg with { To = Retimed(take, seg.To, Math.Max(s.ToSim, from.Value + MinSegmentSeconds)) };
                 break;
         }
         if (moved == seg) return null;

@@ -94,14 +94,14 @@ internal sealed class CanvasInput
 
     // ── Idle ──────────────────────────────────────────────────────────────────
 
-    private static void HandleIdle(GraphView view, bool canProcess, bool isCanvasDirectlyFocused, IInputSource input, SpatialIndex? spatialIndex = null)
+    internal static void HandleIdle(GraphView view, bool canProcess, bool isCanvasDirectlyFocused, IInputSource input, SpatialIndex? spatialIndex = null)
     {
         var hover = view.Interaction.Hover;
         var modifiers = input.Modifiers;
 
         // Strict constraint: only open the picker if hovering empty canvas (HoverKind.None).
         // This prevents Tab/Space from opening the picker while navigating widgets or hovering nodes.
-        if (canProcess && isCanvasDirectlyFocused && hover.Kind == HoverKind.None
+        if (canProcess && isCanvasDirectlyFocused && hover.Kind == HoverKind.None && !view.IsReadOnly   // ⭐ CE-1276 — no Add on a read-only graph
             && (input.IsKeyPressed(EditorKey.Tab) || input.IsKeyPressed(EditorKey.Space)))
         {
             view.Interaction.Mode = InteractionMode.PickerOpen;
@@ -147,6 +147,7 @@ internal sealed class CanvasInput
             switch (hover.Kind)
             {
                 case HoverKind.Pin:
+                    if (view.IsReadOnly) break;   // ⭐ CE-1276 — no wire (and no break-link) from a pin of a read-only graph
                     if (alt)
                     {
                         var linksToRemove = view.Model.Links
@@ -312,6 +313,7 @@ internal sealed class CanvasInput
                     break;
 
                 case HoverKind.Link:
+                    if (view.IsReadOnly) { view.Selection.ReplaceWith(SelectionEntry.OfLink(hover.Link)); break; }   // ⭐ CE-1276 — select only
                     if (alt)
                     {
                         var link = view.Model.FindLink(hover.Link);
@@ -1190,6 +1192,7 @@ internal sealed class CanvasInput
     /// </summary>
     internal static bool BeginNodeWire(GraphView view, IInputSource input, NodeId nodeId, bool addToSelectionOnClick, bool sticky)
     {
+        if (view.IsReadOnly) return false;   // ⭐ CE-1276 — a read-only graph starts no link
         var sourcePin = view.Model.NodeLinkPin(nodeId, PinDirection.Output);
         if (sourcePin is null) return false;
 

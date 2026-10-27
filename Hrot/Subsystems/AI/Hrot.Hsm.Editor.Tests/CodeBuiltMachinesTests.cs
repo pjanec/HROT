@@ -175,4 +175,33 @@ public sealed class CodeBuiltMachinesTests
         }
         Assert.True(problems.Count == 0, string.Join("\n", problems.Take(20)));
     }
+
+    /// <summary>⭐ <c>CE-1275</c> (user: "nodes jump back on drag") — a state DROP and a <c>MoveNodes</c> on a code-built machine move the
+    /// BOX: the position changes and stays, the asset is not dirty; the drop never re-parents (the hierarchy is the behaviour); an edit is
+    /// still refused. 🔴 Red-proof: <c>IsViewStateCommand</c> without <c>ChangeParentMultiple</c> ⇒ the drop is refused (the bug); the
+    /// <c>continue</c> before the re-parent in <c>ApplyChangeParentMultiple</c> removed ⇒ the state changes parent.</summary>
+    [Fact]
+    public void CE1275_ACodeBuiltMachine_TakesAStateMove_AsViewState_AndNeverReparents()
+    {
+        var asset = Load("PlatoonDefend");
+        var sink = new HsmCommandSink(asset);
+        var state = asset.AllStates.First(s => !ReferenceEquals(s, asset.RootState) && s.Parent != null);
+        var parentBefore = state.Parent;
+        var elsewhere = asset.AllStates.First(s => !ReferenceEquals(s, state) && !ReferenceEquals(s, parentBefore) && !ReferenceEquals(s, asset.RootState));
+        var dropped = new System.Numerics.Vector2(321f, 123f);
+
+        var drop = sink.Apply(new GraphCommand.ChangeParentMultiple(new[]
+            { new ChangeParentMove(new NodeId(state.StableId), new NodeId(elsewhere.StableId), null, dropped) }));
+        Assert.True(drop.Success, drop.Message);
+        Assert.Equal(dropped, state.Position);
+        Assert.Same(parentBefore, state.Parent);
+
+        var moved = new System.Numerics.Vector2(7f, 8f);
+        Assert.True(sink.Apply(new GraphCommand.MoveNodes(new[] { new NodeMove(new NodeId(state.StableId), moved) })).Success);
+        Assert.Equal(moved, state.Position);
+        Assert.False(asset.IsDirty);
+
+        Assert.False(sink.Apply(new GraphCommand.RemoveNodes(new[] { new NodeId(state.StableId) })).Success);
+        Assert.True(sink.IsReadOnly);
+    }
 }

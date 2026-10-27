@@ -538,6 +538,76 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐ CE-1295 (🔒 user: "Every press should switch the map, but then it needs to wait for the release before working again") — the
+    /// PRODUCTION frame order: the canvas runs the 3-D camera driver's input (M opens the peek) and THEN the layers' Update (the station),
+    /// both seeing the same press. One press = one toggle: the peek stays open that frame, a held key (no new press) changes nothing, a
+    /// second press closes it, a third opens it again. 🔴 Red-proof: drop the station's skip of the opening frame ⇒ the first assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE1295_OnePressOfM_TogglesTheMapOnce_InTheProductionFrameOrder_AndAHeldKeyDoesNot()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var input = new Input();
+            int M = (int)Raylib_cs.KeyboardKey.M;
+
+            // frame 1: M pressed — canvas order: the camera's driver input, then the station layer's Update
+            input.Pressed.Add(M);
+            sw.Camera3D.HandleInput(input);
+            station.Update(0.016f);
+            Assert.True(station.MapPeek);            // not opened and closed by the same press
+            Assert.False(sw.Is3D);
+            // frame 2: key still HELD (no new press): nothing toggles
+            input.Pressed.Clear(); input.Keys.Add(M);
+            station.Update(0.016f);
+            Assert.True(station.MapPeek);
+            // release, then frame 3: a new press closes it (the 2-D camera is current, so only the station sees the key)
+            input.Keys.Clear(); station.Update(0.016f);
+            input.Pressed.Add(M);
+            station.Update(0.016f);
+            Assert.False(station.MapPeek);
+            Assert.True(sw.Is3D);
+            // frame 4: the next press opens it again, same frame order
+            input.Pressed.Clear(); station.Update(0.016f);
+            input.Pressed.Add(M);
+            sw.Camera3D.HandleInput(input);
+            station.Update(0.016f);
+            Assert.True(station.MapPeek);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1297 (🔒 user: "I also think I was never able to go to prone position from the FPS mode") — Z reaches prone in the frame
+    /// (<c>CE1143_*</c>, the key path), and a unit that CANNOT change stance (the sim acknowledges the order silently) no longer shows
+    /// "STANCE PRONE" as if it worked: the HUD says "PRONE: not for this unit". A unit that can, or a standing one, says nothing extra.
+    /// 🔴 Red-proof: make <c>LogicalStance.Refuses</c> return false ⇒ the first assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE1297_TheHud_SaysProneIsNotForAUnitThatCannotChangeStance()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
+            w.AddComponent(unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            w.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.ActorCapabilityState { Capabilities = 0 });
+            var prone = Fdp.Toolkit.Tkb.Domain.StanceId.Prone;
+            Assert.Contains(PossessionStation.Hud.Lines(w, unit, 0, false, false, prone), l => l.Contains("PRONE: not for this unit"));
+            Assert.DoesNotContain(PossessionStation.Hud.Lines(w, unit, 0, false, false, Fdp.Toolkit.Tkb.Domain.StanceId.Standing), l => l.Contains("not for this unit"));
+            w.GetComponentRW<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(unit).Capabilities = Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanChangeStance;
+            Assert.DoesNotContain(PossessionStation.Hud.Lines(w, unit, 0, false, false, prone), l => l.Contains("not for this unit"));
+            Assert.Contains("STANCE PRONE", PossessionStation.Hud.Lines(w, unit, 0, false, false, prone));
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1217 (docs/DESIGN_Entity_Control.md §8k C-1, C-2) — the compass reads the view's heading (0 north, clockwise) and shows ±60°
     /// with the eight points named; the names over heads are his side's, within 50 m, named, alive — nearest first, his own men marked.
     /// </summary>

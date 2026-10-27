@@ -60,6 +60,8 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
     public ITypeSystem TypeSystem => _typeSystem;
     public ILinkValidator LinkValidator => _linkValidator;
     public IGraphCommandSink CommandSink => _commandSink;
+    /// <summary>⭐ CE-1276 — the one read-only gate (CE-1252): the canvas hides the authoring affordances on a code-built tree.</summary>
+    public bool IsReadOnly => _commandSink.IsReadOnly;
     public IPickerRegistry Pickers => _pickers;
     public IClipboard Clipboard => _clipboard;
     public IIconProvider Icons => _icons;

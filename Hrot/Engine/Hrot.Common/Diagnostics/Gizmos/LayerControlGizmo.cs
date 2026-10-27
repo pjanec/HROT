@@ -493,9 +493,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             draw.EmitRaw(in maskPrim);
 
             // Inject "View > Tactical Map Layers..." into the host main menu bar.
-            draw.DrawMainMenuBinding(
-                view is EntityRepository repo && repo.HasSingletonManaged<Hrot.Common.Orders.OrdersOffered>()
-                    ? MainMenuJsonWithOrders : MainMenuJson);   // ⭐ CE-3171
+            draw.DrawMainMenuBinding(Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view) ? MainMenuJsonWithOrders : MainMenuJson);   // ⭐ CE-3171
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)

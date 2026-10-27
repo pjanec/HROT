@@ -343,6 +343,8 @@ namespace Hrot.Editor
         private Hrot.Editor.Director.DirectorTakeSession? _directorTakes;
         internal Hrot.Editor.Director.DirectorTakeSession? DirectorTakesForTest => _directorTakes;
         internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
+        /// <summary>CE-1364 — a rail puts a 3-D map camera in (a headless editor has none).</summary>
+        internal void SetMapCameraForTest(MapCamera camera) => _camera = camera;
         // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md §2a) — a --verify run's start and exit (null when the runner did not ask for one)
         private Hrot.Editor.Director.CommandLineVerify? _commandLineVerify;
         private Hrot.UI.Common.Map3D.Director.TakeStore? _takeStore;
@@ -1240,7 +1242,7 @@ namespace Hrot.Editor
                 var name = _world.GetComponentRO<EntityInfo>(e).Name.ToString();
                 if (name.Length > 0) { unit = name; at = _world.GetComponentRO<SimTransform>(e).Position; }
             }
-            return Hrot.UI.Common.Map3D.Director.PilotCamera.Of(pose, unit, at);   // the lens stays the film's default (a key sets Fov when it means to)
+            return Hrot.UI.Common.Map3D.Director.PilotCamera.Of(pose, unit, at, fov: cam.FovyDegrees);   // CE-1364: K stores the map camera's lens
         }
 
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
@@ -5277,14 +5279,14 @@ namespace Hrot.Editor
 
             // ⭐ CE-3330 (DAR row 28; Director Timeline §2d / §2e) — the shared event timeline on the cluster: live (enters a review from the menu),
             //   review, replay — all through the ONE facade (ClusterTimelineCursor); Space plays / pauses through its transport.
-            //   ⭐ In a REPLAY the index is the previous run's (§2e), so the window and the cursor share a source func that is null then.
+            //   ⭐ CE-3330 E6 — the window and the cursor share ONE source func: the node's SHOWN timeline — live, or in a cluster replay the
+            //   node's OWN recording (HrotNodeContext.ShownTimeline; null while the recording is not loaded yet). ⛔ No null-in-Replay hack.
             var timelineTransport = _timeTransport;   // ⭐ CE-3329 row 21 — the one facade
-            Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> timelineSource =
-                () => timelineTransport is { Mode: Hrot.UI.Common.Facades.TransportMode.Replay } ? null : LiveTimeline;
+            Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> timelineSource = () => _node?.ShownTimeline;
             windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
                 "editor_event_timeline", "Event Timeline", "Scenario", _eventTimeline, timelineSource,
                 new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
-                () => _node?.TimelineLanes.Lanes(HrotNodeContext.TimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
+                () => _node?.TimelineLanes.Lanes(_node.ShownTimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
                 onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>())
             { IsOpen = false });
 

@@ -89,6 +89,19 @@ namespace Hrot.MuscleCharacter.Animation.Components
             return view.HasComponent<StanceIntent>(e) ? view.GetComponentRO<StanceIntent>(e).TargetStance : Fdp.Toolkit.Tkb.Domain.StanceId.Standing;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1297</c> — true when <paramref name="e"/> will IGNORE a stance order: it carries a <see cref="StanceIntent"/> and its
+        /// capabilities say it cannot change stance (the Muscle's <c>StanceTransitionSystem</c> acknowledges such an order silently — one
+        /// declared stance, or the capability lost). ⚠ False when the capabilities are not on this node (they are sim-side): a HUD then
+        /// says nothing rather than a wrong thing.
+        /// </summary>
+        public static bool Refuses(EntityRepository world, Entity e)
+            => world.IsComponentTypeRegistered<StanceIntent>() && world.HasComponent<StanceIntent>(e)
+               && world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>()
+               && world.HasComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(e)
+               && !world.GetComponentRO<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(e).Capabilities
+                    .HasFlag(Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanChangeStance);
+
         private static bool IsDown(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
         {
             if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) return false;

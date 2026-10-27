@@ -481,6 +481,11 @@ public sealed class TimelineInteractionTests
             for (int i = 0; i < List.Count; i++) List[i] = List[i] with { Selected = List[i].Id == itemId };
         }
         public void Move(string itemId, double toSimSeconds, bool commit) => Calls.Add($"move {itemId} {toSimSeconds:0.###} {(commit ? "commit" : "preview")}");
+        public void Move(string itemId, double toSimSeconds, bool commit, TrackItemPart part)
+        {
+            if (part == TrackItemPart.Body) Move(itemId, toSimSeconds, commit);
+            else Calls.Add($"move {itemId} {toSimSeconds:0.###} {(commit ? "commit" : "preview")} {part}");
+        }
         public bool Key(char key, double atSimSeconds) { Calls.Add($"key {key} {atSimSeconds:0.###}"); return TakesKeys; }
         public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => new[] { new TimelineMenuItem("Delete key", () => Calls.Add("delete " + itemId)) };
     }
@@ -568,6 +573,31 @@ public sealed class TimelineInteractionTests
         Assert.False(g.Active);
         Assert.False(g.Release());                                   // a second release commits nothing
         Assert.Equal(4, track.Calls.Count);
+    }
+
+    /// <summary>⭐ CE-1364 — a segment's two edges are grabbed by the first / last 5 px of its span (a narrow one keeps a body, a key has none); the gesture hands the grabbed
+    /// part to every preview and to the one commit, and the grab offset is the EDGE's x. 🔴 Red-proof: <c>HitPart</c> returning Body ⇒ no edge calls; the gesture dropping
+    /// the part ⇒ the calls lose the "EndEdge" suffix.</summary>
+    [Fact]
+    public void CE1364_AnEdgeOfASegment_IsGrabbed_AndTheGestureCarriesThePart()
+    {
+        var (_, map) = Paused();
+        var window = new TimelineWindow(0, 6 * S);
+        var seg = new TimelineTrackItem("s", 1.0, 4.0, "seg", TimelineTrackItemKind.Segment, false);   // x 100…400 of 600
+        Assert.Equal(TrackItemPart.StartEdge, TrackLayout.HitPart(seg, window, 600f, TimelineAxis.Sim(map), map, 103f));
+        Assert.Equal(TrackItemPart.Body, TrackLayout.HitPart(seg, window, 600f, TimelineAxis.Sim(map), map, 250f));
+        Assert.Equal(TrackItemPart.EndEdge, TrackLayout.HitPart(seg, window, 600f, TimelineAxis.Sim(map), map, 397f));
+        var narrow = seg with { To = 1.03 };                                                           // 3 px wide: no edges
+        Assert.Equal(TrackItemPart.Body, TrackLayout.HitPart(narrow, window, 600f, TimelineAxis.Sim(map), map, 101f));
+        Assert.Equal(TrackItemPart.Body, TrackLayout.HitPart(TrackKey("k", 1.0), window, 600f, TimelineAxis.Sim(map), map, 100f));
+
+        var track = new FakeTrack();
+        track.List.Add(seg);
+        var g = new TrackGesture();
+        g.Press(track, seg, x: 398f, itemX: 400f, TrackItemPart.EndEdge);   // grabbed 2 px left of the end edge
+        g.Update(498f, x => x / 100.0);                                      // x − grab = 500
+        Assert.True(g.Release());
+        Assert.Equal(new[] { "select s", "move s 5 preview EndEdge", "move s 5 commit EndEdge" }, track.Calls);
     }
 
     /// <summary>⭐ T2 — a press on EMPTY track space starts nothing: no select, no move, no commit. 🔴 Red-proof: <c>Press</c> starting a gesture without an item.</summary>

@@ -905,4 +905,73 @@ public sealed class BTreeCommandSinkTests
         node.SopOrder!.Kind.Should().Be(expected);
         new BTreeNodeCatalog().All.Should().Contain(e => e.Kind.Id == kind && e.CategoryPath == "SOP");
     }
+
+    // ---- CE-1275 / CE-1276 — a code-built (read-only) tree ------------------------------------------------
+
+    private static (BehaviorTreeAsset asset, BTreeCommandSink sink, NodeId parent, NodeId child) BuildCodeBuilt()
+    {
+        var (asset, graph, sink) = Build();
+        var parent = NodeId.NewId(); var child = NodeId.NewId();
+        sink.Apply(new GraphCommand.AddNode(parent, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(child,  new NodeKindKey(BTreeKinds.Action),   new Vector2(10f, 10f), null));
+        asset.ClearDirty();
+        asset.IsCodeBuilt = true;
+        return (asset, sink, parent, child);
+    }
+
+    /// <summary>⭐ <c>CE-1275</c> (user: "nodes jump back on drag") — a node DROP (<c>ChangeParentMultiple</c>, what the canvas sends) and a
+    /// <c>MoveNodes</c> on a code-built tree are accepted: the position changes and STAYS (the next read of the node — what the canvas
+    /// draws — sees it), the asset is not marked dirty, no <c>Changed</c> fires, the structure is untouched; an edit is still refused.
+    /// 🔴 Red-proof: <c>IsViewStateCommand</c> without the <c>ChangeParentMultiple</c> arm ⇒ the drop is refused (the bug); the
+    /// <c>IsCodeBuilt</c> guard before <c>MarkDirty</c> in <c>ApplyNodeMoves</c> removed ⇒ <c>IsDirty</c> flips.</summary>
+    [Fact]
+    public void CE1275_ACodeBuiltTree_TakesANodeMove_AsViewState_NotAsAnEdit()
+    {
+        var (asset, sink, parent, child) = BuildCodeBuilt();
+        int changed = 0; asset.Changed += () => changed++;
+        var dropped = new Vector2(300f, 120f);
+
+        var drop = sink.Apply(new GraphCommand.ChangeParentMultiple(new[] { new ChangeParentMove(child, null, null, dropped) }));
+        Assert.True(drop.Success, drop.Message);
+        Assert.Equal(dropped, asset.FindNode(child.Value)!.Position);
+
+        var moved = new Vector2(5f, 6f);
+        Assert.True(sink.Apply(new GraphCommand.MoveNodes(new[] { new NodeMove(parent, moved) })).Success);
+        Assert.Equal(moved, asset.FindNode(parent.Value)!.Position);
+
+        Assert.False(asset.IsDirty);
+        Assert.Equal(0, changed);
+        Assert.Empty(asset.FindNode(parent.Value)!.ChildVisualIds);
+
+        // ⛔ still an edit ⇒ still refused, and nothing changes
+        Assert.False(sink.Apply(new GraphCommand.RemoveNodes(new[] { child })).Success);
+        Assert.False(sink.Apply(new GraphCommand.AddNode(NodeId.NewId(), new NodeKindKey(BTreeKinds.Action), Vector2.Zero, null)).Success);
+        Assert.False(sink.Apply(new GraphCommand.Batch("mixed", new GraphCommand[]
+        {
+            new GraphCommand.MoveNodes(new[] { new NodeMove(parent, Vector2.One) }),
+            new GraphCommand.RemoveNodes(new[] { child }),
+        })).Success);
+        Assert.NotNull(asset.FindNode(child.Value));
+        Assert.Equal(moved, asset.FindNode(parent.Value)!.Position);
+        Assert.False(asset.IsDirty);
+    }
+
+    /// <summary>⭐ <c>CE-1276</c> — the host reports a code-built tree as read-only (the one gate, <c>CE-1252</c>) so the canvas hides its
+    /// authoring affordances, and the node menu offers no "Add Decorator" there while a writable tree still does.
+    /// 🔴 Red-proof: the provider's code-built early return made conditional on a false runtime condition ⇒ "Add Decorator" shows.</summary>
+    [Fact]
+    public void CE1276_ACodeBuiltTree_IsReportedReadOnly_AndOffersNoAddDecorator()
+    {
+        var (asset, graph, sink) = Build();
+        var node = NodeId.NewId();
+        sink.Apply(new GraphCommand.AddNode(node, new NodeKindKey(BTreeKinds.Action), Vector2.Zero, null));
+        var provider = new BTreeNodeContextMenuProvider(sink, graph, asset);
+
+        Assert.False(sink.IsReadOnly);
+        Assert.Contains(provider.GetItemsFor(node, new[] { node }), i => i.Label == "Add Decorator");
+
+        asset.IsCodeBuilt = true;
+        Assert.True(sink.IsReadOnly);
+        Assert.DoesNotContain(provider.GetItemsFor(node, new[] { node }), i => i.Label == "Add Decorator");
+    }
 }
