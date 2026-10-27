@@ -153,6 +153,10 @@ namespace Hrot.Editor.DebugApi
             return published;
         }
 
+        /// <summary>⭐ <c>CE-4059</c> P3 (TE-15, docs/DESIGN_Director_Timeline_Editor.md §11r) — this host opens recordings itself (the Replay Browser's
+        /// control is the active provider's): the director routes' <c>recording=</c> opens through <see cref="EnterReplay"/>, else it is refused.</summary>
+        public bool OpensRecordingFiles => _dispatcher?.ReplayBrowser != null;
+
         private (JsonNode? Result, string? Error, string? HintCategory) OpenRecordingFiles(JsonNode body)
         {
             var paths = new System.Collections.Generic.List<string>();

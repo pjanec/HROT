@@ -19,15 +19,18 @@ namespace Hrot.Editor.DebugApi
         private TakeStore? _takes;
         private Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?>? _layerControl;
         private DirectorDrafts? _drafts;
+        private DirectorStills? _stills;
         /// <summary>⭐ CE-4042 — verifies run in a FRESH child process (<c>{fresh: true}</c>).</summary>
         private readonly FreshVerifyJobs _freshVerify = new();
 
         /// <summary>⭐ CE-4038 — hands the host the editor's director, its take store and the map's layer control (held by the editor).
-        /// ⭐ CE-4059 (§11q) — and the pack's drafter (<c>/director/moments</c>, <c>/director/draft</c>; null: those answer 503).</summary>
+        /// ⭐ CE-4059 (§11q) — and the pack's drafter (<c>/director/moments</c>, <c>/director/draft</c>; null: those answer 503); ⭐ §11r — and its
+        /// stills (<c>/director/stills</c>; null: 503).</summary>
         public void AttachDirector(DirectorRunner director, TakeStore takes, Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl,
-                                   DirectorDrafts? drafts = null)
+                                   DirectorDrafts? drafts = null, DirectorStills? stills = null)
         {
             _drafts = drafts;
+            _stills = stills;
             _director = director ?? throw new ArgumentNullException(nameof(director));
             _takes = takes ?? throw new ArgumentNullException(nameof(takes));
             _layerControl = layerControl ?? throw new ArgumentNullException(nameof(layerControl));
@@ -38,10 +41,38 @@ namespace Hrot.Editor.DebugApi
         public void AttachDirector(DirectorPack pack)
         {
             if (pack == null) throw new ArgumentNullException(nameof(pack));
-            AttachDirector(pack.Runner, pack.Takes, pack.LayerControl, pack.Drafts);   // ⭐ CE-4059 — the drafter too (moments / draft), on every host
+            AttachDirector(pack.Runner, pack.Takes, pack.LayerControl, pack.Drafts, pack.Stills);   // ⭐ CE-4059 — the drafter and the stills too, on every host
         }
 
         private const string NoDirector = "This host has no film director (the editor and the Replay Browser have one).";
+
+        /// <summary>⭐ CE-4059 (TE-15, §11r) — the ONE refusal of <c>recording=</c> on a host that does not open recordings (the editor), every route alike.</summary>
+        internal const string RecordingRefused =
+            "recording= opens a recording first: only the Replay Browser opens recordings (not this host) — here the director works on the scenario this host shows";
+
+        /// <summary>
+        /// ⭐ <c>CE-4059</c> P3 (TE-15, docs/DESIGN_Director_Timeline_Editor.md §11r R1) — <c>recording=</c> (a <c>.fdp</c> path, a folder of a recording's node
+        /// files, or an exercise id): opened FIRST through the very call <c>POST /replay</c> makes (<see cref="DebugApiService.EnterReplay"/>: a path through the
+        /// Replay Browser's control, an id through its master's transition) — ⛔ no second open path. Null: nothing named, or opened; else the refusal.
+        /// </summary>
+        private RouteResult? OpenRecording(JsonNode? recording)
+        {
+            if (recording is null) return null;
+            var text = recording is JsonValue v && v.TryGetValue<string>(out var str) ? str : recording.ToJsonString();
+            if (string.IsNullOrWhiteSpace(text)) return Fail(400, "recording names nothing: a .fdp path, a recording's folder or an exercise id (GET /exercises)");
+            if (_service is not { OpensRecordingFiles: true } service) return Fail(400, RecordingRefused);
+            JsonObject open;
+            if (Guid.TryParse(text, out _)) open = new JsonObject { ["exerciseId"] = text };
+            else if (System.IO.Directory.Exists(text))
+            {
+                var files = System.IO.Directory.GetFiles(text, "*.fdp").OrderBy(f => f, StringComparer.Ordinal).ToArray();
+                if (files.Length == 0) return Fail(400, $"recording '{text}': the folder holds no .fdp file");
+                open = new JsonObject { ["paths"] = new JsonArray(files.Select(f => (JsonNode?)f).ToArray()) };
+            }
+            else open = new JsonObject { ["path"] = text };
+            var (_, error, hint) = service.EnterReplay(open);
+            return error != null ? Fail(400, $"recording '{text}' did not open: {error}", hint) : null;
+        }
 
         private void BuildDirectorRoutes()
         {
@@ -49,7 +80,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/director/reels", _ => Main(ReelsList)));
             _routes.Add(new("GET", "/director/take/{scenario}/{take}", ctx => Main(() => TakeRead(ctx.RouteValue("scenario")!, ctx.RouteValue("take")!))));
             _routes.Add(new("PUT", "/director/take/{scenario}/{take}", ctx => Main(() => TakeWrite(ctx.RouteValue("scenario")!, ctx.RouteValue("take")!, ctx.Body))));
-            _routes.Add(new("POST", "/director/play", ctx => Main(() => DirectorPlay(ctx.Body, scout: false))));
+            _routes.Add(new("POST", "/director/play", ctx => Main(() => OpenRecording(ctx.Body?["recording"]) ?? DirectorPlay(ctx.Body, scout: false))));
             _routes.Add(new("POST", "/director/scout", ctx => Main(() => DirectorPlay(ctx.Body, scout: true))));
             _routes.Add(new("POST", "/director/stop", _ => Main(() => Transport(d => d.Stop()))));
             _routes.Add(new("POST", "/director/next", _ => Main(() => Transport(d => d.Next()))));
@@ -57,8 +88,11 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/director/resume", _ => Main(() => Transport(d => d.Resume()))));
             _routes.Add(new("GET", "/director/status", _ => Main(() => _director is { } d ? Ok(d.Status()) : Fail(503, NoDirector))));
             // ⭐ CE-4059 P3 (docs/DESIGN_Director_Timeline_Editor.md §11q) — the drafter: the moments of the shown index, and a draft opened in the take session
-            _routes.Add(new("GET", "/director/moments", _ => Main(DirectorMoments)));
+            _routes.Add(new("GET", "/director/moments", ctx => Main(() => OpenRecording(ctx.Query("recording") is { } rec ? JsonValue.Create(rec) : null) ?? DirectorMoments())));
             _routes.Add(new("POST", "/director/draft", ctx => Main(() => DirectorDraft(ctx.Body))));
+            // ⭐ CE-4059 P3 (§11r) — a take's stills + its contact sheet (a host that seeks, with a renderer); by default answered when done
+            _routes.Add(new("POST", "/director/stills", DirectorStillsRoute));
+            _routes.Add(new("GET", "/director/stills", _ => Main(() => _stills is { } st ? Ok(st.Status()) : Fail(503, NoDirector))));
             // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md) — the scenario regression check: author a scenario's checks, verify it
             _routes.Add(new("GET", "/director/checks/{scenario}", ctx => Main(() => ChecksRead(ctx.RouteValue("scenario")!))));
             _routes.Add(new("PUT", "/director/checks/{scenario}", ctx => Main(() => ChecksWrite(ctx.RouteValue("scenario")!, ctx.Body))));
@@ -140,14 +174,14 @@ namespace Hrot.Editor.DebugApi
                     ["actor"] = m.Actor, ["actorName"] = drafts.NameOf(m.Actor),
                     ["subject"] = m.Subject, ["subjectName"] = m.Subject is { } s ? drafts.NameOf(s) : null, ["score"] = Math.Round(m.Score, 3),
                 });
-            return Ok(new JsonObject { ["scenario"] = drafts.Scenario, ["count"] = arr.Count, ["moments"] = arr });
+            // ⭐ §11r — a recording's index is read in the background after it opens: complete false = more moments may come (ask again)
+            return Ok(new JsonObject { ["scenario"] = drafts.Scenario, ["complete"] = drafts.Index.IsComplete, ["count"] = arr.Count, ["moments"] = arr });
         }
 
         private RouteResult DirectorDraft(JsonNode? body)
         {
             if (_drafts is not { } drafts) return Fail(503, NoDirector);
-            if (body?["recording"] is not null)
-                return Fail(400, "recording= drafts from a recording's index: that is the Replay Browser's route (not on this host); the editor drafts from the index its Event Timeline shows");
+            if (OpenRecording(body?["recording"]) is { } refused) return refused;   // ⭐ §11r — the recording opened first (the editor: refused)
             var lane = body?["lane"]?.ToString();
             if (string.IsNullOrWhiteSpace(lane) || body?["eventIndex"] is not JsonValue ev || !ev.TryGetValue<int>(out var eventIndex))
                 return Fail(400, "name the event: {lane, eventIndex} (GET /director/moments lists them)");
@@ -163,14 +197,83 @@ namespace Hrot.Editor.DebugApi
             });
         }
 
+        // ── ⭐ CE-4059 P3 (§11r) — stills and the contact sheet ─────────────────────────────────────
+
+        /// <summary>How long <c>POST /director/stills</c> waits for its job before answering it as running (GET /director/stills reads it on).</summary>
+        private const double StillsWaitSeconds = 300d;
+
+        private async Task<RouteResult> DirectorStillsRoute(RequestContext ctx)
+        {
+            var started = await Main(() => DirectorStillsStart(ctx.Body)).ConfigureAwait(false);
+            bool wait = ctx.Body?["wait"] is not JsonValue wv || !wv.TryGetValue<bool>(out var w) || w;
+            if (started.Status != 200 || !wait || started.Data?["state"]?.GetValue<string>() != "running") return started;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (sw.Elapsed.TotalSeconds < StillsWaitSeconds)
+            {
+                await Task.Delay(50).ConfigureAwait(false);
+                var now = await Main(() => Ok(_stills!.Status())).ConfigureAwait(false);
+                if (now.Data?["state"]?.GetValue<string>() != "running") return now;
+            }
+            return await Main(() => Ok(_stills!.Status())).ConfigureAwait(false);   // still running: the caller reads it on
+        }
+
+        private RouteResult DirectorStillsStart(JsonNode? body)
+        {
+            if (_director is not { } director || _takes is not { } store || _stills is not { } stills) return Fail(503, NoDirector);
+            if (OpenRecording(body?["recording"]) is { } refused) return refused;
+            var scenario = body?["scenario"]?.ToString();
+            if (string.IsNullOrWhiteSpace(scenario)) scenario = _drafts?.Scenario;
+            if (string.IsNullOrWhiteSpace(scenario)) return Fail(400, "name the scenario (or open a recording that names one: {recording})");
+            var takeName = body?["take"]?.ToString();
+            if (string.IsNullOrWhiteSpace(takeName)) takeName = "main";
+            var play = new PlayRequest(Reel.Of(scenario!, takeName!), Cinema: false);
+            var loaded = director.TakeOf(play);
+            if (loaded.Value is not { } take) return Fail(404, string.Join("; ", loaded.Problems));
+            List<double>? times = null;
+            if (body?["times"] is JsonArray ta)
+            {
+                times = new List<double>();
+                foreach (var t in ta)
+                    if (TakeJson.Double(t) is { } d) times.Add(d);
+                    else return Fail(400, $"times: '{t?.ToJsonString()}' is not a film second");
+            }
+            bool everyKey = body?["everyKey"] is JsonValue ek && ek.TryGetValue<bool>(out var e) && e;
+            var (plan, problems) = DirectorStills.PlanOf(take, times, everyKey);
+            if (plan.Count == 0) return Fail(400, "no stills: " + string.Join("; ", problems));
+            int width = (int)(TakeJson.Double(body?["width"]) ?? 1280d), height = (int)(TakeJson.Double(body?["height"]) ?? 720d);
+            var dir = body?["dir"]?.ToString();
+            if (string.IsNullOrWhiteSpace(dir)) dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(store.TakePath(scenario!, takeName!))!, takeName + ".stills");
+            var planned = new JsonObject
+            {
+                ["scenario"] = scenario, ["take"] = takeName, ["dir"] = System.IO.Path.GetFullPath(dir!), ["width"] = width, ["height"] = height,
+                ["planned"] = DirectorStills.PlanJson(plan), ["problems"] = new JsonArray(problems.Select(p => (JsonNode?)p).ToArray()),
+                ["sheetGrid"] = ContactSheet.Layout(plan.Count, width, height).ToJson(),
+            };
+            // ⭐ plan:true — what WOULD be taken (any host: the editor, a headless browser), nothing captured
+            if (body?["plan"] is JsonValue pv && pv.TryGetValue<bool>(out var only) && only) { planned["state"] = "planned"; return Ok(planned); }
+            bool captions = body?["captions"] is not JsonValue cv || !cv.TryGetValue<bool>(out var cap) || cap;
+            var why = stills.Start(play, plan, dir!, width, height, captions);
+            if (why.Count > 0)
+            {
+                int code = why[0] == DirectorStills.NoRenderer || why[0] == DirectorStills.CannotSeek || why[0].StartsWith("a still of", StringComparison.Ordinal) ? 400 : 409;
+                return Fail(code, string.Join("; ", why));
+            }
+            var status = stills.Status();
+            status["problems"] = new JsonArray(problems.Select(p => (JsonNode?)p).ToArray());
+            return Ok(status);
+        }
+
         // ── play / scout / transport ──────────────────────────────────────────────────────────
 
         private RouteResult DirectorPlay(JsonNode? body, bool scout)
         {
             if (_director is not { } director || _takes is not { } store) return Fail(503, NoDirector);
+            if (_stills is { Busy: true }) return Fail(409, "a stills job holds the director (GET /director/stills) — play when it is done");   // §11r
             Reel reel;
             Dictionary<string, Take>? inline = null;
             var scenario = body?["scenario"]?.ToString();
+            // ⭐ §11r — on the Replay Browser, the scenario the OPEN recording names (its takes are beside it); the editor still names one
+            if (string.IsNullOrWhiteSpace(scenario) && body?["reel"] is null && _service is { OpensRecordingFiles: true }) scenario = _drafts?.Scenario;
             var takeName = body?["take"] is JsonValue tv ? tv.ToString() : "main";
             if (body?["reel"]?.ToString() is { } reelName)
             {
@@ -198,6 +301,9 @@ namespace Hrot.Editor.DebugApi
             if (body?["capture"] is JsonObject c)
             {
                 var dir = c["dir"]?.ToString();
+                // ⭐ §11r — a render of one take goes BESIDE it by default (takes/<take>.render/: the frames, the movie) — TE-1, the take lives by its recording
+                if (string.IsNullOrWhiteSpace(dir) && !string.IsNullOrWhiteSpace(scenario) && body?["reel"] is null)
+                    dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(store.TakePath(scenario!, takeName))!, takeName + ".render");
                 if (string.IsNullOrWhiteSpace(dir)) return Fail(400, "capture needs dir (where the frames and the movie go)");
                 int w = 1280, h = 720;
                 if (c["size"]?.ToString() is { } size)

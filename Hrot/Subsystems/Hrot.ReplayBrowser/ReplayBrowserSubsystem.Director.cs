@@ -46,7 +46,8 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
             TitleBarColor: TitleBarColor,
             Perspective:   "ReplayBrowser",     // ⭐ D11
             // ⭐ CE-4059 (§11q D1) — the drafter over the recording's index, a take of the scenario the recording names (beside it, TE-1)
-            Index:         () => _timelineSource?.Index,
+            // ⭐ CE-4059 §11r — synced first: a recording= open in the same request reads ITS index (empty while scanned), never the last one's
+            Index:         () => { SyncTimelineSource(); return _timelineSource?.Index; },
             Scenario:      () => PrimaryMetadata?.ScenarioName));
     }
 

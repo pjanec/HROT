@@ -47,10 +47,15 @@ namespace Hrot.UI.Common.Map3D.Director
     public sealed class DirectorPack
     {
         private DirectorPack(DirectorRunner runner, DirectorTakeSession session, DirectorWindow window, MapLayerOverride layers, WindowCinema cinema, TakeStore takes,
-                             Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl, DirectorDrafts? drafts)
+                             Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?> layerControl, DirectorDrafts? drafts, DirectorStills stills)
         {
             Takes = takes; Runner = runner; Session = session; Window = window; Layers = layers; Cinema = cinema; LayerControl = layerControl; Drafts = drafts;
+            Stills = stills;
         }
+
+        /// <summary>⭐ CE-4059 P3 (§11r) — the stills of a take and their contact sheet, over the same runner and frame sink a film uses (the
+        /// <c>/director/stills</c> route); it refuses on a host that cannot seek or has no renderer.</summary>
+        public DirectorStills Stills { get; }
 
         /// <summary>⭐ CE-4059 (§11q) — the drafter over this host's shown index (null: the host handed no index): the event menu's item and the editor's routes.</summary>
         public DirectorDrafts? Drafts { get; }
@@ -72,8 +77,9 @@ namespace Hrot.UI.Common.Map3D.Director
             var cinema = new WindowCinema(h.Wm);
             var layers = new MapLayerOverride(h.Layers);
             DirectorRunner? runner = null;
+            var sink = h.Headless ? null : new FilmFrameSink();
             runner = new DirectorRunner(h.Host, cinema, layers,
-                h.Headless ? null : new FilmFrameSink(),
+                sink,
                 new AudioDirectorSound(() => runner?.FilmSimTime ?? double.NaN),
                 extension: h.Extension);
             cinema.EscapePressed = () => runner.Stop();
@@ -94,11 +100,18 @@ namespace Hrot.UI.Common.Map3D.Director
                                             h.Scenario ?? (() => null), session);
                 h.Timeline.EventMenu = drafts.MenuItems;
             }
-            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts);
+            // ⭐ CE-4059 P3 (§11r) — stills: the runner's play-from and the SAME sink (one capture path), on a host that seeks
+            var stills = new DirectorStills(runner, sink, () => h.Host.CanSeek);
+            return new DirectorPack(runner, session, window, layers, cinema, h.Host.Takes, h.Layers, drafts, stills);
         }
 
-        /// <summary>The director's frame: once per host frame, after the routes drained and before the map's update (§0, R-3038).</summary>
-        public void Tick() => Runner.Tick();
+        /// <summary>The director's frame: once per host frame, after the routes drained and before the map's update (§0, R-3038). ⭐ CE-4059 — a stills
+        /// job after the runner (it reads the phase the runner's tick reached and asks the map for this frame's capture).</summary>
+        public void Tick()
+        {
+            Runner.Tick();
+            Stills.Tick();
+        }
 
         /// <summary>Puts the Director window (View › Director) among the host's windows.</summary>
         public void RegisterWindow(WindowManager wm) => wm.RegisterWindow(Window);

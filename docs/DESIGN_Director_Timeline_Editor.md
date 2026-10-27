@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -1456,7 +1456,7 @@ one `DebugApiHost.AttachDirector(DirectorPack)` (the editor uses it too, in plac
 route now answers on the RB over ITS director and the takes beside the open recording. 📐 Live: `--mode replaybrowser --headless` ⇒
 `GET /director/status` 200 (Idle), `GET /director/takes` 200 (no recording open: empty). Rail `ReplayBrowserSubsystemTests.CE1303_P3_*`
 (503 "no film director" before the attach — the red — 200 after). ⏭ Still P3's: `recording=` on the routes (TE-15; today the open recording
-is the one — `POST /replay` opens it), `/director/draft`, `/director/stills`, MP4.
+is the one — `POST /replay` opens it), `/director/draft`, `/director/stills`, MP4. ⭐ **All BUILT** — `/director/draft` in §11q, `recording=`, `/director/stills` and the MP4 in the RB in [§11r](#11r-p3--recording-stills-render-in-the-rb).
 
 ### 11g. Claim table — what the plan rests on
 
@@ -2537,3 +2537,173 @@ scope, the lookup hands each its own list) · `DirectorTracksTests.CE4059_CR7_Du
 `DirectorDraftRoutesTests.CE4059_P3_TheEditorsDraftRoutes_ListTheMoments_AndOpenTheDraft` (Hrot.Editor.Tests, a real `DebugApiHost`). One existing rail
 changed deliberately: `DrafterTests.CE4059_CR8_TheLine_IsCrossedOnlyByTheReplay` keeps its assertions (five keys, the sides, the two segments); the reverse
 key's new scope and time are asserted by the new `CE4059_CR7_*` rail beside it.
+
+### 11r. P3 — `recording=`, stills, render in the RB *(ui, `2026-10-27`, CE-4059 P3 (the routes' remaining half); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ Frame: [NOTE_Coordinator_To_Ui_RB_Director_Routes_Done](blueprints/batches/NOTE_Coordinator_To_Ui_RB_Director_Routes_Done.md) "Still yours" — `recording=`
+(TE-15), `/director/stills`, MP4 in the RB, the MCP catalog. Basis: CR-10 (stills + contact sheet, the night's documentation), CR-12 (rendering is the
+RB's), [Film Production](DESIGN_Film_Production.md) §3 ④ *"a still is one seek and one frame"*, §4a (the documentation take's still keys render through
+this route), [Replay Browser Debug HTTP](DESIGN_Replay_Browser_Debug_Http.md) (the RB answers the SAME routes; RB-only routes only for RB-only meaning).
+
+**INVENTORY** *(`2026-10-27`)* — ⚠ **this worktree's graph could not be built: the VM's root disk was full** (`persist_failed`, 390 MB free); the queries ran
+on the main checkout's `ui` index (`home-user-HROT`, built `2026-10-25`, before §11j moved the runner to `Hrot.Presentation`) **and** grep over this tree.
+
+```
+search_graph name_pattern=".*(Still|Contact|FrameSink|FilmStudio|Ffmpeg|CaptureOptions|ReplayBrowserControl|RecordingOpen).*" label=Class
+   → 32, has_more false: CaptureOptions, Ffmpeg, FilmFrameSink (then in the editor; now Hrot.Presentation), FilmStudio — every other hit an AI
+     "contact" (BreakContact…, SquadContact…) — no stills job, no contact sheet, no recording opener beside the RB's own
+grep "contact.?sheet|director/stills|Stills" → only designs/notes + DocumentationTakes.cs:15 ("rendering its still keys is /director/stills") — nothing built
+grep '"/replay"' → ONE route: DebugApiHost.cs:1032 → DebugApiService.EnterReplay: {path|paths} → IReplayBrowserControl.Open (RB only);
+   {exerciseId} → PublishTransition → the RB's ReplayBrowserMasterControl.Transition (RecordingGroupInventory.Scan → OpenGroup)
+grep "FilmStudio.Capture|IFrameSink" → ONE capture path: FilmFrameSink → FilmStudio mailbox → Film.cs Serve (the map on screen); null sink when headless
+grep "CaptureOptions|DirectorMode.Capture" → the runner's capture: one step per captured frame (no Hold), the movie by Ffmpeg.Encode — host-agnostic
+which ffmpeg → /usr/bin/ffmpeg (installed)
+check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
+```
+
+```mermaid
+classDiagram
+  direction LR
+  class DebugApiHost { <<exists, grown>> OpenRecording(recording) · POST/GET /director/stills · recording= on play, draft, moments }
+  class DebugApiService { <<exists, grown>> EnterReplay(body) · OpensRecordingFiles }
+  class IReplayBrowserControl { <<exists>> Open(paths, at) }
+  class ReplayBrowserMasterControl { <<exists>> Transition(OperatingReplay) }
+  class DirectorPack { <<exists, grown>> Stills · Tick = Runner.Tick + Stills.Tick }
+  class DirectorStills { <<NEW>> PlanOf(take, times, everyKey) · Start · Tick · Status · Refusal }
+  class ContactSheet { <<NEW, static>> Layout(n, w, h) · Compose(paths, labels, out) }
+  class DirectorRunner { <<exists, grown>> TakeOf(request) · PlayFrom · Pause · Stop · capture mode }
+  class FilmFrameSink { <<exists>> Frame(path, w, h) }
+  class FilmTimeMap { <<exists>> Of(take) · At(film) · FilmOf(source) }
+  DebugApiHost --> DebugApiService : recording= opens through EnterReplay
+  DebugApiService --> IReplayBrowserControl : a path
+  DebugApiService --> ReplayBrowserMasterControl : an exercise id
+  DebugApiHost --> DirectorStills : the pack's
+  DirectorPack --> DirectorStills : builds once, ticks
+  DirectorStills --> DirectorRunner : PlayFrom, Pause, Stop
+  DirectorStills --> FilmFrameSink : the SAME sink a film captures through
+  DirectorStills --> FilmTimeMap : film to source
+  DirectorStills --> ContactSheet : when done
+```
+*What the picture shows that prose hid:* `recording=` adds NO opener — it is one call into the very method `POST /replay` runs; the stills job adds no camera
+and no capture path — it is the runner's play-from held on one second plus the film's own sink. Two new types, both in the shared pack.
+
+```mermaid
+sequenceDiagram
+  actor A as Agent
+  participant H as DebugApiHost (RB process)
+  participant S as DebugApiService
+  participant RB as ReplayBrowser control
+  participant J as DirectorStills
+  participant R as DirectorRunner
+  participant M as the map (FilmStudio)
+  A->>H: POST /director/stills {recording, take, times}
+  H->>S: EnterReplay({path} or {exerciseId}) - the /replay call
+  S->>RB: Open(paths) - the group opens, the takes root moves beside it
+  H->>R: TakeOf(take) - the open take, else the file
+  H->>J: PlanOf(take, times) then Start(plan, dir beside the take)
+  loop each still
+    J->>R: PlayFrom(film t) - the recording SEEKS to the source of t
+    R-->>J: Phase Playing
+    J->>R: Pause - the camera of t held, no step
+    J->>M: Frame(path) after 3 settle frames
+    M-->>J: written
+    J->>R: Stop
+  end
+  J->>J: ContactSheet.Compose - a labelled grid
+  H-->>A: {state done, stills[path, film, source, shownSim], sheet, sheetGrid}
+```
+
+```mermaid
+graph TD
+  subgraph RBP["--mode replaybrowser (windowed)"]
+    RBH["DebugApiHost: /director/* (one attach: DirectorPack)"]
+    RBJ["DirectorStills (sink = FilmFrameSink)"]:::new
+    RBO["recording= : EnterReplay -> RB control / master"]:::new
+  end
+  subgraph RBX["--mode replaybrowser --headless"]
+    RXJ["DirectorStills (sink = null)"]
+  end
+  subgraph ED["Editor (EditorSubsystem)"]
+    EDJ["DirectorStills (CanSeek false)"]
+  end
+  PK["DirectorPack.Attach - builds the stills once, ticks it after the runner"]:::new
+  PK --> RBJ
+  PK --> RXJ
+  PK --> EDJ
+  RBH --> RBJ
+  RBH --> RBO
+  RXJ -.->|"refused: no renderer (plan:true answers)"| X1["400"]
+  EDJ -.->|"refused: cannot seek; recording= refused"| X2["400"]
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+  linkStyle 5 stroke:#c33,stroke-dasharray:4 3
+  linkStyle 6 stroke:#c33,stroke-dasharray:4 3
+```
+*Caption:* every host gets the SAME stills job from the pack (one wiring, CR-2), so the route is the same everywhere; only a windowed Replay Browser can
+take a still — the two red dashed edges are the hosts where the job exists and is never reached past its refusal (headless: no map is drawn; the editor:
+its source cannot seek, and it opens no recordings).
+
+**Claim table**
+
+| the plan rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| `POST /replay` has ONE open path, RB-specific underneath | ✅ `DebugApiService.Master.cs` `EnterReplay` → `OpenRecordingFiles` → `IReplayBrowserControl.Open`; exercise id → `ReplayBrowserMasterControl.Transition` | ✅ RB-1 / RB-2 (Replay Browser Debug HTTP) · TE-15 *"a route only when no existing route answers"* |
+| the open recording moves the takes root and the drafter's index | ✅ `ReplayBrowserSubsystem.Director.cs` `DirectorTakesRoot` (dynamic) · ⚠ the index followed only on the next `Update` (`SyncTimelineSource`) — fixed here (R5) | ✅ TE-1 (takes beside the recording) |
+| a seekable `PlayFrom` stands on the film second's source before the first playing frame | ✅ `CE1303_P2a_PlayFrom_SeeksTheRecording_ToTheShot` (re-read) | ✅ CR-4, §11m D5 |
+| a paused runner still directs the camera of its second, without a step | ✅ `DirectorRunner.Tick`: `DirectUpcoming(rel)` before `if (_paused) return` | ⛔ searched §11m / §11o: not stated — measured |
+| a still and a film frame are captured the same way | ✅ `FilmFrameSink.Frame` → `FilmStudio.Capture` → `Film.cs` `Serve` | ✅ CR-10 / Film Production §3 ④ |
+| the runner's capture is already paced by the take on a seeking host | ✅ `DirectorRunner.Tick`: capture mode never `Hold`s; `StepOnce` per frame; the frame waits for `_pendingCapture` | ✅ CR-12, Film Director §4a |
+| a headless host has no sink | ✅ `DirectorPack.Attach`: `h.Headless ? null : new FilmFrameSink()`; the runner refuses capture *"no map to film"* | ✅ §11m (headless RB) |
+| the contact sheet can be drawn | ✅ raylib's CPU `Image*` calls (`ImageDraw`, `ImageDrawText` with the window's default font) — the only image library in the tree (grep: no ImageSharp / Skia) | ⛔ none — measured |
+
+**Decisions** *(the lean; the rejected alternatives one line each)*
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **R1** | **`recording=` opens through `DebugApiService.EnterReplay`** — the method `POST /replay` calls (`{path}`, a folder's `{paths}`, or `{exerciseId}`); refused 400 with ONE message (`DebugApiHost.RecordingRefused`) on a host whose provider has no Replay Browser control (`OpensRecordingFiles`) — on play, draft, moments and stills | a pack seam `DirectorPackHost.OpenRecording` (the brief's suggestion) — a second place that parses path-vs-exercise-id and opens beside `POST /replay`'s own · refusing on the pack's `CanSeek` — a cluster replay seeks too, and the question is "does this host open files" |
+| **R2** | **stills are ONE job in the pack (`DirectorStills`)**: per film second `PlayFrom` → Pause on the first playing frame → 3 settle frames → the pack's own `FilmFrameSink` → Stop; then a contact sheet. The route answers when done (`wait`, default true; `GET /director/stills` reads a running one) | a runner mode for stills — the runner's capture is continuous at fps; a per-still mode would thread a second meaning through its tick · stills by `/film/capture` from the agent — N round trips and the agent doing the seeking |
+| **R3** | **the editor is REFUSED** (cannot seek), `plan:true` answers anywhere; a headless RB is refused (no renderer) | fast-forward on the editor — each still reloads and re-runs the scenario from 0 (`PlayFrom` on a live host), CE-3294's reload leaks, and CR-12 puts rendering in the RB |
+| **R4** | **film seconds are mapped to source seconds by the take's segments** (`FilmTimeMap`, baked anchors) — the plan names both; `everyKey` = each key once ON screen (cut: its time; fly: its end; dip: its in-half); neither = the keys naming a `Still` (the documentation take, CE-4060); a PNG is named by its key's `Still`, else `<nn>-film-<t>s`; default folder BESIDE the take (`takes/<take>.stills/`) | stills at source seconds — the agent thinks in the film it watches; a replayed stretch has two film seconds for one source second |
+| **R5** | **the RB's drafter index is synced on read** (`SyncTimelineSource()` in the `Index` func) | leaving it to the next `Update` — `GET /director/moments?recording=B` would answer recording A's moments |
+| **R6** | **MP4 on the RB is the existing `/director/play {capture}`** — no new route; `capture.dir` defaults beside a single take (`takes/<take>.render/`), `recording=` opens first, and on the RB an omitted `scenario` is the open recording's; a play while a stills job holds the runner is 409 | a `/director/render` route — the same runner call under a second name |
+
+**✅ As built `2026-10-27`** — the diagrams above are true. Files: `Hrot.Presentation/Map3D/Director/DirectorStills.cs` (new: `StillPlan`,
+`DirectorStills`, `ContactSheet`) · `DirectorPack.cs` (`Stills`, built once over the runner and the SAME sink; `Tick` = runner then stills) ·
+`DirectorRunner.cs` (`TakeOf(request)` — the take a play reads, the open one first) · `Hrot.Editor/DebugApi/DebugApiHost.Director.cs` (`OpenRecording`,
+`RecordingRefused`, `POST`/`GET /director/stills`, `recording=` on play / draft / moments, moments' `complete`, a single take's capture dir beside it, the
+RB's play defaulting to the open recording's scenario) · `DebugApiService.Master.cs` (`OpensRecordingFiles`) · `DebugApiRouteDocs.cs` (the two stills
+routes, the `recording` param on three) · `Hrot.ReplayBrowser/ReplayBrowserSubsystem.Director.cs` (R5: the drafter's index synced on read) ·
+`tools/ai-debug-mcp/tool-catalog.mjs` + `SKILL.md` (regenerated: `director_stills`, `director_stills_status` added; `director_play`, `director_draft`,
+`director_moments` gained `recording`).
+
+**Deviations:** ① R1 — the brief leaned to a pack seam (`IDirectorHost` capability / a `DirectorPackHost` func); built instead as ONE call into
+`EnterReplay` (the decision row says why: the seam would be the second opener). ② The editor's draft refusal message changed to the shared
+`RecordingRefused` (same 400). ③ `/director/play` on the RB takes the open recording's scenario when none is named (the editor still needs one) — found
+by the windowed rail. ④ `ContactSheet` draws its labels with raylib's default font, so it needs the window; it is reached only by a job that a
+headless host never starts.
+
+**Known edges:** a still of an ANCHORED key needs the anchor BAKED (the plan resolves through `Baked.Times`; an unbaked anchor is a named problem, not a
+guess) — CR-5's one resolver (P4) removes that; `GET /director/moments?recording=` right after the open answers `complete: false` and few moments while
+the recording's index is read in the background (ask again); the stills job holds the runner (the director's own Play is refused while it runs, and it
+refuses while the director plays); the rail's GL work must stay on the window's thread (an `await` hop broke the shader compile — the windowed rail
+drives its frames synchronously, `CallOnThisThread`).
+
+**Live run** *(`2026-10-27`, a windowed `-m replaybrowser` under Xvfb, `HROT_DEBUG_API_PORT`)* — the recording of a `ua-tank-ammo` verify run
+(3 607 frames, 67 s), the scenario's seeded `main` take beside it. One `POST /director/stills {recording: <node_1.fdp>, take: "main", times: [8.6, 9.6,
+17.4, 18.6, 22.0, 23.5], width: 960, height: 540}` opened the recording (nothing was open), took six stills and answered `done` with each still's
+`shownSim` EQUAL to its planned second, no problems; then `POST /director/play {recording, take, capture: {fps: 15, size: "640x360"}}` rendered the take
+beside it (`takes/main.render/ua-tank-ammo-main.mp4`: 640 × 360, 15 fps, 133 frames = the title card + 7.4 s of shots, 8.9 s; one step per captured frame, 213 s of wall time under Xvfb's software GL — paced by the take, never real time). ⚠ Its report says `beat-missing` (`s1`, `s2`) while the shots played at their BAKED times (`usedBake: true`): a replayed world is not observed for combat cues — exactly §11g's row and CR-5's one resolver (P4).
+
+![The contact sheet of ua-tank-ammo's main take, from the Replay Browser](img/film-p3-contact-sheet.jpg)
+
+*What it shows:* a 3 × 2 sheet, each cell labelled with its film and source second. **#1 (8.6 s)** over the shoulder of the Tank (dark blue), the enemy
+on the horizon; **#2 (9.6 s)** the same angle, the round's glow at the target; **#3 (17.4 s)** the follow on the Enemy Tank (red) before the second shot;
+**#4 (18.6 s)** the second round's blast engulfing it (orange); **#5 / #6 (22.0 / 23.5 s)** the wide follow on the Technical (the truck) the HE goes
+to. The take's caption is burned in as the subtitle on every cell. ⚠ The bodies are boxes (no TKB in the RB yet — P0, CE-4058), as §11g measured.
+
+**Rails** (each red-proved by a compiling mutation; the report lists mutation and message):
+`ReplayBrowserSubsystemTests.CE4059_P3_RecordingIsOpenedThroughTheReplayRoute_AndStillsArePlannedButRefused_OnAHeadlessBrowser` (headless: `recording=`
+by path opens the file — the control's path and frame count — and by exercise id opens a second one; the plan through the segments 0.5 / 3.0 / 4.5 →
+1.25 / 2.5 / 4.0 and everyKey's 0 / 4; the sheet grid 2 × 2; stills and the MP4 refused with their reasons) ·
+`ReplayBrowserSubsystemTests.CE4059_P3_StillsAndTheContactSheet_AndAnMp4_FromARecording_InAWindowedReplayBrowser` (env-gated `HROT_FILM_WINDOW=1`,
+Xvfb: three 320 × 180 PNGs beside the take, each `shownSim` within one step of its source second, the sheet 658 × 422, the MP4 beside the take with
+15 + 55 frames) · `DirectorDraftRoutesTests.CE4059_P3_OnTheEditor_RecordingIsRefused_OnEveryDirectorRoute_AndStillsNeedASourceThatSeeks`.
