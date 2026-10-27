@@ -1659,7 +1659,7 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 the reel format, capture and the sound track. *Grown:* `Take`, `AnchorSpec`, `AnchorBook`, `TakeTimeline`, `TakeStore`, `IDirectorHost`,
 `DirectorWindow` (into the timeline panel). *New:* `ReplayDirectorHost`, `FilmGraphicsLayer`, the key/segment/subtitle/view/graphic records.
 
-### 11j. P1 detail — one director, the move *(ui, `2026-10-27`, CE-1303; build-state: READY-TO-BUILD)*
+### 11j. P1 detail — one director, the move *(ui, `2026-10-27`, CE-1303; build-state: ✅ BUILT `2026-10-27` — as built below)*
 
 ⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) P1 +
 [NOTE_…_Verifier_Split_Landed](blueprints/batches/NOTE_Coordinator_To_Ui_Verifier_Split_Landed.md) (what moves / what stays). INVENTORY
@@ -1718,6 +1718,13 @@ graph TD
   classDef later stroke:#c33,stroke-dasharray:4 3,color:#c33
 ```
 *Caption:* one registrar, one Tick; the red edge is P2.
+
+**✅ As built `2026-10-27`.** Matches the diagrams, with these differences (the diagrams above stay true):
+- **Files.** Moved to `Hrot/Engine/Hrot.Presentation/Map3D/Director/`: `DirectorRunner.cs`, `RunExtension.cs`, `ScenarioReadyProbe.cs`, `DirectorTakeSession.cs`, `DirectorWindow.cs`. Split: `DirectorHost.cs` (the film interfaces `IDirectorHost` / `ICinema` / `ILayerOverride` / `IFrameSink` / `IDirectorSound` moved; `IVerifyHost` stays in the editor's file of that name) and `EditorDirector.cs` (the four adapters moved to `DirectorAdapters.cs`, renamed by Roslyn `WindowCinema` / `MapLayerOverride` / `AudioDirectorSound`; `EditorDirectorHost` stays). New: `DirectorPack.cs` (`DirectorPack`, `DirectorPackHost`), `DirectorWindowTab.cs` (`IDirectorWindowTab`, `IDirectorTabContext`); editor-side `Director/VerifyTab.cs`. `PilotCamera.FromMap(MapCamera, world, selected)` in `DirectorTracks.cs`. `EditorSubsystem` §8a is one `DirectorPack.Attach` (`_directorPack`).
+- **Deviation 1 — the window is registered by the host, through the pack.** The window manager does not exist when §8a runs, so `Attach` builds the window and the host's window-registration site calls `pack.RegisterWindow(wm)`; `DirectorPackHost.Wm` is a late-bound `Func<WindowManager?>`, as the cinema's was.
+- **Deviation 2 — the tab seam also words the tab's report rows.** `IDirectorWindowTab` has, besides `Name` and `Draw(context)`, default-null `ReportLine` / `ReportDetail` / `Again`: the window's status table showed a verify row's verdicts and its *Again* button, which are the tab's, not the window's. `DirectorPackHost` also carries `EventAt` (CR-6) and `TitleBarColor` (the window's colour was an editor type). `DirectorRunner.Extension` and `DirectorWindow.Tabs` are read-only accessors for the rails.
+- **Reachability** (the claim above) held: no project reference was added; `Hrot.Presentation` references no `Hrot.Editor*` assembly.
+- **Rails.** `CE1303_P1_TheDirectorAssembly_HasNoEditorDependency` (`Hrot.Presentation.Tests/Map3D/DirectorPackTests.cs`: no editor reference; every director type in the one namespace of the one assembly; a bare host with no extension and no tabs gets a runner that plays a reel to `Loading`); `CE1303_P1_TheEditor_AttachesTheDirectorThroughThePack_WithTheVerifyTab` (`Hrot.Editor.Tests/Director/DirectorTracksOnTheEditorTests.cs`). The existing director rails ran unchanged (usings only).
 
 | decision | why |
 |---|---|

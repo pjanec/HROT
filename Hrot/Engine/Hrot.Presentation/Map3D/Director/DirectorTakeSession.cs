@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.Panels.Timeline;
 using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
-using Hrot.UI.Common.Map3D.Director;
 
-namespace Hrot.Editor.Director
+namespace Hrot.UI.Common.Map3D.Director
 {
     /// <summary>
     /// ⭐ <c>CE-1364</c> T3 (docs/DESIGN_Director_Timeline_Editor.md §10, T-L2 / T-L3) — the take OPEN in the editor: ONE <see cref="TakeEditor"/> per open take,
@@ -14,7 +13,7 @@ namespace Hrot.Editor.Director
     /// (T-L2: no fifth kind), reached by the panel's Ctrl+Z / Ctrl+Y and by <see cref="UndoLast"/> / <see cref="RedoLast"/>.
     /// <para>The playback rate (<see cref="Speed"/>) lives here too: the window's slider and the tracks' J / L are one number, handed to the runner while it plays.</para>
     /// </summary>
-    internal sealed class DirectorTakeSession
+    public sealed class DirectorTakeSession
     {
         /// <summary>The rates J / L step through (the window's slider spans 0.25–2).</summary>
         public static readonly float[] Rates = { 0.25f, 0.5f, 0.75f, 1f, 1.5f, 2f };

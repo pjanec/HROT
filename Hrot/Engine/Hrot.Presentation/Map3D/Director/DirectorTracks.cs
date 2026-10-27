@@ -19,6 +19,25 @@ public static class PilotCamera
 {
     private const float Deg = 180f / MathF.PI;
 
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P1 (§11j; was <c>EditorSubsystem.PilotCameraSpec</c>) — the pilot camera of a 3-D map camera: its pose and lens and — when a NAMED unit
+    /// is <paramref name="selected"/> and alive in <paramref name="world"/> — a follow camera on it. Null when the map camera is not a 3-D one.
+    /// </summary>
+    public static CameraSpec? FromMap(Fdp.Toolkit.Vis2D.Components.MapCamera? camera, Fdp.Core.EntityRepository? world, Fdp.Core.Entity? selected)
+    {
+        if (camera is not MapCamera3D cam) return null;
+        var pose = new CameraPose(cam.LookAt, cam.Distance, cam.Yaw, cam.Pitch);
+        string? unit = null;
+        Vector3? at = null;
+        if (world != null && selected is { } e && !e.IsNull && world.IsAlive(e)
+            && world.HasComponent<Fdp.Core.EntityInfo>(e) && world.HasComponent<Fdp.Core.SimTransform>(e))
+        {
+            var name = world.GetComponentRO<Fdp.Core.EntityInfo>(e).Name.ToString();
+            if (name.Length > 0) { unit = name; at = world.GetComponentRO<Fdp.Core.SimTransform>(e).Position; }
+        }
+        return Of(pose, unit, at, fov: cam.FovyDegrees);   // CE-1364: K stores the map camera's lens
+    }
+
     public static CameraSpec Of(CameraPose pose, string? unit = null, Vector3? unitAt = null, float lift = 1.5f, float? fov = null)
     {
         if (unit is null || unitAt is not { } at)

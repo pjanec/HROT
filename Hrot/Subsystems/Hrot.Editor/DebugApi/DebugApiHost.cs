@@ -2029,7 +2029,7 @@ namespace Hrot.Editor.DebugApi
             //    grace fallback for a count that never moves) lives in ONE place since CE-4038 B4: ScenarioReadyProbe, which the film
             //    director's runner polls too. 📄 See DebugApiService.WorldEntityCount for the measurement that made it an edge.
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            var probe = new Hrot.Editor.Director.ScenarioReadyProbe(unloadFirst
+            var probe = new Hrot.UI.Common.Map3D.Director.ScenarioReadyProbe(unloadFirst
                 ? countBeforeLoad
                 : await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull()).ConfigureAwait(false));
 

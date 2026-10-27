@@ -338,17 +338,16 @@ namespace Hrot.Editor
         private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
 
         // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
-        private Hrot.Editor.Director.DirectorRunner? _director;
+        private Hrot.UI.Common.Map3D.Director.DirectorPack? _directorPack;
         /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
-        private Hrot.Editor.Director.DirectorTakeSession? _directorTakes;
-        internal Hrot.Editor.Director.DirectorTakeSession? DirectorTakesForTest => _directorTakes;
+        internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
+        internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
         internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
         /// <summary>CE-1364 — a rail puts a 3-D map camera in (a headless editor has none).</summary>
         internal void SetMapCameraForTest(MapCamera camera) => _camera = camera;
         // ⭐ CE-4042 (docs/DESIGN_Scenario_Regression.md §2a) — a --verify run's start and exit (null when the runner did not ask for one)
         private Hrot.Editor.Director.CommandLineVerify? _commandLineVerify;
         private Hrot.UI.Common.Map3D.Director.TakeStore? _takeStore;
-        private Hrot.Editor.Director.EditorLayerOverride? _directorLayers;
 
         /// <summary>⭐ <c>HN-017</c> — the offline id allocator, held so the preview bracket can restore it.</summary>
         private Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator? _idAllocator;
@@ -1225,25 +1224,6 @@ namespace Hrot.Editor
 
         // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _camera;
-
-        /// <summary>
-        /// ⭐ CE-1364 T3 (TE-2) — the pilot camera as a take key's camera: the 3-D map camera's pose, and — when a NAMED unit is selected on the map — a follow
-        /// camera on that unit from the same eye (<see cref="Hrot.UI.Common.Map3D.Director.PilotCamera"/>). Null when the map camera is not a 3-D one.
-        /// </summary>
-        private Hrot.UI.Common.Map3D.Director.CameraSpec? PilotCameraSpec()
-        {
-            if (_camera is not Fdp.Toolkit.Vis3D.MapCamera3D cam) return null;
-            var pose = new Fdp.Toolkit.Vis3D.CameraPose(cam.LookAt, cam.Distance, cam.Yaw, cam.Pitch);
-            string? unit = null;
-            System.Numerics.Vector3? at = null;
-            if (_world != null && Selected2DEntity is { } e && !e.IsNull && _world.IsAlive(e)
-                && _world.HasComponent<EntityInfo>(e) && _world.HasComponent<SimTransform>(e))
-            {
-                var name = _world.GetComponentRO<EntityInfo>(e).Name.ToString();
-                if (name.Length > 0) { unit = name; at = _world.GetComponentRO<SimTransform>(e).Position; }
-            }
-            return Hrot.UI.Common.Map3D.Director.PilotCamera.Of(pose, unit, at, fov: cam.FovyDegrees);   // CE-1364: K stores the map camera's lens
-        }
 
         /// <summary>
         /// ⭐ CR-6 (docs/DESIGN_Director_Timeline_Editor.md §11e) — K's anchor: the nearest combat event at or before <paramref name="sim"/> in the index the Event Timeline SHOWS
@@ -2517,26 +2497,22 @@ namespace Hrot.Editor
                     recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,
                     openRecording: path => new Hrot.Editor.Director.RecordedRun(path, scenarioSerializer,
                         hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null));
-                var cinema = new Hrot.Editor.Director.EditorCinema(() => _wm);
-                _directorLayers = new Hrot.Editor.Director.EditorLayerOverride(
-                    () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null);
-                Hrot.Editor.Director.DirectorRunner? runner = null;
-                runner = new Hrot.Editor.Director.DirectorRunner(directorHost, cinema, _directorLayers,
-                    _headless ? null : new Hrot.Editor.Director.FilmFrameSink(),
-                    new Hrot.Editor.Director.EditorDirectorSound(() => runner?.FilmSimTime ?? double.NaN),
-                    // ⭐ CE-4061 — the scenario verifier, plugged in through the runner's one seam. ⭐ CE-4042 — it reads and edits through the
-                    //   debug service this method builds below (8b): late-bound
-                    extension: new Hrot.Editor.Director.ScenarioVerifyRun(directorHost,
+                // ⭐ CE-1303 P1 (§11j) — the film director is ONE pack (Hrot.Presentation); the editor contributes its host, the verifier
+                //   (CE-4061: the runner's one extension seam — CE-4042: late-bound to the debug service 8b builds below) and the Verify tab
+                _directorPack = Hrot.UI.Common.Map3D.Director.DirectorPack.Attach(new Hrot.UI.Common.Map3D.Director.DirectorPackHost(
+                    Host:      directorHost,
+                    Wm:        () => _wm,
+                    Layers:    () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null,
+                    Headless:  _headless,
+                    Pilot:     () => Hrot.UI.Common.Map3D.Director.PilotCamera.FromMap(_camera, _world, Selected2DEntity),
+                    Timeline:  _eventTimeline,
+                    Extension: new Hrot.Editor.Director.ScenarioVerifyRun(directorHost,
                         units => new Hrot.Editor.Director.EditorVerifyWorld(() => _world, units,
                             hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
-                            () => _debugApiService)));
-                cinema.EscapePressed = () => runner.Stop();
-                _director = runner;
-                // ⭐ CE-1364 T3 — the open take: the Event Timeline shows ITS Camera / Time tracks, Ctrl+Z on the panel undoes an edit of them
-                _directorTakes = new Hrot.Editor.Director.DirectorTakeSession(() => _takeStore, () => _director, PilotCameraSpec, EventAnchorAt);
-                _eventTimeline.Tracks = () => _directorTakes.Tracks;
-                _eventTimeline.Undo = () => _directorTakes.UndoLast();
-                _eventTimeline.Redo = () => _directorTakes.RedoLast();
+                            () => _debugApiService)),
+                    WindowTabs: new Hrot.UI.Common.Map3D.Director.IDirectorWindowTab[] { new Hrot.Editor.Director.VerifyTab() },
+                    EventAt:   EventAnchorAt,
+                    TitleBarColor: Hrot.Editor.Windows.EditorWindowColor.TitleBar));
                 _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 
@@ -2653,7 +2629,7 @@ namespace Hrot.Editor
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
                     // ⭐ CE-4038 B5/B10 — /director/* and /map/layers reach the same runner and layer control the panel does
-                    _debugApiHost.AttachDirector(_director!, _takeStore!,
+                    _debugApiHost.AttachDirector(_directorPack!.Runner, _takeStore!,
                         () => _gizmoBuffer is { } b ? Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(b) : null);
                     _debugApiHost.Start();
                     // ⛔⛔ TWO TRAPS THIS LINE EXISTS TO DEFUSE, both measured 2026-09-20 and both
@@ -2936,10 +2912,10 @@ namespace Hrot.Editor
             // ⭐ CE-4038 (DESIGN_Film_Director §1a) — THE new edge: the director's frame, after the routes drained (a /director/play lands
             //   this frame) and before the map's update (its held shot and its capture are served there). ⭐⭐ At most ONE step per frame
             //   (§0, R-3038) — the runner asserts it.
-            _director?.Tick();
+            _directorPack?.Tick();
             // ⭐ CE-4042 — --verify: start the run once the editor is Idle; leave with the verdict when it is done
-            if (_director != null)
-                _commandLineVerify?.Tick(_director, _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
+            if (_directorPack != null)
+                _commandLineVerify?.Tick(_directorPack.Runner, _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.Idle, _requestAppExit);
 
             DrainStagingRemap();
 
@@ -5326,7 +5302,7 @@ namespace Hrot.Editor
             windowManager.RegisterWindow(new EditorBlueprintToolsWindow(DrawBlueprintToolsContent));
 
             // ⭐ CE-4038 B6 — View › Director: the same runner the /director/* routes drive
-            windowManager.RegisterWindow(new Hrot.Editor.Director.DirectorWindow(() => _director, () => _takeStore, _directorTakes!));
+            _directorPack!.RegisterWindow(windowManager);
 
             // ?? FDP framework panels (entity inspector + event browser) ???????
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites are now ONE shared bundle,

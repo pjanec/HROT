@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Hrot.Editor.Director;
+using Hrot.UI.Common.Map3D.Director;
 
 namespace Hrot.ClusterRunner;
 
