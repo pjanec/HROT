@@ -1563,7 +1563,7 @@ public sealed class DirectorRunnerTests : IDisposable
         var sink = new Sink();
         var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
         var stills = new DirectorStills(runner, sink, () => true);
-        var renders = new DirectorRenders(runner, stills, sink, () => true, () => store, () => "s-a") { OpenRecording = _ => null };
+        var renders = new DirectorRenders(runner, stills, sink, () => true, () => store, () => "s-a") { Recordings = new OpensAnyRecording() };
         var reading = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[]>(), new long[10], 10, 600);
         var read = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[]>(), new long[600], 600, 600);
         var index = reading;
@@ -1577,6 +1577,13 @@ public sealed class DirectorRunnerTests : IDisposable
         index = read;
         renders.Tick();
         Assert.NotEqual(RenderState.Opening, job.State);                  // read: it plans (and goes on)
+    }
+
+    /// <summary>CE-1391's one opener seam, faked: every open succeeds (this rail is about the index wait, not the open).</summary>
+    private sealed class OpensAnyRecording : Hrot.Presentation.DebugApi.IRecordingOpener
+    {
+        public string? Open(Hrot.Presentation.DebugApi.RecordingName recording, double atSeconds) { Shown = recording; return null; }
+        public Hrot.Presentation.DebugApi.RecordingName? Shown { get; private set; }
     }
 
     /// <summary>
