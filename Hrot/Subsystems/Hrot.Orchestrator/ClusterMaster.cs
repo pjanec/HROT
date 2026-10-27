@@ -1981,6 +1981,12 @@ public sealed partial class ClusterMaster : IDisposable
             }
             intent.TargetWallTicks = rel;
         }
+        // ⭐ CE-3333 — "the end" (long.MaxValue, what scripts send) or anything past it is the replay's LAST moment, resolved here where the
+        //   cluster's length is known. ⛔ Sent through as is, a node found the target past its own recording, took itself for a listener
+        //   (R-4012) and emptied its world: a seek to the end showed nothing.
+        long endTicks = (long)Math.Round(_replayDurationSeconds * TimeSpan.TicksPerSecond);
+        if (_replayDurationSeconds > 0 && intent.TargetWallTicks > endTicks) intent.TargetWallTicks = endTicks;
+
         // RT-008: fan-out with ACK tracker; immediate Success when roster is empty.
         // SlaveNodeSetUpdatedEvent and PauseTimeIntent are published by ReplaySeekProcessManager (TASK-T002).
         var seekNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
