@@ -40,6 +40,13 @@ namespace Hrot.UI.Common.Audio
 
         private static float[] NewVolumes() { var a = new float[Enum.GetValues<SoundCategory>().Length]; Array.Fill(a, 1f); return a; }
 
+        /// <summary>⭐ <c>CE-1305</c> TE-11 — the playback rate the scene is heard at (sim seconds per film second; 1 = real time, 0 = paused): the director's
+        /// (<see cref="AudioDirector.Rate"/>), set by the layer each frame.</summary>
+        public double Rate { get; set; } = 1d;
+
+        /// <summary>⭐ TE-11 — the gain factor of a sound of <paramref name="category"/> at <see cref="Rate"/> (<see cref="SoundAtRate.Gain"/>, the one rule).</summary>
+        public float RateGain(SoundCategory category) => SoundAtRate.Gain(category, Rate);
+
         /// <summary>Counters for the rails: started, dropped (budget / range), waiting for their delay.</summary>
         public int Started { get; private set; }
         public int Dropped { get; private set; }

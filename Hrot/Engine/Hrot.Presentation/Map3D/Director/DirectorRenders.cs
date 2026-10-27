@@ -81,6 +81,8 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>The capture this job handed the runner (its identity on the runner — another play replaces it).</summary>
         internal CaptureOptions? Capture { get; set; }
         internal int Settle { get; set; }
+        /// <summary>⭐ CE-1305 — frames a stills job has waited for its recording's index.</summary>
+        internal int IndexWait { get; set; }
 
         public JsonObject ToJson() => new()
         {
@@ -126,6 +128,8 @@ namespace Hrot.UI.Common.Map3D.Director
         public const string StoppedByUser = "stopped by the director's Stop (or Esc) before it finished";
         /// <summary>Frames a job waits after its recording opened before it plays (the open's source settles into the host's frame).</summary>
         public const int OpenSettleFrames = 2;
+        /// <summary>⭐ <c>CE-1305</c> TE-10 — the most frames a stills job waits for its recording's index to be read (~10 min at 60 fps); then it plans with what is read.</summary>
+        public const int MaxIndexWaitFrames = 36_000;
         /// <summary>Ended jobs kept for <see cref="Jobs"/> (the oldest go first).</summary>
         public const int MaxEnded = 200;
 
@@ -300,6 +304,9 @@ namespace Hrot.UI.Common.Map3D.Director
             if (job.State == RenderState.Opening)
             {
                 if (--job.Settle > 0) return;
+                // ⭐ CE-1305 TE-10 (§11v S2) — a stills job plans its keys through the recording's INDEX (the one resolver): wait until it is read
+                //   (it is scanned in the background after the open), at most MaxIndexWaitFrames
+                if (job.Request.Kind == RenderKind.Stills && _runner.Index?.Invoke() is { IsComplete: false } && ++job.IndexWait < MaxIndexWaitFrames) { job.Settle = 1; return; }
                 Launch(job);
                 return;
             }

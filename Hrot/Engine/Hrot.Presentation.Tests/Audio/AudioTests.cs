@@ -252,6 +252,61 @@ public sealed class AudioTests
         }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> TE-11 (docs/DESIGN_Director_Timeline_Editor.md §11v A1 / A2, success condition 1 — the live half): the layer hears the scene at the
+    /// director's rate (<see cref="AudioDirector.Rate"/>, which the runner sets each playing frame): at 0.5× the wind bed plays on (everything sounds up to 2×);
+    /// at 4× it stops and only an explosion is let through, ducked (<see cref="SoundMixer.RateGain"/> = the ONE rule); paused (0) is silent; no director (null)
+    /// is 1×; while a film is CAPTURED the mixer stays at 1× (the offline track applies the rule per pass). 🔴 Mutation: <c>AudioLayer.Update</c> not copying
+    /// <c>AudioDirector.Rate</c> into the mixer ⇒ the wind still loops at 4× ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_TE11_TheLiveMixer_HearsTheDirectorsRate_OnlyBlastsPast2x_SilentPaused()
+    {
+        var (world, tkb) = World();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var layer = new AudioLayer(() => world, () => tkb, () => me, () => North, () => new NullAudioOutput());
+        try
+        {
+            layer.Update(0.016f);
+            var output = (NullAudioOutput)layer.Output!;
+            bool WindHeard() => output.Looping.Any(v => v.Clip == SoundTkbCatalog.Wind && v.Gain > 1e-4f);
+            Assert.True(WindHeard());
+
+            AudioDirector.Rate = 0.5d;
+            layer.Update(0.016f);
+            Assert.Equal(0.5d, layer.Mixer.Rate);
+            Assert.True(WindHeard());              // slow motion: everything sounds
+            Assert.Equal(1f, layer.Mixer.RateGain(SoundCategory.Weapons));
+
+            AudioDirector.Rate = 4d;
+            layer.Update(0.016f);
+            Assert.Equal(4d, layer.Mixer.Rate);
+            Assert.False(WindHeard());        // past 2×: the bed stops
+            Assert.Equal(0f, layer.Mixer.RateGain(SoundCategory.Weapons));
+            Assert.Equal(SoundAtRate.Ducked, layer.Mixer.RateGain(SoundCategory.Explosions));  // …a blast is heard, ducked
+
+            AudioDirector.Rate = 0d;
+            layer.Update(0.016f);
+            Assert.Equal(0f, layer.Mixer.RateGain(SoundCategory.Explosions));                  // paused: silent
+            Assert.False(WindHeard());
+
+            AudioDirector.Rate = null;
+            layer.Update(0.016f);
+            Assert.Equal(1d, layer.Mixer.Rate);                                                 // no director: real time
+            Assert.True(WindHeard());
+
+            AudioDirector.Rate = 4d;
+            AudioDirector.Recorder = new SoundTrack(() => 0d);
+            layer.Update(0.016f);
+            Assert.Equal(1d, layer.Mixer.Rate);                                                 // a capture logs at the natural level
+        }
+        finally
+        {
+            AudioDirector.Rate = null;
+            AudioDirector.Recorder = null;
+        }
+    }
+
     [Fact]
     public void CE1120_AShotIsHeardAfterItsSoundTravels_FromItsSide_HisOwnAtOnce()
     {

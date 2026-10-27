@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.UI.Common.Audio
 {
@@ -19,6 +20,10 @@ namespace Hrot.UI.Common.Audio
         /// <summary>The film's cue log while capturing; null otherwise.</summary>
         public static SoundTrack? Recorder { get; set; }
 
+        /// <summary>⭐ <c>CE-1305</c> TE-11 — the director's playback rate now (sim seconds per film second; 0 paused); null = no director plays (heard at 1×).
+        /// The runner sets it each playing frame (<see cref="Map3D.Director.IDirectorSound.SetRate"/>); the layer hands it to the mixer.</summary>
+        public static double? Rate { get; set; }
+
         /// <summary>Whether the camera listens: the take's switch, else the user's.</summary>
         public static bool CameraSound => TakeSound ?? AudioPreferences.CameraSound;
     }
@@ -33,7 +38,7 @@ namespace Hrot.UI.Common.Audio
     {
         public const int SampleRate = 48000;
 
-        public sealed record Cue(double SimTime, long Clip, float Gain, float Pan, float Pitch, bool Loop, int Voice)
+        public sealed record Cue(double SimTime, long Clip, float Gain, float Pan, float Pitch, bool Loop, int Voice, SoundCategory? Category = null)
         {
             public double? StoppedAt { get; set; }
         }
@@ -47,13 +52,17 @@ namespace Hrot.UI.Common.Audio
         public SoundTrack(Func<double> simTime) => _simTime = simTime ?? throw new ArgumentNullException(nameof(simTime));
 
         public IReadOnlyList<Cue> Cues => _cues;
+
+        /// <summary>⭐ <c>CE-1305</c> TE-11 — a clip's category (the layer sets it from the TKB): the offline track applies <see cref="SoundAtRate"/> per pass, so it
+        /// must know an explosion from a shot. Null, or a null answer: unknown (not an explosion).</summary>
+        public Func<long, SoundCategory?>? CategoryOf { get; set; }
         public bool HasClip(long clip) => _clips.ContainsKey(clip);
 
         public void Keep(long clip, short[] samples, int rate) { if (samples.Length > 0) _clips[clip] = (samples, rate); }
 
         public void Started(long clip, float gain, float pan, float pitch, bool loop, int voice)
         {
-            var cue = new Cue(_simTime(), clip, gain, pan, pitch, loop, voice);
+            var cue = new Cue(_simTime(), clip, gain, pan, pitch, loop, voice, CategoryOf?.Invoke(clip));
             _cues.Add(cue);
             if (loop && voice >= 0) _loops[voice] = cue;
         }
@@ -66,6 +75,9 @@ namespace Hrot.UI.Common.Audio
         /// <summary>
         /// The WAV of the film: <paramref name="frameSimTimes"/>[i] is the sim time film frame i shows (NaN: a card). A sound is placed at the
         /// film time its sim time falls at; one in a gap the film skips is left out. False when there is nothing to hear.
+        /// ⭐ <c>CE-1305</c> TE-11 (§11v A1) — at ANY rate a sound keeps its natural pitch and length (never resampled by the rate); the film's rate at each frame
+        /// (<see cref="RateAt"/>) rules it through <see cref="SoundAtRate"/>: a one-shot by the rate where it starts, a loop frame by frame (silent while held,
+        /// on a card, or past 2×).
         /// </summary>
         public bool RenderWav(string path, IReadOnlyList<double> frameSimTimes, int fps)
         {
@@ -74,7 +86,7 @@ namespace Hrot.UI.Common.Audio
             int length = (int)((long)frames * SampleRate / fps) + SampleRate / fps;
             var left = new float[length];
             var right = new float[length];
-            double frameSim = 1d / fps;
+            var gain = new float[frames];
             int placed = 0;
             foreach (var cue in _cues)
             {
@@ -82,8 +94,11 @@ namespace Hrot.UI.Common.Audio
                 // ⭐ CE-1369 — a cue is logged ONCE (when the mixer starts it) but a source time can be filmed more than once
                 //   (an instant replay is a segment that goes back): it sounds in EVERY pass that shows its sim time.
                 double[]? stops = cue.Loop && cue.StoppedAt is { } s ? FilmTimes(frameSimTimes, s, fps).ToArray() : null;
+                for (int i = 0; i < frames; i++) gain[i] = SoundAtRate.Gain(cue.Category, RateAt(frameSimTimes, i, fps));
                 foreach (double start in FilmTimes(frameSimTimes, cue.SimTime, fps))
                 {
+                    int startFrame = Math.Clamp((int)(start * fps + 1e-9), 0, frames - 1);
+                    if (!cue.Loop && gain[startFrame] <= 0f) continue;   // ⭐ TE-11 — a one-shot started past 2× (not a blast) is not heard
                     double? end = null;
                     if (cue.Loop)
                     {
@@ -91,7 +106,7 @@ namespace Hrot.UI.Common.Audio
                         end = (double)frames / fps;
                         if (stops != null) foreach (double e in stops) if (e > start) { end = e; break; }
                     }
-                    Mix(left, right, clip.Samples, clip.Rate, cue, start, end);
+                    Mix(left, right, clip.Samples, clip.Rate, cue, start, end, gain, fps, cue.Loop ? -1f : gain[startFrame]);
                     placed++;
                 }
             }
@@ -99,6 +114,17 @@ namespace Hrot.UI.Common.Audio
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             WriteWav(path, left, right);
             return true;
+        }
+
+        /// <summary>⭐ <c>CE-1305</c> TE-11 — the film's rate at frame <paramref name="i"/>: sim seconds per film second to the next frame (the last frame: the one
+        /// before it); 0 on a card (NaN) and on a held frame.</summary>
+        internal static double RateAt(IReadOnlyList<double> frameSimTimes, int i, int fps)
+        {
+            int n = frameSimTimes.Count;
+            if (n < 2 || fps <= 0) return 1d;
+            if (i >= n - 1) i = n - 2;
+            double a = frameSimTimes[i], b = frameSimTimes[i + 1];
+            return double.IsNaN(a) || double.IsNaN(b) || b < a ? 0d : (b - a) * fps;
         }
 
         /// <summary>The FIRST film time (s) of a sim time (see <see cref="FilmTimes"/>); null in a gap or on a card.</summary>
@@ -126,12 +152,13 @@ namespace Hrot.UI.Common.Audio
             }
         }
 
-        private static void Mix(float[] left, float[] right, short[] samples, int rate, Cue cue, double start, double? end)
+        /// <param name="frameGain">⭐ TE-11 — a loop's factor per film frame (<see cref="SoundAtRate"/>); <paramref name="once"/> ≥ 0: a one-shot's factor, fixed where it starts.</param>
+        private static void Mix(float[] left, float[] right, short[] samples, int rate, Cue cue, double start, double? end, float[] frameGain, int fps, float once)
         {
             // pan −1 … 1 (left … right), as the mixer hands it to the device; equal-power
             float p = 0.5f + 0.5f * Math.Clamp(cue.Pan, -1f, 1f);
             float gl = cue.Gain * MathF.Cos(p * MathF.PI / 2f), gr = cue.Gain * MathF.Sin(p * MathF.PI / 2f);
-            double step = rate * Math.Clamp(cue.Pitch, 0.25f, 4f) / SampleRate;
+            double step = rate * Math.Clamp(cue.Pitch, 0.25f, 4f) / SampleRate;   // ⛔ never × the film's rate (TE-11: natural pitch)
             int at = (int)(start * SampleRate);
             int stop = end is { } e ? Math.Min(left.Length, (int)(e * SampleRate)) : left.Length;
             double src = 0d;
@@ -144,7 +171,8 @@ namespace Hrot.UI.Common.Audio
                     src -= samples.Length;
                     k = (int)src;
                 }
-                float v = samples[k] / 32768f;
+                float f = once >= 0f ? once : frameGain[Math.Min(frameGain.Length - 1, (int)((long)i * fps / SampleRate))];
+                float v = samples[k] / 32768f * f;
                 left[i] += v * gl;
                 right[i] += v * gr;
                 src += step;

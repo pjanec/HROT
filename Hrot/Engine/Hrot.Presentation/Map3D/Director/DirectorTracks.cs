@@ -71,6 +71,7 @@ public sealed class DirectorTracks
     private readonly Action<int>? _stepRate;
     private readonly Func<double, EventAnchor?>? _eventAt;
     private readonly Func<FilmSegment?>? _segmentNow;
+    private readonly Func<EventAnchor, ShotTemplate, double, CameraSpec?>? _template;
     private string? _selected;
 
     /// <summary>⭐ <c>CE-4059</c> / CR-7 (§11q K2) — a key scoped to a segment is drawn in this colour (ABGR) and its label names the segment.</summary>
@@ -82,9 +83,12 @@ public sealed class DirectorTracks
     /// precedes it — K then stores the key as that event + an offset; null function = this host has no index (K stores a fixed time).</param>
     /// <param name="segmentNow">⭐ <c>CE-4059</c> / CR-7 (§11q K3) — the segment on screen while the runner plays THIS take (<see cref="DirectorRunner.SegmentOf"/>); during a
     /// replay (<see cref="FilmSegment.Back"/>) K and <i>update key from view</i> scope the new key to it. Null = this host never plays segments.</param>
+    /// <param name="template">⭐ <c>CE-1305</c> (§11v T2) — a shot template's camera for a key at a sim second hung on an event (<see cref="DirectorDrafts.TemplateCamera"/>:
+    /// the drafter's rule); null = this host has no drafter (no templates offered).</param>
     public DirectorTracks(TakeEditor editor, Func<CameraSpec?> pilot, Action<int>? stepRate = null, Func<double, EventAnchor?>? eventAt = null,
-                          Func<FilmSegment?>? segmentNow = null)
+                          Func<FilmSegment?>? segmentNow = null, Func<EventAnchor, ShotTemplate, double, CameraSpec?>? template = null)
     {
+        _template = template;
         _eventAt = eventAt;
         _segmentNow = segmentNow;
         _editor = editor ?? throw new ArgumentNullException(nameof(editor));
@@ -152,25 +156,24 @@ public sealed class DirectorTracks
             {
                 case 'K':
                     if (_d._pilot() is not { } camera) return false;
-                    int count = CameraKeys.Of(_d._editor.Take).Count;
                     double sim = Math.Max(atSimSeconds, 0d);
-                    var anchor = _d._eventAt?.Invoke(sim);
-                    var at = new AtExpr(sim);
-                    if (anchor != null)   // ⭐ CR-6: the nearest preceding event + the sim seconds since it (against the take's baked time for it, so the key lands on the playhead)
-                    {
-                        double basis = _d._editor.Take.Baked is { } baked && baked.Times.TryGetValue(anchor.Name, out var t) ? t : anchor.EventSim;
-                        at = new AtExpr(Math.Round(sim - basis, 3), anchor.Name);
-                    }
-                    // ⭐ CR-7 (§11q K3) — K during a replay pass: the key belongs to that replay (at its real source time), never to the main pass
-                    if (!_d._editor.Apply(new TakeEdit.AddKey(new CameraKey { At = at, Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut }, anchor, _d.ReplayOnScreen())))
-                        return false;
-                    _d._selected = KeyId(count);
-                    return true;
+                    return _d.AddKeyAt(sim, camera, _d._eventAt?.Invoke(sim));
                 case 'U': return _d.UpdateKeyFromView(atSimSeconds);   // ⭐ CE-1303 P2b (§11o S11)
                 case 'J': if (_d._stepRate == null) return false; _d._stepRate(-1); return true;
                 case 'L': if (_d._stepRate == null) return false; _d._stepRate(+1); return true;
                 default: return false;
             }
+        }
+
+        /// <summary>⭐ <c>CE-1305</c> (§11v T2) — empty Camera track space: <i>"Add key: &lt;template&gt;"</i> for each shot template, at the sim second the click landed,
+        /// disabled where there is no event before it to frame.</summary>
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId, double atSimSeconds)
+        {
+            if (itemId != null || _d._template == null) return MenuItems(itemId);
+            double sim = Math.Max(atSimSeconds, 0d);
+            var anchor = _d._eventAt?.Invoke(sim);
+            return Drafter.Templates.Select(t => new TimelineMenuItem(TemplateMenuPrefix + Drafter.LabelOf(t), () => _d.AddTemplateKey(t, sim),
+                                                                      anchor != null && _d._template(anchor, t, sim) != null)).ToList();
         }
 
         public IEnumerable<TimelineMenuItem> MenuItems(string? itemId)
@@ -190,6 +193,7 @@ public sealed class DirectorTracks
         private static int? IndexOf(string id, string prefix) =>
             id.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(id.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var i) ? i : null;
         private static string KeyId(int i) => "key:" + i.ToString(CultureInfo.InvariantCulture);
+        internal static string KeyIdOf(int i) => KeyId(i);
 
         private static string Describe(CameraKey k)
         {
@@ -207,6 +211,43 @@ public sealed class DirectorTracks
             if (EventAnchors.Label(k.At) is { } anchor) text += " @ " + anchor;   // ⭐ CR-6: the key shows what it is tied to
             return k.Segment is { } seg ? text + " | segment " + seg : text;    // ⭐ CR-7 (§11q K2): and the one segment it plays in
         }
+    }
+
+    /// <summary>The Camera track's empty-space menu prefix for a shot template.</summary>
+    public const string TemplateMenuPrefix = "Add key: ";
+
+    /// <summary>
+    /// ⭐ <c>CE-1305</c> (§11v T2) — a cut key at <paramref name="atSim"/> with <paramref name="template"/>'s camera, framed on the event K would hang the key on (the
+    /// nearest preceding index event): the drafter's rule, hung on that event the way K hangs one (CR-6) — ONE undo step. False (nothing added) when this host has
+    /// no drafter, no event precedes the second, or the drafter cannot frame it.
+    /// </summary>
+    public bool AddTemplateKey(ShotTemplate template, double atSim)
+    {
+        double sim = Math.Max(atSim, 0d);
+        if (_template == null || _eventAt?.Invoke(sim) is not { } anchor || _template(anchor, template, sim) is not { } camera) return false;
+        return AddKeyAt(sim, camera, anchor);
+    }
+
+    /// <summary>Whether a template key can be added at <paramref name="atSim"/> (an event precedes it that the drafter frames).</summary>
+    public bool CanAddTemplateKey(ShotTemplate template, double atSim)
+        => _template != null && _eventAt?.Invoke(Math.Max(atSim, 0d)) is { } a && _template(a, template, Math.Max(atSim, 0d)) != null;
+
+    /// <summary>K's add, shared with the templates: a cut key with <paramref name="camera"/> at <paramref name="sim"/>, hung on <paramref name="anchor"/> when there is one
+    /// (CR-6), scoped to the replay on screen (CR-7), selected; one undo step.</summary>
+    private bool AddKeyAt(double sim, CameraSpec camera, EventAnchor? anchor)
+    {
+        int count = CameraKeys.Of(_editor.Take).Count;
+        var at = new AtExpr(sim);
+        if (anchor != null)   // ⭐ CR-6: the nearest preceding event + the sim seconds since it (against the take's baked time for it, so the key lands on the playhead)
+        {
+            double basis = _editor.Take.Baked is { } baked && baked.Times.TryGetValue(anchor.Name, out var t) ? t : anchor.EventSim;
+            at = new AtExpr(Math.Round(sim - basis, 3), anchor.Name);
+        }
+        // ⭐ CR-7 (§11q K3) — a key added during a replay pass belongs to that replay (at its real source time), never to the main pass
+        if (!_editor.Apply(new TakeEdit.AddKey(new CameraKey { At = at, Camera = camera, Fov = camera.Fov, In = KeyTransition.Cut }, anchor, ReplayOnScreen())))
+            return false;
+        _selected = CameraTrack.KeyIdOf(count);
+        return true;
     }
 
     /// <summary>⭐ <c>CE-1303</c> P2b (§11o S11) — "update key from view": the SELECTED camera key — else the key on screen at <paramref name="playheadSim"/>

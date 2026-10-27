@@ -160,13 +160,18 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             AudioDirector.Recorder = null;
             AudioDirector.TakeSound = null;
+            AudioDirector.Rate = null;
         }
+
+        /// <summary>⭐ <c>CE-1305</c> TE-11 — the live mixer hears the scene at the film's rate (<see cref="AudioDirector.Rate"/>).</summary>
+        public void SetRate(double rate) => AudioDirector.Rate = rate;
 
         public bool EndLog(string wavPath, IReadOnlyList<double> frameSimTimes, int fps)
         {
             var track = AudioDirector.Recorder;
             AudioDirector.Recorder = null;
             AudioDirector.TakeSound = null;
+            AudioDirector.Rate = null;
             return track != null && track.RenderWav(wavPath, frameSimTimes, fps);
         }
     }

@@ -113,6 +113,19 @@ public sealed class DirectorDrafts
     }
 
     /// <summary>
+    /// ⭐ <c>CE-1305</c> (docs/DESIGN_Director_Timeline_Editor.md §11v T2) — the camera of <paramref name="template"/> for a key at <paramref name="keySim"/> hung on
+    /// <paramref name="anchor"/> (the event K would hang it on — <see cref="EventAnchor.Lane"/> / <see cref="EventAnchor.EventIndex"/>): the drafter's rule
+    /// (<see cref="Drafter.TemplateCamera"/>) on that event's moment, with the names and kinds of the host's world. Null when there is no index or the event is
+    /// not a moment the drafter can frame. ⛔ No framing here — only the lookups (as <see cref="Draft"/>).
+    /// </summary>
+    public CameraSpec? TemplateCamera(EventAnchor anchor, ShotTemplate template, double keySim)
+    {
+        if (anchor?.Lane is not { } lane || _index() is not { } index) return null;
+        if (Drafter.MomentAt(index, lane, anchor.EventIndex, _nameOf) is not { } moment) return null;
+        return Drafter.TemplateCamera(index, moment, _nameOf, new DraftOptions { Scenario = _scenario() ?? "", Kind = _kindOf }, template, keySim);
+    }
+
+    /// <summary>
     /// ⭐ The event menu's items for the event the person right-clicked in the panel's <paramref name="index"/> (<see cref="Fdp.Presentation.Panels.Timeline.TimelinePanel.EventMenu"/>):
     /// <i>"Draft a shot sequence here"</i> on an event of a draftable lane (disabled when the drafter cannot name it); nothing on any other.
     /// </summary>

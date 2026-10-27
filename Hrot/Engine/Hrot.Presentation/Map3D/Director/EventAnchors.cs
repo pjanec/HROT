@@ -9,9 +9,10 @@ namespace Hrot.UI.Common.Map3D.Director;
 /// ⭐ <c>CR-6</c> (docs/DESIGN_Director_Timeline_Editor.md §11e, "CR-6 detail") — an index EVENT as a take anchor: the <see cref="Name"/> a key's
 /// <see cref="AtExpr"/> names (<c>"shot:Tank#2"</c>), the <see cref="AnchorSpec"/> the take's own <see cref="AnchorBook"/> resolves live
 /// (<c>{on: shot, by: Tank, n: 2}</c>), and the sim time the event has in the index the key was made against (<see cref="EventSim"/> — what the
-/// take bakes for the name).
+/// take bakes for the name). ⭐ <c>CE-1305</c> (§11v T2) — and WHICH event it is (<see cref="Lane"/>, <see cref="EventIndex"/>): a shot template frames the moment of
+/// the very event K hangs its key on (<see cref="Drafter.MomentAt"/>).
 /// </summary>
-public sealed record EventAnchor(string Name, AnchorSpec Spec, double EventSim);
+public sealed record EventAnchor(string Name, AnchorSpec Spec, double EventSim, string? Lane = null, int EventIndex = -1);
 
 /// <summary>
 /// ⭐ <c>CR-6</c> — finds the event a new key should hang on: the NEAREST event at or before the playhead, in the lanes the take's anchors can
@@ -94,7 +95,7 @@ public static class EventAnchors
         if (Express(lane, events, eventIndex, unitName, index.Has("combat.blast") ? index.Lane("combat.blast") : null) is not { } spec) return null;
         int frame = events[eventIndex].Frame;
         if (frame < 0 || frame >= index.FrameSim.Count || double.IsNaN(index.FrameSim[frame])) return null;
-        return new EventAnchor(spec.Name, spec.Spec, index.FrameSim[frame]);
+        return new EventAnchor(spec.Name, spec.Spec, index.FrameSim[frame], lane, eventIndex);
     }
 
     private static (string Name, AnchorSpec Spec)? Express(string lane, IReadOnlyList<TimelineEvent> events, int i, Func<long, string?> unitName,

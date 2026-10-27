@@ -293,6 +293,90 @@ public sealed class DrafterTests
         Assert.Equal(4, take.Keys.Count);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> (docs/DESIGN_Director_Timeline_Editor.md §11v T1, success condition 2): each shot template IS the drafter's own camera for that beat — a
+    /// template key at a drafted key's time equals that key's camera (establish, over the shoulder, the moment, the consequence, the replay's reverse angle),
+    /// computed by the drafter's rule (<see cref="Drafter.TemplateCamera"/> vs <see cref="Drafter.Draft"/>, not a copy here); follow and top-down are framed on the
+    /// same line (the moment's yaw), follow on the subject at the moment's height, top-down from −85°. 🔴 Mutation: <c>Drafter.HoldOf</c> answering 4 s for every
+    /// template ⇒ the moment's and the reverse angle's windows differ from the draft's ⇒ their framing distance differs ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_EachShotTemplate_IsTheDraftersOwnCamera_ForThatBeat()
+    {
+        var index = ShotThenHit();
+        var moment = TheShot(index);
+        var options = new DraftOptions { Scenario = "sc", Replay = true };
+        var take = Draft(index, options);
+        var beats = new[] { ShotTemplate.Establish, ShotTemplate.OverTheShoulder, ShotTemplate.Moment, ShotTemplate.Consequence, ShotTemplate.Reverse };
+        Assert.Equal(beats.Length, take.Keys.Count);
+        for (int i = 0; i < beats.Length; i++)
+        {
+            var key = take.Keys[i];
+            var template = Drafter.TemplateCamera(index, moment, NameOf, options, beats[i], Resolve(take, key.At)!.Value);
+            Assert.True(key.Camera == template, $"{beats[i]}: the draft's key {key.Camera} vs the template {template}");
+        }
+        Assert.Equal(new CameraSpec { Over = "Alpha", Toward = "Bravo", Fov = 45f }, take.Keys[1].Camera);   // the over-the-shoulder beat, as K would see it
+
+        var theMoment = take.Keys[2].Camera;
+        var follow = Drafter.TemplateCamera(index, moment, NameOf, options, ShotTemplate.Follow, 9.3);
+        Assert.Equal(("Bravo", theMoment.Yaw, theMoment.Pitch), (follow.Follow, follow.Yaw, follow.Pitch));
+        var top = Drafter.TemplateCamera(index, moment, NameOf, options, ShotTemplate.TopDown, 9.3);
+        Assert.Equal((theMoment.Yaw, -85f), (top.Yaw, top.Pitch));
+        Assert.NotNull(top.LookAt);
+        Assert.Equal(Enum.GetValues<ShotTemplate>().Length, Drafter.Templates.Select(Drafter.LabelOf).Distinct().Count());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> (§11v T2, success condition 2): on the Camera row's EMPTY space the right-click menu offers every template (<i>"Add key: …"</i>) — disabled
+    /// before the first event — and picking one adds ONE cut key at the clicked second, hung on the event K would hang it on (<c>shot:Alpha#1</c> + the offset), whose
+    /// camera is the drafter's for that event (<see cref="DirectorDrafts.TemplateCamera"/> → <see cref="Drafter.TemplateCamera"/>): ONE undo step takes it away again.
+    /// The Director window's button is the same call. 🔴 Mutation: <c>AddTemplateKey</c> adding the key with a fixed time (no anchor) ⇒ the anchor assertion is red.
+    /// </summary>
+    [Fact]
+    public void CE1305_AddKeyFromATemplate_HangsTheDraftersCameraOnTheEvent_InOneUndoStep()
+    {
+        string root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ce1305-tpl-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new TakeStore(() => root, () => null);
+            var index = ShotThenHit();
+            var session = new DirectorTakeSession(() => store, () => null, () => null, sim => EventAnchors.NearestBefore(index, sim, NameOf));
+            var drafts = new DirectorDrafts(() => index, NameOf, _ => SubjectKind.Unknown, () => "sc", session);
+            session.Templates = drafts.TemplateCamera;
+            Assert.Empty(session.OpenDraft(new Take { Scenario = "sc", Name = "t", Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { LookAt = Vector3.Zero, Distance = 10 } } } }));
+            var tracks = session.Director!;
+            var undo = session.UndoStack;
+            undo.Clear();
+
+            var early = tracks.Camera.MenuItems(null, 5d).ToList();                       // nothing before 5 s to frame
+            Assert.Equal(Drafter.Templates.Count, early.Count);
+            Assert.All(early, m => Assert.False(m.Enabled));
+            Assert.False(tracks.AddTemplateKey(ShotTemplate.OverTheShoulder, 5d));
+
+            var menu = tracks.Camera.MenuItems(null, 10.5).ToList();                       // after the shot (10 s), before the hit (10.8 s)
+            var item = menu.Single(m => m.Label == DirectorTracks.TemplateMenuPrefix + Drafter.LabelOf(ShotTemplate.Consequence));
+            Assert.True(item.Enabled);
+            item.Run();
+
+            var keys = session.Editor!.Take.Keys;
+            Assert.Equal(2, keys.Count);
+            Assert.Equal(new AtExpr(0.5, "shot:Alpha#1"), keys[1].At);                    // K's anchor: the shot at 10 s, + 0.5 s
+            Assert.Contains("shot:Alpha#1", session.Editor.Take.Anchors.Keys);
+            var expected = Drafter.TemplateCamera(index, TheShot(index), NameOf, new DraftOptions { Scenario = "sc", Kind = _ => SubjectKind.Unknown }, ShotTemplate.Consequence, 10.5);
+            Assert.Equal(expected, keys[1].Camera);
+            Assert.Equal(expected.Fov, keys[1].Fov);
+
+            Assert.Equal("Add camera key", undo.UndoDescription);                          // ONE step …
+            session.UndoLast();
+            Assert.Single(session.Editor.Take.Keys);
+            Assert.False(undo.CanUndo);                                                     // … and nothing else to undo
+
+            Assert.Null(DirectorWindow.AddTemplateKey(tracks, ShotTemplate.Moment, 10.5));   // the window's button: the same add
+            Assert.Equal(2, session.Editor.Take.Keys.Count);
+        }
+        finally { if (System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root, true); }
+    }
+
     private sealed class OffsetComparer : IEqualityComparer<double>
     {
         public bool Equals(double x, double y) => Math.Abs(x - y) < 1e-6;

@@ -2118,6 +2118,40 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1305</c> TE-10 (docs/DESIGN_Director_Timeline_Editor.md §11v S1, success condition 3): "still keys captured by Verify" — a VERIFY run's recording
+    /// (Alpha fires at 2.6 s and 3.6 s) and a take whose keys name STILLS, hung on Alpha's rounds, its bake made on ANOTHER run (2.0 / 3.0 s, another scenario
+    /// hash — as a promoted take carries): the stills plan places each still at THIS run's event (key 2 at 2.6 + 0.5 = 3.1 s, key 3 at 3.6 s) through the runner's
+    /// ONE resolver — not the stale bake — and names each PNG by its key's still. 🔴 Mutation: <c>DirectorStills.Prepare</c> planning without
+    /// <c>runner.AnchorTimesOf(take)</c> (the bake only) ⇒ the stills land at the other run's 2.5 s / 3.0 s ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1305_TE10_AVerifyRunsRecording_PlansItsStillKeys_AtItsOwnEvents_NotAnotherRunsBake()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string path = RecordFilmRun(Path.Combine(_tempDir, "te10", "exercises", Guid.NewGuid().ToString()), 6d, alphaFires: new[] { 2.6, 3.6 });
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        OpenAndIndex(path);
+        var pack = _subsystem.Director!;
+        var take = EventTake(new Hrot.UI.Common.Map3D.Director.BakedAnchors
+        {
+            Times = new Dictionary<string, double> { ["shot:Alpha#1"] = 2.0, ["shot:Alpha#2"] = 3.0 }, TickHz = 60, ScenarioHash = "another-run",
+        });
+        take = take with { Keys = take.Keys.Select((k, i) => k with { Still = $"{i + 1:D2}-still" }).ToArray() };
+        pack.Takes.Save(take);
+
+        var (prepared, code, error) = Hrot.UI.Common.Map3D.Director.DirectorStills.Prepare(
+            new Hrot.UI.Common.Map3D.Director.StillsRequest("s-film", "main"), pack.Runner, pack.Takes, null);
+
+        Assert.True(prepared != null, $"{code}: {error}");
+        Assert.Empty(prepared!.Problems);
+        Assert.Equal(new[] { "01-still", "02-still", "03-still" }, prepared.Plan.Select(p => p.Name).ToArray());
+        Assert.Equal(1.0, prepared.Plan[0].SourceTime, 3);
+        Assert.Equal(3.1, prepared.Plan[1].SourceTime, 3);   // THIS run's first round + 0.5 (the other run's bake said 2.5)
+        Assert.Equal(3.6, prepared.Plan[2].SourceTime, 3);   // THIS run's second round (the bake said 3.0)
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-4059</c> P3 (§11q D1, success condition 4 — the RB host rail): the Replay Browser's Event Timeline gets the director's EVENT menu from the pack (the
     /// browser wires nothing of its own); <i>"Draft a shot sequence here"</i> on a shot of the index the panel draws opens the drafter's take — the names from the
     /// RECORDING's world (Alpha → Bravo), a take of the scenario the recording names (<c>s-film</c>) — in the session, unsaved, and the next Play plays it.

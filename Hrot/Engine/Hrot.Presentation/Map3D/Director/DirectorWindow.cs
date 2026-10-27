@@ -219,6 +219,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (ImGui.Button("Update key from view") && !tracks.UpdateKeyFromView(_playhead?.Invoke() ?? 0d))
                 _message = "no key to update (select one, or put the playhead after one) or no 3-D pilot camera";
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("The selected camera key (else the key on screen at the playhead) takes the view you flew to. U on the timeline. Ctrl+Z undoes.");
+            DrawTemplates(tracks);
             ImGui.SameLine();
             bool pilot = FilmStudio.Pilot;
             ImGui.BeginDisabled(IsCapturing());
@@ -227,6 +228,30 @@ namespace Hrot.UI.Common.Map3D.Director
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("On: you fly the map camera while the take plays (the program keeps running). Off: the director's camera.");
             DrawSelected(editor!, tracks);
         }
+
+        private int _template;
+
+        /// <summary>⭐ <c>CE-1305</c> (§11v T2) — a shot template and <i>Add key from template</i> at the playhead (the Camera track's right-click menu offers the same):
+        /// the drafter's camera for the event before the playhead, one undo step.</summary>
+        private void DrawTemplates(DirectorTracks tracks)
+        {
+            ImGui.SameLine();
+            var labels = Drafter.Templates.Select(Drafter.LabelOf).ToArray();
+            ImGui.SetNextItemWidth(220f);
+            ImGui.Combo("##template", ref _template, labels, labels.Length);
+            ImGui.SameLine();
+            double at = _playhead?.Invoke() ?? 0d;
+            var template = Drafter.Templates[Math.Clamp(_template, 0, Drafter.Templates.Count - 1)];
+            ImGui.BeginDisabled(!tracks.CanAddTemplateKey(template, at));
+            if (ImGui.Button("Add key from template")) _message = AddTemplateKey(tracks, template, at);
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip("A camera key at the playhead framed by the drafter's rule on the event before it (a shot, hit or blast). Ctrl+Z undoes.");
+        }
+
+        /// <summary>The window's <i>Add key from template</i> (test seam): null when added, else why not.</summary>
+        internal static string? AddTemplateKey(DirectorTracks tracks, ShotTemplate template, double playhead)
+            => tracks.AddTemplateKey(template, playhead) ? null : "no shot, hit or blast before the playhead to frame (or this host has no timeline index)";
 
         /// <summary>⭐ CE-1304 P4 (§11s) — "Promote to scenario": the saved take copied into the scenario's own takes (a recording host only); a take of that
         /// name already there needs "replace" ticked.</summary>

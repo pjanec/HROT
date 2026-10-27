@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-27 (§11u — R4: the reel composer (ReelComposer over the ONE Reel record, drawn by the Director window; TakeStore.SaveReel; WriteReel keeps gapSeconds and notes) and the render queue (DirectorRenders in the pack: movies through the runner, stills through DirectorStills, one at a time, each job's recording opened at its turn through POST /replay's opener; POST/GET /director/renders, DELETE /director/renders/{id}) — BUILT; TE-16's per-item recording not built (CE-1391); a still's view switch now cuts (CE-1390)) · 2026-10-27 (§11t "CE-1380 / CE-1379 as built" — ONE film pass in both modes (MapCanvas.DrawScene over the ISceneLayers, the gizmo layer filmed through RenderContext.Film + FilmLayers), the scenario's tactical graphics and routes are scene rows, the gizmo layer after the 3-D terrain (CE-1384), a film's end / Stop gives the person's map mode back (V7); CE-1380's premise measured wrong in part — the window shows the same 2-D picture — CE-1381…CE-1383 filed) · 2026-10-27 (§11t — P6: the View track (views[]: 2-D / 3-D + a layer set from a time; a take's layers and shot layers READ as views — one path through the ONE ILayerOverride; the map through FilmStudio.TwoD, honoured and filmed by the capture layer on every map host) and the Graphics track (graphics[]: ring, arrow, route, area, label on units or points, fade; ONE layout + ONE painter for the screen pass and every captured frame; FilmOverlay through IFrameSink) — BUILT, live still docs/img/film-p6-graphics.jpg) · 2026-10-27 (§11s — P4: ONE anchor resolver (CR-5: event cues are queries on the run's index — live or the recording's — through EventAnchors' one naming switch; ShotLog / DetonationLog reads leave AnchorBook, the logs keep their other readers; on a recording the index leads over a bake), promote = a copy (POST /director/promote, the Director window's button; the bake kept iff made for the scenario file as it is), TE-1's reverse (a recording's store reads its scenario's own takes) — BUILT) · 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §11u R4 — THE REEL COMPOSER AND THE RENDER QUEUE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11t P6 — THE VIEW TRACK AND THE GRAPHICS TRACK (ui, 2026-10-27, BUILT; the as-built, the live still and "CE-1380 / CE-1379 as built" at its end) · ⭐ §11s P4 — ONE ANCHOR RESOLVER, PROMOTE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11v — R3's rest: audio at any rate (ONE rule SoundAtRate for the live mixer and the offline track — never resampled, past 2× only explosions ducked, paused silent; the runner hands the rate each playing frame), shot templates (the drafter's own beats + follow / top-down through ONE TemplateShot; the Camera row's menu and the Director window, hung on K's event), still keys captured by Verify (= a verify recording's stills through the render queue; the plan resolves keys through the runner's ONE resolver, a stills job waits for the index) — BUILT; CE-1400, CE-1401 filed) · 2026-10-27 (§11u — R4: the reel composer (ReelComposer over the ONE Reel record, drawn by the Director window; TakeStore.SaveReel; WriteReel keeps gapSeconds and notes) and the render queue (DirectorRenders in the pack: movies through the runner, stills through DirectorStills, one at a time, each job's recording opened at its turn through POST /replay's opener; POST/GET /director/renders, DELETE /director/renders/{id}) — BUILT; TE-16's per-item recording not built (CE-1391); a still's view switch now cuts (CE-1390)) · 2026-10-27 (§11t "CE-1380 / CE-1379 as built" — ONE film pass in both modes (MapCanvas.DrawScene over the ISceneLayers, the gizmo layer filmed through RenderContext.Film + FilmLayers), the scenario's tactical graphics and routes are scene rows, the gizmo layer after the 3-D terrain (CE-1384), a film's end / Stop gives the person's map mode back (V7); CE-1380's premise measured wrong in part — the window shows the same 2-D picture — CE-1381…CE-1383 filed) · 2026-10-27 (§11t — P6: the View track (views[]: 2-D / 3-D + a layer set from a time; a take's layers and shot layers READ as views — one path through the ONE ILayerOverride; the map through FilmStudio.TwoD, honoured and filmed by the capture layer on every map host) and the Graphics track (graphics[]: ring, arrow, route, area, label on units or points, fade; ONE layout + ONE painter for the screen pass and every captured frame; FilmOverlay through IFrameSink) — BUILT, live still docs/img/film-p6-graphics.jpg) · 2026-10-27 (§11s — P4: ONE anchor resolver (CR-5: event cues are queries on the run's index — live or the recording's — through EventAnchors' one naming switch; ShotLog / DetonationLog reads leave AnchorBook, the logs keep their other readers; on a recording the index leads over a bake), promote = a copy (POST /director/promote, the Director window's button; the bake kept iff made for the scenario file as it is), TE-1's reverse (a recording's store reads its scenario's own takes) — BUILT) · 2026-10-27 (§11r — recording= on the director routes (opened through POST /replay's own EnterReplay; refused on the editor), POST /director/stills (a still = play-from held one frame through the film's own sink; a labelled contact sheet; refused on a host that cannot seek or has no renderer; plan:true anywhere), the MP4 rendered in the RB by the existing capture — BUILT, live-checked on a ua-tank-ammo recording) · 2026-10-27 (§11q — a key belongs to a SEGMENT (CR-7: the camera of the segment on screen, K / U scope to a replay, the drafter's reverse angle a key of its replay) + the drafter wired (P3: "Draft a shot sequence here" on an event of either host, the draft opened unsaved in the take session, the unit's kind from the world, GET /director/moments + POST /director/draft on the editor) — BUILT) · 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11v R3 REST — AUDIO AT ANY RATE, SHOT TEMPLATES, VERIFY STILLS (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11u R4 — THE REEL COMPOSER AND THE RENDER QUEUE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11t P6 — THE VIEW TRACK AND THE GRAPHICS TRACK (ui, 2026-10-27, BUILT; the as-built, the live still and "CE-1380 / CE-1379 as built" at its end) · ⭐ §11s P4 — ONE ANCHOR RESOLVER, PROMOTE (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11r P3 — recording=, STILLS, RENDER IN THE RB (ui, 2026-10-27, BUILT; the as-built and the live run at its end) · ⭐ §11q P3 WIRING + KEYS PER SEGMENT (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: TE-16's "an item may name {recording, take}" and its "sequence row in the same panel" — NOT built: §11u D1 (the composer is the Director window's) and deviation ① (a recording is named per render job; CE-1391) · TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -3340,3 +3340,188 @@ r1 (A's segmented take: 70 frames = the 1.5 s card + 5.5 film s at 10 fps) and r
 recording's take, r3 A's two stills + a contact sheet (A re-opened at its turn), r4 cancelled while queued and never run — the whole queue in 24 s.
 ⚠ The Director window's new controls are drawn by ImGui and have no frame rail (the rails drive the window's model: `ReelToPlay`, `RenderRequestFor`,
 `QueueRender`, the pack's one composer and queue).
+
+### 11v. R3 rest — audio at any rate, shot templates, Verify stills *(ui, `2026-10-27`, CE-1305 (the rest of R3; the Graphics track is §11t); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ Frame: [CE-1305](blueprints/Blueprint_Issues_Tracker.md) — §6 R3 *"shot templates · audio at any rate (TE-11) · still keys in Verify (TE-10)"*; accepted when *"a
+regression run writes a PNG per still key; slow motion sounds as TE-11 says"*. Basis: §0 TE-10 / TE-11, §2 *"shot templates from a marker … reuses D-10's draft
+rules"*, §11e CR-8 (ONE drafter, used by the person and the agent), CR-9 (slow motion = the transport's rate), CR-10 / CR-12 (documentation stills render in the
+RB from the verify run's recording), §11n (the drafter's beats), §11r R2 / R4 (stills = one job; film seconds through the segments), §11s D3 (on a recording the
+index leads over a bake), §11u D3 / D4 (the render queue opens each job's recording at its turn), [Film Production](DESIGN_Film_Production.md) §4a (CE-4060: the
+documentation take — its keys ARE still keys).
+
+**INVENTORY** *(`2026-10-27`)* — ⚠ **this worktree's graph could not be built** (`index_repository` → `aborted_previous_preserved`: files changed under the run,
+another agent's indexer in flight); the graph queries ran on the main checkout's `ui` index (`home-user-HROT`, **stale**: built before §11j moved the director to
+`Hrot.Presentation`, before the Drafter) **and** grep over this tree, which is what the claims rest on.
+
+```
+search_graph name_pattern=".*(Template|Still|Drafter).*" label=Class      → 43: EQS / formation / TKB templates only — no shot template, no stills type (the index predates DirectorStills and Drafter)
+search_graph name_pattern=".*(Sound|Audio).*" label=Class                 → 31: AudioDirector, AudioLayer, SoundMixer, SoundSources, SoundTrack, RecordingAudioOutput, NullAudioOutput,
+                                                                                 RaylibAudioOutput, SoundSynthesizer, AudioSettings / AudioPreferences, SoundTkbCatalog (+ perception's SoundEmission*, unrelated)
+search_graph name_pattern=".*(Sound|Audio|Director).*" label=Interface    → 3: IAudioOutput, IDirectorHost, IDirectorSound
+grep "Rate|rate" Hrot/Engine/Hrot.Presentation/Audio/                      → only sample rates — NOTHING in the live audio knows the playback rate
+grep "class Drafter|MomentCamera|GroupCamera|TheMoment"                    → Drafter.cs: the beats are built inline in Draft over the private Framing; MomentCamera / GroupCamera (CE-4060) already reuse it
+grep "DocumentationTakes\.|director/renders|director/stills" scripts/ Hrot/ → DocumentationTakes is called by its rails only; nothing renders a verify run's still keys yet (CE-4060's night run is the coordinator's)
+grep '"still"' **/*.take.json                                             → 0: no authored take carries a still key today; the documentation take (_doc) is the first producer
+grep "Baked?.Times" DirectorStills.cs                                      → the stills PLAN resolved anchors through the take's BAKE only — not the run's index (the runner's book does, §11s D3)
+check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
+```
+
+```mermaid
+classDiagram
+  direction LR
+  class SoundAtRate { <<NEW, static>> Gain(category, rate) · OnlyBlastsAbove 2 · Ducked 0.5 }
+  class SoundMixer { <<exists, grown>> Rate NEW · RateGain(category) NEW }
+  class SoundSources { <<exists, grown>> Volume(s) x RateGain · engine velocity per SIM second }
+  class AudioLayer { <<exists, grown>> Update: Mixer.Rate = AudioDirector.Rate, 1 while capturing · the track's CategoryOf }
+  class AudioDirector { <<exists, grown>> TakeSound · Recorder · Rate NEW }
+  class SoundTrack { <<exists, grown>> CategoryOf NEW · Cue.Category NEW · RenderWav applies SoundAtRate per pass · RateAt NEW }
+  class IDirectorSound { <<exists, grown>> SetRate(rate) NEW }
+  class AudioDirectorSound { <<exists, grown>> SetRate to AudioDirector.Rate · Reset and EndLog clear it }
+  class DirectorRunner { <<exists, grown>> Tick: SetRate · AnchorTimesOf(take) NEW }
+  class ShotTemplate { <<NEW enum>> Establish · OverTheShoulder · Moment · Consequence · Reverse · Follow · TopDown }
+  class Drafter { <<exists, grown>> Draft's beats = TemplateShot(framing, template, window) · TemplateCamera NEW · HoldOf · LabelOf }
+  class EventAnchor { <<exists, grown>> Lane · EventIndex NEW }
+  class DirectorDrafts { <<exists, grown>> TemplateCamera(anchor, template, sim) NEW }
+  class DirectorTracks { <<exists, grown>> AddTemplateKey · Camera row menu · AddKeyAt shared with K }
+  class DirectorWindow { <<exists, grown>> template combo · Add key from template }
+  class DirectorStills { <<exists, grown>> PlanOf(take, times, everyKey, anchors) · Prepare through AnchorTimesOf }
+  class DirectorRenders { <<exists, grown>> a stills job waits for its recording's index }
+  class AnchorBook { <<exists>> the ONE resolver, §11s }
+  SoundMixer --> SoundAtRate
+  SoundTrack --> SoundAtRate
+  SoundSources --> SoundMixer : RateGain
+  AudioLayer --> AudioDirector : Rate
+  AudioDirectorSound ..|> IDirectorSound
+  AudioDirectorSound --> AudioDirector
+  DirectorRunner --> IDirectorSound : SetRate each playing frame
+  Drafter --> ShotTemplate
+  DirectorDrafts --> Drafter : TemplateCamera
+  DirectorTracks --> DirectorDrafts : the session's Templates
+  DirectorTracks --> EventAnchor : K's anchor
+  DirectorWindow --> DirectorTracks
+  DirectorStills --> DirectorRunner : AnchorTimesOf
+  DirectorRunner --> AnchorBook
+  DirectorRenders --> DirectorStills
+```
+*What the picture shows that prose hid:* each of the three parts is an EDGE into something that already existed — the rate rule is one function both the live mixer
+and the offline track call; a template is one of the drafter's own beats (the beats now go through the same `TemplateShot`); a verify still is the stills job planning
+through the runner's resolver instead of a bake. Two new types (`SoundAtRate`, `ShotTemplate`), nothing else new.
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (each playing frame)
+  participant S as AudioDirectorSound
+  participant L as AudioLayer (the map's)
+  participant M as SoundMixer and SoundSources
+  participant T as SoundTrack (capture)
+  R->>S: SetRate(request x shot x segment, 0 paused, infinity in a fast-forward)
+  S->>L: AudioDirector.Rate
+  L->>M: Mixer.Rate (1 while a film is captured)
+  M->>M: Volume x SoundAtRate.Gain(category, rate): above 2x only explosions, ducked, 0 silent
+  Note over T: capture - every sound logged at its natural level with its category
+  R->>S: EndLog(the frames' sim times)
+  S->>T: RenderWav - per pass the frame's rate = delta sim x fps, the same SoundAtRate, natural pitch, never resampled
+```
+
+```mermaid
+sequenceDiagram
+  actor P as Person
+  participant C as Camera row or Director window
+  participant K as DirectorTracks
+  participant A as eventAt (K's NearestBefore)
+  participant D as DirectorDrafts
+  participant F as Drafter
+  participant E as TakeEditor
+  P->>C: right-click empty space at t - "Add key: Over the shoulder"
+  C->>K: AddTemplateKey(OverTheShoulder, t)
+  K->>A: the event before t (lane, index - the one K hangs its key on)
+  K->>D: TemplateCamera(anchor, template, t)
+  D->>F: MomentAt(lane, index), then TemplateCamera(moment, template, t) = TemplateShot(framing, template, [t, t + hold])
+  K->>E: AddKey(the key at anchor + offset, camera) - ONE undo step
+```
+
+```mermaid
+sequenceDiagram
+  participant N as night run (CE-4060, coordinator)
+  participant Q as DirectorRenders (RB, windowed)
+  participant J as DirectorStills
+  participant R as DirectorRunner
+  participant I as the recording's index
+  N->>Q: POST /director/renders {recording, kind stills, take _doc or main, dir report}
+  Q->>Q: open the recording at its turn, wait until its index is read
+  Q->>J: Prepare - PlanOf(take, the keys with a Still, R.AnchorTimesOf(take))
+  J->>R: AnchorTimesOf - a fresh bake, with THIS run's events leading (AnchorBook)
+  R->>I: shot:Tank#1 at this run's 8.9 s, not the authoring run's
+  J-->>Q: a PNG per still key and the contact sheet, in the report folder
+```
+
+```mermaid
+graph TD
+  subgraph HOSTS["every map host - MapInteractionPack builds ONE AudioLayer"]
+    AL["AudioLayer.Update - Mixer.Rate = AudioDirector.Rate"]
+  end
+  subgraph PACK["DirectorPack (editor, RB) - DirectorPack.Tick"]
+    RUN["DirectorRunner.TickPlaying - SetRate"]:::new
+    DS["AudioDirectorSound - AudioDirector.Rate"]:::new
+    DR["DirectorDrafts.TemplateCamera"]:::new
+    TR["DirectorTracks - Camera row menu, window button"]:::new
+    ST["DirectorStills.Prepare - Runner.AnchorTimesOf"]:::new
+    RQ["DirectorRenders - waits for the index"]:::new
+  end
+  RBT["the RB transport at 4x with NO film"]
+  NODE["CGF / IG / BDC - no director"]
+  RUN --> DS --> AL
+  TR --> DR
+  RQ --> ST
+  RBT -.->|"not wired: heard at 1x (CE-1400)"| AL
+  NODE -.->|"no runner: Rate stays null = 1x"| AL
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+  linkStyle 4 stroke:#c33,stroke-dasharray:4 3
+  linkStyle 5 stroke:#c33,stroke-dasharray:4 3
+```
+*Caption:* WHO SETS THE RATE EACH FRAME — only the director's runner, while it plays; every map host's ONE audio layer reads it. The red dashed edges are where
+the rule is never reached: the Replay Browser's own transport rate when no film plays (the person scrubbing at 4× hears 1× — filed CE-1400), and nodes with no
+director. Templates and stills exist on every host the pack attaches to; a template needs an index (no index ⇒ no event ⇒ disabled).
+
+**Claim table**
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the offline track already places a cue at its film time, through every pass | ✅ `SoundTrack.FilmTimes` (CE-1369), interpolated between frames | ✅ TE-11 *"the offline track … maps each cue to film time"* |
+| nothing in the live audio knows the playback rate | ✅ grep `Audio/`: sample rates only; `SoundSources` velocity = Δposition / wall `dt` | ⛔ searched `DESIGN_FPS_Audio.md`: no rate rule — its header names TE-11 as the owner |
+| a sound's category is known where its level is computed | ✅ `SoundSources.Volume(SoundDto s)` — `s.Category`; every request and loop goes through it | ✅ AU-9 (per-category volume) |
+| a captured cue does not know its category | ✅ `RecordingAudioOutput.Play(clip, …)` — the clip id only; `SoundTkbCatalog.SoundOf(tkb, clip).Category` maps it | ⛔ not stated — measured |
+| the runner knows the film's rate every frame | ✅ `DirectorRunner.Rate` = request × shot × segment (CR-7) | ✅ CR-9 (slow motion is the transport's rate) |
+| the drafter's beats can be named and reused one by one | ✅ `Drafter.Draft` built ① – ⑤ inline over ONE private `Framing` | ✅ §2 *"shot templates … reuses D-10's draft rules"*, CR-8 *"the §2 shot template"* |
+| K's event is the one a template should frame | ✅ `DirectorTracks` K → `_eventAt(sim)` (CR-6) | ✅ CR-6 (keys anchor to events) |
+| a verify run's still keys are planned at THIS run's events | ⛔ before: `DirectorStills.PlanOf` → `Baked.Times` only; a promoted take carries another run's bake or none (§11s D6) | ✅ §11s D3 *"on a recording the index leads"*; TE-10 |
+| right after an open the index is partial | ✅ `RecordingTimelineSource` scans in the background; §11r known edge (`complete: false`) | ✅ §11r known edges |
+| CE-4060's documentation take renders through the stills job | ✅ `DocumentationTakes.From` — every key a `Still`; §11u's note | ✅ Film Production §4a "what renders it" |
+
+**Decisions** *(the lean; the rejected alternatives one line each)*
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **A1** | ⭐ **ONE rule, `SoundAtRate.Gain(category, rate)`**, called by the live mixer (`SoundMixer.RateGain`, inside `SoundSources.Volume`) and the offline track (`RenderWav`, per pass, the rate = Δsim × fps of the frame): never resampled (natural pitch and length, the cue at its film time); ≤ 2× all; > 2× explosions only, −6 dB; ≤ 0 (paused, a held frame, a card) silent | **resample** (the brief's question) — TE-11 rejects it in words ("a chipmunk / drone") · **drop / repeat samples** — the same pitch error in steps · a second rule in the track — two copies drift |
+| **A2** | **the runner sets the rate every playing frame** (`IDirectorSound.SetRate`, a default no-op on the seam) → `AudioDirector.Rate` → the layer's mixer; `Reset` / `EndLog` clear it; ⛔ **while a film is captured the live mixer stays at 1×** — every sound is logged at its natural level with its category and the offline track applies the rule per pass (a replayed stretch may play at another rate than when it was logged, CE-1369) | the layer reading the runner directly — the audio sits below the director · applying the rule live during a capture — the logged gain would be the FIRST pass's, wrong for a replay pass at another rate |
+| **A3** | **an engine's velocity is per SIM second** (Δposition / (dt × rate)) — its pitch and level stay natural in slow motion | wall-time velocity — at 0.5× an engine would drop in pitch (half the speed seen) |
+| **T1** | ⭐ **the shot templates ARE the drafter's beats**: `ShotTemplate` names them (Establish · OverTheShoulder · Moment · Consequence · Reverse) plus two framings from the same rules (Follow — the consequence's follow at the moment's height; TopDown — the moment's midpoint from −85°); `Drafter.Draft` now builds every beat through ONE private `TemplateShot(framing, template, window)` and `Drafter.TemplateCamera` calls the same ⇒ a template key at a drafted key's time IS that key's camera | a template table beside the drafter — a second camera logic (ruling 9) · only the five beats — "follow" and "top-down" were asked for and cost one line each over the same `Midpoint` / `Followed` |
+| **T2** | **a template frames the event K would hang the key on** (`EventAnchor` now carries its `Lane` / `EventIndex`; `Drafter.MomentAt` on it) and the key is hung on it the K way (`AddKeyAt`, shared with K) — one undo step; offered on the Camera row's empty-space menu (`"Add key: …"`, disabled with no event before the click) and the Director window (*template* + *Add key from template* at the playhead) | the selected unit as the subject — no line (actor → subject) and no kind ⇒ none of the grammar's rules apply · a "template" key kind stored in the take — the format stays cameras (the template is HOW the camera was made, not what it is) |
+| **S1** | ⭐ **"still keys captured by Verify" = a verify run's RECORDING renders the still keys of a take (the `_doc` take CE-4060 drafts, or a scenario take that names stills) through the render queue** (CR-10, CR-12; §11u's seam) — ui's piece is that the stills PLAN resolves keys through the runner's ONE resolver (`DirectorRunner.AnchorTimesOf` → `AnchorBook`: a fresh bake, the index leading on a recording) so each still lands on THIS run's event | the editor's Verify run capturing PNGs live (TE-10's first wording) — CR-12 / §11r R3 refuse it (each still re-runs the scenario) · planning by the take's bake — a promoted take's bake is another run's or dropped (§11s D6) ⇒ "needs an anchor that is not baked" on every verify recording |
+| **S2** | **a stills render job waits for its recording's index** after the open (≤ `MaxIndexWaitFrames`); the direct route says why when an anchor is missing while the index is still read | planning on the partial index — anchors past the scanned frames go missing at random |
+| **S3** | **the night run itself is the coordinator's** (CE-4060): which takes to enqueue, the report folder, the contact sheet beside the verdicts — [NOTE_Ui_To_Coordinator_Verify_Stills](blueprints/batches/NOTE_Ui_To_Coordinator_Verify_Stills.md) | editing `DocumentationTakes` / the verify runner here — their files, their lane |
+
+**✅ As built `2026-10-27`** — the diagrams above are true. Files: `Hrot.Presentation/Audio/SoundAtRate.cs` (new) · `SoundMixer.cs` (`Rate`, `RateGain`) ·
+`SoundSources.cs` (`Volume` × `RateGain`; engine velocity per sim second) · `AudioLayer.cs` (`Mixer.Rate`, the track's `CategoryOf`) · `SoundTrack.cs`
+(`AudioDirector.Rate`, `CategoryOf`, `Cue.Category`, `RateAt`, `RenderWav` per pass) · `Map3D/Director/DirectorHost.cs` (`IDirectorSound.SetRate`) ·
+`DirectorAdapters.cs` (`AudioDirectorSound.SetRate`, cleared by `Reset` / `EndLog`) · `DirectorRunner.cs` (`SetRate` each playing frame, `AnchorTimesOf`) ·
+`Drafter.cs` (`ShotTemplate`, `TemplateShot`, `TemplateCamera`, `HoldOf`, `LabelOf`, `Templates`; `Draft` and `Framing.Moment` through `TemplateShot`) · `EventAnchors.cs`
+(`EventAnchor.Lane` / `EventIndex`) · `DirectorDrafts.cs` (`TemplateCamera`) · `DirectorTracks.cs` (`AddTemplateKey`, `CanAddTemplateKey`, `AddKeyAt`, the Camera row's
+`MenuItems(itemId, at)`) · `DirectorTakeSession.cs` (`Templates`) · `DirectorPack.cs` (`session.Templates = drafts.TemplateCamera`) · `DirectorWindow.cs`
+(`DrawTemplates`, `AddTemplateKey`) · `DirectorStills.cs` (`PlanOf(…, anchors)`, `Prepare` through `AnchorTimesOf`, `IndexStillReading`) · `DirectorRenders.cs`
+(the index wait).
+
+**Known edges:** (1) the RB's own transport rate (no film playing) is not heard by the rule — CE-1400. (2) A one-shot's speed-of-sound delay is still counted
+in wall seconds (at 0.5× a far shot is heard half as late in film time) — small, not filed. (3) Live, a sound already waiting for its delay when the film pauses
+still starts. (4) The Director window's template controls are ImGui (no frame rail); the rails drive `AddTemplateKey` (the window's model).
