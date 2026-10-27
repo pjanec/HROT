@@ -109,6 +109,10 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.True(after == 200, afterBody);
         Assert.Contains("\"phase\"", afterBody);
         Assert.Same(pack!.Runner, _subsystem.Director!.Runner);                   // the one the browser ticks and its window drives
+        // ⭐ CE-4059 — the one attach carries the pack's drafter too (moments / draft); 🔴 mutation: AttachDirector(pack) drops pack.Drafts ⇒ 503
+        Assert.NotNull(pack.Drafts);
+        var (moments, momentsBody) = await Get("/director/moments");
+        Assert.True(moments == 200, momentsBody);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
