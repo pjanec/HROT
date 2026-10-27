@@ -1671,7 +1671,7 @@ third path that could sample differently; the writer reuses the lanes' grow-only
 ⛔ **Not done, by choice:** delta-compression of a stationary unit (a hold sample would make `PositionAt` after a departure ambiguous — the
 cost is stated above); a spatial index for `UnitsWithin`.
 
-### 11n. CR-8 — the DRAFTER: the grammar as rules *(coordinator, `2026-10-27`, CE-4059 — the coordinator's half; build-state: READY-TO-BUILD)*
+### 11n. CR-8 — the DRAFTER: the grammar as rules *(coordinator, `2026-10-27`, CE-4059 — the coordinator's half; build-state: ✅ BUILT `2026-10-27` — the pure core; as built at the end)*
 
 ⭐ **What it is:** ONE pure function from *a moment* of a recording to a take that films it — the grammar of
 [PLAN_Feature_Films §1a](PLAN_Feature_Films.md) written as rules over the timeline index and its position track (ui, CE-4059). The person
@@ -1745,6 +1745,22 @@ the right offset, and `Baked` holds the shot's sim time · ② ①, ③, ④ yaw
 distance fits both units over its window (both inside the frustum at every sample) · ④ follows the subject · ③ switches to a telephoto follow
 when the units are 150 m apart · a moment at t = 3 s shortens ① to start at 0 with ≥ 2 s · `Moments` scores a blast over a first shot and
 merges a hit 0.8 s after a shot into one moment. Each red-proved by a mutation that compiles.
+
+**As built** *(`2026-10-27`, coordinator via a Sonnet build, reviewed)* — `Map3D/Director/Drafter.cs` (`SubjectKind`, `DraftMoment`, `DraftOptions`,
+`Drafter.Moments` / `Draft`) + `EventAnchors.Of(index, lane, eventIndex, names)` (the ONE naming switch: `NearestBefore` now calls it). Rails
+`DrafterTests.CE4059_CR8_*` ×11 (Hrot.Presentation.Tests), each red-proved by a compiling mutation. ⏭ ui wires it: the right-click item and
+`POST /director/draft` (P3). Deviations, each SUPERSEDING the rule text above:
+- **merge** — a LATER moment within 2 s merges into the EARLIER one (which anchors the take; the score is the better of the two) — the rule's
+  *"into a better one"* contradicted its own acceptance (a hit, scored 2, merging into a shot, scored 1). `Moments` is in time order.
+- **a hit's actor** — a hit event names only who was hit (`CombatTimelineLanes.cs:32-34`): the actor is the last unit that shot at it within 5 s.
+- **the side of the line** — chosen by "the camera looks north-ish" (the map stays the way up), not by visibility; ⏭ a visibility rule needs
+  occlusion the index does not carry.
+- **framing** — depth-aware: a unit nearer the camera than the look-at point pushes the camera out further (it sat at the frame's edge).
+- **⑤ the replay** — keys are placed by SOURCE time, so the reverse-angle key is parked at ④'s end and the take lists TWO segments (the main
+  pass, then `[t−1, t+1.5]` at 0.4) — a take with segments plays only those listed (`Take.cs:268-269`). ⚠ The replay shows its reverse angle
+  only once keys are looked up per segment (P2b, CR-7) — ⏭ for ui's CR-7 design: a key belongs to a SEGMENT, not only to a source time.
+- **film length** — ~12–14 s (more with the replay), under §1a's 15–30 s; no beat stretched to reach it.
+- a moment with no expressible anchor falls back to fixed times (no anchor, no bake); a unit with no samples sits at the event's X/Y.
 
 ## 8. INVENTORY
 

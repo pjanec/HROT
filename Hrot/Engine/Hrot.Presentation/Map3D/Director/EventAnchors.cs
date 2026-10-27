@@ -54,14 +54,28 @@ public static class EventAnchors
             {
                 var e = events[i];
                 if (e.Frame <= bestFrame) break;   // an earlier lane already has one this late; ties keep it
-                if (Express(lane, events, i, unitName) is not { } spec) continue;
-                if (e.Frame >= index.FrameSim.Count || double.IsNaN(index.FrameSim[e.Frame])) continue;
-                best = new EventAnchor(spec.Name, spec.Spec, index.FrameSim[e.Frame]);
+                if (Of(index, lane, i, unitName) is not { } found) continue;
+                best = found;
                 bestFrame = e.Frame;
                 break;
             }
         }
         return best;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> / <c>CR-8</c> (docs/DESIGN_Director_Timeline_Editor.md §11n) — the anchor of the SPECIFIC event <paramref name="eventIndex"/> of
+    /// <paramref name="lane"/> (what <see cref="NearestBefore"/> finds by time; the Drafter names an event it already chose). Null when the lane has no such
+    /// event, the event is not expressible (see the class remarks) or its frame has no sim time. ⛔ The one naming switch: <see cref="NearestBefore"/> calls this.
+    /// </summary>
+    public static EventAnchor? Of(TimelineIndex index, string lane, int eventIndex, Func<long, string?> unitName)
+    {
+        var events = index.Lane(lane);
+        if ((uint)eventIndex >= (uint)events.Count) return null;
+        if (Express(lane, events, eventIndex, unitName) is not { } spec) return null;
+        int frame = events[eventIndex].Frame;
+        if (frame < 0 || frame >= index.FrameSim.Count || double.IsNaN(index.FrameSim[frame])) return null;
+        return new EventAnchor(spec.Name, spec.Spec, index.FrameSim[frame]);
     }
 
     private static (string Name, AnchorSpec Spec)? Express(string lane, IReadOnlyList<TimelineEvent> events, int i, Func<long, string?> unitName)

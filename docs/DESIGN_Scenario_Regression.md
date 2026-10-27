@@ -724,6 +724,16 @@ shows the live run at 1 … 40 s, every recorded component equal** (`PendingNetw
 never stands there (clock 26.6 s) — ⇒ **CE-4056 is the entry path for a replay as well as a review** (a `TransitionState` with a sim
 target), while every `SeekReplay` lands. ⭐ **Re-run `2026-10-27`** after backend's CE-4056 fix (a seek BACK stood one seek behind — the entry was not the cause): H1a and H1b **same**, 41 snapshots, no problem listed.
 
+### 10-5. ✅ H2 as built `2026-10-27` — the replay sought again, shuffled *(RH-6)*
+
+⭐ Part of the replay check (`--verify-replay`): after H1b's in-order look-back, the SAME replay is sought to the same moments in a shuffled
+order (seed `ScenarioVerifyRun.SeekShuffleSeed` = 4045, never the in-order walk), and each moment is compared with what **H1b** showed there —
+not with live, so a difference can only be the seek's. Backward seeks are the point: 📌 CE-4056 (a seek BACK stood one seek behind) was found
+live and only live, because in-order seeks never go back. `VerifyResult.Seek` (`"seek"` in the report, `SEEK` in the print); `Passed` needs it
+same. The comparison sorts the visited snapshots by time first (the comparator pairs by index). Rails: `CE4045_H1b_*` (the seeks after H1b are
+a shuffled permutation of the four moments; SEEK same) · `CE4045_H2_ShuffledSeeks_CatchASeekBackThatStandsOneSeekBehind` (a fake replay
+whose backward seek shows the last seek's world under the new clock: H1a same, H1b same, **H2 different**, the item fails).
+
 ### 10a. Claim table — what the leans rest on
 
 | claim | code — how it IS | design — how it was MEANT |
