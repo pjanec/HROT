@@ -13,7 +13,7 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// and updates only the Muscle-authored status fields on the Brain ghost's
 /// <see cref="LookAtChannel"/> component.
 /// </summary>
-internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator
+internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
     private const string TopicNameConst = "hrot/anim/status/LookAtChannel";
 
@@ -33,6 +33,9 @@ internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {

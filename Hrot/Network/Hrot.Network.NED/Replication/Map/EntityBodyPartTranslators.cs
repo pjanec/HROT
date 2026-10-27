@@ -130,7 +130,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>⭐ <c>CE-3210</c> (HL-6) — applies a body's published <see cref="PartDamage"/> on this node (wounds are derived from it).
     /// An unknown entity is dropped; the recorded owner never takes its own sample back.</summary>
-    public sealed class EntityPartDamageIngressTranslator : IDescriptorTranslator
+    public sealed class EntityPartDamageIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityPartDamage";
         private const long OrdinalValue = (long)EDescriptorType.dtPartDamage;
@@ -149,6 +149,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityPartDamage>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -181,7 +184,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     }
 
     /// <summary>⭐ <c>CE-3210</c> (HL-8) — applies a body's published <see cref="HitMarks"/> on this node (every renderer draws them).</summary>
-    public sealed class EntityHitMarksIngressTranslator : IDescriptorTranslator
+    public sealed class EntityHitMarksIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityHitMarks";
         private const long OrdinalValue = (long)EDescriptorType.dtHitMarks;
@@ -200,6 +203,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityHitMarks>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

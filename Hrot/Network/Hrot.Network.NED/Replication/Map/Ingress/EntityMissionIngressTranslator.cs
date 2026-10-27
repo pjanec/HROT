@@ -25,7 +25,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// Unknown entity IDs (not yet registered in the <see cref="NetworkEntityMap"/>)
     /// are silently skipped.
     /// </summary>
-    public class EntityMissionIngressTranslator : IDescriptorTranslator
+    public class EntityMissionIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<EntityMission> _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -49,6 +49,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <summary>
         /// Polls the DDS reader and queues component set/remove commands.

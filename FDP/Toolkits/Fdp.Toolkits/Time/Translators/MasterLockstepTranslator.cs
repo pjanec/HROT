@@ -43,6 +43,13 @@ namespace Fdp.Toolkit.Time.Translators
         public long   SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>CONTROL PLANE</b> (<c>CE-3329 W5</c>) — the slave peer's <c>FrameAck</c> arrives here. ⛔ The master must keep
+        /// hearing it while the node is frozen or restoring a replay: the barrier it releases is the one that un-freezes the
+        /// slaves, so letting this stop with the simulation would deadlock the lockstep. Control plane ⇒ never discarded.
+        /// </summary>
+        public TranslatorClass Category => TranslatorClass.ControlPlane;
+
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">
         /// DDS domain participant.  Pass <see langword="null"/> in unit-test environments — both

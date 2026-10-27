@@ -34,7 +34,7 @@ namespace Hrot.Network.NED.IG
     /// for clamping overrides from the IG side).
     /// </para>
     /// </summary>
-    public sealed class GroundClampingOverrideTranslator : IDescriptorTranslator
+    public sealed class GroundClampingOverrideTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<GroundClampingOverride> _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -52,6 +52,9 @@ namespace Hrot.Network.NED.IG
             _reader    = new DdsReader<GroundClampingOverride>(participant);
             _entityMap = entityMap;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         /// <inheritdoc/>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

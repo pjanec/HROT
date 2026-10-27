@@ -40,6 +40,13 @@ namespace Fdp.Toolkit.Time.Translators
         public long   SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>CONTROL PLANE</b> (<c>CE-3329 W5</c>) — a slave's <c>TimeSyncRequest</c> arrives here. ⛔ The master must keep
+        /// answering it while the node is frozen or restoring a replay (a slave that gets no response cannot sync its clock to
+        /// the one that un-freezes it). Control plane ⇒ never discarded.
+        /// </summary>
+        public TranslatorClass Category => TranslatorClass.ControlPlane;
+
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">DDS domain participant. Pass <see langword="null"/> for unit tests.</param>
         /// <param name="tickSource">

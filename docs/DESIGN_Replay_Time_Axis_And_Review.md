@@ -1423,7 +1423,7 @@ sequenceDiagram
   participant H as Exit handler (replay / review / branch)
   participant C as EcsRecordReplayController
   participant I as CycloneNetworkIngressSystem
-  participant D as IngressReaderDrain
+  participant T as each ingress translator
   H->>C: TeardownReplayAsync()
   C->>C: exit held (before the module goes)
   Note over I: every frame: IsReplayRestoring() = restoring OR held: state left in the readers, events dropped
@@ -1431,8 +1431,8 @@ sequenceDiagram
   H->>C: LeaveReplayGates → ReleaseReplayExit()
   C->>I: DiscardAtReplayExit() (each IReplayRestoreGated)
   C->>C: hold lifted
-  I->>D: next Execute, before any poll: Discard(each world translator)
-  D-->>I: IDiscardableIngress.DiscardIngress, else Take+drop every DdsReader field
+  I->>T: next Execute, before any poll: DiscardIngress() (each non-control translator)
+  T-->>I: DdsReaderDiscard.DiscardAll(reader) for each reader it owns
   I->>I: poll as usual (only what the owners publish from now on)
 ```
 *What the picture shows that the prose hid:* the teardown comes BEFORE the world is put back (F8), so without the hold the frames between
@@ -1444,16 +1444,19 @@ them would poll the replay era into the world; and the drain runs on the ingress
 | `IRecordReplayController.ReleaseReplayExit()` | a default member; `EcsRecordReplayController`: the hold is set in `TeardownReplayAsync` before the uninstall, the gate predicate is `IsRestoringReplay ‖ held`, the release tells every gated system and lifts the hold; ⭐ `PrepareRecordingAsync` releases too, so an aborted exit cannot leave a node deaf |
 | `ReferenceReplayLoadHandler.LeaveReplayGates` | calls the release — ⭐ the ONE gate set, so a replay's finalize, a review's return and its abandon all release; the branch to live now calls `LeaveReplayGates` instead of its copied three lines |
 | `CycloneNetworkIngressSystem` | a pending discard runs on the first Execute that is not gated, before any poll, over every non-control translator (`ExitDiscards`, `LastExitDiscardedSamples`) |
-| `IngressReaderDrain` (NEW, `Fdp.Network.Cyclone`) | `IDiscardableIngress` when the translator has it; else every `DdsReader<T>` field of its class hierarchy, found once per type and cached, taken to empty (the loan is a ref struct ⇒ a generic method closed over `T`) |
+| `IDiscardableIngress` on EVERY ingress translator that is not control plane | 🔒 user `2026-10-27`: *"isnt cleaner to check as a rail if all translators use the idiscardableingress… than using reflaction search?"* — each says how its readers are emptied (a translator that must keep its samples can say so); the `Cyclone*Translator` bases implement it once for their subclasses; `EveryIngressTranslatorCanDiscardRail` sweeps the five translator assemblies |
+| `DdsReaderDiscard.DiscardAll(reader)` (NEW, `Fdp.Toolkits`) | the ONE take-and-drop every implementation calls — also replaces the five event translators' copied loops |
 | `ReferenceReviewHandler` | F6: after the pause lands, `QuiesceFrames` (3) frames pass before the keyframe and the capture |
 
-⚠ **Deviation from the approved wording** ("a shared take-and-drop"): 📐 there is no shared base that owns the readers (161
-`new DdsReader<` sites, `CycloneBaseTranslator` has 13 adopters, all events) ⇒ the shared piece is the drain, which reaches the readers
-through their fields. ⚠ A reader held outside the translator's own fields (a helper object, a list) is not reached —
-`IngressReaderDrain.ReaderFieldCount(type)` names how many were found. ⚠ F6 covers samples in flight; a PROTOCOL that needs more than 3
+⛔ **SUPERSEDED `2026-10-27` (same day): `IngressReaderDrain`** — a reflective drain of every `DdsReader<T>` field, used because no
+shared base owns the readers. ⭐ Replaced at the user's question by the explicit interface + sweep rail above: no reflection, a
+translator can opt out by saying so, and a reader held in a helper object is reached by the translator that owns it.
+📐 **Found by the sweep rail (`2026-10-27`):** `MasterLockstepTranslator` and `MasterTimeSyncTranslator` declared no category, so they
+defaulted to WORLD STATE — a frozen or replay-restoring master stopped hearing its slaves' `FrameAck` / time sync, the deadlock their
+slave peers' comments warn of (`SlaveLockstepTranslator.cs:46`, DQ30-C). ⭐ Both now say `ControlPlane`.
+⚠ F6 covers samples in flight; a PROTOCOL that needs more than 3
 paused frames to settle (a two-phase hand-over) is not waited for — none measured.
 
-Rails: `TheFrozenWorldStillHearsItsResumeTests.CE3329_W5_TheReleasedExitDropsTheReplayEraState_ThenIngressResumes` (real DDS; a reader on
-a base class) · `EcsRecordReplayControllerTests.CE3329_W5_TheIngressStaysGatedFromTheTeardownUntilTheRelease_WhichDiscardsOnce` ·
+Rails: `EveryIngressTranslatorCanDiscardRail` (`Hrot.ClusterRunner.Tests`) · `TheFrozenWorldStillHearsItsResumeTests.CE3329_W5_TheReleasedExitDropsTheReplayEraState_ThenIngressResumes` (real DDS) · `EcsRecordReplayControllerTests.CE3329_W5_TheIngressStaysGatedFromTheTeardownUntilTheRelease_WhichDiscardsOnce` ·
 `ReferenceHandlerTests.CE3329_F6_The_entry_quiesces_so_what_was_in_flight_lands_in_the_live_point` + the review round trip asserting the
 release.

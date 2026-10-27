@@ -343,7 +343,7 @@ namespace Hrot.Map.Common.Replication.Interactions
     /// on every node; only the target's owner applies it (the kind's handler). A kind this build does not know, or a target this node
     /// does not know, is dropped.
     /// </summary>
-    public sealed class InteractionIngressTranslator : IDescriptorTranslator
+    public sealed class InteractionIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityInteractionRequest";
 
@@ -365,6 +365,9 @@ namespace Hrot.Map.Common.Replication.Interactions
             foreach (var c in codecs ?? InteractionCodecs.All) _byKind.Add(c.Kind, c);
             _reader = participant is not null ? new DdsReader<EntityInteractionRequest>(participant, DdsTopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

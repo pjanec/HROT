@@ -73,7 +73,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>⭐ <c>CE-3259</c> — applies a soldier's published <see cref="CombatProficiency"/> on this node (the hit model's spread, the
     /// sensor's acquisition read it through <c>ProficiencyOf</c>). An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
-    public sealed class EntityCombatProficiencyIngressTranslator : IDescriptorTranslator
+    public sealed class EntityCombatProficiencyIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityCombatProficiency";
         private const long OrdinalValue = (long)EDescriptorType.dtCombatProficiency;
@@ -92,6 +92,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityCombatProficiency>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

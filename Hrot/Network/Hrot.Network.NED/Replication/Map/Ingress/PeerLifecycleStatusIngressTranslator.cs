@@ -22,7 +22,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// instances. Correlation is by network entity id; a status for an entity this node is not
     /// waiting on is a harmless no-op inside the gateway.</para>
     /// </summary>
-    public sealed class PeerLifecycleStatusIngressTranslator : IDescriptorTranslator
+    public sealed class PeerLifecycleStatusIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<EntityLifecycleStatusDescriptor> _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -46,6 +46,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _gateway = gateway;
             _localNodeId = (int)localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

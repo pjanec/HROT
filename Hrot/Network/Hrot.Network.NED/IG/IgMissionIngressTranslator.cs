@@ -12,7 +12,7 @@ using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Network.NED.IG
 {
-    public class IgMissionIngressTranslator : IDescriptorTranslator
+    public class IgMissionIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsReader<EntityMission> _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -36,6 +36,9 @@ namespace Hrot.Network.NED.IG
             _ghostCreationSystem = ghostCreationSystem;
             _localNodeId = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

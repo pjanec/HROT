@@ -63,7 +63,7 @@ namespace Hrot.Network.NED.SimHost
     /// <summary>⭐ <c>CE-1128</c> — a DDS <c>RoundImpact</c> becomes a remote <see cref="RoundImpactNotification"/>, which
     /// <c>EffectSpawnSystem</c> draws. ⭐ CE-1148 S2 (Node Roles §3.5) — on every node: this node's own samples come back and are dropped
     /// by <c>SourceNodeId</c>, so a marking node draws each of its marks once.</summary>
-    public sealed class RoundImpactIngressTranslator : IDescriptorTranslator
+    public sealed class RoundImpactIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "RoundImpact";
         private readonly DdsReader<RoundImpact>? _reader;
@@ -83,6 +83,9 @@ namespace Hrot.Network.NED.SimHost
             _localNodeId = localNodeId;
             _reader    = participant is not null ? new DdsReader<RoundImpact>(participant, DdsTopicName) : null;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

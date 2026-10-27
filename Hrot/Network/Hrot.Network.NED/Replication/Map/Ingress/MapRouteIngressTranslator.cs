@@ -29,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress;
 /// <see cref="PollIngress"/> call.
 /// </para>
 /// </summary>
-public class MapRouteIngressTranslator : IDescriptorTranslator
+public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngress
 {
     private const string DdsTopicName = "MapRoute";
     private const long OrdinalValue = (long)EDescriptorType.dtMapRoute;
@@ -73,6 +73,9 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
         // entities become available, rather than scanning all pending IDs every tick.
         _entityMap.EntityRegistered += OnEntityRegistered;
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {

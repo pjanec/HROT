@@ -71,7 +71,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>⭐ <c>CE-3224</c> — applies a person's published <see cref="Gesture"/> on this node (bodies, maps and other brains read it).
     /// An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
-    public sealed class EntityGestureIngressTranslator : IDescriptorTranslator
+    public sealed class EntityGestureIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityGesture";
         private const long OrdinalValue = (long)EDescriptorType.dtGesture;
@@ -90,6 +90,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _reader = participant is not null ? new DdsReader<EntityGesture>(participant, DdsTopicName) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// Applies overlay geometry by creating or updating <see cref="EditablePolyline"/>.
     /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class MapVisualOverlayIngressTranslator : IDescriptorTranslator
+    public class MapVisualOverlayIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "MapVisualOverlay";
         private const long OrdinalValue = (long)EDescriptorType.dtMapVisualOverlay;
@@ -59,6 +59,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

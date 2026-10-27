@@ -61,17 +61,7 @@ namespace Hrot.Network.NED.SimHost
         public TranslatorClass Category => TranslatorClass.WorldEvent;
 
         /// <inheritdoc/>
-        public int DiscardIngress()
-        {
-            if (_reader is null) return 0;
-            int discarded = 0;
-            while (true)
-            {
-                using var loan = _reader.Take();
-                if (loan.Count == 0) return discarded;
-                discarded += loan.Count;
-            }
-        }
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

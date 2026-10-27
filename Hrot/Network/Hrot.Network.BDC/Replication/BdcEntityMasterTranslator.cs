@@ -19,7 +19,7 @@ namespace Hrot.BDC.Replication
     /// Egress: writes BDC_EntityMaster for locally-owned entities.
     /// Ingress: creates ghost entities from incoming BDC_EntityMaster samples.
     /// </summary>
-    internal sealed class BdcEntityMasterTranslator : IDescriptorTranslator
+    internal sealed class BdcEntityMasterTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsWriter<BdcEntityMaster>? _writer;
         private readonly DdsReader<BdcEntityMaster>? _reader;
@@ -92,6 +92,9 @@ namespace Hrot.BDC.Replication
                     "[BDC Node-{0}] Egress: BDC_EntityMaster EntityId={1}", _localNodeId, netId.Value);
             }
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

@@ -49,6 +49,13 @@ namespace Fdp.Network.Cyclone.Translators
         }
 
 
+        /// <inheritdoc />
+
+
+        public override int DiscardIngress() => Reader.DiscardAll();   // ⭐ CE-3329 W5
+
+
+
         public override void ScanAndPublish(ISimulationView view)
         {
              var events = view.ReadManagedEvents<TEcs>();

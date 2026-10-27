@@ -59,7 +59,7 @@ namespace Hrot.Network.NED.SimHost
 
     /// <summary>⭐ <c>CE-3266</c> — a <c>MeleeStrike</c> from another node becomes a remote <see cref="StrikeNotification"/> here (ui draws
     /// the swing). Its own node's sample is dropped (it is already a local event); an unknown striker is dropped.</summary>
-    public sealed class MeleeStrikeIngressTranslator : IDescriptorTranslator
+    public sealed class MeleeStrikeIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "MeleeStrike";
         private readonly DdsReader<MeleeStrike>? _reader;
@@ -78,6 +78,9 @@ namespace Hrot.Network.NED.SimHost
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// sample carries a string (the key), and that base takes unmanaged samples only — the shape
     /// <see cref="MapVisualOverlayIngressTranslator"/> has for the same reason.</para>
     /// </summary>
-    public sealed class EntityDoorStateIngressTranslator : IDescriptorTranslator
+    public sealed class EntityDoorStateIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityDoorState";
         private const long OrdinalValue = (long)EDescriptorType.dtDoorState;
@@ -44,6 +44,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {

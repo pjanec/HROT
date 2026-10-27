@@ -13,7 +13,7 @@ namespace Hrot.Animation.Replication.Translators.Descriptors;
 /// and updates the Muscle ghost's <see cref="StanceIntent"/> component.
 /// All fields are Brain-authored so the full component is replaced.
 /// </summary>
-internal sealed class StanceIntentIngressTranslator : INetworkTranslator
+internal sealed class StanceIntentIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
     private const string TopicNameConst = "hrot/anim/StanceIntent";
 
@@ -33,6 +33,9 @@ internal sealed class StanceIntentIngressTranslator : INetworkTranslator
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }
+
+    /// <inheritdoc />
+    public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
     public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
     {

@@ -22,7 +22,7 @@ namespace Hrot.BDC.Replication
     /// Egress: writes BDC_WorldPos for locally-owned entities.
     /// Ingress: updates SimTransform on ghost entities from incoming BDC_WorldPos samples.
     /// </summary>
-    internal sealed class BdcWorldPosTranslator : IDescriptorTranslator
+    internal sealed class BdcWorldPosTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private readonly DdsWriter<BdcWorldPos>? _writer;
         private readonly DdsReader<BdcWorldPos>? _reader;
@@ -168,6 +168,9 @@ namespace Hrot.BDC.Replication
                 SentSampleCount++;
             }
         }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();   // ⭐ CE-3329 W5
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
