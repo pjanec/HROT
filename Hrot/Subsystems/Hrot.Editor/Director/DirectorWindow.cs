@@ -157,7 +157,7 @@ namespace Hrot.Editor.Director
         }
 
         private static PlayRequest VerifyRequest(string scenario, bool capture) =>
-            new(Reel.Of(scenario, "_verify"), Verify: new VerifyOptions(capture));
+            new(Reel.Of(scenario, "_verify"), Plan: new VerifyOptions(capture));
 
         private void DrawStatus(DirectorRunner runner)
         {
@@ -190,7 +190,7 @@ namespace Hrot.Editor.Director
                     ImGui.TableNextColumn();
                     ImGui.TextUnformatted($"{r.Scenario}/{r.Take}");
                     ImGui.TableNextColumn();
-                    var v = r.Verify;
+                    var v = r.Verify();
                     var line = v != null
                         ? $"{r.Status} · {v.Verdicts.Count(x => x.Ok)}/{v.Verdicts.Count} conditions · golden {v.Golden}"
                         : r.Status + (r.Missing.Count > 0 ? $" · missing {string.Join(", ", r.Missing)}" : "")

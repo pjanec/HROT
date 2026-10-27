@@ -19,9 +19,6 @@ namespace Hrot.Editor.Director
 
         bool IsOperatingEdit { get; }
 
-        /// <summary>⭐ CE-4042 — this process has loaded a scenario already (by the director or the user): the next load is a RELOAD, and a
-        /// reload is not where a golden may be recorded (CE-3294; Regression_Net §6 ④).</summary>
-        bool HasLoadedAScenario { get; }
         int? EntityCount { get; }
 
         bool InPreview { get; }
@@ -47,6 +44,18 @@ namespace Hrot.Editor.Director
 
         /// <summary>The scenarios root's takes and reels.</summary>
         TakeStore Takes { get; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4061</c> (docs/DESIGN_Director_Timeline_Editor.md §11h) — what the editor's scenario verifier drives besides the film host:
+    /// checkpoints (R1), a LIVE run and its recording (H1a), a review of it (H5), the product's replay of it (H1b). ⭐ Out of
+    /// <see cref="IDirectorHost"/> so the film runner names none of it; the editor's host is both.
+    /// </summary>
+    public interface IVerifyHost
+    {
+        /// <summary>⭐ CE-4042 — this process has loaded a scenario already (by the director or the user): the next load is a RELOAD, and a
+        /// reload is not where a golden may be recorded (CE-3294; Regression_Net §6 ④).</summary>
+        bool HasLoadedAScenario { get; }
 
         /// <summary>⭐ <c>CE-3299</c> B5 (R1, restore design §1k) — writes the world as it is NOW as checkpoint <paramref name="label"/> at
         /// <paramref name="path"/> (a one-frame recording, <c>CheckpointFile</c>).</summary>
