@@ -384,7 +384,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string SubsystemName;
         public ClusterState LocalClusterState;
         public long WallTicksUtc;
-        public float CpuUsagePercent;
+        /// <summary>⭐ AQ107 I — the node's CPU load as a 0…1 FRACTION (was a percent). The cluster cache's <c>NodeCapability.CpuUsagePercent</c> keeps percent; the ingest converts.</summary>
+        public float CpuUsage;
         public long RamUsedBytes;
         public bool SimTickAdvancing;
         [DdsManaged] public string SubsystemsJson;

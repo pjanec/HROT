@@ -260,4 +260,42 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(nodeId, hbs[0].NodeId);
         Assert.Equal(NedClusterState.LoadingLive, hbs[0].LocalClusterState);
     }
+
+    // ── ⭐ AQ107 I: the CPU load is a 0…1 FRACTION on the wire, a percent in the cluster cache ───────────────
+
+    /// <summary>
+    /// ⭐ <c>AQ107 I</c> — <c>NodeHeartbeat.CpuUsage</c> is a 0…1 fraction (SI: a share, not a percent). A heartbeat carrying 0.25 over
+    /// real DDS, read by the shared membership ingest (<c>ClusterCapabilityIngestSystem</c>), lands in the cluster cache as 25 percent —
+    /// <c>NodeCapability.CpuUsagePercent</c>, the unit the least-loaded pick compares, is unchanged. ✅ Red-proof: the ingest storing the
+    /// fraction unconverted ⇒ 0.25 ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 15_000)]
+    public void AQ107I_ACpuLoadOnTheWire_IsAFraction_AndThePercentInTheClusterCache()
+    {
+        using var participant      = new DdsParticipant(TestDomain);
+        using var heartbeatWriter  = new DdsWriter<NodeHeartbeat>(participant);
+        using var heartbeatReader  = new DdsReader<NodeHeartbeat>(participant);
+        using var capsReader       = new DdsReader<NodeCapabilitiesTopic>(participant);
+
+        var cache  = new Hrot.Network.Routing.SimpleClusterStateCache();
+        var ingest = new Hrot.Network.Routing.ClusterCapabilityIngestSystem(heartbeatReader, capsReader, cache);
+        using var view = new EntityRepository();
+        Thread.Sleep(400);
+
+        const int nodeId = 77;
+        heartbeatWriter.Write(new NodeHeartbeat { NodeId = nodeId, SubsystemName = "SimHost", WallTicksUtc = 12345L, CpuUsage = 0.25f, RamUsedBytes = 1L << 20 });
+
+        Hrot.Network.Routing.NodeCapability? got = null;
+        var deadline = DateTime.UtcNow.AddSeconds(8);
+        while (DateTime.UtcNow < deadline && got is null)
+        {
+            ingest.Execute(view, 0f);
+            got = cache.TryGet(nodeId);
+            if (got is null) Thread.Sleep(30);
+        }
+
+        Assert.NotNull(got);
+        Assert.Equal(25f, got!.CpuUsagePercent, 1e-3f);
+        Assert.Equal(1L << 20, got.RamUsedBytes);
+    }
 }

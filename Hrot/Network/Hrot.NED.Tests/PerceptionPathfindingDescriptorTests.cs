@@ -63,7 +63,7 @@ namespace Hrot.DDS.DataModel.Tests
                 EntityId     = 1001L,
                 VisionRange  = 500f,
                 HearingRange = 100f,
-                FovDegrees   = 60f,
+                FovRad       = System.MathF.PI / 3f,   // 60°, radians on the wire (AQ107 I)
             };
             Assert.Equal(1001L, cfg.EntityId);
             Assert.Equal(500f, cfg.VisionRange);

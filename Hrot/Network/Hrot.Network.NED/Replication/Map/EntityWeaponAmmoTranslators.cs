@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
+using Hrot.NED.Descriptors.Orchestration;   // ⭐ AQ107 I — WireUnits
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -67,7 +68,9 @@ namespace Hrot.Map.Common.Replication.Egress
             LoadRounds0 = a.LoadRounds0, LoadRounds1 = a.LoadRounds1, LoadRounds2 = a.LoadRounds2, LoadRounds3 = a.LoadRounds3,
             Busy = a.Busy,
             LaidDown = a.LaidDown,   // ⭐ CE-3232
-            Hot = a.Hot, Heat0 = a.Heat0, Heat1 = a.Heat1, Heat2 = a.Heat2, Heat3 = a.Heat3,   // ⭐ CE-1358
+            Hot = a.Hot,   // ⭐ CE-1358 — ⭐ AQ107 I: the barrel heat is a 0…1 fraction on the wire (the ECS keeps its percent byte)
+            Heat0 = WireUnits.PercentToFraction(a.Heat0), Heat1 = WireUnits.PercentToFraction(a.Heat1),
+            Heat2 = WireUnits.PercentToFraction(a.Heat2), Heat3 = WireUnits.PercentToFraction(a.Heat3),
         };
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
@@ -130,9 +133,13 @@ namespace Hrot.Map.Common.Replication.Ingress
                 LoadRounds0 = d.LoadRounds0, LoadRounds1 = d.LoadRounds1, LoadRounds2 = d.LoadRounds2, LoadRounds3 = d.LoadRounds3,
                 Busy = d.Busy,
                 LaidDown = d.LaidDown,   // ⭐ CE-3232
-                Hot = d.Hot, Heat0 = d.Heat0, Heat1 = d.Heat1, Heat2 = d.Heat2, Heat3 = d.Heat3,   // ⭐ CE-1358
+                Hot = d.Hot,   // ⭐ CE-1358
+                Heat0 = HeatPercent(d.Heat0), Heat1 = HeatPercent(d.Heat1), Heat2 = HeatPercent(d.Heat2), Heat3 = HeatPercent(d.Heat3),
             });
         }
+
+        /// <summary>⭐ AQ107 I — the wire's 0…1 heat fraction as the ECS's percent byte (0..100).</summary>
+        private static byte HeatPercent(float fraction) => (byte)Math.Clamp((int)MathF.Round(WireUnits.FractionToPercent(fraction)), 0, 100);
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

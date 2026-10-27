@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
+using Hrot.NED.Descriptors.Orchestration;   // ⭐ AQ107 I — WireUnits
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -65,7 +66,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityScenarioClock ToSample(long netId, in ScenarioClock c)
-            => new() { EntityId = netId, StartUtcTicks = c.StartUtcTicks, DisplayUtcOffsetMinutes = c.DisplayUtcOffsetMinutes };
+            => new() { EntityId = netId, StartUtcTicks = c.StartUtcTicks, DisplayUtcOffsetSeconds = WireUnits.MinutesToSeconds(c.DisplayUtcOffsetMinutes) };   // ⭐ AQ107 I — SI: seconds on the wire
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
@@ -138,9 +139,13 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_entityMap.TryGetEntity(d.EntityId, out var env) || !view.IsAlive(env)) return false;
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, env, OwnershipExtensions.PackKey(OrdinalValue, 0))) return true;   // ours: drop
-            cmd.AddComponent(env, new ScenarioClock { StartUtcTicks = d.StartUtcTicks, DisplayUtcOffsetMinutes = d.DisplayUtcOffsetMinutes });
+            cmd.AddComponent(env, FromSample(in d));
             return true;
         }
+
+        /// <summary>The component a sample carries (the test seam). ⭐ AQ107 I — the offset arrives in SECONDS, the ECS keeps whole minutes.</summary>
+        internal static ScenarioClock FromSample(in EntityScenarioClock d)
+            => new() { StartUtcTicks = d.StartUtcTicks, DisplayUtcOffsetMinutes = (short)WireUnits.SecondsToMinutes(d.DisplayUtcOffsetSeconds) };
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

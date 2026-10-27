@@ -252,12 +252,128 @@ namespace Hrot.SimHost.Tests
                 ingress.Apply(in sample, cmd, node);
                 cmd.Playback(node);
                 var got = node.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(unit);
-                Assert.Equal((a.ArcSet, a.ArcOrigin, a.LeftBearing, a.RightBearing, a.MaxRange, a.AllowArea, a.WatchBearing, a.SetBy),
-                             (got.ArcSet, got.ArcOrigin, got.LeftBearing, got.RightBearing, got.MaxRange, got.AllowArea, got.WatchBearing, got.SetBy));
+                Assert.Equal((a.ArcSet, a.ArcOrigin, a.MaxRange, a.AllowArea, a.SetBy), (got.ArcSet, got.ArcOrigin, got.MaxRange, got.AllowArea, got.SetBy));
+                // ⭐ AQ107 I — the ECS keeps compass DEGREES; they cross the wire as radians, so they come back to within a float step
+                Assert.Equal(a.LeftBearing, got.LeftBearing, 1e-3f);
+                Assert.Equal(a.RightBearing, got.RightBearing, 1e-3f);
+                Assert.Equal(a.WatchBearing, got.WatchBearing, 1e-3f);
                 Assert.Equal((2, 4712L, 4713L), (got.NoFire.Count, got.NoFire.Items[0], got.NoFire.Items[1]));
             }
             var withdrawn = EntityEngagementAreaEgressTranslator.ToSample(50L, default);
             Assert.NotEqual(sample, withdrawn);
+        }
+
+        /// <summary>
+        /// ⭐ <c>AQ107 I</c> — a sector's bearings are RADIANS on the wire (the ECS <c>EngagementArea</c> keeps compass degrees): 300° leaves
+        /// the egress as 5π/3, 60° as π/3, a watch of 15° as π/12, and a negative bearing is NOT normalised (−45° ⇒ −π/4); the ingress gives
+        /// the same degrees back. ✅ Red-proof: the old degrees copied straight into the sample (the <c>DegToRad</c> dropped) ⇒ 300 on the wire ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ107I_ASectorsBearings_AreRadiansOnTheWire_AndDegreesInTheEcs()
+        {
+            var a = new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, LeftBearing = 300f, RightBearing = 60f, MaxRange = 400f, WatchBearing = 15f, WatchSet = 1,
+            };
+            var sample = EntityEngagementAreaEgressTranslator.ToSample(50L, a);
+            Assert.Equal(5f * System.MathF.PI / 3f, sample.LeftBearing, 1e-5f);
+            Assert.Equal(System.MathF.PI / 3f, sample.RightBearing, 1e-5f);
+            Assert.Equal(System.MathF.PI / 12f, sample.WatchBearing, 1e-5f);
+            Assert.Equal(400f, sample.MaxRange);   // a range is metres — untouched
+
+            var west = EntityEngagementAreaEgressTranslator.ToSample(50L, new Fdp.Toolkit.Behavior.Components.EngagementArea { ArcSet = 1, LeftBearing = -45f });
+            Assert.Equal(-System.MathF.PI / 4f, west.LeftBearing, 1e-5f);
+
+            var back = EntityEngagementAreaIngressTranslator.FromSample(in sample);
+            Assert.Equal((300f, 60f, 15f), (Round2(back.LeftBearing), Round2(back.RightBearing), Round2(back.WatchBearing)));
+        }
+
+        private static float Round2(float degrees) => System.MathF.Round(degrees, 2);
+
+        /// <summary>
+        /// ⭐ <c>AQ107 I</c> — weather is SI on the wire (the ECS <c>WeatherConditions</c> keeps °C / K per km / hPa / mm per h / compass
+        /// degrees): the ISA day (15 °C, 6.5 K/km, 1013.25 hPa) is 288.15 K, 0.0065 K/m, 101 325 Pa; 36 mm/h is 1e-5 m/s; a wind from 90°
+        /// is π/2; and the ingress gives the ECS values back. ✅ Red-proof: leaving the egress unit conversions off ⇒ 15 K on the wire ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void AQ107I_Weather_IsSIOnTheWire_AndTheEcsKeepsItsUnits()
+        {
+            var w = Fdp.Toolkit.Weather.WeatherConditions.Standard;   // 15 °C, 6.5 K/km, 1013.25 hPa
+            w.PrecipitationMmPerHour = 36f;
+            w.WindCount = 2;
+            w.WindFromDeg[0] = 90f; w.WindSpeedMps[0] = 5f;
+            w.WindFromDeg[1] = 270f; w.WindSpeedMps[1] = 8f;
+
+            var s = EntityWeatherEgressTranslator.ToSample(60L, w);
+            Assert.Equal(288.15f, s.GroundTemperature, 1e-3f);
+            Assert.Equal(0.0065f, s.LapseRate, 1e-7f);
+            Assert.Equal(101325f, s.SeaLevelPressure, 0.05f);
+            Assert.Equal(1e-5f, s.PrecipitationRate, 1e-9f);
+            Assert.Equal(System.MathF.PI / 2f, s.W0From, 1e-5f);
+            Assert.Equal(3f * System.MathF.PI / 2f, s.W1From, 1e-5f);
+            Assert.Equal((5f, 8f), (s.W0Speed, s.W1Speed));   // m/s already
+            Assert.Equal(w.RelativeHumidity, s.RelativeHumidity);   // a 0…1 fraction already
+
+            var back = EntityWeatherEgressTranslator.FromSample(in s);
+            Assert.Equal(15f, back.GroundTemperatureC, 1e-3f);
+            Assert.Equal(6.5f, back.LapseRateKPerKm, 1e-4f);
+            Assert.Equal(1013.25f, back.SeaLevelPressureHpa, 1e-3f);
+            Assert.Equal(36f, back.PrecipitationMmPerHour, 1e-3f);
+            Assert.Equal(90f, back.WindFromDeg[0], 1e-3f);
+            Assert.Equal(270f, back.WindFromDeg[1], 1e-3f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>AQ107 I</c> — the scenario clock's display offset is SECONDS on the wire (an <c>int</c>; the ECS keeps whole minutes in a
+        /// <c>short</c>): +180 min (UTC+3) is 10 800 s, −300 min is −18 000 s, +14 h (the largest zone, 840 min) is 50 400 s — which a
+        /// <c>short</c> could not carry — and every one comes back as the same minutes. ✅ Red-proof: the egress copying minutes ⇒ 180 ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData((short)180, 10_800)]
+        [InlineData((short)-300, -18_000)]
+        [InlineData((short)840, 50_400)]
+        [InlineData((short)0, 0)]
+        public void AQ107I_ScenarioClockOffset_IsSecondsOnTheWire_AndMinutesInTheEcs(short minutes, int expectedSeconds)
+        {
+            var clock = new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = 637_000_000_000_000_000L, DisplayUtcOffsetMinutes = minutes };
+            var sample = EntityScenarioClockEgressTranslator.ToSample(61L, clock);
+            Assert.Equal(expectedSeconds, sample.DisplayUtcOffsetSeconds);
+            Assert.Equal(clock.StartUtcTicks, sample.StartUtcTicks);
+
+            var back = EntityScenarioClockIngressTranslator.FromSample(in sample);
+            Assert.Equal((clock.StartUtcTicks, minutes), (back.StartUtcTicks, back.DisplayUtcOffsetMinutes));
+        }
+
+        /// <summary>
+        /// ⭐ <c>AQ107 I</c> — a barrel's heat is a 0…1 FRACTION on the wire (the ECS <c>WeaponAmmo</c> keeps a percent byte): 50 % is 0.5,
+        /// 100 % is 1, 7 % is 0.07 and the ingress gives the same percent back (and clamps a hostile sample into 0..100).
+        /// ✅ Red-proof: the egress copying the percent byte ⇒ 50 on the wire ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AQ107I_BarrelHeat_IsAFractionOnTheWire_AndAPercentInTheEcs()
+        {
+            var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 4, Heat0 = 50, Heat1 = 100, Heat2 = 7, Heat3 = 0, Hot = 0b10 };
+            var sample = EntityWeaponAmmoEgressTranslator.ToSample(62L, ammo);
+            Assert.Equal((0.5f, 1f, 0.07f, 0f), (sample.Heat0, sample.Heat1, sample.Heat2, sample.Heat3));
+            Assert.Equal((byte)0b10, sample.Hot);
+
+            var (node, unit, map) = Node(62L);
+            using (node)
+            {
+                node.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
+                var ingress = new EntityWeaponAmmoIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                var got = node.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(unit);
+                Assert.Equal((ammo.Heat0, ammo.Heat1, ammo.Heat2, ammo.Heat3, ammo.Hot), (got.Heat0, got.Heat1, got.Heat2, got.Heat3, got.Hot));
+
+                var hostile = sample with { Heat0 = 7.5f, Heat1 = -2f };
+                ingress.Apply(in hostile, cmd, node);
+                cmd.Playback(node);
+                got = node.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(unit);
+                Assert.Equal(((byte)100, (byte)0), (got.Heat0, got.Heat1));
+            }
         }
 
         /// <summary>⭐ <c>CE-3219</c> part 3 (§7.3b) — a cloud's every field reaches the other node (its kind, size, sight, irritation and

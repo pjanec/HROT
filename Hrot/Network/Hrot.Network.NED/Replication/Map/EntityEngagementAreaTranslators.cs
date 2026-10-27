@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
+using Hrot.NED.Descriptors.Orchestration;   // ⭐ AQ107 I — WireUnits
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -65,8 +66,9 @@ namespace Hrot.Map.Common.Replication.Egress
             => new()
             {
                 EntityId = netId, ArcSet = c.ArcSet, ArcOriginX = c.ArcOrigin.X, ArcOriginY = c.ArcOrigin.Y, ArcOriginZ = c.ArcOrigin.Z,
-                LeftBearing = c.LeftBearing, RightBearing = c.RightBearing, MinRange = c.MinRange, MaxRange = c.MaxRange, AllowArea = c.AllowArea,
-                WatchBearing = c.WatchBearing, WatchSet = c.WatchSet, NoFireCount = c.NoFire.Count,
+                LeftBearing = WireUnits.DegToRad(c.LeftBearing), RightBearing = WireUnits.DegToRad(c.RightBearing),   // ⭐ AQ107 I — radians on the wire, degrees in the ECS
+                MinRange = c.MinRange, MaxRange = c.MaxRange, AllowArea = c.AllowArea,
+                WatchBearing = WireUnits.DegToRad(c.WatchBearing), WatchSet = c.WatchSet, NoFireCount = c.NoFire.Count,
                 NoFire0 = c.NoFire.Count > 0 ? c.NoFire.Items[0] : 0L, NoFire1 = c.NoFire.Count > 1 ? c.NoFire.Items[1] : 0L,
                 NoFire2 = c.NoFire.Count > 2 ? c.NoFire.Items[2] : 0L, NoFire3 = c.NoFire.Count > 3 ? c.NoFire.Items[3] : 0L,
                 SetBy = (byte)c.SetBy,
@@ -131,8 +133,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             var a = new EngagementArea
             {
                 ArcSet = d.ArcSet, ArcOrigin = new System.Numerics.Vector3(d.ArcOriginX, d.ArcOriginY, d.ArcOriginZ),
-                LeftBearing = d.LeftBearing, RightBearing = d.RightBearing, MinRange = d.MinRange, MaxRange = d.MaxRange, AllowArea = d.AllowArea,
-                WatchBearing = d.WatchBearing, WatchSet = d.WatchSet, SetBy = (BehaviorOrigin)d.SetBy,
+                LeftBearing = WireUnits.RadToDeg(d.LeftBearing), RightBearing = WireUnits.RadToDeg(d.RightBearing),
+                MinRange = d.MinRange, MaxRange = d.MaxRange, AllowArea = d.AllowArea,
+                WatchBearing = WireUnits.RadToDeg(d.WatchBearing), WatchSet = d.WatchSet, SetBy = (BehaviorOrigin)d.SetBy,
             };
             int n = Math.Clamp(d.NoFireCount, 0, EngagementArea.MaxNoFire);
             a.NoFire.Count = n;

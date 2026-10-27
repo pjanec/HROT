@@ -50,6 +50,12 @@ namespace Hrot.Network.Routing
             }
         }
 
+        /// <summary>The capability record held for a node (the test seam — ⭐ AQ107 I reads the CPU load the heartbeat ingest stored).</summary>
+        internal NodeCapability? TryGet(int nodeId)
+        {
+            lock (_lock) return _nodes.TryGetValue(nodeId, out var cap) ? cap : null;
+        }
+
         /// <inheritdoc/>
         public int? GetLeastLoadedNode(NodeRole requiredRole)
         {
