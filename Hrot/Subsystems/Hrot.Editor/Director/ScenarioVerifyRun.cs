@@ -77,7 +77,7 @@ namespace Hrot.Editor.Director
         private int _checkIndex;
         // ⭐ CE-4045 H5 / H1b — the LOOK-BACK, one loop for both: a review of the live run (H5) or a replay of the finished one (H1b). The live
         //   snapshots to look back at, the one being looked at, how long the clock has stood there
-        private enum LookMode { Review, Replay }
+        private enum LookMode { Review, Replay, Seek }
         private LookMode _look;
         private bool _reviewDone;   // H5: the run's review happened (or could not)
         private bool _lookEntered;  // the product is in the review / replay (a replay is entered from Idle, so it waits for it)
@@ -88,11 +88,13 @@ namespace Hrot.Editor.Director
         private int _standing;
         private ScenarioGolden? _lookSnapshots, _atLive;
         // the outcomes, kept until the run's result exists (Finish for the review, EndPlayback for the replay)
-        private LookBackResult? _review, _playback;
+        private LookBackResult? _review, _playback, _seek;   // ⭐ H2 — _seek: the replay sought again, shuffled
         private readonly List<string> _returnDiff = new();
-        private LookBackResult Look => _look == LookMode.Review ? _review! : _playback!;
-        private string LookTag => _look == LookMode.Review ? "H5" : "H1b";
-        private string LookNoun => _look == LookMode.Review ? "review" : "replay";
+        private LookBackResult Look => _look switch { LookMode.Review => _review!, LookMode.Replay => _playback!, _ => _seek! };
+        private string LookTag => _look switch { LookMode.Review => "H5", LookMode.Replay => "H1b", _ => "H2" };
+        private string LookNoun => _look switch { LookMode.Review => "review", LookMode.Replay => "replay", _ => "seek" };
+        /// <summary>⭐ H2 — the shuffle's seed: one order, the same on every run (a difference repeats).</summary>
+        public const int SeekShuffleSeed = 4045;
 
         /// <param name="host">the editor's host — checkpoints, the live run, its review and replay.</param>
         /// <param name="verifyWorld">⭐ CE-4042 — what a verify run reads and edits (the editor's entity dump, combat rows and component
@@ -220,7 +222,7 @@ namespace Hrot.Editor.Director
             _r1Target = double.NaN; _r1Frames = 0; _r1Written = false;
             _liveRecording = null; _pendingVerify = null; _recordedSnapshots = null; _checkIndex = 0; CloseRecorded();
             _reviewDone = false; _lookEntered = false; _lookTimes = null; _lookLive = null; _lookIndex = 0; _standing = 0; _lookSnapshots = null; _atLive = null;
-            _review = null; _playback = null; _returnDiff.Clear();
+            _review = null; _playback = null; _seek = null; _returnDiff.Clear();
         }
 
         public void Stop() => CloseRecorded();
@@ -395,6 +397,7 @@ namespace Hrot.Editor.Director
             var v = _pendingVerify!;
             _pendingVerify = null;
             v.Playback = _playback;
+            v.Seek = _seek;
             var r = Report;
             r.Result = v;
             r.Status = v.Passed ? "pass" : "fail";
@@ -488,8 +491,9 @@ namespace Hrot.Editor.Director
                 if (inLook) _vhost.SeekReview(_lookTarget);   // ⭐ the same SeekReplayIntent for a review and a replay
                 return;
             }
+            if (_look == LookMode.Replay && BeginSeekCheck()) return;   // ⭐ H2 — the same replay, sought again in a shuffled order
             if (_look == LookMode.Review) { _vhost.ExitReview(); _lookTarget = _t0 + _liveAtRel; }
-            else _vhost.StopLive();   // ⭐ H1b — leave the replay: an Idle transition, nothing is left running
+            else _vhost.StopLive();   // ⭐ H1b / H2 — leave the replay: an Idle transition, nothing is left running
             _standing = 0;
             _phaseStartWall = H.WallNow;
             Enter("Returning");
@@ -499,12 +503,12 @@ namespace Hrot.Editor.Director
         /// Then the look-back is compared with the live run.</summary>
         private void TickReturning()
         {
-            if (_look == LookMode.Replay)   // ⭐ H1b — back to Idle, then the item is judged
+            if (_look != LookMode.Review)   // ⭐ H1b / H2 — back to Idle, then the item is judged
             {
                 if (!_vhost.IsIdle)
                 {
                     if (H.WallNow - _phaseStartWall <= LoadTimeoutSeconds) return;
-                    Look.Problems.Add($"H1b: the replay did not stop (Idle) within {LoadTimeoutSeconds:0} s");
+                    Look.Problems.Add($"{LookTag}: the replay did not stop (Idle) within {LoadTimeoutSeconds:0} s");
                 }
                 CompareLookBack();
                 EndPlayback();
@@ -527,6 +531,46 @@ namespace Hrot.Editor.Director
         }
 
         /// <summary>
+        /// ⭐ <c>CE-4045</c> H2 (docs/DESIGN_Scenario_Regression.md §10, RH-6) — the in-order playback (H1b) is over and judged: seek the SAME
+        /// replay to the same moments again in a shuffled, seeded order — backward seeks included — and compare each with what H1b showed
+        /// there (not with live: a playback difference is H1b's, so H2 can only blame the seek). 📌 CE-4056 (a seek BACK stood one seek
+        /// behind) was found live and only there; in-order seeks never go back. False when there is nothing to shuffle (fewer than two).
+        /// </summary>
+        private bool BeginSeekCheck()
+        {
+            var playback = ByTime(_lookSnapshots!.SnapshotsJson());
+            var times = ((playback["snapshots"] as JsonArray) ?? new JsonArray()).Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN)
+                                                                              .Where(t => !double.IsNaN(t)).ToList();
+            if (times.Count < 2) return false;
+            CompareLookBack();   // H1b first, against live
+            var order = new List<double>(times);
+            var rng = new Random(SeekShuffleSeed);
+            for (int i = order.Count - 1; i > 0; i--) { int j = rng.Next(i + 1); (order[i], order[j]) = (order[j], order[i]); }
+            if (order.SequenceEqual(times)) (order[0], order[1]) = (order[1], order[0]);   // never the in-order walk H1b already made
+            _look = LookMode.Seek;
+            _seek = new LookBackResult();
+            _lookLive = playback["snapshots"] as JsonArray;   // the reference: what the playback showed at each moment
+            _lookTimes = order;
+            _lookSnapshots = new ScenarioGolden(_verifyWorld!, full: true);
+            _lookIndex = 0;
+            _lookTarget = _t0 + order[0];
+            _standing = 0;
+            _phaseStartWall = H.WallNow;
+            _vhost.SeekReview(_lookTarget);
+            return true;
+        }
+
+        /// <summary>The snapshots in time order (a look-back may visit them in another).</summary>
+        private static JsonObject ByTime(JsonObject golden)
+        {
+            var sorted = ((golden["snapshots"] as JsonArray) ?? new JsonArray())
+                .OrderBy(n => ConditionBook.Num(n?["t"]) ?? double.NaN).Select(n => n!.DeepClone()).ToArray();
+            var o = golden.DeepClone().AsObject();
+            o["snapshots"] = new JsonArray(sorted);
+            return o;
+        }
+
+        /// <summary>
         /// The look-back against the live run, on what the recording carries (what a review or a replay can show).
         /// ⚠ The comparator pairs snapshots by INDEX: compare only the live snapshots at the times the product actually STOOD at
         /// (📐 measured: a review that never reached 0 s shifted every later pair by one second).
@@ -534,7 +578,7 @@ namespace Hrot.Editor.Director
         private void CompareLookBack()
         {
             var result = Look;
-            var seen = _lookSnapshots!.SnapshotsJson();
+            var seen = ByTime(_lookSnapshots!.SnapshotsJson());   // ⭐ H2 visits in a shuffled order; the comparator pairs by index
             var seenTimes = ((seen["snapshots"] as JsonArray) ?? new JsonArray()).Select(n => ConditionBook.Num(n?["t"]) ?? double.NaN).ToList();
             var live = new JsonObject { ["snapshots"] = new JsonArray((_lookLive ?? new JsonArray())
                 .Where(n => ConditionBook.Num(n?["t"]) is { } t && seenTimes.Any(st => Math.Abs(st - t) < 1e-4)).Select(n => n!.DeepClone()).ToArray()) };

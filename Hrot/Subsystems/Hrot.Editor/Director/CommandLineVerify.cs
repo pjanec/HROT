@@ -163,6 +163,7 @@ namespace Hrot.Editor.Director
             PrintLookBack(item["review"] as JsonObject, "REVIEW", w, indent);
             foreach (var d in (item["returnDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    RETURN {d}");
             PrintLookBack(item["playback"] as JsonObject, "PLAYBACK", w, indent);   // ⭐ H1b — the product's replay of the run
+            PrintLookBack(item["seek"] as JsonObject, "SEEK", w, indent);           // ⭐ H2 — the replay sought in a shuffled order
             foreach (var p in (item["written"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  wrote {p}");
             foreach (var p in (item["problems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");
             foreach (var p in (item["runProblems"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}  PROBLEM {p}");

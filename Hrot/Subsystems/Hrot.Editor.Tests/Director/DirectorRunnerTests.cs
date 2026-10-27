@@ -145,6 +145,9 @@ public sealed class DirectorRunnerTests : IDisposable
         //   frames (a seek is SeekReview's — the same SeekReplayIntent), and a stop leaves it for Idle two frames later
         /// <summary>A replay that does not show the health — what H1b exists to catch.</summary>
         public bool ReplayLosesHealth;
+        /// <summary>⭐ CE-4045 H2 — CE-4056's shape: a seek BACK in a replay moves the clock to its target but the world stays where the last seek
+        /// left it (live, a seek back stood one seek behind).</summary>
+        public bool SeekBackStandsBehind;
         public int Replays, ReplayStops;
         /// <summary>The sim seconds each replay entry and each seek asked for, in order.</summary>
         public readonly List<double> ReplayEntries = new(), SeekAsks = new();
@@ -181,7 +184,14 @@ public sealed class DirectorRunnerTests : IDisposable
                 _reviewAsk = null;
                 // ⭐ H1b — a seek in a replay is the same SeekReplayIntent; only a review (re)enters from the live run, with its checkpoint
                 if (!IsOperatingReplay && !IsOperatingReview) { _checkpoint = (SimTime, new Dictionary<long, double>(Verifier!.Health)); IsOperatingReview = true; IsOperatingLive = false; }
+                double before = SimTime;
                 ShowRecorded(ask);
+                if (SeekBackStandsBehind && IsOperatingReplay && ask < before - 1e-9)
+                {
+                    double landed = SimTime;
+                    ShowRecorded(before);   // the world of the last seek …
+                    SimTime = landed;       // … under the clock of this one
+                }
             }
             if (_exitAsk && _checkpoint is { } cp)
             {
@@ -1016,7 +1026,13 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Equal(4, pb.Snapshots);                                                              // t = 0, 1, 2, 3
         Assert.Empty(pb.Problems);
         Assert.Equal(new[] { 0d }, host.ReplayEntries);                                             // ONE entry, at the first snapshot
-        Assert.Equal(new[] { 1d, 2d, 3d }, host.SeekAsks);                                          // ⭐ by recorded sim time, one seek per later snapshot
+        Assert.Equal(new[] { 1d, 2d, 3d }, host.SeekAsks.Take(3));                                  // ⭐ by recorded sim time, one seek per later snapshot
+        // ⭐ H2 — then the SAME replay, sought again to every moment in a shuffled, seeded order (backward seeks included)
+        var h2 = host.SeekAsks.Skip(3).ToList();
+        Assert.Equal(new[] { 0d, 1d, 2d, 3d }, h2.OrderBy(x => x));
+        Assert.NotEqual(new[] { 0d, 1d, 2d, 3d }, h2);
+        Assert.Equal("same", r.Verify()!.Seek!.Verdict);
+        Assert.Equal(4, r.Verify()!.Seek!.Snapshots);
         Assert.Equal((1, 1, 0, 0), (host.Replays, host.ReplayStops, host.Reviews, host.Enters));    // a replay, not a review; live, never a preview
         Assert.Equal(1, host.LiveStops);                                                            // the live run stopped once (for H1a); the replay left once
         Assert.True(host.IsIdle);
@@ -1038,6 +1054,31 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Contains(b.Verify()!.Playback.Diff, d => d.Contains("Health"));
         Assert.Equal("fail", b.Status);
         Assert.True(badHost.IsIdle);                                                                // a failed check leaves nothing running
+    }
+
+    /// <summary>
+    /// ⭐ CE-4045 H2 (docs/DESIGN_Scenario_Regression.md §10, RH-6) — the replay sought again in a shuffled order catches a seek that goes
+    /// wrong only when it goes BACK — CE-4056's shape, found live and only live: the in-order playback (H1b) never seeks back, so it stays
+    /// "same" while H2 is "different", and the item fails.
+    /// </summary>
+    [Fact]
+    public void CE4045_H2_ShuffledSeeks_CatchASeekBackThatStandsOneSeekBehind()
+    {
+        var store = Store();
+        File.WriteAllText(Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
+        var rec = Path.Combine(_root, "rec");
+        Directory.CreateDirectory(rec);
+        var host = new FakeEditor(store) { Lag = 1, RecordDir = rec, SeekBackStandsBehind = true };
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), extension: new ScenarioVerifyRun(host, u => host.Verifier = new FakeVerifyWorld(host, u)));
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(Replay: true))));
+        Run(runner, host);
+        var r = runner.Reports.Single();
+        Assert.Equal("same", r.Verify()!.Replay);                     // H1a: the recording is right
+        Assert.Equal("same", r.Verify()!.Playback!.Verdict);          // H1b: in order, every seek forward — the defect never shows
+        Assert.Equal("different", r.Verify()!.Seek!.Verdict);         // ⭐ H2: a seek back shows the last seek's world
+        Assert.Contains(r.Verify()!.Seek!.Diff, d => d.StartsWith("FIRST differing snapshot"));
+        Assert.Equal("fail", r.Status);
+        Assert.True(host.IsIdle);                                     // the replay is left, nothing runs on
     }
 
     /// <summary>
