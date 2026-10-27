@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — ✅ ALL APPROVED 2026-10-27: A, B, D ruled (R-4092); C, E, F, G, H, I approved as leaned (R-4093)
+state: LIVE — ✅ ALL APPROVED 2026-10-27: A, B, D ruled (R-4092); E, F, G, H, I approved as leaned (R-4093); C decided by the user (R-4094: the orchestrator publishes)
 updated: 2026-10-27
 build-state: BUILDING — §5 the order; step 1 (CycloneDDS.NET 0.4) under test from a local build
 current-answer: §4 the sub-questions with leans and verdicts · §3 the diagrams (the wire AFTER) · §2 the claims · §5 the order
@@ -168,7 +168,15 @@ a gateway-side conversion (`origin + R · local`) agrees with `WGS84Transform.To
 | the degree-valued fields (I) | not yet enumerated field by field | ⏳ the I refactor enumerates them first (its brief) |
 | ⛔ **C's premise: "the cluster master publishes the origin"** | the master holds NO ECS world, terrain or geo transform (`OrchestratorSubsystem.cs` — searched `EntityRepository`, `TerrainResidency`, `IGeographicTransform`: none); the origin is set ONLY by a terrain commit on an ECS host (`TerrainResidency.ApplyGeoOrigin`, `TerrainResidency.cs:546` — CGF, the editor, every `NodeBootstrapper` host) and by the Replay Browser | ⛔ **C STOPPED (R-106)** — re-decision for the user, lean below. Every other step goes on |
 
-⭐ **C re-lean (awaiting the user):** the origin is a descriptor of the **World Environment** entity, `EntityGeoReference`, beside its
+✅ **C DECIDED by the user (`2026-10-27`, R-4094):** *"there could be multiple CGF nodes and only one needs to publish the georeference, so it
+must be the orchestrator. And also the orchestrator can load the terrain header which contains the georeference."* ⇒ the **cluster master
+(`ClusterMaster`, the orchestrator)** publishes the retained, keyless `GeoReference`. 📐 Measured, it can: `Hrot.Orchestrator` already references
+`Fdp.Toolkits` (`TerrainDefinitionParser.Parse` → `TerrainDefinition.Origin`, `TerrainDefinition.cs:84`), and it reads the load's terrain name
+itself (`ReadContentNamesForFanOut`, `ClusterMaster.InSync.cs:154-162`). ⭐ At a LOAD: the terrain header's origin (the same file every node
+commits — one fact, one source). ⭐ At a REPLAY entry: the recording's `RecordingMetadata.GeoOrigin` (`RecordingMetadata.cs:86`, written by
+`RecorderTickSystem.cs:237`) — the origin the run actually used. `Generation` +1 on each. ⛔ SUPERSEDED below — the World Environment re-lean.
+
+⛔ *HISTORY — the re-lean the user overruled:* the origin is a descriptor of the **World Environment** entity, `EntityGeoReference`, beside its
 `EntityScenarioClock` — published by that entity's owner (the CGF that creates it, an ECS host that HAS the origin from its own terrain commit),
 read from the node's `IGeographicTransform` singleton, retained, so a late gateway gets one sample. ⭐ The same pattern as the scenario clock
 and the weather (Weather and Time §6.1) — no new publisher. Rejected: the master reading the terrain file itself — a second reader of the terrain
@@ -180,4 +188,4 @@ asset, and a replay's origin comes from the recording, which the master does not
 |---|---|---|---|
 | A, B, D | ✅ ruled (quotes in the header) | 2026-10-27 | user |
 | E, F, G, H, I | ✅ approved as leaned | 2026-10-27 | user |
-| C | ⛔ approved, then its premise failed (§5a) — the World Environment re-lean awaits the user | 2026-10-27 | coordinator |
+| C | ✅ the orchestrator publishes it, from the terrain header (load) and the recording's metadata (replay) — R-4094 (§5a) | 2026-10-27 | user |
