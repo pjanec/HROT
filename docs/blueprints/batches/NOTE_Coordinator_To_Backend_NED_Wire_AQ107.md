@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — coordinator → backend: the NED wire clean-up is designed (AQ107; A, B, D ruled), one bug filed now (CE-4068), nothing to build yet
+state: SUPERSEDED — by NOTE_Coordinator_To_Backend_NED_Wire_Cutover_Built.md (AQ107 approved and built on coordinator)
 updated: 2026-10-27
 current-answer: the whole note
 stale-below: nothing
