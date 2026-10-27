@@ -86,6 +86,9 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// <summary>Module installed by the most recent <see cref="PrepareRecordingAsync"/> call.</summary>
         public RecordingModule? ActiveRecordingModule => _activeRecordingModule;
 
+        /// <summary>⭐ CE-3329 row 44 — the episode recorders running now: a review suspends them with the main recording.</summary>
+        public IEnumerable<Fdp.Toolkit.Replay.IReviewSuspendable> EpisodeRecorders => _episodeModules.Values;
+
         /// <summary>Module installed by the most recent <see cref="PrepareReplayAsync"/> call.</summary>
         public ReplayModule? ActiveReplayModule => _activeReplayModule;
 

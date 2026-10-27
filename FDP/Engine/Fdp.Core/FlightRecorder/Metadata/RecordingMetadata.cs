@@ -93,6 +93,13 @@ namespace Fdp.Core.FlightRecorder.Metadata
         public List<CheckpointMark> Checkpoints { get; set; } = new List<CheckpointMark>();
 
         /// <summary>
+        /// ⭐ <c>CE-3329</c> R8 / row 17 — the During Action Reviews taken while this recording ran: where in the run each was opened and
+        /// how long it lasted. The recording is suspended during one and resumes the SAME file at the live point, so the run shows no gap;
+        /// this is how the timeline labels where a review was. Empty for a run with none, and for recordings that pre-date it.
+        /// </summary>
+        public List<ReviewMark> Reviews { get; set; } = new List<ReviewMark>();
+
+        /// <summary>
         /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — the exercise this recording BRANCHED from (a checkpoint restore, or a replay going live);
         /// <c>Guid.Empty</c> for a recording that began at a load. Its first frames are a copy of that exercise's up to
         /// <see cref="BranchWallTicks"/>.
@@ -109,6 +116,25 @@ namespace Fdp.Core.FlightRecorder.Metadata
 
     /// <summary>⭐ <c>CE-3299</c> B3 — one named keyframe of a recording: its label, its frame (0-based, in file order) and its wall time.</summary>
     [Serializable]
+    /// <summary>⭐ <c>CE-3329</c> R8 — one During Action Review of a recorded run (<see cref="RecordingMetadata.Reviews"/>).</summary>
+    public sealed class ReviewMark
+    {
+        /// <summary>The review's label — the live point's checkpoint (<c>review-&lt;n&gt;</c>).</summary>
+        public string Label { get; set; } = "";
+
+        /// <summary>The live point's sim time — the run's own clock when the review opened.</summary>
+        public double AtSimSeconds { get; set; }
+
+        /// <summary>The live point's wall stamp — the last frame written before the review.</summary>
+        public long AtWallTicks { get; set; }
+
+        /// <summary>When the review opened and when the run resumed (UTC); <see cref="EndedUtc"/> is null while it is open.</summary>
+        public DateTime StartedUtc { get; set; }
+
+        /// <inheritdoc cref="StartedUtc"/>
+        public DateTime? EndedUtc { get; set; }
+    }
+
     public sealed class CheckpointMark
     {
         /// <summary>The checkpoint's name — unique within the recording.</summary>

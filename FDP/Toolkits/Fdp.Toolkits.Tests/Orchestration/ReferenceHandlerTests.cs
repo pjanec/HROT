@@ -251,6 +251,14 @@ public sealed class ReferenceHandlerTests
 
     // ── CE-3329 P3 — During Action Review on a node ─────────────────────────────
 
+    private sealed class SpyEpisodeRecorder : Fdp.Toolkit.Replay.IReviewSuspendable
+    {
+        public (string? Label, double At)? Suspended;
+        public double? ResumedAt;
+        public void SuspendForReview(string? label = null, double atSimSeconds = 0) => Suspended = (label, atSimSeconds);
+        public void ResumeAfterReview(double? atSimSeconds = null) => ResumedAt = atSimSeconds;
+    }
+
     private sealed class CapturingRegistry : Fdp.ModuleHost.Abstractions.ISystemRegistry
     {
         public List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> Systems { get; } = new();
@@ -289,8 +297,9 @@ public sealed class ReferenceHandlerTests
 
             var controller = new SeekCapturingController();
             var gates = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, dir);
+            var episode = new SpyEpisodeRecorder();   // ⭐ row 44
             var review = new ReferenceReviewHandler(controller, () => recording, gates, world, accumulator: null, worldReplaced: null,
-                                                    resumeSchedule: null, storageDirectory: dir);
+                                                    resumeSchedule: null, storageDirectory: dir, episodeRecorders: () => new[] { episode });
 
             // ── ENTER: the handler waits for its keyframe — the "frames" keep coming meanwhile ──
             var enter = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareReview };
@@ -302,6 +311,7 @@ public sealed class ReferenceHandlerTests
             Assert.Equal("review-1", review.LastReviewLabel);
             Assert.NotNull(recording.FindCheckpoint("review-1"));                                   // D-C: the live point, recorded
             Assert.True(Fdp.Toolkit.Replication.Services.EgressHold.IsHeld(world));                // W2
+            Assert.Equal(("review-1", 12.0), episode.Suspended);                                    // ⭐ row 44 — an episode's history too
 
             // ── THE REVIEW: the playback rewrites the world (a moved unit, a unit that did not exist at L, a past singleton) ──
             world.GetComponentRW<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X = -1f;
@@ -319,6 +329,7 @@ public sealed class ReferenceHandlerTests
             review.Commit(exit, null);
 
             Assert.False(review.InReview);
+            Assert.Equal(12.0, episode.ResumedAt);                                                   // ⭐ row 44 — resumed at L
             Assert.Equal(7f, world.GetComponentRO<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X);
             Assert.False(world.IsAlive(ghost));
             Assert.Equal(42, world.GetSingletonUnmanaged<Fdp.Toolkits.Tests.Replay.KeyframeTestWorldState>().Value);   // F1
@@ -336,6 +347,13 @@ public sealed class ReferenceHandlerTests
             recording.WaitForWrites();
             Assert.True(new FileInfo(Path.Combine(dir, "node.fdp")).Length > sizeBefore);            // the SAME recording goes on
             recording.Dispose();
+            // ⭐ row 17 — the meta says where the review was: its label, the live point and how long it lasted
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(Path.Combine(dir, "node.fdp") + ".meta.json"));
+            var mark = Assert.Single(meta.Reviews);
+            Assert.Equal("review-1", mark.Label);
+            Assert.Equal(12.0, mark.AtSimSeconds);
+            Assert.True(mark.AtWallTicks > 0);
+            Assert.NotNull(mark.EndedUtc);
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
     }

@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.IO;
 using System.Threading;
@@ -92,6 +93,12 @@ namespace Hrot.SimHost.Integration.Tests
 
             Assert.True(clusterSlave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
                 "Every ECS host — a Map2D / image-generator node too — registers the replay handler (R-4011, D16).");
+            // ⭐ CE-3329 row 44 — the silent-default rule: the composition that HAS the controller passes its episode recorders to the
+            //   review handler (a review suspends them with the main recording); asserted on the constructed handler
+            var review = clusterSlave.RegisteredHandlers.OfType<ReferenceReviewHandler>().Single();
+            var episodes = typeof(ReferenceReviewHandler).GetField("_episodeRecorders",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(review);
+            Assert.NotNull(episodes);
         }
 
         // ── MOD1-P8T5 success condition 3 ────────────────────────────────────────

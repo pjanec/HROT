@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,6 +36,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     {
         private readonly IRecordReplayController _controller;
         private readonly Func<RecordingModule?> _recording;
+        // ⭐ CE-3329 row 44 — the episode recorders, suspended and resumed with the main recording. 🔒 A production composition that HAS a
+        //   controller passes them (EcsHostClusterHandlers); null only where no episode can record (tests, a host without episodes).
+        private readonly Func<IEnumerable<Fdp.Toolkit.Replay.IReviewSuspendable>>? _episodeRecorders;
         private readonly ReferenceReplayLoadHandler _gates;
         private readonly EntityRepository _world;
         private readonly Fdp.Core.EventAccumulator? _accumulator;
@@ -59,8 +63,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         public ReferenceReviewHandler(
             IRecordReplayController controller, Func<RecordingModule?> recording, ReferenceReplayLoadHandler gates,
             EntityRepository world, Fdp.Core.EventAccumulator? accumulator, Action<bool>? worldReplaced,
-            Action<FdpEventBus>? resumeSchedule, string storageDirectory)
+            Action<FdpEventBus>? resumeSchedule, string storageDirectory,
+            Func<IEnumerable<Fdp.Toolkit.Replay.IReviewSuspendable>>? episodeRecorders = null)
         {
+            _episodeRecorders = episodeRecorders;
             _controller = controller ?? throw new ArgumentNullException(nameof(controller));
             _recording = recording ?? throw new ArgumentNullException(nameof(recording));
             _gates = gates ?? throw new ArgumentNullException(nameof(gates));
@@ -99,7 +105,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             LastReviewLabel = $"review-{++_reviews}";
             recording.RequestCheckpoint(LastReviewLabel, atWallTicks: 0);
             await WaitUntil(() => recording.PendingCheckpoints == 0, $"keyframe {LastReviewLabel}", ct).ConfigureAwait(false);
-            recording.SuspendForReview();   // R8 — nothing written while the world is the replayed one; flushed, the file stays open
+            double liveSim = _world.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+            recording.SuspendForReview(LastReviewLabel, liveSim);   // R8 — nothing written while the world is the replayed one; noted in Reviews[]
+            foreach (var episode in _episodeRecorders?.Invoke() ?? Array.Empty<Fdp.Toolkit.Replay.IReviewSuspendable>())
+                episode.SuspendForReview(LastReviewLabel, liveSim);   // ⭐ row 44 — nor into an episode's
 
             // F1 / D-B — the FULL checkpoint: every recorded type and the singletons (⛔ not the dry run's NodeDryRun)
             _livePoint = WorldKeyframes.Capture(_world, CaptureOptions.Recording);
@@ -130,6 +139,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             ReferenceCheckpointHandler.PutBack(_world, live, _accumulator, _worldReplaced, _resumeSchedule);   // D-B: the checkpoint's return
             _gates.LeaveReplayGates();
             _recording()?.ResumeAfterReview(_liveSimSeconds);   // records again once the master's clock is back at L
+            foreach (var episode in _episodeRecorders?.Invoke() ?? Array.Empty<Fdp.Toolkit.Replay.IReviewSuspendable>())
+                episode.ResumeAfterReview(_liveSimSeconds);   // ⭐ row 44
             _livePoint = null;
             FdpLog<ReferenceReviewHandler>.Info("[Review] returned to the live point '{0}'.", LastReviewLabel ?? "?");
         }

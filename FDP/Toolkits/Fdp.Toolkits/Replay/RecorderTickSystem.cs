@@ -163,6 +163,9 @@ namespace Fdp.Toolkit.Replay
         /// </summary>
         public void Suspend() => _suspended = true;
 
+        /// <summary>⭐ CE-3329 R8 — the last frame's wall stamp (where a review opened, for <c>Reviews[]</c>).</summary>
+        public long LastWallTicks => _lastWallTicks;
+
         /// <summary>⭐ CE-3329 P3 (F11, W6) — the review is over: record on in the same file; the first frame recorded clears the destruction log
         /// and is a keyframe. <paramref name="atSimSeconds"/>: wait until the world's clock is back there (the live point L) — the master
         /// moves the clock after the node has put its world back.</summary>
