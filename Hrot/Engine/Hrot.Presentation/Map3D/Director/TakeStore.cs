@@ -161,6 +161,24 @@ public sealed class TakeStore
         }
     }
 
+    /// <summary>⭐ <c>CE-1306</c> R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the file of reel <paramref name="name"/> (<c>films/&lt;name&gt;.reel.json</c>); null with no films folder.</summary>
+    public string? ReelPath(string name) => FilmsRoot is { } root ? Path.Combine(root, name + ReelSuffix) : null;
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D2) — writes <paramref name="reel"/> to <c>films/&lt;name&gt;.reel.json</c> (the file <see cref="LoadReel"/> reads; the reel
+    /// composer's Save). Returns the path, or throws <see cref="InvalidOperationException"/> when there is no films folder or the name is not a file name.
+    /// </summary>
+    public string SaveReel(Reel reel)
+    {
+        if (reel == null) throw new ArgumentNullException(nameof(reel));
+        if (string.IsNullOrWhiteSpace(reel.Name) || reel.Name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || reel.Name.Contains('/'))
+            throw new InvalidOperationException($"'{reel.Name}' is not a reel name (a file name: letters, digits, '-', '_')");
+        var path = ReelPath(reel.Name) ?? throw new InvalidOperationException("no films/ folder to save the reel in");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, TakeJson.WriteReel(reel).ToJsonString(Indented) + "\n");
+        return path;
+    }
+
     /// <summary>⭐ <c>CE-4042</c> (docs/DESIGN_Scenario_Regression.md §4) — a scenario's own JSON beside it (<c>checks.json</c>, <c>golden.json</c>).</summary>
     public string ScenarioFilePath(string scenario, string file) => Path.Combine(ScenariosRoot, scenario, file);
 

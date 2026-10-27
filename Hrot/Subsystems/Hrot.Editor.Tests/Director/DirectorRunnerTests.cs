@@ -1422,6 +1422,176 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.Contains(typeof(IRunExtension), typeof(ScenarioVerifyRun).GetInterfaces());   // the verifier plugs in through the seam
     }
 
+    // ── ⭐ CE-1306 R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the reel composer played, the render queue on the fake editor ──────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D1; success condition 1 — "a composed reel plays its items in order on a fake host"): a reel composed from three takes, the last
+    /// moved to the front and the middle one removed, is played UNSAVED by the runner: the fake editor loads s-c then s-a, each item reported ok, and the card
+    /// over each load is that item's title. 🔴 Mutation: <c>ReelComposer.Move</c> inserting at <c>from</c> instead of <c>to</c> ⇒ the order stays s-a, s-b
+    /// … ⇒ the loads are s-a, s-c ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_AComposedReel_PlaysItsItemsInOrder_Unsaved()
+    {
+        var store = Store();
+        var composer = new ReelComposer(() => store);
+        Assert.Empty(composer.New("composed"));
+        composer.Add("s-a", "main", title: "First A");
+        composer.Add("s-b", "main");
+        composer.Add("s-c", "main", title: "Then C");
+        Assert.True(composer.Move(2, 0));
+        Assert.True(composer.Remove(2));
+        Assert.True(composer.Dirty);
+
+        var host = new FakeEditor(store);
+        var cinema = new Cinema();
+        var runner = new DirectorRunner(host, cinema, new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(composer.Reel!)));
+        Run(runner, host);
+
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.Equal(new[] { "s-c", "s-a" }, host.Loads);
+        Assert.Equal(new[] { "s-c", "s-a" }, runner.Reports.Select(r => r.Scenario));
+        Assert.All(runner.Reports, r => Assert.Equal("ok", r.Status));
+        Assert.Equal(new[] { "Then C", "First A" }, cinema.Cards.Take(2));
+        Assert.False(File.Exists(store.ReelPath("composed")));   // never saved: played as it stands
+    }
+
+    private (DirectorRunner Runner, DirectorStills Stills, DirectorRenders Renders, FakeEditor Host, Sink Sink) RenderQueue(TakeStore store)
+    {
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        var stills = new DirectorStills(runner, sink, () => false);
+        var renders = new DirectorRenders(runner, stills, sink, () => false, () => store, () => null);
+        return (runner, stills, renders, host, sink);
+    }
+
+    /// <summary>The pack's frame (runner, stills, queue — <see cref="DirectorPack.Tick"/>'s order) then the editor's, until the queue is idle; the job holding
+    /// the director at each frame. ⭐ Asserts every frame that at most ONE job is started and that the runner plays THAT job's capture.</summary>
+    private static List<string?> RunQueue((DirectorRunner Runner, DirectorStills Stills, DirectorRenders Renders, FakeEditor Host, Sink Sink) q,
+                                          Func<int, bool>? atFrame = null, int maxFrames = 40_000)
+    {
+        var holding = new List<string?>();
+        for (int f = 0; f < maxFrames && (q.Renders.Busy || q.Renders.Queued > 0 || q.Runner.Busy); f++)
+        {
+            q.Runner.Tick();
+            q.Stills.Tick();
+            q.Renders.Tick();
+            q.Host.EndFrame();
+            var started = q.Renders.Jobs.Where(j => j.State is RenderState.Running or RenderState.Opening).ToList();
+            Assert.True(started.Count <= 1, $"frame {f}: {started.Count} renders started at once");
+            if (started.Count == 1 && q.Runner.Busy) Assert.Equal(started[0].Dir, q.Runner.Request!.Capture!.Dir);   // the runner plays THAT job
+            holding.Add(q.Renders.Running?.Id);
+            if (atFrame?.Invoke(f) == false) break;
+        }
+        Assert.False(q.Renders.Busy || q.Renders.Queued > 0, $"the queue is not idle after {maxFrames} frames");
+        return holding;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1306</c> R4 (§11u D3, D5; success condition 2) — TWO renders queued at once (s-a/main, s-b/main, frames only) run ONE AFTER THE OTHER through the
+    /// one runner: the first holds the director until it is done, then the second; each writes into a folder of its own beside its take
+    /// (<c>takes/main.render/r1</c>, <c>…/r2</c>) and yields that output; every captured frame of r1 comes before every frame of r2; the editor loads s-a then
+    /// s-b. 🔴 Mutation: <c>DirectorRenders.Begin</c> not holding the director (<c>_running = job</c> removed) ⇒ r1 is never watched and r2 starts once the runner
+    /// is idle ⇒ "2 renders started at once" ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_TwoRenders_RunOneAfterTheOther_EachIntoItsOwnFolder()
+    {
+        var store = Store();
+        var q = RenderQueue(store);
+        var (r1, why1) = q.Renders.Enqueue(new RenderRequest { Scenario = "s-a", Take = "main", Fps = 30, Width = 320, Height = 180, Encode = false });
+        var (r2, why2) = q.Renders.Enqueue(new RenderRequest { Scenario = "s-b", Take = "main", Fps = 30, Width = 320, Height = 180, Encode = false });
+        Assert.True(r1 != null && r2 != null, why1 ?? why2);
+        Assert.Equal(("r1", "r2", 2), (r1!.Id, r2!.Id, q.Renders.Queued));
+
+        var holding = RunQueue(q);
+
+        Assert.Equal((RenderState.Done, RenderState.Done), (r1.State, r2.State));
+        string dir1 = Path.Combine(_root, "s-a", "takes", "main.render", "r1"), dir2 = Path.Combine(_root, "s-b", "takes", "main.render", "r2");
+        Assert.Equal((dir1, dir2), (r1.Dir, r2.Dir));
+        Assert.Equal((Path.Combine(dir1, "frames"), Path.Combine(dir2, "frames")), (r1.Output, r2.Output));
+        Assert.Equal(new[] { "s-a", "s-b" }, q.Host.Loads);
+        int lastOf1 = q.Sink.Frames.FindLastIndex(p => p.StartsWith(dir1, StringComparison.Ordinal));
+        int firstOf2 = q.Sink.Frames.FindIndex(p => p.StartsWith(dir2, StringComparison.Ordinal));
+        Assert.True(lastOf1 >= 10 && firstOf2 > lastOf1, $"r1's frames end at {lastOf1}, r2's begin at {firstOf2}");
+        Assert.Equal(q.Sink.Frames.Count, q.Sink.Frames.Count(p => p.StartsWith(dir1, StringComparison.Ordinal) || p.StartsWith(dir2, StringComparison.Ordinal)));
+        // the director was held by r1, then by r2 — never back
+        var order = holding.Where(h => h != null).Distinct().ToList();
+        Assert.Equal(new[] { "r1", "r2" }, order);
+        Assert.True(r1.Frames > 0 && r2.Frames > 0, $"{r1.Frames} / {r2.Frames} frames reported");
+        Assert.All(new[] { r1, r2 }, j => Assert.True(j.Finished >= j.Started, j.Id));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D6; success condition 2) — three renders queued; the THIRD is cancelled while queued (it never runs: s-c is never loaded, nothing
+    /// is written for it), the FIRST is cancelled while running (the runner is STOPPED at once, the job reads cancelled, its folder holds fewer frames than a whole
+    /// take), and the queue goes on to the second, which completes. A second cancel of an ended job is refused; an unknown id is not found.
+    /// 🔴 Mutation: <c>DirectorRenders.Cancel</c> not stopping the runner for the running job ⇒ the runner is still busy after the cancel ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_Cancel_TakesAQueuedRenderOff_AndStopsTheRunningOne()
+    {
+        var store = Store();
+        var q = RenderQueue(store);
+        RenderJob Queue(string scenario) => q.Renders.Enqueue(new RenderRequest { Scenario = scenario, Width = 320, Height = 180, Encode = false }).Job!;
+        var r1 = Queue("s-a");
+        var r2 = Queue("s-b");
+        var r3 = Queue("s-c");
+        Assert.Equal((true, (string?)null), q.Renders.Cancel(r3.Id));
+        Assert.Equal(RenderState.Cancelled, r3.State);
+        Assert.Equal((false, (string?)null), q.Renders.Cancel("r99"));
+
+        bool cancelled = false;
+        RunQueue(q, f =>
+        {
+            if (!cancelled && r1.State == RenderState.Running && r1.Frames >= 5)
+            {
+                Assert.Equal((true, (string?)null), q.Renders.Cancel(r1.Id));
+                Assert.False(q.Runner.Busy);                                   // ⭐ stopped at once
+                Assert.Equal(DirectorPhase.Stopped, q.Runner.Phase);
+                cancelled = true;
+            }
+            return true;
+        });
+
+        Assert.True(cancelled, "r1 never ran long enough to be cancelled while running");
+        Assert.Equal((RenderState.Cancelled, RenderState.Done, RenderState.Cancelled), (r1.State, r2.State, r3.State));
+        Assert.Equal(new[] { "s-a", "s-b" }, q.Host.Loads);                     // r3 never ran
+        Assert.Null(r3.Dir);
+        Assert.DoesNotContain(q.Sink.Frames, p => p.Contains(Path.Combine("s-c", "takes"), StringComparison.Ordinal));
+        int framesOf1 = q.Sink.Frames.Count(p => p.StartsWith(r1.Dir!, StringComparison.Ordinal));
+        int framesOf2 = q.Sink.Frames.Count(p => p.StartsWith(r2.Dir!, StringComparison.Ordinal));
+        Assert.True(framesOf1 < framesOf2, $"the cancelled r1 wrote {framesOf1} frames, the whole r2 {framesOf2}");
+        Assert.NotNull(q.Renders.Cancel(r1.Id).Refused);                       // it has ended
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D3; success condition 2) — a render that FAILS (a take that does not exist) is reported — failed, with the store's own reason
+    /// — and the queue goes on: the next render completes. A stills job on a host that cannot seek (the editor) is refused when it is queued, and a reel with no
+    /// items too. 🔴 Mutation: <c>DirectorRenders.End</c> not releasing the director (<c>_running</c> kept) ⇒ the queue never starts r2 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_AFailingRender_IsReported_AndTheQueueGoesOn()
+    {
+        var store = Store();
+        var q = RenderQueue(store);
+        var bad = q.Renders.Enqueue(new RenderRequest { Scenario = "s-a", Take = "no-such-take", Encode = false }).Job!;
+        var good = q.Renders.Enqueue(new RenderRequest { Scenario = "s-b", Width = 320, Height = 180, Encode = false }).Job!;
+        Assert.Equal(DirectorStills.CannotSeek, q.Renders.Enqueue(new RenderRequest { Kind = RenderKind.Stills, Scenario = "s-a", Times = new[] { 1d } }).Refused);
+        Assert.NotNull(q.Renders.Enqueue(new RenderRequest { Reel = new Reel { Name = "empty" } }).Refused);
+
+        RunQueue(q);
+
+        Assert.Equal(RenderState.Failed, bad.State);
+        Assert.Contains(bad.Problems, p => p.Contains("no take 'no-such-take'", StringComparison.Ordinal));
+        Assert.Equal(RenderState.Done, good.State);
+        Assert.Equal(new[] { "s-b" }, q.Host.Loads);
+        Assert.Equal("failed", bad.ToJson()["state"]!.GetValue<string>());
+        Assert.Equal(2, q.Renders.Jobs.Count);
+    }
+
 }
 
 [CollectionDefinition(Name, DisableParallelization = true)]

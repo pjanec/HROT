@@ -282,4 +282,81 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, status);
         Assert.Contains("nothing to promote to", body["error"]!.GetValue<string>());
     }
+
+    /// <summary>A sink that writes nothing (the routes' rail never plays a frame).</summary>
+    private sealed class NullSink : IFrameSink
+    {
+        public Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle) => Task.CompletedTask;
+        public Task Card(string path, int width, int height, string text) => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1306</c> R4 (docs/DESIGN_Director_Timeline_Editor.md §11u D3–D7; success condition 3) — the render queue over HTTP on the EDITOR's kind of host:
+    /// <c>POST /director/renders {scenario, take, capture}</c> queues r1 (its size and rate as asked); <c>{renders:[…]}</c> queues several in one call, a stills job
+    /// refused in <c>refused[]</c> (the editor cannot seek) and the movie beside it queued; <c>recording=</c> is refused with the ONE message; <c>GET</c> lists
+    /// them in order; <c>DELETE /director/renders/r2</c> cancels the queued r2 (a second DELETE is 409, an unknown id 404); once r1 holds the director
+    /// <c>POST /director/play</c> answers 409. 🔴 Mutation: the DELETE route answering the queue without calling <c>Cancel</c> ⇒ r2 still queued ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public async Task CE1306_TheRenderRoutes_Queue_List_AndCancel()
+    {
+        var store = new TakeStore(() => _root, () => null);
+        store.Save(new Take { Scenario = "s-a", Name = "main", Keys = new[] { new CameraKey { At = new AtExpr(1d), Camera = new CameraSpec { LookAt = new System.Numerics.Vector3(1, 2, 0), Distance = 20f } } },
+                              EndAt = new AtExpr(4d) });
+        var sink = new NullSink();
+        var runner = new DirectorRunner(new Host(store), new NoCinema(), new NoLayers(), sink);
+        var stills = new DirectorStills(runner, sink, canSeek: () => false);
+        var renders = new DirectorRenders(runner, stills, sink, () => false, () => store, () => "s-a");
+
+        int port = FreePort();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDirector(runner, store, () => null, stills: stills, renders: renders);
+        host.AttachService(new DebugApiService(new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+            Array.Empty<Hrot.Presentation.DebugApi.ISubsystemDebugProvider>(), () => "Scenario", null)));
+        host.Start();
+        string url = $"http://localhost:{port}";
+        StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
+
+        var (status, body) = await Send(queue, _client.PostAsync(url + "/director/renders", Json("""{"scenario":"s-a","take":"main","capture":{"size":"640x360","fps":15}}""")));
+        Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
+        Assert.Equal("r1", Assert.Single(body["data"]!["queuedIds"]!.AsArray())!.GetValue<string>());
+        var r1 = renders.Find("r1")!;
+        Assert.Equal((RenderState.Queued, 640, 360, 15), (r1.State, r1.Request.Width, r1.Request.Height, r1.Request.Fps));
+
+        (status, body) = await Send(queue, _client.PostAsync(url + "/director/renders",
+            Json("""{"renders":[{"kind":"stills","take":"main","times":[1]},{"take":"main","capture":{"encode":false}}]}""")));
+        Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
+        Assert.Equal("r2", Assert.Single(body["data"]!["queuedIds"]!.AsArray())!.GetValue<string>());
+        var refusal = Assert.Single(body["data"]!["refused"]!.AsArray())!;
+        Assert.Equal((0, DirectorStills.CannotSeek), (refusal["index"]!.GetValue<int>(), refusal["error"]!.GetValue<string>()));
+
+        (status, body) = await Send(queue, _client.PostAsync(url + "/director/renders", Json("""{"recording":"/x/node_1.fdp","take":"main"}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Equal(DebugApiHost.RecordingRefused, body["error"]!.GetValue<string>());
+
+        (status, body) = await Send(queue, _client.GetAsync(url + "/director/renders"));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(new[] { "r1", "r2" }, body["data"]!["jobs"]!.AsArray().Select(j => j!["id"]!.GetValue<string>()));
+        Assert.Equal(2, body["data"]!["queued"]!.GetValue<int>());
+
+        (status, body) = await Send(queue, _client.DeleteAsync(url + "/director/renders/r2"));
+        Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
+        Assert.Equal(RenderState.Cancelled, renders.Find("r2")!.State);
+        Assert.Equal("cancelled", body["data"]!["jobs"]!.AsArray().Single(j => j!["id"]!.GetValue<string>() == "r2")!["state"]!.GetValue<string>());
+        (status, _) = await Send(queue, _client.DeleteAsync(url + "/director/renders/r2"));
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        (status, _) = await Send(queue, _client.DeleteAsync(url + "/director/renders/r9"));
+        Assert.Equal(HttpStatusCode.NotFound, status);
+
+        renders.Tick();                                                                     // the queue starts r1: it holds the director
+        Assert.True(ReferenceEquals(r1, renders.Running), r1.ToJson().ToJsonString());
+        Assert.True(runner.Busy);
+        (status, body) = await Send(queue, _client.PostAsync(url + "/director/play", Json("""{"scenario":"s-a","take":"main"}""")));
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        Assert.Equal(DebugApiHost.RendersHold, body["error"]!.GetValue<string>());
+        (status, _) = await Send(queue, _client.DeleteAsync(url + "/director/renders/r1"));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.False(runner.Busy);
+    }
 }

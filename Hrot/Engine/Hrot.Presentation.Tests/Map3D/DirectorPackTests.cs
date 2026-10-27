@@ -82,6 +82,45 @@ public sealed class DirectorPackTests : IDisposable
         Assert.Empty(pack.Window.Tabs);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (docs/DESIGN_Director_Timeline_Editor.md §11u D1, D3; success condition 1, the Director window's model) — the pack builds ONE reel
+    /// composer and ONE render queue and the Director window draws THOSE (not copies of its own); with a reel being composed the window plays and renders the
+    /// reel AS IT STANDS (unsaved: the picked saved reel is ignored); its render of one picked take is that take (rendered beside it), of a reel the composed
+    /// reel, at the picked size and rate; and on a headless host the queue refuses, so the window's <i>Queue render</i> says why. 🔴 Mutation:
+    /// <c>DirectorPack.Attach</c> handing the window <c>composer: null</c> (the window builds its own) ⇒ the window's composer is not the pack's and plays nothing
+    /// composed through the pack ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1306_TheDirectorWindow_ComposesThePacksReel_AndRendersItAsItStands()
+    {
+        var store = new TakeStore(() => _root, () => Path.Combine(_root, "films"));
+        var pack = DirectorPack.Attach(new DirectorPackHost(new BareHost(store), () => null, () => null, Headless: true, Pilot: () => null,
+                                                            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel()));
+        Assert.Same(pack.Composer, pack.Window.Composer);
+        Assert.Same(pack.Renders, pack.Window.Renders);
+
+        var saved = new Reel { Name = "saved", Items = new[] { new ReelItem { Scenario = "x", Take = "main" } } };
+        Assert.Same(saved, pack.Window.ReelToPlay(saved));                                   // nothing composed: the picked reel
+        Assert.Empty(pack.Composer.New("composed"));
+        pack.Composer.Add("s-a", "main");
+        pack.Composer.Add("s-b", "wide");
+        pack.Composer.Move(1, 0);
+        var playing = pack.Window.ReelToPlay(saved)!;
+        Assert.Equal(new[] { "s-b/wide", "s-a/main" }, playing.Items.Select(i => i.Scenario + "/" + i.Take));
+        Assert.True(pack.Composer.Dirty);                                                    // unsaved, and still what plays
+
+        pack.Window.RenderSize = 0;                                                          // 640x360
+        pack.Window.RenderRate = 0;                                                          // 15 fps
+        var reelRender = pack.Window.RenderRequestFor(playing);
+        Assert.Same(playing, reelRender.Reel);
+        Assert.Equal((RenderKind.Movie, 640, 360, 15), (reelRender.Kind, reelRender.Width, reelRender.Height, reelRender.Fps));
+        var takeRender = pack.Window.RenderRequestFor(Reel.Of("s-a", "main"));
+        Assert.Equal(("s-a", "main", (Reel?)null), (takeRender.Scenario, takeRender.Take, takeRender.Reel));
+
+        Assert.Equal(DirectorRenders.NoRenderer, pack.Window.QueueRender(playing));          // headless: refused, with the reason
+        Assert.Empty(pack.Renders.Jobs);
+    }
+
     // ── CE-1303 P2a (§11m) — CR-4 on a host that CANNOT seek (the editor's kind: a live run, R-3034) ─────────────────────────────────────
 
     /// <summary>A live host: a load restarts the run at sim 0, each step is taken at once, a hold advances its wall clock (no sleeping).</summary>

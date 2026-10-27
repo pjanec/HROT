@@ -560,13 +560,14 @@ public static class TakeJson
                     Scenario = scenario!, Take = Str(it["take"]) ?? "main", Title = Str(it["title"]),
                     ChapterCard = Str(it["chapterCard"]), Clip = Str(it["clip"]),
                     From = TryAt(it["from"], $"item {i + 1} from", problems), To = TryAt(it["to"], $"item {i + 1} to", problems),
+                    Note = Str(it["note"]),
                 });
             }
         else problems.Add("a reel needs items");
         return new Reel
         {
             Name = name, Title = Str(json["title"]), Transition = Str(json["transition"]) ?? "fade", Items = items,
-            Loop = Bool(json["loop"]) ?? false, GapSeconds = Float(json["gapSeconds"]) ?? 1.5f, Waiting = waiting,
+            Loop = Bool(json["loop"]) ?? false, GapSeconds = Float(json["gapSeconds"]) ?? 1.5f, Waiting = waiting, Note = Str(json["note"]),
         };
     }
 
@@ -581,12 +582,16 @@ public static class TakeJson
             if (it.ChapterCard != null) o["chapterCard"] = it.ChapterCard;
             if (it.From is { } f) o["from"] = f.ToJson();
             if (it.To is { } t) o["to"] = t.ToJson();
+            if (it.Note != null) o["note"] = it.Note;
             items.Add(o);
         }
         var r = new JsonObject();
         if (reel.Title != null) r["title"] = reel.Title;
         r["transition"] = reel.Transition;
+        if (reel.Note != null) r["note"] = reel.Note;
         if (reel.Loop) r["loop"] = true;
+        // ⭐ CE-1306 (§11u) — the gap was read and never written: a reel saved by the composer kept the default
+        if (Math.Abs(reel.GapSeconds - 1.5d) > 1e-6) r["gapSeconds"] = Math.Round(reel.GapSeconds, 3);
         r["items"] = items;
         if (reel.Waiting.Count > 0)
         {

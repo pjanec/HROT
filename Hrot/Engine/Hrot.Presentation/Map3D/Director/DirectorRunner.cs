@@ -236,6 +236,9 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>⭐ CE-1303 — the host's one extension (the editor's verifier); null on a films-only host.</summary>
         public IRunExtension? Extension => _ext;
         public DirectorMode Mode => _request?.Mode ?? DirectorMode.Live;
+        /// <summary>⭐ <c>CE-1306</c> R4 (§11u D7) — the request the runner plays or last played (the render queue knows its own job by it: another
+        /// <see cref="Play"/> replaces it).</summary>
+        public PlayRequest? Request => _request;
         public bool Busy => Phase is DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing or DirectorPhase.Encoding
                                   or DirectorPhase.Extension;
 

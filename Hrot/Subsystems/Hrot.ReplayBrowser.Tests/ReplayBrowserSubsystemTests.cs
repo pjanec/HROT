@@ -2456,6 +2456,117 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         }
     }
 
+    // ── ⭐ CE-1306 R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the render queue in the Replay Browser ───────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1306</c> R4 (§11u D3, D8; success condition 2, the headless half) — a HEADLESS Replay Browser has the pack's render queue (every host gets it from
+    /// the pack, CR-2) but no renderer: <c>POST /director/renders</c> is refused with the queue's reason and nothing is queued; <c>GET /director/renders</c>
+    /// answers the empty queue and names the refusal. 🔴 Mutation: <c>DirectorRenders.Refusal</c> answering null ⇒ the render is queued (200) ⇒ red.
+    /// </summary>
+    [Fact]
+    public async Task CE1306_OnAHeadlessBrowser_RendersAreRefused_WithTheReason()
+    {
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var (host, queue, port) = DirectorHttp();
+        using var _ = host;
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        string url = $"http://localhost:{port}";
+        void Frame() { queue.DrainAll(); _subsystem.Update(1f / 60f); }
+
+        var (code, body) = await Call(http.PostAsync(url + "/director/renders", Json("""{"take":"main","capture":{"size":"320x180"}}""")), Frame);
+        Assert.Equal(400, code);
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorRenders.NoRenderer, body["error"]!.GetValue<string>());
+        (code, body) = await Call(http.GetAsync(url + "/director/renders"), Frame);
+        Assert.Equal(200, code);
+        Assert.Empty(body["data"]!["jobs"]!.AsArray());
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorRenders.NoRenderer, body["data"]!["refusal"]!.GetValue<string>());
+        Assert.Same(_subsystem.Director!.Renders, _subsystem.Director.Window.Renders);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1306</c> R4 (§11u D3–D6; success condition 2, the RB half — env-gated like the P3 windowed rail: <c>HROT_FILM_WINDOW=1</c>, Xvfb, ffmpeg) — a
+    /// WINDOWED Replay Browser with NOTHING open; ONE <c>POST /director/renders {renders:[…]}</c> queues four jobs over TWO recordings: r1 a movie of recording A's
+    /// take, r2 a movie of recording B's, r3 recording A's stills, r4 another movie — then <c>DELETE</c> cancels r4 while queued. The queue opens each job's
+    /// recording AT ITS TURN (A, then B, then A again), seeks it, and renders: r1 and r2 are MP4s beside their own recording's take in folders of their own, r3 two
+    /// PNGs + a contact sheet beside A's take; r4 never runs. ⚠ A real capture needs the GL window, so this rail cannot run headless.
+    /// 🔴 Mutation: <c>DirectorRenders.Begin</c> skipping <c>OpenRecording</c> ⇒ nothing is open, no scenario is named ⇒ r1 fails ("name the scenario") ⇒ red.
+    /// </summary>
+    [FilmWindowFact]
+    [Trait("Category", "Manual")]
+    public void CE1306_TheRenderQueue_RendersTwoRecordings_OneAfterTheOther_InAWindowedReplayBrowser()
+    {
+        Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser - CE-1306 render queue");
+        Fdp.Toolkit.Vis3D.LitShader.Reset();
+        try
+        {
+            rlImGui_cs.rlImGui.Setup(true);
+            Hrot.UI.Common.Map3D.FilmStudio.Reset();
+            string dirA = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
+            string dirB = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
+            string pathA = RecordFilmRun(dirA, 6d), pathB = RecordFilmRun(dirB, 6d);
+            PutTakeBeside(dirA, SegmentedTake());
+            PutTakeBeside(dirB, TwoShotTake());
+            _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            var (host, queue, port) = DirectorHttp();
+            using var _ = host;
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(300) };
+            string url = $"http://localhost:{port}";
+            void Frame()
+            {
+                queue.DrainAll();
+                _subsystem.Update(1f / 60f);
+                Raylib_cs.Raylib.BeginDrawing();
+                Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+                _subsystem.DrawWorld();
+                rlImGui_cs.rlImGui.Begin();
+                _subsystem.DrawUI();
+                rlImGui_cs.rlImGui.End();
+                Raylib_cs.Raylib.EndDrawing();
+            }
+            string a = System.Text.Json.JsonSerializer.Serialize(pathA), b = System.Text.Json.JsonSerializer.Serialize(pathB);
+            const string movie = "\"capture\":{\"fps\":10,\"size\":\"320x180\"}";
+            var (code, body) = CallOnThisThread(http.PostAsync(url + "/director/renders", Json(
+                $$"""{"renders":[{"recording":{{a}},"take":"main",{{movie}}},{"recording":{{b}},"take":"main",{{movie}}},{"recording":{{a}},"kind":"stills","take":"main","times":[0.5,4.5],"width":320,"height":180},{"recording":{{b}},"take":"main",{{movie}}}]}""")), Frame);
+            Assert.True(code == 200, body.ToJsonString());
+            Assert.Equal(new[] { "r1", "r2", "r3", "r4" }, body["data"]!["queuedIds"]!.AsArray().Select(x => x!.GetValue<string>()));
+            (code, body) = CallOnThisThread(http.DeleteAsync(url + "/director/renders/r4"), Frame);
+            Assert.True(code == 200, body.ToJsonString());
+
+            var renders = _subsystem.Director!.Renders;
+            for (int i = 0; i < 60_000 && (renders.Busy || renders.Queued > 0); i++) Frame();
+            Assert.False(renders.Busy || renders.Queued > 0, "the queue did not drain");
+            var jobs = renders.Jobs.ToDictionary(j => j.Id);
+            string Why(string id) => jobs[id].ToJson().ToJsonString();
+            Assert.True(jobs["r1"].State == Hrot.UI.Common.Map3D.Director.RenderState.Done, Why("r1"));
+            Assert.True(jobs["r2"].State == Hrot.UI.Common.Map3D.Director.RenderState.Done, Why("r2"));
+            Assert.True(jobs["r3"].State == Hrot.UI.Common.Map3D.Director.RenderState.Done, Why("r3"));
+            Assert.Equal(Hrot.UI.Common.Map3D.Director.RenderState.Cancelled, jobs["r4"].State);
+            Assert.Null(jobs["r4"].Dir);
+
+            Assert.Equal(Path.Combine(dirA, "s-film", "takes", "main.render", "r1", "s-film-main.mp4"), jobs["r1"].Output);
+            Assert.Equal(Path.Combine(dirB, "s-film", "takes", "main.render", "r2", "s-film-main.mp4"), jobs["r2"].Output);
+            foreach (var id in new[] { "r1", "r2" })
+                Assert.True(File.Exists(jobs[id].Output) && new FileInfo(jobs[id].Output!).Length > 0, Why(id));
+            // each movie is paced by ITS take: A's segmented take is 5.5 film seconds, B's two-shot take its own length — never the same frames
+            int framesA = Directory.GetFiles(Path.Combine(dirA, "s-film", "takes", "main.render", "r1", "frames"), "*.png").Length;
+            int framesB = Directory.GetFiles(Path.Combine(dirB, "s-film", "takes", "main.render", "r2", "frames"), "*.png").Length;
+            Assert.Equal(15 + 55, framesA);
+            Assert.True(framesB > 15 && framesB != framesA, $"B rendered {framesB} frames");
+
+            string stillsDir = Path.Combine(dirA, "s-film", "takes", "main.stills", "r3");
+            Assert.Equal(2, jobs["r3"].Outputs.Count);
+            Assert.All(jobs["r3"].Outputs, p => { Assert.Equal(stillsDir, Path.GetDirectoryName(p)); Assert.Equal((320, 180), PngSize(p)); });
+            Assert.Equal(Path.Combine(stillsDir, "contact-sheet.png"), jobs["r3"].Output);
+        }
+        finally
+        {
+            try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
+            Raylib_cs.Raylib.CloseWindow();
+        }
+    }
+
     // ── CE-1303 P2 LIVE PROOF (docs/DESIGN_Director_Timeline_Editor.md §11o "live proof") — a WINDOWED browser, a real recording, one key moved ──
 
     /// <summary>Runs only with <c>HROT_FILM_PROOF=1</c> (it opens a window: run it under Xvfb, <c>DISPLAY=:99</c>).</summary>
