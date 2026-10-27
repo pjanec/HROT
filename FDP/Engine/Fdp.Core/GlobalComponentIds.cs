@@ -1107,6 +1107,10 @@ namespace Fdp.Core
         /// numbers its next path where the straight run did (restore design §1m).</summary>
         public const int NavigationHandleMark = 456;
 
+        /// <summary>⭐ <c>CE-3337</c> (backend) — <c>RunTokenMark</c>: the world's copy of the behaviour run-token counter, so a restore (a branch
+        /// from a replay included) numbers its next run where the straight run did. Backend's block; measured free 2026-10-27.</summary>
+        public const int RunTokenMark = 479;
+
         /// <summary>⭐ <c>CE-3288</c> (backend) — <c>ScenarioDescriptionResident</c>: the loaded scenario's header description, a managed world
         /// singleton a save writes back. 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4d. Backend's block; measured free on every lane 2026-10-20.</summary>
         public const int ScenarioDescriptionResident = 440;

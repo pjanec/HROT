@@ -158,7 +158,8 @@ namespace Hrot.CGF
                 bypassLifecycleToggle: null,
                 storageDirectory:      localTempRoot,
                 suspendGlobalTimePush: _kernel.SuspendGlobalTimePush,
-                resumeGlobalTimePush:  _kernel.ResumeGlobalTimePush));
+                resumeGlobalTimePush:  _kernel.ResumeGlobalTimePush,
+                world:                 _world));   // ⭐ CE-3337 — a branch's after-restore step runs on it
 
             // CGF1-S0307 / BATCH-04 TASK-C006,C007: wire CGF-authoritative scenario/episode
             // handlers.  Registered AFTER ReferenceReplayLoadHandler so the replay branch

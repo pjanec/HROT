@@ -22,8 +22,6 @@ namespace CarKinem.Systems
     {
         private readonly TrajectoryPoolManager _pool;
         private int _worldEpoch;
-        private int _restoresSeen;   // ⭐ CE-3318 — the world restores already resumed the handle counter for
-        private bool _resumePending;  // ⭐ CE-3318 — a restore waits for its first step to decide the counter (the clock has moved by then)
 
         public TrajectoryRestoreSystem(TrajectoryPoolManager pool) => _pool = pool ?? throw new ArgumentNullException(nameof(pool));
 
@@ -35,32 +33,19 @@ namespace CarKinem.Systems
         {
             if (view is not EntityRepository repo) return;
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) Replaced(repo);
-            // ⭐ CE-3318 (restore design §1m) — a restore is decided on its FIRST STEP: on the paused frames before it the clock has not
-            //   reached the restored time yet (the snap lands later), so a carried copy would look like the abandoned future's. Nothing
-            //   allocates a handle before a step (the pathfinding solver runs on steps).
-            if (_resumePending)
-            {
-                if (deltaTime <= 0f) return;   // ⛔ and the mirror waits too: it would overwrite the carried copy
-                _resumePending = false;
-                if (repo.HasSingleton<NavigationHandleMark>() && repo.GetSingleton<NavigationHandleMark>() is var mark
-                    && mark.At <= SimTime(repo) + 1e-6)
-                    NavigationHandleAllocator.ResumeAt(Math.Max(mark.Last, _highestRestored));
-            }
-            // the world's copy of the handle counter, so a checkpoint carries it
-            int last = NavigationHandleAllocator.Last;
-            if (!repo.HasSingleton<NavigationHandleMark>() || repo.GetSingleton<NavigationHandleMark>().Last != last)
-                repo.SetSingletonUnmanaged(new NavigationHandleMark { Last = last, At = SimTime(repo) });
+            // ⭐ CE-3318 (restore design §1m) — the handle counter follows the world across a restore: the ONE shared protocol
+            _handles.Step(repo, deltaTime, floor: _highestRestored);
         }
 
-        private static double SimTime(EntityRepository repo) => repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+        // ⭐ CE-3337 — the ONE resume protocol (Fdp.Toolkit.Replay.ResumableCounter), shared with the behaviour run tokens
+        private readonly Fdp.Toolkit.Replay.ResumableCounter<NavigationHandleMark> _handles = new(
+            () => NavigationHandleAllocator.Last, NavigationHandleAllocator.ResumeAt,
+            m => (m.Last, m.At), (last, at) => new NavigationHandleMark { Last = last, At = at });
 
         private void Replaced(EntityRepository repo)
         {
             // ⭐ CE-3318 — a CHECKPOINT put back: the next handle follows the carried count (a load, or a dry-run exit whose copy is the
             //   abandoned future's, keeps the counter above every live mover's handle, as before)
-            int restores = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(repo);
-            _resumePending = restores != _restoresSeen;
-            _restoresSeen = restores;
             _highestRestored = 0;
             if (!repo.IsComponentTypeRegistered<NavState>() || !repo.IsComponentTypeRegistered<PathTrace>()) return;
 

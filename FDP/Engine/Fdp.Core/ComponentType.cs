@@ -357,9 +357,6 @@ namespace Fdp.Core
             }
         }
         
-        private static readonly object _scanLock = new object();
-        private static Dictionary<int, Type>? _scanned;
-        private static int _scannedAssemblies;
 
         /// <summary>
         /// ⭐ <c>CE-3299</c> B5 (restore design D10) — <b>the type a RECORDED id names, even when this process has not touched it.</b> A
@@ -369,31 +366,7 @@ namespace Fdp.Core
         /// when more assemblies are loaded.
         /// </summary>
         public static Type? FindType(int id)
-        {
-            if (GetType(id) is { } known) return known;
-            lock (_scanLock)
-            {
-                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-                if (_scanned == null || _scannedAssemblies != assemblies.Length)
-                {
-                    var map = new Dictionary<int, Type>();
-                    foreach (var asm in assemblies)
-                    {
-                        if (asm.IsDynamic) continue;
-                        Type?[] types;
-                        try { types = asm.GetTypes(); }
-                        catch (System.Reflection.ReflectionTypeLoadException e) { types = e.Types; }
-                        catch (Exception) { continue; }
-                        foreach (var t in types)
-                            if (t != null && System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ComponentIdAttribute>(t, false) is { } attr)
-                                map.TryAdd(attr.Id, t);
-                    }
-                    _scanned = map;
-                    _scannedAssemblies = assemblies.Length;
-                }
-                return _scanned.TryGetValue(id, out var found) ? found : null;
-            }
-        }
+            => GetType(id) ?? AttributeIdScan.Find<ComponentIdAttribute>(id, a => a.Id);   // ⭐ CE-1372 — the ONE scan, shared with events
 
         /// <summary>
         /// Gets all registered component type IDs.

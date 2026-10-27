@@ -1493,8 +1493,12 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// context's own bus, and the step hands them to the shown world's. 🔴 Before: nothing carried them — the swing was never drawn
     /// (measured by the coordinator in the windowed browser after the spawner fix alone).
     /// </summary>
-    [Fact]
-    public void CE4062_A_blow_recorded_on_a_frame_reaches_the_drawn_world_when_the_frame_is_stepped_onto()
+    /// <param name="steppedRun">⭐ the run was STEPPED (as over HTTP): four paused frames between every sim step, so on the sim axis every
+    /// step of the browser is a jump — the coordinator's case, which a seek onto the target frame lost.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE4062_A_blow_recorded_on_a_frame_reaches_the_drawn_world_when_the_frame_is_stepped_onto(bool steppedRun)
     {
         string dir = Path.Combine(_tempDir, "melee-run");
         Directory.CreateDirectory(dir);
@@ -1512,11 +1516,21 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             long t0 = TimeSpan.FromSeconds(1).Ticks;
             repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0d, DeltaTime = 1f / 60f, TimeScale = 1f });
             rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
+            int frame = 0;
             for (int f = 1; f <= 5; f++)
             {
+                int held = steppedRun ? 4 : 0;   // paused frames before this sim step: the clock stands at the previous step
+                for (int h = 0; h < held; h++)
+                {
+                    repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = (f - 1) / 60d, DeltaTime = 0f, TimeScale = 1f });
+                    frame++;
+                    rec.CaptureFrame(repo, (uint)(frame - 1), t0 + frame * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+                    repo.Bus.SwapBuffers();
+                }
                 repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f / 60d, DeltaTime = 1f / 60f, TimeScale = 1f });
                 if (f == 3) repo.Bus.Publish(new Fdp.Toolkit.Combat.StrikeNotification { Striker = striker, Target = victim, Weapon = Fdp.Toolkit.Combat.MeleeWeapon.MeleeFist });
-                rec.CaptureFrame(repo, (uint)(f - 1), t0 + f * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
+                frame++;
+                rec.CaptureFrame(repo, (uint)(frame - 1), t0 + frame * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
                 repo.Bus.SwapBuffers();
             }
         }
@@ -1524,13 +1538,15 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         _subsystem.Initialize(HeadlessConfig());
         var provider = _subsystem.CreateDebugProvider()!;
         Assert.Null(provider.ReplayBrowser!.Open(new[] { path }, 0));
-        provider.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = 2 * TimeSpan.TicksPerSecond / 60 });
+        int stepFrame(int f) => steppedRun ? f * 5 : f;                          // the recorded frame of sim step f
+        provider.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = stepFrame(2) * TimeSpan.TicksPerSecond / 60 });
+        Assert.Equal(stepFrame(2), _subsystem.PrimaryNodeCurrentFrame());
         _subsystem.Update(1f / 60f);
         Assert.False(Hrot.UI.Common.Effects.StrikeTracker.Of(_subsystem.ActiveRepo!)?.StruckWithin(striker, 3 / 60d, 1.0, out _, out _) == true,
                      "no blow before its frame");
 
-        provider.Drive!.Step();                                                  // onto frame 3, the blow's
-        Assert.Equal(3, _subsystem.PrimaryNodeCurrentFrame());
+        provider.Drive!.Step();                                                  // onto sim step 3, the blow's (a jump in a stepped run)
+        Assert.Equal(stepFrame(3), _subsystem.PrimaryNodeCurrentFrame());
         _subsystem.Update(1f / 60f);                                             // one frame of the browser: swap, then the map's systems
         var tracker = Hrot.UI.Common.Effects.StrikeTracker.Of(_subsystem.ActiveRepo!);
         Assert.NotNull(tracker);
@@ -1990,6 +2006,241 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         provider.Master.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent { TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay });
         Assert.Equal(Path.Combine(keptDir, "node_1.fdp"), provider.ReplayRecordingPath);
         Assert.True(pack.Takes.Load("s-film", "main").Ok);                                    // the take is still there
+    }
+
+    // ── ⭐ CE-4059 P3 (docs/DESIGN_Director_Timeline_Editor.md §11r) — recording=, stills, the MP4, over the shared director routes ──
+
+    /// <summary>A host on a loopback port over this browser's debug provider (as the runner composes it), its director attached; returns the queue the
+    /// routes run on and the port.</summary>
+    private (Hrot.Editor.DebugApi.DebugApiHost Host, Hrot.Editor.DebugApi.MainThreadJobQueue Queue, int Port) DirectorHttp()
+    {
+        int port;
+        using (var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0)) { probe.Start(); port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port; probe.Stop(); }
+        var queue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+        var host = new Hrot.Editor.DebugApi.DebugApiHost(port, queue, () => { });
+        var provider = ((Hrot.Presentation.DebugApi.IProvidesDebugSurface)_subsystem).CreateDebugProvider()!;
+        host.AttachService(new Hrot.Editor.DebugApi.DebugApiService(
+            new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(new[] { provider }, () => "ReplayBrowser", acksPending: null)));
+        host.AttachDirector(_subsystem.Director!);
+        host.Start();
+        return (host, queue, port);
+    }
+
+    /// <summary>Sends <paramref name="call"/> and runs <paramref name="frame"/> (the routes' "main thread": drain the queue, then a host frame) until answered.</summary>
+    private static async System.Threading.Tasks.Task<(int Code, System.Text.Json.Nodes.JsonNode Body)> Call(Task<System.Net.Http.HttpResponseMessage> call, Action frame, int maxFrames = 20_000)
+    {
+        for (int i = 0; i < maxFrames && !call.IsCompleted; i++) { frame(); await System.Threading.Tasks.Task.Delay(1); }
+        var r = await call;
+        return ((int)r.StatusCode, System.Text.Json.Nodes.JsonNode.Parse(await r.Content.ReadAsStringAsync())!);
+    }
+
+    /// <summary>⭐ The windowed form: NO await — the GL context is current on the thread that opened the window, and an await's continuation may run on
+    /// another (the shader compile then fails: measured, a NullReferenceException in <c>LitShader</c>'s constructor). The frames run on this thread.</summary>
+    private static (int Code, System.Text.Json.Nodes.JsonNode Body) CallOnThisThread(Task<System.Net.Http.HttpResponseMessage> call, Action frame, int maxFrames = 40_000)
+    {
+        for (int i = 0; i < maxFrames && !call.IsCompleted; i++) frame();
+        Assert.True(call.IsCompleted, $"no answer in {maxFrames} frames");
+        var r = call.GetAwaiter().GetResult();
+        return ((int)r.StatusCode, System.Text.Json.Nodes.JsonNode.Parse(r.Content.ReadAsStringAsync().GetAwaiter().GetResult())!);
+    }
+
+    private static System.Net.Http.StringContent Json(string s) => new(s, System.Text.Encoding.UTF8, "application/json");
+
+    /// <summary>The two-shot take played through two segments: source 1…3 s at half speed (film 0…4 s), then 3.5…5 s (film 4…5.5 s).</summary>
+    private static Hrot.UI.Common.Map3D.Director.Take SegmentedTake() => TwoShotTake() with
+    {
+        Segments = new[]
+        {
+            new Hrot.UI.Common.Map3D.Director.TimeSegment { From = new Hrot.UI.Common.Map3D.Director.AtExpr(1d), To = new Hrot.UI.Common.Map3D.Director.AtExpr(3d), Speed = 0.5d },
+            new Hrot.UI.Common.Map3D.Director.TimeSegment { From = new Hrot.UI.Common.Map3D.Director.AtExpr(3.5d), To = new Hrot.UI.Common.Map3D.Director.AtExpr(5d) },
+        },
+    };
+
+    /// <summary>A take's file put BESIDE a recording (TE-1: <c>&lt;dir&gt;/&lt;scenario&gt;/takes/&lt;take&gt;.take.json</c>) — written before the recording is open.</summary>
+    private static void PutTakeBeside(string recordingDir, Hrot.UI.Common.Map3D.Director.Take take)
+    {
+        var path = Path.Combine(recordingDir, take.Scenario, "takes", take.Name + ".take.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, Hrot.UI.Common.Map3D.Director.TakeJson.WriteTake(take).ToJsonString());
+    }
+
+    /// <summary>A PNG's width and height, read from its IHDR chunk.</summary>
+    private static (int W, int H) PngSize(string path)
+    {
+        var b = File.ReadAllBytes(path);
+        Assert.True(b.Length > 24 && b[1] == (byte)'P' && b[2] == (byte)'N' && b[3] == (byte)'G', $"{path} is not a PNG");
+        static int Be(byte[] a, int o) => (a[o] << 24) | (a[o + 1] << 16) | (a[o + 2] << 8) | a[o + 3];
+        return (Be(b, 16), Be(b, 20));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> P3 (§11r R1, R2, R4; success conditions 1 and 2) — on a HEADLESS Replay Browser with NOTHING open: <c>POST /director/stills
+    /// {recording: a path, take, times, plan: true}</c> opens the recording through <c>POST /replay</c>'s own path (the browser's control now shows that file and
+    /// its frame count, and the take beside it is found) and answers the PLAN: each film second mapped through the take's segments to the source second it
+    /// shows (0.5 → 1.25, 3.0 → 2.5, 4.5 → 4.0), the sheet a 2 × 2 grid; <c>everyKey</c> plans the two keys (source 1 → film 0, source 3 — between the
+    /// segments — → film 4, source 3.5). The same request without <c>plan</c> is REFUSED (400, no renderer). Then <c>GET /director/moments?recording=&lt;exercise
+    /// id&gt;</c> opens a SECOND recording by its exercise id (the master transition <c>POST /replay {exerciseId}</c> makes). 🔴 Mutation: <c>OpenRecording</c>
+    /// returning null without calling <c>EnterReplay</c> ⇒ nothing opens ⇒ the take is not found (404) — red at ①.
+    /// </summary>
+    [Fact]
+    public async Task CE4059_P3_RecordingIsOpenedThroughTheReplayRoute_AndStillsArePlannedButRefused_OnAHeadlessBrowser()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string root = Path.Combine(_tempDir, "staging");
+        var firstId = Guid.NewGuid();
+        string dir = Path.Combine(root, "nodes", "node-1", "exercises", firstId.ToString());
+        string path = RecordFilmRun(dir, 6d, exerciseId: firstId);
+        PutTakeBeside(dir, SegmentedTake());
+        var secondId = Guid.NewGuid();
+        string second = RecordFilmRun(Path.Combine(root, "nodes", "node-1", "exercises", secondId.ToString()), 3d, exerciseId: secondId);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.RecordingsRoot = root;
+        _subsystem.Initialize(HeadlessConfig());
+        var control = _subsystem.CreateDebugProvider()!.ReplayBrowser!;
+        Assert.Equal(0, control.Status()["nodes"]!.AsArray().Count);   // nothing open
+
+        var (host, queue, port) = DirectorHttp();
+        using var _ = host;
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        string url = $"http://localhost:{port}";
+        void Frame() { queue.DrainAll(); _subsystem.Update(1f / 60f); }
+        string rec = System.Text.Json.JsonSerializer.Serialize(path);
+
+        // ① recording= opens it, the plan answers through the segments
+        var (code, body) = await Call(http.PostAsync(url + "/director/stills", Json($$"""{"recording":{{rec}},"take":"main","times":[0.5,3.0,4.5],"plan":true}""")), Frame);
+        Assert.True(code == 200, body.ToJsonString());
+        var node = Assert.Single(control.Status()["nodes"]!.AsArray())!;
+        Assert.Equal(path, node["path"]!.GetValue<string>());
+        using (var pc = new PlaybackController(path)) Assert.Equal(pc.TotalFrames, node["frames"]!.GetValue<int>());
+        var data = body["data"]!;
+        Assert.Equal(("s-film", "main", "planned"), (data["scenario"]!.GetValue<string>(), data["take"]!.GetValue<string>(), data["state"]!.GetValue<string>()));
+        var planned = data["planned"]!.AsArray();
+        Assert.Equal(new[] { 0.5, 3.0, 4.5 }, planned.Select(p => p!["filmTime"]!.GetValue<double>()).ToArray());
+        Assert.Equal(new[] { 1.25, 2.5, 4.0 }, planned.Select(p => p!["sourceTime"]!.GetValue<double>()).ToArray());
+        Assert.Equal(new[] { 1, 1, 2 }, planned.Select(p => p!["segment"]!.GetValue<int>()).ToArray());
+        Assert.Equal((2, 2), (data["sheetGrid"]!["columns"]!.GetValue<int>(), data["sheetGrid"]!["rows"]!.GetValue<int>()));
+        Assert.EndsWith(Path.Combine("s-film", "takes", "main.stills"), data["dir"]!.GetValue<string>());   // beside the take
+
+        (code, body) = await Call(http.PostAsync(url + "/director/stills", Json("""{"take":"main","everyKey":true,"plan":true}""")), Frame);
+        Assert.True(code == 200, body.ToJsonString());
+        planned = body["data"]!["planned"]!.AsArray();
+        Assert.Equal(new[] { 0.0, 4.0 }, planned.Select(p => p!["filmTime"]!.GetValue<double>()).ToArray());
+        Assert.Equal(new[] { 1.0, 3.5 }, planned.Select(p => p!["sourceTime"]!.GetValue<double>()).ToArray());
+
+        // ② headless: refused, with the reason
+        (code, body) = await Call(http.PostAsync(url + "/director/stills", Json("""{"take":"main","times":[0.5]}""")), Frame);
+        Assert.Equal(400, code);
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorStills.NoRenderer, body["error"]!.GetValue<string>());
+        Assert.Equal("idle", _subsystem.Director!.Stills.Status()["state"]!.GetValue<string>());
+        // ⭐ and a render to MP4 on a headless browser: the runner's own refusal (no map to film)
+        (code, body) = await Call(http.PostAsync(url + "/director/play", Json("""{"take":"main","recording":""" + rec + ""","capture":{}}""")), Frame);
+        Assert.Equal(400, code);
+        Assert.Contains("cannot capture", body["error"]!.GetValue<string>());
+
+        // ③ recording= as an exercise id: the SECOND recording opens (the master's transition, as POST /replay {exerciseId})
+        (code, body) = await Call(http.GetAsync(url + "/director/moments?recording=" + secondId), Frame);
+        Assert.True(code == 200, body.ToJsonString());
+        Assert.Equal(secondId.ToString(), control.Status()["exerciseId"]!.GetValue<string>());
+        Assert.Equal(second, Assert.Single(control.Status()["nodes"]!.AsArray())!["path"]!.GetValue<string>());
+        // a recording that is not there: the open's own refusal, 400
+        (code, body) = await Call(http.GetAsync(url + "/director/moments?recording=" + Guid.NewGuid()), Frame);
+        Assert.Equal(400, code);
+        Assert.Contains("did not open", body["error"]!.GetValue<string>());
+    }
+
+    /// <summary>Runs only with <c>HROT_FILM_WINDOW=1</c> and a display (<c>Xvfb :99 &amp;</c>, <c>DISPLAY=:99</c>): it opens a raylib window.</summary>
+    private sealed class FilmWindowFactAttribute : FactAttribute
+    {
+        public FilmWindowFactAttribute()
+        {
+            if (Environment.GetEnvironmentVariable("HROT_FILM_WINDOW") != "1")
+                Skip = "a windowed Replay Browser (stills, MP4): set HROT_FILM_WINDOW=1 and DISPLAY (Xvfb :99)";
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4059</c> P3 (§11r R2, R3; success conditions 1 and 3) — a WINDOWED Replay Browser (the live proof's minimal raylib + ImGui loop), a recording
+    /// opened by <c>recording=</c>: <c>POST /director/stills {recording, take, times:[0.5, 3.0, 4.5], width 320, height 180}</c> writes THREE PNGs of 320 × 180
+    /// beside the take, each showing the source second its film second maps to (within one step: the runner is HELD on it), and a contact sheet of
+    /// 2 × 2 cells — 658 × 422 px; then <c>POST /director/play {take, capture:{fps:10, size:"320x180"}}</c> renders the take to an MP4 beside it, paced by the
+    /// take (one step per captured frame, never real time). 🔴 Mutation: <c>DirectorStills</c> not pausing the runner on its first playing frame ⇒ the source
+    /// steps through the settle frames ⇒ <c>shownSim</c> is 3 steps past the planned second — red.
+    /// </summary>
+    [FilmWindowFact]
+    [Trait("Category", "Manual")]
+    public void CE4059_P3_StillsAndTheContactSheet_AndAnMp4_FromARecording_InAWindowedReplayBrowser()
+    {
+        Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser — CE-4059 stills");
+        Fdp.Toolkit.Vis3D.LitShader.Reset();   // a program compiled in another window of this process died with it
+        try
+        {
+            rlImGui_cs.rlImGui.Setup(true);
+            Hrot.UI.Common.Map3D.FilmStudio.Reset();
+            string dir = Path.Combine(_tempDir, "window", "exercises", Guid.NewGuid().ToString());
+            string path = RecordFilmRun(dir, 6d);
+            PutTakeBeside(dir, SegmentedTake());
+            _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            var (host, queue, port) = DirectorHttp();
+            using var _ = host;
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(300) };
+            string url = $"http://localhost:{port}";
+            void Frame()
+            {
+                queue.DrainAll();
+                _subsystem.Update(1f / 60f);
+                Raylib_cs.Raylib.BeginDrawing();
+                Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+                _subsystem.DrawWorld();
+                rlImGui_cs.rlImGui.Begin();
+                _subsystem.DrawUI();
+                rlImGui_cs.rlImGui.End();
+                Raylib_cs.Raylib.EndDrawing();
+            }
+            string rec = System.Text.Json.JsonSerializer.Serialize(path);
+
+            var (code, body) = CallOnThisThread(http.PostAsync(url + "/director/stills",
+                Json($$"""{"recording":{{rec}},"take":"main","times":[0.5,3.0,4.5],"width":320,"height":180}""")), Frame);
+            Assert.True(code == 200, body.ToJsonString());
+            var data = body["data"]!;
+            Assert.True(data["state"]!.GetValue<string>() == "done", data.ToJsonString());
+            var stills = data["stills"]!.AsArray();
+            Assert.Equal(3, stills.Count);
+            string stillsDir = Path.Combine(dir, "s-film", "takes", "main.stills");
+            Assert.Equal(3, Directory.GetFiles(stillsDir, "*.png").Length - 1);   // + the sheet
+            var expected = new[] { 1.25, 2.5, 4.0 };
+            for (int i = 0; i < 3; i++)
+            {
+                var s = stills[i]!;
+                Assert.Equal(stillsDir, Path.GetDirectoryName(s["path"]!.GetValue<string>()));
+                Assert.Equal((320, 180), PngSize(s["path"]!.GetValue<string>()));
+                Assert.InRange(s["shownSim"]!.GetValue<double>(), expected[i] - 1.01 / 60, expected[i] + 1.01 / 60);
+            }
+            var sheet = data["sheet"]!.GetValue<string>();
+            Assert.Equal(Path.Combine(stillsDir, "contact-sheet.png"), sheet);
+            Assert.Equal((658, 422), PngSize(sheet));   // 2 × 2 cells of 320 × 180, a 22 px label under each, 6 px gaps
+            Assert.Empty(data["problems"]!.AsArray());
+
+            // the MP4: one take of the recording, beside it, paced by the take
+            (code, body) = CallOnThisThread(http.PostAsync(url + "/director/play", Json("""{"take":"main","capture":{"fps":10,"size":"320x180"}}""")), Frame);
+            Assert.True(code == 200, body.ToJsonString());
+            var runner = _subsystem.Director!.Runner;
+            for (int i = 0; i < 20_000 && runner.Busy; i++) Frame();
+            Assert.False(runner.Busy);
+            var status = runner.Status();
+            Assert.True(status["error"] == null, status.ToJsonString());
+            string movie = status["movie"]!.GetValue<string>();
+            Assert.Equal(Path.Combine(dir, "s-film", "takes", "main.render", "s-film-main.mp4"), movie);
+            Assert.True(File.Exists(movie) && new FileInfo(movie).Length > 0, movie);
+            int frames = status["frames"]!.GetValue<int>();
+            Assert.Equal(15 + 55, frames);   // the item's title card (1.5 s) + the take's 5.5 film seconds, at 10 fps — one frame per film tenth, never real time
+            Assert.Equal(frames, Directory.GetFiles(Path.Combine(dir, "s-film", "takes", "main.render", "frames"), "*.png").Length);
+        }
+        finally
+        {
+            try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
+            Raylib_cs.Raylib.CloseWindow();
+        }
     }
 
     // ── CE-1303 P2 LIVE PROOF (docs/DESIGN_Director_Timeline_Editor.md §11o "live proof") — a WINDOWED browser, a real recording, one key moved ──

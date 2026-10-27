@@ -602,7 +602,7 @@ public sealed class ClusterMasterSeekTests
         EnterReplay(bus, master, new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 4f, 4_000_000L, 4_000_000L + 39 * Tk, map),
                     targetSimSeconds: 1.5);
         var entry = Assert.Single(bus.ReadManaged<SeekReplayIntent>());
-        Assert.Equal(map.WallAt(1.5) - 4_000_000L, entry.TargetWallTicks);       // the entry, named in sim time
+        Assert.Equal(map.SeekWallAt(1.5) - 4_000_000L, entry.TargetWallTicks);   // the entry, named in sim time (CE-4066: lands ON its frame)
 
         bus.PublishManaged(new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetSimSeconds = 1.0 });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();

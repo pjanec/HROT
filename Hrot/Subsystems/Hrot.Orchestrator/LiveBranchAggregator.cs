@@ -31,8 +31,13 @@ public sealed class LiveBranchAggregator : INodeResponseAggregator
             {
                 var result = JsonSerializer.Deserialize<LiveBranchResult>(json, OrchestrationJsonOptions.Default);
                 if (result.HistoricalTime.TotalWallTicks == 0) continue;
-                if (earliest == null || result.HistoricalTime.TotalWallTicks < earliest.Value.HistoricalTime.TotalWallTicks)
-                    earliest = result;
+                // ⭐ CE-3337 — a node that restored the frame from its own recording first (its FrameNumber is the recorded step count);
+                //   among those, the earliest clock
+                bool better = earliest == null
+                    || (result.FromRecording && !earliest.Value.FromRecording)
+                    || (result.FromRecording == earliest.Value.FromRecording
+                        && result.HistoricalTime.TotalWallTicks < earliest.Value.HistoricalTime.TotalWallTicks);
+                if (better) earliest = result;
             }
             catch (JsonException)
             {

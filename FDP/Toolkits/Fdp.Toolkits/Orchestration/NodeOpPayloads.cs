@@ -52,7 +52,10 @@ namespace Fdp.Toolkit.Orchestration
     /// branch operation.  Carries the historical <see cref="GlobalTime"/> captured immediately
     /// before the node tore down its replay module (CGF1-S0305 / RT-019).
     /// </summary>
-    public readonly record struct LiveBranchResult(GlobalTime HistoricalTime);
+    /// <param name="FromRecording">⭐ CE-3337 — the node restored this frame from its OWN recording, so
+    /// <see cref="GlobalTime.FrameNumber"/> is the recorded step count at it (what the live run resumes counting from); a listening node's
+    /// world clock is not that, and the aggregator prefers a recording node's answer.</param>
+    public readonly record struct LiveBranchResult(GlobalTime HistoricalTime, bool FromRecording = false);
 
     /// <summary>
     /// Payload for <see cref="NodeOpType.AbortTransaction"/> intents.

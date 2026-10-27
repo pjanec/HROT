@@ -60,6 +60,23 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>Is <paramref name="instanceId"/> a side-space token?</summary>
         public static bool IsSide(uint instanceId) => (instanceId & 0x8000_0000u) != 0;
+
+        /// <summary>⭐ <c>CE-3337</c> — the counter's last value (what the world mirrors in <see cref="RunTokenMark"/>).</summary>
+        public static int Last => unchecked((int)System.Threading.Volatile.Read(ref _next));
+
+        /// <summary>⭐ <c>CE-3337</c> — a restore put back a world whose runs had counted to <paramref name="last"/>: the next token follows it,
+        /// as the straight run's did (a branch from a replay numbered on from the ORIGINAL run's count — H3).</summary>
+        public static void ResumeAt(int last) => System.Threading.Volatile.Write(ref _next, unchecked((uint)last));
+    }
+
+    /// <summary>⭐ <c>CE-3337</c> — the world's copy of <see cref="RunTokens"/>' counter, so a restore numbers its next run where the straight
+    /// run did (<c>Fdp.Toolkit.Replay.ResumableCounter</c>, written by <c>BehaviorIngressSystem</c>).</summary>
+    [ComponentId(GlobalComponentIds.RunTokenMark)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct RunTokenMark
+    {
+        public int Last;
+        public double At;
     }
 
     /// <summary>⭐ <c>CE-3035</c> — what the SOP slot was started with (the twin of <see cref="BehaviorStartRecord"/>).</summary>

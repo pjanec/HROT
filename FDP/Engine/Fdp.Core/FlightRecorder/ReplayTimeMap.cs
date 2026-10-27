@@ -194,6 +194,37 @@ namespace Fdp.Core.FlightRecorder
             return Points[^1].WallTicks;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4066</c> — the wall moment a SEEK to <paramref name="simSeconds"/> is sent as, so that an on-or-before seek lands ON a frame
+        /// recorded at that sim time. The fitted line passes each frame within ±<see cref="SimToleranceSeconds"/>, so a frame AT this sim
+        /// can stand a hair after the line's point for it: <see cref="WallAt"/> of the exact sim fell before it and the seek landed one frame
+        /// short (measured: 20 s → 19.983 s on an HTTP-stepped run). ⇒ the wall of sim + the tolerance (frames are ~16 ms apart, the tolerance
+        /// 0.5 ms: the next frame is never reached). ⛔ Seeks only — <see cref="WallAt"/> stays the exact mapping every continuous reader
+        /// (the director, the timeline) draws with.
+        /// </summary>
+        public long SeekWallAt(double simSeconds, Edge edge = Edge.AfterStretch)
+        {
+            if (!HasSimTime) throw new InvalidOperationException("this recording has no sim axis (format v6)");
+            long exact = WallAt(simSeconds, edge);
+            if (FlatAt(simSeconds)) return exact;   // a paused instant resolves exactly to its edge
+            long biased = WallAt(simSeconds + SimToleranceSeconds, edge);
+            return Math.Max(exact, Math.Min(biased, NextFlatStart(exact) ?? biased));
+        }
+
+        private bool FlatAt(double simSeconds)
+        {
+            for (int i = 1; i < Points.Count; i++)
+                if (Points[i].SimSeconds == Points[i - 1].SimSeconds && Same(simSeconds, Points[i].SimSeconds)) return true;
+            return false;
+        }
+
+        private long? NextFlatStart(long wallTicks)
+        {
+            for (int i = 1; i < Points.Count; i++)
+                if (Points[i].SimSeconds == Points[i - 1].SimSeconds && Points[i - 1].WallTicks > wallTicks) return Points[i - 1].WallTicks;
+            return null;
+        }
+
         /// <summary>When <paramref name="wallTicks"/> stands inside a flat run (any — an operator pause or a gap between steps), the wall
         /// time it ends (the sim axis jumps there); otherwise <see langword="null"/>.</summary>
         public long? NextUnpause(long wallTicks)

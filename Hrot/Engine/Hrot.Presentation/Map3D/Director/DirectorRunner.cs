@@ -318,6 +318,14 @@ namespace Hrot.UI.Common.Map3D.Director
             return FilmTimeMap.Of(take, n => times != null && times.TryGetValue(n, out var t) ? t : null).FilmOf(sourceSim);
         }
 
+        /// <summary>⭐ <c>CE-4059</c> P3 (§11r) — the take a play of <paramref name="request"/> reads for its first item (the open one, unsaved edits
+        /// included; else the file) — what the stills plan is made from, so a still shows what Play would.</summary>
+        public Loaded<Take> TakeOf(PlayRequest request)
+        {
+            if (request is null) throw new ArgumentNullException(nameof(request));
+            return request.Reel.Items.Count == 0 ? new Loaded<Take>(null, new[] { "the reel has no items" }) : LoadTake(request, request.Reel.Items[0]);
+        }
+
         /// <summary>⭐ CR-7 — the film second now (NaN when not playing): the source second inside the segment on screen, through <see cref="FilmTimeMap"/>.</summary>
         public double FilmTime => Phase == DirectorPhase.Playing ? FilmAt(Rel) : double.NaN;
 
