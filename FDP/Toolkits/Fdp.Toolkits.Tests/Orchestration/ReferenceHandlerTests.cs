@@ -447,6 +447,31 @@ public sealed class ReferenceHandlerTests
         Assert.Equal(atBranch + 1, Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate());      // ⭐ numbered on from the branch frame
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-3337 — a node that restores the branch frame from its own recording answers the branch with that frame's RECORDED step count
+    /// (<c>FrameNumber</c>, the counter perception stamps sightings with), and says so; a listening node does not claim it.
+    /// 🔴 Before: the replay clock's own frame count went back, and every sighting after the branch was stamped on a shifted count.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CE3337_A_branch_answers_with_the_recorded_step_count_of_the_frame_on_screen(bool restoring)
+    {
+        using var world = new EntityRepository();
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0, FrameNumber = 300 });   // the recorded frame: step 300
+        var controller = new SeekCapturingController { IsRestoringReplay = restoring };
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, ".", world: world);
+
+        var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive, DomainPayload = Guid.NewGuid(),
+        }, CancellationToken.None);
+
+        var branch = Assert.IsType<LiveBranchResult>(result);
+        Assert.Equal(restoring, branch.FromRecording);
+        if (restoring) Assert.Equal(300, branch.HistoricalTime.FrameNumber);
+    }
+
     /// <summary>⭐ CE-3329 D-C / F4 — a node that drops to Idle during a review abandons it: the RAM checkpoint dropped, the gates off,
     /// the egress released; the way back is the recording's labelled keyframe.</summary>
     [Fact]
@@ -478,7 +503,7 @@ public sealed class ReferenceHandlerTests
         /// <summary>Like the real controller: the cluster's anchor once set, else this recording's start.</summary>
         public long ReplayAnchorWallTicks { get => _anchor != 0 ? _anchor : ActiveRecordingStartWallTicks; set => _anchor = value; }
         public string? ActiveReplayFilePath => null;
-        public bool IsRestoringReplay { get; private set; }
+        public bool IsRestoringReplay { get; set; }
         /// <summary>R-4012 — when false the fake's recording does not cover the moment: it restores nothing.</summary>
         public bool Covers { get; set; } = true;
         public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks)

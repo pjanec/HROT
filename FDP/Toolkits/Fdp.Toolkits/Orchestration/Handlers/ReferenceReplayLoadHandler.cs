@@ -288,6 +288,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 // Capture the historical time BEFORE teardown; after TeardownReplayAsync the
                 // replay module is gone and _controller.GetCurrentReplayTime() returns default.
                 GlobalTime historicalTime = _controller.GetCurrentReplayTime();
+                // ⭐⭐ CE-3337 — the live run counts its STEPS on from the frame on screen: the recorded GlobalTime's FrameNumber (the step
+                //   counter perception stamps sightings with, PerceptionClock). ⛔ The replay clock's own frame count went on instead, so every
+                //   TargetMemory.LastSeenTick after a branch was on a shifted count (H3: the units' memory differed from the straight run's).
+                //   Only a node that restored this frame from its own recording knows it (a listener's world clock is stale).
+                bool fromRecording = _controller.IsRestoringReplay && _world is { } w && w.HasSingletonUnmanaged<GlobalTime>();
+                if (fromRecording) historicalTime.FrameNumber = _world!.GetSingletonUnmanaged<GlobalTime>().FrameNumber;
                 // ⭐ D18 (R-3047) — the branch keeps its history: this node's recording up to the frame on screen is copied into
                 //   the new exercise first (null on a listener — its branch starts empty). Read BEFORE the teardown closes it.
                 var history = _controller.CurrentReplayBranch;
@@ -307,7 +313,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     historicalTime.TotalWallTicks,
                     history == null ? "none (listener)" : $"{history.FrameCount} frame(s) of {history.ParentExerciseId}");
 
-                return new LiveBranchResult(historicalTime);
+                return new LiveBranchResult(historicalTime, fromRecording);
             }
 
             return null;
